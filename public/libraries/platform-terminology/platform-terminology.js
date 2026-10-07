@@ -103,7 +103,7 @@
       term('settings_tab', 'Crews and Subcontractors', 'navigation'), term('organization_connections_view', 'Organization Connections', 'view')
     ]),
     section('settings', 'Settings', 'Settings shell navigation and administration-only areas.', [
-      term('portal_tab', 'Settings', 'navigation'), term('company_tab', 'Company', 'navigation'), term('users_tab', 'Users', 'navigation'), term('people_view', 'People', 'view'), term('roles_access_view', 'Roles & access', 'view'), term('terminology_tab', 'Terminology', 'navigation'), term('configuration_tab', 'Configuration', 'navigation'), term('storage_tab', 'Storage', 'navigation'), term('sms_tab', 'SMS', 'navigation'), term('feature_flags_tab', 'Feature Flags', 'navigation')
+      term('portal_tab', 'Settings', 'navigation'), term('company_tab', 'Company', 'navigation'), term('users_tab', 'Users', 'navigation'), term('people_view', 'People', 'view'), term('roles_access_view', 'Roles & access', 'view'), term('terminology_tab', 'Terminology', 'navigation'), term('configuration_tab', 'Configuration', 'navigation'), term('storage_tab', 'Storage', 'navigation'), term('sms_tab', 'SMS', 'navigation'), term('feature_flags_tab', 'Feature Flags', 'navigation'), term('developer_settings_tab', 'Developer Settings', 'navigation')
     ]),
     section('billing', 'Billing', 'Billing settings navigation and subscription records.', [
       term('settings_tab', 'Billing', 'navigation'), term('subscription', 'Subscription'), term('plan', 'Plan'), term('billing_contact', 'Billing Contact'), term('invoice', 'Invoice'), term('payment_method', 'Payment Method')

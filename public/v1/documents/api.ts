@@ -1,3 +1,4 @@
+import { readDocumentDeliveryDefaults } from "./settings.js";
 import { registerDocumentTagRoutes } from "./tag-catalog.js";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { ZodError } from "zod";
@@ -583,6 +584,13 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   // -------------------------------------------------------------------------
   // Catalog (editor palette data)
   // -------------------------------------------------------------------------
+
+  app.get("/organizations/:orgId/settings", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "view_projects" });
+    const branchId = cleanText(asObject(request.query).branch_id) || "default";
+    return { ok: true, settings: await readDocumentDeliveryDefaults(orgId, branchId) };
+  });
 
   app.get("/organizations/:orgId/catalog", async (request) => {
     const orgId = getParam(request.params, "orgId");

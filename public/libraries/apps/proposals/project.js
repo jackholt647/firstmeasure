@@ -11979,42 +11979,8 @@
   }
 
   function mountProposalSettingsPanel(){
-    const root = $('#rProposalPreview');
-    if (!root || !proposalSettingsPanelOpen) return;
-    closeProposalPricebookSuggest();
-    root.innerHTML = `
-      <div class="r-settings-panel">
-        <div class="r-settings-panel-head">
-          <div>
-            <strong>${(globalThis.PlatformLanguage?.htmlText("proposals","m_72f0a27f9ae574","Proposal Settings") ?? "Proposal Settings")}</strong>
-            <span>${(globalThis.PlatformLanguage?.htmlText("proposals","m_2483b19ab4ae38","Defaults for new proposals in this branch") ?? "Defaults for new proposals in this branch")}</span>
-          </div>
-          <button type="button" class="r-settings-panel-close" id="rProposalSettingsClose" aria-label="${(globalThis.PlatformLanguage?.htmlText("proposals","m_cb25aa10e60505","Close proposal settings") ?? "Close proposal settings")}" data-fm-tooltip="Back to proposal preview"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="r-settings-panel-body" id="rProposalSettingsPanel"></div>
-      </div>
-    `;
-    root.querySelector('#rProposalSettingsClose')?.addEventListener('click', closeProposalSettingsPanel);
-    const panel = root.querySelector('#rProposalSettingsPanel');
-    if (!window.FirstMateSettingsPages?.mount) {
-      panel.innerHTML = `<div class="cs-note" style="padding:18px">${(globalThis.PlatformLanguage?.htmlText("proposals","m_728f33c2030828","Proposal settings library is unavailable.") ?? "Proposal settings library is unavailable.")}</div>`;
-      return;
-    }
-    window.FirstMateSettingsPages.mount(panel, 'proposals', {
-      orgId: String(window.__APP?.userOrgId || '').trim(),
-      branchId: String(window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || 'default').trim() || 'default',
-      source: 'project_modal_proposals',
-      embedded: true
-    });
+    window.dispatchEvent(new CustomEvent('fm:open-document-settings'));
   }
-
-  function clearProposalSettingsPanel(){
-    if (!proposalSettingsPanelOpen) return false;
-    $('#rProposalSettingsPanel')?.__fmSettingsPageDestroy?.();
-    proposalSettingsPanelOpen = false;
-    return true;
-  }
-
   function closeProposalSettingsPanel(){
     if (!clearProposalSettingsPanel()) return;
     if (activePreviewTab !== 'proposal') setActivePreviewTab('proposal');
@@ -12026,18 +11992,7 @@
   }
 
   function openProposalSettingsPanel(){
-    if (!proposalsEnabled()) return;
-    proposalSettingsPanelOpen = true;
-    proposalWorkspaceOpen = true;
-    proposalWorkspaceMode = 'list';
-    proposalEditorMode = 'preview';
-    proposalActionExpanded = false;
-    proposalSigningMode = false;
-    proposalSigningSession = null;
-    closeSignatureChooser();
-    syncProjectViewerTabs();
-    setActivePreviewTab('proposal');
-    renderWorkflowState();
+    window.dispatchEvent(new CustomEvent('fm:open-document-settings'));
   }
 
   function launchProposalBuilder(){

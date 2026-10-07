@@ -74,8 +74,8 @@
   add('storage', 'Storage', ['Media storage usage', 'Storage limits', 'Deleted media', 'Storage plan']);
   add('sms', 'SMS', ['Messaging registration', '10DLC registration', 'SMS setup', 'Messaging profile']);
   add('domains', 'Domains & Hosting', ['Register domain', 'Connect domain', 'Website hosting', 'DNS settings']);
-  add('app_flags', 'Features & Apps', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_713f0340a07ac2","Features & Apps") ?? "Features & Apps"), view:'', keywords:'feature flags enable disable' },
+  add('app_flags', 'Developer Settings', [
+    { title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), view:'', keywords:'developer settings development dev tools feature flags features apps enable disable' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_4d4f031a019ad9","Manage My Apps") ?? "Manage My Apps"), view:'manage_apps', keywords:'installed applications' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_536d6b65f599fc","App Locations") ?? "App Locations"), view:'app_locations', keywords:'navigation placement' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_3f7df83412b6a8","App presets") ?? "App presets"), view:'presets', keywords:'feature configuration sets' },

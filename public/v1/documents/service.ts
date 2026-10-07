@@ -1,3 +1,4 @@
+import { readDocumentDeliveryDefaults, documentCustomerComplete } from "./settings.js";
 import { documentTags } from "./tags.js";
 import { companyDocumentLanguage } from "../platform/localization/documents.js";
 import { serverLanguage } from "../platform/localization/server.js";
@@ -1830,6 +1831,7 @@ async function createSnapshotLocked(orgId: string, documentId: string, input: Js
     evidence: {},
     public_token: publicToken,
     pdf: {},
+    customer_completion_message: (await readDocumentDeliveryDefaults(orgId, cleanText(document.branch_id) || "default")).completion_message,
     locked: true,
     locked_at: now,
     created_by_user_id: ctx?.userId || "",
@@ -1860,6 +1862,12 @@ export async function sendDocument(orgId: string, documentId: string, input: Jso
 async function sendDocumentLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext) {
   if (ctx.userId !== "system_automation" && !hasPermission(ctx, "issue_documents")) throw forbidden("signature_issue_permission", "Document issuing permission is required to assign signers and send contracts.");
   let before = await readDocumentInstance(orgId, documentId);
+  const defaults = await readDocumentDeliveryDefaults(orgId, cleanText(before.branch_id) || "default");
+  input = {
+    ...input,
+    include_pdf: input.include_pdf ?? defaults.send_include_pdf,
+    include_portal: input.include_portal ?? defaults.send_include_portal
+  };
   const applied = FMDocModel.applyOverrides(await templateDefinitionFor(orgId, before), asArray(before.overrides));
   const inferred = inferSignatureDefinitions(asObject(applied.document), asObject(before.output_defs));
   if (JSON.stringify(inferred) !== JSON.stringify(before.output_defs)) before = await saveDocumentInstance(orgId, documentId, { ...before, output_defs: inferred });
@@ -3006,6 +3014,14 @@ export async function publicDocumentWorkflow(publicToken: string) {
   const paymentSummary = documentCapabilityEnabled(capabilityState, DOCUMENT_CAPABILITIES.payments)
     ? await publicDocumentPaymentSummary(found.orgId, document).catch(() => null)
     : null;
+  const signing = await signingStatus(found.orgId, cleanText(found.snapshot.id), publicToken);
+  const obligations = cleanText(document.project_id)
+    ? await listProjectObligations(found.orgId, cleanText(document.project_id), { skipFlag: true })
+    : [];
+  const defaults = await readDocumentDeliveryDefaults(found.orgId, cleanText(document.branch_id) || "default");
+  const company = asObject(await readOrganization(found.orgId));
+  const completionMessage = String(found.snapshot.customer_completion_message ?? defaults.completion_message)
+    .replace(/\{\{\s*company\s*\}\}/gi, cleanText(company.name || company.company_name || asObject(company.data).name) || "Company");
   return {
     orgId: found.orgId,
     snapshot: {
@@ -3015,8 +3031,10 @@ export async function publicDocumentWorkflow(publicToken: string) {
     } as JsonObject,
     document,
     capabilities: capabilityState.effectiveByKey,
-    signing: await signingStatus(found.orgId, cleanText(found.snapshot.id), publicToken),
+    signing,
     workflow: {
+      customer_complete: documentCustomerComplete(document, found.snapshot, signing, obligations),
+      completion_message: completionMessage,
       ...(paymentSummary ? { payment_summary: paymentSummary } : {})
     }
   };

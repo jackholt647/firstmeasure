@@ -977,6 +977,7 @@ Continue with this payment?`)(message));
             </div>
           </div>
           ${phase === 'workflow' ? `<section class="cp-doc-workflow-inline" data-inline-document-workflow="${escapeHtml(activeToken)}"><div class="cp-loading">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1552b0ceca5d2f","Loading your next step...") ?? "Loading your next step...")}</div></section>` : ''}
+          ${cached?.workflow?.customer_complete === true && cleanText(cached.workflow.completion_message) ? '<div class="cp-thank-you" role="status">' + escapeHtml(cached.workflow.completion_message) + '</div>' : ''}
           ${stage}
         </div>
       </section>

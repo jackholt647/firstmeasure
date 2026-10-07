@@ -4113,7 +4113,13 @@
     }
 
     // ================================================================ send
-    function openSendModal(docRecord){
+    async function openSendModal(docRecord){
+      let deliveryDefaults;
+      try {
+        const branchId = firstText(docRecord.branch_id, project().branch_id, window.Portal?.branchModules?.currentBranchId?.(), 'default');
+        deliveryDefaults = objectValue((await api().documents.settings(orgId(), branchId)).settings);
+        if (state.destroyed) return;
+      } catch (error) { showToast('Send document', errorMessage(error, 'Could not load document delivery defaults.'), false); return; }
       const doc = objectValue(docRecord);
       if (!doc.id) return;
       const emailValid = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
@@ -4149,8 +4155,8 @@
           </div>
           <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_2346d86fbb7dfd","Add another email (optional)") ?? "Add another email (optional)")}</span><input type="email" data-send-extra placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_ee9cc9ca2a8b83","name@email.com") ?? "name@email.com")}"></label>
           <label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_1cc093ae43d736","Message (optional)") ?? "Message (optional)")}</span><textarea data-send-message placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_c6b7216b3e2a6c","A short note included with the email…") ?? "A short note included with the email…")}"></textarea></label>
-          <label class="fmdx-check"><input type="checkbox" data-send-portal checked>${(globalThis.PlatformLanguage?.htmlText("documents","m_948ada5da279bb"," Include portal link (view, sign & pay online)") ?? " Include portal link (view, sign & pay online)")}</label>
-          <label class="fmdx-check"><input type="checkbox" data-send-pdf checked>${(globalThis.PlatformLanguage?.htmlText("documents","m_c96d1087aa82e3"," Attach PDF") ?? " Attach PDF")}</label>
+          <label class="fmdx-check"><input type="checkbox" data-send-portal ${deliveryDefaults.send_include_portal !== false ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_948ada5da279bb"," Include portal link (view, sign & pay online)") ?? " Include portal link (view, sign & pay online)")}</label>
+          <label class="fmdx-check"><input type="checkbox" data-send-pdf ${deliveryDefaults.send_include_pdf !== false ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_c96d1087aa82e3"," Attach PDF") ?? " Attach PDF")}</label>
         </div>
         <div class="fmdx-modal-foot">
           <button type="button" class="fmdx-btn primary" data-send-go><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>

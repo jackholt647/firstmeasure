@@ -1379,6 +1379,10 @@
     "label": "SMS",
     "kind": "navigation"
   },
+  "settings.developer_settings_tab": {
+    "label": "Developer Settings",
+    "kind": "navigation"
+  },
   "settings.feature_flags_tab": {
     "label": "Feature Flags",
     "kind": "navigation"

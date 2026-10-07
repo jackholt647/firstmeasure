@@ -143,7 +143,6 @@
   const BILL_STEP = 10;  // dollars
   const BILL_DEFAULT_THRESHOLD = 50;
   const BILL_DEFAULT_TOPUP = 100;
-  const PROPOSAL_FONT_OPTIONS = ['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3'];
   function currentOrgId(){
     return String(window.__APP?.userOrgId || state?.id || '').trim();
   }
@@ -287,510 +286,6 @@
     };
     return Object.fromEntries(Object.entries(labels).map(([key,fallback]) => [key, window.PlatformTerminology?.get?.(`workforce.${key}`, fallback) || fallback]));
   }
-  function normalizeProposalSettings(input){
-    const data = input && typeof input === 'object' ? input : {};
-    const defaults = data.proposal_defaults && typeof data.proposal_defaults === 'object' ? data.proposal_defaults : {};
-    const number = (value, fallback = 0) => {
-      const parsed = Number(String(value ?? '').replace(/[^0-9.]/g, ''));
-      return Number.isFinite(parsed) ? parsed : fallback;
-    };
-    const configuredSchedule = Array.isArray(defaults.payment_schedule) ? defaults.payment_schedule : [];
-    const fallbackSchedule = [
-      { label: (globalThis.PlatformLanguage?.text("settings","m_894309a0cbf8a4","Deposit") ?? "Deposit"), percent: 30, due_rule: 'on_signature' },
-      { label: (globalThis.PlatformLanguage?.text("settings","m_f74b29ad49ce79","Progress Payment") ?? "Progress Payment"), percent: 30, due_rule: 'manual' },
-      { label: (globalThis.PlatformLanguage?.text("settings","m_a9a97324d639c3","Final Payment") ?? "Final Payment"), percent: 40, due_rule: 'project_completion' }
-    ];
-    const paymentSchedule = fallbackSchedule.map((fallback, index) => {
-      const source = configuredSchedule[index] && typeof configuredSchedule[index] === 'object' ? configuredSchedule[index] : {};
-      return {
-        label: String(source.label || fallback.label).trim() || fallback.label,
-        percent: Math.max(0, number(source.percent, fallback.percent)),
-        due_rule: String(source.due_rule || source.dueRule || fallback.due_rule).trim() || fallback.due_rule
-      };
-    });
-    const theme = String(data.default_theme || defaults.default_theme || 'margin').trim();
-    return {
-      ...data,
-      default_theme: ['margin', 'clean', 'triangles'].includes(theme) ? theme : 'margin',
-      proposal_defaults: {
-        ...defaults,
-        send_include_pdf: defaults.send_include_pdf !== false,
-        send_include_portal: defaults.send_include_portal !== false,
-        show_portal_price_comparison: defaults.show_portal_price_comparison !== false,
-        default_title_prefix: String(defaults.default_title_prefix || 'Proposal').trim() || 'Proposal',
-        completion_message: String(defaults.completion_message || '{{company}} will reach out with next steps.').trim() || '{{company}} will reach out with next steps.',
-        sales_tax_percent: Math.max(0, number(defaults.sales_tax_percent, 0)),
-        payment_schedule: paymentSchedule,
-        font_family: PROPOSAL_FONT_OPTIONS.includes(String(defaults.font_family || data.proposal_font_family || data.font_family || '').trim())
-          ? String(defaults.font_family || data.proposal_font_family || data.font_family).trim()
-          : 'Montserrat'
-      }
-    };
-  }
-  function injectSettingsPageCommonCss(){
-    injectCSS('firstmate_settings_pages_common', `
-      .fm-settings-page{height:100%;min-height:0;overflow:auto;background:#fff;color:#111827}
-      .fm-settings-page.embedded{padding:18px}
-      .fm-settings-page .cs-section{display:flex;flex-direction:column;gap:14px}
-      .fm-settings-page h3{margin:0;font-size:18px;line-height:1.2;font-weight:1000;color:#111827}
-      .fm-settings-page .cs-note{font-size:12px;line-height:1.45;color:#667085;font-weight:750;margin:0}
-      .fm-settings-page .cs-grid{display:grid;grid-template-columns:1fr;gap:12px}
-      .fm-settings-page .cs-row{display:flex;flex-direction:column;gap:7px}
-      .fm-settings-page .cs-lbl{font-size:12px;font-weight:950;color:#344054}
-      .fm-settings-page .cs-in{height:40px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:0 12px;font:inherit;font-size:13px;font-weight:800;color:#111827;outline:none}
-      .fm-settings-page .cs-in:focus{border-color:rgba(var(--primary-rgb,217,48,37),.45);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.09)}
-      .fm-settings-page .proposal-default-grid{display:grid;grid-template-columns:1fr 180px;gap:12px}
-      .fm-settings-page .proposal-schedule{display:grid;gap:8px;border:1px solid #e4e7ec;border-radius:12px;padding:12px}
-      .fm-settings-page .proposal-schedule-head,.fm-settings-page .proposal-schedule-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px;align-items:center}
-      .fm-settings-page .proposal-schedule-head{color:#667085;font-size:11px;font-weight:950;text-transform:uppercase}
-      .fm-settings-page .proposal-schedule-row .cs-in{text-align:left}
-      .fm-settings-page .proposal-schedule-row .percent{position:relative}
-      .fm-settings-page .proposal-schedule-row .percent .cs-in{padding-right:28px;text-align:right}
-      .fm-settings-page .proposal-schedule-row .percent:after{content:"%";position:absolute;right:11px;top:50%;transform:translateY(-50%);color:#667085;font-weight:950;font-size:12px}
-      .fm-settings-page .cfg-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-      .fm-settings-page .cfg-option{border:1px solid #e4e7ec;background:#fff;border-radius:12px;padding:12px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:5px;min-height:94px;transition:.16s ease}
-      .fm-settings-page .cfg-option strong{font-size:13px;font-weight:1000;color:#111827}
-      .fm-settings-page .cfg-option span{font-size:11px;line-height:1.35;font-weight:750;color:#667085}
-      .fm-settings-page .cfg-option.active{border-color:rgba(var(--primary-rgb,217,48,37),.38);background:rgba(var(--primary-rgb,217,48,37),.05);box-shadow:inset 0 0 0 1px rgba(var(--primary-rgb,217,48,37),.06)}
-      .fm-settings-page .li-switch-row{border:1px solid #e4e7ec;border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:14px}
-      .fm-settings-page .li-switch{width:42px;height:24px;border-radius:999px;background:#d0d5dd;position:relative;display:inline-flex;flex:0 0 auto;cursor:pointer}
-      .fm-settings-page .li-switch input{position:absolute;opacity:0;pointer-events:none}
-      .fm-settings-page .li-slider{position:absolute;inset:0;border-radius:999px;transition:.16s ease}
-      .fm-settings-page .li-slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(15,23,42,.24);transition:.16s ease}
-      .fm-settings-page .li-switch input:checked + .li-slider{background:var(--primary-readable,var(--primary,#d93025))}
-      .fm-settings-page .li-switch input:checked + .li-slider:before{transform:translateX(18px)}
-      .fm-settings-page .li-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-      .fm-settings-page .cs-btn{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:10px;height:38px;padding:0 13px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
-      .fm-settings-page .cs-btn.primary{border-color:var(--primary-readable,var(--primary,#d93025));background:var(--primary-readable,var(--primary,#d93025));color:#fff}
-      .fm-settings-page .cs-btn:disabled{opacity:.62;cursor:default}
-      .fm-settings-page .scope-admin-divider{height:1px;background:#e4e7ec;margin:6px 0}
-      .fm-settings-page .scope-admin-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
-      .fm-settings-page .work-term-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-      .fm-settings-page .scope-template-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-      .fm-settings-page .scope-template-card{min-width:0;border:1px solid #e4e7ec;border-radius:8px;background:#fff;padding:12px;display:grid;grid-template-columns:8px minmax(0,1fr) 32px;gap:10px;align-items:start}
-      .fm-settings-page .scope-template-color{width:8px;height:100%;min-height:52px;border-radius:4px;background:var(--scope-color,#98a2b3)}
-      .fm-settings-page .scope-template-copy{min-width:0;display:flex;flex-direction:column;gap:4px}
-      .fm-settings-page .scope-template-copy strong{font-size:13px;color:#111827;overflow-wrap:anywhere}
-      .fm-settings-page .scope-template-copy span{font-size:11px;line-height:1.35;color:#667085;font-weight:750}
-      .fm-settings-page .scope-template-edit{width:32px;height:32px;padding:0;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#475467;cursor:pointer}
-      .fm-settings-page .scope-template-editor{border-top:1px solid #e4e7ec;padding-top:14px;display:flex;flex-direction:column;gap:12px}
-      .fm-settings-page .scope-template-editor textarea.cs-in{height:84px;padding-top:10px;resize:vertical}
-      .fm-settings-page .scope-color-input{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px;align-items:center}
-      .fm-settings-page .scope-color-input input[type="color"]{width:48px;height:40px;padding:3px;border:1px solid #d0d5dd;border-radius:8px;background:#fff}
-      @media(max-width:980px){.fm-settings-page .scope-template-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fm-settings-page .work-term-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-      @media(max-width:780px){.fm-settings-page.embedded{padding:14px}.fm-settings-page .cfg-options,.fm-settings-page .proposal-default-grid,.fm-settings-page .scope-template-grid,.fm-settings-page .work-term-grid{grid-template-columns:1fr}}
-    `);
-  }
-  function proposalSettingsStore(context = {}){
-    const pages = window.FirstMateSettingsPages;
-    return pages?.branchModuleStore?.('presentation_style', {
-      orgId: context.orgId || currentOrgId(),
-      branchId: context.branchId || currentBranchId(),
-      normalize: normalizeProposalSettings,
-      kind: 'branch_presentation_style',
-      source: context.source || 'settings_pages_proposals',
-      updatedEvent: 'fm:proposal-settings:updated'
-    });
-  }
-  function renderReusableProposalSettingsPage(context){
-    const pages = window.FirstMateSettingsPages;
-    const root = context.root;
-    const escape = context.escapeHtml || escapeHtml;
-    const show = context.showToast || showToast;
-    const store = proposalSettingsStore(context);
-    if (!root || !store) {
-      if (root) root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_1e9bff786cec8b","Proposal settings are unavailable.") ?? "Proposal settings are unavailable.")}</div>`;
-      return {};
-    }
-    injectSettingsPageCommonCss();
-    let destroyed = false;
-    let settings = normalizeProposalSettings({});
-    let scopeTemplates = [];
-    let scopeTemplatesLoading = true;
-    let scopeTemplatesError = '';
-    let editingScopeTemplateId = '';
-    let workConfiguration = { revision:0, terminology:{ phase:'Phase', stage:'Stage', task:'To-do', board:'Board' } };
-    let workConfigurationLoading = true;
-    const ids = {
-      title: ((v0) => globalThis.PlatformLanguage?.text("settings","m_39e76ae8398846",`${v0}_proposalTitlePrefix`,{v0}) ?? `${v0}_proposalTitlePrefix`)(context.instanceId),
-      font: `${context.instanceId}_proposalFontFamily`,
-      tax: `${context.instanceId}_proposalSalesTax`,
-      pay0Label: `${context.instanceId}_proposalPayment0Label`,
-      pay0Percent: `${context.instanceId}_proposalPayment0Percent`,
-      pay1Label: `${context.instanceId}_proposalPayment1Label`,
-      pay1Percent: `${context.instanceId}_proposalPayment1Percent`,
-      pay2Label: `${context.instanceId}_proposalPayment2Label`,
-      pay2Percent: `${context.instanceId}_proposalPayment2Percent`,
-      completion: `${context.instanceId}_proposalCompletionMessage`,
-      priceCompare: `${context.instanceId}_proposalPortalPriceCompare`,
-      pdf: `${context.instanceId}_proposalSendPdfDefault`,
-      portal: `${context.instanceId}_proposalSendPortalDefault`,
-      save: `${context.instanceId}_proposalSettingsSave`,
-      status: `${context.instanceId}_proposalSettingsStatus`,
-      workPhase: `${context.instanceId}_workPhaseTerm`,
-      workStage: `${context.instanceId}_workStageTerm`,
-      workTask: `${context.instanceId}_workTaskTerm`,
-      workBoard: `${context.instanceId}_workBoardTerm`,
-      workSave: `${context.instanceId}_workTermsSave`,
-      scopeName: `${context.instanceId}_scopeName`,
-      scopeColor: `${context.instanceId}_scopeColor`,
-      scopeColorText: `${context.instanceId}_scopeColorText`,
-      scopeDescription: `${context.instanceId}_scopeDescription`,
-      scopeDetails: `${context.instanceId}_scopeDetails`,
-      scopeSave: `${context.instanceId}_scopeSave`,
-      scopeCancel: `${context.instanceId}_scopeCancel`,
-      scopeReset: `${context.instanceId}_scopeReset`
-    };
-    const numberValue = (id, fallback = 0) => {
-      const parsed = Number(String(root.querySelector(`#${CSS.escape(id)}`)?.value || '').replace(/[^0-9.]/g, ''));
-      return Number.isFinite(parsed) ? parsed : fallback;
-    };
-    const collectDraft = () => normalizeProposalSettings({
-      ...settings,
-      proposal_defaults: {
-        ...(settings.proposal_defaults || {}),
-        default_title_prefix: String(root.querySelector(`#${CSS.escape(ids.title)}`)?.value || 'Proposal').trim() || 'Proposal',
-        completion_message: String(root.querySelector(`#${CSS.escape(ids.completion)}`)?.value || '{{company}} will reach out with next steps.').trim() || '{{company}} will reach out with next steps.',
-        sales_tax_percent: numberValue(ids.tax, 0),
-        payment_schedule: [
-          { label: String(root.querySelector(`#${CSS.escape(ids.pay0Label)}`)?.value || 'Deposit').trim() || 'Deposit', percent: numberValue(ids.pay0Percent, 30), due_rule: 'on_signature' },
-          { label: String(root.querySelector(`#${CSS.escape(ids.pay1Label)}`)?.value || 'Progress Payment').trim() || 'Progress Payment', percent: numberValue(ids.pay1Percent, 30), due_rule: 'manual' },
-          { label: String(root.querySelector(`#${CSS.escape(ids.pay2Label)}`)?.value || 'Final Payment').trim() || 'Final Payment', percent: numberValue(ids.pay2Percent, 40), due_rule: 'project_completion' }
-        ],
-        font_family: PROPOSAL_FONT_OPTIONS.includes(root.querySelector(`#${CSS.escape(ids.font)}`)?.value)
-          ? root.querySelector(`#${CSS.escape(ids.font)}`)?.value
-          : 'Montserrat',
-        send_include_pdf: !!root.querySelector(`#${CSS.escape(ids.pdf)}`)?.checked,
-        send_include_portal: !!root.querySelector(`#${CSS.escape(ids.portal)}`)?.checked,
-        show_portal_price_comparison: !!root.querySelector(`#${CSS.escape(ids.priceCompare)}`)?.checked
-      }
-    });
-    const publishInputDraft = () => {
-      settings = collectDraft();
-      store.setDraft(settings, { source: context.instanceId, pageId: 'proposals' });
-    };
-    const selectedScopeTemplate = () => scopeTemplates.find((template) => template.id === editingScopeTemplateId) || null;
-    const safeHexColor = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '').trim()) ? String(value).trim() : '#667085';
-    const workflowTaskCount = (template) => {
-      let count = 0;
-      const visit = (nodes) => (Array.isArray(nodes) ? nodes : []).forEach((node) => {
-        if (node?.actionable === true) count += 1;
-        visit(node?.children);
-      });
-      visit(template?.definition?.work_plan?.root_nodes);
-      return count;
-    };
-    const scopeEditorMarkup = () => {
-      const template = selectedScopeTemplate();
-      if (!template) return '';
-      return `
-        <div class="scope-template-editor" data-scope-template-editor="${String(escape(template.id))}">
-          <div class="scope-admin-head"><div><div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_46b47f108a09d1","Edit Scope Template") ?? "Edit Scope Template")}</div><h3>${String(escape(template.name || template.id))}</h3></div><span class="cs-note">${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_5082194385b241",`Version ${v2}`,{v2}) ?? `Version ${v2}`)(escape(String(template.version || template.current_version || 1)))}</span></div>
-          <div class="proposal-default-grid">
-            <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeName))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}</label><input class="cs-in" id="${String(escape(ids.scopeName))}" value="${String(escape(template.name || ''))}"></div>
-            <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeColorText))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_a601832399a223","Project Color") ?? "Project Color")}</label><div class="scope-color-input"><input id="${String(escape(ids.scopeColor))}" type="color" value="${String(escape(safeHexColor(template.color)))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_d8bf13d51f41bb","Project color") ?? "Project color")}"><input class="cs-in" id="${String(escape(ids.scopeColorText))}" value="${String(escape(template.color || ''))}"></div></div>
-          </div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeDescription))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_20e1bc33c081dd","Short Description") ?? "Short Description")}</label><input class="cs-in" id="${String(escape(ids.scopeDescription))}" value="${String(escape(template.description || ''))}"></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.scopeDetails))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_20c20a5df7e801","Template Details") ?? "Template Details")}</label><textarea class="cs-in" id="${String(escape(ids.scopeDetails))}">${String(escape(template.details || ''))}</textarea></div>
-          <div class="li-actions"><button class="cs-btn primary" id="${String(escape(ids.scopeSave))}" type="button"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2ab70954f551e0"," Save Template") ?? " Save Template")}</button><button class="cs-btn" id="${String(escape(ids.scopeCancel))}" type="button">${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button></div>
-        </div>`;
-    };
-    const scopeAdministrationMarkup = () => {
-      const terminology = workConfiguration?.terminology || {};
-      const templatesMarkup = scopeTemplatesLoading
-        ? `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_b340ec89fbab5c"," Loading scope templates...") ?? " Loading scope templates...")}</div>`
-        : scopeTemplatesError
-          ? `<div class="cs-note">${escape(scopeTemplatesError)}</div>`
-          : `<div class="scope-template-grid">${scopeTemplates.map((template) => `
-              <div class="scope-template-card">
-                <span class="scope-template-color" style="--scope-color:${String(escape(template.color || '#98a2b3'))}"></span>
-                <span class="scope-template-copy"><strong>${String(escape(template.name || template.id))}</strong><span>${String(escape(template.description || `${workflowTaskCount(template)} workflow steps`))}</span><span>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("settings","m_0b6887b880ba34",`v${v3} &middot; ${v4} to-dos`,{v3,v4}) ?? `v${v3} &middot; ${v4} to-dos`)(escape(String(template.version || template.current_version || 1)),workflowTaskCount(template))}</span></span>
-                <button class="scope-template-edit" type="button" data-scope-template-edit="${String(escape(template.id))}" title="${((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_b29c4af5929215",`Edit ${v6}`,{v6}) ?? `Edit ${v6}`)(escape(template.name || template.id))}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("settings","m_158711b17eed99",`Edit ${v7}`,{v7}) ?? `Edit ${v7}`)(escape(template.name || template.id))}"><i class="fas fa-pen"></i></button>
-              </div>`).join('')}</div>`;
-      return `
-        <div class="scope-admin-divider"></div>
-        <div class="scope-admin-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_3403bddf7b0434","Work Language") ?? "Work Language")}</h3></div>${String(workConfigurationLoading ? '<span class="cs-note"><i class="fas fa-spinner fa-spin"></i></span>' : '')}</div>
-        <div class="work-term-grid">
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workPhase))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_95d703244e42dc","Phase") ?? "Phase")}</label><input class="cs-in" id="${String(escape(ids.workPhase))}" value="${String(escape(terminology.phase || 'Phase'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workStage))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_43f2c4d59757a1","Stage") ?? "Stage")}</label><input class="cs-in" id="${String(escape(ids.workStage))}" value="${String(escape(terminology.stage || 'Stage'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workTask))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_1dad46c8777063","To-do") ?? "To-do")}</label><input class="cs-in" id="${String(escape(ids.workTask))}" value="${String(escape(terminology.task || 'To-do'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
-          <div class="cs-row"><label class="cs-lbl" for="${String(escape(ids.workBoard))}">${(globalThis.PlatformLanguage?.htmlText("settings","m_48afb49c6f40c4","Board") ?? "Board")}</label><input class="cs-in" id="${String(escape(ids.workBoard))}" value="${String(escape(terminology.board || 'Board'))}" ${String(workConfigurationLoading ? 'disabled' : '')}></div>
-        </div>
-        <div class="li-actions"><button class="cs-btn" id="${String(escape(ids.workSave))}" type="button" ${String(workConfigurationLoading ? 'disabled' : '')}><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e2ad91bd84c86"," Save Work Language") ?? " Save Work Language")}</button></div>
-        <div class="scope-admin-divider"></div>
-        <div class="scope-admin-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cf0e5b927cef4f","Project Scope Templates") ?? "Project Scope Templates")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_01b956a3dbb47c","Reset replaces this branch's template copies with the current global defaults.") ?? "Reset replaces this branch's template copies with the current global defaults.")}</p></div><button class="cs-btn" id="${String(escape(ids.scopeReset))}" type="button"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7c7b14aaccaafb"," Reset to global") ?? " Reset to global")}</button></div>
-        ${String(templatesMarkup)}
-        ${String(scopeEditorMarkup())}`;
-    };
-    const render = (saving = false, statusText = '') => {
-      const defaults = settings.proposal_defaults || {};
-      const paymentSchedule = Array.isArray(defaults.payment_schedule) ? defaults.payment_schedule : [];
-      const scheduleRows = [
-        { label: (globalThis.PlatformLanguage?.text("settings","m_894309a0cbf8a4","Deposit") ?? "Deposit"), percent: 30 },
-        { label: (globalThis.PlatformLanguage?.text("settings","m_f74b29ad49ce79","Progress Payment") ?? "Progress Payment"), percent: 30 },
-        { label: (globalThis.PlatformLanguage?.text("settings","m_a9a97324d639c3","Final Payment") ?? "Final Payment"), percent: 40 }
-      ].map((fallback, index) => ({
-        label: String(paymentSchedule[index]?.label || fallback.label).trim() || fallback.label,
-        percent: Number.isFinite(Number(paymentSchedule[index]?.percent)) ? Number(paymentSchedule[index].percent) : fallback.percent
-      }));
-      const themes = [
-        ['margin', 'Margin', 'Uses a branded left margin and roomy contract-style pages.'],
-        ['clean', 'Clean', 'Uses a quiet header and minimal page framing.'],
-        ['triangles', 'Triangles', 'Uses stronger branded geometry for sales-forward proposals.']
-      ];
-      root.classList.add('fm-settings-page');
-      root.classList.toggle('embedded', !!context.embedded);
-      root.innerHTML = `
-        <div class="cs-section">
-          <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_72f0a27f9ae574","Proposal Settings") ?? "Proposal Settings")}</h3>
-          <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_92cca7f11c544c","Set branch defaults for new proposals. Existing proposals keep their saved style unless edited.") ?? "Set branch defaults for new proposals. Existing proposals keep their saved style unless edited.")}</p>
-          <div class="cfg-options">
-            ${String(themes.map(([value, label, description]) => `
-              <button type="button" class="cfg-option ${settings.default_theme === value ? 'active' : ''}" data-proposal-theme="${escape(value)}">
-                <strong>${escape(label)}</strong>
-                <span>${escape(description)}</span>
-              </button>
-            `).join(''))}
-          </div>
-          <div class="cs-grid" style="margin-top:2px">
-              <div class="cs-row">
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_17351f2a153c17","Proposal Title Prefix") ?? "Proposal Title Prefix")}</div>
-                <input class="cs-in" id="${String(escape(ids.title))}" value="${String(escape(defaults.default_title_prefix || 'Proposal'))}">
-              </div>
-              <div class="cs-row">
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e7ebad6711286","Proposal Font") ?? "Proposal Font")}</div>
-                <select class="cs-in" id="${String(escape(ids.font))}">
-                  ${String(PROPOSAL_FONT_OPTIONS.map((font) => `<option value="${escape(font)}" ${String(defaults.font_family || 'Montserrat') === font ? 'selected' : ''}>${escape(font)}</option>`).join(''))}
-                </select>
-              </div>
-              <div class="cs-row">
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e84c787c45a512","Customer Completion Message") ?? "Customer Completion Message")}</div>
-                <textarea class="cs-in" id="${String(escape(ids.completion))}" style="height:76px;padding-top:10px;resize:vertical">${String(escape(defaults.completion_message || '{{company}} will reach out with next steps.'))}</textarea>
-                <div class="cs-note">Shown after signing and deposit payment. Use {{company}} for the company name.</div>
-              </div>
-              <div class="proposal-default-grid">
-                <div class="cs-row">
-                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_540a09b7b604a0","Default Sales Tax") ?? "Default Sales Tax")}</div>
-                  <input class="cs-in" id="${String(escape(ids.tax))}" inputmode="decimal" value="${String(escape(String(defaults.sales_tax_percent ?? 0)))}">
-                </div>
-                <div class="cs-row">
-                  <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_df72aed04cb34f","Payment Total") ?? "Payment Total")}</div>
-                  <input class="cs-in" value="${String(escape(String(scheduleRows.reduce((sum, row) => sum + Number(row.percent || 0), 0))))}%" readonly>
-                </div>
-              </div>
-              <div class="proposal-schedule">
-                <div class="proposal-schedule-head"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5f24f5cf950755","Default Payment Step") ?? "Default Payment Step")}</span><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c859ed36a95b21","Percent") ?? "Percent")}</span></div>
-                ${String(scheduleRows.map((row, index) => `
-                  <div class="proposal-schedule-row">
-                    <input class="cs-in" id="${escape(ids[`pay${index}Label`])}" value="${escape(row.label)}">
-                    <span class="percent"><input class="cs-in" id="${escape(ids[`pay${index}Percent`])}" inputmode="decimal" value="${escape(String(row.percent))}"></span>
-                  </div>
-                `).join(''))}
-              </div>
-            <label class="li-switch-row">
-              <div>
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_784478795b0e8c","Include PDF by default") ?? "Include PDF by default")}</div>
-                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_27f6cf8aa0f15c","Preselect the PDF option when sending proposals.") ?? "Preselect the PDF option when sending proposals.")}</div>
-              </div>
-              <span class="li-switch"><input id="${String(escape(ids.pdf))}" type="checkbox" ${String(defaults.send_include_pdf !== false ? 'checked' : '')}><span class="li-slider"></span></span>
-            </label>
-            <label class="li-switch-row">
-              <div>
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_dd3a2324f60b95","Include portal link by default") ?? "Include portal link by default")}</div>
-                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_2496ea9b90a806","Preselect the customer portal link option when available.") ?? "Preselect the customer portal link option when available.")}</div>
-              </div>
-              <span class="li-switch"><input id="${String(escape(ids.portal))}" type="checkbox" ${String(defaults.send_include_portal !== false ? 'checked' : '')}><span class="li-slider"></span></span>
-            </label>
-            <label class="li-switch-row">
-              <div>
-                <div class="cs-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_832ae8f24cda6d","Show proposal price comparisons in customer portal header") ?? "Show proposal price comparisons in customer portal header")}</div>
-                <div class="cs-note" style="margin:2px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_16046d397a7134","Shows totals under Proposal A, Proposal B, and other option tabs.") ?? "Shows totals under Proposal A, Proposal B, and other option tabs.")}</div>
-              </div>
-              <span class="li-switch"><input id="${String(escape(ids.priceCompare))}" type="checkbox" ${String(defaults.show_portal_price_comparison !== false ? 'checked' : '')}><span class="li-slider"></span></span>
-            </label>
-          </div>
-          <div class="li-actions" style="margin-top:0">
-            <button class="cs-btn primary" id="${String(escape(ids.save))}" type="button" ${String(saving ? 'disabled' : '')}>${String(saving ? '<i class="fas fa-spinner fa-spin"></i> Saving...' : '<i class="fas fa-save"></i> Save Proposal Settings')}</button>
-          </div>
-          <div class="cs-note" id="${String(escape(ids.status))}">${String(escape(statusText || ''))}</div>
-          ${String(scopeAdministrationMarkup())}
-        </div>
-      `;
-      root.querySelectorAll('[data-proposal-theme]').forEach((button) => {
-        button.addEventListener('click', () => {
-          settings = normalizeProposalSettings({ ...collectDraft(), default_theme: button.dataset.proposalTheme || 'margin' });
-          store.setDraft(settings, { source: context.instanceId, pageId: 'proposals' });
-          render(false);
-        });
-      });
-      [ids.title, ids.font, ids.completion, ids.tax, ids.pay0Label, ids.pay0Percent, ids.pay1Label, ids.pay1Percent, ids.pay2Label, ids.pay2Percent, ids.pdf, ids.portal, ids.priceCompare].forEach((id) => {
-        const input = root.querySelector(`#${CSS.escape(id)}`);
-        input?.addEventListener('input', publishInputDraft);
-        input?.addEventListener('change', publishInputDraft);
-      });
-      root.querySelector(`#${CSS.escape(ids.save)}`)?.addEventListener('click', async () => {
-        settings = collectDraft();
-        store.setDraft(settings, { source: context.instanceId, pageId: 'proposals' });
-        render(true);
-        try {
-          settings = await store.save(settings, { source: context.instanceId, pageId: 'proposals' });
-          render(false, 'Saved.');
-          show('Saved', 'Proposal settings updated.', true);
-        } catch (e) {
-          render(false);
-          show('Save failed', e?.message || 'Could not save proposal settings.', false);
-        }
-      });
-      root.querySelectorAll('[data-scope-template-edit]').forEach((button) => {
-        button.addEventListener('click', () => {
-          editingScopeTemplateId = button.dataset.scopeTemplateEdit || '';
-          render(false, statusText);
-          root.querySelector('[data-scope-template-editor]')?.scrollIntoView?.({ block:'nearest', behavior:'smooth' });
-        });
-      });
-      root.querySelector(`#${CSS.escape(ids.scopeCancel)}`)?.addEventListener('click', () => {
-        editingScopeTemplateId = '';
-        render(false, statusText);
-      });
-      root.querySelector(`#${CSS.escape(ids.scopeReset)}`)?.addEventListener('click', async (event) => {
-        const orgId = context.orgId || currentOrgId();
-        const branchId = context.branchId || currentBranchId();
-        if (!window.confirm((globalThis.PlatformLanguage?.text("settings","m_feddc6b15ff126","Reset all scope templates for this branch to the global defaults? Custom template changes will be permanently removed. Existing project boards will use the reset stage layout, while completed task history will be preserved.") ?? "Reset all scope templates for this branch to the global defaults? Custom template changes will be permanently removed. Existing project boards will use the reset stage layout, while completed task history will be preserved."))) return;
-        const button = event.currentTarget;
-        button.disabled = true;
-        try {
-          const result = await window.PlatformAPI.scopes.resetDefaults(orgId, branchId, { force:true });
-          scopeTemplates = Array.isArray(result?.templates) ? result.templates : [];
-          editingScopeTemplateId = '';
-          window.dispatchEvent(new CustomEvent('fm:scope-templates:updated', { detail:{ templates:scopeTemplates, reset:true } }));
-          render(false, statusText);
-          show('Scopes reset', 'Templates and existing project board layouts now use the global defaults.', true);
-        } catch (e) {
-          button.disabled = false;
-          show('Reset failed', e?.message || 'Could not reset scope templates.', false);
-        }
-      });
-      const scopeColor = root.querySelector(`#${CSS.escape(ids.scopeColor)}`);
-      const scopeColorText = root.querySelector(`#${CSS.escape(ids.scopeColorText)}`);
-      scopeColor?.addEventListener('input', () => { if (scopeColorText) scopeColorText.value = scopeColor.value; });
-      scopeColorText?.addEventListener('input', () => {
-        if (scopeColor && /^#[0-9a-f]{6}$/i.test(scopeColorText.value.trim())) scopeColor.value = scopeColorText.value.trim();
-      });
-      root.querySelector(`#${CSS.escape(ids.workSave)}`)?.addEventListener('click', async (event) => {
-        const button = event.currentTarget;
-        button.disabled = true;
-        try {
-          const result = await window.PlatformAPI.work.saveConfiguration(context.orgId || currentOrgId(), context.branchId || currentBranchId(), {
-            expected_revision: Number(workConfiguration.revision || 0),
-            terminology: {
-              phase: String(root.querySelector(`#${CSS.escape(ids.workPhase)}`)?.value || 'Phase').trim() || 'Phase',
-              stage: String(root.querySelector(`#${CSS.escape(ids.workStage)}`)?.value || 'Stage').trim() || 'Stage',
-              task: String(root.querySelector(`#${CSS.escape(ids.workTask)}`)?.value || 'To-do').trim() || 'To-do',
-              board: String(root.querySelector(`#${CSS.escape(ids.workBoard)}`)?.value || 'Board').trim() || 'Board'
-            }
-          });
-          workConfiguration = result?.configuration || workConfiguration;
-          window.dispatchEvent(new CustomEvent('fm:work-configuration:updated', { detail:{ configuration:workConfiguration } }));
-          show('Saved', 'Work language updated.', true);
-        } catch (e) {
-          show('Save failed', e?.message || 'Could not save work language.', false);
-        } finally {
-          button.disabled = false;
-        }
-      });
-      root.querySelector(`#${CSS.escape(ids.scopeSave)}`)?.addEventListener('click', async (event) => {
-        const template = selectedScopeTemplate();
-        if (!template) return;
-        const button = event.currentTarget;
-        button.disabled = true;
-        try {
-          const definition = {
-            ...(template.definition || {}),
-            id: template.id,
-            name: String(root.querySelector(`#${CSS.escape(ids.scopeName)}`)?.value || template.name || '').trim(),
-            description: String(root.querySelector(`#${CSS.escape(ids.scopeDescription)}`)?.value || '').trim(),
-            details: String(root.querySelector(`#${CSS.escape(ids.scopeDetails)}`)?.value || '').trim(),
-            color: String(root.querySelector(`#${CSS.escape(ids.scopeColorText)}`)?.value || template.color || '').trim(),
-            icon: template.icon || template.definition?.icon || '',
-            status: template.status || template.definition?.status || 'active',
-            sort_order: Number(template.sort_order || 0),
-            expected_version: Number(template.version || template.current_version || 1)
-          };
-          const result = await window.PlatformAPI.scopes.save(context.orgId || currentOrgId(), context.branchId || currentBranchId(), template.id, definition);
-          const saved = result?.template;
-          if (saved) scopeTemplates = scopeTemplates.map((item) => item.id === saved.id ? saved : item);
-          editingScopeTemplateId = '';
-          window.dispatchEvent(new CustomEvent('fm:scope-templates:updated', { detail:{ template:saved } }));
-          render(false, statusText);
-          show('Saved', 'Scope template updated.', true);
-        } catch (e) {
-          button.disabled = false;
-          show('Save failed', e?.message || 'Could not save the scope template.', false);
-        }
-      });
-    };
-    const loadScopeAdministration = async () => {
-      const orgId = context.orgId || currentOrgId();
-      const branchId = context.branchId || currentBranchId();
-      if (!orgId || !window.PlatformAPI?.scopes?.list || !window.PlatformAPI?.work?.configuration) {
-        scopeTemplatesLoading = false;
-        workConfigurationLoading = false;
-        scopeTemplatesError = 'Scope administration is unavailable.';
-        return;
-      }
-      const [templatesResult, configurationResult] = await Promise.allSettled([
-        window.PlatformAPI.scopes.list(orgId, branchId, { include_disabled:true, includeDisabled:true }),
-        window.PlatformAPI.work.configuration(orgId, branchId)
-      ]);
-      if (destroyed) return;
-      scopeTemplatesLoading = false;
-      workConfigurationLoading = false;
-      if (templatesResult.status === 'fulfilled') scopeTemplates = Array.isArray(templatesResult.value?.templates) ? templatesResult.value.templates : [];
-      else scopeTemplatesError = templatesResult.reason?.message || 'Could not load scope templates.';
-      if (configurationResult.status === 'fulfilled') workConfiguration = configurationResult.value?.configuration || workConfiguration;
-      render(false);
-    };
-    root.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_2ccef700c4d41d","Loading proposal settings...") ?? "Loading proposal settings...")}</div>`;
-    const unsubscribe = store.subscribe((next, meta = {}) => {
-      if (destroyed || meta.source === context.instanceId) return;
-      settings = normalizeProposalSettings(next);
-      render(false, meta.type === 'save' ? 'Saved.' : '');
-    });
-    store.load().then((loaded) => {
-      if (destroyed) return;
-      settings = normalizeProposalSettings(loaded);
-      render(false);
-    }).catch((e) => {
-      if (destroyed) return;
-      root.innerHTML = `<div class="cs-note">${escape(e?.message || 'Could not load proposal settings.')}</div>`;
-    });
-    loadScopeAdministration().catch((e) => {
-      if (destroyed) return;
-      scopeTemplatesLoading = false;
-      workConfigurationLoading = false;
-      scopeTemplatesError = e?.message || 'Could not load scope administration.';
-      render(false);
-    });
-    return {
-      destroy(){
-        destroyed = true;
-        unsubscribe?.();
-      }
-    };
-  }
-  function registerSettingsPages(){
-    const pages = window.FirstMateSettingsPages;
-    if (!pages || registerSettingsPages.done) return;
-    registerSettingsPages.done = true;
-    pages.registerPage({
-      id: 'proposals',
-      title: (globalThis.PlatformLanguage?.text("settings","m_72f0a27f9ae574","Proposal Settings") ?? "Proposal Settings"),
-      subtitle: (globalThis.PlatformLanguage?.text("settings","m_da874215e3bbc9","Branch defaults for new proposals.") ?? "Branch defaults for new proposals."),
-      icon: 'fa-file-signature',
-      render: renderReusableProposalSettingsPage
-    });
-  }
-  registerSettingsPages();
   function platformUserFromDocument(doc){
     if (window.PlatformAPI?.users?.normalize) return window.PlatformAPI.users.normalize(doc || {});
     const data = doc?.data && typeof doc.data === 'object' ? doc.data : (doc || {});
@@ -1987,7 +1482,7 @@
   ];
   let appFlagsLoadAttempted = false;
   let permissionsLoadAttempted = false;
-  // Features & Apps tab state. Module-scoped so drafts survive sub-tab
+  // Developer Settings tab state. Module-scoped so drafts survive sub-tab
   // switches and re-renders within a session.
   const capabilityUi = {
     view: 'features',
@@ -2202,7 +1697,6 @@
     const leadFlags = leadImportFlagState();
     const canForms = canCompany && (leadFlags.forms || leadFlags.email);
     const canPricebook = canCompany && appFlag('platform', 'pricebook');
-    const canProposalSettings = canCompany && appFlag('platform', 'proposals');
     const companyFontsEnabled = appFlag('platform', 'documents');
     const canDocuments = canCompany && appFlag('platform', 'project_docs') && appBelongsInSettings('documents.studio');
     const canConfiguration = canCompany && appFlag('platform', 'configuration');
@@ -2251,9 +1745,8 @@
       { id:'storage', allowed:canStorage, icon:'fas fa-hard-drive', term:'settings.storage_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_4926f46a0a9736","Review media usage and storage limits.") ?? "Review media usage and storage limits."), tabId:'csTabStorage', paneId:'csPaneStorage' },
       { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', term:'settings.sms_tab', title:(globalThis.PlatformLanguage?.text("settings","m_e1dd22c36fbc9b","SMS") ?? "SMS"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Configure messaging registration and SMS setup.") ?? "Configure messaging registration and SMS setup."), tabId:'csTabSms', paneId:'csPaneSms' },
       { id:'domains', allowed:canDomains, icon:'fas fa-globe', term:'settings.domains_tab', title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c02d45f8191c42","Register, connect, and manage website domains.") ?? "Register, connect, and manage website domains."), tabId:'csTabDomains', paneId:'csPaneDomains' },
-      { id:'app_flags', allowed:canAppFlags, icon:'fas fa-toggle-on', term:'settings.feature_flags_tab', title:(globalThis.PlatformLanguage?.text("settings","m_713f0340a07ac2","Features & Apps") ?? "Features & Apps"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_36b4eee4dd77ef","Manage available apps, locations, presets, and permissions.") ?? "Manage available apps, locations, presets, and permissions."), tabId:'csTabAppFlags', paneId:'csPaneAppFlags' },
+      { id:'app_flags', allowed:canAppFlags, icon:'fas fa-code', term:'settings.developer_settings_tab', title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","developer_settings_subtitle","Developer tools, feature flags, and app configuration.") ?? "Developer tools, feature flags, and app configuration."), tabId:'csTabAppFlags', paneId:'csPaneAppFlags' },
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
-      { id:'proposals', allowed:canProposalSettings, icon:'fas fa-file-signature', term:'proposals.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_3129f3f0e39249","Proposals") ?? "Proposals"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_5f72a4f87b9f6a","Set branch defaults for new proposals.") ?? "Set branch defaults for new proposals."), tabId:'csTabProposals', paneId:'csPaneProposals' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
       { id:'billing', allowed:canBilling || canPlatformBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
       { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:(globalThis.PlatformLanguage?.text("settings","m_547bfda0c7f70d","App download") ?? "App download"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_18f3026e47ac02","FirstMeasure on your phone.") ?? "FirstMeasure on your phone."), tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
@@ -2329,6 +1822,7 @@
     };
     const initialRoute = readSettingsRoute();
     if (initialRoute.sub === 'lead_import') initialRoute.sub = 'forms';
+    if (initialRoute.sub === 'proposals') initialRoute.sub = 'documents';
     // Payments used to be a broad Settings category. Preserve old links while
     // keeping Money as the one canonical category going forward.
     if (initialRoute.sub === 'payments') {
@@ -4769,7 +4263,6 @@
     const paneDomains = $('#csPaneDomains', panel);
     const paneAppFlags = $('#csPaneAppFlags', panel);
     const panePricebook = $('#csPanePricebook', panel);
-    const paneProposals = $('#csPaneProposals', panel);
     const paneForms = $('#csPaneForms', panel);
     const billingPane = $('#csPaneBilling', panel);
     if (billingPane && canPlatformBilling) {
@@ -4833,7 +4326,6 @@
     const tabDomains = $('#csTabDomains', panel);
     const tabAppFlags = $('#csTabAppFlags', panel);
     const tabPricebook = $('#csTabPricebook', panel);
-    const tabProposals = $('#csTabProposals', panel);
     const tabForms = $('#csTabForms', panel);
     const tabBilling  = $('#csTabBilling', panel);
     const settingsWrap = $('.cs-wrap', panel);
@@ -6847,20 +6339,6 @@
       panePricebook.querySelectorAll('[data-pb-view]').forEach((entry) => entry.classList.toggle('active', entry.dataset.pbView === routedView));
       editorPane.hidden = routedView !== 'editor';
       generatorPane.hidden = routedView !== 'generate';
-    }
-    async function renderProposalSettings(){
-      if (!paneProposals) return;
-      registerSettingsPages();
-      if (!window.FirstMateSettingsPages?.mount) {
-        paneProposals.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_728f33c2030828","Proposal settings library is unavailable.") ?? "Proposal settings library is unavailable.")}</div>`;
-        return;
-      }
-      window.FirstMateSettingsPages.mount(paneProposals, 'proposals', {
-        orgId: currentOrgId(),
-        branchId: currentBranchId(),
-        source: 'company_settings_proposals',
-        embedded: false
-      });
     }
     const hostedMoneyLoadingMarkup = (label = 'Money') => {
       const title = `Loading ${String(label || 'Money')}…`;
@@ -9628,6 +9106,10 @@
       const branchId = currentBranchId();
       const moduleId = 'document_settings';
       const normalize = (input = {}) => ({
+        ...input,
+        send_include_pdf: input.send_include_pdf !== false,
+        send_include_portal: input.send_include_portal !== false,
+        completion_message: String(input.completion_message ?? '{{company}} will reach out with next steps.').trim(),
         required_documents: (Array.isArray(input?.required_documents) ? input.required_documents : [])
           .map((item, index) => {
             const label = String(item?.label || item?.name || 'Required Document').trim() || 'Required Document';
@@ -9643,8 +9125,13 @@
       let settings = normalize({});
       try {
         if (orgId && window.PlatformAPI?.branchModules?.get) {
-          const result = await window.PlatformAPI.branchModules.get(orgId, branchId, moduleId);
-          settings = normalize(result?.module?.data || result?.data || {});
+          const optional = promise => promise.catch(error => { if (Number(error?.status) === 404) return null; throw error; });
+          const [result, legacy] = await Promise.all([
+            optional(window.PlatformAPI.branchModules.get(orgId, branchId, moduleId)),
+            optional(window.PlatformAPI.branchModules.get(orgId, branchId, 'presentation_style'))
+          ]);
+          const old = legacy?.module?.data?.proposal_defaults || legacy?.data?.proposal_defaults || {};
+          settings = normalize({ send_include_pdf: old.send_include_pdf, send_include_portal: old.send_include_portal, completion_message: old.completion_message, ...(result?.module?.data || result?.data || {}) });
         }
       } catch (error) {
         if (Number(error?.status || 0) !== 404) {
@@ -9657,6 +9144,11 @@
           <div class="cs-section">
             <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_059237092155b4","Document Settings") ?? "Document Settings")}</h3>
             <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_f756e0e6b41ad7","Define branch-level required documents. Missing enabled items appear as required placeholders in each project's Docs tab.") ?? "Define branch-level required documents. Missing enabled items appear as required placeholders in each project's Docs tab.")}</p>
+            <div class="cs-grid">
+              <label class="li-switch-row"><div><div class="cs-lbl">Include PDF by default</div><div class="cs-note">Preselect Attach PDF when sending any document.</div></div><span class="li-switch"><input id="docSendPdfDefault" type="checkbox" ${settings.send_include_pdf ? 'checked' : ''}><span class="li-slider"></span></span></label>
+              <label class="li-switch-row"><div><div class="cs-lbl">Include portal link by default</div><div class="cs-note">Preselect the customer portal link when sending any document.</div></div><span class="li-switch"><input id="docSendPortalDefault" type="checkbox" ${settings.send_include_portal ? 'checked' : ''}><span class="li-slider"></span></span></label>
+              <label class="cs-row"><span class="cs-lbl">Customer completion message</span><textarea class="cs-in" id="docCompletionMessage" style="height:76px;resize:vertical">${escapeHtml(settings.completion_message)}</textarea><span class="cs-note">Shown after required signing and initial payment steps are complete. Use {{company}} for your company name. Leave empty to hide.</span></label>
+            </div>
             <div class="cfg-actions"><button class="cs-btn" id="docReqAdd" type="button"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_16edb090d5e1de"," Add Required Document") ?? " Add Required Document")}</button></div>
             <div class="cs-grid" id="docReqRows">
               ${String(settings.required_documents.map((item, index) => `
@@ -9674,13 +9166,16 @@
               <span class="cs-note" id="docReqStatus">${String(escapeHtml(statusText))}</span>
             </div>
           </div>`;
+        const collectDefaults = () => ({ ...settings, send_include_pdf: !!paneDocuments.querySelector('#docSendPdfDefault')?.checked, send_include_portal: !!paneDocuments.querySelector('#docSendPortalDefault')?.checked, completion_message: String(paneDocuments.querySelector('#docCompletionMessage')?.value ?? '').trim() });
         paneDocuments.querySelector('#docReqAdd')?.addEventListener('click', () => {
+          settings = collectDefaults();
           settings.required_documents.push({ key: `required_${settings.required_documents.length + 1}`, label: (globalThis.PlatformLanguage?.text("settings","m_ab5cacd426da5a","Required Document") ?? "Required Document"), document_type: 'required', enabled: true });
           renderRows();
         });
         paneDocuments.querySelector('#docReqSave')?.addEventListener('click', async () => {
           const rows = [...paneDocuments.querySelectorAll('[data-doc-req-row]')];
           settings = normalize({
+            ...collectDefaults(),
             required_documents: rows.map((row, index) => {
               const label = String(row.querySelector('[data-doc-req-label]')?.value || 'Required Document').trim() || 'Required Document';
               return {
@@ -12080,7 +11575,7 @@
       }
     }
     // ------------------------------------------------------------------
-    // Features & Apps (capability registry) tab
+    // Developer Settings (capability registry) tab
     // ------------------------------------------------------------------
     function ensureCapabilityStyles(){
       injectCSS('company_capabilities', `
@@ -12418,12 +11913,12 @@
       paneAppFlags.innerHTML = `
         <div class="cs-section cap-wrap">
           <div>
-            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cc445c917318c1","Features &amp; Apps") ?? "Features &amp; Apps")}</h3>
+            <h3>${(globalThis.PlatformLanguage?.htmlText("settings","developer_settings_title","Developer Settings") ?? "Developer Settings")}</h3>
             <p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fafd60cc144cf8","Apps, features, and settings for this organization. Dependencies resolve automatically: anything whose requirements are off stays off until they are met.") ?? "Apps, features, and settings for this organization. Dependencies resolve automatically: anything whose requirements are off stays off until they are met.")}</p>
           </div>
           <div class="cap-toolbar">
             <div class="cap-views">
-              <button type="button" data-cap-view="features" class="${String(view === 'features' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_cc445c917318c1","Features &amp; Apps") ?? "Features &amp; Apps")}</button>
+              <button type="button" data-cap-view="features" class="${String(view === 'features' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","developer_settings_title","Developer Settings") ?? "Developer Settings")}</button>
               <button type="button" data-cap-view="manage_apps" class="${String(view === 'manage_apps' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_4d4f031a019ad9","Manage My Apps") ?? "Manage My Apps")}</button>
               <button type="button" data-cap-view="app_locations" class="${String(view === 'app_locations' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_536d6b65f599fc","App Locations") ?? "App Locations")}</button>
               <button type="button" data-cap-view="presets" class="${String(view === 'presets' ? 'active' : '')}">${(globalThis.PlatformLanguage?.htmlText("settings","m_2b261343a7bbd4","Presets") ?? "Presets")}</button>
@@ -13187,7 +12682,6 @@
       if (which === 'domains' && canDomains) renderDomainsSettings();
       if (which === 'app_flags' && canAppFlags) renderAppFlags();
       if (which === 'pricebook' && canPricebook) renderPricebook();
-      if (which === 'proposals' && canProposalSettings) renderProposalSettings();
       if (which === 'forms' && canForms) renderForms();
       if (which === 'billing' && canBilling) renderBilling();
       if (which === 'billing') renderPlatformBilling();
@@ -13930,7 +13424,7 @@
             <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_bda1d0ed0e9469","What it can do") ?? "What it can do")}</h3>
             ${String(toggleRow('allow_actions', 'Take actions', 'Create and complete to-dos, move pipeline stages, schedule project events, fire automation events.', s.allow_actions !== false))}
             ${String(toggleRow('allow_notes', 'Post project notes', 'Write internal notes on projects when asked.', s.allow_notes !== false))}
-            ${String(toggleRow('allow_messaging', 'Send customer messages', 'Send SMS/email to customers (always confirmed in the chat first). Also requires the Assistant Customer Messaging feature in Features & Apps.', s.allow_messaging === true))}
+            ${String(toggleRow('allow_messaging', 'Send customer messages', 'Send SMS/email to customers (always confirmed in the chat first). Also requires the Assistant Customer Messaging feature in Developer Settings.', s.allow_messaging === true))}
           </div>
           <div class="cs-card">
             <h3 style="margin-top:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_a4de02818ea054","What it can see") ?? "What it can see")}</h3>
@@ -17684,7 +17178,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (canDomains && activeTab === 'domains') renderDomainsSettings();
       if (canAppFlags && activeTab === 'app_flags') renderAppFlags();
       if (canPricebook && activeTab === 'pricebook') renderPricebook();
-      if (canProposalSettings && activeTab === 'proposals') renderProposalSettings();
       if (canForms && activeTab === 'forms') renderForms();
       if (canBilling) renderBilling();
       if (activeTab === 'billing') renderPlatformBilling();
@@ -17701,7 +17194,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     const leadFlags = leadImportFlagState();
     const canForms = canCompany && (leadFlags.forms || leadFlags.email);
     const canPricebook = canCompany && appFlag('platform', 'pricebook');
-    const canProposalSettings = canCompany && appFlag('platform', 'proposals');
     const canConfiguration = canCompany && appFlag('platform', 'configuration');
     const canScheduling = canCompany && appFlag('platform', 'scheduling');
     const canCrews = canCompany && appFlag('apps', 'crew');
@@ -17755,10 +17247,12 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     viewState.activeTab = 'channels';
     window.Portal?.navigation?.navigate?.({ tab:'company_settings', sub:'channels', settingsView:'', settingsEntity:'' }, { source:'open-channels-settings', ownedKeys:['tab','sub'] });
   });
-  window.addEventListener('fm:open-proposal-settings', () => {
-    viewState.activeTab = 'proposals';
-    window.Portal?.navigation?.navigate?.({ tab:'company_settings', sub:'proposals', settingsView:'', settingsEntity:'' }, { source:'open-proposal-settings', ownedKeys:['tab','sub'] });
-  });
+  const openDocumentSettings = () => {
+    viewState.activeTab = 'documents';
+    window.Portal?.navigation?.navigate?.({ tab:'company_settings', sub:'documents', settingsView:'', settingsEntity:'' }, { source:'open-document-settings', ownedKeys:['tab','sub'] });
+  };
+  window.addEventListener('fm:open-document-settings', openDocumentSettings);
+  window.addEventListener('fm:open-proposal-settings', openDocumentSettings);
   window.addEventListener('fm:open-crew-settings', () => {
     viewState.activeTab = 'crews';
     window.Portal?.navigation?.navigate?.({ tab:'company_settings', sub:'crews', settingsView:'groups', settingsEntity:'' }, { source:'open-crew-settings', ownedKeys:['tab','sub','settingsView'] });

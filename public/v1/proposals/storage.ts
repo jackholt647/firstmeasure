@@ -1,3 +1,4 @@
+import { readDocumentDeliveryDefaults } from "../documents/settings.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import { isAppFlagEnabled } from "../platform/app_flags.js";
@@ -1150,7 +1151,7 @@ async function proposalPortalDefaultsForSnapshot(orgId: string, branchId: string
   const data = asObject(asObject(module).data);
   const defaults = asObject(data.proposal_defaults);
   return {
-    completion_message: cleanText(defaults.completion_message || "{{company}} will reach out with next steps."),
+    completion_message: (await readDocumentDeliveryDefaults(orgId, branchId || "default")).completion_message,
     show_portal_price_comparison: defaults.show_portal_price_comparison !== false
   };
 }

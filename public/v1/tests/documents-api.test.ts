@@ -1864,3 +1864,34 @@ test("lifecycle safety: signer party enforced on the public link, empty signatur
   const events = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${secondId}/events`);
   assert.ok(events.events.some((event: any) => event.type === "document.voided"), "document.voided event recorded");
 });
+
+test("document delivery settings migrate per branch, apply to sends, and freeze portal messages", async () => {
+  const client = createSessionClient();
+  const { orgId } = await registerOrg(client);
+  const { saveBranchModule, readBranchModule } = await import("../platform/storage.js");
+  const branchId = "settings_branch";
+  await saveBranchModule(orgId, branchId, "presentation_style", { data: { proposal_defaults: { send_include_pdf: false, send_include_portal: false, completion_message: "Thanks from {{company}}" } } }, { replace: true });
+  const url = `/v1/documents/organizations/${orgId}/settings?branch_id=${branchId}`;
+  const legacy = await client.request("GET", url);
+  assert.equal(legacy.settings.send_include_pdf, false);
+  assert.equal(legacy.settings.completion_message, "Thanks from {{company}}");
+  await assert.rejects(() => readBranchModule(orgId, branchId, "document_settings"), { statusCode: 404 }, "reading must not create a module");
+  await saveBranchModule(orgId, branchId, "document_settings", { data: { send_include_pdf: false, send_include_portal: false, completion_message: "Document complete, {{company}}", required_documents: [{ key: "permit", label: "Permit" }] } }, { replace: true });
+  const settings = await client.request("GET", url);
+  assert.equal(settings.settings.completion_message, "Document complete, {{company}}");
+  const other = await client.request("GET", `/v1/documents/organizations/${orgId}/settings`);
+  assert.equal(other.settings.send_include_pdf, true, "branch settings do not leak to default branch");
+  const projectId = "settings_project";
+  await createProject(client, orgId, projectId);
+  await (await import("../platform/storage.js")).upsertDocument(orgId, "projects", { id: projectId, data: { branch_id: branchId } });
+  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, { document_type: "generic", title: "General document" });
+  const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${created.document.id}/send`, {});
+  assert.equal(sent.document.delivery.include_pdf, false);
+  assert.equal(sent.document.delivery.include_portal, false);
+  assert.equal(sent.snapshot.customer_completion_message, "Document complete, {{company}}");
+  await saveBranchModule(orgId, branchId, "document_settings", { data: { completion_message: "Changed later" } }, { replace: true });
+  const publicView = await client.request("GET", `/v1/documents/public/${sent.snapshot.public_token}`);
+  assert.equal(publicView.workflow.completion_message, "Document complete, Documents Test Org");
+  const denied = await app.inject({ method: "GET", url });
+  assert.equal(denied.statusCode, 401);
+});

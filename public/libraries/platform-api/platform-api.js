@@ -1599,9 +1599,9 @@
       if (rejected.length) {
         const missingDefinition = rejected.find((key) => !knownKeys.has(key));
         if (missingDefinition) {
-          throw new Error(`The running API does not know the ${missingDefinition} feature flag yet. Restart the v1 API server so it loads the latest app flag registry, then reload Feature Flags and save again.`);
+          throw new Error(`The running API does not know the ${missingDefinition} feature flag yet. Restart the v1 API server so it loads the latest app flag registry, then reload Developer Settings and save again.`);
         }
-        throw new Error(`Feature flag was not saved by the API: ${rejected[0]}. Reload Feature Flags and try again.`);
+        throw new Error(`Feature flag was not saved by the API: ${rejected[0]}. Reload Developer Settings and try again.`);
       }
     }
     return {
