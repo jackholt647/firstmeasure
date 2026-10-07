@@ -24,6 +24,7 @@ process.chdir(runtimeRoot);
 const load = async name => import(pathToFileURL(path.join(runtimeRoot, 'dist', name)).href);
 const platform = await load('platform/storage.js');
 const messages = await load('messaging/communications_storage.js');
+const chat = await load('chat/storage.js');
 const calls = await load('comms/calls/storage.js');
 const db = messages.getCommunicationsDatabase();
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -47,7 +48,7 @@ for (const project of projectRows) {
 }
 const staffByName = new Map(peopleRows.map(person => [person.data?.name || person.data?.display_name, person]));
 for (const name of ['Morgan Lee','Sam Rivera','Alex Martinez']) if (!staffByName.has(name)) throw new Error(`Sample staff missing: ${name}`);
-for (const name of ['Avery Morgan','Jordan Rivera','Taylor Chen','Jamie Wilson','Casey Brooks','Drew Bennett']) {
+for (const name of ['Avery Morgan','Jordan Rivera','Taylor Chen','Jamie Wilson','Casey Brooks','Drew Bennett','Riley Patel']) {
   if (!projectByCustomer.has(name)) throw new Error(`Sample project missing: ${name}`);
 }
 
@@ -100,6 +101,14 @@ const threads = [
     ['2026-10-06T12:17:00-04:00','in','Thursday at 1 works. I will be home and can show him the spot.'],
     ['2026-10-06T12:28:00-04:00','out','You are set for Thursday at 1 p.m. Chris will text when he is on his way. Thanks for helping us pinpoint it.','Morgan Lee'],
     ['2026-10-07T13:42:00-04:00','in','I sent the corner photo to the office email too. Let me know if Chris needs another angle.']
+  ]},
+  {id:'riley-portal',channel:'webchat',customer:'Riley Patel',items:[
+    ['2026-10-07T15:05:00-04:00','in','Hi, does the inspection report include photos of the staining in the attic? I want to make sure the leak location is clear.'],
+    ['2026-10-07T15:07:00-04:00','out','Hi Riley. The roof photos are in your project report. I am checking whether the attic photo was added too. If you have one from Sunday, you can share it here for Sam to review.','Morgan Lee'],
+    ['2026-10-07T15:10:00-04:00','in','I do have a picture from Sunday. The stain is above the hallway, close to the chimney.'],
+    ['2026-10-07T15:12:00-04:00','out','That is helpful. Please add the picture to this project when you have a moment. I will flag the hallway and chimney location for Sam before the next visit.','Morgan Lee'],
+    ['2026-10-07T15:15:00-04:00','in','I will upload it tonight. Thanks for the quick answer.'],
+    ['2026-10-07T15:16:00-04:00','out','You are welcome. We will review it alongside the roof inspection notes.','Morgan Lee']
   ]}
 ];
 
@@ -111,7 +120,7 @@ const callSpecs = [
   {id:'casey-downspout',customer:'Casey Brooks',direction:'inbound',owner:'Alex Martinez',start:'2026-10-07T11:20:00-04:00',connected:'2026-10-07T11:20:09-04:00',end:'2026-10-07T11:23:40-04:00',purpose:'Confirm downspout placement',disposition:'answered',notes:'Casey confirmed the back downspout can run to the garden side. I explained where the final elbow would land and said we would confirm before fastening it. Morgan will send a completion photo.'}
 ];
 
-const stats = {mode:apply?'applied':'dry-run',org_id:ORG_ID,threads:0,legacy_threads_enriched:0,messages:0,deliveries:0,calls:0,existing:0};
+const stats = {mode:apply?'applied':'dry-run',org_id:ORG_ID,threads:0,legacy_threads_enriched:0,chat_visitors:0,chat_states:0,messages:0,deliveries:0,calls:0,existing:0};
 for (const thread of threads) {
   const target = projectByCustomer.get(thread.customer);
   const {project,contact} = target;
@@ -121,7 +130,7 @@ for (const thread of threads) {
   try { conversation = await messages.readConversationRecord(ORG_ID, conversationId); } catch (error) { if (error.statusCode !== 404) throw error; }
   if (!conversation && !apply) stats.threads++;
   if (!conversation && apply) {
-    const address = thread.channel === 'email' ? contact.email : `+1${contact.phone.replace(/\D/g,'')}`;
+    const address = thread.channel === 'email' ? contact.email : thread.channel === 'sms' ? `+1${contact.phone.replace(/\D/g,'')}` : `portal:${contact.id}`;
     conversation = await messages.createConversationRecord({id:conversationKey,organization_id:ORG_ID,branch_id:'default',channel_strategy:thread.channel,
       subject:thread.subject || '',participants:[{name:contact.name,address,type:'external'}],context:{project_id:project.id,contact_id:contact.id},
       metadata:{synthetic:true,source:SOURCE},created_by_user_id:staffByName.get('Morgan Lee').id});
@@ -135,23 +144,24 @@ for (const thread of threads) {
     let existing;
     try { existing = await messages.readMessageRecord(ORG_ID,messageId); } catch (error) { if (error.statusCode !== 404) throw error; }
     if (existing) { stats.existing++; continue; }
-    if (!apply) { stats.messages++; if (direction==='out') stats.deliveries++; continue; }
+    if (!apply) { stats.messages++; if (direction==='out' && thread.channel!=='webchat') stats.deliveries++; continue; }
     const staff = staffByName.get(staffName || 'Morgan Lee');
-    const customerAddress = thread.channel === 'email' ? contact.email : `+1${contact.phone.replace(/\D/g,'')}`;
-    const staffAddress = thread.channel === 'email' ? 'office@pioneerpuffin.example.test' : '+12025550100';
-    const sender = direction === 'in' ? {name:contact.name,address:customerAddress,...(thread.channel==='email'?{email:customerAddress}:{phone:customerAddress}),type:'external'}
-      : {name:staffName,address:staffAddress,...(thread.channel==='email'?{email:staffAddress}:{phone:staffAddress}),type:'internal',user_id:staff.id};
+    const customerAddress = thread.channel === 'email' ? contact.email : thread.channel === 'sms' ? `+1${contact.phone.replace(/\D/g,'')}` : `portal:${contact.id}`;
+    const staffAddress = thread.channel === 'email' ? 'office@pioneerpuffin.example.test' : thread.channel === 'sms' ? '+12025550100' : 'portal:team';
+    const addressField = thread.channel==='email'?'email':thread.channel==='sms'?'phone':null;
+    const sender = direction === 'in' ? {name:contact.name,address:customerAddress,...(addressField?{[addressField]:customerAddress}:{}),type:'external'}
+      : {name:staffName,address:staffAddress,...(addressField?{[addressField]:staffAddress}:{}),type:'internal',user_id:staff.id};
     const recipient = direction === 'in' ? {name:'Pioneer Puffin Test Co',address:staffAddress,type:'internal'} : {name:contact.name,address:customerAddress,type:'external',contact_id:contact.id};
     const emailMeta = thread.channel==='email' ? {message_id:`<${messageKey}@example.test>`,...(index?{in_reply_to:`<${key(`message:${thread.id}:${index-1}`)}@example.test>`,references:thread.items.slice(0,index).map((_,i)=>`<${key(`message:${thread.id}:${i}`)}@example.test>`)}:{})} : undefined;
     const result = await messages.createMessageRecord({id:messageKey,idempotency_key:messageKey,organization_id:ORG_ID,branch_id:'default',conversation_id:conversation.id,
       context:{project_id:project.id,contact_id:contact.id},direction:direction==='in'?'inbound':'outbound',channel:thread.channel,status:direction==='in'?'received':'sent',
-      subject:thread.subject || '',text_body:body,sender,recipients:[recipient],metadata:{synthetic:true,source:SOURCE,...(direction==='out'?{transport_mode:'capture'}:{}),...(emailMeta?{email:emailMeta}:{})},
+      subject:thread.subject || '',text_body:body,sender,recipients:[recipient],metadata:{synthetic:true,source:SOURCE,...(direction==='out'&&thread.channel!=='webchat'?{transport_mode:'capture'}:{}),...(emailMeta?{email:emailMeta}:{})},
       source:{type:direction==='in'?'webhook':'user',id:direction==='in'?'synthetic_fixture':staff.id},tags:['synthetic'],created_by_user_id:direction==='out'?staff.id:''});
     if (!result.created) { stats.existing++; continue; }
     const stamp=at(when);
     await db.prepare('UPDATE communication_messages SET created_at=?,updated_at=?,sent_at=? WHERE organization_id=? AND id=?')
       .run(stamp,stamp,direction==='out'?stamp:null,ORG_ID,result.message.id);
-    if (direction==='out') {
+    if (direction==='out' && thread.channel!=='webchat') {
       const deliveryId=key(`delivery:${thread.id}:${index}`);
       await messages.createDeliveryRecord({id:deliveryId,organization_id:ORG_ID,message_id:result.message.id,channel:thread.channel,recipient_address:customerAddress,
         recipient,provider:'synthetic',transport_mode:'capture',status:'sent',queued_at:stamp,sent_at:stamp,response:{synthetic:true,source:SOURCE}});
@@ -162,6 +172,36 @@ for (const thread of threads) {
   }
   if (apply && conversation) await messages.touchConversationForMessage(ORG_ID,conversation.id,at(thread.items.at(-1)[0]));
 }
+
+// The global Chats inbox reads its visitor/state tables, not only the shared
+// communication messages. Link the retained portal example through that path.
+const portalThread=threads.find(thread=>thread.id==='riley-portal');
+const portalTarget=projectByCustomer.get(portalThread.customer);
+const portalConversationId=scoped('conversation',key(`conversation:${portalThread.id}`));
+const tokenHash=hash(`${ORG_ID}:${SOURCE}:portal-visitor:riley`);
+let portalVisitor=await chat.findVisitorByTokenHash(ORG_ID,tokenHash);
+if (!portalVisitor) {
+  if (apply) {
+    portalVisitor=await chat.createVisitor({organization_id:ORG_ID,branch_id:'default',token_hash:tokenHash,contact_id:portalTarget.contact.id,
+      display_name:portalTarget.contact.name,email:portalTarget.contact.email,phone:portalTarget.contact.phone,
+      page_url:`https://dev.1m8.ai/portal/?project=${portalTarget.project.id}`,portal_customer_id:portalTarget.contact.id,
+      metadata:{synthetic:true,source:SOURCE}});
+    await db.prepare('UPDATE chat_visitors SET first_seen_at=?,last_seen_at=? WHERE organization_id=? AND id=?')
+      .run(at(portalThread.items[0][0]),at(portalThread.items.at(-1)[0]),ORG_ID,portalVisitor.id);
+  }
+  stats.chat_visitors++;
+} else stats.existing++;
+let portalState;
+try { portalState=await chat.readConversationState(ORG_ID,portalConversationId); } catch (error) { if (error.statusCode!==404) throw error; }
+if (!portalState) {
+  if (apply) {
+    portalState=await chat.createConversationState({conversation_id:portalConversationId,organization_id:ORG_ID,branch_id:'default',visitor_id:portalVisitor.id,
+      widget_key:key('inert-portal-widget'),source:'portal',handling_mode:'human',origin_url:`https://dev.1m8.ai/portal/?project=${portalTarget.project.id}`});
+    await db.prepare('UPDATE chat_conversation_state SET created_at=?,updated_at=? WHERE organization_id=? AND conversation_id=?')
+      .run(at(portalThread.items[0][0]),at(portalThread.items.at(-1)[0]),ORG_ID,portalConversationId);
+  }
+  stats.chat_states++;
+} else stats.existing++;
 
 // Turn the three original one-sided development examples into ordinary replies.
 // Only touch the exact generator records; leave any user-edited thread alone.
