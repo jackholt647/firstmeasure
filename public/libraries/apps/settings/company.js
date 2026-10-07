@@ -2191,7 +2191,8 @@
     const canSmsSettings = canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
     const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
-    const canMySettings = appFlag('platform', 'my_settings') || appFlag('firstmeasure', 'report_localization') || canLeftColumnSettings || canMessageTranslation || canAssistant;
+    const canInterfaceLanguage = appFlag('platform', 'my_settings');
+    const canMySettings = canInterfaceLanguage || canLeftColumnSettings || canMessageTranslation || canAssistant;
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const canPlatformBilling = window.FirstMatePlatformBilling?.isEnabled({definitions:appFlagDefinitions(),has:appFlag}) === true && (hasPerm('view_platform_billing') || hasPerm('manage_platform_billing') || canAppFlags);
     let floatingMenu = null;
@@ -13564,7 +13565,7 @@
               <span class="my-settings-status" data-my-settings-status></span>
             </div>
           </div>`;
-        if (!window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
+        if (!canInterfaceLanguage || !window.PlatformLanguage?.enabled?.()) paneMySettings.querySelector('[data-interface-locale]')?.closest('label')?.remove();
         if (!canMessageTranslation) paneMySettings.querySelectorAll('[data-my-translation-row]').forEach(row => row.remove());
         if (!canLeftColumnSettings) paneMySettings.querySelectorAll('[data-my-left-column-group]').forEach(group => group.remove());
         paneMySettings.querySelectorAll('.my-settings-group').forEach(group => { if (!group.querySelector('input, select, button')) group.remove(); });
