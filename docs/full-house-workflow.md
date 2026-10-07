@@ -1,7 +1,8 @@
 # Full-house report workflow
 
-Implementation prepared October 6, 2026. This change does not enable organization
-flags or activate a production release.
+Implementation prepared October 6, 2026 and subsequently
+[deployed to development](../deploy/digitalocean/development-full-house-workflow-20261006.md).
+This change does not enable organization flags or activate a production release.
 
 ## Pilot configuration
 
