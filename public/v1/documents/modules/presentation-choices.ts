@@ -28,11 +28,17 @@ function find(items: unknown, id: string): JsonObject | null {
   walk(items, item => { if (!found && text(item.id) === id) found = item; });
   return found;
 }
-/** What a presentation offers: rows the reviewer made selectable by the customer. */
-const offeredTo = (item: JsonObject) => list(object(item.selection).selectable_by).map(text).includes("customer");
+/**
+ * What a presentation offers: every alternative and optional line on the
+ * estimate. Putting an option on the estimate is the decision to show it;
+ * there is no second flag to remember.
+ */
+const offeredTo = (_item: JsonObject) => true;
 const dimensionsOf = (item: JsonObject) => list(item.variant_dimensions).map(object).filter(dimension => text(dimension.id) && list(dimension.values).length);
 const valueIds = (dimension: JsonObject) => list(dimension.values).map(value => text(object(value).id));
 function offeredValues(item: JsonObject, dimension: JsonObject) {
+  // A dimension left off the proposal offers nothing.
+  if (object(item.variant_omitted)[text(dimension.id)] === true) return [];
   const listed = object(item.variant_offered)[text(dimension.id)];
   return Array.isArray(listed) ? listed.map(text) : valueIds(dimension);
 }
@@ -92,7 +98,10 @@ export function applyVariantChoices(items: unknown[], variants: ScopeChoices["va
     for (const dimension of dimensions) {
       const id = text(dimension.id), ids = valueIds(dimension), excluded = excludedValues(item, dimension, selected), offered = offeredValues(item, dimension);
       const allowed = ids.filter(entry => !excluded.has(entry));
-      if (!allowed.includes(text(selected[id]))) selected[id] = allowed.find(entry => offered.includes(entry)) || allowed[0] || ids[0];
+      // "" is a real answer: no default until someone picks one.
+      if (object(item.variant_omitted)[id] === true) selected[id] = "";
+      else if (selected[id] === "") continue;
+      else if (!allowed.includes(text(selected[id]))) selected[id] = allowed.find(entry => offered.includes(entry)) || allowed[0] || ids[0];
     }
     const chosen = (dimension: JsonObject) => object(list(dimension.values).map(object).find(entry => text(entry.id) === text(selected[text(dimension.id)])));
     item.selected_variants = selected;

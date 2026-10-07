@@ -1701,15 +1701,15 @@
             const values = arr(dimension.values).map(obj);
             const chosen = values.find((value) => cleanText(value.id) === selectedOf(item, dimension));
             const name = cleanText(dimension.label).toLowerCase();
-            const status = omitted ? `Not part of this proposal` : `${offered.length} of ${values.length} offered \u00b7 ${chosen ? `default ${esc(chosen.label)}` : 'no default'}`;
+            const status = omitted ? `not on this proposal` : `${offered.length} of ${values.length} \u00b7 ${chosen ? `default ${esc(chosen.label)}` : 'no default'}`;
             return `
               <div class="fmdw-var-dim ${omitted ? 'omitted' : ''}" data-fmdw-var-dim="${esc(dimension.id)}">
                 <div class="fmdw-var-head">
-                  <strong>${esc(dimension.label)}</strong>
+                  ${ctx.readonly
+                    ? `<strong>${esc(dimension.label)}</strong>`
+                    : `<label class="fmdw-var-include" title="${omitted ? `Add ${esc(name)} to this proposal` : `On this proposal \u2014 untick to leave ${esc(name)} off entirely`}"><input type="checkbox" data-fmdw-var-include ${omitted ? '' : 'checked'}><i class="fas fa-check"></i><strong>${esc(dimension.label)}</strong></label>`}
                   <small>${status}</small>
-                  ${ctx.readonly ? '' : `
-                    ${omitted ? '' : `<button type="button" class="fmdw-var-all" data-fmdw-var-all>${offered.length === values.length ? 'Offer none' : 'Offer all'}</button>`}
-                    <label class="fmdw-var-include" title="${omitted ? `Add ${esc(name)} to this proposal` : `Leave ${esc(name)} off this proposal entirely`}"><input type="checkbox" data-fmdw-var-include ${omitted ? '' : 'checked'}><i></i><span>Include</span></label>`}
+                  ${ctx.readonly || omitted ? '' : `<button type="button" class="fmdw-var-all" data-fmdw-var-all title="${offered.length === values.length ? 'Stop offering every one' : 'Offer every one'}">${offered.length === values.length ? 'None' : 'All'}</button>`}
                 </div>
                 <div class="fmdw-var-tiles">
                   ${values.map((value) => {
@@ -1995,56 +1995,79 @@
           edit((found) => { found.list.splice(found.list.indexOf(found.item), 1); });
           render();
         });
-        // Opening is a class on what is already there: nothing re-renders.
-        row.querySelector('[data-fmdw-lir-variants]')?.addEventListener('click', (event) => {
-          const open = !openVariants.has(id);
-          if (open) openVariants.add(id); else openVariants.delete(id);
-          event.currentTarget.classList.toggle('open', open);
+        // The colors and options of a line float over the lines below, and a
+        // click in them patches this row: nothing else moves or re-renders.
+        const setVariantsOpen = (open) => {
+          if (open) {
+            el.querySelectorAll('[data-fmdw-var-wrap].open').forEach((other) => { if (!row.contains(other)) other.closest('[data-fmdw-lir]')?.querySelector('[data-fmdw-lir-variants]')?.click(); });
+            openVariants.add(id);
+          } else openVariants.delete(id);
+          row.classList.toggle('variants-open', open);
+          row.querySelector('[data-fmdw-lir-variants]')?.classList.toggle('open', open);
           row.querySelector('[data-fmdw-var-wrap]')?.classList.toggle('open', open);
-        });
-        row.querySelectorAll('[data-fmdw-var-dim]').forEach((dimEl) => {
-          const dimId = dimEl.dataset.fmdwVarDim;
-          const change = (apply) => {
-            edit((found) => {
-              const dimension = dimensionsOf(found.item).find((entry) => entry.id === dimId);
-              if (!dimension) return;
-              apply(found.item, dimension);
-              applyVariants(found.item);
-            });
-            render();
-          };
-          const valueOf = (button) => button.closest('[data-fmdw-var-value]').dataset.fmdwVarValue;
-          dimEl.querySelectorAll('[data-fmdw-var-toggle]').forEach((button) => button.addEventListener('click', () => {
-            const valueId = valueOf(button);
-            change((item, dimension) => {
-              const offered = offeredOf(item, dimension);
-              const on = !offered.includes(valueId);
-              item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: on ? [...offered, valueId] : offered.filter((entry) => entry !== valueId) };
-              // A default that is no longer offered is no default.
-              if (!on && selectedOf(item, dimension) === valueId) item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: '' };
-            });
-          }));
-          dimEl.querySelectorAll('[data-fmdw-var-default]').forEach((button) => button.addEventListener('click', () => {
-            const valueId = valueOf(button);
-            change((item, dimension) => {
-              const isDefault = selectedOf(item, dimension) === valueId;
-              item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: isDefault ? '' : valueId };
-              // The default is one you offer.
-              if (!isDefault) item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: [...new Set([...offeredOf(item, dimension), valueId])] };
-            });
-          }));
-          dimEl.querySelector('[data-fmdw-var-include]')?.addEventListener('change', (event) => change((item, dimension) => {
-            const omitted = { ...obj(item.variant_omitted) };
-            if (event.target.checked) delete omitted[dimension.id]; else omitted[dimension.id] = true;
-            item.variant_omitted = omitted;
-          }));
-          dimEl.querySelector('[data-fmdw-var-all]')?.addEventListener('click', () => change((item, dimension) => {
-            const all = arr(dimension.values).map((value) => cleanText(obj(value).id));
-            const none = offeredOf(item, dimension).length === all.length;
-            item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: none ? [] : all };
-            if (none) item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: '' };
-          }));
-        });
+        };
+        const bindVariants = () => {
+          row.querySelector('[data-fmdw-lir-variants]')?.addEventListener('click', () => setVariantsOpen(!openVariants.has(id)));
+          row.querySelectorAll('[data-fmdw-var-dim]').forEach((dimEl) => {
+            const dimId = dimEl.dataset.fmdwVarDim;
+            const change = (apply) => {
+              edit((found) => {
+                const dimension = dimensionsOf(found.item).find((entry) => entry.id === dimId);
+                if (!dimension) return;
+                apply(found.item, dimension);
+                applyVariants(found.item);
+              });
+              const found = findItem(items, id);
+              if (!found) return;
+              const swap = (selector, html) => {
+                const node = row.querySelector(selector);
+                if (!node) return;
+                const holder = document.createElement('div');
+                holder.innerHTML = html.trim();
+                if (holder.firstElementChild) node.replaceWith(holder.firstElementChild);
+              };
+              swap('[data-fmdw-var-wrap]', variantPanelHtml(found.item));
+              swap('[data-fmdw-lir-variants]', variantChipHtml(found.item));
+              const price = row.querySelector('[data-fmdw-lir-price]');
+              if (price) price.value = Number(found.item.unit_price || 0).toFixed(2);
+              bindVariants();
+              refreshAmounts();
+            };
+            const valueOf = (button) => button.closest('[data-fmdw-var-value]').dataset.fmdwVarValue;
+            dimEl.querySelectorAll('[data-fmdw-var-toggle]').forEach((button) => button.addEventListener('click', () => {
+              const valueId = valueOf(button);
+              change((item, dimension) => {
+                const offered = offeredOf(item, dimension);
+                const on = !offered.includes(valueId);
+                item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: on ? [...offered, valueId] : offered.filter((entry) => entry !== valueId) };
+                // A default that is no longer offered is no default.
+                if (!on && selectedOf(item, dimension) === valueId) item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: '' };
+              });
+            }));
+            dimEl.querySelectorAll('[data-fmdw-var-default]').forEach((button) => button.addEventListener('click', () => {
+              const valueId = valueOf(button);
+              change((item, dimension) => {
+                const isDefault = selectedOf(item, dimension) === valueId;
+                item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: isDefault ? '' : valueId };
+                // The default is one you offer.
+                if (!isDefault) item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: [...new Set([...offeredOf(item, dimension), valueId])] };
+              });
+            }));
+            dimEl.querySelector('[data-fmdw-var-include]')?.addEventListener('change', (event) => change((item, dimension) => {
+              const omitted = { ...obj(item.variant_omitted) };
+              if (event.target.checked) delete omitted[dimension.id]; else omitted[dimension.id] = true;
+              item.variant_omitted = omitted;
+            }));
+            dimEl.querySelector('[data-fmdw-var-all]')?.addEventListener('click', () => change((item, dimension) => {
+              const all = arr(dimension.values).map((value) => cleanText(obj(value).id));
+              const none = offeredOf(item, dimension).length === all.length;
+              item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: none ? [] : all };
+              if (none) item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: '' };
+            }));
+          });
+        };
+        bindVariants();
+        if (openVariants.has(id)) row.classList.add('variants-open');
         row.querySelector('[data-fmdw-lir-attach]')?.addEventListener('click', (event) => {
           const found = findItem(items, id);
           if (!found) return;
@@ -3255,27 +3278,27 @@
 .fmdw-lir-variant-chip.open>.fas{transform:rotate(180deg)}
 .fmdw-lir-variant-chip:hover,.fmdw-lir-variant-chip.open{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
 .fmdw-var-sw{flex:none;width:14px;height:14px;border-radius:50%;border:1px solid rgba(16,24,40,.18)}
-.fmdw-lir-variants-wrap{grid-column:1 / -1;display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .24s cubic-bezier(.3,.8,.3,1),opacity .2s ease}
-.fmdw-lir-variants-wrap.open{grid-template-rows:1fr;opacity:1}
+.fmdw-lir-row{position:relative}
+.fmdw-lir-row.variants-open{z-index:30;border-bottom-left-radius:0;border-bottom-right-radius:0;border-color:#cdd3e0}
+.fmdw-lir-variants-wrap{position:absolute;left:-1px;right:-1px;top:100%;z-index:30;background:#fff;border:1px solid #cdd3e0;border-top:0;border-radius:0 0 11px 11px;box-shadow:0 14px 28px rgba(16,24,40,.14);display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;pointer-events:none;transition:grid-template-rows .2s cubic-bezier(.3,.8,.3,1),opacity .16s ease,visibility 0s .2s}
+.fmdw-lir-variants-wrap.open{grid-template-rows:1fr;opacity:1;visibility:visible;pointer-events:auto;transition:grid-template-rows .2s cubic-bezier(.3,.8,.3,1),opacity .16s ease}
 .fmdw-lir-variants-clip{min-height:0;overflow:hidden}
-.fmdw-lir-variants{display:flex;flex-wrap:wrap;gap:10px 22px;border-top:1px solid #f0f2f7;margin-top:6px;padding:9px 2px 3px}
-.fmdw-var-dim{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:7px}
-.fmdw-var-head{display:flex;align-items:center;gap:4px 8px;flex-wrap:wrap}
+.fmdw-lir-variants{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 26px;border-top:1px solid #f0f2f7;padding:10px 12px 11px}
+.fmdw-var-dim{flex:0 1 auto;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:7px}
+.fmdw-var-head{display:flex;align-items:center;gap:7px;white-space:nowrap}
 .fmdw-var-head strong{font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#475467}
-.fmdw-var-head small{font-size:10px;font-weight:800;color:var(--fmdw-muted)}
-.fmdw-var-all{margin-left:auto;white-space:nowrap;border:0;background:transparent;color:var(--fmdw-muted);font:inherit;font-size:10px;font-weight:900;cursor:pointer;padding:0}
+.fmdw-var-head small{font-size:10px;font-weight:800;color:var(--fmdw-muted);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.fmdw-var-all{border:0;background:transparent;color:var(--fmdw-muted);font:inherit;font-size:10px;font-weight:900;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
 .fmdw-var-all:hover{color:var(--fmdw-primary)}
-.fmdw-var-include{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:900;color:var(--fmdw-muted);cursor:pointer;white-space:nowrap}
-.fmdw-var-dim.omitted .fmdw-var-include{margin-left:auto}
+.fmdw-var-include{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .fmdw-var-include input{position:absolute;opacity:0;pointer-events:none}
-.fmdw-var-include i{width:24px;height:14px;border-radius:7px;background:#d0d5dd;position:relative;transition:background .15s ease}
-.fmdw-var-include i::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#fff;transition:transform .15s ease}
-.fmdw-var-include input:checked+i{background:var(--fmdw-primary)}
-.fmdw-var-include input:checked+i::after{transform:translateX(10px)}
+.fmdw-var-include i{width:13px;height:13px;border-radius:4px;border:1.5px solid #c0c6d2;background:#fff;color:transparent;font-size:7px;display:grid;place-items:center;transition:background .12s ease,border-color .12s ease}
+.fmdw-var-include input:checked+i{background:var(--fmdw-primary);border-color:var(--fmdw-primary);color:#fff}
 .fmdw-var-include input:focus-visible+i{outline:2px solid var(--fmdw-primary);outline-offset:2px}
-.fmdw-var-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:7px 6px}
+.fmdw-var-dim.omitted .fmdw-var-head strong{color:#98a2b3}
+.fmdw-var-tiles{display:flex;flex-wrap:wrap;gap:7px 6px}
 .fmdw-var-dim.omitted .fmdw-var-tiles{opacity:.35;filter:grayscale(1)}
-.fmdw-var-tile{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0}
+.fmdw-var-tile{position:relative;display:flex;flex-direction:column;gap:3px;width:64px;min-width:0}
 .fmdw-var-face{position:relative;height:34px;border:1px solid rgba(16,24,40,.14);border-radius:9px;cursor:pointer;font:inherit;display:grid;place-items:center;padding:0;overflow:hidden;transition:transform .12s ease,box-shadow .12s ease,filter .15s ease}
 .fmdw-var-face b{position:relative;z-index:1;font-size:10.5px;font-weight:1000;font-variant-numeric:tabular-nums}
 .fmdw-var-face:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 10px rgba(16,24,40,.16)}
