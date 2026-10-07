@@ -8,7 +8,7 @@ import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { createSharedDocument, listSharedDocuments, mutateSharedDocument, readSharedDocument } from "../src/database/shared_documents.js";
 import { deleteSharedObject, getSharedObject, isSpacesArtifactStorageEnabled, putSharedObject } from "../src/storage/project_artifacts.js";
 import { DEFAULT_TEMPLATE_KEY, GLOBAL_MARKET_PRICEBOOK_ID, PRICEBOOK_FILE_NAMES, PRICEBOOK_SCHEMA_VERSION } from "./constants.js";
-import { DEFAULT_PRICEBOOK_TEMPLATE } from "./default_template.js";
+import { DEFAULT_PRICEBOOK_TEMPLATE, TEMPLATE_ADDED_ITEM_IDS } from "./default_template.js";
 import { badRequest, conflict, notFound } from "./errors.js";
 import { autoAddScopeItems, resolveCatalogItemToScopeItem, validateCatalogGraph } from "./resolver.js";
 
@@ -341,7 +341,42 @@ export async function getGlobalMarketPricebook() {
       metadata: { pricebook_layer: "global_market" }
     });
   }
+  await upgradeGlobalMarketFromTemplate();
   return getPricebookDetail(GLOBAL_MARKET_PRICEBOOK_ID);
+}
+
+/** Fields a newer template may add to an item the market book already has. */
+const TEMPLATE_ADDITIVE_ITEM_FIELDS = ["itemTypeId", "variant_dimensions", "default_variant_selection"];
+
+/** Item ids the template added after `version`. */
+function templateItemsAddedAfter(version: number) {
+  return Object.entries(TEMPLATE_ADDED_ITEM_IDS).filter(([added]) => Number(added) > version).flatMap(([, ids]) => ids);
+}
+
+/**
+ * Bring the market book up to the bundled template: add the template's new
+ * items and fill classification/variant fields that existing items lack.
+ * Additive only — prices, names and anything already set stay as they are.
+ */
+async function upgradeGlobalMarketFromTemplate() {
+  const manifest = await readManifest(GLOBAL_MARKET_PRICEBOOK_ID);
+  const current = Number(asRecord(manifest.template_ref).version || 1);
+  if (current >= DEFAULT_PRICEBOOK_TEMPLATE.version) return;
+  const catalog = await readCatalog(GLOBAL_MARKET_PRICEBOOK_ID);
+  const template = normalizeCatalog(readTemplateCatalog(DEFAULT_TEMPLATE_KEY));
+  const existing = new Map(catalog.items.map((item) => [String(item.id), item]));
+  const added = new Set(templateItemsAddedAfter(current));
+  const empty = (value: unknown) => value == null || value === "" || (Array.isArray(value) && !value.length) || (isRecord(value) && !Object.keys(value).length);
+  const items = catalog.items.map((item) => {
+    const source = asRecord(template.items.find((entry) => String(entry.id) === String(item.id)));
+    const next: JsonObject = { ...item };
+    for (const field of TEMPLATE_ADDITIVE_ITEM_FIELDS) if (empty(next[field]) && !empty(source[field])) next[field] = clone(source[field]);
+    return next;
+  });
+  for (const item of template.items) if (added.has(String(item.id)) && !existing.has(String(item.id))) items.push(clone(item));
+  await saveCatalog(GLOBAL_MARKET_PRICEBOOK_ID, { ...catalog, items });
+  const saved = await readManifest(GLOBAL_MARKET_PRICEBOOK_ID);
+  await saveManifest(GLOBAL_MARKET_PRICEBOOK_ID, { ...saved, template_ref: { ...asRecord(saved.template_ref), key: DEFAULT_TEMPLATE_KEY, version: DEFAULT_PRICEBOOK_TEMPLATE.version } });
 }
 
 export async function getOrganizationPricebook(organizationIdValue: string) {
@@ -363,7 +398,7 @@ export async function getOrganizationPricebook(organizationIdValue: string) {
   }
 
   const manifest = await readManifest(pricebookId);
-  const overlay = await readOrganizationOverlay(pricebookId, organizationId, global);
+  const overlay = await linkTemplateAdditions(pricebookId, await readOrganizationOverlay(pricebookId, organizationId, global), global);
   const catalog = materializeOrganizationCatalog(global.catalog, overlay);
   return {
     manifest: {
@@ -721,8 +756,35 @@ function initialOrganizationOverlay(organizationId: string, global: Awaited<Retu
       overrides: {}
     })),
     settings: clone(global.catalog.settings || {}),
-    metadata: { storage_model: "global_references_with_sparse_overrides" }
+    metadata: { storage_model: "global_references_with_sparse_overrides", template_version: DEFAULT_PRICEBOOK_TEMPLATE.version }
   };
+}
+
+/**
+ * An organization links the market items that existed when its price book was
+ * made. Items a later template added are linked once, so they appear without
+ * re-adding anything the organization removed on purpose.
+ */
+async function linkTemplateAdditions(pricebookId: string, overlay: OrganizationPricebookOverlay, global: Awaited<ReturnType<typeof getPricebookDetail>>) {
+  const version = Number(asRecord(overlay.metadata).template_version || 1);
+  if (version >= DEFAULT_PRICEBOOK_TEMPLATE.version) return overlay;
+  const linked = new Set(overlay.entries.map((entry) => String(entry.id)));
+  const market = new Set(global.catalog.items.map((item) => String(item.id)));
+  const next: OrganizationPricebookOverlay = {
+    ...overlay,
+    entries: [
+      ...overlay.entries,
+      ...templateItemsAddedAfter(version).filter((id) => market.has(id) && !linked.has(id)).map((id) => ({
+        id,
+        global_item_ref: { pricebook_id: GLOBAL_MARKET_PRICEBOOK_ID, item_id: id },
+        link_mode: "live",
+        overrides: {}
+      }))
+    ],
+    metadata: { ...asRecord(overlay.metadata), template_version: DEFAULT_PRICEBOOK_TEMPLATE.version }
+  };
+  await saveOrganizationOverlayRaw(pricebookId, next);
+  return next;
 }
 
 async function readOrganizationOverlay(

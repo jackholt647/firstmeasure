@@ -1143,6 +1143,8 @@
       pop.querySelectorAll('[data-fmdw-attach-pick]').forEach((button) => button.addEventListener('click', async () => {
         if (!canPick) return;
         picking = true;
+        // The library is its own window; this popover steps aside for it.
+        pop.style.visibility = 'hidden';
         try {
           const picked = obj(await media.pick());
           const id = firstText(picked.media_id, picked.id);
@@ -1154,6 +1156,7 @@
             placePopover(pop, anchor, 420);
           }
         } catch (e) { /* picker closed */ }
+        pop.style.visibility = '';
         // The library closes with a click outside this popover; keep it open.
         setTimeout(() => { picking = false; }, 0);
       }));
@@ -1541,10 +1544,9 @@
       pop.className = 'fmdw-attach-pop fmdw-mod-pop';
       const list = modifiers();
       pop.innerHTML = `
-        <div class="fmdw-attach-head"><span><i class="fas fa-sliders"></i> Modifiers</span><button type="button" class="fmdw-attach-x" data-fmdw-mod-close title="Close"><i class="fas fa-xmark"></i></button></div>
-        <p class="fmdw-mod-note">A modifier adjusts the quantity of every line it applies to. Lines it touched show its badge.</p>
+        <div class="fmdw-attach-head"><span><i class="fas fa-sliders"></i> Modifiers <i class="fas fa-circle-info fmdw-mod-info" title="A modifier adjusts the quantity of every line it applies to. Lines it touched show its badge."></i></span><button type="button" class="fmdw-attach-x" data-fmdw-mod-close title="Close"><i class="fas fa-xmark"></i></button></div>
         ${list.length ? list.map((modifier) => `
-          <label class="fmdw-mod-row">
+          <label class="fmdw-mod-row ${modifier === list[0] ? 'first' : ''}">
             <span class="fmdw-lir-mod">${esc(firstText(modifier.badge, '?'))}</span>
             <span class="fmdw-mod-copy"><strong>${esc(modifier.label)}</strong><small>${esc(firstText(modifier.description, ''))} ${affectedBy(modifier.id)} line${affectedBy(modifier.id) === 1 ? '' : 's'}.</small></span>
             <span class="fmdw-lir-num"><i>${modifier.operation === 'multiply' ? '×' : '+'}</i><input type="number" step="any" min="0" data-fmdw-mod-value="${esc(modifier.id)}" value="${esc(formatNumber(modifier.value))}" ${ctx.readonly ? 'disabled' : ''}><i>${modifier.operation === 'percent' ? '%' : ''}</i></span>
@@ -1559,6 +1561,166 @@
       document.body.appendChild(pop);
       placePopover(pop, anchor, 380);
       setTimeout(() => document.addEventListener('mousedown', onDown, true), 0);
+    }
+
+    // ------------------------------------------------------------- variants
+    // A line's colors and options (variant_dimensions) live on the line, not
+    // as lines of their own. One value per dimension is selected: it sets the
+    // unit price and prints on the proposal. `variant_offered` lists the
+    // values the customer may be offered. A value can rule out values of
+    // another dimension (excludes).
+    const openVariants = new Set();
+    const dimensionsOf = (item) => arr(item.variant_dimensions).map(obj).filter((dimension) => cleanText(dimension.id) && arr(dimension.values).length);
+    const offeredOf = (item, dimension) => {
+      const listed = obj(item.variant_offered)[dimension.id];
+      return Array.isArray(listed) ? listed.map(cleanText) : arr(dimension.values).map((value) => cleanText(obj(value).id));
+    };
+    const selectedOf = (item, dimension) => cleanText(obj(item.selected_variants)[dimension.id]);
+    /** Values of `dimension` that another dimension's selected value rules out. */
+    function excludedOf(item, dimension){
+      const out = new Set();
+      dimensionsOf(item).forEach((other) => {
+        if (other.id === dimension.id) return;
+        const chosen = arr(other.values).map(obj).find((value) => cleanText(value.id) === selectedOf(item, other));
+        arr(obj(obj(chosen).excludes)[dimension.id]).forEach((id) => out.add(cleanText(id)));
+      });
+      return out;
+    }
+    /** Keep every selection legal, then set the price, summary and variables. */
+    function applyVariants(item){
+      const dimensions = dimensionsOf(item);
+      if (!dimensions.length) return;
+      const selected = { ...obj(item.selected_variants) };
+      dimensions.forEach((dimension) => {
+        const excluded = excludedOf({ ...item, selected_variants: selected }, dimension);
+        const offered = offeredOf(item, dimension);
+        const ids = arr(dimension.values).map((value) => cleanText(obj(value).id));
+        const allowed = ids.filter((id) => !excluded.has(id));
+        if (!allowed.includes(cleanText(selected[dimension.id]))) selected[dimension.id] = allowed.find((id) => offered.includes(id)) || allowed[0] || ids[0];
+      });
+      item.selected_variants = selected;
+      let price = Number(item.variant_base_price);
+      if (Number.isFinite(price)) {
+        dimensions.forEach((dimension) => {
+          const adjustment = obj(obj(arr(dimension.values).map(obj).find((value) => cleanText(value.id) === cleanText(selected[dimension.id]))).adjustment);
+          if (adjustment.operation === 'add') price += Number(adjustment.value) || 0;
+          else if (adjustment.operation === 'multiply') price *= Number(adjustment.value) || 1;
+        });
+        item.unit_price = Math.round(price * 100) / 100;
+      }
+      item.variant_summary = dimensions.map((dimension) => cleanText(obj(arr(dimension.values).map(obj).find((value) => cleanText(value.id) === cleanText(selected[dimension.id]))).label)).filter(Boolean).join(' · ');
+      item.variables = { ...obj(item.variables), ...selected };
+    }
+    const valuePriceText = (value) => {
+      const adjustment = obj(obj(value).adjustment);
+      if (adjustment.operation === 'multiply') return `× ${formatNumber(adjustment.value)}`;
+      const amount = adjustment.operation === 'add' ? Number(adjustment.value) || 0 : 0;
+      return `${amount < 0 ? '−' : '+'}$${formatNumber(Math.abs(amount))}`;
+    };
+    function variantChipHtml(item){
+      const dimensions = dimensionsOf(item);
+      if (!dimensions.length) return '';
+      const color = dimensions.find((dimension) => dimension.kind === 'color');
+      const swatch = color ? cleanText(obj(arr(color.values).map(obj).find((value) => cleanText(value.id) === selectedOf(item, color))).hex) : '';
+      const summary = firstText(item.variant_summary, dimensions.map((dimension) => dimension.label).join(' · '));
+      return `<button type="button" class="fmdw-lir-variant-chip ${openVariants.has(item.id) ? 'open' : ''}" data-fmdw-lir-variants title="Colors and options for this line">${swatch ? `<i class="fmdw-var-sw" style="background:${esc(swatch)}"></i>` : ''}<span>${esc(summary)}</span><i class="fas fa-chevron-down"></i></button>`;
+    }
+    function variantPanelHtml(item){
+      if (!openVariants.has(item.id)) return '';
+      return `
+        <div class="fmdw-lir-variants">
+          ${dimensionsOf(item).map((dimension) => {
+            const offered = offeredOf(item, dimension);
+            const excluded = excludedOf(item, dimension);
+            const values = arr(dimension.values).map(obj);
+            return `
+              <div class="fmdw-var-dim" data-fmdw-var-dim="${esc(dimension.id)}">
+                <div class="fmdw-var-head">
+                  <strong>${esc(dimension.label)}</strong>
+                  <small title="Values the customer may be offered">${offered.length} of ${values.length} offered</small>
+                  ${ctx.readonly ? '' : `<button type="button" class="fmdw-var-all" data-fmdw-var-all>${offered.length === values.length ? 'Offer none' : 'Offer all'}</button>`}
+                </div>
+                <div class="fmdw-var-tiles">
+                  ${values.map((value) => {
+                    const id = cleanText(value.id);
+                    const isExcluded = excluded.has(id);
+                    const isOffered = offered.includes(id) && !isExcluded;
+                    const isSelected = selectedOf(item, dimension) === id;
+                    return `
+                      <div class="fmdw-var-tile ${isSelected ? 'selected' : ''} ${isOffered ? '' : 'off'} ${isExcluded ? 'excluded' : ''}" data-fmdw-var-value="${esc(id)}" title="${esc(isExcluded ? `${value.label} is not available with the options selected` : value.label)}">
+                        <button type="button" class="fmdw-var-pick" data-fmdw-var-pick ${isExcluded || ctx.readonly ? 'disabled' : ''}>
+                          ${dimension.kind === 'color' ? `<i class="fmdw-var-sw" style="background:${esc(firstText(value.hex, '#d0d5dd'))}"></i>` : ''}
+                          <span>${esc(value.label)}</span>
+                          <b>${esc(valuePriceText(value))}</b>
+                        </button>
+                        ${ctx.readonly || isExcluded ? '' : `<button type="button" class="fmdw-var-offer" data-fmdw-var-offer title="${isOffered ? 'Offered to the customer — click to stop offering' : 'Not offered — click to offer'}"><i class="fas ${isOffered ? 'fa-eye' : 'fa-eye-slash'}"></i></button>`}
+                      </div>`;
+                  }).join('')}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    // ------------------------------------------------------- add an option
+    /** Search the price book items that fit a choice group and add one. */
+    async function openAddOption(anchor, groupId){
+      document.querySelectorAll('.fmdw-mod-pop').forEach((existing) => existing.remove());
+      const host = (() => {
+        let match = null;
+        walkItems(items, (item) => { if (!match && arr(item.children).some((child) => choiceGroupOf(child) === groupId)) match = item; });
+        return match;
+      })();
+      if (!host) return;
+      const rootOf = items.find((rootItem) => rootItem === host || findItem(rootItem.children, host.id)) || host;
+      const pop = document.createElement('div');
+      pop.className = 'fmdw-attach-pop fmdw-mod-pop';
+      const title = groupTitle(groupId, arr(host.children).filter((child) => choiceGroupOf(child) === groupId));
+      let candidates = null;
+      let failed = false;
+      const present = () => new Set(arr(host.children).filter((child) => choiceGroupOf(child) === groupId).map((child) => firstText(obj(child.pricebook_ref).item_id, obj(child.pricebook_ref).catalog_item_id)));
+      const close = () => { document.removeEventListener('mousedown', onDown, true); pop.remove(); };
+      const onDown = (event) => { if (!pop.contains(event.target) && !anchor.contains(event.target)) close(); };
+      const draw = (query = '') => {
+        const needle = cleanText(query).toLowerCase();
+        const have = present();
+        const rows = arr(candidates).filter((line) => !have.has(firstText(obj(line.pricebook_ref).item_id))).filter((line) => !needle || `${line.name} ${line.description}`.toLowerCase().includes(needle));
+        pop.querySelector('[data-fmdw-opt-list]').innerHTML = candidates === null
+          ? `<p class="fmdw-hint" style="margin:0"><i class="fas fa-circle-notch fa-spin"></i> Loading ${esc(title.toLowerCase())} options…</p>`
+          : (failed ? `<p class="fmdw-hint" style="margin:0">The price book could not be searched. Use Pricebook to add a line instead.</p>`
+          : (rows.length ? rows.map((line) => `
+              <button type="button" class="fmdw-opt-row" data-fmdw-opt-add="${esc(firstText(obj(line.pricebook_ref).item_id))}">
+                <span><strong>${esc(firstText(line.display_name, line.name))}</strong>${line.description ? `<small>${esc(line.description)}</small>` : ''}</span>
+                <b>${esc(moneyFromDollars(Number(line.unit_price) || 0))}<i>/${esc(line.unit || 'ea')}</i></b>
+              </button>`).join('') : `<p class="fmdw-hint" style="margin:0">${needle ? 'Nothing matches that search.' : `Every ${esc(title.toLowerCase())} in your price book is already an option here.`}</p>`));
+        pop.querySelectorAll('[data-fmdw-opt-add]').forEach((button) => button.addEventListener('click', () => {
+          const line = arr(candidates).find((entry) => firstText(obj(entry.pricebook_ref).item_id) === button.dataset.fmdwOptAdd);
+          if (!line) return;
+          const added = normalizeScopeItem({ ...clone(line), selection: { ...obj(line.selection), group_id: groupId, selected: false, default_selected: false } });
+          const lastIndex = host.children.reduce((last, child, index) => (choiceGroupOf(child) === groupId ? index : last), host.children.length - 1);
+          host.children.splice(lastIndex + 1, 0, added);
+          commit();
+          ctx.requestPreview();
+          close();
+          render();
+        }));
+      };
+      pop.innerHTML = `
+        <div class="fmdw-attach-head"><span><i class="fas fa-plus"></i> Add ${esc(title.toLowerCase())} option</span><button type="button" class="fmdw-attach-x" data-fmdw-opt-close title="Close"><i class="fas fa-xmark"></i></button></div>
+        <input type="text" data-fmdw-opt-search placeholder="Search ${esc(title.toLowerCase())} in your price book">
+        <div class="fmdw-opt-list" data-fmdw-opt-list></div>`;
+      pop.querySelector('[data-fmdw-opt-close]').addEventListener('click', close);
+      pop.querySelector('[data-fmdw-opt-search]').addEventListener('input', (event) => draw(event.target.value));
+      document.body.appendChild(pop);
+      draw();
+      placePopover(pop, anchor, 400);
+      setTimeout(() => { document.addEventListener('mousedown', onDown, true); pop.querySelector('[data-fmdw-opt-search]')?.focus(); }, 0);
+      try {
+        candidates = arr(await services.scopeCandidates(cleanText(rootOf.scope_template_id), groupId, clone(measurements()))).map(obj);
+      } catch (e) { candidates = []; failed = true; }
+      if (!pop.isConnected) return;
+      draw(pop.querySelector('[data-fmdw-opt-search]')?.value || '');
+      placePopover(pop, anchor, 400);
     }
 
     // ------------------------------------------------------------ generate
@@ -1582,6 +1744,7 @@
         const roots = arr(await services.generateScopeItems(clone(selection()), clone(used))).map(normalizeScopeItem);
         if (roots.length) {
           items = roots;
+          walkItems(items, applyVariants);
           commit();
           ctx.writePath('params.scope_generated_from', stampOf(used));
           ctx.requestPreview();
@@ -1620,7 +1783,7 @@
         <div class="fmdw-lir-row ${on ? '' : 'off'} ${control ? 'pick' : ''}" data-fmdw-lir="${esc(item.id)}">
           ${control ? `<span class="fmdw-lir-pick">${control}</span>` : ''}
           <div class="fmdw-lir-name">
-            <span class="fmdw-lir-name-line">${attachThumbHtml(item)}<strong>${esc(firstText(item.display_name, item.name, 'Line item'))}</strong>${modifierBadges(item)}${pick === 'optional' ? `<span class="fmdw-li-flag optional">Optional</span>` : ''}</span>
+            <span class="fmdw-lir-name-line">${attachThumbHtml(item)}<strong>${esc(firstText(item.display_name, item.name, 'Line item'))}</strong>${modifierBadges(item)}${pick === 'optional' ? `<span class="fmdw-li-flag optional">Optional</span>` : ''}${variantChipHtml(item)}</span>
             ${item.description ? `<small class="fmdw-lir-desc">${esc(item.description)}</small>` : ''}
           </div>
           <div class="fmdw-lir-nums">
@@ -1633,6 +1796,7 @@
             <button type="button" class="fmdw-icon-btn ${hasAttachment(item) ? 'has-media' : ''}" data-fmdw-lir-attach title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>
             <button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_f643f568915438","Remove") ?? "Remove")}"><i class="fas fa-xmark"></i></button>
           </div>`}
+          ${variantPanelHtml(item)}
         </div>`;
     }
 
@@ -1649,11 +1813,14 @@
           const customer = options.some(customerPicks);
           out.push(`
             <div class="fmdw-lir-choice">
-              <div class="fmdw-lir-choice-head" title="${customer ? 'The selected option is your recommendation: the proposal prices it, and the customer can switch before approving.' : 'The selected option is the one this proposal prices and prints.'}">
+              <div class="fmdw-lir-choice-head">
                 <strong>${esc(groupTitle(groupId, options))}</strong>
-                <span class="fmdw-li-flag choice">${customer ? 'Customer can choose' : 'Choose one'}</span>
+                <span class="fmdw-li-flag choice" title="${customer ? 'The selected option is your recommendation: the proposal prices it, and the customer can switch before approving.' : 'The selected option is the one this proposal prices and prints.'}">${customer ? 'Customer can choose' : 'Choose one'}</span>
+                ${ctx.readonly || typeof services.scopeCandidates !== 'function' ? '' : `<button type="button" class="fmdw-lir-add-option" data-fmdw-lir-add-option="${esc(groupId)}" title="Add another option from your price book"><i class="fas fa-plus"></i> Add option</button>`}
               </div>
-              ${options.map((option) => rowHtml(option, 'choice') + nestedHtml(option)).join('')}
+              <div class="fmdw-lir-children">
+                ${options.map((option) => rowHtml(option, 'choice') + nestedHtml(option)).join('')}
+              </div>
             </div>`);
           return;
         }
@@ -1758,6 +1925,41 @@
           edit((found) => { found.list.splice(found.list.indexOf(found.item), 1); });
           render();
         });
+        row.querySelector('[data-fmdw-lir-variants]')?.addEventListener('click', () => {
+          if (openVariants.has(id)) openVariants.delete(id); else openVariants.add(id);
+          render();
+        });
+        row.querySelectorAll('[data-fmdw-var-dim]').forEach((dimEl) => {
+          const dimId = dimEl.dataset.fmdwVarDim;
+          const change = (apply) => {
+            edit((found) => {
+              const dimension = dimensionsOf(found.item).find((entry) => entry.id === dimId);
+              if (!dimension) return;
+              apply(found.item, dimension);
+              applyVariants(found.item);
+            });
+            render();
+          };
+          dimEl.querySelectorAll('[data-fmdw-var-pick]').forEach((button) => button.addEventListener('click', () => {
+            const valueId = button.closest('[data-fmdw-var-value]').dataset.fmdwVarValue;
+            change((item, dimension) => {
+              item.selected_variants = { ...obj(item.selected_variants), [dimension.id]: valueId };
+              // The option you price is one you offer.
+              item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: [...new Set([...offeredOf(item, dimension), valueId])] };
+            });
+          }));
+          dimEl.querySelectorAll('[data-fmdw-var-offer]').forEach((button) => button.addEventListener('click', () => {
+            const valueId = button.closest('[data-fmdw-var-value]').dataset.fmdwVarValue;
+            change((item, dimension) => {
+              const offered = offeredOf(item, dimension);
+              item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: offered.includes(valueId) ? offered.filter((entry) => entry !== valueId) : [...offered, valueId] };
+            });
+          }));
+          dimEl.querySelector('[data-fmdw-var-all]')?.addEventListener('click', () => change((item, dimension) => {
+            const all = arr(dimension.values).map((value) => cleanText(obj(value).id));
+            item.variant_offered = { ...obj(item.variant_offered), [dimension.id]: offeredOf(item, dimension).length === all.length ? [] : all };
+          }));
+        });
         row.querySelector('[data-fmdw-lir-attach]')?.addEventListener('click', (event) => {
           const found = findItem(items, id);
           if (!found) return;
@@ -1776,6 +1978,7 @@
           });
         });
       });
+      el.querySelectorAll('[data-fmdw-lir-add-option]').forEach((button) => button.addEventListener('click', () => openAddOption(button, button.dataset.fmdwLirAddOption)));
       el.querySelectorAll('[data-fmdw-lir-remove-group]').forEach((button) => button.addEventListener('click', () => {
         const found = findItem(items, button.dataset.fmdwLirRemoveGroup);
         if (!found || !root.confirm(`Remove "${firstText(found.item.display_name, found.item.name)}" and every line under it?`)) return;
@@ -2920,12 +3123,16 @@
 .fmdw-lir-row.off .fmdw-lir-amount{text-decoration:line-through}
 .fmdw-lir-pick{display:grid;place-items:center}
 .fmdw-lir-pick input{width:16px;height:16px;margin:0;accent-color:var(--fmdw-primary);cursor:pointer}
-.fmdw-lir-name{min-width:0;flex:1;display:flex;flex-direction:column}
+.fmdw-lir-name{min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;min-height:30px}
 .fmdw-lir-name-line{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
 .fmdw-lir-name strong{font-size:12.5px;font-weight:1000;line-height:1.3;overflow-wrap:anywhere}
-/* descriptions stay out of the way until the line is hovered or focused */
-.fmdw-lir-desc{max-height:0;opacity:0;overflow:hidden;font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.35;transition:max-height .16s ease,opacity .16s ease,margin-top .16s ease}
-.fmdw-lir-row:hover .fmdw-lir-desc,.fmdw-lir-row:focus-within .fmdw-lir-desc{max-height:3.4em;opacity:1;margin-top:2px}
+/* Descriptions stay out of the way until the line is hovered or focused.
+   The name block already has room for one description line (min-height
+   above), so revealing it re-centres the text without changing the row's
+   height: nothing below moves. */
+.fmdw-lir-name strong{line-height:15px}
+.fmdw-lir-desc{max-height:0;opacity:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:14px;transition:max-height .14s ease,opacity .14s ease}
+.fmdw-lir-row:hover .fmdw-lir-desc,.fmdw-lir-row:focus-within .fmdw-lir-desc{max-height:14px;opacity:1}
 .fmdw-lir-mod{flex:none;width:16px;height:16px;border-radius:50%;display:inline-grid;place-items:center;font-size:8.5px;font-weight:1000;font-style:normal;line-height:1;background:#fff3dc;color:#8a6100;border:1px solid #f0d58a;cursor:help}
 .fmdw-lir-mod.off{background:#f2f4f7;color:#98a2b3;border-color:#e4e7ec;text-decoration:line-through}
 .fmdw-lir-nums{display:flex;align-items:center;gap:6px;min-width:0}
@@ -2938,9 +3145,51 @@
 .fmdw-lir-x{font-size:11px;color:#98a2b3}
 .fmdw-lir-amount{min-width:78px;text-align:right;font-size:12.5px;font-weight:1000;font-variant-numeric:tabular-nums}
 .fmdw-lir-actions{display:flex;align-items:center;gap:5px}
-.fmdw-lir-choice{display:flex;flex-direction:column;gap:6px;padding-top:4px}
-.fmdw-lir-choice-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 2px;cursor:help}
-.fmdw-lir-choice-head strong{font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#475467}
+.fmdw-lir-choice{display:flex;flex-direction:column;gap:6px}
+/* a choice group is a thin grouping line; its options indent beneath it */
+.fmdw-lir-choice-head{display:flex;align-items:center;gap:8px;min-height:30px;padding:3px 9px 3px 12px;border:1px solid var(--fmdw-line);border-radius:11px;background:#f4f6fa}
+.fmdw-lir-choice-head strong{font-size:12.5px;font-weight:1000}
+.fmdw-lir-choice-head .fmdw-li-flag{cursor:help}
+.fmdw-lir-add-option{margin-left:auto;border:0;background:transparent;color:var(--fmdw-muted);font:inherit;font-size:11px;font-weight:900;cursor:pointer;padding:4px 6px;border-radius:7px}
+.fmdw-lir-add-option:hover{color:var(--fmdw-primary);background:#fff}
+/* colors and options of one line */
+.fmdw-lir-variant-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;border:1px solid var(--fmdw-line);border-radius:999px;background:#fff;color:#475467;font:inherit;font-size:10.5px;font-weight:900;padding:2px 8px 2px 4px;cursor:pointer}
+.fmdw-lir-variant-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.fmdw-lir-variant-chip>.fas{font-size:8px;transition:transform .12s ease}
+.fmdw-lir-variant-chip.open>.fas{transform:rotate(180deg)}
+.fmdw-lir-variant-chip:hover,.fmdw-lir-variant-chip.open{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
+.fmdw-var-sw{flex:none;width:14px;height:14px;border-radius:50%;border:1px solid rgba(16,24,40,.18)}
+.fmdw-lir-variants{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:10px 22px;border-top:1px solid #f0f2f7;margin-top:6px;padding-top:9px}
+.fmdw-var-dim{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.fmdw-var-head{display:flex;align-items:baseline;gap:8px}
+.fmdw-var-head strong{font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#475467}
+.fmdw-var-head small{font-size:10px;font-weight:800;color:var(--fmdw-muted)}
+.fmdw-var-all{margin-left:auto;white-space:nowrap;border:0;background:transparent;color:var(--fmdw-muted);font:inherit;font-size:10px;font-weight:900;cursor:pointer;padding:0}
+.fmdw-var-all:hover{color:var(--fmdw-primary)}
+.fmdw-var-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px}
+.fmdw-var-tile{position:relative;border:1.5px solid var(--fmdw-line);border-radius:10px;background:#fff;overflow:hidden}
+.fmdw-var-tile.selected{border-color:var(--fmdw-primary);box-shadow:0 0 0 1px var(--fmdw-primary)}
+.fmdw-var-pick{width:100%;border:0;background:transparent;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px 6px;color:var(--fmdw-ink)}
+.fmdw-var-pick .fmdw-var-sw{width:22px;height:22px;border-radius:7px}
+.fmdw-var-pick span{font-size:9.5px;font-weight:900;line-height:1.2;text-align:center;overflow-wrap:anywhere}
+.fmdw-var-pick b{font-size:10.5px;font-weight:1000;color:#475467;font-variant-numeric:tabular-nums}
+.fmdw-var-offer{position:absolute;top:2px;right:2px;width:18px;height:18px;border:0;border-radius:6px;background:rgba(255,255,255,.85);color:#98a2b3;font-size:9px;cursor:pointer;display:grid;place-items:center;opacity:0}
+.fmdw-var-tile:hover .fmdw-var-offer,.fmdw-var-tile.off .fmdw-var-offer{opacity:1}
+.fmdw-var-offer:hover{color:var(--fmdw-primary)}
+/* not offered: muted. ruled out by another option: hatched and inert */
+.fmdw-var-tile.off{background:#f6f7fb}
+.fmdw-var-tile.off .fmdw-var-pick{opacity:.45}
+.fmdw-var-tile.excluded{background:repeating-linear-gradient(135deg,#f2f4f7 0 6px,#e4e7ec 6px 7px)}
+.fmdw-var-tile.excluded .fmdw-var-pick{cursor:not-allowed;opacity:.4}
+/* add-an-option search */
+.fmdw-opt-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
+.fmdw-opt-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid transparent;border-radius:9px;background:transparent;font:inherit;text-align:left;padding:7px 8px;cursor:pointer;color:#111827}
+.fmdw-opt-row:hover{border-color:var(--fmdw-line);background:#f6f7fb}
+.fmdw-opt-row span{min-width:0;display:flex;flex-direction:column;gap:1px}
+.fmdw-opt-row strong{font-size:12px;font-weight:1000}
+.fmdw-opt-row small{font-size:10.5px;font-weight:800;color:#667085}
+.fmdw-opt-row b{flex:none;font-size:12px;font-weight:1000;font-variant-numeric:tabular-nums}
+.fmdw-opt-row b i{font-style:normal;font-weight:800;color:#98a2b3}
 .fmdw-lir-total{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:4px 12px;font-size:12px;font-weight:900;color:var(--fmdw-muted)}
 .fmdw-lir-total b{font-size:17px;font-weight:1000;color:var(--fmdw-ink);font-variant-numeric:tabular-nums}
 @container (max-width:500px){
@@ -2952,8 +3201,9 @@
   .fmdw-lir-row:not(.fmdw-lir-group-head) .fmdw-lir-actions{grid-row:1;grid-column:-2}
 }
 /* modifiers panel */
-.fmdw-mod-note{margin:0;font-size:11px;font-weight:800;color:#667085;line-height:1.45}
+.fmdw-mod-info{margin:0 0 0 4px !important;color:#98a2b3;cursor:help;font-size:11px}
 .fmdw-mod-row{display:flex;align-items:center;gap:10px;border-top:1px solid #f0f2f7;padding-top:9px}
+.fmdw-mod-row.first{border-top:0;padding-top:0}
 .fmdw-mod-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .fmdw-mod-copy strong{font-size:12.5px;font-weight:1000}
 .fmdw-mod-copy small{font-size:10.5px;font-weight:800;color:#667085;line-height:1.35}

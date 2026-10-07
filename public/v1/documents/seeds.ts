@@ -44,7 +44,7 @@ import {
  * "Roofing proposal intake". Presets upgrade by preset_revision, copying the
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
-export const DOCUMENT_PRESET_REVISION = 31;
+export const DOCUMENT_PRESET_REVISION = 32;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -315,6 +315,8 @@ export function proposalLineItemComponents(): JsonObject {
       // scope_rows are the flat projection: children get an indent label,
       // parents keep the rolled-up amount (see flattenScopeRows).
       { runs: [{ bind: "coalesce(item.display_name, item.name)" }], style_ref: "li_name" },
+      // The color and options chosen for the line ("Charcoal · Standard").
+      { runs: [{ bind: "coalesce(item.variant_summary, '')" }], style_ref: "li_meta", collapse_empty: true },
       { runs: [{ bind: "coalesce(item.description, '')" }], style_ref: "li_meta", collapse_empty: true },
       // Conditional-pricing badge chip ("Pay by bank", "3% card fee",
       // "Sign within 7 days") — empty for ordinary rows.

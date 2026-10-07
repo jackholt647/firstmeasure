@@ -1935,6 +1935,9 @@
         // Native line-items generation (line_items_review + measurement-key
         // derivation): the legacy module's exported generation, pricebook
         // hydrated first so formulas resolve (see generateScopeItemsForSelection).
+        // Price book items that fit one choice group (line_items_review's
+        // "Add option" search), priced from the same measurements.
+        scopeCandidates: async (templateId, group, measurements) => arrayValue((await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.candidates', { scope: 'organization', organizationId: orgId() }, { templateId, group, measurements: objectValue(measurements) })).value),
         // Pieces the server can price (pricebook.scope.generate) are built
         // there from the organization price book; the rest still use the
         // legacy module's exported generation, pricebook hydrated first.

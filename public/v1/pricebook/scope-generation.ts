@@ -249,9 +249,66 @@ function applyQuantities(catalog: JsonObject, item: JsonObject, measurements: Re
   asArray(item.children).map(asObject).forEach((child) => applyQuantities(catalog, child, measurements));
 }
 
+/** Swatches for color names a price book lists without a hex value. */
+const COLOR_HEX: Record<string, string> = {
+  charcoal: "#3f4144", weathered_wood: "#6f6354", barkwood: "#5b4a3c", shakewood: "#8b6f4e", driftwood: "#8c8478",
+  pewter_gray: "#7d8286", slate: "#55606a", hickory: "#6a4a34", mission_brown: "#4a3a30", hunter_green: "#3b4d3f",
+  biscayne_blue: "#4d6275", fox_hollow_gray: "#6f7377", white: "#f4f4f2", black: "#1f2023", bronze: "#5a4a3a",
+  brown: "#5c4433", gray: "#8a8d91", tan: "#c9b79c", almond: "#e6d9bd", clay: "#b3a595", red: "#8f3a2f", green: "#3f5a45", blue: "#44607c"
+};
+
+/**
+ * The ways one line can vary without becoming another line: colors and other
+ * options. Each dimension lists its values with the per-unit price change and
+ * the values of other dimensions it rules out. Read from the item's
+ * variant_dimensions, or from its plain option lists when it has none.
+ */
+function lineVariantDimensions(catalogItem: JsonObject): JsonObject[] {
+  const declared = asArray(catalogItem.variant_dimensions || catalogItem.variantDimensions).map(asObject).filter((dimension) => cleanText(dimension.kind) !== "pricing_policy");
+  const source = declared.length ? declared : asArray(catalogItem.options).map(asObject).filter((option) => asArray(option.values).length > 1);
+  return source.filter((dimension) => cleanText(dimension.id)).map((dimension) => {
+    const id = cleanText(dimension.id);
+    const kind = cleanText(dimension.kind) || (/colou?r/i.test(id) ? "color" : "option");
+    return {
+      id,
+      label: cleanText(dimension.label) || id,
+      kind,
+      values: asArray(dimension.values).map(asObject).map((value) => {
+        const valueId = cleanText(value.id ?? value.value);
+        const adjustment = asObject(value.adjustment);
+        const operation = cleanText(adjustment.operation);
+        return {
+          id: valueId,
+          label: cleanText(value.label) || valueId,
+          ...(kind === "color" ? { hex: cleanText(value.hex) || COLOR_HEX[valueId] || "" } : {}),
+          // add: dollars per unit; multiply: factor on the unit price.
+          ...(operation === "add" || operation === "multiply" ? { adjustment: { operation, value: Number(adjustment.value) || 0 } } : {}),
+          ...(Object.keys(asObject(value.excludes)).length ? { excludes: asObject(value.excludes) } : {})
+        };
+      }).filter((value) => value.id)
+    };
+  }).filter((dimension) => asArray(dimension.values).length > 1);
+}
+
 function pricedLine(catalog: JsonObject, itemId: string, measurements: Record<string, number>): JsonObject {
   const line = resolveCatalogItemToScopeItem(catalog, itemId);
   applyQuantities(catalog, line, measurements);
+  const catalogItem = asArray(catalog.items).map(asObject).find((entry) => cleanText(entry.id) === itemId) || {};
+  const dimensions = lineVariantDimensions(catalogItem);
+  if (dimensions.length) {
+    const chosen = asObject(line.selected_variants);
+    const defaults = asObject(catalogItem.defaultOptions || catalogItem.default_options);
+    line.variant_dimensions = dimensions;
+    // The price before any variant is applied; the screen recomputes from it.
+    line.variant_base_price = Number(catalogItem.unit_price ?? catalogItem.unitPrice ?? 0) || 0;
+    line.selected_variants = Object.fromEntries(dimensions.map((dimension) => {
+      const ids = asArray(dimension.values).map((value) => cleanText(asObject(value).id));
+      const wanted = cleanText(chosen[cleanText(dimension.id)] ?? defaults[cleanText(dimension.id)]);
+      return [dimension.id, ids.includes(wanted) ? wanted : ids[0]];
+    }));
+    // Every value is offered until the reviewer switches some off.
+    line.variant_offered = Object.fromEntries(dimensions.map((dimension) => [dimension.id, asArray(dimension.values).map((value) => cleanText(asObject(value).id))]));
+  }
   return line;
 }
 
@@ -289,16 +346,15 @@ type PieceRecipe = {
 const ROOF_REPLACEMENT: PieceRecipe = {
   assembly: "roof_replacement",
   ensure: ["headwall_flashing", "sidewall_flashing", "pipe_boot", "skylight_flashing", "chimney_flashing", "gutter_replace", "downspout"],
+  // `items` are the options a new proposal starts with; every other price
+  // book item of the same item type can be added from the review screen.
   choices: [
     { group: "shingle_profile", title: "Shingle", itemType: "field_shingles", category: "shingle_roofs",
-      items: ["gaf_ns", "gaf_hd", "gaf_uhdz", "gaf_camelot_ii", "gaf_slateline", "gaf_grand_sequoia", "owens_duration", "malarkey_vista", "certainteed_landmark"],
-      defaultItem: "gaf_hd", customerItems: ["gaf_ns", "gaf_hd", "gaf_uhdz"] },
+      items: ["gaf_ns", "gaf_hd", "gaf_uhdz"], defaultItem: "gaf_hd", customerItems: ["gaf_ns", "gaf_hd", "gaf_uhdz"] },
     { group: "underlayment_profile", title: "Underlayment", itemType: "underlayment", category: "underlayments",
-      items: ["underlayment", "gaf_shinglemate", "gaf_feltbuster", "gaf_tiger_paw"],
-      defaultItem: "underlayment", customerItems: ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"] },
+      items: ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"], defaultItem: "underlayment", customerItems: ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"] },
     { group: "leak_barrier_profile", title: "Leak barrier", itemType: "leak_barrier", category: "leak_barriers",
-      items: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"],
-      defaultItem: "ice_water", customerItems: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"] }
+      items: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"], defaultItem: "ice_water", customerItems: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"] }
   ]
 };
 
@@ -308,18 +364,41 @@ export function scopeGenerationSupports(templateId: string) {
   return Object.prototype.hasOwnProperty.call(RECIPES, cleanText(templateId));
 }
 
+const itemTypeOf = (item: JsonObject) => cleanText(item.itemTypeId || item.item_type_id);
+
+/** Price book items that can stand in for one another in a choice group. */
+function groupCandidates(catalog: JsonObject, group: ChoiceGroup): JsonObject[] {
+  return asArray(catalog.items).map(asObject).filter((item) => itemTypeOf(item) === group.itemType && cleanText(item.status) !== "archived");
+}
+
+function choiceLine(catalog: JsonObject, group: ChoiceGroup, itemId: string, measurements: Record<string, number>, selected: boolean, customer: boolean): JsonObject {
+  const line = pricedLine(catalog, itemId, measurements);
+  line.selection = {
+    mode: "choice",
+    group_id: group.group,
+    group_title: group.title,
+    group_behavior: "single",
+    selected,
+    default_selected: selected,
+    customer_visible: customer,
+    selectable_by: customer || selected ? ["internal", "customer"] : ["internal"]
+  };
+  // An alternative carries its own price; it is never an "included" line.
+  line.included = false;
+  line.price_driving = true;
+  return line;
+}
+
 function applyChoiceGroup(catalog: JsonObject, root: JsonObject, group: ChoiceGroup, measurements: Record<string, number>) {
-  const available = group.items.filter((id) => {
-    const item = asArray(catalog.items).map(asObject).find((entry) => cleanText(entry.id) === id);
-    return !!item && cleanText(item.itemTypeId || item.item_type_id) === group.itemType && cleanText(item.category) === group.category;
-  });
-  if (!available.length) return;
-  const candidates = new Set(group.items);
+  const candidateIds = new Set(groupCandidates(catalog, group).map((item) => cleanText(item.id)));
+  const available = group.items.filter((id) => candidateIds.has(id));
+  // One option is not a choice: leave the assembly's own line as it is.
+  if (available.length < 2) return;
   const replaced: JsonObject[] = [];
   root.children = asArray(root.children).map(asObject).filter((child) => {
     const selection = asObject(child.selection);
     const inGroup = cleanText(selection.mode) === "choice" && cleanText(selection.group_id) === group.group;
-    if (inGroup || candidates.has(referencedItemId(child))) {
+    if (inGroup || candidateIds.has(referencedItemId(child))) {
       replaced.push(child);
       return false;
     }
@@ -328,23 +407,25 @@ function applyChoiceGroup(catalog: JsonObject, root: JsonObject, group: ChoiceGr
   const assemblyPick = referencedItemId(asObject(replaced.find((child) => asObject(child.selection).selected === true)));
   const selectedId = available.includes(assemblyPick) ? assemblyPick : (available.includes(group.defaultItem) ? group.defaultItem : available[0]!);
   for (const id of available) {
-    const line = pricedLine(catalog, id, measurements);
-    const customer = group.customerItems.includes(id);
-    line.selection = {
-      mode: "choice",
-      group_id: group.group,
-      group_title: group.title,
-      group_behavior: "single",
-      selected: id === selectedId,
-      default_selected: id === selectedId,
-      customer_visible: customer,
-      selectable_by: customer || id === selectedId ? ["internal", "customer"] : ["internal"]
-    };
-    // An alternative carries its own price; it is never an "included" line.
-    line.included = false;
-    line.price_driving = true;
-    (root.children as JsonObject[]).push(line);
+    (root.children as JsonObject[]).push(choiceLine(catalog, group, id, measurements, id === selectedId, group.customerItems.includes(id)));
   }
+}
+
+/**
+ * Every price book item that could be added to a choice group, priced from
+ * the same measurements. The review screen searches these so adding a fourth
+ * shingle does not mean searching the whole price book.
+ */
+export function choiceGroupCandidates(catalogValue: unknown, templateIdValue: string, groupValue: string, measurementsValue: unknown): JsonObject[] {
+  const recipe = RECIPES[cleanText(templateIdValue)];
+  if (!recipe) throw badRequest("scope_generation_unsupported", `Scope generation is not available for '${cleanText(templateIdValue)}'.`);
+  // Review screens namespace group ids per scope piece ("piece_x:shingle_profile").
+  const groupId = cleanText(groupValue).split(":").pop() || "";
+  const group = recipe.choices.find((entry) => entry.group === groupId);
+  if (!group) throw badRequest("scope_choice_group_unknown", `'${groupId}' is not a choice group of this scope.`);
+  const catalog = asObject(catalogValue);
+  const measurements = normalizeScopeMeasurements(measurementsValue);
+  return groupCandidates(catalog, group).map((item) => choiceLine(catalog, group, cleanText(item.id), measurements, false, true));
 }
 
 /** One priced root scope item for a scope piece. */

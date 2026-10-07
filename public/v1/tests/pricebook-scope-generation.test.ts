@@ -80,3 +80,30 @@ test("unsupported pieces and missing assemblies fail explicitly", () => {
   assert.throws(() => generatePieceScope(catalog, "kitchen_remodel", measurements), /not available/);
   assert.throws(() => generatePieceScope({ items: [] }, "roof_replacement", measurements), /assembly/);
 });
+
+test("the bundled template offers the GAF lines, more by search, with colors and a finish on the line", async () => {
+  const { DEFAULT_PRICEBOOK_TEMPLATE } = await import("../pricebook/default_template.js");
+  const { choiceGroupCandidates } = await import("../pricebook/scope-generation.js");
+  const book = DEFAULT_PRICEBOOK_TEMPLATE.catalog;
+  const root = record(generatePieceScope(book, "roof_replacement", measurements));
+  const shingles = (root.children as Array<Record<string, any>>).filter((child) => child.selection?.group_id === "shingle_profile");
+  assert.deepEqual(shingles.map(refId), ["gaf_ns", "gaf_hd", "gaf_uhdz"], "a new proposal starts with the three GAF lines");
+  assert.equal(shingles.filter((line) => line.selection.selected).map(refId).join(), "gaf_hd");
+  assert.ok(!(root.children as Array<Record<string, any>>).some((child) => child.selection?.group_id === "underlayment_profile"), "one underlayment is a line, not a choice");
+
+  const hdz = shingles.find((line) => refId(line) === "gaf_hd")!;
+  assert.deepEqual(hdz.variant_dimensions.map((dimension: any) => [dimension.id, dimension.kind, dimension.values.length]), [["color", "color", 8], ["finish", "option", 2]]);
+  assert.deepEqual(hdz.selected_variants, { color: "charcoal", finish: "standard" });
+  assert.equal(hdz.variant_base_price, 398);
+  assert.equal(hdz.variant_offered.color.length, 8, "every color is offered until some are switched off");
+  const cool = hdz.variant_dimensions[1].values.find((value: any) => value.id === "cool");
+  assert.deepEqual(cool.adjustment, { operation: "add", value: 38 });
+  assert.ok(cool.excludes.color.includes("charcoal"), "the reflective finish rules out colors it is not made in");
+  assert.match(hdz.variant_dimensions[0].values[0].hex, /^#[0-9a-f]{6}$/);
+
+  const candidates = choiceGroupCandidates(book, "roof_replacement", "piece_roof_replacement:shingle_profile", measurements).map(record);
+  assert.deepEqual(candidates.map(refId).sort(), ["gaf_hd", "gaf_ns", "gaf_uhdz", "laminated_shingles", "malarkey_vista", "owens_duration", "three_tab_shingles"]);
+  assert.ok(candidates.every((line) => line.selection.mode === "choice" && line.selection.selected === false && line.quantity === "33"));
+  assert.ok(!candidates.some((line) => ["starter", "underlayment", "ridge_cap"].includes(refId(line))), "only shingles, though the category holds more");
+  assert.throws(() => choiceGroupCandidates(book, "roof_replacement", "gutters", measurements), /not a choice group/);
+});
