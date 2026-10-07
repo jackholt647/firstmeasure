@@ -88,7 +88,7 @@
       return node;
     }
     function slide(id, name, background, children, extra) {
-      const page = M.createPage('custom', Object.assign({ id, name, children: [rect(id + '_bg', 'Background', 0, 0, W, H, background)].concat(children) }, extra || {}));
+      const page = M.createPage('custom', Object.assign({ id, name, children: [Object.assign(rect(id + '_bg', 'Background', 0, 0, W, H, background), { locks: { move: true, rotate: true } })].concat(children) }, extra || {}));
       doc.pages.push(page);
       return page;
     }

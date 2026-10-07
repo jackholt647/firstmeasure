@@ -1946,6 +1946,7 @@
           return [
             offers.includes('present') && presentable ? { id: 'present', label: 'Present', icon: 'fa-display', primary: options.default === 'present', title: 'Present this estimate to the customer', run: () => openPresentation() } : null,
             offers.includes('send_estimate') ? { id: 'send_estimate', label: 'Send estimate', icon: 'fa-paper-plane', primary: options.default !== 'present' || !presentable, title: 'Send the estimate as it is', run: async () => { await flushAllWrites(); openSendModal(state.doc); } } : null,
+            presentable && window.FMPresentationEditorHost ? { id: 'edit_presentation', label: 'Edit presentation', icon: 'fa-pen-ruler', title: 'Open this presentation in the visual editor', run: () => editPresentation(objectValue(options.presentation).moduleId) } : null,
             offers.includes('send_presentation') && presentable ? { id: 'send_presentation', label: 'Send presentation', icon: 'fa-share-from-square', title: 'Email the customer a link to go through the presentation themselves', run: () => sendPresentation() } : null
           ].filter(Boolean);
         },
@@ -4224,6 +4225,20 @@
         button.disabled = !isReady;
         button.setAttribute('title', isReady ? button.dataset.readyTitle : 'Finish the steps before Review & send first');
       });
+    }
+    /** Open the workflow's presentation in the visual editor; saving publishes a new version for new proposals. */
+    async function editPresentation(moduleId){
+      if (!moduleId || !window.FMPresentationEditorHost) return;
+      const branding = objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding);
+      const sample = window.FMRoofingPresentation;
+      try {
+        const result = objectValue(await window.FMPresentationEditorHost.open({
+          orgId: orgId(), moduleId,
+          scope: { org: { name: firstText(branding.name, window.__APP?.orgName, window.Portal?.cfg?.orgName), logo_url: firstText(branding.logo_url, branding.logoUrl, objectValue(branding.logo).url) }, customer: { name: firstText(objectValue(project().customer).name, 'your customer') } },
+          ...(sample ? { sampleState: sample.priceSample(sample.sampleState()), priceSample: sample.priceSample } : {})
+        }));
+        if (result.saved) showToast('Presentation', 'Saved. New proposals use this version.', true);
+      } catch (error) { showToast('Presentation', errorMessage(error, 'The presentation editor could not be opened.'), false); }
     }
     /** Email the customer a link to go through the presentation on their own. */
     async function sendPresentation(){
