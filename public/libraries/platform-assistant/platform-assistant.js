@@ -843,6 +843,12 @@
     bindSplitter();
     bindTooltips();
     els.msgs.addEventListener('click', onMessagesClick);
+    // A picker widget shown by the assistant answers its question when the user confirms a selection in it.
+    listen(drawer,'fm:widget-selection',(event)=>{
+      const detail=object(event.detail);
+      if(detail.confirmed!==true||detail.surface!=='assistant'||state.pending)return;
+      void sendMessage({widgetAnswer:`I chose ${clean(detail.label)||'an option'} in the ${clean(detail.title)||'picker'} widget.`});
+    });
     listen(els.msgs,'scroll',updateChatFades);
     observeSize(els.msgs,updateChatFades);
     const transcriptObserver = new MutationObserver(updateChatFades);
@@ -2242,8 +2248,11 @@
     return state.threadId;
   }
 
-  async function sendMessage({ channelRecap = false, channelRevision = '' } = {}){
+  // widgetAnswer: a confirmed picker-widget selection sends the turn itself. The text only announces it; the agent
+  // reads the value from ui_context.displayed_widgets, so the composer draft and attachments are left untouched.
+  async function sendMessage({ channelRecap = false, channelRevision = '', widgetAnswer = '' } = {}){
     if (transferring) return;
+    if (widgetAnswer && (voiceCall || recorder)) return;
     if (voiceCall) {
       const text = clean(els.input.value), files = [...state.attachments];
       if (!voiceCall.ready || (!text && !files.length)) return;
@@ -2251,11 +2260,13 @@
     }
     if (!els || state.pending) return;
     if (recorder) { stopRecording(); return; }
-    const text = channelRecap ? 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.' : clean(els.input.value);
+    const text = channelRecap ? 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.' : widgetAnswer || clean(els.input.value);
     if (!text && !state.attachments.length) return;
-    const files = channelRecap ? [] : [...state.attachments];
+    const files = channelRecap || widgetAnswer ? [] : [...state.attachments];
+    // Capture the screen before the transcript re-renders, so the selection that triggered this turn is the one sent.
+    const uiContext = widgetUiContext();
     const agentId = state.view === 'agent' ? state.agentId : '';
-    if (!channelRecap) { els.input.value = ''; state.attachments = []; }
+    if (!channelRecap && !widgetAnswer) { els.input.value = ''; state.attachments = []; }
     renderAttachments();
     state.messages.push({ id:`local_${Date.now()}`, role:'user', content:[text, ...files.map((file) => `📎 ${file.name}`)].filter(Boolean).join('\n'), data:channelRecap ? {automatic_channel_recap:true,channel_source_revision:channelRevision} : {} });
     state.pending = true;
@@ -2272,7 +2283,7 @@
         attachments.push(uploaded.attachment);
       }
       const result = await window.AssistantAPI.send(orgId(), threadId, {
-        ui_context:widgetUiContext(),
+        ui_context:uiContext,
         message:text || 'Please review the attached files.',
         ...(channelRecap ? {intent:'channel_recap'} : {}),
         attachments:attachments.map((attachment) => attachment.media_id),

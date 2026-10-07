@@ -2195,6 +2195,7 @@ session_write_close();
   <script src="../libraries/platform-widgets/todo-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/todo-widgets.js') ?>"></script>
   <script src="../libraries/platform-widgets/payroll-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/payroll-widgets.js') ?>"></script>
   <script src="../libraries/platform-widgets/project-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/project-widgets.js') ?>"></script>
+  <script src="../libraries/platform-widgets/picker-widgets.js?v=<?= portalAssetVersion('../libraries/platform-widgets/picker-widgets.js') ?>"></script>
   <script src="../libraries/app-runtime/firstmate-embeddable-apps.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-embeddable-apps.js') ?>"></script>
   <script src="../libraries/app-runtime/app-chrome.js?v=<?= portalAssetVersion('../libraries/app-runtime/app-chrome.js') ?>"></script>
   <script src="../libraries/app-runtime/firstmate-app-context.js?v=<?= portalAssetVersion('../libraries/app-runtime/firstmate-app-context.js') ?>"></script>

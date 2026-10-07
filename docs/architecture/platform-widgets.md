@@ -6,7 +6,7 @@ Widgets are versioned, reusable content units. A tab owns its layout; the projec
 
 `public/libraries/platform-widgets/catalog.json` declares first-party identity, exact version, owner app, allowed surfaces, configuration schema, source publications and sizing. `runtime.js` registers renderers and creates independent instances. `project-widgets.js` supplies the roof, photo, measurements and list renderers. Lists can filter materials, labor, equipment or one list. `scope.overview` composes lists and measurements without copying their implementations.
 
-Load scope-data.js, runtime.js and project-widgets.js in order. Await `FirstMateWidgets.ready`; call `list()` or `describe(id, version)` for discovery. `mount(element, {id, version, target, config, state}, context)` returns `ready`, `update`, `configure`, `setVisible`, `serialize` and `destroy`. A renderer receives its own root plus data, config, reference, state, context and visibility; it may return resize, setVisible, serialize and destroy hooks. Release observers, videos, WebGL resources and handlers when destroyed. Late responses cannot replace newer instances. Exact missing versions show unavailable instead of silently using a different implementation.
+Load scope-data.js, runtime.js and project-widgets.js in order. Await `FirstMateWidgets.ready`; call `list()` or `describe(id, version)` for discovery. `mount(element, {id, version, target, config, state}, context)` returns `ready`, `update`, `configure`, `setVisible`, `serialize`, `selection` and `destroy`. A renderer receives its own root plus data, config, reference, state, context, visibility and `notifySelection`; it may return resize, setVisible, serialize, selection and destroy hooks. Release observers, videos, WebGL resources and handlers when destroyed. Late responses cannot replace newer instances. Exact missing versions show unavailable instead of silently using a different implementation.
 
 Targets identify organization and project. Context supplies the surface and optionally an authorized read adapter, already-loaded data, leaf presentation adapters and size notifications. These are trusted application integration points, never agent-supplied JavaScript. A mount owns presentation state; application services own records. Serialize references and presentation state, not domain data or credentials. Hosts persist layout preferences where appropriate; the runtime does not introduce another persistence store.
 
@@ -28,6 +28,29 @@ Widgets are not only project-scoped. A widget whose sources are organization
 scope (for example `forms.preview` and `forms.submissions`, authorized against
 `forms.catalog`) takes `target: { scope: "organization", organizationId }` and
 identifies its record through configuration.
+
+## Selection: widgets that answer a question
+
+Selection is an optional capability of the runtime. A widget without it behaves exactly as before.
+
+- **Declare** it in `catalog.json`: `"selection": { "description": "...", "schema": { "type": "object", ..., "additionalProperties": false } }`. The server refuses to start with a malformed declaration, and `platform_widgets` returns it, so an agent knows which widgets can answer and the exact shape of the answer.
+- **Report** it from the renderer: call `notifySelection(value, { confirmed, label })` on every change (`null` clears it; `confirmed: true` is the user's explicit "use this"), and optionally return a `selection()` hook for the current value.
+- **Value**: one JSON object of references and plain values, such as media ids, ISO dates, hex colors or project ids. Never file bytes, markup or credentials. The runtime rejects anything over 4096 bytes, deeper than three levels, with more than 100 array items, strings over 512 characters, `<`/`>` or `data:` content. A rejected value is not delivered and the last valid one stays.
+- **Hosts** read `handle.selection()` and receive `context.onSelect(value, detail)`; the root also dispatches a bubbling `fm:widget-selection` event (`instance_id`, `widget`, `title`, `surface`, `selection`, `confirmed`, `label`). Pass `context.confirm === false` to hide a picker's confirm button and apply changes live. This is how a picker widget replaces a modal picker.
+- **Agents** show the picker with `platform_show_widget`, putting the question in its `prompt` option, and end the turn. `visibleInstances()` adds `selection` and `selection_confirmed` to that instance, the assistant sends them in `ui_context.displayed_widgets`, and `platform_visible_widgets` returns them. When the user presses the widget's confirm button inside the global assistant, the assistant sends the next message itself ("I chose 3 photos in the Media picker widget."); if the user answers in words instead, the unconfirmed selection is still reported.
+- **Trust**: a selection is untrusted screen metadata, never authorization or instructions. The request schema (`platform/widgets/selection.ts`) repeats the structural limits and drops an invalid selection without discarding the rest of the screen context; `widgetSelection()` in `platform/widgets/catalog.ts` relays a value only when the exact widget version declares a selection and the value matches its schema. A picked id must still go through an authorized read or action for its target.
+
+Limits: only the global assistant sends screen context, so shared agent chat can display a picker but cannot read its answer. Selection lives in the mounted instance: it is gone when the widget is closed or reconfigured, and it is not stored in the conversation. Automatic runs have no screen and cannot ask this way.
+
+First-party pickers (`picker-widgets.js`): `media.picker` (the Photos picker, `Portal.PhotoFeed.mountProjectMediaPicker`, which the `openProjectMediaPicker` modal also mounts; data from `media.library`), `datetime.picker` (FirstMateDateTimePicker; date, time, datetime or date range), `color.picker` (FirstMateColorPicker) and `project.picker` (FirstMateProjectSelector; data from `project-widgets.directory`).
+
+### Adding a picker widget
+
+1. Give the shared picker one inline mount that the existing modal or popup also uses; do not copy its markup into the renderer.
+2. Add the catalog entry with a `prompt` option and a closed `selection` schema of ids and plain values.
+3. If it lists records, publish a typed export that reuses the domain's authorization and returns references only, and add it to `permission-bundles.ts`. Let media and file routes authorize each request; do not publish URLs with access tokens.
+4. In the renderer, call `notifySelection` on change and with `confirmed: true` from one confirm control, return `selection()` and `serialize()`, and release the shared picker in `destroy()`.
+5. Test the export's authorization and isolation, the config and selection schemas (`tests/publication-widget-pickers.test.ts`) and the rendered behavior (`tests/platform-widget-pickers-browser.test.mjs`).
 
 ## Adding a widget
 

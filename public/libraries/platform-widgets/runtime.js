@@ -6,6 +6,22 @@
   const clone=v=>JSON.parse(JSON.stringify(v)),mounted=new Map();
   const instanceId=()=>global.crypto?.randomUUID?.()||'widget-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
   const key=(id,version='1')=>id+'@'+version;
+  // Selection is an optional capability: one bounded JSON object of references and plain values (ids, ISO dates, hex colors).
+  // It is never file bytes, markup or credentials, and it is screen metadata for hosts and agents, never authorization.
+  const SELECTION_MAX_BYTES=4096;
+  function boundedSelection(value){
+    if(value==null)return null;if(typeof value!=='object')throw Error('Invalid selection');let nodes=0;
+    const visit=(item,depth)=>{
+      if(++nodes>400||depth>3)throw Error('Selection is too large');
+      if(item===null||typeof item==='boolean')return item;
+      if(typeof item==='number'){if(!Number.isFinite(item))throw Error('Invalid selection');return item;}
+      if(typeof item==='string'){if(item.length>512||/[<>]/.test(item)||/^\s*data:/i.test(item))throw Error('Invalid selection');return item;}
+      if(Array.isArray(item)){if(!depth||item.length>100)throw Error('Invalid selection');return item.map(child=>visit(child,depth+1));}
+      if(typeof item!=='object'||![Object.prototype,null].includes(Object.getPrototypeOf(item)))throw Error('Invalid selection');
+      const out={};for(const [name,child] of Object.entries(item)){if(name.length>64||['__proto__','prototype','constructor'].includes(name))throw Error('Invalid selection');if(child!==undefined)out[name]=visit(child,depth+1);}return out;
+    };
+    const clean=visit(value,0);if(new TextEncoder().encode(JSON.stringify(clean)).length>SELECTION_MAX_BYTES)throw Error('Selection is too large');return clean;
+  }
   function validate(def,config){
     const schema=def.configSchema||{properties:{},additionalProperties:false};
     for(const [name,value] of Object.entries(config||{})){
@@ -16,10 +32,11 @@
   }
   function register(def,renderer){
     if(!def.id||!def.version||!def.sizing)throw Error('A widget needs identity, version and sizing');
+    if(def.selection&&(typeof def.selection.description!=='string'||def.selection.schema?.type!=='object'))throw Error('A widget selection needs a description and an object schema');
     const k=key(def.id,def.version);if(definitions.has(k))throw Error('Duplicate widget: '+k);
     definitions.set(k,Object.freeze(clone(def)));if(renderer)renderers.set(k,renderer);
   }
-  const ready=fetch(new URL('catalog.json?v=20261006-payroll-widget',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
+  const ready=fetch(new URL('catalog.json?v=20261007-picker-widgets',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
   ready.catch(()=>{});
   function styles(){
     if(document.getElementById('fm-widget-styles'))return;
@@ -40,11 +57,25 @@
   }
   function status(root,message){root.replaceChildren();const el=document.createElement('div');el.className='fm-widget-status';el.setAttribute('role','status');el.textContent=message;root.append(el);}
   function mount(root,reference,context={}){
-    styles();const id=root.dataset.instanceId||instanceId();root.dataset.instanceId=id;const ref=clone(reference),config=ref.config||{};let alive=true,revision=0,instance,children=[],visible=true,definition;
+    styles();const id=root.dataset.instanceId||instanceId();root.dataset.instanceId=id;const ref=clone(reference),config=ref.config||{};let alive=true,revision=0,instance,children=[],visible=true,definition,selection=null,confirmed=false;
     root.classList.add('fm-widget');
     const content=document.createElement('div');content.style.cssText='height:100%;min-width:0';root.append(content);
     const observer=new ResizeObserver(()=>{if(alive&&visible){instance?.resize?.({width:root.clientWidth,height:root.clientHeight});context.onSize?.({width:root.clientWidth,height:root.scrollHeight});}});observer.observe(root);
-    function clear(){instance?.destroy?.();instance=null;children.forEach(c=>c.destroy());children=[];content.replaceChildren();}
+    function clear(){instance?.destroy?.();instance=null;selection=null;confirmed=false;children.forEach(c=>c.destroy());children=[];content.replaceChildren();}
+    function selectionState(){
+      if(!alive||!definition?.selection)return {value:null,confirmed:false};
+      let value=selection;if(instance?.selection){try{value=boundedSelection(instance.selection());}catch{value=null;}}
+      return {value,confirmed:confirmed&&value!=null&&JSON.stringify(value)===JSON.stringify(selection)};
+    }
+    // Renderers report changes here; confirmed marks an explicit "use this" by the user. Widgets that declare no selection ignore it.
+    function notifySelection(value,options={}){
+      if(!alive||!definition?.selection)return false;
+      let next;try{next=boundedSelection(value);}catch(error){console.warn('[widgets] selection rejected:',error.message);return false;}
+      selection=next;confirmed=options.confirmed===true&&next!=null;
+      const detail={instance_id:id,widget:{id:ref.id,version:ref.version||'1'},title:definition.title,surface:context.surface||'project',selection:clone(next),confirmed,label:String(options.label||'').replace(/[<>]/g,'').slice(0,120)};
+      try{context.onSelect?.(detail.selection,detail);}finally{root.dispatchEvent(new CustomEvent('fm:widget-selection',{bubbles:true,detail}));}
+      return true;
+    }
     async function loadData(){
       const source=definition?.sources?.[0],target=ref.target||context.target;
       if(!source)return context.data?.[ref.id];
@@ -83,12 +114,12 @@
         }
         if(!alive||generation!==revision)return;content.replaceChildren();
         const renderRoot=document.createElement('div');renderRoot.style.cssText=definition.sizing.mode==='content'?'min-width:0':'height:100%;min-width:0';content.append(renderRoot);
-        const result=await renderer(renderRoot,{data,config,context,reference:ref,state:ref.state||{},visible});
+        const result=await renderer(renderRoot,{data,config,context,reference:ref,state:ref.state||{},visible,notifySelection});
         if(!alive||generation!==revision){result?.destroy?.();return;}instance=result;instance?.setVisible?.(visible);
       }catch(error){if(alive&&generation===revision){clear();status(content,error.message||'Unable to display this widget.');}}
     }
-    const handle={ready:null,update,refresh,async configure(next){await ready;validate(definition||definitions.get(key(ref.id,ref.version||'1')),next);Object.keys(config).forEach(k=>delete config[k]);Object.assign(config,clone(next));ref.config=config;return update();},setVisible(value){visible=!!value;instance?.setVisible?.(visible);children.forEach(c=>c.setVisible(visible));},serialize(){return {...clone(ref),...(instance?.serialize?{state:instance.serialize()}:{})};},destroy(){if(!alive)return;alive=false;mounted.delete(id);revision++;observer.disconnect();clear();root.replaceChildren();root.classList.remove('fm-widget');delete root.dataset.sizing;}};
-    mounted.set(id,{root,handle,reference:()=>({...clone(ref),target:ref.target||context.target})});handle.ready=update();return handle;
+    const handle={ready:null,update,refresh,async configure(next){await ready;validate(definition||definitions.get(key(ref.id,ref.version||'1')),next);Object.keys(config).forEach(k=>delete config[k]);Object.assign(config,clone(next));ref.config=config;return update();},setVisible(value){visible=!!value;instance?.setVisible?.(visible);children.forEach(c=>c.setVisible(visible));},serialize(){return {...clone(ref),...(instance?.serialize?{state:instance.serialize()}:{})};},selection(){return clone(selectionState().value);},destroy(){if(!alive)return;alive=false;mounted.delete(id);revision++;observer.disconnect();clear();root.replaceChildren();root.classList.remove('fm-widget');delete root.dataset.sizing;}};
+    mounted.set(id,{root,handle,selection:selectionState,reference:()=>({...clone(ref),target:ref.target||context.target})});handle.ready=update();return handle;
   }
   function library(root,{items=[],selected,layout='auto',context={},onSelect}={}){
     styles();root.replaceChildren();const shell=document.createElement('div');shell.className='fm-widget-library';const stage=document.createElement('div'),selector=document.createElement('div');stage.className='fm-widget-stage';selector.className='fm-widget-selector';selector.setAttribute('role','tablist');selector.setAttribute('aria-label','Views');shell.append(selector,stage);root.append(shell);
@@ -144,8 +175,8 @@
       else if(prior.html!==el.outerHTML)el.animate?.([{backgroundColor:'#eef4ff'},{backgroundColor:'transparent'}],{duration:450});
     }
   }
-  function visibleInstances(){return [...mounted].filter(([,entry])=>entry.root.isConnected&&entry.root.getClientRects().length&&!entry.root.closest('[hidden],[inert]')).map(([instance_id,entry])=>{const ref=entry.reference();return {instance_id,panel_id:entry.root.closest('[data-panel-id]')?.dataset.panelId,widget:{id:ref.id,version:ref.version||'1',target:ref.target,config:ref.config||{}}};});}
+  function visibleInstances(){return [...mounted].filter(([,entry])=>entry.root.isConnected&&entry.root.getClientRects().length&&!entry.root.closest('[hidden],[inert]')).map(([instance_id,entry])=>{const ref=entry.reference();const picked=entry.selection();return {instance_id,panel_id:entry.root.closest('[data-panel-id]')?.dataset.panelId,widget:{id:ref.id,version:ref.version||'1',target:ref.target,config:ref.config||{}},...(picked.value!=null?{selection:clone(picked.value),selection_confirmed:picked.confirmed}:{})};});}
   function refreshInstance(id){return mounted.get(id)?.handle.refresh();}
-  global.FirstMateWidgets={visibleInstances,refreshInstance,reconcile,presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
+  global.FirstMateWidgets={selectionMaxBytes:SELECTION_MAX_BYTES,visibleInstances,refreshInstance,reconcile,presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
   global.FirstMateProjectTrays?.registerWidgets?.();
 })(window);

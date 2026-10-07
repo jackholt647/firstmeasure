@@ -832,5 +832,275 @@
       }
     ],
     "actions": []
+  },
+  {
+    "id": "media.picker",
+    "version": "1",
+    "title": "Media picker",
+    "description": "Picker: the user chooses project photos (optionally videos) from a thumbnail grid. Use it to ask which photos to use instead of asking in words. Target a project for its media, or the organization for project media across the company.",
+    "app": "photos",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 260,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "multiple": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "image",
+            "image_video"
+          ]
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "media",
+        "export": "library"
+      }
+    ],
+    "actions": [],
+    "selection": {
+      "description": "Media ids the user picked, in pick order. Read each through media.metadata (project target plus id) or pass it to an authorized action before using it.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "media_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "media_ids"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "datetime.picker",
+    "version": "1",
+    "title": "Date and time picker",
+    "description": "Picker: the user chooses a date, a time, a local date and time, or a date range from a calendar. Use it to ask when instead of asking in words. Needs only an organization target.",
+    "app": "settings",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 260,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "date",
+            "time",
+            "datetime",
+            "date_range"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "end_value": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "min": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "max": {
+          "type": "string",
+          "maxLength": 40
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "actions": [],
+    "selection": {
+      "description": "ISO 8601 local values without UTC conversion: value is YYYY-MM-DD (date), HH:MM (time) or YYYY-MM-DDTHH:MM (datetime); a date_range reports start and end dates. timezone is the IANA zone of the user's browser.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "date",
+              "time",
+              "datetime",
+              "date_range"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^(\\d{4}-\\d{2}-\\d{2}|\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,3})?)?|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,3})?)?)$"
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "end": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "color.picker",
+    "version": "1",
+    "title": "Color picker",
+    "description": "Picker: the user chooses one color with the shared FirstMate color picker. Use it to ask for a color instead of asking in words. Needs only an organization target.",
+    "app": "settings",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 260,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 7
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "actions": [],
+    "selection": {
+      "description": "The chosen color as a lowercase six-digit hex value.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-f]{6}$"
+          }
+        },
+        "required": [
+          "color"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "project.picker",
+    "version": "1",
+    "title": "Project picker",
+    "description": "Picker: the user searches for and chooses one project or lead. Use it to ask which project instead of asking in words. Takes an organization target.",
+    "app": "projects",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 260,
+      "minHeight": 330,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "project_id": {
+          "type": "string",
+          "maxLength": 160
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "project-widgets",
+        "export": "directory"
+      }
+    ],
+    "actions": [],
+    "selection": {
+      "description": "The id of the project the user picked. Read it through projects.record with a project target before using it.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "additionalProperties": false
+      }
+    }
   }
 ]

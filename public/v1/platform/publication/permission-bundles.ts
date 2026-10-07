@@ -10,7 +10,7 @@
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
   manage_external_sharing:{actions:["collaboration.share.revoke"]},
-  view_projects: { actions: ["work.todos.list", "work.todos.read", "work.todos.history", "work.configuration.read", "projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "todos.items", "organization.profile", "referrals.eligibility"] },
+  view_projects: { actions: ["work.todos.list", "work.todos.read", "work.todos.history", "work.configuration.read", "projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "project-widgets.directory", "work.records", "todos.items", "organization.profile", "referrals.eligibility"] },
   manage_projects: { data: ["lead-import.deliveries"], actions: ["work.todos.create", "work.todos.patch", "work.todos.transition", "work.followUps.outcome", "leads.import", "materials.calculus.command", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
   view_contacts: { data: ["custom-fields-contact.contract", "custom-fields-contact.values","customers.record", "contacts.settings", "contacts.options"] },
   view_schedule: { actions: ["scheduling.availability", "scheduling.appointment.catalog", "scheduling.appointment.preview"], data: ["calendar.record"] },
@@ -36,7 +36,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   request_feedback: { actions: ["feedback.project.request"] },
   view_canvassing: { actions: ["canvassing.pins.list"], data: ["canvassing.records"] },
   manage_canvassing: { actions: ["canvassing.pin.save"] },
-  view_media: { actions: ["media.item.read"], data: ["media.metadata"] },
+  view_media: { actions: ["media.item.read"], data: ["media.metadata", "media.library"] },
   manage_media: { actions: ["media.item.rename"] },
   view_comms: { actions: ["comms.project.feed"], data: ["comms.records"] },
   send_communications: { actions: ["comms.project.sendSms", "comms.project.sendEmail"] },

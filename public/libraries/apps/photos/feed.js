@@ -1476,6 +1476,7 @@
       .pf-picker-shell{width:min(820px,94vw);max-height:min(760px,90vh);background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:18px;box-shadow:0 28px 80px rgba(15,23,42,.28);display:flex;flex-direction:column;overflow:hidden}
       .pf-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid #eaecf0;background:#fff}.pf-picker-head strong{font-size:18px;font-weight:1000;color:#101828}.pf-picker-head span{display:block;margin-top:3px;color:#667085;font-size:12px;font-weight:850}.pf-picker-close{width:36px;height:36px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
       .pf-picker-body{min-height:0;flex:1;overflow:auto;padding:14px;background:#fff}.pf-picker-grid{grid-template-columns:repeat(auto-fill,minmax(124px,1fr));padding:0}.pf-picker-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid #eaecf0;background:#f8fafc}.pf-picker-foot .pf-action:disabled{opacity:.5;cursor:default}
+      .pf-picker-shell.pf-picker-inline{width:100%;max-height:none;border-radius:12px;box-shadow:none}.pf-picker-inline .pf-picker-body{max-height:420px}.pf-picker-inline .pf-picker-head{padding:12px 14px}.pf-picker-inline .pf-picker-head strong{font-size:14px}.pf-picker-inline .pf-picker-foot{padding:10px 14px}
       .pf-picker-error{margin:0 18px 12px;border:1px solid #fed7aa;border-radius:12px;background:#fff7ed;color:#9a3412;padding:9px 11px;font-size:12px;font-weight:900}
       @media(max-width:760px){.pf-user-shell{grid-template-columns:1fr;height:94vh}.pf-user-side{border-right:0;border-bottom:1px solid #eaecf0}.pf-user-main{min-height:420px}}
       @media(max-width:760px){.main-panels:has(#tab_photos_feed.active){padding-top:0}.pf-toolbar{align-items:center;flex-direction:row;gap:10px;padding:10px 12px;margin:0 -12px 18px;background:#f8fafc;border-bottom:1px solid rgba(15,23,42,.10);z-index:20}.pf-title{flex:0 0 30px;min-width:0;max-width:none;gap:0}.pf-title>div{display:none}.pf-title i{width:30px;height:30px;border-radius:9px;font-size:14px;flex:0 0 auto}.pf-tools{flex:1 1 auto;width:auto;min-width:0;gap:8px}.pf-search{width:100%;min-width:0;flex:1 1 auto}.pf-search input{height:34px;border-radius:9px;font-size:12px;padding-left:32px}.pf-search i{left:11px}.pf-density,.pf-refresh{display:none}.pf-toolbar-action span{display:none}.pf-shown-menu{position:fixed;left:12px;right:12px;top:74px;width:auto;max-height:calc(100vh - 94px)}.pf-shown-options{grid-template-columns:1fr}.pf-wrap .pf-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px}.pf-feed-grid,.pf-wrap[data-density] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.pf-feed-activity{grid-template-columns:38px minmax(0,1fr);padding:10px}.pf-feed-activity .pf-activity-link{display:none}.pf-feed-card-body{padding:9px}.pf-feed-card-heading time,.pf-paired-activity{display:none}.pf-group-head{flex-direction:column}.pf-uploaders{text-align:left}}
@@ -1628,11 +1629,16 @@
     overlay?.remove?.();
     onClose?.();
   }
-  function openProjectMediaPicker(options = {}){
+  // One picker implementation, mounted by the modal below and by the media.picker platform widget.
+  // hooks: inline (no dialog chrome; stays mounted after confirm), onRequestClose, onSelectionChange(ids), maxSelected.
+  function mountProjectMediaPicker(host, options = {}, hooks = {}){
     injectStyles();
-    const overlay = document.createElement('div');
-    overlay.className = 'pf-picker-modal';
-    overlay.style.zIndex = String(options.zIndex || 2147483500);
+    const overlay = host;
+    const inline = hooks.inline === true;
+    const maxSelected = Number(hooks.maxSelected) > 0 ? Number(hooks.maxSelected) : Infinity;
+    const requestClose = () => hooks.onRequestClose?.();
+    let notifiedKey = null;
+    let confirmedKey = null;
     const multiple = options.multiple !== false;
     const imageOnly = options.imageOnly !== false;
     const uploadAccept = options.accept || (imageOnly ? 'image/*' : 'image/*,video/*');
@@ -1680,13 +1686,14 @@
       if (!count) return multiple ? (imageOnly ? 'Select photos' : 'Select media') : (imageOnly ? 'Select photo' : 'Select media');
       return multiple ? `Select ${count} ${imageOnly ? `photo${count === 1 ? '' : 's'}` : `media item${count === 1 ? '' : 's'}`}` : (imageOnly ? 'Select photo' : 'Select media');
     };
-    let handle = null;
     const render = () => {
+      const selectedKey = [...selected].join('\n');
+      const confirmed = inline && confirmedKey === selectedKey;
       overlay.innerHTML = `
-        <div class="pf-picker-shell" role="dialog" aria-modal="true" aria-label="${String(escapeHtml(title))}">
+        <div class="pf-picker-shell${inline ? ' pf-picker-inline' : ''}" ${inline ? 'role="group"' : 'role="dialog" aria-modal="true"'} aria-label="${String(escapeHtml(title))}">
           <div class="pf-picker-head">
             <div><strong>${String(escapeHtml(title))}</strong>${String(subtitle ? `<span>${escapeHtml(subtitle)}</span>` : '')}</div>
-            <button type="button" class="pf-picker-close" data-picker-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>
+            ${inline ? '' : `<button type="button" class="pf-picker-close" data-picker-close aria-label="${(globalThis.PlatformLanguage?.htmlText("photos","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-times"></i></button>`}
           </div>
           <div class="pf-picker-body">
             ${String(items.length ? `
@@ -1706,15 +1713,15 @@
           </div>
           ${String(pickerError ? `<div class="pf-picker-error">${escapeHtml(pickerError)}</div>` : '')}
           <div class="pf-picker-foot">
-            <button type="button" class="pf-action" data-picker-upload><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_9ca9dace4f122f"," Upload") ?? " Upload")}</button>
-            <input type="file" data-picker-file accept="${String(escapeHtml(uploadAccept))}" ${String(multiple ? 'multiple' : '')} hidden>
+            ${inline && typeof options.onUpload !== 'function' ? '' : `<button type="button" class="pf-action" data-picker-upload><i class="fas fa-upload"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_9ca9dace4f122f"," Upload") ?? " Upload")}</button>
+            <input type="file" data-picker-file accept="${String(escapeHtml(uploadAccept))}" ${String(multiple ? 'multiple' : '')} hidden>`}
             <div style="flex:1"></div>
             <button type="button" class="pf-action" data-picker-clear ${String(selected.size ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("photos","m_506191e24dd383","Clear") ?? "Clear")}</button>
-            <button type="button" class="pf-action primary" data-picker-confirm ${String(selected.size ? '' : 'disabled')}>${String(escapeHtml(confirmLabel()))}</button>
+            <button type="button" class="pf-action primary" data-picker-confirm ${String(selected.size && !confirmed ? '' : 'disabled')}>${String(confirmed ? '<i class="fas fa-check"></i> Selected' : escapeHtml(confirmLabel()))}</button>
           </div>
         </div>
       `;
-      overlay.querySelector('[data-picker-close]')?.addEventListener('click', () => closeProjectMediaPicker(overlay, handle, options.onClose));
+      overlay.querySelector('[data-picker-close]')?.addEventListener('click', requestClose);
       overlay.querySelector('[data-picker-clear]')?.addEventListener('click', () => {
         selected = new Set();
         render();
@@ -1725,7 +1732,12 @@
           if (!id) return;
           if (multiple) {
             if (selected.has(id)) selected.delete(id);
-            else selected.add(id);
+            else if (selected.size < maxSelected) selected.add(id);
+            else {
+              pickerError = `Choose up to ${maxSelected}.`;
+              render();
+              return;
+            }
           } else {
             selected = selected.has(id) ? new Set() : new Set([id]);
           }
@@ -1745,7 +1757,12 @@
           render();
           return;
         }
-        closeProjectMediaPicker(overlay, handle, options.onClose);
+        if (inline) {
+          confirmedKey = [...selected].join('\n');
+          render();
+          return;
+        }
+        requestClose();
       });
       const fileInput = overlay.querySelector('[data-picker-file]');
       overlay.querySelector('[data-picker-upload]')?.addEventListener('click', () => fileInput?.click());
@@ -1781,10 +1798,12 @@
         render();
       });
       bindThumbLoading(overlay);
+      if (selectedKey !== notifiedKey) {
+        const initial = notifiedKey === null;
+        notifiedKey = selectedKey;
+        if (!initial || selectedKey) hooks.onSelectionChange?.([...selected]);
+      }
     };
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay) closeProjectMediaPicker(overlay, handle, options.onClose);
-    });
     const eventMatchesPicker = (event) => {
       const eventProjectId = cleanText(event?.detail?.projectId);
       return !pickerProjectId || !eventProjectId || pickerProjectId === eventProjectId;
@@ -1816,16 +1835,13 @@
     };
     window.addEventListener('fm:project-media-upload-started', onUploadStarted);
     window.addEventListener('fm:project-media-upload-resolved', onUploadResolved);
-    overlay.__projectMediaPickerCleanup = () => {
-      window.removeEventListener('fm:project-media-upload-started', onUploadStarted);
-      window.removeEventListener('fm:project-media-upload-resolved', onUploadResolved);
-      overlay.__projectMediaPickerCleanup = null;
-    };
-    document.body.appendChild(overlay);
-    handle = window.Portal?.modals?.register?.(overlay, { id: options.id || 'project-media-picker', onClose: () => closeProjectMediaPicker(overlay, null, options.onClose) });
     render();
     return {
-      close: () => closeProjectMediaPicker(overlay, handle, options.onClose),
+      selectedIds: () => [...selected],
+      destroy(){
+        window.removeEventListener('fm:project-media-upload-started', onUploadStarted);
+        window.removeEventListener('fm:project-media-upload-resolved', onUploadResolved);
+      },
       refresh(nextPhotos = options.photos || []){
         pickerPhotos = mergePickerPhotos(nextPhotos, pickerPhotos.filter((photo) => photo?.uploading));
         options.photos = pickerPhotos;
@@ -1833,6 +1849,24 @@
         render();
       },
     };
+  }
+  function openProjectMediaPicker(options = {}){
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-picker-modal';
+    overlay.style.zIndex = String(options.zIndex || 2147483500);
+    let handle = null;
+    const close = () => closeProjectMediaPicker(overlay, handle, options.onClose);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close();
+    });
+    document.body.appendChild(overlay);
+    handle = window.Portal?.modals?.register?.(overlay, { id: options.id || 'project-media-picker', onClose: () => closeProjectMediaPicker(overlay, null, options.onClose) });
+    const picker = mountProjectMediaPicker(overlay, options, { onRequestClose: close });
+    overlay.__projectMediaPickerCleanup = () => {
+      picker.destroy();
+      overlay.__projectMediaPickerCleanup = null;
+    };
+    return { close, refresh: picker.refresh };
   }
   function renderGroup(group, options = {}){
     const enableProjectLinks = options.enableProjectLinks ?? state.enableProjectLinks;
@@ -3395,6 +3429,7 @@
     isReceiptMedia,
     normalizePickerItems,
     openProjectMediaPicker,
+    mountProjectMediaPicker,
     mountProjectGallery,
     refreshProjectGallery: mountProjectGallery
   };

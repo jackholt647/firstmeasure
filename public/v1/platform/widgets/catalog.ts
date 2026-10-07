@@ -8,13 +8,23 @@ import { authorizeSource, registerDataProvider, describeDataProvider } from '../
 import { validateJson } from '../publication/validation.js';
 import type { PublicationContext, TargetRef, JsonSchema, SourceRef, AccessPolicy } from '../publication/contracts.js';
 import { listProjectMaterialLists } from '../../materials/storage.js';
+import { widgetSelectionValue } from './selection.js';
 
 type Obj=Record<string,any>;
 const object=(v:unknown):Obj=>v&&typeof v==='object'&&!Array.isArray(v)?v as Obj:{};
 const widgetRoot=path.resolve(process.cwd(),'../libraries/platform-widgets');
 const scopeData=createRequire(import.meta.url)(path.join(widgetRoot,'scope-data.js')) as {measurements:(project:Obj,lists:Obj[],report:Obj)=>Obj};
-export type WidgetDefinition={id:string;version:string;title:string;description:string;app:string;surfaces:string[];sizing:Obj;configSchema:JsonSchema;sources:{provider:string;export:string}[];children?:{id:string;version:string;key:string}[]};
+export type WidgetDefinition={id:string;version:string;title:string;description:string;app:string;surfaces:string[];sizing:Obj;configSchema:JsonSchema;sources:{provider:string;export:string}[];children?:{id:string;version:string;key:string}[];selection?:{description:string;schema:JsonSchema}};
 const definitions=JSON.parse(readFileSync(path.join(widgetRoot,'catalog.json'),'utf8')) as WidgetDefinition[];
+// Selection is optional. A widget that declares one must describe a closed object, so discovery tells agents the answer's exact shape.
+for(const def of definitions)if(def.selection!==undefined){const schema=object(object(def.selection).schema);if(!String(object(def.selection).description||'').trim()||schema.type!=='object'||schema.additionalProperties!==false)throw Error(`Widget ${def.id} declares an invalid selection contract.`);}
+/** Screen-reported selection is untrusted presentation metadata. Returns it only when the exact widget version declares a selection and the value is bounded and matches that schema; otherwise null. Never an authorization input. */
+export function widgetSelection(id:string,version:string,value:unknown):Obj|null{
+ const def=definitions.find(d=>d.id===id&&d.version===version);if(!def?.selection||value==null)return null;
+ const bounded=widgetSelectionValue.safeParse(value);if(!bounded.success)return null;
+ try{validateJson(def.selection.schema,bounded.data,'widget selection');}catch{return null;}
+ return structuredClone(bounded.data) as Obj;
+}
 export function widgetDefinition(id:string,version='1'){const def=definitions.find(d=>d.id===id&&d.version===version);if(!def)throw badRequest('widget_unknown','This widget version is unavailable.');return structuredClone(def);}
 export function widgetSources(def:WidgetDefinition):{provider:string;export:string}[]{return [...def.sources,...(def.children||[]).flatMap(child=>widgetSources(widgetDefinition(child.id,child.version)))];}
 /** Search concept words across fields, including common spelling/plural variants. */
@@ -57,7 +67,12 @@ async function reportFor(ctx:PublicationContext,ref:SourceRef){
  if(manifest.status!=='completed'||String(manifest.delivery_hold_status||hold.status)==='holding')return null;
  return {id,manifest,storage};
 }
+const directorySchema={type:'object',properties:{results:{type:'array',items:{type:'object',properties:{id:string,title:string,subtitle:string},required:['id','title','subtitle'],additionalProperties:false}}},required:['results'],additionalProperties:false};
 export function registerWidgetProviders(){registerDataProvider({id:'project-widgets',version:'1',apps:['materials','measurements'],exports:{
+ directory:{description:'Bounded project search for the project picker widget: id, title and subtitle of matching or recent projects.',schema:directorySchema,schemaVersion:'1',argsSchema:{type:'object',properties:{query:{type:'string',maxLength:200},limit:{type:'integer',minimum:1,maximum:25}},additionalProperties:false},access:{scopes:['organization'],permissions:['view_projects']},read:async(ctx,ref)=>{
+  const {searchPlatformProjectsAndContacts}=await import('../api.js');const found=await searchPlatformProjectsAndContacts(ctx.organizationId,{query:String(object(ref.args).query||''),types:'projects',limit:Number(object(ref.args).limit||12)});
+  return {value:{results:found.results.map(row=>({id:String(row.project_id||row.id),title:String(row.title||''),subtitle:String(row.subtitle||'')}))}};
+ }},
  lists:{description:'Project scope material, labor and equipment lists for reusable widgets.',schema:{type:'object',properties:{lists:{type:'array',items:listSchema}},required:['lists'],additionalProperties:false},schemaVersion:'1',access:projectPolicy,read:async(ctx,ref)=>({value:{lists:projectLists(await listProjectMaterialLists(ctx.organizationId,ref.target.projectId!))}})},
  measurements:{description:'Effective scope measurements, including saved proposal/list measurements and the selected dataset.',schema:{type:'object',properties:{rows:{type:'array',items:rowSchema}},required:['rows'],additionalProperties:false},schemaVersion:'1',access:projectPolicy,read:async(ctx,ref)=>{
   const project=await readDocument(ctx.organizationId,'projects',ref.target.projectId!);const lists=await listProjectMaterialLists(ctx.organizationId,ref.target.projectId!);let report:Obj={};

@@ -14,7 +14,7 @@ test('widget reads and discovery enforce permissions, exact versions and project
   await s.upsertDocument('org_widgets','material_lists',{id:'other',data:{project_id:'other_project',title:'Private'}});
   const auth:any={orgId:'org_widgets',userId:'member',role:'member',permissions:{view_materials:true,view_reports:true,view_project_data:true},applicationAccess:{management:{enabled:true,permissions:{'*':true}}},capabilities:{effectiveByKey:{'platform.materials':true}}};
   const ctx=userPublicationContext(auth),target={scope:'project' as const,organizationId:'org_widgets',projectId:'project_widgets'};(await import('../platform/publication/bootstrap.js')).initializePublication();
-  assert.equal((await w.listWidgets(ctx,target)).length,5);await w.authorizeWidget(ctx,'scope.lists','1',target,{resourceType:'labor'});
+  assert.deepEqual((await w.listWidgets(ctx,target)).map(d=>d.id),['reports.roof','reports.photo','scope.measurements','scope.lists','scope.overview','datetime.picker','color.picker']);await w.authorizeWidget(ctx,'scope.lists','1',target,{resourceType:'labor'});
   await assert.rejects(w.authorizeWidget(ctx,'scope.lists','1',target,{resourceType:'secret'}));await assert.rejects(w.authorizeWidget(ctx,'scope.lists','99',target,{}));await assert.rejects(w.authorizeWidget(ctx,'scope.lists','1',{...target,organizationId:'other'},{}));
   const before=await s.readDocument('org_widgets','projects','project_widgets');
   const lists=await p.readPublishedData(ctx,{provider:'project-widgets',export:'lists',target});assert.equal(lists.status,'ready',JSON.stringify(lists));if(lists.status!=='ready')throw Error('Missing lists');const data=lists.value as any;assert.equal(data.lists.length,1);assert.equal(data.lists[0].resourceType,'labor');assert.equal(data.lists[0].items[0].private_note,undefined);
@@ -67,7 +67,7 @@ test('widget reads and discovery enforce permissions, exact versions and project
   assert.equal(((await discover.execute(run,{query:'todos.list to-do task list'})) as any).widgets.length,0);
   await assert.rejects(Promise.resolve().then(()=>show.execute(run,{id:'todos.list',version:'1',target:personal,config:{}})));
   run.settings.data_scope.projects=true;
-  auth.permissions.view_materials=false;assert.deepEqual((await w.listWidgets(ctx,target)).map(d=>d.id),['reports.roof','reports.photo']);assert.equal((await p.readPublishedData(ctx,{provider:'project-widgets',export:'measurements',target})).status,'denied');
-  auth.permissions.view_reports=false;await assert.rejects(w.authorizeWidget(ctx,'reports.roof','1',target));assert.equal((await w.listWidgets(ctx,target)).length,0);
+  auth.permissions.view_materials=false;assert.deepEqual((await w.listWidgets(ctx,target)).map(d=>d.id),['reports.roof','reports.photo','datetime.picker','color.picker']);assert.equal((await p.readPublishedData(ctx,{provider:'project-widgets',export:'measurements',target})).status,'denied');
+  auth.permissions.view_reports=false;await assert.rejects(w.authorizeWidget(ctx,'reports.roof','1',target));assert.deepEqual((await w.listWidgets(ctx,target)).map(d=>d.id),['datetime.picker','color.picker'],'Only widgets without a data source remain');
  }finally{await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true}).catch(()=>{});}
 });
