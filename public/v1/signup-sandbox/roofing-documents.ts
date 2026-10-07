@@ -171,7 +171,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 6;
+export const INSTANT_ROOFING_PACK = 7;
 
 /** Roof measurements the itemized proposal prices from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [
@@ -228,7 +228,16 @@ export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuth
       {id:'scope',title:'Define the work',audience:['internal'],items:fields.map(paramItem)},
       {id:'review',title:'Review estimate',audience:['internal'],items:[{kind:'review',label:'Review before sending'}],preview:{template_ref:id,live:true}}
     ];
-    const workflowDefinition={schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps};
+    // The itemized proposal can be presented: its last step offers the
+    // slideshow, sending the estimate as it is, or sending the slideshow.
+    let completion:Record<string,unknown>|null=null;
+    if (spec.key==='detailed') {
+      const { ensurePresentationPreset } = await import('../documents/modules/presentation-service.js');
+      const { roofingPresentationLayout, ROOFING_PRESENTATION_REVISION } = await import('../documents/modules/presentation-presets.js');
+      const preset = await ensurePresentationPreset(orgId,{id:'roofing_itemized',name:'Roof replacement presentation',layout:roofingPresentationLayout(),preset_revision:ROOFING_PRESENTATION_REVISION});
+      completion={offers:['present','send_estimate','send_presentation'],default:'present',presentation:{module_id:preset.moduleId}};
+    }
+    const workflowDefinition={schema_version:1,name:spec.title,contract:{params:definition.params,outputs:definition.outputs},steps,...(completion?{completion}:{})};
     const metadata={instant_roofing_pack:INSTANT_ROOFING_PACK,
       // The itemized proposal has customer steps, so the portal offers the
       // workflow alongside the document.

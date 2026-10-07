@@ -57,6 +57,12 @@ before(async () => {
   await (await import("../signup-sandbox/roofing-documents.js")).seedInstantRoofingDocuments(orgId, auth);
   documents = await import("../documents/service.js");
   documentStore = await import("../documents/storage.js");
+  // The seeded proposal names the roofing presentation; these tests start from a workflow that names none.
+  {
+    const seeded = await documentStore.readDocumentWorkflow(orgId, "wfl_instant_roofing_detailed");
+    const { completion: _seededCompletion, ...definition } = any(await documentStore.readDocumentWorkflowVersion(orgId, "wfl_instant_roofing_detailed", Number(seeded.current_version))).definition;
+    await documentStore.publishDocumentWorkflow(orgId, "wfl_instant_roofing_detailed", { definition, expected_version: Number(seeded.current_version) }, auth);
+  }
   modules = await import("../documents/modules/service.js");
   presentations = await import("../documents/modules/presentation-service.js");
   model = (await import("../documents/schemas.js")).FMDocModel;

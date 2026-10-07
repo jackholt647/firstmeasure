@@ -240,7 +240,43 @@
   }
 
   // ---------------------------------------------------------------- types
-  const groupOf = (state, id) => obj(arr(obj(state).groups).find((group) => text(obj(group).id) === text(id)));
+  // Estimates namespace a group per scope piece ("piece_x:shingle_profile"); a
+  // slide names the group itself, so the same deck fits any estimate.
+  const groupOf = (state, id) => obj(arr(obj(state).groups).find((group) => text(obj(group).id) === text(id))
+    || arr(obj(state).groups).find((group) => text(obj(group).id).split(':').pop() === text(id)));
+
+  /**
+   * The live state for a presentation instance as the server returns it
+   * (/v1/document-modules/.../presentations/:id), in the shape the parts read.
+   */
+  function stateFromPresentation(presentation) {
+    const p = obj(presentation);
+    const offered = obj(p.offered);
+    const totals = obj(obj(p.pricing).totals);
+    const option = (entry) => ({
+      id: text(obj(entry).id), title: text(obj(entry).title || obj(entry).name), description: text(obj(entry).description),
+      image_url: text(obj(entry).image_url), swatch: text(obj(entry).swatch), price_cents: Number(obj(entry).price_cents) || 0,
+      delta_cents: Number(obj(entry).delta_cents) || 0, selected: obj(entry).selected === true
+    });
+    const deposit = arr(obj(p.pricing).schedule).filter((entry) => obj(entry).due_rule === 'on_signature').reduce((sum, entry) => sum + (Number(obj(entry).amount_cents) || 0), 0);
+    const total = Number(totals.total_cents) || 0;
+    return {
+      revision: Number(p.revision) || 0,
+      readonly: p.frozen === true || p.access === 'view',
+      groups: arr(offered.groups).map((group) => ({ id: text(obj(group).id), title: text(obj(group).label), options: arr(obj(group).options).filter((entry) => obj(entry).offered !== false).map(option) })),
+      addons: arr(offered.optional).map(option),
+      variants: arr(offered.variants),
+      totals: { subtotal_cents: Number(totals.subtotal_cents) || 0, tax_cents: Number(totals.tax_cents) || 0, total_cents: total, deposit_cents: deposit, balance_cents: total - deposit },
+      values: {}
+    };
+  }
+  /** The server write for a part's input: the body of PATCH .../inputs (without expectedRevision). */
+  function inputWrite(input) {
+    const change = obj(input);
+    if (change.type === 'choice') return { input: 'selections', value: { group_id: text(change.group_id || change.group), item_id: text(change.option) } };
+    if (change.type === 'addon') return { input: 'selections', value: { item_id: text(change.addon), selected: change.selected === true } };
+    return null;
+  }
 
   /** The options an assembly shows: a choice group's alternatives, or the add-ons. */
   function optionsFor(e) {
@@ -358,7 +394,7 @@
           return state;
         });
       } else if (!option.selected) {
-        e.input({ type: 'choice', group, option: option.id, presented }, (state) => {
+        e.input({ type: 'choice', group, group_id: text(groupOf(e.state(), group).id), option: option.id, presented }, (state) => {
           arr(groupOf(state, group).options).forEach((entry) => { entry.selected = entry.id === option.id; });
           return state;
         });
@@ -457,12 +493,12 @@
     for (const [id, entry] of Object.entries(obj(obj(doc).assemblies))) {
       const source = obj(obj(obj(entry).config).source);
       if (obj(entry).type !== 'choice_selection') continue;
-      if (!((want.addons && source.kind === 'addons') || (want.group && source.kind !== 'addons' && text(source.id) === text(want.group)))) continue;
+      if (!((want.addons && source.kind === 'addons') || (want.group && source.kind !== 'addons' && (text(source.id) === text(want.group) || text(source.id) === text(want.group).split(':').pop())))) continue;
       const part = M.assemblyParts(doc, id, [])[0];
       if (part && part.page) return part.page.id;
     }
     return '';
   }
 
-  return { register, get, list, build, insert, attach, money, pageForTarget };
+  return { register, get, list, build, insert, attach, money, pageForTarget, stateFromPresentation, inputWrite };
 });

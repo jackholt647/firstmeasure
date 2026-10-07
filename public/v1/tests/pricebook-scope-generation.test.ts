@@ -89,7 +89,7 @@ test("the bundled template offers the GAF lines, more by search, with colors and
   const shingles = (root.children as Array<Record<string, any>>).filter((child) => child.selection?.group_id === "shingle_profile");
   assert.deepEqual(shingles.map(refId), ["gaf_ns", "gaf_hd", "gaf_uhdz"], "a new proposal starts with the three GAF lines");
   assert.equal(shingles.filter((line) => line.selection.selected).map(refId).join(), "gaf_hd");
-  assert.ok(!(root.children as Array<Record<string, any>>).some((child) => child.selection?.group_id === "underlayment_profile"), "one underlayment is a line, not a choice");
+  assert.deepEqual((root.children as Array<Record<string, any>>).filter((child) => child.selection?.group_id === "underlayment_profile").map(refId), ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"], "underlayment is a choice between three products");
 
   const hdz = shingles.find((line) => refId(line) === "gaf_hd")!;
   assert.deepEqual(hdz.variant_dimensions.map((dimension: any) => [dimension.id, dimension.kind, dimension.values.length]), [["color", "color", 8], ["finish", "option", 2]]);

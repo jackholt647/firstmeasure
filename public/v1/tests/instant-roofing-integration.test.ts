@@ -41,6 +41,31 @@ const project=await storage.upsertDocument(ctx.orgId,'projects',{id:'project_roo
  const created:any=await service.createDocumentInstance(ctx.orgId,String(project.id),{document_type:'proposal',template_id:'tpl_instant_roofing_detailed',params:{scope_items:[generated]}},ctx);
  assert.equal(created.document.metadata.customer_presentation.mode,'hybrid','the customer gets the choose/approve/pay steps');
  assert.equal(created.document.workflow_ref.workflow_id,'wfl_instant_roofing_detailed');
+ {
+  // The proposal's last step offers the roofing presentation. Its slides are
+  // the deck from the shared library, and their selections run on the
+  // presentation's live state.
+  const presentations=await import('../documents/modules/presentation-service.js');
+  const parts:any=(await import('node:module')).createRequire(import.meta.url)('../../libraries/doc-parts/firstmate-doc-parts.js');
+  const pctx=publication.userPublicationContext(ctx,{executionKind:'api'});
+  const completion:any=await presentations.documentPresentationOptions(pctx,String(created.document.id));
+  assert.deepEqual(completion.offers,['present','send_estimate','send_presentation']);
+  assert.equal(completion.presentation.moduleId,'preset_presentation_roofing_itemized');
+  let shown:any=await presentations.createPresentation(pctx,{documentId:String(created.document.id)});
+  assert.deepEqual(shown.layout.pages.map((page:any)=>page.id),['cover','about','good_roof','anatomy','choose_shingles','choose_underlayment','choose_leak_barrier','addons','estimate','sign']);
+  assert.ok(shown.layout.pages[4].steps.length&&shown.layout.pages[4].transition.type==='morph','steps and transitions survive publishing');
+  const live=parts.stateFromPresentation(shown);
+  const sources=Object.values(shown.layout.assemblies as Record<string,any>).filter(entry=>entry.type==='choice_selection'&&entry.config.source.kind==='group').map(entry=>entry.config.source.id);
+  assert.deepEqual(sources,['shingle_profile','underlayment_profile','leak_barrier_profile']);
+  for(const id of sources)assert.ok(live.groups.find((group:any)=>group.id.split(':').pop()===id)?.options.length>1,`the estimate offers ${id}`);
+  assert.ok(live.totals.total_cents>0&&live.totals.deposit_cents>0&&live.totals.balance_cents===live.totals.total_cents-live.totals.deposit_cents);
+  const group=live.groups.find((entry:any)=>entry.id.split(':').pop()==='shingle_profile');
+  const pick=group.options.find((entry:any)=>!entry.selected&&entry.delta_cents!==0);
+  shown=await presentations.changePresentation(pctx,shown.id,{expectedRevision:shown.revision,changes:[parts.inputWrite({type:'choice',group_id:group.id,option:pick.id})]});
+  const next=parts.stateFromPresentation(shown);
+  assert.equal(next.totals.total_cents-live.totals.total_cents,pick.delta_cents,'a click on a slide moves the total by the stated difference');
+  assert.equal(next.groups.find((entry:any)=>entry.id===group.id).options.find((entry:any)=>entry.selected).id,pick.id);
+ }
  const before:any=await service.resolveDocumentInstance(ctx.orgId,created.document,{target:'static'});
  const total=(resolved:any)=>resolved.scope.params.scope_items[0].amount_cents;
  const rows=before.scope.params.scope_rows;

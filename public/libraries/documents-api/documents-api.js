@@ -136,6 +136,7 @@
   }
 
   const documents = {
+    settings(orgId, branchId = "default"){ return request(`/organizations/${enc(orgId)}/settings${query({ branch_id: branchId })}`); },
     listForProject(orgId, projectId, filters = {}){ return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/documents${query(filters)}`); },
     createForProject(orgId, projectId, body = {}){ return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/documents`, { method: 'POST', body }); },
     // Standalone documents (doc-first flows): no project yet; attach later via
