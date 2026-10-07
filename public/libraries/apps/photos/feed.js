@@ -1554,6 +1554,10 @@
       .pf-note{min-width:0}.pf-note-toggle{display:flex;align-items:flex-start;gap:8px;width:100%;padding:2px 0;border:0;background:none;color:#475467;font:inherit;font-size:12px;line-height:1.45;text-align:left;cursor:pointer}.pf-note-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}.pf-note-toggle .pf-note-preview{flex:1;min-width:0;overflow:hidden;max-height:4.5em;transition:max-height .24s ease,opacity .24s ease}.pf-note-toggle i{margin:3px 0 0 auto;flex:none;transition:transform .28s ease}.pf-note.expanded .pf-note-toggle i{transform:rotate(180deg)}.pf-note.expanded .pf-note-preview{max-height:0;opacity:0}.pf-note-expanded{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s ease,opacity .32s ease}.pf-note.expanded .pf-note-expanded{grid-template-rows:1fr;opacity:1}.pf-note-expanded>div{min-height:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#344054}.pf-post-note-body{padding:0 18px 16px}
       .pf-tile-actor{display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:8px}.pf-tile-actor .pf-actor-avatar{width:32px;height:32px;flex-basis:32px;font-size:12px}.pf-tile-actor .pf-actor-badge{width:16px;height:16px;font-size:7px}.pf-tile-actor>span:last-child{display:flex;flex-direction:column;min-width:0}.pf-tile-actor strong{font-size:11px;color:#182230;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-tile-actor time{font-size:10px;color:#667085}.pf-feed-activity>.pf-actor-avatar{margin-top:0}.pf-feed-activity>time{color:#667085;font-size:10px;white-space:nowrap}.pf-feed-activity-copy .pf-feed-list-project{margin-top:5px}.pf-feed-note-card .pf-note{margin-top:5px}
       .pf-wrap[data-density="small"] .pf-tile-actor{gap:5px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-avatar{width:24px;height:24px;flex-basis:24px;font-size:9px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-badge{width:13px;height:13px;font-size:6px}.pf-wrap[data-density="small"] .pf-tile-actor time{display:none}.pf-wrap[data-density="small"] .pf-project-identity{font-size:10px}.pf-wrap[data-density="small"] .pf-feed-activity>time,.pf-wrap[data-density="large"] .pf-feed-activity>time,.pf-wrap[data-density="mosaic"] .pf-feed-activity>time{white-space:normal}
+      .pf-wrap>.pf-toolbar{position:relative;top:auto;flex:none;background:#f8fafc}.pf-wrap>[data-photo-feed-dynamic]{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}.pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{flex:1;min-height:0}
+      .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline;max-height:none}.pf-note-toggle .pf-note-preview i,.pf-note-toggle .pf-note-expanded i{display:inline-block;margin-left:6px;font-size:10px;vertical-align:baseline;transition:transform .28s ease}.pf-note.expanded .pf-note-preview{display:none}.pf-note.expanded .pf-note-expanded i{transform:rotate(180deg)}.pf-note-expanded>span{min-height:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#344054}
+      .pf-feed-list-media{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;margin:5px 0 2px}.pf-feed-list-media .pf-thumb{width:52px;height:52px;flex:0 0 52px;aspect-ratio:auto;border:0;border-radius:7px}.pf-feed-list-media .pf-thumb:nth-of-type(n+7){display:none}.pf-feed-list-media .pf-video-badge{width:19px;height:19px;right:3px;bottom:3px;font-size:8px}.pf-feed-list-more{flex:none;border:0;background:none;padding:5px 3px;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:11px;font-weight:850;cursor:pointer;white-space:nowrap}.pf-feed-list-more:hover{text-decoration:underline}.pf-feed-list-more.mobile{display:none}
+      @media(max-width:760px){.pf-feed-list-media .pf-thumb{width:43px;height:43px;flex-basis:43px}.pf-feed-list-media .pf-thumb:nth-of-type(n+5){display:none}.pf-feed-list-more.desktop{display:none}.pf-feed-list-more.mobile{display:inline-block}}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
@@ -2065,7 +2069,14 @@
   function feedNoteHtml(note = {}){
     const body = cleanText(note.text);
     const preview = body.length > 150 ? `${body.slice(0,147).trimEnd()}…` : body;
-    return `<div class="pf-note"><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview">${escapeHtml(preview)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="pf-note-expanded"><div>${escapeHtml(body)}</div></div></div>`;
+    return `<div class="pf-note"><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview">${escapeHtml(preview)}<i class="fas fa-chevron-down" aria-hidden="true"></i></span><span class="pf-note-expanded"><span>${escapeHtml(body)}<i class="fas fa-chevron-down" aria-hidden="true"></i></span></span></button></div>`;
+  }
+  function feedListMediaHtml(photos = []){
+    if (!photos.length) return '';
+    const thumbnails = photos.slice(0,6).map((entry,index) => `<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media) ? 'video' : 'photo'} ${index+1} in gallery">${mediaThumbHtml(entry.mediaItem)}</button>`).join('');
+    const firstId = escapeHtml(photos[0].mediaItem.id);
+    const more = (count, mode) => photos.length > count ? `<button type="button" class="pf-feed-list-more ${mode}" data-feed-more-photo-id="${firstId}" aria-label="See all ${photos.length} uploads in gallery">See more</button>` : '';
+    return `<div class="pf-feed-list-media" aria-label="Uploaded media previews">${thumbnails}${more(6,'desktop')}${more(4,'mobile')}</div>`;
   }
   function feedListEntryHtml(post){
     const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
@@ -2075,7 +2086,7 @@
       : post.kind==='activity' ? feedActivitySummary(post.event)
       : post.pairedEvent ? feedActivitySummary(post.pairedEvent)
       : `${author.name} added ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
-    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong>${post.kind==='note' ? feedNoteHtml(post.note) : ''}<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
+    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong>${post.kind==='note' ? feedNoteHtml(post.note) : ''}${feedListMediaHtml(photos)}<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
   }
   function avatarHtml(author){
     const avatar=cleanText(author.avatar);
@@ -2434,6 +2445,10 @@
         openFeedViewerAt(index);
       });
     });
+    rootEl.querySelectorAll('[data-feed-more-photo-id]').forEach((btn) => btn.addEventListener('click', () => {
+      const index = filteredItems().findIndex((item) => item.id === btn.dataset.feedMorePhotoId);
+      if (index >= 0) openFeedViewerAt(index);
+    }));
     rootEl.querySelectorAll('[data-feed-project-id]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.preventDefault();

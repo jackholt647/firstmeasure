@@ -20,8 +20,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
    const projects=[{id:'project',data:{id:'project',title:'Oak Street renovation',address:'104 Oak Street',photos,documents:[{id:'contract',type:'contract',title:'Roof replacement agreement',total_cents:2450000,created_at:'2026-09-29T13:00:00Z'}]}}];
    const events=[...Array.from({length:5},(_,i)=>({id:'event'+i,type:'project.created',project_id:'project',actor_user_id:'sam',created_at:'2026-09-29T12:00:00Z',payload:{title:'Site visit confirmed'}})),{id:'fake-note',type:'note.created',project_id:'project',actor_user_id:'sam',created_at:uploadedAt,payload:{title:'Invented title',actor_name:'Wrong person',synthetic:true}},{id:'workflow-start',type:'work.plan.started',project_id:'project',created_at:uploadedAt}];
    window.PlatformAPI={projects:{list:async()=>({documents:projects})},users:{list:async()=>({documents:[{id:'sam',data:{name:'Sam Rivera',profile_photo_url:'/avatar.svg'}}]})},media:{thumbnailUrl:()=>'/photo.svg',markupThumbnailUrl:()=>'/missing-markup.svg',fileUrl:()=>'/photo.svg'},projectDocuments:{list:async()=>({documents:projects[0].data.documents})}};
+   window.FirstMateMarkup={openPhotoViewer:options=>{window.lastViewerOptions=options;return{close(){}};}};
    window.rootMessage={id:'root',reply_count:0,reactions:[],author:{id:'sam',name:'Sam Rivera'}};window.replies=[];
-   window.ChannelsAPI={feed:{catalog:async()=>({projects,media:[],events,users:[{id:'sam',name:'Sam Rivera',avatar:'/wrong.svg'}],views:['list','small','large','mosaic','posts'],can_comment:true,can_react:true}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.kind==='media'?'media-batch':ref.id,author:'sam',at:uploadedAt}))}),lookup:async()=>({root:window.rootMessage,replies:window.replies}),resolve:async()=>({root:window.rootMessage,replies:window.replies}),thread:async()=>({root:window.rootMessage,replies:window.replies}),comment:async(_o,_id,body)=>{window.replies.push({...body,id:'comment',author:{name:'Sam Rivera'},created_at:new Date().toISOString(),can_edit:true,can_delete:true});window.rootMessage.reply_count++;return{};},react:async(_o,_id,emoji,on)=>{window.rootMessage.reactions=on?[{emoji,count:1,reacted:true}]:[];}},channels:{list:async()=>({channels:[{id:'project-channel',type:'project',project_id:'project'}]})},messages:{list:async()=>({messages:[{id:'note-1',text:'The flashing needs a closer look before installation. The crew should take photos of the north edge.',created_at:uploadedAt,metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}}]})}};
+   window.ChannelsAPI={feed:{catalog:async()=>({projects,media:[],events,users:[{id:'sam',name:'Sam Rivera',avatar:'/wrong.svg'}],views:['list','small','large','mosaic','posts'],can_comment:true,can_react:true}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.kind==='media'?'media-batch':ref.id,author:'sam',at:uploadedAt}))}),lookup:async()=>({root:window.rootMessage,replies:window.replies}),resolve:async()=>({root:window.rootMessage,replies:window.replies}),thread:async()=>({root:window.rootMessage,replies:window.replies}),comment:async(_o,_id,body)=>{window.replies.push({...body,id:'comment',author:{name:'Sam Rivera'},created_at:new Date().toISOString(),can_edit:true,can_delete:true});window.rootMessage.reply_count++;return{};},react:async(_o,_id,emoji,on)=>{window.rootMessage.reactions=on?[{emoji,count:1,reacted:true}]:[];}},channels:{list:async()=>({channels:[{id:'project-channel',type:'project',project_id:'project'}]})},messages:{list:async()=>({messages:[{id:'note-1',text:'The flashing needs a closer look before installation. The crew should take photos of the north edge and confirm that the replacement material matches the existing trim. Keep the back entry clear while the work is underway, then return tomorrow for one final photo after the sealant has cured. This gives the homeowner a clear record of the repair and lets the office confirm that the area is ready for the final walkthrough.',created_at:uploadedAt,metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}}]})}};
   });
   for(const file of ['channels-ui/channels-ui.js','apps/photos/feed.js'])await page.addScriptTag({content:await readFile(new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
   await page.waitForFunction(()=>window.feedApp);
@@ -42,14 +43,28 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.match(await batchRow.locator('time').textContent(),/^Today,/);
   assert.equal(await batchRow.locator('[data-feed-project-id]').count(),1);
   assert.equal(await batchRow.locator('[data-feed-project-id]').getAttribute('title'),'Open project');
+  assert.equal(await batchRow.locator('.pf-feed-list-media .pf-thumb').count(),6);
+  assert.equal(await batchRow.locator('.pf-feed-list-media .pf-thumb:visible').count(),6);
+  assert.equal(await batchRow.locator('.pf-feed-list-more:visible').count(),1);
+  await batchRow.locator('.pf-feed-list-media .pf-thumb').first().click();
+  assert.equal(await page.evaluate(()=>window.lastViewerOptions.photos.length),20);
+  assert.equal(await page.evaluate(()=>window.lastViewerOptions.index),0);
+  await batchRow.getByRole('button',{name:'See all 20 uploads in gallery'}).click();
+  assert.equal(await page.evaluate(()=>window.lastViewerOptions.photos.length),20);
+  const layout=await page.evaluate(()=>{const header=document.querySelector('[data-app-header]').getBoundingClientRect(),scroller=document.querySelector('[data-feed-scroll]');scroller.scrollTop=scroller.scrollHeight;const content=scroller.getBoundingClientRect();return{headerBottom:header.bottom,contentTop:content.top,scrollTop:scroller.scrollTop};});
+  assert.ok(layout.scrollTop>0,'the feed content scrolls inside its panel');
+  assert.ok(layout.headerBottom<=layout.contentTop+1,'the header does not cover feed rows');
   const noteRow=page.locator('.pf-feed-list-row').filter({hasText:'added a note:'});
   assert.equal(await noteRow.count(),1);
   assert.match(await noteRow.textContent(),/Sam Rivera added a note:/);
   assert.equal(await noteRow.locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
   assert.equal(await noteRow.locator('.pf-note-expanded').evaluate(e=>e.getBoundingClientRect().height),0);
+  assert.ok(await noteRow.locator('.pf-note-preview i').evaluate(e=>getComputedStyle(e).marginLeft!=='auto'));
   await noteRow.getByRole('button',{name:'Expand note'}).click();
   await page.waitForFunction(()=>document.querySelector('.pf-feed-list-row .pf-note.expanded'));
-  assert.match(await noteRow.locator('.pf-note-expanded').textContent(),/north edge/);
+  assert.match(await noteRow.locator('.pf-note-expanded').textContent(),/final walkthrough/);
+  await noteRow.getByRole('button',{name:'Collapse note'}).click();
+  await page.waitForFunction(()=>!document.querySelector('.pf-feed-list-row .pf-note.expanded'));
   assert.equal(await page.getByText('Invented title',{exact:false}).count(),0);
   assert.equal(await page.getByText('work plan started',{exact:false}).count(),0);
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
@@ -76,7 +91,15 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await page.locator('.pf-comments .fm-ch-composer').count(),0);
   await page.screenshot({path:new URL('../../../output/feed/screenshots/posts.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
   await page.setViewportSize({width:390,height:844});
-  for(const name of ['Small tiles','Large tiles','List','Mosaic','Posts']){await page.getByRole('button',{name,exact:true}).click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no mobile overflow in '+name);}
+  for(const name of ['Small tiles','Large tiles','List','Mosaic','Posts']){
+   await page.getByRole('button',{name,exact:true}).click();
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no mobile overflow in '+name);
+   if(name==='List'){
+    const row=page.locator('.pf-feed-list-row').first();
+    assert.equal(await row.locator('.pf-feed-list-media .pf-thumb:visible').count(),4);
+    assert.equal(await row.locator('.pf-feed-list-more:visible').count(),1);
+   }
+  }
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

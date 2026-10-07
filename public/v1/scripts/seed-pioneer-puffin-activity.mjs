@@ -143,7 +143,9 @@ const notes = [
   ['Customer confirmed driveway access. Stage materials on the left side of the garage.', projects[0]],
   ['Existing flashing needs a closer look before installation starts.', projects[1]],
   ['Homeowner prefers the darker shingle sample. Confirm final color on the proposal.', projects[5]],
-  ['Crew completed the walkthrough; gutter drainage looks good after the water test.', projects[4]]
+  ['Crew completed the walkthrough; gutter drainage looks good after the water test.', projects[4]],
+  ['During the morning walkthrough we found two areas where the existing flashing sits unevenly against the siding. The crew photographed both locations and marked them for review before removing the old shingles. Please confirm whether the replacement flashing should match the current finish or the darker trim selected for the garage. Materials can remain staged along the left side of the driveway, but the access path to the back door needs to stay clear while the work is underway.', projects[0]],
+  ['The homeowner reviewed the repair progress with the crew this afternoon. The new siding panels line up well with the existing wall, and the sealant around the window has cured evenly. Before the final walkthrough, please check the upper corner after the next rain and take another photo from the sidewalk so we can compare it with the original damage. If that corner remains dry, we can close the remaining checklist item and schedule the customer handoff.', projects[3]]
 ];
 for (const [text, project] of notes) {
   const noteKey = stableId('note', `${org.org_id}:${project.id}:${text}`);
