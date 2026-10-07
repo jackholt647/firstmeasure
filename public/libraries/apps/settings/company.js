@@ -13860,7 +13860,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     const canAddDelete = hasPerm('manage_company_users');
     const canManagePerms = hasPerm('manage_company_user_permissions');
     const canManageAccess = canManagePerms || canAddDelete || hasPerm('manage_company_settings');
-    const allowedUsersViews = ['people', ...(!firstMeasureUsers && canManageAccess ? ['access'] : []), 'departments'];
+    const canDepartments = appFlag('platform', 'expanded_access');
+    const allowedUsersViews = ['people', ...(!firstMeasureUsers && canManageAccess ? ['access'] : []), ...(canDepartments ? ['departments'] : [])];
     const routedUsersView = readSettingsRoute().settingsView;
     if (allowedUsersViews.includes(routedUsersView)) viewState.usersSubtab = routedUsersView;
     if (!allowedUsersViews.includes(viewState.usersSubtab)) viewState.usersSubtab = 'people';
@@ -17119,7 +17120,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     }
     if (firstMeasureUsers && canUsers) {
       const usersHost = $('#csPaneUsers', panel);
-      usersHost.innerHTML = `<nav class="cu-subnav" role="tablist" aria-label="${escapeHtml(settingsText("fm_user_administration", "User administration"))}"><button type="button" class="cu-subtab" data-users-view="people" role="tab">${escapeHtml(settingsText("fm_users", "Users"))}</button><button type="button" class="cu-subtab" data-users-view="departments" role="tab">${escapeHtml(settingsText("fm_departments", "Departments"))}</button></nav><section data-users-view-panel="people"></section><section data-users-view-panel="departments" data-settings-autosave="off" hidden></section>`;
+      usersHost.innerHTML = `<nav class="cu-subnav" role="tablist" aria-label="${escapeHtml(settingsText("fm_user_administration", "User administration"))}"><button type="button" class="cu-subtab" data-users-view="people" role="tab">${escapeHtml(settingsText("fm_users", "Users"))}</button>${canDepartments ? `<button type="button" class="cu-subtab" data-users-view="departments" role="tab">${escapeHtml(settingsText("fm_departments", "Departments"))}</button>` : ''}</nav><section data-users-view-panel="people"></section><section data-users-view-panel="departments" data-settings-autosave="off" hidden></section>`;
       firstMeasureUsersController = window.FirstMeasureUsers.mount(usersHost.querySelector('[data-users-view-panel=people]'), { portalAssetUrl, platformUserFromDocument, uploadUserAvatar });
       usersHost.querySelectorAll('[data-users-view]').forEach(button => button.addEventListener('click', () => setUsersView(button.dataset.usersView)));
       panel.__firstMeasureUsers = firstMeasureUsersController;
