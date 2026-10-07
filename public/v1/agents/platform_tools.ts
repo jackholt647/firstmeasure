@@ -61,7 +61,7 @@ function allowedByAgent(run: AgentRun, id: string, effect: string = "read") {
     : id.startsWith("stats.") ? "stats"
     : id.startsWith("documents.") || id.startsWith("document-modules.") ? "documents"
     : id.startsWith("calendar.") || id.startsWith("scheduling.") ? "schedule"
-    : id.startsWith("project-widgets.") || id.startsWith("projects.") || id.startsWith("work.") || id.startsWith("todos.") || id.startsWith("datasets.") || id.startsWith("payroll.") ? "projects"
+    : id.startsWith("project-widgets.") || id.startsWith("projects.") || id.startsWith("work.") || id.startsWith("todos.") || id.startsWith("datasets.") || id.startsWith("payroll.") || id.startsWith("customer-calls.") ? "projects"
     : "";
   if (area && scope[area] === false) return false;
   if ((effect === "write" || effect === "external") && (run.settings.allow_actions === false || run.scratch.actionsAllowed === false)) return false;
