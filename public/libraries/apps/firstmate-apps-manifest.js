@@ -347,7 +347,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261007-phone-silent-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'), versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261007-phone-tabs-v1'), versionedBundle('comms/workspace.js', '20261007-phone-tabs-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -523,8 +523,8 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'),
-        versionedBundle('comms/phone-tray.js', '20261007-phone-silent-v1'), versionedBundle('comms/calling-runtime.js', '20260930-phone-tones-v1'),
-        versionedBundle('comms/workspace.js', '20260930-phone-auto-v1'),
+        versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261007-phone-tabs-v1'),
+        versionedBundle('comms/workspace.js', '20261007-phone-tabs-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
     },

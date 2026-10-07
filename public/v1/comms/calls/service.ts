@@ -95,6 +95,7 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(/^\+1(900|976)/.test(phone))throw forbidden("destination_not_allowed","Premium-rate destinations are not supported.");
     line=(await store.resources(ctx.orgId,"number")).find(n=>n.status==="active"&&text(n.branch_id||'default')===text(project?.branch_id||ctx.branchId||'default')&&(!body.business_number||n.phone_number===body.business_number));
     if(!line)throw conflict("business_line_unavailable","Choose a connected business line.");
+    if(text(line.assigned_user_id)&&text(line.assigned_user_id)!==ctx.userId)throw forbidden('business_line_assigned','This line is assigned to another teammate.');
     const endpoint=(await store.resource(ctx.orgId,"endpoint",ctx.userId));
     if(text((await store.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>store.now())throw conflict('phone_reconnecting','Wait for your phone connection change to finish.');
     if(!endpoint||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==body.device_id||text(endpoint.heartbeat_at)<new Date(Date.now()-45_000).toISOString()||endpoint.registered!==true)throw conflict("phone_not_ready","Connect this browser's phone before calling.");
@@ -275,7 +276,7 @@ export async function people(ctx:PlatformAuthContext){
 }
 
 export async function phoneContacts(ctx:PlatformAuthContext,query:string){
-  const needle=query.trim().toLowerCase().slice(0,150);if(!needle)return [];
+  const needle=query.trim().toLowerCase().slice(0,150);
   const matches=new Map<string,{id:string;project_id:string;name:string;phone:string}>();
   const projects=(await listDocuments(ctx.orgId,'projects')).sort((a,b)=>Number(b.data.workflow_state==='contact_only')-Number(a.data.workflow_state==='contact_only'));
   for(const project of projects){
@@ -286,5 +287,5 @@ export async function phoneContacts(ctx:PlatformAuthContext,query:string){
       if(id&&phone&&!matches.has(id)&&`${name} ${phone}`.toLowerCase().includes(needle))matches.set(id,{id,project_id:project.id,name,phone});
     }
   }
-  return [...matches.values()].slice(0,30);
+  return [...matches.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));
 }

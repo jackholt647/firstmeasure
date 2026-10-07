@@ -47,6 +47,8 @@ import {
 import { importLegacyThreads } from "../agents/storage.js";
 import { loadCommsSettings, saveCommsSettings, loadProjectCommsOverrides, saveProjectCommsOverrides } from "./settings.js";
 import { loadChatSettings, teamSendMessage } from "../chat/service.js";
+import { ensureDefaultSenderIdentities, sendCommunication } from "../messaging/communications_service.js";
+import { resources as voiceResources } from './calls/storage.js';
 
 const objectSchema = z.object({}).passthrough();
 const emailAddressListSchema = z.array(z.string().trim().min(1).max(500)).max(100);
@@ -455,6 +457,8 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
     const channel = cleanText(detail.channel);
     const projectId = cleanText(detail.project_id);
     const text = String(body.message ?? body.text ?? "");
+    if(!manageCalls(ctx)&&cleanText(detail.branch_id||'default')!==(ctx.branchId||'default'))throw forbidden('conversation_branch_forbidden','This conversation belongs to another branch.');
+    if(projectId)await customerCallProjectContext(ctx,projectId);
     if (channel === "webchat") {
       const settings = await loadChatSettings(orgId, ctx.branchId || "default");
       const result = await teamSendMessage(orgId, ctx, settings as never, conversationId, {
@@ -465,12 +469,19 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
       return { ok: true, ...result };
     }
     if (channel === "sms") {
-      if (!projectId) throw new PlatformError("conversation_project_missing", 400, "This text conversation is not linked to a project yet.");
-      const result = await sendProjectSms(orgId, ctx.branchId || "default", projectId, {
-        text,
-        audio_note: asObject(body.audio_note),
-        idempotency_key: cleanText(body.idempotency_key) || undefined
-      }, ctx);
+      if(!text.trim()||text.length>1600)throw new PlatformError('invalid_text_message',400,'Enter a text message of up to 1,600 characters.');
+      const requested=cleanText(body.business_number),lines=(await voiceResources(orgId,'number')).filter(n=>n.status==='active'&&cleanText(n.branch_id||'default')===(ctx.branchId||'default')&&(!cleanText(n.assigned_user_id)||cleanText(n.assigned_user_id)===ctx.userId));
+      if(requested&&!lines.some(line=>line.phone_number===requested))throw forbidden('business_line_unavailable','Choose a company line available to you.');
+      const identities=(await ensureDefaultSenderIdentities(orgId,ctx.branchId||'default')).filter(n=>n.channel==='sms'&&n.status==='active');
+      const sender=identities.find(n=>n.address===requested)||(!requested?identities.find(n=>n.is_default):null);
+      if(!sender)throw new PlatformError('sms_sender_unavailable',400,'This line is not ready to send text messages.');
+      const result = projectId?await sendProjectSms(orgId, ctx.branchId || "default", projectId, {
+        text,conversation_id:conversationId,business_number:cleanText(sender.address),audio_note: asObject(body.audio_note),idempotency_key: cleanText(body.idempotency_key) || undefined
+      }, ctx):await sendCommunication(orgId,{
+        branch_id:ctx.branchId||'default',conversation_id:conversationId,channel:'sms',purpose:'customer_care',sender:{identity_id:sender.id},
+        recipients:(Array.isArray(detail.participants)?detail.participants:[]).map(asObject).filter(p=>cleanText(p.type)!=='internal'&&/^\+[1-9]\d{7,14}$/.test(cleanText(p.address))).map(p=>({address:cleanText(p.address)})),
+        content:{text},context:{},idempotency_key:cleanText(body.idempotency_key)||undefined
+      } as never,ctx);
       return { ok: true, ...result };
     }
     if (!projectId) throw new PlatformError("conversation_project_missing", 400, "This email conversation is not linked to a project yet.");

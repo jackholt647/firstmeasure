@@ -132,6 +132,18 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.get("/organizations/:orgId/call-scripts",async req=>{const ctx=await auth(req);return {ok:true,scripts:(await scripts(ctx.orgId,query(req).published==='true'))};});
   app.post("/organizations/:orgId/call-scripts",async req=>({ok:true,script:(await saveScript(await auth(req,true,true),body(req)))}));
   app.get("/organizations/:orgId/voice/status",async req=>({ok:true,...(await voiceStatus(await auth(req)))}));
+  app.put('/organizations/:orgId/voice/default-number',async req=>{
+    const ctx=await auth(req,true),phone=z.string().max(40).parse(body(req).phone_number);
+    const lines=(await s.resources(ctx.orgId,'number')).filter(n=>n.status==='active'&&text(n.branch_id||'default')===(ctx.branchId||'default')&&(!text(n.assigned_user_id)||text(n.assigned_user_id)===ctx.userId));
+    if(phone&&!lines.some(n=>n.phone_number===phone))throw forbidden('business_line_unavailable','Choose a company line available to you.');
+    await s.saveResource(ctx.orgId,'number_preference',ctx.userId,{phone_number:phone});return {ok:true,phone_number:phone};
+  });
+  app.put('/organizations/:orgId/voice/numbers/:number/assignment',async req=>{
+    const ctx=await auth(req,true,true),phone=param(req,'number'),userId=z.string().max(180).parse(body(req).assigned_user_id);
+    const line=await s.resource(ctx.orgId,'number',phone);if(!line)throw badRequest('business_line_unavailable','Choose a connected business line.');
+    if(userId){const person=(await people(ctx)).find(p=>p.id===userId);if(!person||person.branch_id!==text(line.branch_id||'default'))throw badRequest('user_unavailable','Choose a teammate in the line’s branch.');}
+    await s.saveResource(ctx.orgId,'number',phone,{...line,assigned_user_id:userId},text(line.provider_id));return {ok:true,...await voiceStatus(ctx)};
+  });
   app.get('/organizations/:orgId/voice/health',async req=>{const ctx=await auth(req,false,true);return {ok:true,...(await voiceHealth(ctx.orgId))};});
   app.get("/organizations/:orgId/voice/contacts",async req=>({ok:true,contacts:await phoneContacts(await auth(req),text(query(req).query))}));
   app.get("/organizations/:orgId/voice/people",async req=>({ok:true,people:await people(await auth(req))}));

@@ -13,6 +13,7 @@ import {
   listConversationRecords,
   listDeliveryRecords,
   listMessageRecords,
+  listSenderIdentities,
   readConversationRecord,
   readMessageRecord,
   touchConversationForMessage,
@@ -529,7 +530,7 @@ export async function sendProjectSms(
   orgId: string,
   branchId: string,
   projectId: string,
-  input: { to?: string | string[]; text: string; conversation_id?: string; source?: Json; idempotency_key?: string; audio_note?: Json },
+  input: { to?: string | string[]; text: string; conversation_id?: string; business_number?: string; source?: Json; idempotency_key?: string; audio_note?: Json },
   ctx?: Partial<PlatformAuthContext>
 ) {
   const contact = await projectPrimaryContact(orgId, projectId);
@@ -540,7 +541,7 @@ export async function sendProjectSms(
     if (cleanText(conversation.project_id) && cleanText(conversation.project_id) !== projectId) {
       throw badRequest("conversation_project_mismatch", "This conversation belongs to a different project.");
     }
-    recipientAddresses = conversationParticipantAddresses(conversation);
+    recipientAddresses = asArray(conversation.participants).map(asObject).filter(participant=>cleanText(participant.type)!=='internal').map(participant=>cleanText(participant.address)).filter(Boolean);
   } else {
     recipientAddresses = normalizeSmsRecipients(input.to, contact.phone);
     const projectRecipients = recipientAddresses.map((address) => {
@@ -555,10 +556,13 @@ export async function sendProjectSms(
     return { address, name: cleanText(match.name), ...(cleanText(match.id || match.contact_id) ? { contact_id: cleanText(match.id || match.contact_id) } : {}) };
   });
   const contactIds = recipients.map((recipient) => cleanText(recipient.contact_id)).filter(Boolean);
+  const identity=input.business_number?(await listSenderIdentities(orgId,branchId,'sms')).find(sender=>sender.address===input.business_number&&sender.status==='active'):null;
+  if(input.business_number&&!identity)throw badRequest('sms_sender_unavailable','This line is not ready to send text messages.');
   return await sendCommunication(orgId, {
     branch_id: branchId,
     conversation_id: cleanText(conversation.id),
     channel: "sms",
+    ...(identity?{sender:{identity_id:identity.id}}:{}),
     purpose: "customer_care",
     recipients,
     content: { text: input.text },

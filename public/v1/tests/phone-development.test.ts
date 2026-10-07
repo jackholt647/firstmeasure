@@ -83,11 +83,28 @@ test('phone search finds saved Contacts records and preserves their project link
   }});
   const result=await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts?query=Taylor`);
   assert.deepEqual(result.contacts,[{id:contactId,project_id:projectId,name:'Taylor Reed',phone:'+12025550131'}]);
+  assert.deepEqual((await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts`)).contacts,result.contacts);
+  assert.deepEqual((await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts?query=a`)).contacts,result.contacts);
   const call=await c.request('POST',`/v1/comms/organizations/${orgId}/calls`,{
     operation_id:'contact-search-call',project_id:projectId,contact_id:contactId,customer_number:'+12025550131'
   });
   assert.equal(call.call.contact_id,contactId);
   assert.equal(call.call.project_id,projectId);
+});
+test('phone defaults are saved per user and assigned lines remain restricted',async()=>{
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
+  const users=(await c.request('GET',`${base}/voice/people`)).people;
+  const userId=users.find((person:any)=>person.name==='Call Owner')?.id;
+  assert.ok(userId);
+  await store.saveResource(orgId,'number','+12065550191',{status:'active',phone_number:'+12065550191',branch_id:'default',label:'Main'},'');
+  await store.saveResource(orgId,'number','+12065550192',{status:'active',phone_number:'+12065550192',branch_id:'default',label:'Personal'},'');
+  await c.request('PUT',`${base}/voice/numbers/${encodeURIComponent('+12065550192')}/assignment`,{assigned_user_id:userId});
+  await c.request('PUT',`${base}/voice/default-number`,{phone_number:'+12065550192'});
+  const status=await c.request('GET',`${base}/voice/status`);
+  assert.equal(status.default_number,'+12065550192');
+  assert.equal(status.numbers.find((line:any)=>line.phone_number==='+12065550192').assigned_user_id,userId);
+  const rejected=await c.raw('PUT',`${base}/voice/default-number`,{phone_number:'+12065550999'});
+  assert.equal(rejected.status,403);
 });
 test('carrier boundary reroutes development PSTN calls and transfers; production is unchanged',async()=>{
   const {env}=await import('../src/config/env.js');const {TelnyxVoiceClient}=await import('../telephony/telnyx.js');
