@@ -370,6 +370,10 @@
     const actor = feedActor(event);
     const object = activityObjectLabel(event);
     const type = cleanText(event.type);
+    if (type === 'work.plan.stage_manually_set') {
+      const stage = firstText(activityPayload(event).to_stage_title, activityPayload(event).stage_title);
+      return `${actor} moved the project to ${stage || 'a new stage'}`;
+    }
     const action = ({
       'payment.received':'took a payment',
       'proposal.payment.received':'took a proposal payment',

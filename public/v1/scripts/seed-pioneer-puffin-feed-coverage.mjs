@@ -34,7 +34,7 @@ const examples = [
   { offset: 3, type: 'contract', title: 'Sample roofing contract', content: 'SYNTHETIC TEST CONTRACT\nScope: replace the existing roof covering and inspect deck condition.\nStatus: draft; no signatures have been collected.\n' },
   { offset: 4, type: 'document', title: 'Sample site access instructions', content: 'SYNTHETIC TEST DOCUMENT\nKeep the rear walkway open during the installation.\n' }
 ];
-const result = { mode: apply ? 'applied' : 'dry-run', org: org.org_name, documents: [], invoice: '', expense: '' };
+const result = { mode: apply ? 'applied' : 'dry-run', org: org.org_name, documents: [], invoice: '', expense: '', inbound_message: '', call: '' };
 for (const example of examples) {
   const project = projects[example.offset];
   const path = `${platform}/projects/${encodeURIComponent(project.id)}/documents`;
@@ -69,14 +69,44 @@ else {
     notes: 'Pioneer Puffin Feed test. No payment was made.', metadata: { synthetic: true, sample_key: 'pioneer-puffin-feed-expense' } });
   result.expense = 'created';
 }
+const channels = `/v1/channels/organizations/${encodeURIComponent(org.org_id)}`;
+const catalog = await get(`${channels}/feed/catalog`);
+if ((catalog.events || []).some((event) => event.type === 'communication.received')) result.inbound_message = 'exists';
+else if (!apply) result.inbound_message = 'would create';
+else {
+  const project = projects[8];
+  const contact = project.data?.contacts?.[0] || {};
+  await post(`/v1/messaging/developer/organizations/${encodeURIComponent(org.org_id)}/inbound`, {
+    channel: 'email',
+    from: { address: contact.email || 'feed.customer@example.test', name: contact.name || 'Synthetic customer', contact_id: contact.id || '' },
+    to: { address: 'office@pioneerpuffin.example.test', name: 'Pioneer Puffin Test Co' },
+    content: { subject: 'Synthetic roof inspection question', text: 'Can you confirm the roof inspection appointment and where I can find the photos?' },
+    context: { project_id: project.id, contact_id: contact.id || '' },
+    metadata: { synthetic: true, source: 'development_feed_fixture' }
+  });
+  result.inbound_message = 'created';
+}
+if ((catalog.events || []).some((event) => event.type === 'call.completed')) result.call = 'exists';
+else if (!apply) result.call = 'would create';
+else {
+  const project = projects[9];
+  const contact = project.data?.contacts?.[0] || {};
+  const path = `/v1/comms/organizations/${encodeURIComponent(org.org_id)}/calls`;
+  const { call } = await post(path, { operation_id: 'pioneer-puffin-feed-test-call-20261007', mode: 'external', direction: 'outbound',
+    project_id: project.id, contact_id: contact.id || '', customer_number: contact.phone || '+12025550199',
+    customer_name: contact.name || 'Synthetic customer', purpose: 'Synthetic roof inspection follow-up' });
+  await post(`${path}/${encodeURIComponent(call.id)}/wrap-up`, { operation_id: 'pioneer-puffin-feed-test-call-wrap-20261007',
+    revision: call.revision, disposition: 'answered', next_action: 'none',
+    notes: 'Synthetic development call record for Feed testing; no live telephone connection was made.' });
+  result.call = 'created';
+}
 console.log(JSON.stringify(result, null, 2));
 if (process.argv.includes('--audit')) {
-  const channels = `/v1/channels/organizations/${encodeURIComponent(org.org_id)}`;
-  const catalog = await get(`${channels}/feed/catalog`);
-  const types = Object.entries((catalog.events || []).reduce((counts, event) => {
+  const latestCatalog = await get(`${channels}/feed/catalog`);
+  const types = Object.entries((latestCatalog.events || []).reduce((counts, event) => {
     counts[event.type] = (counts[event.type] || 0) + 1;
     return counts;
   }, {})).sort(([left], [right]) => left.localeCompare(right));
-  console.log(JSON.stringify({ event_types: Object.fromEntries(types), projects: catalog.projects?.length,
-    media: catalog.media?.length, users: catalog.users?.length }, null, 2));
+  console.log(JSON.stringify({ event_types: Object.fromEntries(types), projects: latestCatalog.projects?.length,
+    media: latestCatalog.media?.length, users: latestCatalog.users?.length }, null, 2));
 }
