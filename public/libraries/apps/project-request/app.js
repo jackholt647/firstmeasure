@@ -11,7 +11,7 @@ window.PlatformCommerce.onReady(async function(){
   await registryReady;
   // Embedded workspaces bypass normal app mounting; load their catalogs before
   // constants, placeholders, CSS headings or child app panels are constructed.
-  await window.PlatformLanguage?.ensure?.(['project-request', 'firstmeasure', 'project-map', 'window-manager']);
+  await window.PlatformLanguage?.ensure?.(['project-request', 'firstmeasure', 'measurements', 'project-map', 'window-manager']);
   if (!window.Portal || window.Portal.modules?.request?.retainedProjectWindows) return;
 
   let projectWindowToken = new URLSearchParams(location.search).get('projectWindow') || (window.name.startsWith('fm-project-window:') ? window.name.slice(18) : '');
@@ -3091,8 +3091,8 @@ window.PlatformCommerce.onReady(async function(){
     const btn = $('#rFullscreenToggle');
     if (btn) {
       btn.setAttribute('aria-label', projectModalFullscreen ? (globalThis.PlatformLanguage?.text("project-request","project_shrink","Shrink project modal") ?? "Shrink project modal") : (globalThis.PlatformLanguage?.text("project-request","project_fullscreen","Open project fullscreen") ?? "Open project fullscreen"));
-      btn.setAttribute('title', projectModalFullscreen ? 'Shrink' : 'Fullscreen');
-      btn.setAttribute('data-fm-tooltip', projectModalFullscreen ? 'Shrink' : 'Fullscreen');
+      btn.setAttribute('title', projectModalFullscreen ? (globalThis.PlatformLanguage?.text("project-request","audit_33435b9713584d","Shrink") ?? "Shrink") : (globalThis.PlatformLanguage?.text("project-request","audit_c461dbb2bab7d8","Fullscreen") ?? "Fullscreen"));
+      btn.setAttribute('data-fm-tooltip', projectModalFullscreen ? (globalThis.PlatformLanguage?.text("project-request","audit_33435b9713584d","Shrink") ?? "Shrink") : (globalThis.PlatformLanguage?.text("project-request","audit_c461dbb2bab7d8","Fullscreen") ?? "Fullscreen"));
       btn.innerHTML = `<i class="fas ${projectModalFullscreen ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}"></i>`;
     }
     projectModalFullscreenTimer = setTimeout(() => {
@@ -3360,7 +3360,7 @@ window.PlatformCommerce.onReady(async function(){
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
     const amount = Math.round(n * 100) / 100;
-    return amount % 1 === 0 ? String(amount.toFixed(0)) : amount.toFixed(2);
+    return amount.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.('en-US') || 'en-US', {minimumFractionDigits:amount % 1 === 0 ? 0 : 2,maximumFractionDigits:2});
   }
   function fmtWholeMoney(value){
     const n = Number(value);
@@ -3397,7 +3397,7 @@ window.PlatformCommerce.onReady(async function(){
         firstReportCheckout: !!firstReportCheckout,
         reportCreditView: reportCreditViewOverride() || reportCreditView || (firstReportCheckout ? 'initial' : ''),
         purchase: {
-          label: label || 'this purchase',
+          label: label || (globalThis.PlatformLanguage?.text("project-request","audit_06ecd0fafc34d4","this purchase") ?? "this purchase"),
           required: requiredAmount,
           balance: currentBalance,
           needed
@@ -3600,8 +3600,8 @@ window.PlatformCommerce.onReady(async function(){
     const payload = {
       ...(existingRecord || {}),
       id: projectId,
-      title: projectText(contact.name, contact.email, contact.phone, contact.address, 'Contact'),
-      project_title: projectText(contact.name, contact.email, contact.phone, contact.address, 'Contact'),
+      title: projectText(contact.name, contact.email, contact.phone, contact.address, (globalThis.PlatformLanguage?.text("project-request","audit_2b5c3d26721ae9","Contact") ?? "Contact")),
+      project_title: projectText(contact.name, contact.email, contact.phone, contact.address, (globalThis.PlatformLanguage?.text("project-request","audit_2b5c3d26721ae9","Contact") ?? "Contact")),
       address: projectText(contact.address),
       project_type: 'residential',
       contacts: [{
@@ -4004,7 +4004,7 @@ window.PlatformCommerce.onReady(async function(){
       return;
     }
     list.innerHTML = matches.map((contact, index) => {
-      const title = projectText(contact.name, contact.email, contact.phone, 'Contact');
+      const title = projectText(contact.name, contact.email, contact.phone, (globalThis.PlatformLanguage?.text("project-request","audit_2b5c3d26721ae9","Contact") ?? "Contact"));
       const meta = [contact.email, contact.phone, contact.address].map(projectText).filter(Boolean).join(' - ');
       return `
         <button type="button" class="r-contact-picker-row" data-contact-picker-index="${index}">
@@ -4157,10 +4157,10 @@ window.PlatformCommerce.onReady(async function(){
       return;
     }
     const currentId = projectIdentity(activeBaseProject || {});
-    const contactLabel = projectText(context.contact?.name, context.contact?.email, context.contact?.phone, 'Contact');
+    const contactLabel = projectText(context.contact?.name, context.contact?.email, context.contact?.phone, (globalThis.PlatformLanguage?.text("project-request","audit_2b5c3d26721ae9","Contact") ?? "Contact"));
     const tabs = (context.projects || []).map((project) => {
       const id = projectIdentity(project);
-      const label = projectText(projectTitleAlias(project), project.address, 'Project');
+      const label = projectText(projectTitleAlias(project), project.address, (globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project"));
       return `<button type="button" class="r-contact-context-tab ${id === currentId ? 'active' : ''}" data-contact-project-id="${escapeHtml(id)}"><i class="fas fa-folder"></i><span>${escapeHtml(label)}</span></button>`;
     }).join('');
     bar.innerHTML = `
@@ -4383,7 +4383,7 @@ window.PlatformCommerce.onReady(async function(){
     if (label) return label;
     const status = cleanStageText(projectLifecycleInfo(project).status).toLowerCase();
     if (status === 'lost') return 'Lost';
-    if (status === 'completed') return 'Completed';
+    if (status === 'completed') return (globalThis.PlatformLanguage?.text("project-request","audit_22a970d2e5b1cc","Completed") ?? "Completed");
     if (status === 'canceled' || status === 'cancelled') return 'Cancelled';
     return '';
   }
@@ -4503,7 +4503,7 @@ window.PlatformCommerce.onReady(async function(){
     const address = projectText(project.address);
     const mode = config?.title_mode || 'all_contacts';
     return (mode === 'manual' ? projectTitleAlias(project) : mode === 'address' ? address : contact)
-      || contact || address || 'New Project';
+      || contact || address || (globalThis.PlatformLanguage?.text("project-request","audit_6f8d17646237f4","New Project") ?? "New Project");
   }
   function openingProjectHeader(project = {}, options = {}){
     if (options.workflow === 'report' && !projectOpenId(project)) return {title:(globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"),identityHtml:projectHeaderIdentityHtml((globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"),'',''),pillsHtml:''};
@@ -4964,9 +4964,9 @@ window.PlatformCommerce.onReady(async function(){
     closeHeaderPropertyTypeMenu();
     const currentType = normalizedProjectType(activeBaseProject?.project_type || selectedType) || 'residential';
     const descriptions = {
-      residential:'Houses and single-family homes',
-      commercial:'Business and industrial properties',
-      multifamily:'Apartments and shared housing'
+      residential:(globalThis.PlatformLanguage?.text("project-request","audit_0a2d38987b9aa3","Houses and single-family homes") ?? "Houses and single-family homes"),
+      commercial:(globalThis.PlatformLanguage?.text("project-request","audit_114820134036e1","Business and industrial properties") ?? "Business and industrial properties"),
+      multifamily:(globalThis.PlatformLanguage?.text("project-request","audit_9e05435948dfbb","Apartments and shared housing") ?? "Apartments and shared housing")
     };
     const menu = document.createElement('div');
     menu.className = 'r-property-type-menu';
@@ -5723,25 +5723,25 @@ window.PlatformCommerce.onReady(async function(){
   function reportAddonInfo(key){
     if (key === 'full_house') return {
       title: (globalThis.PlatformLanguage?.text("project-request","m_4a6c4929742fbe","Full Structure report") ?? "Full Structure report"),
-      body: 'Exterior measurements for the whole house, including the roof.',
-      bullets: ['Walls, windows, doors, and siding areas.', 'Roof and gutter measurements included.', 'Eight reference photos per structure are required.'],
+      body: (globalThis.PlatformLanguage?.text("project-request","m_0d21d7d3136fc9","Exterior measurements for the whole house, including the roof.") ?? "Exterior measurements for the whole house, including the roof."),
+      bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","m_1274bb24b43206","Roof and gutter measurements included.") ?? "Roof and gutter measurements included."), (globalThis.PlatformLanguage?.text("project-request","m_b120ceb5e3ac9e","Eight reference photos per structure are required.") ?? "Eight reference photos per structure are required.")],
       sample: {label: (globalThis.PlatformLanguage?.text("project-request","m_e1fd389d2c4cb3","Download sample Full Structure report") ?? "Download sample Full Structure report"), url: 'samples/full_house_sample.pdf'}
     };
     if (key === 'roof') return {
-      title: (globalThis.PlatformLanguage?.text("project-request","m_874db260d86062","Roof Only report") ?? "Roof Only report"), body: 'Your roof measurement report.',
-      bullets: ['Roof areas, slopes, edges and measurements.', 'Add gutters or other available reports when ordering.'],
+      title: (globalThis.PlatformLanguage?.text("project-request","m_874db260d86062","Roof Only report") ?? "Roof Only report"), body: (globalThis.PlatformLanguage?.text("project-request","m_f1775523edde74","Your roof measurement report.") ?? "Your roof measurement report."),
+      bullets: [(globalThis.PlatformLanguage?.text("project-request","m_424bd3aef8e7cb","Roof areas, slopes, edges and measurements.") ?? "Roof areas, slopes, edges and measurements."), (globalThis.PlatformLanguage?.text("project-request","m_5c6fb5beeff92c","Add gutters or other available reports when ordering.") ?? "Add gutters or other available reports when ordering.")],
       sample: {label: (globalThis.PlatformLanguage?.text("project-request","m_9db79290d13f2b","Download sample roof report") ?? "Download sample roof report"), url: 'landing/variants/landing_template/media/sample-roof-measurement-report.pdf'}
     };
 
     if (key === 'gutters') {
       return {
         title: (globalThis.PlatformLanguage?.text("project-request","m_f4779b9d631992","Gutter report") ?? "Gutter report"),
-        body: 'Adds a dedicated gutter page to the standard residential report.',
+        body: (globalThis.PlatformLanguage?.text("project-request","m_398f784a950729","Adds a dedicated gutter page to the standard residential report.") ?? "Adds a dedicated gutter page to the standard residential report."),
         bullets: [
-          'Active gutter linear feet calculated from eave runs.',
-          'Stories by north, south, east, and west sides.',
-          'Gutter diagram with each run labeled.',
-          'Miter counts for outside 90, inside 90, and non-90 corners.'
+          (globalThis.PlatformLanguage?.text("project-request","m_98ad5fe62c722d","Active gutter linear feet calculated from eave runs.") ?? "Active gutter linear feet calculated from eave runs."),
+          (globalThis.PlatformLanguage?.text("project-request","m_1b41dbf4615706","Stories by north, south, east, and west sides.") ?? "Stories by north, south, east, and west sides."),
+          (globalThis.PlatformLanguage?.text("project-request","m_18db25f632d117","Gutter diagram with each run labeled.") ?? "Gutter diagram with each run labeled."),
+          (globalThis.PlatformLanguage?.text("project-request","m_2c4f4a8f273e86","Miter counts for outside 90, inside 90, and non-90 corners.") ?? "Miter counts for outside 90, inside 90, and non-90 corners.")
         ],
         sample: {
           label: (globalThis.PlatformLanguage?.text("project-request","m_67350ceb0509e7","Download sample gutter report") ?? "Download sample gutter report"),
@@ -5752,12 +5752,12 @@ window.PlatformCommerce.onReady(async function(){
     if (key === 'inspection') {
       return {
         title: (globalThis.PlatformLanguage?.text("project-request","m_8fb9df3711e29f","Instant report") ?? "Instant report"),
-        body: 'Adds an instant measurement report while the standard report is processing.',
+        body: (globalThis.PlatformLanguage?.text("project-request","m_4cd43f827c1fae","Adds an instant measurement report while the standard report is processing.") ?? "Adds an instant measurement report while the standard report is processing."),
         bullets: [
-          'Fast AI-generated roof measurement preview.',
-          'Interactive roof model where available.',
-          'Instant PDF access before the reviewed standard report is complete.',
-          'Standard report still follows the selected delivery window.'
+          (globalThis.PlatformLanguage?.text("project-request","m_4b2b1884c6cff9","Fast AI-generated roof measurement preview.") ?? "Fast AI-generated roof measurement preview."),
+          (globalThis.PlatformLanguage?.text("project-request","m_f97d66c6fc03c3","Interactive roof model where available.") ?? "Interactive roof model where available."),
+          (globalThis.PlatformLanguage?.text("project-request","m_7f677a10302532","Instant PDF access before the reviewed standard report is complete.") ?? "Instant PDF access before the reviewed standard report is complete."),
+          (globalThis.PlatformLanguage?.text("project-request","m_edc48228028f11","Standard report still follows the selected delivery window.") ?? "Standard report still follows the selected delivery window.")
         ],
         sample: null
       };
@@ -5765,12 +5765,12 @@ window.PlatformCommerce.onReady(async function(){
     if (key === 'weather') {
       return {
         title: (globalThis.PlatformLanguage?.text("project-request","m_a3126077e6d02c","Historical weather report") ?? "Historical weather report"),
-        body: 'Adds a severe-weather history report for the property.',
+        body: (globalThis.PlatformLanguage?.text("project-request","m_208063e29728ba","Adds a severe-weather history report for the property.") ?? "Adds a severe-weather history report for the property."),
         bullets: [
-          'Broad hail, wind, and tornado event history for the address.',
-          'Nearby event records grouped by date with distance and magnitude details.',
-          'Map-style exhibits, warning context, and summary tables.',
-          'Useful for claim review, customer conversations, and project documentation.'
+          (globalThis.PlatformLanguage?.text("project-request","m_0087790e73e66c","Broad hail, wind, and tornado event history for the address.") ?? "Broad hail, wind, and tornado event history for the address."),
+          (globalThis.PlatformLanguage?.text("project-request","m_bab1f8bcf78db9","Nearby event records grouped by date with distance and magnitude details.") ?? "Nearby event records grouped by date with distance and magnitude details."),
+          (globalThis.PlatformLanguage?.text("project-request","m_b901f17c3bd50b","Map-style exhibits, warning context, and summary tables.") ?? "Map-style exhibits, warning context, and summary tables."),
+          (globalThis.PlatformLanguage?.text("project-request","m_bdcad3423f3114","Useful for claim review, customer conversations, and project documentation.") ?? "Useful for claim review, customer conversations, and project documentation.")
         ],
         sample: {
           label: (globalThis.PlatformLanguage?.text("project-request","m_e92ed7b63f5c68","Download sample weather report") ?? "Download sample weather report"),
@@ -5780,7 +5780,7 @@ window.PlatformCommerce.onReady(async function(){
     }
     return {
       title: (globalThis.PlatformLanguage?.text("project-request","m_66645473310bb3","Add-on") ?? "Add-on"),
-      body: 'Adds an optional report feature to this order.',
+      body: (globalThis.PlatformLanguage?.text("project-request","m_a227a5b1174b0f","Adds an optional report feature to this order.") ?? "Adds an optional report feature to this order."),
       bullets: [],
       sample: null
     };
@@ -5793,7 +5793,7 @@ window.PlatformCommerce.onReady(async function(){
         <h4>${escapeHtml(info.title)}</h4>
         <p>${escapeHtml(info.body)}</p>
         ${info.bullets.length ? `<ul>${info.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
-        ${info.sample?.url ? `<div class="r-addon-info-actions"><a class="r-addon-info-sample" href="${escapeHtml(info.sample.url)}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>${escapeHtml(info.sample.label || 'Open sample report')}</a></div>` : ''}
+        ${info.sample?.url ? `<div class="r-addon-info-actions"><a class="r-addon-info-sample" href="${escapeHtml(info.sample.url)}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>${escapeHtml(info.sample.label || (globalThis.PlatformLanguage?.text("project-request","m_0b5d751a9847bf","Open sample report") ?? "Open sample report"))}</a></div>` : ''}
         ${reportAddonPriceNoteHtml(key)}
       </div>`;
   }
@@ -5808,7 +5808,7 @@ window.PlatformCommerce.onReady(async function(){
     const count = Math.max(1, pinCount());
     const total = Math.round(unit * count * 100) / 100;
     const structureLabel = count === 1 ? 'structure' : 'structures';
-    return `<div class="r-addon-info-price">${((v0,v1,v2,v3) => globalThis.PlatformLanguage?.htmlText("project-request","m_f2a719928b5a49_currency",`${v0} / structure x ${v1} ${v2} = ${v3}`,{v0,v1,v2,v3}) ?? `${v0} / structure x ${v1} ${v2} = ${v3}`)(escapeHtml(fmtCredit(unit)),count,structureLabel,escapeHtml(fmtCredit(total)))}</div>`;
+    return `<div class="r-addon-info-price">${(globalThis.PlatformLanguage?.htmlText('project-request','addon_structure_total',`${fmtCredit(unit)} / structure × ${count} ${structureLabel} = ${fmtCredit(total)}`,{price:fmtCredit(unit),count,total:fmtCredit(total)}) ?? `${fmtCredit(unit)} / structure × ${count} ${structureLabel} = ${fmtCredit(total)}`)}</div>`;
   }
 
   function addonInfoIcon(key){
@@ -5817,7 +5817,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function buildTypeButtons(){
-    const pricingLabels = { residential: fmtCredit(reportDisplayedBasePrice('residential'))+' flat rate', commercial: fmtCredit(reportDisplayedBasePrice('commercial'))+' / structure', multifamily: fmtCredit(reportDisplayedBasePrice('multifamily'))+' / structure' };
+    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
@@ -6043,12 +6043,12 @@ window.PlatformCommerce.onReady(async function(){
 
   function reportExpediteEstimatedWaitLabel(option){
     const minutes = reportExpediteEstimatedWaitMinutes(option);
-    if (minutes < 60) return `${minutes} min estimate`;
+    if (minutes < 60) return (globalThis.PlatformLanguage?.text("project-request","wait_minutes",`${minutes} min estimate`,{minutes}) ?? `${minutes} min estimate`);
     const hours = Math.floor(minutes / 60);
     const remainder = minutes % 60;
     return remainder
-      ? `${hours} hr ${remainder} min estimate`
-      : `${hours} hr estimate`;
+      ? (globalThis.PlatformLanguage?.text("project-request","wait_hours_minutes",`${hours} hr ${remainder} min estimate`,{hours,minutes:remainder}) ?? `${hours} hr ${remainder} min estimate`)
+      : (globalThis.PlatformLanguage?.text("project-request","wait_hours",`${hours} hr estimate`,{hours}) ?? `${hours} hr estimate`);
   }
 
   function reportExpediteHash(value){
@@ -6332,7 +6332,7 @@ window.PlatformCommerce.onReady(async function(){
       : addMinutes(now, Number(option.productionDeadlineMinutes ?? option.production_deadline_minutes ?? option.startMinutes ?? 0) || 0);
     return {
       report_expedite_option: option.key,
-      report_expedite_label: option.key === 'no_rush' ? 'No Rush' : option.label,
+      report_expedite_label: option.key === 'no_rush' ? (globalThis.PlatformLanguage?.text("project-request","m_d9c640d91be6e2","No Rush") ?? "No Rush") : option.label,
       report_due_window_start: start ? start.toISOString() : '',
       report_due_window_end: end ? end.toISOString() : '',
       report_due_window_label: reportExpediteWindowLabel(option, now),
@@ -6530,7 +6530,7 @@ window.PlatformCommerce.onReady(async function(){
       const total = isPerStructureType(selectedType) ? unit * Math.max(1, pinCount()) : unit;
       inspectionPrice.textContent = selectedType
         ? `+${fmtCredit(total)}`
-        : 'Choose type';
+        : (globalThis.PlatformLanguage?.text("project-request","audit_c0eb0f8efba638","Choose type") ?? "Choose type");
     }
     const gutterPrice = document.querySelector('[data-addon-price="gutters"]');
     if (gutterPrice) gutterPrice.textContent = `+${fmtCredit(GUTTER_REPORT_ADDON)}`;
@@ -6576,7 +6576,7 @@ window.PlatformCommerce.onReady(async function(){
       orgId,
       branchId: window.Portal?.branchModules?.currentBranchId?.() || window.__APP?.userBranchId || 'default',
       projectId,
-      projectTitle: projectTitleAlias(activeBaseProject || {}) || projectText(activeBaseProject?.customer_name, activeBaseProject?.resident_name, activeBaseProject?.address, 'Project'),
+      projectTitle: projectTitleAlias(activeBaseProject || {}) || projectText(activeBaseProject?.customer_name, activeBaseProject?.resident_name, activeBaseProject?.address, (globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project")),
       projectAddress: projectText(activeBaseProject?.address, activeBaseProject?.project_address, reportOrderState?.address),
       userId: String(cfg.userId || window.__APP?.userId || ''),
       completedOpen: false,
@@ -8328,7 +8328,7 @@ window.PlatformCommerce.onReady(async function(){
   }
   function projectNoteDate(value){
     const date = new Date(value || 0);
-    return Number.isFinite(date.getTime()) && date.getTime() > 0 ? date.toLocaleString([], { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : 'Earlier';
+    return Number.isFinite(date.getTime()) && date.getTime() > 0 ? date.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.('en-US') || 'en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : (globalThis.PlatformLanguage?.text("project-request","audit_e10ae990740118","Earlier") ?? "Earlier");
   }
   function projectNoteMentionAvatar(user = {}){
     return projectText(user.avatar, user.avatar_url, user.photo_url, user.profile_photo_url, user.image_url, user.picture);
@@ -8342,7 +8342,7 @@ window.PlatformCommerce.onReady(async function(){
     const avatarHtml = isAgent
       ? '<span style="display:inline-block;width:22px;height:22px;background:var(--primary-readable,var(--primary,#d93025));-webkit-mask:url(\'/images/logo_square.png\') center / contain no-repeat;mask:url(\'/images/logo_square.png\') center / contain no-repeat"></span>'
       : (avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : escapeHtml(initial));
-    return `<span class="r-note-mention" role="button" tabindex="0" data-project-note-mention-user="${escapeHtml(projectText(user.id, email, name))}" data-project-note-mention-name="${escapeHtml(name)}" data-project-note-mention-email="${escapeHtml(email)}" data-project-note-mention-avatar="${escapeHtml(avatar)}">${escapeHtml(String(label).replace(/^@/, '') || name)}<span class="r-note-mention-card"><span class="r-note-mention-avatar"${isAgent ? ' style="background:#fff;border:1px solid #eef1f4"' : ''}>${avatarHtml}</span><span style="min-width:0"><span class="r-note-mention-name">${escapeHtml(name || email || 'User')}</span>${email ? `<span class="r-note-mention-email">${escapeHtml(email)}</span>` : ''}</span></span></span>`;
+    return `<span class="r-note-mention" role="button" tabindex="0" data-project-note-mention-user="${escapeHtml(projectText(user.id, email, name))}" data-project-note-mention-name="${escapeHtml(name)}" data-project-note-mention-email="${escapeHtml(email)}" data-project-note-mention-avatar="${escapeHtml(avatar)}">${escapeHtml(String(label).replace(/^@/, '') || name)}<span class="r-note-mention-card"><span class="r-note-mention-avatar"${isAgent ? ' style="background:#fff;border:1px solid #eef1f4"' : ''}>${avatarHtml}</span><span style="min-width:0"><span class="r-note-mention-name">${escapeHtml(name || email || (globalThis.PlatformLanguage?.text("project-request","audit_b512d97e7cbf97","User") ?? "User"))}</span>${email ? `<span class="r-note-mention-email">${escapeHtml(email)}</span>` : ''}</span></span></span>`;
   }
   function projectNoteTextHtml(note = {}){
     const text = String(note.text || '');
@@ -8505,7 +8505,7 @@ window.PlatformCommerce.onReady(async function(){
     const notes = (activeBaseProject ? (search ? api.visible(activeBaseProject) : (api.timeline?.(activeBaseProject) || api.visible(activeBaseProject))) : []).filter((note) => !search || `${note.text} ${note.created_by?.name || ''} ${note.created_by?.email || ''} ${(api.typeTags(note) || []).map((tag) => tag.label).join(' ')}`.toLowerCase().includes(search)).sort((a,b) => (oldest ? 1 : -1) * String(a.created_at).localeCompare(String(b.created_at)));
     history.innerHTML = notes.length ? notes.map((note) => note.deleted_at
       ? `<article class="r-note-card pn-removed" data-project-note-id="${escapeHtml(note.id)}">${api.removedNoteHtml?.(note) || ''}</article>`
-      : `<article class="r-note-card ${api.typeTags(note).length ? 'fm-note-card-with-types' : ''}" data-project-note-id="${escapeHtml(note.id)}">${api.renderTypeTags(note)}${note.text ? `<p>${projectNoteTextHtml(note)}</p>` : ''}${api.audioPlayerHtml?.(note) || ''}${api.mediaAttachmentsHtml?.(note) || ''}<div class="r-note-card-meta"><span>${escapeHtml(note.created_by?.name || note.created_by?.email || 'Unknown')} · ${escapeHtml(projectNoteDate(note.created_at))} · ${escapeHtml(api.visibilityLabel(note.visibility))}${api.editedMetaHtml?.(note) || ''}</span><span class="r-note-card-actions">${api.repliesToggleHtml?.(note) || ''}${(note.can_edit || api.owns(note)) ? `<button type="button" data-project-note-edit="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_1fcb173e99effe","Edit note") ?? "Edit note")}"><i class="fas fa-pen"></i></button>` : ''}${(note.can_delete || api.owns(note)) ? `<button type="button" data-project-note-remove="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_4b4ba3b5b6d01b","Remove note") ?? "Remove note")}"><i class="fas fa-trash"></i></button>` : ''}</span></div></article>`).join('') : `<div class="r-note-empty">${search ? 'No notes match this filter.' : 'No notes yet.'}</div>`;
+      : `<article class="r-note-card ${api.typeTags(note).length ? 'fm-note-card-with-types' : ''}" data-project-note-id="${escapeHtml(note.id)}">${api.renderTypeTags(note)}${note.text ? `<p>${projectNoteTextHtml(note)}</p>` : ''}${api.audioPlayerHtml?.(note) || ''}${api.mediaAttachmentsHtml?.(note) || ''}<div class="r-note-card-meta"><span>${escapeHtml(note.created_by?.name || note.created_by?.email || (globalThis.PlatformLanguage?.text('project-request','audit_b764cdc0eab713','Unknown') ?? 'Unknown'))} · ${escapeHtml(projectNoteDate(note.created_at))} · ${escapeHtml(api.visibilityLabel(note.visibility))}${api.editedMetaHtml?.(note) || ''}</span><span class="r-note-card-actions">${api.repliesToggleHtml?.(note) || ''}${(note.can_edit || api.owns(note)) ? `<button type="button" data-project-note-edit="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_1fcb173e99effe","Edit note") ?? "Edit note")}"><i class="fas fa-pen"></i></button>` : ''}${(note.can_delete || api.owns(note)) ? `<button type="button" data-project-note-remove="${String(escapeHtml(note.id))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_4b4ba3b5b6d01b","Remove note") ?? "Remove note")}"><i class="fas fa-trash"></i></button>` : ''}</span></div></article>`).join('') : `<div class="r-note-empty">${search ? (globalThis.PlatformLanguage?.text('project-request','audit_90eb5886fddc5f','No notes match this filter.') ?? 'No notes match this filter.') : (globalThis.PlatformLanguage?.text('project-request','audit_57bde4deb215bf','No notes yet.') ?? 'No notes yet.')}</div>`;
     window.FirstMateAudioNotes?.hydrate?.(history);
   }
   function syncProjectNotesUi(){
@@ -8536,7 +8536,7 @@ window.PlatformCommerce.onReady(async function(){
     const button = $('#rProjectNoteAdd');
     if (button) {
       button.innerHTML = editingProjectNoteId ? '<i class="fas fa-check"></i> Save note' : '<span aria-hidden="true">+</span> Note';
-      button.setAttribute('aria-label', editingProjectNoteId ? 'Save note' : 'Add note');
+      button.setAttribute('aria-label', editingProjectNoteId ? (globalThis.PlatformLanguage?.text("project-request","audit_6501e1ced8da0b","Save note") ?? "Save note") : (globalThis.PlatformLanguage?.text("project-request","audit_63565c0485fec4","Add note") ?? "Add note"));
       let group = button.closest('.r-note-send-group');
       if (!group) {group = document.createElement('span');group.className = 'r-note-send-group';button.before(group);group.append(button);}
       group.style.cssText = 'display:inline-flex;align-items:stretch;gap:0;margin-left:0';
@@ -8665,7 +8665,7 @@ window.PlatformCommerce.onReady(async function(){
     const dot = document.createElement('span');
     dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:#16a34a;flex-shrink:0';
     dot.setAttribute('aria-hidden', 'true');
-    const names = projectPresenceUsers.map(user => user.name || 'Teammate');
+    const names = projectPresenceUsers.map(user => user.name || (globalThis.PlatformLanguage?.text("project-request","audit_ab52c213888188","Teammate") ?? "Teammate"));
     const label = names.length === 1 ? `${names[0]} is viewing` : names.length === 2 ? `${names.join(' and ')} are viewing` : `${names[0]} and ${names.length - 1} others are viewing`;
     indicator.title = names.join(', ');
     indicator.append(dot, document.createTextNode(label));
@@ -8741,13 +8741,13 @@ window.PlatformCommerce.onReady(async function(){
     // Saved titles are manual overrides.  In the configured customer/address
     // modes, always derive the modal heading from the selected display rule.
     const computed = mode === 'manual'
-      ? (savedTitle || customerName || address || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project'))
+      ? (savedTitle || customerName || address || (window.PlatformLanguage?.text('project-request','terminology_new_project',(globalThis.PlatformLanguage?.text("project-request","audit_6f8d17646237f4","New Project") ?? "New Project")) || (globalThis.PlatformLanguage?.text("project-request","audit_6f8d17646237f4","New Project") ?? "New Project")))
       : (mode === 'address'
-        ? (address || customerName || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project'))
-        : (customerName || address || (window.PlatformLanguage?.text('project-request','terminology_new_project','New Project') || 'New Project')));
+        ? (address || customerName || (window.PlatformLanguage?.text('project-request','terminology_new_project',(globalThis.PlatformLanguage?.text("project-request","audit_6f8d17646237f4","New Project") ?? "New Project")) || (globalThis.PlatformLanguage?.text("project-request","audit_6f8d17646237f4","New Project") ?? "New Project")))
+        : (customerName || address || (window.PlatformLanguage?.text('project-request','terminology_new_project',(globalThis.PlatformLanguage?.text("project-request","audit_6f8d17646237f4","New Project") ?? "New Project")) || (globalThis.PlatformLanguage?.text("project-request","audit_6f8d17646237f4","New Project") ?? "New Project"))));
     let mobileDisplayTitle = hasReportOrdered()
-      ? (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : (computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project'))
-      : (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project','Project') || 'Project') : computed);
+      ? (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project',(globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project")) || (globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project")) : (computed || window.PlatformTerminology?.get?.('projects.project',(globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project")) || (globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project")))
+      : (mode === 'manual' ? (savedTitle || computed || window.PlatformTerminology?.get?.('projects.project',(globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project")) || (globalThis.PlatformLanguage?.text("project-request","audit_98595978531974","Project") ?? "Project")) : computed);
     // An existing project that is still loading has no names yet; keep its
     // loading title instead of flashing "New Project".
     if ((projectRecordPending || projectShellLoading) && viewingExistingProject && !customerName && !address) {
@@ -8909,7 +8909,7 @@ window.PlatformCommerce.onReady(async function(){
     const contacts = collectContacts();
     if (activeBaseProject || !window.Portal.ProjectStore || !contacts.some(contactHasContent)) return activeBaseProject;
     const primary = primaryContact();
-    const title = manualProjectTitle() || projectText(primary.name, primary.email, primary.phone, 'New Contact');
+    const title = manualProjectTitle() || projectText(primary.name, primary.email, primary.phone, (globalThis.PlatformLanguage?.text("project-request","audit_3fe263538d199f","New Contact") ?? "New Contact"));
     activeBaseProject = window.Portal.ProjectStore.save({
       id: `project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
       title,
@@ -9129,7 +9129,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function docPickerProjectLabel(project = {}){
-    return projectText(project.title, project.project_title, project.customer_name, project.address, 'Untitled project');
+    return projectText(project.title, project.project_title, project.customer_name, project.address, (globalThis.PlatformLanguage?.text("project-request","audit_1b5a65c3cdba9e","Untitled project") ?? "Untitled project"));
   }
 
   /** Choice-made transition, shared by all three picker choices: the
@@ -9388,31 +9388,31 @@ window.PlatformCommerce.onReady(async function(){
         return;
       }
       if (reportOrderIsStaleSubmitted()) {
-        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This report order stalled before processing. You can reorder it from the Reports tab.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>${globalThis.PlatformLanguage?.htmlText('project-request','stalled_order','This report order stalled before processing. You can reorder it from the Reports tab.') ?? 'This report order stalled before processing. You can reorder it from the Reports tab.'}`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       if (!reportOrderIsActivelyPending() && !reportOrderIsCompleteLike()) {
-        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>This project does not have an active report order.`;
+        card.innerHTML = `<strong>${(globalThis.PlatformLanguage?.htmlText("project-request","m_539bb91daa77d5","Report not active") ?? "Report not active")}</strong>${globalThis.PlatformLanguage?.htmlText('project-request','inactive_order','This project does not have an active report order.') ?? 'This project does not have an active report order.'}`;
         renderProjectViewerSummary();
         updateModalTitle();
         return;
       }
       const stage = reportOrderPendingStage();
-      const cardTitle = stage === 'processing' ? 'Report in progress' : (stage === 'review' ? 'Report in review' : 'Report pending');
+      const cardTitle = stage === 'processing' ? (globalThis.PlatformLanguage?.text("project-request","audit_77b12f57b38b87","Report in progress") ?? "Report in progress") : (stage === 'review' ? (globalThis.PlatformLanguage?.text("project-request","audit_d30a775883da50","Report in review") ?? "Report in review") : (globalThis.PlatformLanguage?.text("project-request","audit_0ba1f4e48609ea","Report pending") ?? "Report pending"));
       const cardBody = stage === 'processing'
-        ? 'The standard report is currently being worked.'
-        : (stage === 'review' ? 'The standard report is being reviewed.' : 'The standard report is pending.');
+        ? (globalThis.PlatformLanguage?.text("project-request","audit_c5e665c57bc2e0","The standard report is currently being worked.") ?? "The standard report is currently being worked.")
+        : (stage === 'review' ? (globalThis.PlatformLanguage?.text("project-request","audit_2612ba1829868e","The standard report is being reviewed.") ?? "The standard report is being reviewed.") : (globalThis.PlatformLanguage?.text("project-request","audit_901358a2916ff7","The standard report is pending.") ?? "The standard report is pending."));
       const addOns = [];
-      if (reportOrderState.includeGutters) addOns.push('gutters');
-      if (reportOrderState.includeWeather) addOns.push('weather');
-      if (reportOrderState.includeInspection) addOns.push('instant');
+      if (reportOrderState.includeGutters) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_gutters','gutters') ?? 'gutters');
+      if (reportOrderState.includeWeather) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_weather','weather') ?? 'weather');
+      if (reportOrderState.includeInspection) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_instant','instant report') ?? 'instant report');
       const dueText = reportOrderCustomerDeliveryText();
       const due = dueText
-        ? ` Target: ${escapeHtml(dueText)}.`
+        ? (globalThis.PlatformLanguage?.htmlText('project-request','target_delivery',' Target: {time}.',{time:dueText}) ?? ` Target: ${escapeHtml(dueText)}.`)
         : '';
-      card.innerHTML = `<strong>${escapeHtml(cardTitle)}</strong>${escapeHtml(cardBody)}${addOns.length ? ` Includes ${escapeHtml(addOns.join(' and '))}.` : ''}${due}`;
+      card.innerHTML = `<strong>${escapeHtml(cardTitle)}</strong>${escapeHtml(cardBody)}${addOns.length ? (globalThis.PlatformLanguage?.htmlText('project-request','included_addons',' Includes {addons}.',{addons:new Intl.ListFormat(globalThis.PlatformLanguage?.formatLocale?.('en-US') || 'en-US').format(addOns)}) ?? ` Includes ${escapeHtml(addOns.join(', '))}.`) : ''}${due}`;
     } else if (card) {
       card.innerHTML = '';
     }
@@ -9516,8 +9516,8 @@ window.PlatformCommerce.onReady(async function(){
     if(actionAnchor && actionAnchor.nextElementSibling!==actions)actionAnchor.after(actions);
     overlay.classList.toggle('firstmeasure-unordered-overview',requestedWorkflow==='project' && !expandedPlatformEnabled() && !hasReportOrdered());
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
-    const choices=[['roof','Order report',firstMeasureReportOrdersEnabled() && !hasReportOrdered()],['proposal','Build proposal',actionAvailable('proposal')],['schedule','Schedule appointment',actionAvailable('schedule')]].filter(item=>item[2]);
-    const signature=choices.map(item=>item[0]).join(',');
+    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),firstMeasureReportOrdersEnabled() && !hasReportOrdered()],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
+    const signature=choices.map(item=>item[0]+':'+item[1]).join(',');
     if (actions.dataset.choices!==signature) {
       actions.dataset.choices=signature;actions.replaceChildren();
       for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature',schedule:'fa-calendar-days'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
@@ -9548,14 +9548,14 @@ window.PlatformCommerce.onReady(async function(){
           const rows=await loadDocPickerRows();
           if (version!==searchVersion || reportProjectChoice!=='search' || !picker.isConnected) return;
           const matches=rows.filter(row=>row.search.includes(query)).slice(0,10);
-          status.textContent=matches.length ? '' : 'No matching projects.';
+          status.textContent=matches.length ? '' : (globalThis.PlatformLanguage?.text('project-request','overview_no_projects','No matching projects.') ?? 'No matching projects.');
           input.setAttribute('aria-expanded',String(!!matches.length));
           for (const row of matches) {
             const button=document.createElement('button');button.type='button';button.setAttribute('role','option');button.textContent=row.label+(row.address && row.address!==row.label ? ' — '+row.address : '');
             button.onclick=async()=>{
               ++searchVersion;status.textContent=(globalThis.PlatformLanguage?.text("project-request","m_7f0c783c8eec23","Opening projectâ€¦") ?? "Opening projectâ€¦");
               try {await openProject({...row.data,id:row.id},{workflow:'report',tab:'map',forceRefresh:true});}
-              catch(error){status.textContent=error.message || 'Could not open project.';}
+              catch(error){status.textContent=error.message || (globalThis.PlatformLanguage?.text("project-request","audit_b67507ab244ce0","Could not open project.") ?? "Could not open project.");}
             };
             results.append(button);
           }
@@ -9636,22 +9636,22 @@ window.PlatformCommerce.onReady(async function(){
     if (roofOnlySub) roofOnlySub.textContent = roofOnlyPriceLabel();
     if (reportSummary) {
       const addOns = [];
-      if (hasGutterAddon()) addOns.push('gutters');
-      if (hasWeatherAddon()) addOns.push('weather');
-      if (includeInstantPreview && hasSelectedAddons()) addOns.push('instant report');
+      if (hasGutterAddon()) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_gutters','gutters') ?? 'gutters');
+      if (hasWeatherAddon()) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_weather','weather') ?? 'weather');
+      if (includeInstantPreview && hasSelectedAddons()) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_instant','instant report') ?? 'instant report');
       const expedite = hasSelectedAddons() ? selectedReportExpediteOption() : null;
       if (expedite && expedite.key !== 'no_rush') addOns.push(expedite.label);
       reportSummary.textContent = reportSelection === 'roof'
-        ? `Order report${addOns.length ? ` + ${addOns.join(' + ')}` : ''}`
+        ? `${globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'}${addOns.length ? ` + ${addOns.join(' + ')}` : ''}`
         : isProposalChoice()
-          ? 'Build proposal'
+          ? (globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal')
           : isScheduleChoice()
-            ? 'Schedule appointment'
+            ? (globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment')
           : '';
     }
     if (roofSummary) {
       roofSummary.textContent = locationConfirmed
-        ? (pinCount() === 1 ? '1 structure confirmed' : `${pinCount()} structures confirmed`)
+        ? (globalThis.PlatformLanguage?.text('project-request','structures_confirmed','{count, plural, one {# structure confirmed} other {# structures confirmed}}',{count:pinCount()}) ?? `${pinCount()} structures confirmed`)
         : '';
     }
 
@@ -10388,7 +10388,7 @@ window.PlatformCommerce.onReady(async function(){
       capturePendingOrder();
       showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
       await openReportCreditGateTopup({
-        label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
+        label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","audit_60e9af1cbdcdac","this Full Structure report") ?? "this Full Structure report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
         required: price,
         balance: cachedBalance,
         context: 'credit_gate'
@@ -10402,7 +10402,7 @@ window.PlatformCommerce.onReady(async function(){
     capturePendingOrder();
     showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
     await openReportCreditGateTopup({
-      label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
+      label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","audit_60e9af1cbdcdac","this Full Structure report") ?? "this Full Structure report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
       required: price,
       balance: bal,
       context: 'credit_gate'
@@ -10594,10 +10594,10 @@ window.PlatformCommerce.onReady(async function(){
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'r-dup-overlay';
-      const statusLabels = { submitted: 'In Progress', queued: 'In Progress', ready: 'In Progress', processing: 'In Progress', in_progress: 'In Progress', awaiting_review: 'Awaiting Review', awaiting_manager_review: 'Awaiting Review', correction_needed: 'Correction Needed', completed: 'Completed', pending_rejection: 'Pending Review' };
+      const statusLabels = { submitted: (globalThis.PlatformLanguage?.text("project-request","audit_b4cc4b07c30010","In Progress") ?? "In Progress"), queued: (globalThis.PlatformLanguage?.text("project-request","audit_b4cc4b07c30010","In Progress") ?? "In Progress"), ready: (globalThis.PlatformLanguage?.text("project-request","audit_b4cc4b07c30010","In Progress") ?? "In Progress"), processing: (globalThis.PlatformLanguage?.text("project-request","audit_b4cc4b07c30010","In Progress") ?? "In Progress"), in_progress: (globalThis.PlatformLanguage?.text("project-request","audit_b4cc4b07c30010","In Progress") ?? "In Progress"), awaiting_review: (globalThis.PlatformLanguage?.text("project-request","audit_674db38d5123c4","Awaiting Review") ?? "Awaiting Review"), awaiting_manager_review: (globalThis.PlatformLanguage?.text("project-request","audit_674db38d5123c4","Awaiting Review") ?? "Awaiting Review"), correction_needed: (globalThis.PlatformLanguage?.text("project-request","audit_9b24354bb066bb","Correction Needed") ?? "Correction Needed"), completed: (globalThis.PlatformLanguage?.text("project-request","audit_22a970d2e5b1cc","Completed") ?? "Completed"), pending_rejection: (globalThis.PlatformLanguage?.text("project-request","audit_da77d8f5b71aa0","Pending Review") ?? "Pending Review") };
       const st = (existingProject.status || '').toLowerCase();
       const created = existingProject.created_at ? new Date(existingProject.created_at).toLocaleDateString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      overlay.innerHTML = `<div class="r-dup-dialog"><div class="r-dup-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="r-dup-title">${(globalThis.PlatformLanguage?.htmlText("project-request","m_5586d2df7e38a9","Duplicate report detected") ?? "Duplicate report detected")}</div><div class="r-dup-body">${(globalThis.PlatformLanguage?.htmlText("project-request","m_9ee3ae5b218a97","It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?") ?? "It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?")}</div><div class="r-dup-match"><div class="r-dup-match-addr">${String((existingProject.address || newAddress).replace(/</g, '&lt;'))}</div><div class="r-dup-match-meta">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("project-request","m_26a0ffb1c5f2ca",`Status: ${v1}${v2}`,{v1,v2}) ?? `Status: ${v1}${v2}`)(statusLabels[st] || existingProject.status || 'Unknown',created ? ' - Ordered: ' + created : '')}</div></div><div class="r-dup-actions"><button class="r-dup-btn" id="rDupCancel">${(globalThis.PlatformLanguage?.htmlText("project-request","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="r-dup-btn primary" id="rDupProceed">${(globalThis.PlatformLanguage?.htmlText("project-request","m_a2c586200d3d66","Order Anyway") ?? "Order Anyway")}</button></div></div>`;
+      overlay.innerHTML = `<div class="r-dup-dialog"><div class="r-dup-icon"><i class="fas fa-exclamation-triangle"></i></div><div class="r-dup-title">${(globalThis.PlatformLanguage?.htmlText("project-request","m_5586d2df7e38a9","Duplicate report detected") ?? "Duplicate report detected")}</div><div class="r-dup-body">${(globalThis.PlatformLanguage?.htmlText("project-request","m_9ee3ae5b218a97","It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?") ?? "It looks like a roof report was already ordered for this address. Do you still want to place a new roof report order?")}</div><div class="r-dup-match"><div class="r-dup-match-addr">${String((existingProject.address || newAddress).replace(/</g, '&lt;'))}</div><div class="r-dup-match-meta">${((v1,v2) => globalThis.PlatformLanguage?.htmlText("project-request","m_26a0ffb1c5f2ca",`Status: ${v1}${v2}`,{v1,v2}) ?? `Status: ${v1}${v2}`)(statusLabels[st] || existingProject.status || (globalThis.PlatformLanguage?.htmlText("project-request","audit_b764cdc0eab713","Unknown") ?? "Unknown"),created ? ' - Ordered: ' + created : '')}</div></div><div class="r-dup-actions"><button class="r-dup-btn" id="rDupCancel">${(globalThis.PlatformLanguage?.htmlText("project-request","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="r-dup-btn primary" id="rDupProceed">${(globalThis.PlatformLanguage?.htmlText("project-request","m_a2c586200d3d66","Order Anyway") ?? "Order Anyway")}</button></div></div>`;
       document.body.appendChild(overlay);
       let modalHandle = null;
       function cleanup(result){
@@ -10731,7 +10731,7 @@ window.PlatformCommerce.onReady(async function(){
     }
 
     const btn = activeSubmitButton();
-    setSubmitBusyLabel(btn, 'Ordering');
+    setSubmitBusyLabel(btn, (globalThis.PlatformLanguage?.text("project-request","audit_35266cd2f21aca","Ordering") ?? "Ordering"));
 
     const primaryLat = pins[0]?.lat ?? ($('#rLat').value || '').trim();
     const primaryLng = pins[0]?.lng ?? ($('#rLng').value || '').trim();
@@ -10778,14 +10778,14 @@ window.PlatformCommerce.onReady(async function(){
     try {
       const { data } = await postAction('queue', payload);
       if (!data || !data.success) {
-        const msg = data?.message || data?.error || 'Submission failed.';
+        const msg = data?.message || data?.error || (globalThis.PlatformLanguage?.text("project-request","audit_2d31976e9d17e4","Submission failed.") ?? "Submission failed.");
         if(window.Portal.ExteriorOrder?.active()) window.Portal.ExteriorOrder.failed(data);
         btn.disabled = false;
         updateSubmitLabel();
         if (String(msg).toLowerCase().includes('credit')) {
           capturePendingOrder();
           await openReportCreditGateTopup({
-            label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
+            label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","audit_60e9af1cbdcdac","this Full Structure report") ?? "this Full Structure report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
             required: currentPrice(),
             balance: Number(window.Portal?.credits?.lastCredits),
             context: 'server_credit_reject'
@@ -10797,7 +10797,7 @@ window.PlatformCommerce.onReady(async function(){
         return;
       }
       try { localStorage.removeItem(PENDING_ORDER_KEY); } catch (ex) {}
-      showToast(data.development_report ? 'Development report ready' : (payload.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("project-request","full_report_ordered","Full Structure report ordered") ?? "Full Structure report ordered") : (globalThis.PlatformLanguage?.text("project-request","roof_report_ordered","Roof report ordered") ?? "Roof report ordered")), data.development_report ? 'Existing report files are ready to view.' : (getAfterHoursMessage() || (globalThis.PlatformLanguage?.text("project-request","report_processing","Report is now processing.") ?? "Report is now processing.")), true);
+      showToast(data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_88430f2c58bbce","Development report ready") ?? "Development report ready") : (payload.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("project-request","full_report_ordered","Full Structure report ordered") ?? "Full Structure report ordered") : (globalThis.PlatformLanguage?.text("project-request","roof_report_ordered","Roof report ordered") ?? "Roof report ordered")), data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_7cf4af8eebae35","Existing report files are ready to view.") ?? "Existing report files are ready to view.") : (getAfterHoursMessage() || (globalThis.PlatformLanguage?.text("project-request","report_processing","Report is now processing.") ?? "Report is now processing.")), true);
       const shouldUpdateExistingProject = !!String(payload.platform_project_id || payload.base_project_id || '').trim();
       reorderMeasurementProjectId = '';
       reorderSourceCanReopenInPlace = false;

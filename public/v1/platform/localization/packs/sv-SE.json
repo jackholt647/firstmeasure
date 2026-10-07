@@ -2153,7 +2153,11 @@
     "m_25253d755816e2": "Spela in ett helt varv runt huset med mobilen och ladda sedan upp videon här. Om du beställer via FirstMate-appen spelas videon in åt dig.",
     "m_27b7e868698f63": "Lägg till närbilder av sådant som videon inte visar tydligt, till exempel takkupor, tillbyggnader eller trånga passager längs huset.",
     "m_2469fadd18d99a": "Har du en video? Byt till video runt huset (rekommenderas)",
-    "m_6e81feb28a2b17": "Ingen video ännu"
+    "m_6e81feb28a2b17": "Ingen video ännu",
+    "m_0889f650508793": "INSPELNING",
+    "m_1ddd588108e13d": "Ett helt varv",
+    "m_e05fb49213187a": "Spela in",
+    "review_full_structural_report": "Granska den fullständiga rapporten för byggnaden"
   },
   "help": {
     "m_0db6efc53ab2ed": "Behöver du hjälp?",
@@ -2647,7 +2651,218 @@
     },
     "m_ee2e95ef4a2d84": "Måtten har uppdaterats",
     "m_52f356edab1915": "Rapportvärdena har uppdaterats. Manuella överskrivningar har behållits.",
-    "m_81c35a6db09047": "Måtten är inte tillgängliga"
+    "m_81c35a6db09047": "Måtten är inte tillgängliga",
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} per byggnad",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Modell och foton",
+    "m_020e15c6bea221": "Flygfoto",
+    "m_8a27a13894e81a": "Det gick inte att läsa in takvisaren. Uppdatera sidan och försök igen.",
+    "m_76608e0c91e510": "Teckenförklaring",
+    "m_9f97a8cc4df412": "Läser in takmodell…",
+    "m_e11fb3a15af2c9": "Dra för att rotera · Rulla för att zooma",
+    "m_f902513107035c": "Takmodell och rapportmedia",
+    "m_cc0ef10e9ca033": "Textur",
+    "m_f5c0225c619977": "Färgade linjer",
+    "m_106ab75c23cf29": "Återställ vy",
+    "m_3ed4abb478b582": "3D-takmodell",
+    "m_7e9fab72578933": "Det gick inte att läsa in mediet.",
+    "m_c2e36017433571": "Solbilden kunde inte läsas in",
+    "m_2578923397f853": "Läser in solbild…",
+    "m_ff91c03c76ccf0": "Sparade taklinjer · Dra för att rotera · Rulla för att zooma",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_ae8e4953e07d70": "Kund",
+    "m_425f6b598f6417": "Väder",
+    "m_070d836d7b27e3": "Ändringar väntar",
+    "m_3a57f052b36fc1": "Expressavgiften har tagits bort från den här beställningen.",
+    "m_ee8cd441a3c740": "Expressrapporter börjar behandlas direkt och kan inte avbeställas efter 1 minut.",
+    "m_7ab36b45fa8644": "Standardrapporter kan avbeställas inom 15 minuter efter beställningen.",
+    "m_0ca6847627b5d8": "Direktrapport skapas",
+    "m_4f9decb4fef708": "Kundrapport behandlas",
+    "m_cb27e9cd4b71dc": "Standardrapport behandlas",
+    "m_b754ff36345be0": "Standardrapport väntar",
+    "m_6c2b94bfbe7de4": "Beräknar leveranstid",
+    "m_813568092a909a": "Pågår",
+    "m_a5adb64bece6bf": "Granskas",
+    "m_2175240180a38e": "Väntar",
+    "m_0dcf5f39373245": "Avbokningsfristen på 1 minut för den här expressrapporten har löpt ut.",
+    "m_5a195b5dbc85fc": "Avbokningsfristen för det här projektet har löpt ut.",
+    "m_4d7c3696ea7819": "Direktrapport väntar",
+    "m_20daf0329c6bb5": "Rapporten avvisades eftersom byggnaden är alltför skymd på de tillgängliga bilderna. Det kan bero på att träd, skuggor, bildkvalitet eller andra visuella hinder gör att vi inte säkert kan identifiera och mäta taket. Vi har återbetalat den ursprungliga rapporten.",
+    "m_8a0434dcd5f44a": "Rapporten avvisades eftersom den valda markören inte verkar vara placerad på en byggnad som vi kan mäta. Det kan bero på att markören ligger på en gård, uppfart eller ett närliggande objekt, eller på en byggnad med för få användbara bilder för en noggrann mätning. Vi har återbetalat den ursprungliga rapporten.",
+    "m_fdbdd395519610": "Rapporten avvisades eftersom organisationen inte hade tillräckligt med krediter för de ytterligare byggnaderna. Ingen debitering för ytterligare byggnadsmarkörer behölls för den avvisade rapporten.",
+    "m_a88169ad51b679": "Rapporten avvisades. Vi har återbetalat den ursprungliga rapporten.",
+    "m_85b7e99a08fa9a": "Mätning",
+    "m_ec6b76d100b0ec": "Värde",
+    "m_4b91b73dae1ff3": "Enhet",
+    "m_f2baa3de1eb35b": "Takfötter",
+    "m_230a183ddb6e96": "Ränndalar",
+    "m_48029c2aaa37c6": "Gavelkanter",
+    "m_217bf30b990d24": "Nockar",
+    "m_baa2f693c3883e": "Höfter",
+    "m_3bcef36c5987a6": "Anslutningsbeslag vid vägg",
+    "m_58ab5ba41ae1c9": "Sidoväggsbeslag",
+    "m_06fc435805a90a": "Stegbeslag",
+    "m_8ba24778829c38": "Övergångar",
+    "m_4d80da8e9e6ebe": "Parapetvägg",
+    "m_7aeda3ce508c46": "Motbeslag",
+    "m_0cbf0780118eed": "Okänd storlek",
+    "m_7244c568a68bff": "Behandlas",
+    "m_d0dd61f9c0e1d2": "Klar",
+    "m_e70e11490d7b0e": "Inte tillgänglig",
+    "m_1313f5db221c3d": "PDF med huvudtakets mått och hängrännemått",
+    "m_9898713daf99e1": "PDF med huvudtakets mått",
+    "m_39c51745a420e1": "PDF med kundöversikt",
+    "m_73340cea156d55": "Export av modelldata",
+    "m_104300af4d9588": "Förhandsvisning av direktmätning",
+    "m_645ca26abdddb4": "PDF med historiskt extremväder",
+    "m_0d54f0e37800ea": "Inte skickad ännu",
+    "m_61023422d0cb5d": "Avvisad",
+    "m_9863f11d60b2fa": "Avbeställd",
+    "m_e8e493437c1a17": "Slutförd",
+    "m_46c14a5ec722c6": "Beställd",
+    "m_e2f22061f67c87": "Direkt + standard",
+    "m_d5a4d5eab0934e": "Översikt över hela byggnaden",
+    "m_ac57bd5edb01bf": "Takrapportöversikt",
+    "m_4567836c628fdd": "Försök igen.",
+    "m_59c670bfa95274": "Det gick inte att skapa väderrapporten. Du kan försöka igen härifrån.",
+    "m_5414698a7f63e1": "Väderrapporten är beställd och skapas när FirstMeasure-rapporten är klar.",
+    "m_1ef47a07071860": "Rapporten om historiskt extremväder skapas. Den visas här när den är klar.",
+    "m_75ee115d9e118f": "Det gick inte att skapa väderrapporten.",
+    "m_7d48773e58e964": "Det gick inte att beställa väderrapporten.",
+    "m_6479e99c256b1d": "Väderrapporten är klar.",
+    "m_65522862812f28": "Rapporterat problem",
+    "m_7af9903841fb66": "Ytterligare byggnad",
+    "m_9816fa5fa0bc00": "Ändring eller korrigering",
+    "m_1dbe1d8b227b2f": "Skickat till supporten",
+    "m_51be70f25415d9": "Godkänt",
+    "m_3c4d2141b2fa1c": "Slutfört",
+    "m_fe9520d635f903": "Dina supportmeddelanden om den återförda rapporten visas här.",
+    "m_339395a80e0064": "Du kommer åt den återförda rapporten medan dessa förfrågningar granskas.",
+    "m_e2b803de55a93e": "Skickad",
+    "m_a518a4f0e43132": "Det här skickar ett supportmeddelande till FirstMeasure.",
+    "m_35f94adf3dce96": "Placera den ytterligare byggnaden på kartan. Kommersiella beställningar och beställningar för flerbostadshus debiteras per tillagd byggnad.",
+    "m_bb5684676c9b3b": "Lägg till anteckningar och foton till korrigeringsteamet.",
+    "m_eba3732c6bff34": "Supportmeddelande",
+    "m_fd5e1725cedd0d": "Skickar en begäran om omarbetning",
+    "m_f945baf54844d9": "Kostnadsfri begäran om omarbetning",
+    "m_735a0c9b004cb0": "Begäran om ytterligare byggnad",
+    "m_136eda8f76021e": "Ytterligare byggnader tillagda i den återförda rapporten",
+    "m_db80beaa86c589": "Det gick inte att skicka begäran.",
+    "m_8e44aec37ccb2b": "Rapportens uppföljning har sparats.",
+    "m_2ba158e4424efb": "Det gick inte att ordna expressleverans för rapporten.",
+    "m_fbd81f2c4d1c18": "Leveranstiden har uppdaterats.",
+    "m_21778024c3a70c": "Det gick inte att avbeställa rapporten.",
+    "m_c44638d45be320": "Beställningen har avbeställts.",
+    "m_70cd41e8830a84": "Det gick inte att importera rapporten.",
+    "delivery_by": {
+      "message": "Senast {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Mindre än {hours} timmar",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Beräknad tid: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Beräknad tid: {hours} tim",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Beräknad tid: {hours} tim {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Beställd {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Avbeställ rapporten ({time} kvar)",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Sidoväggar",
+    "m_10e472dc761ed6": "Anslutningsväggar",
+    "m_717d08a340c907": "Väder",
+    "m_6a656f97b4af69_currency": "Levererad med det här projektet",
+    "m_a54dfa11060c5d_currency": "Väderrapport beställd",
+    "m_bd585f0df980a6_currency": "Begäran skickad",
+    "m_550e7313d4d175_currency": "Rapporten har fått expressleverans",
+    "m_d588b9b5f17ee7_currency": "Rapporten har avbeställts",
+    "m_1c10582071b5c0": {
+      "message": "{v0} tim {v1} min",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} sek",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} sek",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Beställ på nytt som {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Mätnings-XML är inte tillgänglig ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "Nedladdningen av XML misslyckades ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Skickad {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Skicka – {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# timme} other {# timmar}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# foto} other {# foton}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Återbetalat {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Rapporten avvisades eftersom den verkar kräva en rapport av typen {v0}. Vi har återbetalat den ursprungliga rapporten.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Kontrollerar...",
+    "m_417c2d318452c7": {
+      "message": "Det gick inte att läsa {v0}.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Ytterligare byggnad begärd via kartmarkör.",
+    "m_3c366c37d61199": {
+      "message": "Debiterat {v0} för begäran om ytterligare byggnad.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Ordnar expressleverans...",
+    "m_a57adbfbfeda02": {
+      "message": "Debiterat {v0} för snabbare leverans.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# nål} other {# nålar}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Läser in ekonomi...",
@@ -3554,7 +3769,121 @@
     "m_428a61cf4a8532": "Matchande projekt",
     "m_67ea3d9f45d10b": "Söker efter projekt…",
     "m_7f0c783c8eec23": "Öppnar projekt…",
-    "m_5180ead27b8ad6": "GIF-filen kunde inte läsas in"
+    "m_5180ead27b8ad6": "GIF-filen kunde inte läsas in",
+    "m_0d21d7d3136fc9": "Utvändiga mätningar av hela huset, inklusive taket.",
+    "m_97e57acb52769a": "Väggar, fönster, dörrar och fasadytor.",
+    "m_1274bb24b43206": "Tak- och hängrännemätningar ingår.",
+    "m_b120ceb5e3ac9e": "Åtta referensfoton per byggnad krävs.",
+    "m_f1775523edde74": "Din takmätrapport.",
+    "m_424bd3aef8e7cb": "Takytor, lutningar, kanter och mått.",
+    "m_5c6fb5beeff92c": "Lägg till hängrännor eller andra tillgängliga rapporter när du beställer.",
+    "m_398f784a950729": "Lägger till en särskild sida om hängrännor i standardrapporten för bostäder.",
+    "m_98ad5fe62c722d": "Aktiva hängrännors längd i fot beräknas utifrån takfotssträckorna.",
+    "m_1b41dbf4615706": "Antal våningar på norra, södra, östra och västra sidan.",
+    "m_18db25f632d117": "Diagram över hängrännor med etikett på varje sträcka.",
+    "m_2c4f4a8f273e86": "Antal hörnkapningar för utvändiga 90-gradershörn, invändiga 90-gradershörn och hörn med andra vinklar.",
+    "m_4cd43f827c1fae": "Lägger till en omedelbar mätrapport medan standardrapporten behandlas.",
+    "m_4b2b1884c6cff9": "Snabb, AI-genererad förhandsvisning av takmätningar.",
+    "m_f97d66c6fc03c3": "Interaktiv takmodell där den finns tillgänglig.",
+    "m_7f677a10302532": "Direkt åtkomst till PDF innan den granskade standardrapporten är klar.",
+    "m_edc48228028f11": "Standardrapporten följer fortfarande den valda leveranstiden.",
+    "m_208063e29728ba": "Lägger till en rapport om fastighetens historik för extremväder.",
+    "m_0087790e73e66c": "Omfattande historik över hagel-, vind- och tornadoskador på adressen.",
+    "m_bab1f8bcf78db9": "Närliggande väderhändelser grupperade efter datum med avstånd och styrka.",
+    "m_b901f17c3bd50b": "Kartbilagor, varningsinformation och sammanfattningstabeller.",
+    "m_bdcad3423f3114": "Användbart vid skadegranskning, kundsamtal och projektdokumentation.",
+    "m_a227a5b1174b0f": "Lägger till en valfri rapportfunktion i beställningen.",
+    "m_0b5d751a9847bf": "Öppna exempelrapport",
+    "m_d9c640d91be6e2": "Ingen expressleverans",
+    "wait_minutes": {
+      "message": "Beräknad tid: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Beräknad tid: {hours} tim",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Beräknad tid: {hours} tim {minutes} min",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "{v0}% värvningsrabatt tillämpad. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "{v2} totalt.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Inga krediter",
+    "m_b97feb346e3fae_currency": {
+      "message": "Du behöver {v0} för att beställa den här rapporten.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} / byggnad × {count, plural, one {# byggnad} other {# byggnader}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Beställ rapport",
+    "overview_build_proposal": "Skapa förslag",
+    "overview_schedule_appointment": "Boka möte",
+    "overview_no_projects": "Inga matchande projekt.",
+    "overview_gutters": "hängrännor",
+    "overview_weather": "väderrapport",
+    "overview_instant": "direktrapport",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# bekräftad byggnad} other {# bekräftade byggnader}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Målleverans: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Innehåller {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Förminska",
+    "audit_c461dbb2bab7d8": "Helskärm",
+    "audit_06ecd0fafc34d4": "det här köpet",
+    "audit_2b5c3d26721ae9": "Kontakt",
+    "audit_98595978531974": "Projekt",
+    "audit_22a970d2e5b1cc": "Slutfört",
+    "audit_6f8d17646237f4": "Nytt projekt",
+    "audit_0a2d38987b9aa3": "Hus och enfamiljshus",
+    "audit_114820134036e1": "Kommersiella fastigheter och industrifastigheter",
+    "audit_9e05435948dfbb": "Lägenheter och gemensamt boende",
+    "audit_c0eb0f8efba638": "Välj typ",
+    "audit_e10ae990740118": "Tidigare",
+    "audit_b512d97e7cbf97": "Användare",
+    "audit_b764cdc0eab713": "Okänd",
+    "audit_90eb5886fddc5f": "Inga anteckningar matchar det här filtret.",
+    "audit_57bde4deb215bf": "Inga anteckningar ännu.",
+    "audit_6501e1ced8da0b": "Spara anteckning",
+    "audit_63565c0485fec4": "Lägg till anteckning",
+    "audit_ab52c213888188": "Kollega",
+    "audit_3fe263538d199f": "Ny kontakt",
+    "audit_1b5a65c3cdba9e": "Namnlöst projekt",
+    "audit_d87821ba1a366b": "Inga projekt matchar din sökning.",
+    "stalled_order": "Den här rapportbeställningen stannade före bearbetningen. Du kan ändra dess ordning på fliken Rapporter.",
+    "inactive_order": "Det här projektet har ingen aktiv rapportbeställning.",
+    "audit_77b12f57b38b87": "Rapport pågår",
+    "audit_d30a775883da50": "Rapport granskas",
+    "audit_0ba1f4e48609ea": "Rapport väntar",
+    "audit_c5e665c57bc2e0": "Standardrapporten bearbetas just nu.",
+    "audit_2612ba1829868e": "Standardrapporten granskas.",
+    "audit_901358a2916ff7": "Standardrapporten väntar.",
+    "audit_b67507ab244ce0": "Det gick inte att öppna projektet.",
+    "audit_60e9af1cbdcdac": "den här rapporten med fullständig struktur",
+    "audit_3f50e8ab670539": "den här takrapporten",
+    "audit_b4cc4b07c30010": "Pågår",
+    "audit_674db38d5123c4": "Väntar på granskning",
+    "audit_9b24354bb066bb": "Korrigering krävs",
+    "audit_da77d8f5b71aa0": "Väntar på granskning",
+    "audit_35266cd2f21aca": "Beställer",
+    "audit_2d31976e9d17e4": "Det gick inte att skicka.",
+    "audit_88430f2c58bbce": "Utvecklingsrapporten är klar",
+    "audit_7cf4af8eebae35": "Befintliga rapportfiler är redo att visas."
   },
   "project-schedule": {
     "m_88e13d64071885": "Schemat är låst",
@@ -3958,7 +4287,157 @@
     },
     "m_ce86fe78082565": "Otillgänglig",
     "m_f8e16243e0f91c": "Hantera vy",
-    "m_200131262770e4": "Projektvy"
+    "m_200131262770e4": "Projektvy",
+    "m_ea9c70855946ea": "Stegen visar vårt arbetsflöde. Om du vill bläddra bland mottagna projekt väljer du endast Projekt som delats med oss.",
+    "m_9ce407c87de615": "Utkast",
+    "m_aaebd7ccba0b30": "Projekt",
+    "fm_contact_unavailable": "Ej angivet",
+    "m_9cf11b8ab925ce": "Vi har för närvarande ingen täckning för den här adressen. ",
+    "m_93f718cb51bafd": "Vi täcker för närvarande 95 % av alla byggnader i USA och arbetar aktivt med att utöka området så att vi kan täcka fler av de återstående byggnaderna. ",
+    "m_ea8d59f20b2ea6": "Vi har noterat ditt intresse för liknande byggnader och kommer att prioritera att kunna täcka dem inom en snar framtid. ",
+    "m_c5942837107a76": "Vi kunde inte skapa en FirstMeasure Instant för den här markören eftersom den valda punkten inte hamnade på en byggnad med tillförlitliga direktmätningsdata. ",
+    "m_214f9a56d321e4": "Vi kunde inte slutföra rapporten eftersom byggnaden är alltför skymd på de tillgängliga bilderna. ",
+    "m_9ac5bbd5a7f1d1": "Det kan bero på att träd, skuggor, bildkvalitet eller andra visuella hinder gör att vi inte säkert kan identifiera och mäta taket. ",
+    "m_d51846aa8dda09": "Vi ber om ursäkt för eventuella besvär.",
+    "m_4edb03027fd308": "Vi kunde inte slutföra rapporten eftersom den valda markören inte verkar vara placerad på en byggnad som vi kan mäta. ",
+    "m_17b153d5aa2b45": "Det kan bero på att markören ligger på en gård, uppfart eller ett närliggande objekt, eller på en byggnad med för få användbara bilder för en noggrann mätning. ",
+    "m_5978e46f6f29cd": "Vi kunde inte slutföra rapporten eftersom den valda byggnaden inte motsvarar den projekttyp som beställdes. ",
+    "m_4b5bf19bcf1325": "Vi har återbetalat den ursprungliga rapporten.",
+    "m_0b9e2c765e77b1": "Vi återför kredit för den här direktrapporten.",
+    "m_8d52a67caa71a2": "Flerbostadshus",
+    "m_6d351fa63793b6": "Projektet har avbeställts. Inget mer arbete kommer att utföras för den här begäran.",
+    "m_549ccd0e27a3d4": "Ja",
+    "m_2f0222913078f4": "Nej",
+    "m_0817ad39e6765a": "Det gick inte att läsa in FirstMeasure Instant ännu.",
+    "m_e005bd4bc50817": "Kombinerade mätningar för den valda byggnaden.",
+    "m_3e219b59d394f6": "Mätningar för den valda byggnaden.",
+    "m_ba6a658fdc23c0": "Ladda ner standardrapport",
+    "m_f456048437e56e": "Försöker ladda ner standardrapporten igen",
+    "m_a44e379d284797": "Ladda ner kundrapport",
+    "m_a32ef8d751f045": "Försöker ladda ner kundrapporten igen",
+    "m_06f3a13fba723d": "Ytintervall (m²)",
+    "m_f7d60690e4780f": "Intervall i takrutor",
+    "m_7456bdb3003d3a": "Den här byggnaden",
+    "m_dacaa66449659d": "Förbereder standardrapporten",
+    "m_f3cacef590576b": "Det gick inte att ladda ner den omedelbara standardrapporten.",
+    "m_6783ae5a616a3f": "Kontaktuppgifter är inte tillgängliga ännu.",
+    "m_6f94190df36af9": "Förbereder kundrapporten",
+    "m_2a9462b7fdff9d": "Det gick inte att ladda ner den omedelbara kundrapporten.",
+    "m_5a0f6b2de100f2": "Direktbildfilerna är inte klara ännu.",
+    "m_a2decb63023f36": "Direktmodellfilerna är inte klara ännu.",
+    "m_46f6cf08f0ef61": "Direktförhandsvisning är inte tillgänglig för det här projektet.",
+    "m_edb27a9262e77e": "Det gick inte att beställa standardrapporten.",
+    "m_235d86f4916a45": "Förlorat",
+    "m_3c4d2141b2fa1c": "Slutfört",
+    "m_8a993ed9b573b4": "Ej tilldelat",
+    "m_1b6ec15cbd198b": "Pågår",
+    "m_bf38bfda2125d1": "Tak och hängrännor",
+    "m_de8450bc1dc243": "Det gick inte att flytta projektet.",
+    "m_2da110201b814e": "Vänsterpil",
+    "m_e90f8a20f79638": "Högerpil",
+    "m_1519fbdf5b87ed": "Start",
+    "m_80cfdb09a78f4b": "Slut",
+    "m_2a925f101cbd18": "Stigande",
+    "m_760cf1fac61b3d": "Fallande",
+    "m_aac16f05678935": "Steg",
+    "m_3221d12ca792a6": "Kort",
+    "m_4bb4688766e904": "Sparat",
+    "m_b415d005adf878": "FirstMeasure-projektets ID är inte tillgängligt.",
+    "m_82ea55e5099898": "Kontaktuppgifterna har sparats.",
+    "m_41d4335f00b051": "Kontaktuppgifterna har rensats.",
+    "m_13fa388b0577c8": "Nedladdningen misslyckades.",
+    "m_f32282581cf29c": "Sparas per projekt.",
+    "m_26c6cc9deaa942": "Inläst från det här projektet.",
+    "m_6ab3fe9280d969": "Osparade ändringar.",
+    "m_71c5dfdf68e84f": "Det gick inte att spara kontaktuppgifterna.",
+    "m_7a7059bde880f7": "Korrigerad",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_9e098701abaa2c": "Kundkopia",
+    "m_ae8e4953e07d70": "Kund",
+    "m_74b044783b2a3e": "Ladda ned korrigerad rapport-PDF",
+    "m_7d54357160f795": "Ladda ned rapport-PDF",
+    "m_9222c2e07a3df0": "Ladda ned korrigerad kund-PDF",
+    "m_09128dde31d325": "Ladda ned kund-PDF",
+    "m_175a65008ef30d": "Ladda ned XML-modell",
+    "m_9da3458d21c94e": "Korrigerad rapport",
+    "m_c47c2ce6bb05c0": "Rapport",
+    "m_690327a7486605": "Korrigerad kundkopia",
+    "m_d2b7446d4a96f1": "Kundkopia",
+    "m_e2943d71f406cb": {
+      "message": "Byggnad {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Inkluderade byggnader: {v0} av {v1} valda.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Mätningar för byggnad {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Kostnaden på ${v0} för den här byggnaden har återbetalats.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Kostnaden på ${v0} för den här byggnaden håller på att återbetalas.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Kostnaden på ${v0} för den här byggnaden har tagits bort från snabbfaktureringen.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Det gick inte att läsa in den omedelbara tillgången ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Båda – {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standard – {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "Pil ned",
+    "m_92c001f63daac8": "Retur",
+    "m_5ba96f2ee6a04a": "Esc",
+    "m_f8cfb983b6ee93": "Pil upp",
+    "m_b550215be01e52": "Accept",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Nedladdningen misslyckades ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Inte inloggad",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# vald byggnad uteslöts eftersom det saknades användbara snabbdata.} other {# valda byggnader uteslöts eftersom det saknades användbara snabbdata.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " En kredit på {amount} har återbetalats.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " En kredit på {amount} håller på att återbetalas.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "begäran om ytterligare byggnad",
+    "audit_a65c9f1d26dec1": "begäran om ändring/korrigering",
+    "audit_ee9da4f4e90be4": "begäran om omarbetning",
+    "audit_1c376a7fd9b2d3": "3D-modellens beroenden är inte tillgängliga.",
+    "audit_325cb33dd4a5d6": "BEARBETNING AV FULLSTÄNDIG RAPPORT",
+    "audit_e0507c184559a7": "SNABBRAPPORT",
+    "audit_b06d7c41ed06c8": "partnerorganisation",
+    "audit_5dbc6dff430e8d": "ÄNDRINGAR VÄNTAR",
+    "audit_1c4b7f4ada5422": "KORRIGERAD RAPPORT KLAR",
+    "audit_843f745c483e81": "SNABB + FULLSTÄNDIG",
+    "audit_76bf93df451d48": "RAPPORT KLAR"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4272,7 +4751,64 @@
     "m_f35a14165cc920": "Promptgränssnittet är klart. Modellgenerering kan kopplas in i den här åtgärden härnäst.",
     "m_bbe27879ebf26c": "Diktering är inte tillgänglig",
     "m_79af74d554f5a6": "Den här webbläsaren har inte stöd för taligenkänning här.",
-    "m_9964312e9c85ac": "Projektofferter"
+    "m_9964312e9c85ac": "Projektofferter",
+    "m_79f01ba310c6af": {
+      "message": "Skapa en signatur för {v0} och placera den där det behövs.",
+      "format": "icu"
+    },
+    "m_c82963ef8940ce": "Sammanfattningssida",
+    "m_700473b6840e61": "Ta bort logotypen för samprofileringen",
+    "m_fccaa3fc954540": "Använd",
+    "m_1a29aea570fbc4": "Antal",
+    "m_8edfc0dd24bef1": "Enhetspris $",
+    "m_ae8e4953e07d70": "Kund",
+    "m_ca125d59fcd810": "Alternativnamn",
+    "m_e847735cf5a416": "Zooma",
+    "m_709d4ebff0e0da": "Tryck för att signera",
+    "m_9edc96d5f6e438": "Företagsrepresentant",
+    "m_ccb84c048a1a17": "Försäljningsskatt",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Betalningsplanen är {v0} %. Summan måste bli 100 %.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Inga medier har laddats upp ännu",
+    "m_a5e1cd4c41f31c": "Det finns inga foton eller videor för det här projektet ännu.",
+    "m_7f88f89133cbc4": "Skriv undertecknarens namn",
+    "m_16dcd60135fed3": "Rita din signatur här",
+    "m_506191e24dd383": "Rensa",
+    "m_b5828f5fd0c36d": "Inga förslag ännu",
+    "m_7feb0c701cff3e": "Skapa det första utkastet och duplicera det sedan när du vill göra varianter.",
+    "m_8934bbea9ff9ad": {
+      "message": "Steg {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Lägg till takshingel",
+    "m_a28421203810c9": "Sök i prislistan och lägg till ytterligare ett alternativ som kunden kan se.",
+    "m_581e6e2a759706": "Stäng Lägg till takshingel",
+    "m_f3189dbe87971a": "Sök i prislistan för takshingel",
+    "m_4a3589501ecc1f": "Rabattnamn",
+    "m_792f935ba82291": "Rabattvärde",
+    "m_691d860b768692": "Ta bort rabatt",
+    "m_0254795a80cfc0": "Inga rabatter har lagts till ännu.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Ta bort {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Anpassat arbetsflöde ska fastställas.",
+    "m_7fcfaa1f4fcd66": "\n                      E-post krävs för att skicka\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Det finns ingen kund-e-postadress för det här projektet ännu.",
+    "m_c10134dc02336b": "\n                E-post krävs för att skicka\n                ",
+    "m_cbb41dfafd178f": "Inkludera länk till kundportalen",
+    "m_a9fa064a3c9985": "Tillåt kunden att signera flera förslag",
+    "m_5cc367ea2b4774": {
+      "message": "Sida {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Ta bort",
+    "m_af64ff308ca58e": "Ta bort sida",
+    "m_bdf76cad510e9f": "Ta bort alternativ",
+    "m_fba496098e9a0f": "Inga matchande takshingelprodukter hittades."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Ej tilldelade kvitton",
@@ -7277,7 +7813,145 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# transaktion} other {# transaktioner}} – Netto: ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Automatisk kreditpåfyllning",
+    "m_8cb6b086a0e69c": "Klart",
+    "m_d248c450100477": " Arkivera",
+    "m_3cfab293c8c008": " Bjud in person",
+    "m_ae615734419eb6": "Roller &amp; standardåtkomst",
+    "m_91244bdaa8204c": "Skapa återanvändbara utgångspunkter för appåtkomst och behörigheter.",
+    "m_1f1ad34d149fdf": "Läser in åtkomstroller...",
+    "m_0e74f1bca1ead4": "Hantera",
+    "m_6fd299432247c1": "Sparar varumärkesprofil…",
+    "m_569b229b85507e": "Det gick inte att spara varumärkesprofilen",
+    "m_b9b9bca729d6db": {
+      "message": "version {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Inga aktiva åtkomstroller.",
+    "m_77a0c5b9d8ac90": " Du",
+    "m_e09715b775ce9e": " Lägg till användare",
+    "m_6e9ebf535758d8": "Företagsadress",
+    "m_bbe1447b5d3e67": "Används för att fylla i uppgifter vid domänregistrering och företagsverifiering via 10DLC.",
+    "m_ac137f394a3447": "Gatuadress",
+    "m_c549239597ab7a": "Svitenummer, lägenhetsnummer osv. (valfritt)",
+    "m_a09f6a051adb2f": "Företagslogotyp i rapportförhandsvisning",
+    "m_8eec608d18828f": "Exempel på takdiagram",
+    "m_1d7c61da5a56c2": "Inget tillgängligt.",
+    "m_8106b856808735": "Läser in avdelningar…",
+    "m_6b8e4b3f1a7cc9": "Ärvda medlemskap:",
+    "m_8bdaf1ba732556": "Kryssrutorna visar direkta tilldelningar. Ärvda medlemskap gäller fortfarande när rutan inte är markerad.",
+    "m_ff6087fc202a31": "Avdelningar har sparats.",
+    "m_edcd68da5d4b23": "Läser in organisationens avdelningar…",
+    "m_f7161d1f24e956": "Organisationens avdelningar",
+    "m_8f5d10ae9e3dfc": "Delas mellan alla filialer. Ange standardavdelningar för användarroller och grupptyper, eller lägg till enskilda personer och grupper. En person eller grupp kan tillhöra flera avdelningar.",
+    "m_570d421382fbed": "Avdelningar",
+    "m_20558f2853e00b": "Personer, roller och grupper",
+    "m_4297d86c10d006": "Tilldela avdelningar efter",
+    "m_ad2f0ca83b8780": "Enskild användare",
+    "m_21037df1b40c09": "Användartyp / roll",
+    "m_319e5834d71d6f": "Enskild användargrupp",
+    "m_f2c096f77350e1": "Användargruppstyp",
+    "m_bca9e3fd6cf405": "Välj",
+    "m_2f45efa1cd676a": "Välj…",
+    "m_ce2f23fc67dbab": "Avdelningsnamn",
+    "m_b53d9744f78699": "Avdelningskategori (valfritt)",
+    "m_02997de9e09d60": "Användartyper / roller — standardmedlemmar",
+    "m_8dde7f5f579699": "Användargruppstyper — standardgrupper",
+    "m_ec049efefe3343": "Ytterligare enskilda användare",
+    "m_6ea7e974e821fc": "Ytterligare enskilda användargrupper",
+    "m_c73c6e0076f1ad": "Till exempel kundtjänst",
+    "m_cfa69cfd76ca26": "Ange ett avdelningsnamn.",
+    "m_0c44938a138aa6": "Avdelningen har sparats.",
+    "m_c8a24768419f58": "Behörigheterna är skrivskyddade.",
+    "m_33071666de0ded": "Det gick inte att läsa in listan",
+    "m_d7ead3cd6cbff6": "Det gick inte att lägga till",
+    "m_272e637b6dd40b": "Det går inte att skicka inbjudan igen.",
+    "m_f2db003b7dc3e6": "Dölj behörigheter",
+    "m_c8653c90005f35": "Visa behörigheter",
+    "m_0fe4884bff1c81": "Dialogruta",
+    "m_fd5fb5598dd8f6": "Har aldrig loggat in",
+    "m_4b49e020f08d8e": "Superadministratörers e-postadresser kan inte ändras, för att undvika att kontot låses ute.",
+    "m_2bdeadce179997": "Du kan byta namn på den här superadministratören, men e-postadressen är låst.",
+    "m_b7e812bec0dfac": "Uppdatera ditt visningsnamn eller din inloggningsadress.",
+    "m_f6655180d4e320": "Byt namn på användaren eller ändra e-postadressen.",
+    "m_4c66f6639656d2": "Återaktivera",
+    "m_232f4ec7b346ef": "Stäng av",
+    "m_2ac360d5cff662": "Det gick inte att skicka inbjudan via e-post.",
+    "m_a2ee3708083074": "Du kan inte stänga av dig själv.",
+    "m_24bcbb5e94dc78": "Du kan inte stänga av en superadministratör.",
+    "m_415424819400a6": "Användaren har stängts av.",
+    "m_5945a7cc27f21a": "Användaren har återaktiverats.",
+    "m_ec6aab12561da3": "Du kan inte ta bort dig själv.",
+    "m_d0751bed2963bc": "Du kan inte ta bort en superadministratör.",
+    "m_90ca724100109f": "Inga användare hittades.",
+    "m_2732f18bba7fc8": "Du kan inte redigera dina egna behörigheter här.",
+    "m_90ed0c9031712d": "Det gick inte att spara profilbilden.",
+    "m_5e287d278f8b92": "Ett oväntat fel inträffade.",
+    "m_75d641bda100b6": "Det gick inte att läsa in användarna.",
+    "m_4a9f6ad3027f17": "Okänt fel",
+    "m_d7226634e4ea42": "Inbjudan har skickats via e-post.",
+    "m_e86ab6eb3ff843": "Användaren skapades, men det gick inte att skicka e-postmeddelandet.",
+    "fm_users_owner": "Ägare",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Minsta belopp för automatisk påfyllning är {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Minst {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Minst {v3}",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Om ditt saldo sjunker under {v0} fyller vi automatiskt på {v1} på ditt konto.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Skapa avdelningar under Inställningar → Användare → Avdelningar.",
+    "m_a089a1a2df79e8": "Spara avdelningar",
+    "m_5147306077d4a3": "Befintliga filialavdelningar samlas här. När du sparar blir de organisationsinställningar; befintliga möten och förinställningar behålls.",
+    "m_86433617637bb9": "+ Skapa avdelning",
+    "m_9c29c0605b9630": "Spara avdelning",
+    "m_0a270477a59add": "Ärvd från användarroll",
+    "m_d934cc2b978d05": "Ärvd från grupptyp",
+    "m_967feb25c6cad7": "Standardavdelningar",
+    "m_f5464054424b45": "Gäller alla medlemmar av den här typen, även framtida medlemmar.",
+    "m_2ecf878bd727e3": "Direkta tilldelningar läggs till standardinställningarna för roller eller grupptyper. Spara ändringarna av rollen eller typen först för att uppdatera ärvda medlemskap.",
+    "m_2d4ff8a83b1b5c": "Inga",
+    "m_b1d5eca65cad81": "Det gick inte att spara avdelningarna.",
+    "m_31a18651cb81ee": "Det gick inte att läsa in avdelningarna.",
+    "m_8a36512cbfe084": "Det gick inte att spara avdelningen.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# rapport} other {# rapporter}} – Totalt: ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Ladda upp profilbild",
+    "profile_tooltip_1": "Öppna profil",
+    "profile_tooltip_2": "Välj profilbild",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Det här är en mjuk borttagning. Kontot arkiveras för granskning, och e-postadressen kan användas igen för en framtida inbjudan eller registrering.",
+    "m_1e50cfd1b66d97": "Valfri profilbild",
+    "m_e2207970d3a42f": "Behörighetsnivå",
+    "logos_uploading": {
+      "message": "Laddar upp {count, plural, one {# logotyp} other {# logotyper}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {# logotyp har lagts till i ditt varumärkesbibliotek.} other {# logotyper har lagts till i ditt varumärkesbibliotek.}}",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Vi har uppdaterat värdet till minimibeloppet {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Automatisk påfyllning: {amount} när saldot understiger {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Automatisk påfyllning av saldo: Av"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lägg till arbete",
@@ -7875,7 +8549,13 @@
       "message": "{v0} olästa &middot; {v1} totalt",
       "format": "icu"
     },
-    "new_report": "Ny rapport"
+    "new_report": "Ny rapport",
+    "m_9a00fb620ffc1d": "Det gick inte att spara sidofältets bredd",
+    "m_854ab579641f94": "Agentkonversationer läses in…",
+    "m_86ec40fa3f9758": "Stäng av",
+    "m_4aaef822b47692": "FirstMate Assistant",
+    "m_20117f24d2d135": "Det gick inte att läsa in faktureringsinställningarna. ",
+    "m_48a9cdd2af44f4": "Försök igen"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kontor",
@@ -10239,7 +10919,17 @@
     "opening_tab": {
       "message": "Öppnar {tab}…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Ändra storlek på paneler; dubbelklicka för att byta plats",
+    "m_eae84bda77b08e": "Stäng panel",
+    "m_9c2b801ff31874": "Det tar längre tid än vanligt att läsa in panelen. Du kan stänga den och försöka igen.",
+    "m_8c11a27c5f0b9c": "Det gick inte att öppna den här fliken. Stäng panelen och försök igen.",
+    "m_a56b2777161b36": "Projektet läses fortfarande in. Du kan stänga det här fönstret och försöka igen.",
+    "m_5eced2f9d44623": "Det gick inte att läsa in projektet. Stäng det här fönstret och försök igen.",
+    "m_76619e065f2360": "Fönsterplacering",
+    "m_b46c7db0dc7b5b": "Ändra storlek på paneler",
+    "m_06b65fee071879": "Fönsterpaneler",
+    "m_21ca9dcccf9a04": "Stäng panel"
   },
   "reports": {
     "color": "färg",

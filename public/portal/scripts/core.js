@@ -384,8 +384,10 @@
     try{
       const s = String(d ?? '');
       const isoish = s.includes('T') ? s : s.replace(' ', 'T');
-      const withZone = (isoish.includes('Z') || isoish.includes('+')) ? isoish : (isoish + 'Z');
-      return new Date(withZone).toLocaleString(globalThis.PlatformLanguage?.formatLocale?.());
+      const withZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(isoish) ? isoish : (isoish + 'Z');
+      const date = new Date(withZone);
+      if (!Number.isFinite(date.getTime())) return '';
+      return new Intl.DateTimeFormat(globalThis.PlatformLanguage?.companyContext?.().locale || globalThis.PlatformLanguage?.context?.().locale || 'en-US', {year:'numeric',month:'long',day:'numeric',hour:'numeric',minute:'2-digit'}).format(date);
     }catch(e){
       return String(d ?? '');
     }

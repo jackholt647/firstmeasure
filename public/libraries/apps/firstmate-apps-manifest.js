@@ -86,7 +86,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'viewer',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261006-report-status-column-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/viewer.js', '20261006-firstmeasure-complete-localization-v2')]
     },
     {
       id: 'portal.contacts',
@@ -162,7 +162,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.photos'],
-      bundles: [versionedBundle('proposals/project.js', '20260929-overview-content-v1')]
+      bundles: [versionedBundle('proposals/project.js', '20261006-firstmeasure-complete-localization-v2')]
     },
     {
       id: 'project.docs',
@@ -292,7 +292,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261006-firstmeasure-localization-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261006-firstmeasure-complete-localization-v2')]
     },
     {
       id: 'firstmeasure.order',
@@ -358,7 +358,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261005-report-opening-v1')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261006-firstmeasure-complete-localization-v2')]
     },
     {
       id: 'project.checklists',
@@ -607,7 +607,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261002-overview-workflow-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261006-firstmeasure-localization-v1')]
+      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261002-overview-workflow-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261006-firstmeasure-complete-localization-v2')]
     },
     {
       id: 'portal.crew_overview',

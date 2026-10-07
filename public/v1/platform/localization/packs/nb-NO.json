@@ -2193,7 +2193,11 @@
     "m_25253d755816e2": "Gå én hel runde rundt huset mens du filmer med telefonen, og last deretter opp videoen her. Hvis du bestiller i FirstMate-appen, blir videoen spilt inn for deg.",
     "m_27b7e868698f63": "Legg til nærbilder av det videoen ikke viser tydelig, som arker, tilbygg eller trange passasjer ved siden av huset.",
     "m_2469fadd18d99a": "Har du en video? Bytt til video der du går rundt huset (anbefalt)",
-    "m_6e81feb28a2b17": "Ingen video ennå"
+    "m_6e81feb28a2b17": "Ingen video ennå",
+    "m_0889f650508793": "OPPTAK",
+    "m_1ddd588108e13d": "Hel runde",
+    "m_e05fb49213187a": "Spill inn",
+    "review_full_structural_report": "Gjennomgå den komplette bygningstekniske rapporten"
   },
   "help": {
     "m_0db6efc53ab2ed": "Trenger du hjelp?",
@@ -2715,7 +2719,222 @@
     },
     "m_ee2e95ef4a2d84": "Målinger oppdatert",
     "m_52f356edab1915": "Rapportverdiene er oppdatert. Manuelle overstyringer ble beholdt.",
-    "m_81c35a6db09047": "Målinger utilgjengelige"
+    "m_81c35a6db09047": "Målinger utilgjengelige",
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} per bygning",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Modell og bilder",
+    "m_020e15c6bea221": "Luftfoto",
+    "m_8a27a13894e81a": "Takvisningen kunne ikke lastes inn. Oppdater siden og prøv igjen.",
+    "m_76608e0c91e510": "Forklaring",
+    "m_9f97a8cc4df412": "Laster inn takmodell …",
+    "m_e11fb3a15af2c9": "Dra for å rotere · Rull for å zoome",
+    "m_f902513107035c": "Takmodell og rapportmedier",
+    "m_cc0ef10e9ca033": "Tekstur",
+    "m_f5c0225c619977": "Fargede linjer",
+    "m_106ab75c23cf29": "Tilbakestill visning",
+    "m_3ed4abb478b582": "3D-takmodell",
+    "m_7e9fab72578933": "Mediet kunne ikke lastes inn.",
+    "m_c2e36017433571": "Solbildet kunne ikke lastes inn",
+    "m_2578923397f853": "Laster inn solbilde …",
+    "m_ff91c03c76ccf0": "Lagrede taklinjer · Dra for å rotere · Rull for å zoome",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_ae8e4953e07d70": "Kunde",
+    "m_425f6b598f6417": "Vær",
+    "m_070d836d7b27e3": "Endringer venter",
+    "m_3a57f052b36fc1": "Gebyret for fremskyndet levering ble fjernet fra denne bestillingen.",
+    "m_ee8cd441a3c740": "Arbeidet med fremskyndede rapporter starter umiddelbart, og bestillingen kan ikke avbestilles etter 1 minutt.",
+    "m_7ab36b45fa8644": "Standardrapporter kan avbestilles innen 15 minutter etter bestilling.",
+    "m_0ca6847627b5d8": "Umiddelbar rapport genereres",
+    "m_4f9decb4fef708": "Kunderapport behandles",
+    "m_cb27e9cd4b71dc": "Standardrapport behandles",
+    "m_b754ff36345be0": "Standardrapport venter",
+    "m_6c2b94bfbe7de4": "Beregner leveringsvindu",
+    "m_813568092a909a": "Pågår",
+    "m_a5adb64bece6bf": "Til gjennomgang",
+    "m_2175240180a38e": "Venter",
+    "m_0dcf5f39373245": "Minuttsfristen for å avbestille denne fremskyndede rapporten har utløpt.",
+    "m_5a195b5dbc85fc": "Fristen for å avbestille dette prosjektet har utløpt.",
+    "m_4d7c3696ea7819": "Umiddelbar rapport venter",
+    "m_20daf0329c6bb5": "Denne rapporten ble avvist fordi bygningen er for tildekket på bildene som er tilgjengelige. Dette kan skje når trær, skygger, bildekvalitet eller andre visuelle hindringer gjør at vi ikke kan identifisere og måle taket med sikkerhet. Vi har refundert den opprinnelige rapporten.",
+    "m_8a0434dcd5f44a": "Denne rapporten ble avvist fordi den valgte markøren ikke ser ut til å være plassert på en bygning vi kan måle. Dette kan skje hvis markøren er plassert på en hage, innkjørsel, et objekt i nærheten eller en bygning med for få brukbare bilder til nøyaktig måling. Vi har refundert den opprinnelige rapporten.",
+    "m_fdbdd395519610": "Denne rapporten ble avvist fordi organisasjonen ikke hadde nok kreditter til de ekstra bygningene. Det ble ikke beholdt noen belastning for markører for ekstra bygninger for denne avviste rapporten.",
+    "m_a88169ad51b679": "Denne rapporten ble avvist. Vi har refundert den opprinnelige rapporten.",
+    "m_85b7e99a08fa9a": "Måling",
+    "m_ec6b76d100b0ec": "Verdi",
+    "m_4b91b73dae1ff3": "Enhet",
+    "m_f2baa3de1eb35b": "Takføtter",
+    "m_230a183ddb6e96": "Gradrenner",
+    "m_48029c2aaa37c6": "Skrå gavlkanter",
+    "m_217bf30b990d24": "Møner",
+    "m_baa2f693c3883e": "Valmer",
+    "m_3bcef36c5987a6": "Beslag ved bakvegg",
+    "m_58ab5ba41ae1c9": "Beslag ved sidevegg",
+    "m_06fc435805a90a": "Trinnbeslag",
+    "m_8ba24778829c38": "Overganger",
+    "m_4d80da8e9e6ebe": "Brystningsvegg",
+    "m_7aeda3ce508c46": "Motbeslag",
+    "m_0cbf0780118eed": "Ukjent størrelse",
+    "m_7244c568a68bff": "Behandles",
+    "m_d0dd61f9c0e1d2": "Klar",
+    "m_e70e11490d7b0e": "Ikke tilgjengelig",
+    "m_1313f5db221c3d": "Hoved-PDF med takmålinger og takrennemålinger",
+    "m_9898713daf99e1": "Hoved-PDF med takmålinger",
+    "m_39c51745a420e1": "Sammendrags-PDF for kunden",
+    "m_73340cea156d55": "Eksport av modelldata",
+    "m_104300af4d9588": "Forhåndsvisning av umiddelbar måling",
+    "m_645ca26abdddb4": "Historisk PDF med ekstremvær",
+    "m_0d54f0e37800ea": "Ikke sendt ennå",
+    "m_61023422d0cb5d": "Avvist",
+    "m_9863f11d60b2fa": "Avbestilt",
+    "m_e8e493437c1a17": "Fullført",
+    "m_46c14a5ec722c6": "Bestilt",
+    "m_e2f22061f67c87": "Umiddelbar + standard",
+    "m_d5a4d5eab0934e": "Sammendrag av komplett husrapport",
+    "m_ac57bd5edb01bf": "Sammendrag av takrapport",
+    "m_4567836c628fdd": "Prøv igjen.",
+    "m_59c670bfa95274": "Værmeldingen kunne ikke genereres. Du kan prøve igjen herfra.",
+    "m_5414698a7f63e1": "Værmeldingen er bestilt og genereres når FirstMeasure-rapporten er ferdig.",
+    "m_1ef47a07071860": "Den historiske ekstremværmeldingen genereres. Den vises her når den er klar.",
+    "m_75ee115d9e118f": "Værmeldingen kunne ikke genereres.",
+    "m_7d48773e58e964": "Kunne ikke bestille værmeldingen.",
+    "m_6479e99c256b1d": "Værmeldingen er klar.",
+    "m_65522862812f28": "Rapportert problem",
+    "m_7af9903841fb66": "Ekstra bygning",
+    "m_9816fa5fa0bc00": "Endring eller korrigering",
+    "m_1dbe1d8b227b2f": "Sendt til kundestøtte",
+    "m_51be70f25415d9": "Godkjent",
+    "m_3c4d2141b2fa1c": "Fullført",
+    "m_fe9520d635f903": "Meldingene dine til kundestøtte om denne returnerte rapporten vises her.",
+    "m_339395a80e0064": "Den returnerte rapporten er fortsatt tilgjengelig mens disse forespørslene behandles.",
+    "m_e2b803de55a93e": "Sendt inn",
+    "m_a518a4f0e43132": "Dette sender en melding til FirstMeasure kundestøtte.",
+    "m_35f94adf3dce96": "Plasser den ekstra bygningen på kartet. Bestillinger for næringsbygg og flerboligbygg belastes per ekstra bygning.",
+    "m_bb5684676c9b3b": "Legg til notater og bilder for korrigeringsteamet.",
+    "m_eba3732c6bff34": "Melding til kundestøtte",
+    "m_fd5e1725cedd0d": "Sender en forespørsel om omarbeiding",
+    "m_f945baf54844d9": "Kostnadsfri forespørsel om omarbeiding",
+    "m_735a0c9b004cb0": "Forespørsel om ekstra bygning",
+    "m_136eda8f76021e": "Ekstra bygninger lagt til i returnert rapport",
+    "m_db80beaa86c589": "Kunne ikke sende inn forespørselen.",
+    "m_8e44aec37ccb2b": "Oppfølgingen av rapporten ble lagret.",
+    "m_2ba158e4424efb": "Kunne ikke fremskynde denne rapporten.",
+    "m_fbd81f2c4d1c18": "Leveringen er oppdatert.",
+    "m_21778024c3a70c": "Kunne ikke avbestille denne rapporten.",
+    "m_c44638d45be320": "Bestillingen ble avbestilt.",
+    "m_70cd41e8830a84": "Rapporten kunne ikke importeres.",
+    "delivery_by": {
+      "message": "Innen {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Mindre enn {hours} timer",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Estimert ventetid: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Estimert ventetid: {hours} timer",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Estimert ventetid: {hours} timer og {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Bestilt {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Avbestill rapport ({time} igjen)",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Sidevegger",
+    "m_10e472dc761ed6": "Bakvegger",
+    "m_717d08a340c907": "Vær",
+    "m_6a656f97b4af69_currency": "Levert med dette prosjektet",
+    "m_a54dfa11060c5d_currency": "Værmelding bestilt",
+    "m_bd585f0df980a6_currency": "Forespørsel sendt inn",
+    "m_550e7313d4d175_currency": "Rapport fremskyndet",
+    "m_d588b9b5f17ee7_currency": "Rapport avbestilt",
+    "m_1c10582071b5c0": {
+      "message": "{v0} t {v1} min",
+      "format": "icu"
+    },
+    "m_99fe5ad3c48550": {
+      "message": "{v0} t{v1}",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} sek",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} sek",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Endre rekkefølgen til {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Målings-XML er ikke tilgjengelig ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "Nedlasting av XML mislyktes ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Sendt inn {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Send inn – {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# time} other {# timer}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# bilde} other {# bilder}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Refundert {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Denne rapporten ble avvist fordi den ser ut til å kreve en rapport av typen {v0}. Vi har refundert den opprinnelige rapporten.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Kontrollerer …",
+    "m_417c2d318452c7": {
+      "message": "Kunne ikke lese {v0}.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Ekstra bygning forespurt via markør.",
+    "m_3c366c37d61199": {
+      "message": "Belastet {v0} for forespørselen om ekstra bygning.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Fremskynder …",
+    "m_a57adbfbfeda02": {
+      "message": "Belastet {v0} for raskere levering.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# nål} other {# nåler}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Laster inn betalinger...",
@@ -3726,7 +3945,125 @@
     "m_428a61cf4a8532": "Samsvarende prosjekter",
     "m_67ea3d9f45d10b": "Søker etter prosjekter …",
     "m_7f0c783c8eec23": "Åpner prosjekt …",
-    "m_5180ead27b8ad6": "GIF-en kunne ikke lastes inn"
+    "m_5180ead27b8ad6": "GIF-en kunne ikke lastes inn",
+    "m_0d21d7d3136fc9": "Utvendige målinger av hele huset, inkludert taket.",
+    "m_97e57acb52769a": "Arealer for vegger, vinduer, dører og kledning.",
+    "m_1274bb24b43206": "Tak- og takrennemålinger er inkludert.",
+    "m_b120ceb5e3ac9e": "Det kreves åtte referansebilder per bygning.",
+    "m_f1775523edde74": "Takmålingrapporten din.",
+    "m_424bd3aef8e7cb": "Takarealer, takvinkler, kanter og målinger.",
+    "m_5c6fb5beeff92c": "Legg til takrennemålinger eller andre tilgjengelige rapporter når du bestiller.",
+    "m_398f784a950729": "Legger til en egen side om takrenner i standardrapporten for boliger.",
+    "m_98ad5fe62c722d": "Aktive løpemeter takrenne beregnet fra takfotens lengder.",
+    "m_1b41dbf4615706": "Etasjer på nord-, sør-, øst- og vestsiden.",
+    "m_18db25f632d117": "Takrennediagram med etikett på hver lengde.",
+    "m_2c4f4a8f273e86": "Antall gjæringer for utvendige 90-gradershjørner, innvendige 90-gradershjørner og hjørner med andre vinkler.",
+    "m_4cd43f827c1fae": "Legger til en umiddelbar målingsrapport mens standardrapporten behandles.",
+    "m_4b2b1884c6cff9": "Rask, KI-generert forhåndsvisning av takmålinger.",
+    "m_f97d66c6fc03c3": "Interaktiv takmodell der dette er tilgjengelig.",
+    "m_7f677a10302532": "Umiddelbar tilgang til PDF før den gjennomgåtte standardrapporten er ferdig.",
+    "m_edc48228028f11": "Standardrapporten følger fortsatt det valgte leveringsvinduet.",
+    "m_208063e29728ba": "Legger til en rapport med historikk over ekstremvær for eiendommen.",
+    "m_0087790e73e66c": "Omfattende historikk over hagl-, vind- og tornadohendelser for adressen.",
+    "m_bab1f8bcf78db9": "Hendelser i nærheten gruppert etter dato, med avstand og styrke.",
+    "m_b901f17c3bd50b": "Kartillustrasjoner, varselinformasjon og sammendragstabeller.",
+    "m_bdcad3423f3114": "Nyttig ved gjennomgang av skadesaker, kundesamtaler og prosjektdokumentasjon.",
+    "m_a227a5b1174b0f": "Legger til en valgfri rapportfunksjon i denne bestillingen.",
+    "m_0b5d751a9847bf": "Åpne eksempelrapport",
+    "m_d9c640d91be6e2": "Ingen hast",
+    "wait_minutes": {
+      "message": "Estimert ventetid: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Estimert ventetid: {hours} timer",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Estimert ventetid: {hours} timer og {minutes} min",
+      "format": "icu"
+    },
+    "m_f2a719928b5a49_currency": {
+      "message": "{v0} per bygning × {v1} {v2} = {v3}",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "Henvisningsrabatt på {v0}% er trukket fra. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "{v2} totalt.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Ingen kreditter",
+    "m_b97feb346e3fae_currency": {
+      "message": "Du trenger {v0} for å bestille denne rapporten.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} per bygning × {count, plural, one {# bygning} other {# bygninger}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Bestill rapport",
+    "overview_build_proposal": "Lag tilbud",
+    "overview_schedule_appointment": "Avtal time",
+    "overview_no_projects": "Ingen samsvarende prosjekter.",
+    "overview_gutters": "takrenner",
+    "overview_weather": "værmelding",
+    "overview_instant": "umiddelbar rapport",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# bygning bekreftet} other {# bygninger bekreftet}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Leveres innen {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Inkluderer {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Reduser",
+    "audit_c461dbb2bab7d8": "Fullskjerm",
+    "audit_06ecd0fafc34d4": "dette kjøpet",
+    "audit_2b5c3d26721ae9": "Kontakt",
+    "audit_98595978531974": "Prosjekt",
+    "audit_22a970d2e5b1cc": "Fullført",
+    "audit_6f8d17646237f4": "Nytt prosjekt",
+    "audit_0a2d38987b9aa3": "Hus og eneboliger",
+    "audit_114820134036e1": "Nærings- og industrieiendommer",
+    "audit_9e05435948dfbb": "Leiligheter og bofellesskap",
+    "audit_c0eb0f8efba638": "Velg type",
+    "audit_e10ae990740118": "Tidligere",
+    "audit_b512d97e7cbf97": "Bruker",
+    "audit_b764cdc0eab713": "Ukjent",
+    "audit_90eb5886fddc5f": "Ingen notater samsvarer med dette filteret.",
+    "audit_57bde4deb215bf": "Ingen notater ennå.",
+    "audit_6501e1ced8da0b": "Lagre notat",
+    "audit_63565c0485fec4": "Legg til notat",
+    "audit_ab52c213888188": "Teammedlem",
+    "audit_3fe263538d199f": "Ny kontakt",
+    "audit_1b5a65c3cdba9e": "Prosjekt uten tittel",
+    "audit_d87821ba1a366b": "Ingen prosjekter samsvarer med søket.",
+    "stalled_order": "Bestillingen av rapporten stoppet opp før behandlingen startet. Du kan bestille den på nytt fra fanen Rapporter.",
+    "inactive_order": "Dette prosjektet har ingen aktiv rapportbestilling.",
+    "audit_77b12f57b38b87": "Rapport under arbeid",
+    "audit_d30a775883da50": "Rapport til gjennomgang",
+    "audit_0ba1f4e48609ea": "Rapport venter",
+    "audit_c5e665c57bc2e0": "Standardrapporten behandles for øyeblikket.",
+    "audit_2612ba1829868e": "Standardrapporten gjennomgås.",
+    "audit_901358a2916ff7": "Standardrapporten venter.",
+    "audit_b67507ab244ce0": "Kunne ikke åpne prosjektet.",
+    "audit_60e9af1cbdcdac": "denne rapporten for hele bygningen",
+    "audit_3f50e8ab670539": "denne takrapporten",
+    "audit_b4cc4b07c30010": "Pågår",
+    "audit_674db38d5123c4": "Venter på gjennomgang",
+    "audit_9b24354bb066bb": "Korrigering nødvendig",
+    "audit_da77d8f5b71aa0": "Venter på gjennomgang",
+    "audit_35266cd2f21aca": "Bestiller",
+    "audit_2d31976e9d17e4": "Innsendingen mislyktes.",
+    "audit_88430f2c58bbce": "Utviklingsrapporten er klar",
+    "audit_7cf4af8eebae35": "Eksisterende rapportfiler er klare til visning."
   },
   "project-schedule": {
     "m_88e13d64071885": "Planlegging låst",
@@ -4134,7 +4471,157 @@
     },
     "m_ce86fe78082565": "Utilgjengelig",
     "m_f8e16243e0f91c": "Administrer visning",
-    "m_200131262770e4": "Prosjektvisning"
+    "m_200131262770e4": "Prosjektvisning",
+    "m_ea9c70855946ea": "Trinnene viser arbeidsflyten vår. Hvis du vil se mottatte prosjekter, velger du bare Prosjekter delt med oss.",
+    "m_9ce407c87de615": "Utkast",
+    "m_aaebd7ccba0b30": "Prosjekt",
+    "fm_contact_unavailable": "Ikke oppgitt",
+    "m_9cf11b8ab925ce": "Vi har foreløpig ikke dekning for denne adressen. ",
+    "m_93f718cb51bafd": "Vi har for tiden dekning for 95 % av alle bygninger i USA, og arbeider aktivt med å utvide dekningen til flere av de gjenværende områdene. ",
+    "m_ea8d59f20b2ea6": "Vi har registrert interessen din for bygninger av denne typen og vil prioritere å dekke dem i nær framtid. ",
+    "m_c5942837107a76": "Vi kunne ikke generere FirstMeasure Instant for denne markøren fordi punktet ikke traff en bygning med tilstrekkelige Instant-data. ",
+    "m_214f9a56d321e4": "Vi kunne ikke fullføre denne rapporten fordi bygningen er for tildekket på bildene som er tilgjengelige. ",
+    "m_9ac5bbd5a7f1d1": "Dette kan skje når trær, skygger, bildekvalitet eller andre visuelle hindringer gjør at vi ikke kan identifisere og måle taket med sikkerhet. ",
+    "m_d51846aa8dda09": "Vi beklager ulempene dette kan ha medført.",
+    "m_4edb03027fd308": "Vi kunne ikke fullføre denne rapporten fordi den valgte markøren ikke ser ut til å være plassert på en bygning vi kan måle. ",
+    "m_17b153d5aa2b45": "Dette kan skje hvis markøren er plassert på en hage, innkjørsel, et objekt i nærheten eller en bygning med for få brukbare bilder til nøyaktig måling. ",
+    "m_5978e46f6f29cd": "Vi kunne ikke fullføre denne rapporten fordi den valgte bygningen ikke samsvarer med den bestilte prosjekttypen. ",
+    "m_4b5bf19bcf1325": "Vi har refundert den opprinnelige rapporten.",
+    "m_0b9e2c765e77b1": "Vi refunderer kreditten for denne umiddelbare bestillingen.",
+    "m_8d52a67caa71a2": "Flerbolig",
+    "m_6d351fa63793b6": "Dette prosjektet er avbestilt. Det blir ikke utført mer arbeid på denne forespørselen.",
+    "m_549ccd0e27a3d4": "Ja",
+    "m_2f0222913078f4": "Nei",
+    "m_0817ad39e6765a": "Vi kunne ikke laste inn FirstMeasure Instant ennå.",
+    "m_e005bd4bc50817": "Kombinerte målinger av den valgte bygningen.",
+    "m_3e219b59d394f6": "Målinger av den valgte bygningen.",
+    "m_ba6a658fdc23c0": "Last ned standardrapport",
+    "m_f456048437e56e": "Prøver å laste ned standardrapporten på nytt",
+    "m_a44e379d284797": "Last ned kunderapport",
+    "m_a32ef8d751f045": "Prøver å laste ned kunderapporten på nytt",
+    "m_06f3a13fba723d": "Arealintervall (m²)",
+    "m_f7d60690e4780f": "Intervall i squares",
+    "m_7456bdb3003d3a": "Denne bygningen",
+    "m_dacaa66449659d": "Forbereder standardrapport",
+    "m_f3cacef590576b": "Kunne ikke laste ned den umiddelbare standardrapporten.",
+    "m_6783ae5a616a3f": "Kontaktinformasjon er ikke tilgjengelig ennå.",
+    "m_6f94190df36af9": "Forbereder kunderapport",
+    "m_2a9462b7fdff9d": "Kunne ikke laste ned den umiddelbare kunderapporten.",
+    "m_5a0f6b2de100f2": "Bildefilene for Instant er ikke klare ennå.",
+    "m_a2decb63023f36": "Modellfilene for Instant er ikke klare ennå.",
+    "m_46f6cf08f0ef61": "Forhåndsvisning av Instant er ikke tilgjengelig for dette prosjektet.",
+    "m_edb27a9262e77e": "Kunne ikke bestille standardrapporten.",
+    "m_235d86f4916a45": "Tapt",
+    "m_3c4d2141b2fa1c": "Fullført",
+    "m_8a993ed9b573b4": "Ikke tilordnet",
+    "m_1b6ec15cbd198b": "Pågår",
+    "m_bf38bfda2125d1": "Tak + takrenner",
+    "m_de8450bc1dc243": "Prosjektet kunne ikke flyttes.",
+    "m_2da110201b814e": "Venstrepil",
+    "m_e90f8a20f79638": "Høyrepil",
+    "m_1519fbdf5b87ed": "Home",
+    "m_80cfdb09a78f4b": "End",
+    "m_2a925f101cbd18": "Stigende",
+    "m_760cf1fac61b3d": "Synkende",
+    "m_aac16f05678935": "Trinn",
+    "m_3221d12ca792a6": "Fliser",
+    "m_4bb4688766e904": "Lagret",
+    "m_b415d005adf878": "FirstMeasure-prosjekt-ID er ikke tilgjengelig.",
+    "m_82ea55e5099898": "Kontaktinformasjonen er lagret.",
+    "m_41d4335f00b051": "Kontaktinformasjonen er fjernet.",
+    "m_13fa388b0577c8": "Nedlastingen mislyktes.",
+    "m_f32282581cf29c": "Lagret for hvert prosjekt.",
+    "m_26c6cc9deaa942": "Lastet inn fra dette prosjektet.",
+    "m_6ab3fe9280d969": "Ulagrede endringer.",
+    "m_71c5dfdf68e84f": "Kunne ikke lagre kontaktinformasjonen.",
+    "m_7a7059bde880f7": "Korrigert",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_9e098701abaa2c": "Kundekopi",
+    "m_ae8e4953e07d70": "Kunde",
+    "m_74b044783b2a3e": "Last ned PDF av korrigert rapport",
+    "m_7d54357160f795": "Last ned rapport-PDF",
+    "m_9222c2e07a3df0": "Last ned korrigert kunde-PDF",
+    "m_09128dde31d325": "Last ned kunde-PDF",
+    "m_175a65008ef30d": "Last ned XML-modell",
+    "m_9da3458d21c94e": "Korrigert rapport",
+    "m_c47c2ce6bb05c0": "Rapport",
+    "m_690327a7486605": "Korrigert kundekopi",
+    "m_d2b7446d4a96f1": "Kundekopi",
+    "m_e2943d71f406cb": {
+      "message": "Bygning {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Inkluderte bygninger: {v0} av {v1} valgt.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Målinger av bygning {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Kostnaden på ${v0} for denne bygningen er refundert.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Kostnaden på ${v0} for denne bygningen blir refundert.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Kostnaden på ${v0} for denne bygningen er fjernet fra Instant-belastningen.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Kunne ikke laste inn Instant-ressursen ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Begge – {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standard – {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "ArrowDown",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "ArrowUp",
+    "m_b550215be01e52": "Accept",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Nedlastingen mislyktes ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Ikke logget inn",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# valgt bygning ble utelatt fordi det ikke fantes brukbare Instant-data.} other {# valgte bygninger ble utelatt fordi det ikke fantes brukbare Instant-data.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " En kreditt på {amount} er refundert.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " En kreditt på {amount} blir tilbakeført.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "forespørsel om ekstra bygning",
+    "audit_a65c9f1d26dec1": "forespørsel om endring/korrigering",
+    "audit_ee9da4f4e90be4": "forespørsel om omarbeiding",
+    "audit_1c376a7fd9b2d3": "3D-modellavhengigheter er ikke tilgjengelige.",
+    "audit_325cb33dd4a5d6": "KOMPLETT RAPPORT BEHANDLES",
+    "audit_e0507c184559a7": "UMIDDELBAR RAPPORT",
+    "audit_b06d7c41ed06c8": "partnerorganisasjon",
+    "audit_5dbc6dff430e8d": "ENDRINGER VENTER",
+    "audit_1c4b7f4ada5422": "KORRIGERT RAPPORT KLAR",
+    "audit_843f745c483e81": "UMIDDELBAR + KOMPLETT",
+    "audit_76bf93df451d48": "RAPPORT KLAR"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4460,7 +4947,60 @@
     "m_f35a14165cc920": "Ledetekstgrensesnittet er klart; modellgenerering kan kobles til denne handlingen som neste steg.",
     "m_bbe27879ebf26c": "Diktering utilgjengelig",
     "m_79af74d554f5a6": "Denne nettleseren støtter ikke talegjenkjenning her.",
-    "m_9964312e9c85ac": "Prosjekttilbud"
+    "m_9964312e9c85ac": "Prosjekttilbud",
+    "m_c82963ef8940ce": "Sammendragsside",
+    "m_700473b6840e61": "Fjern partnerlogo",
+    "m_fccaa3fc954540": "Bruk",
+    "m_1a29aea570fbc4": "Antall",
+    "m_8edfc0dd24bef1": "Enhetspris $",
+    "m_ae8e4953e07d70": "Kunde",
+    "m_ca125d59fcd810": "Alternativnavn",
+    "m_e847735cf5a416": "Zoom",
+    "m_709d4ebff0e0da": "Trykk for å signere",
+    "m_9edc96d5f6e438": "Bedriftsrepresentant",
+    "m_ccb84c048a1a17": "Salgsskatt",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Betalingsplanen er {v0} %. Summen må bli 100 %.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Ingen medier er lastet opp ennå",
+    "m_a5e1cd4c41f31c": "Dette prosjektet har ingen bilder eller videoer ennå.",
+    "m_7f88f89133cbc4": "Skriv inn navnet på den som skal signere",
+    "m_16dcd60135fed3": "Tegn signaturen din her",
+    "m_506191e24dd383": "Tøm",
+    "m_b5828f5fd0c36d": "Ingen tilbud ennå",
+    "m_7feb0c701cff3e": "Lag det første utkastet, og dupliser det når du vil lage varianter.",
+    "m_8934bbea9ff9ad": {
+      "message": "Trinn {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Legg til takshingel",
+    "m_a28421203810c9": "Søk i priskatalogen og legg til et annet alternativ som kunden kan se.",
+    "m_581e6e2a759706": "Lukk «Legg til takshingel»",
+    "m_f3189dbe87971a": "Søk i priskatalogen for takshingel",
+    "m_4a3589501ecc1f": "Rabattnavn",
+    "m_792f935ba82291": "Rabattverdi",
+    "m_691d860b768692": "Fjern rabatt",
+    "m_0254795a80cfc0": "Ingen rabatter lagt til ennå.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Fjern {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Egendefinert arbeidsflyt skal defineres.",
+    "m_7fcfaa1f4fcd66": "\n                      E-postadresse kreves for å sende\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Det er ingen e-postadresse til kunden på dette prosjektet ennå.",
+    "m_c10134dc02336b": "\n                E-postadresse kreves for å sende\n                ",
+    "m_cbb41dfafd178f": "Ta med lenke til kundeportalen",
+    "m_a9fa064a3c9985": "La kunden signere flere tilbud",
+    "m_5cc367ea2b4774": {
+      "message": "Side {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Slett",
+    "m_af64ff308ca58e": "Slett side",
+    "m_bdf76cad510e9f": "Fjern alternativ",
+    "m_fba496098e9a0f": "Fant ingen samsvarende takshingel."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Ufordelte kvitteringer",
@@ -7598,7 +8138,145 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# transaksjon} other {# transaksjoner}} – Netto: ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Automatisk kredittpåfylling",
+    "m_8cb6b086a0e69c": "Ferdig",
+    "m_d248c450100477": " Arkiv",
+    "m_3cfab293c8c008": " Inviter person",
+    "m_ae615734419eb6": "Roller &amp; standardtilgang",
+    "m_91244bdaa8204c": "Opprett gjenbrukbare startoppsett for synlighet og tillatelser i apper.",
+    "m_1f1ad34d149fdf": "Laster inn tilgangsroller …",
+    "m_0e74f1bca1ead4": "Administrer",
+    "m_6fd299432247c1": "Lagrer merkevareprofil …",
+    "m_569b229b85507e": "Kunne ikke lagre merkevareprofilen",
+    "m_b9b9bca729d6db": {
+      "message": "rev. {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Ingen aktive tilgangsroller.",
+    "m_77a0c5b9d8ac90": " Du",
+    "m_e09715b775ce9e": " Legg til bruker",
+    "m_6e9ebf535758d8": "Bedriftsadresse",
+    "m_bbe1447b5d3e67": "Brukes til å forhåndsutfylle domeneregistrering og bedriftsverifisering for 10DLC.",
+    "m_ac137f394a3447": "Gateadresse",
+    "m_c549239597ab7a": "Suite, leilighetsnummer osv. (valgfritt)",
+    "m_a09f6a051adb2f": "Bedriftslogo i rapportforhåndsvisning",
+    "m_8eec608d18828f": "Eksempel på takdiagram",
+    "m_1d7c61da5a56c2": "Ingen tilgjengelige.",
+    "m_8106b856808735": "Laster inn avdelinger …",
+    "m_6b8e4b3f1a7cc9": "Arvede medlemskap:",
+    "m_8bdaf1ba732556": "Avkrysningsboksene viser direkte tilordninger. Arvede medlemskap forblir aktive selv når de ikke er avkrysset.",
+    "m_ff6087fc202a31": "Avdelingene er lagret.",
+    "m_edcd68da5d4b23": "Laster inn bedriftsavdelinger …",
+    "m_f7161d1f24e956": "Bedriftsavdelinger",
+    "m_8f5d10ae9e3dfc": "Delt mellom alle avdelinger. Angi standardavdelinger for brukerroller og gruppetyper, eller legg til enkeltpersoner og grupper. En person eller gruppe kan tilhøre flere avdelinger.",
+    "m_570d421382fbed": "Avdelinger",
+    "m_20558f2853e00b": "Personer, roller og grupper",
+    "m_4297d86c10d006": "Tilordne avdelinger etter",
+    "m_ad2f0ca83b8780": "Enkeltbruker",
+    "m_21037df1b40c09": "Brukertype / rolle",
+    "m_319e5834d71d6f": "Enkeltbrukergruppe",
+    "m_f2c096f77350e1": "Brukergruppetype",
+    "m_bca9e3fd6cf405": "Velg",
+    "m_2f45efa1cd676a": "Velg …",
+    "m_ce2f23fc67dbab": "Avdelingsnavn",
+    "m_b53d9744f78699": "Avdelingskategori (valgfritt)",
+    "m_02997de9e09d60": "Brukertyper / roller – standardmedlemmer",
+    "m_8dde7f5f579699": "Brukergruppetyper – standardgrupper",
+    "m_ec049efefe3343": "Flere enkeltbrukere",
+    "m_6ea7e974e821fc": "Flere enkeltbrukergrupper",
+    "m_c73c6e0076f1ad": "For eksempel kundeservice",
+    "m_cfa69cfd76ca26": "Skriv inn et avdelingsnavn.",
+    "m_0c44938a138aa6": "Avdelingen er lagret.",
+    "m_c8a24768419f58": "Tillatelser kan bare leses.",
+    "m_33071666de0ded": "Kunne ikke hente listen",
+    "m_d7ead3cd6cbff6": "Kunne ikke legge til",
+    "m_272e637b6dd40b": "Det er ikke mulig å sende invitasjonen på nytt.",
+    "m_f2db003b7dc3e6": "Skjul tillatelser",
+    "m_c8653c90005f35": "Vis tillatelser",
+    "m_0fe4884bff1c81": "Modalvindu",
+    "m_fd5fb5598dd8f6": "Har aldri logget inn",
+    "m_4b49e020f08d8e": "E-postadressene til superadministratorer kan ikke endres, slik at kontoer ikke låses ute.",
+    "m_2bdeadce179997": "Du kan endre navnet på denne superadministratoren, men e-postadressen er låst.",
+    "m_b7e812bec0dfac": "Oppdater visningsnavnet eller e-postadressen for pålogging.",
+    "m_f6655180d4e320": "Endre brukerens navn eller e-postadresse.",
+    "m_4c66f6639656d2": "Opphev suspensjon",
+    "m_232f4ec7b346ef": "Suspender",
+    "m_2ac360d5cff662": "Kunne ikke sende invitasjons-e-post.",
+    "m_a2ee3708083074": "Du kan ikke suspendere deg selv.",
+    "m_24bcbb5e94dc78": "Du kan ikke suspendere en superadministrator.",
+    "m_415424819400a6": "Brukeren er suspendert.",
+    "m_5945a7cc27f21a": "Brukeren er ikke lenger suspendert.",
+    "m_ec6aab12561da3": "Du kan ikke slette deg selv.",
+    "m_d0751bed2963bc": "Du kan ikke slette en superadministrator.",
+    "m_90ca724100109f": "Fant ingen brukere.",
+    "m_2732f18bba7fc8": "Du kan ikke redigere dine egne tillatelser her.",
+    "m_90ed0c9031712d": "Kunne ikke lagre profilbildet.",
+    "m_5e287d278f8b92": "Uventet feil.",
+    "m_75d641bda100b6": "Kunne ikke laste inn brukere.",
+    "m_4a9f6ad3027f17": "Ukjent feil",
+    "m_d7226634e4ea42": "Invitasjons-e-post sendt.",
+    "m_e86ab6eb3ff843": "Brukeren ble opprettet, men e-posten kunne ikke sendes.",
+    "fm_users_owner": "Eier",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Minimumsbeløp for automatisk påfylling er {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Minimum {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Minimum {v3}",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Hvis saldoen din faller under {v0}, legger vi automatisk til {v1} på kontoen din.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Opprett avdelinger under Innstillinger → Brukere → Avdelinger.",
+    "m_a089a1a2df79e8": "Lagre avdelinger",
+    "m_5147306077d4a3": "Eksisterende avdelinger fra filialene er slått sammen her. Når du lagrer, blir de tatt i bruk som organisasjonsinnstillinger. Eksisterende avtaler og forhåndsinnstillinger beholdes.",
+    "m_86433617637bb9": "+ Opprett avdeling",
+    "m_9c29c0605b9630": "Lagre avdeling",
+    "m_0a270477a59add": "Arvet fra brukerrolle",
+    "m_d934cc2b978d05": "Arvet fra gruppetype",
+    "m_967feb25c6cad7": "Standardavdelinger",
+    "m_f5464054424b45": "Gjelder alle medlemmer av denne typen, også framtidige medlemmer.",
+    "m_2ecf878bd727e3": "Direkte tilordninger legges til standardinnstillingene for roller eller gruppetyper. Lagre endringer i roller/typer først for å oppdatere arvede medlemskap.",
+    "m_2d4ff8a83b1b5c": "Ingen",
+    "m_b1d5eca65cad81": "Kunne ikke lagre avdelingene.",
+    "m_31a18651cb81ee": "Kunne ikke laste inn avdelingene.",
+    "m_8a36512cbfe084": "Kunne ikke lagre avdelingen.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# rapport} other {# rapporter}} – totalt: ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Last opp profilbilde",
+    "profile_tooltip_1": "Åpne profil",
+    "profile_tooltip_2": "Velg profilbilde",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Dette er en logisk sletting. Kontoen arkiveres for revisjon, og e-postadressen kan brukes på nytt ved en senere invitasjon eller registrering.",
+    "m_1e50cfd1b66d97": "Valgfritt profilbilde",
+    "m_e2207970d3a42f": "Tillatelsesnivå",
+    "logos_uploading": {
+      "message": "Laster opp {count, plural, one {# logo} other {# logoer}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {# logo lagt til i merkevarebiblioteket ditt.} other {# logoer lagt til i merkevarebiblioteket ditt.}}",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Vi endret verdien til minimumsbeløpet på {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Automatisk påfylling: {amount} når saldoen er under {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Automatisk kredittpåfylling: Av"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Legg til arbeid",
@@ -8256,7 +8934,21 @@
       "message": "{v0} ulest &middot; {v1} totalt",
       "format": "icu"
     },
-    "new_report": "Ny rapport"
+    "new_report": "Ny rapport",
+    "m_9a00fb620ffc1d": "Kunne ikke lagre bredden på sidepanelet",
+    "m_854ab579641f94": "Laster inn agentsamtaler …",
+    "m_86ec40fa3f9758": "Slå av",
+    "m_4aaef822b47692": "FirstMate-assistent",
+    "m_c411108185658e": {
+      "message": "{v1} FirstMate-assistent",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "{v2} FirstMate-assistent",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Kunne ikke laste inn betalingsinnstillingene. ",
+    "m_48a9cdd2af44f4": "Prøv igjen"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kontor",
@@ -10676,7 +11368,17 @@
     "opening_tab": {
       "message": "Åpner {tab} …",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Endre størrelse på paneler; dobbeltklikk for å bytte plass",
+    "m_eae84bda77b08e": "Lukk panel",
+    "m_9c2b801ff31874": "Dette panelet bruker lengre tid enn vanlig på å laste inn. Du kan lukke det og prøve igjen.",
+    "m_8c11a27c5f0b9c": "Kunne ikke åpne denne fanen. Lukk panelet og prøv igjen.",
+    "m_a56b2777161b36": "Prosjektet lastes fortsatt inn. Du kan lukke dette vinduet og prøve igjen.",
+    "m_5eced2f9d44623": "Kunne ikke laste inn dette prosjektet. Lukk vinduet og prøv igjen.",
+    "m_76619e065f2360": "Plassering av vindu",
+    "m_b46c7db0dc7b5b": "Endre størrelse på paneler",
+    "m_06b65fee071879": "Vindupaneler",
+    "m_21ca9dcccf9a04": "Lukk panel"
   },
   "reports": {
     "color": "farge",

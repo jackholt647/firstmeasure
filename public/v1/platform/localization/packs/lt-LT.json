@@ -2193,7 +2193,11 @@
     "m_25253d755816e2": "Telefonu įrašykite vieną visą ratą aplink namą ir įkelkite įrašą čia. Užsakant per FirstMate programėlę, įrašas padaromas už jus.",
     "m_27b7e868698f63": "Pridėkite stambaus plano nuotraukų vietų, kurių vaizdo įraše gerai nesimato, pavyzdžiui, stoglangių, priestatų ar siaurų šoninių kiemų.",
     "m_2469fadd18d99a": "Turite vaizdo įrašą? Perjungti į apėjimo vaizdo įrašą (rekomenduojama)",
-    "m_6e81feb28a2b17": "Vaizdo įrašo dar nėra"
+    "m_6e81feb28a2b17": "Vaizdo įrašo dar nėra",
+    "m_0889f650508793": "Įraš.",
+    "m_1ddd588108e13d": "Visas ratas",
+    "m_e05fb49213187a": "Įrašyti",
+    "review_full_structural_report": "Peržiūrėkite visą konstrukcijos ataskaitą"
   },
   "help": {
     "m_0db6efc53ab2ed": "Reikia pagalbos?",
@@ -2715,7 +2719,218 @@
     },
     "m_ee2e95ef4a2d84": "Matavimai atnaujinti",
     "m_52f356edab1915": "Ataskaitos duomenys atnaujinti. Rankiniai pakeitimai išsaugoti.",
-    "m_81c35a6db09047": "Matavimai nepasiekiami"
+    "m_81c35a6db09047": "Matavimai nepasiekiami",
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} už kiekvieną konstrukciją",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Modelis ir nuotraukos",
+    "m_020e15c6bea221": "Vaizdas iš oro",
+    "m_8a27a13894e81a": "Nepavyko įkelti stogo peržiūros. Atnaujinkite puslapį ir bandykite dar kartą.",
+    "m_76608e0c91e510": "Legenda",
+    "m_9f97a8cc4df412": "Įkeliamas stogo modelis…",
+    "m_e11fb3a15af2c9": "Vilkite, kad suktumėte · Slinkite, kad keistumėte mastelį",
+    "m_f902513107035c": "Stogo modelis ir ataskaitos medija",
+    "m_cc0ef10e9ca033": "Tekstūra",
+    "m_f5c0225c619977": "Spalvotos linijos",
+    "m_106ab75c23cf29": "Atkurti pradinį vaizdą",
+    "m_3ed4abb478b582": "3D stogo modelis",
+    "m_7e9fab72578933": "Nepavyko įkelti šios medijos.",
+    "m_c2e36017433571": "Nepavyko įkelti saulės vaizdo",
+    "m_2578923397f853": "Įkeliamas saulės vaizdas…",
+    "m_ff91c03c76ccf0": "Išsaugotos stogo linijos · Vilkite, kad suktumėte · Slinkite, kad keistumėte mastelį",
+    "m_00f3e8b60aebc9": "Standartinis",
+    "m_ae8e4953e07d70": "Klientas",
+    "m_425f6b598f6417": "Orai",
+    "m_070d836d7b27e3": "Laukiama pakeitimų",
+    "m_3a57f052b36fc1": "Skubaus pristatymo mokestis už šį užsakymą buvo panaikintas.",
+    "m_ee8cd441a3c740": "Skubūs užsakymai pradedami vykdyti iš karto ir po 1 minutės jų nebegalima atšaukti.",
+    "m_7ab36b45fa8644": "Standartinius užsakymus galima atšaukti per 15 minučių nuo pateikimo.",
+    "m_0ca6847627b5d8": "Generuojama momentinė ataskaita",
+    "m_4f9decb4fef708": "Rengiama kliento ataskaita",
+    "m_cb27e9cd4b71dc": "Rengiama standartinė ataskaita",
+    "m_b754ff36345be0": "Laukiama standartinės ataskaitos",
+    "m_6c2b94bfbe7de4": "Nustatomas pristatymo terminas",
+    "m_813568092a909a": "Vykdoma",
+    "m_a5adb64bece6bf": "Peržiūrima",
+    "m_2175240180a38e": "Laukiama",
+    "m_0dcf5f39373245": "Šiai skubiai ataskaitai skirtas 1 minutės atšaukimo laikotarpis baigėsi.",
+    "m_5a195b5dbc85fc": "Šiam projektui skirtas atšaukimo laikotarpis baigėsi.",
+    "m_4d7c3696ea7819": "Laukiama momentinės ataskaitos",
+    "m_20daf0329c6bb5": "Ši ataskaita atmesta, nes turimuose vaizduose konstrukciją pernelyg užstoja kliūtys. Taip gali nutikti, kai medžiai, šešėliai, vaizdo kokybė ar kitos regimos kliūtys neleidžia mums patikimai nustatyti stogo ir atlikti jo matavimų. Už pradinę ataskaitą grąžinome lėšas.",
+    "m_8a0434dcd5f44a": "Ši ataskaita atmesta, nes pasirinktas žymeklis, panašu, nėra ant išmatuojamos konstrukcijos. Taip gali nutikti, jei žymeklis yra kieme, įvažiavime, ant netoliese esančio objekto arba ant konstrukcijos, kurios vaizdų nepakanka tiksliems matavimams. Už pradinę ataskaitą grąžinome lėšas.",
+    "m_fdbdd395519610": "Ši ataskaita atmesta, nes organizacijai nepakako kreditų papildomoms konstrukcijoms. Už šią atmestą ataskaitą nebuvo paliktas mokestis už papildomų konstrukcijų žymeklius.",
+    "m_a88169ad51b679": "Ši ataskaita atmesta. Už pradinę ataskaitą grąžinome lėšas.",
+    "m_85b7e99a08fa9a": "Matavimas",
+    "m_ec6b76d100b0ec": "Reikšmė",
+    "m_4b91b73dae1ff3": "Vienetas",
+    "m_f2baa3de1eb35b": "Karnizai",
+    "m_230a183ddb6e96": "Sąlajos",
+    "m_48029c2aaa37c6": "Šlaitiniai kraštai",
+    "m_217bf30b990d24": "Kraigai",
+    "m_baa2f693c3883e": "Išorinės stogo sandūros",
+    "m_3bcef36c5987a6": "Viršutinės sienos sandūros skarda",
+    "m_58ab5ba41ae1c9": "Šoninės sienos sandūros skarda",
+    "m_06fc435805a90a": "Laiptinė sandūros skarda",
+    "m_8ba24778829c38": "Perėjimai",
+    "m_4d80da8e9e6ebe": "Parapeto siena",
+    "m_7aeda3ce508c46": "Dengiamoji sandūros skarda",
+    "m_0cbf0780118eed": "Nežinomas dydis",
+    "m_7244c568a68bff": "Apdorojama",
+    "m_d0dd61f9c0e1d2": "Paruošta",
+    "m_e70e11490d7b0e": "Nepasiekiama",
+    "m_1313f5db221c3d": "Pagrindinio stogo matavimų PDF su lietvamzdžių matavimais",
+    "m_9898713daf99e1": "Pagrindinio stogo matavimų PDF",
+    "m_39c51745a420e1": "Klientams skirta suvestinė PDF",
+    "m_73340cea156d55": "Modelio duomenų eksportas",
+    "m_104300af4d9588": "Momentinė matavimų peržiūra",
+    "m_645ca26abdddb4": "Istorinių ekstremalių orų PDF",
+    "m_0d54f0e37800ea": "Dar neišsiųsta",
+    "m_61023422d0cb5d": "Atmesta",
+    "m_9863f11d60b2fa": "Atšaukta",
+    "m_e8e493437c1a17": "Užbaigta",
+    "m_46c14a5ec722c6": "Užsakyta",
+    "m_e2f22061f67c87": "Momentinė + standartinė",
+    "m_d5a4d5eab0934e": "Viso namo ataskaitos suvestinė",
+    "m_ac57bd5edb01bf": "Stogo ataskaitos suvestinė",
+    "m_4567836c628fdd": "Bandykite dar kartą.",
+    "m_59c670bfa95274": "Nepavyko sugeneruoti orų ataskaitos. Galite bandyti dar kartą čia.",
+    "m_5414698a7f63e1": "Orų ataskaita užsakyta ir bus sugeneruota užbaigus FirstMeasure ataskaitą.",
+    "m_1ef47a07071860": "Generuojama istorinių ekstremalių orų ataskaita. Kai ji bus paruošta, pasirodys čia.",
+    "m_75ee115d9e118f": "Nepavyko sugeneruoti orų ataskaitos.",
+    "m_7d48773e58e964": "Nepavyko užsakyti orų ataskaitos.",
+    "m_6479e99c256b1d": "Orų ataskaita paruošta.",
+    "m_65522862812f28": "Pranešta apie problemą",
+    "m_7af9903841fb66": "Papildoma konstrukcija",
+    "m_9816fa5fa0bc00": "Pakeitimas arba pataisymas",
+    "m_1dbe1d8b227b2f": "Išsiųsta pagalbai",
+    "m_51be70f25415d9": "Patvirtinta",
+    "m_3c4d2141b2fa1c": "Užbaigta",
+    "m_fe9520d635f903": "Čia pateikiamos jūsų pagalbos užklausos dėl grąžintos ataskaitos.",
+    "m_339395a80e0064": "Grąžinta ataskaita lieka pasiekiama, kol peržiūrimos šios užklausos.",
+    "m_e2b803de55a93e": "Pateikta",
+    "m_a518a4f0e43132": "Taip pagalbos komandai išsiunčiama žinutė.",
+    "m_35f94adf3dce96": "Žemėlapyje pažymėkite papildomą konstrukciją. Komercinių ir daugiabučių objektų užklausos apmokestinamos už kiekvieną pridėtą konstrukciją.",
+    "m_bb5684676c9b3b": "Pridėkite pastabų ir nuotraukų pataisymus atliekančiai komandai.",
+    "m_eba3732c6bff34": "Žinutė pagalbos komandai",
+    "m_fd5e1725cedd0d": "Sukuria pataisymo užklausą",
+    "m_f945baf54844d9": "Nemokama pataisymo užklausa",
+    "m_735a0c9b004cb0": "Papildomos konstrukcijos užklausa",
+    "m_136eda8f76021e": "Prie grąžintos ataskaitos pridėtos papildomos konstrukcijos",
+    "m_db80beaa86c589": "Nepavyko pateikti užklausos.",
+    "m_8e44aec37ccb2b": "Ataskaitos tolesnė užklausa išsaugota.",
+    "m_2ba158e4424efb": "Nepavyko paspartinti šios ataskaitos.",
+    "m_fbd81f2c4d1c18": "Pristatymo parinktis atnaujinta.",
+    "m_21778024c3a70c": "Nepavyko atšaukti šios ataskaitos.",
+    "m_c44638d45be320": "Užsakymas atšauktas.",
+    "m_70cd41e8830a84": "Nepavyko importuoti ataskaitos.",
+    "delivery_by": {
+      "message": "Iki {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Mažiau nei {hours} val.",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Numatomas laukimas: {minutes} min.",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Numatomas laukimas: {hours} val.",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Numatomas laukimas: {hours} val. {minutes} min.",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Užsakyta {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Atšaukti ataskaitą (liko {time})",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Šoninės sienos",
+    "m_10e472dc761ed6": "Viršutinės sienos",
+    "m_717d08a340c907": "Orai",
+    "m_6a656f97b4af69_currency": "Pristatoma kartu su šiuo projektu",
+    "m_a54dfa11060c5d_currency": "Orų ataskaita užsakyta",
+    "m_bd585f0df980a6_currency": "Užklausa pateikta",
+    "m_550e7313d4d175_currency": "Ataskaita paspartinta",
+    "m_d588b9b5f17ee7_currency": "Ataskaita atšaukta",
+    "m_1c10582071b5c0": {
+      "message": "{v0} val. {v1} min",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} sek.",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} sek.",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Užsakyti dar kartą – {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Matavimų XML nepasiekiamas ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "Nepavyko atsisiųsti XML ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Pateikta {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Pateikti – {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# val.} few {# val.} other {# val.}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# nuotrauka} few {# nuotraukos} other {# nuotraukų}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Grąžinta {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Ši ataskaita atmesta, nes, panašu, reikia „{v0}“ ataskaitos. Už pradinę ataskaitą grąžinome lėšas.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Tikrinama...",
+    "m_417c2d318452c7": {
+      "message": "Nepavyko perskaityti {v0}.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Papildoma konstrukcija, pažymėta žymekliu.",
+    "m_3c366c37d61199": {
+      "message": "Už papildomos konstrukcijos užklausą nuskaičiuota {v0}.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Paspartinama...",
+    "m_a57adbfbfeda02": {
+      "message": "Už greitesnio pristatymo parinktį nuskaičiuota {v0}.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# žymeklis} few {# žymekliai} many {# žymeklių} other {# žymeklio}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Įkeliami finansiniai duomenys...",
@@ -3726,7 +3941,121 @@
     "m_428a61cf4a8532": "Atitinkantys projektai",
     "m_67ea3d9f45d10b": "Ieškoma projektų…",
     "m_7f0c783c8eec23": "Atidaromas projektas…",
-    "m_5180ead27b8ad6": "Nepavyko įkelti GIF"
+    "m_5180ead27b8ad6": "Nepavyko įkelti GIF",
+    "m_0d21d7d3136fc9": "Viso namo išorės matavimai, įskaitant stogą.",
+    "m_97e57acb52769a": "Sienų, langų, durų ir dailylenčių plotai.",
+    "m_1274bb24b43206": "Įskaičiuoti stogo ir lietvamzdžių matavimai.",
+    "m_b120ceb5e3ac9e": "Kiekvienai konstrukcijai būtinos aštuonios pamatinės nuotraukos.",
+    "m_f1775523edde74": "Jūsų stogo matavimų ataskaita.",
+    "m_424bd3aef8e7cb": "Stogo plotai, nuolydžiai, kraštai ir matmenys.",
+    "m_5c6fb5beeff92c": "Užsakydami pridėkite lietvamzdžių arba kitas galimas ataskaitas.",
+    "m_398f784a950729": "Prie standartinės gyvenamųjų namų ataskaitos pridedamas atskiras lietvamzdžių puslapis.",
+    "m_98ad5fe62c722d": "Aktyvaus lietvamzdžio ilgis pėdomis apskaičiuojamas pagal karnizo atkarpas.",
+    "m_1b41dbf4615706": "Aukštai šiaurinėje, pietinėje, rytinėje ir vakarinėje pusėse.",
+    "m_18db25f632d117": "Lietvamzdžių schema su kiekvienos atkarpos žymomis.",
+    "m_2c4f4a8f273e86": "Išorinių 90°, vidinių 90° ir kitokio kampo sujungimų skaičius.",
+    "m_4cd43f827c1fae": "Kol rengiama standartinė ataskaita, pateikiama momentinė matavimų ataskaita.",
+    "m_4b2b1884c6cff9": "Greita dirbtinio intelekto sugeneruota stogo matavimų peržiūra.",
+    "m_f97d66c6fc03c3": "Interaktyvus stogo modelis, jei prieinamas.",
+    "m_7f677a10302532": "Momentinę PDF ataskaitą galite peržiūrėti dar neparengus patikrintos standartinės ataskaitos.",
+    "m_edc48228028f11": "Standartinė ataskaita vis tiek bus pateikta per pasirinktą terminą.",
+    "m_208063e29728ba": "Prie užsakymo pridedama šios nuosavybės ekstremalių orų istorijos ataskaita.",
+    "m_0087790e73e66c": "Adreso krušos, vėjo ir tornadų įvykių istorija.",
+    "m_bab1f8bcf78db9": "Netoliese užfiksuoti įvykiai grupuojami pagal datą, pateikiant atstumą ir stiprumą.",
+    "m_b901f17c3bd50b": "Žemėlapio tipo vaizdinė medžiaga, perspėjimų kontekstas ir suvestinės lentelės.",
+    "m_bdcad3423f3114": "Praverčia peržiūrint žalų paraiškas, bendraujant su klientais ir dokumentuojant projektus.",
+    "m_a227a5b1174b0f": "Prie šio užsakymo pridedama pasirenkama ataskaitos funkcija.",
+    "m_0b5d751a9847bf": "Atidaryti ataskaitos pavyzdį",
+    "m_d9c640d91be6e2": "Neskubu",
+    "wait_minutes": {
+      "message": "Numatomas laukimas: {minutes} min.",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Numatomas laukimas: {hours} val.",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Numatomas laukimas: {hours} val. {minutes} min.",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "Pritaikyta {v0}% rekomendacijos nuolaida. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "Iš viso: {v2}.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Kreditų nėra",
+    "m_b97feb346e3fae_currency": {
+      "message": "Norint pateikti šios ataskaitos užsakymą, reikia turėti {v0}.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} už konstrukciją × {count, plural, one {# konstrukcija} few {# konstrukcijos} other {# konstrukcijų}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Užsakyti ataskaitą",
+    "overview_build_proposal": "Kurti pasiūlymą",
+    "overview_schedule_appointment": "Suplanuoti susitikimą",
+    "overview_no_projects": "Atitinkančių projektų nėra.",
+    "overview_gutters": "lietvamzdžių ataskaita",
+    "overview_weather": "orų ataskaita",
+    "overview_instant": "momentinė ataskaita",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# konstrukcija patvirtinta} few {# konstrukcijos patvirtintos} other {# konstrukcijų patvirtinta}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Tikslas: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": "Įtraukta: {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Sutraukti",
+    "audit_c461dbb2bab7d8": "Per visą ekraną",
+    "audit_06ecd0fafc34d4": "šis pirkinys",
+    "audit_2b5c3d26721ae9": "Kontaktas",
+    "audit_98595978531974": "Projektas",
+    "audit_22a970d2e5b1cc": "Užbaigtas",
+    "audit_6f8d17646237f4": "Naujas projektas",
+    "audit_0a2d38987b9aa3": "Namai ir vienbučiai gyvenamieji namai",
+    "audit_114820134036e1": "Komerciniai ir pramoniniai objektai",
+    "audit_9e05435948dfbb": "Butai ir bendro naudojimo būstai",
+    "audit_c0eb0f8efba638": "Pasirinkite tipą",
+    "audit_e10ae990740118": "Anksčiau",
+    "audit_b512d97e7cbf97": "Naudotojas",
+    "audit_b764cdc0eab713": "Nežinoma",
+    "audit_90eb5886fddc5f": "Pagal šį filtrą pastabų nerasta.",
+    "audit_57bde4deb215bf": "Pastabų dar nėra.",
+    "audit_6501e1ced8da0b": "Išsaugoti pastabą",
+    "audit_63565c0485fec4": "Pridėti pastabą",
+    "audit_ab52c213888188": "Komandos narys",
+    "audit_3fe263538d199f": "Naujas kontaktas",
+    "audit_1b5a65c3cdba9e": "Projektas be pavadinimo",
+    "audit_d87821ba1a366b": "Pagal paiešką projektų nerasta.",
+    "stalled_order": "Šios ataskaitos užsakymo apdorojimas sustojo. Galite užsakyti dar kartą skirtuke „Ataskaitos“.",
+    "inactive_order": "Šis projektas neturi aktyvaus ataskaitos užsakymo.",
+    "audit_77b12f57b38b87": "Ataskaita vykdoma",
+    "audit_d30a775883da50": "Ataskaita peržiūrima",
+    "audit_0ba1f4e48609ea": "Ataskaitos laukiama",
+    "audit_c5e665c57bc2e0": "Šiuo metu rengiama standartinė ataskaita.",
+    "audit_2612ba1829868e": "Standartinė ataskaita peržiūrima.",
+    "audit_901358a2916ff7": "Standartinės ataskaitos laukiama.",
+    "audit_b67507ab244ce0": "Nepavyko atidaryti projekto.",
+    "audit_60e9af1cbdcdac": "ši visos konstrukcijos ataskaita",
+    "audit_3f50e8ab670539": "ši stogo ataskaita",
+    "audit_b4cc4b07c30010": "Vykdoma",
+    "audit_674db38d5123c4": "Laukiama peržiūros",
+    "audit_9b24354bb066bb": "Reikia pataisyti",
+    "audit_da77d8f5b71aa0": "Laukiama patikros",
+    "audit_35266cd2f21aca": "Užsakoma",
+    "audit_2d31976e9d17e4": "Pateikti nepavyko.",
+    "audit_88430f2c58bbce": "Matavimų ataskaita paruošta",
+    "audit_7cf4af8eebae35": "Esamus ataskaitos failus galima peržiūrėti."
   },
   "project-schedule": {
     "m_88e13d64071885": "Tvarkaraštis užrakintas",
@@ -4134,7 +4463,157 @@
     },
     "m_ce86fe78082565": "Nepasiekiama",
     "m_f8e16243e0f91c": "Tvarkyti rodinį",
-    "m_200131262770e4": "Projekto rodinys"
+    "m_200131262770e4": "Projekto rodinys",
+    "m_ea9c70855946ea": "Etapai rodo mūsų darbo eigą. Norėdami peržiūrėti gautus projektus, pasirinkite tik „Projektai, kuriais su mumis bendrinta“.",
+    "m_9ce407c87de615": "Juodraštis",
+    "m_aaebd7ccba0b30": "Projektas",
+    "fm_contact_unavailable": "Nenurodyta",
+    "m_9cf11b8ab925ce": "Šiuo adresu matavimų paslauga kol kas neteikiama. ",
+    "m_93f718cb51bafd": "Šiuo metu aprėpiame 95% visų Jungtinių Valstijų pastatų ir aktyviai plečiame aprėptį, kad galėtume pasiekti daugiau likusių pastatų. ",
+    "m_ea8d59f20b2ea6": "Užregistravome jūsų susidomėjimą tokio tipo konstrukcijomis ir netolimoje ateityje teiksime prioritetą galimybei jas aprėpti. ",
+    "m_c5942837107a76": "Nepavyko sugeneruoti FirstMeasure Instant šiam žymekliui, nes pasirinktas taškas nepateko ant konstrukcijos, kuriai turime tikslių momentinių duomenų. ",
+    "m_214f9a56d321e4": "Nepavyko užbaigti šios ataskaitos, nes turimuose vaizduose konstrukciją pernelyg užstoja kliūtys. ",
+    "m_9ac5bbd5a7f1d1": "Taip gali nutikti, kai medžiai, šešėliai, vaizdo kokybė ar kitos regimos kliūtys neleidžia mums patikimai nustatyti stogo ir atlikti jo matavimų. ",
+    "m_d51846aa8dda09": "Atsiprašome už galimus nepatogumus.",
+    "m_4edb03027fd308": "Nepavyko užbaigti šios ataskaitos, nes pasirinktas žymeklis, panašu, nėra ant konstrukcijos, kurią galime išmatuoti. ",
+    "m_17b153d5aa2b45": "Taip gali nutikti, jei žymeklis yra kieme, įvažiavime, ant netoliese esančio objekto arba ant konstrukcijos, kurios vaizdų nepakanka tiksliems matavimams. ",
+    "m_5978e46f6f29cd": "Nepavyko užbaigti šios ataskaitos, nes pasirinkta konstrukcija neatitinka užsakyto projekto tipo. ",
+    "m_4b5bf19bcf1325": "Už pradinę ataskaitą grąžinome lėšas.",
+    "m_0b9e2c765e77b1": "Už šį momentinį užsakymą grąžiname kreditą.",
+    "m_8d52a67caa71a2": "Daugiabutis",
+    "m_6d351fa63793b6": "Šis projektas atšauktas. Daugiau darbų pagal šią užklausą nebus atliekama.",
+    "m_549ccd0e27a3d4": "Taip",
+    "m_2f0222913078f4": "Ne",
+    "m_0817ad39e6765a": "FirstMeasure momentinės ataskaitos dar nepavyko įkelti.",
+    "m_e005bd4bc50817": "Pasirinktos konstrukcijos sujungti matavimai.",
+    "m_3e219b59d394f6": "Pasirinktos konstrukcijos matavimai.",
+    "m_ba6a658fdc23c0": "Atsisiųsti standartinę ataskaitą",
+    "m_f456048437e56e": "Bandoma atsisiųsti standartinę ataskaitą",
+    "m_a44e379d284797": "Atsisiųsti kliento ataskaitą",
+    "m_a32ef8d751f045": "Bandoma atsisiųsti kliento ataskaitą",
+    "m_06f3a13fba723d": "Ploto intervalas (m²)",
+    "m_f7d60690e4780f": "Kvadratų intervalas",
+    "m_7456bdb3003d3a": "Ši konstrukcija",
+    "m_dacaa66449659d": "Rengiama standartinė ataskaita",
+    "m_f3cacef590576b": "Nepavyko atsisiųsti standartinės momentinės ataskaitos.",
+    "m_6783ae5a616a3f": "Kontaktinė informacija dar nepasiekiama.",
+    "m_6f94190df36af9": "Rengiama kliento ataskaita",
+    "m_2a9462b7fdff9d": "Nepavyko atsisiųsti momentinės ataskaitos klientui.",
+    "m_5a0f6b2de100f2": "Momentinės nuotraukos ištekliai dar neparuošti.",
+    "m_a2decb63023f36": "Momentinio modelio failai dar neparuošti.",
+    "m_46f6cf08f0ef61": "Šio projekto momentinė peržiūra nepasiekiama.",
+    "m_edb27a9262e77e": "Nepavyko užsakyti standartinės ataskaitos.",
+    "m_235d86f4916a45": "Prarastas",
+    "m_3c4d2141b2fa1c": "Užbaigtas",
+    "m_8a993ed9b573b4": "Nepriskirtas",
+    "m_1b6ec15cbd198b": "Vykdomas",
+    "m_bf38bfda2125d1": "Stogas + lietvamzdžiai",
+    "m_de8450bc1dc243": "Nepavyko perkelti projekto.",
+    "m_2da110201b814e": "Rodyklė kairėn",
+    "m_e90f8a20f79638": "Rodyklė dešinėn",
+    "m_1519fbdf5b87ed": "Pradžia",
+    "m_80cfdb09a78f4b": "Pabaiga",
+    "m_2a925f101cbd18": "Didėjimo tvarka",
+    "m_760cf1fac61b3d": "Mažėjimo tvarka",
+    "m_aac16f05678935": "Etapai",
+    "m_3221d12ca792a6": "Kortelės",
+    "m_4bb4688766e904": "Išsaugota",
+    "m_b415d005adf878": "FirstMeasure projekto ID nepasiekiamas.",
+    "m_82ea55e5099898": "Kontaktinė informacija išsaugota.",
+    "m_41d4335f00b051": "Kontaktinė informacija išvalyta.",
+    "m_13fa388b0577c8": "Atsisiųsti nepavyko.",
+    "m_f32282581cf29c": "Išsaugota šiame projekte.",
+    "m_26c6cc9deaa942": "Įkelta iš šio projekto.",
+    "m_6ab3fe9280d969": "Neišsaugoti pakeitimai.",
+    "m_71c5dfdf68e84f": "Nepavyko išsaugoti kontaktinės informacijos.",
+    "m_7a7059bde880f7": "Pataisyta",
+    "m_00f3e8b60aebc9": "Standartinė",
+    "m_9e098701abaa2c": "Kliento kopija",
+    "m_ae8e4953e07d70": "Klientas",
+    "m_74b044783b2a3e": "Atsisiųsti pataisytos ataskaitos PDF",
+    "m_7d54357160f795": "Atsisiųsti ataskaitos PDF",
+    "m_9222c2e07a3df0": "Atsisiųsti pataisytą kliento PDF",
+    "m_09128dde31d325": "Atsisiųsti kliento PDF",
+    "m_175a65008ef30d": "Atsisiųsti XML modelį",
+    "m_9da3458d21c94e": "Pataisyta ataskaita",
+    "m_c47c2ce6bb05c0": "Ataskaita",
+    "m_690327a7486605": "Pataisyta kliento kopija",
+    "m_d2b7446d4a96f1": "Kliento kopija",
+    "m_e2943d71f406cb": {
+      "message": "Konstrukcija {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Įtrauktos konstrukcijos: pasirinkta {v0} iš {v1}.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Konstrukcijos {v0} matavimai.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Už šią konstrukciją sumokėti ${v0} grąžinti.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Už šią konstrukciją sumokėti ${v0} grąžinami.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Šios konstrukcijos ${v0} mokestis pašalintas iš momentinio atsiskaitymo.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Nepavyko įkelti momentinės medijos ištekliaus ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Abu – {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standartinė – {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "Rodyklė žemyn",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "Rodyklė aukštyn",
+    "m_b550215be01e52": "Priimti",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Atsisiųsti nepavyko ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Neprisijungta",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# pasirinkta konstrukcija neįtraukta, nes nėra tinkamų momentinių duomenų.} few {# pasirinktos konstrukcijos neįtrauktos, nes nėra tinkamų momentinių duomenų.} other {# pasirinktų konstrukcijų neįtraukta, nes nėra tinkamų momentinių duomenų.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " Grąžinta į sąskaitą: {amount}.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " Grąžinamos į sąskaitą lėšos: {amount}.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "papildomos konstrukcijos užklausa",
+    "audit_a65c9f1d26dec1": "pakeitimo / pataisymo užklausa",
+    "audit_ee9da4f4e90be4": "perdarymo užklausa",
+    "audit_1c376a7fd9b2d3": "3D modelio priklausomybės nepasiekiamos.",
+    "audit_325cb33dd4a5d6": "RENGIAMA IŠSAMI ATASKAITA",
+    "audit_e0507c184559a7": "MOMENTINĖ ATASKAITA",
+    "audit_b06d7c41ed06c8": "partnerių organizacija",
+    "audit_5dbc6dff430e8d": "LAUKIAMA PAKEITIMŲ",
+    "audit_1c4b7f4ada5422": "PATAISYTA ATASKAITA PARUOŠTA",
+    "audit_843f745c483e81": "MOMENTINĖ + IŠSAMI ATASKAITA",
+    "audit_76bf93df451d48": "ATASKAITA PARUOŠTA"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4460,7 +4939,60 @@
     "m_f35a14165cc920": "Užklausos sąsaja paruošta; modelio generavimą prie šio veiksmo galima prijungti vėliau.",
     "m_bbe27879ebf26c": "Diktavimas nepasiekiamas",
     "m_79af74d554f5a6": "Šioje naršyklėje kalbos atpažinimas nepasiekiamas.",
-    "m_9964312e9c85ac": "Projekto pasiūlymai"
+    "m_9964312e9c85ac": "Projekto pasiūlymai",
+    "m_c82963ef8940ce": "Santraukos puslapis",
+    "m_700473b6840e61": "Pašalinti bendro prekės ženklo logotipą",
+    "m_fccaa3fc954540": "Naudoti",
+    "m_1a29aea570fbc4": "Kiekis",
+    "m_8edfc0dd24bef1": "Vieneto kaina $",
+    "m_ae8e4953e07d70": "Klientas",
+    "m_ca125d59fcd810": "Parinkties pavadinimas",
+    "m_e847735cf5a416": "Mastelis",
+    "m_709d4ebff0e0da": "Palieskite, kad pasirašytumėte",
+    "m_9edc96d5f6e438": "Įmonės atstovas",
+    "m_ccb84c048a1a17": "Pardavimo mokestis",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Mokėjimų grafiko suma yra {v0}%. Iš viso turi būti 100%.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Medija dar neįkelta",
+    "m_a5e1cd4c41f31c": "Šiame projekte dar nėra nuotraukų ar vaizdo įrašų.",
+    "m_7f88f89133cbc4": "Įveskite pasirašančio asmens vardą",
+    "m_16dcd60135fed3": "Čia nupieškite savo parašą",
+    "m_506191e24dd383": "Išvalyti",
+    "m_b5828f5fd0c36d": "Pasiūlymų dar nėra",
+    "m_7feb0c701cff3e": "Sukurkite pirmąjį juodraštį, o variantams kurti jį dubliuokite.",
+    "m_8934bbea9ff9ad": {
+      "message": "Žingsnis {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Pridėti stogo čerpę",
+    "m_a28421203810c9": "Ieškokite kainyne ir pridėkite dar vieną klientui matomą parinktį.",
+    "m_581e6e2a759706": "Uždaryti čerpės pridėjimą",
+    "m_f3189dbe87971a": "Ieškoti čerpių kainyne",
+    "m_4a3589501ecc1f": "Nuolaidos pavadinimas",
+    "m_792f935ba82291": "Nuolaidos vertė",
+    "m_691d860b768692": "Pašalinti nuolaidą",
+    "m_0254795a80cfc0": "Nuolaidų dar nepridėta.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Pašalinti {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Pasirinktinė darbo eiga dar neapibrėžta.",
+    "m_7fcfaa1f4fcd66": "\n                      Siuntimui būtinas el. pašto adresas\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Šiame projekte dar nėra kliento el. pašto adreso.",
+    "m_c10134dc02336b": "\n                Siuntimui būtinas el. pašto adresas\n                ",
+    "m_cbb41dfafd178f": "Įtraukti kliento portalo nuorodą",
+    "m_a9fa064a3c9985": "Leisti klientui pasirašyti kelis pasiūlymus",
+    "m_5cc367ea2b4774": {
+      "message": "Puslapis {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Ištrinti",
+    "m_af64ff308ca58e": "Ištrinti puslapį",
+    "m_bdf76cad510e9f": "Pašalinti parinktį",
+    "m_fba496098e9a0f": "Atitinkančių čerpių nerasta."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Nepriskirti kvitai",
@@ -7598,7 +8130,145 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# operacija} other {# operacijų}} – grynoji suma: ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Automatinis kredito papildymas",
+    "m_8cb6b086a0e69c": "Atlikta",
+    "m_d248c450100477": " Archyvuoti",
+    "m_3cfab293c8c008": " Pakviesti asmenį",
+    "m_ae615734419eb6": "Vaidmenys &amp; numatytoji prieiga",
+    "m_91244bdaa8204c": "Kurkite pakartotinai naudojamus pradinių nustatymų rinkinius, apibrėžiančius programų matomumą ir teises.",
+    "m_1f1ad34d149fdf": "Įkeliami prieigos vaidmenys...",
+    "m_0e74f1bca1ead4": "Tvarkyti",
+    "m_6fd299432247c1": "Išsaugomas prekės ženklo rinkinys…",
+    "m_569b229b85507e": "Nepavyko išsaugoti prekės ženklo rinkinio",
+    "m_b9b9bca729d6db": {
+      "message": "red. {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Nėra aktyvių prieigos vaidmenų.",
+    "m_77a0c5b9d8ac90": " Jūs",
+    "m_e09715b775ce9e": " Pridėti naudotoją",
+    "m_6e9ebf535758d8": "Įmonės adresas",
+    "m_bbe1447b5d3e67": "Naudojamas iš anksto užpildyti domeno registracijos ir 10DLC įmonės patvirtinimo duomenis.",
+    "m_ac137f394a3447": "Gatvės adresas",
+    "m_c549239597ab7a": "Butas, biuras ir pan. (nebūtina)",
+    "m_a09f6a051adb2f": "Įmonės logotipas ataskaitos peržiūroje",
+    "m_8eec608d18828f": "Stogo schemos pavyzdys",
+    "m_1d7c61da5a56c2": "Nieko nėra.",
+    "m_8106b856808735": "Įkeliami skyriai…",
+    "m_6b8e4b3f1a7cc9": "Paveldimos narystės:",
+    "m_8bdaf1ba732556": "Žymimieji langeliai rodo tiesioginius priskyrimus. Panaikinus žymą, paveldimos narystės lieka aktyvios.",
+    "m_ff6087fc202a31": "Skyriai išsaugoti.",
+    "m_edcd68da5d4b23": "Įkeliami organizacijos skyriai…",
+    "m_f7161d1f24e956": "Organizacijos skyriai",
+    "m_8f5d10ae9e3dfc": "Bendrinama visuose filialuose. Nustatykite numatytuosius skyrius naudotojų vaidmenims ir grupių tipams arba pridėkite pavienių žmonių ir grupių. Asmuo arba grupė gali priklausyti keliems skyriams.",
+    "m_570d421382fbed": "Skyriai",
+    "m_20558f2853e00b": "Žmonės, vaidmenys ir grupės",
+    "m_4297d86c10d006": "Priskirti skyrius pagal",
+    "m_ad2f0ca83b8780": "Pavienis naudotojas",
+    "m_21037df1b40c09": "Naudotojo tipas / vaidmuo",
+    "m_319e5834d71d6f": "Pavienių naudotojų grupė",
+    "m_f2c096f77350e1": "Naudotojų grupės tipas",
+    "m_bca9e3fd6cf405": "Pasirinkti",
+    "m_2f45efa1cd676a": "Pasirinkite…",
+    "m_ce2f23fc67dbab": "Skyriaus pavadinimas",
+    "m_b53d9744f78699": "Skyriaus kategorija (nebūtina)",
+    "m_02997de9e09d60": "Naudotojų tipai / vaidmenys — numatytieji nariai",
+    "m_8dde7f5f579699": "Naudotojų grupių tipai — numatytosios grupės",
+    "m_ec049efefe3343": "Papildomi pavieniai naudotojai",
+    "m_6ea7e974e821fc": "Papildomos pavienių naudotojų grupės",
+    "m_c73c6e0076f1ad": "Pavyzdžiui, klientų aptarnavimas",
+    "m_cfa69cfd76ca26": "Įveskite skyriaus pavadinimą.",
+    "m_0c44938a138aa6": "Skyrius išsaugotas.",
+    "m_c8a24768419f58": "Teisės skirtos tik skaityti.",
+    "m_33071666de0ded": "Nepavyko įkelti sąrašo",
+    "m_d7ead3cd6cbff6": "Nepavyko pridėti",
+    "m_272e637b6dd40b": "Kvietimo išsiųsti dar kartą negalima.",
+    "m_f2db003b7dc3e6": "Slėpti teises",
+    "m_c8653c90005f35": "Rodyti teises",
+    "m_0fe4884bff1c81": "Modalinis langas",
+    "m_fd5fb5598dd8f6": "Niekada neprisijungė",
+    "m_4b49e020f08d8e": "Superadministratorių el. pašto adresų negalima keisti, kad nebūtų užblokuota paskyra.",
+    "m_2bdeadce179997": "Galite pervadinti šį superadministratorių, bet jo el. pašto adresas užrakintas.",
+    "m_b7e812bec0dfac": "Atnaujinkite rodomą vardą arba prisijungimo el. pašto adresą.",
+    "m_f6655180d4e320": "Pervadinkite naudotoją arba pakeiskite jo el. pašto adresą.",
+    "m_4c66f6639656d2": "Atkurti prieigą",
+    "m_232f4ec7b346ef": "Sustabdyti prieigą",
+    "m_2ac360d5cff662": "Nepavyko išsiųsti kvietimo el. laiško.",
+    "m_a2ee3708083074": "Negalite sustabdyti savo prieigos.",
+    "m_24bcbb5e94dc78": "Negalite sustabdyti superadministratoriaus prieigos.",
+    "m_415424819400a6": "Naudotojo prieiga sustabdyta.",
+    "m_5945a7cc27f21a": "Naudotojo prieiga atkurta.",
+    "m_ec6aab12561da3": "Negalite pašalinti savęs.",
+    "m_d0751bed2963bc": "Negalite pašalinti superadministratoriaus.",
+    "m_90ca724100109f": "Naudotojų nerasta.",
+    "m_2732f18bba7fc8": "Čia negalite keisti savo teisių.",
+    "m_90ed0c9031712d": "Nepavyko išsaugoti profilio nuotraukos.",
+    "m_5e287d278f8b92": "Netikėta klaida.",
+    "m_75d641bda100b6": "Nepavyko įkelti naudotojų.",
+    "m_4a9f6ad3027f17": "Nežinoma klaida",
+    "m_d7226634e4ea42": "Kvietimo el. laiškas išsiųstas.",
+    "m_e86ab6eb3ff843": "Naudotojas sukurtas, bet el. laiško išsiųsti nepavyko.",
+    "fm_users_owner": "Savininkas",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Minimalios automatinio papildymo sumos yra {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Mažiausia suma – {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Mažiausia suma – {v3}",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Jei jūsų likutis nukris žemiau {v0}, automatiškai įskaitysime į jūsų sąskaitą {v1}.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Sukurkite skyrius skiltyje Nustatymai → Naudotojai → Skyriai.",
+    "m_a089a1a2df79e8": "Išsaugoti skyrius",
+    "m_5147306077d4a3": "Čia sujungiami esami filialų skyriai. Išsaugojus jie pritaikomi organizacijos nustatymams; esami susitikimai ir išankstiniai nustatymai išsaugomi.",
+    "m_86433617637bb9": "+ Kurti skyrių",
+    "m_9c29c0605b9630": "Išsaugoti skyrių",
+    "m_0a270477a59add": "Paveldėta iš naudotojo vaidmens",
+    "m_d934cc2b978d05": "Paveldėta iš grupės tipo",
+    "m_967feb25c6cad7": "Numatytieji skyriai",
+    "m_f5464054424b45": "Taikoma visiems šio tipo nariams, įskaitant būsimus narius.",
+    "m_2ecf878bd727e3": "Tiesioginiai priskyrimai papildo vaidmens arba grupės tipo numatytuosius skyrius. Pirmiausia išsaugokite vaidmens ar tipo pakeitimus, kad būtų atnaujintos paveldimos narystės.",
+    "m_2d4ff8a83b1b5c": "Nėra",
+    "m_b1d5eca65cad81": "Nepavyko išsaugoti skyrių.",
+    "m_31a18651cb81ee": "Nepavyko įkelti skyrių.",
+    "m_8a36512cbfe084": "Nepavyko išsaugoti skyriaus.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# ataskaita} few {# ataskaitos} other {# ataskaitų}} – iš viso: ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Įkelti profilio nuotrauką",
+    "profile_tooltip_1": "Atidaryti profilį",
+    "profile_tooltip_2": "Pasirinkti profilio nuotrauką",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Tai loginis pašalinimas: paskyra archyvuojama audito tikslais, o el. pašto adresą vėliau galima naudoti siunčiant kvietimą arba registruojantis.",
+    "m_1e50cfd1b66d97": "Profilio nuotrauka (nebūtina)",
+    "m_e2207970d3a42f": "Prieigos lygis",
+    "logos_uploading": {
+      "message": "{count, plural, one {Įkeliamas # logotipas} few {Įkeliami # logotipai} many {Įkeliama # logotipų} other {Įkeliama # logotipo}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {# logotipas įtrauktas į jūsų prekės ženklo biblioteką.} few {# logotipai įtraukti į jūsų prekės ženklo biblioteką.} many {# logotipų įtraukta į jūsų prekės ženklo biblioteką.} other {# logotipo įtraukta į jūsų prekės ženklo biblioteką.}}",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Pakeitėme šią reikšmę į mažiausią leidžiamą sumą – {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Automatinis papildymas: {amount}, kai likutis nukrenta žemiau {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Automatinis kredito papildymas: išjungtas"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Pridėti darbą",
@@ -8256,7 +8926,21 @@
       "message": "Neskaitytų: {v0} &middot; iš viso: {v1}",
       "format": "icu"
     },
-    "new_report": "Nauja ataskaita"
+    "new_report": "Nauja ataskaita",
+    "m_9a00fb620ffc1d": "Nepavyko išsaugoti šoninės juostos pločio",
+    "m_854ab579641f94": "Įkeliami agentų pokalbiai…",
+    "m_86ec40fa3f9758": "Išjungti",
+    "m_4aaef822b47692": "FirstMate Assistant",
+    "m_c411108185658e": {
+      "message": "{v1} FirstMate Assistant",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "{v2} FirstMate Assistant",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Nepavyko įkelti atsiskaitymo nustatymų. ",
+    "m_48a9cdd2af44f4": "Bandyti dar kartą"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Biuras",
@@ -10676,7 +11360,17 @@
     "opening_tab": {
       "message": "Atidaromas skirtukas {tab}…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Keisti sričių dydį; dukart spustelėjus jos sukeičiamos vietomis",
+    "m_eae84bda77b08e": "Uždaryti sritį",
+    "m_9c2b801ff31874": "Ši sritis įkeliama ilgiau. Galite ją uždaryti ir bandyti dar kartą.",
+    "m_8c11a27c5f0b9c": "Nepavyko atidaryti šio skirtuko. Uždarykite sritį ir bandykite dar kartą.",
+    "m_a56b2777161b36": "Projektas vis dar įkeliamas. Galite uždaryti šį langą ir bandyti dar kartą.",
+    "m_5eced2f9d44623": "Nepavyko įkelti šio projekto. Uždarykite šį langą ir bandykite dar kartą.",
+    "m_76619e065f2360": "Prijungimo vieta",
+    "m_b46c7db0dc7b5b": "Keisti sričių dydį",
+    "m_06b65fee071879": "Langų skydeliai",
+    "m_21ca9dcccf9a04": "Uždaryti skydelį"
   },
   "reports": {
     "color": "spalva",

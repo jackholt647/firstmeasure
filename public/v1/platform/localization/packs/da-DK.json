@@ -2193,7 +2193,11 @@
     "m_25253d755816e2": "Optag en hel omgang rundt om huset på din telefon, og upload den her. Hvis du bestiller via FirstMate-appen, optages videoen for dig.",
     "m_27b7e868698f63": "Tilføj nærbilleder af ting, videoen ikke viser tydeligt, f.eks. kviste, tilbygninger eller smalle sidearealer.",
     "m_2469fadd18d99a": "Har du en video? Skift til video hele vejen rundt (anbefalet)",
-    "m_6e81feb28a2b17": "Ingen video endnu"
+    "m_6e81feb28a2b17": "Ingen video endnu",
+    "m_0889f650508793": "REC",
+    "m_1ddd588108e13d": "Hel omgang",
+    "m_e05fb49213187a": "Optag",
+    "review_full_structural_report": "Gennemse din fulde bygningsrapport"
   },
   "help": {
     "m_0db6efc53ab2ed": "Brug for hjælp?",
@@ -2715,7 +2719,218 @@
     },
     "m_ee2e95ef4a2d84": "Målinger opdateret",
     "m_52f356edab1915": "Rapportværdierne blev opdateret. Manuelle tilsidesættelser blev bevaret.",
-    "m_81c35a6db09047": "Målinger er ikke tilgængelige"
+    "m_81c35a6db09047": "Målinger er ikke tilgængelige",
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} pr. bygning",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Model og billeder",
+    "m_020e15c6bea221": "Luftfoto",
+    "m_8a27a13894e81a": "Tagvisningen kunne ikke indlæses. Opdater siden for at prøve igen.",
+    "m_76608e0c91e510": "Signaturforklaring",
+    "m_9f97a8cc4df412": "Indlæser tagmodel…",
+    "m_e11fb3a15af2c9": "Træk for at dreje · Rul for at zoome",
+    "m_f902513107035c": "Tagmodel og rapportmedier",
+    "m_cc0ef10e9ca033": "Tekstur",
+    "m_f5c0225c619977": "Farvede linjer",
+    "m_106ab75c23cf29": "Nulstil visning",
+    "m_3ed4abb478b582": "3D-tagmodel",
+    "m_7e9fab72578933": "Mediet kunne ikke indlæses.",
+    "m_c2e36017433571": "Solbilledet kunne ikke indlæses",
+    "m_2578923397f853": "Indlæser solbillede…",
+    "m_ff91c03c76ccf0": "Gemte taglinjer · Træk for at dreje · Rul for at zoome",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_ae8e4953e07d70": "Kunde",
+    "m_425f6b598f6417": "Vejr",
+    "m_070d836d7b27e3": "Afventer ændringer",
+    "m_3a57f052b36fc1": "Gebyr for hurtig levering blev fjernet fra denne bestilling.",
+    "m_ee8cd441a3c740": "Hurtigrapporter påbegyndes straks og kan ikke annulleres efter 1 minut.",
+    "m_7ab36b45fa8644": "Standardrapporter kan annulleres inden for 15 minutter efter bestilling.",
+    "m_0ca6847627b5d8": "Øjeblikkelig rapport genereres",
+    "m_4f9decb4fef708": "Kunderapport behandles",
+    "m_cb27e9cd4b71dc": "Standardrapport behandles",
+    "m_b754ff36345be0": "Standardrapport afventer",
+    "m_6c2b94bfbe7de4": "Beregner leveringstidspunkt",
+    "m_813568092a909a": "I gang",
+    "m_a5adb64bece6bf": "Under gennemgang",
+    "m_2175240180a38e": "Afventer",
+    "m_0dcf5f39373245": "Fristen på 1 minut for at annullere denne hurtigrapport er udløbet.",
+    "m_5a195b5dbc85fc": "Fristen for at annullere dette projekt er udløbet.",
+    "m_4d7c3696ea7819": "Øjeblikkelig rapport afventer",
+    "m_20daf0329c6bb5": "Denne rapport blev afvist, fordi bygningen er for skjult på de tilgængelige billeder. Det kan skyldes træer, skygger, billedkvalitet eller andre visuelle forhindringer, som gør, at vi ikke med sikkerhed kan identificere og måle taget. Vi har refunderet den oprindelige rapport.",
+    "m_8a0434dcd5f44a": "Denne rapport blev afvist, fordi den valgte markør ikke ser ud til at være placeret på en bygning, vi kan måle. Det kan skyldes, at markøren er på en gårdsplads, indkørsel, nærliggende genstand eller en bygning uden tilstrækkelige brugbare billeder til præcis opmåling. Vi har refunderet den oprindelige rapport.",
+    "m_fdbdd395519610": "Denne rapport blev afvist, fordi organisationen ikke havde nok kreditter til de ekstra bygninger. Der blev ikke opkrævet betaling for ekstra bygningsmarkører på denne afviste rapport.",
+    "m_a88169ad51b679": "Denne rapport blev afvist. Vi har refunderet den oprindelige rapport.",
+    "m_85b7e99a08fa9a": "Måling",
+    "m_ec6b76d100b0ec": "Værdi",
+    "m_4b91b73dae1ff3": "Enhed",
+    "m_f2baa3de1eb35b": "Tagfødder",
+    "m_230a183ddb6e96": "Skotrender",
+    "m_48029c2aaa37c6": "Vindskeder",
+    "m_217bf30b990d24": "Tagrygge",
+    "m_baa2f693c3883e": "Valme",
+    "m_3bcef36c5987a6": "Inddækning ved gavl",
+    "m_58ab5ba41ae1c9": "Inddækning ved sidevæg",
+    "m_06fc435805a90a": "Trininddækning",
+    "m_8ba24778829c38": "Overgange",
+    "m_4d80da8e9e6ebe": "Brystning",
+    "m_7aeda3ce508c46": "Modinddækning",
+    "m_0cbf0780118eed": "Ukendt størrelse",
+    "m_7244c568a68bff": "Behandles",
+    "m_d0dd61f9c0e1d2": "Klar",
+    "m_e70e11490d7b0e": "Ikke tilgængelig",
+    "m_1313f5db221c3d": "PDF med hovedtagets mål og tagrendemål",
+    "m_9898713daf99e1": "PDF med hovedtagets mål",
+    "m_39c51745a420e1": "Kundeorienteret oversigts-PDF",
+    "m_73340cea156d55": "Eksport af modeldata",
+    "m_104300af4d9588": "Øjeblikkelig opmålingseksempel",
+    "m_645ca26abdddb4": "PDF med historiske oplysninger om voldsomt vejr",
+    "m_0d54f0e37800ea": "Ikke sendt endnu",
+    "m_61023422d0cb5d": "Afvist",
+    "m_9863f11d60b2fa": "Annulleret",
+    "m_e8e493437c1a17": "Færdig",
+    "m_46c14a5ec722c6": "Bestilt",
+    "m_e2f22061f67c87": "Øjeblikkelig + standard",
+    "m_d5a4d5eab0934e": "Oversigt over fuld bygningsrapport",
+    "m_ac57bd5edb01bf": "Oversigt over tagrapport",
+    "m_4567836c628fdd": "Prøv igen.",
+    "m_59c670bfa95274": "Vejrrapporten kunne ikke genereres. Du kan prøve igen herfra.",
+    "m_5414698a7f63e1": "Vejrrapporten er bestilt og genereres, når FirstMeasure-rapporten er færdig.",
+    "m_1ef47a07071860": "Den historiske rapport om voldsomt vejr genereres. Den vises her, når den er klar.",
+    "m_75ee115d9e118f": "Vejrrapporten kunne ikke genereres.",
+    "m_7d48773e58e964": "Vejrrapporten kunne ikke bestilles.",
+    "m_6479e99c256b1d": "Vejrrapporten er klar.",
+    "m_65522862812f28": "Rapporteret problem",
+    "m_7af9903841fb66": "Ekstra bygning",
+    "m_9816fa5fa0bc00": "Ændring eller rettelse",
+    "m_1dbe1d8b227b2f": "Sendt til support",
+    "m_51be70f25415d9": "Godkendt",
+    "m_3c4d2141b2fa1c": "Afsluttet",
+    "m_fe9520d635f903": "Dine supportbeskeder om den returnerede rapport vises her.",
+    "m_339395a80e0064": "Din returnerede rapport er fortsat tilgængelig, mens disse anmodninger gennemgås.",
+    "m_e2b803de55a93e": "Indsendt",
+    "m_a518a4f0e43132": "Dette sender en supportbesked til FirstMeasure.",
+    "m_35f94adf3dce96": "Placer den ekstra bygning på kortet. Anmodninger for erhverv og flerfamilieboliger faktureres pr. tilføjet bygning.",
+    "m_bb5684676c9b3b": "Tilføj noter og billeder til rettelsesteamet.",
+    "m_eba3732c6bff34": "Supportbesked",
+    "m_fd5e1725cedd0d": "Tilføjer en anmodning om omarbejdning",
+    "m_f945baf54844d9": "Gratis anmodning om omarbejdning",
+    "m_735a0c9b004cb0": "Anmodning om ekstra bygning",
+    "m_136eda8f76021e": "Ekstra bygninger tilføjet til returneret rapport",
+    "m_db80beaa86c589": "Anmodningen kunne ikke indsendes.",
+    "m_8e44aec37ccb2b": "Opfølgning på rapporten blev gemt.",
+    "m_2ba158e4424efb": "Rapporten kunne ikke fremskyndes.",
+    "m_fbd81f2c4d1c18": "Leveringen er blevet opdateret.",
+    "m_21778024c3a70c": "Rapporten kunne ikke annulleres.",
+    "m_c44638d45be320": "Bestillingen blev annulleret.",
+    "m_70cd41e8830a84": "Rapporten kunne ikke importeres.",
+    "delivery_by": {
+      "message": "Senest {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Under {hours} timer",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Anslået ventetid: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Anslået ventetid: {hours} t",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Anslået ventetid: {hours} t {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Bestilt {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Annuller rapport ({time} tilbage)",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Sidevægge",
+    "m_10e472dc761ed6": "Gavlvægge",
+    "m_717d08a340c907": "Vejr",
+    "m_6a656f97b4af69_currency": "Leveres sammen med dette projekt",
+    "m_a54dfa11060c5d_currency": "Vejrrapport bestilt",
+    "m_bd585f0df980a6_currency": "Anmodning indsendt",
+    "m_550e7313d4d175_currency": "Rapport fremskyndet",
+    "m_d588b9b5f17ee7_currency": "Rapport annulleret",
+    "m_1c10582071b5c0": {
+      "message": "{v0} t {v1} min",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} sek",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} sek",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Bestil igen som {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Opmålings-XML er ikke tilgængelig ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "XML-download mislykkedes ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Indsendt {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Indsend – {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# time} other {# timer}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# foto} other {# fotos}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Refunderet {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Denne rapport blev afvist, fordi det ser ud til, at der kræves en {v0}-rapport. Vi har refunderet den oprindelige rapport.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Kontrollerer...",
+    "m_417c2d318452c7": {
+      "message": "Kunne ikke læse {v0}.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Anmodning om ekstra bygning via markør.",
+    "m_3c366c37d61199": {
+      "message": "Opkrævet {v0} for anmodningen om en ekstra bygning.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Fremskynder...",
+    "m_a57adbfbfeda02": {
+      "message": "Opkrævet {v0} for hurtigere levering.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# nål} other {# nåle}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Indlæser økonomi...",
@@ -3726,7 +3941,121 @@
     "m_428a61cf4a8532": "Matchende projekter",
     "m_67ea3d9f45d10b": "Søger efter projekter…",
     "m_7f0c783c8eec23": "Åbner projekt…",
-    "m_5180ead27b8ad6": "GIF kunne ikke indlæses"
+    "m_5180ead27b8ad6": "GIF kunne ikke indlæses",
+    "m_0d21d7d3136fc9": "Udvendige mål for hele huset, inklusive taget.",
+    "m_97e57acb52769a": "Vægge, vinduer, døre og facadebeklædningens areal.",
+    "m_1274bb24b43206": "Tag- og tagrendemål er inkluderet.",
+    "m_b120ceb5e3ac9e": "Der kræves otte referencebilleder pr. bygning.",
+    "m_f1775523edde74": "Din tagopmålingsrapport.",
+    "m_424bd3aef8e7cb": "Tagarealer, hældninger, kanter og mål.",
+    "m_5c6fb5beeff92c": "Tilføj tagrender eller andre tilgængelige rapporter, når du bestiller.",
+    "m_398f784a950729": "Tilføjer en særskilt tagrendeside til standardrapporten for beboelse.",
+    "m_98ad5fe62c722d": "Aktive tagrendefødder beregnet ud fra tagfodens længder.",
+    "m_1b41dbf4615706": "Etager på nord-, syd-, øst- og vestsiden.",
+    "m_18db25f632d117": "Tagrendediagram med mærkning af hver sektion.",
+    "m_2c4f4a8f273e86": "Antal hjørnesamlinger: udvendige 90°, indvendige 90° og andre vinkler.",
+    "m_4cd43f827c1fae": "Tilføjer en øjeblikkelig opmålingsrapport, mens standardrapporten behandles.",
+    "m_4b2b1884c6cff9": "Hurtig AI-genereret forhåndsvisning af tagopmålingen.",
+    "m_f97d66c6fc03c3": "Interaktiv tagmodel, hvor den er tilgængelig.",
+    "m_7f677a10302532": "Adgang til øjeblikkelig PDF, før den gennemgåede standardrapport er færdig.",
+    "m_edc48228028f11": "Standardrapporten følger stadig det valgte leveringsinterval.",
+    "m_208063e29728ba": "Tilføjer en rapport om ejendommens historik med voldsomt vejr.",
+    "m_0087790e73e66c": "Bred historik over hagl-, vind- og tornadohændelser for adressen.",
+    "m_bab1f8bcf78db9": "Nærliggende hændelser grupperet efter dato med afstands- og styrkeoplysninger.",
+    "m_b901f17c3bd50b": "Kortbaserede illustrationer, advarselskontekst og oversigtstabeller.",
+    "m_bdcad3423f3114": "Nyttig til gennemgang af skadesanmeldelser, kundesamtaler og projektdokumentation.",
+    "m_a227a5b1174b0f": "Tilføjer en valgfri rapportfunktion til denne bestilling.",
+    "m_0b5d751a9847bf": "Åbn eksempelrapport",
+    "m_d9c640d91be6e2": "Ingen hast",
+    "wait_minutes": {
+      "message": "Anslået ventetid: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Anslået ventetid: {hours} t",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Anslået ventetid: {hours} t {minutes} min",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "{v0}% henvisningsrabat anvendt. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "{v2} i alt.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Ingen kreditter",
+    "m_b97feb346e3fae_currency": {
+      "message": "Du skal have {v0} for at bestille denne rapport.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} pr. bygning × {count, plural, one {# bygning} other {# bygninger}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Bestil rapport",
+    "overview_build_proposal": "Opret tilbud",
+    "overview_schedule_appointment": "Planlæg aftale",
+    "overview_no_projects": "Ingen matchende projekter.",
+    "overview_gutters": "tagrender",
+    "overview_weather": "vejrrapport",
+    "overview_instant": "øjeblikkelig rapport",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# bygning bekræftet} other {# bygninger bekræftet}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Levering forventes: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Inkluderer {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Formindsk",
+    "audit_c461dbb2bab7d8": "Fuldskærm",
+    "audit_06ecd0fafc34d4": "dette køb",
+    "audit_2b5c3d26721ae9": "Kontakt",
+    "audit_98595978531974": "Projekt",
+    "audit_22a970d2e5b1cc": "Afsluttet",
+    "audit_6f8d17646237f4": "Nyt projekt",
+    "audit_0a2d38987b9aa3": "Huse og enfamiliehuse",
+    "audit_114820134036e1": "Erhvervs- og industriejendomme",
+    "audit_9e05435948dfbb": "Lejligheder og fællesboliger",
+    "audit_c0eb0f8efba638": "Vælg type",
+    "audit_e10ae990740118": "Tidligere",
+    "audit_b512d97e7cbf97": "Bruger",
+    "audit_b764cdc0eab713": "Ukendt",
+    "audit_90eb5886fddc5f": "Ingen noter matcher dette filter.",
+    "audit_57bde4deb215bf": "Ingen noter endnu.",
+    "audit_6501e1ced8da0b": "Gem note",
+    "audit_63565c0485fec4": "Tilføj note",
+    "audit_ab52c213888188": "Teammedlem",
+    "audit_3fe263538d199f": "Ny kontakt",
+    "audit_1b5a65c3cdba9e": "Projekt uden titel",
+    "audit_d87821ba1a366b": "Ingen projekter matcher din søgning.",
+    "stalled_order": "Denne rapportbestilling gik i stå, før behandlingen begyndte. Du kan bestille den igen fra fanen Rapporter.",
+    "inactive_order": "Dette projekt har ingen aktiv rapportbestilling.",
+    "audit_77b12f57b38b87": "Rapport i gang",
+    "audit_d30a775883da50": "Rapport under gennemgang",
+    "audit_0ba1f4e48609ea": "Rapport afventer",
+    "audit_c5e665c57bc2e0": "Standardrapporten behandles i øjeblikket.",
+    "audit_2612ba1829868e": "Standardrapporten er under gennemgang.",
+    "audit_901358a2916ff7": "Standardrapporten afventer behandling.",
+    "audit_b67507ab244ce0": "Projektet kunne ikke åbnes.",
+    "audit_60e9af1cbdcdac": "denne fulde bygningsrapport",
+    "audit_3f50e8ab670539": "denne tagrapport",
+    "audit_b4cc4b07c30010": "I gang",
+    "audit_674db38d5123c4": "Afventer gennemgang",
+    "audit_9b24354bb066bb": "Rettelse påkrævet",
+    "audit_da77d8f5b71aa0": "Afventer gennemgang",
+    "audit_35266cd2f21aca": "Bestiller",
+    "audit_2d31976e9d17e4": "Indsendelse mislykkedes.",
+    "audit_88430f2c58bbce": "Udviklingsrapport klar",
+    "audit_7cf4af8eebae35": "Eksisterende rapportfiler er klar til visning."
   },
   "project-schedule": {
     "m_88e13d64071885": "Tidsplan låst",
@@ -4134,7 +4463,157 @@
     },
     "m_ce86fe78082565": "Ikke tilgængelig",
     "m_f8e16243e0f91c": "Administrer visning",
-    "m_200131262770e4": "Projektvisning"
+    "m_200131262770e4": "Projektvisning",
+    "m_ea9c70855946ea": "Trin viser vores arbejdsgang. Hvis du vil gennemse modtagne projekter, skal du kun vælge Projekter, der er delt med os.",
+    "m_9ce407c87de615": "Kladde",
+    "m_aaebd7ccba0b30": "Projekt",
+    "fm_contact_unavailable": "Ikke angivet",
+    "m_9cf11b8ab925ce": "Vi dækker endnu ikke denne adresse. ",
+    "m_93f718cb51bafd": "Vi dækker i øjeblikket 95 % af alle bygninger i USA og arbejder aktivt på at udvide vores dækning til flere af de resterende bygninger. ",
+    "m_ea8d59f20b2ea6": "Vi har registreret din interesse for bygninger som denne og vil prioritere at kunne dække dem i nær fremtid. ",
+    "m_c5942837107a76": "Vi kunne ikke oprette FirstMeasure Instant for denne markør, fordi det valgte punkt ikke ramte en bygning med nøjagtige instant-data. ",
+    "m_214f9a56d321e4": "Vi kunne ikke færdiggøre denne rapport, fordi bygningen er for skjult på de tilgængelige billeder. ",
+    "m_9ac5bbd5a7f1d1": "Det kan ske, hvis træer, skygger, billedkvalitet eller andre visuelle forhindringer gør, at vi ikke med sikkerhed kan identificere og måle taget. ",
+    "m_d51846aa8dda09": "Vi beklager de gener, dette måtte have medført.",
+    "m_4edb03027fd308": "Vi kunne ikke færdiggøre denne rapport, fordi den valgte markør ikke ser ud til at være placeret på en bygning, vi kan måle. ",
+    "m_17b153d5aa2b45": "Det kan ske, hvis markøren er på en gårdsplads, indkørsel, nærliggende genstand eller en bygning, der ikke har nok brugbare billeder til en nøjagtig opmåling. ",
+    "m_5978e46f6f29cd": "Vi kunne ikke færdiggøre denne rapport, fordi den valgte bygning ikke stemmer overens med den bestilte projekttype. ",
+    "m_4b5bf19bcf1325": "Vi har refunderet den oprindelige rapport.",
+    "m_0b9e2c765e77b1": "Vi refunderer en kredit for denne instant-bestilling.",
+    "m_8d52a67caa71a2": "Flerfamiliebolig",
+    "m_6d351fa63793b6": "Dette projekt er blevet annulleret. Der udføres ikke mere arbejde på denne anmodning.",
+    "m_549ccd0e27a3d4": "Ja",
+    "m_2f0222913078f4": "Nej",
+    "m_0817ad39e6765a": "Vi kunne ikke indlæse FirstMeasure Instant endnu.",
+    "m_e005bd4bc50817": "Samlede målinger for den valgte bygning.",
+    "m_3e219b59d394f6": "Målinger for den valgte bygning.",
+    "m_ba6a658fdc23c0": "Download standardrapport",
+    "m_f456048437e56e": "Prøver at hente standardrapport igen",
+    "m_a44e379d284797": "Download kunderapport",
+    "m_a32ef8d751f045": "Prøver at hente kunderapport igen",
+    "m_06f3a13fba723d": "Arealinterval (m²)",
+    "m_f7d60690e4780f": "Tagkvadratinterval",
+    "m_7456bdb3003d3a": "Denne bygning",
+    "m_dacaa66449659d": "Forbereder standardrapport",
+    "m_f3cacef590576b": "Kunne ikke downloade standardrapporten fra Instant.",
+    "m_6783ae5a616a3f": "Kontaktoplysninger er endnu ikke tilgængelige.",
+    "m_6f94190df36af9": "Forbereder kunderapport",
+    "m_2a9462b7fdff9d": "Kunne ikke downloade kunderapporten fra Instant.",
+    "m_5a0f6b2de100f2": "Instant-billederne er ikke klar endnu.",
+    "m_a2decb63023f36": "Instant-modelfilerne er ikke klar endnu.",
+    "m_46f6cf08f0ef61": "Forhåndsvisning af Instant er ikke tilgængelig for dette projekt.",
+    "m_edb27a9262e77e": "Standardrapporten kunne ikke bestilles.",
+    "m_235d86f4916a45": "Tabt",
+    "m_3c4d2141b2fa1c": "Afsluttet",
+    "m_8a993ed9b573b4": "Ikke tildelt",
+    "m_1b6ec15cbd198b": "I gang",
+    "m_bf38bfda2125d1": "Tag + tagrender",
+    "m_de8450bc1dc243": "Projektet kunne ikke flyttes.",
+    "m_2da110201b814e": "Pil til venstre",
+    "m_e90f8a20f79638": "Pil til højre",
+    "m_1519fbdf5b87ed": "Home",
+    "m_80cfdb09a78f4b": "End",
+    "m_2a925f101cbd18": "Stigende",
+    "m_760cf1fac61b3d": "Faldende",
+    "m_aac16f05678935": "Trin",
+    "m_3221d12ca792a6": "Kort",
+    "m_4bb4688766e904": "Gemt",
+    "m_b415d005adf878": "FirstMeasure-projekt-id er ikke tilgængeligt.",
+    "m_82ea55e5099898": "Kontaktoplysninger gemt.",
+    "m_41d4335f00b051": "Kontaktoplysninger ryddet.",
+    "m_13fa388b0577c8": "Download mislykkedes.",
+    "m_f32282581cf29c": "Gemt for dette projekt.",
+    "m_26c6cc9deaa942": "Indlæst fra dette projekt.",
+    "m_6ab3fe9280d969": "Ikke-gemte ændringer.",
+    "m_71c5dfdf68e84f": "Kontaktoplysningerne kunne ikke gemmes.",
+    "m_7a7059bde880f7": "Rettet",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_9e098701abaa2c": "Kundekopi",
+    "m_ae8e4953e07d70": "Kunde",
+    "m_74b044783b2a3e": "Download rettet rapport som PDF",
+    "m_7d54357160f795": "Download rapport som PDF",
+    "m_9222c2e07a3df0": "Download rettet kunderapport som PDF",
+    "m_09128dde31d325": "Download kunderapport som PDF",
+    "m_175a65008ef30d": "Download XML-model",
+    "m_9da3458d21c94e": "Rettet rapport",
+    "m_c47c2ce6bb05c0": "Rapport",
+    "m_690327a7486605": "Rettet kundekopi",
+    "m_d2b7446d4a96f1": "Kundekopi",
+    "m_e2943d71f406cb": {
+      "message": "Bygning {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Inkluderede bygninger: {v0} af {v1} valgt.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Målinger for bygning {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Omkostningen på ${v0} for denne bygning er blevet refunderet.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Omkostningen på ${v0} for denne bygning er ved at blive refunderet.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Omkostningen på ${v0} for denne bygning er fjernet fra Instant-faktureringen.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "En fil til Instant-opmålingen kunne ikke indlæses ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Begge – {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standard – {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "Pil ned",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "Pil op",
+    "m_b550215be01e52": "Acceptér",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Download mislykkedes ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Ikke logget ind",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# valgt bygning blev udeladt, fordi der ikke var brugbare instant-data tilgængelige.} other {# valgte bygninger blev udeladt, fordi der ikke var brugbare instant-data tilgængelige.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " En kredit på {amount} er refunderet.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " En kredit på {amount} er ved at blive refunderet.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "anmodning om ekstra bygning",
+    "audit_a65c9f1d26dec1": "anmodning om ændring/rettelse",
+    "audit_ee9da4f4e90be4": "anmodning om omarbejdning",
+    "audit_1c376a7fd9b2d3": "Afhængigheder til 3D-modellen er ikke tilgængelige.",
+    "audit_325cb33dd4a5d6": "FULD RAPPORT BEHANDLES",
+    "audit_e0507c184559a7": "INSTANTRAPPORT",
+    "audit_b06d7c41ed06c8": "partnerorganisation",
+    "audit_5dbc6dff430e8d": "ÆNDRINGER AFVENTER",
+    "audit_1c4b7f4ada5422": "RETTET RAPPORT KLAR",
+    "audit_843f745c483e81": "INSTANT + FULD",
+    "audit_76bf93df451d48": "RAPPORT KLAR"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4460,7 +4939,60 @@
     "m_f35a14165cc920": "Promptgrænsefladen er klar; modelgenerering kan tilsluttes denne handling som næste trin.",
     "m_bbe27879ebf26c": "Diktering er ikke tilgængelig",
     "m_79af74d554f5a6": "Denne browser understøtter ikke talegenkendelse her.",
-    "m_9964312e9c85ac": "Projekttilbud"
+    "m_9964312e9c85ac": "Projekttilbud",
+    "m_c82963ef8940ce": "Oversigtsside",
+    "m_700473b6840e61": "Fjern partnerlogo",
+    "m_fccaa3fc954540": "Brug",
+    "m_1a29aea570fbc4": "Antal",
+    "m_8edfc0dd24bef1": "Stk.-pris ($)",
+    "m_ae8e4953e07d70": "Kunde",
+    "m_ca125d59fcd810": "Valgmulighedens navn",
+    "m_e847735cf5a416": "Zoom",
+    "m_709d4ebff0e0da": "Tryk for at underskrive",
+    "m_9edc96d5f6e438": "Virksomhedsrepræsentant",
+    "m_ccb84c048a1a17": "Salgsafgift",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Betalingsplanen er {v0} %. Den skal summere til 100 %.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Ingen medier uploadet endnu",
+    "m_a5e1cd4c41f31c": "Dette projekt har endnu ingen billeder eller videoer.",
+    "m_7f88f89133cbc4": "Skriv underskriverens navn",
+    "m_16dcd60135fed3": "Tegn din underskrift her",
+    "m_506191e24dd383": "Ryd",
+    "m_b5828f5fd0c36d": "Ingen tilbud endnu",
+    "m_7feb0c701cff3e": "Opret det første udkast, og kopiér det derefter, når du vil lave varianter.",
+    "m_8934bbea9ff9ad": {
+      "message": "Trin {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Tilføj tagshingle",
+    "m_a28421203810c9": "Søg i priskataloget, og tilføj endnu en kundevis mulighed.",
+    "m_581e6e2a759706": "Luk tilføjelse af tagshingle",
+    "m_f3189dbe87971a": "Søg i priskataloget for tagshingles",
+    "m_4a3589501ecc1f": "Rabattens navn",
+    "m_792f935ba82291": "Rabatbeløb",
+    "m_691d860b768692": "Fjern rabat",
+    "m_0254795a80cfc0": "Ingen rabatter tilføjet endnu.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Fjern {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Tilpasset arbejdsgang skal fastlægges.",
+    "m_7fcfaa1f4fcd66": "\n                      E-mailadresse er påkrævet for at sende\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Der er endnu ingen kundemailadresse på dette projekt.",
+    "m_c10134dc02336b": "\n                E-mailadresse er påkrævet for at sende\n                ",
+    "m_cbb41dfafd178f": "Inkludér link til kundeportalen",
+    "m_a9fa064a3c9985": "Tillad kunden at underskrive flere tilbud",
+    "m_5cc367ea2b4774": {
+      "message": "Side {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Slet",
+    "m_af64ff308ca58e": "Slet side",
+    "m_bdf76cad510e9f": "Fjern valgmulighed",
+    "m_fba496098e9a0f": "Ingen matchende tagshingles fundet."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Ikke-tilknyttede kvitteringer",
@@ -7598,7 +8130,145 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# transaktion} other {# transaktioner}} – Nettobeløb: ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Automatisk kreditpåfyldning",
+    "m_8cb6b086a0e69c": "Færdig",
+    "m_d248c450100477": " Arkivér",
+    "m_3cfab293c8c008": " Invitér person",
+    "m_ae615734419eb6": "Roller &amp; standardadgang",
+    "m_91244bdaa8204c": "Opret genanvendelige udgangspunkter for appsynlighed og tilladelser.",
+    "m_1f1ad34d149fdf": "Indlæser adgangsroller...",
+    "m_0e74f1bca1ead4": "Administrer",
+    "m_6fd299432247c1": "Gemmer brandpakke…",
+    "m_569b229b85507e": "Kunne ikke gemme brandpakken",
+    "m_b9b9bca729d6db": {
+      "message": "revision {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Ingen aktive adgangsroller.",
+    "m_77a0c5b9d8ac90": " Dig",
+    "m_e09715b775ce9e": " Tilføj bruger",
+    "m_6e9ebf535758d8": "Virksomhedsadresse",
+    "m_bbe1447b5d3e67": "Bruges til at udfylde domæneregistrering og 10DLC-verifikation af virksomheden på forhånd.",
+    "m_ac137f394a3447": "Gadeadresse",
+    "m_c549239597ab7a": "Lejlighed, enhed osv. (valgfrit)",
+    "m_a09f6a051adb2f": "Virksomhedslogo i rapportforhåndsvisning",
+    "m_8eec608d18828f": "Eksempel på tagdiagram",
+    "m_1d7c61da5a56c2": "Ingen tilgængelige.",
+    "m_8106b856808735": "Indlæser afdelinger…",
+    "m_6b8e4b3f1a7cc9": "Nedarvede medlemskaber:",
+    "m_8bdaf1ba732556": "Afkrydsningsfelterne viser direkte tildelinger. Nedarvede medlemskaber forbliver aktive, selv når feltet ikke er markeret.",
+    "m_ff6087fc202a31": "Afdelinger gemt.",
+    "m_edcd68da5d4b23": "Indlæser organisationens afdelinger…",
+    "m_f7161d1f24e956": "Organisationens afdelinger",
+    "m_8f5d10ae9e3dfc": "Delt på tværs af alle afdelinger. Angiv standardafdelinger for brugerroller og gruppetyper, eller tilføj enkelte personer og grupper. En person eller gruppe kan tilhøre flere afdelinger.",
+    "m_570d421382fbed": "Afdelinger",
+    "m_20558f2853e00b": "Personer, roller og grupper",
+    "m_4297d86c10d006": "Tildel afdelinger efter",
+    "m_ad2f0ca83b8780": "Enkeltbruger",
+    "m_21037df1b40c09": "Brugertype / rolle",
+    "m_319e5834d71d6f": "Enkelt brugergruppe",
+    "m_f2c096f77350e1": "Brugergruppetype",
+    "m_bca9e3fd6cf405": "Vælg",
+    "m_2f45efa1cd676a": "Vælg…",
+    "m_ce2f23fc67dbab": "Afdelingsnavn",
+    "m_b53d9744f78699": "Afdelingskategori (valgfri)",
+    "m_02997de9e09d60": "Brugertyper / roller – standardmedlemmer",
+    "m_8dde7f5f579699": "Brugergruppetyper – standardgrupper",
+    "m_ec049efefe3343": "Yderligere individuelle brugere",
+    "m_6ea7e974e821fc": "Yderligere individuelle brugergrupper",
+    "m_c73c6e0076f1ad": "For eksempel kundeservice",
+    "m_cfa69cfd76ca26": "Angiv et afdelingsnavn.",
+    "m_0c44938a138aa6": "Afdeling gemt.",
+    "m_c8a24768419f58": "Tilladelser er skrivebeskyttede.",
+    "m_33071666de0ded": "Kunne ikke indlæse listen",
+    "m_d7ead3cd6cbff6": "Kunne ikke tilføje",
+    "m_272e637b6dd40b": "Det er ikke muligt at sende invitationen igen.",
+    "m_f2db003b7dc3e6": "Skjul tilladelser",
+    "m_c8653c90005f35": "Vis tilladelser",
+    "m_0fe4884bff1c81": "Modal",
+    "m_fd5fb5598dd8f6": "Har aldrig logget ind",
+    "m_4b49e020f08d8e": "Superadministratorers e-mailadresser kan ikke redigeres for at undgå, at konti låses.",
+    "m_2bdeadce179997": "Du kan omdøbe denne superadministrator, men e-mailadressen er låst.",
+    "m_b7e812bec0dfac": "Opdater dit viste navn eller din login-e-mail.",
+    "m_f6655180d4e320": "Omdøb brugeren, eller skift vedkommendes e-mailadresse.",
+    "m_4c66f6639656d2": "Ophæv suspension",
+    "m_232f4ec7b346ef": "Suspendér",
+    "m_2ac360d5cff662": "Invitationsmailen kunne ikke sendes.",
+    "m_a2ee3708083074": "Du kan ikke suspendere dig selv.",
+    "m_24bcbb5e94dc78": "Du kan ikke suspendere en superadministrator.",
+    "m_415424819400a6": "Bruger suspenderet.",
+    "m_5945a7cc27f21a": "Brugers suspension ophævet.",
+    "m_ec6aab12561da3": "Du kan ikke slette dig selv.",
+    "m_d0751bed2963bc": "Du kan ikke slette en superadministrator.",
+    "m_90ca724100109f": "Ingen brugere fundet.",
+    "m_2732f18bba7fc8": "Du kan ikke redigere dine egne tilladelser her.",
+    "m_90ed0c9031712d": "Profilbilledet kunne ikke gemmes.",
+    "m_5e287d278f8b92": "Uventet fejl.",
+    "m_75d641bda100b6": "Kunne ikke indlæse brugere.",
+    "m_4a9f6ad3027f17": "Ukendt fejl",
+    "m_d7226634e4ea42": "Invitationsmail sendt.",
+    "m_e86ab6eb3ff843": "Bruger oprettet, men e-mailen kunne ikke sendes.",
+    "fm_users_owner": "Ejer",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Minimumsbeløbet for automatisk påfyldning er {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Minimum {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Minimum {v3}",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Hvis din saldo kommer under {v0}, tilføjer vi automatisk {v1} på din konto.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Opret afdelinger under Indstillinger → Brugere → Afdelinger.",
+    "m_a089a1a2df79e8": "Gem afdelinger",
+    "m_5147306077d4a3": "Eksisterende afdelinger fra filialer samles her. Når du gemmer, bliver de anvendt som organisationsindstillinger; eksisterende aftaler og forudindstillinger bevares.",
+    "m_86433617637bb9": "+ Opret afdeling",
+    "m_9c29c0605b9630": "Gem afdeling",
+    "m_0a270477a59add": "Nedarvet fra brugerrolle",
+    "m_d934cc2b978d05": "Nedarvet fra gruppetype",
+    "m_967feb25c6cad7": "Standardafdelinger",
+    "m_f5464054424b45": "Gælder for alle medlemmer af denne type, også fremtidige medlemmer.",
+    "m_2ecf878bd727e3": "Direkte tildelinger føjes til standardindstillinger for roller eller gruppetyper. Gem først ændringer af roller/typer for at opdatere nedarvede medlemskaber.",
+    "m_2d4ff8a83b1b5c": "Ingen",
+    "m_b1d5eca65cad81": "Afdelingerne kunne ikke gemmes.",
+    "m_31a18651cb81ee": "Afdelingerne kunne ikke indlæses.",
+    "m_8a36512cbfe084": "Afdelingen kunne ikke gemmes.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# rapport} other {# rapporter}} – I alt: ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Upload profilbillede",
+    "profile_tooltip_1": "Åbn profil",
+    "profile_tooltip_2": "Vælg profilbillede",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Dette er en arkivsletning. Kontoen arkiveres til revisionsformål, og e-mailadressen kan bruges igen til en fremtidig invitation eller tilmelding.",
+    "m_1e50cfd1b66d97": "Valgfrit profilbillede",
+    "m_e2207970d3a42f": "Tilladelsesniveau",
+    "logos_uploading": {
+      "message": "Uploader {count, plural, one {# logo} other {# logoer}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {# logo føjet til dit brandbibliotek.} other {# logoer føjet til dit brandbibliotek.}}",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Vi har justeret værdien til minimumsbeløbet på {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Automatisk saldoopfyldning: {amount}, når saldoen er under {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Automatisk saldoopfyldning: Fra"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Tilføj arbejde",
@@ -8256,7 +8926,21 @@
       "message": "{v0} ulæste &middot; {v1} i alt",
       "format": "icu"
     },
-    "new_report": "Ny rapport"
+    "new_report": "Ny rapport",
+    "m_9a00fb620ffc1d": "Kunne ikke gemme sidepanelets bredde",
+    "m_854ab579641f94": "Agentens samtaler indlæses…",
+    "m_86ec40fa3f9758": "Slå fra",
+    "m_4aaef822b47692": "FirstMate Assistant",
+    "m_c411108185658e": {
+      "message": "{v1} FirstMate Assistant",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "{v2} FirstMate Assistant",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Kunne ikke indlæse faktureringsindstillinger. ",
+    "m_48a9cdd2af44f4": "Prøv igen"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kontor",
@@ -10676,7 +11360,17 @@
     "opening_tab": {
       "message": "Åbner {tab}…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Tilpas rudestørrelse; dobbeltklik for at bytte",
+    "m_eae84bda77b08e": "Luk rude",
+    "m_9c2b801ff31874": "Denne rude er længere tid om at indlæse. Du kan lukke den og prøve igen.",
+    "m_8c11a27c5f0b9c": "Denne fane kunne ikke åbnes. Luk ruden, og prøv igen.",
+    "m_a56b2777161b36": "Projektet indlæses stadig. Du kan lukke dette vindue og prøve igen.",
+    "m_5eced2f9d44623": "Projektet kunne ikke indlæses. Luk dette vindue, og prøv igen.",
+    "m_76619e065f2360": "Placering ved fastgørelse",
+    "m_b46c7db0dc7b5b": "Tilpas rudestørrelse",
+    "m_06b65fee071879": "Vinduesbakker",
+    "m_21ca9dcccf9a04": "Luk bakke"
   },
   "reports": {
     "color": "farve",

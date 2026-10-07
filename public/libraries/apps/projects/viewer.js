@@ -80,9 +80,9 @@
   function buildCoverageRejectionDisclaimer(p) {
     const instantMiss = String(p?.instant_rejection_reason || '').trim().toLowerCase() === 'no_structure_at_pin';
     const noCoverageHtml =
-      `We do not currently have coverage for this address. ` +
-      `We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ` +
-      `We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ` +
+      (globalThis.PlatformLanguage?.text('projects','m_9cf11b8ab925ce',"We do not currently have coverage for this address. ") ?? "We do not currently have coverage for this address. ") +
+      (globalThis.PlatformLanguage?.text('projects','m_93f718cb51bafd',"We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ") ?? "We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ") +
+      (globalThis.PlatformLanguage?.text('projects','m_ea8d59f20b2ea6',"We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ") ?? "We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ") +
       `We apologize for any inconvenience this may have caused.<br><br>` +
       `<strong>${(globalThis.PlatformLanguage?.htmlText("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> Our coverage is based on individual structure, not area - so we may have coverage for other properties in this same neighborhood.`;
     const projectTypeLabel = (() => {
@@ -109,7 +109,7 @@
     } else {
       html = instantMiss
       ? (
-          `We could not generate a FirstMeasure Instant for this pin because the selected point did not land on a structure with accurate instant data. ` +
+          (globalThis.PlatformLanguage?.text('projects','m_c5942837107a76',"We could not generate a FirstMeasure Instant for this pin because the selected point did not land on a structure with accurate instant data. ") ?? "We could not generate a FirstMeasure Instant for this pin because the selected point did not land on a structure with accurate instant data. ") +
           `We currently have about 90% coverage across the US for instant reports, but there are still some places where we do not have accurate enough data for this product.<br><br>` +
           `<strong>${(globalThis.PlatformLanguage?.htmlText("projects","m_f6128467e18fe0","Note:") ?? "Note:")}</strong> This only affects the instant report for this pinned structure. You can still order a standard full report for this property below.`
         )
@@ -119,19 +119,19 @@
     if (!instantMiss && !p?.customer_rejection_message) {
       if (rejectionReason === 'obscured_visibility') {
         html =
-          `We were not able to complete this report because the structure is too obscured in the available imagery. ` +
-          `This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. ` +
-          `We apologize for any inconvenience this may have caused.`;
+          (globalThis.PlatformLanguage?.text('projects','m_214f9a56d321e4',"We were not able to complete this report because the structure is too obscured in the available imagery. ") ?? "We were not able to complete this report because the structure is too obscured in the available imagery. ") +
+          (globalThis.PlatformLanguage?.text('projects','m_9ac5bbd5a7f1d1',"This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. ") ?? "This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. ") +
+          (globalThis.PlatformLanguage?.text('projects','m_d51846aa8dda09',"We apologize for any inconvenience this may have caused.") ?? "We apologize for any inconvenience this may have caused.");
       } else if (rejectionReason === 'invalid_pin_placement') {
         html =
-          `We were not able to complete this report because the selected pin does not appear to be placed on a structure we can measure. ` +
-          `This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. ` +
-          `We apologize for any inconvenience this may have caused.`;
+          (globalThis.PlatformLanguage?.text('projects','m_4edb03027fd308',"We were not able to complete this report because the selected pin does not appear to be placed on a structure we can measure. ") ?? "We were not able to complete this report because the selected pin does not appear to be placed on a structure we can measure. ") +
+          (globalThis.PlatformLanguage?.text('projects','m_17b153d5aa2b45',"This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. ") ?? "This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. ") +
+          (globalThis.PlatformLanguage?.text('projects','m_d51846aa8dda09',"We apologize for any inconvenience this may have caused.") ?? "We apologize for any inconvenience this may have caused.");
       } else if (rejectionReason === 'incorrect_structure_type') {
         html =
-          `We were not able to complete this report because the selected structure does not match the project type that was ordered. ` +
+          (globalThis.PlatformLanguage?.text('projects','m_5978e46f6f29cd',"We were not able to complete this report because the selected structure does not match the project type that was ordered. ") ?? "We were not able to complete this report because the selected structure does not match the project type that was ordered. ") +
           `This order was submitted as a ${escapeHtml(projectTypeLabel)} project, but it appears to require a ${escapeHtml(correctProjectTypeLabel || 'different')} report. ` +
-          `We have reimbursed the original report.`;
+          (globalThis.PlatformLanguage?.text('projects','m_4b5bf19bcf1325',"We have reimbursed the original report.") ?? "We have reimbursed the original report.");
       }
     }
 
@@ -142,7 +142,7 @@
         `</div>`;
     } else if (p && p.refund_pending) {
       html += `<div style="margin:12px 0 0; padding:10px 14px; background:#fff8e1; border:1px solid #f4d58d; border-radius:8px; color:#7a5b00; font-weight:600;">` +
-        `We are returning a credit for this instant order.` +
+        (globalThis.PlatformLanguage?.text('projects','m_0b9e2c765e77b1',"We are returning a credit for this instant order.") ?? "We are returning a credit for this instant order.") +
         `</div>`;
     }
 
@@ -154,7 +154,7 @@
     const type = String(p?.correct_project_type || p?.rejection_correct_project_type || reorder.project_type || '').trim().toLowerCase().replace(/_/g, '-');
     const normalized = type === 'multi-family' ? 'multifamily' : type;
     if (!['commercial', 'multifamily'].includes(normalized)) return '';
-    const label = normalized === 'multifamily' ? 'Multi-family' : 'Commercial';
+    const label = normalized === 'multifamily' ? (globalThis.PlatformLanguage?.text('projects','m_8d52a67caa71a2',"Multi-family") ?? "Multi-family") : (globalThis.PlatformLanguage?.text('projects','m_84e41491611ca9',"Commercial") ?? "Commercial");
     return `<div style="margin-top:14px;"><button type="button" id="vmRejectedReorder" class="v-dlbtn"><i class="fas fa-cart-plus"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_6ba65308b090c7",` Reorder as ${v0}`,{v0}) ?? ` Reorder as ${v0}`)(escapeHtml(label))}</button></div>`;
   }
 
@@ -249,7 +249,7 @@
   function buildCancellationDisclaimer(p){
     const refundedAmount = cancellationRefundAmount(p);
     let html =
-      `This project has been cancelled. No further work will be completed for this request.`;
+      (globalThis.PlatformLanguage?.text('projects','m_6d351fa63793b6',"This project has been cancelled. No further work will be completed for this request.") ?? "This project has been cancelled. No further work will be completed for this request.");
 
     if (refundedAmount > 0) {
       html += `<div style="margin:12px 0 0; padding:10px 14px; background:#e6f4ea; border:1px solid #c8e6c9; border-radius:8px; color:#137333; font-weight:600;">` +
@@ -270,9 +270,9 @@
 
   function customerReworkTypeLabel(value){
     const key = normalizeCustomerReworkType(value);
-    if (key === 'additional_structure') return 'additional structure request';
-    if (key === 'change_correction') return 'change/correction request';
-    return 'rework request';
+    if (key === 'additional_structure') return (globalThis.PlatformLanguage?.text("projects","audit_aed8034faba435","additional structure request") ?? "additional structure request");
+    if (key === 'change_correction') return (globalThis.PlatformLanguage?.text("projects","audit_a65c9f1d26dec1","change/correction request") ?? "change/correction request");
+    return (globalThis.PlatformLanguage?.text("projects","audit_ee9da4f4e90be4","rework request") ?? "rework request");
   }
 
   function latestReportChangeRequest(p){
@@ -1161,10 +1161,10 @@
   let stageSortDir = 'asc';
   let tileStageFilter = 'all';
   const LIST_COLUMNS = [
-    { key:'address', label:(globalThis.PlatformLanguage?.text("projects","m_53d803cdbe9ab1","Address") ?? "Address"), width:'minmax(0,1.7fr)' },
-    { key:'resident', label:(globalThis.PlatformLanguage?.text("projects","m_b9bbb4f486250d","Primary contact") ?? "Primary contact"), width:'minmax(0,1fr)' },
-    { key:'primary_contact_phone', label:(globalThis.PlatformLanguage?.text("projects","m_71b71bf03872e8","Primary contact phone") ?? "Primary contact phone"), width:'minmax(0,1fr)' },
-    { key:'primary_contact_email', label:(globalThis.PlatformLanguage?.text("projects","m_6bc4d56ee2a851","Primary contact email") ?? "Primary contact email"), width:'minmax(0,1fr)' }
+    { key:'address', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_53d803cdbe9ab1","Address") ?? "Address"); }, width:'minmax(0,1.7fr)' },
+    { key:'resident', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_b9bbb4f486250d","Primary contact") ?? "Primary contact"); }, width:'minmax(0,1fr)' },
+    { key:'primary_contact_phone', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_71b71bf03872e8","Primary contact phone") ?? "Primary contact phone"); }, width:'minmax(0,1fr)' },
+    { key:'primary_contact_email', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_6bc4d56ee2a851","Primary contact email") ?? "Primary contact email"); }, width:'minmax(0,1fr)' }
   ];
   const listVisibleColumns = new Set(['address', 'resident']);
   let listColumnsBoardKey = '';
@@ -1175,7 +1175,7 @@
   }
   function availableProjectColumns(){
     const boards = activeWorkBoardId === 'all' ? workBoards : workBoards.filter(board => String(board.id) === activeWorkBoardId);
-    const baseColumns = firstMeasureList() ? [LIST_COLUMNS[0], {key:'status', label:(globalThis.PlatformLanguage?.text("projects","m_ca4bcb012af794","Report status") ?? "Report status"), width:'minmax(0,.8fr)'}, ...LIST_COLUMNS.slice(1)] : LIST_COLUMNS;
+    const baseColumns = firstMeasureList() ? [LIST_COLUMNS[0], {key:'status', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_ca4bcb012af794","Report status") ?? "Report status"); }, width:'minmax(0,.8fr)'}, ...LIST_COLUMNS.slice(1)] : LIST_COLUMNS;
     const columns = new Map(baseColumns.map(column => [column.key, column]));
     for (const board of boards) for (const field of board.fields || []) {
       if (field?.key && !columns.has(field.key)) columns.set(field.key, field);
@@ -1215,7 +1215,7 @@
     if (value == null || value === '') return '\u2014';
     if (Array.isArray(value)) return value.map(columnValueText).join(', ');
     if (typeof value === 'object') return String(value.display_name || value.displayName || value.name || value.label || JSON.stringify(value));
-    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (typeof value === 'boolean') return value ? (globalThis.PlatformLanguage?.text('projects','m_549ccd0e27a3d4',"Yes") ?? "Yes") : (globalThis.PlatformLanguage?.text('projects','m_2f0222913078f4',"No") ?? "No");
     return String(value);
   }
   let fetchProjectsSeq = 0;
@@ -1360,7 +1360,7 @@
       `;
       return;
     }
-    const fallback = 'We could not load the FirstMeasure instant just yet.';
+    const fallback = (globalThis.PlatformLanguage?.text('projects','m_0817ad39e6765a',"We could not load the FirstMeasure instant just yet.") ?? "We could not load the FirstMeasure instant just yet.");
     const text = message || fallback;
     loading.style.display = '';
     loading.classList.toggle('error', !!isError);
@@ -1723,7 +1723,7 @@
     const structures = getInstantStructures(instant);
     if (structures.length <= 1) return [];
     return [
-      { id: 'total', label: (globalThis.PlatformLanguage?.text("projects","m_9403c7637d4905","Total") ?? "Total"), structure: null },
+      { id: 'total', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_9403c7637d4905","Total") ?? "Total"); }, structure: null },
       ...structures.map((structure, index) => ({
         id: `structure:${index}`,
         label: String(structure?.label || String.fromCharCode(65 + index)),
@@ -1791,7 +1791,7 @@
       renderableStructures,
       tabs: getInstantStructureTabList(instant),
       activeStructure,
-      activeLabel: activeStructure?.label ? `Structure ${activeStructure.label}` : 'Total',
+      activeLabel: activeStructure?.label ? ((v0) => globalThis.PlatformLanguage?.text("projects","m_e2943d71f406cb",`Structure ${v0}`,{v0}) ?? `Structure ${v0}`)(activeStructure.label) : (globalThis.PlatformLanguage?.text('projects','m_9403c7637d4905',"Total") ?? "Total"),
       surfaceArea,
       roofSquares,
       pitchRise,
@@ -1801,11 +1801,11 @@
       summaryText: activeScope === 'total'
         ? (
             allStructures.length > 1
-              ? `Included structures: ${totalRenderableCount} of ${allStructures.length} selected.`
-              : 'Combined measurements for the selected structure.'
+              ? ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_3f9fd3f1b22545",`Included structures: ${v0} of ${v1} selected.`,{v0,v1}) ?? `Included structures: ${v0} of ${v1} selected.`)(totalRenderableCount,allStructures.length)
+              : (globalThis.PlatformLanguage?.text('projects','m_e005bd4bc50817',"Combined measurements for the selected structure.") ?? "Combined measurements for the selected structure.")
           )
         : (
-            activeStructure?.center ? `Measurements for Structure ${activeStructure.label || ''}.` : 'Measurements for the selected structure.'
+            activeStructure?.center ? ((v0) => globalThis.PlatformLanguage?.text("projects","m_32b5c10df84f32",`Measurements for Structure ${v0}.`,{v0}) ?? `Measurements for Structure ${v0}.`)(activeStructure.label || '') : (globalThis.PlatformLanguage?.text('projects','m_3e219b59d394f6',"Measurements for the selected structure.") ?? "Measurements for the selected structure.")
           )
     };
   }
@@ -1816,18 +1816,18 @@
     const instantPdfReady = !!instantPdfUrl && instantPdfStatus !== 'failed';
     const instantPdfFailed = !instantPdfReady && instantPdfStatus === 'failed';
     const standardButtonLabel = instantPdfReady
-      ? 'Download Standard Report'
-      : (instantPdfFailed ? 'Retrying Standard Report' : 'Generating Standard Report');
+      ? (globalThis.PlatformLanguage?.text('projects','m_ba6a658fdc23c0',"Download Standard Report") ?? "Download Standard Report")
+      : (instantPdfFailed ? (globalThis.PlatformLanguage?.text('projects','m_f456048437e56e',"Retrying Standard Report") ?? "Retrying Standard Report") : (globalThis.PlatformLanguage?.text('projects','m_d73d69127069a4',"Generating Standard Report") ?? "Generating Standard Report"));
     const customerButtonLabel = instantPdfReady
-      ? 'Download Customer Report'
-      : (instantPdfFailed ? 'Retrying Customer Report' : 'Generating Customer Report');
+      ? (globalThis.PlatformLanguage?.text('projects','m_a44e379d284797',"Download Customer Report") ?? "Download Customer Report")
+      : (instantPdfFailed ? (globalThis.PlatformLanguage?.text('projects','m_a32ef8d751f045',"Retrying Customer Report") ?? "Retrying Customer Report") : (globalThis.PlatformLanguage?.text('projects','m_1198cef22af516',"Generating Customer Report") ?? "Generating Customer Report"));
     const standardButtonText = `<span class="v-instant-actionFullLabel">${String(standardButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span>`;
     const customerButtonText = `<span class="v-instant-actionFullLabel">${String(customerButtonLabel)}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_d7e9bec617183b","Customer Report") ?? "Customer Report")}</span>`;
     const instantPdfButtonIcon = instantPdfReady ? 'fa-file-arrow-down' : 'fa-circle-notch fa-spin';
     const instantPdfDisabled = instantPdfReady ? '' : ' disabled';
     if (!instant) {
       return `
-        <div class="v-instant-metric"><div class="v-instant-k">${String(project?.measurement_system === "metric" ? "Area Range (m²)" : "Square Range")}</div><div class="v-instant-v">-</div></div>
+        <div class="v-instant-metric"><div class="v-instant-k">${String(project?.measurement_system === "metric" ? (globalThis.PlatformLanguage?.htmlText('projects','m_06f3a13fba723d',"Area Range (m²)") ?? "Area Range (m²)") : (globalThis.PlatformLanguage?.htmlText('projects','m_f7d60690e4780f',"Square Range") ?? "Square Range"))}</div><div class="v-instant-v">-</div></div>
         <div class="v-instant-metric"><div class="v-instant-k">${(globalThis.PlatformLanguage?.htmlText("projects","m_e6d66a2503e9d0","Pitch") ?? "Pitch")}</div><div class="v-instant-v">-</div></div>
         <div class="v-instant-actionStack">
           <button type="button" id="vmInstantStandardBtn" class="v-instant-action" disabled><i class="fas fa-circle-notch fa-spin"></i> <span class="v-instant-actionFullLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_d73d69127069a4","Generating Standard Report") ?? "Generating Standard Report")}</span><span class="v-instant-actionMobileLabel">${(globalThis.PlatformLanguage?.htmlText("projects","m_17d9acd28469f8","Standard Report") ?? "Standard Report")}</span></button>
@@ -1851,7 +1851,7 @@
                 type="button"
                 class="v-instant-tab${isActive ? ' active' : ''}${muted ? ' muted' : ''}"
                 data-instant-scope="${escapeHtml(tab.id)}"
-              >${escapeHtml(tab.id === 'total' ? 'Total' : tab.label)}</button>
+              >${escapeHtml(tab.id === 'total' ? (globalThis.PlatformLanguage?.text('projects','m_9403c7637d4905',"Total") ?? "Total") : tab.label)}</button>
             `;
           }).join('')}
         </div>
@@ -1860,7 +1860,7 @@
     let coverageNote = '';
     let missingStructureMarkup = '';
     if (metrics.coverageMissing) {
-      const structureName = metrics.activeStructure?.label ? `Structure ${metrics.activeStructure.label}` : 'This structure';
+      const structureName = metrics.activeStructure?.label ? ((v0) => globalThis.PlatformLanguage?.text("projects","m_e2943d71f406cb",`Structure ${v0}`,{v0}) ?? `Structure ${v0}`)(metrics.activeStructure.label) : (globalThis.PlatformLanguage?.text('projects','m_7456bdb3003d3a',"This structure") ?? "This structure");
       const structureRefundAmount = Number.isFinite(Number(metrics.activeStructure?.refund_amount))
         ? Number(metrics.activeStructure.refund_amount)
         : null;
@@ -1868,11 +1868,11 @@
       const refundText = structureRefundAmount != null
         ? (
             refundState === 'issued'
-              ? `The $${structureRefundAmount} cost for this structure has been refunded.`
+              ? ((v0) => globalThis.PlatformLanguage?.text("projects","m_88b04dd67f223f",`The $${v0} cost for this structure has been refunded.`,{v0}) ?? `The $${v0} cost for this structure has been refunded.`)(structureRefundAmount)
             : refundState === 'pending'
-                ? `The $${structureRefundAmount} cost for this structure is being refunded.`
+                ? ((v0) => globalThis.PlatformLanguage?.text("projects","m_7467f0a0facd26",`The $${v0} cost for this structure is being refunded.`,{v0}) ?? `The $${v0} cost for this structure is being refunded.`)(structureRefundAmount)
                 : metrics.activeStructure?.refund_eligible
-                  ? `The $${structureRefundAmount} cost for this structure has been removed from instant billing.`
+                  ? ((v0) => globalThis.PlatformLanguage?.text("projects","m_65d5a4887d8b10",`The $${v0} cost for this structure has been removed from instant billing.`,{v0}) ?? `The $${v0} cost for this structure has been removed from instant billing.`)(structureRefundAmount)
                   : ''
           )
         : '';
@@ -1888,20 +1888,19 @@
       const refundText = missingRefundAmount != null
         ? (
             refundState === 'issued'
-              ? ` A $${missingRefundAmount} credit has been refunded.`
+              ? (globalThis.PlatformLanguage?.text('projects','instant_refund_issued',' A {amount} credit has been refunded.',{amount:window.PlatformCommerce.credit(missingRefundAmount)}) ?? ` A ${missingRefundAmount} credit has been refunded.`)
               : refundState === 'pending'
-                ? ` A $${missingRefundAmount} credit is being returned.`
+                ? (globalThis.PlatformLanguage?.text('projects','instant_refund_pending',' A {amount} credit is being returned.',{amount:window.PlatformCommerce.credit(missingRefundAmount)}) ?? ` A ${missingRefundAmount} credit is being returned.`)
                 : ''
           )
         : '';
-      const noun = missingStructureCount === 1 ? 'structure was' : 'structures were';
-      coverageNote = `<div class="v-instant-coverageNote">${escapeHtml(`${missingStructureCount} selected ${noun} excluded because no usable instant data was available.${refundText}`)}</div>`;
+      coverageNote = `<div class="v-instant-coverageNote">${globalThis.PlatformLanguage?.htmlText('projects','instant_coverage_excluded','{count, plural, one {# selected structure was excluded because no usable instant data was available.} other {# selected structures were excluded because no usable instant data was available.}}{refund}',{count:missingStructureCount,refund:refundText}) ?? escapeHtml(`${missingStructureCount} selected structures were excluded because no usable instant data was available.${refundText}`)}</div>`;
     }
     return `
       ${tabsMarkup}
       ${metrics.coverageMissing ? missingStructureMarkup : `
         <div class="v-instant-metric">
-          <div class="v-instant-k">${String(project?.measurement_system === "metric" ? "Area Range (m²)" : "Square Range")}</div>
+          <div class="v-instant-k">${String(project?.measurement_system === "metric" ? (globalThis.PlatformLanguage?.htmlText('projects','m_06f3a13fba723d',"Area Range (m²)") ?? "Area Range (m²)") : (globalThis.PlatformLanguage?.htmlText('projects','m_f7d60690e4780f',"Square Range") ?? "Square Range"))}</div>
           <div class="v-instant-v">${String(escapeHtml(formatRoofingSquareRange(metrics.roofSquares, project)))}</div>
         </div>
         <div class="v-instant-metric">
@@ -1973,8 +1972,8 @@
         file_name: 'Instant Report - Standard.pdf'
       }),
       'standard',
-      'Preparing Standard Report',
-      'Could not download the standard instant report.'
+      (globalThis.PlatformLanguage?.text('projects','m_dacaa66449659d',"Preparing Standard Report") ?? "Preparing Standard Report"),
+      (globalThis.PlatformLanguage?.text('projects','m_f3cacef590576b',"Could not download the standard instant report.") ?? "Could not download the standard instant report.")
     );
     runDownload(
       instantCustomerBtn,
@@ -1983,7 +1982,7 @@
           ? instantStandaloneCustomerSave
           : currentModalCustomerSave;
         if (typeof saveCustomer !== 'function') {
-          throw new Error('Contact info is not available yet.');
+          throw new Error((globalThis.PlatformLanguage?.text('projects','m_6783ae5a616a3f',"Contact info is not available yet.") ?? "Contact info is not available yet."));
         }
         const saveResult = await saveCustomer({
           silentSuccess: true,
@@ -1999,8 +1998,8 @@
         };
       },
       'customer',
-      'Preparing Customer Report',
-      'Could not download the customer instant report.'
+      (globalThis.PlatformLanguage?.text('projects','m_6f94190df36af9',"Preparing Customer Report") ?? "Preparing Customer Report"),
+      (globalThis.PlatformLanguage?.text('projects','m_2a9462b7fdff9d',"Could not download the customer instant report.") ?? "Could not download the customer instant report.")
     );
   }
 
@@ -2103,7 +2102,7 @@
 
   async function fetchInstantArrayBuffer(url){
     const response = await fetch(url, { cache: 'no-store', credentials: 'same-origin' });
-    if (!response.ok) throw new Error(`Instant asset failed to load (${response.status}).`);
+    if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("projects","m_a2eca9b5ebb5dc",`Instant asset failed to load (${v0}).`,{v0}) ?? `Instant asset failed to load (${v0}).`)(response.status));
     return response.arrayBuffer();
   }
 
@@ -2698,13 +2697,13 @@
     const heightUrl = String(assets.height_map_url || '').trim();
     const maskUrl = String(assets.mask_url || '').trim();
     if (!rgbUrl || !heightUrl || !maskUrl) {
-      throw new Error('Instant image assets are not ready yet.');
+      throw new Error((globalThis.PlatformLanguage?.text('projects','m_5a0f6b2de100f2',"Instant image assets are not ready yet.") ?? "Instant image assets are not ready yet."));
     }
 
     const heightImage = await openInstantGeoTiff(heightUrl);
     const maskImage = await openInstantGeoTiff(maskUrl);
     if (!heightImage || !maskImage) {
-      throw new Error('Instant model files are not ready yet.');
+      throw new Error((globalThis.PlatformLanguage?.text('projects','m_a2decb63023f36',"Instant model files are not ready yet.") ?? "Instant model files are not ready yet."));
     }
 
     const cropBounds = getInstantCropBounds(instant);
@@ -2716,7 +2715,7 @@
       readInstantRgbCanvas(await openInstantGeoTiff(rgbUrl), pixelWindow, null)
     ]);
     if (!heightRasterFull || !maskRasterFull || !rgbCanvasData?.canvas) {
-      throw new Error('Instant model files are not ready yet.');
+      throw new Error((globalThis.PlatformLanguage?.text('projects','m_a2decb63023f36',"Instant model files are not ready yet.") ?? "Instant model files are not ready yet."));
     }
 
     const heightRaster = downsampleInstantBand(heightRasterFull.data, heightRasterFull.width, heightRasterFull.height, sampleDims);
@@ -3150,7 +3149,7 @@
   async function startInstantScene(instant, projectKey, sceneSignature){
     cancelInstantWork();
     if (!ensureInstant3DLibs()) {
-      throw new Error('3D model dependencies are unavailable.');
+      throw new Error((globalThis.PlatformLanguage?.text("projects","audit_1c376a7fd9b2d3","3D model dependencies are unavailable.") ?? "3D model dependencies are unavailable."));
     }
 
     const { canvas, labels, autoBtn, resetBtn, zoomSlider, pitchBtn, pane } = instantEls();
@@ -3488,7 +3487,7 @@
       }
     } else {
       if (statusEl) {
-        statusEl.textContent = projectReportMode(project) === 'both' ? 'FULL REPORT PROCESSING' : 'INSTANT REPORT';
+        statusEl.textContent = projectReportMode(project) === 'both' ? (globalThis.PlatformLanguage?.text("projects","audit_325cb33dd4a5d6","FULL REPORT PROCESSING") ?? "FULL REPORT PROCESSING") : (globalThis.PlatformLanguage?.text("projects","audit_e0507c184559a7","INSTANT REPORT") ?? "INSTANT REPORT");
         statusEl.style.color = '#8ab4f8';
       }
       if (loading) {
@@ -3508,7 +3507,7 @@
     const id = firstMeasureProjectId(project);
     const path = getInstantPath(project);
     if (!id || !path || !fmJson) {
-      showInstantPane(project, 'Instant preview is unavailable for this project.', true);
+      showInstantPane(project, (globalThis.PlatformLanguage?.text('projects','m_46f6cf08f0ef61',"Instant preview is unavailable for this project.") ?? "Instant preview is unavailable for this project."), true);
       return;
     }
     const cacheKey = `${project?.instant_only ? 'instant' : 'project'}:${id}`;
@@ -3555,7 +3554,7 @@
         )
       );
       if (!renderedCached) {
-        showInstantPane(project, shouldRetry ? null : 'We could not load the FirstMeasure instant just yet.', !shouldRetry);
+        showInstantPane(project, shouldRetry ? null : (globalThis.PlatformLanguage?.text('projects','m_0817ad39e6765a',"We could not load the FirstMeasure instant just yet.") ?? "We could not load the FirstMeasure instant just yet."), !shouldRetry);
       }
       if (shouldRetry) {
         scheduleInstantRetry(project, nonce, attempt);
@@ -3664,7 +3663,7 @@
     const result = await postAction('queue', payload);
     const data = result?.data || null;
     if (!result?.res?.ok || !data?.success) {
-      throw new Error(String(data?.error || 'Unable to order the standard report.'));
+      throw new Error(String(data?.error || (globalThis.PlatformLanguage?.text('projects','m_edb27a9262e77e',"Unable to order the standard report.") ?? "Unable to order the standard report.")));
     }
     const linkedFullProject = normalizeProjectRecord(data?.project || data?.manifest || {});
     const submittedResident = {
@@ -3703,7 +3702,7 @@
     if (config.showInfo) {
       tabItems.push({
         id: 'info',
-        label: (globalThis.PlatformLanguage?.text("projects","m_e3530bc541f8e4","Info") ?? "Info"),
+        get label(){ return (globalThis.PlatformLanguage?.text("projects","m_e3530bc541f8e4","Info") ?? "Info"); },
         icon: 'fa-circle-info',
         buttonId: 'vmTabInfo',
         className: 'is-info-tab',
@@ -3713,7 +3712,7 @@
     if (config.showMap) {
       tabItems.push({
         id: 'map',
-        label: (globalThis.PlatformLanguage?.text("projects","m_9afd0eccc8e530","Map") ?? "Map"),
+        get label(){ return (globalThis.PlatformLanguage?.text("projects","m_9afd0eccc8e530","Map") ?? "Map"); },
         icon: 'fa-map-location-dot',
         buttonId: 'vmTabMap',
         active: config.activeMainTab === 'map'
@@ -3722,7 +3721,7 @@
     if (config.showMeasurements) {
       tabItems.push({
         id: 'measurements',
-        label: (globalThis.PlatformLanguage?.text("projects","m_ae873abaa56707","Measurements") ?? "Measurements"),
+        get label(){ return (globalThis.PlatformLanguage?.text("projects","m_ae873abaa56707","Measurements") ?? "Measurements"); },
         icon: 'fa-ruler-combined',
         buttonId: 'vmTabMeasurements',
         active: config.activeMainTab === 'measurements'
@@ -3779,9 +3778,9 @@
   function normalizeStr(s){ return String(s||'').trim().toLowerCase(); }
 
   const PROJECT_TYPE_META = {
-    residential:  { label:(globalThis.PlatformLanguage?.text("projects","m_aaf397f737f7b1","Residential") ?? "Residential"), short:'RES',  icon:'fa-house',     color:'#666', cls:'v-type-res' },
-    commercial:   { label:(globalThis.PlatformLanguage?.text("projects","m_84e41491611ca9","Commercial") ?? "Commercial"),  short:'COM',  icon:'fa-building',  color:'#666', cls:'v-type-com' },
-    multifamily:  { label:(globalThis.PlatformLanguage?.text("projects","m_fcd3013fb39a97","Multifamily") ?? "Multifamily"), short:'MF',   icon:'fa-buildings', color:'#666', cls:'v-type-mf' },
+    residential:  { get label(){ return (globalThis.PlatformLanguage?.text("projects","m_aaf397f737f7b1","Residential") ?? "Residential"); }, short:'RES',  icon:'fa-house',     color:'#666', cls:'v-type-res' },
+    commercial:   { get label(){ return (globalThis.PlatformLanguage?.text("projects","m_84e41491611ca9","Commercial") ?? "Commercial"); },  short:'COM',  icon:'fa-building',  color:'#666', cls:'v-type-com' },
+    multifamily:  { get label(){ return (globalThis.PlatformLanguage?.text("projects","m_fcd3013fb39a97","Multifamily") ?? "Multifamily"); }, short:'MF',   icon:'fa-buildings', color:'#666', cls:'v-type-mf' },
   };
   /* Work projection helpers — project stage/lifecycle now come from the denormalized
      `work_projection` the backend writes on every project document. */
@@ -3801,22 +3800,23 @@
   }
   function projectLifecycleLabel(p){
     const status = String(projectLifecycle(p).status || '').trim().toLowerCase();
-    if (status === 'lost') return 'Lost';
-    if (status === 'completed') return 'Completed';
-    if (status === 'canceled' || status === 'cancelled') return 'Cancelled';
-    return 'Unassigned';
+    if (status === 'lost') return (globalThis.PlatformLanguage?.text('projects','m_235d86f4916a45',"Lost") ?? "Lost");
+    if (status === 'completed') return (globalThis.PlatformLanguage?.text('projects','m_3c4d2141b2fa1c',"Completed") ?? "Completed");
+    if (status === 'canceled' || status === 'cancelled') return (globalThis.PlatformLanguage?.text('projects','m_9863f11d60b2fa',"Cancelled") ?? "Cancelled");
+    return (globalThis.PlatformLanguage?.text('projects','m_8a993ed9b573b4',"Unassigned") ?? "Unassigned");
   }
   function primaryProjectInstance(p){
     const instances = projectActiveInstances(p);
     return instances.find((instance) => instance.kind === 'pipeline') || instances[0] || null;
   }
   function instanceStageLabel(instance){
-    return firstNonEmptyString(instance?.stage_title, instance?.title) || 'In Progress';
+    return firstNonEmptyString(instance?.stage_title, instance?.title) || (globalThis.PlatformLanguage?.text('projects','m_1b6ec15cbd198b',"In Progress") ?? "In Progress");
   }
   function instanceStageColor(instance){
     return firstNonEmptyString(instance?.stage_color, instance?.color) || '#667085';
   }
   function stageChipsHtml(p){
+    if (!projectBoardsEnabled()) return '';
     const instances = projectActiveInstances(p);
     if (instances.length){
       return instances.map((instance) => `<span class="v-meta-tag v-meta-tag-stage" style="--stage-color:${escapeHtml(instanceStageColor(instance))}">${escapeHtml(instanceStageLabel(instance))}</span>`).join('');
@@ -4328,7 +4328,7 @@
         openModal(project);
       } catch (error) {
         setUpgradeSubmitState(false, project);
-        window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_be1a6bd83137b5","Order issue") ?? "Order issue"), error?.message || 'Unable to order the standard report.', false);
+        window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_be1a6bd83137b5","Order issue") ?? "Order issue"), error?.message || (globalThis.PlatformLanguage?.text('projects','m_edb27a9262e77e',"Unable to order the standard report.") ?? "Unable to order the standard report."), false);
       }
     });
     residentName?.focus();
@@ -4632,7 +4632,7 @@
   }
   function fullReportPriceHtml(p, includeGutters){
     const quote = fullReportQuoteWithGutters(p, includeGutters);
-    if (!quote.active) return `$${fmtMoney(quote.final_amount)}`;
+    if (!quote.active) return ((v0) => globalThis.PlatformLanguage?.text("projects","m_dd20c3cdc226b7",`$${v0}`,{v0}) ?? `$${v0}`)(fmtMoney(quote.final_amount));
     return `<s>$${fmtMoney(quote.original_amount)}</s>$${fmtMoney(quote.final_amount)}`;
   }
   function fullReportBasePrice(p){
@@ -4656,10 +4656,10 @@
   }
   function projectScopeLabel(p){
     const delivery = projectReportMode(p);
-    const scope = projectIncludesGutters(p) ? 'Roof + Gutters' : 'Roof Only';
-    if (delivery === 'instant') return 'Instant';
-    if (delivery === 'both') return `Both - ${scope}`;
-    return `Standard - ${scope}`;
+    const scope = projectIncludesGutters(p) ? (globalThis.PlatformLanguage?.text('projects','m_bf38bfda2125d1',"Roof + Gutters") ?? "Roof + Gutters") : (globalThis.PlatformLanguage?.text('projects','m_d2a894582092f8',"Roof Only") ?? "Roof Only");
+    if (delivery === 'instant') return (globalThis.PlatformLanguage?.text('projects','m_b347d50e8516d3',"Instant") ?? "Instant");
+    if (delivery === 'both') return ((v0) => globalThis.PlatformLanguage?.text("projects","m_3f723bd3e62c0a",`Both - ${v0}`,{v0}) ?? `Both - ${v0}`)(scope);
+    return ((v0) => globalThis.PlatformLanguage?.text("projects","m_5620f285aec9d3",`Standard - ${v0}`,{v0}) ?? `Standard - ${v0}`)(scope);
   }
   function projectSupportsInstant(p){
     const mode = projectReportMode(p);
@@ -4780,15 +4780,15 @@
     return 'processing';
   }
   function statusLabel(p){
-    if (activeCustomerReworkMeta(p).active && hasCustomerVisibleReport(p)) return 'Changes Pending';
+    if (activeCustomerReworkMeta(p).active && hasCustomerVisibleReport(p)) return (globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending");
     const g = projectStatusGroup(p);
-    if (g === 'rejected') return 'Rejected';
-    if (g === 'cancelled') return 'Cancelled';
-    if (g === 'ready') return 'Ready';
-    if (g === 'queued') return 'Processing';
-    if (g === 'draft') return 'Draft';
-    if (g === 'project') return 'Project';
-    return 'Processing';
+    if (g === 'rejected') return (globalThis.PlatformLanguage?.text("projects","m_61023422d0cb5d","Rejected") ?? "Rejected");
+    if (g === 'cancelled') return (globalThis.PlatformLanguage?.text("projects","m_9863f11d60b2fa","Cancelled") ?? "Cancelled");
+    if (g === 'ready') return (globalThis.PlatformLanguage?.text("projects","m_d0dd61f9c0e1d2","Ready") ?? "Ready");
+    if (g === 'queued') return (globalThis.PlatformLanguage?.text("projects","m_7244c568a68bff","Processing") ?? "Processing");
+    if (g === 'draft') return (globalThis.PlatformLanguage?.text("projects","m_9ce407c87de615","Draft") ?? "Draft");
+    if (g === 'project') return (globalThis.PlatformLanguage?.text("projects","m_aaebd7ccba0b30","Project") ?? "Project");
+    return (globalThis.PlatformLanguage?.text("projects","m_7244c568a68bff","Processing") ?? "Processing");
   }
   function projectIsExpedited(p){
     const measurement = (p?.measurement_project && typeof p.measurement_project === 'object') ? p.measurement_project : ((p?.measurement && typeof p.measurement === 'object') ? p.measurement : {});
@@ -4796,15 +4796,15 @@
     return !!(p?.is_expedited || measurement?.is_expedited || ['rush_1_3','rush_under_1','rush_2_3','rush_1_2','rush_1_1_5'].includes(key));
   }
   function statusBadgeClasses(p){
-    if (activeCustomerReworkMeta(p).active && hasCustomerVisibleReport(p)) return { cls:'b-pending', txt:'Changes Pending', pill:'sp-pending' };
+    if (activeCustomerReworkMeta(p).active && hasCustomerVisibleReport(p)) return { cls:'b-pending', txt:(globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"), pill:'sp-pending' };
     const g = projectStatusGroup(p);
-    if (g === 'rejected') return { cls:'b-rej', txt:'Rejected', pill:'sp-rej' };
-    if (g === 'cancelled') return { cls:'b-cancel', txt:'Cancelled', pill:'sp-cancel' };
-    if (g === 'ready') return { cls:'b-ready', txt:'Ready', pill:'sp-ready' };
-    if (g === 'queued') return { cls:'b-pending', txt:'Processing', pill:'sp-pending' };
-    if (g === 'draft') return { cls:'b-draft', txt:'Draft', pill:'sp-draft' };
+    if (g === 'rejected') return { cls:'b-rej', txt:(globalThis.PlatformLanguage?.text("projects","m_61023422d0cb5d","Rejected") ?? "Rejected"), pill:'sp-rej' };
+    if (g === 'cancelled') return { cls:'b-cancel', txt:(globalThis.PlatformLanguage?.text("projects","m_9863f11d60b2fa","Cancelled") ?? "Cancelled"), pill:'sp-cancel' };
+    if (g === 'ready') return { cls:'b-ready', txt:(globalThis.PlatformLanguage?.text("projects","m_d0dd61f9c0e1d2","Ready") ?? "Ready"), pill:'sp-ready' };
+    if (g === 'queued') return { cls:'b-pending', txt:(globalThis.PlatformLanguage?.text("projects","m_7244c568a68bff","Processing") ?? "Processing"), pill:'sp-pending' };
+    if (g === 'draft') return { cls:'b-draft', txt:(globalThis.PlatformLanguage?.text("projects","m_9ce407c87de615","Draft") ?? "Draft"), pill:'sp-draft' };
     if (g === 'project') return null;
-    return { cls:'b-pending', txt: 'Processing', pill:'sp-pending', html: projectIsExpedited(p) };
+    return { cls:'b-pending', txt: (globalThis.PlatformLanguage?.text("projects","m_7244c568a68bff","Processing") ?? "Processing"), pill:'sp-pending', html: projectIsExpedited(p) };
   }
   function statusBadgeContent(s, upper = false){
     if (!s) return '';
@@ -4852,7 +4852,7 @@
     p = normalizeProjectRecord(p);
     const id = String(p.id);
     const resident = resolveResidentFields(p);
-    const name = resident.name || p.customer_name || p.primary_contact_name || p.title || displayAddressLine1(p) || 'Project';
+    const name = resident.name || p.customer_name || p.primary_contact_name || p.title || displayAddressLine1(p) || (globalThis.PlatformLanguage?.text("projects","m_aaebd7ccba0b30","Project") ?? "Project");
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'v-stage-card';
@@ -4966,7 +4966,7 @@
       }
       window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_1bdd4e384f01a8","Stage updated") ?? "Stage updated"), ((v0) => globalThis.PlatformLanguage?.text("projects","m_cc6d8119258484",`Project moved to ${v0}.`,{v0}) ?? `Project moved to ${v0}.`)(target.title || 'the selected stage'), true);
     } catch (error) {
-      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_1bc89b9afda475","Stage not changed") ?? "Stage not changed"), error?.message || 'The project could not be moved.', false);
+      window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_1bc89b9afda475","Stage not changed") ?? "Stage not changed"), error?.message || (globalThis.PlatformLanguage?.text('projects','m_de8450bc1dc243',"The project could not be moved.") ?? "The project could not be moved."), false);
     } finally {
       manualStageMoveInFlight = false;
       await loadWorkBoards({ refresh:true });
@@ -5176,12 +5176,12 @@
       switcher.querySelectorAll('.v-mobile-stage-option').forEach((option) => {
         option.addEventListener('click', () => applySelection(option.dataset.stage));
         option.addEventListener('keydown', (event) => {
-          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
           const options = Array.from(switcher.querySelectorAll('.v-mobile-stage-option'));
           const current = options.indexOf(option);
-          const next = event.key === 'Home' ? 0
-            : event.key === 'End' ? options.length - 1
-              : (current + (event.key === 'ArrowRight' ? 1 : -1) + options.length) % options.length;
+          const next = event.key === "Home" ? 0
+            : event.key === "End" ? options.length - 1
+              : (current + (event.key === "ArrowRight" ? 1 : -1) + options.length) % options.length;
           event.preventDefault();
           applySelection(options[next]?.dataset.stage, { focus:true });
         });
@@ -5222,7 +5222,7 @@
         summary.classList.add('visible');
         const summarySignature = JSON.stringify([viewMode, activeWorkBoardId, selected?.title || '', selected?.color || '', boardsByUsage.map((item) => [item.id, item.title, item.color, workBoardProjectCount(item)])]);
         if (summary.__boardSignature !== summarySignature) {
-          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(activeWorkBoardId === 'all' ? 'All boards' : (selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"))))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
+          summary.innerHTML = `<button type="button" class="v-board-trigger" id="vWorkBoardTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="vWorkBoardMenu"><span class="v-board-trigger-label">${String(escapeHtml(activeWorkBoardId === 'all' ? (globalThis.PlatformLanguage?.text('projects','m_b66bef8d909043',"All boards") ?? "All boards") : (selected?.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"))))}</span><span class="v-board-trigger-icon" aria-hidden="true"><i class="fas fa-chevron-down"></i></span></button><div class="v-board-menu" id="vWorkBoardMenu" role="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_3588ddc91fd436","Switch work board") ?? "Switch work board")}" hidden>${String(workBoardMenuHtml(boardsByUsage, activeWorkBoardId))}</div>`;
           summary.__boardSignature = summarySignature;
           const trigger = $('#vWorkBoardTrigger', panelEl);
           const menu = $('#vWorkBoardMenu', panelEl);
@@ -5233,7 +5233,7 @@
           const openMenu = () => { if (!menu) return; menu.hidden = false; trigger?.setAttribute('aria-expanded', 'true'); };
           trigger?.addEventListener('click', () => menu?.hidden ? openMenu() : closeMenu());
           trigger?.addEventListener('keydown', (event) => {
-            if (!['ArrowDown', 'Enter', ' '].includes(event.key)) return;
+            if (!["ArrowDown", "Enter", ' '].includes(event.key)) return;
             event.preventDefault();
             openMenu();
             (visibleOptions().find((option) => option.classList.contains('active')) || visibleOptions()[0] || unusedToggle)?.focus();
@@ -5249,12 +5249,12 @@
           }));
           summary.__closeBoardMenu = closeMenu;
           summary.onkeydown = (event) => {
-            if (event.key === 'Escape') { closeMenu(); trigger?.focus(); return; }
-            if (!['ArrowDown', 'ArrowUp'].includes(event.key) || menu?.hidden) return;
+            if (event.key === "Escape") { closeMenu(); trigger?.focus(); return; }
+            if (!["ArrowDown", "ArrowUp"].includes(event.key) || menu?.hidden) return;
             const options = visibleOptions();
             if (!options.length) return;
             const current = options.indexOf(document.activeElement);
-            const next = event.key === 'ArrowDown' ? (current + 1) % options.length : (current <= 0 ? options.length - 1 : current - 1);
+            const next = event.key === "ArrowDown" ? (current + 1) % options.length : (current <= 0 ? options.length - 1 : current - 1);
             event.preventDefault();
             options[next]?.focus();
           };
@@ -5568,11 +5568,11 @@
       return;
     }
     const sort=getActiveSort();
-    const sortColumns = viewMode === 'stages' ? availableProjectColumns() : [{key:'created_at',label:(globalThis.PlatformLanguage?.text("projects","m_db1fe336bd1deb","Project created date") ?? "Project created date")}, ...LIST_COLUMNS];
-    const sorting=`<label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_a4101be3c706f6","Order by") ?? "Order by")}<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_82049078ca088b","Switch sort direction") ?? "Switch sort direction")}"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
+    const sortColumns = viewMode === 'stages' ? availableProjectColumns() : [{key:'created_at',get label(){ return (globalThis.PlatformLanguage?.text("projects","m_db1fe336bd1deb","Project created date") ?? "Project created date"); }}, ...LIST_COLUMNS];
+    const sorting=`<label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_a4101be3c706f6","Order by") ?? "Order by")}<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_82049078ca088b","Switch sort direction") ?? "Switch sort direction")}"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?(globalThis.PlatformLanguage?.htmlText('projects','m_2a925f101cbd18',"Ascending") ?? "Ascending"):(globalThis.PlatformLanguage?.htmlText('projects','m_760cf1fac61b3d',"Descending") ?? "Descending")}</span></button>`;
     const stages=tileStageOptions();
     const filtering=viewMode==='tiles' ? `<label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_43f2c4d59757a1","Stage") ?? "Stage")}<select id="vManageStageFilter"><option value="all">${(globalThis.PlatformLanguage?.htmlText("projects","m_529b6356416c11","All stages") ?? "All stages")}</option>${Array.from(stages,([id,title])=>`<option value="${escapeHtml(id)}" ${tileStageFilter===id?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>` : '';
-    panel.innerHTML=`<div class="v-manage-title">${((v0) => globalThis.PlatformLanguage?.text("projects","m_da6a380b934274",`${v0} view`,{v0}) ?? `${v0} view`)(viewMode==='stages'?'Stages':'Tiles')}</div>${filtering}${sorting}${sharingFields}${viewMode==='stages' && projectSharingView()?.incoming.length?'<div class="v-manage-note">Stages show our workflow. To browse received projects, select only Projects shared with us.</div>':''}`;
+    panel.innerHTML=`<div class="v-manage-title">${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_da6a380b934274",`${v0} view`,{v0}) ?? `${v0} view`)(viewMode==='stages'?(globalThis.PlatformLanguage?.htmlText('projects','m_aac16f05678935',"Stages") ?? "Stages"):(globalThis.PlatformLanguage?.htmlText('projects','m_3221d12ca792a6',"Tiles") ?? "Tiles"))}</div>${filtering}${sorting}${sharingFields}${viewMode==='stages' && projectSharingView()?.incoming.length?`<div class="v-manage-note">${(globalThis.PlatformLanguage?.htmlText("projects","m_ea9c70855946ea","Stages show our workflow. To browse received projects, select only Projects shared with us.") ?? "Stages show our workflow. To browse received projects, select only Projects shared with us.")}</div>`:''}`;
   }
   function updateViewControls(){
     const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
@@ -5627,7 +5627,7 @@
     const key=$('#vManageSortKey',panelEl);
     if (key) key.value=s.key;
     const direction=$('#vManageSortDirection',panelEl);
-    if (direction) direction.innerHTML=`<i class="fas fa-arrow-${s.dir==='asc'?'up':'down'}"></i><span>${s.dir==='asc'?'Ascending':'Descending'}</span>`;
+    if (direction) direction.innerHTML=`<i class="fas fa-arrow-${s.dir==='asc'?'up':'down'}"></i><span>${s.dir==='asc'?(globalThis.PlatformLanguage?.htmlText('projects','m_2a925f101cbd18',"Ascending") ?? "Ascending"):(globalThis.PlatformLanguage?.htmlText('projects','m_760cf1fac61b3d',"Descending") ?? "Descending")}</span>`;
   }
   function injectSidebarLogout(){
     const footer = document.querySelector('.sidebar-footer');
@@ -5686,10 +5686,10 @@
     element.className = list ? 'v-lrow' : 'v-tile'; element.dataset.id=p.id;
     element.tabIndex=0; element.setAttribute('role','button');
     const name=escapeHtml(p.address), badge=projectSharingView().badge(p);
-    element.setAttribute('aria-label', ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_9b0cf483ee4377",`Open ${v0}, shared by ${v1}`,{v0,v1}) ?? `Open ${v0}, shared by ${v1}`)(p.address,p._shared.owner?.name || 'partner organization'));
+    element.setAttribute('aria-label', ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_9b0cf483ee4377",`Open ${v0}, shared by ${v1}`,{v0,v1}) ?? `Open ${v0}, shared by ${v1}`)(p.address,p._shared.owner?.name || (globalThis.PlatformLanguage?.text("projects","audit_b06d7c41ed06c8","partner organization") ?? "partner organization")));
     element.innerHTML = list ? availableProjectColumns().filter(c=>listVisibleColumns.has(c.key)).map(c=>`<div class="v-lcell" data-col="${escapeHtml(c.key)}">${c.key==='address'?`<div class="v-laddr"><div class="v-laddr1">${name}</div>${badge}</div>`:'—'}</div>`).join('') : `<div class="v-thumb fm-shared-project-thumb"><i class="fas fa-building" aria-hidden="true"></i></div><div class="v-body"><div class="v-addr">${name}</div>${badge}<div class="v-foot"><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_db7bc4ec19e30d","Shared project") ?? "Shared project")}</span><span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
     const open=()=>window.FirstMateSharedList.open(p._shared);
-    element.onclick=open; element.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}};
+    element.onclick=open; element.onkeydown=e=>{if(e.key==="Enter"||e.key===' '){e.preventDefault();open();}};
     return element;
   }
   function createTile(p){
@@ -5709,7 +5709,7 @@
     const typeBadge = (tm !== PROJECT_TYPE_META.residential) ? `<div class="v-type-badge ${tm.cls}${deliveryBadge ? '' : ' no-delivery'}"><i class="fas ${tm.icon}"></i> ${escapeHtml(tm.short)}</div>` : '';
     const statusBadge = s ? `<div class="v-badge ${s.cls}">${statusBadgeContent(s)}</div>` : '';
     const contact = resolveResidentFields(p);
-    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || 'N/A'))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
+    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided')))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
     div.querySelector('.v-body')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
@@ -6278,7 +6278,7 @@
   }
   async function flashCustomerSaveButton(button, text, durationMs){
     if (!button) return;
-    button.textContent = text || 'Saved';
+    button.textContent = text || (globalThis.PlatformLanguage?.text('projects','m_4bb4688766e904',"Saved") ?? "Saved");
     await new Promise((resolve) => setTimeout(resolve, Number(durationMs) || 650));
     button.textContent = (globalThis.PlatformLanguage?.text("projects","m_5bab3e72de1ebf","Save") ?? "Save");
   }
@@ -6327,18 +6327,18 @@
       ...(actor && Object.keys(actor).length ? { actor } : {})
     };
     const projectId = firstMeasureProjectId(project);
-    if (!projectId) throw new Error('FirstMeasure project id is unavailable.');
+    if (!projectId) throw new Error((globalThis.PlatformLanguage?.text('projects','m_b415d005adf878',"FirstMeasure project id is unavailable.") ?? "FirstMeasure project id is unavailable."));
     await fmJson(`projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        "Accept": 'application/json',
+        "Content-Type": 'application/json'
       },
       body: JSON.stringify(payload)
     });
     const normalized = applyResidentFieldsToProject(project, draft);
     if (!options?.silentSuccess) {
-      setCustomerInfoMeta(draft.name || draft.email || draft.phone ? 'Contact info saved.' : 'Contact info cleared.', 'ok');
+      setCustomerInfoMeta(draft.name || draft.email || draft.phone ? (globalThis.PlatformLanguage?.text('projects','m_82ea55e5099898',"Contact info saved.") ?? "Contact info saved.") : (globalThis.PlatformLanguage?.text('projects','m_41d4335f00b051',"Contact info cleared.") ?? "Contact info cleared."), 'ok');
     }
     return { draft, project: normalized };
   }
@@ -6355,14 +6355,14 @@
     if (cached && (now - cached.t) < 60000) return !!cached.ok;
     let ok = false;
     try{ const r = await fetch(url, { method:'HEAD', cache:'no-store' }); if (r && r.ok){ __fileExistsCache.set(url, { ok:true, t: now }); return true; } if (r && (r.status === 404 || r.status === 410)){ __fileExistsCache.set(url, { ok:false, t: now }); return false; } }catch(e){}
-    try{ const r = await fetch(url, { method: 'GET', cache: 'no-store', headers: { 'Range': 'bytes=0-0' } }); if (r && (r.status === 206 || r.status === 200)) ok = true; else if (r && (r.status === 404 || r.status === 410)) ok = false; else ok = !!(r && r.ok); try{ if (r && r.body && r.body.cancel) r.body.cancel(); }catch(e){} }catch(e){ ok = false; }
+    try{ const r = await fetch(url, { method: 'GET', cache: 'no-store', headers: { "Range": 'bytes=0-0' } }); if (r && (r.status === 206 || r.status === 200)) ok = true; else if (r && (r.status === 404 || r.status === 410)) ok = false; else ok = !!(r && r.ok); try{ if (r && r.body && r.body.cancel) r.body.cancel(); }catch(e){} }catch(e){ ok = false; }
     __fileExistsCache.set(url, { ok, t: now });
     return ok;
   }
   async function forceDownloadFile(url, filename){
     if (!url) return;
     const res = await fetch(url, { method:'GET', cache:'no-store', credentials:'same-origin' });
-    if (!res.ok) throw new Error(`Download failed (${res.status})`);
+    if (!res.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("projects","m_ee772ac651c745",`Download failed (${v0})`,{v0}) ?? `Download failed (${v0})`)(res.status));
     const blob = await res.blob();
     const objUrl = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = objUrl; a.download = filename || 'download'; a.style.display = 'none'; document.body.appendChild(a); a.click();
@@ -6376,8 +6376,8 @@
       const res = await fetch(fmUrl(paths[index]), {
         method: 'POST',
         headers: {
-          'Accept': 'application/pdf',
-          'Content-Type': 'application/json'
+          "Accept": 'application/pdf',
+          "Content-Type": 'application/json'
         },
         body: JSON.stringify(payload || {}),
         credentials: 'same-origin',
@@ -6387,7 +6387,7 @@
         blob = await res.blob();
         break;
       }
-      let message = `Download failed (${res.status})`;
+      let message = ((v0) => globalThis.PlatformLanguage?.text("projects","m_ee772ac651c745",`Download failed (${v0})`,{v0}) ?? `Download failed (${v0})`)(res.status);
       try{
         const data = await res.json();
         message = String(data?.message || data?.error || message);
@@ -6398,7 +6398,7 @@
       }
     }
     if (!blob) {
-      throw lastError || new Error('Download failed.');
+      throw lastError || new Error((globalThis.PlatformLanguage?.text('projects','m_13fa388b0577c8',"Download failed.") ?? "Download failed."));
     }
     const objUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -6466,7 +6466,7 @@
       if (customerEls.phone) customerEls.phone.value = resident.phone || '';
     };
     applyCustomerDraftToInputs(requestedProject);
-    setCustomerInfoMeta('Saved per project.');
+    setCustomerInfoMeta((globalThis.PlatformLanguage?.text('projects','m_f32282581cf29c',"Saved per project.") ?? "Saved per project."));
     $('#vmAddress', panelEl).textContent = requestedProject?.address || displayAddressPlain(requestedProject) || '\u2014';
     $('#vmIssuer', panelEl).textContent = requestedProject?.issuer || '-';
     $('#vmIssuerEmail', panelEl).textContent = requestedProject?.issuer_email || '-';
@@ -6498,8 +6498,8 @@
         phone: resident.phone || ''
       };
       applyCustomerDraftToInputs(p);
-      setCustomerInfoMeta(baseline.name || baseline.email || baseline.phone ? 'Loaded from this project.' : 'Saved per project.');
-      const markDirty = () => setCustomerInfoMeta('Unsaved changes.');
+      setCustomerInfoMeta(baseline.name || baseline.email || baseline.phone ? (globalThis.PlatformLanguage?.text('projects','m_26c6cc9deaa942',"Loaded from this project.") ?? "Loaded from this project.") : (globalThis.PlatformLanguage?.text('projects','m_f32282581cf29c',"Saved per project.") ?? "Saved per project."));
+      const markDirty = () => setCustomerInfoMeta((globalThis.PlatformLanguage?.text('projects','m_6ab3fe9280d969',"Unsaved changes.") ?? "Unsaved changes."));
       [customerEls.name, customerEls.email, customerEls.phone].forEach((input) => {
         if (!input) return;
         input.oninput = markDirty;
@@ -6512,10 +6512,10 @@
             const result = await saveProjectCustomerInfo(p);
             p = result.project || p;
             currentModalProject = p;
-            await flashCustomerSaveButton(customerEls.save, 'Saved', 650);
+            await flashCustomerSaveButton(customerEls.save, (globalThis.PlatformLanguage?.text('projects','m_4bb4688766e904',"Saved") ?? "Saved"), 650);
           } catch (error) {
-            setCustomerInfoMeta(error?.message || 'Could not save contact info.', 'error');
-            window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_f9a48356b663a0","Contact info") ?? "Contact info"), error?.message || 'Could not save contact info.', false);
+            setCustomerInfoMeta(error?.message || (globalThis.PlatformLanguage?.text('projects','m_71c5dfdf68e84f',"Could not save contact info.") ?? "Could not save contact info."), 'error');
+            window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("projects","m_f9a48356b663a0","Contact info") ?? "Contact info"), error?.message || (globalThis.PlatformLanguage?.text('projects','m_71c5dfdf68e84f',"Could not save contact info.") ?? "Could not save contact info."), false);
           } finally {
             customerEls.save.disabled = false;
             customerEls.save.textContent = (globalThis.PlatformLanguage?.text("projects","m_5bab3e72de1ebf","Save") ?? "Save");
@@ -6532,11 +6532,11 @@
           p = result.project || p;
           currentModalProject = p;
           if (!options.silentSuccess) {
-            setCustomerInfoMeta('Contact info saved.', 'ok');
+            setCustomerInfoMeta((globalThis.PlatformLanguage?.text('projects','m_82ea55e5099898',"Contact info saved.") ?? "Contact info saved."), 'ok');
           }
           return result;
         } catch (error) {
-          setCustomerInfoMeta(error?.message || 'Could not save contact info.', 'error');
+          setCustomerInfoMeta(error?.message || (globalThis.PlatformLanguage?.text('projects','m_71c5dfdf68e84f',"Could not save contact info.") ?? "Could not save contact info."), 'error');
           throw error;
         } finally {
           if (customerEls.save) {
@@ -6621,7 +6621,7 @@
         if (hasInstant) {
           tabs.push({
             id: 'instant',
-            label: (globalThis.PlatformLanguage?.text("projects","m_b347d50e8516d3","Instant") ?? "Instant"),
+            get label(){ return (globalThis.PlatformLanguage?.text("projects","m_b347d50e8516d3","Instant") ?? "Instant"); },
             icon: 'fa-bolt',
             active: activeMeasurementTab === 'instant'
           });
@@ -6629,7 +6629,7 @@
         if (wantsFullTab) {
           tabs.push({
             id: 'standard',
-            label: fullReportIsCorrected ? 'Corrected' : 'Standard',
+            label: fullReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_7a7059bde880f7',"Corrected") ?? "Corrected") : (globalThis.PlatformLanguage?.text('projects','m_00f3e8b60aebc9',"Standard") ?? "Standard"),
             icon: hasFullReady ? 'fa-file-pdf' : 'fa-circle-notch fa-spin',
             active: activeMeasurementTab === 'standard',
             disabled: !hasFullReady,
@@ -6637,7 +6637,7 @@
           });
           tabs.push({
             id: 'customer',
-            label: fullReportIsCorrected ? 'Customer Copy' : 'Customer',
+            label: fullReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_9e098701abaa2c',"Customer Copy") ?? "Customer Copy") : (globalThis.PlatformLanguage?.text('projects','m_ae8e4953e07d70',"Customer") ?? "Customer"),
             icon: hasFullReady ? 'fa-file-lines' : 'fa-circle-notch fa-spin',
             active: activeMeasurementTab === 'customer',
             disabled: !hasFullReady,
@@ -6646,7 +6646,7 @@
           if (xmlDownloadReady) {
             tabs.push({
               id: 'xml',
-              label: (globalThis.PlatformLanguage?.text("projects","m_8efb983a491620","XML") ?? "XML"),
+              get label(){ return (globalThis.PlatformLanguage?.text("projects","m_8efb983a491620","XML") ?? "XML"); },
               icon: hasFullReady ? 'fa-code' : 'fa-circle-notch fa-spin',
               active: activeMeasurementTab === 'xml',
               disabled: !hasFullReady,
@@ -6656,7 +6656,7 @@
           if (fullReworkPending) {
             tabs.push({
               id: 'changes',
-              label: (globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"),
+              get label(){ return (globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"); },
               icon: 'fa-clock-rotate-left',
               active: activeMeasurementTab === 'changes'
             });
@@ -6699,10 +6699,10 @@
         if (!hasFullReady) return;
         const [hasReport, hasSummary, hasXml] = await Promise.all([softFileExists(dls.reportUrl), softFileExists(dls.summaryUrl), softFileExists(dls.xmlUrl)]);
         if (!modalOpen || __modalNonce !== myNonce) return;
-        if (hasReport) showDlButton(dlReport, dls.reportUrl, fullReportIsCorrected ? 'Download Corrected Report PDF' : 'Download Report PDF', 'fas fa-file-pdf'); else hideDlButton(dlReport);
-        if (hasSummary) showDlButton(dlSummary, dls.summaryUrl, fullReportIsCorrected ? 'Download Corrected Customer PDF' : 'Download Customer PDF', 'fas fa-file-lines'); else hideDlButton(dlSummary);
+        if (hasReport) showDlButton(dlReport, dls.reportUrl, fullReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_74b044783b2a3e',"Download Corrected Report PDF") ?? "Download Corrected Report PDF") : (globalThis.PlatformLanguage?.text('projects','m_7d54357160f795',"Download Report PDF") ?? "Download Report PDF"), 'fas fa-file-pdf'); else hideDlButton(dlReport);
+        if (hasSummary) showDlButton(dlSummary, dls.summaryUrl, fullReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_9222c2e07a3df0',"Download Corrected Customer PDF") ?? "Download Corrected Customer PDF") : (globalThis.PlatformLanguage?.text('projects','m_09128dde31d325',"Download Customer PDF") ?? "Download Customer PDF"), 'fas fa-file-lines'); else hideDlButton(dlSummary);
         if (hasXml){
-          showDlButton(dlXml, dls.xmlUrl, 'Download XML Model', 'fas fa-code', { forceDownload: true, downloadName: xmlDownloadName(fullProject) });
+          showDlButton(dlXml, dls.xmlUrl, (globalThis.PlatformLanguage?.text('projects','m_175a65008ef30d',"Download XML Model") ?? "Download XML Model"), 'fas fa-code', { forceDownload: true, downloadName: xmlDownloadName(fullProject) });
           if (!xmlDownloadReady) {
             xmlDownloadReady = true;
             renderCurrentTabs();
@@ -6774,7 +6774,7 @@
           void showChangesPendingView();
         });
       };
-      statusEl.textContent = fullReworkPending ? 'CHANGES PENDING' : (hasFullReady ? (fullReportIsCorrected ? 'CORRECTED REPORT READY' : 'INSTANT + FULL') : (wantsFullTab ? 'FULL REPORT PROCESSING' : 'INSTANT REPORT'));
+      statusEl.textContent = fullReworkPending ? (globalThis.PlatformLanguage?.text("projects","audit_5dbc6dff430e8d","CHANGES PENDING") ?? "CHANGES PENDING") : (hasFullReady ? (fullReportIsCorrected ? (globalThis.PlatformLanguage?.text("projects","audit_1c4b7f4ada5422","CORRECTED REPORT READY") ?? "CORRECTED REPORT READY") : (globalThis.PlatformLanguage?.text("projects","audit_843f745c483e81","INSTANT + FULL") ?? "INSTANT + FULL")) : (wantsFullTab ? (globalThis.PlatformLanguage?.text("projects","audit_325cb33dd4a5d6","FULL REPORT PROCESSING") ?? "FULL REPORT PROCESSING") : (globalThis.PlatformLanguage?.text("projects","audit_e0507c184559a7","INSTANT REPORT") ?? "INSTANT REPORT")));
       statusEl.style.color = '#8ab4f8';
       renderCurrentTabs();
 
@@ -6849,7 +6849,7 @@
         renderCurrentTabs();
         wireTabHandlers();
         if (pdfPreviewDisabled) {
-          showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.reportUrl, label: fullReportIsCorrected ? 'Corrected report' : 'Report' });
+          showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.reportUrl, label: fullReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_9da3458d21c94e',"Corrected report") ?? "Corrected report") : (globalThis.PlatformLanguage?.text('projects','m_c47c2ce6bb05c0',"Report") ?? "Report") });
         } else {
           hidePdfPreviewDisabledPanel(pending);
           frame.style.display = 'block';
@@ -6871,7 +6871,7 @@
         renderCurrentTabs();
         wireTabHandlers();
         if (pdfPreviewDisabled) {
-          showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.summaryUrl, label: fullReportIsCorrected ? 'Corrected customer copy' : 'Customer copy' });
+          showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.summaryUrl, label: fullReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_690327a7486605',"Corrected customer copy") ?? "Corrected customer copy") : (globalThis.PlatformLanguage?.text('projects','m_d2b7446d4a96f1',"Customer copy") ?? "Customer copy") });
         } else {
           hidePdfPreviewDisabledPanel(pending);
           frame.style.display = 'block';
@@ -6924,14 +6924,14 @@
     const standaloneMeasurementTabs = () => {
       if (!standaloneFullReady) return [];
       const tabs = [
-        { id: 'standard', label: standaloneReportIsCorrected ? 'Corrected' : 'Standard', icon: 'fa-file-pdf', active: standaloneMeasurementTab === 'standard' },
-        { id: 'customer', label: standaloneReportIsCorrected ? 'Customer Copy' : 'Customer', icon: 'fa-file-lines', active: standaloneMeasurementTab === 'customer' }
+        { id: 'standard', label: standaloneReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_7a7059bde880f7',"Corrected") ?? "Corrected") : (globalThis.PlatformLanguage?.text('projects','m_00f3e8b60aebc9',"Standard") ?? "Standard"), icon: 'fa-file-pdf', active: standaloneMeasurementTab === 'standard' },
+        { id: 'customer', label: standaloneReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_9e098701abaa2c',"Customer Copy") ?? "Customer Copy") : (globalThis.PlatformLanguage?.text('projects','m_ae8e4953e07d70',"Customer") ?? "Customer"), icon: 'fa-file-lines', active: standaloneMeasurementTab === 'customer' }
       ];
       if (standaloneXmlDownloadReady) {
-        tabs.push({ id: 'xml', label: (globalThis.PlatformLanguage?.text("projects","m_8efb983a491620","XML") ?? "XML"), icon: 'fa-code', active: standaloneMeasurementTab === 'xml' });
+        tabs.push({ id: 'xml', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_8efb983a491620","XML") ?? "XML"); }, icon: 'fa-code', active: standaloneMeasurementTab === 'xml' });
       }
       if (standaloneReworkPending) {
-        tabs.push({ id: 'changes', label: (globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"), icon: 'fa-clock-rotate-left', active: standaloneMeasurementTab === 'changes' });
+        tabs.push({ id: 'changes', get label(){ return (globalThis.PlatformLanguage?.text("projects","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"); }, icon: 'fa-clock-rotate-left', active: standaloneMeasurementTab === 'changes' });
       }
       return tabs;
     };
@@ -6979,10 +6979,10 @@
       if (!standaloneFullReady) return;
       const [hasReport, hasSummary, hasXml] = await Promise.all([softFileExists(dls.reportUrl), softFileExists(dls.summaryUrl), softFileExists(dls.xmlUrl)]);
       if (!modalOpen || __modalNonce !== myNonce) return;
-      if (hasReport) showDlButton(dlReport, dls.reportUrl, standaloneReportIsCorrected ? 'Download Corrected Report PDF' : 'Download Report PDF', 'fas fa-file-pdf'); else hideDlButton(dlReport);
-      if (hasSummary) showDlButton(dlSummary, dls.summaryUrl, standaloneReportIsCorrected ? 'Download Corrected Customer PDF' : 'Download Customer PDF', 'fas fa-file-lines'); else hideDlButton(dlSummary);
+      if (hasReport) showDlButton(dlReport, dls.reportUrl, standaloneReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_74b044783b2a3e',"Download Corrected Report PDF") ?? "Download Corrected Report PDF") : (globalThis.PlatformLanguage?.text('projects','m_7d54357160f795',"Download Report PDF") ?? "Download Report PDF"), 'fas fa-file-pdf'); else hideDlButton(dlReport);
+      if (hasSummary) showDlButton(dlSummary, dls.summaryUrl, standaloneReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_9222c2e07a3df0',"Download Corrected Customer PDF") ?? "Download Corrected Customer PDF") : (globalThis.PlatformLanguage?.text('projects','m_09128dde31d325',"Download Customer PDF") ?? "Download Customer PDF"), 'fas fa-file-lines'); else hideDlButton(dlSummary);
       if (hasXml){
-        showDlButton(dlXml, dls.xmlUrl, 'Download XML Model', 'fas fa-code', { forceDownload: true, downloadName: xmlDownloadName(p) });
+        showDlButton(dlXml, dls.xmlUrl, (globalThis.PlatformLanguage?.text('projects','m_175a65008ef30d',"Download XML Model") ?? "Download XML Model"), 'fas fa-code', { forceDownload: true, downloadName: xmlDownloadName(p) });
         if (!standaloneXmlDownloadReady) {
           standaloneXmlDownloadReady = true;
           renderStandaloneTabs();
@@ -7000,7 +7000,7 @@
       renderStandaloneTabs();
       wireStandaloneTabHandlers();
       if (pdfPreviewDisabled) {
-        showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.reportUrl, label: standaloneReportIsCorrected ? 'Corrected report' : 'Report' });
+        showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.reportUrl, label: standaloneReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_9da3458d21c94e',"Corrected report") ?? "Corrected report") : (globalThis.PlatformLanguage?.text('projects','m_c47c2ce6bb05c0',"Report") ?? "Report") });
       } else {
         hidePdfPreviewDisabledPanel(pending);
         frame.style.display = 'block';
@@ -7021,7 +7021,7 @@
       renderStandaloneTabs();
       wireStandaloneTabHandlers();
       if (pdfPreviewDisabled) {
-        showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.summaryUrl, label: standaloneReportIsCorrected ? 'Corrected customer copy' : 'Customer copy' });
+        showPdfPreviewDisabledPanel({ pending, frame, mapEl, instantPane, url: dls.summaryUrl, label: standaloneReportIsCorrected ? (globalThis.PlatformLanguage?.text('projects','m_690327a7486605',"Corrected customer copy") ?? "Corrected customer copy") : (globalThis.PlatformLanguage?.text('projects','m_d2b7446d4a96f1',"Customer copy") ?? "Customer copy") });
       } else {
         hidePdfPreviewDisabledPanel(pending);
         frame.style.display = 'block';
@@ -7129,7 +7129,7 @@
       pending.style.display = 'block';
     } else if (standaloneFullReady) {
       currentModalGroup = 'ready';
-      statusEl.textContent = standaloneReworkPending ? 'CHANGES PENDING' : (standaloneReportIsCorrected ? 'CORRECTED REPORT READY' : 'REPORT READY');
+      statusEl.textContent = standaloneReworkPending ? (globalThis.PlatformLanguage?.text("projects","audit_5dbc6dff430e8d","CHANGES PENDING") ?? "CHANGES PENDING") : (standaloneReportIsCorrected ? (globalThis.PlatformLanguage?.text("projects","audit_1c4b7f4ada5422","CORRECTED REPORT READY") ?? "CORRECTED REPORT READY") : (globalThis.PlatformLanguage?.text("projects","audit_76bf93df451d48","REPORT READY") ?? "REPORT READY"));
       statusEl.style.color = standaloneReworkPending ? '#fbbc04' : '#34a853';
     } else if (projectStatusGroup(p) === 'draft') {
       currentModalGroup = 'draft'; statusEl.textContent = (globalThis.PlatformLanguage?.text("projects","m_c5801d3bbab0ce","DRAFT") ?? "DRAFT"); statusEl.style.color = '#667085';
@@ -7262,7 +7262,7 @@
       if (reportSearchQuery.trim()) payload.search = reportSearchQuery.trim();
       const { data } = await postAction('list_projects', payload);
       if (requestSeq !== fetchProjectsSeq) return;
-      if (data && data.error === 'Not logged in'){ window.location.href = 'login.php'; return; }
+      if (data && data.error === (globalThis.PlatformLanguage?.text("projects","m_003f8544876608","Not logged in") ?? "Not logged in")){ window.location.href = 'login.php'; return; }
       let projects = Array.isArray(data?.projects) ? data.projects.map(normalizeProjectRecord) : [];
       projects = applyOptimisticProjectUpdates(projects);
       totalUnfilteredCount = Number(data?.unfiltered_count ?? data?.platform_total_count ?? projects.length) || projects.length;
@@ -7431,7 +7431,7 @@
       if (opening) renderManageViewPanel();
     });
     document.addEventListener('click',(event)=>{ if (!manageWrap.contains(event.target)) closeManage(); });
-    managePanel.addEventListener('keydown',(event)=>{ if (event.key==='Escape'){ closeManage(); manageButton.focus(); } });
+    managePanel.addEventListener('keydown',(event)=>{ if (event.key==="Escape"){ closeManage(); manageButton.focus(); } });
     managePanel.addEventListener('change',(event)=>{
       if (projectSharingView()?.change(event)) {
         currentPage=1;

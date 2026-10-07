@@ -2193,7 +2193,11 @@
     "m_25253d755816e2": "Loop met je telefoon één volledige ronde om het huis en upload de video hier. Als je via de FirstMate-app bestelt, wordt de video voor je opgenomen.",
     "m_27b7e868698f63": "Voeg close-ups toe van zaken die de video niet goed laat zien, zoals dakkapellen, aanbouwen of smalle zijtuinen.",
     "m_2469fadd18d99a": "Heb je een video? Schakel over naar rondgangvideo (aanbevolen)",
-    "m_6e81feb28a2b17": "Nog geen video"
+    "m_6e81feb28a2b17": "Nog geen video",
+    "m_0889f650508793": "OPN",
+    "m_1ddd588108e13d": "Volledige ronde",
+    "m_e05fb49213187a": "Opnemen",
+    "review_full_structural_report": "Bekijk je volledige structuur- en exterieurmetingsrapport"
   },
   "help": {
     "m_0db6efc53ab2ed": "Hulp nodig?",
@@ -2715,7 +2719,222 @@
     },
     "m_ee2e95ef4a2d84": "Metingen vernieuwd",
     "m_52f356edab1915": "Rapportwaarden zijn bijgewerkt. Handmatige aanpassingen zijn behouden.",
-    "m_81c35a6db09047": "Metingen niet beschikbaar"
+    "m_81c35a6db09047": "Metingen niet beschikbaar",
+    "m_c235f24fecb516": {
+      "message": "{v3} · elk {v4}",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Model en foto’s",
+    "m_020e15c6bea221": "Luchtfoto",
+    "m_8a27a13894e81a": "De dakviewer kon niet worden geladen. Vernieuw de pagina om het opnieuw te proberen.",
+    "m_76608e0c91e510": "Legenda",
+    "m_9f97a8cc4df412": "Dakmodel laden…",
+    "m_e11fb3a15af2c9": "Sleep om te draaien · Scroll om te zoomen",
+    "m_f902513107035c": "Dakmodel en rapportmedia",
+    "m_cc0ef10e9ca033": "Textuur",
+    "m_f5c0225c619977": "Gekleurde lijnen",
+    "m_106ab75c23cf29": "Weergave resetten",
+    "m_3ed4abb478b582": "3D-dakmodel",
+    "m_7e9fab72578933": "Deze media kon niet worden geladen.",
+    "m_c2e36017433571": "Zonnebeeld kon niet worden geladen",
+    "m_2578923397f853": "Zonnebeeld laden…",
+    "m_ff91c03c76ccf0": "Opgeslagen daklijnen · Sleep om te draaien · Scroll om te zoomen",
+    "m_00f3e8b60aebc9": "Standaard",
+    "m_ae8e4953e07d70": "Klant",
+    "m_425f6b598f6417": "Weer",
+    "m_070d836d7b27e3": "Wijzigingen in behandeling",
+    "m_3a57f052b36fc1": "De toeslag voor spoedbezorging is voor deze bestelling verwijderd.",
+    "m_ee8cd441a3c740": "Aan spoedrapporten wordt direct gewerkt. Na 1 minuut kunnen ze niet meer worden geannuleerd.",
+    "m_7ab36b45fa8644": "Standaardrapporten kunnen binnen 15 minuten na bestelling worden geannuleerd.",
+    "m_0ca6847627b5d8": "Direct rapport wordt gegenereerd",
+    "m_4f9decb4fef708": "Klantrapport wordt verwerkt",
+    "m_cb27e9cd4b71dc": "Standaardrapport wordt verwerkt",
+    "m_b754ff36345be0": "Standaardrapport in afwachting",
+    "m_6c2b94bfbe7de4": "Levertijd wordt geschat",
+    "m_813568092a909a": "Bezig",
+    "m_a5adb64bece6bf": "Wordt beoordeeld",
+    "m_2175240180a38e": "In afwachting",
+    "m_0dcf5f39373245": "De respijtperiode van 1 minuut om dit spoedrapport te annuleren is verstreken.",
+    "m_5a195b5dbc85fc": "De annuleringsperiode voor dit project is verstreken.",
+    "m_4d7c3696ea7819": "Direct rapport in afwachting",
+    "m_20daf0329c6bb5": "Dit rapport is afgewezen omdat de structuur op de beschikbare beelden te veel wordt afgeschermd. Dit kan gebeuren wanneer bomen, schaduwen, beeldkwaliteit of andere visuele obstakels verhinderen dat we het dak met vertrouwen kunnen herkennen en meten. Het oorspronkelijke rapport is vergoed.",
+    "m_8a0434dcd5f44a": "Dit rapport is afgewezen omdat de geselecteerde markering niet op een meetbare structuur lijkt te staan. Dit kan gebeuren als de markering op een tuin, oprit of nabijgelegen object staat, of op een structuur met onvoldoende bruikbare beelden voor een nauwkeurige meting. Het oorspronkelijke rapport is vergoed.",
+    "m_fdbdd395519610": "Dit rapport is afgewezen omdat de organisatie onvoldoende tegoed had voor de extra structuren. Voor dit afgewezen rapport zijn geen kosten voor extra structuurmarkeringen ingehouden.",
+    "m_a88169ad51b679": "Dit rapport is afgewezen. Het oorspronkelijke rapport is vergoed.",
+    "m_85b7e99a08fa9a": "Meting",
+    "m_ec6b76d100b0ec": "Waarde",
+    "m_4b91b73dae1ff3": "Eenheid",
+    "m_f2baa3de1eb35b": "Dakranden",
+    "m_230a183ddb6e96": "Kilgoten",
+    "m_48029c2aaa37c6": "Gevelranden",
+    "m_217bf30b990d24": "Nokken",
+    "m_baa2f693c3883e": "Hoekkepers",
+    "m_3bcef36c5987a6": "Aansluitingen tegen opgaande wand",
+    "m_58ab5ba41ae1c9": "Zijaansluitingen",
+    "m_06fc435805a90a": "Trapsgewijze aansluitingen",
+    "m_8ba24778829c38": "Overgangen",
+    "m_4d80da8e9e6ebe": "Attikamuur",
+    "m_7aeda3ce508c46": "Tegenflitsing",
+    "m_0cbf0780118eed": "Onbekende afmeting",
+    "m_7244c568a68bff": "Wordt verwerkt",
+    "m_d0dd61f9c0e1d2": "Gereed",
+    "m_e70e11490d7b0e": "Niet beschikbaar",
+    "m_1313f5db221c3d": "Hoofd-pdf met dakmetingen en dakgootmetingen",
+    "m_9898713daf99e1": "Hoofd-pdf met dakmetingen",
+    "m_39c51745a420e1": "Samenvattings-pdf voor de klant",
+    "m_73340cea156d55": "Export van modelgegevens",
+    "m_104300af4d9588": "Direct meetvoorbeeld",
+    "m_645ca26abdddb4": "Historische pdf met zwaar weer",
+    "m_0d54f0e37800ea": "Nog niet verzonden",
+    "m_61023422d0cb5d": "Afgewezen",
+    "m_9863f11d60b2fa": "Geannuleerd",
+    "m_e8e493437c1a17": "Voltooid",
+    "m_46c14a5ec722c6": "Besteld",
+    "m_e2f22061f67c87": "Direct + standaard",
+    "m_d5a4d5eab0934e": "Samenvatting van volledig woningrapport",
+    "m_ac57bd5edb01bf": "Samenvatting van dakrapport",
+    "m_4567836c628fdd": "Probeer het opnieuw.",
+    "m_59c670bfa95274": "Het weerrapport kon niet worden gegenereerd. Je kunt het vanaf hier opnieuw proberen.",
+    "m_5414698a7f63e1": "Het weerrapport is besteld en wordt gegenereerd zodra het FirstMeasure-rapport voltooid is.",
+    "m_1ef47a07071860": "Het historische weerrapport wordt gegenereerd. Het verschijnt hier zodra het gereed is.",
+    "m_75ee115d9e118f": "Het weerrapport kon niet worden gegenereerd.",
+    "m_7d48773e58e964": "Het weerrapport kon niet worden besteld.",
+    "m_6479e99c256b1d": "Het weerrapport is gereed.",
+    "m_65522862812f28": "Gemeld probleem",
+    "m_7af9903841fb66": "Extra structuur",
+    "m_9816fa5fa0bc00": "Wijziging of correctie",
+    "m_1dbe1d8b227b2f": "Verzonden naar support",
+    "m_51be70f25415d9": "Goedgekeurd",
+    "m_3c4d2141b2fa1c": "Afgerond",
+    "m_fe9520d635f903": "Je supportberichten over dit geretourneerde rapport staan hier.",
+    "m_339395a80e0064": "Je geretourneerde rapport blijft beschikbaar terwijl deze verzoeken worden beoordeeld.",
+    "m_e2b803de55a93e": "Ingediend",
+    "m_a518a4f0e43132": "Hiermee wordt een supportbericht naar FirstMeasure gestuurd.",
+    "m_35f94adf3dce96": "Plaats de extra structuur op de kaart. Verzoeken voor commerciële en meergezinswoningen worden per toegevoegde structuur gefactureerd.",
+    "m_bb5684676c9b3b": "Voeg notities en foto’s toe voor het correctieteam.",
+    "m_eba3732c6bff34": "Supportbericht",
+    "m_fd5e1725cedd0d": "Dient een herstelverzoek in",
+    "m_f945baf54844d9": "Gratis herstelverzoek",
+    "m_735a0c9b004cb0": "Verzoek om extra structuur",
+    "m_136eda8f76021e": "Extra structuren toegevoegd aan geretourneerd rapport",
+    "m_db80beaa86c589": "Het verzoek kon niet worden ingediend.",
+    "m_8e44aec37ccb2b": "De rapportopvolging is opgeslagen.",
+    "m_2ba158e4424efb": "Dit rapport kon niet met spoed worden verwerkt.",
+    "m_fbd81f2c4d1c18": "De bezorging is bijgewerkt.",
+    "m_21778024c3a70c": "Dit rapport kon niet worden geannuleerd.",
+    "m_c44638d45be320": "De bestelling is geannuleerd.",
+    "m_70cd41e8830a84": "Het rapport kon niet worden geïmporteerd.",
+    "delivery_by": {
+      "message": "Uiterlijk {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Minder dan {hours} uur",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Geschatte wachttijd: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Geschatte wachttijd: {hours} uur",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Geschatte wachttijd: {hours} uur en {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Besteld op {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Rapport annuleren ({time} resterend)",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Zijgevels",
+    "m_10e472dc761ed6": "Gevels tegen opgaande wand",
+    "m_717d08a340c907": "Weer",
+    "m_6a656f97b4af69_currency": "Bij dit project geleverd",
+    "m_a54dfa11060c5d_currency": "Weerrapport besteld",
+    "m_bd585f0df980a6_currency": "Verzoek ingediend",
+    "m_550e7313d4d175_currency": "Rapport met spoed verwerkt",
+    "m_d588b9b5f17ee7_currency": "Rapport geannuleerd",
+    "m_1c10582071b5c0": {
+      "message": "{v0} uur {v1} min",
+      "format": "icu"
+    },
+    "m_99fe5ad3c48550": {
+      "message": "{v0} uur{v1}",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} sec",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} sec",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Opnieuw bestellen als {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Meet-XML niet beschikbaar ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "XML-download mislukt ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Ingediend {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Indienen - {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# uur} other {# uur}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# foto} other {# foto’s}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Terugbetaald {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Dit rapport is afgewezen omdat er blijkbaar een {v0}-rapport nodig is. Het oorspronkelijke rapport is vergoed.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Controleren...",
+    "m_417c2d318452c7": {
+      "message": "{v0} kon niet worden gelezen.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Extra structuur aangevraagd via markering.",
+    "m_3c366c37d61199": {
+      "message": "{v0} in rekening gebracht voor het verzoek om een extra structuur.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Spoedverwerking...",
+    "m_a57adbfbfeda02": {
+      "message": "{v0} in rekening gebracht voor de snellere bezorgoptie.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# pin} other {# pins}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Financiële gegevens laden...",
@@ -3726,7 +3945,125 @@
     "m_428a61cf4a8532": "Overeenkomende projecten",
     "m_67ea3d9f45d10b": "Projecten zoeken…",
     "m_7f0c783c8eec23": "Project openen…",
-    "m_5180ead27b8ad6": "GIF laden is mislukt"
+    "m_5180ead27b8ad6": "GIF laden is mislukt",
+    "m_0d21d7d3136fc9": "Buitenmetingen van het hele huis, inclusief het dak.",
+    "m_97e57acb52769a": "Muren, ramen, deuren en oppervlakken van gevelbekleding.",
+    "m_1274bb24b43206": "Dak- en dakgootmetingen inbegrepen.",
+    "m_b120ceb5e3ac9e": "Per structuur zijn acht referentiefoto’s vereist.",
+    "m_f1775523edde74": "Je dakmeetrapport.",
+    "m_424bd3aef8e7cb": "Dakoppervlakken, hellingen, randen en metingen.",
+    "m_5c6fb5beeff92c": "Voeg dakgoten of andere beschikbare rapporten toe bij het bestellen.",
+    "m_398f784a950729": "Voegt een speciale dakgootpagina toe aan het standaardrapport voor woningen.",
+    "m_98ad5fe62c722d": "Actieve strekkende voeten dakgoot berekend op basis van de dakrandlengtes.",
+    "m_1b41dbf4615706": "Verdiepingen aan de noord-, zuid-, oost- en westzijde.",
+    "m_18db25f632d117": "Dakgootdiagram met een label voor elk deel.",
+    "m_2c4f4a8f273e86": "Aantal verstekken voor buitenhoeken van 90°, binnenhoeken van 90° en hoeken die geen 90° zijn.",
+    "m_4cd43f827c1fae": "Voegt een direct meetrapport toe terwijl het standaardrapport wordt verwerkt.",
+    "m_4b2b1884c6cff9": "Snel, door AI gegenereerd voorbeeld van dakmetingen.",
+    "m_f97d66c6fc03c3": "Interactief dakmodel, indien beschikbaar.",
+    "m_7f677a10302532": "Direct toegang tot de pdf voordat het beoordeelde standaardrapport gereed is.",
+    "m_edc48228028f11": "Voor het standaardrapport blijft de gekozen levertijd gelden.",
+    "m_208063e29728ba": "Voegt een historisch weerrapport voor het eigendom toe.",
+    "m_0087790e73e66c": "Uitgebreide geschiedenis van hagel-, wind- en tornado-incidenten voor het adres.",
+    "m_bab1f8bcf78db9": "Gegevens van nabijgelegen incidenten, gegroepeerd op datum met afstands- en omvangdetails.",
+    "m_b901f17c3bd50b": "Kaartbijlagen, waarschuwingscontext en samenvattingstabellen.",
+    "m_bdcad3423f3114": "Nuttig voor claimbeoordeling, klantgesprekken en projectdocumentatie.",
+    "m_a227a5b1174b0f": "Voegt een optionele rapportfunctie toe aan deze bestelling.",
+    "m_0b5d751a9847bf": "Voorbeeldrapport openen",
+    "m_d9c640d91be6e2": "Geen haast",
+    "wait_minutes": {
+      "message": "Geschatte wachttijd: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Geschatte wachttijd: {hours} uur",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Geschatte wachttijd: {hours} uur en {minutes} min",
+      "format": "icu"
+    },
+    "m_f2a719928b5a49_currency": {
+      "message": "{v0} / structuur x {v1} {v2} = {v3}",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "{v0}% verwijzingskorting toegepast. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "Totaal {v2}.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Geen tegoed",
+    "m_b97feb346e3fae_currency": {
+      "message": "Je hebt {v0} nodig om deze rapportbestelling te plaatsen.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} per structuur × {count, plural, one {# structuur} other {# structuren}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Rapport bestellen",
+    "overview_build_proposal": "Voorstel opstellen",
+    "overview_schedule_appointment": "Afspraak plannen",
+    "overview_no_projects": "Geen overeenkomende projecten.",
+    "overview_gutters": "dakgoten",
+    "overview_weather": "weer",
+    "overview_instant": "direct rapport",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# structuur bevestigd} other {# structuren bevestigd}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Doel: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Inbegrepen: {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Verkleinen",
+    "audit_c461dbb2bab7d8": "Volledig scherm",
+    "audit_06ecd0fafc34d4": "deze aankoop",
+    "audit_2b5c3d26721ae9": "Contact",
+    "audit_98595978531974": "Project",
+    "audit_22a970d2e5b1cc": "Voltooid",
+    "audit_6f8d17646237f4": "Nieuw project",
+    "audit_0a2d38987b9aa3": "Huizen en eengezinswoningen",
+    "audit_114820134036e1": "Bedrijfs- en industriële panden",
+    "audit_9e05435948dfbb": "Appartementen en gedeelde huisvesting",
+    "audit_c0eb0f8efba638": "Type kiezen",
+    "audit_e10ae990740118": "Eerder",
+    "audit_b512d97e7cbf97": "Gebruiker",
+    "audit_b764cdc0eab713": "Onbekend",
+    "audit_90eb5886fddc5f": "Geen notities komen overeen met dit filter.",
+    "audit_57bde4deb215bf": "Nog geen notities.",
+    "audit_6501e1ced8da0b": "Notitie opslaan",
+    "audit_63565c0485fec4": "Notitie toevoegen",
+    "audit_ab52c213888188": "Teamgenoot",
+    "audit_3fe263538d199f": "Nieuw contact",
+    "audit_1b5a65c3cdba9e": "Naamloos project",
+    "audit_d87821ba1a366b": "Geen projecten komen overeen met je zoekopdracht.",
+    "stalled_order": "Deze rapportbestelling liep vast voordat de verwerking begon. Je kunt de bestelling opnieuw plaatsen via het tabblad Rapporten.",
+    "inactive_order": "Dit project heeft geen actieve rapportbestelling.",
+    "audit_77b12f57b38b87": "Rapport in uitvoering",
+    "audit_d30a775883da50": "Rapport wordt beoordeeld",
+    "audit_0ba1f4e48609ea": "Rapport in afwachting",
+    "audit_c5e665c57bc2e0": "Er wordt momenteel aan het standaardrapport gewerkt.",
+    "audit_2612ba1829868e": "Het standaardrapport wordt beoordeeld.",
+    "audit_901358a2916ff7": "Het standaardrapport staat in de wachtrij.",
+    "audit_b67507ab244ce0": "Project openen is mislukt.",
+    "audit_60e9af1cbdcdac": "dit rapport voor de volledige structuur",
+    "audit_3f50e8ab670539": "dit dakrapport",
+    "audit_b4cc4b07c30010": "In uitvoering",
+    "audit_674db38d5123c4": "Wacht op beoordeling",
+    "audit_9b24354bb066bb": "Correctie nodig",
+    "audit_da77d8f5b71aa0": "Wacht op beoordeling",
+    "audit_35266cd2f21aca": "Bestellen",
+    "audit_2d31976e9d17e4": "Indienen is mislukt.",
+    "audit_88430f2c58bbce": "Ontwikkelrapport gereed",
+    "audit_7cf4af8eebae35": "Bestaande rapportbestanden zijn klaar om te bekijken."
   },
   "project-schedule": {
     "m_88e13d64071885": "Planning vergrendeld",
@@ -4134,7 +4471,157 @@
     },
     "m_ce86fe78082565": "Niet beschikbaar",
     "m_f8e16243e0f91c": "Weergave beheren",
-    "m_200131262770e4": "Projectweergave"
+    "m_200131262770e4": "Projectweergave",
+    "m_ea9c70855946ea": "Fasen geven onze workflow weer. Als je ontvangen projecten wilt bekijken, selecteer dan alleen Projecten die met ons zijn gedeeld.",
+    "m_9ce407c87de615": "Concept",
+    "m_aaebd7ccba0b30": "Project",
+    "fm_contact_unavailable": "Niet opgegeven",
+    "m_9cf11b8ab925ce": "We hebben momenteel geen dekking voor dit adres.  ",
+    "m_93f718cb51bafd": "We dekken momenteel 95% van alle gebouwen in de Verenigde Staten en werken actief aan uitbreiding naar meer van de overige gebouwen.",
+    "m_ea8d59f20b2ea6": "We hebben je interesse in dit soort structuren geregistreerd en geven prioriteit aan dekking ervan in de nabije toekomst.",
+    "m_c5942837107a76": "We konden voor deze markering geen FirstMeasure Instant genereren, omdat het geselecteerde punt niet op een structuur met nauwkeurige instantgegevens lag.",
+    "m_214f9a56d321e4": "We konden dit rapport niet voltooien omdat de structuur op de beschikbare beelden te veel wordt afgeschermd.",
+    "m_9ac5bbd5a7f1d1": "Dit kan gebeuren wanneer bomen, schaduwen, beeldkwaliteit of andere visuele obstakels ons verhinderen het dak met vertrouwen te herkennen en te meten.",
+    "m_d51846aa8dda09": "Onze excuses voor het eventuele ongemak.",
+    "m_4edb03027fd308": "We konden dit rapport niet voltooien omdat de geselecteerde markering niet op een meetbare structuur lijkt te staan.",
+    "m_17b153d5aa2b45": "Dit kan gebeuren als de markering op een tuin, oprit of nabijgelegen object staat, of op een structuur met onvoldoende bruikbare beelden voor een nauwkeurige meting.",
+    "m_5978e46f6f29cd": "We konden dit rapport niet voltooien omdat de geselecteerde structuur niet overeenkomt met het bestelde projecttype.",
+    "m_4b5bf19bcf1325": "Het oorspronkelijke rapport is vergoed.",
+    "m_0b9e2c765e77b1": "We storten het tegoed voor deze directe bestelling terug.",
+    "m_8d52a67caa71a2": "Meergezinswoning",
+    "m_6d351fa63793b6": "Dit project is geannuleerd. Er wordt geen verder werk voor dit verzoek uitgevoerd.",
+    "m_549ccd0e27a3d4": "Ja",
+    "m_2f0222913078f4": "Nee",
+    "m_0817ad39e6765a": "We konden de FirstMeasure Instant nog niet laden.",
+    "m_e005bd4bc50817": "Gecombineerde metingen voor de geselecteerde structuur.",
+    "m_3e219b59d394f6": "Metingen voor de geselecteerde structuur.",
+    "m_ba6a658fdc23c0": "Standaardrapport downloaden",
+    "m_f456048437e56e": "Standaardrapport opnieuw proberen",
+    "m_a44e379d284797": "Klantrapport downloaden",
+    "m_a32ef8d751f045": "Klantrapport opnieuw proberen",
+    "m_06f3a13fba723d": "Oppervlaktebereik (m²)",
+    "m_f7d60690e4780f": "Dakoppervlaktebereik (squares)",
+    "m_7456bdb3003d3a": "Deze structuur",
+    "m_dacaa66449659d": "Standaardrapport voorbereiden",
+    "m_f3cacef590576b": "Het standaardrapport kon niet worden gedownload.",
+    "m_6783ae5a616a3f": "Contactgegevens zijn nog niet beschikbaar.",
+    "m_6f94190df36af9": "Klantrapport voorbereiden",
+    "m_2a9462b7fdff9d": "Het directe klantrapport kon niet worden gedownload.",
+    "m_5a0f6b2de100f2": "De directe afbeeldingsbestanden zijn nog niet gereed.",
+    "m_a2decb63023f36": "De directe modelbestanden zijn nog niet gereed.",
+    "m_46f6cf08f0ef61": "Direct voorbeeld is niet beschikbaar voor dit project.",
+    "m_edb27a9262e77e": "Het standaardrapport kon niet worden besteld.",
+    "m_235d86f4916a45": "Verloren",
+    "m_3c4d2141b2fa1c": "Voltooid",
+    "m_8a993ed9b573b4": "Niet toegewezen",
+    "m_1b6ec15cbd198b": "Bezig",
+    "m_bf38bfda2125d1": "Dak + dakgoten",
+    "m_de8450bc1dc243": "Het project kon niet worden verplaatst.",
+    "m_2da110201b814e": "Pijl links",
+    "m_e90f8a20f79638": "Pijl rechts",
+    "m_1519fbdf5b87ed": "Home",
+    "m_80cfdb09a78f4b": "End",
+    "m_2a925f101cbd18": "Oplopend",
+    "m_760cf1fac61b3d": "Aflopend",
+    "m_aac16f05678935": "Fasen",
+    "m_3221d12ca792a6": "Tegels",
+    "m_4bb4688766e904": "Opgeslagen",
+    "m_b415d005adf878": "FirstMeasure-project-ID is niet beschikbaar.",
+    "m_82ea55e5099898": "Contactgegevens opgeslagen.",
+    "m_41d4335f00b051": "Contactgegevens gewist.",
+    "m_13fa388b0577c8": "Downloaden mislukt.",
+    "m_f32282581cf29c": "Per project opgeslagen.",
+    "m_26c6cc9deaa942": "Geladen vanuit dit project.",
+    "m_6ab3fe9280d969": "Niet-opgeslagen wijzigingen.",
+    "m_71c5dfdf68e84f": "Contactgegevens opslaan is mislukt.",
+    "m_7a7059bde880f7": "Gecorrigeerd",
+    "m_00f3e8b60aebc9": "Standaard",
+    "m_9e098701abaa2c": "Kopie voor klant",
+    "m_ae8e4953e07d70": "Klant",
+    "m_74b044783b2a3e": "Gecorrigeerde rapport-pdf downloaden",
+    "m_7d54357160f795": "Rapport-pdf downloaden",
+    "m_9222c2e07a3df0": "Gecorrigeerde klantrapport-pdf downloaden",
+    "m_09128dde31d325": "Klantrapport-pdf downloaden",
+    "m_175a65008ef30d": "XML-model downloaden",
+    "m_9da3458d21c94e": "Gecorrigeerd rapport",
+    "m_c47c2ce6bb05c0": "Rapport",
+    "m_690327a7486605": "Gecorrigeerde klantkopie",
+    "m_d2b7446d4a96f1": "Klantkopie",
+    "m_e2943d71f406cb": {
+      "message": "Structuur {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Opgenomen structuren: {v0} van {v1} geselecteerd.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Metingen voor structuur {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "De kosten van ${v0} voor deze structuur zijn terugbetaald.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "De kosten van ${v0} voor deze structuur worden terugbetaald.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "De kosten van ${v0} voor deze structuur zijn verwijderd uit de directe facturering.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Direct afbeeldingsbestand laden is mislukt ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Beide - {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standaard - {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "ArrowDown",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "ArrowUp",
+    "m_b550215be01e52": "Accepteren",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Downloaden mislukt ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Niet aangemeld",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# geselecteerde structuur is uitgesloten omdat er geen bruikbare directe gegevens beschikbaar waren.} other {# geselecteerde structuren zijn uitgesloten omdat er geen bruikbare directe gegevens beschikbaar waren.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " Een tegoed van {amount} is terugbetaald.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " Een tegoed van {amount} wordt teruggestort.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "verzoek om extra structuur",
+    "audit_a65c9f1d26dec1": "verzoek om wijziging/correctie",
+    "audit_ee9da4f4e90be4": "herstelverzoek",
+    "audit_1c376a7fd9b2d3": "3D-modelafhankelijkheden zijn niet beschikbaar.",
+    "audit_325cb33dd4a5d6": "VOLLEDIG RAPPORT WORDT VERWERKT",
+    "audit_e0507c184559a7": "DIRECT RAPPORT",
+    "audit_b06d7c41ed06c8": "partnerorganisatie",
+    "audit_5dbc6dff430e8d": "WIJZIGINGEN IN BEHANDELING",
+    "audit_1c4b7f4ada5422": "GECORRIGEERD RAPPORT GEREED",
+    "audit_843f745c483e81": "DIRECT + VOLLEDIG",
+    "audit_76bf93df451d48": "RAPPORT GEREED"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4460,7 +4947,60 @@
     "m_f35a14165cc920": "De promptinterface is klaar; modelgeneratie kan hierna aan deze actie worden gekoppeld.",
     "m_bbe27879ebf26c": "Dicteren niet beschikbaar",
     "m_79af74d554f5a6": "Spraakherkenning is in deze browsercontext niet beschikbaar.",
-    "m_9964312e9c85ac": "Projectoffertes"
+    "m_9964312e9c85ac": "Projectoffertes",
+    "m_c82963ef8940ce": "Samenvattingspagina",
+    "m_700473b6840e61": "Co-brandinglogo verwijderen",
+    "m_fccaa3fc954540": "Gebruik",
+    "m_1a29aea570fbc4": "Aantal",
+    "m_8edfc0dd24bef1": "Eenheidsprijs $",
+    "m_ae8e4953e07d70": "Klant",
+    "m_ca125d59fcd810": "Optienaam",
+    "m_e847735cf5a416": "Zoomen",
+    "m_709d4ebff0e0da": "Tik om te ondertekenen",
+    "m_9edc96d5f6e438": "Vertegenwoordiger van het bedrijf",
+    "m_ccb84c048a1a17": "Omzetbelasting",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Het betalingsschema is {v0}%. Het totaal moet 100% zijn.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Nog geen media geüpload",
+    "m_a5e1cd4c41f31c": "Dit project heeft nog geen foto's of video's.",
+    "m_7f88f89133cbc4": "Typ de naam van de ondertekenaar",
+    "m_16dcd60135fed3": "Teken hier je handtekening",
+    "m_506191e24dd383": "Wissen",
+    "m_b5828f5fd0c36d": "Nog geen voorstellen",
+    "m_7feb0c701cff3e": "Maak het eerste concept en dupliceer het daarna voor varianten.",
+    "m_8934bbea9ff9ad": {
+      "message": "Stap {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Dakpan toevoegen",
+    "m_a28421203810c9": "Zoek in het prijzenboek en voeg een andere optie toe die zichtbaar is voor de klant.",
+    "m_581e6e2a759706": "Dakpan toevoegen sluiten",
+    "m_f3189dbe87971a": "Prijzenboek voor dakpannen doorzoeken",
+    "m_4a3589501ecc1f": "Kortingsnaam",
+    "m_792f935ba82291": "Kortingsbedrag",
+    "m_691d860b768692": "Korting verwijderen",
+    "m_0254795a80cfc0": "Nog geen kortingen toegevoegd.",
+    "m_f2da0f4d54d9d9": {
+      "message": "{v3} verwijderen",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Aangepaste workflow moet nog worden bepaald.",
+    "m_7fcfaa1f4fcd66": "\n                      E-mailadres vereist om te verzenden\n                       ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Er is nog geen e-mailadres van de klant aan dit project toegevoegd.",
+    "m_c10134dc02336b": "\n                E-mailadres vereist om te verzenden\n                ",
+    "m_cbb41dfafd178f": "Link naar klantportaal opnemen",
+    "m_a9fa064a3c9985": "Klant toestaan meerdere voorstellen te ondertekenen",
+    "m_5cc367ea2b4774": {
+      "message": "Pagina {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Verwijderen",
+    "m_af64ff308ca58e": "Pagina verwijderen",
+    "m_bdf76cad510e9f": "Optie verwijderen",
+    "m_fba496098e9a0f": "Geen overeenkomende dakpannen gevonden."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Niet-toegewezen bonnen",
@@ -7598,7 +8138,149 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# transactie} other {# transacties}} - Netto: ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Automatisch tegoed opwaarderen",
+    "m_8cb6b086a0e69c": "Gereed",
+    "m_d248c450100477": " Archiveren",
+    "m_3cfab293c8c008": " Persoon uitnodigen",
+    "m_ae615734419eb6": "Rollen &amp; standaardtoegang",
+    "m_91244bdaa8204c": "Maak herbruikbare uitgangspunten voor app-zichtbaarheid en machtigingen.",
+    "m_1f1ad34d149fdf": "Toegangsrollen laden...",
+    "m_0e74f1bca1ead4": "Beheren",
+    "m_6fd299432247c1": "Brand Kit wordt opgeslagen…",
+    "m_569b229b85507e": "Opslaan van Brand Kit mislukt",
+    "m_b9b9bca729d6db": {
+      "message": "rev {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Geen actieve toegangsrollen.",
+    "m_77a0c5b9d8ac90": " Jij",
+    "m_e09715b775ce9e": " Gebruiker toevoegen",
+    "m_6e9ebf535758d8": "Bedrijfsadres",
+    "m_bbe1447b5d3e67": "Wordt gebruikt om domeinregistratie en 10DLC-bedrijfsverificatie vooraf in te vullen.",
+    "m_ac137f394a3447": "Straatadres",
+    "m_c549239597ab7a": "Suite, unit enz. (optioneel)",
+    "m_a09f6a051adb2f": "Bedrijfslogo in rapportvoorbeeld",
+    "m_8eec608d18828f": "Voorbeeld van dakdiagram",
+    "m_1d7c61da5a56c2": "Geen beschikbaar.",
+    "m_8106b856808735": "Afdelingen laden…",
+    "m_6b8e4b3f1a7cc9": "Overgenomen lidmaatschappen:",
+    "m_8bdaf1ba732556": "Selectievakjes tonen directe toewijzingen. Overgenomen lidmaatschappen blijven actief als het vakje niet is aangevinkt.",
+    "m_ff6087fc202a31": "Afdelingen opgeslagen.",
+    "m_edcd68da5d4b23": "Afdelingen van organisatie laden…",
+    "m_f7161d1f24e956": "Afdelingen van organisatie",
+    "m_8f5d10ae9e3dfc": "Gedeeld door alle vestigingen. Stel standaardafdelingen in voor gebruikersrollen en groepstypen, of voeg afzonderlijke personen en groepen toe. Een persoon of groep kan bij meerdere afdelingen horen.",
+    "m_570d421382fbed": "Afdelingen",
+    "m_20558f2853e00b": "Personen, rollen en groepen",
+    "m_4297d86c10d006": "Afdelingen toewijzen op basis van",
+    "m_ad2f0ca83b8780": "Afzonderlijke gebruiker",
+    "m_21037df1b40c09": "Gebruikerstype / rol",
+    "m_319e5834d71d6f": "Afzonderlijke gebruikersgroep",
+    "m_f2c096f77350e1": "Gebruikersgroepstype",
+    "m_bca9e3fd6cf405": "Kiezen",
+    "m_2f45efa1cd676a": "Kiezen…",
+    "m_ce2f23fc67dbab": "Afdelingsnaam",
+    "m_b53d9744f78699": "Afdelingscategorie (optioneel)",
+    "m_02997de9e09d60": "Gebruikerstypen / rollen — standaardleden",
+    "m_8dde7f5f579699": "Gebruikersgroepstypen — standaardgroepen",
+    "m_ec049efefe3343": "Extra afzonderlijke gebruikers",
+    "m_6ea7e974e821fc": "Extra afzonderlijke gebruikersgroepen",
+    "m_c73c6e0076f1ad": "Bijvoorbeeld: klantenservice",
+    "m_cfa69cfd76ca26": "Voer een afdelingsnaam in.",
+    "m_0c44938a138aa6": "Afdeling opgeslagen.",
+    "m_c8a24768419f58": "Machtigingen zijn alleen-lezen.",
+    "m_33071666de0ded": "Laden van lijst mislukt",
+    "m_d7ead3cd6cbff6": "Toevoegen mislukt",
+    "m_272e637b6dd40b": "Uitnodiging opnieuw verzenden is niet beschikbaar.",
+    "m_f2db003b7dc3e6": "Machtigingen verbergen",
+    "m_c8653c90005f35": "Machtigingen tonen",
+    "m_0fe4884bff1c81": "Modaal",
+    "m_fd5fb5598dd8f6": "Nooit aangemeld",
+    "m_4b49e020f08d8e": "E-mailadressen van superbeheerders kunnen niet worden bewerkt, om te voorkomen dat accounts worden vergrendeld.",
+    "m_2bdeadce179997": "Je kunt de naam van deze superbeheerder wijzigen, maar het e-mailadres is vergrendeld.",
+    "m_b7e812bec0dfac": "Werk je weergegeven naam of aanmeldingsmailadres bij.",
+    "m_f6655180d4e320": "Wijzig de naam van de gebruiker of verander diens e-mailadres.",
+    "m_4c66f6639656d2": "Opschorting opheffen",
+    "m_232f4ec7b346ef": "Opschorten",
+    "m_2ac360d5cff662": "Uitnodigingsmail verzenden is mislukt.",
+    "m_a2ee3708083074": "Je kunt jezelf niet opschorten.",
+    "m_24bcbb5e94dc78": "Je kunt een superbeheerder niet opschorten.",
+    "m_415424819400a6": "Gebruiker opgeschort.",
+    "m_5945a7cc27f21a": "Opschorting van gebruiker opgeheven.",
+    "m_ec6aab12561da3": "Je kunt jezelf niet verwijderen.",
+    "m_d0751bed2963bc": "Je kunt een superbeheerder niet verwijderen.",
+    "m_90ca724100109f": "Geen gebruikers gevonden.",
+    "m_2732f18bba7fc8": "Je kunt je eigen machtigingen hier niet bewerken.",
+    "m_90ed0c9031712d": "Profielfoto opslaan is mislukt.",
+    "m_5e287d278f8b92": "Onverwachte fout.",
+    "m_75d641bda100b6": "Gebruikers laden is mislukt.",
+    "m_4a9f6ad3027f17": "Onbekende fout",
+    "m_d7226634e4ea42": "Uitnodigingsmail verzonden.",
+    "m_e86ab6eb3ff843": "Gebruiker aangemaakt, maar e-mail verzenden is mislukt.",
+    "fm_users_owner": "Eigenaar",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Minimale bedragen voor automatische opwaardering zijn {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Minimaal {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Minimaal {v3}",
+      "format": "icu"
+    },
+    "m_9326cc9c9e8c32_currency": {
+      "message": "{v2} rapport{v3} - Totaal: ",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Als je saldo onder {v0} komt, voegen we automatisch {v1} toe aan je account.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Maak afdelingen aan via Instellingen → Gebruikers → Afdelingen.",
+    "m_a089a1a2df79e8": "Afdelingen opslaan",
+    "m_0a270477a59add": "Overgenomen van gebruikersrol",
+    "m_d934cc2b978d05": "Overgenomen van groepstype",
+    "m_967feb25c6cad7": "Standaardafdelingen",
+    "m_f5464054424b45": "Geldt voor elk lid van dit type, ook voor toekomstige leden.",
+    "m_2ecf878bd727e3": "Directe toewijzingen worden toegevoegd aan de standaardinstellingen voor de rol of het groepstype. Sla wijzigingen aan rollen of typen eerst op om overgenomen lidmaatschappen bij te werken.",
+    "m_2d4ff8a83b1b5c": "Geen",
+    "m_b1d5eca65cad81": "Afdelingen opslaan is mislukt.",
+    "m_31a18651cb81ee": "Afdelingen laden is mislukt.",
+    "m_8a36512cbfe084": "Afdeling opslaan is mislukt.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# rapport} other {# rapporten}} - Totaal: ",
+      "format": "icu"
+    },
+    "m_86433617637bb9": "+ Afdeling aanmaken",
+    "m_5147306077d4a3": "Bestaande afdelingen van vestigingen worden hier samengevoegd. Door op te slaan stel je ze in als afdelingen van de organisatie; bestaande afspraken en presets blijven behouden.",
+    "m_9c29c0605b9630": "Afdeling opslaan",
+    "profile_tooltip_0": "Profielfoto uploaden",
+    "profile_tooltip_1": "Profiel openen",
+    "profile_tooltip_2": "Profielfoto kiezen",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Dit is een zachte verwijdering. Het account wordt gearchiveerd voor controledoeleinden. Het e-mailadres kan opnieuw worden gebruikt voor een toekomstige uitnodiging of aanmelding.",
+    "m_1e50cfd1b66d97": "Profielfoto (optioneel)",
+    "m_e2207970d3a42f": "Machtigingsniveau",
+    "logos_uploading": {
+      "message": "Bezig met uploaden van {count, plural, one {# logo} other {# logo’s}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {# logo toegevoegd aan je merkbibliotheek.} other {# logo’s toegevoegd aan je merkbibliotheek.}}",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "We hebben die waarde aangepast aan het minimum van {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Automatische opwaardering: {amount} bij een saldo onder {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Automatisch tegoed opwaarderen: uit"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Werk toevoegen",
@@ -8256,7 +8938,21 @@
       "message": "{v0} ongelezen &middot; {v1} in totaal",
       "format": "icu"
     },
-    "new_report": "Nieuw rapport"
+    "new_report": "Nieuw rapport",
+    "m_9a00fb620ffc1d": "Zijbalkbreedte opslaan is mislukt",
+    "m_854ab579641f94": "Agentgesprekken worden geladen…",
+    "m_86ec40fa3f9758": "Uitschakelen",
+    "m_4aaef822b47692": "FirstMate-assistent",
+    "m_c411108185658e": {
+      "message": "{v1} FirstMate-assistent",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "{v2} FirstMate-assistent",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Factuurinstellingen konden niet worden geladen. ",
+    "m_48a9cdd2af44f4": "Opnieuw proberen"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kantoor",
@@ -10676,7 +11372,17 @@
     "opening_tab": {
       "message": "{tab} wordt geopend…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Vensters vergroten of verkleinen; dubbelklik om ze om te wisselen",
+    "m_eae84bda77b08e": "Venster sluiten",
+    "m_9c2b801ff31874": "Dit venster wordt langzaam geladen. Je kunt het sluiten en opnieuw proberen.",
+    "m_8c11a27c5f0b9c": "Dit tabblad kan niet worden geopend. Sluit het venster en probeer het opnieuw.",
+    "m_a56b2777161b36": "Het project wordt nog geladen. Je kunt dit venster sluiten en het opnieuw proberen.",
+    "m_5eced2f9d44623": "Dit project kon niet worden geladen. Sluit dit venster en probeer het opnieuw.",
+    "m_76619e065f2360": "Plaatsing van venster",
+    "m_b46c7db0dc7b5b": "Vensters vergroten of verkleinen",
+    "m_06b65fee071879": "Vensters",
+    "m_21ca9dcccf9a04": "Venster sluiten"
   },
   "reports": {
     "color": "kleur",

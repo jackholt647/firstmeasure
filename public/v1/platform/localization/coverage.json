@@ -1,7 +1,7 @@
 {
   "files": 201,
   "namespaces": 104,
-  "messages": 13355,
+  "messages": 13795,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -133,8 +133,8 @@
       "file": "public/libraries/apps/comms/calling-runtime.js",
       "namespace": "comms",
       "references": 49,
-      "candidates": 9,
-      "edits": 9
+      "candidates": 16,
+      "edits": 12
     },
     {
       "file": "public/libraries/apps/comms/communications-ui.js",
@@ -147,8 +147,8 @@
       "file": "public/libraries/apps/comms/phone-tray.js",
       "namespace": "comms",
       "references": 0,
-      "candidates": 27,
-      "edits": 22
+      "candidates": 34,
+      "edits": 28
     },
     {
       "file": "public/libraries/apps/comms/project.js",
@@ -217,8 +217,8 @@
       "file": "public/libraries/apps/documents/project.js",
       "namespace": "documents",
       "references": 277,
-      "candidates": 8,
-      "edits": 3
+      "candidates": 9,
+      "edits": 4
     },
     {
       "file": "public/libraries/apps/documents/studio.js",
@@ -314,9 +314,9 @@
     {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
-      "references": 156,
-      "candidates": 3,
-      "edits": 3
+      "references": 293,
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/apps/measurements/roof-viewer.js",
@@ -412,7 +412,7 @@
     {
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
-      "references": 282,
+      "references": 397,
       "candidates": 0,
       "edits": 0
     },
@@ -426,9 +426,9 @@
     {
       "file": "public/libraries/apps/projects/viewer.js",
       "namespace": "projects",
-      "references": 190,
-      "candidates": 1,
-      "edits": 2
+      "references": 342,
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/apps/promo-inject/app.js",
@@ -447,7 +447,7 @@
     {
       "file": "public/libraries/apps/proposals/project.js",
       "namespace": "proposals",
-      "references": 324,
+      "references": 320,
       "candidates": 0,
       "edits": 0
     },
@@ -503,9 +503,9 @@
     {
       "file": "public/libraries/apps/settings/company.js",
       "namespace": "settings",
-      "references": 1764,
-      "candidates": 48,
-      "edits": 21
+      "references": 1715,
+      "candidates": 101,
+      "edits": 26
     },
     {
       "file": "public/libraries/apps/settings/connections.js",
@@ -531,9 +531,9 @@
     {
       "file": "public/libraries/apps/settings/departments.js",
       "namespace": "settings",
-      "references": 0,
-      "candidates": 31,
-      "edits": 12
+      "references": 48,
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/apps/settings/domains.js",
@@ -559,7 +559,7 @@
     {
       "file": "public/libraries/apps/settings/firstmeasure-users.js",
       "namespace": "settings",
-      "references": 100,
+      "references": 159,
       "candidates": 0,
       "edits": 0
     },

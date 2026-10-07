@@ -87,7 +87,7 @@
   function levelLabel(lvl){
     const x = String(lvl || '').toLowerCase().trim();
     const hit = LEVEL_OPTIONS.find(o => o.v === x);
-    return hit ? hit.label : (x ? x : 'Viewer');
+    return x === 'owner' ? (globalThis.PlatformLanguage?.text('settings','fm_users_owner','Owner') ?? 'Owner') : hit ? hit.label : (x ? x : (globalThis.PlatformLanguage?.text("settings","m_ee8002871331aa","Viewer") ?? "Viewer"));
   }
   function clonedLevelPerms(level){
     const key = String(level || '').toLowerCase().trim();
@@ -112,7 +112,7 @@
     return Object.assign({}, asBoolMap(items || {}));
   }
   function permissionHintText(level, canEdit){
-    return canEdit ? '' : 'Permissions are read-only.';
+    return canEdit ? '' : (globalThis.PlatformLanguage?.text("settings","m_c8a24768419f58","Permissions are read-only.") ?? "Permissions are read-only.");
   }
   function userInitial(name, email){
     const raw = String(name || email || '?').trim();
@@ -143,7 +143,7 @@
       return { ok:true, users: result.users || [] };
     }
     const { data } = await postAction('org_users_list_my');
-    if (!data || !data.success) return { ok:false, error: data?.error || 'List failed' };
+    if (!data || !data.success) return { ok:false, error: data?.error || (globalThis.PlatformLanguage?.text("settings","m_33071666de0ded","List failed") ?? "List failed") };
     return { ok:true, users: data.users || [] };
   }
   async function userAdd({ email, name, permLevel, permItems }){
@@ -171,7 +171,7 @@
       perm_level: permLevel || 'viewer',
       perm_items_json: JSON.stringify(permItems || {})
     });
-    if (!data || !data.success) return { ok:false, error: data?.error || 'Add failed' };
+    if (!data || !data.success) return { ok:false, error: data?.error || (globalThis.PlatformLanguage?.text("settings","m_d7ead3cd6cbff6","Add failed") ?? "Add failed") };
     return { ok:true, user: data.user || null, emailed: !!data.emailed, activate_url: data.activate_url || null };
   }
   async function userSetDisabled({ userId, disabled }){
@@ -184,7 +184,7 @@
       user_id: userId || '',
       disabled: disabled ? 'true' : 'false'
     });
-    if (!data || !data.success) return { ok:false, error: data?.error || 'Update failed' };
+    if (!data || !data.success) return { ok:false, error: data?.error || (globalThis.PlatformLanguage?.text("settings","m_ec71d30ae4424e","Update failed") ?? "Update failed") };
     return { ok:true, user: data.user || null };
   }
   async function userResendInvite({ userId }){
@@ -198,7 +198,7 @@
         error: result.error || result.message || ''
       };
     }
-    return { ok:false, error:'Invite resend is unavailable.' };
+    return { ok:false, error:(globalThis.PlatformLanguage?.text("settings","m_272e637b6dd40b","Invite resend is unavailable.") ?? "Invite resend is unavailable.") };
   }
   async function userUpdate({ userId, email, name }){
     const orgId = currentOrgId();
@@ -214,7 +214,7 @@
       email: email || '',
       name: name || ''
     });
-    if (!data || !data.success) return { ok:false, error: data?.error || 'Update failed' };
+    if (!data || !data.success) return { ok:false, error: data?.error || (globalThis.PlatformLanguage?.text("settings","m_ec71d30ae4424e","Update failed") ?? "Update failed") };
     return { ok:true, user: data.user || null, sessionUpdated: !!data.session_updated };
   }
   async function userSoftDelete({ userId }){
@@ -224,7 +224,7 @@
       return { ok:true };
     }
     const { data } = await postAction('org_users_delete_my', { user_id: userId || '' });
-    if (!data || !data.success) return { ok:false, error: data?.error || 'Delete failed' };
+    if (!data || !data.success) return { ok:false, error: data?.error || (globalThis.PlatformLanguage?.text("settings","m_cf2c70cfda409b","Delete failed") ?? "Delete failed") };
     return { ok:true };
   }
   async function userSetPerms({ userId, permLevel, permItems }){
@@ -238,7 +238,7 @@
       perm_level: permLevel || 'viewer',
       perm_items_json: JSON.stringify(permItems || {})
     });
-    if (!data || !data.success) return { ok:false, error: data?.error || 'Update failed' };
+    if (!data || !data.success) return { ok:false, error: data?.error || (globalThis.PlatformLanguage?.text("settings","m_ec71d30ae4424e","Update failed") ?? "Update failed") };
     return { ok:true, user: data.user || null };
   }
     injectCSS('firstmeasure_users', `.li-editor .fmu-shared-in{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
@@ -913,7 +913,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
           </div>
           <div class="fmu-actions">
             ${String(canAddDelete ? `<button class="fmu-btn" id="cuAdd"><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e09715b775ce9e"," Add user") ?? " Add user")}</button>` : '')}
-            <button class="fmu-btn toggle ${String(usersState.showPerms ? 'on' : '')}" id="cuPerms" type="button" aria-pressed="${String(usersState.showPerms ? 'true' : 'false')}"><i class="fas ${String(usersState.showPerms ? 'fa-toggle-on' : 'fa-toggle-off')}"></i> ${String(usersState.showPerms ? 'Hide permissions' : 'Show permissions')}</button>
+            <button class="fmu-btn toggle ${String(usersState.showPerms ? 'on' : '')}" id="cuPerms" type="button" aria-pressed="${String(usersState.showPerms ? 'true' : 'false')}"><i class="fas ${String(usersState.showPerms ? 'fa-toggle-on' : 'fa-toggle-off')}"></i> ${String(usersState.showPerms ? (globalThis.PlatformLanguage?.htmlText("settings","m_f2db003b7dc3e6","Hide permissions") ?? "Hide permissions") : (globalThis.PlatformLanguage?.htmlText("settings","m_c8653c90005f35","Show permissions") ?? "Show permissions"))}</button>
             <button class="fmu-btn" id="cuReload"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_99dd7eb1fa4719"," Reload") ?? " Reload")}</button>
           </div>
         </div>
@@ -964,7 +964,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         <div class="fmu-modal" role="dialog" aria-modal="true">
           <div class="fmu-mh">
             <div>
-              <div class="fmu-mt">${escapeHtml(title || 'Modal')}</div>
+              <div class="fmu-mt">${escapeHtml(title || (globalThis.PlatformLanguage?.text("settings","m_0fe4884bff1c81","Modal") ?? "Modal"))}</div>
               ${subtitle ? `<div class="fmu-msub">${escapeHtml(subtitle)}</div>` : ''}
             </div>
             <button class="fmu-mx" type="button"><i class="fas fa-xmark"></i></button>
@@ -1003,32 +1003,32 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
       return { isMe, isSuper, isLastSuper, superCount };
     }
     function pickStatus(u){
-      if (u?.deleted)  return { t:'Deleted',   cls:'off', ico:'fa-trash' };
-      if (u?.disabled) return { t:'Suspended', cls:'off', ico:'fa-pause' };
+      if (u?.deleted)  return { t:(globalThis.PlatformLanguage?.text("settings","m_b244b99b91d25b","Deleted") ?? "Deleted"),   cls:'off', ico:'fa-trash' };
+      if (u?.disabled) return { t:(globalThis.PlatformLanguage?.text("settings","m_32e214c3072fe2","Suspended") ?? "Suspended"), cls:'off', ico:'fa-pause' };
       const rawStatus = String(u?.status || '').trim().toLowerCase();
       const neverSignedIn = u?.never_signed_in === true || (!u?.last_login_at && ['invited', 'pending'].includes(rawStatus));
-      if (neverSignedIn) return { t:'Never signed in', cls:'never', ico:'fa-envelope-open-text' };
-      if (rawStatus === 'invited' || rawStatus === 'pending') return { t:'Invited', cls:'never', ico:'fa-paper-plane' };
-      return { t:'Active', cls:'active', ico:'fa-circle-check' };
+      if (neverSignedIn) return { t:(globalThis.PlatformLanguage?.text("settings","m_fd5fb5598dd8f6","Never signed in") ?? "Never signed in"), cls:'never', ico:'fa-envelope-open-text' };
+      if (rawStatus === 'invited' || rawStatus === 'pending') return { t:(globalThis.PlatformLanguage?.text("settings","m_52371723a1b848","Invited") ?? "Invited"), cls:'never', ico:'fa-paper-plane' };
+      return { t:(globalThis.PlatformLanguage?.text("settings","m_46e47f1706df0c","Active") ?? "Active"), cls:'active', ico:'fa-circle-check' };
     }
     function openEditUserModal(u){
       const isMe = normEmail(u) === ME_EMAIL;
       const isSuperAdmin = normLevel(u) === 'super_admin';
-      const lockedEmailMsg = "Super admin emails can't be edited to avoid account lockouts.";
+      const lockedEmailMsg = (globalThis.PlatformLanguage?.text("settings","m_4b49e020f08d8e","Super admin emails can't be edited to avoid account lockouts.") ?? "Super admin emails can't be edited to avoid account lockouts.");
       const m = modal({
         title: (globalThis.PlatformLanguage?.text("settings","m_42cbeb12c23c5f","Edit user") ?? "Edit user"),
         subtitle: isSuperAdmin
-          ? 'You can rename this super admin, but the email is locked.'
-          : (isMe ? 'Update your displayed name or sign-in email.' : 'Rename the user or change their email.'),
+          ? (globalThis.PlatformLanguage?.text("settings","m_2bdeadce179997","You can rename this super admin, but the email is locked.") ?? "You can rename this super admin, but the email is locked.")
+          : (isMe ? (globalThis.PlatformLanguage?.text("settings","m_b7e812bec0dfac","Update your displayed name or sign-in email.") ?? "Update your displayed name or sign-in email.") : (globalThis.PlatformLanguage?.text("settings","m_f6655180d4e320","Rename the user or change their email.") ?? "Rename the user or change their email.")),
         bodyHtml: `
           <div class="fmu-rows">
             <div class="fmu-row">
-              <div class="fmu-lbl">Name</div>
-              <input class="fmu-shared-in" id="cuEditName" placeholder="Jane Doe" autocomplete="off" value="${escapeHtml(String(u?.name || ''))}">
+              <div class="fmu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}</div>
+              <input class="fmu-shared-in" id="cuEditName" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_5f71be4b1ebe26","Jane Doe") ?? "Jane Doe")}" autocomplete="off" value="${escapeHtml(String(u?.name || ''))}">
             </div>
             <div class="fmu-row">
-              <div class="fmu-lbl">Email</div>
-              <input class="fmu-shared-in" id="cuEditEmail" placeholder="jane.doe@company.com" autocomplete="off" inputmode="email" value="${escapeHtml(String(u?.email || ''))}" ${isSuperAdmin ? 'readonly aria-readonly="true"' : ''}>
+              <div class="fmu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</div>
+              <input class="fmu-shared-in" id="cuEditEmail" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_f923080cb48567","jane.doe@company.com") ?? "jane.doe@company.com")}" autocomplete="off" inputmode="email" value="${escapeHtml(String(u?.email || ''))}" ${isSuperAdmin ? 'readonly aria-readonly="true"' : ''}>
               ${isSuperAdmin ? `<div class="fmu-shared-note" style="margin-top:2px;">${escapeHtml(lockedEmailMsg)}</div>` : ''}
             </div>
           </div>
@@ -1086,7 +1086,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
       const canResend = canAddDelete && !u?.deleted && !u?.disabled && !!normEmail(u);
       const canSuspend = canAddDelete && !(isMe || isSuper);
       const canDelete  = canAddDelete && !(isMe || isSuper);
-      const suspendLabel = u?.disabled ? 'Unsuspend' : 'Suspend';
+      const suspendLabel = u?.disabled ? (globalThis.PlatformLanguage?.text("settings","m_4c66f6639656d2","Unsuspend") ?? "Unsuspend") : (globalThis.PlatformLanguage?.text("settings","m_232f4ec7b346ef","Suspend") ?? "Suspend");
       const suspendIcon  = u?.disabled ? 'fa-play' : 'fa-pause';
       floatingMenu.innerHTML = `
         <button class="fmu-mi ${String(canEdit ? '' : 'disabled')}" type="button" data-act="edit" ${String(canEdit ? '' : 'disabled')}>
@@ -1147,7 +1147,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
             if (ret.activate_url) {
               try{ navigator.clipboard.writeText(ret.activate_url); }catch(e){}
             }
-            showToast((globalThis.PlatformLanguage?.text("settings","m_88586c062e2d41","Invite failed") ?? "Invite failed"), ret.error || 'Could not send invite email.', false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_88586c062e2d41","Invite failed") ?? "Invite failed"), ret.error || (globalThis.PlatformLanguage?.text("settings","m_2ac360d5cff662","Could not send invite email.") ?? "Could not send invite email."), false);
             return;
           }
           showToast((globalThis.PlatformLanguage?.text("settings","m_56cd43e2daebec","Invite sent") ?? "Invite sent"), (globalThis.PlatformLanguage?.text("settings","m_eb7d39af41ae8e","Activation email sent.") ?? "Activation email sent."), true);
@@ -1158,7 +1158,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         btnSuspend.addEventListener('click', async ()=>{
           closeFloatingMenu();
           if (!canSuspend){
-            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? "You can't suspend yourself." : "You can't suspend a Super Admin.", false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? (globalThis.PlatformLanguage?.text("settings","m_a2ee3708083074","You can't suspend yourself.") ?? "You can't suspend yourself.") : (globalThis.PlatformLanguage?.text("settings","m_24bcbb5e94dc78","You can't suspend a Super Admin.") ?? "You can't suspend a Super Admin."), false);
             return;
           }
           const wantDisabled = !u.disabled;
@@ -1167,7 +1167,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
             showToast((globalThis.PlatformLanguage?.text("settings","m_ec71d30ae4424e","Update failed") ?? "Update failed"), ret.error || '-', false);
             return;
           }
-          showToast((globalThis.PlatformLanguage?.text("settings","m_6a171239c315c1","Updated") ?? "Updated"), wantDisabled ? 'User suspended.' : 'User unsuspended.', true);
+          showToast((globalThis.PlatformLanguage?.text("settings","m_6a171239c315c1","Updated") ?? "Updated"), wantDisabled ? (globalThis.PlatformLanguage?.text("settings","m_415424819400a6","User suspended.") ?? "User suspended.") : (globalThis.PlatformLanguage?.text("settings","m_5945a7cc27f21a","User unsuspended.") ?? "User unsuspended."), true);
           refreshUsers();
         });
       }
@@ -1175,15 +1175,15 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         btnDelete.addEventListener('click', async ()=>{
           closeFloatingMenu();
           if (!canDelete){
-            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? "You can't delete yourself." : "You can't delete a Super Admin.", false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? (globalThis.PlatformLanguage?.text("settings","m_ec6aab12561da3","You can't delete yourself.") ?? "You can't delete yourself.") : (globalThis.PlatformLanguage?.text("settings","m_d0751bed2963bc","You can't delete a Super Admin.") ?? "You can't delete a Super Admin."), false);
             return;
           }
-          const label = `${u.name || u.email || 'User'} (${u.email || ''})`;
+          const label = `${u.name || u.email || (globalThis.PlatformLanguage?.text("settings","m_dfd6687ea85fad","User") ?? "User")} (${u.email || ''})`;
           const m = modal({
             title: (globalThis.PlatformLanguage?.text("settings","m_7449aed6d9c4b8","Soft delete user?") ?? "Soft delete user?"),
             subtitle: (globalThis.PlatformLanguage?.text("settings","m_86556b237c82e1","They will be blocked from logging in, hidden from your Users list, and their email will become available again.") ?? "They will be blocked from logging in, hidden from your Users list, and their email will become available again."),
             bodyHtml: `
-              <div class="fmu-shared-note" style="margin-top:0;">This is a soft delete. The account is archived for audit, and the email can be reused for a future invite or signup.</div>
+              <div class="fmu-shared-note" style="margin-top:0;">${(globalThis.PlatformLanguage?.htmlText("settings","m_7957881500e400","This is a soft delete. The account is archived for audit, and the email can be reused for a future invite or signup.") ?? "This is a soft delete. The account is archived for audit, and the email can be reused for a future invite or signup.")}</div>
               <div class="fmu-shared-note" style="margin-top:10px;">${escapeHtml(label)}</div>
             `
           });
@@ -1223,7 +1223,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         return aName.localeCompare(bName);
       });
       const superAdmins = usersState.superAdmins || [];
-      if (msgEl) msgEl.textContent = users.length ? '' : 'No users found.';
+      if (msgEl) msgEl.textContent = users.length ? '' : (globalThis.PlatformLanguage?.text("settings","m_90ca724100109f","No users found.") ?? "No users found.");
       const rows = [];
       for (const u of users){
         const id = String(u.id || '');
@@ -1247,8 +1247,8 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
           ? `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name)}">`
           : `<span>${escapeHtml(avatarInitial)}</span>`;
         const avatarControl = canUploadAvatar
-          ? `<button class="fmu-userAvatar" type="button" data-act="avatar" data-user-id="${escapeHtml(id)}" data-fm-tooltip="Upload profile picture">${avatarHtml}<span class="fmu-userAvatarEdit"><i class="fas fa-camera"></i></span></button><input class="fmu-fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-act="avatar-input" data-user-id="${escapeHtml(id)}">`
-          : `<button class="fmu-userAvatar fmu-userAvatarStatic" type="button" data-act="open-user" data-user-id="${escapeHtml(id)}" data-fm-tooltip="Open profile">${avatarHtml}</button>`;
+          ? `<button class="fmu-userAvatar" type="button" data-act="avatar" data-user-id="${escapeHtml(id)}" data-fm-tooltip="${globalThis.PlatformLanguage?.htmlText('settings','profile_tooltip_0',"Upload profile picture") ?? "Upload profile picture"}">${avatarHtml}<span class="fmu-userAvatarEdit"><i class="fas fa-camera"></i></span></button><input class="fmu-fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-act="avatar-input" data-user-id="${escapeHtml(id)}">`
+          : `<button class="fmu-userAvatar fmu-userAvatarStatic" type="button" data-act="open-user" data-user-id="${escapeHtml(id)}" data-fm-tooltip="${globalThis.PlatformLanguage?.htmlText('settings','profile_tooltip_1',"Open profile") ?? "Open profile"}">${avatarHtml}</button>`;
         rows.push(`
           <tr class="fmu-trMain ${String(isMe ? 'me' : '')}" data-user-id="${String(escapeHtml(id))}" style="${String(isDeleted ? 'opacity:.55;' : '')}">
             <td class="fmu-td">
@@ -1280,7 +1280,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
                       ${String(roleButtonsHtml)}
                     </div>
                     <div class="fmu-permHint">
-                      ${String(isMe ? 'You cannot edit your own permissions here.' : permissionHintText(lvl, canManagePerms))}
+                      ${String(isMe ? (globalThis.PlatformLanguage?.htmlText("settings","m_2732f18bba7fc8","You cannot edit your own permissions here.") ?? "You cannot edit your own permissions here.") : permissionHintText(lvl, canManagePerms))}
                     </div>
                   </div>
                   <div class="fmu-permGrid">
@@ -1304,7 +1304,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         if (btnPerms){
           btnPerms.classList.toggle('on', usersState.showPerms);
           btnPerms.setAttribute('aria-pressed', usersState.showPerms ? 'true' : 'false');
-          btnPerms.innerHTML = `<i class="fas ${usersState.showPerms ? 'fa-toggle-on' : 'fa-toggle-off'}"></i> ${usersState.showPerms ? 'Hide permissions' : 'Show permissions'}`;
+          btnPerms.innerHTML = `<i class="fas ${usersState.showPerms ? 'fa-toggle-on' : 'fa-toggle-off'}"></i> ${usersState.showPerms ? (globalThis.PlatformLanguage?.htmlText("settings","m_f2db003b7dc3e6","Hide permissions") ?? "Hide permissions") : (globalThis.PlatformLanguage?.htmlText("settings","m_c8653c90005f35","Show permissions") ?? "Show permissions")}`;
         }
       }
       const bodyEl = getUsersBodyEl();
@@ -1366,7 +1366,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
             const ret = await uploadUserAvatar({ userId, file });
             avatarInput.value = '';
             if (!ret.ok){
-              showToast((globalThis.PlatformLanguage?.text("settings","m_eba695c553b0b3","Upload failed") ?? "Upload failed"), ret.error || 'Could not save profile picture.', false);
+              showToast((globalThis.PlatformLanguage?.text("settings","m_eba695c553b0b3","Upload failed") ?? "Upload failed"), ret.error || (globalThis.PlatformLanguage?.text("settings","m_90ed0c9031712d","Could not save profile picture.") ?? "Could not save profile picture."), false);
               return;
             }
             showToast((globalThis.PlatformLanguage?.text("settings","m_6a171239c315c1","Updated") ?? "Updated"), (globalThis.PlatformLanguage?.text("settings","m_7df2d88a99dcfa","Profile picture saved.") ?? "Profile picture saved."), true);
@@ -1427,7 +1427,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
                 showToast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"), (globalThis.PlatformLanguage?.text("settings","m_588d47403094df","Permission level updated.") ?? "Permission level updated."), true);
                 refreshUsers();
               }catch(err){
-                showToast((globalThis.PlatformLanguage?.text("settings","m_ec71d30ae4424e","Update failed") ?? "Update failed"), err?.message || 'Unexpected error.', false);
+                showToast((globalThis.PlatformLanguage?.text("settings","m_ec71d30ae4424e","Update failed") ?? "Update failed"), err?.message || (globalThis.PlatformLanguage?.text("settings","m_5e287d278f8b92","Unexpected error.") ?? "Unexpected error."), false);
               }finally{
                 saveInFlight = false;
                 setPermControlsDisabled(tr, false);
@@ -1493,7 +1493,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
                 usersState.itemsById[userId] = items;
                 btn.classList.toggle('on', !!items[key]);
                 btn.classList.toggle('off', !items[key]);
-                showToast((globalThis.PlatformLanguage?.text("settings","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"), err?.message || 'Unexpected error.', false);
+                showToast((globalThis.PlatformLanguage?.text("settings","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"), err?.message || (globalThis.PlatformLanguage?.text("settings","m_5e287d278f8b92","Unexpected error.") ?? "Unexpected error."), false);
               }finally{
                 saveInFlight = false;
                 setPermControlsDisabled(tr, false);
@@ -1522,7 +1522,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         usersState.itemsById = {};
         usersState.superAdmins = [];
         renderUsersTable();
-        if (msgEl) msgEl.textContent = r.error ? `Could not load users: ${r.error}` : 'Could not load users.';
+        if (msgEl) msgEl.textContent = r.error ? `Could not load users: ${r.error}` : (globalThis.PlatformLanguage?.text("settings","m_75d641bda100b6","Could not load users.") ?? "Could not load users.");
         if (tableEl) tableEl.style.opacity = '1';
         if (tableEl) tableEl.style.minHeight = '';
         showToast((globalThis.PlatformLanguage?.text("settings","m_132a6fe97f9139","Users unavailable") ?? "Users unavailable"), r.error || '-', false);
@@ -1543,10 +1543,10 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         syncUsersPermissionsUi();
       }catch(err){
         const msgEl = getUsersMsgEl();
-        if (msgEl) msgEl.textContent = ((v0) => globalThis.PlatformLanguage?.text("settings","m_315a57101fd8ce",`Could not render users: ${v0}`,{v0}) ?? `Could not render users: ${v0}`)(err?.message || 'Unknown error');
+        if (msgEl) msgEl.textContent = ((v0) => globalThis.PlatformLanguage?.text("settings","m_315a57101fd8ce",`Could not render users: ${v0}`,{v0}) ?? `Could not render users: ${v0}`)(err?.message || (globalThis.PlatformLanguage?.text("settings","m_4a9f6ad3027f17","Unknown error") ?? "Unknown error"));
         if (tableEl) tableEl.style.opacity = '1';
         requestAnimationFrame(()=>{ if (tableEl) tableEl.style.minHeight = ''; });
-        showToast((globalThis.PlatformLanguage?.text("settings","m_0730f808713d52","Users render failed") ?? "Users render failed"), err?.message || 'Unknown error', false);
+        showToast((globalThis.PlatformLanguage?.text("settings","m_0730f808713d52","Users render failed") ?? "Users render failed"), err?.message || (globalThis.PlatformLanguage?.text("settings","m_4a9f6ad3027f17","Unknown error") ?? "Unknown error"), false);
         return;
       }
       if (tableEl) tableEl.style.opacity = '1';
@@ -1582,30 +1582,30 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
               <div class="fmu-rows">
                 <div class="fmu-newAvatarRow">
                   <div class="fmu-newAvatarWrap">
-                    <button class="fmu-userAvatar" type="button" id="cuNewAvatarBtn" data-fm-tooltip="Choose profile picture">
+                    <button class="fmu-userAvatar" type="button" id="cuNewAvatarBtn" data-fm-tooltip="${globalThis.PlatformLanguage?.htmlText('settings','profile_tooltip_2',"Choose profile picture") ?? "Choose profile picture"}">
                       <span id="cuNewAvatarInitial">?</span>
                       <span class="fmu-userAvatarEdit"><i class="fas fa-camera"></i></span>
                     </button>
                     <input class="fmu-fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" id="cuNewAvatarFile">
-                    <div class="fmu-newAvatarNote">Optional profile picture</div>
+                    <div class="fmu-newAvatarNote">${(globalThis.PlatformLanguage?.htmlText("settings","m_1e50cfd1b66d97","Optional profile picture") ?? "Optional profile picture")}</div>
                   </div>
                 </div>
                 <div class="fmu-row">
-                  <div class="fmu-lbl">Name</div>
-                  <input class="fmu-shared-in" id="cuNewName" placeholder="Jane Doe" autocomplete="off">
+                  <div class="fmu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}</div>
+                  <input class="fmu-shared-in" id="cuNewName" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_5f71be4b1ebe26","Jane Doe") ?? "Jane Doe")}" autocomplete="off">
                 </div>
                 <div class="fmu-row">
-                  <div class="fmu-lbl">Email</div>
-                  <input class="fmu-shared-in" id="cuNewEmail" placeholder="jane.doe@company.com" autocomplete="off" inputmode="email">
+                  <div class="fmu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</div>
+                  <input class="fmu-shared-in" id="cuNewEmail" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_f923080cb48567","jane.doe@company.com") ?? "jane.doe@company.com")}" autocomplete="off" inputmode="email">
                 </div>
                 <div class="fmu-row">
-                  <div class="fmu-lbl">Permission level</div>
+                  <div class="fmu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_e2207970d3a42f","Permission level") ?? "Permission level")}</div>
                   <div class="fmu-rolePresets" id="cuNewRolePresets">
                     ${renderRolePresetButtons(inviteState.level, false)}
                   </div>
                   <div class="fmu-permHint" id="cuNewPermHint">${permissionHintText(inviteState.level, true)}</div>
                   <div class="fmu-permGrid" id="cuNewPermGrid">
-                    <div class="fmu-permLabel">Permissions</div>
+                    <div class="fmu-permLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0ded144729a113","Permissions") ?? "Permissions")}</div>
                     ${renderPermissionButtons(effectivePermsForLevel(inviteState.level, inviteState.perms), false)}
                   </div>
                 </div>
@@ -1727,7 +1727,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
               try{ URL.revokeObjectURL(avatarState.previewUrl); }catch(e){}
             }
             m.close();
-            const msg = ret.emailed ? 'Invite email sent.' : 'User created, but email failed to send.';
+            const msg = ret.emailed ? (globalThis.PlatformLanguage?.text("settings","m_d7226634e4ea42","Invite email sent.") ?? "Invite email sent.") : (globalThis.PlatformLanguage?.text("settings","m_e86ab6eb3ff843","User created, but email failed to send.") ?? "User created, but email failed to send.");
             showToast((globalThis.PlatformLanguage?.text("settings","m_7e87896e6d2524","User added") ?? "User added"), msg, true);
             refreshUsers();
             if (!ret.emailed && ret.activate_url){

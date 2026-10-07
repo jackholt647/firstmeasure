@@ -2715,9 +2715,10 @@
         padding-left: 20px;
         position: relative;
       }
-      .bl-moneyWrap{ position:relative; display:inline-flex; align-items:center; }
+      .bl-moneyWrap{ position:relative; display:inline-flex; align-items:center; gap:6px; min-width:0; }
+      .bl-moneyWrap .bl-money{padding:10px;min-width:64px}
       .bl-moneyWrap .usd{
-        position:absolute; left: 14px;
+        position:static; flex:0 0 auto;
         font-weight:1000; color:#666; font-size:13px;
         pointer-events:none;
       }
@@ -14080,7 +14081,9 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         #csPaneBilling.fm-credit-fit .bh-list{flex:1;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;margin-top:8px}
         #csPaneBilling.fm-credit-fit .bh-top{flex-shrink:0}
         #csPaneBilling.fm-credit-fit .bl-grid>.bl-card{padding:12px;min-width:0}
-        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-row{flex-wrap:nowrap;gap:8px;margin-top:8px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-row{flex-wrap:wrap;gap:8px;margin-top:8px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-row>.bl-left{flex:1 1 200px}
+        #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-row>.bl-ctrl{flex:0 0 auto;margin-left:auto}
         #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-left{gap:4px;min-width:0}
         #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-pill{padding:0;border:0;background:none;border-radius:0}
         #csPaneBilling.fm-credit-fit .bl-grid>.bl-card .bl-ctrl{flex-wrap:nowrap;gap:4px}
@@ -14124,7 +14127,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-row{display:flex;flex-wrap:nowrap;gap:8px}
           #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-left{display:none}
           #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .bl-ctrl{display:flex;width:100%;justify-content:space-between;align-items:center}
-          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .credits-value:before{content:'Measurement credits';display:block;font-size:11px;font-weight:500;margin-bottom:4px}
+          #csPaneBilling.fm-credit-fit .bl-wrap>.bl-card .credits-value:before{content:none}
           #csPaneBilling.fm-credit-fit .ms-summary{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:6px}
           #csPaneBilling.fm-credit-fit .ms-stat{padding:5px}
           #csPaneBilling.fm-credit-fit .ms-statVal{font-size:15px}
@@ -14153,7 +14156,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     function updateCreditFitSummary(){
       const target=paneBilling?.querySelector('[data-credit-topup-summary]');if(!target)return;
       const saved=renderBilling._base;
-      target.textContent=saved?.enabled ? `Auto top-up: ${window.PlatformCommerce.credit(saved.amt)} below ${window.PlatformCommerce.credit(saved.th)}` : 'Credit auto top-up: Off';
+      target.textContent=saved?.enabled ? settingsText('fm_mobile_auto_topup','Auto top-up: {amount} below {threshold}',{amount:window.PlatformCommerce.credit(saved.amt),threshold:window.PlatformCommerce.credit(saved.th)}) : settingsText('fm_mobile_auto_topup_off','Credit auto top-up: Off');
     }
     // **** Floating menu element (users) ----
     floatingMenu = document.createElement('div');
@@ -14714,7 +14717,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.htmlText("settings","m_9326cc9c9e8c32_currency",`${v2} report${v3} - Total: `,{v2,v3}) ?? `${v2} report${v3} - Total: `)(orders.length,orders.length !== 1 ? 's' : '')}<b>${window.PlatformCommerce.credit(total)}</b>${String(reimbFooter)}</div>
+            <div class="ms-mFooterLeft">${(globalThis.PlatformLanguage?.htmlText('settings','fm_statement_report_count',`${orders.length} report${orders.length === 1 ? '' : 's'} - Total: `,{count:orders.length}) ?? `${orders.length} reports - Total: `)}<b>${window.PlatformCommerce.credit(total)}</b>${String(reimbFooter)}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.htmlText("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -15154,7 +15157,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           inputEl.value = String(v);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (before > 0 && before < BILL_MIN) setMinimumMessage(`We updated that value to the ${window.PlatformCommerce.credit(BILL_MIN)} minimum.`, true);
+          if (before > 0 && before < BILL_MIN) setMinimumMessage(settingsText('fm_billing_minimum_adjusted','We updated that value to the {amount} minimum.',{amount:window.PlatformCommerce.credit(BILL_MIN)}), true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -15776,7 +15779,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           showToast((globalThis.PlatformLanguage?.text("settings","m_920aa9d1b0216a","Upload unavailable") ?? "Upload unavailable"), (globalThis.PlatformLanguage?.text("settings","m_c8b608a944e9e5","Alternate logo storage is not available.") ?? "Alternate logo storage is not available."), false);
           return;
         }
-        csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_8c144291b89e6a",`Uploading ${v0} logo${v1}...`,{v0,v1}) ?? `Uploading ${v0} logo${v1}...`)(files.length,files.length === 1 ? '' : 's')}</span>`;
+        csAlternateLogoList.innerHTML = `<span class="alternate-logo-empty">${(globalThis.PlatformLanguage?.htmlText('settings','logos_uploading',"Uploading {count, plural, one {# logo} other {# logos}}…",{count:files.length}) ?? String(files.length))}</span>`;
         try {
           for (const file of files) {
             await window.PlatformAPI.brandingMedia.upload(currentOrgId(), file, {
@@ -15792,7 +15795,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           }
           csAlternateLogoFiles.value = '';
           await loadAlternateLogos();
-          showToast((globalThis.PlatformLanguage?.text("settings","m_fcd3da9c6d7e76","Alternate logos added") ?? "Alternate logos added"), ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_242fb8c9a9be96",`${v0} logo${v1} added to your brand library.`,{v0,v1}) ?? `${v0} logo${v1} added to your brand library.`)(files.length,files.length === 1 ? '' : 's'), true);
+          showToast((globalThis.PlatformLanguage?.text("settings","m_fcd3da9c6d7e76","Alternate logos added") ?? "Alternate logos added"), (globalThis.PlatformLanguage?.text('settings','logos_added',"{count, plural, one {# logo added to your brand library.} other {# logos added to your brand library.}}",{count:files.length}) ?? String(files.length)), true);
         } catch(e) {
           await loadAlternateLogos();
           showToast((globalThis.PlatformLanguage?.text("settings","m_eba695c553b0b3","Upload failed") ?? "Upload failed"), e?.message || 'Could not upload alternate logos.', false);
@@ -16486,8 +16489,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           ? `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name)}">`
           : `<span>${escapeHtml(avatarInitial)}</span>`;
         const avatarControl = canUploadAvatar
-          ? `<button class="cu-userAvatar" type="button" data-act="avatar" data-user-id="${escapeHtml(id)}" data-fm-tooltip="Upload profile picture">${avatarHtml}<span class="cu-userAvatarEdit"><i class="fas fa-camera"></i></span></button><input class="cu-fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-act="avatar-input" data-user-id="${escapeHtml(id)}">`
-          : `<button class="cu-userAvatar cu-userAvatarStatic" type="button" data-act="open-user" data-user-id="${escapeHtml(id)}" data-fm-tooltip="Open profile">${avatarHtml}</button>`;
+          ? `<button class="cu-userAvatar" type="button" data-act="avatar" data-user-id="${escapeHtml(id)}" data-fm-tooltip="${globalThis.PlatformLanguage?.htmlText('settings','profile_tooltip_0',"Upload profile picture") ?? "Upload profile picture"}">${avatarHtml}<span class="cu-userAvatarEdit"><i class="fas fa-camera"></i></span></button><input class="cu-fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-act="avatar-input" data-user-id="${escapeHtml(id)}">`
+          : `<button class="cu-userAvatar cu-userAvatarStatic" type="button" data-act="open-user" data-user-id="${escapeHtml(id)}" data-fm-tooltip="${globalThis.PlatformLanguage?.htmlText('settings','profile_tooltip_1',"Open profile") ?? "Open profile"}">${avatarHtml}</button>`;
         rows.push(`
           <tr class="cu-trMain ${String(isMe ? 'me' : '')}" data-user-id="${String(escapeHtml(id))}" style="${String(isDeleted ? 'opacity:.55;' : '')}">
             <td class="cu-td">
@@ -16866,7 +16869,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                 <section class="cu-invite-section cu-invite-identity">
                   <div class="cu-newAvatarRow">
                     <div class="cu-newAvatarWrap">
-                      <button class="cu-userAvatar" type="button" id="cuNewAvatarBtn" data-fm-tooltip="Choose profile picture">
+                      <button class="cu-userAvatar" type="button" id="cuNewAvatarBtn" data-fm-tooltip="${globalThis.PlatformLanguage?.htmlText('settings','profile_tooltip_2',"Choose profile picture") ?? "Choose profile picture"}">
                         <span id="cuNewAvatarInitial">?</span>
                         <span class="cu-userAvatarEdit"><i class="fas fa-camera"></i></span>
                       </button>

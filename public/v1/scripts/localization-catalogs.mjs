@@ -52,7 +52,7 @@ function british(text) {
 function files(dir) { return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()&&!['vendor','node_modules','dist'].includes(e.name)?files(path.join(dir,e.name)):e.isFile()&&e.name.endsWith('.js')?[path.join(dir,e.name)]:[]); }
 const targets = [...files(path.join(root,'public/libraries')), ...files(path.join(root,'public/portal/scripts')), ...files(path.join(root,'public/customer_portal'))]
   .filter(file=>!file.endsWith('platform-terminology.js')&&!/(?:platform-language|doc-language|site-runtime)[/\\]|(?:\.min|\.bundle)\.js$/.test(file));
-const uiKeys = new Set(['label','title','description','placeholder','subtitle','emptyText','buttonText','helpText','tooltip','ariaLabel','message','heading','caption','confirmText','emptyMessage']);
+const uiKeys = new Set(['label','title','description','placeholder','subtitle','emptyText','buttonText','helpText','tooltip','ariaLabel','message','heading','caption','confirmText','emptyMessage','bodyHtml']);
 const stats=[];
 function register(namespace, message, format) {
   const key='m_'+crypto.createHash('sha256').update((format||'plain')+'\0'+message).digest('hex').slice(0,14);

@@ -11978,6 +11978,12 @@
     setTimeout(() => callHost('revealProposalSection'), 40);
   }
 
+  function clearProposalSettingsPanel(){
+    const wasOpen = !!window.proposalSettingsPanelOpen;
+    window.proposalSettingsPanelOpen = false;
+    return wasOpen;
+  }
+
   function mountProposalSettingsPanel(){
     window.dispatchEvent(new CustomEvent('fm:open-document-settings'));
   }

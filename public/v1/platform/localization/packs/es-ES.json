@@ -2193,7 +2193,15 @@
     "m_25253d755816e2": "Graba con el móvil una vuelta completa alrededor de la casa y sube el vídeo aquí. Si haces el pedido desde la aplicación FirstMate, lo grabaremos por ti.",
     "m_27b7e868698f63": "Añade primeros planos de todo lo que no se vea bien en el vídeo, como buhardillas, ampliaciones o pasillos laterales estrechos.",
     "m_2469fadd18d99a": "¿Tienes un vídeo? Cambia al vídeo orbital (recomendado)",
-    "m_6e81feb28a2b17": "Aún no hay vídeo"
+    "m_6e81feb28a2b17": "Aún no hay vídeo",
+    "m_0889f650508793": "REC",
+    "m_1ddd588108e13d": "Vuelta completa",
+    "m_f4abc4fde65b21": {
+      "message": "Revisar {v0} vídeo{v1}",
+      "format": "icu"
+    },
+    "m_e05fb49213187a": "Grabar",
+    "review_full_structural_report": "Revisar el informe estructural completo"
   },
   "help": {
     "m_0db6efc53ab2ed": "¿Necesitas ayuda?",
@@ -2715,7 +2723,222 @@
     },
     "m_ee2e95ef4a2d84": "Mediciones actualizadas",
     "m_52f356edab1915": "Se han actualizado los valores del informe. Se han conservado los cambios manuales.",
-    "m_81c35a6db09047": "Mediciones no disponibles"
+    "m_81c35a6db09047": "Mediciones no disponibles",
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} cada uno",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Modelo y fotos",
+    "m_020e15c6bea221": "Vista aérea",
+    "m_8a27a13894e81a": "No se ha podido cargar el visor del tejado. Actualiza la página para intentarlo de nuevo.",
+    "m_76608e0c91e510": "Leyenda",
+    "m_9f97a8cc4df412": "Cargando modelo del tejado…",
+    "m_e11fb3a15af2c9": "Arrastra para girar · Desplázate para ampliar",
+    "m_f902513107035c": "Modelo del tejado y contenido multimedia del informe",
+    "m_cc0ef10e9ca033": "Textura",
+    "m_f5c0225c619977": "Líneas de colores",
+    "m_106ab75c23cf29": "Restablecer vista",
+    "m_3ed4abb478b582": "Modelo 3D del tejado",
+    "m_7e9fab72578933": "No se ha podido cargar este contenido multimedia.",
+    "m_c2e36017433571": "No se ha podido cargar la imagen solar",
+    "m_2578923397f853": "Cargando imagen solar…",
+    "m_ff91c03c76ccf0": "Líneas guardadas del tejado · Arrastra para girar · Desplázate para ampliar",
+    "m_00f3e8b60aebc9": "Estándar",
+    "m_ae8e4953e07d70": "Cliente",
+    "m_425f6b598f6417": "Meteorología",
+    "m_070d836d7b27e3": "Cambios pendientes",
+    "m_3a57f052b36fc1": "Se ha eliminado el cargo por entrega urgente de este pedido.",
+    "m_ee8cd441a3c740": "Los informes urgentes empiezan a procesarse de inmediato y no se pueden cancelar después de 1 minuto.",
+    "m_7ab36b45fa8644": "Los informes estándar se pueden cancelar durante los 15 minutos posteriores a la solicitud.",
+    "m_0ca6847627b5d8": "Generando informe instantáneo",
+    "m_4f9decb4fef708": "Procesando informe del cliente",
+    "m_cb27e9cd4b71dc": "Procesando informe estándar",
+    "m_b754ff36345be0": "Informe estándar pendiente",
+    "m_6c2b94bfbe7de4": "Calculando plazo de entrega",
+    "m_813568092a909a": "En curso",
+    "m_a5adb64bece6bf": "En revisión",
+    "m_2175240180a38e": "Pendiente",
+    "m_0dcf5f39373245": "Ha terminado el plazo de cortesía de 1 minuto para cancelar este informe urgente.",
+    "m_5a195b5dbc85fc": "Ha terminado el plazo de cortesía para cancelar este proyecto.",
+    "m_4d7c3696ea7819": "Informe instantáneo pendiente",
+    "m_20daf0329c6bb5": "Este informe se ha rechazado porque las imágenes disponibles no permiten ver bien la estructura. Puede ocurrir cuando los árboles, las sombras, la calidad de imagen u otros obstáculos visuales impiden identificar y medir el tejado con seguridad. Hemos reembolsado el informe original.",
+    "m_8a0434dcd5f44a": "Este informe se ha rechazado porque parece que el marcador seleccionado no está colocado sobre una estructura que podamos medir. Puede ocurrir si el marcador está en un jardín, una entrada de vehículos, un objeto cercano o una estructura para la que no hay suficientes imágenes utilizables para medir con precisión. Hemos reembolsado el informe original.",
+    "m_fdbdd395519610": "Este informe se ha rechazado porque la organización no tenía crédito suficiente para las estructuras adicionales. No se ha mantenido ningún cargo por los marcadores de estructuras adicionales de este informe rechazado.",
+    "m_a88169ad51b679": "Este informe se ha rechazado. Hemos reembolsado el informe original.",
+    "m_85b7e99a08fa9a": "Medición",
+    "m_ec6b76d100b0ec": "Valor",
+    "m_4b91b73dae1ff3": "Unidad",
+    "m_f2baa3de1eb35b": "Aleros",
+    "m_230a183ddb6e96": "Limahoyas",
+    "m_48029c2aaa37c6": "Bordes inclinados",
+    "m_217bf30b990d24": "Cumbreras",
+    "m_baa2f693c3883e": "Limatesas",
+    "m_3bcef36c5987a6": "Babero de encuentro con paramento",
+    "m_58ab5ba41ae1c9": "Babero lateral",
+    "m_06fc435805a90a": "Babero escalonado",
+    "m_8ba24778829c38": "Encuentros",
+    "m_4d80da8e9e6ebe": "Muro de peto",
+    "m_7aeda3ce508c46": "Contrababero",
+    "m_0cbf0780118eed": "Tamaño desconocido",
+    "m_7244c568a68bff": "En proceso",
+    "m_d0dd61f9c0e1d2": "Listo",
+    "m_e70e11490d7b0e": "No disponible",
+    "m_1313f5db221c3d": "PDF principal de mediciones del tejado con mediciones de canalones",
+    "m_9898713daf99e1": "PDF principal de mediciones del tejado",
+    "m_39c51745a420e1": "PDF de resumen para el cliente",
+    "m_73340cea156d55": "Exportación de datos del modelo",
+    "m_104300af4d9588": "Vista previa instantánea de las mediciones",
+    "m_645ca26abdddb4": "PDF del historial de fenómenos meteorológicos graves",
+    "m_0d54f0e37800ea": "Aún no enviado",
+    "m_61023422d0cb5d": "Rechazado",
+    "m_9863f11d60b2fa": "Cancelado",
+    "m_e8e493437c1a17": "Completado",
+    "m_46c14a5ec722c6": "Solicitado",
+    "m_e2f22061f67c87": "Instantáneo + estándar",
+    "m_d5a4d5eab0934e": "Resumen del informe de vivienda completa",
+    "m_ac57bd5edb01bf": "Resumen del informe del tejado",
+    "m_4567836c628fdd": "Inténtalo de nuevo.",
+    "m_59c670bfa95274": "No se ha podido generar el informe meteorológico. Puedes volver a intentarlo desde aquí.",
+    "m_5414698a7f63e1": "El informe meteorológico está solicitado y se generará cuando se complete el informe de FirstMeasure.",
+    "m_1ef47a07071860": "Se está generando el informe histórico de fenómenos meteorológicos graves. Aparecerá aquí cuando esté listo.",
+    "m_75ee115d9e118f": "No se ha podido generar el informe meteorológico.",
+    "m_7d48773e58e964": "No se ha podido solicitar el informe meteorológico.",
+    "m_6479e99c256b1d": "El informe meteorológico está listo.",
+    "m_65522862812f28": "Problema notificado",
+    "m_7af9903841fb66": "Estructura adicional",
+    "m_9816fa5fa0bc00": "Cambio o corrección",
+    "m_1dbe1d8b227b2f": "Enviado al servicio de asistencia",
+    "m_51be70f25415d9": "Aprobado",
+    "m_3c4d2141b2fa1c": "Completado",
+    "m_fe9520d635f903": "Aquí se muestran tus mensajes al servicio de asistencia sobre este informe devuelto.",
+    "m_339395a80e0064": "Tu informe devuelto seguirá disponible mientras se revisan estas solicitudes.",
+    "m_e2b803de55a93e": "Enviado",
+    "m_a518a4f0e43132": "Esto envía un mensaje al servicio de asistencia de FirstMeasure.",
+    "m_35f94adf3dce96": "Coloca la estructura adicional en el mapa. Las solicitudes comerciales y multifamiliares se cobran por cada estructura añadida.",
+    "m_bb5684676c9b3b": "Añade notas y fotos para el equipo de correcciones.",
+    "m_eba3732c6bff34": "Mensaje al servicio de asistencia",
+    "m_fd5e1725cedd0d": "Añade una solicitud de corrección",
+    "m_f945baf54844d9": "Solicitud de corrección gratuita",
+    "m_735a0c9b004cb0": "Solicitud de estructura adicional",
+    "m_136eda8f76021e": "Estructuras adicionales añadidas al informe devuelto",
+    "m_db80beaa86c589": "No se ha podido enviar la solicitud.",
+    "m_8e44aec37ccb2b": "Se ha guardado el seguimiento del informe.",
+    "m_2ba158e4424efb": "No se ha podido acelerar este informe.",
+    "m_fbd81f2c4d1c18": "Se ha actualizado la entrega.",
+    "m_21778024c3a70c": "No se ha podido cancelar este informe.",
+    "m_c44638d45be320": "Se ha cancelado el pedido.",
+    "m_70cd41e8830a84": "No se ha podido importar el informe.",
+    "delivery_by": {
+      "message": "Antes de {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Menos de {hours} horas",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Estimación: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Estimación: {hours} h",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Estimación: {hours} h {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Solicitado el {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Cancelar informe (quedan {time})",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Encuentros laterales",
+    "m_10e472dc761ed6": "Encuentros con paramento",
+    "m_717d08a340c907": "Meteorología",
+    "m_6a656f97b4af69_currency": "Se entrega con este proyecto",
+    "m_a54dfa11060c5d_currency": "Informe meteorológico solicitado",
+    "m_bd585f0df980a6_currency": "Solicitud enviada",
+    "m_550e7313d4d175_currency": "Informe acelerado",
+    "m_d588b9b5f17ee7_currency": "Informe cancelado",
+    "m_1c10582071b5c0": {
+      "message": "{v0} h {v1} min",
+      "format": "icu"
+    },
+    "m_99fe5ad3c48550": {
+      "message": "{v0} hora{v1}",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} s",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} s",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Volver a solicitar como {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "XML de mediciones no disponible ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "Error al descargar el XML ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Enviado el {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Enviar - {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# h} other {# h}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# foto} other {# fotos}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Reembolsado el {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Este informe se ha rechazado porque parece que requiere un informe de tipo {v0}. Hemos reembolsado el informe original.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Comprobando...",
+    "m_417c2d318452c7": {
+      "message": "No se ha podido leer {v0}.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Estructura adicional solicitada mediante marcador.",
+    "m_3c366c37d61199": {
+      "message": "Se han cobrado {v0} por la solicitud de estructura adicional.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Acelerando la entrega...",
+    "m_a57adbfbfeda02": {
+      "message": "Se han cobrado {v0} por la opción de entrega más rápida.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# marcador} other {# marcadores}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Cargando datos financieros...",
@@ -3718,7 +3941,121 @@
     "m_428a61cf4a8532": "Proyectos coincidentes",
     "m_67ea3d9f45d10b": "Buscando proyectos…",
     "m_7f0c783c8eec23": "Abriendo proyecto…",
-    "m_5180ead27b8ad6": "Error al cargar el GIF"
+    "m_5180ead27b8ad6": "Error al cargar el GIF",
+    "m_0d21d7d3136fc9": "Mediciones exteriores de toda la casa, incluido el tejado.",
+    "m_97e57acb52769a": "Superficies de muros, ventanas, puertas y revestimientos.",
+    "m_1274bb24b43206": "Incluye las mediciones del tejado y los canalones.",
+    "m_b120ceb5e3ac9e": "Se requieren ocho fotos de referencia por estructura.",
+    "m_f1775523edde74": "Tu informe de mediciones del tejado.",
+    "m_424bd3aef8e7cb": "Superficies, pendientes, bordes y mediciones del tejado.",
+    "m_5c6fb5beeff92c": "Al hacer el pedido, añade canalones u otros informes disponibles.",
+    "m_398f784a950729": "Añade una página específica de canalones al informe residencial estándar.",
+    "m_98ad5fe62c722d": "Longitud de canalón activo en pies lineales, calculada a partir de los tramos del alero.",
+    "m_1b41dbf4615706": "Número de plantas en los lados norte, sur, este y oeste.",
+    "m_18db25f632d117": "Diagrama de canalones con cada tramo identificado.",
+    "m_2c4f4a8f273e86": "Cantidad de ingletes en esquinas exteriores de 90°, interiores de 90° y de otros ángulos.",
+    "m_4cd43f827c1fae": "Añade un informe instantáneo de mediciones mientras se procesa el informe estándar.",
+    "m_4b2b1884c6cff9": "Vista previa rápida de las mediciones del tejado generada por IA.",
+    "m_f97d66c6fc03c3": "Modelo interactivo del tejado, si está disponible.",
+    "m_7f677a10302532": "Acceso instantáneo al PDF antes de que se complete el informe estándar revisado.",
+    "m_edc48228028f11": "El informe estándar seguirá respetando el plazo de entrega seleccionado.",
+    "m_208063e29728ba": "Añade un informe del historial de fenómenos meteorológicos extremos de la propiedad.",
+    "m_0087790e73e66c": "Historial amplio de episodios de granizo, viento y tornados en la dirección.",
+    "m_bab1f8bcf78db9": "Registros de episodios cercanos agrupados por fecha, con detalles de distancia e intensidad.",
+    "m_b901f17c3bd50b": "Mapas, contexto de alertas y tablas de resumen.",
+    "m_bdcad3423f3114": "Útil para revisar reclamaciones, conversar con clientes y documentar proyectos.",
+    "m_a227a5b1174b0f": "Añade una función opcional de informe a este pedido.",
+    "m_0b5d751a9847bf": "Abrir informe de muestra",
+    "m_d9c640d91be6e2": "Sin prisa",
+    "wait_minutes": {
+      "message": "Estimación: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Estimación: {hours} h",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Estimación: {hours} h {minutes} min",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "Se ha aplicado un descuento por recomendación del {v0}%. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "Total: {v2}.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Sin crédito disponible",
+    "m_b97feb346e3fae_currency": {
+      "message": "Necesitas {v0} para realizar este pedido de informe.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} / estructura × {count, plural, one {# estructura} other {# estructuras}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Pedir informe",
+    "overview_build_proposal": "Preparar propuesta",
+    "overview_schedule_appointment": "Programar cita",
+    "overview_no_projects": "No hay proyectos coincidentes.",
+    "overview_gutters": "canalones",
+    "overview_weather": "meteorología",
+    "overview_instant": "informe instantáneo",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# estructura confirmada} other {# estructuras confirmadas}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Entrega prevista: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Incluye {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Contraer",
+    "audit_c461dbb2bab7d8": "Pantalla completa",
+    "audit_06ecd0fafc34d4": "esta compra",
+    "audit_2b5c3d26721ae9": "Contacto",
+    "audit_98595978531974": "Proyecto",
+    "audit_22a970d2e5b1cc": "Completado",
+    "audit_6f8d17646237f4": "Nuevo proyecto",
+    "audit_0a2d38987b9aa3": "Casas y viviendas unifamiliares",
+    "audit_114820134036e1": "Inmuebles comerciales e industriales",
+    "audit_9e05435948dfbb": "Apartamentos y viviendas compartidas",
+    "audit_c0eb0f8efba638": "Elegir tipo",
+    "audit_e10ae990740118": "Anteriormente",
+    "audit_b512d97e7cbf97": "Usuario",
+    "audit_b764cdc0eab713": "Desconocido",
+    "audit_90eb5886fddc5f": "Ninguna nota coincide con este filtro.",
+    "audit_57bde4deb215bf": "Aún no hay notas.",
+    "audit_6501e1ced8da0b": "Guardar nota",
+    "audit_63565c0485fec4": "Añadir nota",
+    "audit_ab52c213888188": "Compañero de equipo",
+    "audit_3fe263538d199f": "Nuevo contacto",
+    "audit_1b5a65c3cdba9e": "Proyecto sin título",
+    "audit_d87821ba1a366b": "No hay proyectos que coincidan con tu búsqueda.",
+    "stalled_order": "Este pedido de informe se ha quedado bloqueado antes de empezar a procesarse. Puedes volver a solicitarlo desde la pestaña «Informes».",
+    "inactive_order": "Este proyecto no tiene ningún pedido de informe activo.",
+    "audit_77b12f57b38b87": "Informe en curso",
+    "audit_d30a775883da50": "Informe en revisión",
+    "audit_0ba1f4e48609ea": "Informe pendiente",
+    "audit_c5e665c57bc2e0": "Se está trabajando en el informe estándar.",
+    "audit_2612ba1829868e": "Se está revisando el informe estándar.",
+    "audit_901358a2916ff7": "El informe estándar está pendiente.",
+    "audit_b67507ab244ce0": "No se ha podido abrir el proyecto.",
+    "audit_60e9af1cbdcdac": "este informe de estructura completa",
+    "audit_3f50e8ab670539": "este informe del tejado",
+    "audit_b4cc4b07c30010": "En curso",
+    "audit_674db38d5123c4": "Pendiente de revisión",
+    "audit_9b24354bb066bb": "Requiere corrección",
+    "audit_da77d8f5b71aa0": "Pendiente de revisión",
+    "audit_35266cd2f21aca": "Realizando pedido",
+    "audit_2d31976e9d17e4": "Error al enviar la solicitud.",
+    "audit_88430f2c58bbce": "Informe de desarrollo listo",
+    "audit_7cf4af8eebae35": "Los archivos del informe existente ya se pueden consultar."
   },
   "project-schedule": {
     "m_88e13d64071885": "Horario bloqueado",
@@ -4126,7 +4463,157 @@
     },
     "m_ce86fe78082565": "No disponible",
     "m_f8e16243e0f91c": "Gestionar vista",
-    "m_200131262770e4": "Vista del proyecto"
+    "m_200131262770e4": "Vista del proyecto",
+    "m_ea9c70855946ea": "Las fases muestran nuestro flujo de trabajo. Para ver los proyectos recibidos, selecciona únicamente «Proyectos compartidos con nosotros».",
+    "m_9ce407c87de615": "Borrador",
+    "m_aaebd7ccba0b30": "Proyecto",
+    "fm_contact_unavailable": "No indicado",
+    "m_9cf11b8ab925ce": "Actualmente no tenemos cobertura para esta dirección. ",
+    "m_93f718cb51bafd": "Actualmente cubrimos el 95% de los edificios de Estados Unidos y estamos trabajando activamente para ampliar nuestra cobertura a más de los edificios restantes. ",
+    "m_ea8d59f20b2ea6": "Hemos registrado tu interés en estructuras como esta y daremos prioridad a poder cubrirlas en un futuro próximo. ",
+    "m_c5942837107a76": "No hemos podido generar un informe FirstMeasure Instant para este marcador porque el punto seleccionado no corresponde a una estructura con datos instantáneos precisos. ",
+    "m_214f9a56d321e4": "No hemos podido completar este informe porque las imágenes disponibles no permiten ver bien la estructura. ",
+    "m_9ac5bbd5a7f1d1": "Esto puede ocurrir cuando los árboles, las sombras, la calidad de imagen u otros obstáculos visuales nos impiden identificar y medir el tejado con seguridad. ",
+    "m_d51846aa8dda09": "Disculpa las molestias que esto te haya podido causar.",
+    "m_4edb03027fd308": "No hemos podido completar este informe porque parece que el marcador seleccionado no está colocado sobre una estructura que podamos medir. ",
+    "m_17b153d5aa2b45": "Esto puede ocurrir si el marcador está en un jardín, una entrada de vehículos, un objeto cercano o una estructura para la que no hay suficientes imágenes útiles para medir con precisión. ",
+    "m_5978e46f6f29cd": "No hemos podido completar este informe porque la estructura seleccionada no coincide con el tipo de proyecto solicitado. ",
+    "m_4b5bf19bcf1325": "Hemos reembolsado el informe original.",
+    "m_0b9e2c765e77b1": "Te devolveremos el crédito de este pedido instantáneo.",
+    "m_8d52a67caa71a2": "Multifamiliar",
+    "m_6d351fa63793b6": "Este proyecto se ha cancelado. No se realizará ningún otro trabajo para esta solicitud.",
+    "m_549ccd0e27a3d4": "Sí",
+    "m_2f0222913078f4": "No",
+    "m_0817ad39e6765a": "Aún no se ha podido cargar FirstMeasure Instant.",
+    "m_e005bd4bc50817": "Mediciones combinadas de la estructura seleccionada.",
+    "m_3e219b59d394f6": "Mediciones de la estructura seleccionada.",
+    "m_ba6a658fdc23c0": "Descargar informe estándar",
+    "m_f456048437e56e": "Reintentando informe estándar",
+    "m_a44e379d284797": "Descargar informe para el cliente",
+    "m_a32ef8d751f045": "Reintentando informe para el cliente",
+    "m_06f3a13fba723d": "Rango de superficie (m²)",
+    "m_f7d60690e4780f": "Rango de squares",
+    "m_7456bdb3003d3a": "Esta estructura",
+    "m_dacaa66449659d": "Preparando informe estándar",
+    "m_f3cacef590576b": "No se ha podido descargar el informe estándar instantáneo.",
+    "m_6783ae5a616a3f": "La información de contacto aún no está disponible.",
+    "m_6f94190df36af9": "Preparando informe para el cliente",
+    "m_2a9462b7fdff9d": "No se ha podido descargar el informe instantáneo para el cliente.",
+    "m_5a0f6b2de100f2": "Los recursos de imagen instantánea aún no están listos.",
+    "m_a2decb63023f36": "Los archivos del modelo instantáneo aún no están listos.",
+    "m_46f6cf08f0ef61": "La vista previa instantánea no está disponible para este proyecto.",
+    "m_edb27a9262e77e": "No se ha podido solicitar el informe estándar.",
+    "m_235d86f4916a45": "Perdido",
+    "m_3c4d2141b2fa1c": "Completado",
+    "m_8a993ed9b573b4": "Sin asignar",
+    "m_1b6ec15cbd198b": "En curso",
+    "m_bf38bfda2125d1": "Tejado + canalones",
+    "m_de8450bc1dc243": "No se ha podido mover el proyecto.",
+    "m_2da110201b814e": "Flecha izquierda",
+    "m_e90f8a20f79638": "Flecha derecha",
+    "m_1519fbdf5b87ed": "Inicio",
+    "m_80cfdb09a78f4b": "Fin",
+    "m_2a925f101cbd18": "Ascendente",
+    "m_760cf1fac61b3d": "Descendente",
+    "m_aac16f05678935": "Fases",
+    "m_3221d12ca792a6": "Mosaicos",
+    "m_4bb4688766e904": "Guardado",
+    "m_b415d005adf878": "El ID del proyecto de FirstMeasure no está disponible.",
+    "m_82ea55e5099898": "Se ha guardado la información de contacto.",
+    "m_41d4335f00b051": "Se ha borrado la información de contacto.",
+    "m_13fa388b0577c8": "Error al descargar.",
+    "m_f32282581cf29c": "Guardado para este proyecto.",
+    "m_26c6cc9deaa942": "Cargado desde este proyecto.",
+    "m_6ab3fe9280d969": "Cambios sin guardar.",
+    "m_71c5dfdf68e84f": "No se ha podido guardar la información de contacto.",
+    "m_7a7059bde880f7": "Corregido",
+    "m_00f3e8b60aebc9": "Estándar",
+    "m_9e098701abaa2c": "Copia para el cliente",
+    "m_ae8e4953e07d70": "Cliente",
+    "m_74b044783b2a3e": "Descargar PDF del informe corregido",
+    "m_7d54357160f795": "Descargar PDF del informe",
+    "m_9222c2e07a3df0": "Descargar PDF corregido para el cliente",
+    "m_09128dde31d325": "Descargar PDF para el cliente",
+    "m_175a65008ef30d": "Descargar modelo XML",
+    "m_9da3458d21c94e": "Informe corregido",
+    "m_c47c2ce6bb05c0": "Informe",
+    "m_690327a7486605": "Copia corregida para el cliente",
+    "m_d2b7446d4a96f1": "Copia para el cliente",
+    "m_e2943d71f406cb": {
+      "message": "Estructura {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Estructuras incluidas: {v0} de {v1} seleccionadas.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Mediciones de la estructura {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Se ha reembolsado el coste de ${v0} de esta estructura.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Se está reembolsando el coste de ${v0} de esta estructura.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Se ha eliminado el coste de ${v0} de esta estructura de la facturación instantánea.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "No se ha podido cargar el recurso instantáneo ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Ambos - {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Estándar - {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "Flecha abajo",
+    "m_92c001f63daac8": "Intro",
+    "m_5ba96f2ee6a04a": "Esc",
+    "m_f8cfb983b6ee93": "Flecha arriba",
+    "m_b550215be01e52": "Aceptar",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Error al descargar ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "No has iniciado sesión",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# estructura seleccionada se ha excluido porque no había datos instantáneos utilizables.} other {# estructuras seleccionadas se han excluido porque no había datos instantáneos utilizables.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " Se ha reembolsado un crédito de {amount}.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " Se está devolviendo un crédito de {amount}.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "solicitud de estructura adicional",
+    "audit_a65c9f1d26dec1": "solicitud de cambio o corrección",
+    "audit_ee9da4f4e90be4": "solicitud de corrección",
+    "audit_1c376a7fd9b2d3": "Las dependencias del modelo 3D no están disponibles.",
+    "audit_325cb33dd4a5d6": "PROCESANDO INFORME COMPLETO",
+    "audit_e0507c184559a7": "INFORME INSTANTÁNEO",
+    "audit_b06d7c41ed06c8": "organización asociada",
+    "audit_5dbc6dff430e8d": "CAMBIOS PENDIENTES",
+    "audit_1c4b7f4ada5422": "INFORME CORREGIDO LISTO",
+    "audit_843f745c483e81": "INSTANTÁNEO + COMPLETO",
+    "audit_76bf93df451d48": "INFORME LISTO"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4452,7 +4939,60 @@
     "m_f35a14165cc920": "La interfaz de instrucciones está lista; a continuación se puede conectar la generación del modelo a esta acción.",
     "m_bbe27879ebf26c": "Dictado no disponible",
     "m_79af74d554f5a6": "Este navegador no ofrece reconocimiento de voz en este contexto.",
-    "m_9964312e9c85ac": "Presupuestos del proyecto"
+    "m_9964312e9c85ac": "Presupuestos del proyecto",
+    "m_c82963ef8940ce": "Página de resumen",
+    "m_700473b6840e61": "Eliminar logotipo de marca compartida",
+    "m_fccaa3fc954540": "Usar",
+    "m_1a29aea570fbc4": "Cant.",
+    "m_8edfc0dd24bef1": "Precio unitario $",
+    "m_ae8e4953e07d70": "Cliente",
+    "m_ca125d59fcd810": "Nombre de la opción",
+    "m_e847735cf5a416": "Zoom",
+    "m_709d4ebff0e0da": "Toca para firmar",
+    "m_9edc96d5f6e438": "Representante de la empresa",
+    "m_ccb84c048a1a17": "Impuesto sobre las ventas",
+    "m_40c4e9e3dc4c0a": {
+      "message": "El calendario de pagos suma {v0}%. Debe sumar 100%.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Aún no se han subido archivos multimedia",
+    "m_a5e1cd4c41f31c": "Este proyecto aún no tiene fotos ni vídeos.",
+    "m_7f88f89133cbc4": "Escribe el nombre de la persona que firma",
+    "m_16dcd60135fed3": "Dibuja tu firma aquí",
+    "m_506191e24dd383": "Borrar",
+    "m_b5828f5fd0c36d": "Aún no hay propuestas",
+    "m_7feb0c701cff3e": "Crea el primer borrador y duplícalo cuando quieras preparar variantes.",
+    "m_8934bbea9ff9ad": {
+      "message": "Paso {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Añadir teja",
+    "m_a28421203810c9": "Busca en el catálogo de precios y añade otra opción visible para el cliente.",
+    "m_581e6e2a759706": "Cerrar «Añadir teja»",
+    "m_f3189dbe87971a": "Buscar en el catálogo de precios de tejas",
+    "m_4a3589501ecc1f": "Nombre del descuento",
+    "m_792f935ba82291": "Valor del descuento",
+    "m_691d860b768692": "Eliminar descuento",
+    "m_0254795a80cfc0": "Aún no se ha añadido ningún descuento.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Eliminar {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Flujo de trabajo personalizado por definir.",
+    "m_7fcfaa1f4fcd66": "\n                      Se necesita un correo electrónico para enviar\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Este proyecto aún no tiene ningún correo electrónico del cliente.",
+    "m_c10134dc02336b": "\n                Se necesita un correo electrónico para enviar\n                ",
+    "m_cbb41dfafd178f": "Incluir enlace al portal del cliente",
+    "m_a9fa064a3c9985": "Permitir que el cliente firme varias propuestas",
+    "m_5cc367ea2b4774": {
+      "message": "Página {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Eliminar",
+    "m_af64ff308ca58e": "Eliminar página",
+    "m_bdf76cad510e9f": "Eliminar opción",
+    "m_fba496098e9a0f": "No se han encontrado tejas coincidentes."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Recibos sin asignar",
@@ -7586,7 +8126,149 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# transacción} other {# transacciones}} - Neto: ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Recarga automática de crédito",
+    "m_8cb6b086a0e69c": "Listo",
+    "m_d248c450100477": " Archivar",
+    "m_3cfab293c8c008": " Invitar a una persona",
+    "m_ae615734419eb6": "Roles &amp; acceso predeterminado",
+    "m_91244bdaa8204c": "Crea configuraciones iniciales reutilizables para la visibilidad y los permisos de las aplicaciones.",
+    "m_1f1ad34d149fdf": "Cargando roles de acceso...",
+    "m_0e74f1bca1ead4": "Gestionar",
+    "m_6fd299432247c1": "Guardando kit de marca…",
+    "m_569b229b85507e": "Error al guardar el kit de marca",
+    "m_b9b9bca729d6db": {
+      "message": "rev. {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "No hay roles de acceso activos.",
+    "m_77a0c5b9d8ac90": " Tú",
+    "m_e09715b775ce9e": " Añadir usuario",
+    "m_6e9ebf535758d8": "Dirección de la empresa",
+    "m_bbe1447b5d3e67": "Se usa para rellenar automáticamente el registro del dominio y la verificación comercial 10DLC.",
+    "m_ac137f394a3447": "Dirección",
+    "m_c549239597ab7a": "Suite, unidad, etc. (opcional)",
+    "m_a09f6a051adb2f": "Logotipo de la empresa en la vista previa del informe",
+    "m_8eec608d18828f": "Diagrama de muestra del tejado",
+    "m_1d7c61da5a56c2": "No hay ninguno disponible.",
+    "m_8106b856808735": "Cargando departamentos…",
+    "m_6b8e4b3f1a7cc9": "Pertenencias heredadas:",
+    "m_8bdaf1ba732556": "Las casillas muestran las asignaciones directas. Las pertenencias heredadas siguen activas aunque desmarques la casilla.",
+    "m_ff6087fc202a31": "Departamentos guardados.",
+    "m_edcd68da5d4b23": "Cargando departamentos de la organización…",
+    "m_f7161d1f24e956": "Departamentos de la organización",
+    "m_8f5d10ae9e3dfc": "Se comparten entre todas las sucursales. Define los departamentos predeterminados para los roles de usuario y los tipos de grupo, o añade personas y grupos concretos. Una persona o un grupo puede pertenecer a varios departamentos.",
+    "m_570d421382fbed": "Departamentos",
+    "m_20558f2853e00b": "Personas, roles y grupos",
+    "m_4297d86c10d006": "Asignar departamentos por",
+    "m_ad2f0ca83b8780": "Usuario individual",
+    "m_21037df1b40c09": "Tipo de usuario / rol",
+    "m_319e5834d71d6f": "Grupo individual de usuarios",
+    "m_f2c096f77350e1": "Tipo de grupo de usuarios",
+    "m_bca9e3fd6cf405": "Elegir",
+    "m_2f45efa1cd676a": "Elegir…",
+    "m_ce2f23fc67dbab": "Nombre del departamento",
+    "m_b53d9744f78699": "Categoría del departamento (opcional)",
+    "m_02997de9e09d60": "Tipos de usuario / roles — miembros predeterminados",
+    "m_8dde7f5f579699": "Tipos de grupo de usuarios — grupos predeterminados",
+    "m_ec049efefe3343": "Usuarios individuales adicionales",
+    "m_6ea7e974e821fc": "Grupos de usuarios individuales adicionales",
+    "m_c73c6e0076f1ad": "Por ejemplo, Atención al cliente",
+    "m_cfa69cfd76ca26": "Introduce el nombre de un departamento.",
+    "m_0c44938a138aa6": "Departamento guardado.",
+    "m_c8a24768419f58": "Los permisos son de solo lectura.",
+    "m_33071666de0ded": "Error al cargar la lista",
+    "m_d7ead3cd6cbff6": "Error al añadir",
+    "m_272e637b6dd40b": "No se pueden volver a enviar invitaciones.",
+    "m_f2db003b7dc3e6": "Ocultar permisos",
+    "m_c8653c90005f35": "Mostrar permisos",
+    "m_0fe4884bff1c81": "Ventana modal",
+    "m_fd5fb5598dd8f6": "Nunca ha iniciado sesión",
+    "m_4b49e020f08d8e": "No se pueden editar los correos electrónicos de los superadministradores para evitar que se bloquee el acceso a la cuenta.",
+    "m_2bdeadce179997": "Puedes cambiar el nombre de este superadministrador, pero el correo electrónico está bloqueado.",
+    "m_b7e812bec0dfac": "Actualiza el nombre que se muestra o el correo electrónico de inicio de sesión.",
+    "m_f6655180d4e320": "Cambia el nombre del usuario o su correo electrónico.",
+    "m_4c66f6639656d2": "Levantar la suspensión",
+    "m_232f4ec7b346ef": "Suspender",
+    "m_2ac360d5cff662": "No se ha podido enviar el correo de invitación.",
+    "m_a2ee3708083074": "No puedes suspenderte a ti mismo.",
+    "m_24bcbb5e94dc78": "No puedes suspender a un superadministrador.",
+    "m_415424819400a6": "Usuario suspendido.",
+    "m_5945a7cc27f21a": "Se ha levantado la suspensión del usuario.",
+    "m_ec6aab12561da3": "No puedes eliminarte a ti mismo.",
+    "m_d0751bed2963bc": "No puedes eliminar a un superadministrador.",
+    "m_90ca724100109f": "No se han encontrado usuarios.",
+    "m_2732f18bba7fc8": "No puedes editar tus propios permisos aquí.",
+    "m_90ed0c9031712d": "No se ha podido guardar la foto de perfil.",
+    "m_5e287d278f8b92": "Error inesperado.",
+    "m_75d641bda100b6": "No se han podido cargar los usuarios.",
+    "m_4a9f6ad3027f17": "Error desconocido",
+    "m_d7226634e4ea42": "Se ha enviado el correo de invitación.",
+    "m_e86ab6eb3ff843": "Se ha creado el usuario, pero no se ha podido enviar el correo electrónico.",
+    "fm_users_owner": "Propietario",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Los importes mínimos de recarga automática son {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Mínimo: {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Mínimo: {v3}",
+      "format": "icu"
+    },
+    "m_9326cc9c9e8c32_currency": {
+      "message": "Informe{v3}: {v2} - Total: ",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Si tu saldo baja de {v0}, añadiremos automáticamente {v1} a tu cuenta.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Crea departamentos en Configuración → Usuarios → Departamentos.",
+    "m_a089a1a2df79e8": "Guardar departamentos",
+    "m_5147306077d4a3": "Los departamentos de las sucursales existentes se combinan aquí. Al guardar, se adoptan como configuración de la organización; se conservan las citas y los ajustes preestablecidos existentes.",
+    "m_86433617637bb9": "+ Crear departamento",
+    "m_9c29c0605b9630": "Guardar departamento",
+    "m_0a270477a59add": "Heredado del rol de usuario",
+    "m_d934cc2b978d05": "Heredado del tipo de grupo",
+    "m_967feb25c6cad7": "Departamentos predeterminados",
+    "m_f5464054424b45": "Se aplica a todos los miembros de este tipo, incluidos los futuros miembros.",
+    "m_2ecf878bd727e3": "Las asignaciones directas se añaden a los departamentos predeterminados del rol o del tipo de grupo. Guarda primero los cambios del rol o del tipo para actualizar las pertenencias heredadas.",
+    "m_2d4ff8a83b1b5c": "Ninguno",
+    "m_b1d5eca65cad81": "No se han podido guardar los departamentos.",
+    "m_31a18651cb81ee": "No se han podido cargar los departamentos.",
+    "m_8a36512cbfe084": "No se ha podido guardar el departamento.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# informe} other {# informes}} - Total: ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Subir foto de perfil",
+    "profile_tooltip_1": "Abrir perfil",
+    "profile_tooltip_2": "Elegir foto de perfil",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Es una eliminación lógica. La cuenta se archiva para fines de auditoría, y el correo electrónico puede reutilizarse para una futura invitación o registro.",
+    "m_1e50cfd1b66d97": "Foto de perfil opcional",
+    "m_e2207970d3a42f": "Nivel de permisos",
+    "logos_uploading": {
+      "message": "Subiendo {count, plural, one {# logotipo} other {# logotipos}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {Se añadió # logotipo a tu biblioteca de marca.} other {Se añadieron # logotipos a tu biblioteca de marca.}}",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Hemos ajustado ese valor al mínimo de {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Recarga automática: {amount} cuando el saldo baje de {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Recarga automática de crédito: desactivada"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Añadir trabajo",
@@ -8232,7 +8914,13 @@
       "message": "{v0} sin leer &middot; {v1} en total",
       "format": "icu"
     },
-    "new_report": "Nuevo informe"
+    "new_report": "Nuevo informe",
+    "m_9a00fb620ffc1d": "No se ha podido guardar el ancho de la barra lateral",
+    "m_854ab579641f94": "Cargando conversaciones del asistente…",
+    "m_86ec40fa3f9758": "Desactivar",
+    "m_4aaef822b47692": "FirstMate Assistant",
+    "m_20117f24d2d135": "No se ha podido cargar la configuración de facturación. ",
+    "m_48a9cdd2af44f4": "Reintentar"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Oficina",
@@ -10633,7 +11321,17 @@
     "opening_tab": {
       "message": "Abriendo {tab}…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Cambiar el tamaño de los paneles; haz doble clic para intercambiarlos",
+    "m_eae84bda77b08e": "Cerrar panel",
+    "m_9c2b801ff31874": "Este panel está tardando más de lo normal en cargarse. Puedes cerrarlo e intentarlo de nuevo.",
+    "m_8c11a27c5f0b9c": "No se ha podido abrir esta pestaña. Cierra el panel e inténtalo de nuevo.",
+    "m_a56b2777161b36": "El proyecto aún se está cargando. Puedes cerrar esta ventana e intentarlo de nuevo.",
+    "m_5eced2f9d44623": "No se ha podido cargar este proyecto. Cierra esta ventana e inténtalo de nuevo.",
+    "m_76619e065f2360": "Ubicación del acoplamiento",
+    "m_b46c7db0dc7b5b": "Cambiar el tamaño de los paneles",
+    "m_06b65fee071879": "Paneles de ventana",
+    "m_21ca9dcccf9a04": "Cerrar panel"
   },
   "reports": {
     "color": "color",

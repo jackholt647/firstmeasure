@@ -2193,7 +2193,11 @@
     "m_25253d755816e2": "Kuvaa puhelimellasi yksi kokonainen kierros talon ympäri ja lataa video sitten tähän. Kun tilaat FirstMate-sovelluksessa, sovellus kuvaa videon puolestasi.",
     "m_27b7e868698f63": "Lisää lähikuvia kohdista, jotka eivät näy videolla hyvin, kuten kattolyhdyistä, laajennuksista tai ahtaista sivupihoista.",
     "m_2469fadd18d99a": "Onko sinulla video? Siirry kiertovideoon (suositus)",
-    "m_6e81feb28a2b17": "Ei vielä videota"
+    "m_6e81feb28a2b17": "Ei vielä videota",
+    "m_0889f650508793": "REC",
+    "m_1ddd588108e13d": "Koko kierros",
+    "m_e05fb49213187a": "Tallenna",
+    "review_full_structural_report": "Tarkista koko rakennuksen raportti"
   },
   "help": {
     "m_0db6efc53ab2ed": "Tarvitsetko apua?",
@@ -2715,7 +2719,218 @@
     },
     "m_ee2e95ef4a2d84": "Mittaukset päivitetty",
     "m_52f356edab1915": "Raportin arvot päivitettiin. Manuaaliset ohitukset säilytettiin.",
-    "m_81c35a6db09047": "Mittaukset eivät ole käytettävissä"
+    "m_81c35a6db09047": "Mittaukset eivät ole käytettävissä",
+    "m_c235f24fecb516": {
+      "message": "Kukin {v3} · {v4}",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Malli ja valokuvat",
+    "m_020e15c6bea221": "Ilmakuva",
+    "m_8a27a13894e81a": "Kattomallin lataaminen epäonnistui. Päivitä sivu ja yritä uudelleen.",
+    "m_76608e0c91e510": "Selite",
+    "m_9f97a8cc4df412": "Ladataan kattomallia…",
+    "m_e11fb3a15af2c9": "Pyöritä vetämällä · Lähennä tai loitonna vierittämällä",
+    "m_f902513107035c": "Kattomalli ja raportin media",
+    "m_cc0ef10e9ca033": "Pintakuvio",
+    "m_f5c0225c619977": "Värilliset viivat",
+    "m_106ab75c23cf29": "Palauta näkymä",
+    "m_3ed4abb478b582": "Katon 3D-malli",
+    "m_7e9fab72578933": "Tätä mediaa ei voitu ladata.",
+    "m_c2e36017433571": "Aurinkokuvaa ei voitu ladata",
+    "m_2578923397f853": "Ladataan aurinkokuvaa…",
+    "m_ff91c03c76ccf0": "Tallennetut kattoviivat · Pyöritä vetämällä · Lähennä tai loitonna vierittämällä",
+    "m_00f3e8b60aebc9": "Vakiotoimitus",
+    "m_ae8e4953e07d70": "Asiakas",
+    "m_425f6b598f6417": "Sää",
+    "m_070d836d7b27e3": "Muutoksia odottaa",
+    "m_3a57f052b36fc1": "Nopeutetun toimituksen maksu poistettiin tästä tilauksesta.",
+    "m_ee8cd441a3c740": "Nopeutettujen raporttien käsittely alkaa heti, eikä niitä voi peruuttaa 1 minuutin kuluttua.",
+    "m_7ab36b45fa8644": "Vakiotoimituksella tilatut raportit voi peruuttaa 15 minuutin kuluessa tilauksesta.",
+    "m_0ca6847627b5d8": "Pikaraporttia luodaan",
+    "m_4f9decb4fef708": "Asiakasraporttia käsitellään",
+    "m_cb27e9cd4b71dc": "Vakiotoimituksen raporttia käsitellään",
+    "m_b754ff36345be0": "Vakiotoimituksen raportti odottaa käsittelyä",
+    "m_6c2b94bfbe7de4": "Arvioidaan toimitusaikaa",
+    "m_813568092a909a": "Käsittelyssä",
+    "m_a5adb64bece6bf": "Tarkistettavana",
+    "m_2175240180a38e": "Odottaa",
+    "m_0dcf5f39373245": "Tämän nopeutetun raportin 1 minuutin peruutusaika on päättynyt.",
+    "m_5a195b5dbc85fc": "Tämän projektin peruutusaika on päättynyt.",
+    "m_4d7c3696ea7819": "Pikaraportti odottaa käsittelyä",
+    "m_20daf0329c6bb5": "Tämä raportti hylättiin, koska rakennus peittyy saatavilla olevissa kuvissa liikaa. Puiden, varjojen, kuvanlaadun tai muiden näköesteiden vuoksi kattoa ei ehkä voida tunnistaa ja mitata riittävän luotettavasti. Hyvitimme alkuperäisen raportin.",
+    "m_8a0434dcd5f44a": "Tämä raportti hylättiin, koska valittu merkki ei näytä olevan mitattavissa olevan rakennuksen kohdalla. Merkki voi olla esimerkiksi pihalla, ajotiellä tai lähellä olevassa kohteessa, tai rakennuksesta ei ehkä ole riittävästi käyttökelpoisia kuvia tarkkoja mittauksia varten. Hyvitimme alkuperäisen raportin.",
+    "m_fdbdd395519610": "Tämä raportti hylättiin, koska organisaation saldo ei riittänyt lisärakennuksiin. Tästä hylätystä raportista ei veloitettu lisärakennusten karttamerkeistä.",
+    "m_a88169ad51b679": "Tämä raportti hylättiin. Hyvitimme alkuperäisen raportin.",
+    "m_85b7e99a08fa9a": "Mittaus",
+    "m_ec6b76d100b0ec": "Arvo",
+    "m_4b91b73dae1ff3": "Yksikkö",
+    "m_f2baa3de1eb35b": "Räystäät",
+    "m_230a183ddb6e96": "Jiirit",
+    "m_48029c2aaa37c6": "Päätyräystäät",
+    "m_217bf30b990d24": "Harjat",
+    "m_baa2f693c3883e": "Aumat",
+    "m_3bcef36c5987a6": "Seinän ja katon liitoslistat",
+    "m_58ab5ba41ae1c9": "Sivuseinän liitoslistat",
+    "m_06fc435805a90a": "Porraslistat",
+    "m_8ba24778829c38": "Siirtymät",
+    "m_4d80da8e9e6ebe": "Suojakaide",
+    "m_7aeda3ce508c46": "Vastapelti",
+    "m_0cbf0780118eed": "Tuntematon koko",
+    "m_7244c568a68bff": "Käsitellään",
+    "m_d0dd61f9c0e1d2": "Valmis",
+    "m_e70e11490d7b0e": "Ei saatavilla",
+    "m_1313f5db221c3d": "Pääkattomittausten PDF, sisältää rännien mitat",
+    "m_9898713daf99e1": "Pääkattomittausten PDF",
+    "m_39c51745a420e1": "Asiakkaalle tarkoitettu yhteenveto-PDF",
+    "m_73340cea156d55": "Mallin tietojen vienti",
+    "m_104300af4d9588": "Mittauksen pikakatselu",
+    "m_645ca26abdddb4": "Historiallinen ankaran sään raportti (PDF)",
+    "m_0d54f0e37800ea": "Ei vielä lähetetty",
+    "m_61023422d0cb5d": "Hylätty",
+    "m_9863f11d60b2fa": "Peruutettu",
+    "m_e8e493437c1a17": "Valmis",
+    "m_46c14a5ec722c6": "Tilattu",
+    "m_e2f22061f67c87": "Pika- ja vakiotoimitus",
+    "m_d5a4d5eab0934e": "Koko talon raportin yhteenveto",
+    "m_ac57bd5edb01bf": "Kattoraportin yhteenveto",
+    "m_4567836c628fdd": "Yritä uudelleen.",
+    "m_59c670bfa95274": "Sääraportin luominen epäonnistui. Voit yrittää uudelleen tästä.",
+    "m_5414698a7f63e1": "Sääraportti on tilattu, ja se luodaan, kun FirstMeasure-raportti on valmis.",
+    "m_1ef47a07071860": "Historiallista ankaran sään raporttia luodaan. Se näkyy tässä, kun se on valmis.",
+    "m_75ee115d9e118f": "Sääraportin luominen epäonnistui.",
+    "m_7d48773e58e964": "Sääraporttia ei voitu tilata.",
+    "m_6479e99c256b1d": "Sääraportti on valmis.",
+    "m_65522862812f28": "Ilmoitettu ongelma",
+    "m_7af9903841fb66": "Lisärakennus",
+    "m_9816fa5fa0bc00": "Muutos tai korjaus",
+    "m_1dbe1d8b227b2f": "Lähetetty tukeen",
+    "m_51be70f25415d9": "Hyväksytty",
+    "m_3c4d2141b2fa1c": "Käsitelty",
+    "m_fe9520d635f903": "Tässä näkyvät tätä palautettua raporttia koskevat tukiviestisi.",
+    "m_339395a80e0064": "Palautettu raporttisi pysyy saatavilla, kun pyyntöjäsi käsitellään.",
+    "m_e2b803de55a93e": "Lähetetty",
+    "m_a518a4f0e43132": "Tämä lähettää tukiviestin FirstMeasurelle.",
+    "m_35f94adf3dce96": "Merkitse lisärakennus karttaan. Liike- ja usean asunnon kohteista veloitetaan lisättyä rakennusta kohden.",
+    "m_bb5684676c9b3b": "Lisää korjaustiimille huomautuksia ja valokuvia.",
+    "m_eba3732c6bff34": "Tukiviesti",
+    "m_fd5e1725cedd0d": "Lisää korjauspyynnön",
+    "m_f945baf54844d9": "Maksuton korjauspyyntö",
+    "m_735a0c9b004cb0": "Lisärakennuspyyntö",
+    "m_136eda8f76021e": "Palautettuun raporttiin lisätyt rakennukset",
+    "m_db80beaa86c589": "Pyyntöä ei voitu lähettää.",
+    "m_8e44aec37ccb2b": "Raportin jatkotoimi tallennettiin.",
+    "m_2ba158e4424efb": "Tätä raporttia ei voitu nopeuttaa.",
+    "m_fbd81f2c4d1c18": "Toimitustiedot päivitettiin.",
+    "m_21778024c3a70c": "Tätä raporttia ei voitu peruuttaa.",
+    "m_c44638d45be320": "Tilaus peruutettiin.",
+    "m_70cd41e8830a84": "Raporttia ei voitu tuoda.",
+    "delivery_by": {
+      "message": "Viimeistään {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Alle {hours} tuntia",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Arvio: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Arvio: {hours} h",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Arvio: {hours} h {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Tilattu {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Peruuta raportti (aikaa jäljellä {time})",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Sivuseinät",
+    "m_10e472dc761ed6": "Päätyseinät",
+    "m_717d08a340c907": "Sää",
+    "m_6a656f97b4af69_currency": "Toimitetaan tämän projektin mukana",
+    "m_a54dfa11060c5d_currency": "Sääraportti tilattu",
+    "m_bd585f0df980a6_currency": "Pyyntö lähetetty",
+    "m_550e7313d4d175_currency": "Raportin toimitusta nopeutettu",
+    "m_d588b9b5f17ee7_currency": "Raportti peruutettu",
+    "m_1c10582071b5c0": {
+      "message": "{v0} h {v1} min",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} s",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} s",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Tilaa uudelleen muodossa {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Mittaus-XML ei ole saatavilla ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "XML-tiedoston lataus epäonnistui ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Lähetetty {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Lähetä – {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# tunti} other {# tuntia}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# valokuva} other {# valokuvaa}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Hyvitetty {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Tämä raportti hylättiin, koska kohteelle näyttää tarvittavan raportti tyyppiä {v0}. Hyvitimme alkuperäisen raportin.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Tarkistetaan…",
+    "m_417c2d318452c7": {
+      "message": "Tiedoston {v0} lukeminen epäonnistui.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Lisärakennusta pyydetty karttamerkillä.",
+    "m_3c366c37d61199": {
+      "message": "Lisärakennuspyynnöstä veloitettiin {v0}.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Nopeutetaan toimitusta…",
+    "m_a57adbfbfeda02": {
+      "message": "Nopeammasta toimituksesta veloitettiin {v0}.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# karttamerkki} other {# karttamerkkiä}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Ladataan taloustietoja...",
@@ -3726,7 +3941,121 @@
     "m_428a61cf4a8532": "Vastaavat projektit",
     "m_67ea3d9f45d10b": "Etsitään projekteja…",
     "m_7f0c783c8eec23": "Avataan projektia…",
-    "m_5180ead27b8ad6": "GIF-animaation lataaminen epäonnistui"
+    "m_5180ead27b8ad6": "GIF-animaation lataaminen epäonnistui",
+    "m_0d21d7d3136fc9": "Koko talon ulkomittaukset, myös katto.",
+    "m_97e57acb52769a": "Seinien, ikkunoiden, ovien ja verhouksen pinta-alat.",
+    "m_1274bb24b43206": "Sisältää katon ja rännien mittaukset.",
+    "m_b120ceb5e3ac9e": "Jokaisesta rakennuksesta tarvitaan kahdeksan viitevalokuvaa.",
+    "m_f1775523edde74": "Katon mittausraporttisi.",
+    "m_424bd3aef8e7cb": "Kattoalat, kaltevuudet, reunat ja mitat.",
+    "m_5c6fb5beeff92c": "Lisää tilauksen yhteydessä rännit tai muita saatavilla olevia raportteja.",
+    "m_398f784a950729": "Lisää tavalliseen asuinrakennuksen raporttiin oman rännisivun.",
+    "m_98ad5fe62c722d": "Käytössä olevien rännien pituus lasketaan räystäslinjojen mukaan.",
+    "m_1b41dbf4615706": "Kerrosmäärä pohjois-, etelä-, itä- ja länsisivuilla.",
+    "m_18db25f632d117": "Rännikaavio, jossa jokainen osuus on merkitty.",
+    "m_2c4f4a8f273e86": "Ulkokulmien 90°, sisäkulmien 90° ja muiden kulmien jiiriliitosten määrät.",
+    "m_4cd43f827c1fae": "Lisää välittömän mittausraportin vakiotoimituksen raportin käsittelyn ajaksi.",
+    "m_4b2b1884c6cff9": "Nopea tekoälyn luoma katon mittausten esikatselu.",
+    "m_f97d66c6fc03c3": "Vuorovaikutteinen kattomalli, jos sellainen on saatavilla.",
+    "m_7f677a10302532": "PDF on heti käytettävissä, vaikka tarkistettua vakiotoimituksen raporttia ei ole vielä viimeistelty.",
+    "m_edc48228028f11": "Vakiotoimituksen raportti toimitetaan silti valitun toimitusajan puitteissa.",
+    "m_208063e29728ba": "Lisää kiinteistölle ankaran sään historiaraportin.",
+    "m_0087790e73e66c": "Osoitteen laaja rae-, tuuli- ja tornadohistoria.",
+    "m_bab1f8bcf78db9": "Lähialueen tapahtumatiedot päivämäärän mukaan ryhmiteltyinä; mukana etäisyys- ja voimakkuustiedot.",
+    "m_b901f17c3bd50b": "Karttoja, varoituksiin liittyvää taustatietoa ja yhteenvetotaulukoita.",
+    "m_bdcad3423f3114": "Hyödyllinen korvaushakemusten tarkastelussa, asiakaskeskusteluissa ja projektin dokumentoinnissa.",
+    "m_a227a5b1174b0f": "Lisää tähän tilaukseen valinnaisen raporttiominaisuuden.",
+    "m_0b5d751a9847bf": "Avaa raportin näyte",
+    "m_d9c640d91be6e2": "Ei kiiretoimitusta",
+    "wait_minutes": {
+      "message": "Arvio: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Arvio: {hours} h",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Arvio: {hours} h {minutes} min",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "Suosittelualennus {v0} % käytössä. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "Yhteensä {v2}.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Saldo ei riitä",
+    "m_b97feb346e3fae_currency": {
+      "message": "Tarvitset {v0}, jotta voit tehdä tämän raporttitilauksen.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} / rakennus × {count, plural, one {# rakennus} other {# rakennusta}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Tilaa raportti",
+    "overview_build_proposal": "Luo tarjous",
+    "overview_schedule_appointment": "Varaa tapaaminen",
+    "overview_no_projects": "Vastaavia projekteja ei löytynyt.",
+    "overview_gutters": "rännit",
+    "overview_weather": "sää",
+    "overview_instant": "pikaraportti",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# rakennus vahvistettu} other {# rakennusta vahvistettu}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Toimitusaika: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Sisältää {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Pienennä",
+    "audit_c461dbb2bab7d8": "Koko näyttö",
+    "audit_06ecd0fafc34d4": "tämä ostos",
+    "audit_2b5c3d26721ae9": "Yhteystieto",
+    "audit_98595978531974": "Projekti",
+    "audit_22a970d2e5b1cc": "Valmis",
+    "audit_6f8d17646237f4": "Uusi projekti",
+    "audit_0a2d38987b9aa3": "Talot ja omakotitalot",
+    "audit_114820134036e1": "Liike- ja teollisuuskiinteistöt",
+    "audit_9e05435948dfbb": "Asunnot ja yhteisöasuminen",
+    "audit_c0eb0f8efba638": "Valitse tyyppi",
+    "audit_e10ae990740118": "Aiemmin",
+    "audit_b512d97e7cbf97": "Käyttäjä",
+    "audit_b764cdc0eab713": "Tuntematon",
+    "audit_90eb5886fddc5f": "Suodattimella ei löytynyt huomautuksia.",
+    "audit_57bde4deb215bf": "Ei vielä huomautuksia.",
+    "audit_6501e1ced8da0b": "Tallenna huomautus",
+    "audit_63565c0485fec4": "Lisää huomautus",
+    "audit_ab52c213888188": "Tiimin jäsen",
+    "audit_3fe263538d199f": "Uusi yhteystieto",
+    "audit_1b5a65c3cdba9e": "Nimetön projekti",
+    "audit_d87821ba1a366b": "Haulla ei löytynyt projekteja.",
+    "stalled_order": "Tämän raporttitilauksen käsittely pysähtyi ennen sen alkamista. Voit tilata raportin uudelleen Raportit-välilehdeltä.",
+    "inactive_order": "Tällä projektilla ei ole aktiivista raporttitilausta.",
+    "audit_77b12f57b38b87": "Raportin käsittely käynnissä",
+    "audit_d30a775883da50": "Raportti tarkistettavana",
+    "audit_0ba1f4e48609ea": "Raportti odottaa käsittelyä",
+    "audit_c5e665c57bc2e0": "Vakiotoimituksen raporttia käsitellään parhaillaan.",
+    "audit_2612ba1829868e": "Vakiotoimituksen raporttia tarkistetaan parhaillaan.",
+    "audit_901358a2916ff7": "Vakiotoimituksen raportti odottaa käsittelyä.",
+    "audit_b67507ab244ce0": "Projektia ei voitu avata.",
+    "audit_60e9af1cbdcdac": "tämä koko rakennuksen raportti",
+    "audit_3f50e8ab670539": "tämä kattoraportti",
+    "audit_b4cc4b07c30010": "Käynnissä",
+    "audit_674db38d5123c4": "Odottaa tarkistusta",
+    "audit_9b24354bb066bb": "Korjaus tarvitaan",
+    "audit_da77d8f5b71aa0": "Odottaa tarkistusta",
+    "audit_35266cd2f21aca": "Lähetetään tilausta…",
+    "audit_2d31976e9d17e4": "Lähettäminen epäonnistui.",
+    "audit_88430f2c58bbce": "Kehitysraportti valmis",
+    "audit_7cf4af8eebae35": "Olemassa olevat raporttitiedostot ovat valmiita katseltaviksi."
   },
   "project-schedule": {
     "m_88e13d64071885": "Aikataulu lukittu",
@@ -4134,7 +4463,157 @@
     },
     "m_ce86fe78082565": "Ei käytettävissä",
     "m_f8e16243e0f91c": "Hallitse näkymää",
-    "m_200131262770e4": "Projektinäkymä"
+    "m_200131262770e4": "Projektinäkymä",
+    "m_ea9c70855946ea": "Vaiheet kuvaavat työnkulkuamme. Voit selata vastaanotettuja projekteja valitsemalla vain meille jaetut projektit.",
+    "m_9ce407c87de615": "Luonnos",
+    "m_aaebd7ccba0b30": "Projekti",
+    "fm_contact_unavailable": "Ei ilmoitettu",
+    "m_9cf11b8ab925ce": "Emme tällä hetkellä kata tätä osoitetta. ",
+    "m_93f718cb51bafd": "Kattaamme tällä hetkellä 95 % kaikista Yhdysvaltojen rakennuksista ja laajennamme aluettamme aktiivisesti kattaaksemme yhä useampia jäljellä olevia rakennuksia. ",
+    "m_ea8d59f20b2ea6": "Olemme kirjanneet kiinnostuksesi tämänkaltaisia rakennuksia kohtaan ja pyrimme ottamaan ne palvelun piiriin lähitulevaisuudessa. ",
+    "m_c5942837107a76": "Tälle karttamerkille ei voitu luoda FirstMeasure Instant -raporttia, koska valittu piste ei osunut rakennukseen, jolle on saatavilla tarkkoja pikamittaustietoja. ",
+    "m_214f9a56d321e4": "Emme voineet viimeistellä tätä raporttia, koska rakennus peittyy saatavilla olevissa kuvissa liikaa. ",
+    "m_9ac5bbd5a7f1d1": "Näin voi käydä, jos puut, varjot, kuvanlaatu tai muut näköesteet estävät meitä tunnistamasta ja mittaamasta kattoa riittävän luotettavasti. ",
+    "m_d51846aa8dda09": "Pahoittelemme tästä mahdollisesti aiheutunutta haittaa.",
+    "m_4edb03027fd308": "Emme voineet viimeistellä tätä raporttia, koska valittu karttamerkki ei näytä olevan mitattavissa olevan rakennuksen kohdalla. ",
+    "m_17b153d5aa2b45": "Näin voi käydä, jos merkki on pihalla, ajotiellä tai lähellä olevassa kohteessa tai rakennuksesta ei ole riittävästi käyttökelpoisia kuvia tarkkoja mittauksia varten. ",
+    "m_5978e46f6f29cd": "Emme voineet viimeistellä tätä raporttia, koska valittu rakennus ei vastaa tilattua projektityyppiä. ",
+    "m_4b5bf19bcf1325": "Hyvitimme alkuperäisen raportin.",
+    "m_0b9e2c765e77b1": "Hyvitämme tämän pikatilauksen saldona.",
+    "m_8d52a67caa71a2": "Usean asunnon rakennus",
+    "m_6d351fa63793b6": "Tämä projekti on peruutettu. Pyyntöä ei enää käsitellä.",
+    "m_549ccd0e27a3d4": "Kyllä",
+    "m_2f0222913078f4": "Ei",
+    "m_0817ad39e6765a": "FirstMeasure Instant -tietojen lataaminen ei vielä onnistunut.",
+    "m_e005bd4bc50817": "Valitun rakennuksen yhdistetyt mittaukset.",
+    "m_3e219b59d394f6": "Valitun rakennuksen mittaukset.",
+    "m_ba6a658fdc23c0": "Lataa vakiotoimituksen raportti",
+    "m_f456048437e56e": "Yritetään ladata vakiotoimituksen raporttia uudelleen",
+    "m_a44e379d284797": "Lataa asiakasraportti",
+    "m_a32ef8d751f045": "Yritetään ladata asiakasraporttia uudelleen",
+    "m_06f3a13fba723d": "Pinta-alan vaihteluväli (m²)",
+    "m_f7d60690e4780f": "Kattoruutujen vaihteluväli",
+    "m_7456bdb3003d3a": "Tämä rakennus",
+    "m_dacaa66449659d": "Valmistellaan vakiotoimituksen raporttia",
+    "m_f3cacef590576b": "Vakiotoimituksen pikaraportin lataaminen epäonnistui.",
+    "m_6783ae5a616a3f": "Yhteystiedot eivät ole vielä saatavilla.",
+    "m_6f94190df36af9": "Valmistellaan asiakasraporttia",
+    "m_2a9462b7fdff9d": "Asiakkaan pikaraportin lataaminen epäonnistui.",
+    "m_5a0f6b2de100f2": "Pikakuvan aineistot eivät ole vielä valmiina.",
+    "m_a2decb63023f36": "Pikamallin tiedostot eivät ole vielä valmiina.",
+    "m_46f6cf08f0ef61": "Tämän projektin pikanäkymä ei ole saatavilla.",
+    "m_edb27a9262e77e": "Vakiotoimituksen raporttia ei voitu tilata.",
+    "m_235d86f4916a45": "Menetetty",
+    "m_3c4d2141b2fa1c": "Valmis",
+    "m_8a993ed9b573b4": "Määrittämätön",
+    "m_1b6ec15cbd198b": "Käynnissä",
+    "m_bf38bfda2125d1": "Katto + rännit",
+    "m_de8450bc1dc243": "Projektin siirtäminen epäonnistui.",
+    "m_2da110201b814e": "ArrowLeft",
+    "m_e90f8a20f79638": "ArrowRight",
+    "m_1519fbdf5b87ed": "Home",
+    "m_80cfdb09a78f4b": "End",
+    "m_2a925f101cbd18": "Nouseva",
+    "m_760cf1fac61b3d": "Laskeva",
+    "m_aac16f05678935": "Vaiheet",
+    "m_3221d12ca792a6": "Ruudut",
+    "m_4bb4688766e904": "Tallennettu",
+    "m_b415d005adf878": "FirstMeasure-projektin tunnus ei ole saatavilla.",
+    "m_82ea55e5099898": "Yhteystiedot tallennettu.",
+    "m_41d4335f00b051": "Yhteystiedot tyhjennetty.",
+    "m_13fa388b0577c8": "Lataus epäonnistui.",
+    "m_f32282581cf29c": "Tallennetaan projektikohtaisesti.",
+    "m_26c6cc9deaa942": "Ladattu tästä projektista.",
+    "m_6ab3fe9280d969": "Tallentamattomia muutoksia.",
+    "m_71c5dfdf68e84f": "Yhteystietojen tallennus epäonnistui.",
+    "m_7a7059bde880f7": "Korjattu",
+    "m_00f3e8b60aebc9": "Vakiotoimitus",
+    "m_9e098701abaa2c": "Asiakkaan kopio",
+    "m_ae8e4953e07d70": "Asiakas",
+    "m_74b044783b2a3e": "Lataa korjatun raportin PDF",
+    "m_7d54357160f795": "Lataa raportin PDF",
+    "m_9222c2e07a3df0": "Lataa korjatun asiakasraportin PDF",
+    "m_09128dde31d325": "Lataa asiakasraportin PDF",
+    "m_175a65008ef30d": "Lataa XML-malli",
+    "m_9da3458d21c94e": "Korjattu raportti",
+    "m_c47c2ce6bb05c0": "Raportti",
+    "m_690327a7486605": "Korjattu asiakasraportin kopio",
+    "m_d2b7446d4a96f1": "Asiakasraportin kopio",
+    "m_e2943d71f406cb": {
+      "message": "Rakennus {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Sisällytetyt rakennukset: {v0}/{v1} valittu.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Rakennuksen {v0} mittaukset.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Tämän rakennuksen ${v0} hinta on hyvitetty.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Tämän rakennuksen ${v0} hinta hyvitetään.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Tämän rakennuksen ${v0} hinta poistettiin pikaraportin laskutuksesta.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Pikamittauksen aineiston lataaminen epäonnistui ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Molemmat – {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Vakiotoimitus – {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "ArrowDown",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "ArrowUp",
+    "m_b550215be01e52": "Hyväksy",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Lataus epäonnistui ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Ei kirjautunut sisään",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# valittu rakennus suljettiin pois, koska saatavilla ei ollut käyttökelpoisia pikamittaustietoja.} other {# valittua rakennusta suljettiin pois, koska saatavilla ei ollut käyttökelpoisia pikamittaustietoja.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " Hyvitettiin {amount} tilisaldoa.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " Palautetaan {amount} tilisaldoa.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "lisärakennuspyyntö",
+    "audit_a65c9f1d26dec1": "muutos- tai korjauspyyntö",
+    "audit_ee9da4f4e90be4": "uudelleentyöstöpyyntö",
+    "audit_1c376a7fd9b2d3": "3D-mallin riippuvuudet eivät ole käytettävissä.",
+    "audit_325cb33dd4a5d6": "KOKO RAPORTTIA KÄSITELLÄÄN",
+    "audit_e0507c184559a7": "PIKARAPORTTI",
+    "audit_b06d7c41ed06c8": "kumppaniorganisaatio",
+    "audit_5dbc6dff430e8d": "MUUTOKSIA ODOTTAA",
+    "audit_1c4b7f4ada5422": "KORJATTU RAPORTTI VALMIS",
+    "audit_843f745c483e81": "PIKA- JA KOKO RAPORTTI",
+    "audit_76bf93df451d48": "RAPORTTI VALMIS"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4460,7 +4939,60 @@
     "m_f35a14165cc920": "Kehotteen käyttöliittymä on valmis; mallin tuottamisen voi liittää tähän toimintoon myöhemmin.",
     "m_bbe27879ebf26c": "Sanelu ei ole käytettävissä",
     "m_79af74d554f5a6": "Tämä selain ei tarjoa puheentunnistusta tässä.",
-    "m_9964312e9c85ac": "Projektitarjoukset"
+    "m_9964312e9c85ac": "Projektitarjoukset",
+    "m_c82963ef8940ce": "Yhteenvetosivu",
+    "m_700473b6840e61": "Poista yhteisbrändäyksen logo",
+    "m_fccaa3fc954540": "Käytä",
+    "m_1a29aea570fbc4": "Määrä",
+    "m_8edfc0dd24bef1": "Yksikköhinta ($)",
+    "m_ae8e4953e07d70": "Asiakas",
+    "m_ca125d59fcd810": "Vaihtoehdon nimi",
+    "m_e847735cf5a416": "Zoomaus",
+    "m_709d4ebff0e0da": "Allekirjoita napauttamalla",
+    "m_9edc96d5f6e438": "Yrityksen edustaja",
+    "m_ccb84c048a1a17": "Myyntivero",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Maksuaikataulu on {v0} %. Summan on oltava yhteensä 100 %.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Mediaa ei ole vielä ladattu",
+    "m_a5e1cd4c41f31c": "Tässä projektissa ei ole vielä valokuvia tai videoita.",
+    "m_7f88f89133cbc4": "Kirjoita allekirjoittajan nimi",
+    "m_16dcd60135fed3": "Piirrä allekirjoituksesi tähän",
+    "m_506191e24dd383": "Tyhjennä",
+    "m_b5828f5fd0c36d": "Ei vielä tarjouksia",
+    "m_7feb0c701cff3e": "Luo ensin luonnos ja monista se, kun haluat tehdä siitä eri versioita.",
+    "m_8934bbea9ff9ad": {
+      "message": "Vaihe {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Lisää kattopaanu",
+    "m_a28421203810c9": "Etsi hinnastosta ja lisää toinen asiakkaalle näkyvä vaihtoehto.",
+    "m_581e6e2a759706": "Sulje kattopaanun lisäys",
+    "m_f3189dbe87971a": "Hae kattopaanujen hinnastosta",
+    "m_4a3589501ecc1f": "Alennuksen nimi",
+    "m_792f935ba82291": "Alennuksen arvo",
+    "m_691d860b768692": "Poista alennus",
+    "m_0254795a80cfc0": "Alennuksia ei ole vielä lisätty.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Poista {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Mukautettu työnkulku määritetään myöhemmin.",
+    "m_7fcfaa1f4fcd66": "\n                      Lähettäminen edellyttää sähköpostia\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Tälle projektille ei ole vielä asiakkaan sähköpostiosoitetta.",
+    "m_c10134dc02336b": "\n                Lähettäminen edellyttää sähköpostia\n                ",
+    "m_cbb41dfafd178f": "Sisällytä asiakasportaalin linkki",
+    "m_a9fa064a3c9985": "Salli asiakkaan allekirjoittaa useita tarjouksia",
+    "m_5cc367ea2b4774": {
+      "message": "Sivu {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Poista",
+    "m_af64ff308ca58e": "Poista sivu",
+    "m_bdf76cad510e9f": "Poista vaihtoehto",
+    "m_fba496098e9a0f": "Vastaavia kattopaanuja ei löytynyt."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Kohdistamattomat kuitit",
@@ -7598,7 +8130,145 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# tapahtuma} other {# tapahtumaa}} – Netto: ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Saldon automaattinen lisäys",
+    "m_8cb6b086a0e69c": "Valmis",
+    "m_d248c450100477": " Arkistoi",
+    "m_3cfab293c8c008": " Kutsu henkilö",
+    "m_ae615734419eb6": "Roolit &amp; oletuskäyttöoikeudet",
+    "m_91244bdaa8204c": "Luo uudelleenkäytettäviä pohjia sovellusten näkyvyydelle ja käyttöoikeuksille.",
+    "m_1f1ad34d149fdf": "Ladataan käyttöoikeusrooleja…",
+    "m_0e74f1bca1ead4": "Hallitse",
+    "m_6fd299432247c1": "Tallennetaan brändipakettia…",
+    "m_569b229b85507e": "Brändipaketin tallennus epäonnistui",
+    "m_b9b9bca729d6db": {
+      "message": "versio {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Aktiivisia käyttöoikeusrooleja ei ole.",
+    "m_77a0c5b9d8ac90": " Sinä",
+    "m_e09715b775ce9e": " Lisää käyttäjä",
+    "m_6e9ebf535758d8": "Yrityksen osoite",
+    "m_bbe1447b5d3e67": "Käytetään verkkotunnuksen rekisteröintitietojen ja 10DLC-yritysvahvistuksen esitäyttöön.",
+    "m_ac137f394a3447": "Katuosoite",
+    "m_c549239597ab7a": "Huoneisto, yksikkö tms. (valinnainen)",
+    "m_a09f6a051adb2f": "Yrityksen logo raportin esikatselussa",
+    "m_8eec608d18828f": "Esimerkkikaavio katosta",
+    "m_1d7c61da5a56c2": "Mitään ei ole saatavilla.",
+    "m_8106b856808735": "Ladataan osastoja…",
+    "m_6b8e4b3f1a7cc9": "Perityt jäsenyydet:",
+    "m_8bdaf1ba732556": "Valintaruudut näyttävät suorat määritykset. Perityt jäsenyydet pysyvät voimassa, vaikka valinta poistetaan.",
+    "m_ff6087fc202a31": "Osastot tallennettu.",
+    "m_edcd68da5d4b23": "Ladataan organisaation osastoja…",
+    "m_f7161d1f24e956": "Organisaation osastot",
+    "m_8f5d10ae9e3dfc": "Jaettu kaikissa toimipisteissä. Aseta käyttäjärooleille ja ryhmätyypeille oletusosastot tai lisää yksittäisiä henkilöitä ja ryhmiä. Henkilö tai ryhmä voi kuulua useaan osastoon.",
+    "m_570d421382fbed": "Osastot",
+    "m_20558f2853e00b": "Henkilöt, roolit ja ryhmät",
+    "m_4297d86c10d006": "Määritä osastoja käyttäjän perusteella:",
+    "m_ad2f0ca83b8780": "Yksittäinen käyttäjä",
+    "m_21037df1b40c09": "Käyttäjätyyppi / rooli",
+    "m_319e5834d71d6f": "Yksittäinen käyttäjäryhmä",
+    "m_f2c096f77350e1": "Käyttäjäryhmän tyyppi",
+    "m_bca9e3fd6cf405": "Valitse",
+    "m_2f45efa1cd676a": "Valitse…",
+    "m_ce2f23fc67dbab": "Osaston nimi",
+    "m_b53d9744f78699": "Osastoluokka (valinnainen)",
+    "m_02997de9e09d60": "Käyttäjätyypit / roolit — oletusjäsenet",
+    "m_8dde7f5f579699": "Käyttäjäryhmätyypit — oletusryhmät",
+    "m_ec049efefe3343": "Yksittäiset lisäkäyttäjät",
+    "m_6ea7e974e821fc": "Yksittäiset lisäkäyttäjäryhmät",
+    "m_c73c6e0076f1ad": "Esimerkiksi asiakaspalvelu",
+    "m_cfa69cfd76ca26": "Anna osastolle nimi.",
+    "m_0c44938a138aa6": "Osasto tallennettu.",
+    "m_c8a24768419f58": "Käyttöoikeuksia voi vain tarkastella.",
+    "m_33071666de0ded": "Luettelon haku epäonnistui",
+    "m_d7ead3cd6cbff6": "Lisääminen epäonnistui",
+    "m_272e637b6dd40b": "Kutsun lähettäminen uudelleen ei ole käytettävissä.",
+    "m_f2db003b7dc3e6": "Piilota käyttöoikeudet",
+    "m_c8653c90005f35": "Näytä käyttöoikeudet",
+    "m_0fe4884bff1c81": "Modaali-ikkuna",
+    "m_fd5fb5598dd8f6": "Ei ole koskaan kirjautunut sisään",
+    "m_4b49e020f08d8e": "Pääylläpitäjien sähköpostiosoitteita ei voi muokata, jotta tilin käyttöoikeudet eivät lukkiudu.",
+    "m_2bdeadce179997": "Voit muuttaa tämän pääylläpitäjän nimeä, mutta sähköpostiosoite on lukittu.",
+    "m_b7e812bec0dfac": "Päivitä näytettävä nimesi tai kirjautumissähköpostiosoitteesi.",
+    "m_f6655180d4e320": "Muuta käyttäjän nimeä tai sähköpostiosoitetta.",
+    "m_4c66f6639656d2": "Poista keskeytys",
+    "m_232f4ec7b346ef": "Keskeytä",
+    "m_2ac360d5cff662": "Kutsusähköpostin lähettäminen epäonnistui.",
+    "m_a2ee3708083074": "Et voi keskeyttää omaa käyttäjätiliäsi.",
+    "m_24bcbb5e94dc78": "Et voi keskeyttää pääylläpitäjän käyttäjätiliä.",
+    "m_415424819400a6": "Käyttäjätili keskeytetty.",
+    "m_5945a7cc27f21a": "Käyttäjätilin keskeytys peruttu.",
+    "m_ec6aab12561da3": "Et voi poistaa omaa käyttäjätiliäsi.",
+    "m_d0751bed2963bc": "Et voi poistaa pääylläpitäjän käyttäjätiliä.",
+    "m_90ca724100109f": "Käyttäjiä ei löytynyt.",
+    "m_2732f18bba7fc8": "Et voi muokata omia käyttöoikeuksiasi täällä.",
+    "m_90ed0c9031712d": "Profiilikuvan tallentaminen epäonnistui.",
+    "m_5e287d278f8b92": "Odottamaton virhe.",
+    "m_75d641bda100b6": "Käyttäjien lataaminen epäonnistui.",
+    "m_4a9f6ad3027f17": "Tuntematon virhe",
+    "m_d7226634e4ea42": "Kutsusähköposti lähetetty.",
+    "m_e86ab6eb3ff843": "Käyttäjä luotiin, mutta sähköpostin lähettäminen epäonnistui.",
+    "fm_users_owner": "Omistaja",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Automaattisen saldon lisäyksen vähimmäismäärät ovat {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Vähintään {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Vähintään {v3}",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Jos saldosi alittaa rajan {v0}, lisäämme tilillesi automaattisesti {v1}.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Luo osasto kohdassa Asetukset → Käyttäjät → Osastot.",
+    "m_a089a1a2df79e8": "Tallenna osastot",
+    "m_5147306077d4a3": "Toimipisteiden aiemmat osastot kootaan tänne. Tallennettaessa niistä tulee organisaation asetuksia; olemassa olevat tapaamiset ja esiasetukset säilyvät.",
+    "m_86433617637bb9": "+ Luo osasto",
+    "m_9c29c0605b9630": "Tallenna osasto",
+    "m_0a270477a59add": "Peritty käyttäjäroolilta",
+    "m_d934cc2b978d05": "Peritty ryhmätyypiltä",
+    "m_967feb25c6cad7": "Oletusosastot",
+    "m_f5464054424b45": "Koskee kaikkia tämän tyypin jäseniä, myös tulevia jäseniä.",
+    "m_2ecf878bd727e3": "Suorat määritykset täydentävät roolin tai ryhmätyypin oletuksia. Tallenna roolin tai tyypin muutokset ensin, jotta perityt jäsenyydet päivittyvät.",
+    "m_2d4ff8a83b1b5c": "Ei mitään",
+    "m_b1d5eca65cad81": "Osastojen tallennus epäonnistui.",
+    "m_31a18651cb81ee": "Osastojen lataaminen epäonnistui.",
+    "m_8a36512cbfe084": "Osaston tallennus epäonnistui.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# raportti} other {# raporttia}} – yhteensä: ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Lataa profiilikuva",
+    "profile_tooltip_1": "Avaa profiili",
+    "profile_tooltip_2": "Valitse profiilikuva",
+    "m_5f71be4b1ebe26": "Maija Meikäläinen",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Tämä on pehmeä poisto: tili arkistoidaan auditointia varten, ja sähköpostiosoitetta voi käyttää myöhemmin uuteen kutsuun tai rekisteröitymiseen.",
+    "m_1e50cfd1b66d97": "Profiilikuva (valinnainen)",
+    "m_e2207970d3a42f": "Käyttöoikeustaso",
+    "logos_uploading": {
+      "message": "Ladataan {count, plural, one {# logo} other {# logoa}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "Lisättiin {count, plural, one {# logo} other {# logoa}} brändikirjastoosi.",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Päivitimme arvon vähimmäissummaksi {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Automaattinen täydennys: {amount}, kun saldo alittaa rajan {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Saldon automaattinen täydennys: ei käytössä"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lisää työtä",
@@ -8256,7 +8926,21 @@
       "message": "{v0} lukematonta &middot; yhteensä {v1}",
       "format": "icu"
     },
-    "new_report": "Uusi raportti"
+    "new_report": "Uusi raportti",
+    "m_9a00fb620ffc1d": "Sivupalkin leveyden tallentaminen epäonnistui",
+    "m_854ab579641f94": "Avustajan keskusteluja ladataan…",
+    "m_86ec40fa3f9758": "Poista käytöstä",
+    "m_4aaef822b47692": "FirstMate-avustaja",
+    "m_c411108185658e": {
+      "message": "Muuta FirstMate-avustajan kiinnitystä ({v1})",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "Muuta FirstMate-avustajan kiinnitystä ({v2})",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Laskutusasetusten lataaminen epäonnistui. ",
+    "m_48a9cdd2af44f4": "Yritä uudelleen"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Toimisto",
@@ -10676,7 +11360,17 @@
     "opening_tab": {
       "message": "Avataan välilehteä {tab}…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Muuta paneelien kokoa; vaihda niiden paikkaa kaksoisnapsauttamalla",
+    "m_eae84bda77b08e": "Sulje paneeli",
+    "m_9c2b801ff31874": "Tämän paneelin latautuminen kestää tavallista kauemmin. Voit sulkea sen ja yrittää uudelleen.",
+    "m_8c11a27c5f0b9c": "Tätä välilehteä ei voitu avata. Sulje paneeli ja yritä uudelleen.",
+    "m_a56b2777161b36": "Projektin lataus on vielä kesken. Voit sulkea tämän ikkunan ja yrittää uudelleen.",
+    "m_5eced2f9d44623": "Tämän projektin lataaminen epäonnistui. Sulje tämä ikkuna ja yritä uudelleen.",
+    "m_76619e065f2360": "Paneelin kiinnityksen sijainti",
+    "m_b46c7db0dc7b5b": "Muuta paneelien kokoa",
+    "m_06b65fee071879": "Ikkunapaneelit",
+    "m_21ca9dcccf9a04": "Sulje paneeli"
   },
   "reports": {
     "color": "väri",

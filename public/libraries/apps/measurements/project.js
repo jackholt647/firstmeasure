@@ -30,9 +30,9 @@ window.PlatformCommerce.onReady(function(){
   const WEATHER_REPORT_ADDON = window.PlatformCommerce.price('weather');
   const PDF_PREVIEW_QUERY_FLAGS = ['disablePdfPreview', 'mobileDebug', 'noPdfPreview'];
   const TYPE_META = {
-    residential: { label: (globalThis.PlatformLanguage?.text("measurements","m_aaf397f737f7b1","Residential") ?? "Residential"), icon: 'fa-house', price: PRICE_RESIDENTIAL },
-    commercial: { label: (globalThis.PlatformLanguage?.text("measurements","m_84e41491611ca9","Commercial") ?? "Commercial"), icon: 'fa-building', price: PRICE_COMMERCIAL },
-    multifamily: { label: (globalThis.PlatformLanguage?.text("measurements","m_fcd3013fb39a97","Multifamily") ?? "Multifamily"), icon: 'fa-city', price: PRICE_MULTIFAMILY },
+    residential: { get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_aaf397f737f7b1","Residential") ?? "Residential"); }, icon: 'fa-house', price: PRICE_RESIDENTIAL },
+    commercial: { get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_84e41491611ca9","Commercial") ?? "Commercial"); }, icon: 'fa-building', price: PRICE_COMMERCIAL },
+    multifamily: { get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_fcd3013fb39a97","Multifamily") ?? "Multifamily"); }, icon: 'fa-city', price: PRICE_MULTIFAMILY },
   };
 
   function queryFlagEnabled(names){
@@ -155,7 +155,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function selectedReportMode(){ return callHost('selectedReportMode') || 'full'; }
-  function reportModeLabel(){ return callHost('reportModeLabel') || 'Standard'; }
+  function reportModeLabel(){ return callHost('reportModeLabel') || (globalThis.PlatformLanguage?.text("measurements","m_00f3e8b60aebc9","Standard") ?? "Standard"); }
   function reportExpediteOption(...args){ return callHost('reportExpediteOption', ...args) || null; }
   function defaultReportExpediteOption(...args){ return callHost('defaultReportExpediteOption', ...args) || reportExpediteOption('standard_3_6') || null; }
   function normalizeReportExpediteKey(value){ return callHost('normalizeReportExpediteKey', value) || String(value || '').trim(); }
@@ -203,16 +203,16 @@ window.PlatformCommerce.onReady(function(){
     return delta > 0 ? `+${fmtCredit(delta)}` : '+' + fmtCredit(0);
   }
   function formatTurnaroundTime(date){
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    return date.toLocaleTimeString(globalThis.PlatformLanguage?.companyContext?.().locale || 'en-US', { hour: 'numeric', minute: '2-digit' });
   }
   function reportCustomerPromiseLabelFromDate(date){
-    return date && !Number.isNaN(date.getTime()) ? `By ${formatTurnaroundTime(date)}` : '';
+    return date && !Number.isNaN(date.getTime()) ? (globalThis.PlatformLanguage?.text("measurements","delivery_by",`By ${formatTurnaroundTime(date)}`,{time:formatTurnaroundTime(date)}) ?? `By ${formatTurnaroundTime(date)}`) : '';
   }
   function reportCustomerPromiseLabelFromWindow(windowLabel){
     const text = String(windowLabel || '').trim();
     if (!text) return '';
     const parts = text.split(/\s+-\s+/);
-    return parts.length > 1 && parts[parts.length - 1] ? `By ${parts[parts.length - 1]}` : text;
+    return parts.length > 1 && parts[parts.length - 1] ? (globalThis.PlatformLanguage?.text("measurements","delivery_by",`By ${parts[parts.length - 1]}`,{time:parts[parts.length - 1]}) ?? `By ${parts[parts.length - 1]}`) : text;
   }
   function localReportExpediteWindowLabel(option, now = new Date()){
     if (!option) return '';
@@ -245,7 +245,7 @@ window.PlatformCommerce.onReady(function(){
       return Number.isInteger(hours) ? String(hours) : String(hours).replace(/0+$/, '').replace(/\.$/, '');
     };
     const hours = formatHours(end);
-    return `Less than ${hours} hour${hours === '1' ? '' : 's'}`;
+    return Number(hours) === 1 ? (globalThis.PlatformLanguage?.text('project-request','under_one_hour','Less than 1 hour') ?? 'Less than 1 hour') : (globalThis.PlatformLanguage?.text("measurements","under_hours",`Less than ${hours} hours`,{hours:Number(hours)}) ?? `Less than ${hours} hours`);
   }
   function reportExpediteNetTotalPrice(...args){ return Number(callHost('reportExpediteNetTotalPrice', ...args) || 0); }
   function reportExpediteTotalPrice(...args){ return Number(callHost('reportExpediteTotalPrice', ...args) || 0); }
@@ -322,13 +322,13 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
-    if(ready) tabs.push({id:'model',label:'Model & photos',icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    if(ready) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_c78580f5f4885e","Model & photos") ?? "Model & photos"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {
       tabs.push({
         id: 'map',
-        label: (globalThis.PlatformLanguage?.text("measurements","m_9afd0eccc8e530","Map") ?? "Map"),
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_9afd0eccc8e530","Map") ?? "Map"); },
         icon: 'fa-map-location-dot',
         active: activeMeasurementTab === 'map',
         disabled: false,
@@ -338,7 +338,7 @@ window.PlatformCommerce.onReady(function(){
     if (measurementReportSummaryEnabled()) {
       tabs.push({
         id: 'summary',
-        label: (globalThis.PlatformLanguage?.text("measurements","m_9b03ccb29ba168","Summary") ?? "Summary"),
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_9b03ccb29ba168","Summary") ?? "Summary"); },
         icon: 'fa-clipboard-list',
         active: activeMeasurementTab === 'summary',
         disabled: false,
@@ -348,7 +348,7 @@ window.PlatformCommerce.onReady(function(){
     if (reportOrderState?.includeInspection) {
       tabs.push({
         id: 'instant',
-        label: (globalThis.PlatformLanguage?.text("measurements","m_b347d50e8516d3","Instant") ?? "Instant"),
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_b347d50e8516d3","Instant") ?? "Instant"); },
         icon: 'fa-bolt',
         active: activeMeasurementTab === 'instant',
         pending
@@ -356,7 +356,7 @@ window.PlatformCommerce.onReady(function(){
     }
     tabs.push({
       id: 'standard',
-      label: window.Portal?.terminology?.get?.('reports.standard_view', 'Standard') || 'Standard',
+      label: window.Portal?.terminology?.get?.('reports.standard_view', (globalThis.PlatformLanguage?.text("measurements","m_00f3e8b60aebc9","Standard") ?? "Standard")) || (globalThis.PlatformLanguage?.text("measurements","m_00f3e8b60aebc9","Standard") ?? "Standard"),
       icon: cancelled ? 'fa-ban' : (rejected ? 'fa-circle-exclamation' : (pending ? 'fa-circle-notch fa-spin' : 'fa-file-pdf')),
       active: activeMeasurementTab === 'standard',
       disabled: false,
@@ -364,7 +364,7 @@ window.PlatformCommerce.onReady(function(){
     });
     tabs.push({
       id: 'customer',
-      label: window.Portal?.terminology?.get?.('reports.customer_view', 'Customer') || 'Customer',
+      label: window.Portal?.terminology?.get?.('reports.customer_view', (globalThis.PlatformLanguage?.text("measurements","m_ae8e4953e07d70","Customer") ?? "Customer")) || (globalThis.PlatformLanguage?.text("measurements","m_ae8e4953e07d70","Customer") ?? "Customer"),
       icon: cancelled ? 'fa-ban' : (rejected ? 'fa-circle-exclamation' : (pending ? 'fa-circle-notch fa-spin' : 'fa-file-lines')),
       active: activeMeasurementTab === 'customer',
       disabled: cancelled || rejected,
@@ -373,7 +373,7 @@ window.PlatformCommerce.onReady(function(){
     if (hasXml) {
       tabs.push({
         id: 'xml',
-        label: (globalThis.PlatformLanguage?.text("measurements","m_8efb983a491620","XML") ?? "XML"),
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_8efb983a491620","XML") ?? "XML"); },
         icon: 'fa-code',
         active: activeMeasurementTab === 'xml',
         disabled: cancelled || rejected || !ready,
@@ -384,7 +384,7 @@ window.PlatformCommerce.onReady(function(){
       const weather = weatherReportInfo();
       tabs.push({
         id: 'weather',
-        label: window.Portal?.terminology?.get?.('reports.weather_view', 'Weather') || 'Weather',
+        label: window.Portal?.terminology?.get?.('reports.weather_view', (globalThis.PlatformLanguage?.text("measurements","m_425f6b598f6417","Weather") ?? "Weather")) || (globalThis.PlatformLanguage?.text("measurements","m_425f6b598f6417","Weather") ?? "Weather"),
         icon: 'fa-cloud-bolt',
         active: activeMeasurementTab === 'weather',
         disabled: cancelled || rejected,
@@ -395,8 +395,8 @@ window.PlatformCommerce.onReady(function(){
       tabs.push({
         id: 'changes',
         label: supportView
-          ? (window.Portal?.terminology?.get?.('reports.support_view', 'Support') || 'Support')
-          : (window.Portal?.terminology?.get?.('reports.changes_pending_view', 'Changes Pending') || 'Changes Pending'),
+          ? (window.Portal?.terminology?.get?.('reports.support_view', (globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support")) || (globalThis.PlatformLanguage?.text("measurements","m_dbb3d23d1471ce","Support") ?? "Support"))
+          : (window.Portal?.terminology?.get?.('reports.changes_pending_view', (globalThis.PlatformLanguage?.text("measurements","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending")) || (globalThis.PlatformLanguage?.text("measurements","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending")),
         icon: supportView ? 'fa-headset' : 'fa-list-check',
         active: activeMeasurementTab === 'changes',
         disabled: false,
@@ -963,8 +963,8 @@ window.PlatformCommerce.onReady(function(){
     if (!info.active) return '';
     const amountText = info.amount > 0
       ? `${fmtCredit(info.amount)} in expedite fees was refunded to your credits.`
-      : 'The expedited delivery charge was removed for this order.';
-    const at = info.refundedAt ? ` Refunded ${escapeHtml(formatDate(info.refundedAt))}.` : '';
+      : (globalThis.PlatformLanguage?.text("measurements","m_3a57f052b36fc1","The expedited delivery charge was removed for this order.") ?? "The expedited delivery charge was removed for this order.");
+    const at = info.refundedAt ? ((v0) => globalThis.PlatformLanguage?.text("measurements","m_521a97de945f87",` Refunded ${v0}.`,{v0}) ?? ` Refunded ${v0}.`)(escapeHtml(formatDate(info.refundedAt))) : '';
     return `
       <div class="r-report-refund-note">
         <i class="fas fa-circle-info"></i>
@@ -1000,9 +1000,9 @@ window.PlatformCommerce.onReady(function(){
     const rounded = Math.max(0, Math.round(Number(minutes) || 0));
     const hours = Math.floor(rounded / 60);
     const mins = rounded % 60;
-    if (hours && mins) return `${hours} hr ${mins} min`;
-    if (hours) return `${hours} hr${hours === 1 ? '' : 's'}`;
-    return `${mins} min`;
+    if (hours && mins) return ((v0,v1) => globalThis.PlatformLanguage?.text("measurements","m_1c10582071b5c0",`${v0} hr ${v1} min`,{v0,v1}) ?? `${v0} hr ${v1} min`)(hours,mins);
+    if (hours) return (globalThis.PlatformLanguage?.text('measurements','duration_hours',`${hours} hr${hours === 1 ? '' : 's'}`,{hours}) ?? `${hours} hr${hours === 1 ? '' : 's'}`);
+    return ((v0) => globalThis.PlatformLanguage?.text("measurements","m_211a1b1f7fc0ab",`${v0} min`,{v0}) ?? `${v0} min`)(mins);
   }
 
   function formatCancelRemaining(seconds){
@@ -1010,8 +1010,8 @@ window.PlatformCommerce.onReady(function(){
     if (remaining > 300) return formatMinutesDuration(Math.ceil(remaining / 60));
     const mins = Math.floor(remaining / 60);
     const secs = remaining % 60;
-    if (mins > 0) return `${mins} min ${String(secs).padStart(2, '0')} sec`;
-    return `${secs} sec`;
+    if (mins > 0) return ((v0,v1) => globalThis.PlatformLanguage?.text("measurements","m_5c48fb09a35192",`${v0} min ${v1} sec`,{v0,v1}) ?? `${v0} min ${v1} sec`)(mins,String(secs).padStart(2, '0'));
+    return ((v0) => globalThis.PlatformLanguage?.text("measurements","m_ca1219f6f0fd36",`${v0} sec`,{v0}) ?? `${v0} sec`)(secs);
   }
 
   function reportOrderRemainingMinutes(){
@@ -1035,8 +1035,8 @@ window.PlatformCommerce.onReady(function(){
       deadline,
       remainingSeconds: remaining,
       message: expedited
-        ? 'Expedited reports begin work immediately and cannot be cancelled after 1 minute.'
-        : 'Standard reports can be cancelled within 15 minutes of ordering.'
+        ? (globalThis.PlatformLanguage?.text("measurements","m_ee8cd441a3c740","Expedited reports begin work immediately and cannot be cancelled after 1 minute.") ?? "Expedited reports begin work immediately and cannot be cancelled after 1 minute.")
+        : (globalThis.PlatformLanguage?.text("measurements","m_7ab36b45fa8644","Standard reports can be cancelled within 15 minutes of ordering.") ?? "Standard reports can be cancelled within 15 minutes of ordering.")
     };
   }
 
@@ -1132,10 +1132,10 @@ window.PlatformCommerce.onReady(function(){
   function pendingReportHtml(kind){
     const stage = reportOrderPendingStage();
     const title = kind === 'instant'
-      ? 'Instant Report Generating'
+      ? (globalThis.PlatformLanguage?.text("measurements","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")
       : (kind === 'customer'
-        ? 'Customer Report Processing'
-        : (stage === 'processing' ? 'Standard Report Processing' : 'Standard Report Pending'));
+        ? (globalThis.PlatformLanguage?.text("measurements","m_4f9decb4fef708","Customer Report Processing") ?? "Customer Report Processing")
+        : (stage === 'processing' ? (globalThis.PlatformLanguage?.text("measurements","m_cb27e9cd4b71dc","Standard Report Processing") ?? "Standard Report Processing") : (globalThis.PlatformLanguage?.text("measurements","m_b754ff36345be0","Standard Report Pending") ?? "Standard Report Pending")));
     if (reportOrderIsRejected()) return rejectedReportHtml();
     if (reportOrderIsCancelled()) return cancelledReportHtml();
     if (reportOrderIsStaleSubmitted()) return staleSubmittedReportHtml();
@@ -1159,11 +1159,11 @@ window.PlatformCommerce.onReady(function(){
     const selectedUpgradeLabel = selectedUpgrade
       ? reportExpediteDurationLabel(selectedUpgrade.option)
       : '';
-    const deliveryText = reportExpediteOptionsEnabled() ? (due || 'Estimating delivery window') : '';
-    const statusLabel = stage === 'processing' ? 'In progress' : (stage === 'review' ? 'In review' : 'Pending');
+    const deliveryText = reportExpediteOptionsEnabled() ? (due || (globalThis.PlatformLanguage?.text("measurements","m_6c2b94bfbe7de4","Estimating delivery window") ?? "Estimating delivery window")) : '';
+    const statusLabel = stage === 'processing' ? (globalThis.PlatformLanguage?.text("measurements","m_813568092a909a","In progress") ?? "In progress") : (stage === 'review' ? (globalThis.PlatformLanguage?.text("measurements","m_a5adb64bece6bf","In review") ?? "In review") : (globalThis.PlatformLanguage?.text("measurements","m_2175240180a38e","Pending") ?? "Pending"));
     const cancelLabel = cancelState.allowed
-      ? `Cancel report${cancelState.remainingSeconds ? ` (${formatCancelRemaining(cancelState.remainingSeconds)} left)` : ''}`
-      : 'Cancel report';
+      ? (cancelState.remainingSeconds ? (globalThis.PlatformLanguage?.text("measurements","cancel_remaining",`Cancel report (${formatCancelRemaining(cancelState.remainingSeconds)} left)`,{time:formatCancelRemaining(cancelState.remainingSeconds)}) ?? `Cancel report (${formatCancelRemaining(cancelState.remainingSeconds)} left)`) : (globalThis.PlatformLanguage?.text('measurements','m_afb31b9209687b','Cancel report') ?? 'Cancel report'))
+      : (globalThis.PlatformLanguage?.text("measurements","m_afb31b9209687b","Cancel report") ?? "Cancel report");
     return `
       <div class="r-report-pending">
         <div class="r-report-pending-card${String(expedited ? ' is-expedited' : '')}">
@@ -1185,14 +1185,14 @@ window.PlatformCommerce.onReady(function(){
           ${String(showCancellation ? `
           <div class="r-pending-actions">
             <button type="button" class="r-pending-cancel" data-cancel-report-order ${cancelState.allowed ? '' : 'disabled'}>${escapeHtml(cancelLabel)}</button>
-            <div class="r-pending-note">${escapeHtml(cancelState.allowed ? cancelState.message : (cancelState.expedited ? 'The 1-minute cancellation grace period for this expedited report has ended.' : 'The cancellation grace period for this project has ended.'))}</div>
+            <div class="r-pending-note">${escapeHtml(cancelState.allowed ? cancelState.message : (cancelState.expedited ? (globalThis.PlatformLanguage?.text("measurements","m_0dcf5f39373245","The 1-minute cancellation grace period for this expedited report has ended.") ?? "The 1-minute cancellation grace period for this expedited report has ended.") : (globalThis.PlatformLanguage?.text("measurements","m_5a195b5dbc85fc","The cancellation grace period for this project has ended.") ?? "The cancellation grace period for this project has ended.")))}</div>
           </div>` : '')}
         </div>
       </div>`;
   }
 
   function reportCompletePlaceholderHtml(kind){
-    const title = kind === 'customer' ? 'Customer Report Processing' : (kind === 'instant' ? 'Instant Report Pending' : 'Standard Report Pending');
+    const title = kind === 'customer' ? (globalThis.PlatformLanguage?.text("measurements","m_4f9decb4fef708","Customer Report Processing") ?? "Customer Report Processing") : (kind === 'instant' ? (globalThis.PlatformLanguage?.text("measurements","m_4d7c3696ea7819","Instant Report Pending") ?? "Instant Report Pending") : (globalThis.PlatformLanguage?.text("measurements","m_b754ff36345be0","Standard Report Pending") ?? "Standard Report Pending"));
     return `
       <div class="r-report-pending">
         <div class="r-report-pending-card">
@@ -1273,19 +1273,19 @@ window.PlatformCommerce.onReady(function(){
     const key = String(reason || '').trim().toLowerCase();
     const rejectionMessage = customerRejectionCopy(details.rejection_message || '');
     if (key === 'obscured_visibility') {
-      return 'This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.';
+      return (globalThis.PlatformLanguage?.text("measurements","m_20daf0329c6bb5","This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.") ?? "This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.");
     }
     if (key === 'invalid_pin_placement') {
-      return 'This report was rejected because the selected pin does not appear to be placed on a structure we can measure. This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. We have reimbursed the original report.';
+      return (globalThis.PlatformLanguage?.text("measurements","m_8a0434dcd5f44a","This report was rejected because the selected pin does not appear to be placed on a structure we can measure. This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. We have reimbursed the original report.") ?? "This report was rejected because the selected pin does not appear to be placed on a structure we can measure. This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. We have reimbursed the original report.");
     }
     if (key === 'incorrect_structure_type') {
       const reorderLabel = normalizeProjectTypeLabel(details.reorder_type || details.project_type || 'commercial');
-      return `This report was rejected because it appears to require a ${reorderLabel} report. We have reimbursed the original report.`;
+      return ((v0) => globalThis.PlatformLanguage?.text("measurements","m_37847f1bfb33b1",`This report was rejected because it appears to require a ${v0} report. We have reimbursed the original report.`,{v0}) ?? `This report was rejected because it appears to require a ${v0} report. We have reimbursed the original report.`)(reorderLabel);
     }
     if (key === 'api_insufficient_credits') {
-      return rejectionMessage || 'This report was rejected because the organization did not have enough credits for the additional structures. No additional structure-pin billing was kept for this rejected report.';
+      return rejectionMessage || (globalThis.PlatformLanguage?.text("measurements","m_fdbdd395519610","This report was rejected because the organization did not have enough credits for the additional structures. No additional structure-pin billing was kept for this rejected report.") ?? "This report was rejected because the organization did not have enough credits for the additional structures. No additional structure-pin billing was kept for this rejected report.");
     }
-    return 'This report was rejected. We have reimbursed the original report.';
+    return (globalThis.PlatformLanguage?.text("measurements","m_a88169ad51b679","This report was rejected. We have reimbursed the original report.") ?? "This report was rejected. We have reimbursed the original report.");
   }
 
   function normalizeOrderProjectType(value){
@@ -1378,7 +1378,7 @@ window.PlatformCommerce.onReady(function(){
           ${String(refundAmount > 0 ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_54833ca7291df9","Reimbursed") ?? "Reimbursed")}</strong><span>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_ef6b67b1fdf6fa",`${v0} returned to credits`,{v0}) ?? `${v0} returned to credits`)(escapeHtml(fmtCredit(refundAmount)))}</span></div>` : '')}
           ${String(reorderType ? `
           <div class="r-pending-actions">
-            <button type="button" class="r-pending-reorder" data-reorder-rejected-report>${escapeHtml(`Reorder as ${reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)}`)}</button>
+            <button type="button" class="r-pending-reorder" data-reorder-rejected-report>${escapeHtml(((v0) => globalThis.PlatformLanguage?.text("measurements","m_a76ca37eaaae8e",`Reorder as ${v0}`,{v0}) ?? `Reorder as ${v0}`)(reorderLabel.charAt(0).toUpperCase() + reorderLabel.slice(1)))}</button>
           </div>` : '')}
         </div>
       </div>`;
@@ -1492,11 +1492,20 @@ window.PlatformCommerce.onReady(function(){
     return /^-?\d{1,3}(?:,\d{3})*(?:\.\d+)?$/.test(text) ? text.replace(/,/g, '') : text;
   }
 
+  function summaryMetricLabel(label){
+    const key = {"Roof squares":"m_35205e970a2cdd","Roof area":"m_b4a198f9d6044c","Facets":"m_23c27ba7741b73","Main pitch":"m_fffeb2d8c3e57d","Suggested waste":"m_f77370bf46dd5a","Squares with waste":"m_f6ea64a8f11eca","Eaves":"m_f2baa3de1eb35b","Valleys":"m_230a183ddb6e96","Rakes":"m_48029c2aaa37c6","Ridges":"m_217bf30b990d24","Hips":"m_baa2f693c3883e","Headwall flashing":"m_3bcef36c5987a6","Sidewall flashing":"m_58ab5ba41ae1c9","Step flashing":"m_06fc435805a90a","Transitions":"m_8ba24778829c38","Parapet wall":"m_4d80da8e9e6ebe","Counter flashing":"m_7aeda3ce508c46","Sidewalls":"m_46afa7474f4ef1","Headwalls":"m_10e472dc761ed6"}[label];
+    return key ? (globalThis.PlatformLanguage?.text('measurements',key,label) ?? label) : label;
+  }
+  function summaryMetricNumber(value){
+    const number = Number(String(value).replaceAll(',', ''));
+    return Number.isFinite(number) ? new Intl.NumberFormat(globalThis.PlatformLanguage?.companyContext?.().locale || 'en-US', {maximumFractionDigits:2}).format(number) : value;
+  }
+
   function reportSummaryMeasurementsCsv(metrics = []){
     return [
-      ['Measurement', 'Value', 'Unit'].map(csvCell).join(','),
+      [(globalThis.PlatformLanguage?.text("measurements","m_85b7e99a08fa9a","Measurement") ?? "Measurement"), (globalThis.PlatformLanguage?.text("measurements","m_ec6b76d100b0ec","Value") ?? "Value"), (globalThis.PlatformLanguage?.text("measurements","m_4b91b73dae1ff3","Unit") ?? "Unit")].map(csvCell).join(','),
       ...metrics.map((metric) => [
-        metric.label,
+        summaryMetricLabel(metric.label),
         csvNumericCell(metric.value),
         metric.unit || ''
       ].map(csvCell).join(','))
@@ -1625,17 +1634,17 @@ window.PlatformCommerce.onReady(function(){
 
   function reportLineMetricLabel(type){
     return ({
-      eave: 'Eaves',
-      valley: 'Valleys',
-      rake: 'Rakes',
-      ridge: 'Ridges',
-      hip: 'Hips',
-      headWall: 'Headwall flashing',
-      sideWall: 'Sidewall flashing',
-      stepFlashing: 'Step flashing',
-      transition: 'Transitions',
-      parapet: 'Parapet wall',
-      counterFlashing: 'Counter flashing'
+      eave: "Eaves",
+      valley: "Valleys",
+      rake: "Rakes",
+      ridge: "Ridges",
+      hip: "Hips",
+      headWall: "Headwall flashing",
+      sideWall: "Sidewall flashing",
+      stepFlashing: "Step flashing",
+      transition: "Transitions",
+      parapet: "Parapet wall",
+      counterFlashing: "Counter flashing"
     })[type] || '';
   }
 
@@ -1775,13 +1784,13 @@ window.PlatformCommerce.onReady(function(){
             }
           });
         }
-        const dimension = reportObstacleDimension(component.map((line) => line.length)) || 'Unknown size';
+        const dimension = reportObstacleDimension(component.map((line) => line.length)) || (globalThis.PlatformLanguage?.text("measurements","m_0cbf0780118eed","Unknown size") ?? "Unknown size");
         const label = `${dimension} ${reportObstacleLabel(type)}`;
         groups.set(label, (groups.get(label) || 0) + 1);
       }
       for (let index = 0; index < linesWithoutKeys.length; index += 4) {
         const component = linesWithoutKeys.slice(index, index + 4);
-        const dimension = reportObstacleDimension(component.map((line) => line.length)) || 'Unknown size';
+        const dimension = reportObstacleDimension(component.map((line) => line.length)) || (globalThis.PlatformLanguage?.text("measurements","m_0cbf0780118eed","Unknown size") ?? "Unknown size");
         const label = `${dimension} ${reportObstacleLabel(type)}`;
         groups.set(label, (groups.get(label) || 0) + 1);
       }
@@ -1897,15 +1906,15 @@ window.PlatformCommerce.onReady(function(){
     const add = (label, value, unit, decimals = 0) => {
       if (Number(value || 0) > 0) rows.push({ label, value: formatSummaryNumber(value, decimals), unit });
     };
-    add('Roof squares', measurements.roofSquares, 'sq', 1);
-    add('Roof area', Number(measurements.roofSquares || 0) * 100, 'sq ft');
-    add('Ridges', measurements.ridgesLf, 'ft', 1);
-    add('Hips', measurements.hipsLf, 'ft', 1);
-    add('Valleys', measurements.valleyLf, 'ft', 1);
-    add('Rakes', measurements.rakesLf, 'ft', 1);
-    add('Eaves', measurements.eavesLf, 'ft', 1);
-    add('Sidewalls', measurements.sideWallLf, 'ft', 1);
-    add('Headwalls', measurements.headWallLf, 'ft', 1);
+    add("Roof squares", measurements.roofSquares, 'sq', 1);
+    add("Roof area", Number(measurements.roofSquares || 0) * 100, 'sq ft');
+    add("Ridges", measurements.ridgesLf, 'ft', 1);
+    add("Hips", measurements.hipsLf, 'ft', 1);
+    add("Valleys", measurements.valleyLf, 'ft', 1);
+    add("Rakes", measurements.rakesLf, 'ft', 1);
+    add("Eaves", measurements.eavesLf, 'ft', 1);
+    add("Sidewalls", measurements.sideWallLf, 'ft', 1);
+    add("Headwalls", measurements.headWallLf, 'ft', 1);
     return rows;
   }
 
@@ -1921,14 +1930,14 @@ window.PlatformCommerce.onReady(function(){
           if (rows.length) return rows;
           return fetch(xmlUrl, { credentials: 'include' })
             .then((response) => {
-              if (!response.ok) throw new Error(`Measurement XML unavailable (${response.status})`);
+              if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_fc55e992b0fa41",`Measurement XML unavailable (${v0})`,{v0}) ?? `Measurement XML unavailable (${v0})`)(response.status));
               return response.text();
             })
             .then((text) => reportSummaryMetricsFromXml(text));
         })
       : fetch(xmlUrl, { credentials: 'include' })
       .then((response) => {
-        if (!response.ok) throw new Error(`Measurement XML unavailable (${response.status})`);
+        if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_fc55e992b0fa41",`Measurement XML unavailable (${v0})`,{v0}) ?? `Measurement XML unavailable (${v0})`)(response.status));
         return response.text();
       })
       .then((text) => reportSummaryMetricsFromXml(text));
@@ -1997,7 +2006,7 @@ window.PlatformCommerce.onReady(function(){
     const number = Number(value);
     if (!Number.isFinite(number)) return '';
     const rounded = decimals > 0 ? Math.round(number * (10 ** decimals)) / (10 ** decimals) : Math.round(number);
-    return rounded.toLocaleString(undefined, {
+    return rounded.toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: decimals
     });
@@ -2113,15 +2122,15 @@ window.PlatformCommerce.onReady(function(){
     collectReportObstacleRows().forEach((row) => {
       if (!rows.some((existing) => existing.label === row.label)) rows.push(row);
     });
-    const resolvedSquares = squares ?? finiteMetricValue(rows, 'Roof squares');
-    const resolvedFacets = facets ?? finiteMetricValue(rows, 'Facets');
-    const resolvedHips = lineTotals.hip > 0 ? lineTotals.hip : (finiteMetricValue(rows, 'Hips') || 0);
+    const resolvedSquares = squares ?? finiteMetricValue(rows, "Roof squares");
+    const resolvedFacets = facets ?? finiteMetricValue(rows, "Facets");
+    const resolvedHips = lineTotals.hip > 0 ? lineTotals.hip : (finiteMetricValue(rows, "Hips") || 0);
     if (resolvedSquares != null) {
       const wastePct = reportSummaryWastePercent(sources, resolvedFacets, resolvedHips);
-      if (!rows.some((row) => row.label === 'Suggested waste')) {
+      if (!rows.some((row) => row.label === "Suggested waste")) {
         rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_f77370bf46dd5a","Suggested waste") ?? "Suggested waste"), value: formatSummaryNumber(wastePct), unit: '%' });
       }
-      if (!rows.some((row) => row.label === 'Squares with waste')) {
+      if (!rows.some((row) => row.label === "Squares with waste")) {
         rows.push({
           label: (globalThis.PlatformLanguage?.text("measurements","m_f6ea64a8f11eca","Squares with waste") ?? "Squares with waste"),
           value: formatSummaryNumber(Math.ceil(resolvedSquares * (1 + (wastePct / 100)))),
@@ -2133,10 +2142,10 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportSummaryStatusLabel(row){
-    if (row.processing) return 'Processing';
-    if (row.ready) return 'Ready';
-    if (row.pending) return 'Pending';
-    return 'Not available';
+    if (row.processing) return (globalThis.PlatformLanguage?.text("measurements","m_7244c568a68bff","Processing") ?? "Processing");
+    if (row.ready) return (globalThis.PlatformLanguage?.text("measurements","m_d0dd61f9c0e1d2","Ready") ?? "Ready");
+    if (row.pending) return (globalThis.PlatformLanguage?.text("measurements","m_2175240180a38e","Pending") ?? "Pending");
+    return (globalThis.PlatformLanguage?.text("measurements","m_e70e11490d7b0e","Not available") ?? "Not available");
   }
 
   function reportSummaryStatusClass(row){
@@ -2161,34 +2170,34 @@ window.PlatformCommerce.onReady(function(){
     const summaryState = documentState(cachedAssets?.summaryUrl || '', pending && !cachedAssets?.summaryUrl);
     const rows = [
       {
-        label: (globalThis.PlatformLanguage?.text("measurements","m_555c8c46294794","Standard report") ?? "Standard report"),
-        detail: guttersOrdered ? 'Main roof measurement PDF with gutter measurements' : 'Main roof measurement PDF',
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_555c8c46294794","Standard report") ?? "Standard report"); },
+        detail: guttersOrdered ? (globalThis.PlatformLanguage?.text("measurements","m_1313f5db221c3d","Main roof measurement PDF with gutter measurements") ?? "Main roof measurement PDF with gutter measurements") : (globalThis.PlatformLanguage?.text("measurements","m_9898713daf99e1","Main roof measurement PDF") ?? "Main roof measurement PDF"),
         ...standardState
       },
       {
-        label: (globalThis.PlatformLanguage?.text("measurements","m_d7e9bec617183b","Customer Report") ?? "Customer Report"),
-        detail: 'Customer-facing summary PDF',
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_d7e9bec617183b","Customer Report") ?? "Customer Report"); },
+        detail: (globalThis.PlatformLanguage?.text("measurements","m_39c51745a420e1","Customer-facing summary PDF") ?? "Customer-facing summary PDF"),
         ...summaryState
       }
     ];
     if (cachedAssets?.xmlUrl || documentsUnlocked) {
       rows.push({
-        label: (globalThis.PlatformLanguage?.text("measurements","m_2d7f82c5d48d2c","XML model") ?? "XML model"),
-        detail: 'Model data export',
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_2d7f82c5d48d2c","XML model") ?? "XML model"); },
+        detail: (globalThis.PlatformLanguage?.text("measurements","m_73340cea156d55","Model data export") ?? "Model data export"),
         ...documentState(cachedAssets?.xmlUrl || '')
       });
     }
     if (instantOrdered) {
       rows.push({
-        label: (globalThis.PlatformLanguage?.text("measurements","m_8fb9df3711e29f","Instant report") ?? "Instant report"),
-        detail: 'Instant measurement preview',
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_8fb9df3711e29f","Instant report") ?? "Instant report"); },
+        detail: (globalThis.PlatformLanguage?.text("measurements","m_104300af4d9588","Instant measurement preview") ?? "Instant measurement preview"),
         ...documentState(cachedAssets?.instantPdfUrl || '')
       });
     }
     if (weatherReportsEnabled() || weather.ordered || weather.url) {
       rows.push({
-        label: (globalThis.PlatformLanguage?.text("measurements","m_6d0b5a0edba54b","Weather report") ?? "Weather report"),
-        detail: 'Historical severe-weather PDF',
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_6d0b5a0edba54b","Weather report") ?? "Weather report"); },
+        detail: (globalThis.PlatformLanguage?.text("measurements","m_645ca26abdddb4","Historical severe-weather PDF") ?? "Historical severe-weather PDF"),
         ...documentState(weather.url || '', weather.ordered && !weather.url)
       });
     }
@@ -2228,7 +2237,7 @@ window.PlatformCommerce.onReady(function(){
     );
     return {
       sentAt,
-      sentAtLabel: sentAt ? formatDate(sentAt) : 'Not sent yet',
+      sentAtLabel: sentAt ? formatDate(sentAt) : (globalThis.PlatformLanguage?.text("measurements","m_0d54f0e37800ea","Not sent yet") ?? "Not sent yet"),
       cc,
       notes,
       to: normalizeEmailList(reportEmail.last_to, delivery.to, manifest.issuer?.email, raw.issuer?.email, measurement.issuer?.email)[0] || ''
@@ -2240,8 +2249,8 @@ window.PlatformCommerce.onReady(function(){
     const project = activeBaseProject || {};
     const reportComplete = reportOrderIsCompleteLike();
     const status = reportOrderIsRejected()
-      ? 'Rejected'
-      : (reportOrderIsCancelled() ? 'Cancelled' : (reportOrderIsActivelyPending() ? 'Processing' : (reportComplete ? 'Complete' : 'Ordered')));
+      ? (globalThis.PlatformLanguage?.text("measurements","m_61023422d0cb5d","Rejected") ?? "Rejected")
+      : (reportOrderIsCancelled() ? (globalThis.PlatformLanguage?.text("measurements","m_9863f11d60b2fa","Cancelled") ?? "Cancelled") : (reportOrderIsActivelyPending() ? (globalThis.PlatformLanguage?.text("measurements","m_7244c568a68bff","Processing") ?? "Processing") : (reportComplete ? (globalThis.PlatformLanguage?.text("measurements","m_e8e493437c1a17","Complete") ?? "Complete") : (globalThis.PlatformLanguage?.text("measurements","m_46c14a5ec722c6","Ordered") ?? "Ordered"))));
     const address = firstCleanText(project.address, project.project_address, reportOrderMeasurement().address);
     const reports = reportSummaryReportRows(cachedAssets);
     const metricKey = reportSummaryMetricCacheKey(projectId, cachedAssets?.xmlUrl || '');
@@ -2249,8 +2258,8 @@ window.PlatformCommerce.onReady(function(){
     const metrics = reportComplete ? reportSummaryMetricRows(xmlMetrics || []) : [];
     const delivery = reportSummaryDeliveryInfo();
     const orderedAt = reportOrderState?.submittedAt || reportOrderSubmittedAt()?.toISOString();
-    const orderParts = [reportOrderState?.includeInspection ? 'Instant + standard' : 'Standard'];
-    if (weatherReportInfo().ordered) orderParts.push('weather');
+    const orderParts = [reportOrderState?.includeInspection ? (globalThis.PlatformLanguage?.text("measurements","m_e2f22061f67c87","Instant + standard") ?? "Instant + standard") : (globalThis.PlatformLanguage?.text("measurements","m_00f3e8b60aebc9","Standard") ?? "Standard")];
+    if (weatherReportInfo().ordered) orderParts.push(globalThis.PlatformLanguage?.text('measurements','m_717d08a340c907','Weather') ?? 'Weather');
     const measurementsSection = reportComplete && metrics.length ? `
       <section class="r-report-summary-section" style="grid-column:1 / -1">
         <h4>
@@ -2262,8 +2271,8 @@ window.PlatformCommerce.onReady(function(){
         <div class="r-report-summary-metrics">
           ${String(metrics.map((metric) => `
             <div class="r-report-summary-metric">
-              <span>${escapeHtml(metric.label)}</span>
-              <strong>${escapeHtml(metric.value)}</strong>
+              <span>${escapeHtml(summaryMetricLabel(metric.label))}</span>
+              <strong>${escapeHtml(summaryMetricNumber(metric.value))}</strong>
               ${metric.unit ? `<em>${escapeHtml(metric.unit)}</em>` : ''}
             </div>
           `).join(''))}
@@ -2274,9 +2283,9 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-summary">
         <div class="r-report-summary-head">
           <div class="r-report-summary-title">
-            <h3>${String(reportOrderManifest().measurement_scope === 'full_house' ? 'Full House Report Summary' : 'Roof Report Summary')}</h3>
+            <h3>${String(reportOrderManifest().measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.htmlText("measurements","m_d5a4d5eab0934e","Full House Report Summary") ?? "Full House Report Summary") : (globalThis.PlatformLanguage?.htmlText("measurements","m_ac57bd5edb01bf","Roof Report Summary") ?? "Roof Report Summary"))}</h3>
             ${String(address ? `<p>${escapeHtml(address)}</p>` : '')}
-            <p>${String(escapeHtml(orderParts.join(' + ')))}${String(orderedAt ? ` · Ordered ${escapeHtml(formatDate(orderedAt))}` : '')}</p>
+            <p>${String(escapeHtml(orderParts.join(' + ')))}${String(orderedAt ? ` · ${escapeHtml((globalThis.PlatformLanguage?.text("measurements","ordered_at",`Ordered ${formatDate(orderedAt)}`,{date:formatDate(orderedAt)}) ?? `Ordered ${formatDate(orderedAt)}`))}` : '')}</p>
           </div>
           <div class="r-report-summary-status"><i class="fas fa-ruler-combined"></i>${String(escapeHtml(status))}</div>
           ${reportComplete && window.FirstMeasureAPI?.roofMeasurements?.import ? `<button type="button" class="r-report-summary-download" data-import-project-measurements>${(globalThis.PlatformLanguage?.htmlText("measurements","m_ac054a09eee4ed","Refresh project measurements") ?? "Refresh project measurements")}</button>` : ''}
@@ -2357,7 +2366,7 @@ window.PlatformCommerce.onReady(function(){
     if (!url) return;
     try {
       const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) throw new Error(`XML download failed (${response.status})`);
+      if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_8996afe2fdfcde",`XML download failed (${v0})`,{v0}) ?? `XML download failed (${v0})`)(response.status));
       const blob = await response.blob();
       const objUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -2371,7 +2380,7 @@ window.PlatformCommerce.onReady(function(){
         link.remove();
       }, 1000);
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_d8181a2f92614c","Could not download XML") ?? "Could not download XML"), error?.message || 'Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_d8181a2f92614c","Could not download XML") ?? "Could not download XML"), error?.message || (globalThis.PlatformLanguage?.text("measurements","m_4567836c628fdd","Please try again.") ?? "Please try again."), false);
     }
   }
 
@@ -2457,7 +2466,7 @@ window.PlatformCommerce.onReady(function(){
           <div class="r-report-pending-card">
             <i class="fas fa-circle-exclamation"></i>
             <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_acaf0ab348f166","Weather Report Failed") ?? "Weather Report Failed")}</h3>
-            <p>${String(escapeHtml(info.error || 'The weather report could not be generated. You can try again from here.'))}</p>
+            <p>${String(escapeHtml(info.error || (globalThis.PlatformLanguage?.text("measurements","m_59c670bfa95274","The weather report could not be generated. You can try again from here.") ?? "The weather report could not be generated. You can try again from here.")))}</p>
             <div class="r-pending-actions">
               <button type="button" class="r-pending-action" data-order-weather-report>${(globalThis.PlatformLanguage?.htmlText("measurements","m_ef39ad5e614a24","Try again") ?? "Try again")}<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c9a1176cf5d932","No additional charge") ?? "No additional charge")}</span></button>
             </div>
@@ -2472,8 +2481,8 @@ window.PlatformCommerce.onReady(function(){
             <i class="fas ${String(waitingOnReport ? 'fa-clock' : 'fa-circle-notch fa-spin')}"></i>
             <h3>${(globalThis.PlatformLanguage?.htmlText("measurements","m_e40941fb0d6e43","Historical Weather Report") ?? "Historical Weather Report")}</h3>
             <p>${String(escapeHtml(waitingOnReport
-              ? 'The weather report is ordered and will generate after the FirstMeasure report is complete.'
-              : 'The historical severe-weather report is generating. It will appear here when it is ready.'))}</p>
+              ? (globalThis.PlatformLanguage?.text("measurements","m_5414698a7f63e1","The weather report is ordered and will generate after the FirstMeasure report is complete.") ?? "The weather report is ordered and will generate after the FirstMeasure report is complete.")
+              : (globalThis.PlatformLanguage?.text("measurements","m_1ef47a07071860","The historical severe-weather report is generating. It will appear here when it is ready.") ?? "The historical severe-weather report is generating. It will appear here when it is ready.")))}</p>
             <div class="r-pending-actions">
               <button type="button" class="r-pending-action" data-check-weather-report>${(globalThis.PlatformLanguage?.htmlText("measurements","m_104c237a5bdb0d","Check status") ?? "Check status")}<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span></button>
             </div>
@@ -2546,7 +2555,7 @@ window.PlatformCommerce.onReady(function(){
     const original = button?.innerHTML || `Check status<span>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4e8d48ff62d170","Refresh this tab") ?? "Refresh this tab")}</span>`;
     if (button) {
       button.disabled = true;
-      button.innerHTML = 'Checking...';
+      button.innerHTML = (globalThis.PlatformLanguage?.htmlText("measurements","m_8cde043098ecd9","Checking...") ?? "Checking...");
     }
     try {
       await refreshWeatherReportState(projectId);
@@ -2555,12 +2564,12 @@ window.PlatformCommerce.onReady(function(){
       if (info.url) {
         showToast((globalThis.PlatformLanguage?.text("measurements","m_8c73d1f9c82e35","Weather report ready") ?? "Weather report ready"), (globalThis.PlatformLanguage?.text("measurements","m_19ee58efa9ebbf","The historical weather report is ready.") ?? "The historical weather report is ready."), true);
       } else if (info.status === 'failed') {
-        showToast((globalThis.PlatformLanguage?.text("measurements","m_f8b2b8fd521cb3","Weather report failed") ?? "Weather report failed"), info.error || 'The weather report could not be generated.', false);
+        showToast((globalThis.PlatformLanguage?.text("measurements","m_f8b2b8fd521cb3","Weather report failed") ?? "Weather report failed"), info.error || (globalThis.PlatformLanguage?.text("measurements","m_75ee115d9e118f","The weather report could not be generated.") ?? "The weather report could not be generated."), false);
       } else {
         scheduleWeatherReportPoll(projectId, 3500);
       }
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_537a2a50588e36","Could not check weather") ?? "Could not check weather"), error?.message || 'Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_537a2a50588e36","Could not check weather") ?? "Could not check weather"), error?.message || (globalThis.PlatformLanguage?.text("measurements","m_4567836c628fdd","Please try again.") ?? "Please try again."), false);
     } finally {
       if (button && document.body.contains(button)) {
         button.disabled = false;
@@ -2580,7 +2589,7 @@ window.PlatformCommerce.onReady(function(){
       return;
     }
     const weatherChargeAmount = weatherReportTotalPrice();
-    const creditOk = await ensureCreditsForPurchase(weatherChargeAmount, 'the historical weather report', 'weather_credit_gate');
+    const creditOk = await ensureCreditsForPurchase(weatherChargeAmount, (globalThis.PlatformLanguage?.text("measurements","m_e65ad2689b9b92","the historical weather report") ?? "the historical weather report"), 'weather_credit_gate');
     if (!creditOk) return;
     const wasOrdered = weatherReportInfo().ordered;
     const original = button?.innerHTML || weatherReportOrderButtonHtml();
@@ -2591,7 +2600,7 @@ window.PlatformCommerce.onReady(function(){
     scheduleWeatherReportPoll(projectId, 2500);
     try {
       const data = await fmPost(`projects/${encodeURIComponent(projectId)}/weather/order`, { actor: currentActor?.() || {}, structure_count: weatherReportStructureCount() });
-      if (!data?.success) throw new Error(data?.error || data?.message || 'Could not order the weather report.');
+      if (!data?.success) throw new Error(data?.error || data?.message || (globalThis.PlatformLanguage?.text("measurements","m_7d48773e58e964","Could not order the weather report.") ?? "Could not order the weather report."));
       if (data.manifest) mergeReportManifestIntoActiveProject(data.manifest);
       if (data.weather_report_id || data.weather_report_pdf_url) {
         const patch = {
@@ -2602,7 +2611,7 @@ window.PlatformCommerce.onReady(function(){
         mergeReportManifestIntoActiveProject(patch);
       }
       activeMeasurementTab = 'weather';
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_a54dfa11060c5d_currency","Weather report ordered") ?? "Weather report ordered"), data.charged_amount ? `${fmtCredit(data.charged_amount)} charged to credits.` : 'The weather report is ready.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_a54dfa11060c5d_currency","Weather report ordered") ?? "Weather report ordered"), data.charged_amount ? `${fmtCredit(data.charged_amount)} charged to credits.` : (globalThis.PlatformLanguage?.text("measurements","m_6479e99c256b1d","The weather report is ready.") ?? "The weather report is ready."), true);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
       renderMeasurementsPanel();
@@ -2624,13 +2633,13 @@ window.PlatformCommerce.onReady(function(){
       const credit = creditErrorDetails(error);
       if (credit.isCreditError) {
         openCreditTopupForPurchase({
-          label: (globalThis.PlatformLanguage?.text("measurements","m_e65ad2689b9b92","the historical weather report") ?? "the historical weather report"),
+          get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_e65ad2689b9b92","the historical weather report") ?? "the historical weather report"); },
           required: credit.required || weatherChargeAmount,
           balance: credit.balance,
           context: 'weather_credit_reject'
         });
       } else {
-        showToast((globalThis.PlatformLanguage?.text("measurements","m_146113394151cf","Could not order weather") ?? "Could not order weather"), error?.message || 'Please try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("measurements","m_146113394151cf","Could not order weather") ?? "Could not order weather"), error?.message || (globalThis.PlatformLanguage?.text("measurements","m_4567836c628fdd","Please try again.") ?? "Please try again."), false);
       }
       if (button && document.body.contains(button)) {
         button.disabled = false;
@@ -2676,19 +2685,19 @@ window.PlatformCommerce.onReady(function(){
 
   function reportChangeRequestLabel(type){
     const normalized = String(type || '').trim().toLowerCase();
-    if (normalized === 'report_issue') return 'Reported issue';
-    if (normalized === 'additional_structure') return 'Additional structure';
-    return 'Change or correction';
+    if (normalized === 'report_issue') return (globalThis.PlatformLanguage?.text("measurements","m_65522862812f28","Reported issue") ?? "Reported issue");
+    if (normalized === 'additional_structure') return (globalThis.PlatformLanguage?.text("measurements","m_7af9903841fb66","Additional structure") ?? "Additional structure");
+    return (globalThis.PlatformLanguage?.text("measurements","m_9816fa5fa0bc00","Change or correction") ?? "Change or correction");
   }
 
   function reportChangeRequestStatusText(request){
     const type = String(request?.type || request?.request_type || '').trim().toLowerCase();
     const status = String(request?.status || '').trim().toLowerCase();
-    if (type === 'report_issue') return 'Sent to support';
-    if (status === 'approved') return 'Approved';
-    if (status === 'rejected') return 'Rejected';
-    if (status === 'completed' || status === 'complete') return 'Completed';
-    return 'Waiting for review';
+    if (type === 'report_issue') return (globalThis.PlatformLanguage?.text("measurements","m_1dbe1d8b227b2f","Sent to support") ?? "Sent to support");
+    if (status === 'approved') return (globalThis.PlatformLanguage?.text("measurements","m_51be70f25415d9","Approved") ?? "Approved");
+    if (status === 'rejected') return (globalThis.PlatformLanguage?.text("measurements","m_61023422d0cb5d","Rejected") ?? "Rejected");
+    if (status === 'completed' || status === 'complete') return (globalThis.PlatformLanguage?.text("measurements","m_3c4d2141b2fa1c","Completed") ?? "Completed");
+    return (globalThis.PlatformLanguage?.text("measurements","m_070240177031fb","Waiting for review") ?? "Waiting for review");
   }
 
   function reportChangesPanelHtml(){
@@ -2711,8 +2720,8 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-changes">
         <div class="r-report-changes-head">
           <div>
-            <h3>${String(supportOnly ? 'Support' : 'Changes Pending')}</h3>
-            <p>${String(supportOnly ? 'Your support messages for this returned report are listed here.' : 'Your returned report stays available while these requests are reviewed.')}</p>
+            <h3>${String(supportOnly ? (globalThis.PlatformLanguage?.htmlText("measurements","m_dbb3d23d1471ce","Support") ?? "Support") : (globalThis.PlatformLanguage?.htmlText("measurements","m_070d836d7b27e3","Changes Pending") ?? "Changes Pending"))}</h3>
+            <p>${String(supportOnly ? (globalThis.PlatformLanguage?.htmlText("measurements","m_fe9520d635f903","Your support messages for this returned report are listed here.") ?? "Your support messages for this returned report are listed here.") : (globalThis.PlatformLanguage?.htmlText("measurements","m_339395a80e0064","Your returned report stays available while these requests are reviewed.") ?? "Your returned report stays available while these requests are reviewed."))}</p>
           </div>
           <button type="button" class="r-report-support-request" data-open-support-request><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_4ab569b02a96a5"," Request Support") ?? " Request Support")}</button>
         </div>
@@ -2730,15 +2739,15 @@ window.PlatformCommerce.onReady(function(){
                 <div class="r-report-change-top">
                   <div>
                     <div class="r-report-change-title">${escapeHtml(request.label || reportChangeRequestLabel(type))}</div>
-                    <div class="r-report-change-meta">${created ? `Submitted ${escapeHtml(created)}` : 'Submitted'}</div>
+                    <div class="r-report-change-meta">${created ? ((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_40790b51a230b1",`Submitted ${v0}`,{v0}) ?? `Submitted ${v0}`)(escapeHtml(created)) : (globalThis.PlatformLanguage?.htmlText("measurements","m_e2b803de55a93e","Submitted") ?? "Submitted")}</div>
                   </div>
                   <span class="r-report-change-status"><i class="fas ${isIssue ? 'fa-envelope' : 'fa-screwdriver-wrench'}"></i>${escapeHtml(reportChangeRequestStatusText(request))}</span>
                 </div>
                 ${request.notes ? `<div class="r-report-change-notes">${escapeHtml(request.notes)}</div>` : ''}
                 <div class="r-report-change-facts">
                   ${isIssue ? `<span><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_26e481284994c4","Support will reach out if needed") ?? "Support will reach out if needed")}</span>` : `<span><i class="fas fa-clock"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_070240177031fb","Waiting for review") ?? "Waiting for review")}</span>`}
-                  ${pins ? `<span><i class="fas fa-location-dot"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("measurements","m_4f521257e8b2fe",`${v0} pin${v1}`,{v0,v1}) ?? `${v0} pin${v1}`)(pins,pins === 1 ? '' : 's')}</span>` : ''}
-                  ${photos ? `<span><i class="fas fa-image"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("measurements","m_9389ebcecf7d63",`${v0} photo${v1}`,{v0,v1}) ?? `${v0} photo${v1}`)(photos,photos === 1 ? '' : 's')}</span>` : ''}
+                  ${pins ? `<span><i class="fas fa-location-dot"></i>${(globalThis.PlatformLanguage?.htmlText('measurements','pin_count',"{count, plural, one {# pin} other {# pins}}",{count:pins}) ?? String(pins))}</span>` : ''}
+                  ${photos ? `<span><i class="fas fa-image"></i>${(globalThis.PlatformLanguage?.htmlText('measurements','photo_count',`${photos} photo${photos === 1 ? '' : 's'}`,{count:photos}) ?? `${photos} photo${photos === 1 ? '' : 's'}`)}</span>` : ''}
                   ${charge > 0 ? `<span><i class="fas fa-credit-card"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_7a3353837db839",`${v0} charged`,{v0}) ?? `${v0} charged`)(escapeHtml(fmtCredit(charge)))}</span>` : `<span><i class="fas fa-dollar-sign"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_09e2ef001aaeed","No charge") ?? "No charge")}</span>`}
                   ${expedite ? `<span><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_e6c18c6b98e998","Rushed") ?? "Rushed")}</span>` : ''}
                 </div>
@@ -2933,7 +2942,7 @@ window.PlatformCommerce.onReady(function(){
     const submit = overlay.querySelector('.r-report-followup-submit');
     if (submit && submit.dataset.submitting !== '1') {
       submit.disabled = reportRequestModalState.type === 'additional_structure' && !newPins.length;
-      submit.textContent = charge > 0 ? `Submit - ${fmtCredit(charge)}` : 'Submit';
+      submit.textContent = charge > 0 ? ((v0) => globalThis.PlatformLanguage?.text("measurements","m_0bdb714bb5a9a4",`Submit - ${v0}`,{v0}) ?? `Submit - ${v0}`)(fmtCredit(charge)) : (globalThis.PlatformLanguage?.text("measurements","m_5396f76ffb2c65","Submit") ?? "Submit");
     }
     const clear = overlay.querySelector('[data-followup-clear-new-pins]');
     if (clear) clear.disabled = !newPins.length;
@@ -3058,9 +3067,9 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportRequestModalTypeMeta(type){
-    if (type === 'report_issue') return { title: (globalThis.PlatformLanguage?.text("measurements","m_5460def4910c65","Report an issue") ?? "Report an issue"), icon: 'fa-circle-exclamation', note: 'This sends a support message to FirstMeasure.' };
-    if (type === 'additional_structure') return { title: (globalThis.PlatformLanguage?.text("measurements","m_ca927d2b8006b8","Request an additional structure") ?? "Request an additional structure"), icon: 'fa-location-dot', note: 'Place the additional structure on the map. Commercial and multifamily requests are billed per added structure.' };
-    return { title: (globalThis.PlatformLanguage?.text("measurements","m_53eac7b6fa7c5c","Request a change or correction") ?? "Request a change or correction"), icon: 'fa-pen-to-square', note: 'Add notes and photos for the correction team.' };
+    if (type === 'report_issue') return { title: (globalThis.PlatformLanguage?.text("measurements","m_5460def4910c65","Report an issue") ?? "Report an issue"), icon: 'fa-circle-exclamation', note: (globalThis.PlatformLanguage?.text("measurements","m_a518a4f0e43132","This sends a support message to FirstMeasure.") ?? "This sends a support message to FirstMeasure.") };
+    if (type === 'additional_structure') return { title: (globalThis.PlatformLanguage?.text("measurements","m_ca927d2b8006b8","Request an additional structure") ?? "Request an additional structure"), icon: 'fa-location-dot', note: (globalThis.PlatformLanguage?.text("measurements","m_35f94adf3dce96","Place the additional structure on the map. Commercial and multifamily requests are billed per added structure.") ?? "Place the additional structure on the map. Commercial and multifamily requests are billed per added structure.") };
+    return { title: (globalThis.PlatformLanguage?.text("measurements","m_53eac7b6fa7c5c","Request a change or correction") ?? "Request a change or correction"), icon: 'fa-pen-to-square', note: (globalThis.PlatformLanguage?.text("measurements","m_bb5684676c9b3b","Add notes and photos for the correction team.") ?? "Add notes and photos for the correction team.") };
   }
 
   function refreshReportRequestModal(){
@@ -3091,7 +3100,7 @@ window.PlatformCommerce.onReady(function(){
               <button type="button" class="r-report-followup-type${key === type ? ' active' : ''}" data-followup-type="${escapeHtml(key)}">
                 <i class="fas ${escapeHtml(item.icon)}"></i>
                 <strong>${escapeHtml(item.title)}</strong>
-                <span>${key === 'report_issue' ? 'Support message' : (key === 'additional_structure' ? 'Adds a rework request' : 'Free rework request')}</span>
+                <span>${key === 'report_issue' ? (globalThis.PlatformLanguage?.htmlText("measurements","m_eba3732c6bff34","Support message") ?? "Support message") : (key === 'additional_structure' ? (globalThis.PlatformLanguage?.htmlText("measurements","m_fd5e1725cedd0d","Adds a rework request") ?? "Adds a rework request") : (globalThis.PlatformLanguage?.htmlText("measurements","m_f945baf54844d9","Free rework request") ?? "Free rework request"))}</span>
               </button>`;
           }).join(''))}
         </div>
@@ -3135,7 +3144,7 @@ window.PlatformCommerce.onReady(function(){
                   ${reportRequestExpediteOptions().map((option) => {
                     const selected = normalizeReportExpediteKey(reportRequestModalState.expedite) === option.key;
                     const window = reportExpediteCustomerPromiseLabel(option);
-                    return `<button type="button" class="${selected ? 'active' : ''}" data-followup-expedite="${escapeHtml(option.key)}">${escapeHtml(option.key === 'standard_3_6' ? 'Standard' : reportExpediteDurationLabel(option))}<span>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("measurements","m_c235f24fecb516",`${v3} · ${v4} each`,{v3,v4}) ?? `${v3} · ${v4} each`)(escapeHtml(window),escapeHtml(reportExpediteDeltaLabel(option, projectType)))}</span></button>`;
+                    return `<button type="button" class="${selected ? 'active' : ''}" data-followup-expedite="${escapeHtml(option.key)}">${escapeHtml(option.key === 'standard_3_6' ? (globalThis.PlatformLanguage?.text("measurements","m_00f3e8b60aebc9","Standard") ?? "Standard") : reportExpediteDurationLabel(option))}<span>${((v3,v4) => globalThis.PlatformLanguage?.htmlText("measurements","m_c235f24fecb516",`${v3} · ${v4} each`,{v3,v4}) ?? `${v3} · ${v4} each`)(escapeHtml(window),escapeHtml(reportExpediteDeltaLabel(option, projectType)))}</span></button>`;
                   }).join('')}
                 </div>
               </div>` : ''}
@@ -3143,7 +3152,7 @@ window.PlatformCommerce.onReady(function(){
           <div class="r-report-followup-error" id="rReportFollowupError"></div>
           <div class="r-report-followup-actions">
             <button type="button" class="r-report-followup-secondary" data-report-followup-close>${(globalThis.PlatformLanguage?.htmlText("measurements","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-            <button type="submit" class="r-report-followup-submit" ${String(isAdditional && !newPins.length ? 'disabled' : '')}>${String(charge > 0 ? `Submit - ${escapeHtml(fmtCredit(charge))}` : 'Submit')}</button>
+            <button type="submit" class="r-report-followup-submit" ${String(isAdditional && !newPins.length ? 'disabled' : '')}>${String(charge > 0 ? ((v0) => globalThis.PlatformLanguage?.htmlText("measurements","m_0bdb714bb5a9a4",`Submit - ${v0}`,{v0}) ?? `Submit - ${v0}`)(escapeHtml(fmtCredit(charge))) : (globalThis.PlatformLanguage?.htmlText("measurements","m_5396f76ffb2c65","Submit") ?? "Submit"))}</button>
           </div>
         </form>
       </div>`;
@@ -3216,7 +3225,7 @@ window.PlatformCommerce.onReady(function(){
       }
       const reader = new FileReader();
       reader.onload = () => resolve({ name: file.name, type: file.type, data_url: String(reader.result || '') });
-      reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+      reader.onerror = () => reject(new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_417c2d318452c7",`Could not read ${v0}.`,{v0}) ?? `Could not read ${v0}.`)(file.name)));
       reader.readAsDataURL(file);
     })));
   }
@@ -3303,10 +3312,10 @@ window.PlatformCommerce.onReady(function(){
       }
       return;
     }
-    if (!notes && additionalStructure) notes = 'Additional structure requested by pin.';
+    if (!notes && additionalStructure) notes = (globalThis.PlatformLanguage?.text("measurements","m_7fcd013c15da70","Additional structure requested by pin.") ?? "Additional structure requested by pin.");
     const chargeEstimate = additionalStructure ? reportRequestChargeEstimate() : 0;
     if (chargeEstimate > 0) {
-      const creditOk = await ensureCreditsForPurchase(chargeEstimate, 'the additional structure request', 'additional_structure_credit_gate');
+      const creditOk = await ensureCreditsForPurchase(chargeEstimate, (globalThis.PlatformLanguage?.text("measurements","m_8908e3675653d6","the additional structure request") ?? "the additional structure request"), 'additional_structure_credit_gate');
       if (!creditOk) return;
     }
     const original = submit?.textContent || (globalThis.PlatformLanguage?.text("measurements","m_5396f76ffb2c65","Submit") ?? "Submit");
@@ -3327,14 +3336,14 @@ window.PlatformCommerce.onReady(function(){
         report_expedite_option: state.type === 'additional_structure' && reportExpediteOptionsEnabled() ? normalizeReportExpediteKey(state.expedite || 'standard_3_6') : 'standard_3_6',
         report_pricing_revision: reportExpediteOption(state.expedite || 'standard_3_6')?.pricing_revision ?? 0,
         billing_reason: state.type === 'additional_structure' ? 'additional_structure_request' : '',
-        billing_label: state.type === 'additional_structure' ? 'Additional structure request' : '',
-        billing_description: state.type === 'additional_structure' ? 'Additional structures added to returned report' : ''
+        billing_label: state.type === 'additional_structure' ? (globalThis.PlatformLanguage?.text("measurements","m_735a0c9b004cb0","Additional structure request") ?? "Additional structure request") : '',
+        billing_description: state.type === 'additional_structure' ? (globalThis.PlatformLanguage?.text("measurements","m_136eda8f76021e","Additional structures added to returned report") ?? "Additional structures added to returned report") : ''
       };
       const data = await submitReportReworkRequestAction(payload);
-      if (!data?.success) throw new Error(data?.error || data?.message || 'Could not submit the request.');
+      if (!data?.success) throw new Error(data?.error || data?.message || (globalThis.PlatformLanguage?.text("measurements","m_db80beaa86c589","Could not submit the request.") ?? "Could not submit the request."));
       mergeReportReworkResponse(data);
       closeReportRequestModal();
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_bd585f0df980a6_currency","Request submitted") ?? "Request submitted"), data.charged_amount ? `Charged ${fmtCredit(data.charged_amount)} for the additional structure request.` : 'The report follow-up was saved.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_bd585f0df980a6_currency","Request submitted") ?? "Request submitted"), data.charged_amount ? ((v0) => globalThis.PlatformLanguage?.text("measurements","m_3c366c37d61199",`Charged ${v0} for the additional structure request.`,{v0}) ?? `Charged ${v0} for the additional structure request.`)(fmtCredit(data.charged_amount)) : (globalThis.PlatformLanguage?.text("measurements","m_8e44aec37ccb2b","The report follow-up was saved.") ?? "The report follow-up was saved."), true);
       if (data.charged_amount) window.Portal.credits.refreshCredits().catch(() => null);
       renderMeasurementsPanel();
       syncProjectViewerTabs();
@@ -3343,13 +3352,13 @@ window.PlatformCommerce.onReady(function(){
       const credit = creditErrorDetails(error);
       if (credit.isCreditError) {
         openCreditTopupForPurchase({
-          label: (globalThis.PlatformLanguage?.text("measurements","m_8908e3675653d6","the additional structure request") ?? "the additional structure request"),
+          get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_8908e3675653d6","the additional structure request") ?? "the additional structure request"); },
           required: credit.required || reportRequestChargeEstimate(),
           balance: credit.balance,
           context: 'additional_structure_credit_reject'
         });
       } else if (errorEl) {
-        errorEl.textContent = error?.message || 'Could not submit the request.';
+        errorEl.textContent = error?.message || (globalThis.PlatformLanguage?.text("measurements","m_db80beaa86c589","Could not submit the request.") ?? "Could not submit the request.");
         errorEl.classList.add('visible');
       }
       if (submit) {
@@ -3467,7 +3476,7 @@ window.PlatformCommerce.onReady(function(){
         media: terminalWithoutReport ? [] : [
           // solarImg is the frozen, cropped top view used by the PDF, regardless of provider.
           ...(/^data:image\/(?:jpeg|png|webp);base64,/i.test(data?.project?.pdf_state?.solarImg || '')
-            ? [{url:data.project.pdf_state.solarImg,label:'Aerial view'}] : []),
+            ? [{url:data.project.pdf_state.solarImg,get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_020e15c6bea221","Aerial view") ?? "Aerial view"); }}] : []),
           ...files.filter(file => /^customer-reference-.*\.(?:jpg|jpeg|png|webp|mp4|mov|webm)$/i.test(file.name)).map(file => ({
             url: fmUrl(`projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(file.name)}`),
             label: file.name, video: /\.(mp4|mov|webm)$/i.test(file.name)
@@ -3681,13 +3690,13 @@ window.PlatformCommerce.onReady(function(){
     const upgrade = pendingExpediteOptions().find((entry) => entry.option?.key === optionKey);
     const chargeEstimate = Number(upgrade?.delta ?? 0) || 0;
     if (chargeEstimate > 0) {
-      const creditOk = await ensureCreditsForPurchase(chargeEstimate, 'the expedited delivery upgrade', 'expedite_credit_gate');
+      const creditOk = await ensureCreditsForPurchase(chargeEstimate, (globalThis.PlatformLanguage?.text("measurements","m_3853953f71ccc7","the expedited delivery upgrade") ?? "the expedited delivery upgrade"), 'expedite_credit_gate');
       if (!creditOk) return;
     }
     const snapshot = snapshotReportExpediteState();
     if (button) {
       button.disabled = true;
-      button.innerHTML = 'Expediting...';
+      button.innerHTML = (globalThis.PlatformLanguage?.htmlText("measurements","m_c351aee2646e56","Expediting...") ?? "Expediting...");
     }
     if (applyOptimisticReportExpedite(optionKey)) {
       renderMeasurementsPanel();
@@ -3699,10 +3708,10 @@ window.PlatformCommerce.onReady(function(){
         report_expedite_option: optionKey,
         report_pricing_revision: reportExpediteOption(optionKey)?.pricing_revision ?? 0
       });
-      if (!data?.success) throw new Error(data?.error || data?.message || 'Could not expedite this report.');
+      if (!data?.success) throw new Error(data?.error || data?.message || (globalThis.PlatformLanguage?.text("measurements","m_2ba158e4424efb","Could not expedite this report.") ?? "Could not expedite this report."));
       mergeReportManifestIntoActiveProject(data.manifest || {});
       pendingExpediteSelection = '';
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_550e7313d4d175_currency","Report expedited") ?? "Report expedited"), data.charge_amount ? `Charged ${fmtCredit(data.charge_amount)} for the faster delivery option.` : 'Delivery has been updated.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_550e7313d4d175_currency","Report expedited") ?? "Report expedited"), data.charge_amount ? ((v0) => globalThis.PlatformLanguage?.text("measurements","m_a57adbfbfeda02",`Charged ${v0} for the faster delivery option.`,{v0}) ?? `Charged ${v0} for the faster delivery option.`)(fmtCredit(data.charge_amount)) : (globalThis.PlatformLanguage?.text("measurements","m_fbd81f2c4d1c18","Delivery has been updated.") ?? "Delivery has been updated."), true);
       renderMeasurementsPanel();
       syncProjectViewerTabs();
       window.Portal.credits.refreshCredits().catch(() => null);
@@ -3714,13 +3723,13 @@ window.PlatformCommerce.onReady(function(){
       const credit = creditErrorDetails(error);
       if (credit.isCreditError) {
         openCreditTopupForPurchase({
-          label: (globalThis.PlatformLanguage?.text("measurements","m_3853953f71ccc7","the expedited delivery upgrade") ?? "the expedited delivery upgrade"),
+          get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_3853953f71ccc7","the expedited delivery upgrade") ?? "the expedited delivery upgrade"); },
           required: credit.required || chargeEstimate,
           balance: credit.balance,
           context: 'expedite_credit_reject'
         });
       } else {
-        showToast((globalThis.PlatformLanguage?.text("measurements","m_631b2250474eb4","Could not expedite") ?? "Could not expedite"), error?.message || 'Please try again.', false);
+        showToast((globalThis.PlatformLanguage?.text("measurements","m_631b2250474eb4","Could not expedite") ?? "Could not expedite"), error?.message || (globalThis.PlatformLanguage?.text("measurements","m_4567836c628fdd","Please try again.") ?? "Please try again."), false);
       }
       if (button) {
         button.disabled = false;
@@ -3737,8 +3746,8 @@ window.PlatformCommerce.onReady(function(){
     const cancelState = reportOrderCancelState();
     if (!cancelState.allowed || cancelState.remainingSeconds <= 0) {
       showToast((globalThis.PlatformLanguage?.text("measurements","m_918d0bc7e29378","Cancellation unavailable") ?? "Cancellation unavailable"), cancelState.expedited
-        ? 'The 1-minute cancellation grace period for this expedited report has ended.'
-        : 'The cancellation grace period for this project has ended.', false);
+        ? (globalThis.PlatformLanguage?.text("measurements","m_0dcf5f39373245","The 1-minute cancellation grace period for this expedited report has ended.") ?? "The 1-minute cancellation grace period for this expedited report has ended.")
+        : (globalThis.PlatformLanguage?.text("measurements","m_5a195b5dbc85fc","The cancellation grace period for this project has ended.") ?? "The cancellation grace period for this project has ended."), false);
       renderMeasurementsPanel();
       return;
     }
@@ -3751,7 +3760,7 @@ window.PlatformCommerce.onReady(function(){
     }
     try {
       const { data } = await postAction('cancel_queued_report', { project_id: projectId });
-      if (!data?.success) throw new Error(data?.error || data?.message || 'Could not cancel this report.');
+      if (!data?.success) throw new Error(data?.error || data?.message || (globalThis.PlatformLanguage?.text("measurements","m_21778024c3a70c","Could not cancel this report.") ?? "Could not cancel this report."));
       if (activeBaseProject) {
         const cancelledAt = data.manifest?.cancelled_at || data.manifest?.timestamps?.cancelled_at || new Date().toISOString();
         const refundedAmount = Number(data.refunded || 0) || 0;
@@ -3783,12 +3792,12 @@ window.PlatformCommerce.onReady(function(){
           detail: { project: activeBaseProject, redraw: true }
         }));
       }
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_d588b9b5f17ee7_currency","Report cancelled") ?? "Report cancelled"), data.refunded ? `${fmtCredit(data.refunded)} was refunded to credits.` : 'The order was cancelled.', true);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_d588b9b5f17ee7_currency","Report cancelled") ?? "Report cancelled"), data.refunded ? `${fmtCredit(data.refunded)} was refunded to credits.` : (globalThis.PlatformLanguage?.text("measurements","m_c44638d45be320","The order was cancelled.") ?? "The order was cancelled."), true);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
       close();
     } catch (error) {
-      showToast((globalThis.PlatformLanguage?.text("measurements","m_e6b5d0f1dd87a5","Could not cancel") ?? "Could not cancel"), error?.message || 'Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("measurements","m_e6b5d0f1dd87a5","Could not cancel") ?? "Could not cancel"), error?.message || (globalThis.PlatformLanguage?.text("measurements","m_4567836c628fdd","Please try again.") ?? "Please try again."), false);
       if (button) {
         button.disabled = false;
         button.textContent = original;
@@ -3888,7 +3897,7 @@ window.PlatformCommerce.onReady(function(){
     const modelKey = JSON.stringify([projectId,cachedAssets?.xmlUrl,cachedAssets?.media,terminalWithoutReport]);
     if(activeMeasurementTab !== 'model' || terminalWithoutReport){roofViewer?.destroy();roofViewer=null;roofViewerKey='';}
     else if(modelRoot && !window.FirstMateWidgets){
-      modelRoot.innerHTML='<div class="r-report-pending" role="status">The roof viewer could not load. Refresh to try again.</div>';
+      modelRoot.innerHTML=`<div class="r-report-pending" role="status">${(globalThis.PlatformLanguage?.htmlText("measurements","m_8a27a13894e81a","The roof viewer could not load. Refresh to try again.") ?? "The roof viewer could not load. Refresh to try again.")}</div>`;
     }
     else if(modelRoot && window.FirstMateWidgets && (roofViewerKey!==modelKey || !roofViewer)){
       roofViewer?.destroy();roofViewerKey=modelKey;
@@ -3959,7 +3968,7 @@ window.PlatformCommerce.onReady(function(){
           renderMeasurementsPanel();
         } catch (error) {
           button.disabled = false;
-          showToast((globalThis.PlatformLanguage?.text("measurements","m_81c35a6db09047","Measurements unavailable") ?? "Measurements unavailable"), error?.message || 'The report could not be imported.', false);
+          showToast((globalThis.PlatformLanguage?.text("measurements","m_81c35a6db09047","Measurements unavailable") ?? "Measurements unavailable"), error?.message || (globalThis.PlatformLanguage?.text("measurements","m_70cd41e8830a84","The report could not be imported.") ?? "The report could not be imported."), false);
         }
       });
     });
@@ -4166,7 +4175,7 @@ window.PlatformCommerce.onReady(function(){
     id: 'project.measurements',
     kind: 'project_modal_app',
     title: (globalThis.PlatformLanguage?.text("measurements","m_fc81637c875032","Reports") ?? "Reports"),
-    label: (globalThis.PlatformLanguage?.text("measurements","m_fc81637c875032","Reports") ?? "Reports"),
+    get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_fc81637c875032","Reports") ?? "Reports"); },
     icon: 'fa-ruler-combined',
     order: 60,
     visible: true,

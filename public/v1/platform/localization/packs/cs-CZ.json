@@ -2117,7 +2117,11 @@
     "m_25253d755816e2": "Jednou dokola obejděte dům a natočte jej telefonem, pak video nahrajte sem. Při objednání v aplikaci FirstMate se video nahraje za vás.",
     "m_27b7e868698f63": "Přidejte detailní záběry všeho, co video nezachytilo dobře, například vikýřů, přístaveb nebo úzkých bočních průchodů.",
     "m_2469fadd18d99a": "Máte video? Přepněte na obletové video (doporučeno)",
-    "m_6e81feb28a2b17": "Zatím nemáte video"
+    "m_6e81feb28a2b17": "Zatím nemáte video",
+    "m_0889f650508793": "NAHRÁVÁNÍ",
+    "m_1ddd588108e13d": "Celý okruh",
+    "m_e05fb49213187a": "Nahrávat",
+    "review_full_structural_report": "Zkontrolovat úplnou zprávu o konstrukci"
   },
   "help": {
     "m_0db6efc53ab2ed": "Potřebujete pomoct?",
@@ -2591,7 +2595,226 @@
     },
     "m_ee2e95ef4a2d84": "Měření aktualizována",
     "m_52f356edab1915": "Hodnoty reportu byly obnoveny. Ruční úpravy zůstaly zachovány.",
-    "m_81c35a6db09047": "Měření nejsou dostupná"
+    "m_81c35a6db09047": "Měření nejsou dostupná",
+    "m_5be2af39e5e918": {
+      "message": "Kliknutím do mapy umístěte každou další strukturu. Stávající struktury jsou zobrazeny šedě a nelze s nimi pohybovat.{v0}{v1}",
+      "format": "icu"
+    },
+    "m_a44d68de40e025": {
+      "message": "Kliknutím do mapy umístěte každou další strukturu. Stávající struktury jsou zobrazeny šedě a nelze s nimi pohybovat.{v7}{v8}",
+      "format": "icu"
+    },
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} za strukturu",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Model a fotografie",
+    "m_020e15c6bea221": "Letecký pohled",
+    "m_8a27a13894e81a": "Náhled střechy se nepodařilo načíst. Obnovte stránku a zkuste to znovu.",
+    "m_76608e0c91e510": "Legenda",
+    "m_9f97a8cc4df412": "Načítání modelu střechy…",
+    "m_e11fb3a15af2c9": "Tažením otáčíte · Posouváním přibližujete",
+    "m_f902513107035c": "Model střechy a média zprávy",
+    "m_cc0ef10e9ca033": "Textura",
+    "m_f5c0225c619977": "Barevné čáry",
+    "m_106ab75c23cf29": "Obnovit zobrazení",
+    "m_3ed4abb478b582": "3D model střechy",
+    "m_7e9fab72578933": "Toto médium se nepodařilo načíst.",
+    "m_c2e36017433571": "Solární snímek se nepodařilo načíst",
+    "m_2578923397f853": "Načítání solárního snímku…",
+    "m_ff91c03c76ccf0": "Uložené obrysy střechy · Tažením otáčíte · Posouváním přibližujete",
+    "m_00f3e8b60aebc9": "Standardní",
+    "m_ae8e4953e07d70": "Zákazník",
+    "m_425f6b598f6417": "Počasí",
+    "m_070d836d7b27e3": "Čekající změny",
+    "m_3a57f052b36fc1": "Poplatek za expresní doručení byl u této objednávky odebrán.",
+    "m_ee8cd441a3c740": "Expresní zprávy se začnou zpracovávat okamžitě a po 1 minutě je již nelze zrušit.",
+    "m_7ab36b45fa8644": "Standardní zprávy lze zrušit do 15 minut od objednání.",
+    "m_0ca6847627b5d8": "Vytváří se okamžitá zpráva",
+    "m_4f9decb4fef708": "Zpracování zákaznické zprávy",
+    "m_cb27e9cd4b71dc": "Zpracování standardní zprávy",
+    "m_b754ff36345be0": "Čeká se na standardní zprávu",
+    "m_6c2b94bfbe7de4": "Odhaduje se doba doručení",
+    "m_813568092a909a": "Probíhá",
+    "m_a5adb64bece6bf": "Probíhá kontrola",
+    "m_2175240180a38e": "Čeká na zpracování",
+    "m_0dcf5f39373245": "Uplynula jednominutová lhůta pro zrušení této expresní zprávy.",
+    "m_5a195b5dbc85fc": "Uplynula lhůta pro zrušení tohoto projektu.",
+    "m_4d7c3696ea7819": "Čeká se na okamžitou zprávu",
+    "m_20daf0329c6bb5": "Tato zpráva byla zamítnuta, protože struktura je na dostupných snímcích příliš zakrytá. Stromy, stíny, kvalita snímků nebo jiné vizuální překážky nám mohou bránit ve spolehlivém určení a změření střechy. Platbu za původní zprávu jsme vám vrátili.",
+    "m_8a0434dcd5f44a": "Tato zpráva byla zamítnuta, protože vybraný špendlík zřejmě není umístěn na struktuře, kterou můžeme změřit. Může být na zahradě, příjezdové cestě, blízkém objektu nebo na struktuře, pro kterou není dostatek použitelných snímků k přesnému měření. Platbu za původní zprávu jsme vám vrátili.",
+    "m_fdbdd395519610": "Tato zpráva byla zamítnuta, protože organizace neměla dostatek kreditu pro další struktury. Za tuto zamítnutou zprávu nebyl účtován žádný poplatek za špendlíky dalších struktur.",
+    "m_a88169ad51b679": "Tato zpráva byla zamítnuta. Platbu za původní zprávu jsme vám vrátili.",
+    "m_85b7e99a08fa9a": "Měření",
+    "m_ec6b76d100b0ec": "Hodnota",
+    "m_4b91b73dae1ff3": "Jednotka",
+    "m_f2baa3de1eb35b": "Okapové hrany",
+    "m_230a183ddb6e96": "Úžlabí",
+    "m_48029c2aaa37c6": "Štítové hrany",
+    "m_217bf30b990d24": "Hřebeny",
+    "m_baa2f693c3883e": "Nároží",
+    "m_3bcef36c5987a6": "Oplechování u stěny",
+    "m_58ab5ba41ae1c9": "Boční oplechování u stěny",
+    "m_06fc435805a90a": "Stupňovité oplechování",
+    "m_8ba24778829c38": "Přechody",
+    "m_4d80da8e9e6ebe": "Atiková stěna",
+    "m_7aeda3ce508c46": "Krycí oplechování",
+    "m_0cbf0780118eed": "Neznámý rozměr",
+    "m_7244c568a68bff": "Zpracovává se",
+    "m_d0dd61f9c0e1d2": "Připraveno",
+    "m_e70e11490d7b0e": "Není k dispozici",
+    "m_1313f5db221c3d": "PDF s měřením hlavní střechy a měřením okapů",
+    "m_9898713daf99e1": "PDF s měřením hlavní střechy",
+    "m_39c51745a420e1": "PDF se souhrnem pro zákazníka",
+    "m_73340cea156d55": "Export dat modelu",
+    "m_104300af4d9588": "Náhled okamžitého měření",
+    "m_645ca26abdddb4": "Historické PDF o závažném počasí",
+    "m_0d54f0e37800ea": "Zatím neodesláno",
+    "m_61023422d0cb5d": "Zamítnuto",
+    "m_9863f11d60b2fa": "Zrušeno",
+    "m_e8e493437c1a17": "Dokončeno",
+    "m_46c14a5ec722c6": "Objednáno",
+    "m_e2f22061f67c87": "Okamžitá + standardní",
+    "m_d5a4d5eab0934e": "Souhrn zprávy pro celý dům",
+    "m_ac57bd5edb01bf": "Souhrn zprávy o střeše",
+    "m_4567836c628fdd": "Zkuste to prosím znovu.",
+    "m_59c670bfa95274": "Zprávu o počasí se nepodařilo vytvořit. Můžete to zkusit znovu odsud.",
+    "m_5414698a7f63e1": "Zpráva o počasí je objednána a vytvoří se po dokončení zprávy FirstMeasure.",
+    "m_1ef47a07071860": "Vytváří se historická zpráva o závažném počasí. Až bude připravena, zobrazí se zde.",
+    "m_75ee115d9e118f": "Zprávu o počasí se nepodařilo vytvořit.",
+    "m_7d48773e58e964": "Zprávu o počasí se nepodařilo objednat.",
+    "m_6479e99c256b1d": "Zpráva o počasí je připravena.",
+    "m_65522862812f28": "Nahlášený problém",
+    "m_7af9903841fb66": "Další struktura",
+    "m_9816fa5fa0bc00": "Změna nebo oprava",
+    "m_1dbe1d8b227b2f": "Odesláno podpoře",
+    "m_51be70f25415d9": "Schváleno",
+    "m_3c4d2141b2fa1c": "Dokončeno",
+    "m_fe9520d635f903": "Zde jsou uvedeny vaše zprávy podpoře týkající se vrácené zprávy.",
+    "m_339395a80e0064": "Vaše vrácená zpráva zůstane k dispozici, dokud budou tyto žádosti posuzovány.",
+    "m_e2b803de55a93e": "Odesláno",
+    "m_a518a4f0e43132": "Tím odešlete zprávu podpoře FirstMeasure.",
+    "m_35f94adf3dce96": "Umístěte další strukturu do mapy. Komerční požadavky a požadavky na vícebytové domy se účtují za každou přidanou strukturu.",
+    "m_bb5684676c9b3b": "Přidejte poznámky a fotografie pro tým oprav.",
+    "m_eba3732c6bff34": "Zpráva podpoře",
+    "m_fd5e1725cedd0d": "Vytvoří žádost o přepracování",
+    "m_f945baf54844d9": "Bezplatná žádost o přepracování",
+    "m_735a0c9b004cb0": "Žádost o další strukturu",
+    "m_136eda8f76021e": "Další struktury přidané do vrácené zprávy",
+    "m_db80beaa86c589": "Žádost se nepodařilo odeslat.",
+    "m_8e44aec37ccb2b": "Následná žádost ke zprávě byla uložena.",
+    "m_2ba158e4424efb": "Tuto zprávu nelze urychlit.",
+    "m_fbd81f2c4d1c18": "Doručení bylo aktualizováno.",
+    "m_21778024c3a70c": "Tuto zprávu se nepodařilo zrušit.",
+    "m_c44638d45be320": "Objednávka byla zrušena.",
+    "m_70cd41e8830a84": "Zprávu se nepodařilo importovat.",
+    "delivery_by": {
+      "message": "Do {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Méně než {hours} hod.",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Odhad: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Odhad: {hours} hod.",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Odhad: {hours} hod. {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Objednáno {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Zrušit zprávu (zbývá {time})",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Boční stěny",
+    "m_10e472dc761ed6": "Stěny u hřebene",
+    "m_717d08a340c907": "Počasí",
+    "m_6a656f97b4af69_currency": "Doručeno v rámci tohoto projektu",
+    "m_a54dfa11060c5d_currency": "Zpráva o počasí objednána",
+    "m_bd585f0df980a6_currency": "Žádost odeslána",
+    "m_550e7313d4d175_currency": "Zpráva byla urychlena",
+    "m_d588b9b5f17ee7_currency": "Zpráva zrušena",
+    "m_1c10582071b5c0": {
+      "message": "{v0} hod. {v1} min",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} s",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} s",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Znovu objednat jako {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "XML měření není k dispozici ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "Stažení XML se nezdařilo ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Odesláno {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Odeslat – {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# hodina} few {# hodiny} other {# hodin}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# fotografie} few {# fotografie} other {# fotografií}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Vráceno {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Tato zpráva byla zamítnuta, protože se zdá, že je potřeba zpráva typu {v0}. Platbu za původní zprávu jsme vám vrátili.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Probíhá kontrola…",
+    "m_417c2d318452c7": {
+      "message": "Soubor {v0} se nepodařilo načíst.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Požadavek na další strukturu podle umístěného špendlíku.",
+    "m_3c366c37d61199": {
+      "message": "Za požadavek na další strukturu bylo naúčtováno {v0}.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Probíhá urychlení…",
+    "m_a57adbfbfeda02": {
+      "message": "Za rychlejší doručení bylo naúčtováno {v0}.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# značka} few {# značky} many {# značek} other {# značky}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Načítání financí...",
@@ -3490,7 +3713,125 @@
     "m_428a61cf4a8532": "Odpovídající projekty",
     "m_67ea3d9f45d10b": "Vyhledávání projektů…",
     "m_7f0c783c8eec23": "Otevírání projektu…",
-    "m_5180ead27b8ad6": "GIF se nepodařilo načíst"
+    "m_5180ead27b8ad6": "GIF se nepodařilo načíst",
+    "m_0d21d7d3136fc9": "Měření exteriéru celého domu včetně střechy.",
+    "m_97e57acb52769a": "Plochy stěn, oken, dveří a obkladů.",
+    "m_1274bb24b43206": "Zahrnuje měření střechy a okapů.",
+    "m_b120ceb5e3ac9e": "Pro každou strukturu je potřeba osm referenčních fotografií.",
+    "m_f1775523edde74": "Zpráva s měřením střechy.",
+    "m_424bd3aef8e7cb": "Plochy, sklony, hrany a rozměry střechy.",
+    "m_5c6fb5beeff92c": "Při objednání můžete přidat okapy nebo jiné dostupné zprávy.",
+    "m_398f784a950729": "Do standardní zprávy pro obytné nemovitosti přidá samostatnou stránku s okapy.",
+    "m_98ad5fe62c722d": "Délka funkčních okapů vypočtená z úseků okapových hran.",
+    "m_1b41dbf4615706": "Podlaží podle severní, jižní, východní a západní strany.",
+    "m_18db25f632d117": "Schéma okapů s popisem každého úseku.",
+    "m_2c4f4a8f273e86": "Počty pokosů pro vnější rohy 90°, vnitřní rohy 90° a ostatní rohy.",
+    "m_4cd43f827c1fae": "Přidá okamžitou zprávu o měření, zatímco se zpracovává standardní zpráva.",
+    "m_4b2b1884c6cff9": "Rychlý náhled měření střechy vytvořený umělou inteligencí.",
+    "m_f97d66c6fc03c3": "Interaktivní model střechy, pokud je k dispozici.",
+    "m_7f677a10302532": "Okamžitý přístup k PDF ještě před dokončením kontroly standardní zprávy.",
+    "m_edc48228028f11": "Standardní zpráva bude přesto doručena ve zvoleném časovém okně.",
+    "m_208063e29728ba": "Přidá zprávu o historii závažného počasí v dané lokalitě.",
+    "m_0087790e73e66c": "Přehled výskytu krupobití, větru a tornád v dané adrese.",
+    "m_bab1f8bcf78db9": "Záznamy o blízkých událostech seskupené podle data s údaji o vzdálenosti a intenzitě.",
+    "m_b901f17c3bd50b": "Mapové přílohy, souvislosti s výstrahami a souhrnné tabulky.",
+    "m_bdcad3423f3114": "Užitečné při posuzování pojistných událostí, komunikaci se zákazníky a dokumentaci projektu.",
+    "m_a227a5b1174b0f": "Přidá do této objednávky volitelnou funkci zprávy.",
+    "m_0b5d751a9847bf": "Otevřít ukázkovou zprávu",
+    "m_d9c640d91be6e2": "Bez spěchu",
+    "wait_minutes": {
+      "message": "Odhad: {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Odhad: {hours} hod.",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Odhad: {hours} hod. {minutes} min",
+      "format": "icu"
+    },
+    "m_f2a719928b5a49_currency": {
+      "message": "{v0} / struktura × {v1} {v2} = {v3}",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "Uplatněna sleva za doporučení {v0} %. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "Celkem {v2}.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Nedostatek kreditu",
+    "m_b97feb346e3fae_currency": {
+      "message": "K zadání této objednávky zprávy potřebujete {v0}.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} / struktura × {count, plural, one {# struktura} few {# struktury} other {# struktur}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Objednat zprávu",
+    "overview_build_proposal": "Vytvořit nabídku",
+    "overview_schedule_appointment": "Naplánovat schůzku",
+    "overview_no_projects": "Žádné odpovídající projekty.",
+    "overview_gutters": "okapy",
+    "overview_weather": "počasí",
+    "overview_instant": "okamžitá zpráva",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# struktura potvrzena} few {# struktury potvrzeny} other {# struktur potvrzeno}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Cíl: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Zahrnuje: {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Zmenšit",
+    "audit_c461dbb2bab7d8": "Celá obrazovka",
+    "audit_06ecd0fafc34d4": "tento nákup",
+    "audit_2b5c3d26721ae9": "Kontakt",
+    "audit_98595978531974": "Projekt",
+    "audit_22a970d2e5b1cc": "Dokončeno",
+    "audit_6f8d17646237f4": "Nový projekt",
+    "audit_0a2d38987b9aa3": "Rodinné domy a samostatně stojící domy",
+    "audit_114820134036e1": "Komerční a průmyslové nemovitosti",
+    "audit_9e05435948dfbb": "Byty a sdílené bydlení",
+    "audit_c0eb0f8efba638": "Vyberte typ",
+    "audit_e10ae990740118": "Dříve",
+    "audit_b512d97e7cbf97": "Uživatel",
+    "audit_b764cdc0eab713": "Neznámý",
+    "audit_90eb5886fddc5f": "Tomuto filtru neodpovídají žádné poznámky.",
+    "audit_57bde4deb215bf": "Zatím žádné poznámky.",
+    "audit_6501e1ced8da0b": "Uložit poznámku",
+    "audit_63565c0485fec4": "Přidat poznámku",
+    "audit_ab52c213888188": "Spolupracovník",
+    "audit_3fe263538d199f": "Nový kontakt",
+    "audit_1b5a65c3cdba9e": "Nepojmenovaný projekt",
+    "audit_d87821ba1a366b": "Hledání neodpovídají žádné projekty.",
+    "stalled_order": "Zpracování této objednávky zprávy se zastavilo. Můžete ji znovu objednat na kartě Zprávy.",
+    "inactive_order": "Tento projekt nemá aktivní objednávku zprávy.",
+    "audit_77b12f57b38b87": "Zpráva se zpracovává",
+    "audit_d30a775883da50": "Zpráva se kontroluje",
+    "audit_0ba1f4e48609ea": "Zpráva čeká na zpracování",
+    "audit_c5e665c57bc2e0": "Na standardní zprávě se právě pracuje.",
+    "audit_2612ba1829868e": "Standardní zpráva se kontroluje.",
+    "audit_901358a2916ff7": "Standardní zpráva čeká na zpracování.",
+    "audit_b67507ab244ce0": "Projekt se nepodařilo otevřít.",
+    "audit_60e9af1cbdcdac": "tuto zprávu pro celou strukturu",
+    "audit_3f50e8ab670539": "tuto zprávu o střeše",
+    "audit_b4cc4b07c30010": "Probíhá",
+    "audit_674db38d5123c4": "Čeká na kontrolu",
+    "audit_9b24354bb066bb": "Je potřeba oprava",
+    "audit_da77d8f5b71aa0": "Čeká na posouzení",
+    "audit_35266cd2f21aca": "Objednávání",
+    "audit_2d31976e9d17e4": "Odeslání se nezdařilo.",
+    "audit_88430f2c58bbce": "Vývojová zpráva je připravena",
+    "audit_7cf4af8eebae35": "Soubory existující zprávy jsou připraveny k zobrazení."
   },
   "project-schedule": {
     "m_88e13d64071885": "Rozvrh je uzamčen",
@@ -3894,7 +4235,157 @@
     },
     "m_ce86fe78082565": "Není k dispozici",
     "m_f8e16243e0f91c": "Spravovat zobrazení",
-    "m_200131262770e4": "Zobrazení projektu"
+    "m_200131262770e4": "Zobrazení projektu",
+    "m_ea9c70855946ea": "Fáze znázorňují náš pracovní postup. Chcete-li procházet přijaté projekty, vyberte pouze možnost Projekty sdílené s námi.",
+    "m_9ce407c87de615": "Koncept",
+    "m_aaebd7ccba0b30": "Projekt",
+    "fm_contact_unavailable": "Neuvedeno",
+    "m_9cf11b8ab925ce": "Pro tuto adresu zatím nemáme pokrytí. ",
+    "m_93f718cb51bafd": "V současnosti pokrýváme 95 % všech budov ve Spojených státech a aktivně rozšiřujeme oblast pokrytí, abychom zahrnuli i další budovy. ",
+    "m_ea8d59f20b2ea6": "Zaznamenali jsme váš zájem o podobné struktury a jejich pokrytí zařadíme mezi priority pro blízkou budoucnost. ",
+    "m_c5942837107a76": "Pro tento špendlík se nám nepodařilo vytvořit FirstMeasure Instant, protože vybraný bod neleží na struktuře s dostatečně přesnými okamžitými daty. ",
+    "m_214f9a56d321e4": "Tuto zprávu se nám nepodařilo dokončit, protože struktura je na dostupných snímcích příliš zakrytá. ",
+    "m_9ac5bbd5a7f1d1": "Může k tomu dojít, když nám stromy, stíny, kvalita snímků nebo jiné vizuální překážky brání spolehlivě určit a změřit střechu. ",
+    "m_d51846aa8dda09": "Omlouváme se za případné nepříjemnosti.",
+    "m_4edb03027fd308": "Tuto zprávu se nám nepodařilo dokončit, protože vybraný špendlík zřejmě není umístěn na struktuře, kterou můžeme změřit. ",
+    "m_17b153d5aa2b45": "Může k tomu dojít, pokud je špendlík na zahradě, příjezdové cestě, blízkém objektu nebo na struktuře, pro kterou není k dispozici dostatek použitelných snímků k přesnému měření. ",
+    "m_5978e46f6f29cd": "Tuto zprávu se nám nepodařilo dokončit, protože vybraná struktura neodpovídá objednanému typu projektu. ",
+    "m_4b5bf19bcf1325": "Platbu za původní zprávu jsme vám vrátili.",
+    "m_0b9e2c765e77b1": "Za tuto okamžitou objednávku vám vracíme kredit.",
+    "m_8d52a67caa71a2": "Vícebytový dům",
+    "m_6d351fa63793b6": "Tento projekt byl zrušen. Na tomto požadavku se již nebude dále pracovat.",
+    "m_549ccd0e27a3d4": "Ano",
+    "m_2f0222913078f4": "Ne",
+    "m_0817ad39e6765a": "FirstMeasure Instant se zatím nepodařilo načíst.",
+    "m_e005bd4bc50817": "Kombinovaná měření vybrané struktury.",
+    "m_3e219b59d394f6": "Měření vybrané struktury.",
+    "m_ba6a658fdc23c0": "Stáhnout standardní zprávu",
+    "m_f456048437e56e": "Zkouší se stáhnout standardní zpráva",
+    "m_a44e379d284797": "Stáhnout zákaznickou zprávu",
+    "m_a32ef8d751f045": "Zkouší se stáhnout zákaznická zpráva",
+    "m_06f3a13fba723d": "Rozsah plochy (m²)",
+    "m_f7d60690e4780f": "Rozsah ve čtverečních stopách",
+    "m_7456bdb3003d3a": "Tato struktura",
+    "m_dacaa66449659d": "Připravuje se standardní zpráva",
+    "m_f3cacef590576b": "Okamžitou standardní zprávu se nepodařilo stáhnout.",
+    "m_6783ae5a616a3f": "Kontaktní údaje zatím nejsou k dispozici.",
+    "m_6f94190df36af9": "Připravuje se zákaznická zpráva",
+    "m_2a9462b7fdff9d": "Okamžitou zákaznickou zprávu se nepodařilo stáhnout.",
+    "m_5a0f6b2de100f2": "Soubory okamžitých snímků ještě nejsou připraveny.",
+    "m_a2decb63023f36": "Soubory okamžitého modelu ještě nejsou připraveny.",
+    "m_46f6cf08f0ef61": "Náhled Instant není pro tento projekt k dispozici.",
+    "m_edb27a9262e77e": "Standardní zprávu se nepodařilo objednat.",
+    "m_235d86f4916a45": "Ztraceno",
+    "m_3c4d2141b2fa1c": "Dokončeno",
+    "m_8a993ed9b573b4": "Nepřiřazeno",
+    "m_1b6ec15cbd198b": "Probíhá",
+    "m_bf38bfda2125d1": "Střecha + okapy",
+    "m_de8450bc1dc243": "Projekt se nepodařilo přesunout.",
+    "m_2da110201b814e": "Šipka doleva",
+    "m_e90f8a20f79638": "Šipka doprava",
+    "m_1519fbdf5b87ed": "Domů",
+    "m_80cfdb09a78f4b": "Konec",
+    "m_2a925f101cbd18": "Vzestupně",
+    "m_760cf1fac61b3d": "Sestupně",
+    "m_aac16f05678935": "Fáze",
+    "m_3221d12ca792a6": "Dlaždice",
+    "m_4bb4688766e904": "Uloženo",
+    "m_b415d005adf878": "ID projektu FirstMeasure není k dispozici.",
+    "m_82ea55e5099898": "Kontaktní údaje uloženy.",
+    "m_41d4335f00b051": "Kontaktní údaje vymazány.",
+    "m_13fa388b0577c8": "Stahování se nezdařilo.",
+    "m_f32282581cf29c": "Uloženo pro tento projekt.",
+    "m_26c6cc9deaa942": "Načteno z tohoto projektu.",
+    "m_6ab3fe9280d969": "Neuložené změny.",
+    "m_71c5dfdf68e84f": "Kontaktní údaje se nepodařilo uložit.",
+    "m_7a7059bde880f7": "Opraveno",
+    "m_00f3e8b60aebc9": "Standardní",
+    "m_9e098701abaa2c": "Kopie pro zákazníka",
+    "m_ae8e4953e07d70": "Zákazník",
+    "m_74b044783b2a3e": "Stáhnout opravené PDF zprávy",
+    "m_7d54357160f795": "Stáhnout PDF zprávy",
+    "m_9222c2e07a3df0": "Stáhnout opravené zákaznické PDF",
+    "m_09128dde31d325": "Stáhnout zákaznické PDF",
+    "m_175a65008ef30d": "Stáhnout model XML",
+    "m_9da3458d21c94e": "Opravená zpráva",
+    "m_c47c2ce6bb05c0": "Zpráva",
+    "m_690327a7486605": "Opravená kopie pro zákazníka",
+    "m_d2b7446d4a96f1": "Kopie pro zákazníka",
+    "m_e2943d71f406cb": {
+      "message": "Struktura {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Zahrnuté struktury: vybráno {v0} z {v1}.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Měření struktury {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Částka ${v0} za tuto strukturu byla vrácena.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Částka ${v0} za tuto strukturu se vrací.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Částka ${v0} za tuto strukturu byla odečtena z fakturace Instant.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Načtení prostředku Instant se nezdařilo ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Obojí – {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standardní – {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "Šipka dolů",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "Šipka nahoru",
+    "m_b550215be01e52": "Přijmout",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Stahování se nezdařilo ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Nepřihlášeno",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# vybraná struktura byla vyloučena, protože nebyla k dispozici použitelná data Instant.} few {# vybrané struktury byly vyloučeny, protože nebyla k dispozici použitelná data Instant.} other {# vybraných struktur bylo vyloučeno, protože nebyla k dispozici použitelná data Instant.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " Bylo vám vráceno {amount} kreditu.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " Vrací se vám {amount} kreditu.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "požadavek na další strukturu",
+    "audit_a65c9f1d26dec1": "požadavek na změnu či opravu",
+    "audit_ee9da4f4e90be4": "požadavek na přepracování",
+    "audit_1c376a7fd9b2d3": "Závislosti pro 3D model nejsou k dispozici.",
+    "audit_325cb33dd4a5d6": "ZPRACOVÁNÍ ÚPLNÉ ZPRÁVY",
+    "audit_e0507c184559a7": "OKAMŽITÁ ZPRÁVA",
+    "audit_b06d7c41ed06c8": "partnerská organizace",
+    "audit_5dbc6dff430e8d": "ČEKAJÍCÍ ZMĚNY",
+    "audit_1c4b7f4ada5422": "OPRAVENÁ ZPRÁVA JE PŘIPRAVENA",
+    "audit_843f745c483e81": "OKAMŽITÁ + ÚPLNÁ",
+    "audit_76bf93df451d48": "ZPRÁVA JE PŘIPRAVENA"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4208,7 +4699,64 @@
     "m_f35a14165cc920": "Rozhraní zadání pokynu je připraveno; generování modelem lze k této akci připojit později.",
     "m_bbe27879ebf26c": "Diktování není dostupné",
     "m_79af74d554f5a6": "Tento prohlížeč zde nepodporuje rozpoznávání řeči.",
-    "m_9964312e9c85ac": "Nabídky projektu"
+    "m_9964312e9c85ac": "Nabídky projektu",
+    "m_79f01ba310c6af": {
+      "message": "Vytvořte podpis pro {v0} a umístěte jej na vyznačená místa.",
+      "format": "icu"
+    },
+    "m_c82963ef8940ce": "Stránka se souhrnem",
+    "m_700473b6840e61": "Odebrat logo partnerské značky",
+    "m_fccaa3fc954540": "Použít",
+    "m_1a29aea570fbc4": "Počet",
+    "m_8edfc0dd24bef1": "Cena za jednotku $",
+    "m_ae8e4953e07d70": "Zákazník",
+    "m_ca125d59fcd810": "Název možnosti",
+    "m_e847735cf5a416": "Přiblížení",
+    "m_709d4ebff0e0da": "Klepnutím podepíšete",
+    "m_9edc96d5f6e438": "Zástupce společnosti",
+    "m_ccb84c048a1a17": "Daň z prodeje",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Rozvržení plateb je {v0} %. Součet musí být 100 %.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Zatím nebyla nahrána žádná média",
+    "m_a5e1cd4c41f31c": "Tento projekt zatím neobsahuje žádné fotografie ani videa.",
+    "m_7f88f89133cbc4": "Zadejte jméno podepisující osoby",
+    "m_16dcd60135fed3": "Zde nakreslete svůj podpis",
+    "m_506191e24dd383": "Vymazat",
+    "m_b5828f5fd0c36d": "Zatím žádné nabídky",
+    "m_7feb0c701cff3e": "Vytvořte první koncept a podle potřeby jej duplikujte pro další varianty.",
+    "m_8934bbea9ff9ad": {
+      "message": "Krok {v4}: {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Přidat šindel",
+    "m_a28421203810c9": "Vyhledejte v ceníku a přidejte další možnost viditelnou zákazníkovi.",
+    "m_581e6e2a759706": "Zavřít přidání šindele",
+    "m_f3189dbe87971a": "Hledat v ceníku šindelů",
+    "m_4a3589501ecc1f": "Název slevy",
+    "m_792f935ba82291": "Hodnota slevy",
+    "m_691d860b768692": "Odebrat slevu",
+    "m_0254795a80cfc0": "Zatím nebyly přidány žádné slevy.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Odebrat {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Vlastní pracovní postup bude doplněn.",
+    "m_7fcfaa1f4fcd66": "\n                      E-mail je nutný k odeslání\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "K tomuto projektu zatím není přiřazena e-mailová adresa zákazníka.",
+    "m_c10134dc02336b": "\n                E-mail je nutný k odeslání\n                ",
+    "m_cbb41dfafd178f": "Zahrnout odkaz na zákaznický portál",
+    "m_a9fa064a3c9985": "Povolit zákazníkovi podepsat více nabídek",
+    "m_5cc367ea2b4774": {
+      "message": "Strana {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Smazat",
+    "m_af64ff308ca58e": "Smazat stránku",
+    "m_bdf76cad510e9f": "Odebrat možnost",
+    "m_fba496098e9a0f": "Nebyly nalezeny žádné odpovídající šindele."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Nepřiřazené účtenky",
@@ -7174,7 +7722,153 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# transakce} few {# transakce} other {# transakcí}} – čistý součet: ",
       "format": "icu"
-    }
+    },
+    "m_84fd6e827b99b3": {
+      "message": " {v16} oprávnění organizace",
+      "format": "icu"
+    },
+    "m_169d6ddc858b57": {
+      "message": "{v4} &middot; {v5}",
+      "format": "icu"
+    },
+    "m_8f492e9d154d37": "Automatické dobíjení kreditu",
+    "m_8cb6b086a0e69c": "Hotovo",
+    "m_d248c450100477": " Archivovat",
+    "m_3cfab293c8c008": " Pozvat osobu",
+    "m_ae615734419eb6": "Role &amp; výchozí přístup",
+    "m_91244bdaa8204c": "Vytvářejte opakovaně použitelné výchozí nastavení viditelnosti aplikací a oprávnění.",
+    "m_1f1ad34d149fdf": "Načítání přístupových rolí…",
+    "m_0e74f1bca1ead4": "Spravovat",
+    "m_6fd299432247c1": "Ukládání sady značky…",
+    "m_569b229b85507e": "Uložení sady značky se nezdařilo",
+    "m_b9b9bca729d6db": {
+      "message": "rev. {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Žádné aktivní přístupové role.",
+    "m_77a0c5b9d8ac90": " Vy",
+    "m_e09715b775ce9e": " Přidat uživatele",
+    "m_6e9ebf535758d8": "Firemní adresa",
+    "m_bbe1447b5d3e67": "Používá se k předvyplnění registrace domény a ověření firmy pro 10DLC.",
+    "m_ac137f394a3447": "Adresa ulice",
+    "m_c549239597ab7a": "Číslo bytu, jednotky apod. (nepovinné)",
+    "m_a09f6a051adb2f": "Firemní logo v náhledu zprávy",
+    "m_8eec608d18828f": "Ukázkové schéma střechy",
+    "m_1d7c61da5a56c2": "Žádné nejsou k dispozici.",
+    "m_8106b856808735": "Načítání oddělení…",
+    "m_6b8e4b3f1a7cc9": "Zděděná členství:",
+    "m_8bdaf1ba732556": "Zaškrtnutí označuje přímá přiřazení. Zděděná členství zůstávají aktivní i po zrušení zaškrtnutí.",
+    "m_ff6087fc202a31": "Oddělení uložena.",
+    "m_edcd68da5d4b23": "Načítání oddělení organizace…",
+    "m_f7161d1f24e956": "Oddělení organizace",
+    "m_8f5d10ae9e3dfc": "Sdílí se napříč všemi pobočkami. Nastavte výchozí oddělení pro uživatelské role a typy skupin nebo přidejte jednotlivé osoby a skupiny. Osoba nebo skupina může patřit do více oddělení.",
+    "m_570d421382fbed": "Oddělení",
+    "m_20558f2853e00b": "Lidé, role a skupiny",
+    "m_4297d86c10d006": "Přiřadit oddělení podle",
+    "m_ad2f0ca83b8780": "Jednotlivý uživatel",
+    "m_21037df1b40c09": "Typ uživatele / role",
+    "m_319e5834d71d6f": "Jednotlivá skupina uživatelů",
+    "m_f2c096f77350e1": "Typ skupiny uživatelů",
+    "m_bca9e3fd6cf405": "Vybrat",
+    "m_2f45efa1cd676a": "Vybrat…",
+    "m_ce2f23fc67dbab": "Název oddělení",
+    "m_b53d9744f78699": "Kategorie oddělení (nepovinná)",
+    "m_02997de9e09d60": "Typy uživatelů / role – výchozí členové",
+    "m_8dde7f5f579699": "Typy skupin uživatelů – výchozí skupiny",
+    "m_ec049efefe3343": "Další jednotliví uživatelé",
+    "m_6ea7e974e821fc": "Další jednotlivé skupiny uživatelů",
+    "m_c73c6e0076f1ad": "Například zákaznický servis",
+    "m_cfa69cfd76ca26": "Zadejte název oddělení.",
+    "m_0c44938a138aa6": "Oddělení uloženo.",
+    "m_c8a24768419f58": "Oprávnění jsou pouze ke čtení.",
+    "m_33071666de0ded": "Načtení seznamu se nezdařilo",
+    "m_d7ead3cd6cbff6": "Přidání se nezdařilo",
+    "m_272e637b6dd40b": "Opětovné odeslání pozvánky není k dispozici.",
+    "m_f2db003b7dc3e6": "Skrýt oprávnění",
+    "m_c8653c90005f35": "Zobrazit oprávnění",
+    "m_0fe4884bff1c81": "Modální okno",
+    "m_fd5fb5598dd8f6": "Nikdy se nepřihlásil(a)",
+    "m_4b49e020f08d8e": "E-mail superadministrátorů nelze upravovat, aby nedošlo ke ztrátě přístupu k účtu.",
+    "m_2bdeadce179997": "Superadministrátorovi můžete změnit jméno, ale e-mail je uzamčen.",
+    "m_b7e812bec0dfac": "Změňte své zobrazované jméno nebo přihlašovací e-mail.",
+    "m_f6655180d4e320": "Přejmenujte uživatele nebo změňte jeho e-mail.",
+    "m_4c66f6639656d2": "Zrušit pozastavení",
+    "m_232f4ec7b346ef": "Pozastavit",
+    "m_2ac360d5cff662": "Pozvánku e-mailem se nepodařilo odeslat.",
+    "m_a2ee3708083074": "Nemůžete pozastavit sami sebe.",
+    "m_24bcbb5e94dc78": "Nemůžete pozastavit superadministrátora.",
+    "m_415424819400a6": "Uživatel byl pozastaven.",
+    "m_5945a7cc27f21a": "Pozastavení uživatele bylo zrušeno.",
+    "m_ec6aab12561da3": "Nemůžete smazat sami sebe.",
+    "m_d0751bed2963bc": "Nemůžete smazat superadministrátora.",
+    "m_90ca724100109f": "Nebyli nalezeni žádní uživatelé.",
+    "m_2732f18bba7fc8": "Zde nemůžete upravovat vlastní oprávnění.",
+    "m_90ed0c9031712d": "Profilový obrázek se nepodařilo uložit.",
+    "m_5e287d278f8b92": "Neočekávaná chyba.",
+    "m_75d641bda100b6": "Uživatele se nepodařilo načíst.",
+    "m_4a9f6ad3027f17": "Neznámá chyba",
+    "m_d7226634e4ea42": "Pozvánka byla odeslána e-mailem.",
+    "m_e86ab6eb3ff843": "Uživatel byl vytvořen, ale e-mail se nepodařilo odeslat.",
+    "fm_users_owner": "Vlastník",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Minimální částky automatického dobití jsou {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Minimum {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Minimum {v3}",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Pokud váš zůstatek klesne pod {v0}, automaticky vám na účet přidáme {v1}.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Vytvořte oddělení v nabídce Nastavení → Uživatelé → Oddělení.",
+    "m_a089a1a2df79e8": "Uložit oddělení",
+    "m_5147306077d4a3": "Stávající oddělení poboček se zde slučují. Uložením je převedete na nastavení organizace; stávající schůzky a předvolby zůstanou zachovány.",
+    "m_86433617637bb9": "+ Vytvořit oddělení",
+    "m_9c29c0605b9630": "Uložit oddělení",
+    "m_0a270477a59add": "Zděděno z uživatelské role",
+    "m_d934cc2b978d05": "Zděděno z typu skupiny",
+    "m_967feb25c6cad7": "Výchozí oddělení",
+    "m_f5464054424b45": "Platí pro všechny členy tohoto typu včetně budoucích členů.",
+    "m_2ecf878bd727e3": "Přímá přiřazení se přidávají k výchozímu nastavení role nebo typu skupiny. Nejprve uložte změny role či typu, aby se obnovila zděděná členství.",
+    "m_2d4ff8a83b1b5c": "Žádné",
+    "m_b1d5eca65cad81": "Oddělení se nepodařilo uložit.",
+    "m_31a18651cb81ee": "Oddělení se nepodařilo načíst.",
+    "m_8a36512cbfe084": "Oddělení se nepodařilo uložit.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# zpráva} few {# zprávy} other {# zpráv}} – celkem: ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Nahrát profilový obrázek",
+    "profile_tooltip_1": "Otevřít profil",
+    "profile_tooltip_2": "Vybrat profilový obrázek",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Účet se pouze archivuje (nejde o trvalé smazání) kvůli auditu. E-mailovou adresu pak lze znovu použít pro budoucí pozvánku nebo registraci.",
+    "m_1e50cfd1b66d97": "Profilový obrázek (nepovinný)",
+    "m_e2207970d3a42f": "Úroveň oprávnění",
+    "logos_uploading": {
+      "message": "Nahrává se {count, plural, one {# logo} few {# loga} many {# log} other {# loga}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "Do knihovny značky bylo přidáno {count, plural, one {# logo} few {# loga} many {# log} other {# loga}}.",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Tuto hodnotu jsme upravili na minimální částku {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Automatické dobití {amount}, když zůstatek klesne pod {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Automatické dobíjení kreditu: vypnuto"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Přidat práci",
@@ -7752,7 +8446,29 @@
       "message": "Nepřečtená: {v0} &middot; celkem: {v1}",
       "format": "icu"
     },
-    "new_report": "Nová zpráva"
+    "new_report": "Nová zpráva",
+    "m_be9d2ffc499cb4": {
+      "message": "{v2} {v3} {v4} postranní panel",
+      "format": "icu"
+    },
+    "m_3619e3a723d857": {
+      "message": "{v0} postranní panel.",
+      "format": "icu"
+    },
+    "m_9a00fb620ffc1d": "Šířku postranního panelu se nepodařilo uložit",
+    "m_854ab579641f94": "Načítají se konverzace s agenty…",
+    "m_86ec40fa3f9758": "Vypnout",
+    "m_4aaef822b47692": "Asistent FirstMate",
+    "m_c411108185658e": {
+      "message": "{v1} Asistent FirstMate",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "{v2} Asistent FirstMate",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Nastavení fakturace se nepodařilo načíst. ",
+    "m_48a9cdd2af44f4": "Zkusit znovu"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kancelář",
@@ -10097,7 +10813,17 @@
     "opening_tab": {
       "message": "Otevírání {tab}…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Změnit velikost panelů; dvojklikem je prohodíte",
+    "m_eae84bda77b08e": "Zavřít panel",
+    "m_9c2b801ff31874": "Načítání tohoto panelu trvá déle. Můžete ho zavřít a zkusit to znovu.",
+    "m_8c11a27c5f0b9c": "Tuto kartu se nepodařilo otevřít. Zavřete panel a zkuste to znovu.",
+    "m_a56b2777161b36": "Projekt se stále načítá. Můžete zavřít toto okno a zkusit to znovu.",
+    "m_5eced2f9d44623": "Tento projekt se nepodařilo načíst. Zavřete toto okno a zkuste to znovu.",
+    "m_76619e065f2360": "Umístění připnutí",
+    "m_b46c7db0dc7b5b": "Změnit velikost panelů",
+    "m_06b65fee071879": "Panely oken",
+    "m_21ca9dcccf9a04": "Zavřít panel"
   },
   "reports": {
     "color": "barva",

@@ -2109,7 +2109,15 @@
     "m_25253d755816e2": "Filmez un tour complet autour de la maison avec votre téléphone, puis importez la vidéo ici. En passant commande depuis l’application FirstMate, l’enregistrement se fait automatiquement.",
     "m_27b7e868698f63": "Ajoutez des gros plans de tout élément mal visible dans la vidéo, comme les lucarnes, les extensions ou les passages latéraux étroits.",
     "m_2469fadd18d99a": "Vous avez une vidéo ? Passez à la vidéo orbitale (recommandé)",
-    "m_6e81feb28a2b17": "Pas encore de vidéo"
+    "m_6e81feb28a2b17": "Pas encore de vidéo",
+    "m_0889f650508793": "REC",
+    "m_1ddd588108e13d": "Tour complet",
+    "m_f4abc4fde65b21": {
+      "message": "Vérifier {v0} vidéo{v1}",
+      "format": "icu"
+    },
+    "m_e05fb49213187a": "Enregistrer",
+    "review_full_structural_report": "Vérifier votre rapport structurel complet"
   },
   "help": {
     "m_0db6efc53ab2ed": "Besoin d’aide ?",
@@ -2579,7 +2587,242 @@
     },
     "m_ee2e95ef4a2d84": "Mesures actualisées",
     "m_52f356edab1915": "Les valeurs du rapport ont été actualisées. Les modifications manuelles ont été conservées.",
-    "m_81c35a6db09047": "Mesures indisponibles"
+    "m_81c35a6db09047": "Mesures indisponibles",
+    "m_38f7ce984e43b2": {
+      "message": "{v0} Nous n’avons pas respecté le délai de livraison accélérée, mais votre rapport est toujours en cours de finalisation dans les meilleurs délais.{v1}",
+      "format": "icu"
+    },
+    "m_5be2af39e5e918": {
+      "message": "Cliquez sur la carte pour placer chaque structure supplémentaire. Les structures existantes sont affichées en gris et ne peuvent pas être déplacées.{v0}{v1}",
+      "format": "icu"
+    },
+    "m_4f521257e8b2fe": {
+      "message": "{v0} repère{v1}",
+      "format": "icu"
+    },
+    "m_9389ebcecf7d63": {
+      "message": "{v0} photo{v1}",
+      "format": "icu"
+    },
+    "m_a44d68de40e025": {
+      "message": "Cliquez sur la carte pour placer chaque structure supplémentaire. Les structures existantes sont affichées en gris et ne peuvent pas être déplacées.{v7}{v8}",
+      "format": "icu"
+    },
+    "m_c235f24fecb516": {
+      "message": "{v3} · {v4} chacun(e)",
+      "format": "icu"
+    },
+    "m_c78580f5f4885e": "Modèle et photos",
+    "m_020e15c6bea221": "Vue aérienne",
+    "m_8a27a13894e81a": "Impossible de charger la visionneuse de toiture. Actualisez la page pour réessayer.",
+    "m_76608e0c91e510": "Légende",
+    "m_9f97a8cc4df412": "Chargement du modèle de toiture…",
+    "m_e11fb3a15af2c9": "Faites glisser pour orbiter · Faites défiler pour zoomer",
+    "m_f902513107035c": "Modèle de toiture et médias du rapport",
+    "m_cc0ef10e9ca033": "Texture",
+    "m_f5c0225c619977": "Lignes colorées",
+    "m_106ab75c23cf29": "Réinitialiser la vue",
+    "m_3ed4abb478b582": "Modèle de toiture 3D",
+    "m_7e9fab72578933": "Impossible de charger ce média.",
+    "m_c2e36017433571": "Impossible de charger l’image solaire",
+    "m_2578923397f853": "Chargement de l’image solaire…",
+    "m_ff91c03c76ccf0": "Lignes de toiture enregistrées · Faites glisser pour orbiter · Faites défiler pour zoomer",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_ae8e4953e07d70": "Client",
+    "m_425f6b598f6417": "Météo",
+    "m_070d836d7b27e3": "Modifications en attente",
+    "m_3a57f052b36fc1": "Les frais de livraison accélérée ont été supprimés de cette commande.",
+    "m_ee8cd441a3c740": "Le traitement des rapports accélérés commence immédiatement et ils ne peuvent pas être annulés après 1 minute.",
+    "m_7ab36b45fa8644": "Les rapports standard peuvent être annulés dans les 15 minutes suivant la commande.",
+    "m_0ca6847627b5d8": "Génération du rapport instantané",
+    "m_4f9decb4fef708": "Traitement du rapport client",
+    "m_cb27e9cd4b71dc": "Traitement du rapport standard",
+    "m_b754ff36345be0": "Rapport standard en attente",
+    "m_6c2b94bfbe7de4": "Estimation du délai de livraison",
+    "m_813568092a909a": "En cours",
+    "m_a5adb64bece6bf": "En cours de vérification",
+    "m_2175240180a38e": "En attente",
+    "m_0dcf5f39373245": "Le délai de grâce d’une minute pour annuler ce rapport accéléré est terminé.",
+    "m_5a195b5dbc85fc": "Le délai de grâce pour annuler ce projet est terminé.",
+    "m_4d7c3696ea7819": "Rapport instantané en attente",
+    "m_20daf0329c6bb5": "Ce rapport a été rejeté, car la structure est trop masquée sur les images disponibles. Cela peut se produire lorsque des arbres, des ombres, la qualité de l’image ou d’autres obstacles visuels nous empêchent d’identifier et de mesurer la toiture avec certitude. Le rapport initial vous a été remboursé.",
+    "m_8a0434dcd5f44a": "Ce rapport a été rejeté, car le repère sélectionné ne semble pas être placé sur une structure que nous pouvons mesurer. Cela peut se produire si le repère est placé sur une cour, une allée, un objet voisin ou une structure pour laquelle les images exploitables sont insuffisantes pour effectuer des mesures précises. Le rapport initial vous a été remboursé.",
+    "m_fdbdd395519610": "Ce rapport a été rejeté, car l’organisation ne disposait pas d’assez de crédits pour les structures supplémentaires. Aucun frais de repérage de structure supplémentaire n’a été conservé pour ce rapport rejeté.",
+    "m_a88169ad51b679": "Ce rapport a été rejeté. Le rapport initial vous a été remboursé.",
+    "m_85b7e99a08fa9a": "Mesure",
+    "m_ec6b76d100b0ec": "Valeur",
+    "m_4b91b73dae1ff3": "Unité",
+    "m_f2baa3de1eb35b": "Égouts",
+    "m_230a183ddb6e96": "Noues",
+    "m_48029c2aaa37c6": "Rives",
+    "m_217bf30b990d24": "Faîtages",
+    "m_baa2f693c3883e": "Arêtiers",
+    "m_3bcef36c5987a6": "Solin de mur en amont",
+    "m_58ab5ba41ae1c9": "Solin de mur latéral",
+    "m_06fc435805a90a": "Solin à gradins",
+    "m_8ba24778829c38": "Raccordements",
+    "m_4d80da8e9e6ebe": "Mur d’acrotère",
+    "m_7aeda3ce508c46": "Contre-solin",
+    "m_0cbf0780118eed": "Taille inconnue",
+    "m_7244c568a68bff": "En cours de traitement",
+    "m_d0dd61f9c0e1d2": "Prêt",
+    "m_e70e11490d7b0e": "Indisponible",
+    "m_1313f5db221c3d": "PDF principal des mesures de toiture avec mesures des gouttières",
+    "m_9898713daf99e1": "PDF principal des mesures de toiture",
+    "m_39c51745a420e1": "PDF récapitulatif destiné au client",
+    "m_73340cea156d55": "Export des données du modèle",
+    "m_104300af4d9588": "Aperçu instantané des mesures",
+    "m_645ca26abdddb4": "PDF historique des intempéries violentes",
+    "m_0d54f0e37800ea": "Pas encore envoyé",
+    "m_61023422d0cb5d": "Rejeté",
+    "m_9863f11d60b2fa": "Annulé",
+    "m_e8e493437c1a17": "Terminé",
+    "m_46c14a5ec722c6": "Commandé",
+    "m_e2f22061f67c87": "Instantané + standard",
+    "m_d5a4d5eab0934e": "Résumé du rapport de la maison complète",
+    "m_ac57bd5edb01bf": "Résumé du rapport de toiture",
+    "m_4567836c628fdd": "Veuillez réessayer.",
+    "m_59c670bfa95274": "Le rapport météo n’a pas pu être généré. Vous pouvez réessayer depuis cet écran.",
+    "m_5414698a7f63e1": "Le rapport météo a été commandé et sera généré une fois le rapport FirstMeasure terminé.",
+    "m_1ef47a07071860": "Le rapport historique sur les intempéries violentes est en cours de génération. Il apparaîtra ici lorsqu’il sera prêt.",
+    "m_75ee115d9e118f": "Le rapport météo n’a pas pu être généré.",
+    "m_7d48773e58e964": "Impossible de commander le rapport météo.",
+    "m_6479e99c256b1d": "Le rapport météo est prêt.",
+    "m_65522862812f28": "Problème signalé",
+    "m_7af9903841fb66": "Structure supplémentaire",
+    "m_9816fa5fa0bc00": "Modification ou correction",
+    "m_1dbe1d8b227b2f": "Envoyé au support",
+    "m_51be70f25415d9": "Approuvé",
+    "m_3c4d2141b2fa1c": "Terminé",
+    "m_fe9520d635f903": "Vos messages au support concernant ce rapport retourné sont répertoriés ici.",
+    "m_339395a80e0064": "Votre rapport retourné reste disponible pendant l’examen de ces demandes.",
+    "m_e2b803de55a93e": "Soumis",
+    "m_a518a4f0e43132": "Un message sera envoyé à l’assistance FirstMeasure.",
+    "m_35f94adf3dce96": "Placez la structure supplémentaire sur la carte. Les demandes commerciales et multifamiliales sont facturées par structure ajoutée.",
+    "m_bb5684676c9b3b": "Ajoutez des notes et des photos à l’intention de l’équipe chargée des corrections.",
+    "m_eba3732c6bff34": "Message au support",
+    "m_fd5e1725cedd0d": "Ajoute une demande de reprise",
+    "m_f945baf54844d9": "Demande de reprise gratuite",
+    "m_735a0c9b004cb0": "Demande de structure supplémentaire",
+    "m_136eda8f76021e": "Structures supplémentaires ajoutées au rapport retourné",
+    "m_db80beaa86c589": "Impossible de soumettre la demande.",
+    "m_8e44aec37ccb2b": "Le suivi du rapport a été enregistré.",
+    "m_2ba158e4424efb": "Impossible d’accélérer ce rapport.",
+    "m_fbd81f2c4d1c18": "Le délai de livraison a été mis à jour.",
+    "m_21778024c3a70c": "Impossible d’annuler ce rapport.",
+    "m_c44638d45be320": "La commande a été annulée.",
+    "m_70cd41e8830a84": "Impossible d’importer le rapport.",
+    "delivery_by": {
+      "message": "D’ici {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Moins de {hours} heures",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "Estimation : {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Estimation : {hours} h",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Estimation : {hours} h {minutes} min",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Commandé le {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Annuler le rapport ({time} restantes)",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Murs latéraux",
+    "m_10e472dc761ed6": "Murs en amont",
+    "m_717d08a340c907": "Météo",
+    "m_6a656f97b4af69_currency": "Livré avec ce projet",
+    "m_a54dfa11060c5d_currency": "Rapport météo commandé",
+    "m_bd585f0df980a6_currency": "Demande soumise",
+    "m_550e7313d4d175_currency": "Rapport accéléré",
+    "m_d588b9b5f17ee7_currency": "Rapport annulé",
+    "m_1c10582071b5c0": {
+      "message": "{v0} h {v1} min",
+      "format": "icu"
+    },
+    "m_99fe5ad3c48550": {
+      "message": "{v0} h{v1}",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} s",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} s",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Commander à nouveau : {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Fichier XML des mesures indisponible ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "Échec du téléchargement XML ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Soumis le {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Soumettre - {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# h} other {# h}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# photo} other {# photos}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Remboursé : {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "Ce rapport a été rejeté, car il semble qu’un rapport de type {v0} soit nécessaire. Le rapport initial vous a été remboursé.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Vérification…",
+    "m_417c2d318452c7": {
+      "message": "Impossible de lire {v0}.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Structure supplémentaire demandée par repère.",
+    "m_3c366c37d61199": {
+      "message": "{v0} facturés pour la demande de structure supplémentaire.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Accélération de la livraison…",
+    "m_a57adbfbfeda02": {
+      "message": "{v0} facturés pour l’option de livraison accélérée.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# épingle} other {# épingles}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Chargement des données financières...",
@@ -3554,7 +3797,125 @@
     "m_428a61cf4a8532": "Projets correspondants",
     "m_67ea3d9f45d10b": "Recherche de projets…",
     "m_7f0c783c8eec23": "Ouverture du projet…",
-    "m_5180ead27b8ad6": "Échec du GIF"
+    "m_5180ead27b8ad6": "Échec du GIF",
+    "m_0d21d7d3136fc9": "Mesures extérieures de toute la maison, toiture comprise.",
+    "m_97e57acb52769a": "Surfaces des murs, fenêtres, portes et revêtements.",
+    "m_1274bb24b43206": "Mesures de la toiture et des gouttières incluses.",
+    "m_b120ceb5e3ac9e": "Huit photos de référence sont requises par structure.",
+    "m_f1775523edde74": "Votre rapport de mesures de toiture.",
+    "m_424bd3aef8e7cb": "Surfaces, pentes, bordures et mesures de toiture.",
+    "m_5c6fb5beeff92c": "Ajoutez les gouttières ou d’autres rapports disponibles lors de la commande.",
+    "m_398f784a950729": "Ajoute une page dédiée aux gouttières au rapport résidentiel standard.",
+    "m_98ad5fe62c722d": "Longueur linéaire de gouttière active calculée à partir des sections d’égout.",
+    "m_1b41dbf4615706": "Nombre d’étages sur les côtés nord, sud, est et ouest.",
+    "m_18db25f632d117": "Schéma des gouttières avec une étiquette pour chaque section.",
+    "m_2c4f4a8f273e86": "Nombre de coupes d’onglet pour les coins extérieurs à 90°, intérieurs à 90° et autres angles.",
+    "m_4cd43f827c1fae": "Ajoute un rapport de mesures instantané pendant le traitement du rapport standard.",
+    "m_4b2b1884c6cff9": "Aperçu rapide des mesures de toiture généré par l’IA.",
+    "m_f97d66c6fc03c3": "Modèle de toiture interactif, lorsqu’il est disponible.",
+    "m_7f677a10302532": "Accès instantané au PDF avant la finalisation du rapport standard vérifié.",
+    "m_edc48228028f11": "Le rapport standard respecte toujours le délai de livraison sélectionné.",
+    "m_208063e29728ba": "Ajoute au dossier du bien un rapport sur l’historique des intempéries violentes.",
+    "m_0087790e73e66c": "Historique général des épisodes de grêle, de vent et de tornades à cette adresse.",
+    "m_bab1f8bcf78db9": "Événements à proximité regroupés par date, avec leur distance et leur intensité.",
+    "m_b901f17c3bd50b": "Cartes, contexte des alertes et tableaux récapitulatifs.",
+    "m_bdcad3423f3114": "Utile pour l’examen des demandes d’indemnisation, les échanges avec les clients et la documentation du projet.",
+    "m_a227a5b1174b0f": "Ajoute une option de rapport facultative à cette commande.",
+    "m_0b5d751a9847bf": "Ouvrir un exemple de rapport",
+    "m_d9c640d91be6e2": "Sans urgence",
+    "wait_minutes": {
+      "message": "Estimation : {minutes} min",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "Estimation : {hours} h",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "Estimation : {hours} h {minutes} min",
+      "format": "icu"
+    },
+    "m_f2a719928b5a49_currency": {
+      "message": "{v0} / structure × {v1} {v2} = {v3}",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "Remise de parrainage de {v0} % appliquée. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "{v2} au total.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "Aucun crédit",
+    "m_b97feb346e3fae_currency": {
+      "message": "Vous avez besoin de {v0} pour passer cette commande de rapport.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} / {count, plural, one {# structure} other {# structures}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Commander un rapport",
+    "overview_build_proposal": "Créer une proposition",
+    "overview_schedule_appointment": "Planifier un rendez-vous",
+    "overview_no_projects": "Aucun projet correspondant.",
+    "overview_gutters": "gouttières",
+    "overview_weather": "météo",
+    "overview_instant": "rapport instantané",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# structure confirmée} other {# structures confirmées}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Cible : {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Comprend {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Réduire",
+    "audit_c461dbb2bab7d8": "Plein écran",
+    "audit_06ecd0fafc34d4": "cet achat",
+    "audit_2b5c3d26721ae9": "Contact",
+    "audit_98595978531974": "Projet",
+    "audit_22a970d2e5b1cc": "Terminé",
+    "audit_6f8d17646237f4": "Nouveau projet",
+    "audit_0a2d38987b9aa3": "Maisons et maisons individuelles",
+    "audit_114820134036e1": "Biens commerciaux et industriels",
+    "audit_9e05435948dfbb": "Appartements et logements collectifs",
+    "audit_c0eb0f8efba638": "Choisir un type",
+    "audit_e10ae990740118": "Plus tôt",
+    "audit_b512d97e7cbf97": "Utilisateur",
+    "audit_b764cdc0eab713": "Inconnu",
+    "audit_90eb5886fddc5f": "Aucune note ne correspond à ce filtre.",
+    "audit_57bde4deb215bf": "Aucune note pour le moment.",
+    "audit_6501e1ced8da0b": "Enregistrer la note",
+    "audit_63565c0485fec4": "Ajouter une note",
+    "audit_ab52c213888188": "Collègue",
+    "audit_3fe263538d199f": "Nouveau contact",
+    "audit_1b5a65c3cdba9e": "Projet sans titre",
+    "audit_d87821ba1a366b": "Aucun projet ne correspond à votre recherche.",
+    "stalled_order": "Le traitement de cette commande de rapport n’a pas démarré. Vous pouvez la relancer depuis l’onglet Rapports.",
+    "inactive_order": "Ce projet n’a pas de commande de rapport active.",
+    "audit_77b12f57b38b87": "Rapport en cours",
+    "audit_d30a775883da50": "Rapport en cours de révision",
+    "audit_0ba1f4e48609ea": "Rapport en attente",
+    "audit_c5e665c57bc2e0": "Le rapport standard est en cours de traitement.",
+    "audit_2612ba1829868e": "Le rapport standard est en cours de révision.",
+    "audit_901358a2916ff7": "Le rapport standard est en attente.",
+    "audit_b67507ab244ce0": "Impossible d’ouvrir le projet.",
+    "audit_60e9af1cbdcdac": "ce rapport Full Structure",
+    "audit_3f50e8ab670539": "ce rapport de toiture",
+    "audit_b4cc4b07c30010": "En cours",
+    "audit_674db38d5123c4": "En attente de révision",
+    "audit_9b24354bb066bb": "Correction requise",
+    "audit_da77d8f5b71aa0": "En attente de révision",
+    "audit_35266cd2f21aca": "Commande en cours",
+    "audit_2d31976e9d17e4": "Échec de l’envoi.",
+    "audit_88430f2c58bbce": "Rapport de développement prêt",
+    "audit_7cf4af8eebae35": "Les fichiers du rapport existant sont prêts à être consultés."
   },
   "project-schedule": {
     "m_88e13d64071885": "Calendrier verrouillé",
@@ -3958,7 +4319,157 @@
     },
     "m_ce86fe78082565": "Indisponible",
     "m_f8e16243e0f91c": "Gérer la vue",
-    "m_200131262770e4": "Vue du projet"
+    "m_200131262770e4": "Vue du projet",
+    "m_ea9c70855946ea": "Les étapes représentent notre processus. Pour parcourir les projets reçus, sélectionnez uniquement « Projets partagés avec nous ».",
+    "m_9ce407c87de615": "Brouillon",
+    "m_aaebd7ccba0b30": "Projet",
+    "fm_contact_unavailable": "Non renseigné",
+    "m_9cf11b8ab925ce": "Nous ne couvrons pas encore cette adresse. ",
+    "m_93f718cb51bafd": "Nous couvrons actuellement 95 % de tous les bâtiments aux États-Unis et nous étendons activement notre couverture à d’autres bâtiments. ",
+    "m_ea8d59f20b2ea6": "Nous avons enregistré votre intérêt pour des structures de ce type et donnerons la priorité à leur prise en charge prochainement. ",
+    "m_c5942837107a76": "Impossible de générer FirstMeasure Instant pour ce repère, car le point sélectionné ne correspond pas à une structure disposant de données instantanées précises. ",
+    "m_214f9a56d321e4": "Nous n’avons pas pu terminer ce rapport, car la structure est trop masquée sur les images disponibles. ",
+    "m_9ac5bbd5a7f1d1": "Cela peut se produire lorsque des arbres, des ombres, la qualité des images ou d’autres obstacles visuels nous empêchent d’identifier et de mesurer la toiture avec certitude. ",
+    "m_d51846aa8dda09": "Nous vous prions de nous excuser pour la gêne occasionnée.",
+    "m_4edb03027fd308": "Nous n’avons pas pu terminer ce rapport, car le repère sélectionné ne semble pas être placé sur une structure que nous pouvons mesurer. ",
+    "m_17b153d5aa2b45": "Cela peut se produire si le repère se trouve dans une cour, sur une allée, sur un objet proche ou sur une structure dont les images exploitables sont insuffisantes pour effectuer des mesures précises. ",
+    "m_5978e46f6f29cd": "Nous n’avons pas pu terminer ce rapport, car la structure sélectionnée ne correspond pas au type de projet commandé. ",
+    "m_4b5bf19bcf1325": "Le rapport initial vous a été remboursé.",
+    "m_0b9e2c765e77b1": "Nous procédons au remboursement du crédit utilisé pour cette commande instantanée.",
+    "m_8d52a67caa71a2": "Immeuble résidentiel",
+    "m_6d351fa63793b6": "Ce projet a été annulé. Aucune autre intervention ne sera effectuée pour cette demande.",
+    "m_549ccd0e27a3d4": "Oui",
+    "m_2f0222913078f4": "Non",
+    "m_0817ad39e6765a": "Impossible de charger FirstMeasure Instant pour le moment.",
+    "m_e005bd4bc50817": "Mesures combinées de la structure sélectionnée.",
+    "m_3e219b59d394f6": "Mesures de la structure sélectionnée.",
+    "m_ba6a658fdc23c0": "Télécharger le rapport standard",
+    "m_f456048437e56e": "Nouvelle tentative de téléchargement du rapport standard",
+    "m_a44e379d284797": "Télécharger le rapport client",
+    "m_a32ef8d751f045": "Nouvelle tentative de téléchargement du rapport client",
+    "m_06f3a13fba723d": "Plage de surface (m²)",
+    "m_f7d60690e4780f": "Plage en carrés de toiture",
+    "m_7456bdb3003d3a": "Cette structure",
+    "m_dacaa66449659d": "Préparation du rapport standard",
+    "m_f3cacef590576b": "Impossible de télécharger le rapport instantané standard.",
+    "m_6783ae5a616a3f": "Les coordonnées du contact ne sont pas encore disponibles.",
+    "m_6f94190df36af9": "Préparation du rapport client",
+    "m_2a9462b7fdff9d": "Impossible de télécharger le rapport instantané client.",
+    "m_5a0f6b2de100f2": "Les fichiers image instantanés ne sont pas encore prêts.",
+    "m_a2decb63023f36": "Les fichiers du modèle instantané ne sont pas encore prêts.",
+    "m_46f6cf08f0ef61": "L’aperçu instantané n’est pas disponible pour ce projet.",
+    "m_edb27a9262e77e": "Impossible de commander le rapport standard.",
+    "m_235d86f4916a45": "Perdu",
+    "m_3c4d2141b2fa1c": "Terminé",
+    "m_8a993ed9b573b4": "Non attribué",
+    "m_1b6ec15cbd198b": "En cours",
+    "m_bf38bfda2125d1": "Toiture + gouttières",
+    "m_de8450bc1dc243": "Impossible de déplacer le projet.",
+    "m_2da110201b814e": "ArrowLeft",
+    "m_e90f8a20f79638": "ArrowRight",
+    "m_1519fbdf5b87ed": "Home",
+    "m_80cfdb09a78f4b": "End",
+    "m_2a925f101cbd18": "Croissant",
+    "m_760cf1fac61b3d": "Décroissant",
+    "m_aac16f05678935": "Étapes",
+    "m_3221d12ca792a6": "Vignettes",
+    "m_4bb4688766e904": "Enregistré",
+    "m_b415d005adf878": "Identifiant du projet FirstMeasure indisponible.",
+    "m_82ea55e5099898": "Coordonnées enregistrées.",
+    "m_41d4335f00b051": "Coordonnées effacées.",
+    "m_13fa388b0577c8": "Échec du téléchargement.",
+    "m_f32282581cf29c": "Enregistré pour ce projet.",
+    "m_26c6cc9deaa942": "Chargé depuis ce projet.",
+    "m_6ab3fe9280d969": "Modifications non enregistrées.",
+    "m_71c5dfdf68e84f": "Impossible d’enregistrer les coordonnées.",
+    "m_7a7059bde880f7": "Corrigé",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_9e098701abaa2c": "Copie client",
+    "m_ae8e4953e07d70": "Client",
+    "m_74b044783b2a3e": "Télécharger le PDF du rapport corrigé",
+    "m_7d54357160f795": "Télécharger le PDF du rapport",
+    "m_9222c2e07a3df0": "Télécharger le PDF client corrigé",
+    "m_09128dde31d325": "Télécharger le PDF client",
+    "m_175a65008ef30d": "Télécharger le modèle XML",
+    "m_9da3458d21c94e": "Rapport corrigé",
+    "m_c47c2ce6bb05c0": "Rapport",
+    "m_690327a7486605": "Copie client corrigée",
+    "m_d2b7446d4a96f1": "Copie client",
+    "m_e2943d71f406cb": {
+      "message": "Structure {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Structures incluses : {v0} sur {v1} sélectionnées.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Mesures de la structure {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "Le coût de {v0} $ pour cette structure a été remboursé.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "Le remboursement du coût de {v0} $ pour cette structure est en cours.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "Le coût de {v0} $ pour cette structure a été retiré de la facturation instantanée.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Échec du chargement de la ressource instantanée ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Les deux - {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standard - {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "ArrowDown",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "ArrowUp",
+    "m_b550215be01e52": "Accepter",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Échec du téléchargement ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Non connecté",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# structure sélectionnée a été exclue faute de données instantanées exploitables.} other {# structures sélectionnées ont été exclues faute de données instantanées exploitables.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " Un crédit de {amount} a été remboursé.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " Le remboursement d’un crédit de {amount} est en cours.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "demande de structure supplémentaire",
+    "audit_a65c9f1d26dec1": "demande de modification/correction",
+    "audit_ee9da4f4e90be4": "demande de reprise",
+    "audit_1c376a7fd9b2d3": "Les dépendances du modèle 3D ne sont pas disponibles.",
+    "audit_325cb33dd4a5d6": "TRAITEMENT DU RAPPORT COMPLET",
+    "audit_e0507c184559a7": "RAPPORT INSTANTANÉ",
+    "audit_b06d7c41ed06c8": "organisation partenaire",
+    "audit_5dbc6dff430e8d": "MODIFICATIONS EN ATTENTE",
+    "audit_1c4b7f4ada5422": "RAPPORT CORRIGÉ DISPONIBLE",
+    "audit_843f745c483e81": "INSTANTANÉ + COMPLET",
+    "audit_76bf93df451d48": "RAPPORT PRÊT"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -4268,7 +4779,76 @@
     "m_f35a14165cc920": "L’interface de consigne est prête ; la génération par le modèle pourra être connectée à cette action ultérieurement.",
     "m_bbe27879ebf26c": "Dictée indisponible",
     "m_79af74d554f5a6": "Ce navigateur ne propose pas la reconnaissance vocale dans ce contexte.",
-    "m_9964312e9c85ac": "Devis du projet"
+    "m_9964312e9c85ac": "Devis du projet",
+    "m_79f01ba310c6af": {
+      "message": "Créez une signature pour {v0} et placez-la aux emplacements requis.",
+      "format": "icu"
+    },
+    "m_327f02c35dd934": {
+      "message": "{v1} élément{v2}",
+      "format": "icu"
+    },
+    "m_742fad511164a9": {
+      "message": "{v0} élément{v1} du projet",
+      "format": "icu"
+    },
+    "m_6376b6bad9b805": {
+      "message": "Section {v8}",
+      "format": "icu"
+    },
+    "m_c82963ef8940ce": "Page de résumé",
+    "m_700473b6840e61": "Supprimer le logo de co-marquage",
+    "m_fccaa3fc954540": "Utiliser",
+    "m_1a29aea570fbc4": "Qté",
+    "m_8edfc0dd24bef1": "Prix unitaire $",
+    "m_ae8e4953e07d70": "Client",
+    "m_ca125d59fcd810": "Nom de l’option",
+    "m_e847735cf5a416": "Zoom",
+    "m_709d4ebff0e0da": "Touchez pour signer",
+    "m_9edc96d5f6e438": "Représentant de l’entreprise",
+    "m_ccb84c048a1a17": "Taxe de vente",
+    "m_40c4e9e3dc4c0a": {
+      "message": "Le calendrier de paiement totalise {v0} %. Le total doit être de 100 %.",
+      "format": "icu"
+    },
+    "m_72c4eca00405ce": "Aucun média importé pour le moment",
+    "m_a5e1cd4c41f31c": "Ce projet ne contient encore aucune photo ni vidéo.",
+    "m_7f88f89133cbc4": "Saisissez le nom du signataire",
+    "m_16dcd60135fed3": "Dessinez votre signature ici",
+    "m_506191e24dd383": "Effacer",
+    "m_b5828f5fd0c36d": "Aucune proposition pour le moment",
+    "m_7feb0c701cff3e": "Créez le premier brouillon, puis dupliquez-le pour en faire des variantes.",
+    "m_8934bbea9ff9ad": {
+      "message": "Étape {v4} : {v5}",
+      "format": "icu"
+    },
+    "m_6f42ac1c339952": "Ajouter un bardeau",
+    "m_a28421203810c9": "Recherchez dans le catalogue de prix et ajoutez une autre option visible par le client.",
+    "m_581e6e2a759706": "Fermer l’ajout de bardeau",
+    "m_f3189dbe87971a": "Rechercher dans le catalogue de prix des bardeaux",
+    "m_4a3589501ecc1f": "Nom de la remise",
+    "m_792f935ba82291": "Valeur de la remise",
+    "m_691d860b768692": "Supprimer la remise",
+    "m_0254795a80cfc0": "Aucune remise ajoutée pour le moment.",
+    "m_f2da0f4d54d9d9": {
+      "message": "Supprimer {v3}",
+      "format": "icu"
+    },
+    "m_082d7b8324f933": "Processus personnalisé à définir.",
+    "m_7fcfaa1f4fcd66": "\n                      Adresse e-mail requise pour l’envoi\n                      ",
+    "m_2780de7b9bd16a": "customer@example.com",
+    "m_df09193988aeb7": "Aucune adresse e-mail client n’est encore associée à ce projet.",
+    "m_c10134dc02336b": "\n                Adresse e-mail requise pour l’envoi\n                ",
+    "m_cbb41dfafd178f": "Inclure le lien vers le portail client",
+    "m_a9fa064a3c9985": "Autoriser le client à signer plusieurs propositions",
+    "m_5cc367ea2b4774": {
+      "message": "Page {v0}",
+      "format": "icu"
+    },
+    "m_4fc60207629a44": "Supprimer",
+    "m_af64ff308ca58e": "Supprimer la page",
+    "m_bdf76cad510e9f": "Supprimer l’option",
+    "m_fba496098e9a0f": "Aucun bardeau correspondant trouvé."
   },
   "receipts": {
     "m_ffcb17b666c31b": "Reçus non affectés",
@@ -7349,7 +7929,149 @@
     "fm_statement_transaction_count": {
       "message": "{count, plural, one {# transaction} other {# transactions}} - Net : ",
       "format": "icu"
-    }
+    },
+    "m_8f492e9d154d37": "Recharge automatique de crédit",
+    "m_8cb6b086a0e69c": "Terminé",
+    "m_d248c450100477": " Archiver",
+    "m_3cfab293c8c008": " Inviter une personne",
+    "m_ae615734419eb6": "Rôles &amp; accès par défaut",
+    "m_91244bdaa8204c": "Créez des paramètres de base réutilisables pour la visibilité des applications et les autorisations.",
+    "m_1f1ad34d149fdf": "Chargement des rôles d’accès…",
+    "m_0e74f1bca1ead4": "Gérer",
+    "m_6fd299432247c1": "Enregistrement du kit de marque…",
+    "m_569b229b85507e": "Échec de l’enregistrement du kit de marque",
+    "m_b9b9bca729d6db": {
+      "message": "rév. {v0}",
+      "format": "icu"
+    },
+    "m_e889b6955038fb": "Aucun rôle d’accès actif.",
+    "m_77a0c5b9d8ac90": " Vous",
+    "m_e09715b775ce9e": " Ajouter un utilisateur",
+    "m_6e9ebf535758d8": "Adresse de l’entreprise",
+    "m_bbe1447b5d3e67": "Utilisée pour préremplir l’enregistrement du domaine et la vérification de l’entreprise 10DLC.",
+    "m_ac137f394a3447": "Adresse postale",
+    "m_c549239597ab7a": "Bureau, unité, etc. (facultatif)",
+    "m_a09f6a051adb2f": "Logo de l’entreprise dans l’aperçu du rapport",
+    "m_8eec608d18828f": "Exemple de schéma de toiture",
+    "m_1d7c61da5a56c2": "Aucun élément disponible.",
+    "m_8106b856808735": "Chargement des services…",
+    "m_6b8e4b3f1a7cc9": "Appartenances héritées :",
+    "m_8bdaf1ba732556": "Les cases indiquent les affectations directes. Les appartenances héritées restent actives même si la case n’est pas cochée.",
+    "m_ff6087fc202a31": "Services enregistrés.",
+    "m_edcd68da5d4b23": "Chargement des services de l’organisation…",
+    "m_f7161d1f24e956": "Services de l’organisation",
+    "m_8f5d10ae9e3dfc": "Partagés entre toutes les agences. Définissez les services par défaut pour les rôles des utilisateurs et les types de groupes, ou ajoutez des personnes et des groupes individuellement. Une personne ou un groupe peut appartenir à plusieurs services.",
+    "m_570d421382fbed": "Services",
+    "m_20558f2853e00b": "Personnes, rôles et groupes",
+    "m_4297d86c10d006": "Attribuer les services par",
+    "m_ad2f0ca83b8780": "Utilisateur individuel",
+    "m_21037df1b40c09": "Type d’utilisateur / rôle",
+    "m_319e5834d71d6f": "Groupe d’utilisateurs individuel",
+    "m_f2c096f77350e1": "Type de groupe d’utilisateurs",
+    "m_bca9e3fd6cf405": "Choisir",
+    "m_2f45efa1cd676a": "Choisir…",
+    "m_ce2f23fc67dbab": "Nom du service",
+    "m_b53d9744f78699": "Catégorie du service (facultatif)",
+    "m_02997de9e09d60": "Types d’utilisateurs / rôles — membres par défaut",
+    "m_8dde7f5f579699": "Types de groupes d’utilisateurs — groupes par défaut",
+    "m_ec049efefe3343": "Utilisateurs individuels supplémentaires",
+    "m_6ea7e974e821fc": "Groupes d’utilisateurs individuels supplémentaires",
+    "m_c73c6e0076f1ad": "Par exemple, service client",
+    "m_cfa69cfd76ca26": "Saisissez un nom de service.",
+    "m_0c44938a138aa6": "Service enregistré.",
+    "m_c8a24768419f58": "Les autorisations sont en lecture seule.",
+    "m_33071666de0ded": "Échec du chargement de la liste",
+    "m_d7ead3cd6cbff6": "Échec de l’ajout",
+    "m_272e637b6dd40b": "Le renvoi de l’invitation n’est pas disponible.",
+    "m_f2db003b7dc3e6": "Masquer les autorisations",
+    "m_c8653c90005f35": "Afficher les autorisations",
+    "m_0fe4884bff1c81": "Fenêtre modale",
+    "m_fd5fb5598dd8f6": "Ne s’est jamais connecté",
+    "m_4b49e020f08d8e": "L’adresse e-mail du super administrateur ne peut pas être modifiée afin d’éviter le verrouillage du compte.",
+    "m_2bdeadce179997": "Vous pouvez renommer ce super administrateur, mais son adresse e-mail est verrouillée.",
+    "m_b7e812bec0dfac": "Modifiez le nom affiché ou l’adresse e-mail de connexion.",
+    "m_f6655180d4e320": "Renommez l’utilisateur ou modifiez son adresse e-mail.",
+    "m_4c66f6639656d2": "Réactiver",
+    "m_232f4ec7b346ef": "Suspendre",
+    "m_2ac360d5cff662": "Impossible d’envoyer l’e-mail d’invitation.",
+    "m_a2ee3708083074": "Vous ne pouvez pas vous suspendre vous-même.",
+    "m_24bcbb5e94dc78": "Vous ne pouvez pas suspendre un super administrateur.",
+    "m_415424819400a6": "Utilisateur suspendu.",
+    "m_5945a7cc27f21a": "Suspension de l’utilisateur levée.",
+    "m_ec6aab12561da3": "Vous ne pouvez pas vous supprimer vous-même.",
+    "m_d0751bed2963bc": "Vous ne pouvez pas supprimer un super administrateur.",
+    "m_90ca724100109f": "Aucun utilisateur trouvé.",
+    "m_2732f18bba7fc8": "Vous ne pouvez pas modifier vos propres autorisations ici.",
+    "m_90ed0c9031712d": "Impossible d’enregistrer la photo de profil.",
+    "m_5e287d278f8b92": "Erreur inattendue.",
+    "m_75d641bda100b6": "Impossible de charger les utilisateurs.",
+    "m_4a9f6ad3027f17": "Erreur inconnue",
+    "m_d7226634e4ea42": "E-mail d’invitation envoyé.",
+    "m_e86ab6eb3ff843": "Utilisateur créé, mais l’e-mail n’a pas pu être envoyé.",
+    "fm_users_owner": "Propriétaire",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Les montants minimums de recharge automatique sont de {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Minimum : {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Minimum : {v3}",
+      "format": "icu"
+    },
+    "m_9326cc9c9e8c32_currency": {
+      "message": "{v2} rapport{v3} - Total : ",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "Si votre solde passe sous {v0}, nous ajouterons automatiquement {v1} à votre compte.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Créez des services dans Paramètres → Utilisateurs → Services.",
+    "m_a089a1a2df79e8": "Enregistrer les services",
+    "m_5147306077d4a3": "Les services des agences existantes sont regroupés ici. En enregistrant, vous les adoptez comme paramètres de l’organisation ; les rendez-vous et les modèles existants sont conservés.",
+    "m_86433617637bb9": "+ Créer un service",
+    "m_9c29c0605b9630": "Enregistrer le service",
+    "m_0a270477a59add": "Hérité du rôle de l’utilisateur",
+    "m_d934cc2b978d05": "Hérité du type de groupe",
+    "m_967feb25c6cad7": "Services par défaut",
+    "m_f5464054424b45": "S’applique à tous les membres de ce type, y compris aux futurs membres.",
+    "m_2ecf878bd727e3": "Les affectations directes s’ajoutent aux paramètres par défaut du rôle ou du type de groupe. Enregistrez d’abord les modifications du rôle ou du type pour actualiser les appartenances héritées.",
+    "m_2d4ff8a83b1b5c": "Aucun",
+    "m_b1d5eca65cad81": "Impossible d’enregistrer les services.",
+    "m_31a18651cb81ee": "Impossible de charger les services.",
+    "m_8a36512cbfe084": "Impossible d’enregistrer le service.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# rapport} other {# rapports}} - Total : ",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Importer une photo de profil",
+    "profile_tooltip_1": "Ouvrir le profil",
+    "profile_tooltip_2": "Choisir une photo de profil",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "Il s’agit d’une suppression logique. Le compte est archivé à des fins d’audit, et son adresse e-mail pourra être réutilisée pour une prochaine invitation ou inscription.",
+    "m_1e50cfd1b66d97": "Photo de profil facultative",
+    "m_e2207970d3a42f": "Niveau d’autorisation",
+    "logos_uploading": {
+      "message": "Envoi de {count, plural, one {# logo} other {# logos}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {# logo ajouté à la bibliothèque de votre marque.} other {# logos ajoutés à la bibliothèque de votre marque.}}",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "Nous avons fixé cette valeur au minimum de {amount}.",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Rechargement automatique : {amount} lorsque le solde passe sous {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Recharge automatique du crédit : désactivée"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Ajouter un travail",
@@ -7999,7 +8721,29 @@
       "message": "{v0} non lues &middot; {v1} au total",
       "format": "icu"
     },
-    "new_report": "Nouveau rapport"
+    "new_report": "Nouveau rapport",
+    "m_be9d2ffc499cb4": {
+      "message": "Épingler ou désépingler {v3} dans la barre latérale ({v2} {v4})",
+      "format": "icu"
+    },
+    "m_3619e3a723d857": {
+      "message": "Barre latérale : {v0}.",
+      "format": "icu"
+    },
+    "m_9a00fb620ffc1d": "Impossible d’enregistrer la largeur de la barre latérale",
+    "m_854ab579641f94": "Chargement des conversations avec les agents…",
+    "m_86ec40fa3f9758": "Désactiver",
+    "m_4aaef822b47692": "Assistant FirstMate",
+    "m_c411108185658e": {
+      "message": "{v1} Assistant FirstMate",
+      "format": "icu"
+    },
+    "m_75157fa1305ecd": {
+      "message": "{v2} Assistant FirstMate",
+      "format": "icu"
+    },
+    "m_20117f24d2d135": "Impossible de charger les paramètres de facturation. ",
+    "m_48a9cdd2af44f4": "Réessayer"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Bureau",
@@ -10419,7 +11163,17 @@
     "opening_tab": {
       "message": "Ouverture de {tab}…",
       "format": "icu"
-    }
+    },
+    "m_cfde00e81e82b5": "Redimensionner les volets ; double-cliquez pour les intervertir",
+    "m_eae84bda77b08e": "Fermer le volet",
+    "m_9c2b801ff31874": "Le chargement de ce volet prend plus de temps. Vous pouvez le fermer et réessayer.",
+    "m_8c11a27c5f0b9c": "Impossible d’ouvrir cet onglet. Fermez le volet et réessayez.",
+    "m_a56b2777161b36": "Le chargement du projet est toujours en cours. Vous pouvez fermer cette fenêtre et réessayer.",
+    "m_5eced2f9d44623": "Impossible de charger ce projet. Fermez cette fenêtre et réessayez.",
+    "m_76619e065f2360": "Emplacement d’ancrage",
+    "m_b46c7db0dc7b5b": "Redimensionner les volets",
+    "m_06b65fee071879": "Panneaux des fenêtres",
+    "m_21ca9dcccf9a04": "Fermer le panneau"
   },
   "reports": {
     "color": "couleur",

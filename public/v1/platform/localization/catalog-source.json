@@ -824,7 +824,19 @@
     "m_adc20567061569": " Live",
     "m_a1d62207843072": "Team availability ",
     "m_47bd412d678ba5": "Your phone connects automatically when you open it. Keep it open or minimized to receive calls.",
-    "m_2a44f3b4073382": "Connection details"
+    "m_2a44f3b4073382": "Connection details",
+    "m_5f4805a7eedbe9": "Record this call",
+    "m_a721fb16627ba7": "Read this to the caller:",
+    "m_b9dfc17390d262": "Caller agreed · Start recording",
+    "m_4dfb1f26ef9410": "Caller declined",
+    "m_17b2c99e894101": "Recording permission",
+    "m_af36fbe6c878bc": "Recording setup is incomplete. Confirm the recording policy in Phone Setup to capture calls.",
+    "m_c199c2500282f8": "Recording and transcript are processing…",
+    "m_f1685516f99051": "Keypad sounds",
+    "m_086919d8254b8c": "Play a tone when typing or pressing digits.",
+    "m_ec8050879a5421": "Check microphone & connection",
+    "m_8cb6b086a0e69c": "Done",
+    "m_1c22cc612b86c6": "Phone settings"
   },
   "contacts": {
     "m_bdd2018a2c9640": {
@@ -2359,7 +2371,8 @@
     "m_f719fc2743fb96": "New tag name",
     "m_96f95680b4cf2c": "Tag label",
     "m_5bab3e72de1ebf": "Save",
-    "m_0f2e6e8cdebab3": "Loading tags…"
+    "m_0f2e6e8cdebab3": "Loading tags…",
+    "m_0b096ab9bc6b47": "Send document"
   },
   "equipment": {
     "m_f326bdcd77881a": "Available",
@@ -3242,7 +3255,8 @@
       "message": "Review {v0} video{v1}",
       "format": "icu"
     },
-    "m_e05fb49213187a": "Record"
+    "m_e05fb49213187a": "Record",
+    "review_full_structural_report": "Review your full structural report"
   },
   "help": {
     "m_0db6efc53ab2ed": "Need a hand?",
@@ -3892,7 +3906,203 @@
     "m_7e9fab72578933": "This media could not load.",
     "m_c2e36017433571": "Solar image could not load",
     "m_2578923397f853": "Loading solar image…",
-    "m_ff91c03c76ccf0": "Saved roof lines · Drag to orbit · Scroll to zoom"
+    "m_ff91c03c76ccf0": "Saved roof lines · Drag to orbit · Scroll to zoom",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_ae8e4953e07d70": "Customer",
+    "m_425f6b598f6417": "Weather",
+    "m_070d836d7b27e3": "Changes Pending",
+    "m_3a57f052b36fc1": "The expedited delivery charge was removed for this order.",
+    "m_ee8cd441a3c740": "Expedited reports begin work immediately and cannot be cancelled after 1 minute.",
+    "m_7ab36b45fa8644": "Standard reports can be cancelled within 15 minutes of ordering.",
+    "m_0ca6847627b5d8": "Instant Report Generating",
+    "m_4f9decb4fef708": "Customer Report Processing",
+    "m_cb27e9cd4b71dc": "Standard Report Processing",
+    "m_b754ff36345be0": "Standard Report Pending",
+    "m_6c2b94bfbe7de4": "Estimating delivery window",
+    "m_813568092a909a": "In progress",
+    "m_a5adb64bece6bf": "In review",
+    "m_2175240180a38e": "Pending",
+    "m_0dcf5f39373245": "The 1-minute cancellation grace period for this expedited report has ended.",
+    "m_5a195b5dbc85fc": "The cancellation grace period for this project has ended.",
+    "m_4d7c3696ea7819": "Instant Report Pending",
+    "m_20daf0329c6bb5": "This report was rejected because the structure is too obscured in the available imagery. This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. We have reimbursed the original report.",
+    "m_8a0434dcd5f44a": "This report was rejected because the selected pin does not appear to be placed on a structure we can measure. This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. We have reimbursed the original report.",
+    "m_fdbdd395519610": "This report was rejected because the organization did not have enough credits for the additional structures. No additional structure-pin billing was kept for this rejected report.",
+    "m_a88169ad51b679": "This report was rejected. We have reimbursed the original report.",
+    "m_85b7e99a08fa9a": "Measurement",
+    "m_ec6b76d100b0ec": "Value",
+    "m_4b91b73dae1ff3": "Unit",
+    "m_f2baa3de1eb35b": "Eaves",
+    "m_230a183ddb6e96": "Valleys",
+    "m_48029c2aaa37c6": "Rakes",
+    "m_217bf30b990d24": "Ridges",
+    "m_baa2f693c3883e": "Hips",
+    "m_3bcef36c5987a6": "Headwall flashing",
+    "m_58ab5ba41ae1c9": "Sidewall flashing",
+    "m_06fc435805a90a": "Step flashing",
+    "m_8ba24778829c38": "Transitions",
+    "m_4d80da8e9e6ebe": "Parapet wall",
+    "m_7aeda3ce508c46": "Counter flashing",
+    "m_0cbf0780118eed": "Unknown size",
+    "m_7244c568a68bff": "Processing",
+    "m_d0dd61f9c0e1d2": "Ready",
+    "m_e70e11490d7b0e": "Not available",
+    "m_1313f5db221c3d": "Main roof measurement PDF with gutter measurements",
+    "m_9898713daf99e1": "Main roof measurement PDF",
+    "m_39c51745a420e1": "Customer-facing summary PDF",
+    "m_73340cea156d55": "Model data export",
+    "m_104300af4d9588": "Instant measurement preview",
+    "m_645ca26abdddb4": "Historical severe-weather PDF",
+    "m_0d54f0e37800ea": "Not sent yet",
+    "m_61023422d0cb5d": "Rejected",
+    "m_9863f11d60b2fa": "Cancelled",
+    "m_e8e493437c1a17": "Complete",
+    "m_46c14a5ec722c6": "Ordered",
+    "m_e2f22061f67c87": "Instant + standard",
+    "m_d5a4d5eab0934e": "Full House Report Summary",
+    "m_ac57bd5edb01bf": "Roof Report Summary",
+    "m_4567836c628fdd": "Please try again.",
+    "m_59c670bfa95274": "The weather report could not be generated. You can try again from here.",
+    "m_5414698a7f63e1": "The weather report is ordered and will generate after the FirstMeasure report is complete.",
+    "m_1ef47a07071860": "The historical severe-weather report is generating. It will appear here when it is ready.",
+    "m_75ee115d9e118f": "The weather report could not be generated.",
+    "m_7d48773e58e964": "Could not order the weather report.",
+    "m_6479e99c256b1d": "The weather report is ready.",
+    "m_65522862812f28": "Reported issue",
+    "m_7af9903841fb66": "Additional structure",
+    "m_9816fa5fa0bc00": "Change or correction",
+    "m_1dbe1d8b227b2f": "Sent to support",
+    "m_51be70f25415d9": "Approved",
+    "m_3c4d2141b2fa1c": "Completed",
+    "m_fe9520d635f903": "Your support messages for this returned report are listed here.",
+    "m_339395a80e0064": "Your returned report stays available while these requests are reviewed.",
+    "m_e2b803de55a93e": "Submitted",
+    "m_a518a4f0e43132": "This sends a support message to FirstMeasure.",
+    "m_35f94adf3dce96": "Place the additional structure on the map. Commercial and multifamily requests are billed per added structure.",
+    "m_bb5684676c9b3b": "Add notes and photos for the correction team.",
+    "m_eba3732c6bff34": "Support message",
+    "m_fd5e1725cedd0d": "Adds a rework request",
+    "m_f945baf54844d9": "Free rework request",
+    "m_735a0c9b004cb0": "Additional structure request",
+    "m_136eda8f76021e": "Additional structures added to returned report",
+    "m_db80beaa86c589": "Could not submit the request.",
+    "m_8e44aec37ccb2b": "The report follow-up was saved.",
+    "m_2ba158e4424efb": "Could not expedite this report.",
+    "m_fbd81f2c4d1c18": "Delivery has been updated.",
+    "m_21778024c3a70c": "Could not cancel this report.",
+    "m_c44638d45be320": "The order was cancelled.",
+    "m_70cd41e8830a84": "The report could not be imported.",
+    "delivery_by": {
+      "message": "By {time}",
+      "format": "icu"
+    },
+    "under_hours": {
+      "message": "Less than {hours} hours",
+      "format": "icu"
+    },
+    "wait_minutes": {
+      "message": "{minutes} min estimate",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "{hours} hr estimate",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "{hours} hr {minutes} min estimate",
+      "format": "icu"
+    },
+    "ordered_at": {
+      "message": "Ordered {date}",
+      "format": "icu"
+    },
+    "cancel_remaining": {
+      "message": "Cancel report ({time} left)",
+      "format": "icu"
+    },
+    "m_46afa7474f4ef1": "Sidewalls",
+    "m_10e472dc761ed6": "Headwalls",
+    "m_717d08a340c907": "Weather",
+    "m_6a656f97b4af69_currency": "Delivered with this project",
+    "m_a54dfa11060c5d_currency": "Weather report ordered",
+    "m_bd585f0df980a6_currency": "Request submitted",
+    "m_550e7313d4d175_currency": "Report expedited",
+    "m_d588b9b5f17ee7_currency": "Report cancelled",
+    "m_1c10582071b5c0": {
+      "message": "{v0} hr {v1} min",
+      "format": "icu"
+    },
+    "m_99fe5ad3c48550": {
+      "message": "{v0} hr{v1}",
+      "format": "icu"
+    },
+    "m_211a1b1f7fc0ab": {
+      "message": "{v0} min",
+      "format": "icu"
+    },
+    "m_5c48fb09a35192": {
+      "message": "{v0} min {v1} sec",
+      "format": "icu"
+    },
+    "m_ca1219f6f0fd36": {
+      "message": "{v0} sec",
+      "format": "icu"
+    },
+    "m_a76ca37eaaae8e": {
+      "message": "Reorder as {v0}",
+      "format": "icu"
+    },
+    "m_fc55e992b0fa41": {
+      "message": "Measurement XML unavailable ({v0})",
+      "format": "icu"
+    },
+    "m_8996afe2fdfcde": {
+      "message": "XML download failed ({v0})",
+      "format": "icu"
+    },
+    "m_40790b51a230b1": {
+      "message": "Submitted {v0}",
+      "format": "icu"
+    },
+    "m_0bdb714bb5a9a4": {
+      "message": "Submit - {v0}",
+      "format": "icu"
+    },
+    "duration_hours": {
+      "message": "{hours, plural, one {# hr} other {# hrs}}",
+      "format": "icu"
+    },
+    "photo_count": {
+      "message": "{count, plural, one {# photo} other {# photos}}",
+      "format": "icu"
+    },
+    "m_521a97de945f87": {
+      "message": " Refunded {v0}.",
+      "format": "icu"
+    },
+    "m_37847f1bfb33b1": {
+      "message": "This report was rejected because it appears to require a {v0} report. We have reimbursed the original report.",
+      "format": "icu"
+    },
+    "m_8cde043098ecd9": "Checking...",
+    "m_417c2d318452c7": {
+      "message": "Could not read {v0}.",
+      "format": "icu"
+    },
+    "m_7fcd013c15da70": "Additional structure requested by pin.",
+    "m_3c366c37d61199": {
+      "message": "Charged {v0} for the additional structure request.",
+      "format": "icu"
+    },
+    "m_c351aee2646e56": "Expediting...",
+    "m_a57adbfbfeda02": {
+      "message": "Charged {v0} for the faster delivery option.",
+      "format": "icu"
+    },
+    "pin_count": {
+      "message": "{count, plural, one {# pin} other {# pins}}",
+      "format": "icu"
+    }
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -5101,7 +5311,125 @@
     "m_428a61cf4a8532": "Matching projects",
     "m_67ea3d9f45d10b": "Searching projectsâ€¦",
     "m_7f0c783c8eec23": "Opening projectâ€¦",
-    "m_5180ead27b8ad6": "GIF failed"
+    "m_5180ead27b8ad6": "GIF failed",
+    "m_0d21d7d3136fc9": "Exterior measurements for the whole house, including the roof.",
+    "m_97e57acb52769a": "Walls, windows, doors, and siding areas.",
+    "m_1274bb24b43206": "Roof and gutter measurements included.",
+    "m_b120ceb5e3ac9e": "Eight reference photos per structure are required.",
+    "m_f1775523edde74": "Your roof measurement report.",
+    "m_424bd3aef8e7cb": "Roof areas, slopes, edges and measurements.",
+    "m_5c6fb5beeff92c": "Add gutters or other available reports when ordering.",
+    "m_398f784a950729": "Adds a dedicated gutter page to the standard residential report.",
+    "m_98ad5fe62c722d": "Active gutter linear feet calculated from eave runs.",
+    "m_1b41dbf4615706": "Stories by north, south, east, and west sides.",
+    "m_18db25f632d117": "Gutter diagram with each run labeled.",
+    "m_2c4f4a8f273e86": "Miter counts for outside 90, inside 90, and non-90 corners.",
+    "m_4cd43f827c1fae": "Adds an instant measurement report while the standard report is processing.",
+    "m_4b2b1884c6cff9": "Fast AI-generated roof measurement preview.",
+    "m_f97d66c6fc03c3": "Interactive roof model where available.",
+    "m_7f677a10302532": "Instant PDF access before the reviewed standard report is complete.",
+    "m_edc48228028f11": "Standard report still follows the selected delivery window.",
+    "m_208063e29728ba": "Adds a severe-weather history report for the property.",
+    "m_0087790e73e66c": "Broad hail, wind, and tornado event history for the address.",
+    "m_bab1f8bcf78db9": "Nearby event records grouped by date with distance and magnitude details.",
+    "m_b901f17c3bd50b": "Map-style exhibits, warning context, and summary tables.",
+    "m_bdcad3423f3114": "Useful for claim review, customer conversations, and project documentation.",
+    "m_a227a5b1174b0f": "Adds an optional report feature to this order.",
+    "m_0b5d751a9847bf": "Open sample report",
+    "m_d9c640d91be6e2": "No Rush",
+    "wait_minutes": {
+      "message": "{minutes} min estimate",
+      "format": "icu"
+    },
+    "wait_hours": {
+      "message": "{hours} hr estimate",
+      "format": "icu"
+    },
+    "wait_hours_minutes": {
+      "message": "{hours} hr {minutes} min estimate",
+      "format": "icu"
+    },
+    "m_f2a719928b5a49_currency": {
+      "message": "{v0} / structure x {v1} {v2} = {v3}",
+      "format": "icu"
+    },
+    "m_2bba8198d7ade2_currency": {
+      "message": "{v0}% referral discount applied. ",
+      "format": "icu"
+    },
+    "m_ede7d3676ea640_currency": {
+      "message": "{v2} total.",
+      "format": "icu"
+    },
+    "m_a394c59c2a89db_currency": "No credits",
+    "m_b97feb346e3fae_currency": {
+      "message": "You need {v0} to place this report order.",
+      "format": "icu"
+    },
+    "addon_structure_total": {
+      "message": "{price} / structure × {count, plural, one {# structure} other {# structures}} = {total}",
+      "format": "icu"
+    },
+    "overview_order_report": "Order report",
+    "overview_build_proposal": "Build proposal",
+    "overview_schedule_appointment": "Schedule appointment",
+    "overview_no_projects": "No matching projects.",
+    "overview_gutters": "gutters",
+    "overview_weather": "weather",
+    "overview_instant": "instant report",
+    "structures_confirmed": {
+      "message": "{count, plural, one {# structure confirmed} other {# structures confirmed}}",
+      "format": "icu"
+    },
+    "target_delivery": {
+      "message": " Target: {time}.",
+      "format": "icu"
+    },
+    "included_addons": {
+      "message": " Includes {addons}.",
+      "format": "icu"
+    },
+    "audit_33435b9713584d": "Shrink",
+    "audit_c461dbb2bab7d8": "Fullscreen",
+    "audit_06ecd0fafc34d4": "this purchase",
+    "audit_2b5c3d26721ae9": "Contact",
+    "audit_98595978531974": "Project",
+    "audit_22a970d2e5b1cc": "Completed",
+    "audit_6f8d17646237f4": "New Project",
+    "audit_0a2d38987b9aa3": "Houses and single-family homes",
+    "audit_114820134036e1": "Business and industrial properties",
+    "audit_9e05435948dfbb": "Apartments and shared housing",
+    "audit_c0eb0f8efba638": "Choose type",
+    "audit_e10ae990740118": "Earlier",
+    "audit_b512d97e7cbf97": "User",
+    "audit_b764cdc0eab713": "Unknown",
+    "audit_90eb5886fddc5f": "No notes match this filter.",
+    "audit_57bde4deb215bf": "No notes yet.",
+    "audit_6501e1ced8da0b": "Save note",
+    "audit_63565c0485fec4": "Add note",
+    "audit_ab52c213888188": "Teammate",
+    "audit_3fe263538d199f": "New Contact",
+    "audit_1b5a65c3cdba9e": "Untitled project",
+    "audit_d87821ba1a366b": "No projects match your search.",
+    "stalled_order": "This report order stalled before processing. You can reorder it from the Reports tab.",
+    "inactive_order": "This project does not have an active report order.",
+    "audit_77b12f57b38b87": "Report in progress",
+    "audit_d30a775883da50": "Report in review",
+    "audit_0ba1f4e48609ea": "Report pending",
+    "audit_c5e665c57bc2e0": "The standard report is currently being worked.",
+    "audit_2612ba1829868e": "The standard report is being reviewed.",
+    "audit_901358a2916ff7": "The standard report is pending.",
+    "audit_b67507ab244ce0": "Could not open project.",
+    "audit_60e9af1cbdcdac": "this Full Structure report",
+    "audit_3f50e8ab670539": "this roof report",
+    "audit_b4cc4b07c30010": "In Progress",
+    "audit_674db38d5123c4": "Awaiting Review",
+    "audit_9b24354bb066bb": "Correction Needed",
+    "audit_da77d8f5b71aa0": "Pending Review",
+    "audit_35266cd2f21aca": "Ordering",
+    "audit_2d31976e9d17e4": "Submission failed.",
+    "audit_88430f2c58bbce": "Development report ready",
+    "audit_7cf4af8eebae35": "Existing report files are ready to view."
   },
   "project-schedule": {
     "m_88e13d64071885": "Schedule locked",
@@ -5610,7 +5938,156 @@
     "m_ce86fe78082565": "Unavailable",
     "m_f8e16243e0f91c": "Manage view",
     "m_200131262770e4": "Project view",
-    "m_ea9c70855946ea": "Stages show our workflow. To browse received projects, select only Projects shared with us."
+    "m_ea9c70855946ea": "Stages show our workflow. To browse received projects, select only Projects shared with us.",
+    "m_9ce407c87de615": "Draft",
+    "m_aaebd7ccba0b30": "Project",
+    "fm_contact_unavailable": "Not provided",
+    "m_9cf11b8ab925ce": "We do not currently have coverage for this address. ",
+    "m_93f718cb51bafd": "We currently cover 95% of all buildings in the United States and we are actively working on increasing our area to cover more of the remaining buildings. ",
+    "m_ea8d59f20b2ea6": "We've logged your interest in structures like this and will prioritize being able to cover these in the near future. ",
+    "m_c5942837107a76": "We could not generate a FirstMeasure Instant for this pin because the selected point did not land on a structure with accurate instant data. ",
+    "m_214f9a56d321e4": "We were not able to complete this report because the structure is too obscured in the available imagery. ",
+    "m_9ac5bbd5a7f1d1": "This can happen when trees, shadows, image quality, or other visual obstructions prevent us from confidently identifying and measuring the roof. ",
+    "m_d51846aa8dda09": "We apologize for any inconvenience this may have caused.",
+    "m_4edb03027fd308": "We were not able to complete this report because the selected pin does not appear to be placed on a structure we can measure. ",
+    "m_17b153d5aa2b45": "This can happen if the pin is on a yard, driveway, nearby object, or a structure that does not have enough usable imagery for accurate measurement. ",
+    "m_5978e46f6f29cd": "We were not able to complete this report because the selected structure does not match the project type that was ordered. ",
+    "m_4b5bf19bcf1325": "We have reimbursed the original report.",
+    "m_0b9e2c765e77b1": "We are returning a credit for this instant order.",
+    "m_8d52a67caa71a2": "Multi-family",
+    "m_6d351fa63793b6": "This project has been cancelled. No further work will be completed for this request.",
+    "m_549ccd0e27a3d4": "Yes",
+    "m_2f0222913078f4": "No",
+    "m_0817ad39e6765a": "We could not load the FirstMeasure instant just yet.",
+    "m_e005bd4bc50817": "Combined measurements for the selected structure.",
+    "m_3e219b59d394f6": "Measurements for the selected structure.",
+    "m_ba6a658fdc23c0": "Download Standard Report",
+    "m_f456048437e56e": "Retrying Standard Report",
+    "m_a44e379d284797": "Download Customer Report",
+    "m_a32ef8d751f045": "Retrying Customer Report",
+    "m_06f3a13fba723d": "Area Range (m²)",
+    "m_f7d60690e4780f": "Square Range",
+    "m_7456bdb3003d3a": "This structure",
+    "m_dacaa66449659d": "Preparing Standard Report",
+    "m_f3cacef590576b": "Could not download the standard instant report.",
+    "m_6783ae5a616a3f": "Contact info is not available yet.",
+    "m_6f94190df36af9": "Preparing Customer Report",
+    "m_2a9462b7fdff9d": "Could not download the customer instant report.",
+    "m_5a0f6b2de100f2": "Instant image assets are not ready yet.",
+    "m_a2decb63023f36": "Instant model files are not ready yet.",
+    "m_46f6cf08f0ef61": "Instant preview is unavailable for this project.",
+    "m_edb27a9262e77e": "Unable to order the standard report.",
+    "m_235d86f4916a45": "Lost",
+    "m_3c4d2141b2fa1c": "Completed",
+    "m_8a993ed9b573b4": "Unassigned",
+    "m_1b6ec15cbd198b": "In Progress",
+    "m_bf38bfda2125d1": "Roof + Gutters",
+    "m_de8450bc1dc243": "The project could not be moved.",
+    "m_2da110201b814e": "ArrowLeft",
+    "m_e90f8a20f79638": "ArrowRight",
+    "m_1519fbdf5b87ed": "Home",
+    "m_80cfdb09a78f4b": "End",
+    "m_2a925f101cbd18": "Ascending",
+    "m_760cf1fac61b3d": "Descending",
+    "m_aac16f05678935": "Stages",
+    "m_3221d12ca792a6": "Tiles",
+    "m_4bb4688766e904": "Saved",
+    "m_b415d005adf878": "FirstMeasure project id is unavailable.",
+    "m_82ea55e5099898": "Contact info saved.",
+    "m_41d4335f00b051": "Contact info cleared.",
+    "m_13fa388b0577c8": "Download failed.",
+    "m_f32282581cf29c": "Saved per project.",
+    "m_26c6cc9deaa942": "Loaded from this project.",
+    "m_6ab3fe9280d969": "Unsaved changes.",
+    "m_71c5dfdf68e84f": "Could not save contact info.",
+    "m_7a7059bde880f7": "Corrected",
+    "m_00f3e8b60aebc9": "Standard",
+    "m_9e098701abaa2c": "Customer Copy",
+    "m_ae8e4953e07d70": "Customer",
+    "m_74b044783b2a3e": "Download Corrected Report PDF",
+    "m_7d54357160f795": "Download Report PDF",
+    "m_9222c2e07a3df0": "Download Corrected Customer PDF",
+    "m_09128dde31d325": "Download Customer PDF",
+    "m_175a65008ef30d": "Download XML Model",
+    "m_9da3458d21c94e": "Corrected report",
+    "m_c47c2ce6bb05c0": "Report",
+    "m_690327a7486605": "Corrected customer copy",
+    "m_d2b7446d4a96f1": "Customer copy",
+    "m_e2943d71f406cb": {
+      "message": "Structure {v0}",
+      "format": "icu"
+    },
+    "m_3f9fd3f1b22545": {
+      "message": "Included structures: {v0} of {v1} selected.",
+      "format": "icu"
+    },
+    "m_32b5c10df84f32": {
+      "message": "Measurements for Structure {v0}.",
+      "format": "icu"
+    },
+    "m_88b04dd67f223f": {
+      "message": "The ${v0} cost for this structure has been refunded.",
+      "format": "icu"
+    },
+    "m_7467f0a0facd26": {
+      "message": "The ${v0} cost for this structure is being refunded.",
+      "format": "icu"
+    },
+    "m_65d5a4887d8b10": {
+      "message": "The ${v0} cost for this structure has been removed from instant billing.",
+      "format": "icu"
+    },
+    "m_a2eca9b5ebb5dc": {
+      "message": "Instant asset failed to load ({v0}).",
+      "format": "icu"
+    },
+    "m_dd20c3cdc226b7": {
+      "message": "${v0}",
+      "format": "icu"
+    },
+    "m_3f723bd3e62c0a": {
+      "message": "Both - {v0}",
+      "format": "icu"
+    },
+    "m_5620f285aec9d3": {
+      "message": "Standard - {v0}",
+      "format": "icu"
+    },
+    "m_b3d99ad6325ab2": "ArrowDown",
+    "m_92c001f63daac8": "Enter",
+    "m_5ba96f2ee6a04a": "Escape",
+    "m_f8cfb983b6ee93": "ArrowUp",
+    "m_b550215be01e52": "Accept",
+    "m_c94a0735aaf3c0": "Content-Type",
+    "m_51fec25f16fd2f": "Range",
+    "m_ee772ac651c745": {
+      "message": "Download failed ({v0})",
+      "format": "icu"
+    },
+    "m_003f8544876608": "Not logged in",
+    "instant_coverage_excluded": {
+      "message": "{count, plural, one {# selected structure was excluded because no usable instant data was available.} other {# selected structures were excluded because no usable instant data was available.}}{refund}",
+      "format": "icu"
+    },
+    "instant_refund_issued": {
+      "message": " A {amount} credit has been refunded.",
+      "format": "icu"
+    },
+    "instant_refund_pending": {
+      "message": " A {amount} credit is being returned.",
+      "format": "icu"
+    },
+    "audit_aed8034faba435": "additional structure request",
+    "audit_a65c9f1d26dec1": "change/correction request",
+    "audit_ee9da4f4e90be4": "rework request",
+    "audit_1c376a7fd9b2d3": "3D model dependencies are unavailable.",
+    "audit_325cb33dd4a5d6": "FULL REPORT PROCESSING",
+    "audit_e0507c184559a7": "INSTANT REPORT",
+    "audit_b06d7c41ed06c8": "partner organization",
+    "audit_5dbc6dff430e8d": "CHANGES PENDING",
+    "audit_1c4b7f4ada5422": "CORRECTED REPORT READY",
+    "audit_843f745c483e81": "INSTANT + FULL",
+    "audit_76bf93df451d48": "REPORT READY"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -9885,7 +10362,7 @@
     "m_895bf3964e7990": " Rounded corners",
     "m_57f5beffb19542": "Reusable logo variations for proposals, web pages, and other branded media.",
     "fm_billing_minimum": {
-      "message": "Minimum auto top-up values are {amount}.",
+      "message": "Minimum {amount}",
       "format": "icu"
     },
     "fm_use_the_card_on_file_to_keep_your_account_funded_automatically": "Use the card on file to keep your account funded automatically.",
@@ -10345,7 +10822,156 @@
     "m_462cc68fbe0739": "Match every selected tag. Leave empty for all documents. Manage available tags in Document Studio.",
     "m_80960193ef09e8": "No tags available yet.",
     "m_31baae4a0bed69": "Choose at least one delivery method.",
-    "m_b946036e58d1b2": "Adding…"
+    "m_b946036e58d1b2": "Adding…",
+    "m_c8a24768419f58": "Permissions are read-only.",
+    "m_33071666de0ded": "List failed",
+    "m_d7ead3cd6cbff6": "Add failed",
+    "m_272e637b6dd40b": "Invite resend is unavailable.",
+    "m_f2db003b7dc3e6": "Hide permissions",
+    "m_c8653c90005f35": "Show permissions",
+    "m_0fe4884bff1c81": "Modal",
+    "m_fd5fb5598dd8f6": "Never signed in",
+    "m_4b49e020f08d8e": "Super admin emails can't be edited to avoid account lockouts.",
+    "m_2bdeadce179997": "You can rename this super admin, but the email is locked.",
+    "m_b7e812bec0dfac": "Update your displayed name or sign-in email.",
+    "m_f6655180d4e320": "Rename the user or change their email.",
+    "m_4c66f6639656d2": "Unsuspend",
+    "m_232f4ec7b346ef": "Suspend",
+    "m_2ac360d5cff662": "Could not send invite email.",
+    "m_a2ee3708083074": "You can't suspend yourself.",
+    "m_24bcbb5e94dc78": "You can't suspend a Super Admin.",
+    "m_415424819400a6": "User suspended.",
+    "m_5945a7cc27f21a": "User unsuspended.",
+    "m_ec6aab12561da3": "You can't delete yourself.",
+    "m_d0751bed2963bc": "You can't delete a Super Admin.",
+    "m_90ca724100109f": "No users found.",
+    "m_2732f18bba7fc8": "You cannot edit your own permissions here.",
+    "m_90ed0c9031712d": "Could not save profile picture.",
+    "m_5e287d278f8b92": "Unexpected error.",
+    "m_75d641bda100b6": "Could not load users.",
+    "m_4a9f6ad3027f17": "Unknown error",
+    "m_d7226634e4ea42": "Invite email sent.",
+    "m_e86ab6eb3ff843": "User created, but email failed to send.",
+    "m_213539619c05df": "Preselect Attach PDF when sending any document.",
+    "m_4af44d3e0fdae3": "Preselect the customer portal link when sending any document.",
+    "m_c6d92fc59438e9": "Customer completion message",
+    "fm_billing_auto_summary": {
+      "message": "If your balance falls below {threshold}, we will automatically add {amount} to your account.",
+      "format": "icu"
+    },
+    "fm_users_owner": "Owner",
+    "developer_settings_title": "Developer Settings",
+    "developer_settings_subtitle": "Developer tools, feature flags, and app configuration.",
+    "m_1fdb99fa4f7bbb_currency": {
+      "message": "\n                  Minimum auto top-up values are {v0}.\n                ",
+      "format": "icu"
+    },
+    "m_071c9a0b381c08_currency": {
+      "message": "Minimum {v1}",
+      "format": "icu"
+    },
+    "m_5d2d756d517aa8_currency": {
+      "message": "Minimum {v3}",
+      "format": "icu"
+    },
+    "m_9326cc9c9e8c32_currency": {
+      "message": "{v2} report{v3} - Total: ",
+      "format": "icu"
+    },
+    "m_f38174b09afe58_currency": {
+      "message": "If your balance falls below {v0}, we will automatically add {v1} to your account.",
+      "format": "icu"
+    },
+    "m_cf30af4c1b0856": "Create departments in Settings → Users → Departments.",
+    "m_a089a1a2df79e8": "Save departments",
+    "m_5147306077d4a3": "Existing branch departments are combined here. Saving adopts them as organization settings; existing appointments and presets are retained.",
+    "m_86433617637bb9": "+ Create department",
+    "m_9c29c0605b9630": "Save department",
+    "m_0a270477a59add": "Inherited from user role",
+    "m_d934cc2b978d05": "Inherited from group type",
+    "m_967feb25c6cad7": "Default departments",
+    "m_f5464054424b45": "Applies to every member of this type, including future members.",
+    "m_2ecf878bd727e3": "Direct assignments add to role or group-type defaults. Save role/type changes first to refresh inherited memberships.",
+    "m_2d4ff8a83b1b5c": "None",
+    "m_b1d5eca65cad81": "Could not save departments.",
+    "m_31a18651cb81ee": "Could not load departments.",
+    "m_8a36512cbfe084": "Could not save department.",
+    "fm_statement_report_count": {
+      "message": "{count, plural, one {# report} other {# reports}} - Total: ",
+      "format": "icu"
+    },
+    "fm_billing_minimum_adjusted": {
+      "message": "We updated that value to the {amount} minimum.",
+      "format": "icu"
+    },
+    "profile_tooltip_0": "Upload profile picture",
+    "profile_tooltip_1": "Open profile",
+    "profile_tooltip_2": "Choose profile picture",
+    "m_2b415071dc0f27": {
+      "message": "Search the company directory, then add one person at a time. This keeps each {v0} focused on its own {v1}.",
+      "format": "icu"
+    },
+    "m_4056fb6f9056ca": "Add as",
+    "m_8eec022191c782": {
+      "message": " Invite a new {v3}",
+      "format": "icu"
+    },
+    "m_1123dedaff0217": "Invite and assign",
+    "m_3d37db244af84b": {
+      "message": "They will receive an activation email, get field access, and be assigned to this {v4} immediately.",
+      "format": "icu"
+    },
+    "m_2426d0a65c8deb": " Send invite &amp; assign",
+    "m_277b6d83c671bf": "Search name or email",
+    "m_5f71be4b1ebe26": "Jane Doe",
+    "m_564fe2da7605fa": "jane@example.com",
+    "m_e28dbea20bb7b4": "Role &amp; assignment",
+    "m_9a2663ecfff82e": {
+      "message": "Roles control application access and permissions. {v6} assignment is managed independently.",
+      "format": "icu"
+    },
+    "m_1fef9be744263b": {
+      "message": "Primary {v9} assignment",
+      "format": "icu"
+    },
+    "m_91f21724341946": "No primary group",
+    "m_994d8da672c8ed": "App experience",
+    "m_46dbb8f958e2e0": "Inherit, show, or hide",
+    "m_099ce46056b8e6": "Data &amp; actions",
+    "m_647b785d371243": "Inherit, allow, or deny",
+    "m_f923080cb48567": "jane.doe@company.com",
+    "m_7957881500e400": "This is a soft delete. The account is archived for audit, and the email can be reused for a future invite or signup.",
+    "m_1e50cfd1b66d97": "Optional profile picture",
+    "m_8b15853941f9aa": "Organization access",
+    "m_cb2173bda87b74": "Choose what this person can manage. You can refine individual permissions later.",
+    "m_6506c38c94bbf0": " Customize individual permissions ",
+    "m_15ba646b966f14": " Additional setup ",
+    "m_75468eed424fde": "Role, group, and compensation",
+    "m_4ba3788aba38b6": "Initial role &amp; assignment",
+    "m_0b03940011d171": {
+      "message": "The default role is selected automatically. Choose another role or an initial {v4} only when needed.",
+      "format": "icu"
+    },
+    "m_08449c7a5870bf": {
+      "message": "Initial {v7}",
+      "format": "icu"
+    },
+    "m_c940f04353665b": "No group",
+    "m_5c2e0e0d3bc44f": "Compensation",
+    "m_e2207970d3a42f": "Permission level",
+    "logos_uploading": {
+      "message": "Uploading {count, plural, one {# logo} other {# logos}}…",
+      "format": "icu"
+    },
+    "logos_added": {
+      "message": "{count, plural, one {# logo added to your brand library.} other {# logos added to your brand library.}}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup": {
+      "message": "Auto top-up: {amount} below {threshold}",
+      "format": "icu"
+    },
+    "fm_mobile_auto_topup_off": "Credit auto top-up: Off"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -12315,6 +12941,7 @@
     "settings.storage_tab": "Storage",
     "settings.sms_tab": "SMS",
     "settings.feature_flags_tab": "Feature Flags",
+    "settings.developer_settings_tab": "Developer Settings",
     "settings.feedback_tab": "Feedback",
     "settings.live_chat_tab": "Live Chat",
     "settings.comms_tab": "Communications",
@@ -16118,7 +16745,24 @@
     "department_in_use": "Existing departments must be retained for scheduling history.",
     "unknown_department_member": "Choose a user, role, group or group type from this organization.",
     "department_assignment_denied": "Permission to manage this assignment is required.",
-    "unknown_department_subject": "Choose a subject from this organization."
+    "unknown_department_subject": "Choose a subject from this organization.",
+    "call_access_denied": "You do not have access to customer calls.",
+    "call_user_required": "Call publication requires an authenticated organization member.",
+    "call_id_required": "Choose a call ID, or use the list operation for call history.",
+    "call_diagnostic_private": "Device diagnostics are not published customer calls.",
+    "call_date_invalid": "Call date filters must be ISO timestamps.",
+    "call_artifact_unavailable": "A captured recording or transcript was removed or expired.",
+    "call_cursor_invalid": "The call continuation cursor is invalid or belongs to another query.",
+    "full_house_workflow_required": "Use report submission and QA approval to advance a full-house report.",
+    "full_house_pdf_sync_required": "Generate and synchronize the full-house PDF before submitting.",
+    "full_house_main_pdf_required": "The main PDF must be a complete full-house report.",
+    "full_house_pdf_not_ready": "Wait for the reviewed full-house PDF to finish synchronizing before submitting.",
+    "full_house_pdf_changed": "The stored PDF differs from the synchronized full-house report. Regenerate it before submitting.",
+    "full_house_pdf_override": "The full-house PDF cannot override required measurement content.",
+    "full_house_snapshot_mismatch": "Regenerate the PDF for this full-house project.",
+    "full_house_exterior_required": "A full-house report requires measured exterior walls and the exterior report pages.",
+    "full_house_roof_required": "Complete the roof measurements before submitting this full-house report.",
+    "full_house_review_required": "Confirm the roof, walls, openings, finishes and trim, gutters, references and full PDF before approving."
   },
   "notifications": {
     "document_greeting": {
