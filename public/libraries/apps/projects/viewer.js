@@ -363,7 +363,7 @@
   }
 
   const ViewerCSS = `
-    .v-wrap{width:100%; max-width:1500px; margin:0 auto; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden;color:#101828}
+    .v-wrap{container-type:inline-size;box-sizing:border-box;min-width:0;width:100%; max-width:1500px; margin:0 auto; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden;color:#101828}
     .v-report-search{box-sizing:border-box;width:100%;min-width:0;flex-shrink:0;border:1px solid #dadce0;border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;background:#fff;color:#202124}
     .v-head{display:flex; align-items:center; justify-content:space-between; gap:14px; padding-bottom:14px; flex:0 0 auto}
     .v-title{display:flex;align-items:center;gap:11px;min-width:0}
@@ -406,8 +406,8 @@
     .v-toggle-chip input:checked + .v-toggle-track::after{transform:translateX(14px)}
     .v-toggle-chip span:last-child{font-size:12px; font-weight:950; color:#333}
     #vResults{flex:1 1 auto; min-height:0; overflow:hidden}
-    .v-grid{height:100%; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; display:grid; align-content:start; grid-auto-rows:max-content; grid-template-columns:repeat(auto-fill, minmax(290px, 1fr)); gap:16px; padding:2px 2px 16px}
-    .v-tile{background:#fff; border:1px solid #eaecf0; border-radius:13px; overflow:hidden; box-shadow:0 1px 2px rgba(16,24,40,.04); cursor:pointer; display:flex; flex-direction:column; transition:.20s ease; position:relative}
+    .v-grid{box-sizing:border-box;min-width:0;height:100%; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch; display:grid; align-content:start; grid-auto-rows:max-content; grid-template-columns:repeat(auto-fill, minmax(min(290px,100%), 1fr)); gap:16px; padding:2px 2px 16px}
+    .v-tile{min-width:0;background:#fff; border:1px solid #eaecf0; border-radius:13px; overflow:hidden; box-shadow:0 1px 2px rgba(16,24,40,.04); cursor:pointer; display:flex; flex-direction:column; transition:.20s ease; position:relative}
     .v-tile:hover{transform:translateY(-3px); box-shadow:0 20px 44px rgba(0,0,0,0.12)}
     .v-thumb{height:168px; background:#eef0f3; position:relative}
     .v-thumb img{width:100%; height:100%; object-fit:cover; display:block}
@@ -1087,6 +1087,20 @@
         font-size:11px;
         padding:0 2px;
       }
+    }
+
+    @container (max-width:480px){
+      .v-head{gap:6px;flex-wrap:wrap}
+      .v-title{gap:6px;flex:1 1 auto;min-width:0}
+      .v-title>i{width:clamp(22px,7cqi,28px);height:clamp(22px,7cqi,28px);font-size:14px;border-radius:8px}
+      .v-title h1{font-size:clamp(14px,5cqi,22px);line-height:32px;white-space:nowrap}
+      .v-actions{flex:0 0 auto;gap:6px}
+      .v-actions .v-btn{font-size:clamp(10px,3cqi,12px);padding:0 clamp(5px,2cqi,9px);height:32px;gap:4px}
+      .v-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+      .v-body{min-width:0;padding:12px}
+      .v-addr{overflow-wrap:anywhere}
+      .v-foot{gap:6px;flex-wrap:wrap}
+      .v-foot .cta{flex:0 0 auto}
     }
 
     /* Extra-small phones */

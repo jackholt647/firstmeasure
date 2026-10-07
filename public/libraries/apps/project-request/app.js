@@ -3387,7 +3387,8 @@ window.PlatformCommerce.onReady(async function(){
     const amount = Number(required);
     const requiredAmount = Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100) / 100) : 0;
     const needed = currentBalance === null ? requiredAmount : Math.max(0, Math.round((requiredAmount - currentBalance) * 100) / 100);
-    window.dispatchEvent(new CustomEvent('fm:billing:open', {
+    const billingOwner = projectWindowBridge ? window.parent : window;
+    billingOwner.dispatchEvent(new billingOwner.CustomEvent('fm:billing:open', {
       detail: {
         context,
         firstReportCheckout: !!firstReportCheckout,
@@ -10367,7 +10368,6 @@ window.PlatformCommerce.onReady(async function(){
     if (Number.isFinite(cachedBalance) && cachedBalance < price) {
       capturePendingOrder();
       showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
-      close({submissionGate:true});
       await openReportCreditGateTopup({
         label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
         required: price,
@@ -10382,7 +10382,6 @@ window.PlatformCommerce.onReady(async function(){
     if (bal >= price) return true;
     capturePendingOrder();
     showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
-    close({submissionGate:true});
     await openReportCreditGateTopup({
       label: window.Portal.ExteriorOrder?.active() ? 'this Full Structure report' : 'this roof report',
       required: price,
