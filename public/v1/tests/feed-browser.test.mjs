@@ -18,7 +18,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
    const uploadedAt=new Date().toISOString();
    const photos=Array.from({length:20},(_,i)=>({id:'photo'+i,media_id:'photo'+i,src:'/photo.svg',thumb:'/photo.svg',uploaded_at:uploadedAt,uploaded_by_user_id:'sam',uploaded_by_name:'Sam Rivera',metadata:{upload_batch_id:'batch-today'}}));
    const projects=[{id:'project',data:{id:'project',title:'Oak Street renovation',address:'104 Oak Street',photos,documents:[{id:'contract',type:'contract',title:'Roof replacement agreement',total_cents:2450000,created_at:'2026-09-29T13:00:00Z'}]}}];
-   const events=[...Array.from({length:5},(_,i)=>({id:'event'+i,type:'project.created',project_id:'project',actor_user_id:'sam',created_at:'2026-09-29T12:00:00Z',payload:{title:'Site visit confirmed'}})),{id:'fake-note',type:'note.created',project_id:'project',actor_user_id:'sam',created_at:uploadedAt,payload:{title:'Invented title',actor_name:'Wrong person',synthetic:true}},{id:'workflow-start',type:'work.plan.started',project_id:'project',created_at:uploadedAt}];
+   const events=[...Array.from({length:5},(_,i)=>({id:'event'+i,type:'project.created',project_id:'project',actor_user_id:'sam',created_at:'2026-09-29T12:00:00Z',payload:{title:'Site visit confirmed'}})),{id:'appointment',type:'project.event_scheduled',project_id:'project',actor_user_id:'sam',created_at:uploadedAt,payload:{event_type_default_id:'sales_appointment',event:{id:'real-appointment',title:'Roof inspection and estimate',event_type_default_id:'sales_appointment'}}},{id:'fake-signature',type:'document.signed',project_id:'project',created_at:uploadedAt,payload:{title:'Invented signature',synthetic:true}},{id:'fake-note',type:'note.created',project_id:'project',actor_user_id:'sam',created_at:uploadedAt,payload:{title:'Invented title',actor_name:'Wrong person',synthetic:true}},{id:'workflow-start',type:'work.plan.started',project_id:'project',created_at:uploadedAt}];
    window.PlatformAPI={projects:{list:async()=>({documents:projects})},users:{list:async()=>({documents:[{id:'sam',data:{name:'Sam Rivera',profile_photo_url:'/avatar.svg'}}]})},media:{thumbnailUrl:()=>'/photo.svg',markupThumbnailUrl:()=>'/missing-markup.svg',fileUrl:()=>'/photo.svg'},projectDocuments:{list:async()=>({documents:projects[0].data.documents})}};
    window.FirstMateMarkup={openPhotoViewer:options=>{window.lastViewerOptions=options;window.viewerOpens=(window.viewerOpens||0)+1;return{close(){}};}};
    window.rootMessage={id:'root',reply_count:0,reactions:[],author:{id:'sam',name:'Sam Rivera'}};window.replies=[];
@@ -36,7 +36,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.getByRole('button',{name:'Large tiles',exact:true}).click();assert.equal(await cols(),4);
   await page.getByRole('button',{name:'List',exact:true}).click();assert.equal(await cols(),1);
   const batchRow=page.locator('.pf-feed-list-row').first();
-  assert.equal(await page.locator('.pf-feed-list-row').count(),10);
+  assert.equal(await page.locator('.pf-feed-list-row').count(),11);
   assert.match(await batchRow.locator('strong').textContent(),/Sam Rivera uploaded 20 photos/);
   assert.equal(await batchRow.locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
   assert.equal(await batchRow.locator('.pf-actor-badge i').count(),1);
@@ -62,6 +62,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await noteRow.locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
   assert.equal(await noteRow.locator('.pf-note-expanded').evaluate(e=>e.getBoundingClientRect().height),0);
   assert.ok(await noteRow.locator('.pf-note-preview i').evaluate(e=>getComputedStyle(e).marginLeft!=='auto'));
+  assert.ok(await noteRow.locator('.pf-note-preview').evaluate(e=>e.getBoundingClientRect().height <= parseFloat(getComputedStyle(e).lineHeight)+1),'desktop preview stays on one line');
   await noteRow.getByRole('button',{name:'Expand note'}).click();
   await page.waitForFunction(()=>document.querySelector('.pf-feed-list-row .pf-note.expanded'));
   assert.match(await noteRow.locator('.pf-note-expanded').textContent(),/final walkthrough/);
@@ -73,6 +74,8 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   const responsiveNote=page.locator('.pf-feed-list-row').filter({hasText:'Customer confirmed driveway access'});
   assert.equal(await responsiveNote.locator('[data-feed-note-toggle]:visible').count(),0);
   assert.equal(await page.getByText('Invented title',{exact:false}).count(),0);
+  assert.equal(await page.getByText('Invented signature',{exact:false}).count(),0);
+  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'Roof inspection and estimate'}).textContent(),/scheduled a sales appointment/);
   assert.equal(await page.getByText('work plan started',{exact:false}).count(),0);
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
   await page.screenshot({path:new URL('../../../output/feed/screenshots/list.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
@@ -107,6 +110,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     assert.equal(await row.locator('.pf-feed-list-more:visible').count(),1);
     await page.waitForFunction(()=>[...document.querySelectorAll('.pf-feed-list-row')].find(row=>row.textContent.includes('Customer confirmed driveway access'))?.querySelector('.pf-note.expandable'));
     assert.equal(await responsiveNote.locator('[data-feed-note-toggle]:visible').count(),1);
+    assert.ok(await noteRow.locator('.pf-note-preview').evaluate(e=>e.getBoundingClientRect().height <= parseFloat(getComputedStyle(e).lineHeight)+1),'mobile preview stays on one line');
    }
   }
   assert.deepEqual(errors,[]);

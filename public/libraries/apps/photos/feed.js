@@ -363,6 +363,7 @@
   }
   function activityObjectLabel(event = {}){
     const payload = activityPayload(event);
+    if (cleanText(event.type) === 'project.event_scheduled') return firstText(payload.event?.title, payload.title);
     return firstText(payload.title, payload.document_title, payload.proposal_title, payload.invoice_number, payload.file_name, payload.contact_name);
   }
   function feedActivitySummary(event = {}){
@@ -400,7 +401,7 @@
       'media.shared':'shared media with the customer',
       'project.created':'created a project',
       'project.contact.attached':'attached a contact',
-      'project.event_scheduled':'scheduled an event',
+      'project.event_scheduled':`scheduled a ${cleanText(activityPayload(event).event_type_default_id || activityPayload(event).event_kind || activityPayload(event).event?.event_type_default_id).replace(/_/g, ' ') || 'project event'}`,
       'project.event.started':'started a scheduled event',
       'project.event.completed':'completed a scheduled event',
       'material.delivery.completed':'completed a material delivery',
@@ -1143,6 +1144,7 @@
     const activityEntries = state.activity
       .filter((event) => cleanText(event.type) !== 'work.plan.started')
       .filter((event) => !(cleanText(event.type) === 'note.created' && activityPayload(event).synthetic && !activityPayload(event).message_id))
+      .filter((event) => !(cleanText(event.type) === 'document.signed' && activityPayload(event).synthetic && !firstText(activityPayload(event).document_id, activityPayload(event).id)))
       .filter((event) => state.visibleActivity.has(feedActivityCategory(event)))
       .map((event) => ({
         id:`activity:${firstText(event.id, event.idempotency_key, event.type)}:${eventTimestamp(event)}`,
@@ -1557,7 +1559,7 @@
       .pf-wrap[data-density="small"] .pf-tile-actor{gap:5px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-avatar{width:24px;height:24px;flex-basis:24px;font-size:9px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-badge{width:13px;height:13px;font-size:6px}.pf-wrap[data-density="small"] .pf-tile-actor time{display:none}.pf-wrap[data-density="small"] .pf-project-identity{font-size:10px}.pf-wrap[data-density="small"] .pf-feed-activity>time,.pf-wrap[data-density="large"] .pf-feed-activity>time,.pf-wrap[data-density="mosaic"] .pf-feed-activity>time{white-space:normal}
       .pf-wrap>.pf-toolbar{position:relative;top:auto;flex:none;background:transparent;z-index:1}.pf-wrap>[data-photo-feed-dynamic]{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}.pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{flex:1;min-height:0}
       .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline;max-height:none}.pf-note-toggle .pf-note-preview i,.pf-note-toggle .pf-note-expanded i{display:inline-block;margin-left:6px;font-size:10px;vertical-align:baseline;transition:transform .28s ease}.pf-note.expanded .pf-note-preview{display:none}.pf-note.expanded .pf-note-expanded i{transform:rotate(180deg)}.pf-note-expanded>span{min-height:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#344054}
-      .pf-note{position:relative}.pf-note-plain,.pf-note-measure{display:block;color:#475467;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.pf-note-measure{position:absolute;top:0;left:0;width:100%;visibility:hidden;pointer-events:none}.pf-note .pf-note-toggle{display:none}.pf-note.expandable .pf-note-plain{display:none}.pf-note.expandable .pf-note-toggle{display:block}
+      .pf-note{position:relative}.pf-note-plain,.pf-note-measure{display:block;color:#475467;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.pf-note-measure{position:absolute;top:0;left:0;width:100%;visibility:hidden;pointer-events:none}.pf-note .pf-note-toggle{display:none}.pf-note.expandable .pf-note-plain{display:none}.pf-note.expandable .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline-flex;align-items:baseline;max-width:100%;min-width:0;vertical-align:top}.pf-note-toggle .pf-note-preview-text{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-note-toggle .pf-note-preview i{flex:none;margin-left:6px}
       .pf-feed-list-media{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;margin:5px 0 2px}.pf-feed-list-media .pf-thumb{width:52px;height:52px;flex:0 0 52px;aspect-ratio:auto;border:0;border-radius:7px}.pf-feed-list-media .pf-thumb:nth-of-type(n+7){display:none}.pf-feed-list-media .pf-video-badge{width:19px;height:19px;right:3px;bottom:3px;font-size:8px}.pf-feed-list-more{flex:none;border:0;background:none;padding:5px 3px;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:11px;font-weight:850;cursor:pointer;white-space:nowrap}.pf-feed-list-more:hover{text-decoration:underline}.pf-feed-list-more.mobile{display:none}
       @media(max-width:760px){.pf-feed-list-media .pf-thumb{width:43px;height:43px;flex-basis:43px}.pf-feed-list-media .pf-thumb:nth-of-type(n+5){display:none}.pf-feed-list-more.desktop{display:none}.pf-feed-list-more.mobile{display:inline-block}}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
@@ -2070,8 +2072,7 @@
   }
   function feedNoteHtml(note = {}){
     const body = cleanText(note.text);
-    const preview = body.length > 150 ? `${body.slice(0,147).trimEnd()}…` : body;
-    return `<div class="pf-note"><span class="pf-note-measure" aria-hidden="true">${escapeHtml(body)}</span><span class="pf-note-plain">${escapeHtml(body)}</span><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview">${escapeHtml(preview)}<i class="fas fa-chevron-down" aria-hidden="true"></i></span><span class="pf-note-expanded"><span>${escapeHtml(body)}<i class="fas fa-chevron-down" aria-hidden="true"></i></span></span></button></div>`;
+    return `<div class="pf-note"><span class="pf-note-measure" aria-hidden="true">${escapeHtml(body)}</span><span class="pf-note-plain">${escapeHtml(body)}</span><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview"><span class="pf-note-preview-text">${escapeHtml(body)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></span><span class="pf-note-expanded"><span>${escapeHtml(body)}<i class="fas fa-chevron-down" aria-hidden="true"></i></span></span></button></div>`;
   }
   function feedListMediaHtml(photos = [], projectId = ''){
     if (!photos.length) return '';

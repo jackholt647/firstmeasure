@@ -58,14 +58,11 @@ const user = (name) => {
 const chris = user('Chris Bennett');
 const jamie = user('Jamie Brooks');
 const dana = user('Dana Chen');
-const sam = user('Sam Rivera');
 const installationCrew = groupResult.groups.find((entry) => entry.name === 'Roof Installation Crew' && entry.metadata?.source === 'development_pioneer_puffin_crews');
 if (!installationCrew) throw new Error('Run seed-pioneer-puffin-crews.mjs first.');
 
 const count = { photos_added: 0, checklists_created: 0, checklist_items_completed: 0,
   sold_projects: 0, notes_added: 0, appointments_created: 0, activity_events: 0 };
-const existingEvents = (await get(`${work}/events?limit=500`)).events || [];
-const existingEventKeys = new Set(existingEvents.map((event) => event.idempotency_key));
 const now = Date.now();
 const burstTime = new Date(now - 2 * 86_400_000).toISOString();
 const burstProject = projects[0];
@@ -171,20 +168,6 @@ for (const [index, project] of projects.slice(8, 12).entries()) {
     assigned_user_ids: [], customer_visible: false,
     description: 'Synthetic appointment for development feed testing.'
   });
-}
-
-const activitySpecs = [
-  ...checklistSpecs.map((spec) => ({ event: 'note.created', project: spec.project, title: `${spec.title} field update`, actor: spec.actor })),
-  ...projects.slice(5, 8).map((project) => ({ event: 'document.signed', project, title: 'Roofing proposal accepted', actor: sam }))
-];
-for (const spec of activitySpecs) {
-  const key = `synthetic:pioneer-puffin:${spec.event}:${spec.project.id}`;
-  if (existingEventKeys.has(key)) continue;
-  count.activity_events++;
-  if (!apply) continue;
-  const result = await post(`${work}/events/emit`, { event: spec.event, project_id: spec.project.id,
-    idempotency_key: key, payload: { title: spec.title, actor_name: spec.actor.data.name, synthetic: true } });
-  if (!result.event?.id) throw new Error(`Failed to emit ${spec.event} for ${spec.project.id}`);
 }
 
 console.log(JSON.stringify({ mode: apply ? 'applied' : 'dry-run', org: org.org_name,
