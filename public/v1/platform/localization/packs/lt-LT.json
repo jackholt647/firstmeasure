@@ -44,7 +44,78 @@
     "m_5a3dca8919c4c0": "Mokestis dar nepatvirtintas.",
     "m_c5e73b482b12dd": "Kreditai atnaujinti",
     "m_60fa00527e725c": "Prieiga uždrausta",
-    "m_ef03abbb9958f0": "Neturite teisės tvarkyti atsiskaitymų."
+    "m_ef03abbb9958f0": "Neturite teisės tvarkyti atsiskaitymų.",
+    "credit_amount_help": "Mygtukais „pliusas“ ir „minusas“ galite koreguoti į savo sąskaitą įskaitomų lėšų sumą.",
+    "credit_today": "Šiandien įskaitoma suma",
+    "credit_to_add": "Įskaityti į sąskaitą",
+    "more_credit_needed": "Trūksta lėšų",
+    "first_report_thanks": "Dėkojame, kad išbandote FirstMeasure.",
+    "first_report_load": "Papildykite sąskaitą pirmajai ataskaitai.",
+    "pay_report": "Įskaitykite lėšų į sąskaitą, kad galėtumėte apmokėti šią ataskaitą.",
+    "first_report_ready": "Dar negavote užbaigtos ataskaitos. Dabar įskaitykite lėšų, kad pirmasis užsakymas būtų paruoštas, kai jo prireiks.",
+    "your_roof_report": "Jūsų stogo ataskaita",
+    "no_completed_reports": "Užbaigtų ataskaitų dar nėra",
+    "needed_for_order": "Reikia užsakymui",
+    "first_report_from": "Pirmoji ataskaita nuo",
+    "difference": "Skirtumas",
+    "credit_to_add_lower": "Įskaityti lėšų",
+    "automatic_order": "Kai mokėjimas bus patvirtintas, šios ataskaitos užsakymas bus pateiktas automatiškai. Jums nereikės jo pateikti dar kartą.",
+    "first_report_credit_available": "Šias lėšas galėsite panaudoti pirmajam ataskaitos užsakymui.",
+    "credit_before_first_report": "Prieš užsakydami pirmąją ataskaitą, įskaitykite lėšų.",
+    "checking_balance_order": "Tikrinamas jūsų likutis. Šiam užsakymui įvykdyti reikia daugiau lėšų.",
+    "checking_balance": "Tikrinamas jūsų likutis.",
+    "checkout_failed": "Nepavyko pradėti atsiskaitymo.",
+    "opening_stripe": "Atidaroma Stripe...",
+    "this_purchase": "šis pirkinys",
+    "balance_first_report": {
+      "message": "Jūsų likutis yra {balance}. Prieš užsakydami pirmąją ataskaitą, įskaitykite lėšų.",
+      "format": "icu"
+    },
+    "balance_credit_needed": {
+      "message": "Jūsų likutis yra {balance}. Šiam užsakymui įvykdyti reikia daugiau lėšų.",
+      "format": "icu"
+    },
+    "top_up_purchase": {
+      "message": "Papildykite sąskaitą, kad užbaigtumėte: {purchase}.",
+      "format": "icu"
+    },
+    "balance_top_up_purchase": {
+      "message": "Jūsų likutis yra {balance}. Papildykite sąskaitą, kad užbaigtumėte: {purchase}.",
+      "format": "icu"
+    },
+    "your_balance": {
+      "message": "Jūsų likutis yra {balance}.",
+      "format": "icu"
+    },
+    "report_checkout": "Ataskaitos apmokėjimas",
+    "first_report_checkout": "Pirmosios ataskaitos apmokėjimas",
+    "first_account_load": "Pirmasis sąskaitos papildymas",
+    "redirecting": "Nukreipiama",
+    "saving": "Išsaugoma",
+    "loading": "Įkeliama",
+    "yes": "Taip",
+    "no": "Ne",
+    "commercial": "Komercinis",
+    "multifamily": "Daugiabutis",
+    "residential": "Gyvenamasis",
+    "full_house_included": "Visas namas · įskaičiuotas stogas ir lietvamzdžiai",
+    "roof_gutters": "Stogas ir lietvamzdžiai",
+    "roof_only": "Tik stogas",
+    "standard": "Standartinis",
+    "standard_instant": "Standartinis + momentinė ataskaita",
+    "auto_top_up_summary": {
+      "message": "Įskaityti {credit}, kai jūsų likutis nukris žemiau {threshold}. Už kiekvieną automatinį papildymą nuskaitoma {charge}. {estimate}",
+      "format": "icu"
+    },
+    "insufficient_credit_amount": {
+      "message": "Šių lėšų nepakaktų ataskaitai užsakyti. Kad galėtumėte apmokėti šią ataskaitą, turite įskaityti bent {amount}.",
+      "format": "icu"
+    },
+    "discount_price": {
+      "message": "{price} (sutaupote {saving})",
+      "format": "icu"
+    },
+    "catalog_load_failed": "Nepavyko įkelti atsiskaitymo duomenų. Bandykite dar kartą."
   },
   "canvassing": {
     "m_61df468d92e238": "Visi",
@@ -1776,7 +1847,353 @@
     },
     "m_d2a894582092f8": "Tik stogas",
     "m_0980d65c27cd2f": "Visa konstrukcija",
-    "m_09612fd6ab85db": "Ataskaitos aprėptis"
+    "m_09612fd6ab85db": "Ataskaitos aprėptis",
+    "m_dc6a60d7bb3581": "Toliau ",
+    "m_76f61845dd2aea": "GATVĖ",
+    "m_e4b02dd6cf2314": "Namo kampų žymėjimas",
+    "m_48cd840a98035f": "Įkelti",
+    "m_86d43ca533f4ae": "Pakartoti kameros bandymą",
+    "m_8247c56c226358": "Tiesioginė galinės kameros peržiūra",
+    "m_c7a97e0bb50632": "Įkelti nuotraukas",
+    "m_1a58fdc6bb20bf": "Šio kampo nuotraukos",
+    "m_6555da398c64e6": "Fotografuoti",
+    "m_014da584de30ed": {
+      "message": "Namas {v0} · {v1} iš 8 rodinys",
+      "format": "icu"
+    },
+    "m_8ac00bef24971e": {
+      "message": "{v0} iš namo",
+      "format": "icu"
+    },
+    "m_acb62edbd19fa2": {
+      "message": "{v0} iš namo; priekinė pusė nukreipta į gatvę",
+      "format": "icu"
+    },
+    "m_2436076ece8629": "Pagrindinė",
+    "m_48a9cdd2af44f4": "Bandyti dar kartą",
+    "m_173c36d4fce52b": "Įkeliama nuotrauka",
+    "m_06170cce538389": "Pašalinti nuotrauką",
+    "m_9389ebcecf7d63": {
+      "message": "{v0} nuotr.{v1}",
+      "format": "icu"
+    },
+    "m_711bf09bbd2160": "Pastato išorės pamatinės nuotraukos",
+    "m_1ca9bec888658a": "Įkelti pastato išorės nuotraukas",
+    "m_acaf0eb128605e": "Numeskite nuotraukas, kad jas įkeltumėte",
+    "m_42e91ae7dddc18": "Įkeliamos nuotraukos…",
+    "m_8941c9a5445fb9": "Pastato išorės įkėlimai",
+    "m_cad1a6c79c9cf3": {
+      "message": "{v0} nuotraukos",
+      "format": "icu"
+    },
+    "m_26bd8e451be239": {
+      "message": "Priskirta: {v1}",
+      "format": "icu"
+    },
+    "m_a69623abe7dd91": {
+      "message": "Įkeliama {v3} nuotrauka{v4}",
+      "format": "icu"
+    },
+    "m_5b239bae30cb96": {
+      "message": "Nepriskirta: {v1}{v2}",
+      "format": "icu"
+    },
+    "m_a3dc6534fc81dc": "Rodyti visas nuotraukas",
+    "m_9138e9cdd68343": "Vilkite nuotraukas čia",
+    "m_bf0345adc5299e": "Privalomi kampai",
+    "m_02b18934a68584": "Papildomos nuotraukos",
+    "m_8411c93e5b0adf": "Nuotraukų iš viso",
+    "m_be4cfb58b9c4d7": "Nuotraukos",
+    "m_0dc366a939cb1d": "Konstrukcija",
+    "m_a32cdb9d1056f2": "Priskirkite paliesdami toliau esančią vietą.",
+    "m_05a79c7def4dac": "Palikti kaip papildomą",
+    "m_59741c3f6d31f8": "Panaikinti pasirinkimą",
+    "m_9506f115fde6af": "ATGAL",
+    "m_4042bd99ed30d1": "PRIEKIS ↓",
+    "m_9e22418c14100e": "Namas žiūrint iš viršaus, priekinė pusė apačioje",
+    "m_7665c7cfa6ea36": {
+      "message": "{v4} {v5} nuotrauka",
+      "format": "icu"
+    },
+    "m_84b311b1332f3c": "Palieskite, kad įkeltumėte",
+    "m_484b63459c1357": "Numatoma dabartinė laukimo trukmė",
+    "m_7b8bab306cc5c2": {
+      "message": "Numatoma trukmė: {v2} val.",
+      "format": "icu"
+    },
+    "m_1d63663ae56e2a": "18 val.",
+    "m_e731322b674a97": "24 val.",
+    "m_e7f79de4539e22": {
+      "message": "{v5} už konstrukciją + pasirinktas pristatymo mokestis{v6}",
+      "format": "icu"
+    },
+    "m_29ee01b139b644": "Įkeliamos kainos…",
+    "m_f27fa22720bb9a": "Nuosavybė",
+    "m_dccbe8abe35b17": "Nuosavybės tipas",
+    "m_ae8e4953e07d70": "Klientas",
+    "m_3fd6a5025f8036": "Ataskaitos informacija",
+    "m_9b208988dee1f1": "Numeskite nuotraukas, kad jas įkeltumėte",
+    "m_50904398019722": " Pridėti kontaktą",
+    "m_c9a026ebb1be8c": "Nuosavybės tipas",
+    "m_908c0715a481b7": "Nuosavybės adresas",
+    "m_1f6129f59f143b": "Nuosavybės adresas",
+    "m_29f3cc51016963": "Projekto tipas",
+    "m_417e1dad6a313e": "Pradėkite rašyti adresą arba spustelėkite žemėlapį...",
+    "m_5c6d435494fefd": "Kurti pasiūlymą",
+    "m_e5aee059bf2f35": "Suplanuoti susitikimą",
+    "m_bd6349111bdda5": "Pasiūlymų agentas",
+    "m_a2d8046f355c56": "Generuoti pasiūlymo juodraštį",
+    "m_289b2e5bec972c": "Raginime aprašykite darbų apimtį, toną, įtrauktas nuotraukas ir viską, ką turėtų matyti klientas.",
+    "m_7ceca87ce420be": "Įjungti arba išjungti pasiūlymų agentą",
+    "m_84f47d747cfe44": "Nurodykite pasiūlymų agentui, ką įtraukti į šį pasiūlymą...",
+    "m_18fc56365bd838": "Diktuoti raginimą",
+    "m_09ee09a435f087": "Naujausi",
+    "m_5a704a0a365cf0": "Seniausi",
+    "m_971bee4a6a3550": "Pridėti pastabą ",
+    "m_5e715bf9880366": "Kas gali ją matyti?",
+    "m_d068fb68fb07d2": "Visi",
+    "m_3fe33cd11f8a29": "Istorija",
+    "m_fa1d10be2766ee": " Pridėti pastabą",
+    "m_6643d210319486": "Filtruoti pastabas",
+    "m_5bfaf42a1f7ef2": "Rūšiuoti pastabas",
+    "m_81cd5cfdb71ce1": "Pasirinkite, kas gali matyti šią pastabą",
+    "m_3bad1b1f1d93ba": "Pridėti vidinę pastabą… Pažymėkite asmenį naudodami @vardą arba @el. paštą.",
+    "m_14d6270ea986dc": "Peržiūrėti pastabų istoriją",
+    "m_d3fd8350167dd9": "Įkelti mediją į pastabą",
+    "m_dd978d5c5b3bd9": "Įrašyti garso pastabą",
+    "m_5bbba2df4ff973": "Vidinės pastabos ",
+    "m_2b31fcca2dfee1": "Išskleisti vidines pastabas",
+    "m_69afca2b27d860": "Vidinės pastabos sau, informuoti...",
+    "m_3f912aeb9ec149": {
+      "message": "Namas {v0}",
+      "format": "icu"
+    },
+    "m_31a44c7d4ec28e": {
+      "message": "Namas {v1}, {v2}",
+      "format": "icu"
+    },
+    "m_10390ed58d9d2e": {
+      "message": "Konstrukcija {v2}",
+      "format": "icu"
+    },
+    "m_a41e0c05153e74": "Pasirinkta nuotrauka",
+    "m_0dd87f826c8c39": "Bandyti įkelti dar kartą",
+    "m_94fef39d56d52f": {
+      "message": "Pašalinti nuotrauką {v1}",
+      "format": "icu"
+    },
+    "m_cb96f1b0af21d8": "Pridėti nuotraukų",
+    "m_b51f2220e8185c": "Skubus",
+    "m_0f0032d7c26618": "Pastabos technikui",
+    "m_0b730c79a5c5eb": "Ataskaitų kopija el. paštu",
+    "m_bc21fa8a42be31": "Vidinės pastabos",
+    "m_100206f83a1d97": "Tik bandomoji peržiūra. Prieš pateikdami užsakymą, kiekvienai konstrukcijai pridėkite visus aštuonis vaizdus.",
+    "internal_notes_help": "Tik jūsų pačių informacijai.",
+    "project_address_heading": "Projekto adresas",
+    "property_address_accessible": "Nuosavybės adresas",
+    "technician_notes_help": "Specialios instrukcijos ar informacija apie nuosavybę, kurią technikas turėtų žinoti, pvz., atskiras garažas, keli pastatai, status šlaitas ir pan.",
+    "report_cc_help": "Papildomi el. pašto adresai, kuriais turėtų būti siunčiama užbaigta ataskaita.",
+    "ext_85b3a77a8ba1d7": "Prieš užsakydami kiekvienai konstrukcijai pridėkite visus aštuonis privalomus vaizdus.",
+    "ext_cfa9dc24313268": "Prieš užsakydami pridėkite kiekvienos konstrukcijos apėjimo vaizdo įrašą.",
+    "ext_4122a51f61ae01": "Norėdami tęsti, pridėkite namo apėjimo vaizdo įrašą.",
+    "ext_037939e415c28b": "Papildomos nuotraukos ir vaizdo įrašai",
+    "ext_dd3c3bac99aa28": "Visos nuotraukos priskirtos",
+    "ext_93f63a88c7e69d": "Animacija: žmogus filmuodamas vieną kartą apeina namą ratu",
+    "ext_833abb707b2dac": "Jei ko nors aiškiai nematome, galime to neišmatuoti ir projektą gali tekti atmesti. Paprastai pakanka aštuonių nuotraukų. Papildomos nuotraukos ir vaizdo įrašas padeda.",
+    "ext_76900f1bfd16c8": "Atgal",
+    "ext_7a70fe7e1b8507": "Nepavyko bendrinti kameros diagnostikos duomenų.",
+    "ext_7cad7a14ed0291": "Kamera neparuošta",
+    "ext_0748faa1268982": "Kamera nepasiekiama. Vis tiek galite įkelti namo vaizdo įrašą.",
+    "ext_5414e89a1bc03f": "Kamera nepasiekiama. Vis tiek galite įkelti kiekvieno kampo nuotraukas.",
+    "ext_a3a35b570535e1": "Kameros mastelio keitimas",
+    "ext_b3e8ecabf4ad19": "Nepavyksta įrašyti?",
+    "ext_1900b478a58603": "Fotografuoti",
+    "ext_189fb6202c349b": "Norėdami užsakyti šią ataskaitą, pasirinkite „Visa konstrukcija“.",
+    "ext_ccd317947e12ef": "Pasirinkite vaizdo įrašo failą (MP4, MOV arba WebM).",
+    "ext_823428e67d8d52": "Spustelėkite, kad pasirinktumėte, arba numeskite failus čia",
+    "ext_b543835fdc1ff1": "Žemėlapyje patvirtinkite konstrukcijos vietą.",
+    "ext_408febc0bafde2": "Nepavyko įkelti kainų.",
+    "ext_8c541d052647e6": "Nepavyko apdoroti nuotraukos. Nufotografuokite dar kartą.",
+    "ext_26a03939c7a9dc": "Nepavyko pateikti šio užsakymo.",
+    "ext_67731319e91d6d": "Nepavyko nufotografuoti. Bandykite dar kartą.",
+    "ext_b564227b7d3de2": "Pristatymo kainos vis dar įkeliamos.",
+    "ext_8a958b5d470770": "Pristatymo laikas skaičiuojamas nuo užsakymo pateikimo.",
+    "ext_bb0783864ee081": "Skaitmeninės kameros mastelio keitimas",
+    "ext_48845bff334a50": "Uždaryti",
+    "ext_18eb3c7da07409": "Vilkite nuotraukas čia",
+    "ext_36d6e4ce04d5fc": "Numeskite nuotraukas čia arba spustelėkite „Įkelti“, kad pasirinktumėte failus.",
+    "ext_6e21162913b0dc": "Skubus pristatymas šiuo metu negalimas. Pasirinkite standartinį pristatymą.",
+    "ext_f34702ef3c459c": "Papildoma pamatinė nuotrauka",
+    "ext_abc7e9892806b0": "Failai",
+    "ext_ab738ca65f65c1": "Visa konstrukcija",
+    "ext_fd6623d6d20bb2": "Toliau eikite ratu",
+    "ext_f662ce48780d0c": "Tiesioginė kameros peržiūra čia negalima. Naudokite kameros mygtuką arba toliau esantį įkėlimo mygtuką.",
+    "ext_bc14e13e94c48e": "Kitas kampas",
+    "ext_86aaa0cc76916a": "Kitas namas",
+    "ext_678d7d1afa2c16": "Kol kas nieko nepridėta",
+    "ext_cf13458f003dfc": "Atidaroma kamera…",
+    "ext_6be090825c9971": "Užsakymas",
+    "ext_858e4ba7a29fd3": "Pristabdyti",
+    "ext_e159b06187d369": "Pristabdyta",
+    "ext_412f498a96cdba": "Nepavyko užfiksuoti nuotraukos. Bandykite dar kartą.",
+    "ext_19eac15526c5cf": "Įrašykite vaizdo įrašą apeidami objektą",
+    "ext_0384d0be0a6f1a": "Įrašyti čia negalima. Vietoj to įkelkite vaizdo įrašą.",
+    "ext_d2debb79a7c303": "Nepavyko išsaugoti įrašo. Bandykite dar kartą.",
+    "ext_d640c7421da066": "Tęsti",
+    "ext_942087cc2d41e0": "Bandyti dar kartą",
+    "ext_aff0766a5290e1": "Peržiūrėti",
+    "ext_12ff7ed621202f": "Peržiūrėti užsakymą →",
+    "ext_4352d9d52c47d2": "Peržiūrėti nuotraukas",
+    "ext_37e437d86dea02": "Tik stogas",
+    "ext_35fd0238b55b3d": "Įrašomas segmentas…",
+    "ext_88dded33784dcd": "Segmentas išsaugotas",
+    "ext_97cdf353d9de69": "Bendrinti kameros diagnostiką",
+    "ext_b58eb52c8810b9": "Kol kas praleisti",
+    "ext_7d9eb6f50ee08b": "Pradėkite nuo priekinės pusės. Apeikite visą namą ratu, kad jis visas tilptų kadre.",
+    "ext_30756af0134e4b": "Pradėti įrašymą",
+    "ext_3d591e826d5459": "Sustabdyti įrašymą",
+    "ext_eaa92b29e7d508": "Norėdami perjungti kameras, sustabdykite įrašymą",
+    "ext_43f019ea133423": "Perjungti kamerą",
+    "ext_2753cf960a1fa7": "Palieskite, kad įkeltumėte",
+    "ext_48e515f180931f": "Tik bandomoji peržiūra. Prieš pateikdami užsakymą, kiekvienai konstrukcijai pridėkite jos apėjimo vaizdo įrašą.",
+    "ext_e1338e330e2e95": "Įrašas per trumpas, kad jį būtų galima išsaugoti. Įrašykite bent kelias sekundes.",
+    "ext_e0eadf1224c32d": "Nepavyko pakeisti šios kameros mastelio keitimo.",
+    "ext_dceb79d9c01f21": "Šis segmentas per didelis įkelti. Pašalinkite jį ir įrašykite trumpesnį.",
+    "ext_14d33bd014e6b4": "Nepriskirta",
+    "ext_865e89de78d94c": "Įkelti",
+    "ext_6efc5d27f30b20": "Įkelti nepavyko",
+    "ext_2ba73c5827ad58": "Įkelti nepavyko. Patikrinkite interneto ryšį ir bandykite dar kartą.",
+    "ext_d42fb51e78b578": "Įkelti nepavyko. Bandykite dar kartą.",
+    "ext_7b34445aae9fc6": "Įkelkite projekto mediją arba pakoreguokite paiešką.",
+    "ext_5ce44dd77dae78": "Įkeliama…",
+    "ext_2eb9e35e8239cf": "Naudokite JPG, PNG arba WebP nuotraukas iki 8 MB arba MP4, MOV ar WebM vaizdo įrašus.",
+    "ext_d534be829e3219": "Vaizdo įrašas",
+    "ext_fc63d3e097f799": "Vaizdo įrašo peržiūra",
+    "ext_e534224447b2b4": "Vaizdo įrašai gali būti iki 120 MB. Įrašykite apėjimą trumpesniais segmentais ir įkelkite juos atskirai.",
+    "ext_08b041935798fb": "Jūs",
+    "ext_2ab245a1129a5c": "Vienam užsakymui galite įkelti iki 100 failų.",
+    "ext_65b044714a33c6": "Vienam užsakymui galite įkelti iki 100 nuotraukų.",
+    "ext_c51af26e781045": "Jūsų failai dar įkeliami. Šiek tiek palaukite.",
+    "ext_b6aed00cb43845": "Kai kurių nuotraukų nepavyko įkelti. Bandykite dar kartą arba pašalinkite jas.",
+    "ext_300f36b25f353f": "Kai kurioms nuotraukoms reikia nurodyti kampą. Priskirkite jas prieš tęsdami.",
+    "ext_731dc6e3f07ab1": "Bandyti įkelti dar kartą",
+    "ext_94e36843761633": "Nuotraukų padėtys",
+    "angle_front": "Priekis",
+    "angle_front_left": "Priekis kairėje",
+    "angle_left": "Kairė",
+    "angle_back_left": "Galas kairėje",
+    "angle_back": "Galas",
+    "angle_back_right": "Galas dešinėje",
+    "angle_right": "Dešinė",
+    "angle_front_right": "Priekis dešinėje",
+    "exteriors_standard_label": "Standartinis · 24 val.",
+    "exteriors_same_day_label": "Tą pačią dieną · greičiau nei per 6 val.",
+    "exteriors_priority_label": "Prioritetinis · greičiau nei per 3 val.",
+    "delivery_very_busy": "Esame labai užimti",
+    "delivery_busy": "Esame užimti",
+    "delivery_not_busy": "Nesame labai užimti",
+    "current_delivery_estimate": "Dabartinis pristatymo terminas",
+    "select_angle_photo": {
+      "message": "Pasirinkite {angle} nuotrauką",
+      "format": "icu"
+    },
+    "upload_angle_photo": {
+      "message": "Įkelkite {angle} nuotrauką",
+      "format": "icu"
+    },
+    "orbital_video": "Apėjimo vaizdo įrašas",
+    "additional_media": "Papildomos nuotraukos ir vaizdo įrašai",
+    "total_files": "Iš viso failų",
+    "add_house_video": {
+      "message": "Norėdami tęsti, pridėkite namo {house} apėjimo vaizdo įrašą.",
+      "format": "icu"
+    },
+    "missing_angles": {
+      "message": "Trūksta {count} kampų. Pridėkite trūkstamų kampų nuotraukas.",
+      "format": "icu"
+    },
+    "structure_number": {
+      "message": "Konstrukcija {number}",
+      "format": "icu"
+    },
+    "switch_camera": "Perjungti kamerą",
+    "camera_zoom": "Kameros mastelio keitimas",
+    "play_video": {
+      "message": "Paleisti vaizdo įrašą {number}",
+      "format": "icu"
+    },
+    "primary_angle_photo": {
+      "message": "{angle} nuotrauka, pagrindinė",
+      "format": "icu"
+    },
+    "set_primary_angle_photo": {
+      "message": "Pasirinkti {angle} nuotrauką kaip pagrindinę",
+      "format": "icu"
+    },
+    "view_angle_photo": {
+      "message": "Peržiūrėti {angle} nuotrauką",
+      "format": "icu"
+    },
+    "angle_photo": {
+      "message": "{angle} nuotrauka",
+      "format": "icu"
+    },
+    "uploading_photo_count": {
+      "message": "Įkeliamos nuotraukos: {count}",
+      "format": "icu"
+    },
+    "unassigned_count": {
+      "message": "Nepriskirta: {count}",
+      "format": "icu"
+    },
+    "show_all": "Rodyti visas",
+    "structure_delivery_price": {
+      "message": "{price} už konstrukciją + pasirinktas pristatymo mokestis",
+      "format": "icu"
+    },
+    "closed_expedite": "Skubus pristatymas negalimas, kol nedirbame",
+    "video_segment_count": {
+      "message": "Vaizdo įrašo segmentai: {count}",
+      "format": "icu"
+    },
+    "m_a2add99e6507cc": "Užsakyti matavimus",
+    "m_5b47c31589c08d": " Momentinė bandomoji ataskaita",
+    "m_d42e44d94cf26d": "FirstMate kameros diagnostika",
+    "m_45483cba8b2363": "Uždaryti vaizdo įrašą",
+    "m_d1072adbf4a739": "Įkelti vaizdo įrašus",
+    "m_679e3f0532c8f6": "Įrašyti segmentai",
+    "m_6bfeca260a706b": "Pradėkite nuo priekinės pusės.",
+    "m_8d450f8f09d474": "Atsitraukite, kol visas namas tilps kadre nuo stogo kraigo iki pamatų.",
+    "m_fbc415383ed061": "Apeikite visą ratą.",
+    "m_8999a5973399a7": " Eikite lėtai ir visą laiką laikykite namą kadro centre.",
+    "m_28a19a351341b7": "Prireikus bet kada pristabdykite.",
+    "m_586094cc3ecf92": "Įrašykite tiek segmentų, kiek reikia, arba įkelkite jau turimus vaizdo įrašus.",
+    "m_a156054f2fdcd9": "Įrašyti apėjimo vaizdo įrašą",
+    "m_5cfa8ae69d7e6c": {
+      "message": "Įrašydami apeikite namą visą ratą. Taip greičiausiai parodysite mums visas jo puses.{v0}",
+      "format": "icu"
+    },
+    "m_15f72513cd842e": "Įkelti vaizdo įrašą",
+    "m_cab762c293af5c": "Negalite įrašyti vaizdo įrašo? Užsakykite naudodami nuotraukas",
+    "m_1cb496d81d0d8a": "Užsakyti pagal nuotraukas",
+    "m_9f5adc82950818": "Neturite vaizdo įrašo? Galime išmatuoti pagal nuotraukas. Reikia visų aštuonių namo kampų nuotraukų, o mes nurodysime, kaip jas padaryti.",
+    "m_18eb50539ad3c5": "Nufotografuokite visus aštuonis kampus.",
+    "m_6e5fce959cdaef": " Kiekvieną šoną ir kampą, kad visas namas tilptų kadre.",
+    "m_8652b670148f22": "Pridėkite sunkiai įžiūrimas vietas.",
+    "m_ffa9f3c2ab78e6": " Jei jų nesimato aštuoniuose kampuose arba jas užstoja vaizdas nuo gatvės, vėliau pridėkite nuotraukų ar vaizdo įrašą.",
+    "m_5a04d009cf966a": "Pradėti fotografuoti aštuonis kampus",
+    "m_23d5e1d2486b6a": "Grįžti prie apėjimo vaizdo įrašo (rekomenduojama)",
+    "m_0352f26fd9d997": "Papildomos nuotraukos ir vaizdo įrašai",
+    "m_215a48fa6c2668": {
+      "message": "{v0}Apėjimo vaizdo įrašas",
+      "format": "icu"
+    },
+    "m_2b2100088ed9f2": "Apėjimo vaizdo įrašas",
+    "m_b3790b49db5f84": "Pridėti apėjimo vaizdo įrašą",
+    "m_25253d755816e2": "Telefonu įrašykite vieną visą ratą aplink namą ir įkelkite įrašą čia. Užsakant per FirstMate programėlę, įrašas padaromas už jus.",
+    "m_27b7e868698f63": "Pridėkite stambaus plano nuotraukų vietų, kurių vaizdo įraše gerai nesimato, pavyzdžiui, stoglangių, priestatų ar siaurų šoninių kiemų.",
+    "m_2469fadd18d99a": "Turite vaizdo įrašą? Perjungti į apėjimo vaizdo įrašą (rekomenduojama)",
+    "m_6e81feb28a2b17": "Vaizdo įrašo dar nėra"
   },
   "help": {
     "m_0db6efc53ab2ed": "Reikia pagalbos?",
@@ -3213,7 +3630,103 @@
     "m_2767483f4609c6": " Baigti ir siųsti",
     "m_a1cb9492b60b7f": " Kitas parašas",
     "m_be4cfb58b9c4d7": "Nuotraukos",
-    "m_8fda0d4db92a17": " Sukurti be projekto"
+    "m_8fda0d4db92a17": " Sukurti be projekto",
+    "terminology_new_project": "Naujas projektas",
+    "terminology_project_title": "Projekto pavadinimas",
+    "primary_contact_heading": "Pagrindinis kontaktas",
+    "contact_actions": "Kontakto veiksmai",
+    "remove_recipient": "Pašalinti",
+    "edit_project_identity": "Redaguoti projekto kontaktą ir adresą",
+    "new_report": "Nauja ataskaita",
+    "saved_contact": "Išsaugotas kontaktas",
+    "call_contact": "Skambinti kontaktui",
+    "message_contact": "Rašyti kontaktui",
+    "email_contact": "Siųsti el. laišką kontaktui",
+    "project_identity": "Projekto kontaktas ir adresas",
+    "expand_internal_notes": "Išskleisti vidines pastabas",
+    "reduce_internal_notes": "Sutraukti vidines pastabas",
+    "checking_price": "Tikrinama dabartinė kaina...",
+    "order_roof_report": "Užsakyti stogo ataskaitą",
+    "order_report": "Užsakyti ataskaitą",
+    "order_full_structure": "Užsakyti visos konstrukcijos ataskaitą",
+    "continue": "Tęsti",
+    "project_fullscreen": "Atidaryti projektą per visą ekraną",
+    "project_shrink": "Sumažinti projekto langą",
+    "order_roof_report_price": {
+      "message": "Užsakyti stogo ataskaitą – {price}",
+      "format": "icu"
+    },
+    "order_roof_report_discount": {
+      "message": "Užsakyti stogo ataskaitą – {price} (sutaupote {saving})",
+      "format": "icu"
+    },
+    "no_matching_contacts": "Atitinkančių kontaktų nėra",
+    "loading_contacts": "Įkeliami išsaugoti kontaktai...",
+    "no_saved_contacts": "Išsaugotų kontaktų dar nėra",
+    "project_title": "Projekto pavadinimas",
+    "choose_type_first": "Pirmiausia pasirinkite projekto tipą",
+    "busy": "Esame užimti",
+    "very_busy": "Esame labai užimti",
+    "pin_instructions": "Spustelėkite žemėlapį ir pažymėkite kiekvieną įtrauktiną konstrukciją.",
+    "no_pins": "Neuždėta žymeklių",
+    "one_pin": "Uždėtas 1 žymeklis",
+    "one_pin_confirmed": "Patvirtinta – uždėtas 1 žymeklis",
+    "contacts_unavailable": "Nepavyko atidaryti kontaktų.",
+    "contact_open_failed": "Nepavyko atidaryti kontakto.",
+    "contact_update_failed": "Nepavyko atnaujinti kliento kontakto.",
+    "contact_action_failed": "Nepavyko atidaryti kontakto veiksmo",
+    "project_save_failed": "Nepavyko išsaugoti projekto.",
+    "roof_report_ordered": "Stogo ataskaita užsakyta",
+    "full_report_ordered": "Visos konstrukcijos ataskaita užsakyta",
+    "report_processing": "Ataskaita pradėta rengti.",
+    "connection_retry": "Ryšio klaida. Bandykite dar kartą.",
+    "not_busy": "Nesame labai užimti",
+    "price_per_structure": {
+      "message": "{price} / konstrukcija",
+      "format": "icu"
+    },
+    "price_flat_rate": {
+      "message": "{price} fiksuota kaina",
+      "format": "icu"
+    },
+    "delivery_by": {
+      "message": "Iki {time}",
+      "format": "icu"
+    },
+    "standard_delivery_duration": {
+      "message": "Standartinis pristatymas – {duration}",
+      "format": "icu"
+    },
+    "pins_placed": {
+      "message": "Uždėta žymeklių: {count}",
+      "format": "icu"
+    },
+    "pins_confirmed": {
+      "message": "Patvirtinta – uždėta žymeklių: {count}",
+      "format": "icu"
+    },
+    "under_one_hour": "Mažiau nei 1 valanda",
+    "under_hours": {
+      "message": "Mažiau nei {hours} val.",
+      "format": "icu"
+    },
+    "structure_total": {
+      "message": "{report}: {count} konstrukcijos × {unit} = iš viso {total}",
+      "format": "icu"
+    },
+    "m_b7a344ddca6545": "FM",
+    "m_c92936cb32df1e": "Naudoti kitą užbaigtą kūrimo ataskaitą, atitinkančią pasirinktą tipą ir apimtį",
+    "m_a9fc58f6e515fa": "Atitinkančios ataskaitos nėra",
+    "m_b1cdd265d6ddcb": "Kūrimo ataskaita",
+    "m_aaebd7ccba0b30": "Projektas",
+    "m_9b03ccb29ba168": "Santrauka",
+    "m_c2d9303f34719d": "Pridėti prisegtą pastabą",
+    "m_0747045bf3d919": "Naujas projektas",
+    "m_9f4cf23e7e3636": "Ieškoti esamo projekto",
+    "m_428a61cf4a8532": "Atitinkantys projektai",
+    "m_67ea3d9f45d10b": "Ieškoma projektų…",
+    "m_7f0c783c8eec23": "Atidaromas projektas…",
+    "m_5180ead27b8ad6": "Nepavyko įkelti GIF"
   },
   "project-schedule": {
     "m_88e13d64071885": "Tvarkaraštis užrakintas",
@@ -3574,7 +4087,54 @@
     "m_9402b38f071830": "Rikiuoti projektus",
     "m_f022fa62257ce9": "Jane Smith",
     "m_564fe2da7605fa": "jane@example.com",
-    "m_7247f8e5fa0e91": "Užsakyti standartinę ataskaitą"
+    "m_7247f8e5fa0e91": "Užsakyti standartinę ataskaitą",
+    "m_219853c2fec210": "Pabandykite užsakyti išsamią ataskaitą, kad gautumėte šios konstrukcijos matavimus.",
+    "m_d2a894582092f8": "Tik stogas",
+    "m_16e6b2fac22e7e": "Stogas &amp; lietvamzdžiai",
+    "m_5ee37aecb582b4": " Rankinis",
+    "m_f86eb4b8f9ea2c": "Rankinis perkėlimas įjungtas",
+    "m_fe74e5ffd55b04": "Vilkite projekto kortelę į kitą etapą.",
+    "m_48afb49c6f40c4": "Lenta",
+    "m_39f4f4e9015b56": " Atidaryti PDF",
+    "m_d091a3a21d5851": {
+      "message": " Užsakyti išsamią ataskaitą – ${v0}",
+      "format": "icu"
+    },
+    "m_7c4f8058d549a7": " Nuolydžiai įjungti",
+    "m_97f68e5486c2f8": "Ieškoti pagal adresą, kontaktą…",
+    "m_af80d9cead6991": "Ieškoti projektų",
+    "pitches_on": "Nuolydžiai įjungti",
+    "pitches_off": "Nuolydžiai išjungti",
+    "order_full_report_amount": {
+      "message": "Užsakyti išsamią ataskaitą – {amount}",
+      "format": "icu"
+    },
+    "m_53d803cdbe9ab1": "Adresas",
+    "m_b9bbb4f486250d": "Pagrindinis kontaktas",
+    "m_71b71bf03872e8": "Pagrindinio kontakto telefonas",
+    "m_6bc4d56ee2a851": "Pagrindinio kontakto el. paštas",
+    "m_ca4bcb012af794": "Ataskaitos būsena",
+    "m_b9e330a2a05e3a": "Etapo nėra",
+    "m_0c8087b7a76bdd": "Lentos nėra",
+    "m_b66bef8d909043": "Visos lentos",
+    "m_db7bc4ec19e30d": "Bendrinamas projektas",
+    "m_f7db06bcf62c85": "Sąrašo stulpeliai",
+    "m_0989a5be2bc0a3": "Spustelėkite stulpelio antraštę, kad surūšiuotumėte sąrašą.",
+    "m_db1fe336bd1deb": "Projekto sukūrimo data",
+    "m_a4101be3c706f6": "Rūšiuoti pagal",
+    "m_82049078ca088b": "Keisti rūšiavimo kryptį",
+    "m_529b6356416c11": "Visi etapai",
+    "m_da6a380b934274": {
+      "message": "{v0} rodinys",
+      "format": "icu"
+    },
+    "m_9b0cf483ee4377": {
+      "message": "Atidaryti {v0}, bendrino {v1}",
+      "format": "icu"
+    },
+    "m_ce86fe78082565": "Nepasiekiama",
+    "m_f8e16243e0f91c": "Tvarkyti rodinį",
+    "m_200131262770e4": "Projekto rodinys"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -6909,7 +7469,136 @@
     "m_10836fee7d848c": "SMS Enterprise",
     "m_fdb931154a90d3": "Jei reikia didesnio limito, kreipkitės į paskyros komandą dėl individualaus mėnesio plano.",
     "m_3be71fb0bc5d46": "Daugiau prenumeratų nėra.",
-    "m_db8eb97cb6c0a3": "Įkeliami atsiskaitymai…"
+    "m_db8eb97cb6c0a3": "Įkeliami atsiskaitymai…",
+    "m_38e15f7a2dd540": "Prekės ženklo rinkinys",
+    "m_ae9d8c44e49371": {
+      "message": " Už kiekvieną automatinį papildymą nuskaitoma {v0}. {v1}",
+      "format": "icu"
+    },
+    "m_ae873abaa56707": "Matavimo vienetai",
+    "m_455c24bfeb9092": "Imperiniai (pėdos ir kvadratai)",
+    "m_ef3e6a234d5a73": "Metriniai (metrai ir kvadratiniai metrai)",
+    "m_4ca221574beb0d": " Ataskaitos peržiūra",
+    "fm_billing_minimum": {
+      "message": "Minimali automatinio papildymo suma yra {amount}.",
+      "format": "icu"
+    },
+    "fm_use_the_card_on_file_to_keep_your_account_funded_automatically": "Naudokite išsaugotą kortelę, kad sąskaita būtų automatiškai papildoma.",
+    "fm_use_the_card_you_add_to_keep_your_account_funded_automatically": "Naudokite pridėtą kortelę, kad sąskaita būtų automatiškai papildoma.",
+    "fm_enabled": "Įjungta",
+    "fm_disabled": "Išjungta",
+    "fm_on": "Įjungta",
+    "fm_off": "Išjungta",
+    "fm_payment_could_not_be_processed": "Nepavyko apdoroti mokėjimo",
+    "fm_payment_processed": "Mokėjimas apdorotas",
+    "fm_report_ordered": "Ataskaita užsakyta",
+    "fm_payment_received": "Mokėjimas gautas",
+    "fm_payment": "Mokėjimas",
+    "fm_promo_credit_applied": "Pritaikytas reklaminis kreditas",
+    "fm_coupon_credit_added": "Pridėtas kupono kreditas",
+    "fm_cancellation_refund": "Grąžintos lėšos už atšaukimą",
+    "fm_expedite_refund": "Grąžintos lėšos už skubų pristatymą",
+    "fm_missed_promised_delivery_window": "Praleistas žadėtas pristatymo terminas",
+    "fm_additional_structure_refund": "Grąžintos lėšos už papildomą konstrukciją",
+    "fm_additional_structure_request": "Papildomos konstrukcijos užklausa",
+    "fm_auto_top_up": "Automatinis papildymas",
+    "fm_refund": "Lėšų grąžinimas",
+    "fm_credit_adjustment": "Kredito koregavimas",
+    "fm_additional_structure_request_refund": "Grąžintos lėšos už papildomos konstrukcijos užklausą",
+    "fm_additional_structure_added_to_report": "Prie ataskaitos pridėta papildoma konstrukcija",
+    "fm_completed": "Užbaigta",
+    "fm_rejected": "Atmesta",
+    "fm_processing": "Apdorojama",
+    "fm_update_card": "Atnaujinti kortelę",
+    "fm_add_card": "Pridėti kortelę",
+    "fm_save": "Išsaugoti",
+    "fm_save_and_add_card": "Išsaugoti ir pridėti kortelę",
+    "fm_card_expiry": {
+      "message": "Galioja iki {date}",
+      "format": "icu"
+    },
+    "fm_card": "Kortelė",
+    "fm_triggered_by_person": {
+      "message": "Pradėjo {person}",
+      "format": "icu"
+    },
+    "fm_ordered_by_person": {
+      "message": "Užsakė {person}",
+      "format": "icu"
+    },
+    "fm_handled_by_person": {
+      "message": "Tvarkė {person}",
+      "format": "icu"
+    },
+    "fm_ref_reference": {
+      "message": "Nuoroda {reference}",
+      "format": "icu"
+    },
+    "fm_charged_amount": {
+      "message": "Nuskaičiuota {amount}",
+      "format": "icu"
+    },
+    "fm_additional_structure_count": {
+      "message": "{count, plural, one {# papildoma konstrukcija} other {# papildomos konstrukcijos}}",
+      "format": "icu"
+    },
+    "fm_billing_residential": "Gyvenamasis",
+    "fm_billing_commercial": "Komercinis",
+    "fm_billing_multi_family": "Daugiabutis",
+    "fm_billing_multifamily": "Daugiabutis",
+    "fm_billing_full": "Išsami ataskaita",
+    "fm_billing_roof_only": "Tik stogas",
+    "fm_billing_roof": "Tik stogas",
+    "fm_you_cannot_edit_your_own_permissions_here": "Čia negalite keisti savo teisių.",
+    "fm_permissions_are_read_only": "Teisės skirtos tik skaityti.",
+    "fm_users": "Naudotojai",
+    "fm_departments": "Skyriai",
+    "fm_user_administration": "Naudotojų administravimas",
+    "fm_brand_kit": "Prekės ženklo rinkinys",
+    "fm_changes_saved_automatically": "Pakeitimai išsaugomi automatiškai.",
+    "fm_could_not_save_brand_kit": "Nepavyko išsaugoti prekės ženklo rinkinio.",
+    "fm_preview_summary": "Projekto santrauka",
+    "fm_preview_facets": "Visos stogo plokštumos",
+    "fm_preview_pitch": "Vyraujantis stogo nuolydis",
+    "fm_preview_area": "Bendras plotas",
+    "fm_preview_breakdown": "Matavimų išklotinė",
+    "fm_preview_eave": "Karnizas",
+    "fm_preview_ridge": "Kraigas",
+    "fm_preview_valley": "Stogo sąlaja",
+    "fm_deleted": "Pašalintas",
+    "fm_suspended": "Sustabdytas",
+    "fm_never_signed_in": "Niekada neprisijungė",
+    "fm_invited": "Pakviestas",
+    "fm_active": "Aktyvus",
+    "fm_primary_logo_saved_automatically": "Pagrindinis logotipas išsaugomas automatiškai.",
+    "fm_could_not_change_primary_logo": "Nepavyko pakeisti pagrindinio logotipo.",
+    "fm_the_logo_colors_could_not_be_read": "Nepavyko nuskaityti logotipo spalvų.",
+    "fm_could_not_send_invite_email": "Nepavyko išsiųsti kvietimo el. laiško.",
+    "fm_user_suspended": "Naudotojo prieiga sustabdyta.",
+    "fm_user_unsuspended": "Naudotojo prieiga atkurta.",
+    "fm_you_can_t_suspend_yourself": "Negalite sustabdyti savo prieigos.",
+    "fm_you_can_t_suspend_a_super_admin": "Negalite sustabdyti superadministratoriaus prieigos.",
+    "fm_you_can_t_delete_yourself": "Negalite pašalinti savęs.",
+    "fm_you_can_t_delete_a_super_admin": "Negalite pašalinti superadministratoriaus.",
+    "fm_report_settings_future_only": "Ataskaitų nustatymų pakeitimai taikomi tik būsimoms matavimo ataskaitoms. Jie nekeičia jau užsakytų ataskaitų.",
+    "fm_statement_date": "Data",
+    "fm_statement_transaction": "Operacija",
+    "fm_statement_details": "Išsami informacija",
+    "fm_statement_reason": "Priežastis",
+    "fm_statement_amount": "Suma",
+    "fm_statement_balance_after": "Likutis po operacijos",
+    "fm_statement_address": "Adresas",
+    "fm_statement_ordered_by": "Užsakė",
+    "fm_statement_date_ordered": "Užsakymo data",
+    "fm_statement_project_type": "Projekto tipas",
+    "fm_statement_status": "Būsena",
+    "fm_statement_cost": "Kaina",
+    "fm_statement_reimbursed": "Kompensuota",
+    "fm_statement_total": "Iš viso",
+    "fm_statement_transaction_count": {
+      "message": "{count, plural, one {# operacija} other {# operacijų}} – grynoji suma: ",
+      "format": "icu"
+    }
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Pridėti darbą",
@@ -7566,7 +8255,8 @@
     "m_6d30e375168449": {
       "message": "Neskaitytų: {v0} &middot; iš viso: {v1}",
       "format": "icu"
-    }
+    },
+    "new_report": "Nauja ataskaita"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Biuras",
@@ -9894,6 +10584,98 @@
     "m_0d80b4a3bd88a0": {
       "message": "Keisti dydį: {v0} {v1}",
       "format": "icu"
+    },
+    "project_workspace": "Projekto darbo sritis",
+    "edit_project_identity": "Redaguoti projekto kontaktą ir adresą",
+    "project_tabs": "Projekto skirtukai",
+    "project_trays": "Projekto skydeliai",
+    "opening_project": "Atidaromas projektas…",
+    "restore_project": "Atkurti projektą",
+    "close_project": "Uždaryti projektą",
+    "project": "Projektas",
+    "new_project": "Naujas projektas",
+    "overview": "Apžvalga",
+    "tab_loading": {
+      "message": "{tab} – įkeliamas projektas",
+      "format": "icu"
+    },
+    "resize_panes": "Keisti sričių dydį",
+    "window_trays": "Langų skydeliai",
+    "close_tray": "Uždaryti skydelį",
+    "window": "langas",
+    "dock_window": {
+      "message": "Prijungti langą „{window}“",
+      "format": "icu"
+    },
+    "restore_window": {
+      "message": "Atkurti langą „{window}“",
+      "format": "icu"
+    },
+    "minimize_window": {
+      "message": "Sutraukti langą „{window}“",
+      "format": "icu"
+    },
+    "float_window": {
+      "message": "Atjungti langą „{window}“",
+      "format": "icu"
+    },
+    "maximize_window": {
+      "message": "Išplėsti langą „{window}“",
+      "format": "icu"
+    },
+    "close_window": {
+      "message": "Uždaryti langą „{window}“",
+      "format": "icu"
+    },
+    "modal_window": {
+      "message": "Rodyti langą „{window}“ modaliniame lange",
+      "format": "icu"
+    },
+    "fullscreen_window": {
+      "message": "Išplėsti langą „{window}“ per visą ekraną",
+      "format": "icu"
+    },
+    "unpin_window": {
+      "message": "Atsegti langą „{window}“",
+      "format": "icu"
+    },
+    "pin_window": {
+      "message": "Prisegti langą „{window}“",
+      "format": "icu"
+    },
+    "dock_window_left": {
+      "message": "Prijungti langą „{window}“ kairėje (dešiniuoju pelės mygtuku spustelėkite, kad pasirinktumėte vietą)",
+      "format": "icu"
+    },
+    "dock_window_right": {
+      "message": "Prijungti langą „{window}“ dešinėje (dešiniuoju pelės mygtuku spustelėkite, kad pasirinktumėte vietą)",
+      "format": "icu"
+    },
+    "fill_workspace_window": {
+      "message": "Užpildyti darbo sritį langu „{window}“",
+      "format": "icu"
+    },
+    "dock_placement": "Prijungimo vieta",
+    "float": "Atjungti",
+    "close": "Uždaryti",
+    "modal": "Modalinis langas",
+    "fill_workspace": "Užpildyti darbo sritį",
+    "fill_entire_screen": "Išplėsti per visą ekraną",
+    "dock_left": "Prijungti kairėje",
+    "dock_right": "Prijungti dešinėje",
+    "dock_top_left": "Prijungti viršuje kairėje",
+    "dock_top_right": "Prijungti viršuje dešinėje",
+    "dock_bottom_left": "Prijungti apačioje kairėje",
+    "dock_bottom_right": "Prijungti apačioje dešinėje",
+    "dock_top": "Prijungti viršuje",
+    "dock_bottom": "Prijungti apačioje",
+    "resize_swap_panes": "Keisti sričių dydį; dukart spustelėjus jos sukeičiamos vietomis",
+    "close_pane": "Uždaryti sritį",
+    "pane_slow": "Ši sritis įkeliama ilgiau. Galite ją uždaryti ir bandyti dar kartą.",
+    "pane_open_failed": "Nepavyko atidaryti šio skirtuko. Uždarykite sritį ir bandykite dar kartą.",
+    "opening_tab": {
+      "message": "Atidaromas skirtukas {tab}…",
+      "format": "icu"
     }
   },
   "reports": {
@@ -9914,7 +10696,366 @@
     "meter": "metras",
     "millimeters": "milimetrai",
     "millimeter": "milimetras",
-    "square footage": "plotas"
+    "square footage": "plotas",
+    "m_8f5db5c7f3d24d": "Stogo kraigas",
+    "m_46dd9790bf6a04": "Išorinė stogo sandūra",
+    "m_63e8dda8d7cce4": "Stogo sąlaja",
+    "m_7076ce874b1d6c": "Šlaitinis kraštas",
+    "m_27047ada176d29": "Karnizas",
+    "m_56b44629956d20": "Sienos ir stogo sandūros skarda",
+    "m_67b286b5c3cc9d": "Šoninės sienos sandūros skarda",
+    "m_2fe70464aadf58": "Perėjimas",
+    "m_c33219746150ec": "Parapeto siena",
+    "m_c59156303156a4": "Iškyša",
+    "m_40f358631dc246": "Kamino galinė skarda",
+    "m_d4ac8146ffa447": "Kamino laiptinė skarda",
+    "m_ab77a5a27d3f10": "Kamino priekinė skarda",
+    "m_23fb466fb2adc3": "Stoglangis",
+    "m_b764cdc0eab713": "Nežinoma",
+    "m_a1021e952892ac": "Nuosavybės matavimų ataskaita",
+    "m_f8dbc522ba2af7": "Stogo vaizdas iš viršaus",
+    "m_c834cd35286d0a": "Stogo vaizdai",
+    "m_869d0506787f34": "Stogo aukščiai",
+    "m_e158625d2ef73e": "Stogo plokštumos",
+    "m_1246c01179d440": "Stogo suvestinė",
+    "m_192df712925b74": "Stogo ventiliacija",
+    "m_468cef63fdd9dd": "Stogo nuolydžio diagrama",
+    "m_baf568be68a967": "Stogo ploto diagrama",
+    "m_68770a5d336169": {
+      "message": "Stogo sluoksnio {value1} matavimai",
+      "format": "icu"
+    },
+    "m_63b61a2a5cacd6": {
+      "message": "Plokštumos: {value1}",
+      "format": "icu"
+    },
+    "m_733f0196ef5d7f": "Lietvamzdžiai",
+    "m_47cf5274d0f2c2": "Pastabos apie stogą",
+    "m_c50f62a1b89962": {
+      "message": "{value1} (+{value2}% atliekų atsarga)",
+      "format": "icu"
+    },
+    "m_cb91ea904fb153": {
+      "message": "Nuolydis: {value1}",
+      "format": "icu"
+    },
+    "m_3b026f0a7e18aa": {
+      "message": "Atliekų atsarga: {value1}%",
+      "format": "icu"
+    },
+    "m_e3bc5b673a070a": "Viršutinė sienos ir stogo sandūra",
+    "m_e87f980620eb8f": "Šoninė sienos ir stogo sandūra",
+    "m_fe2ce041082c9b": "Parapetas",
+    "m_8cd80c317a2168": "Stogo plokštumos:",
+    "m_af5a7274c323e0": "Nuolydis:",
+    "m_9d6591d0b42f6b": "Kvadratiniai metrai:",
+    "m_88c46e11f3c77b": "Kvadratinės pėdos:",
+    "m_919549889a5ceb": "Karnizai:",
+    "m_537a62a019ad4b": "Šlaitiniai kraštai:",
+    "m_5bd7cdbae7fcda": "Kraigai:",
+    "m_0721423f661339": "Išorinės stogo sandūros:",
+    "m_61201067398580": "Sąlajos:",
+    "m_3b450027d1213a": "Perėjimai:",
+    "m_c062492596511c": "Stoglangiai:",
+    "m_b5ac9d155463b1": "Kaminai:",
+    "m_89135357e29f80": "Pietvakariai",
+    "m_1d7b8d4ed3a785": "Pietryčiai",
+    "m_83d96322f4ad30": "Šiaurės vakarai",
+    "m_c8b2d1cc4549a9": "Šiaurės rytai",
+    "m_6af11cc5940455": "Nuolydis",
+    "m_f915ae86682060": "Plotas (m²)",
+    "m_b67e47230efeb5": "Plotas (kv. pėd.)",
+    "m_716d633b125adb": "Procentai",
+    "m_f734f9b7f3706f": "Atliekų atsarga",
+    "m_922f515c2acfae": "Išorinis 90°",
+    "m_7c323cb425fe82": "Vidinis 90°",
+    "m_60306a6c99e6d6": "Ne 90°",
+    "m_00d60e31a4e6b8": "Horizontalioji projekcija",
+    "m_3765f3123ae48b": "Išorinis 90°",
+    "m_7ae502bf1fd18e": "Vidinis 90°",
+    "m_a7a915704f7f73": "Numatomas palėpės plotas",
+    "m_b0936bc9f0eaa9": {
+      "message": "Pagrindo plotas: {value1}  |  Paviršiaus plotas: {value2}",
+      "format": "icu"
+    },
+    "m_18328584e69d03": "Rekomenduojama ištraukiamoji ventiliacija",
+    "m_3d2448433551a3": "Rekomenduojama oro įsiurbimo ventiliacija",
+    "m_f1c927f86fb91d": {
+      "message": "NFVA: {value1}",
+      "format": "icu"
+    },
+    "m_a2146e3ff505ff": {
+      "message": "Oro šalinimas: {value1}",
+      "format": "icu"
+    },
+    "m_4111e6605d2fd0": {
+      "message": "Oro įsiurbimas: {value1}",
+      "format": "icu"
+    },
+    "m_d70604e8430461": "Rekomenduojama",
+    "m_fb9ef894175c32": "Produktas",
+    "m_9f29530464f730": "Įvertinimas",
+    "m_13bca3b7e36910": "Reikalingas kiekis",
+    "m_d4bb90607908e5": "Vėdinamas laštakis",
+    "m_296cfb57797e3b": "Sofito ventiliacijos anga",
+    "m_ac498d871de7df": "Paukščių užtvaros",
+    "m_99a52df3ff3d49": "Žymuo",
+    "m_fe56a63b035e8d": "Kraigo ventiliacija",
+    "m_1a431d164b36cc": "Dėžinė ventiliacijos anga",
+    "m_665420f28da3fb": "Pastaba: šiame pranešime nurodytas numatomas palėpės ventiliacijos gaminių kiekis apskaičiuotas pagal numatomą palėpės grindų plotą ir skirtas tik sąmatai sudaryti. Montuotojas privalo prieš pradėdamas darbus patikrinti, koks palėpės ventiliacijos gaminių kiekis ir tipas reikalingas. Montuotojas visada turi įvertinti konkretaus objekto palėpės ventiliacijos poreikius, pavyzdžiui, vietos statybos kodekso reikalavimus, palėpės grindų plotą kvadratinėmis pėdomis, stogo konstrukciją ir po stogu esančias kondicionuojamas patalpas. GAF rekomenduoja kiekvieniems 150–300 kvadratinių pėdų palėpės grindų ploto įrengti bent 1 kvadratinę pėdą palėpės ventiliacijos angų ploto (tolygiai padalijant tarp oro įsiurbimo ir šalinimo), atsižvelgiant į garų barjero būklę. Ištraukiamoji ventiliacija ties kraigu arba šalia jo niekada neturi viršyti įsiurbiamosios ventiliacijos ties sofitu arba šalia jo. Daugiau informacijos rasite gaf.com/ventcalculator.",
+    "m_7bfab6c61f7782": "PASTABOS",
+    "m_1c10c30ced424d": {
+      "message": "Puslapis {value1}",
+      "format": "icu"
+    },
+    "m_616cb218a65b98": "Medžiaga",
+    "m_4e545960f1bffc": "Vienetas",
+    "m_a4ee51a0594303": "Parapeto sienos aukščiai",
+    "m_f66e9d905ea8c1": "Parapeto perimetras: ",
+    "m_5e7d173c408ee4": "  |  Atliekų atsarga: ",
+    "m_412cfcc70a641b": "%  |  Išmatuokite sienos aukštį vietoje.",
+    "m_93041424cf9292": "Sienos aukštis",
+    "m_4fe0147e0d0f55": "Sienos plotas",
+    "m_9f4758a1af8ea3": "Bendras plotas",
+    "m_4cc084a2b9523e": "Membrana",
+    "m_5759b423fa0103": "Papildomi klijai",
+    "m_7c496968ffcdb4": "Atkarpos, kurių nuolydis yra 2/12 ar mažesnis, priskiriamos mažo nuolydžio stogams. Į kiekį įskaičiuota ",
+    "m_c0f21dd46689e3": "% atliekų atsarga, jei taikoma. Skaičiai yra tik apytiksliai.",
+    "m_e564c2a86ab38f": "Membraninė sistema",
+    "m_1f528498cea93f": "Membrana / viršutinis sluoksnis",
+    "m_c4f283a70b0486": "Sukibimo klijai",
+    "m_85413ad4bec1b6": "Izoliacija ir dengiamoji plokštė",
+    "m_1c0828f7eb005e": "1/2\" 4x8 dengiamoji plokštė",
+    "m_fa344135cd03c9": "Dengiamoji plokštė (4'×8')",
+    "m_2188f67cce9c67": "Poliizocianurato izoliacija (4'×8')",
+    "m_9c916917be3f72": "3\" izoliacijos tvirtinimo plokštelės",
+    "m_87c3f71b2a40df": "2\" HD tvirtinimo elementai",
+    "m_a546b1518e0b76": "Mechaniškai tvirtinama (tik TPO)",
+    "m_5ad4ec57c359dc": "2-3/8\" membranos plokštelės",
+    "m_61dbe4caefefbc": "Siūlių tvirtinimo elementai (membranos plokštelėms)",
+    "m_06ba44bfd230a8": "Kraštai ir užbaigimai",
+    "m_2c1c5afa7a9b99": "Užbaigimo juosta (10 ft)",
+    "m_879e59e3c2c975": "Krašto metalinė juosta (10 ft)",
+    "m_e7df79a2132258": "Sandariklis ir priedai",
+    "m_e702197a280876": "Vaikščiojimo takas (34\"×50')",
+    "m_f6bcdfca5d0673": "TPO nupjauto krašto sandariklis",
+    "m_8fdf1a9b6d5e1d": "Valiklis",
+    "m_0c79e7af8f2a6b": "Universalus vienasluoksnis sandariklis",
+    "m_dadf867d1bbb14": "Sandariklis / glaistas",
+    "m_79135f33f55286": "Čerpių gaminiai",
+    "m_aafc53646a6791": "Pradinė juosta",
+    "m_366c048a86eb18": "Stogo išorinių sandūrų ir kraigo dengiamoji juosta",
+    "m_ca5426333edafa": "Sintetinis paklotas",
+    "m_0bd4e15953109c": "Apsauga nuo ledo ir vandens",
+    "m_ca50d8f4c28b7e": {
+      "message": "{value1} perimetro padengimas ({value2})",
+      "format": "icu"
+    },
+    "m_f98278faa39d91": "Metalo detalės ir sandūros skarda",
+    "m_0b500157a9ba4e": "Karnizo laštakis (10 ft)",
+    "m_9a907f7f8efb51": "Šlaitinio krašto laštakis (10 ft)",
+    "m_63dd5ff3dbc0e7": "W formos sąlajos metalinė juosta (10 ft)",
+    "m_858eef2a5850de": "Laiptinė sandūros skarda (5x7)",
+    "m_bd1f293a927cae": "Dengiamoji sandūros skarda (10 ft)",
+    "m_581a811ee1dd52": "Viršutinės sienos sandūros skarda (10 ft)",
+    "m_810de7e264edb9": "Kamino priekinė skarda",
+    "m_5268e67d2e1c94": "Kamino galinė skarda / vandens nukreipimo trapas",
+    "m_748a0e39694131": "Kamino laiptinė sandūros skarda",
+    "m_1f79a9ed80fa1c": "Kamino dengiamoji sandūros skarda (10 ft)",
+    "m_6586e2074c8ce4": "Stoglangio sandūros skardos rinkinys",
+    "m_3961803cc495fe": "Ventiliacija",
+    "m_7a6f19f734f343": "Kraigo ventiliacija (4 ft atkarpos)",
+    "m_b08648dbd62b71": "Priedai",
+    "m_fe799b484c66a5": "Vinys ritėje (1.25 in, 50 lb)",
+    "m_f2a594a5d5aec2": "Vinys su plastikine galvute",
+    "m_a9dec356d64749": "Stogo sandariklis (tūbelė)",
+    "m_8ce86a6ae65d36": "Š",
+    "m_a6175902028988": "Priekis",
+    "m_76900f1bfd16c8": "Galas",
+    "m_8de0b3c47f112c": "P",
+    "m_fcb5f40df9be6b": "V",
+    "m_a9f51566bd6705": "R",
+    "m_e3573855b3d9bf": "Priekis ",
+    "m_cffbb3115c07f5": "° / šiaurė viršuje",
+    "m_9fc867325d55ed": "Priekinės pusės kryptis nenustatyta",
+    "m_78d1492cede81c": "Šioje momentinėje kopijoje sumodeliuotų angų nėra.",
+    "m_37c225ef832884": "Pastato išorės suvestinė",
+    "m_385165e2ff5980": "Matmuo",
+    "m_822bab8d41bca8": "Kiekis",
+    "m_a01f990307bcfe": "Sienų ID susieja diagramas, matmenis, angų sąrašą ir pastabas.",
+    "m_aa6c363db97d60": " Aukštis",
+    "m_c0872cfcf108e7": "Toliau išvardytos matomos sienos. Plotas matuojamas kiekvienos sienos plokštumoje; diagramoje pateikta ortografinė projekcija.",
+    "m_cdd2eaa8c80927": "Aukštis – tęsinys",
+    "m_0dcd2fe54c68dd": "Sienų duomenys tęsiami. Žr. pirmąjį puslapį: ",
+    "m_e70b6a7c97c875": " aukščio diagramą.",
+    "m_f76ea921edc2e5": "Siena",
+    "m_d89f9e018a1a89": "Iš šios krypties sienos paviršiaus nesimato.",
+    "m_a23fdf36878ac8": " grynasis",
+    "m_36c3ccc71f5875": "V ",
+    "m_bdebf2140013bd": "  ×  A ",
+    "m_34eb5b1409081f": "Angų sąrašas",
+    "m_44c472acd74e77": "Pastato išorės kiekiai",
+    "m_765524ef91a979": "Išmatuoti ilgiai",
+    "m_0a96bba80d9db1": "Grynasis plotas pagal medžiagą",
+    "m_1b609d14d397b9": "Kvadratai",
+    "m_cf4e143ea032d2": "Pastato išorės kiekiai – tęsinys",
+    "m_1c582cacb59709": "Medžiagų atsargos",
+    "m_662e0e59630b57": "Medžiagų atsargos – tęsinys",
+    "m_4a71a61ca44334": "Atliekų procentai yra palyginamosios atsargos, taikomos grynajam sienos plotui. Horizontalios grąžos matuojamos atskirai.",
+    "m_58c6c02cc9a2b5": "Pastabos apie sienas",
+    "m_00d87cf8a73edd": "KONSTRUKCIJOS PASTABOS / NUORODOS Į SIENAS",
+    "m_f6c057fb0e36c0": "Pastabos apie sienas – tęsinys",
+    "m_cc2b37e95f52c4": "Pastato išorės nuotraukos",
+    "m_4df65aa6464144": "Nuotrauka nepriskirta",
+    "m_6971ab087a1a89": {
+      "message": "Iš viso plokštumų: {value1}",
+      "format": "icu"
+    },
+    "m_9befb622242a9f": {
+      "message": "Vyraujantis nuolydis: {value1}",
+      "format": "icu"
+    },
+    "m_d8a0a6db398df5": {
+      "message": "{value1} (grynasis): {value2}",
+      "format": "icu"
+    },
+    "m_257b1dfbf5cdcd": {
+      "message": "{value1} ({value2}% atliekų atsarga): {value3}",
+      "format": "icu"
+    },
+    "m_08c80b14e30a5a": "Iš viso stogo kvadratų",
+    "m_a8740bb1612ffc": "Stogo kvadratai be atliekų atsargos",
+    "m_b4fd83d0bcd221": "Stogo kvadratai su atliekų atsarga",
+    "m_ad9df5626a0db3": "Plotas (m²) be atliekų atsargos",
+    "m_c8cdb261150121": "Plotas (m²) su atliekų atsarga",
+    "m_4543d98d79fc96": "Stogo plotas",
+    "m_5376a6d429ea6d": "Stoglangiai",
+    "m_48b0f84c37388c": "Kaminai",
+    "m_b644bee84a99e1": "Dengiamoji sandūros skarda",
+    "m_a4e16d16c36105": "Aktyvus lietvamzdis",
+    "m_6608517b23efe0": "Lietvamzdžiai",
+    "m_604f50c79bf141": "Įstrižinių jungčių kiekiai",
+    "m_43f853bbb59286": "Šiaurė",
+    "m_0dd2dae4dd83ae": "Pietūs",
+    "m_4e2cd851cfdab8": "Rytai",
+    "m_41a6741e9a0fae": "Vakarai",
+    "m_58eb9032e3bb83": "Kairė",
+    "m_883361d5d682a1": "Dešinė",
+    "m_a60528cbbb4e1e": "Priekis dešinėje",
+    "m_060cafd1082387": "Priekis kairėje",
+    "m_d09f0b3be004c1": "Galas dešinėje",
+    "m_08fc78e7d2aa2d": "Galas kairėje",
+    "m_7b47702be2bc22": "NFVA reikalavimas",
+    "m_e23555b5b2a4b6": "Ištraukiamosios ventiliacijos parinktys",
+    "m_f333ec35b08f63": "Stogo medžiagos",
+    "m_4b6762b8c70c5d": "Didelio nuolydžio stogo medžiagos",
+    "m_4d5388c6f1e614": "Plokščio stogo medžiagos",
+    "m_2cdbf9a37b01cf": "Sienų matmenys",
+    "m_b2ad1e2bec3fb1": "Apdailos matmenys",
+    "m_c59e96abc48597": "Pėdos",
+    "m_f4b13e93df077d": "Anga",
+    "m_baaddf70fb5d43": "Tipas",
+    "m_e50f1a89cafcbb": "Bendras plotas m²",
+    "m_042702902def29": "Bendras plotas ft2",
+    "m_c67131616d7b70": "Angos plotas m²",
+    "m_c3373ed602f34c": "Angos plotas ft2",
+    "m_4fac882a12ee7e": "Grynasis plotas m²",
+    "m_4cf8a6733265d0": "Grynasis plotas ft2",
+    "m_458d2707d8628e": "P × A (m)",
+    "m_b3d1d24cc51245": "P × A (ft)",
+    "m_1e05d842212af6": "Plotas m²",
+    "m_dde8cec8418424": "Plotas ft2",
+    "m_6b50755eb9ed6c": "Apdaila m",
+    "m_625bdc61d56b1e": "Apdaila ft",
+    "m_b2f1c22c291184": "Sienų viršus",
+    "m_90fe55c098b1af": "Sienų apačia",
+    "m_aa41ee9d85a9d5": "Vidiniai kampai",
+    "m_a65b33e0c771c5": "Išoriniai kampai",
+    "m_fcf52be31de7b6": "Medžiagų perėjimai",
+    "m_090059bac2d329": "Atviros vertikalios pabaigos",
+    "m_1a11982bb733ae": "Pamatinis vaizdas",
+    "m_c9c660e6accc56": "Pavadinimo neturintis kadras",
+    "m_14d33bd014e6b4": "Nepriskirta",
+    "m_0ef1d310eec6e5": "Plotas su atliekų atsarga (m²)",
+    "m_e312c06e4f54f7": "Plotas su atliekų atsarga (kv. pėd.)",
+    "m_15a9cffc5bed56": "Stogo kvadratai su atliekų atsarga",
+    "m_05ee42debad539": "Matmenys suapvalinti. Atliekų rekomendacijos tik orientacinės. Montuotojas turi patikrinti.",
+    "m_da953f1b93f8b7": "Parengta",
+    "m_cc2838b533f40e": "Stogo matavimai",
+    "m_b430c90b975008": "Stogo kvadratai su atliekų atsarga",
+    "m_1f181d240af1a0": "Stogo plokštumos",
+    "m_e2f79e5b60330b": "Netaikoma",
+    "m_36762e47a9e4cb": {
+      "message": "Reikia: {value1} (18\"/lf)",
+      "format": "icu"
+    },
+    "m_f8bef190b5c7dd": {
+      "message": "Yra: {value1}",
+      "format": "icu"
+    },
+    "m_d0c422a580d763": "Pajėgumas pakankamas",
+    "m_993cf3b9d3e0e3": "Nepakanka kraigo ventiliacijos",
+    "m_edd8b32b3e626c": {
+      "message": "Trūkumas: {value1}",
+      "format": "icu"
+    },
+    "m_de50c6b65c5b98": {
+      "message": "Reikia: {value1} ventiliacijos angų",
+      "format": "icu"
+    },
+    "m_40edab167ee70f": {
+      "message": "{value1} NFA kiekvienai",
+      "format": "icu"
+    },
+    "m_97abc4971648fc": {
+      "message": "Iš viso: {value1}",
+      "format": "icu"
+    },
+    "m_edf717d2c2451d": "Dėžinės ventiliacijos angos",
+    "m_d8f9519730da4f": {
+      "message": "{value1}  ·  {value2}  ·  {value3} plokštumos",
+      "format": "icu"
+    },
+    "m_db58767e2a1c62": "Ploto išklotinė",
+    "m_2f116e6424aa37": {
+      "message": "Sluoksnio {value1} informacija",
+      "format": "icu"
+    },
+    "m_0d2654b2d28308": "Lietvamzdžių schema",
+    "m_b975e865740d2e": "Aukštai pagal kryptį",
+    "m_9a30a63dce7244": "Ventiliacijos suvestinė",
+    "m_5e1d442d6cc2ef": "Rekomenduojami oro įsiurbimo gaminiai",
+    "m_cd6abbbc9cacc4": "Nuolydžių išklotinė",
+    "m_d71f3ad4ab7a0d": "Sofitas",
+    "m_e7514fa59671cd": "Horizontali dailylentė",
+    "m_04fc5f90eb1ea9": "Vertikali dailylentė",
+    "m_83eb49c0e6f141": "Horizontali apdaila",
+    "m_f0e864abdbc3c3": "Vertikali apdaila",
+    "m_84e1f590dd7376": "Plyta",
+    "m_25db51b5636875": "Mūras",
+    "m_05a92accb1cbff": "Tinkas",
+    "m_6ffa6b8b1c9fa1": "Akmuo",
+    "m_f97e9da0e3b879": "Kita",
+    "m_19734a1b58cabc": "Langas",
+    "m_fbf247e43d3745": "Durys",
+    "m_bfc7b9ead6e2ba": "Garažo vartai",
+    "m_f414f8c425d315": "Frontono ventiliacijos anga",
+    "m_2a60e203a021a1": "Peržiūra: ",
+    "m_8a23ff3c3858ac": "Anga nėra vertikalioje sienoje, todėl į sienų sąrašą neįtraukta.",
+    "m_abf4acf7f3ed39": "Anga neturi atitinkamos laikančiosios sienos, todėl neįtraukta į sumas.",
+    "m_8fef5c42054b92": {
+      "message": "Konstrukcija {value1}",
+      "format": "icu"
+    },
+    "m_3aeeb50e64a64b": " – tęsinys",
+    "m_1f49328eb17532": "Sienų sritys",
+    "m_6e2d200e85cb0f": "Angos plotas",
+    "m_6bc39100b77b1b": "Angos perimetras",
+    "m_b72dc1fbef232e": "Horizontalios grąžos",
+    "m_0c85aa425e52d8": {
+      "message": "Matmenys nurodo pavaizduotą angą, o ne gamintojo ar grubios angos dydį. Apdaila {value1} atitinka angos perimetrą.",
+      "format": "icu"
+    }
   },
   "errors": {
     "agent_target_invalid": "Pasirinkite visuotinę, organizacijos arba projekto aprėptį.",
@@ -11010,5 +12151,81 @@
     "m_071609c9efaf0f": "Uždaryti mokėjimų nustatymą",
     "m_5823063ec74807": "„Forward“ prekybininko paraiška",
     "m_ccb52891bb8ff6": "Jūsų mokėjimo paraiška jau pateikta."
+  },
+  "brand-kit": {
+    "m_6bb25348173069": "Spalvų paletė",
+    "m_0c92722f162cbd": "Pagrindinė · sąsaja",
+    "m_390a15f2a6d920": "Antrinė · sąsaja",
+    "m_a63c5a4c25569b": "Logotipas",
+    "m_2c8fc5e11eaf62": "Dabartinis logotipas",
+    "m_eb55056b53954c": "Geriausiai tinka skaidrus PNG arba SVG.",
+    "m_ac8bf335945352": " Pakeisti logotipą",
+    "m_490cbf5945b3f8": "Apie įmonės spalvų paletę",
+    "m_85de3f0cdfc46a": "Apie įmonės logotipus",
+    "m_fc3b468d1ec4eb": "Dabartinis įmonės logotipas",
+    "m_953e4a6603f5f1": {
+      "message": "Redaguoti {v7} spalvą",
+      "format": "icu"
+    },
+    "m_036dda0aa72306": "Alternatyvių logotipų dar nėra.",
+    "m_8803dece55359d": " Pridėti",
+    "m_986685f23ed459": "Fonas",
+    "m_dba346dfc1916b": "Įmonės šriftas",
+    "m_4d9e1ae19fc002": "Numatytasis naujiems dokumentams ir šablonams",
+    "m_5c6ac1b0faeaa0": "Šriftų šeima",
+    "m_6cac172119f732": "Pagrindinė ir antrinė spalvos naudojamos sąsajai stilizuoti. Papildomos spalvos pasiekiamos vaizdinėse rengyklėse.",
+    "m_b8391ad75bc163": "Tvarkykite įmonės logotipą ir jo išvaizdą firminiuose elementuose.",
+    "m_695aa2f7da3152": " Iš naujo generuoti paletę pagal logotipą",
+    "m_629cca6181934e": "Šešių spalvų įmonės paletė",
+    "m_c0838c60ccd34f": "Alternatyvūs logotipai ",
+    "m_e3681835cc6b25": "Išplėstiniai logotipo nustatymai",
+    "m_76e5c668843400": "Fono forma",
+    "m_eb37afb3b23761": " Kvadratas",
+    "m_3562c63d47eca1": " Apskritimas",
+    "m_895bf3964e7990": "Užapvalinti kampai",
+    "m_57f5beffb19542": "Pakartotinai naudojami logotipo variantai pasiūlymams, tinklalapiams ir kitai firminės tapatybės medijai.",
+    "palette_primary": "Pagrindinė",
+    "palette_secondary": "Antrinė",
+    "palette_primary_title": {
+      "message": "Pagrindinė: {color}",
+      "format": "icu"
+    },
+    "palette_secondary_title": {
+      "message": "Antrinė: {color}",
+      "format": "icu"
+    },
+    "palette_support_title": {
+      "message": "Papildoma {number}: {color}",
+      "format": "icu"
+    },
+    "palette_edit_primary": "Redaguoti pagrindinę spalvą",
+    "palette_edit_secondary": "Redaguoti antrinę spalvą",
+    "palette_edit_support": {
+      "message": "Redaguoti papildomą {number} spalvą",
+      "format": "icu"
+    },
+    "m_a7c7218cc9ff52": "Numatytoji šriftų šeima",
+    "m_a1872cd2329966": " Naudoti atskirą antraščių šriftą",
+    "m_2d5dcb0d47abfa": "Antraščių šriftų šeima",
+    "m_756cb8f31d3694": "Numatytoji šeima naudojama dokumentų pagrindiniam tekstui ir pavadinimams. Pasirinktinai antraštėms galite pasirinkti atskirą šriftų šeimą.",
+    "m_f317840d3f2404": "Apie įmonės šriftus",
+    "m_33289209b6d267": {
+      "message": "Naudoti {v2} kaip pagrindinį",
+      "format": "icu"
+    },
+    "m_f4e2cc33249168": {
+      "message": "Naudoti {v3} kaip pagrindinį",
+      "format": "icu"
+    }
+  },
+  "platform-commerce": {
+    "credit_amount": {
+      "message": "{amount} kreditų",
+      "format": "icu"
+    },
+    "exchange_estimate": {
+      "message": "Apytiksliai {amount} · mokėjimo metu taikomas valiutos kursas gali skirtis.",
+      "format": "icu"
+    }
   }
 }

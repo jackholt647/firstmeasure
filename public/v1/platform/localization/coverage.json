@@ -1,7 +1,7 @@
 {
-  "files": 162,
-  "namespaces": 92,
-  "messages": 11045,
+  "files": 201,
+  "namespaces": 104,
+  "messages": 13355,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -23,6 +23,13 @@
       "references": 0,
       "candidates": 0,
       "edits": 0
+    },
+    {
+      "file": "public/libraries/app-runtime/app-chrome.js",
+      "namespace": "app-runtime",
+      "references": 0,
+      "candidates": 10,
+      "edits": 4
     },
     {
       "file": "public/libraries/app-runtime/firstmate-app-context.js",
@@ -48,14 +55,42 @@
     {
       "file": "public/libraries/app-setup-workflows/app-setup-workflows.js",
       "namespace": "app-setup-workflows",
-      "references": 32,
+      "references": 25,
       "candidates": 0,
       "edits": 0
     },
     {
+      "file": "public/libraries/appointment-booking/availability.js",
+      "namespace": "appointment-booking",
+      "references": 3,
+      "candidates": 16,
+      "edits": 5
+    },
+    {
+      "file": "public/libraries/appointment-booking/booking.js",
+      "namespace": "appointment-booking",
+      "references": 0,
+      "candidates": 6,
+      "edits": 4
+    },
+    {
+      "file": "public/libraries/appointment-booking/configuration.js",
+      "namespace": "appointment-booking",
+      "references": 0,
+      "candidates": 18,
+      "edits": 6
+    },
+    {
+      "file": "public/libraries/appointment-booking/settings.js",
+      "namespace": "appointment-booking",
+      "references": 0,
+      "candidates": 12,
+      "edits": 4
+    },
+    {
       "file": "public/libraries/apps/billing/app.js",
       "namespace": "billing",
-      "references": 53,
+      "references": 107,
       "candidates": 0,
       "edits": 0
     },
@@ -77,15 +112,15 @@
       "file": "public/libraries/apps/channels/app.js",
       "namespace": "channels",
       "references": 3,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 4,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/chat/app.js",
       "namespace": "chat",
       "references": 88,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 3,
+      "edits": 3
     },
     {
       "file": "public/libraries/apps/checklists/app.js",
@@ -98,8 +133,8 @@
       "file": "public/libraries/apps/comms/calling-runtime.js",
       "namespace": "comms",
       "references": 49,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 9,
+      "edits": 9
     },
     {
       "file": "public/libraries/apps/comms/communications-ui.js",
@@ -107,6 +142,13 @@
       "references": 5,
       "candidates": 0,
       "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/comms/phone-tray.js",
+      "namespace": "comms",
+      "references": 0,
+      "candidates": 27,
+      "edits": 22
     },
     {
       "file": "public/libraries/apps/comms/project.js",
@@ -118,23 +160,23 @@
     {
       "file": "public/libraries/apps/comms/workspace.js",
       "namespace": "comms",
-      "references": 99,
-      "candidates": 0,
-      "edits": 0
+      "references": 76,
+      "candidates": 24,
+      "edits": 8
     },
     {
       "file": "public/libraries/apps/contacts/app.js",
       "namespace": "contacts",
-      "references": 24,
-      "candidates": 0,
-      "edits": 0
+      "references": 23,
+      "candidates": 8,
+      "edits": 5
     },
     {
       "file": "public/libraries/apps/contacts/modal.js",
       "namespace": "contacts",
-      "references": 22,
-      "candidates": 0,
-      "edits": 0
+      "references": 17,
+      "candidates": 18,
+      "edits": 10
     },
     {
       "file": "public/libraries/apps/crew/app.js",
@@ -161,71 +203,78 @@
       "file": "public/libraries/apps/documents/module-editor.js",
       "namespace": "documents",
       "references": 52,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 3,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/documents/program-panel.js",
       "namespace": "documents",
       "references": 76,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 3,
+      "edits": 1
     },
     {
       "file": "public/libraries/apps/documents/project.js",
       "namespace": "documents",
       "references": 277,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 8,
+      "edits": 3
     },
     {
       "file": "public/libraries/apps/documents/studio.js",
       "namespace": "documents",
-      "references": 373,
-      "candidates": 0,
-      "edits": 0
+      "references": 351,
+      "candidates": 17,
+      "edits": 15
+    },
+    {
+      "file": "public/libraries/apps/documents/tag-manager.js",
+      "namespace": "documents",
+      "references": 0,
+      "candidates": 11,
+      "edits": 4
     },
     {
       "file": "public/libraries/apps/equipment/app.js",
       "namespace": "equipment",
-      "references": 170,
-      "candidates": 0,
-      "edits": 0
+      "references": 161,
+      "candidates": 12,
+      "edits": 10
     },
     {
       "file": "public/libraries/apps/feedback/app.js",
       "namespace": "feedback",
       "references": 2,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 2,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/financials/app.js",
       "namespace": "financials",
-      "references": 162,
-      "candidates": 0,
-      "edits": 0
+      "references": 158,
+      "candidates": 6,
+      "edits": 6
     },
     {
       "file": "public/libraries/apps/firstmate-apps-manifest.js",
       "namespace": "firstmate-apps-manifest",
       "references": 58,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 2,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/firstmeasure/order/app.js",
       "namespace": "firstmeasure",
-      "references": 59,
-      "candidates": 0,
-      "edits": 0
+      "references": 63,
+      "candidates": 2,
+      "edits": 1
     },
     {
       "file": "public/libraries/apps/firstmeasure/order/exteriors.js",
       "namespace": "firstmeasure",
-      "references": 92,
-      "candidates": 0,
-      "edits": 0
+      "references": 248,
+      "candidates": 4,
+      "edits": 12
     },
     {
       "file": "public/libraries/apps/help/app.js",
@@ -242,18 +291,39 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/apps/materials/calculus-native.js",
+      "namespace": "materials",
+      "references": 0,
+      "candidates": 1,
+      "edits": 1
+    },
+    {
+      "file": "public/libraries/apps/materials/calculus-workspace.js",
+      "namespace": "materials",
+      "references": 0,
+      "candidates": 57,
+      "edits": 26
+    },
+    {
       "file": "public/libraries/apps/materials/project.js",
       "namespace": "materials",
-      "references": 261,
-      "candidates": 0,
-      "edits": 0
+      "references": 259,
+      "candidates": 6,
+      "edits": 6
     },
     {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
       "references": 156,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 3,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/apps/measurements/roof-viewer.js",
+      "namespace": "measurements",
+      "references": 0,
+      "candidates": 15,
+      "edits": 6
     },
     {
       "file": "public/libraries/apps/money/project.js",
@@ -270,11 +340,39 @@
       "edits": 0
     },
     {
-      "file": "public/libraries/apps/payroll/app.js",
-      "namespace": "payroll",
-      "references": 197,
+      "file": "public/libraries/apps/partners/app.js",
+      "namespace": "partners",
+      "references": 0,
+      "candidates": 95,
+      "edits": 43
+    },
+    {
+      "file": "public/libraries/apps/partners/invite-continuation.js",
+      "namespace": "partners",
+      "references": 0,
       "candidates": 0,
       "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/partners/share-dialog.js",
+      "namespace": "partners",
+      "references": 0,
+      "candidates": 34,
+      "edits": 10
+    },
+    {
+      "file": "public/libraries/apps/partners/shared-list.js",
+      "namespace": "partners",
+      "references": 0,
+      "candidates": 3,
+      "edits": 1
+    },
+    {
+      "file": "public/libraries/apps/payroll/app.js",
+      "namespace": "payroll",
+      "references": 191,
+      "candidates": 6,
+      "edits": 6
     },
     {
       "file": "public/libraries/apps/payroll/project.js",
@@ -286,9 +384,9 @@
     {
       "file": "public/libraries/apps/photos/feed.js",
       "namespace": "photos",
-      "references": 111,
-      "candidates": 0,
-      "edits": 0
+      "references": 107,
+      "candidates": 18,
+      "edits": 18
     },
     {
       "file": "public/libraries/apps/photos/project.js",
@@ -314,23 +412,23 @@
     {
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
-      "references": 191,
+      "references": 282,
       "candidates": 0,
       "edits": 0
     },
     {
       "file": "public/libraries/apps/project-schedule/panel.js",
       "namespace": "project-schedule",
-      "references": 211,
-      "candidates": 0,
-      "edits": 0
+      "references": 187,
+      "candidates": 69,
+      "edits": 66
     },
     {
       "file": "public/libraries/apps/projects/viewer.js",
       "namespace": "projects",
-      "references": 189,
-      "candidates": 0,
-      "edits": 0
+      "references": 190,
+      "candidates": 1,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/promo-inject/app.js",
@@ -377,9 +475,9 @@
     {
       "file": "public/libraries/apps/scheduling/app.js",
       "namespace": "scheduling",
-      "references": 285,
-      "candidates": 0,
-      "edits": 0
+      "references": 369,
+      "candidates": 118,
+      "edits": 107
     },
     {
       "file": "public/libraries/apps/settings/automations.js",
@@ -405,23 +503,37 @@
     {
       "file": "public/libraries/apps/settings/company.js",
       "namespace": "settings",
-      "references": 1945,
-      "candidates": 0,
-      "edits": 0
+      "references": 1764,
+      "candidates": 48,
+      "edits": 21
+    },
+    {
+      "file": "public/libraries/apps/settings/connections.js",
+      "namespace": "settings",
+      "references": 0,
+      "candidates": 83,
+      "edits": 32
     },
     {
       "file": "public/libraries/apps/settings/contacts.js",
       "namespace": "settings",
-      "references": 60,
-      "candidates": 0,
-      "edits": 0
+      "references": 59,
+      "candidates": 12,
+      "edits": 6
     },
     {
       "file": "public/libraries/apps/settings/crm.js",
       "namespace": "settings",
       "references": 128,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 3,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/apps/settings/departments.js",
+      "namespace": "settings",
+      "references": 0,
+      "candidates": 31,
+      "edits": 12
     },
     {
       "file": "public/libraries/apps/settings/domains.js",
@@ -433,16 +545,16 @@
     {
       "file": "public/libraries/apps/settings/equipment.js",
       "namespace": "settings",
-      "references": 34,
+      "references": 33,
       "candidates": 0,
       "edits": 0
     },
     {
       "file": "public/libraries/apps/settings/feedback.js",
       "namespace": "settings",
-      "references": 106,
-      "candidates": 0,
-      "edits": 0
+      "references": 96,
+      "candidates": 12,
+      "edits": 5
     },
     {
       "file": "public/libraries/apps/settings/firstmeasure-users.js",
@@ -450,6 +562,13 @@
       "references": 100,
       "candidates": 0,
       "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/forms.js",
+      "namespace": "settings",
+      "references": 0,
+      "candidates": 116,
+      "edits": 55
     },
     {
       "file": "public/libraries/apps/settings/live_chat.js",
@@ -464,6 +583,13 @@
       "references": 0,
       "candidates": 0,
       "edits": 0
+    },
+    {
+      "file": "public/libraries/apps/settings/notification-registration.js",
+      "namespace": "settings",
+      "references": 0,
+      "candidates": 34,
+      "edits": 11
     },
     {
       "file": "public/libraries/apps/settings/payroll.js",
@@ -496,9 +622,9 @@
     {
       "file": "public/libraries/apps/settings/search.js",
       "namespace": "settings",
-      "references": 44,
-      "candidates": 0,
-      "edits": 0
+      "references": 43,
+      "candidates": 1,
+      "edits": 1
     },
     {
       "file": "public/libraries/apps/signatures/project.js",
@@ -524,9 +650,9 @@
     {
       "file": "public/libraries/apps/stats/app.js",
       "namespace": "stats",
-      "references": 56,
-      "candidates": 0,
-      "edits": 0
+      "references": 39,
+      "candidates": 37,
+      "edits": 16
     },
     {
       "file": "public/libraries/apps/tab-promos/project.js",
@@ -574,8 +700,8 @@
       "file": "public/libraries/audio-notes/audio-notes.js",
       "namespace": "audio-notes",
       "references": 18,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 2,
+      "edits": 2
     },
     {
       "file": "public/libraries/audio-structure/audio-structure.js",
@@ -587,13 +713,34 @@
     {
       "file": "public/libraries/brand-kit/brand-kit.js",
       "namespace": "brand-kit",
-      "references": 29,
-      "candidates": 0,
-      "edits": 0
+      "references": 22,
+      "candidates": 10,
+      "edits": 4
     },
     {
       "file": "public/libraries/calls-api/calls-api.js",
       "namespace": "calls-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/calls-runtime/effects/logger.js",
+      "namespace": "calls-runtime",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/calls-runtime/effects/track-processors.js",
+      "namespace": "calls-runtime",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/calls-runtime/effects/vision_bundle.js",
+      "namespace": "calls-runtime",
       "references": 0,
       "candidates": 0,
       "edits": 0
@@ -643,9 +790,9 @@
     {
       "file": "public/libraries/channels-ui/channels-ui.js",
       "namespace": "channels-ui",
-      "references": 227,
-      "candidates": 0,
-      "edits": 0
+      "references": 174,
+      "candidates": 117,
+      "edits": 96
     },
     {
       "file": "public/libraries/chat-embed/firstmate-chat-embed.js",
@@ -653,6 +800,13 @@
       "references": 16,
       "candidates": 0,
       "edits": 0
+    },
+    {
+      "file": "public/libraries/color-picker/firstmate-color-picker.js",
+      "namespace": "color-picker",
+      "references": 0,
+      "candidates": 13,
+      "edits": 3
     },
     {
       "file": "public/libraries/comms-api/comms-api.js",
@@ -686,8 +840,29 @@
       "file": "public/libraries/custom-fields/firstmate-custom-fields.js",
       "namespace": "custom-fields",
       "references": 154,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 9,
+      "edits": 8
+    },
+    {
+      "file": "public/libraries/date-time-picker/date-time-picker.js",
+      "namespace": "date-time-picker",
+      "references": 0,
+      "candidates": 2,
+      "edits": 2
+    },
+    {
+      "file": "public/libraries/development-tools/development-tools.js",
+      "namespace": "development-tools",
+      "references": 0,
+      "candidates": 17,
+      "edits": 11
+    },
+    {
+      "file": "public/libraries/development-tools/software-layers.js",
+      "namespace": "development-tools",
+      "references": 0,
+      "candidates": 21,
+      "edits": 3
     },
     {
       "file": "public/libraries/doc-agent/doc-agent.js",
@@ -727,9 +902,9 @@
     {
       "file": "public/libraries/doc-workflow/firstmate-doc-workflow.js",
       "namespace": "doc-workflow",
-      "references": 82,
-      "candidates": 0,
-      "edits": 0
+      "references": 77,
+      "candidates": 33,
+      "edits": 27
     },
     {
       "file": "public/libraries/doc-workflow/firstmate-workflow-editor.js",
@@ -788,6 +963,34 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/forms-api/forms-api.js",
+      "namespace": "forms-api",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/forms-embed/firstmate-forms-embed.js",
+      "namespace": "forms-embed",
+      "references": 0,
+      "candidates": 19,
+      "edits": 19
+    },
+    {
+      "file": "public/libraries/gif-picker/giphy-sdk.js",
+      "namespace": "gif-picker",
+      "references": 0,
+      "candidates": 7,
+      "edits": 7
+    },
+    {
+      "file": "public/libraries/gif-picker/sdk-entry.js",
+      "namespace": "gif-picker",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
       "file": "public/libraries/google-auth/firstmate-google-auth.js",
       "namespace": "google-auth",
       "references": 1,
@@ -798,20 +1001,6 @@
       "file": "public/libraries/insights/firstmate-insights.js",
       "namespace": "insights",
       "references": 19,
-      "candidates": 0,
-      "edits": 0
-    },
-    {
-      "file": "public/libraries/lead-embed/firstmate-lead-embed.js",
-      "namespace": "lead-embed",
-      "references": 48,
-      "candidates": 0,
-      "edits": 0
-    },
-    {
-      "file": "public/libraries/lead-intake-api/lead-intake-api.js",
-      "namespace": "lead-intake-api",
-      "references": 0,
       "candidates": 0,
       "edits": 0
     },
@@ -854,8 +1043,8 @@
       "file": "public/libraries/payments-setup/payments-setup.js",
       "namespace": "payments-setup",
       "references": 0,
-      "candidates": 15,
-      "edits": 1
+      "candidates": 30,
+      "edits": 7
     },
     {
       "file": "public/libraries/payroll-api/payroll-api.js",
@@ -886,6 +1075,13 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/platform-action-items/todo-tray.js",
+      "namespace": "platform-action-items",
+      "references": 0,
+      "candidates": 5,
+      "edits": 5
+    },
+    {
       "file": "public/libraries/platform-api/platform-api.js",
       "namespace": "platform-api",
       "references": 9,
@@ -896,8 +1092,8 @@
       "file": "public/libraries/platform-assistant/platform-assistant.js",
       "namespace": "platform-assistant",
       "references": 74,
-      "candidates": 47,
-      "edits": 21
+      "candidates": 58,
+      "edits": 24
     },
     {
       "file": "public/libraries/platform-banners/platform-banners.js",
@@ -916,7 +1112,7 @@
     {
       "file": "public/libraries/platform-commerce/platform-commerce.js",
       "namespace": "platform-commerce",
-      "references": 0,
+      "references": 1,
       "candidates": 0,
       "edits": 0
     },
@@ -924,8 +1120,8 @@
       "file": "public/libraries/platform-notifications/platform-notifications.js",
       "namespace": "platform-notifications",
       "references": 0,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 1,
+      "edits": 1
     },
     {
       "file": "public/libraries/platform-notifications/platform-push.js",
@@ -944,14 +1140,14 @@
     {
       "file": "public/libraries/platform-schedule-view/platform-schedule-view.js",
       "namespace": "platform-schedule-view",
-      "references": 61,
-      "candidates": 0,
-      "edits": 0
+      "references": 69,
+      "candidates": 7,
+      "edits": 5
     },
     {
       "file": "public/libraries/platform-scheduling/platform-scheduling.js",
       "namespace": "platform-scheduling",
-      "references": 10,
+      "references": 16,
       "candidates": 0,
       "edits": 0
     },
@@ -984,6 +1180,48 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/platform-widgets/forms-widgets.js",
+      "namespace": "platform-widgets",
+      "references": 0,
+      "candidates": 22,
+      "edits": 6
+    },
+    {
+      "file": "public/libraries/platform-widgets/payroll-widgets.js",
+      "namespace": "platform-widgets",
+      "references": 0,
+      "candidates": 6,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/platform-widgets/project-widgets.js",
+      "namespace": "platform-widgets",
+      "references": 0,
+      "candidates": 8,
+      "edits": 8
+    },
+    {
+      "file": "public/libraries/platform-widgets/runtime.js",
+      "namespace": "platform-widgets",
+      "references": 0,
+      "candidates": 3,
+      "edits": 3
+    },
+    {
+      "file": "public/libraries/platform-widgets/scope-data.js",
+      "namespace": "platform-widgets",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/platform-widgets/todo-widgets.js",
+      "namespace": "platform-widgets",
+      "references": 0,
+      "candidates": 23,
+      "edits": 10
+    },
+    {
       "file": "public/libraries/portal-widgets/firstmate-portal-widgets.js",
       "namespace": "portal-widgets",
       "references": 86,
@@ -1001,8 +1239,22 @@
       "file": "public/libraries/project-notes/project-notes.js",
       "namespace": "project-notes",
       "references": 15,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 33,
+      "edits": 11
+    },
+    {
+      "file": "public/libraries/project-selector/project-selector.js",
+      "namespace": "project-selector",
+      "references": 0,
+      "candidates": 5,
+      "edits": 4
+    },
+    {
+      "file": "public/libraries/project-trays/project-trays.js",
+      "namespace": "project-trays",
+      "references": 0,
+      "candidates": 34,
+      "edits": 20
     },
     {
       "file": "public/libraries/proposals-api/proposals-api.js",
@@ -1089,7 +1341,28 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/window-manager/project-layout.js",
+      "namespace": "window-manager",
+      "references": 8,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/window-manager/project-windows.js",
+      "namespace": "window-manager",
+      "references": 14,
+      "candidates": 2,
+      "edits": 2
+    },
+    {
       "file": "public/libraries/window-manager/window-manager.js",
+      "namespace": "window-manager",
+      "references": 44,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/window-manager/window-shell.js",
       "namespace": "window-manager",
       "references": 3,
       "candidates": 0,
@@ -1099,8 +1372,8 @@
       "file": "public/portal/scripts/core.js",
       "namespace": "platform",
       "references": 44,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 1,
+      "edits": 1
     },
     {
       "file": "public/portal/scripts/dev_overlay.js",
@@ -1113,8 +1386,8 @@
       "file": "public/portal/scripts/project_viewer.js",
       "namespace": "platform",
       "references": 0,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 1,
+      "edits": 1
     },
     {
       "file": "public/portal/scripts/topbar-artifacts.js",
@@ -1127,15 +1400,15 @@
       "file": "public/portal/scripts/topbar.js",
       "namespace": "platform",
       "references": 21,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 4,
+      "edits": 3
     },
     {
       "file": "public/customer_portal/customer_portal.js",
       "namespace": "customer-portal",
       "references": 334,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 1,
+      "edits": 1
     }
   ]
 }

@@ -58,8 +58,8 @@
           <div class="company-settings-card-head"><strong>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_6bb25348173069","Color palette") ?? "Color palette")}</strong><button type="button" class="company-settings-card-help" title="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_6cac172119f732","Primary and secondary style the interface. Supporting colors are available in visual editors.") ?? "Primary and secondary style the interface. Supporting colors are available in visual editors.")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_490cbf5945b3f8","About the company color palette") ?? "About the company color palette")}">ⓘ</button></div>
           <div class="company-settings-card-body">
             <div class="brand-color-main">
-              <div class="brand-color-control"><input type="color" class="cs-color" id="${id('Primary')}"><div class="brand-color-copy"><label for="${id('PrimaryHex')}">Primary</label><span class="cs-chip" id="${id('PrimaryChip')}"><span class="hash">#</span><input id="${id('PrimaryHex')}" maxlength="6" autocomplete="off" spellcheck="false"></span></div></div>
-              <div class="brand-color-control"><input type="color" class="cs-color" id="${id('Secondary')}"><div class="brand-color-copy"><label for="${id('SecondaryHex')}">Secondary</label><span class="cs-chip" id="${id('SecondaryChip')}"><span class="hash">#</span><input id="${id('SecondaryHex')}" maxlength="6" autocomplete="off" spellcheck="false"></span></div></div>
+              <div class="brand-color-control"><input type="color" class="cs-color" id="${id('Primary')}"><div class="brand-color-copy"><label for="${id('PrimaryHex')}">${(globalThis.PlatformLanguage?.htmlText("brand-kit","palette_primary","Primary") ?? "Primary")}</label><span class="cs-chip" id="${id('PrimaryChip')}"><span class="hash">#</span><input id="${id('PrimaryHex')}" maxlength="6" autocomplete="off" spellcheck="false"></span></div></div>
+              <div class="brand-color-control"><input type="color" class="cs-color" id="${id('Secondary')}"><div class="brand-color-copy"><label for="${id('SecondaryHex')}">${(globalThis.PlatformLanguage?.htmlText("brand-kit","palette_secondary","Secondary") ?? "Secondary")}</label><span class="cs-chip" id="${id('SecondaryChip')}"><span class="hash">#</span><input id="${id('SecondaryHex')}" maxlength="6" autocomplete="off" spellcheck="false"></span></div></div>
             </div>
             ${extendedPalette ? `<div class="brand-palette-strip" id="${id('PaletteStrip')}" aria-label="${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_629cca6181934e","Six-color company palette") ?? "Six-color company palette")}"></div>` : ''}<div class="palette-inline-footer"><button type="button" class="palette-regenerate" id="${id('GeneratePalette')}"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("brand-kit","m_695aa2f7da3152"," Regenerate palette from logo") ?? " Regenerate palette from logo")}</button></div>
           </div>
@@ -85,7 +85,17 @@
   function renderPalette(container, prefix, palette){
     const strip = container.querySelector(`#${prefix}PaletteStrip`);
     if (!strip) return;
-    strip.innerHTML = (palette || []).slice(0,6).map((color,index) => `<label class="brand-palette-swatch ${index < 2 ? 'blessed' : ''}" style="--swatch:${escape(color)};--swatch-text:${paletteTextColor(color)}" title="${index === 0 ? 'Primary' : index === 1 ? 'Secondary' : `Support ${index-1}`}: ${escape(color)}"><input type="color" data-palette-direct="${index}" value="${escape(color)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("brand-kit","m_953e4a6603f5f1",`Edit ${v7} color`,{v7}) ?? `Edit ${v7} color`)(index === 0 ? 'primary' : index === 1 ? 'secondary' : `support ${index-1}`)}"><span>${escape(color)}</span></label>`).join('');
+    strip.innerHTML = (palette || []).slice(0,6).map((color,index) => {
+      const titleKey = index === 0 ? 'palette_primary_title' : index === 1 ? 'palette_secondary_title' : 'palette_support_title';
+      const titleFallback = index === 0 ? 'Primary: {color}' : index === 1 ? 'Secondary: {color}' : 'Support {number}: {color}';
+      const editKey = index === 0 ? 'palette_edit_primary' : index === 1 ? 'palette_edit_secondary' : 'palette_edit_support';
+      const editFallback = index === 0 ? 'Edit primary color' : index === 1 ? 'Edit secondary color' : 'Edit support {number} color';
+      const values = { number:index-1, color };
+      const fallback = text => text.replace(/\{(number|color)\}/g,(_,key)=>String(values[key]));
+      const title = globalThis.PlatformLanguage?.text('brand-kit',titleKey,fallback(titleFallback),values) ?? fallback(titleFallback);
+      const edit = globalThis.PlatformLanguage?.text('brand-kit',editKey,fallback(editFallback),values) ?? fallback(editFallback);
+      return `<label class="brand-palette-swatch ${index < 2 ? 'blessed' : ''}" style="--swatch:${escape(color)};--swatch-text:${paletteTextColor(color)}" title="${escape(title)}"><input type="color" data-palette-direct="${index}" value="${escape(color)}" aria-label="${escape(edit)}"><span>${escape(color)}</span></label>`;
+    }).join('');
   }
   function renderLogoAppearance(container, prefix, value){
     const display = displayValue(value);

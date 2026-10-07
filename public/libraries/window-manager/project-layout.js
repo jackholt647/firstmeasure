@@ -86,7 +86,7 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
     function arrange(){
       dividers.forEach(el=>el.remove());dividers=[];
       order.forEach((item,i)=>{item.element.style.order=String(i*2);item.element.style.flex=`${item.weight} 1 0px`;if(i===order.length-1)return;
-        const divider=document.createElement('div');divider.className='r-project-divider';divider.tabIndex=0;divider.role='separator';divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label','Resize panes; double-click to swap');divider.setAttribute('aria-valuemin','15');divider.setAttribute('aria-valuemax','85');divider.setAttribute('aria-valuenow',String(Math.round(100*item.weight/(item.weight+order[i+1].weight))));divider.style.order=String(i*2+1);body.append(divider);dividers.push(divider);
+        const divider=document.createElement('div');divider.className='r-project-divider';divider.tabIndex=0;divider.role='separator';divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","resize_swap_panes","Resize panes; double-click to swap") ?? "Resize panes; double-click to swap"));divider.setAttribute('aria-valuemin','15');divider.setAttribute('aria-valuemax','85');divider.setAttribute('aria-valuenow',String(Math.round(100*item.weight/(item.weight+order[i+1].weight))));divider.style.order=String(i*2+1);body.append(divider);dividers.push(divider);
         const resize=ratio=>{const total=item.weight+order[i+1].weight;ratio=Math.max(.15,Math.min(.85,ratio));item.weight=total*ratio;order[i+1].weight=total*(1-ratio);item.element.style.flex=`${item.weight} 1 0px`;order[i+1].element.style.flex=`${order[i+1].weight} 1 0px`;divider.setAttribute('aria-valuenow',String(Math.round(ratio*100)));root.dispatchEvent(new Event('resize'));};
         divider.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();divider.setPointerCapture(e.pointerId);const a=item.element.getBoundingClientRect(),b=order[i+1].element.getBoundingClientRect(),start=e.clientX,width=a.width+b.width,ratio=a.width/width;body.classList.add('resizing');divider.onpointermove=ev=>resize(ratio+(ev.clientX-start)/width);const end=()=>{body.classList.remove('resizing');divider.onpointermove=null;};divider.onpointerup=end;divider.onpointercancel=end;divider.onlostpointercapture=end;};
         const swap=()=>{const a=order[i],b=order[i+1];[a.weight,b.weight]=[b.weight,a.weight];[order[i],order[i+1]]=[b,a];arrange();};divider.ondblclick=swap;divider.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();resize(item.weight/(item.weight+order[i+1].weight)+(e.key==='ArrowLeft'?-.05:.05));}else if(e.key==='Enter'){e.preventDefault();swap();}};
@@ -98,18 +98,18 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
       let item=find(id);
       if(!item){
         const token=crypto.randomUUID(),element=document.createElement('section'),frame=document.createElement('iframe'),status=document.createElement('div'),message=document.createElement('span'),close=document.createElement('button');
-        element.className='r-project-docked-pane';element.dataset.projectPane=id;frame.name='fm-project-pane:'+token;frame.title=tabLabel(id);frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');status.className='r-project-pane-status';message.textContent='Opening '+tabLabel(id)+'…';close.type='button';close.textContent='Close pane';status.append(message,close);element.append(frame,status);body.append(element);
+        element.className='r-project-docked-pane';element.dataset.projectPane=id;frame.name='fm-project-pane:'+token;frame.title=tabLabel(id);frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');status.className='r-project-pane-status';message.textContent=(globalThis.PlatformLanguage?.text("window-manager","opening_tab","Opening {tab}…",{tab:tabLabel(id)}) ?? `Opening ${tabLabel(id)}…`);close.type='button';close.textContent=(globalThis.PlatformLanguage?.text("window-manager","close_pane","Close pane") ?? "Close pane");status.append(message,close);element.append(frame,status);body.append(element);
         item={token,tab:id,element,frame,status,project:getProject(),weight:1,changed:updateSelection,focus:()=>{focused=item;},remove:()=>remove(item)};close.onclick=e=>{e.preventDefault();e.stopPropagation();item.remove();};element.addEventListener('pointerdown',()=>{focused=item;});children.set(token,item);order.push(item);
         const url=new URL(location.href);url.search='';url.hash='';url.searchParams.set('projectPane',token);frame.src=url.href;
-        item.timer=setTimeout(()=>{message.textContent='This pane is taking longer to load. You can close it and try again.';},45000);
+        item.timer=setTimeout(()=>{message.textContent=(globalThis.PlatformLanguage?.text("window-manager","pane_slow","This pane is taking longer to load. You can close it and try again.") ?? "This pane is taking longer to load. You can close it and try again.");},45000);
       }
       order=order.filter(p=>p!==item);side==='left'?order.unshift(item):order.push(item);arrange();
     }
     function onContext(e){
       const button=e.target.closest('[data-tab]');if(!button||!tabs.contains(button)||button.disabled||!config.splitTabs||pane)return;
       e.preventDefault();e.stopPropagation();closeMenu();menu=document.createElement('div');menu.className='r-project-tab-menu';menu.role='menu';
-      const options=[['Dock left','left',()=>dock(button.dataset.tab,'left')],['Dock right','right',()=>dock(button.dataset.tab,'right')]];
-      const existing=find(button.dataset.tab);if(existing&&!existing.main)options.push(['Close pane','close',()=>remove(existing)]);
+      const options=[[(globalThis.PlatformLanguage?.text("window-manager","dock_left","Dock left") ?? "Dock left"),'left',()=>dock(button.dataset.tab,'left')],[(globalThis.PlatformLanguage?.text("window-manager","dock_right","Dock right") ?? "Dock right"),'right',()=>dock(button.dataset.tab,'right')]];
+      const existing=find(button.dataset.tab);if(existing&&!existing.main)options.push([(globalThis.PlatformLanguage?.text("window-manager","close_pane","Close pane") ?? "Close pane"),'close',()=>remove(existing)]);
       for(const [label,icon,fn] of options){
         const option=document.createElement('button');option.type='button';option.role='menuitem';option.title=label;option.setAttribute('aria-label',label);
         option.innerHTML=icon==='close'?'<svg viewBox="0 0 24 20" aria-hidden="true"><path d="m6 4 12 12M18 4 6 16" fill="none" stroke="currentColor" stroke-width="2"/></svg>':`<svg viewBox="0 0 24 20" aria-hidden="true"><rect x="2" y="2" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 2v16" stroke="currentColor"/><rect x="${icon==='left'?4:14}" y="4" width="6" height="12" rx="1" fill="currentColor"/></svg>`;
@@ -154,7 +154,7 @@ html.project-content-pane .r-overlay.project-layout-prototype .r-contact-context
       if(item.tab!==tab)openTab(item);
     }).catch(()=>{
       if(item.closed||item.version!==version)return;
-      clearTimeout(item.timer);item.status.querySelector('span').textContent='Unable to open this tab. Close the pane and try again.';
+      clearTimeout(item.timer);item.status.querySelector('span').textContent=(globalThis.PlatformLanguage?.text("window-manager","pane_open_failed","Unable to open this tab. Close the pane and try again.") ?? "Unable to open this tab. Close the pane and try again.");
     });
   }
   function ready(token,child,api){

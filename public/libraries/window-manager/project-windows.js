@@ -184,23 +184,23 @@
     const token = root.crypto.randomUUID();
     const layer = document.createElement('div'); layer.className='fm-project-window-layer';layer.dataset.mode='modal';layer.dataset.projectWindow=token;
     const element = document.createElement('section');element.className='fm-project-frame';element.hidden=false;
-    const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || 'Project workspace'));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
+    const frame = document.createElement('iframe');frame.name='fm-project-window:'+token;frame.style.visibility='hidden';frame.setAttribute('aria-label',String(project?.title || project?.address || (globalThis.PlatformLanguage?.text("window-manager","project_workspace","Project workspace") ?? "Project workspace")));frame.setAttribute('allow','clipboard-write; microphone; camera; fullscreen');
     const loading = document.createElement('div');loading.className='fm-project-window-loading fm-entity-window';
     const header=document.createElement('header');header.className='fm-project-loading-header fm-shell-header';header.dataset.headerRows='2';header.dataset.windowMobile=String(root.matchMedia('(max-width:760px)').matches);
     const identityNode=document.createElement('div');identityNode.className='r-window-identity fm-shell-identity';identityNode.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i>';
     const title=document.createElement('span');title.className='fm-project-loading-title r-window-project-title';
-    title.textContent=String(project?.title || project?.project_title || project?.address || (projectId ? 'Project' : 'New Project'));
-    const identityTrigger=document.createElement('button');identityTrigger.type='button';identityTrigger.className='r-project-identity-trigger';identityTrigger.setAttribute('aria-label','Edit project contact and address');identityTrigger.append(title);
+    title.textContent=String(project?.title || project?.project_title || project?.address || (projectId ? (globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project") : (globalThis.PlatformLanguage?.text("window-manager","new_project","New Project") ?? "New Project")));
+    const identityTrigger=document.createElement('button');identityTrigger.type='button';identityTrigger.className='r-project-identity-trigger';identityTrigger.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","edit_project_identity","Edit project contact and address") ?? "Edit project contact and address"));identityTrigger.append(title);
     const pills=document.createElement('div');pills.className='r-project-stage-bar';
     identityNode.append(identityTrigger,pills);
     const controls=document.createElement('div');controls.className='r-window-bar-actions';
-    const tabs=document.createElement('nav');tabs.className='fm-shell-tabs';tabs.dataset.tabStyle='underline';tabs.setAttribute('aria-label','Project tabs');
-    const overview=document.createElement('button');overview.type='button';overview.dataset.tab='map';overview.innerHTML='<i class="fas fa-columns" aria-hidden="true"></i><span>Overview</span>';overview.setAttribute('aria-selected',String(!options.tab || options.tab==='map'));tabs.append(overview);
-    const trays=document.createElement('nav');trays.className='fm-project-tray-tabs';trays.setAttribute('role','tablist');trays.setAttribute('aria-label','Project trays');
+    const tabs=document.createElement('nav');tabs.className='fm-shell-tabs';tabs.dataset.tabStyle='underline';tabs.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","project_tabs","Project tabs") ?? "Project tabs"));
+    const overview=document.createElement('button');overview.type='button';overview.dataset.tab='map';overview.innerHTML='<i class="fas fa-columns" aria-hidden="true"></i>';const overviewLabel=document.createElement('span');overviewLabel.textContent=(globalThis.PlatformLanguage?.text("window-manager","overview","Overview") ?? "Overview");overview.append(overviewLabel);overview.setAttribute('aria-selected',String(!options.tab || options.tab==='map'));tabs.append(overview);
+    const trays=document.createElement('nav');trays.className='fm-project-tray-tabs';trays.setAttribute('role','tablist');trays.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","project_trays","Project trays") ?? "Project trays"));
     for(const [label,icon] of (root.FirstMateProjectTrays?.definitions?.() || []).map(item=>[item.label,item.icon.replace(/^fa-/, '')])){
-      const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-label',label);button.setAttribute('aria-selected','false');button.disabled=true;button.title=label+' - loading project';button.innerHTML='<i class="fas fa-'+icon+'" aria-hidden="true"></i>';trays.append(button);
+      const button=document.createElement('button');button.type='button';button.setAttribute('role','tab');button.setAttribute('aria-label',label);button.setAttribute('aria-selected','false');button.disabled=true;button.title=(globalThis.PlatformLanguage?.text("window-manager","tab_loading","{tab} - loading project",{tab:label}) ?? `${label} - loading project`);button.innerHTML='<i class="fas fa-'+icon+'" aria-hidden="true"></i>';trays.append(button);
     }
-    const status=document.createElement('span');status.textContent='Opening project…';status.setAttribute('role','status');
+    const status=document.createElement('span');status.textContent=(globalThis.PlatformLanguage?.text("window-manager","opening_project","Opening project…") ?? "Opening project…");status.setAttribute('role','status');
     header.append(identityNode,tabs,controls,trays);loading.append(header,status);
     const record={token,projectId,project,options,layer,element,frame,loading,controller:null,api:null,modal:null};
     const selectOpeningTab=id=>{
@@ -211,7 +211,7 @@
       if(record.shellVisible || !records.has(token))return;
       const focused=record.options.workflow==='report' && !identity(record.project);header.classList.toggle('fm-report-workflow-header',focused);
       const metadata=root.Portal?.modules?.request?.openingHeader?.(record.project || {},record.options);
-      if(!metadata){title.textContent=record.project?.title || record.project?.address || 'Project';return;}
+      if(!metadata){title.textContent=record.project?.title || record.project?.address || (globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project");return;}
       title.innerHTML=metadata.identityHtml;
       pills.innerHTML='<div class="r-project-tags">'+metadata.pillsHtml+'</div>';
       // These are the eventual controls; queue the action while the child boots.
@@ -265,7 +265,7 @@
     if(!header.classList.contains('flat-report-navigation'))root.FirstMateWindowShell?.revealTabs?.(tabs);
     attach(token,frame.contentWindow,{
       header,title,controlsHost:controls,customChrome:true,presentationModes:true,mobileFullscreen:true,allowFullscreen:false,viewportCoordinates:true,
-      name:'project',label:'Project',mode:'modal',width:1200,height:800,dockWidth:900,minWidth:360,minimizedHeight:32
+      name:'project',label:(globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project"),mode:'modal',width:1200,height:800,dockWidth:900,minWidth:360,minimizedHeight:32
     },true);
 
     const url=new URL(root.location.href);url.search='';url.hash='';url.searchParams.set('projectWindow',token);
@@ -290,7 +290,7 @@
     const record=records.get(token);if(!record || !accepts(token,child) || record.api)return;
     record.api=api;clearTimeout(record.timer);
     const relayUp=type=>()=>root.dispatchEvent(new CustomEvent(type,{detail:{redraw:true,fromProjectWindow:token}}));
-    child.addEventListener('fm:project-agent:state',event=>{const live=event.detail?.voice || event.detail?.pending || event.detail?.pinned;const icon=record.minimizedBar?.querySelector('i');if(icon){icon.className=live?'fas fa-headset':'fas fa-folder-open';icon.title=live?'Agent conversation active':'';icon.setAttribute('aria-label',live?'Agent conversation active':'Project');}});
+    child.addEventListener('fm:project-agent:state',event=>{const live=event.detail?.voice || event.detail?.pending || event.detail?.pinned;const icon=record.minimizedBar?.querySelector('i');if(icon){icon.className=live?'fas fa-headset':'fas fa-folder-open';icon.title=live?'Agent conversation active':'';icon.setAttribute('aria-label',live?'Agent conversation active':(globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project"));}});
     child.addEventListener('fm:projects:refresh',relayUp('fm:projects:refresh'));
     child.addEventListener('fm:calendar:refresh',relayUp('fm:calendar:refresh'));
     child.addEventListener('fm:project-schedule:changed',relayUp('fm:calendar:refresh'));
@@ -320,8 +320,8 @@
     record.minimizedBar?.remove();
     const bar=document.createElement('div');bar.className='fm-project-minimized-bar';bar.hidden=true;
     const title=document.createElement('button');title.type='button';title.className='fm-project-minimized-title';title.innerHTML='<i class="fas fa-folder-open" aria-hidden="true"></i><span></span>';
-    const restore=document.createElement('button');restore.type='button';restore.setAttribute('aria-label','Restore project');restore.innerHTML='<i class="fas fa-window-restore" aria-hidden="true"></i>';
-    const dismiss=document.createElement('button');dismiss.type='button';dismiss.setAttribute('aria-label','Close project');dismiss.innerHTML='<i class="fas fa-xmark" aria-hidden="true"></i>';
+    const restore=document.createElement('button');restore.type='button';restore.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","restore_project","Restore project") ?? "Restore project"));restore.innerHTML='<i class="fas fa-window-restore" aria-hidden="true"></i>';
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","close_project","Close project") ?? "Close project"));dismiss.innerHTML='<i class="fas fa-xmark" aria-hidden="true"></i>';
     title.onclick=restore.onclick=()=>{active=record;record.controller.restore();publishRoute(record);};dismiss.onclick=()=>close(token);bar.append(title,restore,dismiss);record.element.append(bar);record.minimizedBar=bar;
     function placement(state,notify=true){
       const minimized=state.mode==='minimized';bar.hidden=!minimized;

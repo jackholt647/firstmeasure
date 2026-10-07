@@ -31,7 +31,7 @@
   }
 
   function panelHtml(context = {}){
-    const projectNotesTip = 'For your own reference only.';
+    const projectNotesTip = (globalThis.PlatformLanguage?.text("firstmeasure","internal_notes_help","For your own reference only.") ?? "For your own reference only.");
     const expanded = Portal?.capabilities?.value?.('platform.expanded_access', false) === true;
     const buildTypeButtons = () => call(context, 'buildTypeButtons', '');
     const proposalsEnabled = () => !!call(context, 'proposalsEnabled', false);
@@ -61,7 +61,7 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
           <div class="r-contact-list" id="rContactList"></div>
           <button type="button" class="r-contact-add" id="rAddContact"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_50904398019722"," Add contact") ?? " Add contact")}</button>
         </div>
-        <div class="r-step is-open r-project-address-step" id="rStepAddress" data-status="active">
+        <div class="r-step is-open r-project-address-step" id="rStepAddress" data-localized-heading="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","project_address_heading","Project Address") ?? "Project Address")}" data-status="active">
           <div class="r-project-address-row">
             <input class="r-inp" id="rAddress" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_908c0715a481b7","Property address") ?? "Property address")}" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_908c0715a481b7","Property address") ?? "Property address")}" autocomplete="off" required>
           </div>
@@ -86,8 +86,8 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
     <div class="r-inline-notes-mount" id="rInlineNotesMount"></div>
     <div class="r-customer-portal-link" id="rCustomerPortalLinkMount"></div>
 
-    <section class="r-step is-open" id="rStepAddress" data-status="active">
-      <div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><div class="r-group"><label>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1f6129f59f143b","Property Address") ?? "Property Address")}</label><input class="r-inp" id="rAddress" aria-label="Property address" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_417e1dad6a313e","Start typing an address or click the map...") ?? "Start typing an address or click the map...")}" autocomplete="off" required></div></div></div></div>
+    <section class="r-step is-open" id="rStepAddress" data-localized-heading="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","project_address_heading","Project Address") ?? "Project Address")}" data-status="active">
+      <div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><div class="r-group"><label>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1f6129f59f143b","Property Address") ?? "Property Address")}</label><input class="r-inp" id="rAddress" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","property_address_accessible","Property address") ?? "Property address")}" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_417e1dad6a313e","Start typing an address or click the map...") ?? "Start typing an address or click the map...")}" autocomplete="off" required></div></div></div></div>
     </section>
 
     <section class="r-step is-hidden" id="rStepType" data-status="locked">
@@ -117,8 +117,8 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
           <div class="r-referral-discount" id="rReferralDiscount"></div>
           <div id="rMobilePinStage"><div class="r-confirm" id="rConfirm"><div class="ic" id="rConfirmIc"><i class="far fa-square"></i></div><div class="tx" id="rConfirmTx">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_93a548f13a353b","I have placed a pin on every structure to be included in this report") ?? "I have placed a pin on every structure to be included in this report")}</div></div><button type="button" id="rMobilePinNext" hidden>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_dc6a60d7bb3581","Next ") ?? "Next ")}<i class="fas fa-arrow-right" aria-hidden="true"></i></button></div>
           <div class="r-mobile-pin-count" id="rMobilePinCount">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_01da28763ca647","No pins placed") ?? "No pins placed")}</div>
-          <div class="r-group"><label>${((v3) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ea717c27aecafc",`Notes for Technician ${v3}`,{v3}) ?? `Notes for Technician ${v3}`)(infoTip('Any special instructions or details about the property that the technician should be aware of - e.g. detached garage, multiple buildings, steep slope, etc.'))}</label><textarea class="r-inp" id="rTechNotes" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1ac4cec881f322","Anything the technician should know about this property...") ?? "Anything the technician should know about this property...")}" rows="3" style="resize:vertical;min-height:72px;font-family:inherit;font-size:13px;line-height:1.45"></textarea></div>
-          <div class="r-group"><label>${((v4) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_88f39d3061e014",`CC for Reports ${v4}`,{v4}) ?? `CC for Reports ${v4}`)(infoTip('Additional email addresses that should receive the completed report.'))}</label><div class="r-cc-list" id="rCcList"></div><button type="button" class="r-cc-add" id="rCcAdd"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9adb5b7e4e80ed"," Add CC") ?? " Add CC")}</button></div>
+          <div class="r-group"><label>${((v3) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ea717c27aecafc",`Notes for Technician ${v3}`,{v3}) ?? `Notes for Technician ${v3}`)(infoTip((globalThis.PlatformLanguage?.text("firstmeasure","technician_notes_help","Any special instructions or details about the property that the technician should be aware of - e.g. detached garage, multiple buildings, steep slope, etc.") ?? "Any special instructions or details about the property that the technician should be aware of - e.g. detached garage, multiple buildings, steep slope, etc.")))}</label><textarea class="r-inp" id="rTechNotes" placeholder="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1ac4cec881f322","Anything the technician should know about this property...") ?? "Anything the technician should know about this property...")}" rows="3" style="resize:vertical;min-height:72px;font-family:inherit;font-size:13px;line-height:1.45"></textarea></div>
+          <div class="r-group"><label>${((v4) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_88f39d3061e014",`CC for Reports ${v4}`,{v4}) ?? `CC for Reports ${v4}`)(infoTip((globalThis.PlatformLanguage?.text("firstmeasure","report_cc_help","Additional email addresses that should receive the completed report.") ?? "Additional email addresses that should receive the completed report.")))}</label><div class="r-cc-list" id="rCcList"></div><button type="button" class="r-cc-add" id="rCcAdd"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9adb5b7e4e80ed"," Add CC") ?? " Add CC")}</button></div>
           <div class="r-mobile-internal-notes-mount" id="rMobileInternalNotesMount"></div>
           <label id="rInstantDevelopmentReport" class="r-addon-toggle r-addon-inline" hidden>
             <input type="checkbox" role="switch" id="rInstantDevelopmentCheck">

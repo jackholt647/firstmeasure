@@ -1,9 +1,10 @@
 /* Shared exterior report rendering. Geometry is metric; measurements are feet. */
 (function(root){
 'use strict';
+const reportText=(value,values={})=>root.ReportUnits?.current().text(value,values)??String(value).replace(/\{(\w+)\}/g,(all,key)=>Object.hasOwn(values,key)?String(values[key]):all);
 const metric=()=>!!root.ReportUnits?.current().metric;
 const measure=(value,kind,legacy,withUnit=true)=>metric()?(withUnit?root.ReportUnits.current().quantity(value,kind):root.ReportUnits.current().number(value,kind)):legacy;
-const unit=(kind,legacy)=>metric()?root.ReportUnits.current().unit(kind):legacy;
+const unit=(kind,legacy)=>metric()?root.ReportUnits.current().unit(kind):reportText(legacy);
 
 const K=typeof module==='object'&&module.exports?require('./exterior_geometry.js'):root.ExteriorGeometry;
 const directions=[['North',0,-1],['Northeast',Math.SQRT1_2,-Math.SQRT1_2],['East',1,0],['Southeast',Math.SQRT1_2,Math.SQRT1_2],['South',0,1],['Southwest',-Math.SQRT1_2,Math.SQRT1_2],['West',-1,0],['Northwest',-Math.SQRT1_2,-Math.SQRT1_2]].map(([name,x,y])=>({name,x,y}));
@@ -42,12 +43,12 @@ function drawOrientationKey(doc,model,settings,rect){
  const minX=Math.min(...all.map(p=>p.x)),maxX=Math.max(...all.map(p=>p.x)),minY=Math.min(...all.map(p=>p.y)),maxY=Math.max(...all.map(p=>p.y)),scale=r*1.6/Math.max(maxX-minX,maxY-minY,.01);
  doc.setFillColor(215,223,230);doc.setDrawColor(125,140,153);doc.setLineWidth(.2);
  for(const shape of ps){const q=shape.map(p=>({x:cx+(p.x-(minX+maxX)/2)*scale,y:cy+(p.y-(minY+maxY)/2)*scale}));doc.lines(q.slice(1).concat(q[0]).map((p,i)=>[p.x-q[i].x,p.y-q[i].y]),q[0].x,q[0].y,[1,1],'FD',true);}
- const a=frontBearing(settings)*Math.PI/180,ux=Math.sin(a),uy=-Math.cos(a);doc.setDrawColor(196,40,45);doc.setLineWidth(.7);doc.line(cx+ux*r*.65,cy+uy*r*.65,cx+ux*r*1.3,cy+uy*r*1.3);text('Front',cx+ux*r*1.8-3,cy+uy*r*1.8+1,5.5,true,[196,40,45]);text('Back',cx-ux*r*1.8-3,cy-uy*r*1.8+1,5.5,true);
+ const a=frontBearing(settings)*Math.PI/180,ux=Math.sin(a),uy=-Math.cos(a);doc.setDrawColor(196,40,45);doc.setLineWidth(.7);doc.line(cx+ux*r*.65,cy+uy*r*.65,cx+ux*r*1.3,cy+uy*r*1.3);text(reportText('Front'),cx+ux*r*1.8-3,cy+uy*r*1.8+1,5.5,true,[196,40,45]);text(reportText('Back'),cx-ux*r*1.8-3,cy-uy*r*1.8+1,5.5,true);
  const compassX=rect.x+rect.w*.72;doc.setDrawColor(75,87,100);doc.setLineWidth(.3);doc.line(compassX,cy-r,compassX,cy+r);doc.line(compassX-r,cy,compassX+r,cy);
- text('N',compassX-1,cy-r-1.5,6,true,[196,40,45]);text('S',compassX-1,cy+r+3,6);text('W',compassX-r-4,cy+1,6);text('E',compassX+r+1,cy+1,6);
- text(Number.isFinite(settings?.frontBearing)?'Front '+Math.round(frontBearing(settings))+' deg / North up':'Front direction not set',rect.x+1,rect.y+rect.h,6);
+ text(reportText('N'),compassX-1,cy-r-1.5,6,true,[196,40,45]);text(reportText('S'),compassX-1,cy+r+3,6);text(reportText('W'),compassX-r-4,cy+1,6);text(reportText('E'),compassX+r+1,cy+1,6);
+ text(Number.isFinite(settings?.frontBearing)?reportText('Front ')+Math.round(frontBearing(settings))+reportText(' deg / North up'):reportText('Front direction not set'),rect.x+1,rect.y+rect.h,6);
 }
-const number=v=>v>0&&v<.05?'<0.1':Number(v||0).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
+const number=v=>v>0&&v<.05?'<0.1':Number(v||0).toLocaleString(root.ReportUnits?.current().language||'en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
 const isTrim=a=>a.trim||/^trim-/.test(a.materialKey||'')||/\btrim\b/i.test(a.material||'');
 const centroid=ps=>ps.reduce((a,p)=>({x:a.x+p.x/ps.length,y:a.y+p.y/ps.length,z:a.z+(p.z||0)/ps.length}),{x:0,y:0,z:0});
 
@@ -130,10 +131,10 @@ function writer(doc,colors){
  const note=(value,y,width=w,px=x)=>{doc.setFont('Montserrat','normal');doc.setFontSize(8);const lines=doc.splitTextToSize(String(value),width);text(lines,px,y,8);return y+lines.length*4;};
  const table=(headers,rows,y,widths)=>{
   const weights=widths||headers.map(()=>1),cols=weights.map(v=>v/weights.reduce((a,b)=>a+b,0)*w);doc.setFillColor(accent.r,accent.g,accent.b);doc.roundedRect(x,y,w,9,1.5,1.5,'F');let px=x;
-  headers.forEach((h,i)=>{text(h,px+2,y+5.8,7.5,true,[255,255,255]);px+=cols[i];});y+=9;
+  headers.forEach((h,i)=>{text(reportText(h),px+2,y+5.8,7.5,true,[255,255,255]);px+=cols[i];});y+=9;
   rows.forEach((row,r)=>{if(r%2===0){doc.setFillColor(245,247,250);doc.rect(x,y,w,8,'F');}let px=x;row.forEach((v,i)=>{let str=String(v);doc.setFontSize(8);while(doc.getTextWidth(str)>cols[i]-4&&str.length>1)str=str.slice(0,-2)+'~';text(str,px+2,y+5.3,8);px+=cols[i];});y+=8;});return y;
  };
- const paginate=(begin,heading,headers,rows,widths,description)=>{let index=0;do{begin(heading+(index?' - continued':''));let y=38;if(description)y=note(description,y)+5;const count=Math.max(1,Math.floor((bottom-y-9)/8));if(rows.length)table(headers,rows.slice(index,index+count),y,widths);else note('No modeled openings are present in this snapshot.',y+12);index+=count;}while(index<rows.length);};
+ const paginate=(begin,heading,headers,rows,widths,description)=>{let index=0;do{begin(reportText(heading)+(index?reportText(' - continued'):''));let y=38;if(description)y=note(description,y)+5;const count=Math.max(1,Math.floor((bottom-y-9)/8));if(rows.length)table(headers,rows.slice(index,index+count),y,widths);else note(reportText('No modeled openings are present in this snapshot.'),y+12);index+=count;}while(index<rows.length);};
  return {x,w,bottom,accent,text,note,table,paginate};
 }
 function drawDiagram(doc,faces,rect,view,{dimensions=false,iso=false,labels=true}={}){
@@ -148,7 +149,7 @@ function drawDiagram(doc,faces,rect,view,{dimensions=false,iso=false,labels=true
  }
  if(dimensions)for(const face of faces){const ps=face.points.map(at),c=centroid(ps);for(let i=0;i<ps.length;i++){
   const p=ps[i],q=ps[(i+1)%ps.length];if(Math.hypot(q.x-p.x,q.y-p.y)<12)continue;
-  const feet=Math.hypot(...['x','y','z'].map(k=>face.points[i][k]-face.points[(i+1)%ps.length][k]))/.3048,label=measure(feet,"ft",number(feet)+"'"),mx=(p.x+q.x)/2,my=(p.y+q.y)/2,horizontal=Math.abs(q.x-p.x)>Math.abs(q.y-p.y);doc.setFontSize(6.5);const tw=doc.getTextWidth(label);text(label,mx+(horizontal?-tw/2:mx>c.x?2:-tw-2),my+(horizontal?(my>c.y?3.5:-2):1),6.5);
+  const feet=Math.hypot(...['x','y','z'].map(k=>face.points[i][k]-face.points[(i+1)%ps.length][k]))/.3048,label=measure(feet,"ft",number(feet)+"'"),mx=(p.x+q.x)/2,my=(p.y+q.y)/2,horizontal=Math.abs(q.x-p.x)>Math.abs(q.y-p.y);doc.setFontSize(6.5);const tw=doc.getTextWidth(label);text(reportText(label),mx+(horizontal?-tw/2:mx>c.x?2:-tw-2),my+(horizontal?(my>c.y?3.5:-2):1),6.5);
  }}
  return scene;
 }
@@ -156,50 +157,50 @@ const houseFaces=model=>[...model.walls,...(model.returns||[]).map(f=>({...f,id:
 function coverView(model){const principal=model.walls.reduce((a,b)=>b.gross>a.gross?b:a,model.walls[0]).normal,angle=Math.atan2(principal.y,principal.x)+Math.PI/4;return {x:Math.cos(angle),y:Math.sin(angle)};}
 function drawExteriorCover(doc,model,rect,settings={}){drawDiagram(doc,houseFaces(model),{...rect,h:rect.h-28},coverView(model),{iso:true,labels:false});drawOrientationKey(doc,model,settings,{x:rect.x+rect.w/2-28,y:rect.y+rect.h-27,w:56,h:24});}
 function drawRoofElevations(doc,model,settings,begin,colors){
- const {x,w,bottom,text}=writer(doc,colors),gap=6,ww=(w-gap)/2,hh=(bottom-37-gap)/2;begin('Roof Elevations');
- houseDirections(settings).slice(4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(view.name,xx+2,yy+5,10,true);drawDiagram(doc,(model.roof||[]).map(f=>({...f,surface:'roof',id:''})),{x:xx,y:yy+10,w:ww,h:hh-12},view,{iso:true,labels:false});});
+ const {x,w,bottom,text}=writer(doc,colors),gap=6,ww=(w-gap)/2,hh=(bottom-37-gap)/2;begin(reportText('Roof Elevations'));
+ houseDirections(settings).slice(4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(reportText(view.name),xx+2,yy+5,10,true);drawDiagram(doc,(model.roof||[]).map(f=>({...f,surface:'roof',id:''})),{x:xx,y:yy+10,w:ww,h:hh-12},view,{iso:true,labels:false});});
 }
 function drawExteriorReportPages(doc,model,settings,begin,colors){
- const {x,w,bottom,text,note,table,paginate}=writer(doc,colors),material=a=>a.material||'Unassigned';
- begin('Exterior Summary');let y=38;
+ const {x,w,bottom,text,note,table,paginate}=writer(doc,colors),material=a=>reportText(a.material||'Unassigned');
+ begin(reportText('Exterior Summary'));let y=38;
  [['Net wall area',measure(model.totals.net,"sf",number(model.totals.net)+' sq ft')],['Gross wall area',measure(model.totals.gross,"sf",number(model.totals.gross)+' sq ft')],['Openings',String(model.openings.length)]].forEach(([label,value],i)=>{const bx=x+i*(w+3)/3;doc.setFillColor(242,245,249);doc.roundedRect(bx,y,(w-6)/3,23,2,2,'F');text(label,bx+4,y+7,8);text(value,bx+4,y+17,12,true);});
  drawDiagram(doc,houseFaces(model),{x,y:68,w,h:111},coverView(model),{iso:true});
- table(['Measurement','Quantity'],[['Wall regions',model.walls.length],['Opening area',measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],['Opening perimeter',measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],['Horizontal returns',measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],188,[2,1]);note('Wall IDs connect the diagrams, dimensions, opening schedule and notes.',240);
+ table([reportText('Measurement'),reportText('Quantity')],[[reportText('Wall regions'),model.walls.length],[reportText('Opening area'),measure(model.totals.openingArea,"sf",number(model.totals.openingArea)+' sq ft')],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)+' '+unit('ft','ft')],[reportText('Horizontal returns'),measure(model.totals.returns,"sf",number(model.totals.returns)+' sq ft')]],188,[2,1]);note(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes.'),240);
  for(const direction of houseDirections(settings)){
-  begin(direction.name+' Elevation');drawOrientationKey(doc,model,settings,{x:x+w-58,y:31,w:56,h:27});const scene=drawDiagram(doc,model.walls.concat(model.returns||[]),{x,y:63,w,h:85},direction);
+  begin(reportText(direction.name)+reportText(' Elevation'));drawOrientationKey(doc,model,settings,{x:x+w-58,y:31,w:56,h:27});const scene=drawDiagram(doc,model.walls.concat(model.returns||[]),{x,y:63,w,h:85},direction);
   const visible=new Set(scene.surfaces.filter((f,i)=>!f.featureType&&scene.counts[i]>20).map(f=>f.id)),walls=model.walls.filter(a=>visible.has(a.id));
-  y=note('Visible walls are listed below. Areas are measured on each wall plane; the diagram is an orthographic projection.',155)+3;let index=0;
-  do{if(index){begin(direction.name+' Elevation - continued');y=note('Wall data continued. See the first '+direction.name.toLowerCase()+' elevation page for the diagram.',38)+5;}
-   const count=Math.max(1,Math.floor((bottom-y-9)/8));if(walls.length)table(['Wall','Material',(metric()?'Gross m²':'Gross ft2'),(metric()?'Open m²':'Open ft2'),(metric()?'Net m²':'Net ft2')],walls.slice(index,index+count).map(a=>[a.id,material(a),measure(a.gross,"sf",number(a.gross),false),measure(a.openingArea,"sf",number(a.openingArea),false),measure(a.net,"sf",number(a.net),false)]),y,[1,2.1,1.5,1.5,1.5]);else note('No wall surface is visible from this direction.',y+10);index+=count;
+  y=note(reportText('Visible walls are listed below. Areas are measured on each wall plane; the diagram is an orthographic projection.'),155)+3;let index=0;
+  do{if(index){begin(reportText(direction.name)+reportText(' Elevation - continued'));y=note(reportText('Wall data continued. See the first ')+reportText(direction.name)+reportText(' elevation page for the diagram.'),38)+5;}
+   const count=Math.max(1,Math.floor((bottom-y-9)/8));if(walls.length)table([reportText('Wall'),reportText('Material'),(metric()?'Gross m²':'Gross ft2'),(metric()?'Open m²':'Open ft2'),(metric()?'Net m²':'Net ft2')],walls.slice(index,index+count).map(a=>[a.id,material(a),measure(a.gross,"sf",number(a.gross),false),measure(a.openingArea,"sf",number(a.openingArea),false),measure(a.net,"sf",number(a.net),false)]),y,[1,2.1,1.5,1.5,1.5]);else note(reportText('No wall surface is visible from this direction.'),y+10);index+=count;
   }while(index<walls.length);
  }
  for(const [heading,faces]of [['Wall Dimensions',model.walls.filter(a=>!isTrim(a))],['Trim Dimensions',model.walls.filter(isTrim)]]){
-  dimensionPages(faces).forEach((page,i)=>{begin(heading+(i?' - continued':''));page.forEach(panel=>{
+  dimensionPages(faces).forEach((page,i)=>{begin(reportText(heading)+(i?reportText(' - continued'):''));page.forEach(panel=>{
    const a=panel.face,xx=x+panel.x*w+1,yy=36+panel.y*(bottom-36),ww=panel.w*w-3,hh=panel.h*(bottom-36)-4;
-   text(a.id+' / '+relativeSide(a.normal,settings),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+' net',xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true});
-   text('W '+measure(a.width,"ft",number(a.width)+"'")+"  x  H "+measure(a.height,"ft",number(a.height)+"'"),xx+2,yy+hh-5,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,yy+hh,6.5);
+   text(a.id+' / '+reportText(relativeSide(a.normal,settings)),xx+1,yy+5,ww<60?8:10,true);text(measure(a.net,'sf',number(a.net)+' sq ft')+reportText(' net'),xx+1,yy+10,7.5);drawDiagram(doc,[a],{x:xx,y:yy+13,w:ww,h:hh-25},a.normal,{dimensions:true});
+   text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,yy+hh-5,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,yy+hh,6.5);
   });});
  }
- paginate(begin,'Opening Schedule',['Opening','Type','Wall',(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,o.label,o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),measure(o.perimeter,"ft",number(o.perimeter),false)]),[1.4,1.9,1,2,1.3,1.3],'Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim '+unit('ft','ft')+' is the opening perimeter.');
+ paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),measure(o.perimeter,"ft",number(o.perimeter),false)]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is the opening perimeter.', {value1:unit('ft','ft')}));
  const byMaterial={};model.walls.forEach(a=>byMaterial[material(a)]=(byMaterial[material(a)]||0)+a.net);
- begin('Exterior Quantities');text('Measured lengths',x,38,12,true);y=table(['Quantity',unit('ft','Feet')],[['Top of walls',measure(model.totals.top,"ft",number(model.totals.top),false)],['Bottom of walls',measure(model.totals.bottom,"ft",number(model.totals.bottom),false)],['Inside corners',measure(model.totals.inside,"ft",number(model.totals.inside),false)],['Outside corners',measure(model.totals.outside,"ft",number(model.totals.outside),false)],['Opening perimeter',measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)],['Material transitions',measure(model.totals.transitions,"ft",number(model.totals.transitions),false)],['Exposed vertical terminations',measure(model.totals.terminations,"ft",number(model.totals.terminations),false)]],44,[3,1]);
- const materialRows=Object.entries(byMaterial).map(([k,v])=>metric()?[k,measure(v,"sf",number(v),false)]:[k,number(v),number(v/100)]);text('Net area by material',x,y+12,12,true);y+=18;
- for(let i=0;i<materialRows.length;){const count=Math.max(1,Math.floor((bottom-y-9)/8));table(metric()?['Material','Area (m²)']:['Material','Area (sq ft)','Squares'],materialRows.slice(i,i+count),y,[2,1,1]);i+=count;if(i<materialRows.length){begin('Exterior Quantities - continued');y=38;}}
+ begin(reportText('Exterior Quantities'));text(reportText('Measured lengths'),x,38,12,true);y=table([reportText('Quantity'),unit('ft','Feet')],[[reportText('Top of walls'),measure(model.totals.top,"ft",number(model.totals.top),false)],[reportText('Bottom of walls'),measure(model.totals.bottom,"ft",number(model.totals.bottom),false)],[reportText('Inside corners'),measure(model.totals.inside,"ft",number(model.totals.inside),false)],[reportText('Outside corners'),measure(model.totals.outside,"ft",number(model.totals.outside),false)],[reportText('Opening perimeter'),measure(model.totals.openingPerimeter,"ft",number(model.totals.openingPerimeter),false)],[reportText('Material transitions'),measure(model.totals.transitions,"ft",number(model.totals.transitions),false)],[reportText('Exposed vertical terminations'),measure(model.totals.terminations,"ft",number(model.totals.terminations),false)]],44,[3,1]);
+ const materialRows=Object.entries(byMaterial).map(([k,v])=>metric()?[k,measure(v,"sf",number(v),false)]:[k,number(v),number(v/100)]);text(reportText('Net area by material'),x,y+12,12,true);y+=18;
+ for(let i=0;i<materialRows.length;){const count=Math.max(1,Math.floor((bottom-y-9)/8));table(metric()?[reportText('Material'),reportText('Area (m²)')]:[reportText('Material'),reportText('Area (sq ft)'),reportText('Squares')],materialRows.slice(i,i+count),y,[2,1,1]);i+=count;if(i<materialRows.length){begin(reportText('Exterior Quantities - continued'));y=38;}}
  // Keep measured quantities above; material allowances require imperial estimates.
  if(metric())return;
  const waste=[0,5,10,15,20];
  for(const [label,divisor]of (metric()?[['Area including waste (m²)',1]]:[['Area including waste (sq ft)',1],['Squares including waste',100]])){
   const rows=Object.entries(byMaterial).map(([k,v])=>[k,...waste.map(p=>measure(v*(1+p/100)/divisor,"sf",number(v*(1+p/100)/divisor),false))]);
-  if(divisor===1){begin('Material Allowances');y=38;}if(y+16+rows.length*8>bottom&&y>38){begin('Material Allowances - continued');y=38;}
-  text(label,x,y,12,true);y+=7;let i=0;while(i<rows.length){const count=Math.max(1,Math.floor((bottom-y-9)/8));y=table(['Material',...waste.map(v=>v+'%')],rows.slice(i,i+count),y,[2,1,1,1,1,1]);i+=count;if(i<rows.length){begin('Material Allowances - continued');y=38;}}y+=14;
+  if(divisor===1){begin(reportText('Material Allowances'));y=38;}if(y+16+rows.length*8>bottom&&y>38){begin(reportText('Material Allowances - continued'));y=38;}
+  text(label,x,y,12,true);y+=7;let i=0;while(i<rows.length){const count=Math.max(1,Math.floor((bottom-y-9)/8));y=table([reportText('Material'),...waste.map(v=>v+'%')],rows.slice(i,i+count),y,[2,1,1,1,1,1]);i+=count;if(i<rows.length){begin(reportText('Material Allowances - continued'));y=38;}}y+=14;
  }
- if(y+12>bottom){begin('Material Allowances - continued');y=38;}note('Waste percentages are comparison allowances applied to net wall area. Horizontal returns are measured separately.',y);
+ if(y+12>bottom){begin(reportText('Material Allowances - continued'));y=38;}note(reportText('Waste percentages are comparison allowances applied to net wall area. Horizontal returns are measured separately.'),y);
 }
 function drawExteriorNotes(doc,model,settings,begin,colors){
- const {x,w,bottom,text}=writer(doc,colors);begin('Wall Notes');const gridHeight=(bottom-37)*.65,gap=4,ww=(w-gap)/2,hh=(gridHeight-gap)/2;
- houseDirections(settings).slice(0,4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(view.name,xx+2,yy+4,9,true);drawDiagram(doc,model.walls.concat(model.returns||[]),{x:xx,y:yy+7,w:ww,h:hh-8},view);});
- let y=37+gridHeight+6;text('STRUCTURE NOTES / WALL REFERENCES',x+3,y,9,true);y+=7;const notes=String(settings.notes||'').trim(),paragraphs=[...(notes?[notes]:[]),...(model.warnings||[]).map(n=>'Review: '+n)];
- for(const paragraph of paragraphs){doc.setFontSize(8);const lines=doc.splitTextToSize(paragraph,w-6);for(const line of lines){if(y>bottom-8){begin('Wall Notes - continued');y=38;}text(line,x+3,y,8);y+=4;}y+=3;}
+ const {x,w,bottom,text}=writer(doc,colors);begin(reportText('Wall Notes'));const gridHeight=(bottom-37)*.65,gap=4,ww=(w-gap)/2,hh=(gridHeight-gap)/2;
+ houseDirections(settings).slice(0,4).forEach((view,i)=>{const xx=x+i%2*(ww+gap),yy=37+Math.floor(i/2)*(hh+gap);text(reportText(view.name),xx+2,yy+4,9,true);drawDiagram(doc,model.walls.concat(model.returns||[]),{x:xx,y:yy+7,w:ww,h:hh-8},view);});
+ let y=37+gridHeight+6;text(reportText('STRUCTURE NOTES / WALL REFERENCES'),x+3,y,9,true);y+=7;const notes=String(settings.notes||'').trim(),paragraphs=[...(notes?[notes]:[]),...(model.warnings||[]).map(n=>reportText('Review: ')+reportText(n))];
+ for(const paragraph of paragraphs){doc.setFontSize(8);const lines=doc.splitTextToSize(paragraph,w-6);for(const line of lines){if(y>bottom-8){begin(reportText('Wall Notes - continued'));y=38;}text(line,x+3,y,8);y+=4;}y+=3;}
  doc.setDrawColor(220,228,240);doc.setLineWidth(.25);for(let lineY=y+6;lineY<bottom;lineY+=8)doc.line(x+3,lineY,x+w-3,lineY);
 }
 async function loadReportImage(item,state){
@@ -224,12 +225,12 @@ async function prepareImagerySnapshot(snapshot){
 async function drawReportImagery(doc,state,begin,colors){
  const selected=selectedPhotos(state.exteriorSettings),order=photoSlots.map(s=>s.name);
  const images=selected.slice().sort((a,b)=>{const rank=i=>order.includes(i.direction)?order.indexOf(i.direction):8;return rank(a)-rank(b);}),{x,w,bottom,text}=writer(doc,colors),gap=6,ww=(w-gap)/2,hh=(bottom-38-gap)/2;
- for(let i=0;i<images.length;i+=4){begin('Exterior Images'+(images.length>4?' - '+(i/4+1):''));for(const [j,item]of images.slice(i,i+4).entries()){
+ for(let i=0;i<images.length;i+=4){begin(reportText('Exterior Images')+(images.length>4?' - '+(i/4+1):''));for(const [j,item]of images.slice(i,i+4).entries()){
   const xx=x+j%2*(ww+gap),yy=38+Math.floor(j/2)*(hh+gap);
-  if(item.missing){text(item.direction,xx,yy+4,10,true);doc.setFillColor(246,248,250);doc.roundedRect(xx,yy+9,ww,hh-22,2,2,'F');text('Photo not assigned',xx+5,yy+hh/2,9);continue;}
+  if(item.missing){text(reportText(item.direction),xx,yy+4,10,true);doc.setFillColor(246,248,250);doc.roundedRect(xx,yy+9,ww,hh-22,2,2,'F');text(reportText('Photo not assigned'),xx+5,yy+hh/2,9);continue;}
   const img=await loadReportImage(item,state);
-  text(item.direction||'Reference image',xx,yy+4,10,true);const boxH=hh-22,scale=Math.min(ww/img.naturalWidth,boxH/img.naturalHeight),iw=img.naturalWidth*scale,ih=img.naturalHeight*scale;
-  doc.addImage(item.dataUrl||reportImageData(img),'JPEG',xx+(ww-iw)/2,yy+9+(boxH-ih)/2,iw,ih);doc.setFontSize(7);text(doc.splitTextToSize(item.label||'Untitled frame',ww).slice(0,2),xx,yy+hh-8,7);
+  text(reportText(item.direction)||reportText('Reference image'),xx,yy+4,10,true);const boxH=hh-22,scale=Math.min(ww/img.naturalWidth,boxH/img.naturalHeight),iw=img.naturalWidth*scale,ih=img.naturalHeight*scale;
+  doc.addImage(item.dataUrl||reportImageData(img),'JPEG',xx+(ww-iw)/2,yy+9+(boxH-ih)/2,iw,ih);doc.setFontSize(7);text(doc.splitTextToSize(item.label||reportText('Untitled frame'),ww).slice(0,2),xx,yy+hh-8,7);
  }}
 }
 const api={directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,rasterScene,drawDiagram,drawOrientationKey,drawRoofElevations,drawExteriorCover,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};

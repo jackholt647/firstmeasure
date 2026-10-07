@@ -26,6 +26,18 @@ test("ICU plurals, values, fallback and tenant isolation", () => {
   assert.equal(gb.text("shared","count","safe fallback"),"safe fallback");
 });
 
+test("non-English catalog gaps are reported once while retaining English fallback", () => {
+  const missing:string[]=[];
+  const ja=createLanguage(resolveContext({locale:"ja-JP"}), key=>missing.push(key));
+  ja.register({version:"0123456789abcdef",namespaces:{settings:{"en-US":{preview:"Report preview"},"ja-JP":{}}}});
+  assert.equal(ja.text("settings","preview"),"Report preview");
+  assert.equal(ja.text("settings","preview"),"Report preview");
+  assert.deepEqual(missing,["settings.preview"]);
+  ja.register({version:"0123456789abcdee",namespaces:{settings:{"en-US":{preview:"Report preview"},"ja-JP":{preview:"レポートプレビュー"}}}});
+  assert.equal(ja.text("settings","preview"),"レポートプレビュー");
+  assert.equal(missing.length,1);
+});
+
 test("terminology remains scoped to locale and snapshots are detached", () => {
   const mappings={labels:{ui:{projects:"Jobs"}},localized_labels:{"en-GB":{ui:{projects:"Works"}}}};
   const gb=createLanguage(resolveContext({locale:"en-GB"})),us=createLanguage();

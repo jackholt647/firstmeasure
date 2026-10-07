@@ -44,7 +44,78 @@
     "m_5a3dca8919c4c0": "Ingen belastning er bekreftet ennå.",
     "m_c5e73b482b12dd": "Kreditten er oppdatert",
     "m_60fa00527e725c": "Tilgang avslått",
-    "m_ef03abbb9958f0": "Du har ikke tillatelse til å administrere fakturering."
+    "m_ef03abbb9958f0": "Du har ikke tillatelse til å administrere fakturering.",
+    "credit_amount_help": "Du kan justere hvor mye kreditt som legges til kontoen din, med pluss- og minusknappene.",
+    "credit_today": "Kreditt som legges til i dag",
+    "credit_to_add": "Kreditt som skal legges til",
+    "more_credit_needed": "Mer kreditt er nødvendig",
+    "first_report_thanks": "Takk for at du prøver FirstMeasure.",
+    "first_report_load": "Fyll på kontoen for den første rapporten.",
+    "pay_report": "Legg til kreditt på kontoen for å betale for denne rapporten.",
+    "first_report_ready": "Du har ikke mottatt en ferdig rapport ennå. Legg til kreditt nå, så er den første bestillingen klar når du trenger den.",
+    "your_roof_report": "Takrapporten din",
+    "no_completed_reports": "Ingen ferdige rapporter ennå",
+    "needed_for_order": "Nødvendig for bestillingen",
+    "first_report_from": "Første rapport fra",
+    "difference": "Forskjell",
+    "credit_to_add_lower": "Kreditt som skal legges til",
+    "automatic_order": "Når betalingen er gjennomført, sendes denne rapportbestillingen automatisk. Du trenger ikke å bestille den på nytt.",
+    "first_report_credit_available": "Denne kreditten blir tilgjengelig for din første rapportbestilling.",
+    "credit_before_first_report": "Legg til kreditt før du bestiller den første rapporten.",
+    "checking_balance_order": "Sjekker saldoen din. Det trengs mer kreditt for å fullføre denne bestillingen.",
+    "checking_balance": "Sjekker saldoen din.",
+    "checkout_failed": "Kunne ikke starte betalingen.",
+    "opening_stripe": "Åpner Stripe …",
+    "this_purchase": "dette kjøpet",
+    "balance_first_report": {
+      "message": "Saldoen din er {balance}. Legg til kreditt før du bestiller den første rapporten.",
+      "format": "icu"
+    },
+    "balance_credit_needed": {
+      "message": "Saldoen din er {balance}. Det trengs mer kreditt for å fullføre denne bestillingen.",
+      "format": "icu"
+    },
+    "top_up_purchase": {
+      "message": "Fyll på kontoen for å fullføre {purchase}.",
+      "format": "icu"
+    },
+    "balance_top_up_purchase": {
+      "message": "Saldoen din er {balance}. Fyll på kontoen for å fullføre {purchase}.",
+      "format": "icu"
+    },
+    "your_balance": {
+      "message": "Saldoen din er {balance}.",
+      "format": "icu"
+    },
+    "report_checkout": "Betaling for rapport",
+    "first_report_checkout": "Betaling for første rapport",
+    "first_account_load": "Første påfylling av konto",
+    "redirecting": "Sender deg videre",
+    "saving": "Lagrer",
+    "loading": "Laster",
+    "yes": "Ja",
+    "no": "Nei",
+    "commercial": "Næring",
+    "multifamily": "Flerbolig",
+    "residential": "Bolig",
+    "full_house_included": "Hele huset · tak og takrenner inkludert",
+    "roof_gutters": "Tak og takrenner",
+    "roof_only": "Kun tak",
+    "standard": "Standard",
+    "standard_instant": "Standard + umiddelbar rapport",
+    "auto_top_up_summary": {
+      "message": "Legg til {credit} når saldoen faller under {threshold}. Hver automatiske påfylling belastes med {charge}. {estimate}",
+      "format": "icu"
+    },
+    "insufficient_credit_amount": {
+      "message": "Denne kreditten er ikke nok til å bestille rapporten. Du må legge til minst {amount} for å dekke kostnaden for rapporten.",
+      "format": "icu"
+    },
+    "discount_price": {
+      "message": "{price} (spar {saving})",
+      "format": "icu"
+    },
+    "catalog_load_failed": "Kunne ikke laste inn betalingsinformasjonen. Prøv igjen."
   },
   "canvassing": {
     "m_61df468d92e238": "Alle",
@@ -1776,7 +1847,353 @@
     },
     "m_d2a894582092f8": "Bare tak",
     "m_0980d65c27cd2f": "Hele bygningen",
-    "m_09612fd6ab85db": "Rapportomfang"
+    "m_09612fd6ab85db": "Rapportomfang",
+    "m_dc6a60d7bb3581": "Neste ",
+    "m_76f61845dd2aea": "GATE",
+    "m_e4b02dd6cf2314": "Veiledning for husets vinkler",
+    "m_48cd840a98035f": "Last opp",
+    "m_86d43ca533f4ae": "Prøv kameraet på nytt",
+    "m_8247c56c226358": "Direkte forhåndsvisning fra kameraet på baksiden",
+    "m_c7a97e0bb50632": "Last opp bilder",
+    "m_1a58fdc6bb20bf": "Bilder av denne vinkelen",
+    "m_6555da398c64e6": "Ta bilde",
+    "m_014da584de30ed": {
+      "message": "Hus {v0} · visning {v1} av 8",
+      "format": "icu"
+    },
+    "m_8ac00bef24971e": {
+      "message": "{v0} av huset",
+      "format": "icu"
+    },
+    "m_acb62edbd19fa2": {
+      "message": "{v0} av huset; forsiden vender mot gaten",
+      "format": "icu"
+    },
+    "m_2436076ece8629": "Primær",
+    "m_48a9cdd2af44f4": "Prøv igjen",
+    "m_173c36d4fce52b": "Laster opp bilde",
+    "m_06170cce538389": "Fjern bilde",
+    "m_9389ebcecf7d63": {
+      "message": "{v0} bilde{v1}",
+      "format": "icu"
+    },
+    "m_711bf09bbd2160": "Referansebilder av utsiden",
+    "m_1ca9bec888658a": "Bilder lastet opp av utsiden",
+    "m_acaf0eb128605e": "Slipp bilder her for å laste dem opp",
+    "m_42e91ae7dddc18": "Laster bilder …",
+    "m_8941c9a5445fb9": "Opplastinger av utsiden",
+    "m_cad1a6c79c9cf3": {
+      "message": "{v0} bilder",
+      "format": "icu"
+    },
+    "m_26bd8e451be239": {
+      "message": "{v1} tilordnet",
+      "format": "icu"
+    },
+    "m_a69623abe7dd91": {
+      "message": "Laster opp {v3} bilde{v4}",
+      "format": "icu"
+    },
+    "m_5b239bae30cb96": {
+      "message": "{v1} ikke tilordnet{v2}",
+      "format": "icu"
+    },
+    "m_a3dc6534fc81dc": "Vis alle bilder",
+    "m_9138e9cdd68343": "Dra bilder hit",
+    "m_bf0345adc5299e": "Påkrevde vinkler",
+    "m_02b18934a68584": "Flere bilder",
+    "m_8411c93e5b0adf": "Totalt antall bilder",
+    "m_be4cfb58b9c4d7": "Bilder",
+    "m_0dc366a939cb1d": "Konstruksjon",
+    "m_a32cdb9d1056f2": "Trykk på en posisjon nedenfor for å tilordne.",
+    "m_05a79c7def4dac": "Behold som ekstra",
+    "m_59741c3f6d31f8": "Fjern markering",
+    "m_9506f115fde6af": "BAKSIDE",
+    "m_4042bd99ed30d1": "FORSIDE ↓",
+    "m_9e22418c14100e": "Huset sett ovenfra, med forsiden nederst",
+    "m_7665c7cfa6ea36": {
+      "message": "{v4} {v5} bilde",
+      "format": "icu"
+    },
+    "m_84b311b1332f3c": "Trykk for å laste opp",
+    "m_484b63459c1357": "Estimert ventetid akkurat nå",
+    "m_7b8bab306cc5c2": {
+      "message": "Estimert {v2} timer",
+      "format": "icu"
+    },
+    "m_1d63663ae56e2a": "18 timer",
+    "m_e731322b674a97": "24 timer",
+    "m_e7f79de4539e22": {
+      "message": "{v5} per bygning + valgt leveringsgebyr{v6}",
+      "format": "icu"
+    },
+    "m_29ee01b139b644": "Laster inn priser …",
+    "m_f27fa22720bb9a": "Eiendom",
+    "m_dccbe8abe35b17": "Eiendomstype",
+    "m_ae8e4953e07d70": "Kunde",
+    "m_3fd6a5025f8036": "Rapportdetaljer",
+    "m_9b208988dee1f1": "Slipp for å laste opp bilder",
+    "m_50904398019722": " Legg til kontakt",
+    "m_c9a026ebb1be8c": "Eiendomstype",
+    "m_908c0715a481b7": "Eiendommens adresse",
+    "m_1f6129f59f143b": "Eiendommens adresse",
+    "m_29f3cc51016963": "Prosjekttype",
+    "m_417e1dad6a313e": "Begynn å skrive en adresse, eller klikk på kartet …",
+    "m_5c6d435494fefd": "Lag et tilbud",
+    "m_e5aee059bf2f35": "Avtal en time",
+    "m_bd6349111bdda5": "Tilbudsagent",
+    "m_a2d8046f355c56": "Lag et tilbudsutkast",
+    "m_289b2e5bec972c": "Bruk instruksjonen til å beskrive arbeidsomfanget, tonen, inkluderte bilder og hva kunden skal se.",
+    "m_7ceca87ce420be": "Slå Tilbudsagent av eller på",
+    "m_84f47d747cfe44": "Fortell Tilbudsagent hva som skal være med i dette tilbudet …",
+    "m_18fc56365bd838": "Dikter instruksjon",
+    "m_09ee09a435f087": "Nyeste først",
+    "m_5a704a0a365cf0": "Eldste først",
+    "m_971bee4a6a3550": "Legg til notat ",
+    "m_5e715bf9880366": "Hvem kan se dette?",
+    "m_d068fb68fb07d2": "Alle",
+    "m_3fe33cd11f8a29": "Historikk",
+    "m_fa1d10be2766ee": " Legg til notat",
+    "m_6643d210319486": "Filtrer notater",
+    "m_5bfaf42a1f7ef2": "Sorter notater",
+    "m_81cd5cfdb71ce1": "Velg hvem som kan se dette notatet",
+    "m_3bad1b1f1d93ba": "Legg til et internt notat … Bruk @navn eller @e-post for å tagge noen.",
+    "m_14d6270ea986dc": "Vis notathistorikk",
+    "m_d3fd8350167dd9": "Last opp medier til notatet",
+    "m_dd978d5c5b3bd9": "Spill inn lydnotat",
+    "m_5bbba2df4ff973": "Interne notater ",
+    "m_2b31fcca2dfee1": "Utvid interne notater",
+    "m_69afca2b27d860": "Interne notater til eget bruk …",
+    "m_3f912aeb9ec149": {
+      "message": "Hus {v0}",
+      "format": "icu"
+    },
+    "m_31a44c7d4ec28e": {
+      "message": "Hus {v1}, {v2}",
+      "format": "icu"
+    },
+    "m_10390ed58d9d2e": {
+      "message": "Bygning {v2}",
+      "format": "icu"
+    },
+    "m_a41e0c05153e74": "Valgt bilde",
+    "m_0dd87f826c8c39": "Prøv opplastingen på nytt",
+    "m_94fef39d56d52f": {
+      "message": "Fjern bilde {v1}",
+      "format": "icu"
+    },
+    "m_cb96f1b0af21d8": "Legg til bilder",
+    "m_b51f2220e8185c": "Fremskyndet",
+    "m_0f0032d7c26618": "Notater til teknikeren",
+    "m_0b730c79a5c5eb": "Kopi til rapporter",
+    "m_bc21fa8a42be31": "Interne notater",
+    "m_100206f83a1d97": "Kun forhåndsvisning. Legg til alle åtte visningene av hver bygning før du bestiller.",
+    "internal_notes_help": "Bare til eget bruk.",
+    "project_address_heading": "Prosjektadresse",
+    "property_address_accessible": "Eiendommens adresse",
+    "technician_notes_help": "Eventuelle særskilte instruksjoner eller opplysninger om eiendommen teknikeren bør kjenne til, for eksempel frittstående garasje, flere bygninger, bratt takvinkel osv.",
+    "report_cc_help": "Flere e-postadresser som skal motta den ferdige rapporten.",
+    "ext_85b3a77a8ba1d7": "Legg til alle de åtte påkrevde visningene av hver bygning før du bestiller.",
+    "ext_cfa9dc24313268": "Legg til en video der du går én runde rundt hver bygning, før du bestiller.",
+    "ext_4122a51f61ae01": "Legg til en video der du går én runde rundt huset for å fortsette.",
+    "ext_037939e415c28b": "Flere bilder og videoer",
+    "ext_dd3c3bac99aa28": "Alle bildene er tilordnet",
+    "ext_93f63a88c7e69d": "Animasjon: En person går én hel runde rundt huset mens vedkommende filmer.",
+    "ext_833abb707b2dac": "Det vi ikke kan se tydelig, kan vi kanskje ikke måle, og vi kan måtte avvise prosjektet. De åtte bildene er som regel nok. Flere bilder og video kan være til hjelp.",
+    "ext_76900f1bfd16c8": "Tilbake",
+    "ext_7a70fe7e1b8507": "Kunne ikke dele kameradiagnostikk.",
+    "ext_7cad7a14ed0291": "Kameraet er ikke klart",
+    "ext_0748faa1268982": "Kameraet er utilgjengelig. Du kan fortsatt laste opp en video av huset.",
+    "ext_5414e89a1bc03f": "Kameraet er utilgjengelig. Du kan fortsatt laste opp bilder av alle vinklene.",
+    "ext_a3a35b570535e1": "Kamerazoom",
+    "ext_b3e8ecabf4ad19": "Får du ikke spilt inn?",
+    "ext_1900b478a58603": "Ta bilde",
+    "ext_189fb6202c349b": "Velg Hele bygningen for å bestille denne rapporten.",
+    "ext_ccd317947e12ef": "Velg en videofil (MP4, MOV eller WebM).",
+    "ext_823428e67d8d52": "Klikk for å velge, eller slipp filer her",
+    "ext_b543835fdc1ff1": "Bekreft bygningens plassering på kartet.",
+    "ext_408febc0bafde2": "Kunne ikke laste inn priser.",
+    "ext_8c541d052647e6": "Kunne ikke behandle bildet. Ta et nytt bilde.",
+    "ext_26a03939c7a9dc": "Kunne ikke sende inn denne bestillingen.",
+    "ext_67731319e91d6d": "Kunne ikke ta dette bildet. Prøv igjen.",
+    "ext_b564227b7d3de2": "Leveringspriser lastes fortsatt inn.",
+    "ext_8a958b5d470770": "Leveringstiden begynner å løpe når bestillingen sendes inn.",
+    "ext_bb0783864ee081": "Digital kamerazoom",
+    "ext_48845bff334a50": "Lukk",
+    "ext_18eb3c7da07409": "Dra bilder hit",
+    "ext_36d6e4ce04d5fc": "Slipp bildene her, eller bruk Last opp for å velge filer.",
+    "ext_6e21162913b0dc": "Fremskyndet levering er ikke tilgjengelig akkurat nå. Velg standard levering.",
+    "ext_f34702ef3c459c": "Ekstra referanse",
+    "ext_abc7e9892806b0": "Filer",
+    "ext_ab738ca65f65c1": "Hele bygningen",
+    "ext_fd6623d6d20bb2": "Fortsett å gå rundt",
+    "ext_f662ce48780d0c": "Direktevisning fra kamera er ikke tilgjengelig her. Bruk kameraknappen eller Last opp nedenfor.",
+    "ext_bc14e13e94c48e": "Neste vinkel",
+    "ext_86aaa0cc76916a": "Neste hus",
+    "ext_678d7d1afa2c16": "Ingenting er lagt til ennå",
+    "ext_cf13458f003dfc": "Åpner kamera …",
+    "ext_6be090825c9971": "Bestill",
+    "ext_858e4ba7a29fd3": "Sett på pause",
+    "ext_e159b06187d369": "Satt på pause",
+    "ext_412f498a96cdba": "Bildet kunne ikke tas. Prøv igjen.",
+    "ext_19eac15526c5cf": "Spill inn videoen der du går rundt bygningen",
+    "ext_0384d0be0a6f1a": "Opptak er ikke tilgjengelig her. Last opp en video i stedet.",
+    "ext_d2debb79a7c303": "Opptaket kunne ikke lagres. Prøv igjen.",
+    "ext_d640c7421da066": "Fortsett",
+    "ext_942087cc2d41e0": "Prøv igjen",
+    "ext_aff0766a5290e1": "Gjennomgå",
+    "ext_12ff7ed621202f": "Gjennomgå bestillingen →",
+    "ext_4352d9d52c47d2": "Gjennomgå bilder",
+    "ext_37e437d86dea02": "Kun tak",
+    "ext_35fd0238b55b3d": "Lagrer segment …",
+    "ext_88dded33784dcd": "Segmentet er lagret",
+    "ext_97cdf353d9de69": "Del kameradiagnostikk",
+    "ext_b58eb52c8810b9": "Hopp over foreløpig",
+    "ext_7d9eb6f50ee08b": "Start foran. Gå én hel runde, og hold hele huset innenfor bildet.",
+    "ext_30756af0134e4b": "Start opptak",
+    "ext_3d591e826d5459": "Stopp opptak",
+    "ext_eaa92b29e7d508": "Stopp opptaket for å bytte kamera",
+    "ext_43f019ea133423": "Bytt kamera",
+    "ext_2753cf960a1fa7": "Trykk for å laste opp",
+    "ext_48e515f180931f": "Kun forhåndsvisning. Legg til en video der du går rundt hver bygning, før du bestiller.",
+    "ext_e1338e330e2e95": "Opptaket var for kort til å lagres. Spill inn i minst noen sekunder.",
+    "ext_e0eadf1224c32d": "Dette kameraet kunne ikke endre zoom.",
+    "ext_dceb79d9c01f21": "Dette segmentet er for stort til å lastes opp. Fjern det og spill inn et kortere segment.",
+    "ext_14d33bd014e6b4": "Ikke tilordnet",
+    "ext_865e89de78d94c": "Last opp",
+    "ext_6efc5d27f30b20": "Opplastingen mislyktes",
+    "ext_2ba73c5827ad58": "Opplastingen mislyktes. Kontroller tilkoblingen og prøv igjen.",
+    "ext_d42fb51e78b578": "Opplastingen mislyktes. Prøv igjen.",
+    "ext_7b34445aae9fc6": "Last opp prosjektmedier eller juster søket.",
+    "ext_5ce44dd77dae78": "Laster opp …",
+    "ext_2eb9e35e8239cf": "Bruk JPG-, PNG- eller WebP-bilder på opptil 8 MB, eller MP4-, MOV- eller WebM-videoer.",
+    "ext_d534be829e3219": "Video",
+    "ext_fc63d3e097f799": "Forhåndsvisning av video",
+    "ext_e534224447b2b4": "Videoer kan være opptil 120 MB hver. Spill inn runden i kortere segmenter og last dem opp hver for seg.",
+    "ext_08b041935798fb": "Du",
+    "ext_2ab245a1129a5c": "Du kan laste opp opptil 100 filer per bestilling.",
+    "ext_65b044714a33c6": "Du kan laste opp opptil 100 bilder per bestilling.",
+    "ext_c51af26e781045": "Opplastingene dine fullføres fortsatt. Vent litt.",
+    "ext_b6aed00cb43845": "Noen bilder kunne ikke lastes opp. Prøv igjen eller fjern dem.",
+    "ext_300f36b25f353f": "Noen bilder mangler en vinkel. Tilordne vinkler før du fortsetter.",
+    "ext_731dc6e3f07ab1": "Prøv opplastingen på nytt",
+    "ext_94e36843761633": "Bildeposisjoner",
+    "angle_front": "Forfra",
+    "angle_front_left": "Forfra fra venstre",
+    "angle_left": "Fra venstre",
+    "angle_back_left": "Bakfra fra venstre",
+    "angle_back": "Bakfra",
+    "angle_back_right": "Bakfra fra høyre",
+    "angle_right": "Fra høyre",
+    "angle_front_right": "Forfra fra høyre",
+    "exteriors_standard_label": "Standard · 24 timer",
+    "exteriors_same_day_label": "Samme dag · under 6 timer",
+    "exteriors_priority_label": "Prioritert · under 3 timer",
+    "delivery_very_busy": "Vi har svært mye å gjøre",
+    "delivery_busy": "Vi har mye å gjøre",
+    "delivery_not_busy": "Vi har ikke så mye å gjøre",
+    "current_delivery_estimate": "Gjeldende leveringstid",
+    "select_angle_photo": {
+      "message": "Velg bilde av {angle}",
+      "format": "icu"
+    },
+    "upload_angle_photo": {
+      "message": "Last opp bilde av {angle}",
+      "format": "icu"
+    },
+    "orbital_video": "Video der du går rundt bygningen",
+    "additional_media": "Flere bilder og videoer",
+    "total_files": "Totalt antall filer",
+    "add_house_video": {
+      "message": "Legg til en video der du går rundt hus {house}, for å fortsette.",
+      "format": "icu"
+    },
+    "missing_angles": {
+      "message": "Mangler {count} vinkler. Legg til bilder av de manglende vinklene.",
+      "format": "icu"
+    },
+    "structure_number": {
+      "message": "Bygning {number}",
+      "format": "icu"
+    },
+    "switch_camera": "Bytt kamera",
+    "camera_zoom": "Kamerazoom",
+    "play_video": {
+      "message": "Spill av video {number}",
+      "format": "icu"
+    },
+    "primary_angle_photo": {
+      "message": "Bilde av {angle}, primært",
+      "format": "icu"
+    },
+    "set_primary_angle_photo": {
+      "message": "Velg bilde av {angle} som primærbilde",
+      "format": "icu"
+    },
+    "view_angle_photo": {
+      "message": "Vis bilde av {angle}",
+      "format": "icu"
+    },
+    "angle_photo": {
+      "message": "Bilde av {angle}",
+      "format": "icu"
+    },
+    "uploading_photo_count": {
+      "message": "Laster opp bilder: {count}",
+      "format": "icu"
+    },
+    "unassigned_count": {
+      "message": "Ikke tilordnet: {count}",
+      "format": "icu"
+    },
+    "show_all": "Vis alle",
+    "structure_delivery_price": {
+      "message": "{price} per bygning + valgt leveringsgebyr",
+      "format": "icu"
+    },
+    "closed_expedite": "Fremskyndet levering er ikke tilgjengelig når vi er stengt",
+    "video_segment_count": {
+      "message": "Videosegmenter: {count}",
+      "format": "icu"
+    },
+    "m_a2add99e6507cc": "Bestill oppmåling",
+    "m_5b47c31589c08d": "Umiddelbar rapport til utviklingsmiljø",
+    "m_d42e44d94cf26d": "FirstMate-kameradiagnostikk",
+    "m_45483cba8b2363": "Lukk video",
+    "m_d1072adbf4a739": "Last opp videoer",
+    "m_679e3f0532c8f6": "Innspilte segmenter",
+    "m_6bfeca260a706b": "Start foran.",
+    "m_8d450f8f09d474": "Gå bakover til hele huset får plass i bildet, fra taklinjen til grunnmuren.",
+    "m_fbc415383ed061": "Gå én hel runde.",
+    "m_8999a5973399a7": "Gå sakte, og hold huset midt i bildet hele veien rundt.",
+    "m_28a19a351341b7": "Sett på pause når du trenger det.",
+    "m_586094cc3ecf92": "Spill inn så mange segmenter som nødvendig, eller last opp videoer du allerede har.",
+    "m_a156054f2fdcd9": "Spill inn en video der du går rundt bygningen",
+    "m_5cfa8ae69d7e6c": {
+      "message": "Gå én hel runde rundt huset mens du filmer. Det er den raskeste måten å vise oss alle sidene på.{v0}",
+      "format": "icu"
+    },
+    "m_15f72513cd842e": "Last opp en video",
+    "m_cab762c293af5c": "Kan du ikke ta opp video? Bestill med bilder i stedet",
+    "m_1cb496d81d0d8a": "Bestill med bilder",
+    "m_9f5adc82950818": "Ingen video? Vi kan måle ut fra bilder i stedet. Vi trenger bilder av alle de åtte vinklene på huset, og veileder deg gjennom hver av dem.",
+    "m_18eb50539ad3c5": "Ta bilder fra alle åtte vinklene.",
+    "m_6e5fce959cdaef": " Hver side og hvert hjørne, med hele huset i bildet.",
+    "m_8652b670148f22": "Legg til bilder av det som er vanskelig å se.",
+    "m_ffa9f3c2ab78e6": " Hvis de åtte vinklene ikke viser det, eller noe er skjult fra gaten, kan du legge til flere bilder eller en video etterpå.",
+    "m_5a04d009cf966a": "Start med de åtte bildene",
+    "m_23d5e1d2486b6a": "Tilbake til videoen der du går rundt huset (anbefalt)",
+    "m_0352f26fd9d997": "Flere bilder og videoer",
+    "m_215a48fa6c2668": {
+      "message": "{v0}Video der du går rundt huset",
+      "format": "icu"
+    },
+    "m_2b2100088ed9f2": "Video der du går rundt huset",
+    "m_b3790b49db5f84": "Legg til en video der du går rundt huset",
+    "m_25253d755816e2": "Gå én hel runde rundt huset mens du filmer med telefonen, og last deretter opp videoen her. Hvis du bestiller i FirstMate-appen, blir videoen spilt inn for deg.",
+    "m_27b7e868698f63": "Legg til nærbilder av det videoen ikke viser tydelig, som arker, tilbygg eller trange passasjer ved siden av huset.",
+    "m_2469fadd18d99a": "Har du en video? Bytt til video der du går rundt huset (anbefalt)",
+    "m_6e81feb28a2b17": "Ingen video ennå"
   },
   "help": {
     "m_0db6efc53ab2ed": "Trenger du hjelp?",
@@ -3213,7 +3630,103 @@
     "m_2767483f4609c6": " Fullfør og send",
     "m_a1cb9492b60b7f": " Neste signatur",
     "m_be4cfb58b9c4d7": "Bilder",
-    "m_8fda0d4db92a17": " Opprett uten prosjekt"
+    "m_8fda0d4db92a17": " Opprett uten prosjekt",
+    "terminology_new_project": "Nytt prosjekt",
+    "terminology_project_title": "Prosjekttittel",
+    "primary_contact_heading": "Hovedkontakt",
+    "contact_actions": "Kontaktvalg",
+    "remove_recipient": "Fjern",
+    "edit_project_identity": "Rediger prosjektkontakt og adresse",
+    "new_report": "Ny rapport",
+    "saved_contact": "Lagret kontakt",
+    "call_contact": "Ring kontakt",
+    "message_contact": "Send melding til kontakt",
+    "email_contact": "Send e-post til kontakt",
+    "project_identity": "Prosjektkontakt og adresse",
+    "expand_internal_notes": "Utvid interne notater",
+    "reduce_internal_notes": "Skjul interne notater",
+    "checking_price": "Sjekker gjeldende pris …",
+    "order_roof_report": "Bestill takrapport",
+    "order_report": "Bestill rapport",
+    "order_full_structure": "Bestill rapport for hele bygningen",
+    "continue": "Fortsett",
+    "project_fullscreen": "Åpne prosjekt i fullskjerm",
+    "project_shrink": "Gjør prosjektvinduet mindre",
+    "order_roof_report_price": {
+      "message": "Bestill takrapport – {price}",
+      "format": "icu"
+    },
+    "order_roof_report_discount": {
+      "message": "Bestill takrapport – {price} (spar {saving})",
+      "format": "icu"
+    },
+    "no_matching_contacts": "Ingen kontakter samsvarer",
+    "loading_contacts": "Laster inn lagrede kontakter …",
+    "no_saved_contacts": "Ingen lagrede kontakter ennå",
+    "project_title": "Prosjekttittel",
+    "choose_type_first": "Velg en prosjekttype først",
+    "busy": "Vi har mye å gjøre",
+    "very_busy": "Vi har svært mye å gjøre",
+    "pin_instructions": "Klikk på kartet for å plassere markører ved hver bygning du vil ha med.",
+    "no_pins": "Ingen markører plassert",
+    "one_pin": "1 markør plassert",
+    "one_pin_confirmed": "Bekreftet – 1 markør plassert",
+    "contacts_unavailable": "Kontaktene kunne ikke åpnes.",
+    "contact_open_failed": "Kunne ikke åpne kontakten.",
+    "contact_update_failed": "Kundekontakten kunne ikke oppdateres.",
+    "contact_action_failed": "Kunne ikke åpne kontaktvalget",
+    "project_save_failed": "Prosjektet kunne ikke lagres.",
+    "roof_report_ordered": "Takrapport bestilt",
+    "full_report_ordered": "Rapport for hele bygningen bestilt",
+    "report_processing": "Rapporten behandles nå.",
+    "connection_retry": "Tilkoblingsfeil. Prøv igjen.",
+    "not_busy": "Vi har ikke så mye å gjøre",
+    "price_per_structure": {
+      "message": "{price} per bygning",
+      "format": "icu"
+    },
+    "price_flat_rate": {
+      "message": "{price} fastpris",
+      "format": "icu"
+    },
+    "delivery_by": {
+      "message": "Innen {time}",
+      "format": "icu"
+    },
+    "standard_delivery_duration": {
+      "message": "Standard levering – {duration}",
+      "format": "icu"
+    },
+    "pins_placed": {
+      "message": "{count} markører plassert",
+      "format": "icu"
+    },
+    "pins_confirmed": {
+      "message": "Bekreftet – {count} markører plassert",
+      "format": "icu"
+    },
+    "under_one_hour": "Mindre enn 1 time",
+    "under_hours": {
+      "message": "Mindre enn {hours} timer",
+      "format": "icu"
+    },
+    "structure_total": {
+      "message": "{report}: {count} bygninger × {unit} = {total} totalt",
+      "format": "icu"
+    },
+    "m_b7a344ddca6545": "FM",
+    "m_c92936cb32df1e": "Bruk en annen ferdig utviklingsrapport som samsvarer med valgt type og omfang",
+    "m_a9fc58f6e515fa": "Ingen samsvarende rapport",
+    "m_b1cdd265d6ddcb": "Utviklingsrapport",
+    "m_aaebd7ccba0b30": "Prosjekt",
+    "m_9b03ccb29ba168": "Sammendrag",
+    "m_c2d9303f34719d": "Legg til festet notat",
+    "m_0747045bf3d919": "Nytt prosjekt",
+    "m_9f4cf23e7e3636": "Søk etter et eksisterende prosjekt",
+    "m_428a61cf4a8532": "Samsvarende prosjekter",
+    "m_67ea3d9f45d10b": "Søker etter prosjekter …",
+    "m_7f0c783c8eec23": "Åpner prosjekt …",
+    "m_5180ead27b8ad6": "GIF-en kunne ikke lastes inn"
   },
   "project-schedule": {
     "m_88e13d64071885": "Planlegging låst",
@@ -3574,7 +4087,54 @@
     "m_9402b38f071830": "Sorter prosjekter",
     "m_f022fa62257ce9": "Jane Smith",
     "m_564fe2da7605fa": "jane@example.com",
-    "m_7247f8e5fa0e91": "Bestill standardrapport"
+    "m_7247f8e5fa0e91": "Bestill standardrapport",
+    "m_219853c2fec210": "Prøv å bestille en komplett rapport for å få målinger av denne bygningen.",
+    "m_d2a894582092f8": "Kun tak",
+    "m_16e6b2fac22e7e": "Tak &amp; takrenner",
+    "m_5ee37aecb582b4": " Manuell",
+    "m_f86eb4b8f9ea2c": "Manuell flytting er på",
+    "m_fe74e5ffd55b04": "Dra et prosjektkort til et annet trinn.",
+    "m_48afb49c6f40c4": "Tavle",
+    "m_39f4f4e9015b56": " Åpne PDF",
+    "m_d091a3a21d5851": {
+      "message": " Bestill komplett rapport – ${v0}",
+      "format": "icu"
+    },
+    "m_7c4f8058d549a7": " Takvinkler på",
+    "m_97f68e5486c2f8": "Søk etter adresse, kontakt …",
+    "m_af80d9cead6991": "Søk i prosjekter",
+    "pitches_on": "Takvinkler på",
+    "pitches_off": "Takvinkler av",
+    "order_full_report_amount": {
+      "message": "Bestill komplett rapport – {amount}",
+      "format": "icu"
+    },
+    "m_53d803cdbe9ab1": "Adresse",
+    "m_b9bbb4f486250d": "Hovedkontakt",
+    "m_71b71bf03872e8": "Telefon til hovedkontakt",
+    "m_6bc4d56ee2a851": "E-post til hovedkontakt",
+    "m_ca4bcb012af794": "Rapportstatus",
+    "m_b9e330a2a05e3a": "Ingen trinn",
+    "m_0c8087b7a76bdd": "Ingen tavle",
+    "m_b66bef8d909043": "Alle tavler",
+    "m_db7bc4ec19e30d": "Delt prosjekt",
+    "m_f7db06bcf62c85": "Listekolonner",
+    "m_0989a5be2bc0a3": "Klikk på en kolonneoverskrift for å sortere listen.",
+    "m_db1fe336bd1deb": "Dato prosjektet ble opprettet",
+    "m_a4101be3c706f6": "Sorter etter",
+    "m_82049078ca088b": "Bytt sorteringsretning",
+    "m_529b6356416c11": "Alle trinn",
+    "m_da6a380b934274": {
+      "message": "{v0}-visning",
+      "format": "icu"
+    },
+    "m_9b0cf483ee4377": {
+      "message": "Åpne {v0}, delt av {v1}",
+      "format": "icu"
+    },
+    "m_ce86fe78082565": "Utilgjengelig",
+    "m_f8e16243e0f91c": "Administrer visning",
+    "m_200131262770e4": "Prosjektvisning"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -6909,7 +7469,136 @@
     "m_10836fee7d848c": "SMS Enterprise",
     "m_fdb931154a90d3": "Trenger du en større kvote? Kontakt kundeteamet for en tilpasset månedsplan.",
     "m_3be71fb0bc5d46": "Ingen flere abonnementer er tilgjengelige.",
-    "m_db8eb97cb6c0a3": "Laster inn fakturering …"
+    "m_db8eb97cb6c0a3": "Laster inn fakturering …",
+    "m_38e15f7a2dd540": "Merkevareprofil",
+    "m_ae9d8c44e49371": {
+      "message": " Hver automatiske påfylling belastes med {v0}. {v1}",
+      "format": "icu"
+    },
+    "m_ae873abaa56707": "Målinger",
+    "m_455c24bfeb9092": "Britiske måleenheter (fot og squares)",
+    "m_ef3e6a234d5a73": "Metrisk (meter og kvadratmeter)",
+    "m_4ca221574beb0d": " Forhåndsvisning av rapport",
+    "fm_billing_minimum": {
+      "message": "Minimumsbeløp for automatisk påfylling er {amount}.",
+      "format": "icu"
+    },
+    "fm_use_the_card_on_file_to_keep_your_account_funded_automatically": "Bruk det registrerte kortet for automatisk å holde kontoen din påfylt.",
+    "fm_use_the_card_you_add_to_keep_your_account_funded_automatically": "Bruk kortet du legger til for automatisk å holde kontoen din påfylt.",
+    "fm_enabled": "Aktivert",
+    "fm_disabled": "Deaktivert",
+    "fm_on": "På",
+    "fm_off": "Av",
+    "fm_payment_could_not_be_processed": "Betalingen kunne ikke gjennomføres",
+    "fm_payment_processed": "Betaling gjennomført",
+    "fm_report_ordered": "Rapport bestilt",
+    "fm_payment_received": "Betaling mottatt",
+    "fm_payment": "Betaling",
+    "fm_promo_credit_applied": "Kampanjekreditt lagt til",
+    "fm_coupon_credit_added": "Kupongkreditt lagt til",
+    "fm_cancellation_refund": "Refusjon ved avbestilling",
+    "fm_expedite_refund": "Refusjon for fremskyndet levering",
+    "fm_missed_promised_delivery_window": "Overskredet lovet leveringstid",
+    "fm_additional_structure_refund": "Refusjon for ekstra bygning",
+    "fm_additional_structure_request": "Forespørsel om ekstra bygning",
+    "fm_auto_top_up": "Automatisk påfylling",
+    "fm_refund": "Refusjon",
+    "fm_credit_adjustment": "Kredittjustering",
+    "fm_additional_structure_request_refund": "Refusjon for forespørsel om ekstra bygning",
+    "fm_additional_structure_added_to_report": "Ekstra bygning lagt til i rapporten",
+    "fm_completed": "Fullført",
+    "fm_rejected": "Avvist",
+    "fm_processing": "Behandles",
+    "fm_update_card": "Oppdater kort",
+    "fm_add_card": "Legg til kort",
+    "fm_save": "Lagre",
+    "fm_save_and_add_card": "Lagre og legg til kort",
+    "fm_card_expiry": {
+      "message": "Utløper {date}",
+      "format": "icu"
+    },
+    "fm_card": "Kort",
+    "fm_triggered_by_person": {
+      "message": "Utløst av {person}",
+      "format": "icu"
+    },
+    "fm_ordered_by_person": {
+      "message": "Bestilt av {person}",
+      "format": "icu"
+    },
+    "fm_handled_by_person": {
+      "message": "Behandlet av {person}",
+      "format": "icu"
+    },
+    "fm_ref_reference": {
+      "message": "Ref. {reference}",
+      "format": "icu"
+    },
+    "fm_charged_amount": {
+      "message": "Belastet {amount}",
+      "format": "icu"
+    },
+    "fm_additional_structure_count": {
+      "message": "{count, plural, one {# ekstra bygning} other {# ekstra bygninger}}",
+      "format": "icu"
+    },
+    "fm_billing_residential": "Bolig",
+    "fm_billing_commercial": "Næring",
+    "fm_billing_multi_family": "Flerbolig",
+    "fm_billing_multifamily": "Flerbolig",
+    "fm_billing_full": "Komplett rapport",
+    "fm_billing_roof_only": "Kun tak",
+    "fm_billing_roof": "Kun tak",
+    "fm_you_cannot_edit_your_own_permissions_here": "Du kan ikke redigere dine egne tillatelser her.",
+    "fm_permissions_are_read_only": "Tillatelser kan bare leses.",
+    "fm_users": "Brukere",
+    "fm_departments": "Avdelinger",
+    "fm_user_administration": "Brukeradministrasjon",
+    "fm_brand_kit": "Merkevareprofil",
+    "fm_changes_saved_automatically": "Endringer lagres automatisk.",
+    "fm_could_not_save_brand_kit": "Kunne ikke lagre merkevareprofilen.",
+    "fm_preview_summary": "Prosjektsammendrag",
+    "fm_preview_facets": "Totalt antall takflater",
+    "fm_preview_pitch": "Vanligste takvinkel",
+    "fm_preview_area": "Totalt areal",
+    "fm_preview_breakdown": "Målingsoversikt",
+    "fm_preview_eave": "Takfot",
+    "fm_preview_ridge": "Møne",
+    "fm_preview_valley": "Gradrenne",
+    "fm_deleted": "Slettet",
+    "fm_suspended": "Suspendert",
+    "fm_never_signed_in": "Har aldri logget inn",
+    "fm_invited": "Invitert",
+    "fm_active": "Aktiv",
+    "fm_primary_logo_saved_automatically": "Primærlogoen er lagret automatisk.",
+    "fm_could_not_change_primary_logo": "Kunne ikke endre primærlogoen.",
+    "fm_the_logo_colors_could_not_be_read": "Kunne ikke hente ut fargene fra logoen.",
+    "fm_could_not_send_invite_email": "Kunne ikke sende invitasjons-e-post.",
+    "fm_user_suspended": "Brukeren er suspendert.",
+    "fm_user_unsuspended": "Brukeren er ikke lenger suspendert.",
+    "fm_you_can_t_suspend_yourself": "Du kan ikke suspendere deg selv.",
+    "fm_you_can_t_suspend_a_super_admin": "Du kan ikke suspendere en superadministrator.",
+    "fm_you_can_t_delete_yourself": "Du kan ikke slette deg selv.",
+    "fm_you_can_t_delete_a_super_admin": "Du kan ikke slette en superadministrator.",
+    "fm_report_settings_future_only": "Endringer i rapportinnstillingene gjelder bare framtidige målingsrapporter. De endrer ikke rapporter som allerede er bestilt.",
+    "fm_statement_date": "Dato",
+    "fm_statement_transaction": "Transaksjon",
+    "fm_statement_details": "Detaljer",
+    "fm_statement_reason": "Årsak",
+    "fm_statement_amount": "Beløp",
+    "fm_statement_balance_after": "Saldo etterpå",
+    "fm_statement_address": "Adresse",
+    "fm_statement_ordered_by": "Bestilt av",
+    "fm_statement_date_ordered": "Bestillingsdato",
+    "fm_statement_project_type": "Prosjekttype",
+    "fm_statement_status": "Status",
+    "fm_statement_cost": "Kostnad",
+    "fm_statement_reimbursed": "Refundert",
+    "fm_statement_total": "Totalt",
+    "fm_statement_transaction_count": {
+      "message": "{count, plural, one {# transaksjon} other {# transaksjoner}} – Netto: ",
+      "format": "icu"
+    }
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Legg til arbeid",
@@ -7566,7 +8255,8 @@
     "m_6d30e375168449": {
       "message": "{v0} ulest &middot; {v1} totalt",
       "format": "icu"
-    }
+    },
+    "new_report": "Ny rapport"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kontor",
@@ -9894,6 +10584,98 @@
     "m_0d80b4a3bd88a0": {
       "message": "Endre størrelse på {v0} {v1}",
       "format": "icu"
+    },
+    "project_workspace": "Prosjektarbeidsområde",
+    "edit_project_identity": "Rediger prosjektkontakt og adresse",
+    "project_tabs": "Prosjektfaner",
+    "project_trays": "Prosjektpaneler",
+    "opening_project": "Åpner prosjekt …",
+    "restore_project": "Gjenopprett prosjekt",
+    "close_project": "Lukk prosjekt",
+    "project": "Prosjekt",
+    "new_project": "Nytt prosjekt",
+    "overview": "Oversikt",
+    "tab_loading": {
+      "message": "{tab} – laster prosjekt",
+      "format": "icu"
+    },
+    "resize_panes": "Endre størrelse på paneler",
+    "window_trays": "Vindupaneler",
+    "close_tray": "Lukk panel",
+    "window": "vindu",
+    "dock_window": {
+      "message": "Fest {window}",
+      "format": "icu"
+    },
+    "restore_window": {
+      "message": "Gjenopprett {window}",
+      "format": "icu"
+    },
+    "minimize_window": {
+      "message": "Minimer {window}",
+      "format": "icu"
+    },
+    "float_window": {
+      "message": "Frigjør {window}",
+      "format": "icu"
+    },
+    "maximize_window": {
+      "message": "Maksimer {window}",
+      "format": "icu"
+    },
+    "close_window": {
+      "message": "Lukk {window}",
+      "format": "icu"
+    },
+    "modal_window": {
+      "message": "Vis {window} som et modalvindu",
+      "format": "icu"
+    },
+    "fullscreen_window": {
+      "message": "Fyll hele skjermen med {window}",
+      "format": "icu"
+    },
+    "unpin_window": {
+      "message": "Løsne {window}",
+      "format": "icu"
+    },
+    "pin_window": {
+      "message": "Fest {window}",
+      "format": "icu"
+    },
+    "dock_window_left": {
+      "message": "Fest {window} til venstre (høyreklikk for plassering)",
+      "format": "icu"
+    },
+    "dock_window_right": {
+      "message": "Fest {window} til høyre (høyreklikk for plassering)",
+      "format": "icu"
+    },
+    "fill_workspace_window": {
+      "message": "Fyll arbeidsområdet med {window}",
+      "format": "icu"
+    },
+    "dock_placement": "Plassering av vindu",
+    "float": "Frigjør",
+    "close": "Lukk",
+    "modal": "Modalvindu",
+    "fill_workspace": "Fyll arbeidsområdet",
+    "fill_entire_screen": "Fyll hele skjermen",
+    "dock_left": "Fest til venstre",
+    "dock_right": "Fest til høyre",
+    "dock_top_left": "Fest øverst til venstre",
+    "dock_top_right": "Fest øverst til høyre",
+    "dock_bottom_left": "Fest nederst til venstre",
+    "dock_bottom_right": "Fest nederst til høyre",
+    "dock_top": "Fest øverst",
+    "dock_bottom": "Fest nederst",
+    "resize_swap_panes": "Endre størrelse på paneler; dobbeltklikk for å bytte plass",
+    "close_pane": "Lukk panel",
+    "pane_slow": "Dette panelet bruker lengre tid på å laste inn enn vanlig. Du kan lukke det og prøve igjen.",
+    "pane_open_failed": "Kunne ikke åpne denne fanen. Lukk panelet og prøv igjen.",
+    "opening_tab": {
+      "message": "Åpner {tab} …",
+      "format": "icu"
     }
   },
   "reports": {
@@ -9914,7 +10696,366 @@
     "meter": "måler",
     "millimeters": "millimeter",
     "millimeter": "millimeter",
-    "square footage": "kvadratmeter"
+    "square footage": "kvadratmeter",
+    "m_8f5db5c7f3d24d": "Møne",
+    "m_46dd9790bf6a04": "Hjørne",
+    "m_63e8dda8d7cce4": "Gradrenne",
+    "m_7076ce874b1d6c": "Skrå gavlkant",
+    "m_27047ada176d29": "Takfot",
+    "m_56b44629956d20": "Beslag ved bakvegg",
+    "m_67b286b5c3cc9d": "Beslag ved sidevegg",
+    "m_2fe70464aadf58": "Overgang",
+    "m_c33219746150ec": "Brystningsvegg",
+    "m_c59156303156a4": "Fremspring",
+    "m_40f358631dc246": "Bakbeslag ved pipe",
+    "m_d4ac8146ffa447": "Pipebeslag i trinn",
+    "m_ab77a5a27d3f10": "Pipebeslag foran",
+    "m_23fb466fb2adc3": "Takvindu",
+    "m_b764cdc0eab713": "Ukjent",
+    "m_a1021e952892ac": "Oppmålingsrapport for eiendom",
+    "m_f8dbc522ba2af7": "Tak sett ovenfra",
+    "m_c834cd35286d0a": "Takbilder",
+    "m_869d0506787f34": "Takhøyder",
+    "m_e158625d2ef73e": "Takflater",
+    "m_1246c01179d440": "Takoversikt",
+    "m_192df712925b74": "Takventilasjon",
+    "m_468cef63fdd9dd": "Diagram over takvinkler",
+    "m_baf568be68a967": "Diagram over takareal",
+    "m_68770a5d336169": {
+      "message": "Målinger av taklag {value1}",
+      "format": "icu"
+    },
+    "m_63b61a2a5cacd6": {
+      "message": "Takflater: {value1}",
+      "format": "icu"
+    },
+    "m_733f0196ef5d7f": "Takrenner",
+    "m_47cf5274d0f2c2": "Taknotater",
+    "m_c50f62a1b89962": {
+      "message": "{value1} (+{value2} % kapp)",
+      "format": "icu"
+    },
+    "m_cb91ea904fb153": {
+      "message": "Takvinkel: {value1}",
+      "format": "icu"
+    },
+    "m_3b026f0a7e18aa": {
+      "message": "Kapp: {value1} %",
+      "format": "icu"
+    },
+    "m_e3bc5b673a070a": "Bakvegg",
+    "m_e87f980620eb8f": "Sidevegg",
+    "m_fe2ce041082c9b": "Brystning",
+    "m_8cd80c317a2168": "Takflater:",
+    "m_af5a7274c323e0": "Takvinkel:",
+    "m_9d6591d0b42f6b": "Kvadratmeter:",
+    "m_88c46e11f3c77b": "Kvadratfot:",
+    "m_919549889a5ceb": "Takføtter:",
+    "m_537a62a019ad4b": "Skrå gavlkanter:",
+    "m_5bd7cdbae7fcda": "Møner:",
+    "m_0721423f661339": "Hjørner:",
+    "m_61201067398580": "Gradrenner:",
+    "m_3b450027d1213a": "Overganger:",
+    "m_c062492596511c": "Takvinduer:",
+    "m_b5ac9d155463b1": "Piper:",
+    "m_89135357e29f80": "Sørvest",
+    "m_1d7b8d4ed3a785": "Sørøst",
+    "m_83d96322f4ad30": "Nordvest",
+    "m_c8b2d1cc4549a9": "Nordøst",
+    "m_6af11cc5940455": "Takvinkel",
+    "m_f915ae86682060": "Areal (m²)",
+    "m_b67e47230efeb5": "Areal (sq ft)",
+    "m_716d633b125adb": "Prosent",
+    "m_f734f9b7f3706f": "Kapp",
+    "m_922f515c2acfae": "Utvendig 90",
+    "m_7c323cb425fe82": "Innvendig 90",
+    "m_60306a6c99e6d6": "Ikke 90",
+    "m_00d60e31a4e6b8": "Løp",
+    "m_3765f3123ae48b": "Utvendig 90",
+    "m_7ae502bf1fd18e": "Innvendig 90",
+    "m_a7a915704f7f73": "Estimert loftsareal",
+    "m_b0936bc9f0eaa9": {
+      "message": "Fotavtrykk: {value1}  |  Overflate: {value2}",
+      "format": "icu"
+    },
+    "m_18328584e69d03": "Anbefalt avtrekk",
+    "m_3d2448433551a3": "Anbefalt tilluft",
+    "m_f1c927f86fb91d": {
+      "message": "NFVA: {value1}",
+      "format": "icu"
+    },
+    "m_a2146e3ff505ff": {
+      "message": "Avtrekk: {value1}",
+      "format": "icu"
+    },
+    "m_4111e6605d2fd0": {
+      "message": "Tilluft: {value1}",
+      "format": "icu"
+    },
+    "m_d70604e8430461": "Anbefalt",
+    "m_fb9ef894175c32": "Produkt",
+    "m_9f29530464f730": "Vurdering",
+    "m_13bca3b7e36910": "Nødvendig antall",
+    "m_d4bb90607908e5": "Ventilert dryppkant",
+    "m_296cfb57797e3b": "Soffittventil",
+    "m_ac498d871de7df": "Fugleklosser",
+    "m_99a52df3ff3d49": "Forklaring",
+    "m_fe56a63b035e8d": "Møneventil",
+    "m_1a431d164b36cc": "Boksventil",
+    "m_665420f28da3fb": "Merknad: Estimert antall produkter for loftsventilasjon i denne rapporten er basert på anslått gulvareal på loftet og er bare ment som et estimat. Installatøren må kontrollere riktig antall og type ventilasjonsprodukter før arbeidet starter. Installatøren må alltid vurdere behovene for loftsventilasjon i det aktuelle prosjektet, for eksempel lokale forskriftskrav, loftets gulvareal, takkonstruksjon og oppvarmede rom under taket. GAF anbefaler minst 1 square foot loftsventilasjon (jevnt fordelt mellom tilluft og avtrekk) per 150–300 square feet gulvareal på loftet, avhengig av dampsperren. Mengden avtrekksventilasjon ved eller nær mønet må aldri være større enn tilluftsventilasjonen ved eller nær soffitten. Se gaf.com/ventcalculator for mer informasjon.",
+    "m_7bfab6c61f7782": "NOTATER",
+    "m_1c10c30ced424d": {
+      "message": "Side {value1}",
+      "format": "icu"
+    },
+    "m_616cb218a65b98": "Materiale",
+    "m_4e545960f1bffc": "Enhet",
+    "m_a4ee51a0594303": "Høyder på brystningsvegg",
+    "m_f66e9d905ea8c1": "Brystningsveggens omkrets: ",
+    "m_5e7d173c408ee4": "  |  Kapp: ",
+    "m_412cfcc70a641b": "%  |  Mål vegghøyden på stedet.",
+    "m_93041424cf9292": "Vegghøyde",
+    "m_4fe0147e0d0f55": "Veggareal",
+    "m_9f4758a1af8ea3": "Totalt areal",
+    "m_4cc084a2b9523e": "Membran",
+    "m_5759b423fa0103": "Ekstra lim",
+    "m_7c496968ffcdb4": "Seksjoner med takvinkel på 2/12 eller lavere klassifiseres som flate tak. Mengdene inkluderer ",
+    "m_c0f21dd46689e3": "% kapp der det er relevant. Tallene er kun estimater.",
+    "m_e564c2a86ab38f": "Membransystem",
+    "m_1f528498cea93f": "Membran / topplag",
+    "m_c4f283a70b0486": "Heftlim",
+    "m_85413ad4bec1b6": "Isolasjon og dekkplate",
+    "m_1c0828f7eb005e": "1/2\" 4x8 dekkplate",
+    "m_fa344135cd03c9": "Dekkplate (4\\u0027×8\\u0027)",
+    "m_2188f67cce9c67": "Polyiso-isolasjon (4\\u0027×8\\u0027)",
+    "m_9c916917be3f72": "3\" isolasjonsplater",
+    "m_87c3f71b2a40df": "2\" HD-festemidler",
+    "m_a546b1518e0b76": "Mekanisk festet (kun TPO)",
+    "m_5ad4ec57c359dc": "2-3/8\" membranplater",
+    "m_61dbe4caefefbc": "Skjøtefestemidler (for membranplater)",
+    "m_06ba44bfd230a8": "Kant og avslutning",
+    "m_2c1c5afa7a9b99": "Avslutningslist (10 ft)",
+    "m_879e59e3c2c975": "Kantbeslag (10 ft)",
+    "m_e7df79a2132258": "Tetningsmasse og tilbehør",
+    "m_e702197a280876": "Gangbane (34\"×50\\u0027)",
+    "m_f6bcdfca5d0673": "TPO-tetningsmasse for kuttkanter",
+    "m_8fdf1a9b6d5e1d": "Rengjøringsmiddel",
+    "m_0c79e7af8f2a6b": "Universell tetningsmasse for ettlagsmembran",
+    "m_dadf867d1bbb14": "Tetningsmasse / fugemasse",
+    "m_79135f33f55286": "Taksteinprodukter",
+    "m_aafc53646a6791": "Startlist",
+    "m_366c048a86eb18": "Møne- og hjørnebeslag",
+    "m_ca5426333edafa": "Syntetisk undertak",
+    "m_0bd4e15953109c": "Is- og vannbeskyttelse",
+    "m_ca50d8f4c28b7e": {
+      "message": "{value1} perimeterpåføring ({value2})",
+      "format": "icu"
+    },
+    "m_f98278faa39d91": "Metall og beslag",
+    "m_0b500157a9ba4e": "Dryppkant ved takfot (10 ft)",
+    "m_9a907f7f8efb51": "Dryppkant ved skrå gavlkant (10 ft)",
+    "m_63dd5ff3dbc0e7": "Gradrennebeslag W (10 ft)",
+    "m_858eef2a5850de": "Trinnbeslag (5x7)",
+    "m_bd1f293a927cae": "Motbeslag (10 ft)",
+    "m_581a811ee1dd52": "Beslag ved bakvegg (10 ft)",
+    "m_810de7e264edb9": "Pipebeslag foran",
+    "m_5268e67d2e1c94": "Bakbeslag ved pipe / kilrenne",
+    "m_748a0e39694131": "Trinnbeslag ved pipe",
+    "m_1f79a9ed80fa1c": "Motbeslag ved pipe (10 ft)",
+    "m_6586e2074c8ce4": "Beslagsett for takvindu",
+    "m_3961803cc495fe": "Ventilasjon",
+    "m_7a6f19f734f343": "Møneventil (4 ft-seksjoner)",
+    "m_b08648dbd62b71": "Tilbehør",
+    "m_fe799b484c66a5": "Spikerspole (1.25 in, 50 lb)",
+    "m_f2a594a5d5aec2": "Plastspiker med stor flatt hode",
+    "m_a9dec356d64749": "Takfugemasse (tube)",
+    "m_8ce86a6ae65d36": "N",
+    "m_a6175902028988": "Foran",
+    "m_76900f1bfd16c8": "Bak",
+    "m_8de0b3c47f112c": "S",
+    "m_fcb5f40df9be6b": "V",
+    "m_a9f51566bd6705": "Ø",
+    "m_e3573855b3d9bf": "Foran ",
+    "m_cffbb3115c07f5": " grader / nord opp",
+    "m_9fc867325d55ed": "Retningen på forsiden er ikke angitt",
+    "m_78d1492cede81c": "Ingen modellerte åpninger finnes i dette øyeblikksbildet.",
+    "m_37c225ef832884": "Utvendig oversikt",
+    "m_385165e2ff5980": "Måling",
+    "m_822bab8d41bca8": "Antall",
+    "m_a01f990307bcfe": "Vegg-ID-er kobler sammen diagrammene, målene, oversikten over åpninger og notatene.",
+    "m_aa6c363db97d60": " Oppriss",
+    "m_c0872cfcf108e7": "Synlige vegger er oppført nedenfor. Arealene måles på hvert veggplan; diagrammet er en ortografisk projeksjon.",
+    "m_cdd2eaa8c80927": " Oppriss – fortsettelse",
+    "m_0dcd2fe54c68dd": "Vegginformasjon fortsetter. Se den første siden med ",
+    "m_e70b6a7c97c875": " oppriss for diagrammet.",
+    "m_f76ea921edc2e5": "Vegg",
+    "m_d89f9e018a1a89": "Ingen veggflate er synlig fra denne retningen.",
+    "m_a23fdf36878ac8": " netto",
+    "m_36c3ccc71f5875": " V ",
+    "m_bdebf2140013bd": "  ×  H ",
+    "m_34eb5b1409081f": "Oversikt over åpninger",
+    "m_44c472acd74e77": "Utvendige mengder",
+    "m_765524ef91a979": "Målte lengder",
+    "m_0a96bba80d9db1": "Nettoareal per materiale",
+    "m_1b609d14d397b9": "Squares",
+    "m_cf4e143ea032d2": "Utvendige mengder – fortsettelse",
+    "m_1c582cacb59709": "Materialpåslag",
+    "m_662e0e59630b57": "Materialpåslag – fortsettelse",
+    "m_4a71a61ca44334": "Kapprosenter er påslag som sammenlignes med netto veggareal. Horisontale returer måles separat.",
+    "m_58c6c02cc9a2b5": "Veg notater",
+    "m_00d87cf8a73edd": "BYGNINGSNOTATER / VEGGHENVISNINGER",
+    "m_f6c057fb0e36c0": "Veg notater – fortsettelse",
+    "m_cc2b37e95f52c4": "Utvendige bilder",
+    "m_4df65aa6464144": "Bildet er ikke tilordnet",
+    "m_6971ab087a1a89": {
+      "message": "Totalt antall takflater: {value1}",
+      "format": "icu"
+    },
+    "m_9befb622242a9f": {
+      "message": "Vanligste takvinkel: {value1}",
+      "format": "icu"
+    },
+    "m_d8a0a6db398df5": {
+      "message": "{value1} (netto): {value2}",
+      "format": "icu"
+    },
+    "m_257b1dfbf5cdcd": {
+      "message": "{value1} ({value2} % kapp): {value3}",
+      "format": "icu"
+    },
+    "m_08c80b14e30a5a": "Totalt antall squares",
+    "m_a8740bb1612ffc": "Squares uten kapp",
+    "m_b4fd83d0bcd221": "Squares med kapp",
+    "m_ad9df5626a0db3": "Areal (m²) uten kapp",
+    "m_c8cdb261150121": "Areal (m²) med kapp",
+    "m_4543d98d79fc96": "Takareal",
+    "m_5376a6d429ea6d": "Takvinduer",
+    "m_48b0f84c37388c": "Piper",
+    "m_b644bee84a99e1": "Motbeslag",
+    "m_a4e16d16c36105": "Takrenne i bruk",
+    "m_6608517b23efe0": "Nedløpsrør",
+    "m_604f50c79bf141": "Antall gjæringer",
+    "m_43f853bbb59286": "Nord",
+    "m_0dd2dae4dd83ae": "Sør",
+    "m_4e2cd851cfdab8": "Øst",
+    "m_41a6741e9a0fae": "Vest",
+    "m_58eb9032e3bb83": "Venstre",
+    "m_883361d5d682a1": "Høyre",
+    "m_a60528cbbb4e1e": "Foran til høyre",
+    "m_060cafd1082387": "Foran til venstre",
+    "m_d09f0b3be004c1": "Bak til høyre",
+    "m_08fc78e7d2aa2d": "Bak til venstre",
+    "m_7b47702be2bc22": "NFVA-krav",
+    "m_e23555b5b2a4b6": "Avtrekksalternativer",
+    "m_f333ec35b08f63": "Takmaterialer",
+    "m_4b6762b8c70c5d": "Materialer for bratte tak",
+    "m_4d5388c6f1e614": "Materialer for flate tak",
+    "m_2cdbf9a37b01cf": "Veggmål",
+    "m_b2ad1e2bec3fb1": "Listemål",
+    "m_c59e96abc48597": "Fot",
+    "m_f4b13e93df077d": "Åpning",
+    "m_baaddf70fb5d43": "Type",
+    "m_e50f1a89cafcbb": "Brutto m²",
+    "m_042702902def29": "Brutto ft2",
+    "m_c67131616d7b70": "Åpent m²",
+    "m_c3373ed602f34c": "Åpent ft2",
+    "m_4fac882a12ee7e": "Netto m²",
+    "m_4cf8a6733265d0": "Netto ft2",
+    "m_458d2707d8628e": "B × H (m)",
+    "m_b3d1d24cc51245": "B × H (ft)",
+    "m_1e05d842212af6": "Areal m²",
+    "m_dde8cec8418424": "Areal ft2",
+    "m_6b50755eb9ed6c": "List m",
+    "m_625bdc61d56b1e": "List ft",
+    "m_b2f1c22c291184": "Øverst på veggene",
+    "m_90fe55c098b1af": "Nederst på veggene",
+    "m_aa41ee9d85a9d5": "Innvendige hjørner",
+    "m_a65b33e0c771c5": "Utvendige hjørner",
+    "m_fcf52be31de7b6": "Materialoverganger",
+    "m_090059bac2d329": "Synlige vertikale avslutninger",
+    "m_1a11982bb733ae": "Referansebilde",
+    "m_c9c660e6accc56": "Ramme uten tittel",
+    "m_14d33bd014e6b4": "Ikke tilordnet",
+    "m_0ef1d310eec6e5": "Areal inkludert kapp (m²)",
+    "m_e312c06e4f54f7": "Areal inkludert kapp (sq ft)",
+    "m_15a9cffc5bed56": "Squares inkludert kapp",
+    "m_05ee42debad539": "Målene er avrundet. Kapp er kun veiledende. Installatøren må kontrollere målene.",
+    "m_da953f1b93f8b7": "Utarbeidet for",
+    "m_cc2838b533f40e": "Takmålinger",
+    "m_b430c90b975008": "Squares med kapp",
+    "m_1f181d240af1a0": "Takflater",
+    "m_e2f79e5b60330b": "Ikke tilgjengelig",
+    "m_36762e47a9e4cb": {
+      "message": "Nødvendig: {value1} (@ 18\"/lf)",
+      "format": "icu"
+    },
+    "m_f8bef190b5c7dd": {
+      "message": "Tilgjengelig: {value1}",
+      "format": "icu"
+    },
+    "m_d0c422a580d763": "Tilstrekkelig kapasitet",
+    "m_993cf3b9d3e0e3": "For lite møneventilasjon",
+    "m_edd8b32b3e626c": {
+      "message": "Underskudd: {value1}",
+      "format": "icu"
+    },
+    "m_de50c6b65c5b98": {
+      "message": "Nødvendig: {value1} ventiler",
+      "format": "icu"
+    },
+    "m_40edab167ee70f": {
+      "message": "{value1} NFA hver",
+      "format": "icu"
+    },
+    "m_97abc4971648fc": {
+      "message": "Totalt: {value1}",
+      "format": "icu"
+    },
+    "m_edf717d2c2451d": "Boksventiler",
+    "m_d8f9519730da4f": {
+      "message": "{value1}  ·  {value2}  ·  {value3} takflater",
+      "format": "icu"
+    },
+    "m_db58767e2a1c62": "Arealoversikt",
+    "m_2f116e6424aa37": {
+      "message": "Detaljer for lag {value1}",
+      "format": "icu"
+    },
+    "m_0d2654b2d28308": "Takrennediagram",
+    "m_b975e865740d2e": "Etasjer etter retning",
+    "m_9a30a63dce7244": "Ventilasjonsoversikt",
+    "m_5e1d442d6cc2ef": "Anbefalte tilluftsprodukter",
+    "m_cd6abbbc9cacc4": "Oversikt over takvinkler",
+    "m_d71f3ad4ab7a0d": "Soffitt",
+    "m_e7514fa59671cd": "Horisontal kledning",
+    "m_04fc5f90eb1ea9": "Vertikal kledning",
+    "m_83eb49c0e6f141": "Horisontal list",
+    "m_f0e864abdbc3c3": "Vertikal list",
+    "m_84e1f590dd7376": "Murstein",
+    "m_25db51b5636875": "Murverk",
+    "m_05a92accb1cbff": "Puss",
+    "m_6ffa6b8b1c9fa1": "Stein",
+    "m_f97e9da0e3b879": "Annet",
+    "m_19734a1b58cabc": "Vindu",
+    "m_fbf247e43d3745": "Dør",
+    "m_bfc7b9ead6e2ba": "Garasjeport",
+    "m_f414f8c425d315": "Gavlventil",
+    "m_2a60e203a021a1": "Gjennomgå: ",
+    "m_8a23ff3c3858ac": "En åpning ligger ikke på en vertikal vegg og er utelatt fra veggoversikten.",
+    "m_abf4acf7f3ed39": "En åpning har ingen tilhørende støttevegg og er utelatt fra totalsummene.",
+    "m_8fef5c42054b92": {
+      "message": "Bygning {value1}",
+      "format": "icu"
+    },
+    "m_3aeeb50e64a64b": " – fortsettelse",
+    "m_1f49328eb17532": "Veggpartier",
+    "m_6e2d200e85cb0f": "Areal av åpning",
+    "m_6bc39100b77b1b": "Omkrets av åpning",
+    "m_b72dc1fbef232e": "Horisontale returer",
+    "m_0c85aa425e52d8": {
+      "message": "Målene viser synlige utstrekninger, ikke produsentens mål eller størrelsen på grovåpningen. List {value1} viser omkretsen av åpningen.",
+      "format": "icu"
+    }
   },
   "errors": {
     "agent_target_invalid": "Velg globalt omfang, organisasjonsomfang eller prosjektomfang.",
@@ -11010,5 +12151,81 @@
     "m_071609c9efaf0f": "Lukk betalingsoppsett",
     "m_5823063ec74807": "Forward-søknad for betalingsbehandling",
     "m_ccb52891bb8ff6": "Betalingssøknaden din er allerede sendt inn."
+  },
+  "brand-kit": {
+    "m_6bb25348173069": "Fargepalett",
+    "m_0c92722f162cbd": "Primær · grensesnitt",
+    "m_390a15f2a6d920": "Sekundær · grensesnitt",
+    "m_a63c5a4c25569b": "Logo",
+    "m_2c8fc5e11eaf62": "Gjeldende logo",
+    "m_eb55056b53954c": "Gjennomsiktig PNG eller SVG fungerer best.",
+    "m_ac8bf335945352": " Erstatt logo",
+    "m_490cbf5945b3f8": "Om bedriftens fargepalett",
+    "m_85de3f0cdfc46a": "Om bedriftslogoer",
+    "m_fc3b468d1ec4eb": "Gjeldende bedriftslogo",
+    "m_953e4a6603f5f1": {
+      "message": "Rediger fargen til {v7}",
+      "format": "icu"
+    },
+    "m_036dda0aa72306": "Ingen alternative logoer ennå.",
+    "m_8803dece55359d": " Legg til",
+    "m_986685f23ed459": "Bakgrunn",
+    "m_dba346dfc1916b": "Skrift for bedriften",
+    "m_4d9e1ae19fc002": "Standard for nye dokumenter og maler",
+    "m_5c6ac1b0faeaa0": "Skrifttypefamilie",
+    "m_6cac172119f732": "Primær- og sekundærfargene styrer grensesnittet. Støttefarger er tilgjengelige i visuelle redigeringsverktøy.",
+    "m_b8391ad75bc163": "Administrer bedriftens logo og utseendet på merkede flater.",
+    "m_695aa2f7da3152": " Regenerer fargepalett fra logo",
+    "m_629cca6181934e": "Fargepalett med seks bedriftsfarger",
+    "m_c0838c60ccd34f": "Alternative logoer ",
+    "m_e3681835cc6b25": "Avansert logoutseende",
+    "m_76e5c668843400": "Beholderform",
+    "m_eb37afb3b23761": " Kvadrat",
+    "m_3562c63d47eca1": " Sirkel",
+    "m_895bf3964e7990": "Avrundede hjørner",
+    "m_57f5beffb19542": "Gjenbrukbare logo-varianter for tilbud, nettsider og annet merket innhold.",
+    "palette_primary": "Primær",
+    "palette_secondary": "Sekundær",
+    "palette_primary_title": {
+      "message": "Primær: {color}",
+      "format": "icu"
+    },
+    "palette_secondary_title": {
+      "message": "Sekundær: {color}",
+      "format": "icu"
+    },
+    "palette_support_title": {
+      "message": "Støtte {number}: {color}",
+      "format": "icu"
+    },
+    "palette_edit_primary": "Rediger primærfarge",
+    "palette_edit_secondary": "Rediger sekundærfarge",
+    "palette_edit_support": {
+      "message": "Rediger støttefarge {number}",
+      "format": "icu"
+    },
+    "m_a7c7218cc9ff52": "Standard skrifttypefamilie",
+    "m_a1872cd2329966": " Bruk en egen skrifttype for titler",
+    "m_2d5dcb0d47abfa": "Skrifttypefamilie for tittel",
+    "m_756cb8f31d3694": "Standardfamilien brukes til brødtekst og titler i dokumenter. Du kan eventuelt velge en egen tittelfamilie for overskrifter.",
+    "m_f317840d3f2404": "Om bedriftens skrifttyper",
+    "m_33289209b6d267": {
+      "message": "Bruk {v2} som primær",
+      "format": "icu"
+    },
+    "m_f4e2cc33249168": {
+      "message": "Bruk {v3} som primær",
+      "format": "icu"
+    }
+  },
+  "platform-commerce": {
+    "credit_amount": {
+      "message": "{amount} kreditter",
+      "format": "icu"
+    },
+    "exchange_estimate": {
+      "message": "Omtrent {amount} · valutakursen ved betaling kan være annerledes.",
+      "format": "icu"
+    }
   }
 }

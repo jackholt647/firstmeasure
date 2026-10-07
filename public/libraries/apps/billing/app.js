@@ -19,7 +19,7 @@ window.PlatformCommerce.onReady(function(){
   const AUTO_STEP = 10;
   const AUTO_DEFAULT_THRESHOLD = 50;
   const AUTO_DEFAULT_TOPUP = 100;
-  const CREDIT_AMOUNT_HELP_TEXT = 'You can adjust the amount of credit added to your account using the plus and minus buttons.';
+  const creditAmountHelpText = () => (globalThis.PlatformLanguage?.text("billing","credit_amount_help","You can adjust the amount of credit added to your account using the plus and minus buttons.") ?? "You can adjust the amount of credit added to your account using the plus and minus buttons.");
   const PENDING_ORDER_KEY = 'fm_pending_order_v1';
   const SUPPRESS_AUTO_SUBMIT_KEY = 'fm_billing_suppress_auto_submit_until';
   const STRIPE_CHECKOUT_PURCHASE_KEY = 'fm_stripe_checkout_purchase_v1';
@@ -44,6 +44,7 @@ window.PlatformCommerce.onReady(function(){
   let autoTopupLoadSeq = 0;
   let billingModalHandle = null;
   let purchaseTopupContext = null;
+  let billingOpenSeq = 0;
   let firstReportAccountLoadEligible = false;
   let firstReportEligibilitySeq = 0;
 
@@ -113,7 +114,7 @@ window.PlatformCommerce.onReady(function(){
     if(fields?.measurement_scope === 'full_house') return ({exteriors_standard:'24 hours',exteriors_same_day:'Under 6 hours',exteriors_priority:'Under 3 hours'})[fields.report_expedite_option] || 'Full House';
     const mode = pendingReportMode(fields);
     if (mode === 'both') return 'Standard + Instant Preview';
-    return 'Standard';
+    return (globalThis.PlatformLanguage?.text("billing","standard","Standard") ?? "Standard");
   }
 
   function normalizedStatusList(values){
@@ -564,7 +565,7 @@ window.PlatformCommerce.onReady(function(){
               <div class="big" id="bTotal">${window.PlatformCommerce.cash(DEFAULT_CREDIT_AMOUNT)}</div>
             </div>
           </div>
-          <div class="b-hint" id="bHint">${String(CREDIT_AMOUNT_HELP_TEXT)}</div>
+          <div class="b-hint" id="bHint">${String(creditAmountHelpText())}</div>
           <div class="b-insufficient-message" id="bInsufficientMessage"></div>
           <div class="b-auto" id="bAutoTopupCard">
             <div class="b-auto-top">
@@ -730,7 +731,7 @@ window.PlatformCommerce.onReady(function(){
       toggle.disabled = !isLoaded;
       toggle.classList.toggle('on', enabled);
     }
-    if (toggleText) toggleText.textContent = autoTopupState?.loading ? 'Loading' : (enabled ? 'Yes' : 'No');
+    if (toggleText) toggleText.textContent = autoTopupState?.loading ? (globalThis.PlatformLanguage?.text("billing","loading","Loading") ?? "Loading") : (enabled ? (globalThis.PlatformLanguage?.text("billing","yes","Yes") ?? "Yes") : (globalThis.PlatformLanguage?.text("billing","no","No") ?? "No"));
     if (note) {
       if (autoTopupState?.loading) note.textContent = (globalThis.PlatformLanguage?.text("billing","m_a9cd7fbc11013b","Loading auto top-up settings...") ?? "Loading auto top-up settings...");
       else if (autoTopupState?.error) note.textContent = autoTopupState.error;
@@ -752,7 +753,7 @@ window.PlatformCommerce.onReady(function(){
     const amtMinus = $('#bAutoAmtMinus');
     if (thMinus) thMinus.disabled = !isLoaded || !enabled || thVal <= AUTO_MIN_AMOUNT;
     if (amtMinus) amtMinus.disabled = !isLoaded || !enabled || amtVal <= AUTO_MIN_AMOUNT;
-    if (summary) summary.textContent = enabled ? `Add ${window.PlatformCommerce.credit(amtVal)} when your balance falls below ${window.PlatformCommerce.credit(thVal)}. Each top-up charges ${window.PlatformCommerce.cash(amtVal)}. ${window.PlatformCommerce.estimate(amtVal)}` : '';
+    if (summary) summary.textContent = enabled ? (globalThis.PlatformLanguage?.text("billing","auto_top_up_summary","Add {credit} when your balance falls below {threshold}. Each top-up charges {charge}. {estimate}",{credit:window.PlatformCommerce.credit(amtVal),threshold:window.PlatformCommerce.credit(thVal),charge:window.PlatformCommerce.cash(amtVal),estimate:window.PlatformCommerce.estimate(amtVal)}) ?? `Add ${window.PlatformCommerce.credit(amtVal)} when your balance falls below ${window.PlatformCommerce.credit(thVal)}. Each top-up charges ${window.PlatformCommerce.cash(amtVal)}. ${window.PlatformCommerce.estimate(amtVal)}`) : '';
     if (status && !autoTopupState?.loading && !autoTopupState?.error) status.textContent = '';
   }
   async function loadAutoTopupSettings(){
@@ -949,7 +950,7 @@ window.PlatformCommerce.onReady(function(){
     total?.classList?.toggle('is-insufficient', insufficient);
     if (message) {
       message.textContent = insufficient
-        ? `This credit would not be sufficient to order the report. You need to add at least ${fmtCredit(needed)} to cover this report.`
+        ? (globalThis.PlatformLanguage?.text("billing","insufficient_credit_amount","This credit would not be sufficient to order the report. You need to add at least {amount} to cover this report.",{amount:fmtCredit(needed)}) ?? `This credit would not be sufficient to order the report. You need to add at least ${fmtCredit(needed)} to cover this report.`)
         : '';
       message.style.display = insufficient ? 'block' : 'none';
     }
@@ -1061,7 +1062,7 @@ window.PlatformCommerce.onReady(function(){
     document.body.appendChild(overlay);
     return overlay;
   }
-  function showStripeCheckoutOverlay(message = 'Opening Stripe...'){
+  function showStripeCheckoutOverlay(message = (globalThis.PlatformLanguage?.text("billing","opening_stripe","Opening Stripe...") ?? "Opening Stripe...")){
     const overlay = ensureStripeCheckoutOverlay();
     const text = overlay.querySelector('[data-stripe-checkout-overlay-message]');
     if (text) text.textContent = message;
@@ -1104,7 +1105,7 @@ window.PlatformCommerce.onReady(function(){
     const balance = Number(purchase.balance);
     const needed = Number(purchase.needed);
     return {
-      label: String(purchase.label || 'this purchase'),
+      label: String(purchase.label || (globalThis.PlatformLanguage?.text("billing","this_purchase","this purchase") ?? "this purchase")),
       required: Number.isFinite(required) ? Math.max(0, Math.round(required * 100) / 100) : 0,
       balance: Number.isFinite(balance) ? Math.round(balance * 100) / 100 : null,
       needed: Number.isFinite(needed) ? Math.max(MIN_CREDIT_AMOUNT, Math.ceil(needed)) : null,
@@ -1155,9 +1156,9 @@ window.PlatformCommerce.onReady(function(){
     overlay?.classList?.toggle('first-report-checkout', purchaseActive || reportGateActive);
     overlay?.classList?.toggle('first-report-account-load', active && !purchaseActive && !reportGateActive);
     creditGrid?.classList?.toggle('b-subtle-topup', purchaseActive || reportGateActive);
-    if (label) label.textContent = active ? 'Credit to add today' : 'Credit To Add';
+    if (label) label.textContent = active ? (globalThis.PlatformLanguage?.text("billing","credit_today","Credit to add today") ?? "Credit to add today") : (globalThis.PlatformLanguage?.text("billing","credit_to_add","Credit To Add") ?? "Credit To Add");
     if (hint) {
-      hint.textContent = CREDIT_AMOUNT_HELP_TEXT;
+      hint.textContent = creditAmountHelpText();
     }
     updateFirstReportInsufficientState(readAmountInput() ?? 0);
     if (!active) return;
@@ -1172,27 +1173,27 @@ window.PlatformCommerce.onReady(function(){
     const copy = $('#bFirstReportCard .b-first-copy');
     const address = $('#bFirstAddress');
     if (kicker) {
-      if (reportGateActive) kicker.innerHTML = '<i class="fas fa-file-invoice-dollar"></i> Report checkout';
-      else if (purchaseActive) kicker.innerHTML = '<i class="fas fa-gift"></i> First report checkout';
-      else kicker.innerHTML = '<i class="fas fa-gift"></i> First account load';
+      if (reportGateActive) kicker.innerHTML = `<i class="fas fa-file-invoice-dollar"></i> ${(globalThis.PlatformLanguage?.htmlText("billing","report_checkout","Report checkout") ?? "Report checkout")}`;
+      else if (purchaseActive) kicker.innerHTML = `<i class="fas fa-gift"></i> ${(globalThis.PlatformLanguage?.htmlText("billing","first_report_checkout","First report checkout") ?? "First report checkout")}`;
+      else kicker.innerHTML = `<i class="fas fa-gift"></i> ${(globalThis.PlatformLanguage?.htmlText("billing","first_account_load","First account load") ?? "First account load")}`;
       kicker.style.display = reportGateActive ? 'none' : '';
     }
     $('#bFirstReportCard .b-first-title').textContent = reportGateActive
-      ? 'More credit needed'
-      : (purchaseActive ? 'Thanks for trying FirstMeasure.'
-      : 'Load your account for your first report.');
+      ? (globalThis.PlatformLanguage?.text("billing","more_credit_needed","More credit needed") ?? "More credit needed")
+      : (purchaseActive ? (globalThis.PlatformLanguage?.text("billing","first_report_thanks","Thanks for trying FirstMeasure.") ?? "Thanks for trying FirstMeasure.")
+      : (globalThis.PlatformLanguage?.text("billing","first_report_load","Load your account for your first report.") ?? "Load your account for your first report."));
     if (copy) {
       copy.textContent = (purchaseActive || reportGateActive)
-      ? 'Add credit to your account to pay for this report.'
-      : 'You have not received a completed report yet. Add credit now so your first order is ready when you need it.';
+      ? (globalThis.PlatformLanguage?.text("billing","pay_report","Add credit to your account to pay for this report.") ?? "Add credit to your account to pay for this report.")
+      : (globalThis.PlatformLanguage?.text("billing","first_report_ready","You have not received a completed report yet. Add credit now so your first order is ready when you need it.") ?? "You have not received a completed report yet. Add credit now so your first order is ready when you need it.");
       copy.style.display = reportGateActive ? 'none' : '';
     }
     if (address) {
-      address.textContent = (purchaseActive || reportGateActive) ? (pending?.fields?.address || 'Your roof report') : 'No completed reports yet';
+      address.textContent = (purchaseActive || reportGateActive) ? (pending?.fields?.address || (globalThis.PlatformLanguage?.text("billing","your_roof_report","Your roof report") ?? "Your roof report")) : (globalThis.PlatformLanguage?.text("billing","no_completed_reports","No completed reports yet") ?? "No completed reports yet");
       address.style.display = reportGateActive ? 'none' : '';
     }
-    $('#bFirstReportCard .b-first-number:first-child span').textContent = (purchaseActive || reportGateActive) ? 'Needed for order' : 'First report from';
-    $('#bFirstReportCard .b-first-number.due span').textContent = (purchaseActive || reportGateActive) ? 'Difference' : 'Credit to add';
+    $('#bFirstReportCard .b-first-number:first-child span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","needed_for_order","Needed for order") ?? "Needed for order") : (globalThis.PlatformLanguage?.text("billing","first_report_from","First report from") ?? "First report from");
+    $('#bFirstReportCard .b-first-number.due span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","difference","Difference") ?? "Difference") : (globalThis.PlatformLanguage?.text("billing","credit_to_add_lower","Credit to add") ?? "Credit to add");
     $('#bFirstReportTotal').textContent = `${fmtCredit(required)}`;
     $('#bFirstBalance').textContent = `${fmtCredit(balance)}`;
     $('#bFirstDue').textContent = `${fmtCredit(needed)}`;
@@ -1200,8 +1201,8 @@ window.PlatformCommerce.onReady(function(){
       autoSubmit.textContent = reportGateActive
         ? ''
         : (purchaseActive && pending?.fields?.address)
-        ? 'After payment goes through, this report order will submit automatically. You do not need to place it again.'
-        : 'This credit will be available for your first report order.';
+        ? (globalThis.PlatformLanguage?.text("billing","automatic_order","After payment goes through, this report order will submit automatically. You do not need to place it again.") ?? "After payment goes through, this report order will submit automatically. You do not need to place it again.")
+        : (globalThis.PlatformLanguage?.text("billing","first_report_credit_available","This credit will be available for your first report order.") ?? "This credit will be available for your first report order.");
     }
   }
   function renderFundingContext(){
@@ -1221,27 +1222,27 @@ window.PlatformCommerce.onReady(function(){
     if (firstReportAccountLoadEligible) {
       title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3460e2ac6317dc","Load your account") ?? "Load your account");
       subtitle.textContent = balance === null
-        ? 'Add credit before ordering your first report.'
-        : `Your balance is ${fmtCredit(balance)}. Add credit before ordering your first report.`;
+        ? (globalThis.PlatformLanguage?.text("billing","credit_before_first_report","Add credit before ordering your first report.") ?? "Add credit before ordering your first report.")
+        : (globalThis.PlatformLanguage?.text("billing","balance_first_report","Your balance is {balance}. Add credit before ordering your first report.",{balance:fmtCredit(balance)}) ?? `Your balance is ${fmtCredit(balance)}. Add credit before ordering your first report.`);
       return;
     }
     if (po?.fields?.address) {
       title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3264eb825aaa46","More credit needed") ?? "More credit needed");
       subtitle.textContent = balance === null
-        ? 'Checking your balance. More credit is needed to fulfill this order.'
-        : `Your balance is ${fmtCredit(balance)}. More credit is needed to fulfill this order.`;
+        ? (globalThis.PlatformLanguage?.text("billing","checking_balance_order","Checking your balance. More credit is needed to fulfill this order.") ?? "Checking your balance. More credit is needed to fulfill this order.")
+        : (globalThis.PlatformLanguage?.text("billing","balance_credit_needed","Your balance is {balance}. More credit is needed to fulfill this order.",{balance:fmtCredit(balance)}) ?? `Your balance is ${fmtCredit(balance)}. More credit is needed to fulfill this order.`);
       return;
     }
     if (purchase) {
       const current = balance ?? purchase.balance;
       title.textContent = (globalThis.PlatformLanguage?.text("billing","m_3264eb825aaa46","More credit needed") ?? "More credit needed");
       subtitle.textContent = current === null
-        ? `Please top up your account to complete ${purchase.label}.`
-        : `Your balance is ${fmtCredit(current)}. Please top up your account to complete ${purchase.label}.`;
+        ? (globalThis.PlatformLanguage?.text("billing","top_up_purchase","Please top up your account to complete {purchase}.",{purchase:purchase.label}) ?? `Please top up your account to complete ${purchase.label}.`)
+        : (globalThis.PlatformLanguage?.text("billing","balance_top_up_purchase","Your balance is {balance}. Please top up your account to complete {purchase}.",{balance:fmtCredit(current),purchase:purchase.label}) ?? `Your balance is ${fmtCredit(current)}. Please top up your account to complete ${purchase.label}.`);
       return;
     }
     title.textContent = (globalThis.PlatformLanguage?.text("billing","m_a3144fad58241a","Add credit") ?? "Add credit");
-    subtitle.textContent = balance === null ? 'Checking your balance.' : `Your balance is ${fmtCredit(balance)}.`;
+    subtitle.textContent = balance === null ? (globalThis.PlatformLanguage?.text("billing","checking_balance","Checking your balance.") ?? "Checking your balance.") : (globalThis.PlatformLanguage?.text("billing","your_balance","Your balance is {balance}.",{balance:fmtCredit(balance)}) ?? `Your balance is ${fmtCredit(balance)}.`);
   }
 
   function renderPendingSafe(){
@@ -1263,13 +1264,13 @@ window.PlatformCommerce.onReady(function(){
     const ph = po.fields.residentPhone || '';
     const projectType = String(po.fields.project_type || 'residential').trim().toLowerCase() || 'residential';
     const typeLabel = projectType === 'commercial'
-      ? 'Commercial'
-      : (projectType === 'multifamily' ? 'Multi-Family' : 'Residential');
-    const scopeLabel = po.fields.measurement_scope === 'full_house' ? 'Full House · roof + gutters included' : pendingIncludesGutters(po.fields) ? 'Roof & Gutters' : 'Roof Only';
+      ? (globalThis.PlatformLanguage?.text("billing","commercial","Commercial") ?? "Commercial")
+      : (projectType === 'multifamily' ? (globalThis.PlatformLanguage?.text("billing","multifamily","Multi-Family") ?? "Multi-Family") : (globalThis.PlatformLanguage?.text("billing","residential","Residential") ?? "Residential"));
+    const scopeLabel = po.fields.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("billing","full_house_included","Full House · roof + gutters included") ?? "Full House · roof + gutters included") : pendingIncludesGutters(po.fields) ? (globalThis.PlatformLanguage?.text("billing","roof_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("billing","roof_only","Roof Only") ?? "Roof Only");
     const packageLabel = `${pendingReportModeLabel(po.fields)} - ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
-      ? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`
+      ? (globalThis.PlatformLanguage?.text("billing","discount_price","{price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
       : `${fmtCredit(quote.final_amount)}`;
     $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' - ') || '-';
     renderFundingContext();
@@ -1290,13 +1291,13 @@ window.PlatformCommerce.onReady(function(){
     const ph = po.fields.residentPhone || '';
     const projectType = String(po.fields.project_type || 'residential').trim().toLowerCase() || 'residential';
     const typeLabel = projectType === 'commercial'
-      ? 'Commercial'
-      : (projectType === 'multifamily' ? 'Multi-Family' : 'Residential');
-    const scopeLabel = po.fields.measurement_scope === 'full_house' ? 'Full House · roof + gutters included' : pendingIncludesGutters(po.fields) ? 'Roof & Gutters' : 'Roof Only';
+      ? (globalThis.PlatformLanguage?.text("billing","commercial","Commercial") ?? "Commercial")
+      : (projectType === 'multifamily' ? (globalThis.PlatformLanguage?.text("billing","multifamily","Multi-Family") ?? "Multi-Family") : (globalThis.PlatformLanguage?.text("billing","residential","Residential") ?? "Residential"));
+    const scopeLabel = po.fields.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("billing","full_house_included","Full House · roof + gutters included") ?? "Full House · roof + gutters included") : pendingIncludesGutters(po.fields) ? (globalThis.PlatformLanguage?.text("billing","roof_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("billing","roof_only","Roof Only") ?? "Roof Only");
     const packageLabel = `${pendingReportModeLabel(po.fields)} · ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
-      ? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`
+      ? (globalThis.PlatformLanguage?.text("billing","discount_price","{price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
       : `${fmtCredit(quote.final_amount)}`;
     $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' • ') || '—';
   }
@@ -1309,7 +1310,7 @@ window.PlatformCommerce.onReady(function(){
     btn.disabled = true;
 
     const old = btn.innerHTML;
-    btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Redirecting`;
+    btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${(globalThis.PlatformLanguage?.htmlText("billing","redirecting","Redirecting") ?? "Redirecting")}`;
 
     try{
       const rawQty = String($('#bQty').value || '').trim();
@@ -1331,7 +1332,7 @@ window.PlatformCommerce.onReady(function(){
       if (purchaseTopupContext && !hasPendingOrder()) suppressAutoSubmitForPurchase();
       else clearAutoSubmitSuppression();
       if (autoTopupAvailableInCurrentFlow() && autoTopupDirty()) {
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Saving`;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${(globalThis.PlatformLanguage?.htmlText("billing","saving","Saving") ?? "Saving")}`;
         const saved = await saveAutoTopupSettings();
         if (!saved) {
           errEl.textContent = (globalThis.PlatformLanguage?.text("billing","m_73c8541443181f","Could not save auto top-up settings.") ?? "Could not save auto top-up settings.");
@@ -1339,12 +1340,12 @@ window.PlatformCommerce.onReady(function(){
           btn.innerHTML = old;
           return;
         }
-        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Redirecting`;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${(globalThis.PlatformLanguage?.htmlText("billing","redirecting","Redirecting") ?? "Redirecting")}`;
       }
       const { data } = await postAction('stripe_create_checkout', { qty, ...metaAttributionPayload() });
 
       if (!data || !data.success || !data.url){
-        errEl.textContent = data?.error || 'Failed to start checkout.';
+        errEl.textContent = data?.error || (globalThis.PlatformLanguage?.text("billing","checkout_failed","Failed to start checkout.") ?? "Failed to start checkout.");
         btn.disabled = false;
         btn.innerHTML = old;
         return;
@@ -1596,7 +1597,15 @@ window.PlatformCommerce.onReady(function(){
     });
   }
 
-  function open(context){
+  async function open(context){
+    const openSeq = ++billingOpenSeq;
+    // Load before permission feedback or modal DOM; close/reopen invalidates stale opens.
+    try { await window.PlatformLanguage?.ensure?.(['billing']); }
+    catch (_) {
+      if (openSeq === billingOpenSeq) showToast((globalThis.PlatformLanguage?.text("billing","catalog_load_failed","Could not load billing. Please try again.") ?? "Could not load billing. Please try again."), '', false);
+      return;
+    }
+    if (openSeq !== billingOpenSeq) return;
     // PERMISSION CHECK
     if (!hasPerm('manage_billing')) {
       showToast((globalThis.PlatformLanguage?.text("billing","m_60fa00527e725c","Access denied") ?? "Access denied"), (globalThis.PlatformLanguage?.text("billing","m_ef03abbb9958f0","You do not have permission to manage billing.") ?? "You do not have permission to manage billing."), false);
@@ -1631,6 +1640,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function close(){
+    billingOpenSeq += 1;
     firstReportEligibilitySeq += 1;
     billingModalHandle?.unregister?.();
     billingModalHandle = null;

@@ -44,7 +44,78 @@
     "m_5a3dca8919c4c0": "Aún no se ha confirmado ningún cargo.",
     "m_c5e73b482b12dd": "Créditos actualizados",
     "m_60fa00527e725c": "Acceso denegado",
-    "m_ef03abbb9958f0": "No tienes permiso para gestionar la facturación."
+    "m_ef03abbb9958f0": "No tienes permiso para gestionar la facturación.",
+    "credit_amount_help": "Puedes ajustar la cantidad de crédito que añades a tu cuenta con los botones más y menos.",
+    "credit_today": "Crédito que se añadirá hoy",
+    "credit_to_add": "Crédito que añadir",
+    "more_credit_needed": "Se necesita más crédito",
+    "first_report_thanks": "Gracias por probar FirstMeasure.",
+    "first_report_load": "Recarga tu cuenta para tu primer informe.",
+    "pay_report": "Añade crédito a tu cuenta para pagar este informe.",
+    "first_report_ready": "Aún no has recibido ningún informe completado. Añade crédito ahora para que tu primer pedido esté listo cuando lo necesites.",
+    "your_roof_report": "Tu informe del tejado",
+    "no_completed_reports": "Aún no hay informes completados",
+    "needed_for_order": "Necesario para el pedido",
+    "first_report_from": "Primer informe de",
+    "difference": "Diferencia",
+    "credit_to_add_lower": "Crédito que añadir",
+    "automatic_order": "Cuando se complete el pago, este pedido de informe se enviará automáticamente. No tendrás que volver a realizarlo.",
+    "first_report_credit_available": "Este crédito estará disponible para tu primer pedido de informe.",
+    "credit_before_first_report": "Añade crédito antes de pedir tu primer informe.",
+    "checking_balance_order": "Comprobando tu saldo. Se necesita más crédito para completar este pedido.",
+    "checking_balance": "Comprobando tu saldo.",
+    "checkout_failed": "No se ha podido iniciar el proceso de pago.",
+    "opening_stripe": "Abriendo Stripe...",
+    "this_purchase": "esta compra",
+    "balance_first_report": {
+      "message": "Tu saldo es {balance}. Añade crédito antes de pedir tu primer informe.",
+      "format": "icu"
+    },
+    "balance_credit_needed": {
+      "message": "Tu saldo es {balance}. Se necesita más crédito para completar este pedido.",
+      "format": "icu"
+    },
+    "top_up_purchase": {
+      "message": "Recarga tu cuenta para completar {purchase}.",
+      "format": "icu"
+    },
+    "balance_top_up_purchase": {
+      "message": "Tu saldo es {balance}. Recarga tu cuenta para completar {purchase}.",
+      "format": "icu"
+    },
+    "your_balance": {
+      "message": "Tu saldo es {balance}.",
+      "format": "icu"
+    },
+    "report_checkout": "Pago del informe",
+    "first_report_checkout": "Pago del primer informe",
+    "first_account_load": "Primera recarga de la cuenta",
+    "redirecting": "Redirigiendo",
+    "saving": "Guardando",
+    "loading": "Cargando",
+    "yes": "Sí",
+    "no": "No",
+    "commercial": "Comercial",
+    "multifamily": "Multifamiliar",
+    "residential": "Residencial",
+    "full_house_included": "Vivienda completa · tejado + canalones incluidos",
+    "roof_gutters": "Tejado y canalones",
+    "roof_only": "Solo tejado",
+    "standard": "Estándar",
+    "standard_instant": "Estándar + informe instantáneo",
+    "auto_top_up_summary": {
+      "message": "Añade {credit} cuando tu saldo baje de {threshold}. Cada recarga cobra {charge}. {estimate}",
+      "format": "icu"
+    },
+    "insufficient_credit_amount": {
+      "message": "Este crédito no sería suficiente para pedir el informe. Debes añadir al menos {amount} para cubrirlo.",
+      "format": "icu"
+    },
+    "discount_price": {
+      "message": "{price} (ahorra {saving})",
+      "format": "icu"
+    },
+    "catalog_load_failed": "No se ha podido cargar la información de facturación. Inténtalo de nuevo."
   },
   "canvassing": {
     "m_61df468d92e238": "Todos",
@@ -1776,7 +1847,353 @@
     },
     "m_d2a894582092f8": "Solo tejado",
     "m_0980d65c27cd2f": "Estructura completa",
-    "m_09612fd6ab85db": "Cobertura del informe"
+    "m_09612fd6ab85db": "Cobertura del informe",
+    "m_dc6a60d7bb3581": "Siguiente ",
+    "m_76f61845dd2aea": "CALLE",
+    "m_e4b02dd6cf2314": "Guía de ángulos de la casa",
+    "m_48cd840a98035f": "Subir",
+    "m_86d43ca533f4ae": "Reintentar cámara",
+    "m_8247c56c226358": "Vista previa en directo de la cámara trasera",
+    "m_c7a97e0bb50632": "Subir fotos",
+    "m_1a58fdc6bb20bf": "Fotos para este ángulo",
+    "m_6555da398c64e6": "Hacer foto",
+    "m_014da584de30ed": {
+      "message": "Casa {v0} · Vista {v1} de 8",
+      "format": "icu"
+    },
+    "m_8ac00bef24971e": {
+      "message": "{v0} de la casa",
+      "format": "icu"
+    },
+    "m_acb62edbd19fa2": {
+      "message": "{v0} de la casa; la fachada da a la calle",
+      "format": "icu"
+    },
+    "m_2436076ece8629": "Principal",
+    "m_48a9cdd2af44f4": "Reintentar",
+    "m_173c36d4fce52b": "Subiendo foto",
+    "m_06170cce538389": "Eliminar foto",
+    "m_9389ebcecf7d63": {
+      "message": "{v0} foto{v1}",
+      "format": "icu"
+    },
+    "m_711bf09bbd2160": "Fotos de referencia del exterior",
+    "m_1ca9bec888658a": "Fotos subidas del exterior",
+    "m_acaf0eb128605e": "Suelta las fotos aquí para subirlas",
+    "m_42e91ae7dddc18": "Cargando fotos…",
+    "m_8941c9a5445fb9": "Fotos subidas del exterior",
+    "m_cad1a6c79c9cf3": {
+      "message": "{v0} fotos",
+      "format": "icu"
+    },
+    "m_26bd8e451be239": {
+      "message": "{v1} asignadas",
+      "format": "icu"
+    },
+    "m_a69623abe7dd91": {
+      "message": "Subiendo {v3} foto{v4}",
+      "format": "icu"
+    },
+    "m_5b239bae30cb96": {
+      "message": "{v1} sin asignar{v2}",
+      "format": "icu"
+    },
+    "m_a3dc6534fc81dc": "Mostrar todas las fotos",
+    "m_9138e9cdd68343": "Arrastra las fotos aquí",
+    "m_bf0345adc5299e": "Ángulos obligatorios",
+    "m_02b18934a68584": "Fotos adicionales",
+    "m_8411c93e5b0adf": "Total de fotos",
+    "m_be4cfb58b9c4d7": "Fotos",
+    "m_0dc366a939cb1d": "Estructura",
+    "m_a32cdb9d1056f2": "Toca una posición abajo para asignarla.",
+    "m_05a79c7def4dac": "Conservar como extra",
+    "m_59741c3f6d31f8": "Deseleccionar",
+    "m_9506f115fde6af": "ATRÁS",
+    "m_4042bd99ed30d1": "FRENTE ↓",
+    "m_9e22418c14100e": "Casa vista desde arriba, con el frente en la parte inferior",
+    "m_7665c7cfa6ea36": {
+      "message": "{v4} {v5} foto",
+      "format": "icu"
+    },
+    "m_84b311b1332f3c": "Toca para subir",
+    "m_484b63459c1357": "Tiempo de espera estimado ahora",
+    "m_7b8bab306cc5c2": {
+      "message": "Estimación: {v2} h",
+      "format": "icu"
+    },
+    "m_1d63663ae56e2a": "18 h",
+    "m_e731322b674a97": "24 h",
+    "m_e7f79de4539e22": {
+      "message": "{v5} por estructura + tarifa de entrega seleccionada{v6}",
+      "format": "icu"
+    },
+    "m_29ee01b139b644": "Cargando precios…",
+    "m_f27fa22720bb9a": "Propiedad",
+    "m_dccbe8abe35b17": "Tipo de propiedad",
+    "m_ae8e4953e07d70": "Cliente",
+    "m_3fd6a5025f8036": "Detalles del informe",
+    "m_9b208988dee1f1": "Suelta las fotos aquí para subirlas",
+    "m_50904398019722": " Añadir contacto",
+    "m_c9a026ebb1be8c": "Tipo de propiedad",
+    "m_908c0715a481b7": "Dirección de la propiedad",
+    "m_1f6129f59f143b": "Dirección de la propiedad",
+    "m_29f3cc51016963": "Tipo de proyecto",
+    "m_417e1dad6a313e": "Empieza a escribir una dirección o haz clic en el mapa...",
+    "m_5c6d435494fefd": "Crear una propuesta",
+    "m_e5aee059bf2f35": "Programar una cita",
+    "m_bd6349111bdda5": "Agente de propuestas",
+    "m_a2d8046f355c56": "Generar borrador de propuesta",
+    "m_289b2e5bec972c": "Usa el mensaje para describir el alcance, el tono, las fotos que se incluirán y todo lo que deba ver el cliente.",
+    "m_7ceca87ce420be": "Activar o desactivar el agente de propuestas",
+    "m_84f47d747cfe44": "Indica al agente de propuestas qué debe incluir esta propuesta...",
+    "m_18fc56365bd838": "Dictar mensaje",
+    "m_09ee09a435f087": "Más recientes",
+    "m_5a704a0a365cf0": "Más antiguos",
+    "m_971bee4a6a3550": "Añadir nota ",
+    "m_5e715bf9880366": "¿Quién puede verla?",
+    "m_d068fb68fb07d2": "Todo el mundo",
+    "m_3fe33cd11f8a29": "Historial",
+    "m_fa1d10be2766ee": " Añadir nota",
+    "m_6643d210319486": "Filtrar notas",
+    "m_5bfaf42a1f7ef2": "Ordenar notas",
+    "m_81cd5cfdb71ce1": "Elige quién puede ver esta nota",
+    "m_3bad1b1f1d93ba": "Añade una nota interna… Usa @nombre o @correo electrónico para etiquetar a alguien.",
+    "m_14d6270ea986dc": "Ver historial de notas",
+    "m_d3fd8350167dd9": "Subir contenido multimedia a la nota",
+    "m_dd978d5c5b3bd9": "Grabar nota de audio",
+    "m_5bbba2df4ff973": "Notas internas ",
+    "m_2b31fcca2dfee1": "Ampliar notas internas",
+    "m_69afca2b27d860": "Notas internas para tu propia referencia...",
+    "m_3f912aeb9ec149": {
+      "message": "Casa {v0}",
+      "format": "icu"
+    },
+    "m_31a44c7d4ec28e": {
+      "message": "Casa {v1}, {v2}",
+      "format": "icu"
+    },
+    "m_10390ed58d9d2e": {
+      "message": "Estructura {v2}",
+      "format": "icu"
+    },
+    "m_a41e0c05153e74": "Foto seleccionada",
+    "m_0dd87f826c8c39": "Reintentar subida",
+    "m_94fef39d56d52f": {
+      "message": "Eliminar foto {v1}",
+      "format": "icu"
+    },
+    "m_cb96f1b0af21d8": "Añadir fotos",
+    "m_b51f2220e8185c": "Urgente",
+    "m_0f0032d7c26618": "Notas para el técnico",
+    "m_0b730c79a5c5eb": "Copia para informes",
+    "m_bc21fa8a42be31": "Notas internas",
+    "m_100206f83a1d97": "Solo vista previa de prueba. Añade las ocho vistas de cada estructura antes de realizar un pedido.",
+    "internal_notes_help": "Solo para tu propia referencia.",
+    "project_address_heading": "Dirección del proyecto",
+    "property_address_accessible": "Dirección de la propiedad",
+    "technician_notes_help": "Instrucciones especiales o detalles de la propiedad que el técnico deba conocer, por ejemplo, un garaje independiente, varios edificios o una pendiente pronunciada.",
+    "report_cc_help": "Direcciones de correo electrónico adicionales que deben recibir el informe completado.",
+    "ext_85b3a77a8ba1d7": "Añade las ocho vistas obligatorias de cada estructura antes de realizar el pedido.",
+    "ext_cfa9dc24313268": "Añade un vídeo orbital de cada estructura antes de realizar el pedido.",
+    "ext_4122a51f61ae01": "Añade un vídeo orbital de la casa para continuar.",
+    "ext_037939e415c28b": "Fotos y vídeos adicionales",
+    "ext_dd3c3bac99aa28": "Todas las fotos están asignadas",
+    "ext_93f63a88c7e69d": "Animación: una persona da una vuelta completa alrededor de la casa mientras la graba",
+    "ext_833abb707b2dac": "Es posible que no podamos medir lo que no se vea con claridad y que tengamos que rechazar el proyecto. Normalmente, las ocho fotos son suficientes. Las fotos y los vídeos adicionales ayudan.",
+    "ext_76900f1bfd16c8": "Atrás",
+    "ext_7a70fe7e1b8507": "No se han podido compartir los diagnósticos de la cámara.",
+    "ext_7cad7a14ed0291": "La cámara no está lista",
+    "ext_0748faa1268982": "La cámara no está disponible. Aun así, puedes subir un vídeo de la casa.",
+    "ext_5414e89a1bc03f": "La cámara no está disponible. Aun así, puedes subir fotos de todos los ángulos.",
+    "ext_a3a35b570535e1": "Zoom de la cámara",
+    "ext_b3e8ecabf4ad19": "¿No puedes grabar?",
+    "ext_1900b478a58603": "Capturar",
+    "ext_189fb6202c349b": "Elige «Estructura completa» para pedir este informe.",
+    "ext_ccd317947e12ef": "Elige un archivo de vídeo (MP4, MOV o WebM).",
+    "ext_823428e67d8d52": "Haz clic para elegir o suelta los archivos aquí",
+    "ext_b543835fdc1ff1": "Confirma en el mapa la ubicación de la estructura.",
+    "ext_408febc0bafde2": "No se han podido cargar los precios.",
+    "ext_8c541d052647e6": "No se ha podido procesar la foto. Vuelve a hacerla.",
+    "ext_26a03939c7a9dc": "No se ha podido enviar este pedido.",
+    "ext_67731319e91d6d": "No se ha podido hacer esta foto. Inténtalo de nuevo.",
+    "ext_b564227b7d3de2": "Los precios de entrega aún se están cargando.",
+    "ext_8a958b5d470770": "El plazo de entrega empieza cuando se envía el pedido.",
+    "ext_bb0783864ee081": "Zoom de cámara digital",
+    "ext_48845bff334a50": "Descartar",
+    "ext_18eb3c7da07409": "Arrastra las fotos aquí",
+    "ext_36d6e4ce04d5fc": "Suelta aquí tus fotos o usa «Subir» para elegir los archivos.",
+    "ext_6e21162913b0dc": "La entrega urgente no está disponible ahora. Elige la entrega estándar.",
+    "ext_f34702ef3c459c": "Referencia adicional",
+    "ext_abc7e9892806b0": "Archivos",
+    "ext_ab738ca65f65c1": "Estructura completa",
+    "ext_fd6623d6d20bb2": "Sigue caminando en círculo",
+    "ext_f662ce48780d0c": "La cámara en directo no está disponible aquí. Usa el botón de la cámara o «Subir» abajo.",
+    "ext_bc14e13e94c48e": "Ángulo siguiente",
+    "ext_86aaa0cc76916a": "Casa siguiente",
+    "ext_678d7d1afa2c16": "Aún no se ha añadido nada",
+    "ext_cf13458f003dfc": "Abriendo la cámara…",
+    "ext_6be090825c9971": "Pedir",
+    "ext_858e4ba7a29fd3": "Pausar",
+    "ext_e159b06187d369": "En pausa",
+    "ext_412f498a96cdba": "No se ha podido capturar la foto. Inténtalo de nuevo.",
+    "ext_19eac15526c5cf": "Graba tu vídeo orbital",
+    "ext_0384d0be0a6f1a": "La grabación no está disponible aquí. Sube un vídeo.",
+    "ext_d2debb79a7c303": "No se ha podido guardar la grabación. Inténtalo de nuevo.",
+    "ext_d640c7421da066": "Reanudar",
+    "ext_942087cc2d41e0": "Reintentar",
+    "ext_aff0766a5290e1": "Revisar",
+    "ext_12ff7ed621202f": "Revisar pedido →",
+    "ext_4352d9d52c47d2": "Revisar fotos",
+    "ext_37e437d86dea02": "Solo tejado",
+    "ext_35fd0238b55b3d": "Guardando segmento…",
+    "ext_88dded33784dcd": "Segmento guardado",
+    "ext_97cdf353d9de69": "Compartir diagnósticos de la cámara",
+    "ext_b58eb52c8810b9": "Omitir por ahora",
+    "ext_7d9eb6f50ee08b": "Empieza por el frente. Da una vuelta completa manteniendo toda la casa en el encuadre.",
+    "ext_30756af0134e4b": "Empezar a grabar",
+    "ext_3d591e826d5459": "Detener grabación",
+    "ext_eaa92b29e7d508": "Detén la grabación para cambiar de cámara",
+    "ext_43f019ea133423": "Cambiar de cámara",
+    "ext_2753cf960a1fa7": "Toca para subir",
+    "ext_48e515f180931f": "Solo vista previa de prueba. Añade un vídeo orbital de cada estructura antes de realizar un pedido.",
+    "ext_e1338e330e2e95": "La grabación era demasiado corta para guardarla. Graba al menos unos segundos.",
+    "ext_e0eadf1224c32d": "No se ha podido cambiar el zoom de esta cámara.",
+    "ext_dceb79d9c01f21": "Este segmento es demasiado grande para subirlo. Elimínalo y graba uno más corto.",
+    "ext_14d33bd014e6b4": "Sin asignar",
+    "ext_865e89de78d94c": "Subir",
+    "ext_6efc5d27f30b20": "Error al subir",
+    "ext_2ba73c5827ad58": "No se ha podido subir. Comprueba la conexión e inténtalo de nuevo.",
+    "ext_d42fb51e78b578": "No se ha podido subir. Inténtalo de nuevo.",
+    "ext_7b34445aae9fc6": "Sube contenido multimedia del proyecto o ajusta la búsqueda.",
+    "ext_5ce44dd77dae78": "Subiendo…",
+    "ext_2eb9e35e8239cf": "Usa fotos JPG, PNG o WebP de hasta 8 MB, o vídeos MP4, MOV o WebM.",
+    "ext_d534be829e3219": "Vídeo",
+    "ext_fc63d3e097f799": "Vista previa del vídeo",
+    "ext_e534224447b2b4": "Los vídeos pueden tener hasta 120 MB cada uno. Graba la vuelta en segmentos más cortos y súbelos por separado.",
+    "ext_08b041935798fb": "Tú",
+    "ext_2ab245a1129a5c": "Puedes subir hasta 100 archivos por pedido.",
+    "ext_65b044714a33c6": "Puedes subir hasta 100 fotos por pedido.",
+    "ext_c51af26e781045": "Tus archivos aún se están terminando de subir. Espera un momento.",
+    "ext_b6aed00cb43845": "No se han podido subir algunas fotos. Vuelve a intentarlo o elimínalas.",
+    "ext_300f36b25f353f": "Algunas fotos necesitan un ángulo. Asígnales uno antes de continuar.",
+    "ext_731dc6e3f07ab1": "Reintentar subida",
+    "ext_94e36843761633": "Posiciones de las fotos",
+    "angle_front": "Frente",
+    "angle_front_left": "Frente izquierda",
+    "angle_left": "Izquierda",
+    "angle_back_left": "Parte trasera izquierda",
+    "angle_back": "Parte trasera",
+    "angle_back_right": "Parte trasera derecha",
+    "angle_right": "Derecha",
+    "angle_front_right": "Frente derecha",
+    "exteriors_standard_label": "Estándar · 24 horas",
+    "exteriors_same_day_label": "Mismo día · menos de 6 horas",
+    "exteriors_priority_label": "Prioritaria · menos de 3 horas",
+    "delivery_very_busy": "Tenemos mucho trabajo",
+    "delivery_busy": "Tenemos bastante trabajo",
+    "delivery_not_busy": "No tenemos mucho trabajo",
+    "current_delivery_estimate": "Plazo de entrega estimado actual",
+    "select_angle_photo": {
+      "message": "Seleccionar foto del ángulo {angle}",
+      "format": "icu"
+    },
+    "upload_angle_photo": {
+      "message": "Subir foto del ángulo {angle}",
+      "format": "icu"
+    },
+    "orbital_video": "Vídeo orbital",
+    "additional_media": "Fotos y vídeos adicionales",
+    "total_files": "Total de archivos",
+    "add_house_video": {
+      "message": "Añade un vídeo orbital de la casa {house} para continuar.",
+      "format": "icu"
+    },
+    "missing_angles": {
+      "message": "Faltan {count} ángulos. Añade fotos de los ángulos que faltan.",
+      "format": "icu"
+    },
+    "structure_number": {
+      "message": "Estructura {number}",
+      "format": "icu"
+    },
+    "switch_camera": "Cambiar de cámara",
+    "camera_zoom": "Zoom de la cámara",
+    "play_video": {
+      "message": "Reproducir vídeo {number}",
+      "format": "icu"
+    },
+    "primary_angle_photo": {
+      "message": "Foto del ángulo {angle}, principal",
+      "format": "icu"
+    },
+    "set_primary_angle_photo": {
+      "message": "Seleccionar foto del ángulo {angle} como principal",
+      "format": "icu"
+    },
+    "view_angle_photo": {
+      "message": "Ver foto del ángulo {angle}",
+      "format": "icu"
+    },
+    "angle_photo": {
+      "message": "Foto del ángulo {angle}",
+      "format": "icu"
+    },
+    "uploading_photo_count": {
+      "message": "Subiendo fotos: {count}",
+      "format": "icu"
+    },
+    "unassigned_count": {
+      "message": "Sin asignar: {count}",
+      "format": "icu"
+    },
+    "show_all": "Mostrar todo",
+    "structure_delivery_price": {
+      "message": "{price} por estructura + tarifa de entrega seleccionada",
+      "format": "icu"
+    },
+    "closed_expedite": "No se puede acelerar la entrega mientras estamos cerrados",
+    "video_segment_count": {
+      "message": "Segmentos de vídeo: {count}",
+      "format": "icu"
+    },
+    "m_a2add99e6507cc": "Pedir mediciones",
+    "m_5b47c31589c08d": " Informe de desarrollo instantáneo",
+    "m_d42e44d94cf26d": "Diagnósticos de cámara de FirstMate",
+    "m_45483cba8b2363": "Cerrar vídeo",
+    "m_d1072adbf4a739": "Subir vídeos",
+    "m_679e3f0532c8f6": "Segmentos grabados",
+    "m_6bfeca260a706b": "Empieza por el frente.",
+    "m_8d450f8f09d474": " Retrocede hasta que toda la casa quepa en el encuadre, desde la línea del tejado hasta los cimientos.",
+    "m_fbc415383ed061": "Da una vuelta completa.",
+    "m_8999a5973399a7": " Avanza despacio y mantén la casa centrada durante toda la vuelta.",
+    "m_28a19a351341b7": "Haz una pausa cuando la necesites.",
+    "m_586094cc3ecf92": " Graba tantos segmentos como necesites o sube vídeos que ya tengas.",
+    "m_a156054f2fdcd9": "Grabar un vídeo orbital",
+    "m_5cfa8ae69d7e6c": {
+      "message": "Da una vuelta completa alrededor de la casa mientras grabas. Es la forma más rápida de mostrarnos todos los lados.{v0}",
+      "format": "icu"
+    },
+    "m_15f72513cd842e": "Subir un vídeo",
+    "m_cab762c293af5c": "¿No puedes grabar un vídeo? Haz el pedido con fotos",
+    "m_1cb496d81d0d8a": "Pedir con fotos",
+    "m_9f5adc82950818": "¿No tienes vídeo? Podemos medir a partir de fotos. Necesitamos los ocho ángulos de la casa y te guiaremos paso a paso.",
+    "m_18eb50539ad3c5": "Haz las fotos de los ocho ángulos.",
+    "m_6e5fce959cdaef": " Cada lado y cada esquina, con toda la casa en el encuadre.",
+    "m_8652b670148f22": "Añade lo que sea difícil de ver.",
+    "m_ffa9f3c2ab78e6": " Si los ocho ángulos no lo muestran o queda oculto desde la calle, añade fotos adicionales o un vídeo después.",
+    "m_5a04d009cf966a": "Empezar con las ocho fotos",
+    "m_23d5e1d2486b6a": "Volver al vídeo orbital (recomendado)",
+    "m_0352f26fd9d997": "Fotos y vídeos adicionales",
+    "m_215a48fa6c2668": {
+      "message": "{v0}Vídeo orbital",
+      "format": "icu"
+    },
+    "m_2b2100088ed9f2": "Vídeo orbital",
+    "m_b3790b49db5f84": "Añadir un vídeo orbital",
+    "m_25253d755816e2": "Graba con el móvil una vuelta completa alrededor de la casa y sube el vídeo aquí. Si haces el pedido desde la aplicación FirstMate, lo grabaremos por ti.",
+    "m_27b7e868698f63": "Añade primeros planos de todo lo que no se vea bien en el vídeo, como buhardillas, ampliaciones o pasillos laterales estrechos.",
+    "m_2469fadd18d99a": "¿Tienes un vídeo? Cambia al vídeo orbital (recomendado)",
+    "m_6e81feb28a2b17": "Aún no hay vídeo"
   },
   "help": {
     "m_0db6efc53ab2ed": "¿Necesitas ayuda?",
@@ -3205,7 +3622,103 @@
     "m_2767483f4609c6": " Finalizar y enviar",
     "m_a1cb9492b60b7f": " Siguiente firma",
     "m_be4cfb58b9c4d7": "Fotos",
-    "m_8fda0d4db92a17": " Crear sin proyecto"
+    "m_8fda0d4db92a17": " Crear sin proyecto",
+    "terminology_new_project": "Nuevo proyecto",
+    "terminology_project_title": "Título del proyecto",
+    "primary_contact_heading": "Contacto principal",
+    "contact_actions": "Acciones de contacto",
+    "remove_recipient": "Eliminar",
+    "edit_project_identity": "Editar el contacto y la dirección del proyecto",
+    "new_report": "Nuevo informe",
+    "saved_contact": "Contacto guardado",
+    "call_contact": "Llamar al contacto",
+    "message_contact": "Enviar un mensaje al contacto",
+    "email_contact": "Enviar un correo electrónico al contacto",
+    "project_identity": "Contacto y dirección del proyecto",
+    "expand_internal_notes": "Ampliar notas internas",
+    "reduce_internal_notes": "Reducir notas internas",
+    "checking_price": "Comprobando el precio actual...",
+    "order_roof_report": "Pedir informe del tejado",
+    "order_report": "Pedir informe",
+    "order_full_structure": "Pedir estructura completa",
+    "continue": "Continuar",
+    "project_fullscreen": "Abrir proyecto a pantalla completa",
+    "project_shrink": "Reducir la ventana del proyecto",
+    "order_roof_report_price": {
+      "message": "Pedir informe del tejado - {price}",
+      "format": "icu"
+    },
+    "order_roof_report_discount": {
+      "message": "Pedir informe del tejado - {price} (ahorra {saving})",
+      "format": "icu"
+    },
+    "no_matching_contacts": "No hay contactos que coincidan",
+    "loading_contacts": "Cargando contactos guardados...",
+    "no_saved_contacts": "Aún no hay contactos guardados",
+    "project_title": "Título del proyecto",
+    "choose_type_first": "Elige primero un tipo de proyecto",
+    "busy": "Tenemos bastante trabajo",
+    "very_busy": "Tenemos mucho trabajo",
+    "pin_instructions": "Haz clic en el mapa para colocar marcadores en cada estructura que quieras incluir.",
+    "no_pins": "No se ha colocado ningún marcador",
+    "one_pin": "1 marcador colocado",
+    "one_pin_confirmed": "Confirmado: 1 marcador colocado",
+    "contacts_unavailable": "No se han podido abrir los contactos.",
+    "contact_open_failed": "No se ha podido abrir el contacto.",
+    "contact_update_failed": "No se ha podido actualizar el contacto del cliente.",
+    "contact_action_failed": "No se ha podido abrir la acción del contacto",
+    "project_save_failed": "No se ha podido guardar el proyecto.",
+    "roof_report_ordered": "Informe del tejado solicitado",
+    "full_report_ordered": "Informe de estructura completa solicitado",
+    "report_processing": "El informe se está procesando.",
+    "connection_retry": "Error de conexión. Inténtalo de nuevo.",
+    "not_busy": "No tenemos mucho trabajo",
+    "price_per_structure": {
+      "message": "{price} / estructura",
+      "format": "icu"
+    },
+    "price_flat_rate": {
+      "message": "Tarifa fija de {price}",
+      "format": "icu"
+    },
+    "delivery_by": {
+      "message": "Antes de las {time}",
+      "format": "icu"
+    },
+    "standard_delivery_duration": {
+      "message": "Entrega estándar: {duration}",
+      "format": "icu"
+    },
+    "pins_placed": {
+      "message": "{count} marcadores colocados",
+      "format": "icu"
+    },
+    "pins_confirmed": {
+      "message": "Confirmado: {count} marcadores colocados",
+      "format": "icu"
+    },
+    "under_one_hour": "Menos de 1 hora",
+    "under_hours": {
+      "message": "Menos de {hours} horas",
+      "format": "icu"
+    },
+    "structure_total": {
+      "message": "{report}: {count} estructuras × {unit} = {total} en total",
+      "format": "icu"
+    },
+    "m_b7a344ddca6545": "FM",
+    "m_c92936cb32df1e": "Usar otro informe de desarrollo completado que coincida con el tipo y el alcance seleccionados",
+    "m_a9fc58f6e515fa": "No hay ningún informe que coincida",
+    "m_b1cdd265d6ddcb": "Informe de desarrollo",
+    "m_aaebd7ccba0b30": "Proyecto",
+    "m_9b03ccb29ba168": "Resumen",
+    "m_c2d9303f34719d": "Añadir nota fijada",
+    "m_0747045bf3d919": "Nuevo proyecto",
+    "m_9f4cf23e7e3636": "Buscar un proyecto existente",
+    "m_428a61cf4a8532": "Proyectos coincidentes",
+    "m_67ea3d9f45d10b": "Buscando proyectos…",
+    "m_7f0c783c8eec23": "Abriendo proyecto…",
+    "m_5180ead27b8ad6": "Error al cargar el GIF"
   },
   "project-schedule": {
     "m_88e13d64071885": "Horario bloqueado",
@@ -3566,7 +4079,54 @@
     "m_9402b38f071830": "Ordenar proyectos",
     "m_f022fa62257ce9": "Jane Smith",
     "m_564fe2da7605fa": "jane@example.com",
-    "m_7247f8e5fa0e91": "Nombre accesible del cuadro para pedir un informe estándar"
+    "m_7247f8e5fa0e91": "Nombre accesible del cuadro para pedir un informe estándar",
+    "m_219853c2fec210": "Prueba a pedir un informe completo para obtener las mediciones de esta estructura.",
+    "m_d2a894582092f8": "Solo tejado",
+    "m_16e6b2fac22e7e": "Tejado &amp; canalones",
+    "m_5ee37aecb582b4": " Manual",
+    "m_f86eb4b8f9ea2c": "El movimiento manual está activado",
+    "m_fe74e5ffd55b04": "Arrastra una tarjeta de proyecto a otra fase.",
+    "m_48afb49c6f40c4": "Tablero",
+    "m_39f4f4e9015b56": " Abrir PDF",
+    "m_d091a3a21d5851": {
+      "message": " Pedir informe completo - ${v0}",
+      "format": "icu"
+    },
+    "m_7c4f8058d549a7": " Inclinaciones activadas",
+    "m_97f68e5486c2f8": "Buscar dirección, contacto…",
+    "m_af80d9cead6991": "Buscar proyectos",
+    "pitches_on": "Inclinaciones activadas",
+    "pitches_off": "Inclinaciones desactivadas",
+    "order_full_report_amount": {
+      "message": "Pedir informe completo - {amount}",
+      "format": "icu"
+    },
+    "m_53d803cdbe9ab1": "Dirección",
+    "m_b9bbb4f486250d": "Contacto principal",
+    "m_71b71bf03872e8": "Teléfono del contacto principal",
+    "m_6bc4d56ee2a851": "Correo electrónico del contacto principal",
+    "m_ca4bcb012af794": "Estado del informe",
+    "m_b9e330a2a05e3a": "Sin fase",
+    "m_0c8087b7a76bdd": "Sin tablero",
+    "m_b66bef8d909043": "Todos los tableros",
+    "m_db7bc4ec19e30d": "Proyecto compartido",
+    "m_f7db06bcf62c85": "Columnas de la lista",
+    "m_0989a5be2bc0a3": "Haz clic en el encabezado de una columna para ordenar la lista.",
+    "m_db1fe336bd1deb": "Fecha de creación del proyecto",
+    "m_a4101be3c706f6": "Ordenar por",
+    "m_82049078ca088b": "Cambiar el sentido del orden",
+    "m_529b6356416c11": "Todas las fases",
+    "m_da6a380b934274": {
+      "message": "Vista {v0}",
+      "format": "icu"
+    },
+    "m_9b0cf483ee4377": {
+      "message": "Abrir {v0}, compartido por {v1}",
+      "format": "icu"
+    },
+    "m_ce86fe78082565": "No disponible",
+    "m_f8e16243e0f91c": "Gestionar vista",
+    "m_200131262770e4": "Vista del proyecto"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -6897,7 +7457,136 @@
     "m_10836fee7d848c": "SMS para empresas",
     "m_fdb931154a90d3": "¿Necesitas un límite mayor? Contacta con el equipo de tu cuenta para contratar un plan mensual personalizado.",
     "m_3be71fb0bc5d46": "No hay más suscripciones disponibles.",
-    "m_db8eb97cb6c0a3": "Cargando la facturación…"
+    "m_db8eb97cb6c0a3": "Cargando la facturación…",
+    "m_38e15f7a2dd540": "Kit de marca",
+    "m_ae9d8c44e49371": {
+      "message": " Cada recarga cobra {v0}. {v1}",
+      "format": "icu"
+    },
+    "m_ae873abaa56707": "Mediciones",
+    "m_455c24bfeb9092": "Sistema imperial (pies y squares)",
+    "m_ef3e6a234d5a73": "Sistema métrico (metros y metros cuadrados)",
+    "m_4ca221574beb0d": " Vista previa del informe",
+    "fm_billing_minimum": {
+      "message": "Los importes mínimos de recarga automática son {amount}.",
+      "format": "icu"
+    },
+    "fm_use_the_card_on_file_to_keep_your_account_funded_automatically": "Usa la tarjeta registrada para mantener saldo en tu cuenta automáticamente.",
+    "fm_use_the_card_you_add_to_keep_your_account_funded_automatically": "Usa la tarjeta que añadas para mantener saldo en tu cuenta automáticamente.",
+    "fm_enabled": "Activado",
+    "fm_disabled": "Desactivado",
+    "fm_on": "Activado",
+    "fm_off": "Desactivado",
+    "fm_payment_could_not_be_processed": "No se ha podido procesar el pago",
+    "fm_payment_processed": "Pago procesado",
+    "fm_report_ordered": "Informe solicitado",
+    "fm_payment_received": "Pago recibido",
+    "fm_payment": "Pago",
+    "fm_promo_credit_applied": "Crédito promocional aplicado",
+    "fm_coupon_credit_added": "Crédito del cupón añadido",
+    "fm_cancellation_refund": "Reembolso por cancelación",
+    "fm_expedite_refund": "Reembolso por entrega urgente",
+    "fm_missed_promised_delivery_window": "Incumplimiento del plazo de entrega prometido",
+    "fm_additional_structure_refund": "Reembolso por estructura adicional",
+    "fm_additional_structure_request": "Solicitud de estructura adicional",
+    "fm_auto_top_up": "Recarga automática",
+    "fm_refund": "Reembolso",
+    "fm_credit_adjustment": "Ajuste de crédito",
+    "fm_additional_structure_request_refund": "Reembolso por solicitud de estructura adicional",
+    "fm_additional_structure_added_to_report": "Estructura adicional añadida al informe",
+    "fm_completed": "Completado",
+    "fm_rejected": "Rechazado",
+    "fm_processing": "En proceso",
+    "fm_update_card": "Actualizar tarjeta",
+    "fm_add_card": "Añadir tarjeta",
+    "fm_save": "Guardar",
+    "fm_save_and_add_card": "Guardar y añadir tarjeta",
+    "fm_card_expiry": {
+      "message": "Caduca el {date}",
+      "format": "icu"
+    },
+    "fm_card": "Tarjeta",
+    "fm_triggered_by_person": {
+      "message": "Iniciado por {person}",
+      "format": "icu"
+    },
+    "fm_ordered_by_person": {
+      "message": "Solicitado por {person}",
+      "format": "icu"
+    },
+    "fm_handled_by_person": {
+      "message": "Gestionado por {person}",
+      "format": "icu"
+    },
+    "fm_ref_reference": {
+      "message": "Ref. {reference}",
+      "format": "icu"
+    },
+    "fm_charged_amount": {
+      "message": "Cobrado: {amount}",
+      "format": "icu"
+    },
+    "fm_additional_structure_count": {
+      "message": "{count, plural, one {# estructura adicional} other {# estructuras adicionales}}",
+      "format": "icu"
+    },
+    "fm_billing_residential": "Residencial",
+    "fm_billing_commercial": "Comercial",
+    "fm_billing_multi_family": "Multifamiliar",
+    "fm_billing_multifamily": "Multifamiliar",
+    "fm_billing_full": "Informe completo",
+    "fm_billing_roof_only": "Solo tejado",
+    "fm_billing_roof": "Solo tejado",
+    "fm_you_cannot_edit_your_own_permissions_here": "No puedes editar tus propios permisos aquí.",
+    "fm_permissions_are_read_only": "Los permisos son de solo lectura.",
+    "fm_users": "Usuarios",
+    "fm_departments": "Departamentos",
+    "fm_user_administration": "Administración de usuarios",
+    "fm_brand_kit": "Kit de marca",
+    "fm_changes_saved_automatically": "Los cambios se guardan automáticamente.",
+    "fm_could_not_save_brand_kit": "No se ha podido guardar el kit de marca.",
+    "fm_preview_summary": "Resumen del proyecto",
+    "fm_preview_facets": "Total de faldones",
+    "fm_preview_pitch": "Inclinación predominante",
+    "fm_preview_area": "Área total",
+    "fm_preview_breakdown": "Desglose de mediciones",
+    "fm_preview_eave": "Alero",
+    "fm_preview_ridge": "Cumbrera",
+    "fm_preview_valley": "Limahoya",
+    "fm_deleted": "Eliminado",
+    "fm_suspended": "Suspendido",
+    "fm_never_signed_in": "Nunca ha iniciado sesión",
+    "fm_invited": "Invitado",
+    "fm_active": "Activo",
+    "fm_primary_logo_saved_automatically": "El logotipo principal se ha guardado automáticamente.",
+    "fm_could_not_change_primary_logo": "No se ha podido cambiar el logotipo principal.",
+    "fm_the_logo_colors_could_not_be_read": "No se han podido leer los colores del logotipo.",
+    "fm_could_not_send_invite_email": "No se ha podido enviar el correo de invitación.",
+    "fm_user_suspended": "Usuario suspendido.",
+    "fm_user_unsuspended": "Se ha levantado la suspensión del usuario.",
+    "fm_you_can_t_suspend_yourself": "No puedes suspenderte a ti mismo.",
+    "fm_you_can_t_suspend_a_super_admin": "No puedes suspender a un superadministrador.",
+    "fm_you_can_t_delete_yourself": "No puedes eliminarte a ti mismo.",
+    "fm_you_can_t_delete_a_super_admin": "No puedes eliminar a un superadministrador.",
+    "fm_report_settings_future_only": "Los cambios en la configuración de los informes solo se aplican a futuros informes de mediciones. No modifican los informes que ya se han solicitado.",
+    "fm_statement_date": "Fecha",
+    "fm_statement_transaction": "Transacción",
+    "fm_statement_details": "Detalles",
+    "fm_statement_reason": "Motivo",
+    "fm_statement_amount": "Importe",
+    "fm_statement_balance_after": "Saldo después",
+    "fm_statement_address": "Dirección",
+    "fm_statement_ordered_by": "Solicitado por",
+    "fm_statement_date_ordered": "Fecha del pedido",
+    "fm_statement_project_type": "Tipo de proyecto",
+    "fm_statement_status": "Estado",
+    "fm_statement_cost": "Coste",
+    "fm_statement_reimbursed": "Reembolsado",
+    "fm_statement_total": "Total",
+    "fm_statement_transaction_count": {
+      "message": "{count, plural, one {# transacción} other {# transacciones}} - Neto: ",
+      "format": "icu"
+    }
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Añadir trabajo",
@@ -7542,7 +8231,8 @@
     "m_6d30e375168449": {
       "message": "{v0} sin leer &middot; {v1} en total",
       "format": "icu"
-    }
+    },
+    "new_report": "Nuevo informe"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Oficina",
@@ -9851,6 +10541,98 @@
     "m_0d80b4a3bd88a0": {
       "message": "Cambiar tamaño de {v0} {v1}",
       "format": "icu"
+    },
+    "project_workspace": "Espacio de trabajo del proyecto",
+    "edit_project_identity": "Editar el contacto y la dirección del proyecto",
+    "project_tabs": "Pestañas del proyecto",
+    "project_trays": "Paneles del proyecto",
+    "opening_project": "Abriendo proyecto…",
+    "restore_project": "Restaurar proyecto",
+    "close_project": "Cerrar proyecto",
+    "project": "Proyecto",
+    "new_project": "Nuevo proyecto",
+    "overview": "Resumen",
+    "tab_loading": {
+      "message": "{tab} - cargando proyecto",
+      "format": "icu"
+    },
+    "resize_panes": "Cambiar el tamaño de los paneles",
+    "window_trays": "Paneles de ventana",
+    "close_tray": "Cerrar panel",
+    "window": "ventana",
+    "dock_window": {
+      "message": "Acoplar {window}",
+      "format": "icu"
+    },
+    "restore_window": {
+      "message": "Restaurar {window}",
+      "format": "icu"
+    },
+    "minimize_window": {
+      "message": "Minimizar {window}",
+      "format": "icu"
+    },
+    "float_window": {
+      "message": "Desacoplar {window}",
+      "format": "icu"
+    },
+    "maximize_window": {
+      "message": "Maximizar {window}",
+      "format": "icu"
+    },
+    "close_window": {
+      "message": "Cerrar {window}",
+      "format": "icu"
+    },
+    "modal_window": {
+      "message": "Mostrar {window} como ventana modal",
+      "format": "icu"
+    },
+    "fullscreen_window": {
+      "message": "Mostrar {window} a pantalla completa",
+      "format": "icu"
+    },
+    "unpin_window": {
+      "message": "Desfijar {window}",
+      "format": "icu"
+    },
+    "pin_window": {
+      "message": "Fijar {window}",
+      "format": "icu"
+    },
+    "dock_window_left": {
+      "message": "Acoplar {window} a la izquierda (haz clic derecho para elegir la ubicación)",
+      "format": "icu"
+    },
+    "dock_window_right": {
+      "message": "Acoplar {window} a la derecha (haz clic derecho para elegir la ubicación)",
+      "format": "icu"
+    },
+    "fill_workspace_window": {
+      "message": "Expandir {window} para ocupar el espacio de trabajo",
+      "format": "icu"
+    },
+    "dock_placement": "Ubicación de acoplamiento",
+    "float": "Desacoplar",
+    "close": "Cerrar",
+    "modal": "Ventana modal",
+    "fill_workspace": "Ocupar el espacio de trabajo",
+    "fill_entire_screen": "Ocupar toda la pantalla",
+    "dock_left": "Acoplar a la izquierda",
+    "dock_right": "Acoplar a la derecha",
+    "dock_top_left": "Acoplar arriba a la izquierda",
+    "dock_top_right": "Acoplar arriba a la derecha",
+    "dock_bottom_left": "Acoplar abajo a la izquierda",
+    "dock_bottom_right": "Acoplar abajo a la derecha",
+    "dock_top": "Acoplar arriba",
+    "dock_bottom": "Acoplar abajo",
+    "resize_swap_panes": "Cambiar el tamaño de los paneles; haz doble clic para intercambiarlos",
+    "close_pane": "Cerrar panel",
+    "pane_slow": "Este panel está tardando más de lo normal en cargarse. Puedes cerrarlo e intentarlo de nuevo.",
+    "pane_open_failed": "No se ha podido abrir esta pestaña. Cierra el panel e inténtalo de nuevo.",
+    "opening_tab": {
+      "message": "Abriendo {tab}…",
+      "format": "icu"
     }
   },
   "reports": {
@@ -9871,7 +10653,366 @@
     "meter": "metro",
     "millimeters": "milímetros",
     "millimeter": "milímetro",
-    "square footage": "superficie"
+    "square footage": "superficie",
+    "m_8f5db5c7f3d24d": "Cumbrera",
+    "m_46dd9790bf6a04": "Limatesa",
+    "m_63e8dda8d7cce4": "Limahoya",
+    "m_7076ce874b1d6c": "Borde inclinado del hastial",
+    "m_27047ada176d29": "Alero",
+    "m_56b44629956d20": "Babero de encuentro con paramento",
+    "m_67b286b5c3cc9d": "Babero lateral",
+    "m_2fe70464aadf58": "Encuentro",
+    "m_c33219746150ec": "Muro de peto",
+    "m_c59156303156a4": "Saliente",
+    "m_40f358631dc246": "Babero trasero de chimenea",
+    "m_d4ac8146ffa447": "Babero escalonado de chimenea",
+    "m_ab77a5a27d3f10": "Babero frontal de chimenea",
+    "m_23fb466fb2adc3": "Tragaluz",
+    "m_b764cdc0eab713": "Desconocido",
+    "m_a1021e952892ac": "Informe de mediciones de la propiedad",
+    "m_f8dbc522ba2af7": "Vista del tejado desde arriba",
+    "m_c834cd35286d0a": "Imágenes del tejado",
+    "m_869d0506787f34": "Alzados del tejado",
+    "m_e158625d2ef73e": "Faldones del tejado",
+    "m_1246c01179d440": "Resumen del tejado",
+    "m_192df712925b74": "Ventilación del tejado",
+    "m_468cef63fdd9dd": "Diagrama de inclinación del tejado",
+    "m_baf568be68a967": "Diagrama de superficie del tejado",
+    "m_68770a5d336169": {
+      "message": "Mediciones de la capa {value1} del tejado",
+      "format": "icu"
+    },
+    "m_63b61a2a5cacd6": {
+      "message": "Faldones: {value1}",
+      "format": "icu"
+    },
+    "m_733f0196ef5d7f": "Canalones",
+    "m_47cf5274d0f2c2": "Notas del tejado",
+    "m_c50f62a1b89962": {
+      "message": "{value1} (+{value2}% de desperdicio)",
+      "format": "icu"
+    },
+    "m_cb91ea904fb153": {
+      "message": "Inclinación: {value1}",
+      "format": "icu"
+    },
+    "m_3b026f0a7e18aa": {
+      "message": "Desperdicio: {value1}%",
+      "format": "icu"
+    },
+    "m_e3bc5b673a070a": "Encuentro con paramento",
+    "m_e87f980620eb8f": "Encuentro lateral",
+    "m_fe2ce041082c9b": "Peto",
+    "m_8cd80c317a2168": "Faldones:",
+    "m_af5a7274c323e0": "Inclinación:",
+    "m_9d6591d0b42f6b": "Metros cuadrados:",
+    "m_88c46e11f3c77b": "Pies cuadrados:",
+    "m_919549889a5ceb": "Aleros:",
+    "m_537a62a019ad4b": "Bordes inclinados:",
+    "m_5bd7cdbae7fcda": "Cumbreras:",
+    "m_0721423f661339": "Limatesas:",
+    "m_61201067398580": "Limahoyas:",
+    "m_3b450027d1213a": "Encuentros:",
+    "m_c062492596511c": "Tragaluces:",
+    "m_b5ac9d155463b1": "Chimeneas:",
+    "m_89135357e29f80": "Suroeste",
+    "m_1d7b8d4ed3a785": "Sureste",
+    "m_83d96322f4ad30": "Noroeste",
+    "m_c8b2d1cc4549a9": "Noreste",
+    "m_6af11cc5940455": "Inclinación",
+    "m_f915ae86682060": "Área (m²)",
+    "m_b67e47230efeb5": "Área (pies cuadrados)",
+    "m_716d633b125adb": "Porcentaje",
+    "m_f734f9b7f3706f": "Desperdicio",
+    "m_922f515c2acfae": "Ángulo exterior de 90°",
+    "m_7c323cb425fe82": "Ángulo interior de 90°",
+    "m_60306a6c99e6d6": "Ángulo distinto de 90°",
+    "m_00d60e31a4e6b8": "Longitud",
+    "m_3765f3123ae48b": "Ángulo exterior de 90°",
+    "m_7ae502bf1fd18e": "Interior de 90°",
+    "m_a7a915704f7f73": "Superficie estimada del ático",
+    "m_b0936bc9f0eaa9": {
+      "message": "Huella: {value1}  |  Superficie: {value2}",
+      "format": "icu"
+    },
+    "m_18328584e69d03": "Salida de ventilación recomendada",
+    "m_3d2448433551a3": "Entrada de ventilación recomendada",
+    "m_f1c927f86fb91d": {
+      "message": "NFVA: {value1}",
+      "format": "icu"
+    },
+    "m_a2146e3ff505ff": {
+      "message": "Salida: {value1}",
+      "format": "icu"
+    },
+    "m_4111e6605d2fd0": {
+      "message": "Entrada: {value1}",
+      "format": "icu"
+    },
+    "m_d70604e8430461": "Recomendado",
+    "m_fb9ef894175c32": "Producto",
+    "m_9f29530464f730": "Clasificación",
+    "m_13bca3b7e36910": "Cantidad necesaria",
+    "m_d4bb90607908e5": "Borde goterón ventilado",
+    "m_296cfb57797e3b": "Ventilación de sofito",
+    "m_ac498d871de7df": "Bloques de ventilación",
+    "m_99a52df3ff3d49": "Clave",
+    "m_fe56a63b035e8d": "Ventilación de cumbrera",
+    "m_1a431d164b36cc": "Extractor estático",
+    "m_665420f28da3fb": "Nota: La cantidad estimada de productos de ventilación del ático que aparece en este informe se basa en la superficie estimada del suelo del ático y solo sirve para hacer estimaciones. El instalador es responsable de verificar la cantidad y el tipo correctos de productos de ventilación antes de empezar el trabajo. El instalador siempre debe revisar las necesidades de ventilación del ático específicas del trabajo, como los requisitos de la normativa local, la superficie en pies cuadrados del suelo del ático, el diseño del tejado y los espacios acondicionados bajo el tejado. GAF recomienda un mínimo de 1 pie cuadrado de ventilación del ático (repartido a partes iguales entre entrada y salida) por cada 150–300 pies cuadrados de superficie del suelo del ático, según el estado de la barrera de vapor. La ventilación de salida en la cumbrera o cerca de ella nunca debe superar la ventilación de entrada en el sofito o cerca de él. Consulta gaf.com/ventcalculator para obtener más información.",
+    "m_7bfab6c61f7782": "NOTAS",
+    "m_1c10c30ced424d": {
+      "message": "Página {value1}",
+      "format": "icu"
+    },
+    "m_616cb218a65b98": "Material",
+    "m_4e545960f1bffc": "Unidad",
+    "m_a4ee51a0594303": "Alturas de los muros de peto",
+    "m_f66e9d905ea8c1": "Perímetro del peto: ",
+    "m_5e7d173c408ee4": "  |  Desperdicio: ",
+    "m_412cfcc70a641b": "%  |  Mide la altura del muro en la obra.",
+    "m_93041424cf9292": "Altura del muro",
+    "m_4fe0147e0d0f55": "Área del muro",
+    "m_9f4758a1af8ea3": "Área total",
+    "m_4cc084a2b9523e": "Membrana",
+    "m_5759b423fa0103": "Adhesivo adicional",
+    "m_7c496968ffcdb4": "Las secciones con una inclinación de 2/12 o inferior se clasifican como de poca pendiente. Las cantidades incluyen ",
+    "m_c0f21dd46689e3": "% de desperdicio cuando corresponde. Las cifras son solo estimaciones.",
+    "m_e564c2a86ab38f": "Sistema de membrana",
+    "m_1f528498cea93f": "Membrana / lámina de acabado",
+    "m_c4f283a70b0486": "Adhesivo de unión",
+    "m_85413ad4bec1b6": "Aislamiento y placa de recubrimiento",
+    "m_1c0828f7eb005e": "Placa de recubrimiento de 1/2\" 4x8",
+    "m_fa344135cd03c9": "Placa de recubrimiento (4'×8')",
+    "m_2188f67cce9c67": "Aislamiento Polyiso (4'×8')",
+    "m_9c916917be3f72": "Placas de aislamiento de 3\"",
+    "m_87c3f71b2a40df": "Fijaciones HD de 2\"",
+    "m_a546b1518e0b76": "Fijación mecánica (solo TPO)",
+    "m_5ad4ec57c359dc": "Placas de membrana de 2-3/8\"",
+    "m_61dbe4caefefbc": "Fijaciones de junta (para placas de membrana)",
+    "m_06ba44bfd230a8": "Borde y terminación",
+    "m_2c1c5afa7a9b99": "Barra de terminación (10 ft)",
+    "m_879e59e3c2c975": "Remate metálico (10 ft)",
+    "m_e7df79a2132258": "Sellador y accesorios",
+    "m_e702197a280876": "Pasillo de mantenimiento (34\"×50')",
+    "m_f6bcdfca5d0673": "Sellador de borde cortado TPO",
+    "m_8fdf1a9b6d5e1d": "Limpiador",
+    "m_0c79e7af8f2a6b": "Sellador universal para membrana monocapa",
+    "m_dadf867d1bbb14": "Sellador / masilla",
+    "m_79135f33f55286": "Productos para tejas",
+    "m_aafc53646a6791": "Banda de inicio",
+    "m_366c048a86eb18": "Teja de remate para limatesas y cumbreras",
+    "m_ca5426333edafa": "Lámina sintética bajo teja",
+    "m_0bd4e15953109c": "Barrera contra hielo y agua",
+    "m_ca50d8f4c28b7e": {
+      "message": "{value1} aplicación perimetral ({value2})",
+      "format": "icu"
+    },
+    "m_f98278faa39d91": "Metales y baberos",
+    "m_0b500157a9ba4e": "Borde goterón de alero (10 ft)",
+    "m_9a907f7f8efb51": "Borde goterón de hastial (10 ft)",
+    "m_63dd5ff3dbc0e7": "Chapa de limahoya tipo W (10 ft)",
+    "m_858eef2a5850de": "Babero escalonado (5x7)",
+    "m_bd1f293a927cae": "Contrababero (10 ft)",
+    "m_581a811ee1dd52": "Babero de encuentro con paramento (10 ft)",
+    "m_810de7e264edb9": "Babero frontal de chimenea",
+    "m_5268e67d2e1c94": "Babero trasero de chimenea / desvío de agua",
+    "m_748a0e39694131": "Babero escalonado de chimenea",
+    "m_1f79a9ed80fa1c": "Contrababero de chimenea (10 ft)",
+    "m_6586e2074c8ce4": "Kit de baberos para tragaluz",
+    "m_3961803cc495fe": "Ventilación",
+    "m_7a6f19f734f343": "Ventilación de cumbrera (tramos de 4 ft)",
+    "m_b08648dbd62b71": "Accesorios",
+    "m_fe799b484c66a5": "Clavos en rollo (1.25 in, 50 lb)",
+    "m_f2a594a5d5aec2": "Clavos con cabeza de plástico",
+    "m_a9dec356d64749": "Masilla para tejados (tubo)",
+    "m_8ce86a6ae65d36": "N",
+    "m_a6175902028988": "Frente",
+    "m_76900f1bfd16c8": "Parte trasera",
+    "m_8de0b3c47f112c": "S",
+    "m_fcb5f40df9be6b": "O",
+    "m_a9f51566bd6705": "E",
+    "m_e3573855b3d9bf": "Frente ",
+    "m_cffbb3115c07f5": " grados / norte arriba",
+    "m_9fc867325d55ed": "Dirección del frente no definida",
+    "m_78d1492cede81c": "No hay aberturas modeladas en esta instantánea.",
+    "m_37c225ef832884": "Resumen del exterior",
+    "m_385165e2ff5980": "Medición",
+    "m_822bab8d41bca8": "Cantidad",
+    "m_a01f990307bcfe": "Los ID de pared enlazan los diagramas, las dimensiones, la tabla de aberturas y las notas.",
+    "m_aa6c363db97d60": " Alzado",
+    "m_c0872cfcf108e7": "A continuación se muestran los muros visibles. Las áreas se miden en el plano de cada muro; el diagrama es una proyección ortográfica.",
+    "m_cdd2eaa8c80927": " Alzado - continuación",
+    "m_0dcd2fe54c68dd": "Continuación de los datos de los muros. Consulta el",
+    "m_e70b6a7c97c875": " alzado de la primera página para ver el diagrama.",
+    "m_f76ea921edc2e5": "Muro",
+    "m_d89f9e018a1a89": "No se ve ninguna superficie de muro desde esta dirección.",
+    "m_a23fdf36878ac8": " neta",
+    "m_36c3ccc71f5875": " O ",
+    "m_bdebf2140013bd": "  ×  A ",
+    "m_34eb5b1409081f": "Tabla de aberturas",
+    "m_44c472acd74e77": "Cantidades del exterior",
+    "m_765524ef91a979": "Longitudes medidas",
+    "m_0a96bba80d9db1": "Área neta por material",
+    "m_1b609d14d397b9": "Squares",
+    "m_cf4e143ea032d2": "Cantidades del exterior - continuación",
+    "m_1c582cacb59709": "Márgenes de material",
+    "m_662e0e59630b57": "Márgenes de material - continuación",
+    "m_4a71a61ca44334": "Los porcentajes de desperdicio son márgenes de comparación aplicados al área neta del muro. Los retornos horizontales se miden por separado.",
+    "m_58c6c02cc9a2b5": "Notas de los muros",
+    "m_00d87cf8a73edd": "NOTAS DE LA ESTRUCTURA / REFERENCIAS DE LOS MUROS",
+    "m_f6c057fb0e36c0": "Notas de los muros - continuación",
+    "m_cc2b37e95f52c4": "Imágenes del exterior",
+    "m_4df65aa6464144": "Foto sin asignar",
+    "m_6971ab087a1a89": {
+      "message": "Total de faldones: {value1}",
+      "format": "icu"
+    },
+    "m_9befb622242a9f": {
+      "message": "Inclinación predominante: {value1}",
+      "format": "icu"
+    },
+    "m_d8a0a6db398df5": {
+      "message": "{value1} (neto): {value2}",
+      "format": "icu"
+    },
+    "m_257b1dfbf5cdcd": {
+      "message": "{value1} ({value2}% de desperdicio): {value3}",
+      "format": "icu"
+    },
+    "m_08c80b14e30a5a": "Total de squares",
+    "m_a8740bb1612ffc": "Squares sin desperdicio",
+    "m_b4fd83d0bcd221": "Squares con desperdicio",
+    "m_ad9df5626a0db3": "Área (m²) sin desperdicio",
+    "m_c8cdb261150121": "Área (m²) con desperdicio",
+    "m_4543d98d79fc96": "Superficie del tejado",
+    "m_5376a6d429ea6d": "Tragaluces",
+    "m_48b0f84c37388c": "Chimeneas",
+    "m_b644bee84a99e1": "Contrababero",
+    "m_a4e16d16c36105": "Canalón activo",
+    "m_6608517b23efe0": "Bajantes",
+    "m_604f50c79bf141": "Cantidad de ingletes",
+    "m_43f853bbb59286": "Norte",
+    "m_0dd2dae4dd83ae": "Sur",
+    "m_4e2cd851cfdab8": "Este",
+    "m_41a6741e9a0fae": "Oeste",
+    "m_58eb9032e3bb83": "Izquierda",
+    "m_883361d5d682a1": "Derecha",
+    "m_a60528cbbb4e1e": "Frente derecha",
+    "m_060cafd1082387": "Frente izquierda",
+    "m_d09f0b3be004c1": "Parte trasera derecha",
+    "m_08fc78e7d2aa2d": "Parte trasera izquierda",
+    "m_7b47702be2bc22": "Requisito de NFVA",
+    "m_e23555b5b2a4b6": "Opciones de salida de ventilación",
+    "m_f333ec35b08f63": "Materiales para tejados",
+    "m_4b6762b8c70c5d": "Materiales para tejados de gran pendiente",
+    "m_4d5388c6f1e614": "Materiales para tejados planos",
+    "m_2cdbf9a37b01cf": "Dimensiones de los muros",
+    "m_b2ad1e2bec3fb1": "Dimensiones de los remates",
+    "m_c59e96abc48597": "Pies",
+    "m_f4b13e93df077d": "Abertura",
+    "m_baaddf70fb5d43": "Tipo",
+    "m_e50f1a89cafcbb": "Bruta m²",
+    "m_042702902def29": "Bruta ft2",
+    "m_c67131616d7b70": "Abertura m²",
+    "m_c3373ed602f34c": "Abertura ft2",
+    "m_4fac882a12ee7e": "Neta m²",
+    "m_4cf8a6733265d0": "Neta ft2",
+    "m_458d2707d8628e": "An. × Al. (m)",
+    "m_b3d1d24cc51245": "An. × Al. (ft)",
+    "m_1e05d842212af6": "Área m²",
+    "m_dde8cec8418424": "Área ft2",
+    "m_6b50755eb9ed6c": "Remate m",
+    "m_625bdc61d56b1e": "Remate ft",
+    "m_b2f1c22c291184": "Parte superior de los muros",
+    "m_90fe55c098b1af": "Parte inferior de los muros",
+    "m_aa41ee9d85a9d5": "Esquinas interiores",
+    "m_a65b33e0c771c5": "Esquinas exteriores",
+    "m_fcf52be31de7b6": "Transiciones entre materiales",
+    "m_090059bac2d329": "Terminaciones verticales expuestas",
+    "m_1a11982bb733ae": "Imagen de referencia",
+    "m_c9c660e6accc56": "Marco sin título",
+    "m_14d33bd014e6b4": "Sin asignar",
+    "m_0ef1d310eec6e5": "Área incluido el desperdicio (m²)",
+    "m_e312c06e4f54f7": "Área incluido el desperdicio (pies cuadrados)",
+    "m_15a9cffc5bed56": "Squares incluido el desperdicio",
+    "m_05ee42debad539": "Mediciones redondeadas. Orientación sobre desperdicio únicamente. El instalador debe verificar.",
+    "m_da953f1b93f8b7": "Preparado para",
+    "m_cc2838b533f40e": "Mediciones del tejado",
+    "m_b430c90b975008": "Squares con desperdicio",
+    "m_1f181d240af1a0": "Faldones",
+    "m_e2f79e5b60330b": "N/A",
+    "m_36762e47a9e4cb": {
+      "message": "Necesario: {value1} (a 18\"/lf)",
+      "format": "icu"
+    },
+    "m_f8bef190b5c7dd": {
+      "message": "Disponible: {value1}",
+      "format": "icu"
+    },
+    "m_d0c422a580d763": "Capacidad suficiente",
+    "m_993cf3b9d3e0e3": "Longitud de cumbrera insuficiente",
+    "m_edd8b32b3e626c": {
+      "message": "Déficit: {value1}",
+      "format": "icu"
+    },
+    "m_de50c6b65c5b98": {
+      "message": "Necesario: {value1} ventiladores",
+      "format": "icu"
+    },
+    "m_40edab167ee70f": {
+      "message": "{value1} de NFA cada uno",
+      "format": "icu"
+    },
+    "m_97abc4971648fc": {
+      "message": "Total: {value1}",
+      "format": "icu"
+    },
+    "m_edf717d2c2451d": "Extractores estáticos",
+    "m_d8f9519730da4f": {
+      "message": "{value1}  ·  {value2}  ·  {value3} faldones",
+      "format": "icu"
+    },
+    "m_db58767e2a1c62": "Desglose de superficies",
+    "m_2f116e6424aa37": {
+      "message": "Detalles de la capa {value1}",
+      "format": "icu"
+    },
+    "m_0d2654b2d28308": "Diagrama de canalones",
+    "m_b975e865740d2e": "Plantas por orientación",
+    "m_9a30a63dce7244": "Resumen de ventilación",
+    "m_5e1d442d6cc2ef": "Productos de entrada de ventilación recomendados",
+    "m_cd6abbbc9cacc4": "Desglose de inclinaciones",
+    "m_d71f3ad4ab7a0d": "Sofito",
+    "m_e7514fa59671cd": "Revestimiento horizontal",
+    "m_04fc5f90eb1ea9": "Revestimiento vertical",
+    "m_83eb49c0e6f141": "Remate horizontal",
+    "m_f0e864abdbc3c3": "Remate vertical",
+    "m_84e1f590dd7376": "Ladrillo",
+    "m_25db51b5636875": "Mampostería",
+    "m_05a92accb1cbff": "Estuco",
+    "m_6ffa6b8b1c9fa1": "Piedra",
+    "m_f97e9da0e3b879": "Otro",
+    "m_19734a1b58cabc": "Ventana",
+    "m_fbf247e43d3745": "Puerta",
+    "m_bfc7b9ead6e2ba": "Puerta de garaje",
+    "m_f414f8c425d315": "Ventilación del hastial",
+    "m_2a60e203a021a1": "Revisar: ",
+    "m_8a23ff3c3858ac": "Una abertura no está en un muro vertical y se excluye de la tabla de muros.",
+    "m_abf4acf7f3ed39": "Una abertura no tiene un muro de soporte correspondiente y se excluye de los totales.",
+    "m_8fef5c42054b92": {
+      "message": "Estructura {value1}",
+      "format": "icu"
+    },
+    "m_3aeeb50e64a64b": " - continuación",
+    "m_1f49328eb17532": "Secciones de muro",
+    "m_6e2d200e85cb0f": "Superficie de las aberturas",
+    "m_6bc39100b77b1b": "Perímetro de las aberturas",
+    "m_b72dc1fbef232e": "Retornos horizontales",
+    "m_0c85aa425e52d8": {
+      "message": "Las dimensiones corresponden a las extensiones dibujadas, no a las dimensiones del fabricante ni del hueco en bruto. El remate {value1} es el perímetro de la abertura.",
+      "format": "icu"
+    }
   },
   "errors": {
     "agent_target_invalid": "Elige el ámbito global, de organización o de proyecto.",
@@ -10967,5 +12108,81 @@
     "m_071609c9efaf0f": "Cerrar la configuración de pagos",
     "m_5823063ec74807": "Solicitud de alta de comerciante de Forward",
     "m_ccb52891bb8ff6": "Tu solicitud de alta para recibir pagos ya se ha enviado."
+  },
+  "brand-kit": {
+    "m_6bb25348173069": "Paleta de colores",
+    "m_0c92722f162cbd": "Principal · interfaz",
+    "m_390a15f2a6d920": "Secundario · interfaz",
+    "m_a63c5a4c25569b": "Logotipo",
+    "m_2c8fc5e11eaf62": "Logotipo actual",
+    "m_eb55056b53954c": "Se recomienda usar un PNG transparente o un SVG.",
+    "m_ac8bf335945352": " Sustituir logotipo",
+    "m_490cbf5945b3f8": "Acerca de la paleta de colores de la empresa",
+    "m_85de3f0cdfc46a": "Acerca de los logotipos de la empresa",
+    "m_fc3b468d1ec4eb": "Logotipo actual de la empresa",
+    "m_953e4a6603f5f1": {
+      "message": "Editar el color {v7}",
+      "format": "icu"
+    },
+    "m_036dda0aa72306": "Todavía no hay logotipos alternativos.",
+    "m_8803dece55359d": " Añadir",
+    "m_986685f23ed459": "Fondo",
+    "m_dba346dfc1916b": "Fuente de la empresa",
+    "m_4d9e1ae19fc002": "Predeterminado para documentos y plantillas nuevos",
+    "m_5c6ac1b0faeaa0": "Familia tipográfica",
+    "m_6cac172119f732": "Los colores primario y secundario definen el estilo de la interfaz. Los colores complementarios están disponibles en los editores visuales.",
+    "m_b8391ad75bc163": "Gestiona el logotipo de la empresa y su apariencia en los elementos de marca.",
+    "m_695aa2f7da3152": " Regenerar paleta a partir del logotipo",
+    "m_629cca6181934e": "Paleta de seis colores de la empresa",
+    "m_c0838c60ccd34f": "Logotipos alternativos ",
+    "m_e3681835cc6b25": "Apariencia avanzada del logotipo",
+    "m_76e5c668843400": "Forma del contenedor",
+    "m_eb37afb3b23761": " Cuadrado",
+    "m_3562c63d47eca1": " Círculo",
+    "m_895bf3964e7990": "Esquinas redondeadas",
+    "m_57f5beffb19542": "Variaciones reutilizables del logotipo para propuestas, páginas web y otros materiales de marca.",
+    "palette_primary": "Primario",
+    "palette_secondary": "Secundario",
+    "palette_primary_title": {
+      "message": "Primario: {color}",
+      "format": "icu"
+    },
+    "palette_secondary_title": {
+      "message": "Secundario: {color}",
+      "format": "icu"
+    },
+    "palette_support_title": {
+      "message": "Complementario {number}: {color}",
+      "format": "icu"
+    },
+    "palette_edit_primary": "Editar color primario",
+    "palette_edit_secondary": "Editar color secundario",
+    "palette_edit_support": {
+      "message": "Editar color complementario {number}",
+      "format": "icu"
+    },
+    "m_a7c7218cc9ff52": "Familia tipográfica predeterminada",
+    "m_a1872cd2329966": " Usar una fuente distinta para los títulos",
+    "m_2d5dcb0d47abfa": "Familia tipográfica de los títulos",
+    "m_756cb8f31d3694": "La familia predeterminada se usa en el cuerpo del documento y en los títulos. Si quieres, puedes elegir otra familia para los encabezados.",
+    "m_f317840d3f2404": "Acerca de las fuentes de la empresa",
+    "m_33289209b6d267": {
+      "message": "Usar {v2} como primario",
+      "format": "icu"
+    },
+    "m_f4e2cc33249168": {
+      "message": "Usar {v3} como primario",
+      "format": "icu"
+    }
+  },
+  "platform-commerce": {
+    "credit_amount": {
+      "message": "{amount} créditos",
+      "format": "icu"
+    },
+    "exchange_estimate": {
+      "message": "Aproximadamente {amount} · el tipo de cambio aplicado al pagar puede variar.",
+      "format": "icu"
+    }
   }
 }

@@ -44,7 +44,78 @@
     "m_5a3dca8919c4c0": "Platba zatím nebyla potvrzena.",
     "m_c5e73b482b12dd": "Kredity aktualizovány",
     "m_60fa00527e725c": "Přístup odepřen",
-    "m_ef03abbb9958f0": "Nemáte oprávnění spravovat fakturaci."
+    "m_ef03abbb9958f0": "Nemáte oprávnění spravovat fakturaci.",
+    "credit_amount_help": "Částku kreditu přidaného na účet můžete upravit pomocí tlačítek plus a minus.",
+    "credit_today": "Kredit k přidání dnes",
+    "credit_to_add": "Kredit k přidání",
+    "more_credit_needed": "Je potřeba více kreditu",
+    "first_report_thanks": "Děkujeme, že zkoušíte FirstMeasure.",
+    "first_report_load": "Nabijte si účet pro svou první zprávu.",
+    "pay_report": "Přidejte si na účet kredit, abyste mohli zaplatit za tuto zprávu.",
+    "first_report_ready": "Zatím jste neobdrželi žádnou dokončenou zprávu. Přidejte si kredit už teď, aby byla vaše první objednávka připravena, až ji budete potřebovat.",
+    "your_roof_report": "Vaše zpráva o střeše",
+    "no_completed_reports": "Zatím žádné dokončené zprávy",
+    "needed_for_order": "Potřebné pro objednávku",
+    "first_report_from": "První zpráva od",
+    "difference": "Rozdíl",
+    "credit_to_add_lower": "Kredit k přidání",
+    "automatic_order": "Po úspěšném zaplacení se tato objednávka zprávy odešle automaticky. Nemusíte ji zadávat znovu.",
+    "first_report_credit_available": "Tento kredit bude k dispozici pro vaši první objednávku zprávy.",
+    "credit_before_first_report": "Před objednáním první zprávy si přidejte kredit.",
+    "checking_balance_order": "Kontrolujeme váš zůstatek. K vyřízení této objednávky je potřeba více kreditu.",
+    "checking_balance": "Kontrolujeme váš zůstatek.",
+    "checkout_failed": "Nepodařilo se zahájit platbu.",
+    "opening_stripe": "Otevírá se Stripe…",
+    "this_purchase": "tento nákup",
+    "balance_first_report": {
+      "message": "Váš zůstatek je {balance}. Před objednáním první zprávy si přidejte kredit.",
+      "format": "icu"
+    },
+    "balance_credit_needed": {
+      "message": "Váš zůstatek je {balance}. K vyřízení této objednávky je potřeba více kreditu.",
+      "format": "icu"
+    },
+    "top_up_purchase": {
+      "message": "Dobijte si prosím účet, abyste dokončili {purchase}.",
+      "format": "icu"
+    },
+    "balance_top_up_purchase": {
+      "message": "Váš zůstatek je {balance}. Dobijte si prosím účet, abyste dokončili {purchase}.",
+      "format": "icu"
+    },
+    "your_balance": {
+      "message": "Váš zůstatek je {balance}.",
+      "format": "icu"
+    },
+    "report_checkout": "Platba za zprávu",
+    "first_report_checkout": "Platba za první zprávu",
+    "first_account_load": "První dobití účtu",
+    "redirecting": "Probíhá přesměrování",
+    "saving": "Ukládání",
+    "loading": "Načítání",
+    "yes": "Ano",
+    "no": "Ne",
+    "commercial": "Komerční",
+    "multifamily": "Vícebytový dům",
+    "residential": "Obytný dům",
+    "full_house_included": "Celý dům · střecha + okapy v ceně",
+    "roof_gutters": "Střecha a okapy",
+    "roof_only": "Pouze střecha",
+    "standard": "Standardní",
+    "standard_instant": "Standardní + okamžitá zpráva",
+    "auto_top_up_summary": {
+      "message": "Přidejte {credit}, když váš zůstatek klesne pod {threshold}. Každé automatické dobití účtuje {charge}. {estimate}",
+      "format": "icu"
+    },
+    "insufficient_credit_amount": {
+      "message": "Tento kredit nestačí k objednání zprávy. Pro její pokrytí musíte přidat alespoň {amount}.",
+      "format": "icu"
+    },
+    "discount_price": {
+      "message": "{price} (ušetříte {saving})",
+      "format": "icu"
+    },
+    "catalog_load_failed": "Nepodařilo se načíst fakturaci. Zkuste to prosím znovu."
   },
   "canvassing": {
     "m_61df468d92e238": "Vše",
@@ -1700,7 +1771,353 @@
     },
     "m_d2a894582092f8": "Pouze střecha",
     "m_0980d65c27cd2f": "Celá stavba",
-    "m_09612fd6ab85db": "Rozsah reportu"
+    "m_09612fd6ab85db": "Rozsah reportu",
+    "m_dc6a60d7bb3581": "Další ",
+    "m_76f61845dd2aea": "ULICE",
+    "m_e4b02dd6cf2314": "Průvodce úhly domu",
+    "m_48cd840a98035f": "Nahrát",
+    "m_86d43ca533f4ae": "Zkusit kameru znovu",
+    "m_8247c56c226358": "Živý náhled zadní kamery",
+    "m_c7a97e0bb50632": "Nahrát fotografie",
+    "m_1a58fdc6bb20bf": "Fotografie pro tento úhel",
+    "m_6555da398c64e6": "Pořídit fotografii",
+    "m_014da584de30ed": {
+      "message": "Dům {v0} · pohled {v1} z 8",
+      "format": "icu"
+    },
+    "m_8ac00bef24971e": {
+      "message": "{v0} z domu",
+      "format": "icu"
+    },
+    "m_acb62edbd19fa2": {
+      "message": "{v0} domu; přední strana směřuje k ulici",
+      "format": "icu"
+    },
+    "m_2436076ece8629": "Hlavní",
+    "m_48a9cdd2af44f4": "Zkusit znovu",
+    "m_173c36d4fce52b": "Nahrávání fotografie",
+    "m_06170cce538389": "Odebrat fotografii",
+    "m_9389ebcecf7d63": {
+      "message": "{v0} fotografie{v1}",
+      "format": "icu"
+    },
+    "m_711bf09bbd2160": "Referenční fotografie exteriéru",
+    "m_1ca9bec888658a": "Nahrané fotografie exteriéru",
+    "m_acaf0eb128605e": "Přetáhněte sem fotografie k nahrání",
+    "m_42e91ae7dddc18": "Načítání fotografií…",
+    "m_8941c9a5445fb9": "Nahrané fotografie exteriéru",
+    "m_cad1a6c79c9cf3": {
+      "message": "{v0} fotografií",
+      "format": "icu"
+    },
+    "m_26bd8e451be239": {
+      "message": "{v1} přiřazeno",
+      "format": "icu"
+    },
+    "m_a69623abe7dd91": {
+      "message": "Nahrávání {v3} fotografií{v4}",
+      "format": "icu"
+    },
+    "m_5b239bae30cb96": {
+      "message": "{v1} nepřiřazeno{v2}",
+      "format": "icu"
+    },
+    "m_a3dc6534fc81dc": "Zobrazit všechny fotografie",
+    "m_9138e9cdd68343": "Přetáhněte fotografie sem",
+    "m_bf0345adc5299e": "Požadované úhly",
+    "m_02b18934a68584": "Další fotografie",
+    "m_8411c93e5b0adf": "Celkový počet fotografií",
+    "m_be4cfb58b9c4d7": "Fotografie",
+    "m_0dc366a939cb1d": "Struktura",
+    "m_a32cdb9d1056f2": "Přiřaďte pozici klepnutím níže.",
+    "m_05a79c7def4dac": "Ponechat jako navíc",
+    "m_59741c3f6d31f8": "Zrušit výběr",
+    "m_9506f115fde6af": "ZADNÍ STRANA",
+    "m_4042bd99ed30d1": "PŘEDNÍ STRANA ↓",
+    "m_9e22418c14100e": "Pohled na dům shora, přední strana dole",
+    "m_7665c7cfa6ea36": {
+      "message": "{v4} {v5} fotografie",
+      "format": "icu"
+    },
+    "m_84b311b1332f3c": "Klepnutím nahrajete",
+    "m_484b63459c1357": "Aktuální odhadovaná doba čekání",
+    "m_7b8bab306cc5c2": {
+      "message": "Odhad {v2} hod.",
+      "format": "icu"
+    },
+    "m_1d63663ae56e2a": "18 hod.",
+    "m_e731322b674a97": "24 hod.",
+    "m_e7f79de4539e22": {
+      "message": "{v5} za strukturu + zvolený poplatek za doručení{v6}",
+      "format": "icu"
+    },
+    "m_29ee01b139b644": "Načítání cen…",
+    "m_f27fa22720bb9a": "Nemovitost",
+    "m_dccbe8abe35b17": "Typ nemovitosti",
+    "m_ae8e4953e07d70": "Zákazník",
+    "m_3fd6a5025f8036": "Podrobnosti zprávy",
+    "m_9b208988dee1f1": "Přetažením nahrajete fotografie",
+    "m_50904398019722": " Přidat kontakt",
+    "m_c9a026ebb1be8c": "Typ nemovitosti",
+    "m_908c0715a481b7": "Adresa nemovitosti",
+    "m_1f6129f59f143b": "Adresa nemovitosti",
+    "m_29f3cc51016963": "Typ projektu",
+    "m_417e1dad6a313e": "Začněte psát adresu nebo klikněte do mapy…",
+    "m_5c6d435494fefd": "Vytvořit nabídku",
+    "m_e5aee059bf2f35": "Naplánovat schůzku",
+    "m_bd6349111bdda5": "Asistent nabídek",
+    "m_a2d8046f355c56": "Vygenerovat návrh nabídky",
+    "m_289b2e5bec972c": "V zadání popište rozsah, tón, zahrnuté fotografie a vše, co má zákazník vidět.",
+    "m_7ceca87ce420be": "Zapnout nebo vypnout asistenta nabídek",
+    "m_84f47d747cfe44": "Napište asistentovi nabídek, co má tato nabídka obsahovat…",
+    "m_18fc56365bd838": "Nadiktovat zadání",
+    "m_09ee09a435f087": "Nejnovější",
+    "m_5a704a0a365cf0": "Nejstarší",
+    "m_971bee4a6a3550": "Přidat poznámku ",
+    "m_5e715bf9880366": "Kdo ji může zobrazit?",
+    "m_d068fb68fb07d2": "Všichni",
+    "m_3fe33cd11f8a29": "Historie",
+    "m_fa1d10be2766ee": " Přidat poznámku",
+    "m_6643d210319486": "Filtrovat poznámky",
+    "m_5bfaf42a1f7ef2": "Seřadit poznámky",
+    "m_81cd5cfdb71ce1": "Vyberte, kdo může tuto poznámku zobrazit",
+    "m_3bad1b1f1d93ba": "Přidejte interní poznámku… Označte někoho pomocí @jména nebo @e-mailu.",
+    "m_14d6270ea986dc": "Zobrazit historii poznámky",
+    "m_d3fd8350167dd9": "Nahrát média do poznámky",
+    "m_dd978d5c5b3bd9": "Nahrát zvukovou poznámku",
+    "m_5bbba2df4ff973": "Interní poznámky ",
+    "m_2b31fcca2dfee1": "Rozbalit interní poznámky",
+    "m_69afca2b27d860": "Interní poznámky pro vlastní potřebu…",
+    "m_3f912aeb9ec149": {
+      "message": "Dům {v0}",
+      "format": "icu"
+    },
+    "m_31a44c7d4ec28e": {
+      "message": "Dům {v1}, {v2}",
+      "format": "icu"
+    },
+    "m_10390ed58d9d2e": {
+      "message": "Struktura {v2}",
+      "format": "icu"
+    },
+    "m_a41e0c05153e74": "Vybraná fotografie",
+    "m_0dd87f826c8c39": "Zkusit nahrát znovu",
+    "m_94fef39d56d52f": {
+      "message": "Odebrat fotografii {v1}",
+      "format": "icu"
+    },
+    "m_cb96f1b0af21d8": "Přidat fotografie",
+    "m_b51f2220e8185c": "Expresní",
+    "m_0f0032d7c26618": "Poznámky pro technika",
+    "m_0b730c79a5c5eb": "Kopie zpráv pro",
+    "m_bc21fa8a42be31": "Interní poznámky",
+    "m_100206f83a1d97": "Pouze testovací náhled. Před zadáním objednávky přidejte všech osm pohledů každé struktury.",
+    "internal_notes_help": "Pouze pro vaši vlastní potřebu.",
+    "project_address_heading": "Adresa projektu",
+    "property_address_accessible": "Adresa nemovitosti",
+    "technician_notes_help": "Zvláštní pokyny nebo podrobnosti o nemovitosti, o kterých by technik měl vědět – například samostatně stojící garáž, více budov, strmá střecha apod.",
+    "report_cc_help": "Další e-mailové adresy, na které se má odeslat dokončená zpráva.",
+    "ext_85b3a77a8ba1d7": "Před objednáním přidejte všech osm požadovaných pohledů každé struktury.",
+    "ext_cfa9dc24313268": "Před objednáním přidejte obletové video každé struktury.",
+    "ext_4122a51f61ae01": "Pokračujte přidáním obletového videa domu.",
+    "ext_037939e415c28b": "Další fotografie a videa",
+    "ext_dd3c3bac99aa28": "Všechny fotografie jsou přiřazené",
+    "ext_93f63a88c7e69d": "Animace: osoba při natáčení obejde dům jednou dokola",
+    "ext_833abb707b2dac": "Co není jasně vidět, možná nepůjde změřit a projekt možná budeme muset zamítnout. Osm fotografií obvykle stačí. Další fotografie a video pomohou.",
+    "ext_76900f1bfd16c8": "Zpět",
+    "ext_7a70fe7e1b8507": "Nepodařilo se sdílet diagnostiku kamery.",
+    "ext_7cad7a14ed0291": "Kamera není připravena",
+    "ext_0748faa1268982": "Kamera není dostupná. Stále můžete nahrát video domu.",
+    "ext_5414e89a1bc03f": "Kamera není dostupná. Stále můžete nahrát fotografie všech úhlů.",
+    "ext_a3a35b570535e1": "Přiblížení kamery",
+    "ext_b3e8ecabf4ad19": "Nedaří se nahrávat?",
+    "ext_1900b478a58603": "Zachytit",
+    "ext_189fb6202c349b": "Pro objednání této zprávy vyberte možnost Celá struktura.",
+    "ext_ccd317947e12ef": "Vyberte videosoubor (MP4, MOV nebo WebM).",
+    "ext_823428e67d8d52": "Kliknutím vyberte soubory nebo je sem přetáhněte",
+    "ext_b543835fdc1ff1": "Potvrďte umístění struktury na mapě.",
+    "ext_408febc0bafde2": "Nepodařilo se načíst ceny.",
+    "ext_8c541d052647e6": "Fotografii se nepodařilo zpracovat. Pořiďte ji znovu.",
+    "ext_26a03939c7a9dc": "Tuto objednávku se nepodařilo odeslat.",
+    "ext_67731319e91d6d": "Tuto fotografii se nepodařilo pořídit. Zkuste to znovu.",
+    "ext_b564227b7d3de2": "Ceny doručení se stále načítají.",
+    "ext_8a958b5d470770": "Doba doručení se počítá od odeslání objednávky.",
+    "ext_bb0783864ee081": "Digitální přiblížení kamery",
+    "ext_48845bff334a50": "Zavřít",
+    "ext_18eb3c7da07409": "Přetáhněte fotografie sem",
+    "ext_36d6e4ce04d5fc": "Přetáhněte sem fotografie nebo je vyberte pomocí tlačítka Nahrát.",
+    "ext_6e21162913b0dc": "Expresní doručení momentálně není dostupné. Vyberte standardní doručení.",
+    "ext_f34702ef3c459c": "Další referenční materiál",
+    "ext_abc7e9892806b0": "Soubory",
+    "ext_ab738ca65f65c1": "Celá struktura",
+    "ext_fd6623d6d20bb2": "Pokračujte v chůzi po kruhu",
+    "ext_f662ce48780d0c": "Živý náhled kamery zde není dostupný. Použijte tlačítko kamery nebo níže možnost Nahrát.",
+    "ext_bc14e13e94c48e": "Další úhel",
+    "ext_86aaa0cc76916a": "Další dům",
+    "ext_678d7d1afa2c16": "Zatím nic nebylo přidáno",
+    "ext_cf13458f003dfc": "Otevírání kamery…",
+    "ext_6be090825c9971": "Objednat",
+    "ext_858e4ba7a29fd3": "Pozastavit",
+    "ext_e159b06187d369": "Pozastaveno",
+    "ext_412f498a96cdba": "Fotografii se nepodařilo pořídit. Zkuste to znovu.",
+    "ext_19eac15526c5cf": "Nahrajte obletové video",
+    "ext_0384d0be0a6f1a": "Nahrávání zde není dostupné. Nahrajte místo toho video.",
+    "ext_d2debb79a7c303": "Záznam se nepodařilo uložit. Zkuste to znovu.",
+    "ext_d640c7421da066": "Pokračovat",
+    "ext_942087cc2d41e0": "Zkusit znovu",
+    "ext_aff0766a5290e1": "Zkontrolovat",
+    "ext_12ff7ed621202f": "Zkontrolovat objednávku →",
+    "ext_4352d9d52c47d2": "Zkontrolovat fotografie",
+    "ext_37e437d86dea02": "Pouze střecha",
+    "ext_35fd0238b55b3d": "Ukládání segmentu…",
+    "ext_88dded33784dcd": "Segment uložen",
+    "ext_97cdf353d9de69": "Sdílet diagnostiku kamery",
+    "ext_b58eb52c8810b9": "Zatím přeskočit",
+    "ext_7d9eb6f50ee08b": "Začněte vpředu. Obejděte celý dům a udržujte jej celý v záběru.",
+    "ext_30756af0134e4b": "Začít nahrávat",
+    "ext_3d591e826d5459": "Zastavit nahrávání",
+    "ext_eaa92b29e7d508": "Před přepnutím kamery zastavte nahrávání",
+    "ext_43f019ea133423": "Přepnout kameru",
+    "ext_2753cf960a1fa7": "Klepnutím nahrajete",
+    "ext_48e515f180931f": "Pouze testovací náhled. Před zadáním objednávky přidejte obletové video každé struktury.",
+    "ext_e1338e330e2e95": "Záznam byl příliš krátký na uložení. Nahrávejte alespoň několik sekund.",
+    "ext_e0eadf1224c32d": "U této kamery se nepodařilo změnit přiblížení.",
+    "ext_dceb79d9c01f21": "Tento segment je příliš velký na nahrání. Odeberte jej a nahrajte kratší.",
+    "ext_14d33bd014e6b4": "Nepřiřazeno",
+    "ext_865e89de78d94c": "Nahrát",
+    "ext_6efc5d27f30b20": "Nahrávání se nezdařilo",
+    "ext_2ba73c5827ad58": "Nahrávání se nezdařilo. Zkontrolujte připojení a zkuste to znovu.",
+    "ext_d42fb51e78b578": "Nahrávání se nezdařilo. Zkuste to znovu.",
+    "ext_7b34445aae9fc6": "Nahrajte média projektu nebo upravte hledání.",
+    "ext_5ce44dd77dae78": "Nahrávání…",
+    "ext_2eb9e35e8239cf": "Použijte fotografie JPG, PNG nebo WebP do 8 MB nebo videa MP4, MOV či WebM.",
+    "ext_d534be829e3219": "Video",
+    "ext_fc63d3e097f799": "Náhled videa",
+    "ext_e534224447b2b4": "Videa mohou mít až 120 MB. Natočte oblet v kratších segmentech a nahrajte je zvlášť.",
+    "ext_08b041935798fb": "Vy",
+    "ext_2ab245a1129a5c": "V každé objednávce můžete nahrát až 100 souborů.",
+    "ext_65b044714a33c6": "V každé objednávce můžete nahrát až 100 fotografií.",
+    "ext_c51af26e781045": "Nahrávání stále probíhá. Chvíli počkejte.",
+    "ext_b6aed00cb43845": "Některé fotografie se nepodařilo nahrát. Zkuste to znovu nebo je odeberte.",
+    "ext_300f36b25f353f": "U některých fotografií chybí úhel. Před pokračováním jej přiřaďte.",
+    "ext_731dc6e3f07ab1": "Zkusit nahrát znovu",
+    "ext_94e36843761633": "Pozice fotografií",
+    "angle_front": "Přední",
+    "angle_front_left": "Přední levý",
+    "angle_left": "Levý",
+    "angle_back_left": "Zadní levý",
+    "angle_back": "Zadní",
+    "angle_back_right": "Zadní pravý",
+    "angle_right": "Pravý",
+    "angle_front_right": "Přední pravý",
+    "exteriors_standard_label": "Standardní · 24 hodin",
+    "exteriors_same_day_label": "Ještě dnes · do 6 hodin",
+    "exteriors_priority_label": "Prioritní · do 3 hodin",
+    "delivery_very_busy": "Máme hodně práce",
+    "delivery_busy": "Máme plno práce",
+    "delivery_not_busy": "Nemáme příliš mnoho práce",
+    "current_delivery_estimate": "Aktuální odhad doručení",
+    "select_angle_photo": {
+      "message": "Vybrat fotografii úhlu {angle}",
+      "format": "icu"
+    },
+    "upload_angle_photo": {
+      "message": "Nahrát fotografii úhlu {angle}",
+      "format": "icu"
+    },
+    "orbital_video": "Obletové video",
+    "additional_media": "Další fotografie a videa",
+    "total_files": "Celkový počet souborů",
+    "add_house_video": {
+      "message": "Pokračujte přidáním obletového videa domu {house}.",
+      "format": "icu"
+    },
+    "missing_angles": {
+      "message": "Chybí {count} úhlů. Přidejte fotografie chybějících úhlů.",
+      "format": "icu"
+    },
+    "structure_number": {
+      "message": "Struktura {number}",
+      "format": "icu"
+    },
+    "switch_camera": "Přepnout kameru",
+    "camera_zoom": "Přiblížení kamery",
+    "play_video": {
+      "message": "Přehrát video {number}",
+      "format": "icu"
+    },
+    "primary_angle_photo": {
+      "message": "Fotografie úhlu {angle}, hlavní",
+      "format": "icu"
+    },
+    "set_primary_angle_photo": {
+      "message": "Nastavit fotografii úhlu {angle} jako hlavní",
+      "format": "icu"
+    },
+    "view_angle_photo": {
+      "message": "Zobrazit fotografii úhlu {angle}",
+      "format": "icu"
+    },
+    "angle_photo": {
+      "message": "Fotografie úhlu {angle}",
+      "format": "icu"
+    },
+    "uploading_photo_count": {
+      "message": "Nahrávání fotografií: {count}",
+      "format": "icu"
+    },
+    "unassigned_count": {
+      "message": "Nepřiřazeno: {count}",
+      "format": "icu"
+    },
+    "show_all": "Zobrazit vše",
+    "structure_delivery_price": {
+      "message": "{price} za strukturu + zvolený poplatek za doručení",
+      "format": "icu"
+    },
+    "closed_expedite": "Expresní doručení není během zavírací doby dostupné",
+    "video_segment_count": {
+      "message": "Počet video segmentů: {count}",
+      "format": "icu"
+    },
+    "m_a2add99e6507cc": "Objednat měření",
+    "m_5b47c31589c08d": " Okamžitá vývojová zpráva",
+    "m_d42e44d94cf26d": "Diagnostika kamery FirstMate",
+    "m_45483cba8b2363": "Zavřít video",
+    "m_d1072adbf4a739": "Nahrát videa",
+    "m_679e3f0532c8f6": "Nahrané segmenty",
+    "m_6bfeca260a706b": "Začněte vpředu.",
+    "m_8d450f8f09d474": " Ustupte, dokud se celý dům nevejde do záběru od střechy až po základy.",
+    "m_fbc415383ed061": "Obejděte celý dům.",
+    "m_8999a5973399a7": " Jděte pomalu a po celou dobu mějte dům uprostřed záběru.",
+    "m_28a19a351341b7": "Kdykoli potřebujete, zastavte se.",
+    "m_586094cc3ecf92": " Nahrávejte v libovolném počtu segmentů nebo nahrajte již pořízená videa.",
+    "m_a156054f2fdcd9": "Nahrát obletové video",
+    "m_5cfa8ae69d7e6c": {
+      "message": "Při nahrávání obejděte dům jednou dokola. Nejrychleji tak ukážete všechny jeho strany.{v0}",
+      "format": "icu"
+    },
+    "m_15f72513cd842e": "Nahrát video",
+    "m_cab762c293af5c": "Nemůžete pořídit video? Objednejte měření z fotografií",
+    "m_1cb496d81d0d8a": "Objednat podle fotografií",
+    "m_9f5adc82950818": "Nemáte video? Měření můžeme provést i z fotografií. Potřebujeme všech osm úhlů domu a každým vás provedeme.",
+    "m_18eb50539ad3c5": "Pořiďte všech osm úhlů.",
+    "m_6e5fce959cdaef": " Každou stranu i roh, vždy s celým domem v záběru.",
+    "m_8652b670148f22": "Přidejte vše, co je špatně vidět.",
+    "m_ffa9f3c2ab78e6": " Pokud některý detail na osmi úhlech chybí nebo není vidět z ulice, přidejte potom další fotografie nebo video.",
+    "m_5a04d009cf966a": "Začít pořizovat osm fotografií",
+    "m_23d5e1d2486b6a": "Zpět k obletovému videu (doporučeno)",
+    "m_0352f26fd9d997": "Další fotografie a videa",
+    "m_215a48fa6c2668": {
+      "message": "{v0}Obletové video",
+      "format": "icu"
+    },
+    "m_2b2100088ed9f2": "Obletové video",
+    "m_b3790b49db5f84": "Přidat obletové video",
+    "m_25253d755816e2": "Jednou dokola obejděte dům a natočte jej telefonem, pak video nahrajte sem. Při objednání v aplikaci FirstMate se video nahraje za vás.",
+    "m_27b7e868698f63": "Přidejte detailní záběry všeho, co video nezachytilo dobře, například vikýřů, přístaveb nebo úzkých bočních průchodů.",
+    "m_2469fadd18d99a": "Máte video? Přepněte na obletové video (doporučeno)",
+    "m_6e81feb28a2b17": "Zatím nemáte video"
   },
   "help": {
     "m_0db6efc53ab2ed": "Potřebujete pomoct?",
@@ -2973,7 +3390,107 @@
     "m_2767483f4609c6": " Dokončit a odeslat",
     "m_a1cb9492b60b7f": " Další podpis",
     "m_be4cfb58b9c4d7": "Fotografie",
-    "m_8fda0d4db92a17": " Vytvořit bez projektu"
+    "m_8fda0d4db92a17": " Vytvořit bez projektu",
+    "m_b08d94d95ec9f8": {
+      "message": "Zahrnuje bezplatné zrychlené doručení. Zbývá {v0} bezplatných zrychlených doručení{v1}.",
+      "format": "icu"
+    },
+    "terminology_new_project": "Nový projekt",
+    "terminology_project_title": "Název projektu",
+    "primary_contact_heading": "Hlavní kontakt",
+    "contact_actions": "Akce kontaktu",
+    "remove_recipient": "Odebrat",
+    "edit_project_identity": "Upravit kontaktní osobu a adresu projektu",
+    "new_report": "Nová zpráva",
+    "saved_contact": "Uložený kontakt",
+    "call_contact": "Zavolat kontaktu",
+    "message_contact": "Napsat kontaktu",
+    "email_contact": "Poslat e-mail kontaktu",
+    "project_identity": "Kontaktní osoba a adresa projektu",
+    "expand_internal_notes": "Rozbalit interní poznámky",
+    "reduce_internal_notes": "Sbalit interní poznámky",
+    "checking_price": "Kontrola aktuální ceny…",
+    "order_roof_report": "Objednat zprávu o střeše",
+    "order_report": "Objednat zprávu",
+    "order_full_structure": "Objednat měření celé struktury",
+    "continue": "Pokračovat",
+    "project_fullscreen": "Otevřít projekt na celou obrazovku",
+    "project_shrink": "Zmenšit okno projektu",
+    "order_roof_report_price": {
+      "message": "Objednat zprávu o střeše – {price}",
+      "format": "icu"
+    },
+    "order_roof_report_discount": {
+      "message": "Objednat zprávu o střeše – {price} (ušetříte {saving})",
+      "format": "icu"
+    },
+    "no_matching_contacts": "Žádné odpovídající kontakty",
+    "loading_contacts": "Načítání uložených kontaktů…",
+    "no_saved_contacts": "Zatím žádné uložené kontakty",
+    "project_title": "Název projektu",
+    "choose_type_first": "Nejprve vyberte typ projektu",
+    "busy": "Máme hodně práce",
+    "very_busy": "Máme velmi mnoho práce",
+    "pin_instructions": "Kliknutím do mapy umístěte špendlíky na všechny struktury, které chcete zahrnout.",
+    "no_pins": "Není umístěn žádný špendlík",
+    "one_pin": "Umístěn 1 špendlík",
+    "one_pin_confirmed": "Potvrzeno – umístěn 1 špendlík",
+    "contacts_unavailable": "Kontakty se nepodařilo otevřít.",
+    "contact_open_failed": "Kontakt se nepodařilo otevřít.",
+    "contact_update_failed": "Kontaktní údaje zákazníka se nepodařilo aktualizovat.",
+    "contact_action_failed": "Akci kontaktu se nepodařilo otevřít",
+    "project_save_failed": "Projekt se nepodařilo uložit.",
+    "roof_report_ordered": "Zpráva o střeše objednána",
+    "full_report_ordered": "Zpráva pro celou strukturu objednána",
+    "report_processing": "Zpráva se nyní zpracovává.",
+    "connection_retry": "Chyba připojení. Zkuste to prosím znovu.",
+    "not_busy": "Nemáme příliš mnoho práce",
+    "price_per_structure": {
+      "message": "{price} / struktura",
+      "format": "icu"
+    },
+    "price_flat_rate": {
+      "message": "{price} paušálně",
+      "format": "icu"
+    },
+    "delivery_by": {
+      "message": "Do {time}",
+      "format": "icu"
+    },
+    "standard_delivery_duration": {
+      "message": "Standardní doručení – {duration}",
+      "format": "icu"
+    },
+    "pins_placed": {
+      "message": "Umístěno špendlíků: {count}",
+      "format": "icu"
+    },
+    "pins_confirmed": {
+      "message": "Potvrzeno – umístěno špendlíků: {count}",
+      "format": "icu"
+    },
+    "under_one_hour": "Méně než 1 hodina",
+    "under_hours": {
+      "message": "Méně než {hours} hodin",
+      "format": "icu"
+    },
+    "structure_total": {
+      "message": "{report}: {count} struktur × {unit} = celkem {total}",
+      "format": "icu"
+    },
+    "m_b7a344ddca6545": "FM",
+    "m_c92936cb32df1e": "Použít jinou dokončenou vývojovou zprávu odpovídající vybranému typu a rozsahu",
+    "m_a9fc58f6e515fa": "Žádná odpovídající zpráva",
+    "m_b1cdd265d6ddcb": "Vývojová zpráva",
+    "m_aaebd7ccba0b30": "Projekt",
+    "m_9b03ccb29ba168": "Souhrn",
+    "m_c2d9303f34719d": "Přidat připnutou poznámku",
+    "m_0747045bf3d919": "Nový projekt",
+    "m_9f4cf23e7e3636": "Vyhledat existující projekt",
+    "m_428a61cf4a8532": "Odpovídající projekty",
+    "m_67ea3d9f45d10b": "Vyhledávání projektů…",
+    "m_7f0c783c8eec23": "Otevírání projektu…",
+    "m_5180ead27b8ad6": "GIF se nepodařilo načíst"
   },
   "project-schedule": {
     "m_88e13d64071885": "Rozvrh je uzamčen",
@@ -3330,7 +3847,54 @@
     "m_9402b38f071830": "Seřadit projekty",
     "m_f022fa62257ce9": "Jana Nováková",
     "m_564fe2da7605fa": "jana@example.com",
-    "m_7247f8e5fa0e91": "Objednat standardní zprávu"
+    "m_7247f8e5fa0e91": "Objednat standardní zprávu",
+    "m_219853c2fec210": "Zkuste pro tuto strukturu objednat úplnou zprávu a získat její měření.",
+    "m_d2a894582092f8": "Pouze střecha",
+    "m_16e6b2fac22e7e": "Střecha &amp; okapy",
+    "m_5ee37aecb582b4": " Ruční",
+    "m_f86eb4b8f9ea2c": "Ruční přesouvání je zapnuté",
+    "m_fe74e5ffd55b04": "Přetáhněte kartu projektu do jiné fáze.",
+    "m_48afb49c6f40c4": "Tabule",
+    "m_39f4f4e9015b56": " Otevřít PDF",
+    "m_d091a3a21d5851": {
+      "message": " Objednat úplnou zprávu – ${v0}",
+      "format": "icu"
+    },
+    "m_7c4f8058d549a7": " Zapnuté sklony",
+    "m_97f68e5486c2f8": "Hledat adresu, kontakt…",
+    "m_af80d9cead6991": "Hledat projekty",
+    "pitches_on": "Zapnuté sklony",
+    "pitches_off": "Vypnuté sklony",
+    "order_full_report_amount": {
+      "message": "Objednat úplnou zprávu – {amount}",
+      "format": "icu"
+    },
+    "m_53d803cdbe9ab1": "Adresa",
+    "m_b9bbb4f486250d": "Hlavní kontakt",
+    "m_71b71bf03872e8": "Telefon hlavního kontaktu",
+    "m_6bc4d56ee2a851": "E-mail hlavního kontaktu",
+    "m_ca4bcb012af794": "Stav zprávy",
+    "m_b9e330a2a05e3a": "Bez fáze",
+    "m_0c8087b7a76bdd": "Bez tabule",
+    "m_b66bef8d909043": "Všechny tabule",
+    "m_db7bc4ec19e30d": "Sdílený projekt",
+    "m_f7db06bcf62c85": "Sloupce seznamu",
+    "m_0989a5be2bc0a3": "Kliknutím na záhlaví sloupce seřadíte seznam.",
+    "m_db1fe336bd1deb": "Datum vytvoření projektu",
+    "m_a4101be3c706f6": "Seřadit podle",
+    "m_82049078ca088b": "Změnit směr řazení",
+    "m_529b6356416c11": "Všechny fáze",
+    "m_da6a380b934274": {
+      "message": "Zobrazení {v0}",
+      "format": "icu"
+    },
+    "m_9b0cf483ee4377": {
+      "message": "Otevřít {v0}, sdílí {v1}",
+      "format": "icu"
+    },
+    "m_ce86fe78082565": "Není k dispozici",
+    "m_f8e16243e0f91c": "Spravovat zobrazení",
+    "m_200131262770e4": "Zobrazení projektu"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -6481,7 +7045,136 @@
     "m_10836fee7d848c": "SMS Enterprise",
     "m_fdb931154a90d3": "Potřebujete větší limit? Požádejte svůj tým podpory o individuální měsíční tarif.",
     "m_3be71fb0bc5d46": "Žádná další předplatná nejsou dostupná.",
-    "m_db8eb97cb6c0a3": "Načítání fakturace…"
+    "m_db8eb97cb6c0a3": "Načítání fakturace…",
+    "m_38e15f7a2dd540": "Sada značky",
+    "m_ae9d8c44e49371": {
+      "message": " Každé automatické dobití účtuje {v0}. {v1}",
+      "format": "icu"
+    },
+    "m_ae873abaa56707": "Měření",
+    "m_455c24bfeb9092": "Imperiální (stopy a čtverce)",
+    "m_ef3e6a234d5a73": "Metrické (metry a metry čtvereční)",
+    "m_4ca221574beb0d": " Náhled zprávy",
+    "fm_billing_minimum": {
+      "message": "Minimální částky automatického dobití jsou {amount}.",
+      "format": "icu"
+    },
+    "fm_use_the_card_on_file_to_keep_your_account_funded_automatically": "Pro automatické dobíjení účtu použijte uloženou kartu.",
+    "fm_use_the_card_you_add_to_keep_your_account_funded_automatically": "Pro automatické dobíjení účtu použijte přidanou kartu.",
+    "fm_enabled": "Povoleno",
+    "fm_disabled": "Zakázáno",
+    "fm_on": "Zapnuto",
+    "fm_off": "Vypnuto",
+    "fm_payment_could_not_be_processed": "Platbu se nepodařilo zpracovat",
+    "fm_payment_processed": "Platba zpracována",
+    "fm_report_ordered": "Zpráva objednána",
+    "fm_payment_received": "Platba přijata",
+    "fm_payment": "Platba",
+    "fm_promo_credit_applied": "Promo kredit uplatněn",
+    "fm_coupon_credit_added": "Přidán kredit z kupónu",
+    "fm_cancellation_refund": "Vrácení peněz za zrušení",
+    "fm_expedite_refund": "Vrácení poplatku za expresní doručení",
+    "fm_missed_promised_delivery_window": "Nedodržené slíbené okno doručení",
+    "fm_additional_structure_refund": "Vrácení peněz za další strukturu",
+    "fm_additional_structure_request": "Požadavek na další strukturu",
+    "fm_auto_top_up": "Automatické dobití",
+    "fm_refund": "Vrácení peněz",
+    "fm_credit_adjustment": "Úprava kreditu",
+    "fm_additional_structure_request_refund": "Vrácení peněz za požadavek na další strukturu",
+    "fm_additional_structure_added_to_report": "Další struktura přidána do zprávy",
+    "fm_completed": "Dokončeno",
+    "fm_rejected": "Zamítnuto",
+    "fm_processing": "Zpracovává se",
+    "fm_update_card": "Aktualizovat kartu",
+    "fm_add_card": "Přidat kartu",
+    "fm_save": "Uložit",
+    "fm_save_and_add_card": "Uložit a přidat kartu",
+    "fm_card_expiry": {
+      "message": "Platnost do {date}",
+      "format": "icu"
+    },
+    "fm_card": "Karta",
+    "fm_triggered_by_person": {
+      "message": "Spustil(a) {person}",
+      "format": "icu"
+    },
+    "fm_ordered_by_person": {
+      "message": "Objednal(a) {person}",
+      "format": "icu"
+    },
+    "fm_handled_by_person": {
+      "message": "Vyřídil(a) {person}",
+      "format": "icu"
+    },
+    "fm_ref_reference": {
+      "message": "Ref. {reference}",
+      "format": "icu"
+    },
+    "fm_charged_amount": {
+      "message": "Naúčtováno {amount}",
+      "format": "icu"
+    },
+    "fm_additional_structure_count": {
+      "message": "{count, plural, one {# další struktura} few {# další struktury} other {# dalších struktur}}",
+      "format": "icu"
+    },
+    "fm_billing_residential": "Obytná nemovitost",
+    "fm_billing_commercial": "Komerční nemovitost",
+    "fm_billing_multi_family": "Vícebytový dům",
+    "fm_billing_multifamily": "Vícebytový dům",
+    "fm_billing_full": "Úplná zpráva",
+    "fm_billing_roof_only": "Pouze střecha",
+    "fm_billing_roof": "Pouze střecha",
+    "fm_you_cannot_edit_your_own_permissions_here": "Zde nemůžete upravovat vlastní oprávnění.",
+    "fm_permissions_are_read_only": "Oprávnění jsou pouze ke čtení.",
+    "fm_users": "Uživatelé",
+    "fm_departments": "Oddělení",
+    "fm_user_administration": "Správa uživatelů",
+    "fm_brand_kit": "Sada značky",
+    "fm_changes_saved_automatically": "Změny se ukládají automaticky.",
+    "fm_could_not_save_brand_kit": "Sadu značky se nepodařilo uložit.",
+    "fm_preview_summary": "Souhrn projektu",
+    "fm_preview_facets": "Celkový počet střešních rovin",
+    "fm_preview_pitch": "Převažující sklon",
+    "fm_preview_area": "Celková plocha",
+    "fm_preview_breakdown": "Rozpis měření",
+    "fm_preview_eave": "Okapová hrana",
+    "fm_preview_ridge": "Hřeben",
+    "fm_preview_valley": "Úžlabí",
+    "fm_deleted": "Smazáno",
+    "fm_suspended": "Pozastaveno",
+    "fm_never_signed_in": "Nikdy se nepřihlásil(a)",
+    "fm_invited": "Pozván(a)",
+    "fm_active": "Aktivní",
+    "fm_primary_logo_saved_automatically": "Primární logo bylo automaticky uloženo.",
+    "fm_could_not_change_primary_logo": "Primární logo se nepodařilo změnit.",
+    "fm_the_logo_colors_could_not_be_read": "Barvy loga se nepodařilo načíst.",
+    "fm_could_not_send_invite_email": "Pozvánku e-mailem se nepodařilo odeslat.",
+    "fm_user_suspended": "Uživatel pozastaven.",
+    "fm_user_unsuspended": "Pozastavení uživatele zrušeno.",
+    "fm_you_can_t_suspend_yourself": "Nemůžete pozastavit sami sebe.",
+    "fm_you_can_t_suspend_a_super_admin": "Nemůžete pozastavit superadministrátora.",
+    "fm_you_can_t_delete_yourself": "Nemůžete smazat sami sebe.",
+    "fm_you_can_t_delete_a_super_admin": "Nemůžete smazat superadministrátora.",
+    "fm_report_settings_future_only": "Změna nastavení zpráv se vztahuje pouze na budoucí zprávy o měření. Již objednané zprávy se nezmění.",
+    "fm_statement_date": "Datum",
+    "fm_statement_transaction": "Transakce",
+    "fm_statement_details": "Podrobnosti",
+    "fm_statement_reason": "Důvod",
+    "fm_statement_amount": "Částka",
+    "fm_statement_balance_after": "Zůstatek poté",
+    "fm_statement_address": "Adresa",
+    "fm_statement_ordered_by": "Objednal(a)",
+    "fm_statement_date_ordered": "Datum objednání",
+    "fm_statement_project_type": "Typ projektu",
+    "fm_statement_status": "Stav",
+    "fm_statement_cost": "Cena",
+    "fm_statement_reimbursed": "Proplaceno",
+    "fm_statement_total": "Celkem",
+    "fm_statement_transaction_count": {
+      "message": "{count, plural, one {# transakce} few {# transakce} other {# transakcí}} – čistý součet: ",
+      "format": "icu"
+    }
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Přidat práci",
@@ -7058,7 +7751,8 @@
     "m_6d30e375168449": {
       "message": "Nepřečtená: {v0} &middot; celkem: {v1}",
       "format": "icu"
-    }
+    },
+    "new_report": "Nová zpráva"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Kancelář",
@@ -9311,6 +10005,98 @@
     "m_0d80b4a3bd88a0": {
       "message": "Změnit velikost okna {v0} {v1}",
       "format": "icu"
+    },
+    "project_workspace": "Pracovní prostor projektu",
+    "edit_project_identity": "Upravit kontaktní osobu a adresu",
+    "project_tabs": "Karty projektu",
+    "project_trays": "Panely projektu",
+    "opening_project": "Otevírání projektu…",
+    "restore_project": "Obnovit projekt",
+    "close_project": "Zavřít projekt",
+    "project": "Projekt",
+    "new_project": "Nový projekt",
+    "overview": "Přehled",
+    "tab_loading": {
+      "message": "{tab} – načítání projektu",
+      "format": "icu"
+    },
+    "resize_panes": "Změnit velikost panelů",
+    "window_trays": "Panely oken",
+    "close_tray": "Zavřít panel",
+    "window": "okno",
+    "dock_window": {
+      "message": "Připnout {window} k okraji",
+      "format": "icu"
+    },
+    "restore_window": {
+      "message": "Obnovit {window}",
+      "format": "icu"
+    },
+    "minimize_window": {
+      "message": "Minimalizovat {window}",
+      "format": "icu"
+    },
+    "float_window": {
+      "message": "Uvolnit {window}",
+      "format": "icu"
+    },
+    "maximize_window": {
+      "message": "Maximalizovat {window}",
+      "format": "icu"
+    },
+    "close_window": {
+      "message": "Zavřít {window}",
+      "format": "icu"
+    },
+    "modal_window": {
+      "message": "Zobrazit {window} v modálním okně",
+      "format": "icu"
+    },
+    "fullscreen_window": {
+      "message": "Zobrazit {window} přes celou obrazovku",
+      "format": "icu"
+    },
+    "unpin_window": {
+      "message": "Odepnout {window}",
+      "format": "icu"
+    },
+    "pin_window": {
+      "message": "Připnout {window}",
+      "format": "icu"
+    },
+    "dock_window_left": {
+      "message": "Připnout {window} vlevo (pravým tlačítkem změňte umístění)",
+      "format": "icu"
+    },
+    "dock_window_right": {
+      "message": "Připnout {window} vpravo (pravým tlačítkem změňte umístění)",
+      "format": "icu"
+    },
+    "fill_workspace_window": {
+      "message": "Vyplnit pracovní prostor oknem {window}",
+      "format": "icu"
+    },
+    "dock_placement": "Umístění připnutí",
+    "float": "Uvolnit",
+    "close": "Zavřít",
+    "modal": "Modální okno",
+    "fill_workspace": "Vyplnit pracovní prostor",
+    "fill_entire_screen": "Vyplnit celou obrazovku",
+    "dock_left": "Připnout vlevo",
+    "dock_right": "Připnout vpravo",
+    "dock_top_left": "Připnout vlevo nahoře",
+    "dock_top_right": "Připnout vpravo nahoře",
+    "dock_bottom_left": "Připnout vlevo dole",
+    "dock_bottom_right": "Připnout vpravo dole",
+    "dock_top": "Připnout nahoře",
+    "dock_bottom": "Připnout dole",
+    "resize_swap_panes": "Změnit velikost panelů; dvojklikem je prohodíte",
+    "close_pane": "Zavřít panel",
+    "pane_slow": "Načítání tohoto panelu trvá déle. Můžete jej zavřít a zkusit to znovu.",
+    "pane_open_failed": "Tuto kartu se nepodařilo otevřít. Zavřete panel a zkuste to znovu.",
+    "opening_tab": {
+      "message": "Otevírání {tab}…",
+      "format": "icu"
     }
   },
   "reports": {
@@ -9331,7 +10117,366 @@
     "meter": "metr",
     "millimeters": "milimetry",
     "millimeter": "milimetr",
-    "square footage": "plocha"
+    "square footage": "plocha",
+    "m_8f5db5c7f3d24d": "Hřeben",
+    "m_46dd9790bf6a04": "Nároží",
+    "m_63e8dda8d7cce4": "Úžlabí",
+    "m_7076ce874b1d6c": "Štítová hrana",
+    "m_27047ada176d29": "Okapová hrana",
+    "m_56b44629956d20": "Napojení oplechování u stěny",
+    "m_67b286b5c3cc9d": "Boční oplechování u stěny",
+    "m_2fe70464aadf58": "Přechod",
+    "m_c33219746150ec": "Atiková stěna",
+    "m_c59156303156a4": "Výstupek",
+    "m_40f358631dc246": "Zadní oplechování komína",
+    "m_d4ac8146ffa447": "Stupňovité oplechování komína",
+    "m_ab77a5a27d3f10": "Přední oplechování komína",
+    "m_23fb466fb2adc3": "Střešní okno",
+    "m_b764cdc0eab713": "Neznámé",
+    "m_a1021e952892ac": "Zpráva o měření nemovitosti",
+    "m_f8dbc522ba2af7": "Pohled na střechu shora",
+    "m_c834cd35286d0a": "Snímky střechy",
+    "m_869d0506787f34": "Výškové pohledy na střechu",
+    "m_e158625d2ef73e": "Střešní roviny",
+    "m_1246c01179d440": "Souhrn střechy",
+    "m_192df712925b74": "Větrání střechy",
+    "m_468cef63fdd9dd": "Schéma sklonu střechy",
+    "m_baf568be68a967": "Schéma plochy střechy",
+    "m_68770a5d336169": {
+      "message": "Měření střešní vrstvy {value1}",
+      "format": "icu"
+    },
+    "m_63b61a2a5cacd6": {
+      "message": "Střešní roviny: {value1}",
+      "format": "icu"
+    },
+    "m_733f0196ef5d7f": "Okapy",
+    "m_47cf5274d0f2c2": "Poznámky ke střeše",
+    "m_c50f62a1b89962": {
+      "message": "{value1} (+{value2} % prořez)",
+      "format": "icu"
+    },
+    "m_cb91ea904fb153": {
+      "message": "Sklon: {value1}",
+      "format": "icu"
+    },
+    "m_3b026f0a7e18aa": {
+      "message": "Prořez: {value1} %",
+      "format": "icu"
+    },
+    "m_e3bc5b673a070a": "Napojení u stěny",
+    "m_e87f980620eb8f": "Boční napojení u stěny",
+    "m_fe2ce041082c9b": "Atika",
+    "m_8cd80c317a2168": "Střešní roviny:",
+    "m_af5a7274c323e0": "Sklon:",
+    "m_9d6591d0b42f6b": "Metry čtvereční:",
+    "m_88c46e11f3c77b": "Čtvereční stopy:",
+    "m_919549889a5ceb": "Okapové hrany:",
+    "m_537a62a019ad4b": "Štítové hrany:",
+    "m_5bd7cdbae7fcda": "Hřebeny:",
+    "m_0721423f661339": "Nároží:",
+    "m_61201067398580": "Úžlabí:",
+    "m_3b450027d1213a": "Přechody:",
+    "m_c062492596511c": "Střešní okna:",
+    "m_b5ac9d155463b1": "Komíny:",
+    "m_89135357e29f80": "Jihozápad",
+    "m_1d7b8d4ed3a785": "Jihovýchod",
+    "m_83d96322f4ad30": "Severozápad",
+    "m_c8b2d1cc4549a9": "Severovýchod",
+    "m_6af11cc5940455": "Sklon",
+    "m_f915ae86682060": "Plocha (m²)",
+    "m_b67e47230efeb5": "Plocha (čtvereční stopy)",
+    "m_716d633b125adb": "Procento",
+    "m_f734f9b7f3706f": "Prořez",
+    "m_922f515c2acfae": "Vnější úhel 90°",
+    "m_7c323cb425fe82": "Vnitřní úhel 90°",
+    "m_60306a6c99e6d6": "Jiný než 90°",
+    "m_00d60e31a4e6b8": "Úsek",
+    "m_3765f3123ae48b": "Vnější úhel 90°",
+    "m_7ae502bf1fd18e": "Vnitřní úhel 90°",
+    "m_a7a915704f7f73": "Odhadovaná plocha půdy",
+    "m_b0936bc9f0eaa9": {
+      "message": "Půdorysná plocha: {value1}  |  Plocha povrchu: {value2}",
+      "format": "icu"
+    },
+    "m_18328584e69d03": "Doporučený odvod vzduchu",
+    "m_3d2448433551a3": "Doporučený přívod vzduchu",
+    "m_f1c927f86fb91d": {
+      "message": "Volná plocha pro větrání: {value1}",
+      "format": "icu"
+    },
+    "m_a2146e3ff505ff": {
+      "message": "Odvod: {value1}",
+      "format": "icu"
+    },
+    "m_4111e6605d2fd0": {
+      "message": "Přívod: {value1}",
+      "format": "icu"
+    },
+    "m_d70604e8430461": "Doporučeno",
+    "m_fb9ef894175c32": "Produkt",
+    "m_9f29530464f730": "Hodnocení",
+    "m_13bca3b7e36910": "Potřebné množství",
+    "m_d4bb90607908e5": "Větraná okapnice",
+    "m_296cfb57797e3b": "Podhledový větrací otvor",
+    "m_ac498d871de7df": "Větrací bloky",
+    "m_99a52df3ff3d49": "Klíč",
+    "m_fe56a63b035e8d": "Hřebenový větrací pás",
+    "m_1a431d164b36cc": "Skříňový větrací otvor",
+    "m_665420f28da3fb": "Poznámka: Odhadované množství produktů pro větrání půdy v této zprávě vychází z odhadované plochy podlahy půdy a slouží pouze pro účely odhadu. Před zahájením práce odpovídá za ověření správného množství a typu produktů pro větrání půdy montážní pracovník. Ten musí vždy zkontrolovat požadavky konkrétní zakázky na větrání půdy, například místní předpisy, plochu podlahy půdy, konstrukci střechy a vytápěné prostory pod střechou. Společnost GAF doporučuje minimálně 1 čtvereční stopu větrací plochy (rovnoměrně rozdělené mezi přívod a odvod) na každých 150–300 čtverečních stop plochy podlahy půdy podle stavu parozábrany. Větrací plocha odvodu u hřebene nebo poblíž něj nesmí nikdy překročit větrací plochu přívodu u podhledu nebo poblíž něj. Podrobnosti najdete na gaf.com/ventcalculator.",
+    "m_7bfab6c61f7782": "POZNÁMKY",
+    "m_1c10c30ced424d": {
+      "message": "Strana {value1}",
+      "format": "icu"
+    },
+    "m_616cb218a65b98": "Materiál",
+    "m_4e545960f1bffc": "Jednotka",
+    "m_a4ee51a0594303": "Výšky atikových stěn",
+    "m_f66e9d905ea8c1": "Obvod atiky: ",
+    "m_5e7d173c408ee4": "  |  Prořez: ",
+    "m_412cfcc70a641b": "%  |  Výšku stěny změřte na místě.",
+    "m_93041424cf9292": "Výška stěny",
+    "m_4fe0147e0d0f55": "Plocha stěny",
+    "m_9f4758a1af8ea3": "Celková plocha",
+    "m_4cc084a2b9523e": "Membrána",
+    "m_5759b423fa0103": "Další lepidlo",
+    "m_7c496968ffcdb4": "Úseky se sklonem 2/12 nebo menším jsou klasifikovány jako střechy s malým sklonem. Množství zahrnuje ",
+    "m_c0f21dd46689e3": " % prořezu, pokud se uplatňuje. Údaje jsou pouze odhady.",
+    "m_e564c2a86ab38f": "Membránový systém",
+    "m_1f528498cea93f": "Membrána / vrchní pás",
+    "m_c4f283a70b0486": "Lepidlo pro přilnutí",
+    "m_85413ad4bec1b6": "Izolace a krycí deska",
+    "m_1c0828f7eb005e": "Krycí deska 1/2\" 4x8",
+    "m_fa344135cd03c9": "Krycí deska (4'×8')",
+    "m_2188f67cce9c67": "Polyiso izolace (4'×8')",
+    "m_9c916917be3f72": "Izolační terče 3\"",
+    "m_87c3f71b2a40df": "Spojovací prvky HD 2\"",
+    "m_a546b1518e0b76": "Mechanicky upevněné (pouze TPO)",
+    "m_5ad4ec57c359dc": "Membránové terče 2-3/8\"",
+    "m_61dbe4caefefbc": "Spojovací prvky švů (pro membránové terče)",
+    "m_06ba44bfd230a8": "Okraje a zakončení",
+    "m_2c1c5afa7a9b99": "Ukončovací lišta (10 ft)",
+    "m_879e59e3c2c975": "Okrajový plech (10 ft)",
+    "m_e7df79a2132258": "Těsnicí hmota a příslušenství",
+    "m_e702197a280876": "Pochozí pás (34\"×50')",
+    "m_f6bcdfca5d0673": "Těsnicí hmota na řezné hrany TPO",
+    "m_8fdf1a9b6d5e1d": "Čistič",
+    "m_0c79e7af8f2a6b": "Univerzální tmel pro jednovrstvé membrány",
+    "m_dadf867d1bbb14": "Těsnicí hmota / tmel",
+    "m_79135f33f55286": "Šindelové produkty",
+    "m_aafc53646a6791": "Startovací pás",
+    "m_366c048a86eb18": "Krytina nároží a hřebene",
+    "m_ca5426333edafa": "Syntetická podkladní vrstva",
+    "m_0bd4e15953109c": "Ochrana proti ledu a vodě",
+    "m_ca50d8f4c28b7e": {
+      "message": "{value1} obvodová aplikace ({value2})",
+      "format": "icu"
+    },
+    "m_f98278faa39d91": "Kovové prvky a oplechování",
+    "m_0b500157a9ba4e": "Okapnice (10 ft)",
+    "m_9a907f7f8efb51": "Štítová okapnice (10 ft)",
+    "m_63dd5ff3dbc0e7": "Úžlabní plech W (10 ft)",
+    "m_858eef2a5850de": "Stupňovité oplechování (5x7)",
+    "m_bd1f293a927cae": "Krycí oplechování (10 ft)",
+    "m_581a811ee1dd52": "Oplechování u stěny (10 ft)",
+    "m_810de7e264edb9": "Přední oplechování komína",
+    "m_5268e67d2e1c94": "Zadní plech komína / náběh",
+    "m_748a0e39694131": "Stupňovité oplechování komína",
+    "m_1f79a9ed80fa1c": "Krycí oplechování komína (10 ft)",
+    "m_6586e2074c8ce4": "Sada oplechování střešního okna",
+    "m_3961803cc495fe": "Větrání",
+    "m_7a6f19f734f343": "Hřebenový větrací pás (úseky po 4 ft)",
+    "m_b08648dbd62b71": "Příslušenství",
+    "m_fe799b484c66a5": "Hřebíky v cívce (1.25 in, 50 lb)",
+    "m_f2a594a5d5aec2": "Hřebíky s plastovou hlavičkou",
+    "m_a9dec356d64749": "Střešní tmel (tuba)",
+    "m_8ce86a6ae65d36": "S",
+    "m_a6175902028988": "Přední",
+    "m_76900f1bfd16c8": "Zadní",
+    "m_8de0b3c47f112c": "J",
+    "m_fcb5f40df9be6b": "Z",
+    "m_a9f51566bd6705": "V",
+    "m_e3573855b3d9bf": "Přední ",
+    "m_cffbb3115c07f5": " ° / sever nahoře",
+    "m_9fc867325d55ed": "Směr přední strany není nastaven",
+    "m_78d1492cede81c": "V tomto snímku nejsou žádné modelované otvory.",
+    "m_37c225ef832884": "Souhrn exteriéru",
+    "m_385165e2ff5980": "Měření",
+    "m_822bab8d41bca8": "Množství",
+    "m_a01f990307bcfe": "Identifikátory stěn propojují schémata, rozměry, přehled otvorů a poznámky.",
+    "m_aa6c363db97d60": " Pohled",
+    "m_c0872cfcf108e7": "Níže jsou uvedeny viditelné stěny. Plochy se měří v rovině každé stěny; schéma je ortografická projekce.",
+    "m_cdd2eaa8c80927": " Pohled – pokračování",
+    "m_0dcd2fe54c68dd": "Údaje o stěnách pokračují. Schéma viz první strana ",
+    "m_e70b6a7c97c875": " s pohledem.",
+    "m_f76ea921edc2e5": "Stěna",
+    "m_d89f9e018a1a89": "Z tohoto směru není viditelný žádný povrch stěny.",
+    "m_a23fdf36878ac8": " čistá",
+    "m_36c3ccc71f5875": "Š ",
+    "m_bdebf2140013bd": "  ×  V ",
+    "m_34eb5b1409081f": "Přehled otvorů",
+    "m_44c472acd74e77": "Množství exteriérových materiálů",
+    "m_765524ef91a979": "Naměřené délky",
+    "m_0a96bba80d9db1": "Čistá plocha podle materiálu",
+    "m_1b609d14d397b9": "Střešní čtverce",
+    "m_cf4e143ea032d2": "Množství exteriérových materiálů – pokračování",
+    "m_1c582cacb59709": "Rezerva materiálu",
+    "m_662e0e59630b57": "Rezerva materiálu – pokračování",
+    "m_4a71a61ca44334": "Procenta prořezu jsou srovnávací rezervy materiálu vypočtené z čisté plochy stěny. Vodorovné návraty se měří zvlášť.",
+    "m_58c6c02cc9a2b5": "Poznámky ke stěnám",
+    "m_00d87cf8a73edd": "POZNÁMKY KE STRUKTUŘE / ODKAZY NA STĚNY",
+    "m_f6c057fb0e36c0": "Poznámky ke stěnám – pokračování",
+    "m_cc2b37e95f52c4": "Snímky exteriéru",
+    "m_4df65aa6464144": "Fotografie není přiřazena",
+    "m_6971ab087a1a89": {
+      "message": "Celkem střešních rovin: {value1}",
+      "format": "icu"
+    },
+    "m_9befb622242a9f": {
+      "message": "Převažující sklon: {value1}",
+      "format": "icu"
+    },
+    "m_d8a0a6db398df5": {
+      "message": "{value1} (čistá): {value2}",
+      "format": "icu"
+    },
+    "m_257b1dfbf5cdcd": {
+      "message": "{value1} ({value2} % prořez): {value3}",
+      "format": "icu"
+    },
+    "m_08c80b14e30a5a": "Celkem střešních čtverců",
+    "m_a8740bb1612ffc": "Střešní čtverce bez prořezu",
+    "m_b4fd83d0bcd221": "Střešní čtverce s prořezem",
+    "m_ad9df5626a0db3": "Plocha (m²) bez prořezu",
+    "m_c8cdb261150121": "Plocha (m²) s prořezem",
+    "m_4543d98d79fc96": "Plocha střechy",
+    "m_5376a6d429ea6d": "Střešní okna",
+    "m_48b0f84c37388c": "Komíny",
+    "m_b644bee84a99e1": "Krycí oplechování",
+    "m_a4e16d16c36105": "Funkční okap",
+    "m_6608517b23efe0": "Svodové roury",
+    "m_604f50c79bf141": "Počty rohových spojů",
+    "m_43f853bbb59286": "Sever",
+    "m_0dd2dae4dd83ae": "Jih",
+    "m_4e2cd851cfdab8": "Východ",
+    "m_41a6741e9a0fae": "Západ",
+    "m_58eb9032e3bb83": "Vlevo",
+    "m_883361d5d682a1": "Vpravo",
+    "m_a60528cbbb4e1e": "Vpravo vpředu",
+    "m_060cafd1082387": "Vlevo vpředu",
+    "m_d09f0b3be004c1": "Vpravo vzadu",
+    "m_08fc78e7d2aa2d": "Vlevo vzadu",
+    "m_7b47702be2bc22": "Požadavek na volnou plochu větrání",
+    "m_e23555b5b2a4b6": "Možnosti odvodu vzduchu",
+    "m_f333ec35b08f63": "Střešní materiály",
+    "m_4b6762b8c70c5d": "Materiály pro strmé střechy",
+    "m_4d5388c6f1e614": "Materiály pro ploché střechy",
+    "m_2cdbf9a37b01cf": "Rozměry stěn",
+    "m_b2ad1e2bec3fb1": "Rozměry lišt",
+    "m_c59e96abc48597": "Stopy",
+    "m_f4b13e93df077d": "Otvor",
+    "m_baaddf70fb5d43": "Typ",
+    "m_e50f1a89cafcbb": "Hrubá plocha m²",
+    "m_042702902def29": "Hrubá plocha ft2",
+    "m_c67131616d7b70": "Otvor m²",
+    "m_c3373ed602f34c": "Otvor ft2",
+    "m_4fac882a12ee7e": "Čistá plocha m²",
+    "m_4cf8a6733265d0": "Čistá plocha ft2",
+    "m_458d2707d8628e": "Š × V (m)",
+    "m_b3d1d24cc51245": "Š × V (ft)",
+    "m_1e05d842212af6": "Plocha m²",
+    "m_dde8cec8418424": "Plocha ft2",
+    "m_6b50755eb9ed6c": "Lišta m",
+    "m_625bdc61d56b1e": "Lišta ft",
+    "m_b2f1c22c291184": "Horní část stěn",
+    "m_90fe55c098b1af": "Spodní část stěn",
+    "m_aa41ee9d85a9d5": "Vnitřní rohy",
+    "m_a65b33e0c771c5": "Vnější rohy",
+    "m_fcf52be31de7b6": "Přechody mezi materiály",
+    "m_090059bac2d329": "Viditelná svislá zakončení",
+    "m_1a11982bb733ae": "Referenční obrázek",
+    "m_c9c660e6accc56": "Nepojmenovaný snímek",
+    "m_14d33bd014e6b4": "Nepřiřazeno",
+    "m_0ef1d310eec6e5": "Plocha včetně prořezu (m²)",
+    "m_e312c06e4f54f7": "Plocha včetně prořezu (čtvereční stopy)",
+    "m_15a9cffc5bed56": "Střešní čtverce včetně prořezu",
+    "m_05ee42debad539": "Měření jsou zaokrouhlena. Údaje o prořezu jsou pouze orientační. Montážní pracovník je musí ověřit.",
+    "m_da953f1b93f8b7": "Připraveno pro",
+    "m_cc2838b533f40e": "Měření střechy",
+    "m_b430c90b975008": "Střešní čtverce s prořezem",
+    "m_1f181d240af1a0": "Střešní roviny",
+    "m_e2f79e5b60330b": "Není k dispozici",
+    "m_36762e47a9e4cb": {
+      "message": "Potřeba: {value1} (při 18\"/lf)",
+      "format": "icu"
+    },
+    "m_f8bef190b5c7dd": {
+      "message": "K dispozici: {value1}",
+      "format": "icu"
+    },
+    "m_d0c422a580d763": "Kapacita dostačuje",
+    "m_993cf3b9d3e0e3": "Nedostatečná délka hřebene",
+    "m_edd8b32b3e626c": {
+      "message": "Nedostatek: {value1}",
+      "format": "icu"
+    },
+    "m_de50c6b65c5b98": {
+      "message": "Potřeba: {value1} větracích otvorů",
+      "format": "icu"
+    },
+    "m_40edab167ee70f": {
+      "message": "{value1} NFA každý",
+      "format": "icu"
+    },
+    "m_97abc4971648fc": {
+      "message": "Celkem: {value1}",
+      "format": "icu"
+    },
+    "m_edf717d2c2451d": "Skříňové větrací otvory",
+    "m_d8f9519730da4f": {
+      "message": "{value1}  ·  {value2}  ·  {value3} střešních rovin",
+      "format": "icu"
+    },
+    "m_db58767e2a1c62": "Rozpis plochy",
+    "m_2f116e6424aa37": {
+      "message": "Podrobnosti vrstvy {value1}",
+      "format": "icu"
+    },
+    "m_0d2654b2d28308": "Schéma okapů",
+    "m_b975e865740d2e": "Podlaží podle směru",
+    "m_9a30a63dce7244": "Souhrn větrání",
+    "m_5e1d442d6cc2ef": "Doporučené přívodní produkty",
+    "m_cd6abbbc9cacc4": "Rozpis sklonu",
+    "m_d71f3ad4ab7a0d": "Podhled",
+    "m_e7514fa59671cd": "Vodorovný obklad",
+    "m_04fc5f90eb1ea9": "Svislý obklad",
+    "m_83eb49c0e6f141": "Vodorovné lišty",
+    "m_f0e864abdbc3c3": "Svislé lišty",
+    "m_84e1f590dd7376": "Cihla",
+    "m_25db51b5636875": "Zdivo",
+    "m_05a92accb1cbff": "Štuk",
+    "m_6ffa6b8b1c9fa1": "Kámen",
+    "m_f97e9da0e3b879": "Jiné",
+    "m_19734a1b58cabc": "Okno",
+    "m_fbf247e43d3745": "Dveře",
+    "m_bfc7b9ead6e2ba": "Garážová vrata",
+    "m_f414f8c425d315": "Větrací otvor ve štítu",
+    "m_2a60e203a021a1": "Zkontrolovat: ",
+    "m_8a23ff3c3858ac": "Otvor není ve svislé stěně, a proto je vyloučen z přehledu stěn.",
+    "m_abf4acf7f3ed39": "Otvor nemá odpovídající nosnou stěnu, a proto je vyloučen ze součtů.",
+    "m_8fef5c42054b92": {
+      "message": "Struktura {value1}",
+      "format": "icu"
+    },
+    "m_3aeeb50e64a64b": " – pokračování",
+    "m_1f49328eb17532": "Oblasti stěny",
+    "m_6e2d200e85cb0f": "Plocha otvoru",
+    "m_6bc39100b77b1b": "Obvod otvoru",
+    "m_b72dc1fbef232e": "Vodorovné návraty",
+    "m_0c85aa425e52d8": {
+      "message": "Zakreslené rozměry označují skutečné rozměry, nikoli rozměry výrobce nebo hrubého stavebního otvoru. Lišta {value1} označuje obvod otvoru.",
+      "format": "icu"
+    }
   },
   "errors": {
     "agent_target_invalid": "Vyberte globální, firemní nebo projektový rozsah.",
@@ -10427,5 +11572,81 @@
     "m_071609c9efaf0f": "Zavřít nastavení plateb",
     "m_5823063ec74807": "Žádost o registraci obchodníka u Forward",
     "m_ccb52891bb8ff6": "Vaše žádost o zřízení plateb už byla odeslána."
+  },
+  "brand-kit": {
+    "m_6bb25348173069": "Barevná paleta",
+    "m_0c92722f162cbd": "Primární · UI",
+    "m_390a15f2a6d920": "Sekundární · UI",
+    "m_a63c5a4c25569b": "Logo",
+    "m_2c8fc5e11eaf62": "Aktuální logo",
+    "m_eb55056b53954c": "Nejlépe vypadá průhledné PNG nebo vektorové SVG.",
+    "m_ac8bf335945352": " Nahradit logo",
+    "m_490cbf5945b3f8": "Informace o barevné paletě společnosti",
+    "m_85de3f0cdfc46a": "Informace o logách společnosti",
+    "m_fc3b468d1ec4eb": "Aktuální logo společnosti",
+    "m_953e4a6603f5f1": {
+      "message": "Upravit barvu {v7}",
+      "format": "icu"
+    },
+    "m_036dda0aa72306": "Zatím žádná další loga.",
+    "m_8803dece55359d": " Přidat",
+    "m_986685f23ed459": "Pozadí",
+    "m_dba346dfc1916b": "Firemní písmo",
+    "m_4d9e1ae19fc002": "Výchozí nastavení pro nové dokumenty a šablony",
+    "m_5c6ac1b0faeaa0": "Rodina písem",
+    "m_6cac172119f732": "Primární a sekundární barva určují styl rozhraní. Podpůrné barvy jsou dostupné ve vizuálních editorech.",
+    "m_b8391ad75bc163": "Spravujte firemní logo a jeho vzhled na plochách s vaší značkou.",
+    "m_695aa2f7da3152": " Znovu vytvořit paletu z loga",
+    "m_629cca6181934e": "Šestibarevná firemní paleta",
+    "m_c0838c60ccd34f": "Alternativní loga ",
+    "m_e3681835cc6b25": "Pokročilé nastavení vzhledu loga",
+    "m_76e5c668843400": "Tvar kontejneru",
+    "m_eb37afb3b23761": " Čtverec",
+    "m_3562c63d47eca1": " Kruh",
+    "m_895bf3964e7990": " Zaoblené rohy",
+    "m_57f5beffb19542": "Opakovaně použitelné varianty loga pro nabídky, webové stránky a další média se značkou.",
+    "palette_primary": "Primární",
+    "palette_secondary": "Sekundární",
+    "palette_primary_title": {
+      "message": "Primární: {color}",
+      "format": "icu"
+    },
+    "palette_secondary_title": {
+      "message": "Sekundární: {color}",
+      "format": "icu"
+    },
+    "palette_support_title": {
+      "message": "Podpůrná {number}: {color}",
+      "format": "icu"
+    },
+    "palette_edit_primary": "Upravit primární barvu",
+    "palette_edit_secondary": "Upravit sekundární barvu",
+    "palette_edit_support": {
+      "message": "Upravit podpůrnou barvu {number}",
+      "format": "icu"
+    },
+    "m_a7c7218cc9ff52": "Výchozí rodina písem",
+    "m_a1872cd2329966": " Použít samostatné písmo pro nadpisy",
+    "m_2d5dcb0d47abfa": "Rodina písma nadpisů",
+    "m_756cb8f31d3694": "Výchozí rodina se používá pro text těla dokumentu i nadpisy. Pro nadpisy můžete volitelně vybrat samostatnou rodinu písem.",
+    "m_f317840d3f2404": "O firemních písmech",
+    "m_33289209b6d267": {
+      "message": "Použít {v2} jako primární",
+      "format": "icu"
+    },
+    "m_f4e2cc33249168": {
+      "message": "Použít {v3} jako primární",
+      "format": "icu"
+    }
+  },
+  "platform-commerce": {
+    "credit_amount": {
+      "message": "{amount} kreditů",
+      "format": "icu"
+    },
+    "exchange_estimate": {
+      "message": "Přibližně {amount} · směnný kurz se při platbě může lišit.",
+      "format": "icu"
+    }
   }
 }

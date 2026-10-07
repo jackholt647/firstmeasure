@@ -128,7 +128,7 @@
         const element=definitions.find(d=>d.tab===pane.tab).element;element.style.order=String(index*2);element.style.flex=`${pane.weight} 1 0px`;
         if(index===current.length-1)return;
         const other=current[index+1],right=definitions.find(d=>d.tab===other.tab).element;
-        const divider=document.createElement('div');divider.className='fm-shell-divider';divider.tabIndex=0;divider.role='separator';divider.setAttribute('aria-label','Resize panes');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-valuemin','0');divider.setAttribute('aria-valuemax','100');divider.style.order=String(index*2+1);
+        const divider=document.createElement('div');divider.className='fm-shell-divider';divider.tabIndex=0;divider.role='separator';divider.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","resize_panes","Resize panes") ?? "Resize panes"));divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-valuemin','0');divider.setAttribute('aria-valuemax','100');divider.style.order=String(index*2+1);
         const update=ratio=>{const total=pane.weight+other.weight;pane.weight=total*ratio;other.weight=total*(1-ratio);element.style.flex=`${pane.weight} 1 0px`;right.style.flex=`${other.weight} 1 0px`;divider.setAttribute('aria-valuenow',String(Math.round(ratio*100)));root.dispatchEvent(new Event('resize'));};
         update(pane.weight/(pane.weight+other.weight));
         const resize=ratio=>update(Math.max(.15,Math.min(.85,ratio)));
@@ -144,9 +144,9 @@
   function trayHost({container,header,getContext}){
     styles();
     const definitions=new Map(),handles=new Map(),panels=new Map();let selected=null;
-    const buttons=document.createElement('nav');buttons.className='fm-shell-tray-tabs';buttons.setAttribute('aria-label','Window trays');header.append(buttons);
+    const buttons=document.createElement('nav');buttons.className='fm-shell-tray-tabs';buttons.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","window_trays","Window trays") ?? "Window trays"));header.append(buttons);
     const aside=document.createElement('aside');aside.className='fm-shell-tray';aside.hidden=true;
-    const bar=document.createElement('header'),title=document.createElement('strong'),close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Close tray');bar.append(title,close);aside.append(bar);container.append(aside);
+    const bar=document.createElement('header'),title=document.createElement('strong'),close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","close_tray","Close tray") ?? "Close tray"));bar.append(title,close);aside.append(bar);container.append(aside);
     const available=(context=getContext())=>[...definitions.values()].filter(d=>!d.available||d.available(context)).map(d=>d.id);
     function refresh(){
       const ids=available();if(selected&&!ids.includes(selected))select(null);

@@ -44,7 +44,78 @@
     "m_5a3dca8919c4c0": "Nie potwierdzono jeszcze obciążenia.",
     "m_c5e73b482b12dd": "Środki zaktualizowane",
     "m_60fa00527e725c": "Odmowa dostępu",
-    "m_ef03abbb9958f0": "Nie masz uprawnień do zarządzania rozliczeniami."
+    "m_ef03abbb9958f0": "Nie masz uprawnień do zarządzania rozliczeniami.",
+    "credit_amount_help": "Kwotę środków dodawanych do konta możesz zmienić za pomocą przycisków plus i minus.",
+    "credit_today": "Środki do dodania dzisiaj",
+    "credit_to_add": "Środki do dodania",
+    "more_credit_needed": "Potrzeba więcej środków",
+    "first_report_thanks": "Dziękujemy za wypróbowanie FirstMeasure.",
+    "first_report_load": "Doładuj konto, aby zamówić pierwszy raport.",
+    "pay_report": "Dodaj środki do konta, aby zapłacić za ten raport.",
+    "first_report_ready": "Nie otrzymano jeszcze żadnego ukończonego raportu. Dodaj teraz środki, aby pierwsze zamówienie było gotowe, gdy będzie potrzebne.",
+    "your_roof_report": "Twój raport dotyczący dachu",
+    "no_completed_reports": "Brak ukończonych raportów",
+    "needed_for_order": "Potrzebne do zamówienia",
+    "first_report_from": "Pierwszy raport od",
+    "difference": "Różnica",
+    "credit_to_add_lower": "Środki do dodania",
+    "automatic_order": "Po zaksięgowaniu płatności zamówienie raportu zostanie wysłane automatycznie. Nie musisz składać go ponownie.",
+    "first_report_credit_available": "Te środki będą dostępne przy składaniu pierwszego zamówienia raportu.",
+    "credit_before_first_report": "Dodaj środki przed zamówieniem pierwszego raportu.",
+    "checking_balance_order": "Sprawdzanie salda. Do realizacji tego zamówienia potrzeba więcej środków.",
+    "checking_balance": "Sprawdzanie salda.",
+    "checkout_failed": "Nie udało się rozpocząć płatności.",
+    "opening_stripe": "Otwieranie Stripe...",
+    "this_purchase": "ten zakup",
+    "balance_first_report": {
+      "message": "Twoje saldo wynosi {balance}. Dodaj środki przed zamówieniem pierwszego raportu.",
+      "format": "icu"
+    },
+    "balance_credit_needed": {
+      "message": "Twoje saldo wynosi {balance}. Do realizacji tego zamówienia potrzeba więcej środków.",
+      "format": "icu"
+    },
+    "top_up_purchase": {
+      "message": "Doładuj konto, aby sfinalizować zakup: {purchase}.",
+      "format": "icu"
+    },
+    "balance_top_up_purchase": {
+      "message": "Twoje saldo wynosi {balance}. Doładuj konto, aby sfinalizować zakup: {purchase}.",
+      "format": "icu"
+    },
+    "your_balance": {
+      "message": "Twoje saldo wynosi {balance}.",
+      "format": "icu"
+    },
+    "report_checkout": "Płatność za raport",
+    "first_report_checkout": "Płatność za pierwszy raport",
+    "first_account_load": "Pierwsze doładowanie konta",
+    "redirecting": "Przekierowywanie",
+    "saving": "Zapisywanie",
+    "loading": "Ładowanie",
+    "yes": "Tak",
+    "no": "Nie",
+    "commercial": "Komercyjne",
+    "multifamily": "Wielorodzinne",
+    "residential": "Mieszkalne",
+    "full_house_included": "Cały budynek · dach i rynny w cenie",
+    "roof_gutters": "Dach i rynny",
+    "roof_only": "Tylko dach",
+    "standard": "Standardowy",
+    "standard_instant": "Standardowy + raport natychmiastowy",
+    "auto_top_up_summary": {
+      "message": "Dodaj {credit}, gdy saldo spadnie poniżej {threshold}. Każde doładowanie obciąży konto kwotą {charge}. {estimate}",
+      "format": "icu"
+    },
+    "insufficient_credit_amount": {
+      "message": "Te środki nie wystarczą, aby zamówić raport. Musisz dodać co najmniej {amount}, aby za niego zapłacić.",
+      "format": "icu"
+    },
+    "discount_price": {
+      "message": "{price} (oszczędzasz {saving})",
+      "format": "icu"
+    },
+    "catalog_load_failed": "Nie udało się wczytać danych rozliczeniowych. Spróbuj ponownie."
   },
   "canvassing": {
     "m_61df468d92e238": "Wszystkie",
@@ -1728,7 +1799,353 @@
     },
     "m_d2a894582092f8": "Tylko dach",
     "m_0980d65c27cd2f": "Cały budynek",
-    "m_09612fd6ab85db": "Zakres raportu"
+    "m_09612fd6ab85db": "Zakres raportu",
+    "m_dc6a60d7bb3581": "Dalej ",
+    "m_76f61845dd2aea": "ULICA",
+    "m_e4b02dd6cf2314": "Przewodnik po kątach budynku",
+    "m_48cd840a98035f": "Prześlij",
+    "m_86d43ca533f4ae": "Ponów próbę użycia aparatu",
+    "m_8247c56c226358": "Podgląd z tylnego aparatu na żywo",
+    "m_c7a97e0bb50632": "Prześlij zdjęcia",
+    "m_1a58fdc6bb20bf": "Zdjęcia pod tym kątem",
+    "m_6555da398c64e6": "Zrób zdjęcie",
+    "m_014da584de30ed": {
+      "message": "Budynek {v0} · widok {v1} z 8",
+      "format": "icu"
+    },
+    "m_8ac00bef24971e": {
+      "message": "{v0} budynku",
+      "format": "icu"
+    },
+    "m_acb62edbd19fa2": {
+      "message": "{v0} budynku; przód skierowany w stronę ulicy",
+      "format": "icu"
+    },
+    "m_2436076ece8629": "Główne",
+    "m_48a9cdd2af44f4": "Ponów próbę",
+    "m_173c36d4fce52b": "Przesyłanie zdjęcia",
+    "m_06170cce538389": "Usuń zdjęcie",
+    "m_9389ebcecf7d63": {
+      "message": "{v0} zdjęcie{v1}",
+      "format": "icu"
+    },
+    "m_711bf09bbd2160": "Zdjęcia referencyjne elewacji",
+    "m_1ca9bec888658a": "Prześlij zdjęcia elewacji",
+    "m_acaf0eb128605e": "Upuść zdjęcia, aby je przesłać",
+    "m_42e91ae7dddc18": "Ładowanie zdjęć…",
+    "m_8941c9a5445fb9": "Przesłane zdjęcia elewacji",
+    "m_cad1a6c79c9cf3": {
+      "message": "{v0} zdjęć",
+      "format": "icu"
+    },
+    "m_26bd8e451be239": {
+      "message": "Przypisano {v1}",
+      "format": "icu"
+    },
+    "m_a69623abe7dd91": {
+      "message": "Przesyłanie zdjęcia {v3}{v4}",
+      "format": "icu"
+    },
+    "m_5b239bae30cb96": {
+      "message": "Nieprzypisane: {v1}{v2}",
+      "format": "icu"
+    },
+    "m_a3dc6534fc81dc": "Pokaż wszystkie zdjęcia",
+    "m_9138e9cdd68343": "Przeciągnij zdjęcia tutaj",
+    "m_bf0345adc5299e": "Wymagane ujęcia",
+    "m_02b18934a68584": "Dodatkowe zdjęcia",
+    "m_8411c93e5b0adf": "Łączna liczba zdjęć",
+    "m_be4cfb58b9c4d7": "Zdjęcia",
+    "m_0dc366a939cb1d": "Konstrukcja",
+    "m_a32cdb9d1056f2": "Dotknij poniżej pozycji, aby przypisać.",
+    "m_05a79c7def4dac": "Zachowaj jako dodatkowe",
+    "m_59741c3f6d31f8": "Odznacz",
+    "m_9506f115fde6af": "TYŁ",
+    "m_4042bd99ed30d1": "PRZÓD ↓",
+    "m_9e22418c14100e": "Widok budynku z góry, przód na dole",
+    "m_7665c7cfa6ea36": {
+      "message": "Zdjęcie {v4} {v5}",
+      "format": "icu"
+    },
+    "m_84b311b1332f3c": "Dotknij, aby przesłać",
+    "m_484b63459c1357": "Szacowany aktualny czas oczekiwania",
+    "m_7b8bab306cc5c2": {
+      "message": "Szacunkowo {v2} godz.",
+      "format": "icu"
+    },
+    "m_1d63663ae56e2a": "18 godz.",
+    "m_e731322b674a97": "24 godz.",
+    "m_e7f79de4539e22": {
+      "message": "{v5} za konstrukcję + wybrana opłata za dostawę{v6}",
+      "format": "icu"
+    },
+    "m_29ee01b139b644": "Ładowanie cen…",
+    "m_f27fa22720bb9a": "Nieruchomość",
+    "m_dccbe8abe35b17": "Typ nieruchomości",
+    "m_ae8e4953e07d70": "Klient",
+    "m_3fd6a5025f8036": "Szczegóły raportu",
+    "m_9b208988dee1f1": "Upuść, aby przesłać zdjęcia",
+    "m_50904398019722": " Dodaj kontakt",
+    "m_c9a026ebb1be8c": "Typ nieruchomości",
+    "m_908c0715a481b7": "Adres nieruchomości",
+    "m_1f6129f59f143b": "Adres nieruchomości",
+    "m_29f3cc51016963": "Typ projektu",
+    "m_417e1dad6a313e": "Zacznij wpisywać adres lub kliknij mapę...",
+    "m_5c6d435494fefd": "Utwórz ofertę",
+    "m_e5aee059bf2f35": "Umów spotkanie",
+    "m_bd6349111bdda5": "Asystent ofert",
+    "m_a2d8046f355c56": "Wygeneruj wersję roboczą oferty",
+    "m_289b2e5bec972c": "Opisz zakres prac, ton, dołączone zdjęcia i wszystko, co klient powinien zobaczyć.",
+    "m_7ceca87ce420be": "Włącz lub wyłącz asystenta ofert",
+    "m_84f47d747cfe44": "Napisz asystentowi ofert, co ma uwzględnić w tej ofercie...",
+    "m_18fc56365bd838": "Podyktuj polecenie",
+    "m_09ee09a435f087": "Od najnowszych",
+    "m_5a704a0a365cf0": "Od najstarszych",
+    "m_971bee4a6a3550": "Dodaj notatkę ",
+    "m_5e715bf9880366": "Kto może ją zobaczyć?",
+    "m_d068fb68fb07d2": "Wszyscy",
+    "m_3fe33cd11f8a29": "Historia",
+    "m_fa1d10be2766ee": " Dodaj notatkę",
+    "m_6643d210319486": "Filtruj notatki",
+    "m_5bfaf42a1f7ef2": "Sortuj notatki",
+    "m_81cd5cfdb71ce1": "Wybierz, kto może zobaczyć tę notatkę",
+    "m_3bad1b1f1d93ba": "Dodaj notatkę wewnętrzną… Użyj @imię lub @email, aby oznaczyć osobę.",
+    "m_14d6270ea986dc": "Wyświetl historię notatki",
+    "m_d3fd8350167dd9": "Prześlij plik do notatki",
+    "m_dd978d5c5b3bd9": "Nagraj notatkę głosową",
+    "m_5bbba2df4ff973": "Notatki wewnętrzne ",
+    "m_2b31fcca2dfee1": "Rozwiń notatki wewnętrzne",
+    "m_69afca2b27d860": "Notatki wewnętrzne do własnego użytku...",
+    "m_3f912aeb9ec149": {
+      "message": "Budynek {v0}",
+      "format": "icu"
+    },
+    "m_31a44c7d4ec28e": {
+      "message": "Budynek {v1}, {v2}",
+      "format": "icu"
+    },
+    "m_10390ed58d9d2e": {
+      "message": "Konstrukcja {v2}",
+      "format": "icu"
+    },
+    "m_a41e0c05153e74": "Wybrane zdjęcie",
+    "m_0dd87f826c8c39": "Ponów przesyłanie",
+    "m_94fef39d56d52f": {
+      "message": "Usuń zdjęcie {v1}",
+      "format": "icu"
+    },
+    "m_cb96f1b0af21d8": "Dodaj zdjęcia",
+    "m_b51f2220e8185c": "Przyspieszona realizacja",
+    "m_0f0032d7c26618": "Uwagi dla technika",
+    "m_0b730c79a5c5eb": "DW dla raportów",
+    "m_bc21fa8a42be31": "Notatki wewnętrzne",
+    "m_100206f83a1d97": "Tylko podgląd testowy. Przed złożeniem zamówienia dodaj wszystkie osiem ujęć każdej konstrukcji.",
+    "internal_notes_help": "Tylko do własnego użytku.",
+    "project_address_heading": "Adres projektu",
+    "property_address_accessible": "Adres nieruchomości",
+    "technician_notes_help": "Wszelkie specjalne instrukcje lub informacje o nieruchomości, które technik powinien znać, np. wolnostojący garaż, kilka budynków, stromy dach itp.",
+    "report_cc_help": "Dodatkowe adresy e-mail, na które należy wysłać ukończony raport.",
+    "ext_85b3a77a8ba1d7": "Przed złożeniem zamówienia dodaj wszystkie osiem wymaganych ujęć każdej konstrukcji.",
+    "ext_cfa9dc24313268": "Przed złożeniem zamówienia dodaj nagranie orbitalne każdej konstrukcji.",
+    "ext_4122a51f61ae01": "Dodaj nagranie orbitalne budynku, aby kontynuować.",
+    "ext_037939e415c28b": "Dodatkowe zdjęcia i filmy",
+    "ext_dd3c3bac99aa28": "Przypisano wszystkie zdjęcia",
+    "ext_93f63a88c7e69d": "Animacja: osoba idzie dookoła całego budynku, nagrywając go",
+    "ext_833abb707b2dac": "Tego, czego nie widać wyraźnie, możemy nie być w stanie zmierzyć, a projekt może zostać odrzucony. Osiem zdjęć zwykle wystarcza. Dodatkowe zdjęcia i film są pomocne.",
+    "ext_76900f1bfd16c8": "Wstecz",
+    "ext_7a70fe7e1b8507": "Nie udało się udostępnić diagnostyki aparatu.",
+    "ext_7cad7a14ed0291": "Aparat nie jest gotowy",
+    "ext_0748faa1268982": "Aparat jest niedostępny. Nadal możesz przesłać film przedstawiający budynek.",
+    "ext_5414e89a1bc03f": "Aparat jest niedostępny. Nadal możesz przesłać zdjęcia z każdego kąta.",
+    "ext_a3a35b570535e1": "Zoom aparatu",
+    "ext_b3e8ecabf4ad19": "Nie możesz nagrać?",
+    "ext_1900b478a58603": "Zrób zdjęcie",
+    "ext_189fb6202c349b": "Wybierz „Cała konstrukcja”, aby zamówić ten raport.",
+    "ext_ccd317947e12ef": "Wybierz plik wideo (MP4, MOV lub WebM).",
+    "ext_823428e67d8d52": "Kliknij, aby wybrać pliki, lub upuść je tutaj",
+    "ext_b543835fdc1ff1": "Potwierdź lokalizację konstrukcji na mapie.",
+    "ext_408febc0bafde2": "Nie udało się wczytać cen.",
+    "ext_8c541d052647e6": "Nie udało się przetworzyć zdjęcia. Zrób je ponownie.",
+    "ext_26a03939c7a9dc": "Nie udało się złożyć tego zamówienia.",
+    "ext_67731319e91d6d": "Nie udało się zrobić tego zdjęcia. Spróbuj ponownie.",
+    "ext_b564227b7d3de2": "Cennik dostawy nadal się ładuje.",
+    "ext_8a958b5d470770": "Czas dostawy liczy się od momentu złożenia zamówienia.",
+    "ext_bb0783864ee081": "Zoom aparatu cyfrowego",
+    "ext_48845bff334a50": "Zamknij",
+    "ext_18eb3c7da07409": "Przeciągnij zdjęcia tutaj",
+    "ext_36d6e4ce04d5fc": "Upuść tutaj zdjęcia lub użyj przycisku Prześlij, aby wybrać pliki.",
+    "ext_6e21162913b0dc": "Przyspieszona dostawa jest teraz niedostępna. Wybierz dostawę standardową.",
+    "ext_f34702ef3c459c": "Dodatkowe zdjęcie referencyjne",
+    "ext_abc7e9892806b0": "Pliki",
+    "ext_ab738ca65f65c1": "Cała konstrukcja",
+    "ext_fd6623d6d20bb2": "Kontynuuj obejście budynku",
+    "ext_f662ce48780d0c": "Podgląd z aparatu na żywo jest tutaj niedostępny. Użyj przycisku aparatu lub opcji Prześlij poniżej.",
+    "ext_bc14e13e94c48e": "Następny kąt",
+    "ext_86aaa0cc76916a": "Następny budynek",
+    "ext_678d7d1afa2c16": "Jeszcze nic nie dodano",
+    "ext_cf13458f003dfc": "Uruchamianie aparatu…",
+    "ext_6be090825c9971": "Zamówienie",
+    "ext_858e4ba7a29fd3": "Wstrzymaj",
+    "ext_e159b06187d369": "Wstrzymano",
+    "ext_412f498a96cdba": "Nie udało się zrobić zdjęcia. Spróbuj ponownie.",
+    "ext_19eac15526c5cf": "Nagraj film, obchodząc budynek",
+    "ext_0384d0be0a6f1a": "Nagrywanie jest tutaj niedostępne. Prześlij film.",
+    "ext_d2debb79a7c303": "Nie udało się zapisać nagrania. Spróbuj ponownie.",
+    "ext_d640c7421da066": "Wznów",
+    "ext_942087cc2d41e0": "Ponów próbę",
+    "ext_aff0766a5290e1": "Sprawdź",
+    "ext_12ff7ed621202f": "Sprawdź zamówienie →",
+    "ext_4352d9d52c47d2": "Sprawdź zdjęcia",
+    "ext_37e437d86dea02": "Tylko dach",
+    "ext_35fd0238b55b3d": "Zapisywanie segmentu…",
+    "ext_88dded33784dcd": "Segment zapisany",
+    "ext_97cdf353d9de69": "Udostępnij diagnostykę aparatu",
+    "ext_b58eb52c8810b9": "Pomiń na razie",
+    "ext_7d9eb6f50ee08b": "Zacznij z przodu. Obejdź budynek dookoła, tak aby cały czas mieścił się w kadrze.",
+    "ext_30756af0134e4b": "Rozpocznij nagrywanie",
+    "ext_3d591e826d5459": "Zatrzymaj nagrywanie",
+    "ext_eaa92b29e7d508": "Zatrzymaj nagrywanie, aby zmienić aparat",
+    "ext_43f019ea133423": "Przełącz aparat",
+    "ext_2753cf960a1fa7": "Dotknij, aby przesłać",
+    "ext_48e515f180931f": "Tylko podgląd testowy. Przed złożeniem zamówienia dodaj nagranie orbitalne każdej konstrukcji.",
+    "ext_e1338e330e2e95": "Nagranie było zbyt krótkie, aby je zapisać. Nagraj co najmniej kilka sekund.",
+    "ext_e0eadf1224c32d": "Nie udało się zmienić zoomu tego aparatu.",
+    "ext_dceb79d9c01f21": "Ten segment jest zbyt duży, aby go przesłać. Usuń go i nagraj krótszy.",
+    "ext_14d33bd014e6b4": "Nieprzypisane",
+    "ext_865e89de78d94c": "Prześlij",
+    "ext_6efc5d27f30b20": "Przesyłanie nie powiodło się",
+    "ext_2ba73c5827ad58": "Przesyłanie nie powiodło się. Sprawdź połączenie i spróbuj ponownie.",
+    "ext_d42fb51e78b578": "Przesyłanie nie powiodło się. Spróbuj ponownie.",
+    "ext_7b34445aae9fc6": "Prześlij multimedia projektu lub zmień wyszukiwanie.",
+    "ext_5ce44dd77dae78": "Przesyłanie…",
+    "ext_2eb9e35e8239cf": "Użyj zdjęć JPG, PNG lub WebP o rozmiarze do 8 MB albo filmów MP4, MOV lub WebM.",
+    "ext_d534be829e3219": "Film",
+    "ext_fc63d3e097f799": "Podgląd filmu",
+    "ext_e534224447b2b4": "Każdy film może mieć maksymalnie 120 MB. Nagraj obejście budynku w krótszych segmentach i prześlij je osobno.",
+    "ext_08b041935798fb": "Ty",
+    "ext_2ab245a1129a5c": "Możesz przesłać maksymalnie 100 plików w jednym zamówieniu.",
+    "ext_65b044714a33c6": "Możesz przesłać maksymalnie 100 zdjęć w jednym zamówieniu.",
+    "ext_c51af26e781045": "Przesyłanie plików jeszcze trwa. Poczekaj chwilę.",
+    "ext_b6aed00cb43845": "Nie udało się przesłać niektórych zdjęć. Ponów próbę lub je usuń.",
+    "ext_300f36b25f353f": "Niektórym zdjęciom trzeba przypisać kąt. Zrób to, zanim przejdziesz dalej.",
+    "ext_731dc6e3f07ab1": "Ponów przesyłanie",
+    "ext_94e36843761633": "Pozycje zdjęć",
+    "angle_front": "Przód",
+    "angle_front_left": "Przód z lewej",
+    "angle_left": "Lewa strona",
+    "angle_back_left": "Tył z lewej",
+    "angle_back": "Tył",
+    "angle_back_right": "Tył z prawej",
+    "angle_right": "Prawa strona",
+    "angle_front_right": "Przód z prawej",
+    "exteriors_standard_label": "Standardowa · 24 godziny",
+    "exteriors_same_day_label": "Tego samego dnia · poniżej 6 godzin",
+    "exteriors_priority_label": "Priorytetowa · poniżej 3 godzin",
+    "delivery_very_busy": "Mamy bardzo dużo pracy",
+    "delivery_busy": "Mamy dużo pracy",
+    "delivery_not_busy": "Nie mamy zbyt dużo pracy",
+    "current_delivery_estimate": "Szacowany aktualny czas dostawy",
+    "select_angle_photo": {
+      "message": "Wybierz zdjęcie kąta: {angle}",
+      "format": "icu"
+    },
+    "upload_angle_photo": {
+      "message": "Prześlij zdjęcie kąta: {angle}",
+      "format": "icu"
+    },
+    "orbital_video": "Film orbitalny",
+    "additional_media": "Dodatkowe zdjęcia i filmy",
+    "total_files": "Łączna liczba plików",
+    "add_house_video": {
+      "message": "Dodaj film orbitalny budynku {house}, aby kontynuować.",
+      "format": "icu"
+    },
+    "missing_angles": {
+      "message": "Brakuje {count} kątów. Dodaj zdjęcia brakujących kątów.",
+      "format": "icu"
+    },
+    "structure_number": {
+      "message": "Konstrukcja {number}",
+      "format": "icu"
+    },
+    "switch_camera": "Przełącz aparat",
+    "camera_zoom": "Zoom aparatu",
+    "play_video": {
+      "message": "Odtwórz film {number}",
+      "format": "icu"
+    },
+    "primary_angle_photo": {
+      "message": "Główne zdjęcie kąta: {angle}",
+      "format": "icu"
+    },
+    "set_primary_angle_photo": {
+      "message": "Wybierz zdjęcie kąta {angle} jako główne",
+      "format": "icu"
+    },
+    "view_angle_photo": {
+      "message": "Wyświetl zdjęcie kąta {angle}",
+      "format": "icu"
+    },
+    "angle_photo": {
+      "message": "Zdjęcie kąta: {angle}",
+      "format": "icu"
+    },
+    "uploading_photo_count": {
+      "message": "Przesyłanie zdjęć: {count}",
+      "format": "icu"
+    },
+    "unassigned_count": {
+      "message": "Nieprzypisane: {count}",
+      "format": "icu"
+    },
+    "show_all": "Pokaż wszystkie",
+    "structure_delivery_price": {
+      "message": "{price} za konstrukcję + wybrana opłata za dostawę",
+      "format": "icu"
+    },
+    "closed_expedite": "Przyspieszenie niedostępne w godzinach zamknięcia",
+    "video_segment_count": {
+      "message": "Segmenty filmu: {count}",
+      "format": "icu"
+    },
+    "m_a2add99e6507cc": "Zamów pomiary",
+    "m_5b47c31589c08d": " Natychmiastowy raport testowy",
+    "m_d42e44d94cf26d": "Diagnostyka aparatu FirstMate",
+    "m_45483cba8b2363": "Zamknij film",
+    "m_d1072adbf4a739": "Prześlij filmy",
+    "m_679e3f0532c8f6": "Nagrane segmenty",
+    "m_6bfeca260a706b": "Zacznij z przodu.",
+    "m_8d450f8f09d474": " Odsuń się, aż cały budynek zmieści się w kadrze, od dachu po fundamenty.",
+    "m_fbc415383ed061": "Obejdź budynek dookoła.",
+    "m_8999a5973399a7": " Idź powoli i przez cały czas trzymaj budynek na środku kadru.",
+    "m_28a19a351341b7": "Zatrzymaj się, kiedy potrzebujesz.",
+    "m_586094cc3ecf92": " Nagrywaj tyle segmentów, ile potrzeba, lub prześlij wcześniej nagrane filmy.",
+    "m_a156054f2fdcd9": "Nagraj film orbitalny",
+    "m_5cfa8ae69d7e6c": {
+      "message": "Nagrywając, obejdź budynek dookoła. To najszybszy sposób, aby pokazać nam wszystkie jego strony.{v0}",
+      "format": "icu"
+    },
+    "m_15f72513cd842e": "Prześlij film",
+    "m_cab762c293af5c": "Nie możesz nagrać filmu? Zamiast tego zamów pomiary na podstawie zdjęć",
+    "m_1cb496d81d0d8a": "Zamów pomiary na podstawie zdjęć",
+    "m_9f5adc82950818": "Nie masz filmu? Możemy wykonać pomiary na podstawie zdjęć. Potrzebujemy wszystkich ośmiu ujęć budynku. Poprowadzimy Cię przez każde z nich.",
+    "m_18eb50539ad3c5": "Zrób wszystkie osiem ujęć.",
+    "m_6e5fce959cdaef": " Każdą stronę i każdy narożnik, z całym budynkiem w kadrze.",
+    "m_8652b670148f22": "Dodaj zdjęcia miejsc, które trudno zobaczyć.",
+    "m_ffa9f3c2ab78e6": " Jeśli na ośmiu ujęciach czegoś nie widać lub zasłania to coś od strony ulicy, dodaj później dodatkowe zdjęcia albo film.",
+    "m_5a04d009cf966a": "Zacznij robić osiem zdjęć",
+    "m_23d5e1d2486b6a": "Wróć do filmu orbitalnego (zalecane)",
+    "m_0352f26fd9d997": "Dodatkowe zdjęcia i filmy",
+    "m_215a48fa6c2668": {
+      "message": "{v0}Film orbitalny",
+      "format": "icu"
+    },
+    "m_2b2100088ed9f2": "Film orbitalny",
+    "m_b3790b49db5f84": "Dodaj film orbitalny",
+    "m_25253d755816e2": "Nagraj telefonem pełne obejście budynku, a następnie prześlij film tutaj. Zamawiając w aplikacji FirstMate, nagranie zostanie wykonane automatycznie.",
+    "m_27b7e868698f63": "Dodaj zbliżenia miejsc, których film dobrze nie pokazuje, np. lukarn, dobudówek lub wąskich przejść z boku budynku.",
+    "m_2469fadd18d99a": "Masz film? Przełącz na film orbitalny (zalecane)",
+    "m_6e81feb28a2b17": "Brak filmu"
   },
   "help": {
     "m_0db6efc53ab2ed": "Potrzebujesz pomocy?",
@@ -3025,7 +3442,107 @@
     "m_2767483f4609c6": " Zakończ i wyślij",
     "m_a1cb9492b60b7f": " Następny podpis",
     "m_be4cfb58b9c4d7": "Zdjęcia",
-    "m_8fda0d4db92a17": " Utwórz dokument bez projektu"
+    "m_8fda0d4db92a17": " Utwórz dokument bez projektu",
+    "m_b08d94d95ec9f8": {
+      "message": "Obejmuje bezpłatne przyspieszenie. Pozostało bezpłatnych przyspieszeń: {v0}{v1}.",
+      "format": "icu"
+    },
+    "terminology_new_project": "Nowy projekt",
+    "terminology_project_title": "Tytuł projektu",
+    "primary_contact_heading": "Główny kontakt",
+    "contact_actions": "Działania dotyczące kontaktu",
+    "remove_recipient": "Usuń",
+    "edit_project_identity": "Edytuj kontakt i adres projektu",
+    "new_report": "Nowy raport",
+    "saved_contact": "Zapisany kontakt",
+    "call_contact": "Zadzwoń do kontaktu",
+    "message_contact": "Wyślij wiadomość do kontaktu",
+    "email_contact": "Wyślij e-mail do kontaktu",
+    "project_identity": "Kontakt i adres projektu",
+    "expand_internal_notes": "Rozwiń notatki wewnętrzne",
+    "reduce_internal_notes": "Zwiń notatki wewnętrzne",
+    "checking_price": "Sprawdzanie aktualnej ceny...",
+    "order_roof_report": "Zamów raport dachowy",
+    "order_report": "Zamów raport",
+    "order_full_structure": "Zamów raport całej konstrukcji",
+    "continue": "Kontynuuj",
+    "project_fullscreen": "Otwórz projekt na pełnym ekranie",
+    "project_shrink": "Zmniejsz okno projektu",
+    "order_roof_report_price": {
+      "message": "Zamów raport dachowy — {price}",
+      "format": "icu"
+    },
+    "order_roof_report_discount": {
+      "message": "Zamów raport dachowy — {price} (oszczędzasz {saving})",
+      "format": "icu"
+    },
+    "no_matching_contacts": "Brak pasujących kontaktów",
+    "loading_contacts": "Wczytywanie zapisanych kontaktów...",
+    "no_saved_contacts": "Nie ma jeszcze zapisanych kontaktów",
+    "project_title": "Tytuł projektu",
+    "choose_type_first": "Najpierw wybierz typ projektu",
+    "busy": "Mamy dużo pracy",
+    "very_busy": "Mamy bardzo dużo pracy",
+    "pin_instructions": "Kliknij mapę, aby umieścić pinezki na każdej konstrukcji, którą chcesz uwzględnić.",
+    "no_pins": "Nie umieszczono pinezek",
+    "one_pin": "Umieszczono 1 pinezkę",
+    "one_pin_confirmed": "Potwierdzono — umieszczono 1 pinezkę",
+    "contacts_unavailable": "Nie udało się otworzyć kontaktów.",
+    "contact_open_failed": "Nie udało się otworzyć kontaktu.",
+    "contact_update_failed": "Nie udało się zaktualizować kontaktu klienta.",
+    "contact_action_failed": "Nie udało się otworzyć działania dotyczącego kontaktu",
+    "project_save_failed": "Nie udało się zapisać projektu.",
+    "roof_report_ordered": "Zamówiono raport dachowy",
+    "full_report_ordered": "Zamówiono raport całej konstrukcji",
+    "report_processing": "Raport jest teraz przetwarzany.",
+    "connection_retry": "Błąd połączenia. Spróbuj ponownie.",
+    "not_busy": "Nie mamy zbyt dużo pracy",
+    "price_per_structure": {
+      "message": "{price} za konstrukcję",
+      "format": "icu"
+    },
+    "price_flat_rate": {
+      "message": "Stała opłata: {price}",
+      "format": "icu"
+    },
+    "delivery_by": {
+      "message": "Do {time}",
+      "format": "icu"
+    },
+    "standard_delivery_duration": {
+      "message": "Dostawa standardowa — {duration}",
+      "format": "icu"
+    },
+    "pins_placed": {
+      "message": "Umieszczono pinezki: {count}",
+      "format": "icu"
+    },
+    "pins_confirmed": {
+      "message": "Potwierdzono — umieszczono pinezki: {count}",
+      "format": "icu"
+    },
+    "under_one_hour": "Poniżej 1 godziny",
+    "under_hours": {
+      "message": "Poniżej {hours} godz.",
+      "format": "icu"
+    },
+    "structure_total": {
+      "message": "{report}: {count} konstrukcje × {unit} = łącznie {total}",
+      "format": "icu"
+    },
+    "m_b7a344ddca6545": "FM",
+    "m_c92936cb32df1e": "Użyj innego ukończonego raportu rozwojowego zgodnego z wybranym typem i zakresem",
+    "m_a9fc58f6e515fa": "Brak pasującego raportu",
+    "m_b1cdd265d6ddcb": "Raport rozwojowy",
+    "m_aaebd7ccba0b30": "Projekt",
+    "m_9b03ccb29ba168": "Podsumowanie",
+    "m_c2d9303f34719d": "Dodaj przypiętą notatkę",
+    "m_0747045bf3d919": "Nowy projekt",
+    "m_9f4cf23e7e3636": "Wyszukaj istniejący projekt",
+    "m_428a61cf4a8532": "Pasujące projekty",
+    "m_67ea3d9f45d10b": "Wyszukiwanie projektów…",
+    "m_7f0c783c8eec23": "Otwieranie projektu…",
+    "m_5180ead27b8ad6": "Nie udało się wczytać GIF-a"
   },
   "project-schedule": {
     "m_88e13d64071885": "Harmonogram zablokowany",
@@ -3382,7 +3899,54 @@
     "m_9402b38f071830": "Sortuj projekty",
     "m_f022fa62257ce9": "Jane Smith",
     "m_564fe2da7605fa": "jane@example.com",
-    "m_7247f8e5fa0e91": "Zamów raport standardowy"
+    "m_7247f8e5fa0e91": "Zamów raport standardowy",
+    "m_219853c2fec210": "Spróbuj zamówić pełny raport, aby uzyskać pomiary tej konstrukcji.",
+    "m_d2a894582092f8": "Tylko dach",
+    "m_16e6b2fac22e7e": "Dach &amp; rynny",
+    "m_5ee37aecb582b4": " Ręcznie",
+    "m_f86eb4b8f9ea2c": "Ręczne przesuwanie jest włączone",
+    "m_fe74e5ffd55b04": "Przeciągnij kartę projektu do innego etapu.",
+    "m_48afb49c6f40c4": "Tablica",
+    "m_39f4f4e9015b56": " Otwórz PDF",
+    "m_d091a3a21d5851": {
+      "message": " Zamów pełny raport — ${v0}",
+      "format": "icu"
+    },
+    "m_7c4f8058d549a7": " Wzniesienia włączone",
+    "m_97f68e5486c2f8": "Szukaj adresu, kontaktu…",
+    "m_af80d9cead6991": "Szukaj projektów",
+    "pitches_on": "Wzniesienia włączone",
+    "pitches_off": "Wzniesienia wyłączone",
+    "order_full_report_amount": {
+      "message": "Zamów pełny raport — {amount}",
+      "format": "icu"
+    },
+    "m_53d803cdbe9ab1": "Adres",
+    "m_b9bbb4f486250d": "Główny kontakt",
+    "m_71b71bf03872e8": "Telefon głównego kontaktu",
+    "m_6bc4d56ee2a851": "E-mail głównego kontaktu",
+    "m_ca4bcb012af794": "Stan raportu",
+    "m_b9e330a2a05e3a": "Bez etapu",
+    "m_0c8087b7a76bdd": "Bez tablicy",
+    "m_b66bef8d909043": "Wszystkie tablice",
+    "m_db7bc4ec19e30d": "Udostępniony projekt",
+    "m_f7db06bcf62c85": "Wyświetl kolumny",
+    "m_0989a5be2bc0a3": "Kliknij nagłówek kolumny, aby posortować listę.",
+    "m_db1fe336bd1deb": "Data utworzenia projektu",
+    "m_a4101be3c706f6": "Sortuj według",
+    "m_82049078ca088b": "Zmień kierunek sortowania",
+    "m_529b6356416c11": "Wszystkie etapy",
+    "m_da6a380b934274": {
+      "message": "Widok: {v0}",
+      "format": "icu"
+    },
+    "m_9b0cf483ee4377": {
+      "message": "Otwórz {v0}, udostępniony przez {v1}",
+      "format": "icu"
+    },
+    "m_ce86fe78082565": "Niedostępne",
+    "m_f8e16243e0f91c": "Zarządzaj widokiem",
+    "m_200131262770e4": "Widok projektu"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -6645,7 +7209,136 @@
     "m_10836fee7d848c": "SMS Enterprise",
     "m_fdb931154a90d3": "Potrzebujesz większego limitu? Skontaktuj się z opiekunem konta, aby ustalić niestandardowy plan miesięczny.",
     "m_3be71fb0bc5d46": "Brak dostępnych dodatkowych subskrypcji.",
-    "m_db8eb97cb6c0a3": "Ładowanie rozliczeń…"
+    "m_db8eb97cb6c0a3": "Ładowanie rozliczeń…",
+    "m_38e15f7a2dd540": "Zestaw marki",
+    "m_ae9d8c44e49371": {
+      "message": " Każde doładowanie obciąży konto kwotą {v0}. {v1}",
+      "format": "icu"
+    },
+    "m_ae873abaa56707": "Pomiary",
+    "m_455c24bfeb9092": "Jednostki imperialne (stopy i kwadraty)",
+    "m_ef3e6a234d5a73": "Jednostki metryczne (metry i metry kwadratowe)",
+    "m_4ca221574beb0d": " Podgląd raportu",
+    "fm_billing_minimum": {
+      "message": "Minimalne wartości automatycznego doładowania to {amount}.",
+      "format": "icu"
+    },
+    "fm_use_the_card_on_file_to_keep_your_account_funded_automatically": "Użyj zapisanej karty, aby automatycznie utrzymywać środki na koncie.",
+    "fm_use_the_card_you_add_to_keep_your_account_funded_automatically": "Użyj dodanej karty, aby automatycznie utrzymywać środki na koncie.",
+    "fm_enabled": "Włączone",
+    "fm_disabled": "Wyłączone",
+    "fm_on": "Wł.",
+    "fm_off": "Wył.",
+    "fm_payment_could_not_be_processed": "Nie udało się przetworzyć płatności",
+    "fm_payment_processed": "Płatność przetworzona",
+    "fm_report_ordered": "Zamówiono raport",
+    "fm_payment_received": "Otrzymano płatność",
+    "fm_payment": "Płatność",
+    "fm_promo_credit_applied": "Zastosowano środki promocyjne",
+    "fm_coupon_credit_added": "Dodano środki z kuponu",
+    "fm_cancellation_refund": "Zwrot za anulowanie",
+    "fm_expedite_refund": "Zwrot za przyspieszenie",
+    "fm_missed_promised_delivery_window": "Nie dotrzymano obiecanego terminu dostawy",
+    "fm_additional_structure_refund": "Zwrot za dodatkową konstrukcję",
+    "fm_additional_structure_request": "Prośba o dodatkową konstrukcję",
+    "fm_auto_top_up": "Automatyczne doładowanie",
+    "fm_refund": "Zwrot",
+    "fm_credit_adjustment": "Korekta środków",
+    "fm_additional_structure_request_refund": "Zwrot za prośbę o dodatkową konstrukcję",
+    "fm_additional_structure_added_to_report": "Dodano konstrukcję do raportu",
+    "fm_completed": "Ukończono",
+    "fm_rejected": "Odrzucono",
+    "fm_processing": "W trakcie przetwarzania",
+    "fm_update_card": "Zaktualizuj kartę",
+    "fm_add_card": "Dodaj kartę",
+    "fm_save": "Zapisz",
+    "fm_save_and_add_card": "Zapisz i dodaj kartę",
+    "fm_card_expiry": {
+      "message": "Wygasa {date}",
+      "format": "icu"
+    },
+    "fm_card": "Karta",
+    "fm_triggered_by_person": {
+      "message": "Wywołane przez {person}",
+      "format": "icu"
+    },
+    "fm_ordered_by_person": {
+      "message": "Zamówione przez {person}",
+      "format": "icu"
+    },
+    "fm_handled_by_person": {
+      "message": "Obsłużone przez {person}",
+      "format": "icu"
+    },
+    "fm_ref_reference": {
+      "message": "Nr ref. {reference}",
+      "format": "icu"
+    },
+    "fm_charged_amount": {
+      "message": "Obciążono kwotą {amount}",
+      "format": "icu"
+    },
+    "fm_additional_structure_count": {
+      "message": "{count, plural, one {# dodatkowa konstrukcja} other {# dodatkowych konstrukcji}}",
+      "format": "icu"
+    },
+    "fm_billing_residential": "Mieszkalne",
+    "fm_billing_commercial": "Komercyjne",
+    "fm_billing_multi_family": "Wielorodzinne",
+    "fm_billing_multifamily": "Wielorodzinne",
+    "fm_billing_full": "Pełny raport",
+    "fm_billing_roof_only": "Tylko dach",
+    "fm_billing_roof": "Tylko dach",
+    "fm_you_cannot_edit_your_own_permissions_here": "Nie możesz tutaj edytować własnych uprawnień.",
+    "fm_permissions_are_read_only": "Uprawnienia są tylko do odczytu.",
+    "fm_users": "Użytkownicy",
+    "fm_departments": "Działy",
+    "fm_user_administration": "Zarządzanie użytkownikami",
+    "fm_brand_kit": "Zestaw marki",
+    "fm_changes_saved_automatically": "Zmiany są zapisywane automatycznie.",
+    "fm_could_not_save_brand_kit": "Nie udało się zapisać zestawu marki.",
+    "fm_preview_summary": "Podsumowanie projektu",
+    "fm_preview_facets": "Łączna liczba połaci",
+    "fm_preview_pitch": "Dominujące nachylenie dachu",
+    "fm_preview_area": "Łączna powierzchnia",
+    "fm_preview_breakdown": "Podział pomiarów",
+    "fm_preview_eave": "Okap",
+    "fm_preview_ridge": "Kalenica",
+    "fm_preview_valley": "Kosz",
+    "fm_deleted": "Usunięto",
+    "fm_suspended": "Zawieszono",
+    "fm_never_signed_in": "Nigdy się nie logował(-a)",
+    "fm_invited": "Zaproszono",
+    "fm_active": "Aktywny(-a)",
+    "fm_primary_logo_saved_automatically": "Logo główne zapisano automatycznie.",
+    "fm_could_not_change_primary_logo": "Nie udało się zmienić logo głównego.",
+    "fm_the_logo_colors_could_not_be_read": "Nie udało się odczytać kolorów logo.",
+    "fm_could_not_send_invite_email": "Nie udało się wysłać e-maila z zaproszeniem.",
+    "fm_user_suspended": "Zawieszono użytkownika.",
+    "fm_user_unsuspended": "Przywrócono użytkownika.",
+    "fm_you_can_t_suspend_yourself": "Nie możesz zawiesić własnego konta.",
+    "fm_you_can_t_suspend_a_super_admin": "Nie możesz zawiesić superadministratora.",
+    "fm_you_can_t_delete_yourself": "Nie możesz usunąć własnego konta.",
+    "fm_you_can_t_delete_a_super_admin": "Nie możesz usunąć superadministratora.",
+    "fm_report_settings_future_only": "Zmiana ustawień raportów dotyczy tylko przyszłych raportów pomiarowych. Nie zmienia raportów, które zostały już zamówione.",
+    "fm_statement_date": "Data",
+    "fm_statement_transaction": "Transakcja",
+    "fm_statement_details": "Szczegóły",
+    "fm_statement_reason": "Powód",
+    "fm_statement_amount": "Kwota",
+    "fm_statement_balance_after": "Saldo po transakcji",
+    "fm_statement_address": "Adres",
+    "fm_statement_ordered_by": "Zamówione przez",
+    "fm_statement_date_ordered": "Data zamówienia",
+    "fm_statement_project_type": "Typ projektu",
+    "fm_statement_status": "Stan",
+    "fm_statement_cost": "Koszt",
+    "fm_statement_reimbursed": "Zwrócono",
+    "fm_statement_total": "Łącznie",
+    "fm_statement_transaction_count": {
+      "message": "{count, plural, one {# transakcja} few {# transakcje} many {# transakcji} other {# transakcji}} — saldo netto: ",
+      "format": "icu"
+    }
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Dodaj pracę",
@@ -7302,7 +7995,8 @@
     "m_6d30e375168449": {
       "message": "{v0} nieprzeczytanych &middot; łącznie {v1}",
       "format": "icu"
-    }
+    },
+    "new_report": "Nowy raport"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Biuro",
@@ -9630,6 +10324,98 @@
     "m_0d80b4a3bd88a0": {
       "message": "Zmień rozmiar {v0} {v1}",
       "format": "icu"
+    },
+    "project_workspace": "Obszar roboczy projektu",
+    "edit_project_identity": "Edytuj kontakt i adres projektu",
+    "project_tabs": "Karty projektu",
+    "project_trays": "Paski projektu",
+    "opening_project": "Otwieranie projektu…",
+    "restore_project": "Przywróć projekt",
+    "close_project": "Zamknij projekt",
+    "project": "Projekt",
+    "new_project": "Nowy projekt",
+    "overview": "Przegląd",
+    "tab_loading": {
+      "message": "{tab} — wczytywanie projektu",
+      "format": "icu"
+    },
+    "resize_panes": "Zmień rozmiar paneli",
+    "window_trays": "Paski okien",
+    "close_tray": "Zamknij pasek",
+    "window": "okno",
+    "dock_window": {
+      "message": "Zadokuj: {window}",
+      "format": "icu"
+    },
+    "restore_window": {
+      "message": "Przywróć: {window}",
+      "format": "icu"
+    },
+    "minimize_window": {
+      "message": "Minimalizuj: {window}",
+      "format": "icu"
+    },
+    "float_window": {
+      "message": "Oderwij: {window}",
+      "format": "icu"
+    },
+    "maximize_window": {
+      "message": "Maksymalizuj: {window}",
+      "format": "icu"
+    },
+    "close_window": {
+      "message": "Zamknij: {window}",
+      "format": "icu"
+    },
+    "modal_window": {
+      "message": "Pokaż {window} jako okno modalne",
+      "format": "icu"
+    },
+    "fullscreen_window": {
+      "message": "Wyświetl {window} na całym ekranie",
+      "format": "icu"
+    },
+    "unpin_window": {
+      "message": "Odepnij: {window}",
+      "format": "icu"
+    },
+    "pin_window": {
+      "message": "Przypnij: {window}",
+      "format": "icu"
+    },
+    "dock_window_left": {
+      "message": "Zadokuj {window} po lewej (kliknij prawym przyciskiem, aby ustawić położenie)",
+      "format": "icu"
+    },
+    "dock_window_right": {
+      "message": "Zadokuj {window} po prawej (kliknij prawym przyciskiem, aby ustawić położenie)",
+      "format": "icu"
+    },
+    "fill_workspace_window": {
+      "message": "Wypełnij obszar roboczy oknem {window}",
+      "format": "icu"
+    },
+    "dock_placement": "Położenie dokowania",
+    "float": "Oderwij",
+    "close": "Zamknij",
+    "modal": "Okno modalne",
+    "fill_workspace": "Wypełnij obszar roboczy",
+    "fill_entire_screen": "Wypełnij cały ekran",
+    "dock_left": "Zadokuj po lewej",
+    "dock_right": "Zadokuj po prawej",
+    "dock_top_left": "Zadokuj w lewym górnym rogu",
+    "dock_top_right": "Zadokuj w prawym górnym rogu",
+    "dock_bottom_left": "Zadokuj w lewym dolnym rogu",
+    "dock_bottom_right": "Zadokuj w prawym dolnym rogu",
+    "dock_top": "Zadokuj u góry",
+    "dock_bottom": "Zadokuj na dole",
+    "resize_swap_panes": "Zmień rozmiar paneli; kliknij dwukrotnie, aby zamienić je miejscami",
+    "close_pane": "Zamknij panel",
+    "pane_slow": "Wczytywanie tego panelu trwa dłużej. Możesz go zamknąć i spróbować ponownie.",
+    "pane_open_failed": "Nie udało się otworzyć tej karty. Zamknij panel i spróbuj ponownie.",
+    "opening_tab": {
+      "message": "Otwieranie karty {tab}…",
+      "format": "icu"
     }
   },
   "reports": {
@@ -9650,7 +10436,366 @@
     "meter": "metr",
     "millimeters": "milimetry",
     "millimeter": "milimetr",
-    "square footage": "powierzchnia w stopach kwadratowych"
+    "square footage": "powierzchnia w stopach kwadratowych",
+    "m_8f5db5c7f3d24d": "Kalenica",
+    "m_46dd9790bf6a04": "Naroże wypukłe",
+    "m_63e8dda8d7cce4": "Kosz",
+    "m_7076ce874b1d6c": "Krawędź szczytowa",
+    "m_27047ada176d29": "Okap",
+    "m_56b44629956d20": "Obróbka przy ścianie szczytowej",
+    "m_67b286b5c3cc9d": "Obróbka przy ścianie bocznej",
+    "m_2fe70464aadf58": "Przejście",
+    "m_c33219746150ec": "Attyka",
+    "m_c59156303156a4": "Występ",
+    "m_40f358631dc246": "Tylna obróbka komina",
+    "m_d4ac8146ffa447": "Obróbka stopniowa komina",
+    "m_ab77a5a27d3f10": "Obróbka przednia komina",
+    "m_23fb466fb2adc3": "Świetlik",
+    "m_b764cdc0eab713": "Nieznane",
+    "m_a1021e952892ac": "Raport pomiarów nieruchomości",
+    "m_f8dbc522ba2af7": "Widok dachu z góry",
+    "m_c834cd35286d0a": "Zdjęcia dachu",
+    "m_869d0506787f34": "Wysokości dachu",
+    "m_e158625d2ef73e": "Połacie dachu",
+    "m_1246c01179d440": "Podsumowanie dachu",
+    "m_192df712925b74": "Wentylacja dachu",
+    "m_468cef63fdd9dd": "Schemat nachylenia dachu",
+    "m_baf568be68a967": "Schemat powierzchni dachu",
+    "m_68770a5d336169": {
+      "message": "Pomiary warstwy dachu {value1}",
+      "format": "icu"
+    },
+    "m_63b61a2a5cacd6": {
+      "message": "Połacie: {value1}",
+      "format": "icu"
+    },
+    "m_733f0196ef5d7f": "Rynny",
+    "m_47cf5274d0f2c2": "Uwagi dotyczące dachu",
+    "m_c50f62a1b89962": {
+      "message": "{value1} (+{value2}% zapasu)",
+      "format": "icu"
+    },
+    "m_cb91ea904fb153": {
+      "message": "Nachylenie dachu: {value1}",
+      "format": "icu"
+    },
+    "m_3b026f0a7e18aa": {
+      "message": "Zapas: {value1}%",
+      "format": "icu"
+    },
+    "m_e3bc5b673a070a": "Ściana szczytowa",
+    "m_e87f980620eb8f": "Ściana boczna",
+    "m_fe2ce041082c9b": "Attyka",
+    "m_8cd80c317a2168": "Połacie:",
+    "m_af5a7274c323e0": "Nachylenie dachu:",
+    "m_9d6591d0b42f6b": "Metry kwadratowe:",
+    "m_88c46e11f3c77b": "Stopy kwadratowe:",
+    "m_919549889a5ceb": "Okapy:",
+    "m_537a62a019ad4b": "Krawędzie szczytowe:",
+    "m_5bd7cdbae7fcda": "Kalenice:",
+    "m_0721423f661339": "Naroża wypukłe:",
+    "m_61201067398580": "Kosze:",
+    "m_3b450027d1213a": "Przejścia:",
+    "m_c062492596511c": "Świetliki:",
+    "m_b5ac9d155463b1": "Kominy:",
+    "m_89135357e29f80": "Południowy zachód",
+    "m_1d7b8d4ed3a785": "Południowy wschód",
+    "m_83d96322f4ad30": "Północny zachód",
+    "m_c8b2d1cc4549a9": "Północny wschód",
+    "m_6af11cc5940455": "Nachylenie dachu",
+    "m_f915ae86682060": "Powierzchnia (m²)",
+    "m_b67e47230efeb5": "Powierzchnia (stopy kw.)",
+    "m_716d633b125adb": "Procent",
+    "m_f734f9b7f3706f": "Zapas",
+    "m_922f515c2acfae": "Kąt zewnętrzny 90°",
+    "m_7c323cb425fe82": "Kąt wewnętrzny 90°",
+    "m_60306a6c99e6d6": "Inny niż 90°",
+    "m_00d60e31a4e6b8": "Odcinek",
+    "m_3765f3123ae48b": "Zewnętrzny kąt 90°",
+    "m_7ae502bf1fd18e": "Kąt wewnętrzny 90°",
+    "m_a7a915704f7f73": "Szacowana powierzchnia poddasza",
+    "m_b0936bc9f0eaa9": {
+      "message": "Rzut: {value1}  |  Powierzchnia: {value2}",
+      "format": "icu"
+    },
+    "m_18328584e69d03": "Zalecana wentylacja wywiewna",
+    "m_3d2448433551a3": "Zalecana wentylacja nawiewna",
+    "m_f1c927f86fb91d": {
+      "message": "NFVA: {value1}",
+      "format": "icu"
+    },
+    "m_a2146e3ff505ff": {
+      "message": "Wywiew: {value1}",
+      "format": "icu"
+    },
+    "m_4111e6605d2fd0": {
+      "message": "Nawiew: {value1}",
+      "format": "icu"
+    },
+    "m_d70604e8430461": "Zalecane",
+    "m_fb9ef894175c32": "Produkt",
+    "m_9f29530464f730": "Wartość znamionowa",
+    "m_13bca3b7e36910": "Wymagana ilość",
+    "m_d4bb90607908e5": "Wentylowany pas okapowy",
+    "m_296cfb57797e3b": "Kratka wentylacyjna podsufitki",
+    "m_ac498d871de7df": "Bloczki wentylacyjne",
+    "m_99a52df3ff3d49": "Legenda",
+    "m_fe56a63b035e8d": "Wywietrznik kalenicowy",
+    "m_1a431d164b36cc": "Wywietrznik skrzynkowy",
+    "m_665420f28da3fb": "Uwaga: Szacowana ilość produktów wentylacyjnych poddasza w tym raporcie opiera się na szacowanej powierzchni podłogi poddasza i służy wyłącznie do celów kosztorysowych. Przed rozpoczęciem prac instalator ma obowiązek zweryfikować prawidłową ilość i rodzaj produktów wentylacyjnych poddasza. Instalator musi zawsze uwzględnić wymagania dotyczące wentylacji konkretnego poddasza, takie jak lokalne przepisy, powierzchnia podłogi poddasza w stopach kwadratowych, konstrukcja dachu oraz ogrzewane pomieszczenia pod dachem. GAF zaleca co najmniej 1 stopę kwadratową wentylacji poddasza (podzielonej równo między nawiew i wywiew) na każde 150–300 stóp kwadratowych powierzchni podłogi poddasza, w zależności od obecności paroizolacji. Ilość wentylacji wywiewnej przy kalenicy lub w jej pobliżu nigdy nie może przekraczać ilości wentylacji nawiewnej przy podsufitce lub w jej pobliżu. Szczegóły: gaf.com/ventcalculator.",
+    "m_7bfab6c61f7782": "UWAGI",
+    "m_1c10c30ced424d": {
+      "message": "Strona {value1}",
+      "format": "icu"
+    },
+    "m_616cb218a65b98": "Materiał",
+    "m_4e545960f1bffc": "Jednostka",
+    "m_a4ee51a0594303": "Wysokości attyki",
+    "m_f66e9d905ea8c1": "Obwód attyki: ",
+    "m_5e7d173c408ee4": "  |  Zapas: ",
+    "m_412cfcc70a641b": "%  |  Wysokość ściany zmierz na miejscu.",
+    "m_93041424cf9292": "Wysokość ściany",
+    "m_4fe0147e0d0f55": "Powierzchnia ściany",
+    "m_9f4758a1af8ea3": "Łączna powierzchnia",
+    "m_4cc084a2b9523e": "Membrana",
+    "m_5759b423fa0103": "Dodatkowy klej",
+    "m_7c496968ffcdb4": "Połacie o nachyleniu 2/12 lub mniejszym klasyfikuje się jako dachy o małym nachyleniu. Ilości uwzględniają",
+    "m_c0f21dd46689e3": "% zapasu, jeśli dotyczy. Podane wartości są szacunkowe.",
+    "m_e564c2a86ab38f": "System membranowy",
+    "m_1f528498cea93f": "Membrana / warstwa wierzchnia",
+    "m_c4f283a70b0486": "Klej wiążący",
+    "m_85413ad4bec1b6": "Izolacja i płyta wierzchnia",
+    "m_1c0828f7eb005e": "Płyta wierzchnia 1/2\" 4x8",
+    "m_fa344135cd03c9": "Płyta wierzchnia (4'×8')",
+    "m_2188f67cce9c67": "Izolacja z poliizocyjanuratu (4'×8')",
+    "m_9c916917be3f72": "Płyty izolacyjne 3\"",
+    "m_87c3f71b2a40df": "Łączniki HD 2\"",
+    "m_a546b1518e0b76": "Mocowanie mechaniczne (tylko TPO)",
+    "m_5ad4ec57c359dc": "Płyty membranowe 2-3/8\"",
+    "m_61dbe4caefefbc": "Łączniki do szwów (do płyt membranowych)",
+    "m_06ba44bfd230a8": "Krawędzie i zakończenia",
+    "m_2c1c5afa7a9b99": "Listwa zakończeniowa (10 ft)",
+    "m_879e59e3c2c975": "Obróbka krawędzi (10 ft)",
+    "m_e7df79a2132258": "Uszczelniacz i akcesoria",
+    "m_e702197a280876": "Mata komunikacyjna (34\"×50')",
+    "m_f6bcdfca5d0673": "Uszczelniacz krawędzi ciętej TPO",
+    "m_8fdf1a9b6d5e1d": "Środek czyszczący",
+    "m_0c79e7af8f2a6b": "Uniwersalny uszczelniacz do membran jednowarstwowych",
+    "m_dadf867d1bbb14": "Uszczelniacz / masa uszczelniająca",
+    "m_79135f33f55286": "Produkty do gontów",
+    "m_aafc53646a6791": "Pas startowy",
+    "m_366c048a86eb18": "Gont kalenicowy i narożny",
+    "m_ca5426333edafa": "Syntetyczna warstwa podkładowa",
+    "m_0bd4e15953109c": "Membrana przeciwlodowa i wodna",
+    "m_ca50d8f4c28b7e": {
+      "message": "{value1} — nakładanie na obwodzie ({value2})",
+      "format": "icu"
+    },
+    "m_f98278faa39d91": "Blachy i obróbki",
+    "m_0b500157a9ba4e": "Pas okapowy (10 ft)",
+    "m_9a907f7f8efb51": "Pas krawędzi szczytowej (10 ft)",
+    "m_63dd5ff3dbc0e7": "Blacha koszowa typu W (10 ft)",
+    "m_858eef2a5850de": "Obróbka stopniowa (5x7)",
+    "m_bd1f293a927cae": "Obróbka nakrywająca (10 ft)",
+    "m_581a811ee1dd52": "Obróbka przy ścianie szczytowej (10 ft)",
+    "m_810de7e264edb9": "Przednia obróbka komina",
+    "m_5268e67d2e1c94": "Tylna obróbka komina / kosz przy kominie",
+    "m_748a0e39694131": "Stopniowa obróbka komina",
+    "m_1f79a9ed80fa1c": "Nakrywająca obróbka komina (10 ft)",
+    "m_6586e2074c8ce4": "Zestaw obróbek świetlika",
+    "m_3961803cc495fe": "Wentylacja",
+    "m_7a6f19f734f343": "Wywietrznik kalenicowy (odcinki 4 ft)",
+    "m_b08648dbd62b71": "Akcesoria",
+    "m_fe799b484c66a5": "Gwoździe w kręgu (1.25 in, 50 lb)",
+    "m_f2a594a5d5aec2": "Gwoździe z plastikowym łbem",
+    "m_a9dec356d64749": "Masa dekarska (tuba)",
+    "m_8ce86a6ae65d36": "P",
+    "m_a6175902028988": "Przód",
+    "m_76900f1bfd16c8": "Tył",
+    "m_8de0b3c47f112c": "Pd",
+    "m_fcb5f40df9be6b": "Z",
+    "m_a9f51566bd6705": "W",
+    "m_e3573855b3d9bf": "Przód ",
+    "m_cffbb3115c07f5": "° / północ u góry",
+    "m_9fc867325d55ed": "Nie ustawiono kierunku przodu",
+    "m_78d1492cede81c": "W tym ujęciu nie ma żadnych modelowanych otworów.",
+    "m_37c225ef832884": "Podsumowanie elewacji",
+    "m_385165e2ff5980": "Pomiar",
+    "m_822bab8d41bca8": "Ilość",
+    "m_a01f990307bcfe": "Identyfikatory ścian łączą schematy, wymiary, zestawienie otworów i uwagi.",
+    "m_aa6c363db97d60": " Elewacja",
+    "m_c0872cfcf108e7": "Poniżej wymieniono widoczne ściany. Powierzchnie mierzy się na płaszczyźnie każdej ściany; schemat przedstawia rzut ortogonalny.",
+    "m_cdd2eaa8c80927": " Elewacja — ciąg dalszy",
+    "m_0dcd2fe54c68dd": "Dalsze dane o ścianach. Zobacz pierwszą stronę ",
+    "m_e70b6a7c97c875": " z elewacją i schematem.",
+    "m_f76ea921edc2e5": "Ściana",
+    "m_d89f9e018a1a89": "Z tego kierunku nie widać powierzchni żadnej ściany.",
+    "m_a23fdf36878ac8": " netto",
+    "m_36c3ccc71f5875": "Z ",
+    "m_bdebf2140013bd": "  ×  W ",
+    "m_34eb5b1409081f": "Zestawienie otworów",
+    "m_44c472acd74e77": "Ilości dla elewacji",
+    "m_765524ef91a979": "Zmierzona długość",
+    "m_0a96bba80d9db1": "Powierzchnia netto według materiału",
+    "m_1b609d14d397b9": "Kwadraty dekarskie",
+    "m_cf4e143ea032d2": "Ilości dla elewacji — ciąg dalszy",
+    "m_1c582cacb59709": "Zapas materiału",
+    "m_662e0e59630b57": "Zapas materiału — ciąg dalszy",
+    "m_4a71a61ca44334": "Procenty zapasu służą do porównania i są doliczane do powierzchni netto ściany. Poziome odcinki zawrotne mierzy się osobno.",
+    "m_58c6c02cc9a2b5": "Uwagi dotyczące ścian",
+    "m_00d87cf8a73edd": "UWAGI DOTYCZĄCE KONSTRUKCJI / ODNIESIENIA DO ŚCIAN",
+    "m_f6c057fb0e36c0": "Uwagi dotyczące ścian — ciąg dalszy",
+    "m_cc2b37e95f52c4": "Zdjęcia elewacji",
+    "m_4df65aa6464144": "Nie przypisano zdjęcia",
+    "m_6971ab087a1a89": {
+      "message": "Łączna liczba połaci: {value1}",
+      "format": "icu"
+    },
+    "m_9befb622242a9f": {
+      "message": "Dominujące nachylenie dachu: {value1}",
+      "format": "icu"
+    },
+    "m_d8a0a6db398df5": {
+      "message": "{value1} (netto): {value2}",
+      "format": "icu"
+    },
+    "m_257b1dfbf5cdcd": {
+      "message": "{value1} ({value2}% zapasu): {value3}",
+      "format": "icu"
+    },
+    "m_08c80b14e30a5a": "Łączna liczba kwadratów dekarskich",
+    "m_a8740bb1612ffc": "Kwadraty dekarskie bez zapasu",
+    "m_b4fd83d0bcd221": "Kwadraty dekarskie z zapasem",
+    "m_ad9df5626a0db3": "Powierzchnia bez zapasu (m²)",
+    "m_c8cdb261150121": "Powierzchnia z zapasem (m²)",
+    "m_4543d98d79fc96": "Powierzchnia dachu",
+    "m_5376a6d429ea6d": "Świetliki",
+    "m_48b0f84c37388c": "Kominy",
+    "m_b644bee84a99e1": "Obróbka nakrywająca",
+    "m_a4e16d16c36105": "Rynna czynna",
+    "m_6608517b23efe0": "Liczba kolan",
+    "m_604f50c79bf141": "Liczba połączeń ukośnych",
+    "m_43f853bbb59286": "Północ",
+    "m_0dd2dae4dd83ae": "Południe",
+    "m_4e2cd851cfdab8": "Wschód",
+    "m_41a6741e9a0fae": "Zachód",
+    "m_58eb9032e3bb83": "Lewa strona",
+    "m_883361d5d682a1": "Prawa strona",
+    "m_a60528cbbb4e1e": "Przód z prawej",
+    "m_060cafd1082387": "Przód z lewej",
+    "m_d09f0b3be004c1": "Tył z prawej",
+    "m_08fc78e7d2aa2d": "Tył z lewej",
+    "m_7b47702be2bc22": "Wymagany NFVA",
+    "m_e23555b5b2a4b6": "Opcje wentylacji wywiewnej",
+    "m_f333ec35b08f63": "Materiały dachowe",
+    "m_4b6762b8c70c5d": "Materiały na dachy o dużym nachyleniu",
+    "m_4d5388c6f1e614": "Materiały na dachy płaskie",
+    "m_2cdbf9a37b01cf": "Wymiary ścian",
+    "m_b2ad1e2bec3fb1": "Wymiary listew wykończeniowych",
+    "m_c59e96abc48597": "Stopy",
+    "m_f4b13e93df077d": "Otwór",
+    "m_baaddf70fb5d43": "Typ",
+    "m_e50f1a89cafcbb": "Powierzchnia brutto (m²)",
+    "m_042702902def29": "Powierzchnia brutto (ft²)",
+    "m_c67131616d7b70": "Powierzchnia otworów (m²)",
+    "m_c3373ed602f34c": "Powierzchnia otworów (ft²)",
+    "m_4fac882a12ee7e": "Powierzchnia netto (m²)",
+    "m_4cf8a6733265d0": "Powierzchnia netto (ft²)",
+    "m_458d2707d8628e": "S × W (m)",
+    "m_b3d1d24cc51245": "S × W (ft)",
+    "m_1e05d842212af6": "Powierzchnia (m²)",
+    "m_dde8cec8418424": "Powierzchnia (ft²)",
+    "m_6b50755eb9ed6c": "Listwa wykończeniowa (m)",
+    "m_625bdc61d56b1e": "Listwa wykończeniowa (ft)",
+    "m_b2f1c22c291184": "Górna krawędź ścian",
+    "m_90fe55c098b1af": "Dolna krawędź ścian",
+    "m_aa41ee9d85a9d5": "Narożniki wewnętrzne",
+    "m_a65b33e0c771c5": "Narożniki zewnętrzne",
+    "m_fcf52be31de7b6": "Przejścia między materiałami",
+    "m_090059bac2d329": "Widoczne zakończenia pionowe",
+    "m_1a11982bb733ae": "Obraz referencyjny",
+    "m_c9c660e6accc56": "Klatka bez tytułu",
+    "m_14d33bd014e6b4": "Nieprzypisane",
+    "m_0ef1d310eec6e5": "Powierzchnia z zapasem (m²)",
+    "m_e312c06e4f54f7": "Powierzchnia z zapasem (stopy kwadratowe)",
+    "m_15a9cffc5bed56": "Kwadraty dekarskie z zapasem",
+    "m_05ee42debad539": "Zaokrąglone pomiary. Wskazówki dotyczące zapasu mają charakter orientacyjny. Instalator powinien zweryfikować dane.",
+    "m_da953f1b93f8b7": "Przygotowano dla",
+    "m_cc2838b533f40e": "Pomiary dachu",
+    "m_b430c90b975008": "Kwadraty dekarskie z zapasem",
+    "m_1f181d240af1a0": "Połacie",
+    "m_e2f79e5b60330b": "Nie dotyczy",
+    "m_36762e47a9e4cb": {
+      "message": "Wymagane: {value1} (przy 18\"/lf)",
+      "format": "icu"
+    },
+    "m_f8bef190b5c7dd": {
+      "message": "Dostępne: {value1}",
+      "format": "icu"
+    },
+    "m_d0c422a580d763": "Wystarczająca wydajność",
+    "m_993cf3b9d3e0e3": "Za mało wywietrzników kalenicowych",
+    "m_edd8b32b3e626c": {
+      "message": "Niedobór: {value1}",
+      "format": "icu"
+    },
+    "m_de50c6b65c5b98": {
+      "message": "Wymagane: {value1} wywietrzniki",
+      "format": "icu"
+    },
+    "m_40edab167ee70f": {
+      "message": "{value1} NFA każdy",
+      "format": "icu"
+    },
+    "m_97abc4971648fc": {
+      "message": "Łącznie: {value1}",
+      "format": "icu"
+    },
+    "m_edf717d2c2451d": "Wywietrzniki skrzynkowe",
+    "m_d8f9519730da4f": {
+      "message": "{value1}  ·  {value2}  ·  {value3} połaci",
+      "format": "icu"
+    },
+    "m_db58767e2a1c62": "Podział powierzchni",
+    "m_2f116e6424aa37": {
+      "message": "Szczegóły warstwy {value1}",
+      "format": "icu"
+    },
+    "m_0d2654b2d28308": "Schemat rynien",
+    "m_b975e865740d2e": "Liczba kondygnacji według kierunku",
+    "m_9a30a63dce7244": "Podsumowanie wentylacji",
+    "m_5e1d442d6cc2ef": "Zalecane produkty nawiewne",
+    "m_cd6abbbc9cacc4": "Podział nachylenia dachu",
+    "m_d71f3ad4ab7a0d": "Podsufitka",
+    "m_e7514fa59671cd": "Siding poziomy",
+    "m_04fc5f90eb1ea9": "Siding pionowy",
+    "m_83eb49c0e6f141": "Listwy poziome",
+    "m_f0e864abdbc3c3": "Listwy pionowe",
+    "m_84e1f590dd7376": "Cegła",
+    "m_25db51b5636875": "Mur",
+    "m_05a92accb1cbff": "Tynk",
+    "m_6ffa6b8b1c9fa1": "Kamień",
+    "m_f97e9da0e3b879": "Inne",
+    "m_19734a1b58cabc": "Okno",
+    "m_fbf247e43d3745": "Drzwi",
+    "m_bfc7b9ead6e2ba": "Brama garażowa",
+    "m_f414f8c425d315": "Wywietrznik szczytowy",
+    "m_2a60e203a021a1": "Sprawdź: ",
+    "m_8a23ff3c3858ac": "Otwór nie znajduje się na pionowej ścianie i został wyłączony z zestawienia ścian.",
+    "m_abf4acf7f3ed39": "Otwór nie ma odpowiadającej mu ściany nośnej i został wyłączony z podsumowań.",
+    "m_8fef5c42054b92": {
+      "message": "Konstrukcja {value1}",
+      "format": "icu"
+    },
+    "m_3aeeb50e64a64b": " — ciąg dalszy",
+    "m_1f49328eb17532": "Obszary ścian",
+    "m_6e2d200e85cb0f": "Powierzchnia otworu",
+    "m_6bc39100b77b1b": "Obwód otworu",
+    "m_b72dc1fbef232e": "Poziome odcinki zawrotne",
+    "m_0c85aa425e52d8": {
+      "message": "Wymiary pokazują rzeczywisty obrys, a nie wymiary producenta ani otworu konstrukcyjnego. Listwa {value1} oznacza obwód otworu.",
+      "format": "icu"
+    }
   },
   "errors": {
     "agent_target_invalid": "Wybierz zakres globalny, organizacji lub projektu.",
@@ -10746,5 +11891,81 @@
     "m_071609c9efaf0f": "Zamknij konfigurację płatności",
     "m_5823063ec74807": "Wniosek sprzedawcy Forward",
     "m_ccb52891bb8ff6": "Twój wniosek o płatności został już przesłany."
+  },
+  "brand-kit": {
+    "m_6bb25348173069": "Paleta kolorów",
+    "m_0c92722f162cbd": "Główny · interfejs",
+    "m_390a15f2a6d920": "Dodatkowy · interfejs",
+    "m_a63c5a4c25569b": "Logo",
+    "m_2c8fc5e11eaf62": "Bieżące logo",
+    "m_eb55056b53954c": "Najlepiej sprawdzi się przezroczysty plik PNG lub SVG.",
+    "m_ac8bf335945352": " Zastąp logo",
+    "m_490cbf5945b3f8": "Informacje o palecie kolorów firmy",
+    "m_85de3f0cdfc46a": "Informacje o logo firmy",
+    "m_fc3b468d1ec4eb": "Bieżące logo firmy",
+    "m_953e4a6603f5f1": {
+      "message": "Edytuj kolor {v7}",
+      "format": "icu"
+    },
+    "m_036dda0aa72306": "Brak alternatywnych logo.",
+    "m_8803dece55359d": " Dodaj",
+    "m_986685f23ed459": "Tło",
+    "m_dba346dfc1916b": "Czcionka firmy",
+    "m_4d9e1ae19fc002": "Domyślnie dla nowych dokumentów i szablonów",
+    "m_5c6ac1b0faeaa0": "Rodzina czcionek",
+    "m_6cac172119f732": "Kolor główny i dodatkowy określają styl interfejsu. Kolory uzupełniające są dostępne w edytorach wizualnych.",
+    "m_b8391ad75bc163": "Zarządzaj logo firmy i jego wyglądem na materiałach z identyfikacją marki.",
+    "m_695aa2f7da3152": " Wygeneruj paletę ponownie na podstawie logo",
+    "m_629cca6181934e": "Sześciokolorowa paleta firmy",
+    "m_c0838c60ccd34f": "Alternatywne logotypy ",
+    "m_e3681835cc6b25": "Zaawansowane ustawienia wyglądu logo",
+    "m_76e5c668843400": "Kształt kontenera",
+    "m_eb37afb3b23761": " Kwadrat",
+    "m_3562c63d47eca1": " Okrąg",
+    "m_895bf3964e7990": "Zaokrąglone rogi",
+    "m_57f5beffb19542": "Wielokrotnego użytku warianty logo do ofert, stron internetowych i innych materiałów firmowych.",
+    "palette_primary": "Główny",
+    "palette_secondary": "Dodatkowy",
+    "palette_primary_title": {
+      "message": "Główny: {color}",
+      "format": "icu"
+    },
+    "palette_secondary_title": {
+      "message": "Dodatkowy: {color}",
+      "format": "icu"
+    },
+    "palette_support_title": {
+      "message": "Uzupełniający {number}: {color}",
+      "format": "icu"
+    },
+    "palette_edit_primary": "Edytuj kolor główny",
+    "palette_edit_secondary": "Edytuj kolor dodatkowy",
+    "palette_edit_support": {
+      "message": "Edytuj kolor uzupełniający {number}",
+      "format": "icu"
+    },
+    "m_a7c7218cc9ff52": "Domyślna rodzina czcionek",
+    "m_a1872cd2329966": " Użyj osobnej czcionki tytułów",
+    "m_2d5dcb0d47abfa": "Rodzina czcionek tytułów",
+    "m_756cb8f31d3694": "Domyślna rodzina czcionek jest używana w treści dokumentu i tytułach. Możesz też wybrać osobną rodzinę czcionek do nagłówków.",
+    "m_f317840d3f2404": "Informacje o czcionkach firmy",
+    "m_33289209b6d267": {
+      "message": "Ustaw {v2} jako kolor główny",
+      "format": "icu"
+    },
+    "m_f4e2cc33249168": {
+      "message": "Ustaw {v3} jako kolor główny",
+      "format": "icu"
+    }
+  },
+  "platform-commerce": {
+    "credit_amount": {
+      "message": "{amount} środków",
+      "format": "icu"
+    },
+    "exchange_estimate": {
+      "message": "Około {amount} · kurs wymiany w chwili płatności może się różnić.",
+      "format": "icu"
+    }
   }
 }

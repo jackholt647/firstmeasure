@@ -1161,10 +1161,10 @@
   let stageSortDir = 'asc';
   let tileStageFilter = 'all';
   const LIST_COLUMNS = [
-    { key:'address', label:'Address', width:'minmax(0,1.7fr)' },
-    { key:'resident', label:'Primary contact', width:'minmax(0,1fr)' },
-    { key:'primary_contact_phone', label:'Primary contact phone', width:'minmax(0,1fr)' },
-    { key:'primary_contact_email', label:'Primary contact email', width:'minmax(0,1fr)' }
+    { key:'address', label:(globalThis.PlatformLanguage?.text("projects","m_53d803cdbe9ab1","Address") ?? "Address"), width:'minmax(0,1.7fr)' },
+    { key:'resident', label:(globalThis.PlatformLanguage?.text("projects","m_b9bbb4f486250d","Primary contact") ?? "Primary contact"), width:'minmax(0,1fr)' },
+    { key:'primary_contact_phone', label:(globalThis.PlatformLanguage?.text("projects","m_71b71bf03872e8","Primary contact phone") ?? "Primary contact phone"), width:'minmax(0,1fr)' },
+    { key:'primary_contact_email', label:(globalThis.PlatformLanguage?.text("projects","m_6bc4d56ee2a851","Primary contact email") ?? "Primary contact email"), width:'minmax(0,1fr)' }
   ];
   const listVisibleColumns = new Set(['address', 'resident']);
   let listColumnsBoardKey = '';
@@ -1175,7 +1175,7 @@
   }
   function availableProjectColumns(){
     const boards = activeWorkBoardId === 'all' ? workBoards : workBoards.filter(board => String(board.id) === activeWorkBoardId);
-    const baseColumns = firstMeasureList() ? [LIST_COLUMNS[0], {key:'status', label:'Report status', width:'minmax(0,.8fr)'}, ...LIST_COLUMNS.slice(1)] : LIST_COLUMNS;
+    const baseColumns = firstMeasureList() ? [LIST_COLUMNS[0], {key:'status', label:(globalThis.PlatformLanguage?.text("projects","m_ca4bcb012af794","Report status") ?? "Report status"), width:'minmax(0,.8fr)'}, ...LIST_COLUMNS.slice(1)] : LIST_COLUMNS;
     const columns = new Map(baseColumns.map(column => [column.key, column]));
     for (const board of boards) for (const field of board.fields || []) {
       if (field?.key && !columns.has(field.key)) columns.set(field.key, field);
@@ -1321,7 +1321,7 @@
     autoBtn?.classList.remove('active');
     resetBtn?.classList.remove('active');
     pitchBtn?.classList.remove('active');
-    if (pitchBtn) pitchBtn.innerHTML = `<i class="fas fa-ruler-combined"></i> Pitches On`;
+    if (pitchBtn) pitchBtn.innerHTML = `<i class="fas fa-ruler-combined"></i> ${globalThis.PlatformLanguage?.htmlText('projects','pitches_on','Pitches On') ?? 'Pitches On'}`;
     if (pitchBtn) pitchBtn.style.display = INSTANT_PITCH_UI_ENABLED ? '' : 'none';
     if (zoomSlider) zoomSlider.value = '50';
   }
@@ -2085,7 +2085,7 @@
       pitchBtn.style.display = INSTANT_PITCH_UI_ENABLED ? '' : 'none';
       const labelsVisible = INSTANT_PITCH_UI_ENABLED && state?.labelsVisible !== false;
       pitchBtn.classList.toggle('active', labelsVisible);
-      pitchBtn.innerHTML = `<i class="fas fa-ruler-combined"></i> ${labelsVisible ? 'Pitches On' : 'Pitches Off'}`;
+      pitchBtn.innerHTML = `<i class="fas fa-ruler-combined"></i> ${globalThis.PlatformLanguage?.htmlText('projects',labelsVisible ? 'pitches_on' : 'pitches_off',labelsVisible ? 'Pitches On' : 'Pitches Off') ?? (labelsVisible ? 'Pitches On' : 'Pitches Off')}`;
     }
     if (zoomSlider && state?.controls) {
       const minDistance = Number(state.controls.minDistance || 1);
@@ -4926,13 +4926,13 @@
       const columns = (board.columns || []).map(column => ({...column, cards:column.cards || []}));
       const inColumns = new Set(columns.flatMap(column => column.cards).map(card => String(card.project_id || '')));
       const loose = (board.cards || []).filter(card => !inColumns.has(String(card.project_id || '')));
-      if (loose.length) columns.push({id:'__no_stage__',title:'No stage',color:'#667085',cards:loose});
+      if (loose.length) columns.push({id:'__no_stage__',title:(globalThis.PlatformLanguage?.text("projects","m_b9e330a2a05e3a","No stage") ?? "No stage"),color:'#667085',cards:loose});
       for (const column of columns) for (const card of column.cards) assigned.add(String(card.project_id || ''));
       return {...board,columns};
     });
     const cards = allProjects.filter(project => !project._shared && !assigned.has(String(project.id)))
       .map(project => ({project_id:project.id,title:project.title,address:project.address}));
-    boards.push({id:'__no_board__',title:'No board',color:'#667085',cards,columns:[{id:'__no_board__',title:'No board',color:'#667085',cards}]});
+    boards.push({id:'__no_board__',title:(globalThis.PlatformLanguage?.text("projects","m_0c8087b7a76bdd","No board") ?? "No board"),color:'#667085',cards,columns:[{id:'__no_board__',title:(globalThis.PlatformLanguage?.text("projects","m_0c8087b7a76bdd","No board") ?? "No board"),color:'#667085',cards}]});
     return boards;
   }
   function orderedWorkBoards(){
@@ -5002,7 +5002,7 @@
     const unused = boards.filter((item) => workBoardProjectCount(item) === 0);
     const usedOptions = used.map((item) => workBoardOptionHtml(item, activeBoardId)).join('');
     const unusedSection = unused.length ? `<div class="v-board-unused"><button type="button" class="v-board-unused-toggle" id="vUnusedBoardsToggle" aria-expanded="false" aria-controls="vUnusedBoardsList"><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_164adef2abc1b5","Unused") ?? "Unused")}</span><span class="v-board-unused-total" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("projects","m_df6a6980467b68",`${v0} unused boards`,{v0}) ?? `${v0} unused boards`)(unused.length)}">${String(unused.length)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="v-board-unused-list" id="vUnusedBoardsList" role="listbox" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_a91ee30942f6fd","Unused work boards") ?? "Unused work boards")}" hidden>${String(unused.map((item) => workBoardOptionHtml(item, activeBoardId)).join(''))}</div></div>` : '';
-    const allOption = viewMode === 'list' ? `<button type="button" class="v-board-option${activeBoardId === 'all' ? ' active' : ''}" role="option" aria-selected="${activeBoardId === 'all'}" data-board-id="all" style="--option-color:#4f7cac"><span class="v-board-option-dot" aria-hidden="true"></span><span>All boards</span><span class="v-board-option-count">${boards.length}</span>${activeBoardId === 'all' ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>'}</button>` : '';
+    const allOption = viewMode === 'list' ? `<button type="button" class="v-board-option${activeBoardId === 'all' ? ' active' : ''}" role="option" aria-selected="${activeBoardId === 'all'}" data-board-id="all" style="--option-color:#4f7cac"><span class="v-board-option-dot" aria-hidden="true"></span><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_b66bef8d909043","All boards") ?? "All boards")}</span><span class="v-board-option-count">${boards.length}</span>${activeBoardId === 'all' ? '<i class="fas fa-check" aria-hidden="true"></i>' : '<span></span>'}</button>` : '';
     return ("<div class=\"v-board-used-list\" role=\"listbox\" aria-label=\"" + (globalThis.PlatformLanguage?.text("projects","m_f9cb3d542eb9c6","Work boards with projects") ?? "Work boards with projects") + "\">" + allOption + String(usedOptions) + "</div>" + String(unusedSection));
   }
   function workBoardStorageKey(){
@@ -5342,7 +5342,7 @@
     const stages=new Map();
     for (const board of projectBoards()) for (const column of board.columns || []) {
       const id=String(column.id || '');
-      if (id && !stages.has(id)) stages.set(id, String(column.title || 'Stage'));
+      if (id && !stages.has(id)) stages.set(id, String(column.title || (globalThis.PlatformLanguage?.text("projects","m_43f2c4d59757a1","Stage") ?? "Stage")));
     }
     if (!stages.size) for (const column of stageColumnsForProjects(allProjects)) stages.set(String(column.id), column.title);
     return stages;
@@ -5362,7 +5362,7 @@
   let sharingClientPagination = false;
   const projectSharingView = () => projectSharing ||= window.FirstMateSharedList?.create('project');
   function sharedProjectRecords(){
-    return (projectSharingView()?.incoming || []).map(item => ({id:projectSharing.id(item),address:item.data?.address || item.data?.title || 'Shared project',title:item.data?.title || '',created_at:item.data?.created_at || '',_shared:item}));
+    return (projectSharingView()?.incoming || []).map(item => ({id:projectSharing.id(item),address:item.data?.address || item.data?.title || (globalThis.PlatformLanguage?.text("projects","m_db7bc4ec19e30d","Shared project") ?? "Shared project"),title:item.data?.title || '',created_at:item.data?.created_at || '',_shared:item}));
   }
   function applyQueryFilterSort(){
     let arr = allProjects.slice();
@@ -5564,15 +5564,15 @@
     syncProjectColumnChoices();
     const sharingFields = projectSharingView()?.fields() || '';
     if (viewMode === 'list') {
-      panel.innerHTML=`<div class="v-manage-title">List columns</div><div class="v-manage-columns">${availableProjectColumns().map((column) => `<label><input type="checkbox" data-list-column="${escapeHtml(column.key)}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${escapeHtml(column.label)}</span></label>`).join('')}</div><div class="v-manage-note">Click a column heading to sort the list.</div>${sharingFields}`;
+      panel.innerHTML=`<div class="v-manage-title">${(globalThis.PlatformLanguage?.htmlText("projects","m_f7db06bcf62c85","List columns") ?? "List columns")}</div><div class="v-manage-columns">${availableProjectColumns().map((column) => `<label><input type="checkbox" data-list-column="${escapeHtml(column.key)}" ${listVisibleColumns.has(column.key) ? 'checked' : ''}><span>${escapeHtml(column.label)}</span></label>`).join('')}</div><div class="v-manage-note">${(globalThis.PlatformLanguage?.htmlText("projects","m_0989a5be2bc0a3","Click a column heading to sort the list.") ?? "Click a column heading to sort the list.")}</div>${sharingFields}`;
       return;
     }
     const sort=getActiveSort();
-    const sortColumns = viewMode === 'stages' ? availableProjectColumns() : [{key:'created_at',label:'Project created date'}, ...LIST_COLUMNS];
-    const sorting=`<label class="v-manage-field">Order by<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="Switch sort direction"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
+    const sortColumns = viewMode === 'stages' ? availableProjectColumns() : [{key:'created_at',label:(globalThis.PlatformLanguage?.text("projects","m_db1fe336bd1deb","Project created date") ?? "Project created date")}, ...LIST_COLUMNS];
+    const sorting=`<label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_a4101be3c706f6","Order by") ?? "Order by")}<select id="vManageSortKey">${sortColumns.map(column => `<option value="${escapeHtml(column.key)}" ${sort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_82049078ca088b","Switch sort direction") ?? "Switch sort direction")}"><i class="fas fa-arrow-${sort.dir==='asc'?'up':'down'}"></i><span>${sort.dir==='asc'?'Ascending':'Descending'}</span></button>`;
     const stages=tileStageOptions();
-    const filtering=viewMode==='tiles' ? `<label class="v-manage-field">Stage<select id="vManageStageFilter"><option value="all">All stages</option>${Array.from(stages,([id,title])=>`<option value="${escapeHtml(id)}" ${tileStageFilter===id?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>` : '';
-    panel.innerHTML=`<div class="v-manage-title">${viewMode==='stages'?'Stages':'Tiles'} view</div>${filtering}${sorting}${sharingFields}${viewMode==='stages' && projectSharingView()?.incoming.length?'<div class="v-manage-note">Stages show our workflow. To browse received projects, select only Projects shared with us.</div>':''}`;
+    const filtering=viewMode==='tiles' ? `<label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_43f2c4d59757a1","Stage") ?? "Stage")}<select id="vManageStageFilter"><option value="all">${(globalThis.PlatformLanguage?.htmlText("projects","m_529b6356416c11","All stages") ?? "All stages")}</option>${Array.from(stages,([id,title])=>`<option value="${escapeHtml(id)}" ${tileStageFilter===id?'selected':''}>${escapeHtml(title)}</option>`).join('')}</select></label>` : '';
+    panel.innerHTML=`<div class="v-manage-title">${((v0) => globalThis.PlatformLanguage?.text("projects","m_da6a380b934274",`${v0} view`,{v0}) ?? `${v0} view`)(viewMode==='stages'?'Stages':'Tiles')}</div>${filtering}${sorting}${sharingFields}${viewMode==='stages' && projectSharingView()?.incoming.length?'<div class="v-manage-note">Stages show our workflow. To browse received projects, select only Projects shared with us.</div>':''}`;
   }
   function updateViewControls(){
     const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
@@ -5686,8 +5686,8 @@
     element.className = list ? 'v-lrow' : 'v-tile'; element.dataset.id=p.id;
     element.tabIndex=0; element.setAttribute('role','button');
     const name=escapeHtml(p.address), badge=projectSharingView().badge(p);
-    element.setAttribute('aria-label', `Open ${p.address}, shared by ${p._shared.owner?.name || 'partner organization'}`);
-    element.innerHTML = list ? availableProjectColumns().filter(c=>listVisibleColumns.has(c.key)).map(c=>`<div class="v-lcell" data-col="${escapeHtml(c.key)}">${c.key==='address'?`<div class="v-laddr"><div class="v-laddr1">${name}</div>${badge}</div>`:'—'}</div>`).join('') : `<div class="v-thumb fm-shared-project-thumb"><i class="fas fa-building" aria-hidden="true"></i></div><div class="v-body"><div class="v-addr">${name}</div>${badge}<div class="v-foot"><span>Shared project</span><span class="cta">View <i class="fas fa-chevron-right"></i></span></div></div>`;
+    element.setAttribute('aria-label', ((v0,v1) => globalThis.PlatformLanguage?.text("projects","m_9b0cf483ee4377",`Open ${v0}, shared by ${v1}`,{v0,v1}) ?? `Open ${v0}, shared by ${v1}`)(p.address,p._shared.owner?.name || 'partner organization'));
+    element.innerHTML = list ? availableProjectColumns().filter(c=>listVisibleColumns.has(c.key)).map(c=>`<div class="v-lcell" data-col="${escapeHtml(c.key)}">${c.key==='address'?`<div class="v-laddr"><div class="v-laddr1">${name}</div>${badge}</div>`:'—'}</div>`).join('') : `<div class="v-thumb fm-shared-project-thumb"><i class="fas fa-building" aria-hidden="true"></i></div><div class="v-body"><div class="v-addr">${name}</div>${badge}<div class="v-foot"><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_db7bc4ec19e30d","Shared project") ?? "Shared project")}</span><span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
     const open=()=>window.FirstMateSharedList.open(p._shared);
     element.onclick=open; element.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}};
     return element;
@@ -5778,7 +5778,7 @@
     };
     row.innerHTML=availableProjectColumns().filter((column)=>listVisibleColumns.has(column.key)).map((column)=>{
       if (cells[column.key]) return cells[column.key];
-      if (p.board_field_errors?.[column.key]) return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">Unavailable</div>`;
+      if (p.board_field_errors?.[column.key]) return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">${(globalThis.PlatformLanguage?.htmlText("projects","m_ce86fe78082565","Unavailable") ?? "Unavailable")}</div>`;
       const value = projectColumnValue(p, column.key);
       const text = value != null && ['date','datetime'].includes(column.type) ? formatStageDate(value) : columnValueText(value);
       return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">${escapeHtml(text)}</div>`;
@@ -5865,11 +5865,11 @@
           assigned.add(id);
           return true;
         });
-        appendListGroup(scroll, { id:board.id, title:board.title || 'Board', color:board.color, items, kind:'board' }, order);
+        appendListGroup(scroll, { id:board.id, title:board.title || (globalThis.PlatformLanguage?.text("projects","m_48afb49c6f40c4","Board") ?? "Board"), color:board.color, items, kind:'board' }, order);
       }
       if (allBoards) {
         const unassigned = filteredProjects.filter((project) => !assigned.has(String(project.id)));
-        if (unassigned.length) appendListGroup(scroll, { id:'unassigned', title:'No board', color:'#667085', items:unassigned, kind:'board' }, order);
+        if (unassigned.length) appendListGroup(scroll, { id:'unassigned', title:(globalThis.PlatformLanguage?.text("projects","m_0c8087b7a76bdd","No board") ?? "No board"), color:'#667085', items:unassigned, kind:'board' }, order);
       }
       return;
     }
@@ -6615,7 +6615,7 @@
     let activeMeasurementTab = (preferInstantOpen && hasInstant) ? 'instant' : (hasFullReady ? 'standard' : 'instant');
 
     if (hasInstant) {
-      const sidebarOrderLabel = () => `<i class="fas fa-file-lines"></i> Order Full Report - $${fmtMoney(fullReportBasePrice(p))}`;
+      const sidebarOrderLabel = () => `<i class="fas fa-file-lines"></i> ${globalThis.PlatformLanguage?.htmlText('projects','order_full_report_amount','Order Full Report - '+window.PlatformCommerce.credit(fullReportBasePrice(p)),{amount:window.PlatformCommerce.credit(fullReportBasePrice(p))}) ?? ('Order Full Report - '+window.PlatformCommerce.credit(fullReportBasePrice(p)))}`;
       const measurementTabs = () => {
         const tabs = [];
         if (hasInstant) {
@@ -7327,12 +7327,12 @@
         <div class="v-head" data-app-header>
           <div class="v-title"><i class="fas fa-folder-open" aria-hidden="true"></i><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
           <div class="v-actions">
-            <div class="v-view-switch" role="group" aria-label="Project view">
+            <div class="v-view-switch" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_200131262770e4","Project view") ?? "Project view")}">
             <button class="v-btn v-pill" id="vViewStages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
             <button class="v-btn v-pill" id="vViewList"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
             <button class="v-btn v-pill" id="vViewTiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
             </div>
-            <div class="v-manage-wrap" id="vManageViewWrap"><button type="button" class="v-btn v-pill" id="vManageView" aria-label="Manage view" aria-expanded="false" aria-controls="vManageViewPanel"><i class="fas fa-sliders" aria-hidden="true"></i><span class="btn-label">Manage view</span></button><div class="v-manage-panel" id="vManageViewPanel" hidden></div></div>
+            <div class="v-manage-wrap" id="vManageViewWrap"><button type="button" class="v-btn v-pill" id="vManageView" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}" aria-expanded="false" aria-controls="vManageViewPanel"><i class="fas fa-sliders" aria-hidden="true"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}</span></button><div class="v-manage-panel" id="vManageViewPanel" hidden></div></div>
           </div>
         </div>
         ${String((window.Portal?.appFlags || window.PlatformAPI?.appFlags)?.value?.('platform', 'expanded_access', false) !== true ? `<input id="vReportSearch" class="v-report-search" type="search" placeholder="${(globalThis.PlatformLanguage?.htmlText("projects","m_97f68e5486c2f8","Search address, contact…") ?? "Search address, contact…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_af80d9cead6991","Search projects") ?? "Search projects")}" autocomplete="off">` : '')}

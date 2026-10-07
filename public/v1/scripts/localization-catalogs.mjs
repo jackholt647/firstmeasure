@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { build } from 'esbuild';
+import { IntlMessageFormat } from 'intl-messageformat';
 // Atomic replacement also works when Windows previewers hold a mapped file open.
 function writeFile(file,contents){
   if(fs.existsSync(file)&&fs.readFileSync(file,'utf8')===contents)return;
@@ -29,10 +30,25 @@ for(const locale of supportedLocales.filter(code=>!['en-US','en-GB'].includes(co
   }
 }
 const write = process.argv.includes('--write');
+const selectedFiles = new Set(process.argv.filter(arg=>arg.startsWith('--file=')).map(arg=>arg.slice(7).replaceAll('\\','/')));
 const check = process.argv.includes('--check');
 const words = {color:'colour',colors:'colours',colored:'coloured',coloring:'colouring',colorize:'colourise',colorized:'colourised',favorite:'favourite',favorites:'favourites',organize:'organise',organized:'organised',organizing:'organising',organization:'organisation',organizations:'organisations',customize:'customise',customized:'customised',customizing:'customising',customization:'customisation',analyze:'analyse',analyzed:'analysed',analyzing:'analysing',center:'centre',centers:'centres',centered:'centred',centering:'centring',license:'licence',licenses:'licences',aluminum:'aluminium',gray:'grey',labor:'labour',vapor:'vapour',miter:'mitre',miters:'mitres',canceled:'cancelled',canceling:'cancelling',catalog:'catalogue',catalogs:'catalogues',meter:'metre',meters:'metres',millimeter:'millimetre',millimeters:'millimetres'};
 // Build-time English variant generation; runtime only resolves reviewed, literal catalog entries.
-function british(text) { return text.replace(/\b[a-z]+\b/gi, word => { const value = words[word.toLowerCase()]; return !value ? word : word === word.toUpperCase() ? value.toUpperCase() : /^[A-Z]/.test(word) ? value[0].toUpperCase()+value.slice(1) : value; }); }
+function british(text) {
+  const replace = value => value.replace(/\b[a-z]+\b/gi, word => { const next = words[word.toLowerCase()]; return !next ? word : word === word.toUpperCase() ? next.toUpperCase() : /^[A-Z]/.test(word) ? next[0].toUpperCase()+next.slice(1) : next; });
+  // Translate literal text only. ICU argument names such as {color} are code.
+  const edits=[];
+  try {
+    const visit=nodes=>nodes.forEach(node=>{
+      if(node.type===0 && node.location)edits.push(node.location);
+      if(node.options)Object.values(node.options).forEach(option=>visit(option.value));
+      if(node.children)visit(node.children);
+    });
+    visit(new IntlMessageFormat(text,'en-US',undefined,{captureLocation:true,ignoreTag:true}).getAst());
+  } catch { return replace(text); }
+  for(const location of edits.sort((a,b)=>b.start.offset-a.start.offset))text=text.slice(0,location.start.offset)+replace(text.slice(location.start.offset,location.end.offset))+text.slice(location.end.offset);
+  return text;
+}
 function files(dir) { return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()&&!['vendor','node_modules','dist'].includes(e.name)?files(path.join(dir,e.name)):e.isFile()&&e.name.endsWith('.js')?[path.join(dir,e.name)]:[]); }
 const targets = [...files(path.join(root,'public/libraries')), ...files(path.join(root,'public/portal/scripts')), ...files(path.join(root,'public/customer_portal'))]
   .filter(file=>!file.endsWith('platform-terminology.js')&&!/(?:platform-language|doc-language|site-runtime)[/\\]|(?:\.min|\.bundle)\.js$/.test(file));
@@ -120,7 +136,7 @@ for(const file of targets) {
     ts.forEachChild(node,visit);
   }
   visit(tree);
-  if(write&&edits.length){
+  if(write&&edits.length&&(!selectedFiles.size||selectedFiles.has(relative))){
     const backup=path.join(root,'output/localization-before',relative);
     if(!fs.existsSync(backup)){fs.mkdirSync(path.dirname(backup),{recursive:true});fs.copyFileSync(file,backup);}
     let updated=code;for(const edit of edits.sort((a,b)=>b.start-a.start))updated=updated.slice(0,edit.start)+edit.text+updated.slice(edit.end);
@@ -144,11 +160,15 @@ for(const file of backendFiles(path.join(root,'public/v1'))){
   const tree=ts.createSourceFile(file,fs.readFileSync(file,'utf8'),ts.ScriptTarget.Latest,true);
   function visit(node){if(ts.isCallExpression(node)&&/^(badRequest|forbidden|notFound|conflict|unauthorized)$/.test(node.expression.getText(tree))&&node.arguments.length>=2&&ts.isStringLiteral(node.arguments[0])&&ts.isStringLiteral(node.arguments[1])){const key=node.arguments[0].text,value=node.arguments[1].text;const set=errorTexts.get(key)||new Set();set.add(value);errorTexts.set(key,set);}ts.forEachChild(node,visit);}visit(tree);
 }
-catalog.errors=Object.fromEntries([...errorTexts].filter(([,values])=>values.size===1).map(([key,values])=>[key,[...values][0]]));
+// Keep reviewed keys whose consumers are outside this conservative scan.
+// Runtime error translation still requires an exact match of code and US text.
+catalog.errors={...catalog.errors,...Object.fromEntries([...errorTexts].filter(([,values])=>values.size===1).map(([key,values])=>[key,[...values][0]]))};
 catalog.platform ||= {};
 catalog.notifications={document_greeting:{format:'icu',message:'Hi {name},'},document_ready:{format:'icu',message:'Your {type} is ready to review.'},document_link:{format:'icu',message:'Review and respond here: {url}'}};
 const reportRoot={};vm.runInNewContext(fs.readFileSync(path.join(root,'public/libraries/report-units.js'),'utf8'),{window:reportRoot});
-catalog.reports=Object.fromEntries(Object.keys(reportRoot.ReportUnits.catalogs['en-GB']).map(key=>[key,key]));
+// Report headings and templates coexist with the legacy spelling dictionary.
+// Rebuilding must not discard the expanded report vocabulary.
+catalog.reports={...catalog.reports,...Object.fromEntries(Object.keys(reportRoot.ReportUnits.catalogs['en-GB']).map(key=>[key,key]))};
 function localeMessages(namespace,messages) {
   const locales={'en-US':messages};
   for(const locale of supportedLocales.filter(code=>code!=='en-US')) {

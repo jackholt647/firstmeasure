@@ -2398,7 +2398,7 @@ session_write_close();
         selector: { label: 'New', icon: 'fa-plus-circle', workflow: 'selector' },
         project: { label: 'New Project', icon: 'fa-folder-plus', workflow: 'project' },
         contact: { label: 'New Contact', icon: 'fa-address-book', workflow: 'contact' },
-        report: { label: 'New Report', icon: 'fa-file-lines', workflow: 'report' },
+        report: { label: (globalThis.PlatformLanguage?.text("platform","new_report","New Report") ?? "New Report"), icon: 'fa-file-lines', workflow: 'report' },
         // fa-file-circle-plus needs FA 6.1+; the portal ships FA 6.0.
         document: { label: 'New Document', icon: 'fa-file-medical', workflow: 'document' },
         payment: { label: 'New Payment', icon: 'fa-money-check-dollar', workflow: 'payment' },
@@ -2437,6 +2437,7 @@ session_write_close();
           const typeId = raw.slice(4);
           return { label: `New ${docTypeLabel(typeId)}`, icon: docTypeIcon(typeId), workflow: 'document', documentType: typeId };
         }
+        if (raw === 'report') return { ...modes.report, label: (globalThis.PlatformLanguage?.text("platform","new_report","New Report") ?? "New Report") };
         return modes[raw] || null;
       };
       const loadDocTypes = () => {
@@ -2526,12 +2527,12 @@ session_write_close();
         if (icon) icon.className = 'fas fa-plus-circle sidebar-new-full-icon';
         btn.setAttribute('aria-haspopup', mode === 'selector' ? 'menu' : 'false');
         btn.setAttribute('aria-expanded', mode === 'selector' && wrap.classList.contains('open') ? 'true' : 'false');
-        btn.setAttribute('aria-label', 'New');
+        btn.setAttribute('aria-label', config.label);
         btn.dataset.newButtonMode = mode;
         const mobileBtn = document.getElementById('mobNewReqBtn');
         if (mobileBtn) {
-          mobileBtn.setAttribute('aria-label', 'New');
-          mobileBtn.setAttribute('data-fm-tooltip', 'New');
+          mobileBtn.setAttribute('aria-label', config.label);
+          mobileBtn.setAttribute('data-fm-tooltip', config.label);
           const mobileLabel = mobileBtn.querySelector('span');
           const mobileIcon = mobileBtn.querySelector('i');
           if (mobileLabel) mobileLabel.textContent = 'New';
@@ -2775,6 +2776,8 @@ session_write_close();
       });
       window.addEventListener('fm:app-flags:failed', setButtonMode);
       window.addEventListener('fm:platform-session:updated', setButtonMode);
+      window.addEventListener('fm:language:updated', setButtonMode);
+      Promise.resolve(window.PlatformLanguage?.ensure?.(['platform'])).then(setButtonMode).catch(() => null);
       setButtonMode();
     })();
 

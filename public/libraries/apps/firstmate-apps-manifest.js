@@ -35,7 +35,7 @@
     versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
-    versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
+    versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
@@ -230,7 +230,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('../brand-kit/brand-kit.js', '20261006-company-font-gate-v1'),
+        versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('documents/studio.js', '20260930-app-groups-v1')
       ]
     },
@@ -292,7 +292,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261005-contact-chrome-v1'), versionedBundle('project-request/app.js', '20261006-contact-links-money-header-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261006-firstmeasure-localization-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -302,7 +302,7 @@
       surfaces: ['project_modal'],
       regions: ['main'],
       access: managementShellAccess,
-      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261002-overview-workflow-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261006-firstmeasure-localization-v1')]
     },
     {
       id: 'project.map',
@@ -544,7 +544,7 @@
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
         versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
-        versionedBundle('../window-manager/window-manager.js', '20261002-project-identity-v1'),
+        versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261002-dropdown-polish-v1'),
@@ -607,7 +607,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261002-overview-workflow-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-company-font-gate-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261006-company-language-only-v1')]
+      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20260930-contact-search-picker-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261002-overview-workflow-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261006-firstmeasure-localization-v1')]
     },
     {
       id: 'portal.crew_overview',
@@ -845,7 +845,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_831d8d28763333","Billing") ?? "Billing"),
       kind: 'modal_app',
       surfaces: ['modal', 'service'],
-      bundles: [bundle('billing/app.js')]
+      bundles: [versionedBundle('billing/app.js', '20261006-firstmeasure-localization-v1')]
     },
     {
       id: 'help',

@@ -96,7 +96,7 @@
     function preparePdfSyncSnapshot(snapshot, options = {}) {
         const prepared = cloneJson(snapshot || {});
         prepared.pdfSyncRevision = options.revision || createPdfSyncRevision();
-        prepared.pdfRenderDateLabel = options.dateLabel || new Date().toLocaleDateString(options.runtimeContext?.manifest?.report_language || 'en-US');
+        prepared.pdfRenderDateLabel = options.dateLabel || new Date().toLocaleDateString(options.runtimeContext?.manifest?.language_snapshot?.locale || options.runtimeContext?.manifest?.report_language || 'en-US');
         prepared.savedAt = options.savedAt || new Date().toISOString();
         prepared.pdfGeneratedAt = options.generatedAt || prepared.savedAt;
         const runtimeContext = (options.runtimeContext && typeof options.runtimeContext === 'object')

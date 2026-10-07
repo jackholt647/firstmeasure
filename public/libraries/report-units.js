@@ -22,28 +22,40 @@
     const number = (n, kind, digits = 2) => value(n, kind).toLocaleString(language, { maximumFractionDigits:digits });
     const unit = kind => (metric ? units : imperial)[kind];
     const quantity = (n, kind, digits = 2) => number(n, kind, digits) + ' ' + unit(kind);
-    const text = input => {
+    const interpolate = (template, values) => template.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (all, key) => Object.hasOwn(values, key) ? String(values[key]) : all);
+    const formatLegacy = input => {
       if (language === 'en-US' || typeof input !== 'string') return input;
-      if (dictionary[input]) return dictionary[input];
-      return input.replace(/\bsquare footage\b|\b(?:colors?|colored|centered|center|aluminum|gray|labor|vapor|miters?|stories|story|millimeters?|meters?)\b/gi, word => {
-        const replacement = dictionary[word.toLowerCase()] || word;
-        return word === word.toUpperCase() ? replacement.toUpperCase() : /^[A-Z]/.test(word) ? replacement[0].toUpperCase()+replacement.slice(1) : replacement;
+      return input.replace(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+/g, token => {
+        const decimals = token.includes('.') ? token.split('.')[1].length : 0;
+        return Number(token.replace(/,/g, '')).toLocaleString(language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
       });
     };
-    const label = input => {
-      let result = text(input);
+    const text = (input, values = {}) => {
+      if (typeof input !== 'string') return input;
+      if (language === 'en-US') return interpolate(input, values);
+      if (dictionary[input]) return interpolate(dictionary[input], values);
+      // Labels with a colon/outer whitespace share the vocabulary entry.
+      const bare = input.trim().replace(/:$/, '');
+      if (dictionary[bare]) return input.replace(bare, dictionary[bare]);
+      return interpolate(input.replace(/\bsquare footage\b|\b(?:colors?|colored|centered|center|aluminum|gray|labor|vapor|miters?|stories|story|millimeters?|meters?)\b/gi, word => {
+        const replacement = dictionary[word.toLowerCase()] || word;
+        return word === word.toUpperCase() ? replacement.toUpperCase() : /^[A-Z]/.test(word) ? replacement[0].toUpperCase()+replacement.slice(1) : replacement;
+      }), values);
+    };
+    const label = (input, values = {}) => {
+      let result = text(input, values);
       if (metric && typeof result === 'string') result = result.replace(/(\d+(?:\.\d+)?)\s*(sq ft|sq in|ft|inches|inch|[″”"]|[′'])/g, (all,n,suffix) => {
         const kind = ({'sq ft':'sf','sq in':'si',ft:'ft',inches:'inch',inch:'inch','″':'inch','”':'inch','"':'inch',"'":'ft','′':'ft'})[suffix];
         return quantity(Number(n),kind);
       });
       return result;
     };
-    return { metric, language, value, number, unit, quantity, text, label,
-      length: (feet, legacy) => metric ? quantity(feet, 'ft') : legacy,
-      area: (feet, legacy) => metric ? quantity(feet, 'sf') : legacy,
-      squares: (squares, legacy) => metric ? quantity(squares, 'sq') : legacy,
+    return { metric, language, value, number, unit, quantity, text, label, formatLegacy,
+      length: (feet, legacy) => metric ? quantity(feet, 'ft') : formatLegacy(legacy),
+      area: (feet, legacy) => metric ? quantity(feet, 'sf') : formatLegacy(legacy),
+      squares: (squares, legacy) => metric ? quantity(squares, 'sq') : formatLegacy(legacy),
       // Distances supplied by geometry tools are already metres.
-      distance: (metres, legacy) => metric ? Number(metres).toFixed(2)+' m' : legacy,
+      distance: (metres, legacy) => metric ? Number(metres).toLocaleString(language, {minimumFractionDigits:2,maximumFractionDigits:2})+' m' : formatLegacy(legacy),
       inputScale: owner => owner?.unit === 'degrees' ? (owner.unitsPerInput ?? 1) : metric ? (owner?.unit === 'inches' ? .001 : 1) : (owner?.unitsPerInput ?? .3048)
     };
   }

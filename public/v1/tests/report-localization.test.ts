@@ -22,12 +22,15 @@ test("report preferences are opt-in, validated and frozen on orders", async () =
   try {
     const defaults = await effectiveAppFlags(org.id);
     assert.ok(defaults);
+    // New FirstMeasure organizations now default to language customization on.
+    // This phase explicitly exercises a disabled organization.
+    await platform.saveGlobal(org.id,{data:{app_flags:{firstmeasure:{report_localization:false,metric_measurements:false}}}});
     await platform.upsertDocument(org.id,"branch",{id:"default",data:{report_preferences:gb}});
     assert.deepEqual(await prefs.resolveOrderReportPreferences({...input,...gb}),us,"disabled organizations cannot opt themselves in");
     const legacy = await storage.createProject(input);
     assert.equal(legacy.manifest.measurement_system,"imperial");
     assert.equal(legacy.manifest.report_language,"en-US");
-    await platform.saveGlobal(org.id,{data:{app_flags:{firstmeasure:{metric_measurements:true}}}});
+    await platform.saveGlobal(org.id,{data:{app_flags:{firstmeasure:{metric_measurements:true,report_localization:false}}}});
     assert.deepEqual(await prefs.resolveOrderReportPreferences(input),{...us,measurement_system:"metric"});
     await platform.saveGlobal(org.id,{data:{app_flags:{firstmeasure:{metric_measurements:false,report_localization:true}}}});
     const localized = await storage.createProject(input);

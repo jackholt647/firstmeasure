@@ -58,11 +58,12 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
   }
   function text(namespace: string, key: string, fallback = key, values: Record<string, string | number | boolean | Date> = {}, html=false): string {
     const locales = catalogs.get(namespace);
-    const entry = locales?.[context.locale]?.[key] ?? locales?.["en-US"]?.[key];
-    if (entry === undefined) {
+    const localized = locales?.[context.locale]?.[key];
+    const entry = localized ?? locales?.["en-US"]?.[key];
+    if (entry === undefined || (!context.locale.startsWith("en-") && localized === undefined)) {
       const id = `${context.locale}:${namespace}:${key}`;
       if (!reported.has(id)) { reported.add(id); missing?.(`${namespace}.${key}`, context.locale); }
-      return fallback;
+      if (entry === undefined) return fallback;
     }
     if (typeof entry === "string") return namespace==='terminology'?entry:literal(namespace,entry,html);
     const id = `${context.locale}:${namespace}:${key}:${html}:${entry.message}`;

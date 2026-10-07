@@ -3,12 +3,15 @@
  */
 (function(){
   const contactsModuleUrl = new URL('../contacts/modal.js?v=20261005-contact-chrome-v1', document.currentScript.src);
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261005-contact-chrome-v1', document.currentScript.src);
-  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261005-contact-handoff-v1', document.currentScript.src);
-  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261005-mobile-chrome-v1', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
+  const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
+  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
+  // Embedded workspaces bypass normal app mounting; load their catalogs before
+  // constants, placeholders, CSS headings or child app panels are constructed.
+  await window.PlatformLanguage?.ensure?.(['project-request', 'firstmeasure', 'project-map', 'window-manager']);
   if (!window.Portal || window.Portal.modules?.request?.retainedProjectWindows) return;
 
   let projectWindowToken = new URLSearchParams(location.search).get('projectWindow') || (window.name.startsWith('fm-project-window:') ? window.name.slice(18) : '');
@@ -71,7 +74,7 @@ window.PlatformCommerce.onReady(async function(){
     both: { label: (globalThis.PlatformLanguage?.text("project-request","m_b8c0c33704d4aa","Standard + Instant Report") ?? "Standard + Instant Report") },
   };
   const FALLBACK_REPORT_EXPEDITE_OPTIONS = [
-    { key: 'standard_3_6', label: (globalThis.PlatformLanguage?.text("project-request","m_d733253e76c414","Less than 7 hrs") ?? "Less than 7 hrs"), startMinutes: 240, endMinutes: 420, productionDeadlineMinutes: 240, estimatedWaitMinutes: 240, busyLabel: "We aren't very busy", residentialPrice: 7, rushDelta: 0, expedited: false },
+    { key: 'standard_3_6', label: (globalThis.PlatformLanguage?.text("project-request","m_d733253e76c414","Less than 7 hrs") ?? "Less than 7 hrs"), startMinutes: 240, endMinutes: 420, productionDeadlineMinutes: 240, estimatedWaitMinutes: 240, busyLabel: (globalThis.PlatformLanguage?.text("project-request","not_busy","We aren't very busy") ?? "We aren't very busy"), residentialPrice: 7, rushDelta: 0, expedited: false },
     { key: 'rush_1_3', label: (globalThis.PlatformLanguage?.text("project-request","m_0bb29e9472d757","Less than 3 hrs rush") ?? "Less than 3 hrs rush"), startMinutes: 60, endMinutes: 180, productionDeadlineMinutes: 120, residentialPrice: 8.15, rushDelta: 1.15, expedited: true },
     { key: 'rush_under_1', label: (globalThis.PlatformLanguage?.text("project-request","m_ce0c416274915b","Less than 1 hr rush") ?? "Less than 1 hr rush"), startMinutes: 50, endMinutes: 60, productionDeadlineMinutes: 50, residentialPrice: 10.45, rushDelta: 3.45, expedited: true },
   ];
@@ -280,7 +283,7 @@ window.PlatformCommerce.onReady(async function(){
       const row = document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:6px;width:100%;min-width:0';
       address.before(row); row.append(address); address.style.minWidth='0'; address.style.flex='1';
       const button = document.createElement('button'); button.type='button'; button.id='rDevelopmentAddress'; button.hidden=true;
-      button.textContent='FM'; button.title='Use another completed development report matching the selected type and scope';
+      button.textContent=(globalThis.PlatformLanguage?.text("project-request","m_b7a344ddca6545","FM") ?? "FM"); button.title=(globalThis.PlatformLanguage?.text("project-request","m_c92936cb32df1e","Use another completed development report matching the selected type and scope") ?? "Use another completed development report matching the selected type and scope");
       button.setAttribute('aria-label',button.title); button.style.cssText='flex:0 0 32px;padding:6px 2px;border:0;background:transparent;color:var(--primary,#d93025);font-size:11px;font-weight:800;cursor:pointer';
       row.append(button); button.onclick=async()=>{
         const generation=++developmentSampleGeneration, type=selectedType||'residential', scope=developmentReportScope();
@@ -289,7 +292,7 @@ window.PlatformCommerce.onReady(async function(){
           const {data}=await postAction('development_report_sample',{project_type:type,measurement_scope:scope,exclude_id:developmentReportSample?.id||''});
           if(generation!==developmentSampleGeneration || !button.isConnected || (selectedType||'residential')!==type || developmentReportScope()!==scope)return;
           if(!data?.success)throw new Error(data?.message||data?.error||'Could not select a development report.');
-          if(!data.sample){showToast('No matching report',data.message,false);return;}
+          if(!data.sample){showToast((globalThis.PlatformLanguage?.text("project-request","m_a9fc58f6e515fa","No matching report") ?? "No matching report"),data.message,false);return;}
           developmentReportSample=data.sample; $('#rInstantDevelopmentCheck').checked=false;
           address.value=data.sample.address; $('#rLat').value=data.sample.lat; $('#rLng').value=data.sample.lng; $('#rComps').value='{}';
           setCoords(data.sample.lat,data.sample.lng,true); addressSelected=true; locationConfirmed=false;
@@ -298,7 +301,7 @@ window.PlatformCommerce.onReady(async function(){
           pins.forEach(pin=>addPin(pin,true,{silent:true}));
           focusMapOnProject({address:data.sample.address,lat:data.sample.lat,lng:data.sample.lng,pins});
           updateModalTitle(); renderWorkflowState(); queueAutosaveNotice();
-        }catch(error){showToast('Development report',error.message,false);}finally{button.disabled=false;}
+        }catch(error){showToast((globalThis.PlatformLanguage?.text("project-request","m_b1cdd265d6ddcb","Development report") ?? "Development report"),error.message,false);}finally{button.disabled=false;}
       };
     }
     const order=$('#rOrderMeasurements');
@@ -887,7 +890,7 @@ window.PlatformCommerce.onReady(async function(){
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card,:is(.r-project-identity-popover,.r-overview-details) .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0;margin:0}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card::before{content:'Contact';grid-column:1 / -1;font-size:11px;font-weight:700;color:#667085;margin-bottom:4px}
-    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card.primary::before{content:'Primary Contact'}
+    :is(.r-project-identity-popover,.r-overview-details) .r-contact-card.primary::before{content:attr(data-localized-heading)}
     :is(.r-project-identity-popover,.r-overview-details) :is(.r-mobile-customer-label,.r-mobile-customer-heading){display:none!important}
     :is(.r-project-identity-popover,.r-overview-details) :is(#rStepAddress,[data-identity-source-id="rStepAddress"]) .r-group>label{display:none}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card{display:block}
@@ -897,7 +900,7 @@ window.PlatformCommerce.onReady(async function(){
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-actions{position:absolute;right:0;top:0;flex-direction:row}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card .r-contact-actions{top:14px}
     :is(.r-project-identity-popover,.r-overview-details) :is(#rStepAddress,[data-identity-source-id="rStepAddress"]){border-top:1px solid #e4e7ec!important;padding-top:14px!important}
-    :is(.r-project-identity-popover,.r-overview-details) :is(#rStepAddress,[data-identity-source-id="rStepAddress"])::before{content:'Project Address';display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
+    :is(.r-project-identity-popover,.r-overview-details) :is(#rStepAddress,[data-identity-source-id="rStepAddress"])::before{content:attr(data-localized-heading);display:block;font-size:11px;font-weight:700;color:#667085;margin-bottom:9px}
     :is(.r-project-identity-popover,.r-overview-details) :is(#rProjectCustomFields,[data-identity-source-id="rProjectCustomFields"]):not(:empty){border-top:1px solid #e4e7ec;padding-top:14px}
     [data-identity-actions]{display:none}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-shortcut-field{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0}
@@ -2800,8 +2803,8 @@ window.PlatformCommerce.onReady(async function(){
       // re-enable it while an order is in flight (setSubmitBusyLabel shows a spinner).
       if (submit && !submit.querySelector('.r-submit-spinner')) submit.disabled = blocked;
       order.disabled = !orderVisible || blocked || submit.disabled;
-      const label = window.Portal.ExteriorOrder?.active() ? 'Order Full Structure' : (submit?.textContent?.trim() || 'Order Roof Report');
-      order.textContent = label.replace(/^Order Roof Report\b/, 'Order Report');
+      const label = window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","order_full_structure","Order Full Structure") ?? "Order Full Structure") : (submit?.textContent?.trim() || (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report"));
+      order.textContent = label;
       if(orderSubmissionPending)setSubmitBusyLabel(order,'Ordering…');
     }
   }
@@ -2995,7 +2998,7 @@ window.PlatformCommerce.onReady(async function(){
       controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
       customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, mobileFullscreen:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
-      name:'project', label:'Project', mode:'modal', width:1200, height:800,
+      name:'project', label:(globalThis.PlatformLanguage?.text("project-request","m_aaebd7ccba0b30","Project") ?? "Project"), mode:'modal', width:1200, height:800,
       dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
       onClose:() => close(),
@@ -3087,7 +3090,7 @@ window.PlatformCommerce.onReady(async function(){
     if (projectModalWindow) syncProjectWindowModalRegistration();
     const btn = $('#rFullscreenToggle');
     if (btn) {
-      btn.setAttribute('aria-label', projectModalFullscreen ? 'Shrink project modal' : 'Open project fullscreen');
+      btn.setAttribute('aria-label', projectModalFullscreen ? (globalThis.PlatformLanguage?.text("project-request","project_shrink","Shrink project modal") ?? "Shrink project modal") : (globalThis.PlatformLanguage?.text("project-request","project_fullscreen","Open project fullscreen") ?? "Open project fullscreen"));
       btn.setAttribute('title', projectModalFullscreen ? 'Shrink' : 'Fullscreen');
       btn.setAttribute('data-fm-tooltip', projectModalFullscreen ? 'Shrink' : 'Fullscreen');
       btn.innerHTML = `<i class="fas ${projectModalFullscreen ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}"></i>`;
@@ -3535,7 +3538,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!list) return;
     const row = document.createElement('div');
     row.className = 'r-cc-row';
-    row.innerHTML = `<input class="r-inp" type="email" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}" value="${String(escapeHtml(value || ''))}"><div class="r-cc-remove" data-fm-tooltip="Remove"><i class="fas fa-times"></i></div>`;
+    row.innerHTML = `<input class="r-inp" type="email" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_e91e3cd877a6d7","email@example.com") ?? "email@example.com")}" value="${String(escapeHtml(value || ''))}"><div class="r-cc-remove" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("project-request","remove_recipient","Remove") ?? "Remove")}"><i class="fas fa-times"></i></div>`;
     row.querySelector('.r-cc-remove').addEventListener('click', () => { row.remove(); queueAutosaveNotice(); });
     list.appendChild(row);
     if (!options.hydrate) {
@@ -3633,7 +3636,7 @@ window.PlatformCommerce.onReady(async function(){
       return;
     }
     if(!window.Portal?.modules?.contacts?.open)await import(contactsModuleUrl.href);
-    if(!window.Portal?.modules?.contacts?.open)throw Error('Contacts could not be opened.');
+    if(!window.Portal?.modules?.contacts?.open)throw Error((globalThis.PlatformLanguage?.text("project-request","contacts_unavailable","Contacts could not be opened.") ?? "Contacts could not be opened."));
     await window.Portal.modules.contacts.open(contact,options);
     close({skipHistory:true});
   }
@@ -3645,11 +3648,11 @@ window.PlatformCommerce.onReady(async function(){
     const currentContextId = projectText(contactContext?.contact?.id, contactContext?.contact?.contact_id);
     if (currentContextId && projectText(contact.id, contact.contact_id) === currentContextId) {
       try { await openContact(contactContext.contact, { projects: contactContext.projects || [] }); }
-      catch(error){ showToast(error.message || 'Could not open contact.'); }
+      catch(error){ showToast(error.message || (globalThis.PlatformLanguage?.text("project-request","contact_open_failed","Could not open contact.") ?? "Could not open contact.")); }
       return;
     }
     try { await openContact(contact, { projects: activeBaseProject ? [activeBaseProject] : [] }); }
-    catch(error){ showToast(error.message || 'Could not open contact.'); }
+    catch(error){ showToast(error.message || (globalThis.PlatformLanguage?.text("project-request","contact_open_failed","Could not open contact.") ?? "Could not open contact.")); }
   }
 
   function removeContactCard(card){
@@ -3764,6 +3767,7 @@ window.PlatformCommerce.onReady(async function(){
   function createContactCard(index, values = {}){
     const wrap = document.createElement('div');
     wrap.className = 'r-contact-card';
+    wrap.dataset.localizedHeading = (globalThis.PlatformLanguage?.text("project-request","primary_contact_heading","Primary Contact") ?? "Primary Contact");
     wrap.dataset.contactIndex = String(index);
     const contactId = projectText(values.id, values.contact_id);
     if (contactId) wrap.dataset.contactId = contactId;
@@ -3792,8 +3796,8 @@ window.PlatformCommerce.onReady(async function(){
         </div>
       </div>
       <div class="r-contact-actions">
-        <button type="button" class="r-contact-primary" data-fm-tooltip="Primary Contact"><i class="fas fa-star"></i></button>
-        <button type="button" class="r-contact-menu-btn" data-fm-tooltip="Contact Actions"><i class="fas fa-ellipsis"></i></button>
+        <button type="button" class="r-contact-primary" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("project-request","primary_contact_heading","Primary Contact") ?? "Primary Contact")}"><i class="fas fa-star"></i></button>
+        <button type="button" class="r-contact-menu-btn" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("project-request","contact_actions","Contact Actions") ?? "Contact Actions")}"><i class="fas fa-ellipsis"></i></button>
       </div>
     `;
     wrap.querySelector('.r-contact-primary')?.addEventListener('click', () => makeContactPrimary(wrap));
@@ -3996,7 +4000,7 @@ window.PlatformCommerce.onReady(async function(){
       return !query || haystack.includes(query);
     });
     if (!matches.length) {
-      list.innerHTML = `<div class="r-contact-picker-empty">${query ? 'No matching contacts' : (loading ? 'Loading saved contacts...' : 'No saved contacts yet')}</div>`;
+      list.innerHTML = `<div class="r-contact-picker-empty">${query ? (globalThis.PlatformLanguage?.htmlText("project-request","no_matching_contacts","No matching contacts") ?? "No matching contacts") : (loading ? (globalThis.PlatformLanguage?.htmlText("project-request","loading_contacts","Loading saved contacts...") ?? "Loading saved contacts...") : (globalThis.PlatformLanguage?.htmlText("project-request","no_saved_contacts","No saved contacts yet") ?? "No saved contacts yet"))}</div>`;
       return;
     }
     list.innerHTML = matches.map((contact, index) => {
@@ -4005,7 +4009,7 @@ window.PlatformCommerce.onReady(async function(){
       return `
         <button type="button" class="r-contact-picker-row" data-contact-picker-index="${index}">
           <i class="fas fa-address-book"></i>
-          <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(meta || 'Saved contact')}</small></span>
+          <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(meta || (globalThis.PlatformLanguage?.text("project-request","saved_contact","Saved contact") ?? "Saved contact"))}</small></span>
         </button>
       `;
     }).join('');
@@ -4502,7 +4506,7 @@ window.PlatformCommerce.onReady(async function(){
       || contact || address || 'New Project';
   }
   function openingProjectHeader(project = {}, options = {}){
-    if (options.workflow === 'report' && !projectOpenId(project)) return {title:'New Report',identityHtml:projectHeaderIdentityHtml('New Report','',''),pillsHtml:''};
+    if (options.workflow === 'report' && !projectOpenId(project)) return {title:(globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"),identityHtml:projectHeaderIdentityHtml((globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"),'',''),pillsHtml:''};
     const contact = branchProjectConfig.title_mode === 'customer_name' ? projectPrimaryContactAlias(project).name
       : (formatProjectContactNames(project.contacts) || projectPrimaryContactAlias(project).name);
     const title = projectDisplayTitle(project);
@@ -4548,11 +4552,11 @@ window.PlatformCommerce.onReady(async function(){
     if(projectIdentityPopover){closeProjectIdentityPopover(true);return;}
     closeManualStagePicker();closeHeaderPropertyTypeMenu();
     const menu=document.createElement('section');menu.className='r-project-identity-popover';
-    menu.setAttribute('role','dialog');menu.setAttribute('aria-label','Project contact and address');
+    menu.setAttribute('role','dialog');menu.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("project-request","project_identity","Project contact and address") ?? "Project contact and address"));
     menu.innerHTML='<div class="r-project-identity-fields"></div>';
     const body=menu.querySelector('.r-project-identity-fields');
     if(branchProjectConfig?.title_mode==='manual'){
-      const label=document.createElement('label');label.textContent='Project title';
+      const label=document.createElement('label');label.textContent=(globalThis.PlatformLanguage?.text("project-request","project_title","Project title") ?? "Project title");
       const input=document.createElement('input');input.id='rProjectTitleInput';input.className='r-inp';
       input.value=projectTitleAlias(activeBaseProject || {});label.append(input);body.append(label);
     }
@@ -4635,7 +4639,7 @@ window.PlatformCommerce.onReady(async function(){
         const input=card.querySelector(`[data-field="${field}"]`),group=input?.parentElement;
         if(!group || group.querySelector('[data-identity-actions]'))continue;
         const actions=document.createElement('span');actions.dataset.identityActions='';
-        const specs=field==='phone'?[['call','phone','Call contact'],['sms','comment-sms','Message contact']]:[['email','envelope','Email contact']];
+        const specs=field==='phone'?[['call','phone',(globalThis.PlatformLanguage?.text("project-request","call_contact","Call contact") ?? "Call contact")],['sms','comment-sms',(globalThis.PlatformLanguage?.text("project-request","message_contact","Message contact") ?? "Message contact")]]:[['email','envelope',(globalThis.PlatformLanguage?.text("project-request","email_contact","Email contact") ?? "Email contact")]];
         for(const [action,icon,label] of specs){const button=document.createElement('button');button.type='button';button.dataset.contactShortcut=action;button.setAttribute('aria-label',label);button.title=label;button.innerHTML=`<i class="fas fa-${icon}" aria-hidden="true"></i>`;actions.append(button);}
         group.classList.add('r-contact-shortcut-field');group.append(actions);
       }
@@ -4682,7 +4686,7 @@ window.PlatformCommerce.onReady(async function(){
         comms.openContactDraft(action,value);
       }
       closeProjectIdentityPopover();
-    }catch(error){window.Portal?.ui?.showToast?.('Could not open contact action',error.message,false);}
+    }catch(error){window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("project-request","contact_action_failed","Could not open contact action") ?? "Could not open contact action"),error.message,false);}
     finally{button.disabled=false;}
   }
   function bindProjectIdentityHeader(){
@@ -4724,7 +4728,7 @@ window.PlatformCommerce.onReady(async function(){
     backdrop.innerHTML = `<section class="r-manual-stage-dialog" role="dialog" aria-modal="true" aria-labelledby="rManualStageTitle"><header class="r-manual-stage-head"><i class="fas fa-arrows-left-right" aria-hidden="true"></i><div class="r-manual-stage-head-copy"><h3 id="rManualStageTitle">${(globalThis.PlatformLanguage?.htmlText("project-request","m_a12d99be8366cc","Move to another stage") ?? "Move to another stage")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("project-request","m_73f44538c28f3e","Choose the board and the stage where this project should appear.") ?? "Choose the board and the stage where this project should appear.")}</p></div><button type="button" class="r-manual-stage-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></header><div class="r-manual-stage-body"></div></section>`;
     backdrop.querySelector('.r-manual-stage-head')?.remove();
     backdrop.querySelector('section').removeAttribute('aria-labelledby');
-    backdrop.querySelector('section').setAttribute('aria-label','Change board stage');
+    backdrop.querySelector('section').setAttribute('aria-label',(globalThis.PlatformLanguage?.text("project-request","m_0aa4129cee6f73","Change board stage") ?? "Change board stage"));
     backdrop.classList.add('r-header-stage-popover');
     backdrop.querySelector('section').setAttribute('aria-modal','false');
     overlay.appendChild(backdrop);
@@ -5866,10 +5870,10 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function roofOnlyPriceLabel(){
-    if (!selectedType) return 'Choose a project type first';
+    if (!selectedType) return (globalThis.PlatformLanguage?.text("project-request","choose_type_first","Choose a project type first") ?? "Choose a project type first");
     const instant = includeInstantPreview ? instantAddonUnitPriceFor(selectedType) : 0;
     const unit = reportBaseUnitPrice(selectedType) + instant;
-    return isPerStructureType(selectedType) ? `${fmtCredit(unit)} / structure` : `${fmtCredit(unit)} flat rate`;
+    return isPerStructureType(selectedType) ? (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(unit)}) ?? `${fmtCredit(unit)} / structure`) : (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price:fmtCredit(unit)}) ?? `${fmtCredit(unit)} flat rate`);
   }
 
   function addMinutes(date, minutes){
@@ -5877,7 +5881,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function formatTurnaroundTime(date){
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    return date.toLocaleTimeString(globalThis.PlatformLanguage?.formatLocale?.(), { hour: 'numeric', minute: '2-digit' });
   }
 
   function reportExpediteWindowLabel(option, now = new Date()){
@@ -5892,14 +5896,14 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function reportCustomerPromiseLabelFromDate(date){
-    return date && !Number.isNaN(date.getTime()) ? `By ${formatTurnaroundTime(date)}` : '';
+    return date && !Number.isNaN(date.getTime()) ? (globalThis.PlatformLanguage?.text("project-request","delivery_by","By {time}",{time:formatTurnaroundTime(date)}) ?? `By ${formatTurnaroundTime(date)}`) : '';
   }
 
   function reportCustomerPromiseLabelFromWindow(windowLabel){
     const text = String(windowLabel || '').trim();
     if (!text) return '';
     const parts = text.split(/\s+-\s+/);
-    return parts.length > 1 && parts[parts.length - 1] ? `By ${parts[parts.length - 1]}` : text;
+    return parts.length > 1 && parts[parts.length - 1] ? (globalThis.PlatformLanguage?.text("project-request","delivery_by","By {time}",{time:parts[parts.length - 1]}) ?? `By ${parts[parts.length - 1]}`) : text;
   }
 
   function reportExpediteCustomerPromiseLabel(option, now = new Date()){
@@ -5920,7 +5924,9 @@ window.PlatformCommerce.onReady(async function(){
       const hours = Math.ceil(normalized / 60);
       return String(hours);
     };
-    return `Less than ${formatHours(end)} hour${formatHours(end) === '1' ? '' : 's'}`;
+    return Number(formatHours(end)) === 1
+      ? (globalThis.PlatformLanguage?.text("project-request","under_one_hour","Less than 1 hour") ?? "Less than 1 hour")
+      : (globalThis.PlatformLanguage?.text("project-request","under_hours","Less than {hours} hours",{hours:Number(formatHours(end))}) ?? `Less than ${Number(formatHours(end))} hours`);
   }
 
   function reportExpediteUnitPrice(option, type = selectedType){
@@ -5930,7 +5936,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function reportExpeditePriceLabel(option, type = selectedType){
     const unit = Number(option?.unit_price ?? reportExpediteUnitPrice(option, type || 'residential'));
-    return isPerStructureType(type) ? `${fmtCredit(unit)} / structure` : `${fmtCredit(unit)}`;
+    return isPerStructureType(type) ? (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(unit)}) ?? `${fmtCredit(unit)} / structure`) : `${fmtCredit(unit)}`;
   }
 
   function reportExpediteTotalPrice(option, type = selectedType){
@@ -6007,12 +6013,14 @@ window.PlatformCommerce.onReady(async function(){
 
   function reportExpediteBusyLabel(option){
     const explicit = String(option?.busyLabel || option?.busy_label || option?.wait_label || '').trim();
-    if (explicit) return explicit;
+    if (explicit === "We are very busy") return (globalThis.PlatformLanguage?.text("project-request","very_busy","We are very busy") ?? "We are very busy");
+    if (explicit === "We are busy") return (globalThis.PlatformLanguage?.text("project-request","busy","We are busy") ?? "We are busy");
+    if (explicit === "We aren't very busy") return (globalThis.PlatformLanguage?.text("project-request","not_busy","We aren't very busy") ?? "We aren't very busy");
     const wait = Number(option?.estimatedWaitMinutes ?? option?.estimated_wait_minutes);
-    if (!Number.isFinite(wait)) return 'We are busy';
-    if (wait >= 300) return 'We are very busy';
-    if (wait >= 225) return 'We are busy';
-    return "We aren't very busy";
+    if (!Number.isFinite(wait)) return (globalThis.PlatformLanguage?.text("project-request","busy","We are busy") ?? "We are busy");
+    if (wait >= 300) return (globalThis.PlatformLanguage?.text("project-request","very_busy","We are very busy") ?? "We are very busy");
+    if (wait >= 225) return (globalThis.PlatformLanguage?.text("project-request","busy","We are busy") ?? "We are busy");
+    return (globalThis.PlatformLanguage?.text("project-request","not_busy","We aren't very busy") ?? "We aren't very busy");
   }
 
   function reportExpediteEstimatedWaitMinutes(option){
@@ -6063,7 +6071,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function localReportExpediteStandardWait(now = new Date()){
-    const parts = new Intl.DateTimeFormat((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), {
+    const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: 'America/Los_Angeles',
       year: 'numeric',
       month: '2-digit',
@@ -6102,8 +6110,8 @@ window.PlatformCommerce.onReady(async function(){
     const loadWait = Math.round(Math.max(180, Math.min(360, target)) / 10) * 10;
     const wait = loadWait + 60;
     const busyLabel = loadWait >= 300
-      ? 'We are very busy'
-      : (loadWait >= 225 ? 'We are busy' : "We aren't very busy");
+      ? (globalThis.PlatformLanguage?.text("project-request","very_busy","We are very busy") ?? "We are very busy")
+      : (loadWait >= 225 ? (globalThis.PlatformLanguage?.text("project-request","busy","We are busy") ?? "We are busy") : (globalThis.PlatformLanguage?.text("project-request","not_busy","We aren't very busy") ?? "We aren't very busy"));
     return { wait, busyLabel };
   }
 
@@ -6236,7 +6244,9 @@ window.PlatformCommerce.onReady(async function(){
         reportPropertyPrices = data.report_prices || null;
         document.querySelectorAll('.r-type-btn[data-type] .r-type-price').forEach(label => {
           const type = label.closest('[data-type]').dataset.type;
-          label.textContent = fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure');
+          label.textContent = type === 'residential'
+            ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} flat rate`)
+            : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} / structure`);
         });
         const options = normalizeReportExpediteOptionsResponse(data, selectedType, structureCount);
         if (options.length) {
@@ -6429,7 +6439,7 @@ window.PlatformCommerce.onReady(async function(){
         const selected = selectedOption?.key === option.key;
         const disabled = option.expedited && (closed || !pricingReady);
         const name = isStandard
-          ? `Standard Delivery - ${reportExpediteDurationLabel(option)}`
+          ? (globalThis.PlatformLanguage?.text("project-request","standard_delivery_duration","Standard Delivery - {duration}",{duration:reportExpediteDurationLabel(option)}) ?? `Standard Delivery - ${reportExpediteDurationLabel(option)}`)
           : reportExpediteDurationLabel(option);
         const window = reportExpediteCustomerPromiseLabel(option);
         const priceText = option.expedited && !pricingReady ? '' : reportExpediteDeltaLabel(option, selectedType);
@@ -6462,7 +6472,7 @@ window.PlatformCommerce.onReady(async function(){
       const pricingPending = selectedOption?.expedited && !reportExpeditePricingReady();
       const price = selectedOption && !pricingPending ? reportExpediteTotalPriceLabel(selectedOption, selectedType) : '';
       expediteSubmit.disabled = !!pricingPending;
-      expediteSubmit.textContent = pricingPending ? 'Checking current price...' : (price ? `Order Roof Report - ${price}` : 'Order Roof Report');
+      expediteSubmit.textContent = pricingPending ? (globalThis.PlatformLanguage?.text("project-request","checking_price","Checking current price...") ?? "Checking current price...") : (price ? (globalThis.PlatformLanguage?.text("project-request","order_roof_report_price","Order Roof Report - {price}",{price:price}) ?? `Order Roof Report - ${price}`) : (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report"));
     }
   }
 
@@ -6706,16 +6716,16 @@ window.PlatformCommerce.onReady(async function(){
       el.querySelector('.r-pin-text').textContent = showLimitNotice
         ? pinLimitMessage(maxPins)
         : count === 0
-        ? 'Click the map to place pins on each structure you want included.'
-        : count === 1 ? '1 pin placed' : `${count} pins placed`;
+        ? (globalThis.PlatformLanguage?.text("project-request","pin_instructions","Click the map to place pins on each structure you want included.") ?? "Click the map to place pins on each structure you want included.")
+        : count === 1 ? (globalThis.PlatformLanguage?.text("project-request","one_pin","1 pin placed") ?? "1 pin placed") : (globalThis.PlatformLanguage?.text("project-request","pins_placed","{count} pins placed",{count:count}) ?? `${count} pins placed`);
     }
     const mobileCount = $('#rMobilePinCount');
     if (mobileCount) {
       mobileCount.textContent = showLimitNotice
         ? pinLimitMessage(maxPins)
         : count === 0
-        ? 'No pins placed'
-        : count === 1 ? '1 pin placed' : `${count} pins placed`;
+        ? (globalThis.PlatformLanguage?.text("project-request","no_pins","No pins placed") ?? "No pins placed")
+        : count === 1 ? (globalThis.PlatformLanguage?.text("project-request","one_pin","1 pin placed") ?? "1 pin placed") : (globalThis.PlatformLanguage?.text("project-request","pins_placed","{count} pins placed",{count:count}) ?? `${count} pins placed`);
     }
     renderPricingNote();
   }
@@ -6735,7 +6745,7 @@ window.PlatformCommerce.onReady(async function(){
     const base = reportBaseUnitPrice(selectedType);
     const instant = includeInstantPreview ? instantAddonUnitPriceFor(selectedType) : 0;
     const unit = base + instant;
-    el.innerHTML = `<i class="fas fa-calculator"></i> ${reportLabel}: ${count} structures x ${fmtCredit(unit)} = ${fmtCredit(quote.final_amount)} total`;
+    el.innerHTML = `<i class="fas fa-calculator"></i> ${(globalThis.PlatformLanguage?.htmlText("project-request","structure_total","{report}: {count} structures × {unit} = {total} total",{report:reportLabel,count:count,unit:fmtCredit(unit),total:fmtCredit(quote.final_amount)}) ?? `${reportLabel}: ${count} structures × ${fmtCredit(unit)} = ${fmtCredit(quote.final_amount)} total`)}`;
     el.classList.add('visible');
     renderReferralDiscountNotice();
   }
@@ -6797,8 +6807,8 @@ window.PlatformCommerce.onReady(async function(){
       return;
     }
     tx.textContent = pinCount() === 1
-      ? 'Confirmed - 1 pin placed'
-      : `Confirmed - ${pinCount()} pins placed`;
+      ? (globalThis.PlatformLanguage?.text("project-request","one_pin_confirmed","Confirmed - 1 pin placed") ?? "Confirmed - 1 pin placed")
+      : (globalThis.PlatformLanguage?.text("project-request","pins_confirmed","Confirmed - {count} pins placed",{count:pinCount()}) ?? `Confirmed - ${pinCount()} pins placed`);
     ic.innerHTML = `<i class="fas fa-check-square"></i>`;
   }
 
@@ -6945,7 +6955,7 @@ window.PlatformCommerce.onReady(async function(){
     if(orderSubmissionPending){setSubmitBusyLabel(activeSubmitButton(),'Ordering…');return;}
     const submits = Array.from(document.querySelectorAll('#rSubmit,#rExpediteSubmit'));
     if (!submits.length) return;
-    let text = 'Continue';
+    let text = (globalThis.PlatformLanguage?.text("project-request","continue","Continue") ?? "Continue");
     if (hasReportOrdered()) {
       text = 'Proposals';
     } else if (hasSelectedAddons()) {
@@ -6955,13 +6965,13 @@ window.PlatformCommerce.onReady(async function(){
       const expeditePrice = expediteOption && !pricingPending ? reportExpediteTotalPriceLabel(expediteOption, selectedType) : '';
       text = selectedType
         ? (pricingPending
-          ? 'Checking current price...'
+          ? (globalThis.PlatformLanguage?.text("project-request","checking_price","Checking current price...") ?? "Checking current price...")
           : (expeditePrice
-          ? `Order Roof Report - ${expeditePrice}`
+          ? (globalThis.PlatformLanguage?.text("project-request","order_roof_report_price","Order Roof Report - {price}",{price:expeditePrice}) ?? `Order Roof Report - ${expeditePrice}`)
           : (quote.active
-            ? `Order Roof Report - ${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`
-            : `Order Roof Report - ${fmtCredit(quote.final_amount)}`)))
-        : 'Order Roof Report';
+            ? (globalThis.PlatformLanguage?.text("project-request","order_roof_report_discount","Order Roof Report - {price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `Order Roof Report - ${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
+            : (globalThis.PlatformLanguage?.text("project-request","order_roof_report_price","Order Roof Report - {price}",{price:fmtCredit(quote.final_amount)}) ?? `Order Roof Report - ${fmtCredit(quote.final_amount)}`))))
+        : (globalThis.PlatformLanguage?.text("project-request","order_roof_report","Order Roof Report") ?? "Order Roof Report");
     } else if (isProposalChoice() && proposalsEnabled()) {
       text = 'Proposals';
     } else if (isScheduleChoice()) {
@@ -7112,7 +7122,7 @@ window.PlatformCommerce.onReady(async function(){
         const normalizedId = projectText(contactId);
         const card = (normalizedId ? cards.find((entry) => cardContactId(entry) === normalizedId) : null) || cards[Number(index) || 0];
         const input = card?.querySelector('[data-field="email"]');
-        if (!card || !input) throw new Error('The customer contact could not be updated.');
+        if (!card || !input) throw new Error((globalThis.PlatformLanguage?.text("project-request","contact_update_failed","The customer contact could not be updated.") ?? "The customer contact could not be updated."));
         input.value = projectText(email);
         const updated = contactFromCard(card);
         const standalone = findStandaloneContactRecord(updated);
@@ -7499,7 +7509,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function projectModalPanelHtml(app, context = projectModalRuntimeContext()){
     const body=typeof app.panelHtml==='function' ? app.panelHtml(context) : (typeof app.panelHtml==='string' ? app.panelHtml : `<div id="${escapeHtml(app.id)}Panel" style="height:100%"></div>`);
-    const rail=projectTabHasSidebar(app.id) && !app.app?.promoBadge ? `<aside class="r-tab-sidebar r-proposal-section visible"${app.id==='proposal'?' id="rProposalSection"':''}>${app.id==='proposal'?'<div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><label id="rProposalLabel">Proposal</label><div class="r-proposal-listing" id="rProposalList"></div></div></div></div>':''}</aside>` : '';
+    const rail=projectTabHasSidebar(app.id) && !app.app?.promoBadge ? `<aside class="r-tab-sidebar r-proposal-section visible"${app.id==='proposal'?' id="rProposalSection"':''}>${app.id==='proposal'?`<div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("project-request","m_1d8655e967c464","Proposal") ?? "Proposal")}</label><div class="r-proposal-listing" id="rProposalList"></div></div></div></div>`:''}</aside>` : '';
     return `<div class="r-tab-content">${rail}<div class="r-tab-main">${body}</div></div>`;
   }
   function projectModalAppPanelsHtml(){
@@ -7727,7 +7737,7 @@ window.PlatformCommerce.onReady(async function(){
     const rows=[project || {},measurement,measurement.raw || {},manifest];
     const ordered=rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
     if(!ordered || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
-    const reportTabs=[{id:'summary',label:'Summary'},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
+    const reportTabs=[{id:'summary',label:(globalThis.PlatformLanguage?.text("project-request","m_9b03ccb29ba168","Summary") ?? "Summary")},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
     return window.Portal.ProjectViewer.reportHeaderTabs(tabs,reportTabs,true) || tabs;
   }
 
@@ -8532,7 +8542,7 @@ window.PlatformCommerce.onReady(async function(){
       group.style.cssText = 'display:inline-flex;align-items:stretch;gap:0;margin-left:0';
       button.style.cssText = 'margin:0;border-radius:6px 0 0 6px;background:var(--primary,#175cd3);color:white';
       let pin = group.querySelector('[data-project-note-pin-send]');
-      if (!pin) {pin = document.createElement('button');pin.type = 'button';pin.dataset.projectNotePinSend = '';pin.setAttribute('aria-label','Add pinned note');pin.title = 'Add pinned note';pin.innerHTML = '<i class="fas fa-thumbtack"></i>';pin.style.cssText = 'margin:0;border:0;border-left:1px solid #ffffff88;border-radius:0 6px 6px 0;padding:8px;background:var(--primary,#175cd3);color:white';button.after(pin);pin.onclick = () => commitProjectNote({pin:true});}
+      if (!pin) {pin = document.createElement('button');pin.type = 'button';pin.dataset.projectNotePinSend = '';pin.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("project-request","m_c2d9303f34719d","Add pinned note") ?? "Add pinned note"));pin.title = (globalThis.PlatformLanguage?.text("project-request","m_c2d9303f34719d","Add pinned note") ?? "Add pinned note");pin.innerHTML = '<i class="fas fa-thumbtack"></i>';pin.style.cssText = 'margin:0;border:0;border-left:1px solid #ffffff88;border-radius:0 6px 6px 0;padding:8px;background:var(--primary,#175cd3);color:white';button.after(pin);pin.onclick = () => commitProjectNote({pin:true});}
       pin.hidden = !!editingProjectNoteId;
       if (editingProjectNoteId) button.style.borderRadius = '6px';
     }
@@ -8620,7 +8630,7 @@ window.PlatformCommerce.onReady(async function(){
   let projectPresenceUsers = [];
   function syncProjectPresence(){
     const trayShell = document.getElementById("rMapWrap");
-    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, getActiveTab:()=>activePreviewTab, isMinimized:()=>projectModalWindow?.state?.mode==='minimized', ensureProject:async() => { const project=ensureDraftBaseProject({allowEmpty:true}); if (!project) throw Error('Project could not be saved.'); await window.Portal.ProjectStore.saveRemote(project); return activeBaseProject; }, orgId:projectOrgId()});
+    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, getActiveTab:()=>activePreviewTab, isMinimized:()=>projectModalWindow?.state?.mode==='minimized', ensureProject:async() => { const project=ensureDraftBaseProject({allowEmpty:true}); if (!project) throw Error((globalThis.PlatformLanguage?.text("project-request","project_save_failed","Project could not be saved.") ?? "Project could not be saved.")); await window.Portal.ProjectStore.saveRemote(project); return activeBaseProject; }, orgId:projectOrgId()});
     projectTrays?.update();
     $('#rOverlay')?.classList.toggle('has-project-trays',!!projectTrays);
     const projectId = activeProjectRouteId();
@@ -8690,7 +8700,7 @@ window.PlatformCommerce.onReady(async function(){
     const simpleNotes = notes.classList.contains('r-firstmeasure-notes');
     if (simpleNotes) notes.classList.toggle('notes-expanded', !proposalInternalNotesCollapsed);
     notes.querySelector('.r-bottom-notes-toggle')?.setAttribute('aria-expanded', (simpleNotes || proposalNotesMode) && !proposalInternalNotesCollapsed ? 'true' : 'false');
-    if (simpleNotes) notes.querySelector('.r-bottom-notes-toggle')?.setAttribute('aria-label', proposalInternalNotesCollapsed ? 'Expand internal notes' : 'Reduce internal notes');
+    if (simpleNotes) notes.querySelector('.r-bottom-notes-toggle')?.setAttribute('aria-label', proposalInternalNotesCollapsed ? (globalThis.PlatformLanguage?.text("project-request","expand_internal_notes","Expand internal notes") ?? "Expand internal notes") : (globalThis.PlatformLanguage?.text("project-request","reduce_internal_notes","Reduce internal notes") ?? "Reduce internal notes"));
     notesRailSection?.classList.toggle('has-mounted', proposalEditMode && notes.parentElement === notesRailMount);
     agentRailSection?.classList.toggle('has-mounted', proposalEditMode && !!agent && agent.parentElement === agentRailMount);
     inlineMount.classList.toggle('has-notes', mobileInline);
@@ -8704,9 +8714,9 @@ window.PlatformCommerce.onReady(async function(){
 
   function updateModalTitle(){
     if (reportHeaderPending()) {
-      const title=document.getElementById('rWindowProjectTitle');if(title && title.textContent!=='New Report')title.textContent='New Report';
-      const mobile=document.getElementById('rMobileProjectTitleText');if(mobile)mobile.textContent='New Report';
-      projectWindowBridge?.update(projectWindowToken,{title:'New Report',projectId:projectOpenId()});
+      const title=document.getElementById('rWindowProjectTitle');if(title && title.textContent!==(globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"))title.textContent=(globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report");
+      const mobile=document.getElementById('rMobileProjectTitleText');if(mobile)mobile.textContent=(globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report");
+      projectWindowBridge?.update(projectWindowToken,{title:(globalThis.PlatformLanguage?.text("project-request","new_report","New Report") ?? "New Report"),projectId:projectOpenId()});
       return;
     }
     const mobileTitle = document.getElementById('rMobileProjectTitleText');
@@ -9525,7 +9535,7 @@ window.PlatformCommerce.onReady(async function(){
     let picker=details.querySelector('.r-workflow-project-picker');
     if (!picker) {
       picker=document.createElement('section');picker.className='r-workflow-project-picker';
-      picker.innerHTML='<div class="r-workflow-search-row"><input type="search" class="r-inp" placeholder="Search for an existing project" aria-label="Search for an existing project" aria-controls="rWorkflowProjectResults" aria-expanded="false"><button type="button" class="r-btn" data-new-project>New Project</button></div><div id="rWorkflowProjectResults" role="listbox" aria-label="Matching projects"></div><p role="status"></p>';
+      picker.innerHTML=`<div class="r-workflow-search-row"><input type="search" class="r-inp" placeholder="${(globalThis.PlatformLanguage?.htmlText("project-request","m_9f4cf23e7e3636","Search for an existing project") ?? "Search for an existing project")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_9f4cf23e7e3636","Search for an existing project") ?? "Search for an existing project")}" aria-controls="rWorkflowProjectResults" aria-expanded="false"><button type="button" class="r-btn" data-new-project>${(globalThis.PlatformLanguage?.htmlText("project-request","m_0747045bf3d919","New Project") ?? "New Project")}</button></div><div id="rWorkflowProjectResults" role="listbox" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","m_428a61cf4a8532","Matching projects") ?? "Matching projects")}"></div><p role="status"></p>`;
       details.prepend(picker);
       const input=picker.querySelector('input'),results=picker.querySelector('[role=listbox]'),status=picker.querySelector('[role=status]');
       let searchVersion=0,timer;
@@ -9533,7 +9543,7 @@ window.PlatformCommerce.onReady(async function(){
         clearTimeout(timer);const version=++searchVersion,query=input.value.trim().toLowerCase();
         results.replaceChildren();input.setAttribute('aria-expanded','false');status.textContent='';
         if (!query) return;
-        status.textContent='Searching projects…';
+        status.textContent=(globalThis.PlatformLanguage?.text("project-request","m_67ea3d9f45d10b","Searching projectsâ€¦") ?? "Searching projectsâ€¦");
         timer=setTimeout(async()=>{
           const rows=await loadDocPickerRows();
           if (version!==searchVersion || reportProjectChoice!=='search' || !picker.isConnected) return;
@@ -9543,7 +9553,7 @@ window.PlatformCommerce.onReady(async function(){
           for (const row of matches) {
             const button=document.createElement('button');button.type='button';button.setAttribute('role','option');button.textContent=row.label+(row.address && row.address!==row.label ? ' — '+row.address : '');
             button.onclick=async()=>{
-              ++searchVersion;status.textContent='Opening project…';
+              ++searchVersion;status.textContent=(globalThis.PlatformLanguage?.text("project-request","m_7f0c783c8eec23","Opening projectâ€¦") ?? "Opening projectâ€¦");
               try {await openProject({...row.data,id:row.id},{workflow:'report',tab:'map',forceRefresh:true});}
               catch(error){status.textContent=error.message || 'Could not open project.';}
             };
@@ -9818,7 +9828,7 @@ window.PlatformCommerce.onReady(async function(){
 
         <div class="r-right" id="rMapWrap">
           <div class="r-modal-header r-window-bar">
-            <div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><button type="button" id="rProjectIdentityTrigger" aria-haspopup="dialog" aria-expanded="false" aria-label="Edit project contact and address"><span id="rWindowProjectTitle">Project</span></button></div>
+            <div class="r-window-identity"><i class="fas fa-folder-open" aria-hidden="true"></i><button type="button" id="rProjectIdentityTrigger" aria-haspopup="dialog" aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-request","edit_project_identity","Edit project contact and address") ?? "Edit project contact and address")}"><span id="rWindowProjectTitle">${(globalThis.PlatformLanguage?.htmlText("project-request","m_aaebd7ccba0b30","Project") ?? "Project")}</span></button></div>
             <div class="r-tabbar" id="rProjectViewerTabs"></div>
             <div class="modal-shell-actions">
               <button type="button" class="modal-shell-action" id="rProjectHeaderAction" hidden></button>
@@ -9938,7 +9948,7 @@ window.PlatformCommerce.onReady(async function(){
       if (overview) {
         const context = activeContactContext;
         if(context)try { await openContact(context.contact || {}, { projects: context.projects || [] }); }
-        catch(error){ showToast(error.message || 'Could not open contact.'); }
+        catch(error){ showToast(error.message || (globalThis.PlatformLanguage?.text("project-request","contact_open_failed","Could not open contact.") ?? "Could not open contact.")); }
         return;
       }
       const tab = event.target.closest('[data-contact-project-id]');
@@ -9954,7 +9964,7 @@ window.PlatformCommerce.onReady(async function(){
         const notes = document.querySelector('#rOverlay .r-firstmeasure-notes');
         notes?.classList.toggle('notes-expanded', !proposalInternalNotesCollapsed);
         $('#rProjectNotesToggle')?.setAttribute('aria-expanded', String(!proposalInternalNotesCollapsed));
-        $('#rProjectNotesToggle')?.setAttribute('aria-label', proposalInternalNotesCollapsed ? 'Expand internal notes' : 'Reduce internal notes');
+        $('#rProjectNotesToggle')?.setAttribute('aria-label', proposalInternalNotesCollapsed ? (globalThis.PlatformLanguage?.text("project-request","expand_internal_notes","Expand internal notes") ?? "Expand internal notes") : (globalThis.PlatformLanguage?.text("project-request","reduce_internal_notes","Reduce internal notes") ?? "Reduce internal notes"));
         return;
       }
       if (!proposalInternalNotesCollapsed && !projectNoteHistoryClosing) {
@@ -10787,7 +10797,7 @@ window.PlatformCommerce.onReady(async function(){
         return;
       }
       try { localStorage.removeItem(PENDING_ORDER_KEY); } catch (ex) {}
-      showToast(data.development_report ? 'Development report ready' : (payload.measurement_scope === 'full_house' ? 'Full Structure report ordered' : 'Roof report ordered'), data.development_report ? 'Existing report files are ready to view.' : (getAfterHoursMessage() || 'Report is now processing.'), true);
+      showToast(data.development_report ? 'Development report ready' : (payload.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("project-request","full_report_ordered","Full Structure report ordered") ?? "Full Structure report ordered") : (globalThis.PlatformLanguage?.text("project-request","roof_report_ordered","Roof report ordered") ?? "Roof report ordered")), data.development_report ? 'Existing report files are ready to view.' : (getAfterHoursMessage() || (globalThis.PlatformLanguage?.text("project-request","report_processing","Report is now processing.") ?? "Report is now processing.")), true);
       const shouldUpdateExistingProject = !!String(payload.platform_project_id || payload.base_project_id || '').trim();
       reorderMeasurementProjectId = '';
       reorderSourceCanReopenInPlace = false;
@@ -10824,7 +10834,7 @@ window.PlatformCommerce.onReady(async function(){
     } catch (error) {
       btn.disabled = false;
       updateSubmitLabel();
-      showToast((globalThis.PlatformLanguage?.text("project-request","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), error?.message || 'Connection error. Please try again.', false);
+      showToast((globalThis.PlatformLanguage?.text("project-request","m_cb54e163f7df44","Couldnâ€™t submit order") ?? "Couldnâ€™t submit order"), error?.message || (globalThis.PlatformLanguage?.text("project-request","connection_retry","Connection error. Please try again.") ?? "Connection error. Please try again."), false);
       window.Portal.credits.refreshCredits().catch(() => null);
       window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail: { redraw: true } }));
     } finally {

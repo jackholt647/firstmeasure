@@ -44,7 +44,78 @@
     "m_5a3dca8919c4c0": "Maksua ei ole vielä vahvistettu.",
     "m_c5e73b482b12dd": "Saldo päivitetty",
     "m_60fa00527e725c": "Käyttö estetty",
-    "m_ef03abbb9958f0": "Sinulla ei ole oikeutta hallita laskutusta."
+    "m_ef03abbb9958f0": "Sinulla ei ole oikeutta hallita laskutusta.",
+    "credit_amount_help": "Voit muuttaa tilillesi lisättävän saldon määrää plus- ja miinuspainikkeilla.",
+    "credit_today": "Tilille lisättävä saldo tänään",
+    "credit_to_add": "Lisättävä saldo",
+    "more_credit_needed": "Saldoa tarvitaan lisää",
+    "first_report_thanks": "Kiitos, että kokeilet FirstMeasurea.",
+    "first_report_load": "Lisää saldoa tilillesi ensimmäistä raporttiasi varten.",
+    "pay_report": "Lisää tilillesi saldoa tämän raportin maksamista varten.",
+    "first_report_ready": "Et ole vielä saanut valmista raporttia. Lisää saldoa nyt, niin ensimmäinen tilauksesi on valmiina, kun tarvitset sitä.",
+    "your_roof_report": "Kattoraporttisi",
+    "no_completed_reports": "Valmiita raportteja ei vielä ole",
+    "needed_for_order": "Tilaukseen tarvitaan",
+    "first_report_from": "Ensimmäinen raportti, jonka toimittaja on",
+    "difference": "Erotus",
+    "credit_to_add_lower": "Lisättävä saldo",
+    "automatic_order": "Kun maksu on suoritettu, tämä raporttitilaus lähetetään automaattisesti. Sinun ei tarvitse tehdä tilausta uudelleen.",
+    "first_report_credit_available": "Tämä saldo on käytettävissä ensimmäisen raporttisi tilaamiseen.",
+    "credit_before_first_report": "Lisää saldoa ennen ensimmäisen raporttisi tilaamista.",
+    "checking_balance_order": "Tarkistetaan saldoasi. Tämän tilauksen käsittelyyn tarvitaan lisää saldoa.",
+    "checking_balance": "Tarkistetaan saldoasi.",
+    "checkout_failed": "Kassaa ei voitu käynnistää.",
+    "opening_stripe": "Avataan Stripea…",
+    "this_purchase": "tämä ostos",
+    "balance_first_report": {
+      "message": "Tilisi saldo on {balance}. Lisää saldoa ennen ensimmäisen raporttisi tilaamista.",
+      "format": "icu"
+    },
+    "balance_credit_needed": {
+      "message": "Tilisi saldo on {balance}. Tämän tilauksen käsittelyyn tarvitaan lisää saldoa.",
+      "format": "icu"
+    },
+    "top_up_purchase": {
+      "message": "Lisää tilillesi saldoa, jotta voit suorittaa ostoksen {purchase}.",
+      "format": "icu"
+    },
+    "balance_top_up_purchase": {
+      "message": "Tilisi saldo on {balance}. Lisää saldoa tilillesi, jotta voit suorittaa ostoksen {purchase}.",
+      "format": "icu"
+    },
+    "your_balance": {
+      "message": "Tilisi saldo on {balance}.",
+      "format": "icu"
+    },
+    "report_checkout": "Raportin kassa",
+    "first_report_checkout": "Ensimmäisen raportin kassa",
+    "first_account_load": "Ensimmäinen saldon lisäys tilille",
+    "redirecting": "Siirrytään eteenpäin",
+    "saving": "Tallennetaan",
+    "loading": "Ladataan",
+    "yes": "Kyllä",
+    "no": "Ei",
+    "commercial": "Liiketila",
+    "multifamily": "Usean asunnon rakennus",
+    "residential": "Asuinrakennus",
+    "full_house_included": "Koko talo · katto ja rännit sisältyvät",
+    "roof_gutters": "Katto ja rännit",
+    "roof_only": "Vain katto",
+    "standard": "Perus",
+    "standard_instant": "Perus + välitön raportti",
+    "auto_top_up_summary": {
+      "message": "Lisää {credit}, kun saldosi alittaa rajan {threshold}. Jokaisesta automaattisesta lisäyksestä veloitetaan {charge}. {estimate}",
+      "format": "icu"
+    },
+    "insufficient_credit_amount": {
+      "message": "Tämä saldo ei riitä raportin tilaamiseen. Sinun on lisättävä vähintään {amount} tämän raportin kattamiseksi.",
+      "format": "icu"
+    },
+    "discount_price": {
+      "message": "{price} (säästä {saving})",
+      "format": "icu"
+    },
+    "catalog_load_failed": "Laskutustietoja ei voitu ladata. Yritä uudelleen."
   },
   "canvassing": {
     "m_61df468d92e238": "Kaikki",
@@ -1776,7 +1847,353 @@
     },
     "m_d2a894582092f8": "Vain katto",
     "m_0980d65c27cd2f": "Koko rakennus",
-    "m_09612fd6ab85db": "Raportin laajuus"
+    "m_09612fd6ab85db": "Raportin laajuus",
+    "m_dc6a60d7bb3581": "Seuraava ",
+    "m_76f61845dd2aea": "KATU",
+    "m_e4b02dd6cf2314": "Talon kuvakulmaopas",
+    "m_48cd840a98035f": "Lataa",
+    "m_86d43ca533f4ae": "Yritä kameran käyttöä uudelleen",
+    "m_8247c56c226358": "Takakameran reaaliaikainen esikatselu",
+    "m_c7a97e0bb50632": "Lataa valokuvat",
+    "m_1a58fdc6bb20bf": "Tämän kuvakulman valokuvat",
+    "m_6555da398c64e6": "Ota valokuva",
+    "m_014da584de30ed": {
+      "message": "Talo {v0} · näkymä {v1}/8",
+      "format": "icu"
+    },
+    "m_8ac00bef24971e": {
+      "message": "{v0} talosta",
+      "format": "icu"
+    },
+    "m_acb62edbd19fa2": {
+      "message": "{v0} talosta; etupuoli on kadulle päin",
+      "format": "icu"
+    },
+    "m_2436076ece8629": "Ensisijainen",
+    "m_48a9cdd2af44f4": "Yritä uudelleen",
+    "m_173c36d4fce52b": "Valokuvaa ladataan",
+    "m_06170cce538389": "Poista valokuva",
+    "m_9389ebcecf7d63": {
+      "message": "{v0} valokuva{v1}",
+      "format": "icu"
+    },
+    "m_711bf09bbd2160": "Julkisivun viitekuvat",
+    "m_1ca9bec888658a": "Julkisivukuvat ladattu",
+    "m_acaf0eb128605e": "Pudota kuvat ladattaviksi",
+    "m_42e91ae7dddc18": "Ladataan valokuvia…",
+    "m_8941c9a5445fb9": "Julkisivun lataukset",
+    "m_cad1a6c79c9cf3": {
+      "message": "{v0} valokuvaa",
+      "format": "icu"
+    },
+    "m_26bd8e451be239": {
+      "message": "{v1} määritetty",
+      "format": "icu"
+    },
+    "m_a69623abe7dd91": {
+      "message": "Ladataan {v3} valokuva{v4}",
+      "format": "icu"
+    },
+    "m_5b239bae30cb96": {
+      "message": "{v1} määrittämätöntä{v2}",
+      "format": "icu"
+    },
+    "m_a3dc6534fc81dc": "Näytä kaikki valokuvat",
+    "m_9138e9cdd68343": "Vedä valokuvat tähän",
+    "m_bf0345adc5299e": "Vaaditut kuvakulmat",
+    "m_02b18934a68584": "Lisävalokuvat",
+    "m_8411c93e5b0adf": "Valokuvia yhteensä",
+    "m_be4cfb58b9c4d7": "Valokuvat",
+    "m_0dc366a939cb1d": "Rakennus",
+    "m_a32cdb9d1056f2": "Määritä paikka napauttamalla alla olevaa kohtaa.",
+    "m_05a79c7def4dac": "Säilytä lisäkuvana",
+    "m_59741c3f6d31f8": "Poista valinta",
+    "m_9506f115fde6af": "TAKAOSA",
+    "m_4042bd99ed30d1": "ETUOSA ↓",
+    "m_9e22418c14100e": "Talo ylhäältä nähtynä, etuosa alhaalla",
+    "m_7665c7cfa6ea36": {
+      "message": "{v4} {v5} valokuva",
+      "format": "icu"
+    },
+    "m_84b311b1332f3c": "Lataa napauttamalla",
+    "m_484b63459c1357": "Arvioitu odotusaika tällä hetkellä",
+    "m_7b8bab306cc5c2": {
+      "message": "Arvio: {v2} tuntia",
+      "format": "icu"
+    },
+    "m_1d63663ae56e2a": "18 tuntia",
+    "m_e731322b674a97": "24 tuntia",
+    "m_e7f79de4539e22": {
+      "message": "{v5} rakennusta kohden + valittu toimitusmaksu{v6}",
+      "format": "icu"
+    },
+    "m_29ee01b139b644": "Ladataan hintoja…",
+    "m_f27fa22720bb9a": "Kiinteistö",
+    "m_dccbe8abe35b17": "Kiinteistötyyppi",
+    "m_ae8e4953e07d70": "Asiakas",
+    "m_3fd6a5025f8036": "Raportin tiedot",
+    "m_9b208988dee1f1": "Pudota valokuvat ladattaviksi",
+    "m_50904398019722": " Lisää yhteystieto",
+    "m_c9a026ebb1be8c": "Kiinteistötyyppi",
+    "m_908c0715a481b7": "Kiinteistön osoite",
+    "m_1f6129f59f143b": "Kiinteistön osoite",
+    "m_29f3cc51016963": "Projektityyppi",
+    "m_417e1dad6a313e": "Aloita kirjoittamalla osoite tai napsauta karttaa…",
+    "m_5c6d435494fefd": "Luo tarjous",
+    "m_e5aee059bf2f35": "Varaa tapaaminen",
+    "m_bd6349111bdda5": "Tarjousavustaja",
+    "m_a2d8046f355c56": "Luo tarjouksen luonnos",
+    "m_289b2e5bec972c": "Kuvaile kehotteessa työn sisältöä, sävyä, mukaan otettavia valokuvia ja kaikkea, mitä asiakkaan tulisi nähdä.",
+    "m_7ceca87ce420be": "Näytä tai piilota tarjousavustaja",
+    "m_84f47d747cfe44": "Kerro tarjousavustajalle, mitä tähän tarjoukseen sisällytetään…",
+    "m_18fc56365bd838": "Sanele kehote",
+    "m_09ee09a435f087": "Uusimmat ensin",
+    "m_5a704a0a365cf0": "Vanhimmat ensin",
+    "m_971bee4a6a3550": "Lisää huomautus ",
+    "m_5e715bf9880366": "Kuka voi nähdä tämän?",
+    "m_d068fb68fb07d2": "Kaikki",
+    "m_3fe33cd11f8a29": "Historia",
+    "m_fa1d10be2766ee": " Lisää huomautus",
+    "m_6643d210319486": "Suodata huomautuksia",
+    "m_5bfaf42a1f7ef2": "Lajittele huomautukset",
+    "m_81cd5cfdb71ce1": "Valitse, kuka voi nähdä tämän huomautuksen",
+    "m_3bad1b1f1d93ba": "Lisää sisäinen huomautus… Tunnista henkilö kirjoittamalla @nimi tai @sähköposti.",
+    "m_14d6270ea986dc": "Näytä huomautuksen historia",
+    "m_d3fd8350167dd9": "Lataa mediaa huomautukseen",
+    "m_dd978d5c5b3bd9": "Nauhoita äänimuistio",
+    "m_5bbba2df4ff973": "Sisäiset huomautukset ",
+    "m_2b31fcca2dfee1": "Laajenna sisäiset huomautukset",
+    "m_69afca2b27d860": "Sisäisiä huomautuksia omaan käyttöön…",
+    "m_3f912aeb9ec149": {
+      "message": "Talo {v0}",
+      "format": "icu"
+    },
+    "m_31a44c7d4ec28e": {
+      "message": "Talo {v1}, {v2}",
+      "format": "icu"
+    },
+    "m_10390ed58d9d2e": {
+      "message": "Rakennus {v2}",
+      "format": "icu"
+    },
+    "m_a41e0c05153e74": "Valittu valokuva",
+    "m_0dd87f826c8c39": "Yritä latausta uudelleen",
+    "m_94fef39d56d52f": {
+      "message": "Poista valokuva {v1}",
+      "format": "icu"
+    },
+    "m_cb96f1b0af21d8": "Lisää valokuvia",
+    "m_b51f2220e8185c": "Nopeutettu",
+    "m_0f0032d7c26618": "Huomautuksia mittaajalle",
+    "m_0b730c79a5c5eb": "Raporttien kopio vastaanottajalle",
+    "m_bc21fa8a42be31": "Sisäiset huomautukset",
+    "m_100206f83a1d97": "Vain testiesikatselu. Lisää jokaisesta rakennuksesta kaikki kahdeksan näkymää ennen tilaamista.",
+    "internal_notes_help": "Vain omaan käyttöön.",
+    "project_address_heading": "Projektin osoite",
+    "property_address_accessible": "Kiinteistön osoite",
+    "technician_notes_help": "Mahdolliset erityisohjeet tai tiedot, joista mittaajan tulisi tietää, kuten erillinen autotalli, useita rakennuksia tai jyrkkä katto.",
+    "report_cc_help": "Muut sähköpostiosoitteet, joihin valmis raportti lähetetään.",
+    "ext_85b3a77a8ba1d7": "Lisää jokaisesta rakennuksesta kaikki kahdeksan vaadittua näkymää ennen tilaamista.",
+    "ext_cfa9dc24313268": "Lisää jokaisesta rakennuksesta kiertovideo ennen tilaamista.",
+    "ext_4122a51f61ae01": "Lisää talosta kiertovideo jatkaaksesi.",
+    "ext_037939e415c28b": "Lisävalokuvat ja -videot",
+    "ext_dd3c3bac99aa28": "Kaikki valokuvat on määritetty",
+    "ext_93f63a88c7e69d": "Animaatio: henkilö kiertää talon kerran ympäri ja kuvaa samalla",
+    "ext_833abb707b2dac": "Jos jokin kohta ei näy selvästi, emme ehkä pysty mittaamaan sitä ja saatamme joutua hylkäämään projektin. Kahdeksan valokuvaa riittää yleensä. Lisävalokuvat ja video auttavat.",
+    "ext_76900f1bfd16c8": "Takaisin",
+    "ext_7a70fe7e1b8507": "Kameran diagnostiikkatietojen jakaminen epäonnistui.",
+    "ext_7cad7a14ed0291": "Kamera ei ole valmis",
+    "ext_0748faa1268982": "Kamera ei ole käytettävissä. Voit silti ladata videon talosta.",
+    "ext_5414e89a1bc03f": "Kamera ei ole käytettävissä. Voit silti ladata valokuvia kaikista kuvakulmista.",
+    "ext_a3a35b570535e1": "Kameran zoomaus",
+    "ext_b3e8ecabf4ad19": "Eikö tallennus onnistu?",
+    "ext_1900b478a58603": "Kuvaa",
+    "ext_189fb6202c349b": "Valitse koko rakennus tilataksesi tämän raportin.",
+    "ext_ccd317947e12ef": "Valitse videotiedosto (MP4, MOV tai WebM).",
+    "ext_823428e67d8d52": "Valitse napsauttamalla tai pudota tiedostot tähän",
+    "ext_b543835fdc1ff1": "Vahvista rakennuksen sijainti kartalla.",
+    "ext_408febc0bafde2": "Hintoja ei voitu ladata.",
+    "ext_8c541d052647e6": "Valokuvaa ei voitu käsitellä. Ota uusi kuva.",
+    "ext_26a03939c7a9dc": "Tilausta ei voitu lähettää.",
+    "ext_67731319e91d6d": "Valokuvaa ei voitu ottaa. Yritä uudelleen.",
+    "ext_b564227b7d3de2": "Toimitushintoja ladataan vielä.",
+    "ext_8a958b5d470770": "Toimitusaika alkaa siitä, kun tilaus lähetetään.",
+    "ext_bb0783864ee081": "Digitaalikameran zoomaus",
+    "ext_48845bff334a50": "Sulje",
+    "ext_18eb3c7da07409": "Vedä valokuvat tähän",
+    "ext_36d6e4ce04d5fc": "Pudota valokuvat tähän tai valitse tiedostot Lataa-painikkeella.",
+    "ext_6e21162913b0dc": "Nopeutettu toimitus ei ole tällä hetkellä käytettävissä. Valitse vakiotoimitus.",
+    "ext_f34702ef3c459c": "Lisäviite",
+    "ext_abc7e9892806b0": "Tiedostot",
+    "ext_ab738ca65f65c1": "Koko rakennus",
+    "ext_fd6623d6d20bb2": "Jatka kiertämistä",
+    "ext_f662ce48780d0c": "Reaaliaikainen kamera ei ole täällä käytettävissä. Käytä alla olevaa kameran painiketta tai Lataa-toimintoa.",
+    "ext_bc14e13e94c48e": "Seuraava kuvakulma",
+    "ext_86aaa0cc76916a": "Seuraava talo",
+    "ext_678d7d1afa2c16": "Mitään ei ole vielä lisätty",
+    "ext_cf13458f003dfc": "Avataan kameraa…",
+    "ext_6be090825c9971": "Tilaa",
+    "ext_858e4ba7a29fd3": "Keskeytä",
+    "ext_e159b06187d369": "Keskeytetty",
+    "ext_412f498a96cdba": "Valokuvaa ei voitu ottaa. Yritä uudelleen.",
+    "ext_19eac15526c5cf": "Kuvaa kiertovideo",
+    "ext_0384d0be0a6f1a": "Tallennus ei ole täällä käytettävissä. Lataa video sen sijaan.",
+    "ext_d2debb79a7c303": "Tallennetta ei voitu tallentaa. Yritä uudelleen.",
+    "ext_d640c7421da066": "Jatka",
+    "ext_942087cc2d41e0": "Yritä uudelleen",
+    "ext_aff0766a5290e1": "Tarkista",
+    "ext_12ff7ed621202f": "Tarkista tilaus →",
+    "ext_4352d9d52c47d2": "Tarkista valokuvat",
+    "ext_37e437d86dea02": "Vain katto",
+    "ext_35fd0238b55b3d": "Tallennetaan osaa…",
+    "ext_88dded33784dcd": "Osa tallennettu",
+    "ext_97cdf353d9de69": "Jaa kameran diagnostiikkatiedot",
+    "ext_b58eb52c8810b9": "Ohita toistaiseksi",
+    "ext_7d9eb6f50ee08b": "Aloita etupuolelta. Kävele kerran koko talon ympäri niin, että talo pysyy kokonaan kuvassa.",
+    "ext_30756af0134e4b": "Aloita tallennus",
+    "ext_3d591e826d5459": "Lopeta tallennus",
+    "ext_eaa92b29e7d508": "Lopeta tallennus vaihtaaksesi kameraa",
+    "ext_43f019ea133423": "Vaihda kameraa",
+    "ext_2753cf960a1fa7": "Lataa napauttamalla",
+    "ext_48e515f180931f": "Vain testiesikatselu. Lisää jokaisesta rakennuksesta kiertovideo ennen tilaamista.",
+    "ext_e1338e330e2e95": "Tallenne oli liian lyhyt tallennettavaksi. Kuvaa vähintään muutaman sekunnin ajan.",
+    "ext_e0eadf1224c32d": "Tämän kameran zoomausta ei voitu muuttaa.",
+    "ext_dceb79d9c01f21": "Tämä tallenneosa on liian suuri ladattavaksi. Poista se ja kuvaa lyhyempi osa.",
+    "ext_14d33bd014e6b4": "Määrittämätön",
+    "ext_865e89de78d94c": "Lataa",
+    "ext_6efc5d27f30b20": "Lataus epäonnistui",
+    "ext_2ba73c5827ad58": "Lataus epäonnistui. Tarkista yhteys ja yritä uudelleen.",
+    "ext_d42fb51e78b578": "Lataus epäonnistui. Yritä uudelleen.",
+    "ext_7b34445aae9fc6": "Lataa projektin mediaa tai muuta hakua.",
+    "ext_5ce44dd77dae78": "Ladataan…",
+    "ext_2eb9e35e8239cf": "Käytä enintään 8 Mt:n JPG-, PNG- tai WebP-valokuvia tai MP4-, MOV- tai WebM-videoita.",
+    "ext_d534be829e3219": "Video",
+    "ext_fc63d3e097f799": "Videon esikatselu",
+    "ext_e534224447b2b4": "Videot voivat olla enintään 120 Mt:n kokoisia. Kuvaa kierros lyhyempinä osina ja lataa osat erikseen.",
+    "ext_08b041935798fb": "Sinä",
+    "ext_2ab245a1129a5c": "Voit ladata enintään 100 tiedostoa tilausta kohden.",
+    "ext_65b044714a33c6": "Voit ladata enintään 100 valokuvaa tilausta kohden.",
+    "ext_c51af26e781045": "Latauksesi ovat vielä kesken. Odota hetki.",
+    "ext_b6aed00cb43845": "Joitakin valokuvia ei voitu ladata. Yritä uudelleen tai poista ne.",
+    "ext_300f36b25f353f": "Joillekin valokuville ei ole määritetty kuvakulmaa. Määritä ne ennen jatkamista.",
+    "ext_731dc6e3f07ab1": "Yritä latausta uudelleen",
+    "ext_94e36843761633": "Valokuvien sijainnit",
+    "angle_front": "Etuosa",
+    "angle_front_left": "Vasen etuviisto",
+    "angle_left": "Vasen sivu",
+    "angle_back_left": "Vasen takaviisto",
+    "angle_back": "Takaosa",
+    "angle_back_right": "Oikea takaviisto",
+    "angle_right": "Oikea sivu",
+    "angle_front_right": "Oikea etuviisto",
+    "exteriors_standard_label": "Vakiotoimitus · 24 tuntia",
+    "exteriors_same_day_label": "Saman päivän toimitus · alle 6 tuntia",
+    "exteriors_priority_label": "Pikatoimitus · alle 3 tuntia",
+    "delivery_very_busy": "Meillä on erittäin ruuhkaista",
+    "delivery_busy": "Meillä on ruuhkaista",
+    "delivery_not_busy": "Meillä ei ole kovin ruuhkaista",
+    "current_delivery_estimate": "Tämänhetkinen toimitusarvio",
+    "select_angle_photo": {
+      "message": "Valitse {angle}-valokuva",
+      "format": "icu"
+    },
+    "upload_angle_photo": {
+      "message": "Lataa {angle}-valokuva",
+      "format": "icu"
+    },
+    "orbital_video": "Kiertovideo",
+    "additional_media": "Lisävalokuvat ja -videot",
+    "total_files": "Tiedostoja yhteensä",
+    "add_house_video": {
+      "message": "Lisää talosta {house} kiertovideo jatkaaksesi.",
+      "format": "icu"
+    },
+    "missing_angles": {
+      "message": "Puuttuu {count} kuvakulmaa. Lisää valokuvat puuttuviin kuvakulmiin.",
+      "format": "icu"
+    },
+    "structure_number": {
+      "message": "Rakennus {number}",
+      "format": "icu"
+    },
+    "switch_camera": "Vaihda kameraa",
+    "camera_zoom": "Kameran zoomaus",
+    "play_video": {
+      "message": "Toista video {number}",
+      "format": "icu"
+    },
+    "primary_angle_photo": {
+      "message": "{angle}-valokuva, ensisijainen",
+      "format": "icu"
+    },
+    "set_primary_angle_photo": {
+      "message": "Valitse {angle}-valokuva ensisijaiseksi",
+      "format": "icu"
+    },
+    "view_angle_photo": {
+      "message": "Näytä {angle}-valokuva",
+      "format": "icu"
+    },
+    "angle_photo": {
+      "message": "{angle}-valokuva",
+      "format": "icu"
+    },
+    "uploading_photo_count": {
+      "message": "Ladataan valokuvia: {count}",
+      "format": "icu"
+    },
+    "unassigned_count": {
+      "message": "Määrittämättä: {count}",
+      "format": "icu"
+    },
+    "show_all": "Näytä kaikki",
+    "structure_delivery_price": {
+      "message": "{price} rakennusta kohden + valittu toimitusmaksu",
+      "format": "icu"
+    },
+    "closed_expedite": "Pikatoimitus ei ole käytettävissä sulkemisaikana",
+    "video_segment_count": {
+      "message": "Video-osia: {count}",
+      "format": "icu"
+    },
+    "m_a2add99e6507cc": "Tilaa mittaukset",
+    "m_5b47c31589c08d": " Välitön kehitysraportti",
+    "m_d42e44d94cf26d": "FirstMaten kameran diagnostiikka",
+    "m_45483cba8b2363": "Sulje video",
+    "m_d1072adbf4a739": "Lataa videoita",
+    "m_679e3f0532c8f6": "Tallennetut osat",
+    "m_6bfeca260a706b": "Aloita etupuolelta.",
+    "m_8d450f8f09d474": " Peräänny, kunnes koko talo näkyy kuvassa katosta perustukseen.",
+    "m_fbc415383ed061": "Kävele kerran koko talon ympäri.",
+    "m_8999a5973399a7": " Kävele hitaasti ja pidä talo keskellä kuvaa koko kierroksen ajan.",
+    "m_28a19a351341b7": "Pidä tauko aina tarvittaessa.",
+    "m_586094cc3ecf92": " Kuvaa niin monta osaa kuin on tarpeen tai lataa valmiiksi kuvaamiasi videoita.",
+    "m_a156054f2fdcd9": "Kuvaa kiertovideo",
+    "m_5cfa8ae69d7e6c": {
+      "message": "Kävele kerran talon ympäri ja kuvaa samalla. Näin näytät meille kaikki sivut nopeimmin.{v0}",
+      "format": "icu"
+    },
+    "m_15f72513cd842e": "Lataa video",
+    "m_cab762c293af5c": "Etkö voi kuvata videota? Tilaa valokuvien perusteella",
+    "m_1cb496d81d0d8a": "Tilaa valokuvien perusteella",
+    "m_9f5adc82950818": "Ei videota? Voimme tehdä mittaukset valokuvista. Tarvitsemme talosta kaikki kahdeksan kuvakulmaa ja opastamme sinua niiden kuvaamisessa.",
+    "m_18eb50539ad3c5": "Ota kaikki kahdeksan kuvaa.",
+    "m_6e5fce959cdaef": " Kuvaa kaikki sivut ja kulmat niin, että koko talo näkyy kuvassa.",
+    "m_8652b670148f22": "Lisää kuvia kohdista, joita on vaikea nähdä.",
+    "m_ffa9f3c2ab78e6": " Jos jokin kohta ei näy kahdeksasta kuvakulmasta tai jää kadulta piiloon, lisää myöhemmin valokuvia tai video.",
+    "m_5a04d009cf966a": "Aloita kahdeksan valokuvan ottaminen",
+    "m_23d5e1d2486b6a": "Takaisin kiertovideoon (suositus)",
+    "m_0352f26fd9d997": "Lisävalokuvat ja -videot",
+    "m_215a48fa6c2668": {
+      "message": "{v0}Kiertovideo",
+      "format": "icu"
+    },
+    "m_2b2100088ed9f2": "Kiertovideo",
+    "m_b3790b49db5f84": "Lisää kiertovideo",
+    "m_25253d755816e2": "Kuvaa puhelimellasi yksi kokonainen kierros talon ympäri ja lataa video sitten tähän. Kun tilaat FirstMate-sovelluksessa, sovellus kuvaa videon puolestasi.",
+    "m_27b7e868698f63": "Lisää lähikuvia kohdista, jotka eivät näy videolla hyvin, kuten kattolyhdyistä, laajennuksista tai ahtaista sivupihoista.",
+    "m_2469fadd18d99a": "Onko sinulla video? Siirry kiertovideoon (suositus)",
+    "m_6e81feb28a2b17": "Ei vielä videota"
   },
   "help": {
     "m_0db6efc53ab2ed": "Tarvitsetko apua?",
@@ -3213,7 +3630,103 @@
     "m_2767483f4609c6": " Viimeistele ja lähetä",
     "m_a1cb9492b60b7f": " Seuraava allekirjoitus",
     "m_be4cfb58b9c4d7": "Valokuvat",
-    "m_8fda0d4db92a17": " Luo ilman projektia"
+    "m_8fda0d4db92a17": " Luo ilman projektia",
+    "terminology_new_project": "Uusi projekti",
+    "terminology_project_title": "Projektin nimi",
+    "primary_contact_heading": "Ensisijainen yhteyshenkilö",
+    "contact_actions": "Yhteyshenkilön toiminnot",
+    "remove_recipient": "Poista",
+    "edit_project_identity": "Muokkaa projektin yhteystietoa ja osoitetta",
+    "new_report": "Uusi raportti",
+    "saved_contact": "Tallennettu yhteystieto",
+    "call_contact": "Soita yhteyshenkilölle",
+    "message_contact": "Lähetä viesti yhteyshenkilölle",
+    "email_contact": "Lähetä sähköpostia yhteyshenkilölle",
+    "project_identity": "Projektin yhteystieto ja osoite",
+    "expand_internal_notes": "Laajenna sisäiset huomautukset",
+    "reduce_internal_notes": "Pienennä sisäiset huomautukset",
+    "checking_price": "Tarkistetaan tämänhetkistä hintaa…",
+    "order_roof_report": "Tilaa kattoraportti",
+    "order_report": "Tilaa raportti",
+    "order_full_structure": "Tilaa koko rakennuksen raportti",
+    "continue": "Jatka",
+    "project_fullscreen": "Avaa projekti koko näytölle",
+    "project_shrink": "Pienennä projekti-ikkunaa",
+    "order_roof_report_price": {
+      "message": "Tilaa kattoraportti – {price}",
+      "format": "icu"
+    },
+    "order_roof_report_discount": {
+      "message": "Tilaa kattoraportti – {price} (säästä {saving})",
+      "format": "icu"
+    },
+    "no_matching_contacts": "Vastaavia yhteystietoja ei löytynyt",
+    "loading_contacts": "Ladataan tallennettuja yhteystietoja…",
+    "no_saved_contacts": "Tallennettuja yhteystietoja ei vielä ole",
+    "project_title": "Projektin nimi",
+    "choose_type_first": "Valitse ensin projektityyppi",
+    "busy": "Meillä on ruuhkaista",
+    "very_busy": "Meillä on erittäin ruuhkaista",
+    "pin_instructions": "Lisää merkit napsauttamalla karttaa jokaisen mukaan haluamasi rakennuksen kohdalla.",
+    "no_pins": "Merkkejä ei ole lisätty",
+    "one_pin": "1 merkki lisätty",
+    "one_pin_confirmed": "Vahvistettu – 1 merkki lisätty",
+    "contacts_unavailable": "Yhteystietoja ei voitu avata.",
+    "contact_open_failed": "Yhteystietoa ei voitu avata.",
+    "contact_update_failed": "Asiakkaan yhteystietoa ei voitu päivittää.",
+    "contact_action_failed": "Yhteystiedon toimintoa ei voitu avata",
+    "project_save_failed": "Projektia ei voitu tallentaa.",
+    "roof_report_ordered": "Kattoraportti tilattu",
+    "full_report_ordered": "Koko rakennuksen raportti tilattu",
+    "report_processing": "Raporttia käsitellään nyt.",
+    "connection_retry": "Yhteysvirhe. Yritä uudelleen.",
+    "not_busy": "Meillä ei ole kovin ruuhkaista",
+    "price_per_structure": {
+      "message": "{price} / rakennus",
+      "format": "icu"
+    },
+    "price_flat_rate": {
+      "message": "{price} kiinteä hinta",
+      "format": "icu"
+    },
+    "delivery_by": {
+      "message": "Viimeistään {time}",
+      "format": "icu"
+    },
+    "standard_delivery_duration": {
+      "message": "Vakiotoimitus – {duration}",
+      "format": "icu"
+    },
+    "pins_placed": {
+      "message": "{count} merkkiä lisätty",
+      "format": "icu"
+    },
+    "pins_confirmed": {
+      "message": "Vahvistettu – {count} merkkiä lisätty",
+      "format": "icu"
+    },
+    "under_one_hour": "Alle 1 tunti",
+    "under_hours": {
+      "message": "Alle {hours} tuntia",
+      "format": "icu"
+    },
+    "structure_total": {
+      "message": "{report}: {count} rakennusta × {unit} = yhteensä {total}",
+      "format": "icu"
+    },
+    "m_b7a344ddca6545": "FM",
+    "m_c92936cb32df1e": "Käytä toista valittua tyyppiä ja sisältöä vastaavaa valmista kehitysraporttia",
+    "m_a9fc58f6e515fa": "Vastaavaa raporttia ei löytynyt",
+    "m_b1cdd265d6ddcb": "Kehitysraportti",
+    "m_aaebd7ccba0b30": "Projekti",
+    "m_9b03ccb29ba168": "Yhteenveto",
+    "m_c2d9303f34719d": "Lisää karttamerkin huomautus",
+    "m_0747045bf3d919": "Uusi projekti",
+    "m_9f4cf23e7e3636": "Etsi olemassa oleva projekti",
+    "m_428a61cf4a8532": "Vastaavat projektit",
+    "m_67ea3d9f45d10b": "Etsitään projekteja…",
+    "m_7f0c783c8eec23": "Avataan projektia…",
+    "m_5180ead27b8ad6": "GIF-animaation lataaminen epäonnistui"
   },
   "project-schedule": {
     "m_88e13d64071885": "Aikataulu lukittu",
@@ -3574,7 +4087,54 @@
     "m_9402b38f071830": "Lajittele projekteja",
     "m_f022fa62257ce9": "Jane Smith",
     "m_564fe2da7605fa": "jane@example.com",
-    "m_7247f8e5fa0e91": "Tilaa vakiomuotoinen raportti"
+    "m_7247f8e5fa0e91": "Tilaa vakiomuotoinen raportti",
+    "m_219853c2fec210": "Tilaa koko raportti saadaksesi tämän rakennuksen mittaukset.",
+    "m_d2a894582092f8": "Vain katto",
+    "m_16e6b2fac22e7e": "Katto &amp; rännit",
+    "m_5ee37aecb582b4": " Manuaalinen",
+    "m_f86eb4b8f9ea2c": "Manuaalinen siirtäminen käytössä",
+    "m_fe74e5ffd55b04": "Vedä projektikortti toiseen vaiheeseen.",
+    "m_48afb49c6f40c4": "Taulu",
+    "m_39f4f4e9015b56": " Avaa PDF",
+    "m_d091a3a21d5851": {
+      "message": " Tilaa koko raportti – ${v0}",
+      "format": "icu"
+    },
+    "m_7c4f8058d549a7": " Kaltevuudet käytössä",
+    "m_97f68e5486c2f8": "Hae osoitteella tai yhteystiedolla…",
+    "m_af80d9cead6991": "Hae projekteja",
+    "pitches_on": "Kaltevuudet käytössä",
+    "pitches_off": "Kaltevuudet pois käytöstä",
+    "order_full_report_amount": {
+      "message": "Tilaa koko raportti – {amount}",
+      "format": "icu"
+    },
+    "m_53d803cdbe9ab1": "Osoite",
+    "m_b9bbb4f486250d": "Ensisijainen yhteyshenkilö",
+    "m_71b71bf03872e8": "Ensisijaisen yhteyshenkilön puhelin",
+    "m_6bc4d56ee2a851": "Ensisijaisen yhteyshenkilön sähköposti",
+    "m_ca4bcb012af794": "Raportin tila",
+    "m_b9e330a2a05e3a": "Ei vaihetta",
+    "m_0c8087b7a76bdd": "Ei taulua",
+    "m_b66bef8d909043": "Kaikki taulut",
+    "m_db7bc4ec19e30d": "Jaettu projekti",
+    "m_f7db06bcf62c85": "Luettelon sarakkeet",
+    "m_0989a5be2bc0a3": "Lajittele napsauttamalla sarakeotsikkoa.",
+    "m_db1fe336bd1deb": "Projektin luontipäivä",
+    "m_a4101be3c706f6": "Järjestä",
+    "m_82049078ca088b": "Vaihda lajittelusuuntaa",
+    "m_529b6356416c11": "Kaikki vaiheet",
+    "m_da6a380b934274": {
+      "message": "{v0}-näkymä",
+      "format": "icu"
+    },
+    "m_9b0cf483ee4377": {
+      "message": "Avaa {v0}, jakaja: {v1}",
+      "format": "icu"
+    },
+    "m_ce86fe78082565": "Ei käytettävissä",
+    "m_f8e16243e0f91c": "Hallitse näkymää",
+    "m_200131262770e4": "Projektinäkymä"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
@@ -6909,7 +7469,136 @@
     "m_10836fee7d848c": "Yritystason tekstiviestit",
     "m_fdb931154a90d3": "Tarvitsetko suuremman käyttörajan? Pyydä asiakastiimiltäsi mukautettua kuukausisopimusta.",
     "m_3be71fb0bc5d46": "Muita tilauksia ei ole saatavilla.",
-    "m_db8eb97cb6c0a3": "Ladataan laskutusta…"
+    "m_db8eb97cb6c0a3": "Ladataan laskutusta…",
+    "m_38e15f7a2dd540": "Brändipaketti",
+    "m_ae9d8c44e49371": {
+      "message": " Jokaisesta automaattisesta lisäyksestä veloitetaan {v0}. {v1}",
+      "format": "icu"
+    },
+    "m_ae873abaa56707": "Mittaukset",
+    "m_455c24bfeb9092": "Brittiläiset yksiköt (jalat ja kattoruudut)",
+    "m_ef3e6a234d5a73": "Metrijärjestelmä (metrit ja neliömetrit)",
+    "m_4ca221574beb0d": " Raportin esikatselu",
+    "fm_billing_minimum": {
+      "message": "Automaattisen lisäyksen vähimmäismäärät ovat {amount}.",
+      "format": "icu"
+    },
+    "fm_use_the_card_on_file_to_keep_your_account_funded_automatically": "Pidä tililläsi saldoa automaattisesti käyttämällä tallennettua maksukorttia.",
+    "fm_use_the_card_you_add_to_keep_your_account_funded_automatically": "Pidä tililläsi saldoa automaattisesti lisäämälläsi maksukortilla.",
+    "fm_enabled": "Käytössä",
+    "fm_disabled": "Ei käytössä",
+    "fm_on": "Päällä",
+    "fm_off": "Pois päältä",
+    "fm_payment_could_not_be_processed": "Maksua ei voitu käsitellä",
+    "fm_payment_processed": "Maksu käsitelty",
+    "fm_report_ordered": "Raportti tilattu",
+    "fm_payment_received": "Maksu vastaanotettu",
+    "fm_payment": "Maksu",
+    "fm_promo_credit_applied": "Kampanjasaldo käytetty",
+    "fm_coupon_credit_added": "Kuponkisaldo lisätty",
+    "fm_cancellation_refund": "Peruutuksen hyvitys",
+    "fm_expedite_refund": "Pikatoimituksen hyvitys",
+    "fm_missed_promised_delivery_window": "Luvattu toimitusaika ylittyi",
+    "fm_additional_structure_refund": "Lisärakennuksen hyvitys",
+    "fm_additional_structure_request": "Lisärakennuspyyntö",
+    "fm_auto_top_up": "Automaattinen saldon lisäys",
+    "fm_refund": "Hyvitys",
+    "fm_credit_adjustment": "Saldon oikaisu",
+    "fm_additional_structure_request_refund": "Lisärakennuspyynnön hyvitys",
+    "fm_additional_structure_added_to_report": "Lisärakennus lisätty raporttiin",
+    "fm_completed": "Valmis",
+    "fm_rejected": "Hylätty",
+    "fm_processing": "Käsitellään",
+    "fm_update_card": "Päivitä maksukortti",
+    "fm_add_card": "Lisää maksukortti",
+    "fm_save": "Tallenna",
+    "fm_save_and_add_card": "Tallenna ja lisää maksukortti",
+    "fm_card_expiry": {
+      "message": "Vanhenee {date}",
+      "format": "icu"
+    },
+    "fm_card": "Maksukortti",
+    "fm_triggered_by_person": {
+      "message": "Käynnistäjä: {person}",
+      "format": "icu"
+    },
+    "fm_ordered_by_person": {
+      "message": "Tilaaja: {person}",
+      "format": "icu"
+    },
+    "fm_handled_by_person": {
+      "message": "Käsittelijä: {person}",
+      "format": "icu"
+    },
+    "fm_ref_reference": {
+      "message": "Viite {reference}",
+      "format": "icu"
+    },
+    "fm_charged_amount": {
+      "message": "Veloitettu {amount}",
+      "format": "icu"
+    },
+    "fm_additional_structure_count": {
+      "message": "{count, plural, one {# lisärakennus} other {# lisärakennusta}}",
+      "format": "icu"
+    },
+    "fm_billing_residential": "Asuinrakennus",
+    "fm_billing_commercial": "Liiketila",
+    "fm_billing_multi_family": "Usean asunnon rakennus",
+    "fm_billing_multifamily": "Usean asunnon rakennus",
+    "fm_billing_full": "Koko raportti",
+    "fm_billing_roof_only": "Vain katto",
+    "fm_billing_roof": "Vain katto",
+    "fm_you_cannot_edit_your_own_permissions_here": "Et voi muokata omia käyttöoikeuksiasi täällä.",
+    "fm_permissions_are_read_only": "Käyttöoikeuksia voi vain tarkastella.",
+    "fm_users": "Käyttäjät",
+    "fm_departments": "Osastot",
+    "fm_user_administration": "Käyttäjähallinta",
+    "fm_brand_kit": "Brändipaketti",
+    "fm_changes_saved_automatically": "Muutokset tallennetaan automaattisesti.",
+    "fm_could_not_save_brand_kit": "Brändipaketin tallentaminen epäonnistui.",
+    "fm_preview_summary": "Projektin yhteenveto",
+    "fm_preview_facets": "Pintoja yhteensä",
+    "fm_preview_pitch": "Yleisin kattokaltevuus",
+    "fm_preview_area": "Pinta-ala yhteensä",
+    "fm_preview_breakdown": "Mittausjakauma",
+    "fm_preview_eave": "Räystäs",
+    "fm_preview_ridge": "Harja",
+    "fm_preview_valley": "Jiiri",
+    "fm_deleted": "Poistettu",
+    "fm_suspended": "Keskeytetty",
+    "fm_never_signed_in": "Ei ole koskaan kirjautunut sisään",
+    "fm_invited": "Kutsuttu",
+    "fm_active": "Aktiivinen",
+    "fm_primary_logo_saved_automatically": "Ensisijainen logo tallennettu automaattisesti.",
+    "fm_could_not_change_primary_logo": "Ensisijaista logoa ei voitu vaihtaa.",
+    "fm_the_logo_colors_could_not_be_read": "Logon värejä ei voitu lukea.",
+    "fm_could_not_send_invite_email": "Kutsusähköpostin lähettäminen epäonnistui.",
+    "fm_user_suspended": "Käyttäjä keskeytetty.",
+    "fm_user_unsuspended": "Käyttäjän keskeytys peruttu.",
+    "fm_you_can_t_suspend_yourself": "Et voi keskeyttää omaa käyttäjätiliäsi.",
+    "fm_you_can_t_suspend_a_super_admin": "Et voi keskeyttää pääylläpitäjän käyttäjätiliä.",
+    "fm_you_can_t_delete_yourself": "Et voi poistaa omaa käyttäjätiliäsi.",
+    "fm_you_can_t_delete_a_super_admin": "Et voi poistaa pääylläpitäjän käyttäjätiliä.",
+    "fm_report_settings_future_only": "Raporttiasetusten muutokset koskevat vain tulevia mittausraportteja. Ne eivät muuta jo tilattuja raportteja.",
+    "fm_statement_date": "Päivämäärä",
+    "fm_statement_transaction": "Tapahtuma",
+    "fm_statement_details": "Tiedot",
+    "fm_statement_reason": "Syy",
+    "fm_statement_amount": "Summa",
+    "fm_statement_balance_after": "Saldo tapahtuman jälkeen",
+    "fm_statement_address": "Osoite",
+    "fm_statement_ordered_by": "Tilaaja",
+    "fm_statement_date_ordered": "Tilauspäivä",
+    "fm_statement_project_type": "Projektityyppi",
+    "fm_statement_status": "Tila",
+    "fm_statement_cost": "Hinta",
+    "fm_statement_reimbursed": "Hyvitetty",
+    "fm_statement_total": "Yhteensä",
+    "fm_statement_transaction_count": {
+      "message": "{count, plural, one {# tapahtuma} other {# tapahtumaa}} – Netto: ",
+      "format": "icu"
+    }
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lisää työtä",
@@ -7566,7 +8255,8 @@
     "m_6d30e375168449": {
       "message": "{v0} lukematonta &middot; yhteensä {v1}",
       "format": "icu"
-    }
+    },
+    "new_report": "Uusi raportti"
   },
   "channels-ui": {
     "m_aa20efe27f3230": "Toimisto",
@@ -9894,6 +10584,98 @@
     "m_0d80b4a3bd88a0": {
       "message": "Muuta kokoa: {v0} {v1}",
       "format": "icu"
+    },
+    "project_workspace": "Projektityötila",
+    "edit_project_identity": "Muokkaa projektin yhteystietoa ja osoitetta",
+    "project_tabs": "Projektin välilehdet",
+    "project_trays": "Projektipaneelit",
+    "opening_project": "Avataan projektia…",
+    "restore_project": "Palauta projekti",
+    "close_project": "Sulje projekti",
+    "project": "Projekti",
+    "new_project": "Uusi projekti",
+    "overview": "Yleiskatsaus",
+    "tab_loading": {
+      "message": "{tab} – ladataan projektia",
+      "format": "icu"
+    },
+    "resize_panes": "Muuta paneelien kokoa",
+    "window_trays": "Ikkunapaneelit",
+    "close_tray": "Sulje paneeli",
+    "window": "ikkuna",
+    "dock_window": {
+      "message": "Kiinnitä {window}",
+      "format": "icu"
+    },
+    "restore_window": {
+      "message": "Palauta {window}",
+      "format": "icu"
+    },
+    "minimize_window": {
+      "message": "Pienennä {window}",
+      "format": "icu"
+    },
+    "float_window": {
+      "message": "Irrota {window} kelluvaksi ikkunaksi",
+      "format": "icu"
+    },
+    "maximize_window": {
+      "message": "Suurenna {window}",
+      "format": "icu"
+    },
+    "close_window": {
+      "message": "Sulje {window}",
+      "format": "icu"
+    },
+    "modal_window": {
+      "message": "Näytä {window} modaalisena ikkunana",
+      "format": "icu"
+    },
+    "fullscreen_window": {
+      "message": "Laajenna {window} koko näytölle",
+      "format": "icu"
+    },
+    "unpin_window": {
+      "message": "Irrota {window}",
+      "format": "icu"
+    },
+    "pin_window": {
+      "message": "Kiinnitä {window}",
+      "format": "icu"
+    },
+    "dock_window_left": {
+      "message": "Kiinnitä {window} vasemmalle (napsauta hiiren oikealla painikkeella valitaksesi sijainnin)",
+      "format": "icu"
+    },
+    "dock_window_right": {
+      "message": "Kiinnitä {window} oikealle (napsauta hiiren oikealla painikkeella valitaksesi sijainnin)",
+      "format": "icu"
+    },
+    "fill_workspace_window": {
+      "message": "Täytä työtila ikkunalla {window}",
+      "format": "icu"
+    },
+    "dock_placement": "Kiinnityksen sijainti",
+    "float": "Irrota kelluvaksi ikkunaksi",
+    "close": "Sulje",
+    "modal": "Modaali-ikkuna",
+    "fill_workspace": "Täytä työtila",
+    "fill_entire_screen": "Täytä koko näyttö",
+    "dock_left": "Kiinnitä vasemmalle",
+    "dock_right": "Kiinnitä oikealle",
+    "dock_top_left": "Kiinnitä vasempaan yläkulmaan",
+    "dock_top_right": "Kiinnitä oikeaan yläkulmaan",
+    "dock_bottom_left": "Kiinnitä vasempaan alakulmaan",
+    "dock_bottom_right": "Kiinnitä oikeaan alakulmaan",
+    "dock_top": "Kiinnitä yläreunaan",
+    "dock_bottom": "Kiinnitä alareunaan",
+    "resize_swap_panes": "Muuta paneelien kokoa; vaihda niiden paikkaa kaksoisnapsauttamalla",
+    "close_pane": "Sulje paneeli",
+    "pane_slow": "Tämän paneelin latautuminen kestää tavallista kauemmin. Voit sulkea sen ja yrittää uudelleen.",
+    "pane_open_failed": "Tätä välilehteä ei voitu avata. Sulje paneeli ja yritä uudelleen.",
+    "opening_tab": {
+      "message": "Avataan välilehteä {tab}…",
+      "format": "icu"
     }
   },
   "reports": {
@@ -9914,7 +10696,366 @@
     "meter": "metri",
     "millimeters": "millimetrit",
     "millimeter": "millimetri",
-    "square footage": "neliöjalat"
+    "square footage": "neliöjalat",
+    "m_8f5db5c7f3d24d": "Harja",
+    "m_46dd9790bf6a04": "Auma",
+    "m_63e8dda8d7cce4": "Jiiri",
+    "m_7076ce874b1d6c": "Päätyräystäs",
+    "m_27047ada176d29": "Räystäs",
+    "m_56b44629956d20": "Seinän ja katon liitoslista",
+    "m_67b286b5c3cc9d": "Sivuseinän liitoslista",
+    "m_2fe70464aadf58": "Siirtymä",
+    "m_c33219746150ec": "Suojakaide",
+    "m_c59156303156a4": "Ulkoneva rakenne",
+    "m_40f358631dc246": "Savupiipun takapelti",
+    "m_d4ac8146ffa447": "Savupiipun porraspelti",
+    "m_ab77a5a27d3f10": "Savupiipun etupelti",
+    "m_23fb466fb2adc3": "Kattoikkuna",
+    "m_b764cdc0eab713": "Tuntematon",
+    "m_a1021e952892ac": "Kiinteistön mittausraportti",
+    "m_f8dbc522ba2af7": "Katon ylhäältä kuvattu näkymä",
+    "m_c834cd35286d0a": "Kattokuvat",
+    "m_869d0506787f34": "Katon korkeudet",
+    "m_e158625d2ef73e": "Katon lappeet",
+    "m_1246c01179d440": "Katon yhteenveto",
+    "m_192df712925b74": "Katon tuuletus",
+    "m_468cef63fdd9dd": "Kattokaltevuuskaavio",
+    "m_baf568be68a967": "Kattoalan kaavio",
+    "m_68770a5d336169": {
+      "message": "Kattokerroksen {value1} mittaukset",
+      "format": "icu"
+    },
+    "m_63b61a2a5cacd6": {
+      "message": "Lappeet: {value1}",
+      "format": "icu"
+    },
+    "m_733f0196ef5d7f": "Rännit",
+    "m_47cf5274d0f2c2": "Kattohuomautukset",
+    "m_c50f62a1b89962": {
+      "message": "{value1} (+{value2} % hukkaa)",
+      "format": "icu"
+    },
+    "m_cb91ea904fb153": {
+      "message": "Kaltevuus: {value1}",
+      "format": "icu"
+    },
+    "m_3b026f0a7e18aa": {
+      "message": "Hukka: {value1} %",
+      "format": "icu"
+    },
+    "m_e3bc5b673a070a": "Seinäliitos",
+    "m_e87f980620eb8f": "Sivuseinä",
+    "m_fe2ce041082c9b": "Suojakaide",
+    "m_8cd80c317a2168": "Lappeet:",
+    "m_af5a7274c323e0": "Kaltevuus:",
+    "m_9d6591d0b42f6b": "Neliömetrit:",
+    "m_88c46e11f3c77b": "Neliöjalat:",
+    "m_919549889a5ceb": "Räystäät:",
+    "m_537a62a019ad4b": "Päätyräystäät:",
+    "m_5bd7cdbae7fcda": "Harjat:",
+    "m_0721423f661339": "Aumat:",
+    "m_61201067398580": "Jiirit:",
+    "m_3b450027d1213a": "Siirtymät:",
+    "m_c062492596511c": "Kattoikkunat:",
+    "m_b5ac9d155463b1": "Savupiiput:",
+    "m_89135357e29f80": "Lounas",
+    "m_1d7b8d4ed3a785": "Kaakko",
+    "m_83d96322f4ad30": "Luode",
+    "m_c8b2d1cc4549a9": "Koillinen",
+    "m_6af11cc5940455": "Kaltevuus",
+    "m_f915ae86682060": "Pinta-ala (m²)",
+    "m_b67e47230efeb5": "Pinta-ala (sq ft)",
+    "m_716d633b125adb": "Prosentti",
+    "m_f734f9b7f3706f": "Hukka",
+    "m_922f515c2acfae": "Ulkokulma 90",
+    "m_7c323cb425fe82": "Sisäkulma 90",
+    "m_60306a6c99e6d6": "Muu kuin 90°",
+    "m_00d60e31a4e6b8": "Osuus",
+    "m_3765f3123ae48b": "Ulko 90",
+    "m_7ae502bf1fd18e": "Sisäkulma 90",
+    "m_a7a915704f7f73": "Arvioitu ullakon pinta-ala",
+    "m_b0936bc9f0eaa9": {
+      "message": "Pohjapinta-ala: {value1}  |  Pinta: {value2}",
+      "format": "icu"
+    },
+    "m_18328584e69d03": "Suositeltu poistoilma",
+    "m_3d2448433551a3": "Suositeltu korvausilma",
+    "m_f1c927f86fb91d": {
+      "message": "Vapaa tuuletusaukkoala (NFVA): {value1}",
+      "format": "icu"
+    },
+    "m_a2146e3ff505ff": {
+      "message": "Poistoilma: {value1}",
+      "format": "icu"
+    },
+    "m_4111e6605d2fd0": {
+      "message": "Korvausilma: {value1}",
+      "format": "icu"
+    },
+    "m_d70604e8430461": "Suositus",
+    "m_fb9ef894175c32": "Tuote",
+    "m_9f29530464f730": "Luokitus",
+    "m_13bca3b7e36910": "Tarvittava määrä",
+    "m_d4bb90607908e5": "Tuuletettu tippapelti",
+    "m_296cfb57797e3b": "Räystäslauta-aukko",
+    "m_ac498d871de7df": "Lintusuojat",
+    "m_99a52df3ff3d49": "Avain",
+    "m_fe56a63b035e8d": "Harjatuuletin",
+    "m_1a431d164b36cc": "Kattotuuletin",
+    "m_665420f28da3fb": "Huomautus: Tämän raportin arvio ullakon tuuletustuotteiden määrästä perustuu arvioituun ullakon lattiapinta-alaan, ja se on tarkoitettu vain kustannusarvion laatimiseen. Asentajan vastuulla on varmistaa oikea ullakon tuuletustuotteiden määrä ja tyyppi ennen työn aloittamista. Asentajan on aina tarkistettava kohdekohtaiset ullakon tuuletustarpeet, kuten paikalliset määräykset, ullakon lattian neliöala, katon rakenne ja katon alla olevat lämmitetyt tilat. GAF suosittelee vähintään yhtä neliöjalkaa ullakon tuuletusta (tasaisesti jaettuna korvaus- ja poistoilmaan) jokaista 150–300 neliöjalkaa ullakon lattiapinta-alaa kohden höyrynsulun tilasta riippuen. Harjan kohdalla tai sen lähellä olevan poistoilman määrä ei saa koskaan ylittää räystään kohdalla tai sen lähellä olevan korvausilman määrää. Lisätietoja: gaf.com/ventcalculator.",
+    "m_7bfab6c61f7782": "HUOMAUTUKSET",
+    "m_1c10c30ced424d": {
+      "message": "Sivu {value1}",
+      "format": "icu"
+    },
+    "m_616cb218a65b98": "Materiaali",
+    "m_4e545960f1bffc": "Yksikkö",
+    "m_a4ee51a0594303": "Suojakaiteen korkeudet",
+    "m_f66e9d905ea8c1": "Suojakaiteen piiri: ",
+    "m_5e7d173c408ee4": "  |  Hukka: ",
+    "m_412cfcc70a641b": "%  |  Mittaa seinän korkeus paikan päällä.",
+    "m_93041424cf9292": "Seinän korkeus",
+    "m_4fe0147e0d0f55": "Seinän pinta-ala",
+    "m_9f4758a1af8ea3": "Pinta-ala yhteensä",
+    "m_4cc084a2b9523e": "Vedeneristyskermi",
+    "m_5759b423fa0103": "Lisäliima",
+    "m_7c496968ffcdb4": "Enintään kaltevuudeltaan 2/12 olevat osat luokitellaan loiviksi katoiksi. Määrät sisältävät ",
+    "m_c0f21dd46689e3": " % hukkaa tarvittaessa. Luvut ovat vain arvioita.",
+    "m_e564c2a86ab38f": "Vedeneristysjärjestelmä",
+    "m_1f528498cea93f": "Vedeneristyskermi / pintakermi",
+    "m_c4f283a70b0486": "Liimausliima",
+    "m_85413ad4bec1b6": "Eriste ja pintalevy",
+    "m_1c0828f7eb005e": "1/2\" 4x8 pintalevy",
+    "m_fa344135cd03c9": "Pintalevy (4'×8')",
+    "m_2188f67cce9c67": "Polyiso-eriste (4'×8')",
+    "m_9c916917be3f72": "3\" eristelevykiinnikkeet",
+    "m_87c3f71b2a40df": "2\" HD-kiinnikkeet",
+    "m_a546b1518e0b76": "Mekaaninen kiinnitys (vain TPO)",
+    "m_5ad4ec57c359dc": "2-3/8\" kermikiinnikkeet",
+    "m_61dbe4caefefbc": "Saumakiinnikkeet (kermikiinnikkeille)",
+    "m_06ba44bfd230a8": "Reunat ja päättäminen",
+    "m_2c1c5afa7a9b99": "Päättymislista (10 ft)",
+    "m_879e59e3c2c975": "Reunapelti (10 ft)",
+    "m_e7df79a2132258": "Tiivisteet ja tarvikkeet",
+    "m_e702197a280876": "Kulkualusta (34\"×50')",
+    "m_f6bcdfca5d0673": "TPO-leikkausreunan tiiviste",
+    "m_8fdf1a9b6d5e1d": "Puhdistusaine",
+    "m_0c79e7af8f2a6b": "Yleiskäyttöinen yksikerroskermitiiviste",
+    "m_dadf867d1bbb14": "Tiiviste / tiivistemassa",
+    "m_79135f33f55286": "Kattopaanutuotteet",
+    "m_aafc53646a6791": "Aloituskaista",
+    "m_366c048a86eb18": "Auma- ja harjapaanu",
+    "m_ca5426333edafa": "Synteettinen aluskermi",
+    "m_0bd4e15953109c": "Jää- ja vesisuoja",
+    "m_ca50d8f4c28b7e": {
+      "message": "{value1} piirin käsittely ({value2})",
+      "format": "icu"
+    },
+    "m_f98278faa39d91": "Pellit ja liitoslistat",
+    "m_0b500157a9ba4e": "Räystään tippapelti (10 ft)",
+    "m_9a907f7f8efb51": "Päätyräystään tippapelti (10 ft)",
+    "m_63dd5ff3dbc0e7": "Jiiripelti W (10 ft)",
+    "m_858eef2a5850de": "Porraslista (5x7)",
+    "m_bd1f293a927cae": "Vastapelti (10 ft)",
+    "m_581a811ee1dd52": "Seinän ja katon liitoslista (10 ft)",
+    "m_810de7e264edb9": "Savupiipun etupelti",
+    "m_5268e67d2e1c94": "Savupiipun takapelti / taustakouru",
+    "m_748a0e39694131": "Savupiipun porraslista",
+    "m_1f79a9ed80fa1c": "Savupiipun vastapelti (10 ft)",
+    "m_6586e2074c8ce4": "Kattoikkunan pellityssarja",
+    "m_3961803cc495fe": "Tuuletus",
+    "m_7a6f19f734f343": "Harjatuuletin (4 ft:n osat)",
+    "m_b08648dbd62b71": "Tarvikkeet",
+    "m_fe799b484c66a5": "Kierukkanaulat (1.25 in, 50 lb)",
+    "m_f2a594a5d5aec2": "Muovikantanaulat",
+    "m_a9dec356d64749": "Kattotiivistemassa (tuubi)",
+    "m_8ce86a6ae65d36": "P",
+    "m_a6175902028988": "Etuosa",
+    "m_76900f1bfd16c8": "Takaosa",
+    "m_8de0b3c47f112c": "E",
+    "m_fcb5f40df9be6b": "L",
+    "m_a9f51566bd6705": "I",
+    "m_e3573855b3d9bf": "Etuosa ",
+    "m_cffbb3115c07f5": " astetta / pohjoinen ylhäällä",
+    "m_9fc867325d55ed": "Etusuuntaa ei ole asetettu",
+    "m_78d1492cede81c": "Tässä tilannekuvassa ei ole mallinnettuja aukkoja.",
+    "m_37c225ef832884": "Julkisivun yhteenveto",
+    "m_385165e2ff5980": "Mittaus",
+    "m_822bab8d41bca8": "Määrä",
+    "m_a01f990307bcfe": "Seinätunnukset yhdistävät kaaviot, mitat, aukkojen luettelon ja huomautukset.",
+    "m_aa6c363db97d60": " Julkisivu",
+    "m_c0872cfcf108e7": "Alla on lueteltu näkyvät seinät. Pinta-alat mitataan kunkin seinäpinnan mukaan; kaavio on ortografinen projektio.",
+    "m_cdd2eaa8c80927": " Julkisivu – jatkuu",
+    "m_0dcd2fe54c68dd": "Seinätiedot jatkuvat. Katso kaavio ensimmäiseltä ",
+    "m_e70b6a7c97c875": " julkisivusivulta.",
+    "m_f76ea921edc2e5": "Seinä",
+    "m_d89f9e018a1a89": "Tältä suunnalta ei näy seinäpintaa.",
+    "m_a23fdf36878ac8": " netto",
+    "m_36c3ccc71f5875": "L ",
+    "m_bdebf2140013bd": "  ×  K ",
+    "m_34eb5b1409081f": "Aukkojen luettelo",
+    "m_44c472acd74e77": "Julkisivun määrät",
+    "m_765524ef91a979": "Mitattavat pituudet",
+    "m_0a96bba80d9db1": "Nettopinta-ala materiaalin mukaan",
+    "m_1b609d14d397b9": "Kattoruudut",
+    "m_cf4e143ea032d2": "Julkisivun määrät – jatkuu",
+    "m_1c582cacb59709": "Materiaalivaraukset",
+    "m_662e0e59630b57": "Materiaalivaraukset – jatkuu",
+    "m_4a71a61ca44334": "Hukkaprosentit ovat vertailuvarauksia, jotka lisätään seinien nettoalaan. Vaakasuorat paluupinnat mitataan erikseen.",
+    "m_58c6c02cc9a2b5": "Seinähuomautukset",
+    "m_00d87cf8a73edd": "RAKENNUKSEN HUOMAUTUKSET / SEINÄVIITTEET",
+    "m_f6c057fb0e36c0": "Seinähuomautukset – jatkuu",
+    "m_cc2b37e95f52c4": "Julkisivukuvat",
+    "m_4df65aa6464144": "Valokuvaa ei ole määritetty",
+    "m_6971ab087a1a89": {
+      "message": "Lappeita yhteensä: {value1}",
+      "format": "icu"
+    },
+    "m_9befb622242a9f": {
+      "message": "Yleisin kattokaltevuus: {value1}",
+      "format": "icu"
+    },
+    "m_d8a0a6db398df5": {
+      "message": "{value1} (netto): {value2}",
+      "format": "icu"
+    },
+    "m_257b1dfbf5cdcd": {
+      "message": "{value1} ({value2} % hukkaa): {value3}",
+      "format": "icu"
+    },
+    "m_08c80b14e30a5a": "Kattoruudut yhteensä",
+    "m_a8740bb1612ffc": "Kattoruudut ilman hukkaa",
+    "m_b4fd83d0bcd221": "Kattoruudut hukan kanssa",
+    "m_ad9df5626a0db3": "Pinta-ala (m²) ilman hukkaa",
+    "m_c8cdb261150121": "Pinta-ala (m²) hukan kanssa",
+    "m_4543d98d79fc96": "Kattoala",
+    "m_5376a6d429ea6d": "Kattoikkunat",
+    "m_48b0f84c37388c": "Savupiiput",
+    "m_b644bee84a99e1": "Vastapelti",
+    "m_a4e16d16c36105": "Käytössä oleva räystäskouru",
+    "m_6608517b23efe0": "Syöksytorvet",
+    "m_604f50c79bf141": "Jiiriliitosten määrä",
+    "m_43f853bbb59286": "Pohjoinen",
+    "m_0dd2dae4dd83ae": "Etelä",
+    "m_4e2cd851cfdab8": "Itä",
+    "m_41a6741e9a0fae": "Länsi",
+    "m_58eb9032e3bb83": "Vasen",
+    "m_883361d5d682a1": "Oikea",
+    "m_a60528cbbb4e1e": "Oikea etuviisto",
+    "m_060cafd1082387": "Vasen etuviisto",
+    "m_d09f0b3be004c1": "Oikea takaviisto",
+    "m_08fc78e7d2aa2d": "Vasen takaviisto",
+    "m_7b47702be2bc22": "Vapaa tuuletusaukkoalan vaatimus",
+    "m_e23555b5b2a4b6": "Poistoilman vaihtoehdot",
+    "m_f333ec35b08f63": "Kattomateriaalit",
+    "m_4b6762b8c70c5d": "Jyrkän katon materiaalit",
+    "m_4d5388c6f1e614": "Loivan katon materiaalit",
+    "m_2cdbf9a37b01cf": "Seinien mitat",
+    "m_b2ad1e2bec3fb1": "Listojen mitat",
+    "m_c59e96abc48597": "Jalat",
+    "m_f4b13e93df077d": "Aukko",
+    "m_baaddf70fb5d43": "Tyyppi",
+    "m_e50f1a89cafcbb": "Bruttopinta-ala m²",
+    "m_042702902def29": "Bruttopinta-ala ft2",
+    "m_c67131616d7b70": "Aukkojen pinta-ala m²",
+    "m_c3373ed602f34c": "Aukkojen pinta-ala ft2",
+    "m_4fac882a12ee7e": "Nettoala m²",
+    "m_4cf8a6733265d0": "Nettoala ft2",
+    "m_458d2707d8628e": "L × K (m)",
+    "m_b3d1d24cc51245": "L × K (ft)",
+    "m_1e05d842212af6": "Pinta-ala m²",
+    "m_dde8cec8418424": "Pinta-ala ft2",
+    "m_6b50755eb9ed6c": "Listan pituus m",
+    "m_625bdc61d56b1e": "Listan pituus ft",
+    "m_b2f1c22c291184": "Seinien yläreunat",
+    "m_90fe55c098b1af": "Seinien alareunat",
+    "m_aa41ee9d85a9d5": "Sisäkulmat",
+    "m_a65b33e0c771c5": "Ulkokulmat",
+    "m_fcf52be31de7b6": "Materiaalien siirtymät",
+    "m_090059bac2d329": "Näkyvissä olevat pystypäädyt",
+    "m_1a11982bb733ae": "Viitekuva",
+    "m_c9c660e6accc56": "Nimeämätön kuva",
+    "m_14d33bd014e6b4": "Määrittämätön",
+    "m_0ef1d310eec6e5": "Pinta-ala hukka mukaan lukien (m²)",
+    "m_e312c06e4f54f7": "Pinta-ala hukka mukaan lukien (sq ft)",
+    "m_15a9cffc5bed56": "Kattoruudut hukka mukaan lukien",
+    "m_05ee42debad539": "Mitat pyöristetty. Hukkaa koskeva ohje on vain suuntaa antava. Asentajan on tarkistettava mitat.",
+    "m_da953f1b93f8b7": "Valmisteltu asiakkaalle",
+    "m_cc2838b533f40e": "Katon mittaukset",
+    "m_b430c90b975008": "Kattoruudut hukan kanssa",
+    "m_1f181d240af1a0": "Katon lappeet",
+    "m_e2f79e5b60330b": "Ei sovellu",
+    "m_36762e47a9e4cb": {
+      "message": "Tarve: {value1} (@ 18\"/lf)",
+      "format": "icu"
+    },
+    "m_f8bef190b5c7dd": {
+      "message": "Saatavilla: {value1}",
+      "format": "icu"
+    },
+    "m_d0c422a580d763": "Kapasiteetti riittää",
+    "m_993cf3b9d3e0e3": "Harjatuuletus ei riitä",
+    "m_edd8b32b3e626c": {
+      "message": "Vaje: {value1}",
+      "format": "icu"
+    },
+    "m_de50c6b65c5b98": {
+      "message": "Tarve: {value1} tuuletusaukkoa",
+      "format": "icu"
+    },
+    "m_40edab167ee70f": {
+      "message": "{value1} NFA kutakin",
+      "format": "icu"
+    },
+    "m_97abc4971648fc": {
+      "message": "Yhteensä: {value1}",
+      "format": "icu"
+    },
+    "m_edf717d2c2451d": "Kattotuulettimet",
+    "m_d8f9519730da4f": {
+      "message": "{value1}  ·  {value2}  ·  {value3} lappeet",
+      "format": "icu"
+    },
+    "m_db58767e2a1c62": "Pinta-alan erittely",
+    "m_2f116e6424aa37": {
+      "message": "Kerroksen {value1} tiedot",
+      "format": "icu"
+    },
+    "m_0d2654b2d28308": "Rännien kaavio",
+    "m_b975e865740d2e": "Kerrokset ilmansuunnittain",
+    "m_9a30a63dce7244": "Tuuletuksen yhteenveto",
+    "m_5e1d442d6cc2ef": "Suositellut korvausilmatuotteet",
+    "m_cd6abbbc9cacc4": "Kaltevuuserittely",
+    "m_d71f3ad4ab7a0d": "Räystään alapuoli",
+    "m_e7514fa59671cd": "Vaakasuuntainen verhous",
+    "m_04fc5f90eb1ea9": "Pystysuuntainen verhous",
+    "m_83eb49c0e6f141": "Vaakasuuntainen lista",
+    "m_f0e864abdbc3c3": "Pystysuuntainen lista",
+    "m_84e1f590dd7376": "Tiili",
+    "m_25db51b5636875": "Muuraus",
+    "m_05a92accb1cbff": "Rappaus",
+    "m_6ffa6b8b1c9fa1": "Kivi",
+    "m_f97e9da0e3b879": "Muu",
+    "m_19734a1b58cabc": "Ikkuna",
+    "m_fbf247e43d3745": "Ovi",
+    "m_bfc7b9ead6e2ba": "Autotallin ovi",
+    "m_f414f8c425d315": "Päätykolmion tuuletusaukko",
+    "m_2a60e203a021a1": "Tarkista: ",
+    "m_8a23ff3c3858ac": "Aukko ei sijaitse pystysuorassa seinässä, joten se on jätetty pois seinätaulukosta.",
+    "m_abf4acf7f3ed39": "Aukolle ei löydy sitä tukevaa seinää, joten se on jätetty pois kokonaismääristä.",
+    "m_8fef5c42054b92": {
+      "message": "Rakennus {value1}",
+      "format": "icu"
+    },
+    "m_3aeeb50e64a64b": " – jatkuu",
+    "m_1f49328eb17532": "Seinäalueet",
+    "m_6e2d200e85cb0f": "Aukon pinta-ala",
+    "m_6bc39100b77b1b": "Aukon piiri",
+    "m_b72dc1fbef232e": "Vaakasuuntaiset paluupinnat",
+    "m_0c85aa425e52d8": {
+      "message": "Mitat kuvaavat piirustukseen merkittyjä ulottuvuuksia, eivät valmistajan tai karkean aukon kokoja. Lista {value1} tarkoittaa aukon piiriä.",
+      "format": "icu"
+    }
   },
   "errors": {
     "agent_target_invalid": "Valitse yleinen, organisaatio- tai projektitaso.",
@@ -11010,5 +12151,81 @@
     "m_071609c9efaf0f": "Sulje maksujen käyttöönotto",
     "m_5823063ec74807": "Siirry maksupalvelun hakemukseen",
     "m_ccb52891bb8ff6": "Maksupalveluhakemuksesi on jo lähetetty."
+  },
+  "brand-kit": {
+    "m_6bb25348173069": "Väripaletti",
+    "m_0c92722f162cbd": "Ensisijainen · käyttöliittymä",
+    "m_390a15f2a6d920": "Toissijainen · käyttöliittymä",
+    "m_a63c5a4c25569b": "Logo",
+    "m_2c8fc5e11eaf62": "Nykyinen logo",
+    "m_eb55056b53954c": "Läpinäkyvä PNG- tai SVG-tiedosto toimii parhaiten.",
+    "m_ac8bf335945352": " Vaihda logo",
+    "m_490cbf5945b3f8": "Tietoja yrityksen väripaletista",
+    "m_85de3f0cdfc46a": "Tietoja yrityksen logoista",
+    "m_fc3b468d1ec4eb": "Nykyinen yrityksen logo",
+    "m_953e4a6603f5f1": {
+      "message": "Muokkaa väriä: {v7}",
+      "format": "icu"
+    },
+    "m_036dda0aa72306": "Vaihtoehtoisia logoja ei vielä ole.",
+    "m_8803dece55359d": " Lisää",
+    "m_986685f23ed459": "Tausta",
+    "m_dba346dfc1916b": "Yrityksen fontti",
+    "m_4d9e1ae19fc002": "Uusien asiakirjojen ja mallien oletusasetus",
+    "m_5c6ac1b0faeaa0": "Fonttiperhe",
+    "m_6cac172119f732": "Ensisijainen ja toissijainen väri määrittävät käyttöliittymän tyylin. Tukivärit ovat käytettävissä visuaalisissa muokkaustyökaluissa.",
+    "m_b8391ad75bc163": "Hallitse yrityksen logoa ja sen ulkoasua brändätyissä näkymissä.",
+    "m_695aa2f7da3152": " Luo väripaletti uudelleen logon perusteella",
+    "m_629cca6181934e": "Yrityksen kuuden värin paletti",
+    "m_c0838c60ccd34f": "Vaihtoehtoiset logot ",
+    "m_e3681835cc6b25": "Logon lisäasetukset",
+    "m_76e5c668843400": "Säiliön muoto",
+    "m_eb37afb3b23761": " Neliö",
+    "m_3562c63d47eca1": " Ympyrä",
+    "m_895bf3964e7990": "Pyöristetyt kulmat",
+    "m_57f5beffb19542": "Uudelleenkäytettävät logoversiot tarjouksiin, verkkosivuille ja muuhun brändättyyn mediaan.",
+    "palette_primary": "Ensisijainen",
+    "palette_secondary": "Toissijainen",
+    "palette_primary_title": {
+      "message": "Ensisijainen: {color}",
+      "format": "icu"
+    },
+    "palette_secondary_title": {
+      "message": "Toissijainen: {color}",
+      "format": "icu"
+    },
+    "palette_support_title": {
+      "message": "Tukiväri {number}: {color}",
+      "format": "icu"
+    },
+    "palette_edit_primary": "Muokkaa ensisijaista väriä",
+    "palette_edit_secondary": "Muokkaa toissijaista väriä",
+    "palette_edit_support": {
+      "message": "Muokkaa tukiväriä {number}",
+      "format": "icu"
+    },
+    "m_a7c7218cc9ff52": "Fonttiperheen oletusasetus",
+    "m_a1872cd2329966": " Käytä otsikoissa erillistä fonttia",
+    "m_2d5dcb0d47abfa": "Otsikon fonttiperhe",
+    "m_756cb8f31d3694": "Oletusfonttiperhettä käytetään asiakirjan leipätekstissä ja otsikoissa. Voit halutessasi valita otsikoille erillisen fonttiperheen.",
+    "m_f317840d3f2404": "Tietoja yrityksen fonteista",
+    "m_33289209b6d267": {
+      "message": "Käytä väriä {v2} ensisijaisena",
+      "format": "icu"
+    },
+    "m_f4e2cc33249168": {
+      "message": "Käytä väriä {v3} ensisijaisena",
+      "format": "icu"
+    }
+  },
+  "platform-commerce": {
+    "credit_amount": {
+      "message": "{amount} saldoyksikköä",
+      "format": "icu"
+    },
+    "exchange_estimate": {
+      "message": "Noin {amount} · maksuhetken valuuttakurssi voi poiketa tästä.",
+      "format": "icu"
+    }
   }
 }

@@ -20,6 +20,11 @@
   if (!window.Portal) return;
   const { $, escapeHtml, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
+  function companyReportPreview(){
+    const metric = window.PlatformLanguage?.companyContext?.().measurement_system === 'metric';
+    const row = (label, value) => `<div>${escapeHtml(label)}: ${escapeHtml(value)}</div>`;
+    return `<svg viewBox="0 0 360 240" aria-hidden="true" style="display:block;width:100%;height:auto"><g fill="none" stroke="#777" stroke-width="1.2"><path d="M45 80h125V45h85v35h60v145H45zM45 80l62 55 63-55M170 45l42 38 43-38M255 80l30 45 30-45M107 135v90M212 83v142M285 125v100M45 225l62-90 63 90M170 225l42-142 43 142M255 225l30-100 30 100"/></g></svg><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;font-size:clamp(7px,.65vw,10px);line-height:1.6"><div style="border:1px solid #ddd;padding:8px"><strong>${escapeHtml(settingsText("fm_preview_summary", "Project Summary"))}</strong>${row(settingsText("fm_preview_facets", "Total facets"), settingsNumber(17))}${row(settingsText("fm_preview_pitch", "Predominant pitch"), settingsNumber(6))}${row(settingsText("fm_preview_area", "Total area"), settingsNumber(metric ? 273.3 : 2942) + (metric ? ' m²' : ' ft²'))}</div><div style="border:1px solid #ddd;padding:8px"><strong>${escapeHtml(settingsText("fm_preview_breakdown", "Measurement Breakdown"))}</strong>${row(settingsText("fm_preview_eave", "Eave"), settingsNumber(metric ? 40.8 : 134) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_ridge", "Ridge"), settingsNumber(metric ? 23.2 : 76) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_valley", "Valley"), settingsNumber(metric ? 35.4 : 116) + (metric ? ' m' : ' ft'))}</div></div>`;
+  }
   function languageOptions(selected, { inherit = false, translation = false, companyLocale } = {}) {
     const service = window.PlatformLanguage;
     const packs = service?.supportedLanguages || [];
@@ -29,8 +34,30 @@
     const inherited = inherit ? `<option value="" ${!selected ? 'selected' : ''}>${escapeHtml(window.PlatformLanguage.text('settings','company_language_inherit','Use company language (' + companyName + ')',{name:companyName}))}</option>` : '';
     return inherited + choices.map(({code,label}) => `<option value="${escapeHtml(code)}" ${selected === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
   }
+  function settingsText(key, fallback, values){
+    const readable = fallback.replace(/\{count, plural, one \{([^}]+)\} other \{([^}]+)\}\}/g, (_, one, other) => (Number(values?.count) === 1 ? one : other).replace(/#/g, settingsNumber(values?.count))).replace(/\{(\w+)\}/g, (_, name) => String(values?.[name] ?? ''));
+    return window.PlatformLanguage?.text('settings', key, readable, values) ?? readable;
+  }
+  function companyFormatLocale(){
+    return window.PlatformLanguage?.companyContext?.().locale || window.PlatformLanguage?.locale?.() || 'en-US';
+  }
+  function settingsNumber(value){ return new Intl.NumberFormat(companyFormatLocale(), { maximumFractionDigits:2 }).format(Number(value) || 0); }
+  function billingDomainLabel(value){
+    const labels = {
+      "residential": () => settingsText("fm_billing_residential", "Residential"),
+      "commercial": () => settingsText("fm_billing_commercial", "Commercial"),
+      "multi_family": () => settingsText("fm_billing_multi_family", "Multi-family"),
+      "multifamily": () => settingsText("fm_billing_multifamily", "Multi-family"),
+      "full": () => settingsText("fm_billing_full", "Full report"),
+      "roof_only": () => settingsText("fm_billing_roof_only", "Roof only"),
+      "roof": () => settingsText("fm_billing_roof", "Roof only"),
+    };
+    return labels[value]?.() ?? value;
+  }
+  function statementMonth(month, year){
+    return new Intl.DateTimeFormat(companyFormatLocale(), {month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(year,month-1,1)));
+  }
   const DEFAULT_LOGO = '/images/logo_red.png';
-  const SAMPLE_DIAGRAM = 'media/sample_diagram.png';
   const LS_KEY = 'fm_org_theme_v1';
   const DEFAULT_PRIMARY = '#d93025';
   const DEFAULT_SECONDARY = '#960000';
@@ -117,8 +144,6 @@
   const BILL_DEFAULT_THRESHOLD = 50;
   const BILL_DEFAULT_TOPUP = 100;
   const PROPOSAL_FONT_OPTIONS = ['Montserrat','Inter','Roboto','Open Sans','Lato','Poppins','Source Sans 3'];
-  // Month names for statement
-  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   function currentOrgId(){
     return String(window.__APP?.userOrgId || state?.id || '').trim();
   }
@@ -1132,7 +1157,7 @@
     return Object.assign({}, asBoolMap(items || {}));
   }
   function permissionHintText(level, canEdit){
-    return canEdit ? '' : 'Permissions are read-only.';
+    return canEdit ? '' : settingsText("fm_permissions_are_read_only", "Permissions are read-only.");
   }
   function userInitial(name, email){
     const raw = String(name || email || '?').trim();
@@ -1668,7 +1693,7 @@
       <button class="rp-toggle ${value ? 'on' : 'off'}" data-key="${escapeHtml(key)}" data-val="${value ? '1' : '0'}" type="button">
         <span class="rp-dot"></span>
         <span class="rp-label">${escapeHtml(label)}</span>
-        <span class="rp-state">${value ? 'On' : 'Off'}</span>
+        <span class="rp-state">${escapeHtml(value ? settingsText("fm_on", "On") : settingsText("fm_off", "Off"))}</span>
       </button>
     `;
   }
@@ -14327,7 +14352,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                   <div class="cs-barSecondary"></div>
                   <div class="cs-pageInner">
                     <div class="cs-pageLogo"><img id="csPrevLogoImg" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_a09f6a051adb2f","Company logo in report preview") ?? "Company logo in report preview")}"></div>
-                    <div class="cs-centerZone"><img id="csSampleDiagram" alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_8eec608d18828f","Sample roof diagram") ?? "Sample roof diagram")}"></div>
+                    <div class="cs-centerZone"><div id="csSampleDiagram" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_8eec608d18828f","Sample roof diagram") ?? "Sample roof diagram")}" style="width:90%"></div></div>
                   </div>
                 </div>
               </div>
@@ -14369,7 +14394,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           <nav class="cu-subnav" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_11bb3908df0f4e","User administration") ?? "User administration")}" role="tablist">
             <button type="button" class="cu-subtab ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view="people" role="tab" aria-selected="${String(viewState.usersSubtab === 'people')}"><i class="fas fa-users"></i><span>${String(escapeHtml(terminologyLabel('settings.people_view', 'People')))}</span></button>
             ${String(canManageAccess ? `<button type="button" class="cu-subtab ${viewState.usersSubtab === 'access' ? 'active' : ''}" data-users-view="access" role="tab" aria-selected="${viewState.usersSubtab === 'access'}"><i class="fas fa-user-shield"></i><span>${escapeHtml(terminologyLabel('settings.roles_access_view', 'Roles & access'))}</span><small data-access-role-count>0</small></button>` : '')}
-            <button type="button" class="cu-subtab ${viewState.usersSubtab === 'departments' ? 'active' : ''}" data-users-view="departments" role="tab" aria-selected="${viewState.usersSubtab === 'departments'}"><i class="fas fa-sitemap"></i><span>Departments</span></button>
+            <button type="button" class="cu-subtab ${viewState.usersSubtab === 'departments' ? 'active' : ''}" data-users-view="departments" role="tab" aria-selected="${viewState.usersSubtab === 'departments'}"><i class="fas fa-sitemap"></i><span>${escapeHtml(settingsText("fm_departments", "Departments"))}</span></button>
           </nav>
 
           <section class="cu-view ${String(viewState.usersSubtab === 'people' ? 'active' : '')}" data-users-view-panel="people" ${String(viewState.usersSubtab === 'people' ? '' : 'hidden')}>
@@ -14789,9 +14814,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           div.className = 'cs-note';
           div.style.marginTop = '10px';
           div.style.marginBottom = '12px';
-          div.innerHTML = `
-            Changing report settings only applies to <b>${(globalThis.PlatformLanguage?.htmlText("settings","m_55a5ffa19f5eea","future") ?? "future")}</b>${(globalThis.PlatformLanguage?.htmlText("settings","m_b56d2ac3394699"," measurement reports.\n            It does ") ?? " measurement reports.\n            It does ")}<b>${(globalThis.PlatformLanguage?.htmlText("settings","m_ccb5ad288aed2d","not") ?? "not")}</b> change reports that have already been ordered.
-          `;
+          div.textContent = settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered.");
           const h3 = card.querySelector('h3.rp-h');
           if (h3 && h3.parentNode){
             if (h3.nextSibling) h3.parentNode.insertBefore(div, h3.nextSibling);
@@ -14866,7 +14889,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             btn.classList.toggle('off', !next);
             btn.setAttribute('data-val', next ? '1' : '0');
             const st = btn.querySelector('.rp-state');
-            if (st) st.textContent = next ? 'On' : 'Off';
+            if (st) st.textContent = next ? settingsText("fm_on", "On") : settingsText("fm_off", "Off");
           });
         });
       }
@@ -14889,13 +14912,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (!iso) return '-';
       const d = new Date(iso);
       if (!isFinite(d.getTime())) return iso;
-      return d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+      return d.toLocaleDateString(companyFormatLocale(), { month:'short', day:'numeric', year:'numeric' });
     }
     function msStatusLabel(st){
       const s = String(st || '').toLowerCase().trim();
-      if (s === 'completed') return 'Completed';
-      if (s === 'rejected' || s === 'rejected_no_coverage') return 'Rejected';
-      return 'Processing';
+      if (s === 'completed') return settingsText("fm_completed", "Completed");
+      if (s === 'rejected' || s === 'rejected_no_coverage') return settingsText("fm_rejected", "Rejected");
+      return settingsText("fm_processing", "Processing");
     }
     function msStatusClass(st){
       const s = String(st || '').toLowerCase().trim();
@@ -14909,7 +14932,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     }
     function msMoneyText(v){
       const amount = Math.round(msMoney(v) * 100) / 100;
-      return amount % 1 === 0 ? String(amount.toFixed(0)) : amount.toFixed(2);
+      return settingsNumber(amount);
     }
     function msReason(row){
       return String(row?.reason || '').toLowerCase().trim();
@@ -14976,17 +14999,17 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     }
     function msLedgerTitle(row){
       const r = msReason(row);
-      if (msIsAdditionalStructureRefund(row)) return 'Additional structure refund';
-      if (msIsAdditionalStructureLedger(row)) return 'Additional structure request';
-      if (r === 'order_submitted') return 'Report ordered';
-      if (r === 'stripe_checkout_paid') return 'Payment received';
-      if (r === 'stripe_auto_topup') return 'Auto top-up';
-      if (r === 'coupon_redeem') return 'Promo credit applied';
-      if (r === 'cancellation_refund') return 'Cancellation refund';
-      if (r === 'firstmeasure_expedite_missed_promise_refund') return 'Expedite refund';
-      if (r.indexOf('refund') !== -1) return 'Refund';
-      if (r.indexOf('stripe') === 0) return 'Payment received';
-      return 'Credit adjustment';
+      if (msIsAdditionalStructureRefund(row)) return settingsText("fm_additional_structure_refund", "Additional structure refund");
+      if (msIsAdditionalStructureLedger(row)) return settingsText("fm_additional_structure_request", "Additional structure request");
+      if (r === 'order_submitted') return settingsText("fm_report_ordered", "Report ordered");
+      if (r === 'stripe_checkout_paid') return settingsText("fm_payment_received", "Payment received");
+      if (r === 'stripe_auto_topup') return settingsText("fm_auto_top_up", "Auto top-up");
+      if (r === 'coupon_redeem') return settingsText("fm_promo_credit_applied", "Promo credit applied");
+      if (r === 'cancellation_refund') return settingsText("fm_cancellation_refund", "Cancellation refund");
+      if (r === 'firstmeasure_expedite_missed_promise_refund') return settingsText("fm_expedite_refund", "Expedite refund");
+      if (r.indexOf('refund') !== -1) return settingsText("fm_refund", "Refund");
+      if (r.indexOf('stripe') === 0) return settingsText("fm_payment_received", "Payment received");
+      return settingsText("fm_credit_adjustment", "Credit adjustment");
     }
     function msLedgerSub(row){
       const meta = msLedgerMeta(row);
@@ -15001,17 +15024,17 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const count = msLedgerStructureCount(row);
         if (address) parts.push(address);
         parts.push(msIsAdditionalStructureRefund(row)
-          ? 'Additional structure request refund'
-          : (count > 0 ? `${count} additional structure${count === 1 ? '' : 's'}` : 'Additional structure added to report'));
-        if (projectType) parts.push(projectType);
+          ? settingsText("fm_additional_structure_request_refund", "Additional structure request refund")
+          : (count > 0 ? settingsText("fm_additional_structure_count", "{count, plural, one {# additional structure} other {# additional structures}}", {count:count}) : settingsText("fm_additional_structure_added_to_report", "Additional structure added to report")));
+        if (projectType) parts.push(billingDomainLabel(projectType));
         if (by) parts.push(by);
-        if (sid) parts.push(`Ref ${sid.slice(-8)}`);
+        if (sid) parts.push(settingsText("fm_ref_reference", "Ref {reference}", {reference:sid.slice(-8)}));
         return parts.join(' - ');
       }
       if (address) parts.push(address);
-      if (projectType && r === 'order_submitted') parts.push(projectType);
-      if (reportMode && r === 'order_submitted') parts.push(reportMode);
-      if (sid) parts.push(`Ref ${sid.slice(-8)}`);
+      if (projectType && r === 'order_submitted') parts.push(billingDomainLabel(projectType));
+      if (reportMode && r === 'order_submitted') parts.push(billingDomainLabel(reportMode));
+      if (sid) parts.push(settingsText("fm_ref_reference", "Ref {reference}", {reference:sid.slice(-8)}));
       if (by) parts.push(by);
       return parts.join(' - ');
     }
@@ -15038,7 +15061,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const prevBtn   = $('#msPrev', paneBilling);
       const nextBtn   = $('#msNext', paneBilling);
       // Update label
-      if (labelEl) labelEl.textContent = `${MONTH_NAMES[month-1]} ${year}`;
+      if (labelEl) labelEl.textContent = statementMonth(month, year);
       // Disable forward past current month
       if (nextBtn) nextBtn.disabled = msIsCurrentMonth(month, year);
       // Check cache (skip for current month to stay fresh, unless explicitly cached)
@@ -15082,7 +15105,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         summaryEl.innerHTML = `
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_ad68f8741d9002","Transactions") ?? "Transactions")}</div>
-            <div class="ms-statVal">${String(transactions.length)}</div>
+            <div class="ms-statVal">${escapeHtml(settingsNumber(transactions.length))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_0e0f5712c06ace","Payments In") ?? "Payments In")}</div>
@@ -15098,11 +15121,11 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_320155f7cd8ad0","Order Count") ?? "Order Count")}</div>
-            <div class="ms-statVal">${String(orderCount)}</div>
+            <div class="ms-statVal">${escapeHtml(settingsNumber(orderCount))}</div>
           </div>
           <div class="ms-stat">
             <div class="ms-statLabel">${(globalThis.PlatformLanguage?.htmlText("settings","m_2eedb890028422","Payment Count") ?? "Payment Count")}</div>
-            <div class="ms-statVal">${String(paymentCount)}</div>
+            <div class="ms-statVal">${escapeHtml(settingsNumber(paymentCount))}</div>
           </div>
         `;
       }
@@ -15113,7 +15136,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const d = msState.data;
       if (!d) return;
       const orders = d.orders || [];
-      const monthLabel = d.month_label || `${MONTH_NAMES[(msState.month||1)-1]} ${msState.year}`;
+      const monthLabel = statementMonth(msState.month || 1, msState.year);
       const total = d.total_spent || 0;
 
       // --- Compute reimbursement total ---
@@ -15220,13 +15243,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const d = msState.data;
       if (!d) return;
       const orders = d.orders || [];
-      const monthLabel = d.month_label || `${MONTH_NAMES[(msState.month||1)-1]} ${msState.year}`;
+      const monthLabel = statementMonth(msState.month || 1, msState.year);
 
       // --- Compute reimbursement total ---
       let totalReimbursed = 0;
 
       // Build CSV - added "Reimbursed" as the last column
-      const headers = ['#','Address','Ordered By','Date Ordered','Project Type','Status','Cost','Reimbursed'];
+      const headers = ["#", settingsText("fm_statement_address", "Address"), settingsText("fm_statement_ordered_by", "Ordered By"), settingsText("fm_statement_date_ordered", "Date Ordered"), settingsText("fm_statement_project_type", "Project Type"), settingsText("fm_statement_status", "Status"), settingsText("fm_statement_cost", "Cost"), settingsText("fm_statement_reimbursed", "Reimbursed")];
       const rows = orders.map((o, idx) => {
         const reimb = o.rejected ? (parseFloat(o.reimbursed_amount ?? o.cost ?? 0) || 0) : 0;
         totalReimbursed += reimb;
@@ -15243,10 +15266,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       });
 
       // Add totals row - includes reimbursement total
-      rows.push(['', '', '', '', '', 'TOTAL', d.total_spent || 0, totalReimbursed]);
+      rows.push(['', '', '', '', '', settingsText('fm_statement_total','Total'), d.total_spent || 0, totalReimbursed]);
 
       const csvContent = [
-        headers.join(','),
+        headers.map(msCsvCell).join(','),
         ...rows.map(r => r.join(','))
       ].join('\n');
 
@@ -15267,7 +15290,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const d = msState.data;
       if (!d) return;
       const transactions = msTransactions();
-      const monthLabel = d.month_label || `${MONTH_NAMES[(msState.month||1)-1]} ${msState.year}`;
+      const monthLabel = statementMonth(msState.month || 1, msState.year);
 
       const back = document.createElement('div');
       back.className = 'ms-modalBack';
@@ -15287,7 +15310,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                 ${msLedgerSub(row) ? `<div class="ms-issuer">${escapeHtml(msLedgerSub(row))}</div>` : ''}
               </td>
               <td>${msFormatDate(row.ts || row.ts_utc || row.created_at)}</td>
-              <td><span class="ms-typePill">${escapeHtml(msLedgerReasonLabel(row))}</span></td>
+              <td><span class="ms-typePill">${escapeHtml(msLedgerTitle(row))}</span></td>
               <td class="right"><span class="ms-cost ${isPos ? 'zero' : ''}" style="${isPos ? 'color:#1e7e34;' : ''}">${escapeHtml(amount)}</span></td>
             </tr>
           `;
@@ -15316,7 +15339,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           </div>
           <div class="ms-mBody">${String(tableHtml)}</div>
           <div class="ms-mFooter">
-            <div class="ms-mFooterLeft">${((v2,v3) => globalThis.PlatformLanguage?.htmlText("settings","m_c3d1a4a6bbeb5e_currency",`${v2} transaction${v3} - Net: `,{v2,v3}) ?? `${v2} transaction${v3} - Net: `)(transactions.length,transactions.length !== 1 ? 's' : '')}<b>${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</b></div>
+            <div class="ms-mFooterLeft">${escapeHtml(settingsText("fm_statement_transaction_count", "{count, plural, one {# transaction} other {# transactions}} - Net: ", {count:transactions.length}))}<b>${String(net >= 0 ? '+' : '-')}${String(window.PlatformCommerce.credit(Math.abs(net)))}</b></div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="cs-btn ghost" id="msModalExport" type="button"><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_9c51f57f58f776"," Export CSV") ?? " Export CSV")}</button>
               <button class="cs-btn ghost" id="msModalClose" type="button">${(globalThis.PlatformLanguage?.htmlText("settings","m_3742924668fb10","Close") ?? "Close")}</button>
@@ -15339,14 +15362,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const d = msState.data;
       if (!d) return;
       const transactions = msTransactions();
-      const monthLabel = d.month_label || `${MONTH_NAMES[(msState.month||1)-1]} ${msState.year}`;
-      const headers = ['#','Date','Transaction','Details','Reason','Amount','Balance After'];
+      const monthLabel = statementMonth(msState.month || 1, msState.year);
+      const headers = ["#", settingsText("fm_statement_date", "Date"), settingsText("fm_statement_transaction", "Transaction"), settingsText("fm_statement_details", "Details"), settingsText("fm_statement_reason", "Reason"), settingsText("fm_statement_amount", "Amount"), settingsText("fm_statement_balance_after", "Balance After")];
       const rows = transactions.map((row, idx) => [
         idx + 1,
         msCsvCell(row.ts || row.ts_utc || row.created_at || ''),
         msCsvCell(msLedgerTitle(row)),
         msCsvCell(msLedgerSub(row)),
-        msCsvCell(msLedgerReasonLabel(row)),
+        msCsvCell(msLedgerTitle(row)),
         msMoney(row?.delta),
         row?.balance_after == null ? '' : msMoney(row.balance_after),
       ]);
@@ -15354,7 +15377,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       rows.push([
         '',
         '',
-        msCsvCell('TOTAL'),
+        msCsvCell(settingsText("fm_statement_total", "Total")),
         '',
         '',
         msMoney(d.net_change),
@@ -15362,7 +15385,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       ]);
 
       const csvContent = [
-        headers.join(','),
+        headers.map(msCsvCell).join(','),
         ...rows.map(r => r.join(','))
       ].join('\n');
 
@@ -15472,7 +15495,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         return (v.enabled !== !!b.enabled) || (v.th !== b.th) || (v.amt !== b.amt);
       }
       function setMinimumMessage(text, isWarning){
-        const nextText = text || `Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`;
+        const nextText = text || settingsText("fm_billing_minimum", "Minimum auto top-up values are {amount}.", {amount:window.PlatformCommerce.credit(BILL_MIN)});
         if (blMinimumNote) blMinimumNote.textContent = nextText;
         if (blStatus) blStatus.textContent = text || '';
         if (blStatus) blStatus.style.color = isWarning ? '#b26a00' : '';
@@ -15480,8 +15503,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       function syncBillingCopy(){
         if (!elSubCopy) return;
         elSubCopy.textContent = hasPM
-          ? 'Use the card on file to keep your account funded automatically.'
-          : 'Use the card you add to keep your account funded automatically.';
+          ? settingsText("fm_use_the_card_on_file_to_keep_your_account_funded_automatically", "Use the card on file to keep your account funded automatically.")
+          : settingsText("fm_use_the_card_you_add_to_keep_your_account_funded_automatically", "Use the card you add to keep your account funded automatically.");
       }
       function syncSummary(){
         if (!elSummary) return;
@@ -15507,11 +15530,11 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const paymentRow = findPaymentRow();
       if (hasPM){
         if (paymentRow) paymentRow.style.display = '';
-        if (btnUpdateCard) btnUpdateCard.innerHTML = '<i class="fas fa-pen"></i> Update card';
+        if (btnUpdateCard) btnUpdateCard.innerHTML = `<i class="fas fa-pen"></i> ${escapeHtml(settingsText("fm_update_card", "Update card"))}`;
         if (cardNote){
           if (stripe.last4){
-            const exp = (stripe.exp_month && stripe.exp_year) ? ` - exp ${stripe.exp_month}/${String(stripe.exp_year).slice(-2)}` : '';
-            const brand = stripe.brand ? String(stripe.brand) : 'Card';
+            const exp = (stripe.exp_month && stripe.exp_year) ? ' - ' + settingsText("fm_card_expiry", "Expires {date}", {date:new Intl.DateTimeFormat(companyFormatLocale(), {month:'2-digit',year:'2-digit',timeZone:'UTC'}).format(new Date(Date.UTC(stripe.exp_year,stripe.exp_month-1,1)))}) : '';
+            const brand = stripe.brand ? String(stripe.brand) : settingsText("fm_card", "Card");
             cardNote.textContent = `${brand} **** ${stripe.last4}${exp}`;
           } else {
             cardNote.textContent = (globalThis.PlatformLanguage?.text("settings","m_583ba214ee8795","Set") ?? "Set");
@@ -15533,7 +15556,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
       } else {
         if (paymentRow) paymentRow.style.display = 'none';
-        if (btnUpdateCard) btnUpdateCard.innerHTML = '<i class="fas fa-credit-card"></i> Add card';
+        if (btnUpdateCard) btnUpdateCard.innerHTML = `<i class="fas fa-credit-card"></i> ${escapeHtml(settingsText("fm_add_card", "Add Card"))}`;
       }
       syncBillingCopy();
       // Write clamped values to state + inputs
@@ -15572,8 +15595,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       }
       function setEnabledUI(on){
         if (elToggle) elToggle.classList.toggle('on', !!on);
-        if (elToggleText) elToggleText.textContent = on ? 'Enabled' : 'Disabled';
-        if (elEnabledNote) elEnabledNote.textContent = on ? 'On' : 'Off';
+        if (elToggleText) elToggleText.textContent = on ? settingsText("fm_enabled", "Enabled") : settingsText("fm_disabled", "Disabled");
+        if (elEnabledNote) elEnabledNote.textContent = on ? settingsText("fm_on", "On") : settingsText("fm_off", "Off");
         if (elControls) elControls.classList.toggle('bl-disabled', !on);
         const thVal = clampMoney(elTh?.value ?? th, BILL_MIN);
         const amtVal = clampMoney(elAmt?.value ?? amt, BILL_MIN);
@@ -15588,14 +15611,14 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       function updatePrimaryCta(){
         if (!blSave) return;
         if (hasPM){
-          blSave.innerHTML = `<i class="fas fa-save"></i> Save`;
+          blSave.innerHTML = `<i class="fas fa-save"></i> ${escapeHtml(settingsText("fm_save", "Save"))}`;
           blSave.dataset.mode = 'save_only';
           return;
         }
         const dirty = isDirty();
         blSave.innerHTML = dirty
-          ? `<i class="fas fa-save"></i> Save and Add Card`
-          : `<i class="fas fa-credit-card"></i> Add Card`;
+          ? `<i class="fas fa-save"></i> ${escapeHtml(settingsText("fm_save_and_add_card", "Save and Add Card"))}`
+          : `<i class="fas fa-credit-card"></i> ${escapeHtml(settingsText("fm_add_card", "Add Card"))}`;
         blSave.dataset.mode = dirty ? 'save_then_card' : 'card_only';
       }
       // Initial UI
@@ -15625,7 +15648,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           const v = Math.max(BILL_MIN, n || BILL_MIN);
           if (path === 'threshold') state.billing.auto_topup.threshold_dollars = v;
           if (path === 'topup') state.billing.auto_topup.topup_dollars = v;
-          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(`Minimum auto top-up values are ${window.PlatformCommerce.credit(BILL_MIN)}.`, true);
+          if (raw > 0 && raw < BILL_MIN) setMinimumMessage(settingsText("fm_billing_minimum", "Minimum auto top-up values are {amount}.", {amount:window.PlatformCommerce.credit(BILL_MIN)}), true);
           else setMinimumMessage('', false);
           setEnabledUI(!!state.billing.auto_topup.enabled);
           syncSummary();
@@ -15791,8 +15814,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       function fmtDateParts(tsUtc){
         const d = new Date(tsUtc);
         if (!isFinite(d.getTime())) return { d:'', t:'' };
-        const date = d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
-        const time = d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+        const date = d.toLocaleDateString(companyFormatLocale(), { month:'short', day:'numeric' });
+        const time = d.toLocaleTimeString(companyFormatLocale(), { hour:'numeric', minute:'2-digit' });
         return { d: date, t: time };
       }
       function nInt(v){
@@ -15822,7 +15845,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             kind: 'event',
             ts: ev.ts_utc,
             title: (globalThis.PlatformLanguage?.text("settings","m_a37e9435aa0971","Auto top-up failed") ?? "Auto top-up failed"),
-            sub: by ? `Triggered by ${by}` : 'Payment could not be processed',
+            sub: by ? settingsText("fm_triggered_by_person", "Triggered by {person}", {person:by}) : settingsText("fm_payment_could_not_be_processed", "Payment could not be processed"),
             amountTxt: ''
           };
         }
@@ -15832,7 +15855,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             kind: 'event',
             ts: ev.ts_utc,
             title: (globalThis.PlatformLanguage?.text("settings","m_65a3284ee46864","Auto top-up completed") ?? "Auto top-up completed"),
-            sub: by ? `Triggered by ${by}` : 'Payment processed',
+            sub: by ? settingsText("fm_triggered_by_person", "Triggered by {person}", {person:by}) : settingsText("fm_payment_processed", "Payment processed"),
             amountTxt: (topup > 0 ? `+${window.PlatformCommerce.credit(topup)}` : '')
           };
         }
@@ -15855,41 +15878,41 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const isOrder = (r === 'order_submitted');
         const isAdditionalStructure = msIsAdditionalStructureLedger(row);
         if (!isPayment && !isPromo && !isCancellationRefund && !isOrder && !isAdditionalStructure && delta === 0) return null;
-        let title = 'Payment';
+        let title = settingsText("fm_payment", "Payment");
         let sub = '';
         if (isOrder){
-          title = 'Report ordered';
+          title = settingsText("fm_report_ordered", "Report ordered");
           const address = String(meta.address || '').trim();
           const projectType = String(meta.project_type || '').trim();
           const reportMode = String(meta.report_mode || '').trim();
           const by = String(row?.applied_for_user_email || row?.by_email || '').trim();
           if (address) sub = address;
-          if (projectType) sub = sub ? `${sub} - ${projectType}` : projectType;
-          if (reportMode) sub = sub ? `${sub} - ${reportMode}` : reportMode;
-          if (by) sub = sub ? `${sub} - Ordered by ${by}` : `Ordered by ${by}`;
+          if (projectType) sub = sub ? `${sub} - ${billingDomainLabel(projectType)}` : billingDomainLabel(projectType);
+          if (reportMode) sub = sub ? `${sub} - ${billingDomainLabel(reportMode)}` : billingDomainLabel(reportMode);
+          if (by) sub = sub ? `${sub} - ${settingsText("fm_ordered_by_person", "Ordered by {person}", {person:by})}` : settingsText("fm_ordered_by_person", "Ordered by {person}", {person:by});
         } else if (isPayment){
-          title = 'Payment received';
+          title = settingsText("fm_payment_received", "Payment received");
           const cents = nInt(row?.amount_total);
-          if (cents != null && cents > 0) sub = `Charged ${window.PlatformCommerce.credit(cents / 100)}`;
+          if (cents != null && cents > 0) sub = settingsText("fm_charged_amount", "Charged {amount}", {amount:window.PlatformCommerce.credit(cents / 100)});
           const sid = row?.session_id ? String(row.session_id) : '';
-          if (sid) sub = sub ? `${sub} - Ref ${sid.slice(-8)}` : `Ref ${sid.slice(-8)}`;
+          if (sid) sub = sub ? `${sub} - ${settingsText("fm_ref_reference", "Ref {reference}", {reference:sid.slice(-8)})}` : settingsText("fm_ref_reference", "Ref {reference}", {reference:sid.slice(-8)});
           const by = row?.by_email ? String(row.by_email) : '';
-          if (by) sub = sub ? `${sub} - Triggered by ${by}` : `Triggered by ${by}`;
+          if (by) sub = sub ? `${sub} - ${settingsText("fm_triggered_by_person", "Triggered by {person}", {person:by})}` : settingsText("fm_triggered_by_person", "Triggered by {person}", {person:by});
         } else if (isPromo){
-          title = 'Promo credit applied';
-          sub = 'Coupon credit added';
+          title = settingsText("fm_promo_credit_applied", "Promo credit applied");
+          sub = settingsText("fm_coupon_credit_added", "Coupon credit added");
         } else if (isCancellationRefund){
-          title = 'Cancellation refund';
+          title = settingsText("fm_cancellation_refund", "Cancellation refund");
           const address = String(meta.address || '').trim();
           const by = String(meta.cancelled_by_name || meta.cancelled_by_email || row?.by_email || '').trim();
           if (address) sub = address;
-          if (by) sub = sub ? `${sub} - Handled by ${by}` : `Handled by ${by}`;
+          if (by) sub = sub ? `${sub} - ${settingsText("fm_handled_by_person", "Handled by {person}", {person:by})}` : settingsText("fm_handled_by_person", "Handled by {person}", {person:by});
         } else if (isExpeditePromiseRefund){
-          title = 'Expedite refund';
+          title = settingsText("fm_expedite_refund", "Expedite refund");
           const address = String(meta.address || '').trim();
           const due = String(meta.due_at || '').trim();
           if (address) sub = address;
-          if (due) sub = sub ? `${sub} - Missed promised delivery window` : 'Missed promised delivery window';
+          if (due) sub = sub ? `${sub} - ${settingsText("fm_missed_promised_delivery_window", "Missed promised delivery window")}` : settingsText("fm_missed_promised_delivery_window", "Missed promised delivery window");
         } else if (isAdditionalStructure){
           title = msLedgerTitle(row);
           sub = msLedgerSub(row);
@@ -16078,11 +16101,11 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             report_preferences:state.report_preferences
           };
           brandSaveQueue = brandSaveQueue.catch(() => {}).then(() => saveOrg(snapshot)).then((result) => {
-            if (!result.ok) throw new Error(result.error || 'Could not save Brand Kit.');
+            if (!result.ok) throw new Error(result.error || settingsText("fm_could_not_save_brand_kit", "Could not save Brand Kit."));
             csStatus.textContent = '';
-            showToast('Brand Kit','Changes saved automatically.',true);
+            showToast(settingsText("fm_brand_kit", "Brand Kit"),settingsText("fm_changes_saved_automatically", "Changes saved automatically."),true);
           }).catch((error) => {
-            csStatus.textContent = error?.message || 'Could not save Brand Kit.';
+            csStatus.textContent = error?.message || settingsText("fm_could_not_save_brand_kit", "Could not save Brand Kit.");
             showToast((globalThis.PlatformLanguage?.text("settings","m_569b229b85507e","Brand Kit save failed") ?? "Brand Kit save failed"), csStatus.textContent, false);
           });
         }, 400);
@@ -16100,7 +16123,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if (event.target?.id === 'csSeparateTitleFont') {state.title_font=event.target.checked ? state.font_family : '';const field=$('#csTitleFontField',paneCompany);if(field)field.hidden=!event.target.checked;const title=$('#csTitleFont',paneCompany);if(title)title.value=state.title_font || state.font_family;scheduleBrandSave();}
         if (event.target?.matches?.('[data-palette-direct], input[name="csLogoShape"]')) scheduleBrandSave();
       });
-      if(csSampleDiagram) setImgSmart(csSampleDiagram, SAMPLE_DIAGRAM, { forceBust:false });
+      if(csSampleDiagram) csSampleDiagram.innerHTML = companyReportPreview();
       function wireHexChip(chip, input){
         if (!chip || !input) return;
         chip.addEventListener('click', (e)=>{
@@ -16226,7 +16249,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           renderCompany({ writeInputs:true });
           scheduleBrandSave();
         } catch(e) {
-          showToast((globalThis.PlatformLanguage?.text("settings","m_3e81c0909c4003","Could not generate palette") ?? "Could not generate palette"), e?.message || 'The logo colors could not be read.', false);
+          showToast((globalThis.PlatformLanguage?.text("settings","m_3e81c0909c4003","Could not generate palette") ?? "Could not generate palette"), e?.message || settingsText("fm_the_logo_colors_could_not_be_read", "The logo colors could not be read."), false);
         } finally {
           csGeneratePalette.disabled = false;
           csGeneratePalette.innerHTML = defaultHtml;
@@ -16238,8 +16261,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             brandSaveQueue=brandSaveQueue.catch(()=>{}).then(()=>window.PlatformBrandKit.saveLogo(currentOrgId(),currentBranchId(),logo.src,logo.media_id));
             await brandSaveQueue;state.logo=logo.src;lastSidebarLogoKey=null;lastPreviewLogoKey=null;
             renderCompany({writeInputs:false,forceLogo:true});renderAlternateLogos(items);
-            showToast('Brand Kit','Primary logo saved automatically.',true);
-          },onError:(error)=>showToast('Brand Kit',error?.message || 'Could not change primary logo.',false)
+            showToast(settingsText("fm_brand_kit", "Brand Kit"),settingsText("fm_primary_logo_saved_automatically", "Primary logo saved automatically."),true);
+          },onError:(error)=>showToast(settingsText("fm_brand_kit", "Brand Kit"),error?.message || settingsText("fm_could_not_change_primary_logo", "Could not change primary logo."),false)
         });
       };
       const loadAlternateLogos = async ()=>{
@@ -16591,13 +16614,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       return { isMe, isSuper, isLastSuper, superCount };
     }
     function pickStatus(u){
-      if (u?.deleted)  return { t:'Deleted',   cls:'off', ico:'fa-trash' };
-      if (u?.disabled) return { t:'Suspended', cls:'off', ico:'fa-pause' };
+      if (u?.deleted)  return { t:settingsText("fm_deleted", "Deleted"),   cls:'off', ico:'fa-trash' };
+      if (u?.disabled) return { t:settingsText("fm_suspended", "Suspended"), cls:'off', ico:'fa-pause' };
       const rawStatus = String(u?.status || '').trim().toLowerCase();
       const neverSignedIn = u?.never_signed_in === true || (!u?.last_login_at && ['invited', 'pending'].includes(rawStatus));
-      if (neverSignedIn) return { t:'Never signed in', cls:'never', ico:'fa-envelope-open-text' };
-      if (rawStatus === 'invited' || rawStatus === 'pending') return { t:'Invited', cls:'never', ico:'fa-paper-plane' };
-      return { t:'Active', cls:'active', ico:'fa-circle-check' };
+      if (neverSignedIn) return { t:settingsText("fm_never_signed_in", "Never signed in"), cls:'never', ico:'fa-envelope-open-text' };
+      if (rawStatus === 'invited' || rawStatus === 'pending') return { t:settingsText("fm_invited", "Invited"), cls:'never', ico:'fa-paper-plane' };
+      return { t:settingsText("fm_active", "Active"), cls:'active', ico:'fa-circle-check' };
     }
     function openEditUserModal(u){
       const workforceUser = workforceUserForDisplay(u);
@@ -16820,7 +16843,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             if (ret.activate_url) {
               try{ navigator.clipboard.writeText(ret.activate_url); }catch(e){}
             }
-            showToast((globalThis.PlatformLanguage?.text("settings","m_88586c062e2d41","Invite failed") ?? "Invite failed"), ret.error || 'Could not send invite email.', false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_88586c062e2d41","Invite failed") ?? "Invite failed"), ret.error || settingsText("fm_could_not_send_invite_email", "Could not send invite email."), false);
             return;
           }
           showToast((globalThis.PlatformLanguage?.text("settings","m_56cd43e2daebec","Invite sent") ?? "Invite sent"), (globalThis.PlatformLanguage?.text("settings","m_eb7d39af41ae8e","Activation email sent.") ?? "Activation email sent."), true);
@@ -16831,7 +16854,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         btnSuspend.addEventListener('click', async ()=>{
           closeFloatingMenu();
           if (!canSuspend){
-            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? "You can't suspend yourself." : "You can't suspend a Super Admin.", false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? settingsText("fm_you_can_t_suspend_yourself", "You can't suspend yourself.") : settingsText("fm_you_can_t_suspend_a_super_admin", "You can't suspend a Super Admin."), false);
             return;
           }
           const wantDisabled = !u.disabled;
@@ -16840,7 +16863,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             showToast((globalThis.PlatformLanguage?.text("settings","m_ec71d30ae4424e","Update failed") ?? "Update failed"), ret.error || '-', false);
             return;
           }
-          showToast((globalThis.PlatformLanguage?.text("settings","m_6a171239c315c1","Updated") ?? "Updated"), wantDisabled ? 'User suspended.' : 'User unsuspended.', true);
+          showToast((globalThis.PlatformLanguage?.text("settings","m_6a171239c315c1","Updated") ?? "Updated"), wantDisabled ? settingsText("fm_user_suspended", "User suspended.") : settingsText("fm_user_unsuspended", "User unsuspended."), true);
           refreshUsers();
         });
       }
@@ -16848,7 +16871,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         btnDelete.addEventListener('click', async ()=>{
           closeFloatingMenu();
           if (!canDelete){
-            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? "You can't delete yourself." : "You can't delete a Super Admin.", false);
+            showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), isMe ? settingsText("fm_you_can_t_delete_yourself", "You can't delete yourself.") : settingsText("fm_you_can_t_delete_a_super_admin", "You can't delete a Super Admin."), false);
             return;
           }
           const label = `${u.name || u.email || 'User'} (${u.email || ''})`;
@@ -17003,7 +17026,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                       ${String(roleButtonsHtml)}
                     </div>
                     <div class="cu-permHint">
-                      ${String(isMe ? 'You cannot edit your own permissions here.' : permissionHintText(lvl, canManagePerms))}
+                      ${String(isMe ? settingsText("fm_you_cannot_edit_your_own_permissions_here", "You cannot edit your own permissions here.") : permissionHintText(lvl, canManagePerms))}
                     </div>
                   </div>
                   <div class="cu-permGrid">
@@ -17599,7 +17622,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     }
     if (firstMeasureUsers && canUsers) {
       const usersHost = $('#csPaneUsers', panel);
-      usersHost.innerHTML = `<nav class="cu-subnav" role="tablist" aria-label="User administration"><button type="button" class="cu-subtab" data-users-view="people" role="tab">Users</button><button type="button" class="cu-subtab" data-users-view="departments" role="tab">Departments</button></nav><section data-users-view-panel="people"></section><section data-users-view-panel="departments" data-settings-autosave="off" hidden></section>`;
+      usersHost.innerHTML = `<nav class="cu-subnav" role="tablist" aria-label="${escapeHtml(settingsText("fm_user_administration", "User administration"))}"><button type="button" class="cu-subtab" data-users-view="people" role="tab">${escapeHtml(settingsText("fm_users", "Users"))}</button><button type="button" class="cu-subtab" data-users-view="departments" role="tab">${escapeHtml(settingsText("fm_departments", "Departments"))}</button></nav><section data-users-view-panel="people"></section><section data-users-view-panel="departments" data-settings-autosave="off" hidden></section>`;
       firstMeasureUsersController = window.FirstMeasureUsers.mount(usersHost.querySelector('[data-users-view-panel=people]'), { portalAssetUrl, platformUserFromDocument, uploadUserAvatar });
       usersHost.querySelectorAll('[data-users-view]').forEach(button => button.addEventListener('click', () => setUsersView(button.dataset.usersView)));
       panel.__firstMeasureUsers = firstMeasureUsersController;

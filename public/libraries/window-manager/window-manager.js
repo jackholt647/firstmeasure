@@ -212,7 +212,7 @@
         button.onclick=()=>action === 'pin' ? setPinned(!win.pinned) : setMode(action);
       }
     }
-    const name = options.name || 'window';
+    const name = options.label || (options.name === 'project' ? (globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project") : options.name) || (globalThis.PlatformLanguage?.text("window-manager","window","window") ?? "window");
     function chrome(){
       element.style.position = win.viewportCoordinates || ['modal','fullscreen'].includes(win.mode) ? 'fixed' : 'absolute';
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
@@ -225,10 +225,21 @@
       for (const [action, button] of Object.entries(buttons)) {
         button.style.setProperty('display', mobile && action !== 'close' ? 'none' : '', mobile ? 'important' : '');
       }
-      const labels = {place:`${dock ? 'Dock' : 'Float'} ${name}`,minimize:`${win.mode === 'minimized' ? 'Restore' : 'Minimize'} ${name}`,maximize:`${win.mode === 'full' ? 'Float' : 'Maximize'} ${name}`,close:`Close ${name}`,modal:`Show ${name} as a modal`,floating:`Float ${name}`,fullscreen:`Fill entire screen with ${name}`,pin:`${win.pinned ? 'Unpin' : 'Pin'} ${name}`};
-      labels.place=`Dock ${name} to the ${win.mode==='docked' && win.dockSide==='right' ? 'left' : 'right'} (right-click for placement)`;
-      if(options.presentationModes) { labels.maximize=`Fill workspace with ${name}`; }
-      if (mobile) labels.maximize = `Fill entire screen with ${name}`;
+      const labels = {
+        place: (globalThis.PlatformLanguage?.text("window-manager","dock_window","Dock {window}",{window:name}) ?? `Dock ${name}`),
+        minimize: win.mode === 'minimized' ? (globalThis.PlatformLanguage?.text("window-manager","restore_window","Restore {window}",{window:name}) ?? `Restore ${name}`) : (globalThis.PlatformLanguage?.text("window-manager","minimize_window","Minimize {window}",{window:name}) ?? `Minimize ${name}`),
+        maximize: win.mode === 'full' ? (globalThis.PlatformLanguage?.text("window-manager","float_window","Float {window}",{window:name}) ?? `Float ${name}`) : (globalThis.PlatformLanguage?.text("window-manager","maximize_window","Maximize {window}",{window:name}) ?? `Maximize ${name}`),
+        close: (globalThis.PlatformLanguage?.text("window-manager","close_window","Close {window}",{window:name}) ?? `Close ${name}`),
+        modal: (globalThis.PlatformLanguage?.text("window-manager","modal_window","Show {window} as a modal",{window:name}) ?? `Show ${name} as a modal`),
+        floating: (globalThis.PlatformLanguage?.text("window-manager","float_window","Float {window}",{window:name}) ?? `Float ${name}`),
+        fullscreen: (globalThis.PlatformLanguage?.text("window-manager","fullscreen_window","Fill entire screen with {window}",{window:name}) ?? `Fill entire screen with ${name}`),
+        pin: win.pinned ? (globalThis.PlatformLanguage?.text("window-manager","unpin_window","Unpin {window}",{window:name}) ?? `Unpin ${name}`) : (globalThis.PlatformLanguage?.text("window-manager","pin_window","Pin {window}",{window:name}) ?? `Pin ${name}`)
+      };
+      labels.place = win.mode === 'docked' && win.dockSide === 'right'
+        ? (globalThis.PlatformLanguage?.text("window-manager","dock_window_left","Dock {window} to the left (right-click for placement)",{window:name}) ?? `Dock ${name} to the left (right-click for placement)`)
+        : (globalThis.PlatformLanguage?.text("window-manager","dock_window_right","Dock {window} to the right (right-click for placement)",{window:name}) ?? `Dock ${name} to the right (right-click for placement)`);
+      if(options.presentationModes) labels.maximize = (globalThis.PlatformLanguage?.text("window-manager","fill_workspace_window","Fill workspace with {window}",{window:name}) ?? `Fill workspace with ${name}`);
+      if(mobile) labels.maximize = (globalThis.PlatformLanguage?.text("window-manager","fullscreen_window","Fill entire screen with {window}",{window:name}) ?? `Fill entire screen with ${name}`);
       if (title && options.titleMenu !== false) {
         title.setAttribute('aria-label',win.mode === 'minimized' ? labels.minimize : ((v0) => globalThis.PlatformLanguage?.text("window-manager","m_d2465937dae930",`${v0} window menu`,{v0}) ?? `${v0} window menu`)(name));
         title.title=win.mode === 'minimized' ? labels.minimize : (globalThis.PlatformLanguage?.text("window-manager","m_e271e8dbdf1d3d","Window menu (right-click or Alt+Space)") ?? "Window menu (right-click or Alt+Space)");
@@ -290,17 +301,17 @@
     function showMenu(event,dockOnly=false){
       if(options.titleMenu===false && !dockOnly)return;
       event.preventDefault(); closeMenu(); if (mobileFullscreen()) return; menu=document.createElement('div'); menu.className='fm-window-menu'; menu.setAttribute('role','menu');
-      const dockOptions=document.createElement('div');dockOptions.className='fm-window-dock-options';dockOptions.setAttribute('role','group');dockOptions.setAttribute('aria-label','Dock placement');
+      const dockOptions=document.createElement('div');dockOptions.className='fm-window-dock-options';dockOptions.setAttribute('role','group');dockOptions.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("window-manager","dock_placement","Dock placement") ?? "Dock placement"));
       for(const [index,side] of placements.slice(0,6).entries()) {
         if(index===2)dockOptions.append(document.createElement('hr'));
-        const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.setAttribute('aria-label','Dock '+side.replace('-',' '));button.title='Dock '+side.replace('-',' ');button.dataset.dockPlacement=side;
+        const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.setAttribute('aria-label',({"left":(globalThis.PlatformLanguage?.text("window-manager","dock_left","Dock left") ?? "Dock left"),"right":(globalThis.PlatformLanguage?.text("window-manager","dock_right","Dock right") ?? "Dock right"),"top-left":(globalThis.PlatformLanguage?.text("window-manager","dock_top_left","Dock top left") ?? "Dock top left"),"top-right":(globalThis.PlatformLanguage?.text("window-manager","dock_top_right","Dock top right") ?? "Dock top right"),"bottom-left":(globalThis.PlatformLanguage?.text("window-manager","dock_bottom_left","Dock bottom left") ?? "Dock bottom left"),"bottom-right":(globalThis.PlatformLanguage?.text("window-manager","dock_bottom_right","Dock bottom right") ?? "Dock bottom right"),"top":(globalThis.PlatformLanguage?.text("window-manager","dock_top","Dock top") ?? "Dock top"),"bottom":(globalThis.PlatformLanguage?.text("window-manager","dock_bottom","Dock bottom") ?? "Dock bottom")})[side]);button.title=({"left":(globalThis.PlatformLanguage?.text("window-manager","dock_left","Dock left") ?? "Dock left"),"right":(globalThis.PlatformLanguage?.text("window-manager","dock_right","Dock right") ?? "Dock right"),"top-left":(globalThis.PlatformLanguage?.text("window-manager","dock_top_left","Dock top left") ?? "Dock top left"),"top-right":(globalThis.PlatformLanguage?.text("window-manager","dock_top_right","Dock top right") ?? "Dock top right"),"bottom-left":(globalThis.PlatformLanguage?.text("window-manager","dock_bottom_left","Dock bottom left") ?? "Dock bottom left"),"bottom-right":(globalThis.PlatformLanguage?.text("window-manager","dock_bottom_right","Dock bottom right") ?? "Dock bottom right"),"top":(globalThis.PlatformLanguage?.text("window-manager","dock_top","Dock top") ?? "Dock top"),"bottom":(globalThis.PlatformLanguage?.text("window-manager","dock_bottom","Dock bottom") ?? "Dock bottom")})[side];button.dataset.dockPlacement=side;
         const corner=side.includes('-'),left=side.includes('left'),top=side.startsWith('top');
         button.innerHTML=`<svg viewBox="0 0 24 20" aria-hidden="true"><rect x="2" y="2" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 2v16${corner?'M2 10h20':''}" fill="none" stroke="currentColor" stroke-width="1"/><rect x="${left?4:14}" y="${corner&&!top?12:4}" width="6" height="${corner?4:12}" rx="1" fill="currentColor"/></svg>`;
         button.onclick=()=>{closeMenu();dock(side);};dockOptions.append(button);
       }
-      const items=dockOnly ? [] : [['Float',()=>setMode('floating')],['Close',requestClose]];
-      if(options.presentationModes && !options.compactCall && !dockOnly){items.unshift(['Modal',()=>setMode('modal')],['Fill workspace',()=>setMode('full')]);if(options.allowFullscreen!==false)items.unshift(['Fill entire screen',()=>setMode('fullscreen')]);}
-      for(const [label,action] of items) {const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};if(label==='Close')menu.append(dockOptions);menu.append(button);}
+      const items=dockOnly ? [] : [[(globalThis.PlatformLanguage?.text("window-manager","float","Float") ?? "Float"),()=>setMode('floating')],[(globalThis.PlatformLanguage?.text("window-manager","close","Close") ?? "Close"),requestClose]];
+      if(options.presentationModes && !options.compactCall && !dockOnly){items.unshift([(globalThis.PlatformLanguage?.text("window-manager","modal","Modal") ?? "Modal"),()=>setMode('modal')],[(globalThis.PlatformLanguage?.text("window-manager","fill_workspace","Fill workspace") ?? "Fill workspace"),()=>setMode('full')]);if(options.allowFullscreen!==false)items.unshift([(globalThis.PlatformLanguage?.text("window-manager","fill_entire_screen","Fill entire screen") ?? "Fill entire screen"),()=>setMode('fullscreen')]);}
+      for(const [label,action] of items) {const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('role','menuitem');button.onclick=()=>{closeMenu();action();};if(action===requestClose)menu.append(dockOptions);menu.append(button);}
       if(dockOnly)menu.append(dockOptions);
       menu.style.width='max-content';menu.style.pointerEvents='auto';(options.menuHost || document.body).append(menu);
       const anchor=dockOnly?buttons.place:header,r=anchor.getBoundingClientRect(),view=menu.ownerDocument.defaultView;
