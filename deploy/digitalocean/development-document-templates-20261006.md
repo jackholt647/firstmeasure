@@ -50,3 +50,35 @@ it was not exercised in a hosted browser session. Scope lines are still
 generated in the browser by the legacy proposals module, which rounds
 measurements to whole numbers. Rollback: the previous release per role is in
 `output/document-workflow-20261006/manifest.json`.
+
+## Followup: server scope generation, payment terms and customer steps
+
+Source commit `8ffb9a312be7c86cdcc09cea9d6e33ffbcdb9e59`, development only.
+
+- `pricebook.scope.generate` is a published read operation that builds a
+  scope piece's priced tree from the organization price book and supplied
+  measurements (`public/v1/pricebook/scope-generation.ts`). It supports
+  `roof_replacement`; other pieces still use the browser generator. Quantities
+  keep the measured decimals.
+- The itemized roofing proposal gained a Payment terms step (the
+  `payment_schedule` workflow kind), a deposit pay widget beside the approval
+  signature, and customer steps: choose options, approve, pay the deposit.
+  Customer picks record `outputs.selections`, which the existing write-through
+  applies to `params.scope_items`. The template's customer presentation is
+  `hybrid`. Instant roofing pack 4 republishes existing packs.
+
+Publication suite: 68 passed, one skipped. Document, Instant roofing and price
+book suites: 40 passed, including generation through the published action, a
+denied caller, and a customer pick moving the total by the price difference.
+The workflow steps, including the customer view, were exercised in a local
+browser harness with stand-in services; the portal's customer flow and a real
+deposit payment were not exercised in a hosted session.
+
+Activated on compatibility, web and pool as release
+`8ffb9a312be7c86cdcc09cea9d6e33ffbcdb9e59`; each role's 12 files verified and
+the public health endpoint returned the release id. **The worker was not
+updated**: staging failed its free-space guard, the same full disk that held
+back the automation-fixes rollout. Nothing in this change runs on the worker
+except the unchanged document renderer. To finish, free space on the worker
+and run `python output/document-customer-terms-20261006/rollout.py stage worker`
+then `... activate worker`.
