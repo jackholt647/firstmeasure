@@ -1892,14 +1892,45 @@
         projectMeasurements: async () => {
           const projectId = firstText(state.doc?.project_id, project()?.id);
           if (!projectId) return { values: {}, source: '' };
-          const result = objectValue(await window.PlatformAPI.publication.measurements(orgId(), projectId));
-          const values = {};
-          Object.entries(objectValue(objectValue(result.value).measurements)).forEach(([key, entry]) => {
-            const value = Number(objectValue(entry).value);
-            if (Number.isFinite(value)) values[key] = value;
-          });
-          const producer = cleanText(objectValue(result.provenance).producer);
-          return { values, source: producer === 'firstmeasure' ? 'the FirstMeasure report on this project' : 'this project\'s measurements' };
+          const numbers = (source) => {
+            const values = {};
+            Object.entries(objectValue(source)).forEach(([key, value]) => { if (typeof value === 'number' && Number.isFinite(value)) values[key] = value; });
+            return values;
+          };
+          const loader = window.FirstMeasureAPI?.roofMeasurements;
+          if (!loader?.load) {
+            const result = objectValue(await window.PlatformAPI.publication.measurements(orgId(), projectId));
+            const values = {};
+            Object.entries(objectValue(objectValue(result.value).measurements)).forEach(([key, entry]) => {
+              const value = Number(objectValue(entry).value);
+              if (Number.isFinite(value)) values[key] = value;
+            });
+            return { values, source: 'the measurements on this project' };
+          }
+          // The shared loader reads the project's measurement dataset and, for
+          // a report that was never published as one, the report itself.
+          const subject = { ...objectValue(project()), id: projectId, organization_id: orgId() };
+          // The host knows which report the project is linked to even when
+          // the project record itself does not carry the link yet.
+          const options = { force: true, reportOrderState: objectValue(context.host?.getReportOrderState?.()) };
+          let loaded = objectValue(await loader.load(subject, options));
+          const measured = (result) => Object.values(numbers(result.measurements)).some((value) => value > 0);
+          if (loaded.legacyFallback && measured(loaded) && typeof loader.import === 'function') {
+            // Publish the completed report as the project's dataset, which is
+            // what materials generation reads after signing. Someone without
+            // permission to do that still gets the report's values below.
+            try {
+              await loader.import(subject);
+              loaded = objectValue(await loader.load(subject, options));
+            } catch (error) {
+              console.warn('Could not publish the report as the project measurement dataset', error);
+            }
+          }
+          if (!measured(loaded)) return { values: {}, source: '' };
+          const values = numbers(loaded.measurements);
+          // A report read directly has no waste figure; leave the field to its default.
+          if (!(values.wastePercent > 0)) delete values.wastePercent;
+          return { values, source: 'the measurement report on this project' };
         },
         // Native line-items generation (line_items_review + measurement-key
         // derivation): the legacy module's exported generation, pricebook
