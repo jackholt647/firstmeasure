@@ -72,7 +72,8 @@ const burstProject = projects[0];
 const batches = [
   { project: burstProject, size: 20, uploader: chris, crew: installationCrew, at: burstTime, key: 'installation-burst' },
   { project: projects[1], size: 6, uploader: jamie, crew: null, at: new Date(now - 5 * 86_400_000).toISOString(), key: 'repair-progress' },
-  { project: projects[2], size: 4, uploader: dana, crew: null, at: new Date(now - 9 * 86_400_000).toISOString(), key: 'gutter-progress' }
+  { project: projects[2], size: 4, uploader: dana, crew: null, at: new Date(now - 9 * 86_400_000).toISOString(), key: 'gutter-progress' },
+  { project: projects[12], size: 8, uploader: chris, crew: installationCrew, at: new Date(now - 90_000).toISOString(), key: 'today-installation-burst' }
 ];
 for (const batch of batches) {
   const existing = Array.isArray(batch.project.data.photos) ? batch.project.data.photos : [];
@@ -186,7 +187,7 @@ for (const spec of activitySpecs) {
 
 console.log(JSON.stringify({ mode: apply ? 'applied' : 'dry-run', org: org.org_name,
   org_id: org.org_id, batch_20_project: burstProject.id, batch_20_uploader: chris.data.name,
-  batch_20_crew: installationCrew.name, ...count }, null, 2));
+  batch_20_crew: installationCrew.name, today_batch_project: projects[12].id, ...count }, null, 2));
 
 if (process.argv.includes('--verify')) {
   const catalog = await get(`${channels}/feed/catalog`);
@@ -194,6 +195,12 @@ if (process.argv.includes('--verify')) {
   const photos = burst?.data?.photos || [];
   const batchId = stableId('upload_batch', `${org.org_id}:installation-burst`);
   const burstPhotos = photos.filter((photo) => photo.upload_batch_id === batchId || photo.metadata?.upload_batch_id === batchId);
+  const todayProject = catalog.projects.find((entry) => entry.id === projects[12].id);
+  const todayBatchId = stableId('upload_batch', `${org.org_id}:today-installation-burst`);
+  const todayPhotos = (todayProject?.data?.photos || []).filter((photo) => photo.upload_batch_id === todayBatchId || photo.metadata?.upload_batch_id === todayBatchId);
+  const authorized = await post(`${channels}/feed/authorize`, { refs: todayPhotos.map((photo) => ({ kind: 'media', id: photo.id, project_id: projects[12].id })) });
+  const groupKeys = new Set((authorized.sources || []).map((source) => source.key));
+  const uploaderProfile = catalog.users.find((entry) => entry.id === chris.id);
   const verifiedChecklists = await Promise.all(checklistSpecs.map(async (spec) => {
     const result = await get(`${workforce}/crew/projects/${encodeURIComponent(spec.project.id)}/checklists`);
     const checklist = result.checklists.find((entry) => entry.metadata?.sample_key === spec.title);
@@ -211,10 +218,12 @@ if (process.argv.includes('--verify')) {
     const result = await get(`${platform}/projects/${encodeURIComponent(project.id)}`);
     return (result.document?.data?.events || []).some((entry) => entry.id === stableId('event', `${org.org_id}:${project.id}:sales-appointment`));
   }));
-  const report = { feed_visible_batch_photos: burstPhotos.length, feed_activity_events: catalog.events.length,
+  const report = { feed_visible_batch_photos: burstPhotos.length, today_grouped_upload_photos: todayPhotos.length,
+    today_feed_group_keys: groupKeys.size, today_uploader_has_avatar: Boolean(uploaderProfile?.avatar), feed_activity_events: catalog.events.length,
     completed_checklists: verifiedChecklists, sold_projects_with_lifecycle: sold.filter(Boolean).length,
     scheduled_appointments: appointmentProjects.filter(Boolean).length };
   console.log(JSON.stringify({ verification: report }, null, 2));
-  if (burstPhotos.length !== 20 || sold.filter(Boolean).length !== 3 || appointmentProjects.filter(Boolean).length !== 4
+  if (burstPhotos.length !== 20 || todayPhotos.length !== 8 || groupKeys.size !== 1 || !uploaderProfile?.avatar
+    || sold.filter(Boolean).length !== 3 || appointmentProjects.filter(Boolean).length !== 4
     || verifiedChecklists.some((item) => !item.total || item.completed !== item.total)) throw new Error('Synthetic activity verification failed.');
 }

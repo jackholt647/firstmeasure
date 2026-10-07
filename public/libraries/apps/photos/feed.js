@@ -577,6 +577,14 @@
   function activityTime(value){
     return window.FirstMateMarkup?.formatDateTime?.(value) || cleanText(value);
   }
+  function feedListTime(value){
+    const date = parseDate(value);
+    if (!date) return cleanText(value);
+    const time = date.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+    return dateKey(date) === dateKey(new Date())
+      ? `Today, ${time}`
+      : `${date.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' })} · ${time}`;
+  }
   function activityTarget(event = {}){
     return event.target && typeof event.target === 'object' ? event.target : {};
   }
@@ -1130,6 +1138,7 @@
         };
       });
     const activityEntries = state.activity
+      .filter((event) => cleanText(event.type) !== 'work.plan.started')
       .filter((event) => state.visibleActivity.has(feedActivityCategory(event)))
       .map((event) => ({
         id:`activity:${firstText(event.id, event.idempotency_key, event.type)}:${eventTimestamp(event)}`,
@@ -1488,6 +1497,8 @@
       .pf-wrap[data-density="small"] .pf-document-icon i,.pf-wrap[data-density="large"] .pf-document-icon i{font-size:18px}
       .pf-wrap[data-density="small"] .pf-feed-activity-icon,.pf-wrap[data-density="large"] .pf-feed-activity-icon{width:21px;height:21px;border-radius:6px;font-size:8px}
       .pf-wrap[data-density="list"] .pf-feed-grid{max-width:none}
+      .pf-feed-list-row{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:13px;min-height:72px;padding:11px 15px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 1px 2px #10182808}.pf-feed-list-copy{min-width:0;display:grid;gap:5px}.pf-feed-list-copy strong{color:#182230;font-size:13px;line-height:1.35}.pf-feed-list-project{display:flex;align-items:center;gap:7px;min-width:0;color:#667085;font-size:11px}.pf-feed-list-project button{border:0;background:none;padding:0;color:#475467;font:inherit;font-weight:850;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-feed-list-project button:hover{text-decoration:underline;color:var(--primary-readable,var(--primary,#d93025))}.pf-feed-list-project .pf-feed-list-address{font-weight:650}.pf-feed-list-project .pf-feed-list-separator{color:#98a2b3}.pf-feed-list-time{color:#667085;font-size:11px;font-weight:750;white-space:nowrap;text-align:right}
+      .pf-actor-avatar{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;position:relative;border-radius:50%;background:#e9eef4;color:#475467;font-size:16px;font-weight:850}.pf-actor-avatar>img{width:100%;height:100%;border-radius:50%;object-fit:cover}.pf-actor-badge{position:absolute;right:-3px;bottom:-3px;width:21px;height:21px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:var(--primary,#d93025);color:#fff;font-size:9px;box-shadow:0 1px 3px #10182820}.pf-post-head .pf-actor-avatar{width:44px;height:44px;flex-basis:44px}
       .pf-wrap[data-density="mosaic"] .pf-feed-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:8px;gap:12px;align-items:start}
       .pf-wrap[data-density="mosaic"] .pf-feed-grid>article{margin:0;border-radius:4px;overflow:hidden}
       .pf-wrap[data-density="mosaic"] .pf-feed-card .pf-thumb{aspect-ratio:4/5}
@@ -1498,7 +1509,8 @@
       .pf-wrap[data-density="posts"] .pf-day-title{max-width:700px;margin:0 auto 12px}
       .pf-wrap[data-density="posts"] .pf-scroll{background:#f3f5f7;padding:18px}
       .pf-post{border:1px solid #e1e5ea;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 5px #10182806;min-width:0}
-      .pf-post button{cursor:pointer}.pf-post-head{display:flex;align-items:center;gap:11px;padding:16px 18px}.pf-post-head>div{flex:1;min-width:0}.pf-post-head strong{font-size:14px;color:#182230}.pf-post-head span:not(.pf-post-avatar){display:block;color:#798393;font-size:12px;margin-top:4px}.pf-post-head button{border:0;background:transparent;padding:0;color:inherit;font:inherit}.pf-post-head>i{color:#98a2b3}.pf-post-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover;background:#e9eef4;color:#475467;display:flex;align-items:center;justify-content:center;font-weight:700}
+      .pf-post button{cursor:pointer}.pf-post-head{display:flex;align-items:center;gap:11px;padding:16px 18px}.pf-post-head>div{flex:1;min-width:0}.pf-post-head strong{font-size:14px;color:#182230}.pf-post-head>div>span{display:block;color:#798393;font-size:12px;margin-top:4px}.pf-post-head button{border:0;background:transparent;padding:0;color:inherit;font:inherit}.pf-post-head>i{color:#98a2b3}.pf-post-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover;background:#e9eef4;color:#475467;display:flex;align-items:center;justify-content:center;font-weight:700}
+      .pf-post-head>.pf-actor-avatar{display:grid;margin-top:0;color:#475467}.pf-post-head>.pf-actor-avatar>.pf-actor-badge{display:grid;margin-top:0;color:#fff}
       .pf-post-caption{margin:0;padding:0 18px 14px;font-size:14px;color:#344054}
       .pf-post-collage{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:repeat(3,1fr);gap:3px;height:350px;background:#eef1f4}.pf-post-collage .pf-thumb{height:100%;width:100%;aspect-ratio:auto;border-radius:0;border:0;position:relative}.pf-post-collage .pf-thumb:first-child{grid-row:1/-1}.pf-post-collage.count-1{display:block;height:390px}.pf-post-collage.count-2{grid-template-rows:1fr}.pf-post-collage.count-3{grid-template-rows:repeat(2,1fr)}.pf-post-collage img,.pf-post-collage video{object-fit:cover;width:100%;height:100%}.pf-post-overflow{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#10182888;color:#fff;font-size:32px;font-weight:650}
       .pf-post-document{margin:0 18px 18px;padding:24px;background:#f6f4fc;border:1px solid #e4def3;border-radius:8px;display:flex;align-items:flex-start;gap:18px}.pf-post-document-icon{font-size:34px;color:#7c3aed}.pf-post-document small{display:block;color:#667085;margin-bottom:5px}.pf-post-document strong{display:block;font-size:18px;color:#182230}.pf-post-document .pf-action{margin-top:14px}.pf-post-value{display:block;font-size:30px;color:#182230;margin-top:10px;letter-spacing:-.5px}.pf-post-event{padding:10px 22px 26px;line-height:1.6;font-size:16px}.pf-post-event>i{color:var(--primary,#475467);font-size:26px}.pf-post-event p{margin:10px 0 0}
@@ -1506,6 +1518,7 @@
       .pf-comments{padding:14px 18px;border-top:1px solid #eaecf0;background:#fcfcfd}.pf-comment{display:flex;gap:9px;margin-bottom:14px}.pf-comment>.pf-post-avatar{width:30px;height:30px;flex-basis:30px;font-size:12px}.pf-comment-body{flex:1;min-width:0}.pf-comment-head{display:flex;justify-content:space-between;gap:8px;font-size:12px}.pf-comment-head time{font-size:11px;color:#98a2b3}.pf-comment [data-comment-content]{padding:8px 12px;margin-top:5px;border-radius:4px 14px 14px;background:#eef1f4;font-size:13px;overflow-wrap:anywhere}.pf-comment-actions{display:flex;gap:9px;margin-top:5px;flex-wrap:wrap}.pf-comment-actions button{border:0;background:none;color:#667085;font-size:11px;padding:0}.pf-comment-label{display:block;font-size:11px;color:#667085}.pf-comment-label textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:62px;margin-top:5px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:11px;font:inherit;font-size:13px}.pf-comment-tools{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}.pf-comment-tools>button[type="submit"]{margin-left:auto}.pf-comment-tools details{position:relative;font-size:12px;cursor:pointer}.pf-comment-tools details>div{position:absolute;bottom:100%;display:flex;z-index:5;background:#fff;border:1px solid #e4e7ec}.pf-comment-tools details button{border:0;background:none;padding:6px;font-size:20px}.pf-comment-tools [data-comment-attachments]{font-size:11px;max-width:180px;overflow-wrap:anywhere}
       @media(max-width:1050px){.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media(max-width:760px){.pf-wrap:has(.pf-feed-grid) .pf-toolbar{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-density{display:flex}.pf-wrap:has(.pf-feed-grid) .pf-tools{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-search{flex-basis:100%}.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.pf-wrap[data-density="large"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-wrap[data-density="list"] .pf-feed-grid{grid-template-columns:1fr}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-post-collage{height:270px}.pf-post-collage.count-1{height:300px}.pf-wrap[data-density="posts"] .pf-scroll{padding:8px}.pf-post-head{padding:14px}.pf-wrap[data-density="list"] .pf-feed-card{grid-template-columns:90px minmax(0,1fr)}}
+      @media(max-width:760px){.pf-feed-list-row{grid-template-columns:46px minmax(0,1fr);gap:10px;padding:11px}.pf-feed-list-time{grid-column:2;text-align:left;margin-top:-2px}.pf-feed-list-project{flex-wrap:wrap;gap:3px 7px}.pf-feed-list-project button{white-space:normal;text-align:left}}
     `);
   }
   async function load(options = {}){
@@ -1971,9 +1984,40 @@
     return state.posts.get(key);
   }
   function postAuthor(post){
-    const person=state.users.find(u=>cleanText(u.id || u.user_id)===post.source.author);
+    const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author));
     const up=post.kind==='media'?uploader(post.media):{};
-    return {name:firstText(person?.name,person?.display_name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),avatar:firstText(person?.avatar,person?.profile_photo_url,person?.profile_photo,up.avatar)};
+    const profile=person?.profile && typeof person.profile==='object' ? person.profile : {};
+    return {name:firstText(person?.name,person?.display_name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),
+      avatar:firstText(person?.avatar,person?.avatar_url,person?.profile_photo_url,person?.profile_photo,profile.profile_photo,profile.profile_photo_url,up.avatar)};
+  }
+  function postIcon(post){
+    return post.kind==='media' ? 'fa-images' : post.kind==='document' ? 'fa-file-contract' : feedActivityIcon(post.event);
+  }
+  function uploadCountLabel(entries){
+    const videos=entries.filter((entry)=>isVideoMedia(entry.media)).length;
+    const photos=entries.length-videos;
+    return [photos ? `${photos} ${photos===1?'photo':'photos'}` : '',videos ? `${videos} ${videos===1?'video':'videos'}` : ''].filter(Boolean).join(' and ');
+  }
+  function actorAvatarHtml(author, icon){
+    const avatar=cleanText(author.avatar);
+    const image=/^(https?:\/\/|\/)/.test(avatar)
+      ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(author.name)}">`
+      : `<span aria-hidden="true">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
+    return `<span class="pf-actor-avatar">${image}<span class="pf-actor-badge" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span></span>`;
+  }
+  function feedListEntryHtml(post){
+    const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
+    const action=photos.length
+      ? `${author.name} uploaded ${uploadCountLabel(photos)}`
+      : post.kind==='activity' ? feedActivitySummary(post.event)
+      : post.pairedEvent ? feedActivitySummary(post.pairedEvent)
+      : `${author.name} added ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
+    const title=savedProjectTitle(post.project) || projectTitle(post.project);
+    const address=projectAddress(post.project);
+    const project=post.projectId
+      ? `<button type="button" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(title)}</button>${address && address.toLowerCase()!==title.toLowerCase() ? `<span class="pf-feed-list-separator">·</span><button type="button" class="pf-feed-list-address" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(address)}</button>` : ''}`
+      : `<span>${escapeHtml(title)}</span>`;
+    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong><div class="pf-feed-list-project">${project}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
   }
   function avatarHtml(author){
     const avatar=cleanText(author.avatar);
@@ -1984,9 +2028,9 @@
     const amount=doc ? firstText(doc.total_formatted,doc.amount_formatted,doc.contract_value,doc.total,doc.amount) : firstText(activityPayload(post.event || {}).amount_formatted,activityPayload(post.event || {}).amount);
     const amountCents=Number(doc?.total_cents ?? doc?.amount_cents ?? activityPayload(post.event || {}).amount_cents);
     const money=Number.isFinite(amountCents)?new Intl.NumberFormat(undefined,{style:'currency',currency:doc?.currency || activityPayload(post.event || {}).currency || 'USD'}).format(amountCents/100):amount;
-    const body=photos.length ? `<p class="pf-post-caption">Uploaded ${photos.length} ${photos.length===1?(isVideoMedia(photos[0].media)?'video':'photo'):'photos and videos'}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
+    const body=photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
     const reactions=current.root?.reactions || [],liked=reactions.find(r=>r.emoji==='👍');
-    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}"><header class="pf-post-head">${avatarHtml(author)}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · <button type="button" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(projectTitle(post.project))}</button></span></div><i class="fas ${post.kind==='media'?'fa-images':post.kind==='document'?'fa-file-contract':feedActivityIcon(post.event)}"></i></header>${body}<div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div><div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions">☺</summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>${current.open?`<section class="pf-comments" aria-label="Comments"><div data-comment-list></div>${state.canComment?`<form data-comment-form><label class="pf-comment-label">${current.replyToName?`Reply to ${escapeHtml(current.replyToName)}`:'Write a comment'}<textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary>Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-action">Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post</button></div></form>`:''}</section>`:''}</article>`;
+    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}"><header class="pf-post-head">${actorAvatarHtml(author,postIcon(post))}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · <button type="button" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(projectTitle(post.project))}</button></span></div></header>${body}<div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div><div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions">☺</summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>${current.open?`<section class="pf-comments" aria-label="Comments"><div data-comment-list></div>${state.canComment?`<form data-comment-form><label class="pf-comment-label">${current.replyToName?`Reply to ${escapeHtml(current.replyToName)}`:'Write a comment'}<textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary>Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-action">Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post</button></div></form>`:''}</section>`:''}</article>`;
   }
   async function fetchPost(post,create=false){
     const current=postState(post.id);
@@ -2045,7 +2089,7 @@
     });
   }
   function dynamicHtml(options = {}){
-    const entries = state.density === 'posts' ? groupedPosts(feedEntries()) : feedEntries();
+    const entries = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()) : feedEntries();
     const visibleEntries = entries.slice(0, state.visible);
     const dayGroups = groupedFeedEntries(visibleEntries);
     const selectedCount = state.selected.size;
@@ -2070,7 +2114,7 @@
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
         ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
         ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
-        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : (entry.kind === 'document' ? feedDocumentEntryHtml(entry) : feedActivityEntryHtml(entry))).join('')}</div></div>`).join('')}
+        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : (entry.kind === 'document' ? feedDocumentEntryHtml(entry) : feedActivityEntryHtml(entry))).join('')}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : ''}
       </div>`;
   }
@@ -2175,7 +2219,7 @@
   }
   function render(){
     if (!state.root) return;
-    const visibleCount = feedEntries().length;
+    const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
     state.root.innerHTML = `
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
         <div class="pf-toolbar" data-app-header>
