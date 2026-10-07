@@ -5,7 +5,7 @@ import type { PlatformAuthContext } from '../../platform/auth.js';
 import * as store from './storage.js';
 import { voiceSettings } from './settings.js';
 
-export const DEVELOPMENT_CALL_DESTINATION='+12069415049';
+export const DEVELOPMENT_CALL_DESTINATION='+14259700671';
 export function developmentCalls(){return env.dataEnvironment==='development';}
 export async function developmentCallStatus(orgId:string){
   if(!developmentCalls())return undefined;

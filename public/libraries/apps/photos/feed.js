@@ -39,6 +39,7 @@
     groups: [],
     documents: [],
     activity: [],
+    notes: [],
     users: [],
     query: '',
     density: 'small',
@@ -83,6 +84,7 @@
     activeFeedViewer: null,
     closingFeedViewerFromRoute: false,
     openingProjectFromFeedViewer: false,
+    noteObserver: null,
     activeUserModal: null
   };
 
@@ -277,9 +279,9 @@
       id,
       document_type:documentType(doc),
       title:firstText(doc.title, doc.label, doc.file_name, doc.name, meta.label),
-      type_label:firstText(doc.type_label, meta.label),
-      icon:firstText(doc.icon, meta.icon),
-      color:firstText(doc.color, meta.color),
+      type_label:cleanText(doc.type_label) === 'Document' && meta.label !== 'Document' ? meta.label : firstText(doc.type_label, meta.label),
+      icon:cleanText(doc.type_label) === 'Document' && meta.label !== 'Document' ? meta.icon : firstText(doc.icon, meta.icon),
+      color:cleanText(doc.type_label) === 'Document' && meta.label !== 'Document' ? meta.color : firstText(doc.color, meta.color),
       url:documentUrl(doc),
       project,
       project_id:firstText(doc.project_id, project.id, project.platform_project_id, project.base_project_id),
@@ -357,16 +359,24 @@
     const context = activityContext(event);
     const actorId = firstText(event.actor_user_id, context.actor_user_id, payload.actor_user_id);
     const user = state.users.find((entry) => [entry.id, entry.user_id, entry.email].map(cleanText).includes(actorId));
-    return firstText(payload.actor_name, context.actor_name, user?.name, user?.display_name, context.actor_email, user?.email, 'Someone');
+    return firstText(user?.name, user?.display_name, payload.actor_name, context.actor_name, context.actor_email, user?.email, 'Someone');
   }
   function activityObjectLabel(event = {}){
     const payload = activityPayload(event);
+    if (cleanText(event.type) === 'project.event_scheduled') return firstText(payload.event?.title, payload.title);
     return firstText(payload.title, payload.document_title, payload.proposal_title, payload.invoice_number, payload.file_name, payload.contact_name);
   }
   function feedActivitySummary(event = {}){
     const actor = feedActor(event);
     const object = activityObjectLabel(event);
     const type = cleanText(event.type);
+    const documentType = cleanText(activityPayload(event).document_type).replace(/_/g, ' ');
+    if (type === 'work.plan.stage_manually_set') {
+      const stage = firstText(activityPayload(event).to_stage_title, activityPayload(event).stage_title);
+      return `${actor} moved the project to ${stage || 'a new stage'}`;
+    }
+    if (documentType && type === 'document.sent') return `${actor} sent a ${documentType} to the customer${object ? `: ${object}` : ''}`;
+    if (documentType && type === 'document.viewed') return `${actor} had a ${documentType} viewed by the customer${object ? `: ${object}` : ''}`;
     const action = ({
       'payment.received':'took a payment',
       'proposal.payment.received':'took a proposal payment',
@@ -394,11 +404,11 @@
       'communication.sent':'sent a message',
       'communication.received':'received a customer message',
       'communication.auto_replied':'sent an automatic reply',
-      'media.uploaded':'uploaded media',
+      'media.uploaded':cleanText(activityPayload(event).content_type) && !/^(image|video)\//.test(cleanText(activityPayload(event).content_type)) ? 'uploaded a document' : 'uploaded media',
       'media.shared':'shared media with the customer',
       'project.created':'created a project',
       'project.contact.attached':'attached a contact',
-      'project.event_scheduled':'scheduled an event',
+      'project.event_scheduled':`scheduled a ${cleanText(activityPayload(event).event_type_default_id || activityPayload(event).event_kind || activityPayload(event).event?.event_type_default_id).replace(/_/g, ' ') || 'project event'}`,
       'project.event.started':'started a scheduled event',
       'project.event.completed':'completed a scheduled event',
       'material.delivery.completed':'completed a material delivery',
@@ -576,6 +586,14 @@
   }
   function activityTime(value){
     return window.FirstMateMarkup?.formatDateTime?.(value) || cleanText(value);
+  }
+  function feedListTime(value){
+    const date = parseDate(value);
+    if (!date) return cleanText(value);
+    const time = date.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+    return dateKey(date) === dateKey(new Date())
+      ? `Today, ${time}`
+      : `${date.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' })} · ${time}`;
   }
   function activityTarget(event = {}){
     return event.target && typeof event.target === 'object' ? event.target : {};
@@ -853,7 +871,8 @@
     const mediaId = firstText(item.media_id, item.mediaId, item.id);
     if (!mediaId) return null;
     if (window.PlatformAPI?.media?.referenceFromUpload) {
-      return window.PlatformAPI.media.referenceFromUpload(item, { field: 'photos', variant: 'original' });
+      const reference = window.PlatformAPI.media.referenceFromUpload(item, { field: 'photos', variant: 'original' });
+      return { ...reference, uploaded_at:firstText(item.metadata?.uploaded_at,reference.uploaded_at) };
     }
     return {
       kind: 'media_reference',
@@ -864,7 +883,7 @@
       file_name: firstText(item.file_name, item.fileName),
       content_type: firstText(item.content_type, item.contentType),
       size_bytes: Number(item.size_bytes || item.sizeBytes || 0),
-      uploaded_at: firstText(item.created_at, item.uploaded_at, item.updated_at),
+      uploaded_at: firstText(item.metadata?.uploaded_at, item.uploaded_at, item.created_at, item.updated_at),
       updated_at: firstText(item.updated_at, item.created_at),
       metadata: item.metadata && typeof item.metadata === 'object' ? item.metadata : {},
       owner: item.owner && typeof item.owner === 'object' ? item.owner : {}
@@ -889,6 +908,11 @@
       order.push(id);
     });
     (Array.isArray(mediaItems) ? mediaItems : []).forEach((item) => {
+      const owner = objectValue(item.owner);
+      const metadata = objectValue(item.metadata);
+      const slot = firstText(owner.slot, item.slot, metadata.field, metadata.slot).toLowerCase();
+      const mime = firstText(item.content_type, item.mime_type, metadata.content_type).toLowerCase();
+      if (slot === 'documents' || slot === 'receipts' || (mime && !/^(image|video)\//.test(mime))) return;
       const projectId = mediaOwnerProjectId(item);
       const project = ensureProject(projectId);
       const reference = mediaReferenceFromItem(item);
@@ -1130,6 +1154,9 @@
         };
       });
     const activityEntries = state.activity
+      .filter((event) => cleanText(event.type) !== 'work.plan.started')
+      .filter((event) => !(cleanText(event.type) === 'note.created' && activityPayload(event).synthetic && !activityPayload(event).message_id))
+      .filter((event) => !(cleanText(event.type) === 'document.signed' && activityPayload(event).synthetic && !firstText(activityPayload(event).document_id, activityPayload(event).id)))
       .filter((event) => state.visibleActivity.has(feedActivityCategory(event)))
       .map((event) => ({
         id:`activity:${firstText(event.id, event.idempotency_key, event.type)}:${eventTimestamp(event)}`,
@@ -1141,12 +1168,18 @@
         dateKey:dateKey(eventTimestamp(event)),
         search:[feedActivitySummary(event), activityProjectLabel(event), cleanText(event.type)].join(' ').toLowerCase()
       }));
+    const noteEntries = state.visibleActivity.has('project') ? state.notes.map((note) => {
+      const project = projectForId(note.projectId);
+      return { id:`note:${note.id}`, kind:'note', note, project, projectId:note.projectId,
+        timestamp:note.created_at, dateKey:dateKey(note.created_at),
+        search:[note.text,note.author?.name,projectTitle(project),projectAddress(project)].join(' ').toLowerCase() };
+    }) : [];
     const unpaired = new Set(activityEntries.map((entry) => entry.id));
     [...mediaEntries, ...documentEntries].forEach((asset) => {
       const match = activityEntries.find((entry) => unpaired.has(entry.id) && assetEventMatch(asset, entry.event));
       if (!match) return;
       asset.pairedEvent = match.event;
-      asset.timestamp = [asset.timestamp, match.timestamp].sort().reverse()[0] || asset.timestamp;
+      asset.timestamp = asset.kind === 'media' ? asset.timestamp : ([asset.timestamp, match.timestamp].sort().reverse()[0] || asset.timestamp);
       asset.dateKey = dateKey(asset.timestamp);
       asset.search += ` ${match.search}`;
       unpaired.delete(match.id);
@@ -1154,9 +1187,9 @@
     const query = cleanText(state.query).toLowerCase();
     const entries = state.visibleTags.size
       ? mediaEntries
-      : [...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id))];
+      : [...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id)), ...noteEntries];
     return entries
-      .filter((entry) => options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
+      .filter((entry) => entry.kind === 'note' || options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
       .filter((entry) => !query || entry.search.includes(query))
       .sort((left, right) => String(right.timestamp).localeCompare(String(left.timestamp)));
   }
@@ -1167,6 +1200,28 @@
       days.get(entry.dateKey).push(entry);
     });
     return [...days.entries()];
+  }
+  async function loadFeedNotes(oid, projects = []){
+    if (!window.ChannelsAPI?.channels?.list || !window.ChannelsAPI?.messages?.list) return [];
+    try {
+      const available = new Set(projects.map((project) => cleanText(project.id)));
+      const result = await window.ChannelsAPI.channels.list(oid);
+      const channels = (result.channels || []).filter((channel) => channel.type === 'project' && available.has(cleanText(channel.project_id)));
+      const pages = await Promise.all(channels.map(async (channel) => {
+        try {
+          const page = await window.ChannelsAPI.messages.list(oid, channel.id, { view:'notes', limit:200 });
+          return (page.messages || []).filter((message) => message.metadata?.project_note === true && !message.deleted_at)
+            .map((message) => ({ ...message, projectId:cleanText(channel.project_id) }));
+        } catch (error) {
+          console.warn('Could not load project notes for Feed', error);
+          return [];
+        }
+      }));
+      return pages.flat();
+    } catch (error) {
+      console.warn('Could not list project notes for Feed', error);
+      return [];
+    }
   }
   function serializeFeedShown(){
     return [
@@ -1489,6 +1544,8 @@
       .pf-wrap[data-density="small"] .pf-document-icon i,.pf-wrap[data-density="large"] .pf-document-icon i{font-size:18px}
       .pf-wrap[data-density="small"] .pf-feed-activity-icon,.pf-wrap[data-density="large"] .pf-feed-activity-icon{width:21px;height:21px;border-radius:6px;font-size:8px}
       .pf-wrap[data-density="list"] .pf-feed-grid{max-width:none}
+      .pf-feed-list-row{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:13px;min-height:72px;padding:11px 15px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 1px 2px #10182808}.pf-feed-list-copy{min-width:0;display:grid;gap:5px}.pf-feed-list-copy strong{color:#182230;font-size:13px;line-height:1.35}.pf-feed-list-project{display:flex;align-items:center;gap:7px;min-width:0;color:#667085;font-size:11px}.pf-feed-list-project button{border:0;background:none;padding:0;color:#475467;font:inherit;font-weight:850;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-feed-list-project button:hover{text-decoration:underline;color:var(--primary-readable,var(--primary,#d93025))}.pf-feed-list-project .pf-feed-list-address{font-weight:650}.pf-feed-list-project .pf-feed-list-separator{color:#98a2b3}.pf-feed-list-time{color:#667085;font-size:11px;font-weight:750;white-space:nowrap;text-align:right}
+      .pf-actor-avatar{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;position:relative;border-radius:50%;background:#e9eef4;color:#475467;font-size:16px;font-weight:850}.pf-actor-avatar>img{width:100%;height:100%;border-radius:50%;object-fit:cover}.pf-actor-badge{position:absolute;right:-3px;bottom:-3px;width:21px;height:21px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:var(--primary,#d93025);color:#fff;font-size:9px;box-shadow:0 1px 3px #10182820}.pf-post-head .pf-actor-avatar{width:44px;height:44px;flex-basis:44px}
       .pf-wrap[data-density="mosaic"] .pf-feed-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:8px;gap:12px;align-items:start}
       .pf-wrap[data-density="mosaic"] .pf-feed-grid>article{margin:0;border-radius:4px;overflow:hidden}
       .pf-wrap[data-density="mosaic"] .pf-feed-card .pf-thumb{aspect-ratio:4/5}
@@ -1499,7 +1556,8 @@
       .pf-wrap[data-density="posts"] .pf-day-title{max-width:700px;margin:0 auto 12px}
       .pf-wrap[data-density="posts"] .pf-scroll{background:#f3f5f7;padding:18px}
       .pf-post{border:1px solid #e1e5ea;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 5px #10182806;min-width:0}
-      .pf-post button{cursor:pointer}.pf-post-head{display:flex;align-items:center;gap:11px;padding:16px 18px}.pf-post-head>div{flex:1;min-width:0}.pf-post-head strong{font-size:14px;color:#182230}.pf-post-head span:not(.pf-post-avatar){display:block;color:#798393;font-size:12px;margin-top:4px}.pf-post-head button{border:0;background:transparent;padding:0;color:inherit;font:inherit}.pf-post-head>i{color:#98a2b3}.pf-post-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover;background:#e9eef4;color:#475467;display:flex;align-items:center;justify-content:center;font-weight:700}
+      .pf-post button{cursor:pointer}.pf-post-head{display:flex;align-items:center;gap:11px;padding:16px 18px}.pf-post-head>div{flex:1;min-width:0}.pf-post-head strong{font-size:14px;color:#182230}.pf-post-head>div>span{display:block;color:#798393;font-size:12px;margin-top:4px}.pf-post-head button{border:0;background:transparent;padding:0;color:inherit;font:inherit}.pf-post-head>i{color:#98a2b3}.pf-post-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover;background:#e9eef4;color:#475467;display:flex;align-items:center;justify-content:center;font-weight:700}
+      .pf-post-head>.pf-actor-avatar{display:grid;margin-top:0;color:#475467}.pf-post-head>.pf-actor-avatar>.pf-actor-badge{display:grid;margin-top:0;color:#fff}
       .pf-post-caption{margin:0;padding:0 18px 14px;font-size:14px;color:#344054}
       .pf-post-collage{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:repeat(3,1fr);gap:3px;height:350px;background:#eef1f4}.pf-post-collage .pf-thumb{height:100%;width:100%;aspect-ratio:auto;border-radius:0;border:0;position:relative}.pf-post-collage .pf-thumb:first-child{grid-row:1/-1}.pf-post-collage.count-1{display:block;height:390px}.pf-post-collage.count-2{grid-template-rows:1fr}.pf-post-collage.count-3{grid-template-rows:repeat(2,1fr)}.pf-post-collage img,.pf-post-collage video{object-fit:cover;width:100%;height:100%}.pf-post-overflow{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#10182888;color:#fff;font-size:32px;font-weight:650}
       .pf-post-document{margin:0 18px 18px;padding:24px;background:#f6f4fc;border:1px solid #e4def3;border-radius:8px;display:flex;align-items:flex-start;gap:18px}.pf-post-document-icon{font-size:34px;color:#7c3aed}.pf-post-document small{display:block;color:#667085;margin-bottom:5px}.pf-post-document strong{display:block;font-size:18px;color:#182230}.pf-post-document .pf-action{margin-top:14px}.pf-post-value{display:block;font-size:30px;color:#182230;margin-top:10px;letter-spacing:-.5px}.pf-post-event{padding:10px 22px 26px;line-height:1.6;font-size:16px}.pf-post-event>i{color:var(--primary,#475467);font-size:26px}.pf-post-event p{margin:10px 0 0}
@@ -1507,6 +1565,17 @@
       .pf-comments{padding:14px 18px;border-top:1px solid #eaecf0;background:#fcfcfd}.pf-comment{display:flex;gap:9px;margin-bottom:14px}.pf-comment>.pf-post-avatar{width:30px;height:30px;flex-basis:30px;font-size:12px}.pf-comment-body{flex:1;min-width:0}.pf-comment-head{display:flex;justify-content:space-between;gap:8px;font-size:12px}.pf-comment-head time{font-size:11px;color:#98a2b3}.pf-comment [data-comment-content]{padding:8px 12px;margin-top:5px;border-radius:4px 14px 14px;background:#eef1f4;font-size:13px;overflow-wrap:anywhere}.pf-comment-actions{display:flex;gap:9px;margin-top:5px;flex-wrap:wrap}.pf-comment-actions button{border:0;background:none;color:#667085;font-size:11px;padding:0}.pf-comment-label{display:block;font-size:11px;color:#667085}.pf-comment-label textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:62px;margin-top:5px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:11px;font:inherit;font-size:13px}.pf-comment-tools{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}.pf-comment-tools>button[type="submit"]{margin-left:auto}.pf-comment-tools details{position:relative;font-size:12px;cursor:pointer}.pf-comment-tools details>div{position:absolute;bottom:100%;display:flex;z-index:5;background:#fff;border:1px solid #e4e7ec}.pf-comment-tools details button{border:0;background:none;padding:6px;font-size:20px}.pf-comment-tools [data-comment-attachments]{font-size:11px;max-width:180px;overflow-wrap:anywhere}
       @media(max-width:1050px){.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media(max-width:760px){.pf-wrap:has(.pf-feed-grid) .pf-toolbar{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-density{display:flex}.pf-wrap:has(.pf-feed-grid) .pf-tools{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-search{flex-basis:100%}.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.pf-wrap[data-density="large"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-wrap[data-density="list"] .pf-feed-grid{grid-template-columns:1fr}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-post-collage{height:270px}.pf-post-collage.count-1{height:300px}.pf-wrap[data-density="posts"] .pf-scroll{padding:8px}.pf-post-head{padding:14px}.pf-wrap[data-density="list"] .pf-feed-card{grid-template-columns:90px minmax(0,1fr)}}
+      @media(max-width:760px){.pf-feed-list-row{grid-template-columns:46px minmax(0,1fr);gap:10px;padding:11px}.pf-feed-list-time{grid-column:2;text-align:left;margin-top:-2px}.pf-feed-list-project{flex-wrap:wrap;gap:3px 7px}.pf-feed-list-project button{white-space:normal;text-align:left}}
+      .pf-project-identity{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:0 7px;max-width:100%;text-align:left;line-height:1.4}.pf-project-identity span{overflow-wrap:anywhere}.pf-project-identity .pf-feed-list-address{font-weight:650}.pf-project-identity:hover span{text-decoration:underline}.pf-feed-list-project .pf-project-identity{white-space:normal;overflow:visible}
+      .pf-note{min-width:0}.pf-note-toggle{display:flex;align-items:flex-start;gap:8px;width:100%;padding:2px 0;border:0;background:none;color:#475467;font:inherit;font-size:12px;line-height:1.45;text-align:left;cursor:pointer}.pf-note-toggle:hover{color:var(--primary-readable,var(--primary,#d93025))}.pf-note-toggle .pf-note-preview{flex:1;min-width:0;overflow:hidden;max-height:4.5em;transition:max-height .24s ease,opacity .24s ease}.pf-note-toggle i{margin:3px 0 0 auto;flex:none;transition:transform .28s ease}.pf-note.expanded .pf-note-toggle i{transform:rotate(180deg)}.pf-note.expanded .pf-note-preview{max-height:0;opacity:0}.pf-note-expanded{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s ease,opacity .32s ease}.pf-note.expanded .pf-note-expanded{grid-template-rows:1fr;opacity:1}.pf-note-expanded>div{min-height:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#344054}.pf-post-note-body{padding:0 18px 16px}
+      .pf-tile-actor{display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:8px}.pf-tile-actor .pf-actor-avatar{width:32px;height:32px;flex-basis:32px;font-size:12px}.pf-tile-actor .pf-actor-badge{width:16px;height:16px;font-size:7px}.pf-tile-actor>span:last-child{display:flex;flex-direction:column;min-width:0}.pf-tile-actor strong{font-size:11px;color:#182230;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-tile-actor time{font-size:10px;color:#667085}.pf-feed-activity>.pf-actor-avatar{margin-top:0}.pf-feed-activity>time{color:#667085;font-size:10px;white-space:nowrap}.pf-feed-activity-copy .pf-feed-list-project{margin-top:5px}.pf-feed-note-card .pf-note{margin-top:5px}
+      .pf-wrap[data-density="small"] .pf-tile-actor{gap:5px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-avatar{width:24px;height:24px;flex-basis:24px;font-size:9px}.pf-wrap[data-density="small"] .pf-tile-actor .pf-actor-badge{width:13px;height:13px;font-size:6px}.pf-wrap[data-density="small"] .pf-tile-actor time{display:none}.pf-wrap[data-density="small"] .pf-project-identity{font-size:10px}.pf-wrap[data-density="small"] .pf-feed-activity>time,.pf-wrap[data-density="large"] .pf-feed-activity>time,.pf-wrap[data-density="mosaic"] .pf-feed-activity>time{white-space:normal}
+      .pf-wrap>.pf-toolbar{position:relative;top:auto;flex:none;background:transparent;z-index:1}.pf-wrap>[data-photo-feed-dynamic]{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}.pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{flex:1;min-height:0}
+      .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline;max-height:none}.pf-note-toggle .pf-note-preview i,.pf-note-toggle .pf-note-expanded i{display:inline-block;margin-left:6px;font-size:10px;vertical-align:baseline;transition:transform .28s ease}.pf-note.expanded .pf-note-preview{display:none}.pf-note.expanded .pf-note-expanded i{transform:rotate(180deg)}.pf-note-expanded>span{min-height:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#344054}
+      .pf-note{position:relative}.pf-note-plain,.pf-note-measure{display:block;color:#475467;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.pf-note-measure{position:absolute;top:0;left:0;width:100%;visibility:hidden;pointer-events:none}.pf-note .pf-note-toggle{display:none}.pf-note.expandable .pf-note-plain{display:none}.pf-note.expandable .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline-flex;align-items:baseline;max-width:100%;min-width:0;vertical-align:top}.pf-note-toggle .pf-note-preview-text{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-note-toggle .pf-note-preview i{flex:none;margin-left:6px}
+      .pf-feed-list-media{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;margin:5px 0 2px}.pf-feed-list-media .pf-thumb{width:52px;height:52px;flex:0 0 52px;aspect-ratio:auto;border:0;border-radius:7px}.pf-feed-list-media .pf-thumb:nth-of-type(n+7){display:none}.pf-feed-list-media .pf-video-badge{width:19px;height:19px;right:3px;bottom:3px;font-size:8px}.pf-feed-list-more{flex:none;border:0;background:none;padding:5px 3px;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:11px;font-weight:850;cursor:pointer;white-space:nowrap}.pf-feed-list-more:hover{text-decoration:underline}.pf-feed-list-more.mobile{display:none}
+      @media(max-width:760px){.pf-feed-list-media .pf-thumb{width:43px;height:43px;flex-basis:43px}.pf-feed-list-media .pf-thumb:nth-of-type(n+5){display:none}.pf-feed-list-more.desktop{display:none}.pf-feed-list-more.mobile{display:inline-block}}
+      @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
   async function load(options = {}){
@@ -1531,7 +1600,13 @@
       state.items = buildItems(state.projects);
       state.groups = buildGroups(state.items);
       state.activity = Array.isArray(activityResult?.events) ? activityResult.events : [];
-      state.users = (Array.isArray(userResult?.documents) ? userResult.documents : []).map((entry) => objectValue(entry.data && typeof entry.data === 'object' ? { ...entry.data, id:firstText(entry.data.id, entry.id) } : entry));
+      const directoryUsers = (Array.isArray(userResult?.documents) ? userResult.documents : []).map((entry) => objectValue(entry.data && typeof entry.data === 'object' ? { ...entry.data, id:firstText(entry.data.id, entry.id) } : entry));
+      const memberResult = window.PlatformAPI?.users?.list ? await window.PlatformAPI.users.list(oid).catch(() => null) : null;
+      const members = (memberResult?.documents || []).map((entry) => ({ ...objectValue(entry.data), id:firstText(entry.id,entry.data?.id) }));
+      const byId = new Map(directoryUsers.map((user) => [cleanText(user.id), user]));
+      members.forEach((member) => byId.set(cleanText(member.id), { ...(byId.get(cleanText(member.id)) || {}), ...member }));
+      state.users = [...byId.values()];
+      state.notes = await loadFeedNotes(oid, state.projects);
       state.documents = projectDocumentsFromProjects(state.projects);
       if (state.visibleDocuments.size) await loadFeedDocuments();
       await authorizeFeedEntries();
@@ -1563,7 +1638,7 @@
     return [...days.entries()];
   }
   function photoThumb(item){
-    if (item.photo?.media_id && !isVideoMedia(item.photo) && window.PlatformAPI?.media?.markupThumbnailUrl) {
+    if (item.photo?.media_id && !isVideoMedia(item.photo) && markupThumbnailRevisions.has(item.photo.media_id) && window.PlatformAPI?.media?.markupThumbnailUrl) {
       return window.PlatformAPI.media.markupThumbnailUrl(orgId(), item.photo.media_id, 320, markupThumbnailRevisions.get(item.photo.media_id) || '');
     }
     if (item.photo?.media_id && window.PlatformAPI?.media?.thumbnailUrl) return window.PlatformAPI.media.thumbnailUrl(orgId(), item.photo.media_id, 320);
@@ -1910,18 +1985,17 @@
   function feedMediaEntryHtml(entry = {}){
     const item = entry.mediaItem;
     const up = uploader(item.photo);
+    const author = postAuthor({ kind:'media', media:item.photo, source:{ author:firstText(item.photo?.uploaded_by_user_id,item.photo?.metadata?.uploaded_by_user_id,up.id) } });
     const selected = state.selected.has(item.id);
     return `
       <article class="pf-feed-card pf-feed-media-card">
         <button type="button" class="pf-thumb${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}">
           <span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>
           ${mediaThumbHtml(item)}
-          <span class="pf-thumb-meta">${escapeHtml(up.name || up.email || 'Unknown')}<br>${escapeHtml(window.FirstMateMarkup?.formatDateTime?.(item.uploadedAt) || '')}</span>
         </button>
         <div class="pf-feed-card-body">
-          <div class="pf-feed-card-heading"><span class="pf-kind"><i class="fas ${isVideoMedia(item.photo) ? 'fa-video' : 'fa-image'}"></i>${isVideoMedia(item.photo) ? 'Video' : 'Photo'}</span><time>${escapeHtml(activityTime(entry.timestamp))}</time></div>
-          <button type="button" class="pf-feed-project" data-feed-project-id="${escapeHtml(entry.projectId)}">${escapeHtml(projectTitle(entry.project))}</button>
-          <span class="pf-feed-subtitle">${escapeHtml(projectSubtitle(entry.project) || item.projectAddress || '')}</span>
+          <div class="pf-tile-actor">${actorAvatarHtml(author,isVideoMedia(item.photo)?'fa-video':'fa-image')}<span><strong title="${escapeHtml(author.name)} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}">${escapeHtml(author.name)} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}</strong><time>${escapeHtml(feedListTime(entry.timestamp))}</time></span></div>
+          <div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div>
           ${pairedActivityHtml(entry.pairedEvent)}
         </div>
       </article>`;
@@ -1935,6 +2009,7 @@
   }
   function feedDocumentEntryHtml(entry = {}){
     const doc = entry.document;
+    const author = postAuthor({ kind:'document', document:doc, source:{ author:firstText(doc.uploaded_by_user_id,doc.created_by,doc.uploaded_by) } });
     return `
       <article class="pf-feed-card pf-feed-document-card">
         <button type="button" class="pf-document-preview" data-feed-document-id="${escapeHtml(entry.id)}"${doc.url ? '' : ' aria-disabled="true"'}>
@@ -1942,25 +2017,29 @@
           <span class="pf-document-badge" style="--feed-doc-color:${escapeHtml(doc.color || '#64748b')}">${escapeHtml(doc.type_label || 'Document')}</span>
         </button>
         <div class="pf-feed-card-body">
-          <div class="pf-feed-card-heading"><span class="pf-kind"><i class="fas ${escapeHtml(doc.icon || 'fa-file-lines')}"></i>${escapeHtml(doc.type_label || 'Document')}</span><time>${escapeHtml(activityTime(entry.timestamp))}</time></div>
+          <div class="pf-tile-actor">${actorAvatarHtml(author,doc.icon || 'fa-file-lines')}<span><strong>${escapeHtml(author.name)}</strong><time>${escapeHtml(feedListTime(entry.timestamp))}</time></span></div>
           <strong class="pf-document-title">${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("photos","m_9c9b98b1f4e8c9","Document") ?? "Document"))}</strong>
-          <button type="button" class="pf-feed-project" data-feed-project-id="${escapeHtml(entry.projectId)}">${escapeHtml(projectTitle(entry.project))}</button>
+          <div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div>
           ${pairedActivityHtml(entry.pairedEvent)}
         </div>
       </article>`;
   }
   function feedActivityEntryHtml(entry = {}){
     const event = entry.event;
-    const projectLabel = activityProjectLabel(event);
+    const author = postAuthor({ kind:'activity', event, source:{ author:cleanText(event.actor_user_id) } });
     return `
       <article class="pf-feed-activity">
-        <span class="pf-feed-activity-icon"><i class="fas ${feedActivityIcon(event)}"></i></span>
+        ${actorAvatarHtml(author,feedActivityIcon(event))}
         <div class="pf-feed-activity-copy">
           <strong>${escapeHtml(feedActivitySummary(event))}</strong>
-          <span>${escapeHtml([projectLabel, activityTime(entry.timestamp)].filter(Boolean).join(' · '))}</span>
+          <div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div>
         </div>
-        ${entry.projectId ? `<button type="button" class="pf-activity-link" data-feed-project-id="${String(escapeHtml(entry.projectId))}"><i class="fas fa-folder-open"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_53787840db7d1c"," Open project") ?? " Open project")}</button>` : ''}
+        <time>${escapeHtml(feedListTime(entry.timestamp))}</time>
       </article>`;
+  }
+  function feedNoteEntryHtml(entry = {}){
+    const author = postAuthor({kind:'note',note:entry.note,source:{author:entry.note?.author?.id}});
+    return `<article class="pf-feed-activity pf-feed-note-card">${actorAvatarHtml(author,'fa-note-sticky')}<div class="pf-feed-activity-copy"><strong>${escapeHtml(author.name)} added a note:</strong>${feedNoteHtml(entry.note)}<div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div></div><time>${escapeHtml(feedListTime(entry.timestamp))}</time></article>`;
   }
   function startFeedPolling(){
     clearInterval(state.feedTimer);
@@ -1968,6 +2047,7 @@
       if(state.density!=='posts' || document.hidden || !state.root?.isConnected)return;
       let changed=false;
       for(const post of groupedPosts(feedEntries()).slice(0,state.visible)){
+        if (post.kind === 'note') continue;
         const current=postState(post.id);if(!current.root || current.busy || current.checking)continue;
         const prior=JSON.stringify([current.root.reactions,current.root.reply_count,current.replies]);
         try{await fetchPost(post);changed ||= prior!==JSON.stringify([current.root.reactions,current.root.reply_count,current.replies]);}
@@ -1992,7 +2072,9 @@
   function groupedPosts(entries){
     const groups=new Map();
     for(const entry of entries){
-      const source=state.authorizedSources.get(feedRefKey(entryRef(entry)));
+      const source=entry.kind === 'note'
+        ? { key:`note:${entry.note.id}`, author:cleanText(entry.note.author?.id) }
+        : state.authorizedSources.get(feedRefKey(entryRef(entry)));
       if(!source)continue;
       let group=groups.get(source.key);
       if(!group){group={...entry,id:source.key,source,entries:[]};groups.set(source.key,group);}
@@ -2005,22 +2087,73 @@
     return state.posts.get(key);
   }
   function postAuthor(post){
-    const person=state.users.find(u=>cleanText(u.id || u.user_id)===post.source.author);
+    const documentUploader=post.kind==='document' ? firstText(post.document?.uploaded_by_user_id,objectValue(post.document?.metadata).uploaded_by_user_id) : '';
+    const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author))
+      || (documentUploader ? state.users.find(u=>cleanText(u.id || u.user_id)===documentUploader) : null);
     const up=post.kind==='media'?uploader(post.media):{};
-    return {name:firstText(person?.name,person?.display_name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),avatar:firstText(person?.avatar,person?.profile_photo_url,person?.profile_photo,up.avatar)};
+    const profile=person?.profile && typeof person.profile==='object' ? person.profile : {};
+    return {name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),
+      avatar:firstText(person?.profile_photo_url,person?.profile_photo,profile.profile_photo,profile.profile_photo_url,person?.avatar_url,person?.avatar,post.note?.author?.avatar,up.avatar)};
+  }
+  function postIcon(post){
+    return post.kind==='media' ? 'fa-images' : post.kind==='document' ? 'fa-file-contract' : post.kind==='note' ? 'fa-note-sticky' : feedActivityIcon(post.event);
+  }
+  function uploadCountLabel(entries){
+    const videos=entries.filter((entry)=>isVideoMedia(entry.media)).length;
+    const photos=entries.length-videos;
+    return [photos ? `${photos} ${photos===1?'photo':'photos'}` : '',videos ? `${videos} ${videos===1?'video':'videos'}` : ''].filter(Boolean).join(' and ');
+  }
+  function actorAvatarHtml(author, icon){
+    const avatar=cleanText(author.avatar);
+    const image=/^(https?:\/\/|\/)/.test(avatar)
+      ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(author.name)}">`
+      : `<span aria-hidden="true">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
+    return `<span class="pf-actor-avatar">${image}<span class="pf-actor-badge" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span></span>`;
+  }
+  function feedProjectLinkHtml(project = {}, projectId = ''){
+    const title = savedProjectTitle(project) || projectTitle(project);
+    const address = projectAddress(project);
+    const label = [title, address && address.toLowerCase() !== title.toLowerCase() ? address : ''].filter(Boolean).join(' · ');
+    return projectId
+      ? `<button type="button" class="pf-project-identity" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
+      : `<span>${escapeHtml(label)}</span>`;
+  }
+  function feedNoteHtml(note = {}){
+    const body = cleanText(note.text);
+    return `<div class="pf-note"><span class="pf-note-measure" aria-hidden="true">${escapeHtml(body)}</span><span class="pf-note-plain">${escapeHtml(body)}</span><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview"><span class="pf-note-preview-text">${escapeHtml(body)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></span><span class="pf-note-expanded"><span>${escapeHtml(body)}<i class="fas fa-chevron-down" aria-hidden="true"></i></span></span></button></div>`;
+  }
+  function feedListMediaHtml(photos = [], projectId = ''){
+    if (!photos.length) return '';
+    const thumbnails = photos.slice(0,6).map((entry,index) => `<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media) ? 'video' : 'photo'} ${index+1} in gallery">${mediaThumbHtml(entry.mediaItem)}</button>`).join('');
+    const more = (count, mode) => photos.length > count && projectId ? `<button type="button" class="pf-feed-list-more ${mode}" data-feed-more-project-id="${escapeHtml(projectId)}" aria-label="See all ${photos.length} uploads in project Photos">See more</button>` : '';
+    return `<div class="pf-feed-list-media" aria-label="Uploaded media previews">${thumbnails}${more(6,'desktop')}${more(4,'mobile')}</div>`;
+  }
+  function feedListEntryHtml(post){
+    const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
+    const action=photos.length
+      ? `${author.name} uploaded ${uploadCountLabel(photos)}`
+      : post.kind==='note' ? `${author.name} added a note:`
+      : post.kind==='activity' ? feedActivitySummary(post.event)
+      : post.pairedEvent && !['media.uploaded','document.ingested','receipt.uploaded'].includes(cleanText(post.pairedEvent.type)) ? feedActivitySummary(post.pairedEvent)
+      : `${author.name} uploaded ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
+    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong>${post.kind==='note' ? feedNoteHtml(post.note) : ''}${feedListMediaHtml(photos,post.projectId)}<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
   }
   function avatarHtml(author){
     const avatar=cleanText(author.avatar);
     return /^(https?:\/\/|\/)/.test(avatar)?`<img class="pf-post-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(author.name)}">`:`<span class="pf-post-avatar">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
   }
   function feedPostHtml(post){
+    if (post.kind === 'note') {
+      const author=postAuthor(post);
+      return `<article class="pf-post pf-note-post"><header class="pf-post-head">${actorAvatarHtml(author,'fa-note-sticky')}<div><strong>${escapeHtml(author.name)} added a note:</strong><span><time>${escapeHtml(feedListTime(post.timestamp))}</time></span><div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div></header><div class="pf-post-note-body">${feedNoteHtml(post.note)}</div></article>`;
+    }
     const current=postState(post.id),author=postAuthor(post),photos=post.entries.filter(e=>e.kind==='media'),doc=post.document;
     const amount=doc ? firstText(doc.total_formatted,doc.amount_formatted,doc.contract_value,doc.total,doc.amount) : firstText(activityPayload(post.event || {}).amount_formatted,activityPayload(post.event || {}).amount);
     const amountCents=Number(doc?.total_cents ?? doc?.amount_cents ?? activityPayload(post.event || {}).amount_cents);
     const money=Number.isFinite(amountCents)?new Intl.NumberFormat(undefined,{style:'currency',currency:doc?.currency || activityPayload(post.event || {}).currency || 'USD'}).format(amountCents/100):amount;
-    const body=photos.length ? `<p class="pf-post-caption">Uploaded ${photos.length} ${photos.length===1?(isVideoMedia(photos[0].media)?'video':'photo'):'photos and videos'}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
+    const body=photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
     const reactions=current.root?.reactions || [],liked=reactions.find(r=>r.emoji==='👍');
-    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}"><header class="pf-post-head">${avatarHtml(author)}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · <button type="button" data-feed-project-id="${escapeHtml(post.projectId)}">${escapeHtml(projectTitle(post.project))}</button></span></div><i class="fas ${post.kind==='media'?'fa-images':post.kind==='document'?'fa-file-contract':feedActivityIcon(post.event)}"></i></header>${body}<div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div><div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions">☺</summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>${current.open?`<section class="pf-comments" aria-label="Comments"><div data-comment-list></div>${state.canComment?`<form data-comment-form><label class="pf-comment-label">${current.replyToName?`Reply to ${escapeHtml(current.replyToName)}`:'Write a comment'}<textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary>Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-action">Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post</button></div></form>`:''}</section>`:''}</article>`;
+    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}"><header class="pf-post-head">${actorAvatarHtml(author,postIcon(post))}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · ${feedProjectLinkHtml(post.project,post.projectId)}</span></div></header>${body}<div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div><div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions">☺</summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>${current.open?`<section class="pf-comments" aria-label="Comments"><div data-comment-list></div>${state.canComment?`<form data-comment-form><label class="pf-comment-label">${current.replyToName?`Reply to ${escapeHtml(current.replyToName)}`:'Write a comment'}<textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary>Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-action">Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post</button></div></form>`:''}</section>`:''}</article>`;
   }
   async function fetchPost(post,create=false){
     const current=postState(post.id);
@@ -2033,6 +2166,7 @@
     const posts=new Map(groupedPosts(feedEntries()).map(p=>[p.id,p]));
     root.querySelectorAll('[data-feed-post]').forEach(card=>{
       const post=posts.get(card.dataset.feedPost);if(!post)return;
+      if(post.kind==='note')return;
       const current=postState(post.id);
       const error=e=>showToast?.('Feed',e?.message || 'Unable to update this post.',false);
       const rerender=()=>{if(state.root?.contains(card)){const scroll=state.root.querySelector('[data-feed-scroll]');const at=scroll?.scrollTop;renderDynamic();if(at!=null)state.root.querySelector('[data-feed-scroll]').scrollTop=at;}};
@@ -2079,7 +2213,7 @@
     });
   }
   function dynamicHtml(options = {}){
-    const entries = state.density === 'posts' ? groupedPosts(feedEntries()) : feedEntries();
+    const entries = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()) : feedEntries();
     const visibleEntries = entries.slice(0, state.visible);
     const dayGroups = groupedFeedEntries(visibleEntries);
     const selectedCount = state.selected.size;
@@ -2104,7 +2238,7 @@
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
         ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
         ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
-        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : (entry.kind === 'document' ? feedDocumentEntryHtml(entry) : feedActivityEntryHtml(entry))).join('')}</div></div>`).join('')}
+        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : ''}
       </div>`;
   }
@@ -2209,7 +2343,7 @@
   }
   function render(){
     if (!state.root) return;
-    const visibleCount = feedEntries().length;
+    const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
     state.root.innerHTML = `
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
         <div class="pf-toolbar" data-app-header>
@@ -2288,6 +2422,26 @@
     if (!rootEl) return;
     bindFeedPosts(rootEl);
     state.mosaicObserver?.disconnect();
+    state.noteObserver?.disconnect();
+    const notes=[...rootEl.querySelectorAll('.pf-note')];
+    const measureNote=(note)=>{
+      const measure=note.querySelector('.pf-note-measure');
+      if (!measure) return;
+      const lineHeight=parseFloat(getComputedStyle(measure).lineHeight) || 17;
+      const expandable=measure.scrollHeight > lineHeight * 1.5;
+      note.classList.toggle('expandable',expandable);
+      if (!expandable) {
+        note.classList.remove('expanded');
+        const button=note.querySelector('[data-feed-note-toggle]');
+        button?.setAttribute('aria-expanded','false');
+        button?.setAttribute('aria-label','Expand note');
+      }
+    };
+    notes.forEach(measureNote);
+    if (notes.length && typeof ResizeObserver === 'function') {
+      state.noteObserver=new ResizeObserver((entries)=>entries.forEach(({target})=>measureNote(target)));
+      notes.forEach((note)=>state.noteObserver.observe(note));
+    }
     if(state.density==='mosaic'){
       const grids=[...rootEl.querySelectorAll('.pf-feed-grid')];
       const arrange=()=>grids.forEach(grid=>[...grid.children].forEach(card=>{card.style.gridRowEnd=`span ${Math.ceil((card.getBoundingClientRect().height+12)/20)}`;}));
@@ -2361,6 +2515,13 @@
         openFeedViewerAt(index);
       });
     });
+    rootEl.querySelectorAll('[data-feed-more-project-id]').forEach((btn) => btn.addEventListener('click', () => {
+      const id=cleanText(btn.dataset.feedMoreProjectId);
+      openProject(projectForId(id),{groupKey:id,tab:'photos'}).catch((error)=>{
+        console.warn('Could not open project photos from Feed',error);
+        showToast?.('Project issue',error?.message || 'Could not open that project.',false);
+      });
+    }));
     rootEl.querySelectorAll('[data-feed-project-id]').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.preventDefault();
@@ -2371,6 +2532,14 @@
           console.warn('Could not open project from Feed', error);
           showToast?.((globalThis.PlatformLanguage?.text("photos","m_3d2585ab4e8b80","Project issue") ?? "Project issue"), error?.message || 'Could not open that project.', false);
         });
+      });
+    });
+    rootEl.querySelectorAll('[data-feed-note-toggle]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const note = button.closest('.pf-note');
+        const expanded = note?.classList.toggle('expanded') || false;
+        button.setAttribute('aria-expanded', String(expanded));
+        button.setAttribute('aria-label', expanded ? 'Collapse note' : 'Expand note');
       });
     });
     rootEl.querySelectorAll('[data-feed-document-id]').forEach((btn) => {
@@ -2792,6 +2961,7 @@
     state.groups = [];
     state.documents = [];
     state.activity = [];
+    state.notes = [];
     state.users = [];
     state.query = '';
     state.density = 'small';
@@ -3329,7 +3499,7 @@
         if (!state.loaded) load();
         startFeedPolling();
       },
-      onHide:()=>{clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();}
+      onHide:()=>{clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();}
     });
     window.Portal.tabs.renderTabs?.();
     if (window.Portal?.routeState?.get?.().tab === TAB_ID) {

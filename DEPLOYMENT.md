@@ -1,5 +1,9 @@
 # FirstMeasure: local development and production deployment
 
+October 7 phone tray: [Call, Text, and Contacts](deploy/digitalocean/development-phone-tabs-20261007.md) records the redesigned tray, sender restrictions, validation, and verified development-only rollout.
+
+October 7 Feed follow-up: [Wrapped note toggles and project Photos link](deploy/digitalocean/development-feed-note-toggle-project-photos-20261007.md) records the latest verified development rollout. [List photo previews and long notes](deploy/digitalocean/development-feed-list-media-20261007.md) records the preceding rollout. [Notes, member portraits, and project photos](deploy/digitalocean/development-feed-notes-project-media-20261007.md) records the earlier Pioneer Puffin media repair and Feed changes.
+
 October 7 development availability: [Object-storage readiness timeout mitigation](deploy/digitalocean/incident-20261007-development-503.md) records the captured intermittent 503, effective timeout/cache overrides, unchanged application release and development-only verification.
 
 October 7 FirstMeasure localization correction: [Complete UI paths and responsive Billing](deploy/digitalocean/development-firstmeasure-localization-correction-20261007.md) records the expanded translation inventory, all sixteen corrective language sets, rendered German/Japanese verification, and the verified development rollout.
