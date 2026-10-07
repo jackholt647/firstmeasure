@@ -70,3 +70,13 @@ else {
   result.expense = 'created';
 }
 console.log(JSON.stringify(result, null, 2));
+if (process.argv.includes('--audit')) {
+  const channels = `/v1/channels/organizations/${encodeURIComponent(org.org_id)}`;
+  const catalog = await get(`${channels}/feed/catalog`);
+  const types = Object.entries((catalog.events || []).reduce((counts, event) => {
+    counts[event.type] = (counts[event.type] || 0) + 1;
+    return counts;
+  }, {})).sort(([left], [right]) => left.localeCompare(right));
+  console.log(JSON.stringify({ event_types: Object.fromEntries(types), projects: catalog.projects?.length,
+    media: catalog.media?.length, users: catalog.users?.length }, null, 2));
+}
