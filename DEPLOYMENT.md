@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 7 development availability: [Object-storage readiness timeout mitigation](deploy/digitalocean/incident-20261007-development-503.md) records the captured intermittent 503, effective timeout/cache overrides, unchanged application release and development-only verification.
+
 October 7 FirstMeasure localization correction: [Complete UI paths and responsive Billing](deploy/digitalocean/development-firstmeasure-localization-correction-20261007.md) records the expanded translation inventory, all sixteen corrective language sets, rendered German/Japanese verification, and the verified development rollout.
 
 October 6 FirstMeasure languages: [Language completion and development verification](deploy/digitalocean/development-firstmeasure-localization-20261006.md) records the sixteen completed language sets, catalog loading and report vocabulary fixes, validation, and verified four-role development rollout.
