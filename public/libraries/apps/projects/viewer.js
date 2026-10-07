@@ -44,14 +44,19 @@
 
   const pdfPreviewDisabled = queryFlagEnabled(PDF_PREVIEW_QUERY_FLAGS);
 
+  function projectBoardsEnabled(){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    return flags?.value?.('platform', 'project_boards', false) === true;
+  }
+
   function stagesViewEnabled(){
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    return flags?.value?.('platform', 'project_stages_view', false) === true;
+    return projectBoardsEnabled() && flags?.value?.('platform', 'project_stages_view', false) === true;
   }
 
   function manualStageMovementEnabled(){
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    return flags?.value?.('platform', 'manual_project_stage_movement', false) === true;
+    return projectBoardsEnabled() && flags?.value?.('platform', 'manual_project_stage_movement', false) === true;
   }
 
   function canManageProjectStages(){
@@ -364,15 +369,15 @@
     .v-title{display:flex;align-items:center;gap:11px;min-width:0}
     .v-title>i{width:36px;height:36px;border-radius:10px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
     .v-title h1{margin:0;font-size:26px;line-height:36px;font-weight:1000;letter-spacing:-.3px}
-    .v-actions{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-left:auto}
-    .v-view-switch{display:flex;border:1px solid #d0d5dd;border-radius:10px;overflow:hidden;background:#fff}
+    .v-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end;margin-left:auto}
+    .v-view-switch{flex-shrink:0;display:flex;border:1px solid #d0d5dd;border-radius:10px;overflow:hidden;background:#fff}
     .v-actions .v-btn{box-sizing:border-box;height:38px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:900;white-space:nowrap}
     .v-actions .v-btn:hover{background:#f8fafc;transform:none}
     .v-actions .v-btn.active,.v-actions .v-btn[aria-expanded="true"]{border-color:rgba(var(--primary-rgb,217,48,37),.28);background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));box-shadow:none}
     .v-view-switch .v-btn{height:36px;border:0;border-radius:0;color:#667085}
     .v-view-switch .v-btn+.v-btn{border-left:1px solid #eaecf0}
     .v-btn{background:#fff; border:1px solid rgba(0,0,0,0.10); padding:10px 12px; border-radius:14px; cursor:pointer; font-weight:950; color:#333; display:inline-flex; align-items:center; gap:8px; transition:.16s ease; user-select:none}
-    .v-btn[hidden]{display:none!important}
+    .v-btn[hidden],.v-manage-wrap[hidden]{display:none!important}
     .v-btn:hover{border-color:rgba(var(--primary-rgb,217,48,37),0.45); color:var(--primary-readable, var(--primary,#d93025)); transform:translateY(-1px)}
     .v-btn.active{border-color:rgba(var(--primary-rgb,217,48,37),0.55); box-shadow:0 10px 22px rgba(var(--primary-rgb,217,48,37),0.16)}
     .v-pill{border-radius:999px; padding:10px 14px}
@@ -4973,6 +4978,7 @@
     catch (error) { return ''; }
   }
   function rememberWorkBoardId(boardId){
+    if (!projectBoardsEnabled()) return false;
     const value = String(boardId || '').trim();
     if (!value) return;
     try { localStorage.setItem(workBoardStorageKey(), value); }
@@ -4992,6 +4998,7 @@
     });
   }
   function selectWorkBoard(boardId, options = {}){
+    if (!projectBoardsEnabled()) return false;
     const value = String(boardId || '').trim();
     if (!(value === 'all' && viewMode === 'list') && !projectBoards().some((board) => String(board?.id || '') === value)) return false;
     activeWorkBoardId = value;
@@ -5007,11 +5014,13 @@
 
   async function loadWorkBoards(options = {}){
     if (window.Portal.projectContentOnly) return;
+    if (!projectBoardsEnabled()) { workBoards = []; workBoardsLoaded = false; return []; }
     const orgId = String(window.__APP?.userOrgId || '').trim();
     if (!orgId || !window.PlatformAPI?.work?.boards) return [];
     if (workBoardsLoaded && !options.refresh) return workBoards;
     if (workBoardsPromise && !options.refresh) return workBoardsPromise;
     workBoardsPromise = window.PlatformAPI.work.boards(orgId, { includeCompleted:true }).then((result) => {
+      if (!projectBoardsEnabled()) { workBoards = []; workBoardsLoaded = false; return []; }
       workBoards = Array.isArray(result?.boards) ? result.boards : [];
       listColumnsBoardKey = '';
       workBoardsLoaded = true;
@@ -5420,7 +5429,7 @@
   function updateCount(){
     const el = $('#vCount', panelEl);
     if (!el) return;
-    if (viewMode === 'stages' || (viewMode === 'list' && projectBoards().length && !filteredProjects.some(p=>p._shared) && projectSharingView()?.mode !== 'received')) {
+    if (projectBoardsEnabled() && (viewMode === 'stages' || (viewMode === 'list' && projectBoards().length && !filteredProjects.some(p=>p._shared) && projectSharingView()?.mode !== 'received'))) {
       const selected = projectBoards().find((board) => String(board?.id || '') === activeWorkBoardId);
       const visibleIds = new Set(filteredProjects.map((project) => String(project.id)));
       const selectedCount = activeWorkBoardId === 'all' ? filteredProjects.length : selected ? new Set(selectedBoardColumns(selected).flatMap((column) => column.items).map((project) => String(project.id)).filter((id) => visibleIds.has(id))).size : 0;
@@ -5441,7 +5450,7 @@
   function renderPagination(){
     const el = $('#vPagination', panelEl);
     if (!el) return;
-    if (viewMode === 'stages' || viewMode === 'list' || tileStageFilter !== 'all'){ el.innerHTML = ''; return; }
+    if (projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || tileStageFilter !== 'all')){ el.innerHTML = ''; return; }
     if (totalPages <= 1){ el.innerHTML = ''; return; }
     const btns = [];
     btns.push(`<div class="v-pgbtn${currentPage <= 1 ? ' disabled':''}" data-pg="prev"><i class="fas fa-chevron-left"></i></div>`);
@@ -5515,6 +5524,7 @@
   function renderManageViewPanel(){
     const panel=$('#vManageViewPanel',panelEl);
     if (!panel) return;
+    if (!projectBoardsEnabled()) { panel.hidden = true; panel.innerHTML = ''; return; }
     syncProjectColumnChoices();
     const sharingFields = projectSharingView()?.fields() || '';
     if (viewMode === 'list') {
@@ -5530,18 +5540,21 @@
   }
   function updateViewControls(){
     const bT = $('#vViewTiles', panelEl); const bL = $('#vViewList', panelEl); const bS = $('#vViewStages', panelEl);
-    if (bT) bT.classList.toggle('active', viewMode === 'tiles');
-    if (bL) bL.classList.toggle('active', viewMode === 'list');
+    if (bT) { bT.hidden = false; bT.disabled = false; bT.classList.toggle('active', viewMode === 'tiles'); }
+    if (bL) { bL.hidden = false; bL.disabled = false; bL.classList.toggle('active', viewMode === 'list'); }
     if (bS) {
       bS.hidden = !stagesViewEnabled();
       bS.classList.toggle('active', viewMode === 'stages');
     }
     const boardSummary = $('#vWorkBoardSummary', panelEl);
-    if (boardSummary) boardSummary.classList.toggle('visible', (viewMode === 'stages' || viewMode === 'list') && workBoardsLoaded);
+    if (boardSummary) boardSummary.classList.toggle('visible', projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list') && workBoardsLoaded);
+    const manageWrap = $('#vManageViewWrap', panelEl);
+    if (manageWrap) manageWrap.hidden = !projectBoardsEnabled();
     renderManageViewPanel();
   }
   function setView(mode, options = {}){
     const previousMode = viewMode;
+    if (!projectBoardsEnabled()) tileStageFilter = 'all';
     viewMode = normalizeViewMode(mode);
     if (viewMode === 'stages' && activeWorkBoardId === 'all') {
       activeWorkBoardId = String(orderedWorkBoards()[0]?.id || '');
@@ -5559,6 +5572,8 @@
     applyQueryFilterSort();
   }
   function applyStagesViewFlag(){
+    if (projectBoardsEnabled()) loadWorkBoards({ refresh:true }).catch(() => null);
+    else { workBoards = []; workBoardsLoaded = false; tileStageFilter = 'all'; }
     const nextMode = normalizeViewMode(viewMode);
     if (nextMode !== viewMode) {
       setView(nextMode);
@@ -5783,7 +5798,7 @@
   function renderGroupedList(){
     const scroll = $('#vListScroll', panelEl);
     if (!scroll) return;
-    if (filteredProjects.some(p => p._shared) || projectSharingView()?.mode === 'received') {
+    if (!projectBoardsEnabled() || filteredProjects.some(p => p._shared) || projectSharingView()?.mode === 'received') {
       for (const project of filteredProjects) scroll.appendChild(createListRow(project));
       const summary = $('#vWorkBoardSummary', panelEl); if (summary) summary.classList.remove('visible');
       return;
@@ -7201,7 +7216,7 @@
       await projectSharingView()?.load();
       if (requestSeq !== fetchProjectsSeq) return;
       sharingClientPagination = !!projectSharing?.incoming.length || !!projectSharing?.filtered;
-      const stagesMode = sharingClientPagination || viewMode === 'stages' || viewMode === 'list' || (viewMode === 'tiles' && tileStageFilter !== 'all');
+      const stagesMode = sharingClientPagination || (projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || (viewMode === 'tiles' && tileStageFilter !== 'all')));
       const payload = { page: stagesMode ? 1 : currentPage, limit: stagesMode ? 0 : PAGE_SIZE, status_filter:'all', include_instant_only: '1', view: 'card', hide_drafts: hideDrafts ? '1' : '0' };
       if (reportSearchQuery.trim()) payload.search = reportSearchQuery.trim();
       const { data } = await postAction('list_projects', payload);

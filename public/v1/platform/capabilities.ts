@@ -890,12 +890,13 @@ function signupPresetConfigPath() {
 }
 
 /** Public signup always starts with the FirstMeasure-only product, in every environment. */
-export function firstMeasureSignupValues(values: Record<string, CapabilityValue>) {
+export function firstMeasureSignupValues(values: Record<string, CapabilityValue>): Record<string, CapabilityValue> {
   return { ...values, ...Object.fromEntries([
     "platform.expanded_access", "platform.more_apps", "apps.notifications",
     "platform.money", "money.merchant_processing", "apps.assistant",
-    "platform.connections", "platform.left_column_settings"
-  ].map(key => [key, false])) };
+    "platform.connections", "platform.left_column_settings", "platform.project_boards",
+    "platform.project_stages_view", "platform.manual_project_stage_movement"
+  ].map(key => [key, false])), "firstmeasure.report_localization": true };
 }
 
 /**

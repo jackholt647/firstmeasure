@@ -67,7 +67,7 @@ const definitions: CapabilityDefinition[] = [
     options: [["auto", "Automatic (follow New button)"], ["on", "On (start a new project)"], ["off", "Off (choose a project)"]]
   },
   { key: "firstmeasure.metric_measurements", kind: "feature", label: "Metric Measurements", description: "Default new reports to metric measurements.", default: false },
-  { key: "firstmeasure.report_localization", kind: "feature", label: "Platform Language and Units", description: "Allow Company settings to customize platform language, report language and measurement units, with optional personal interface language.", default: false },
+  { key: "firstmeasure.report_localization", kind: "feature", label: "Platform Language and Units", description: "Allow Company settings to customize platform language, report language and measurement units, with optional personal interface language.", default: true },
   { key: "firstmeasure.exteriors", kind: "feature", label: "Full House Reports", description: "Allow customers to order full-house exterior measurements with mandatory reference photos.", default: false },
   { key: "firstmeasure.exteriors_photo_review_test", kind: "feature", label: "Full House Photo Review Test", description: "Non-production only: preview review without photos. Does not bypass order validation.", requires: ["firstmeasure.exteriors"], default: false },
   { key: "firstmeasure.exteriors_commercial", kind: "feature", label: "Commercial Full House Reports", description: "Allow full-house ordering for commercial properties.", requires: ["firstmeasure.exteriors"], default: false },
@@ -102,6 +102,14 @@ const definitions: CapabilityDefinition[] = [
     catalog_stub: "Projects, workflows, and job records.",
     default: true,
     runtime_app_id: "projects"
+  },
+  {
+    key: "platform.project_boards",
+    kind: "feature",
+    parent: "apps.projects",
+    label: "Project Boards",
+    description: "Show project boards, stage grouping, board fields and Manage View controls in My Projects.",
+    default: false
   },
   {
     key: "platform.project_stages_view",
