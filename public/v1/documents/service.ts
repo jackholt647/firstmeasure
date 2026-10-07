@@ -299,7 +299,7 @@ export async function organizationBranding(orgId: string, branchId = "default") 
   return branding;
 }
 
-async function documentScopeEntities(orgId: string, documentValue: JsonObject, params: JsonObject) {
+export async function documentScopeEntities(orgId: string, documentValue: JsonObject, params: JsonObject) {
   const projectId = cleanText(documentValue.project_id);
   const projectDoc = projectId ? await readDocument(orgId, "projects", projectId).catch(() => null) : null;
   const project: JsonObject = projectDoc ? { id: projectId, ...asObject(projectDoc.data) } : asObject(params.project);
@@ -1394,7 +1394,7 @@ const PROPOSAL_OPTION_SLOTS: Array<[slot: string, fallbackLabel: string]> = [
  * Only customer-selectable choice/optional rows are touched — fixed scope and
  * internal-only selections never move.
  */
-function applyScopeSelections(items: unknown[], rawValue: unknown): unknown[] {
+export function applyScopeSelections(items: unknown[], rawValue: unknown): unknown[] {
   const value = asObject(rawValue);
   const map = asObject(value.selections && typeof value.selections === "object" ? value.selections : value);
   const selectedIds = asArray(value.selected_ids).map(cleanText).filter(Boolean);
@@ -2635,10 +2635,12 @@ export async function documentCheckoutPricing(
   orgId: string,
   documentValue: JsonObject,
   paramsValue: JsonObject,
-  checkoutInput: unknown
+  checkoutInput: unknown,
+  /** Entities a caller already loaded, when it reprices the same document repeatedly. */
+  knownEntities?: { project: JsonObject; customer: JsonObject; org: JsonObject }
 ) {
   const params = asObject(paramsValue);
-  const entities = await documentScopeEntities(orgId, documentValue, params)
+  const entities = knownEntities || await documentScopeEntities(orgId, documentValue, params)
     .catch(() => ({ project: {} as JsonObject, customer: {} as JsonObject, org: {} as JsonObject }));
   const checkout = normalizedCheckout(checkoutInput);
   const scope: JsonObject = {

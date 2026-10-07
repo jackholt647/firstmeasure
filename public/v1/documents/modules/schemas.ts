@@ -7,6 +7,7 @@ import { jsonClone, validateJson } from "../../platform/publication/validation.j
 import { assertSafeTenantSchema } from "../../platform/publication/tenant-schema.js";
 import { workflowDefinitionSchema } from "../workflows/schemas.js";
 import { deliverablesSchema } from "../../materials/calculus-contract.js";
+import { validatePresentationSpec } from "./presentation-schema.js";
 
 const jsonSchema = z.record(z.unknown());
 const key = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/);
@@ -18,13 +19,14 @@ export const moduleBindingSchema = z.discriminatedUnion("kind", [
 ]);
 export const moduleDefinitionSchema = z.object({
   tags: z.array(z.string().max(80)).max(50).optional().transform(documentTags),
-  name: z.string().min(1).max(200), kind: z.enum(["document", "workflow"]),
+  name: z.string().min(1).max(200), kind: z.enum(["document", "workflow", "presentation"]),
   engine: z.literal("quickjs-emscripten@0.32.0").default("quickjs-emscripten@0.32.0"),
   inputSchema: jsonSchema, outputSchema: jsonSchema, privateStateSchema: jsonSchema.default({ type: "object" }),
   exports: z.record(key, z.object({ path: z.string().regex(/^\/(outputs|inputs)(\/|$)/), schema: jsonSchema, access: z.enum(["read", "write", "private"]), description: z.string().max(1000).optional() }).strict()),
   bindings: z.record(key, moduleBindingSchema).default({}),
   deliverables: deliverablesSchema,
-  source: z.string().min(1).max(128_000), renderer: jsonSchema.optional(), workflow: jsonSchema.optional()
+  // Presentations may omit code: the host prices them and resolves the view.
+  source: z.string().max(128_000).default(""), renderer: jsonSchema.optional(), workflow: jsonSchema.optional(), presentation: jsonSchema.optional()
 }).strict();
 export type ModuleDefinition = z.infer<typeof moduleDefinitionSchema>;
 
@@ -40,7 +42,10 @@ export function validateModuleDefinition(value: unknown): ModuleDefinition {
   for (const field of Object.values(definition.exports).filter(field => field.access !== "private")) {
     if (privatePaths.some(privatePath => privatePath === field.path || privatePath.startsWith(`${field.path}/`) || field.path.startsWith(`${privatePath}/`))) throw badRequest("module_export_overlap", "Public exports cannot overlap private fields.");
   }
+  if (definition.kind !== "presentation" && !definition.source) throw badRequest("module_source_required", "Document and workflow modules require code.");
   if (definition.renderer) validateModuleView(definition.renderer);
+  const presentation = validatePresentationSpec(definition);
+  if (presentation) definition.presentation = presentation;
   if (definition.workflow) {
     if (definition.kind !== "workflow") throw badRequest("module_workflow_kind", "Only workflow modules may define workflow pages.");
     const workflow = workflowDefinitionSchema.parse(definition.workflow);

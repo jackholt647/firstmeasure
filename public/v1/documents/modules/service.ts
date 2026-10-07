@@ -15,7 +15,7 @@ import { instantiateBindings } from "../../platform/publication/instantiate.js";
 import { describeAction } from "../../platform/publication/actions.js";
 import { validateDeliverables } from "../../materials/calculus.js";
 
-export type ModuleInstance = JsonObject & { id: string; revision: number; projectId: string; moduleId: string; version: string; kind: "document" | "workflow"; inputs: JsonObject; outputs: JsonObject; privateState: JsonObject; bindings: ModuleDefinition["bindings"] };
+export type ModuleInstance = JsonObject & { id: string; revision: number; projectId: string; moduleId: string; version: string; kind: "document" | "workflow" | "presentation"; inputs: JsonObject; outputs: JsonObject; privateState: JsonObject; bindings: ModuleDefinition["bindings"] };
 export type ModuleExecutionBroker = ModuleBroker & { manifest?: () => unknown };
 export type ModuleBrokerFactory = (ctx: PublicationContext, instance: ModuleInstance) => ModuleExecutionBroker | Promise<ModuleExecutionBroker>;
 let factory: ModuleBrokerFactory = (ctx, instance) => {
@@ -30,6 +30,9 @@ async function allowed(ctx: PublicationContext, projectId?: string, edit: boolea
     scopes: ["organization", "project"], permissions: [edit === "instance" ? "manage_projects|manage_company_settings" : edit ? "manage_company_settings" : "view_projects"], systemKinds: ["module", "work", "agent"], capabilities: ["platform.documents"]
   }, operation || (edit ? "document-modules.manage" : "document-modules.read"));
 }
+/** Presentation instances change through validated choices with their own evidence
+ * and freeze rules (presentation-service.ts); the generic lifecycle would bypass both. */
+function presentationOwned(kind: string) { if (kind === "presentation") throw badRequest("module_presentation_route", "Use the presentation routes for presentation instances."); }
 export async function listModules(ctx: PublicationContext) { await allowed(ctx); return records(ctx.organizationId, MODULES); }
 export async function publishModule(ctx: PublicationContext, raw: unknown, moduleId = "") {
   await allowed(ctx, undefined, true);
@@ -65,6 +68,7 @@ export async function createModuleInstance(ctx: PublicationContext, input: { mod
   if (!input.projectId || !(await readDocument(ctx.organizationId, "projects", input.projectId))) throw badRequest("module_project_missing", "An existing project is required.");
   const asset = await moduleDefinition(ctx, input.moduleId, input.version);
   const definition = validateModuleDefinition(asset.definition);
+  presentationOwned(definition.kind);
   const inputs = jsonClone(input.inputs || {});
   validateJson(definition.inputSchema, inputs, "module inputs");
   const bindings = instantiateBindings(definition.bindings, { organizationId: ctx.organizationId, projectId: input.projectId, branchId: ctx.branchId });
@@ -82,6 +86,7 @@ export async function updateModuleInputs(ctx: PublicationContext, instanceId: st
 export async function updateModuleBindings(ctx: PublicationContext, instanceId: string, bindings: ModuleDefinition["bindings"], expectedRevision: number) {
   const instance = await readModuleInstance(ctx, instanceId);
   await allowed(ctx, instance.projectId, "instance");
+  presentationOwned(instance.kind);
   if (instance.frozen || instance.activeExecution || instance.uncertainExecution) throw conflict("module_not_editable", "Frozen, executing or uncertain instances cannot change bindings.");
   if (instance.revision !== expectedRevision) throw conflict("module_revision", "The current revision is required.");
   const definition = validateModuleDefinition((await moduleDefinition(ctx, instance.moduleId, instance.version)).definition);
@@ -93,6 +98,7 @@ export async function updateModuleBindings(ctx: PublicationContext, instanceId: 
   return saveRecord(ctx.organizationId, INSTANCES, instance.id, { ...instance, bindings: selected, outputs: {}, view: null, bindingManifest: {}, lastExecutionId: null }, expectedRevision);
 }
 async function saveModuleInputs(ctx: PublicationContext, instance: ModuleInstance, inputs: JsonObject, expectedRevision: number) {
+  presentationOwned(instance.kind);
   if (instance.activeExecution) throw conflict("module_execution_pending", "Module execution is in progress.");
   if (instance.uncertainExecution) throw conflict("module_reconciliation_required", "Review the uncertain command before changing this instance.");
   if (instance.frozen) throw conflict("module_frozen", "Frozen module instances cannot be changed.");
@@ -117,6 +123,7 @@ export async function executionModuleInstance(ctx: PublicationContext, original:
 export async function evaluateModuleInstance(ctx: PublicationContext, instanceId: string, options: { mode?: "evaluate" | "command"; expectedRevision: number; idempotencyKey?: string; dependenciesReady?: boolean } ) {
   if ((ctx.executionDepth || 0) >= 8) throw badRequest("module_execution_depth", "At most eight nested module executions are allowed.");
   const original = await readModuleInstance(ctx, instanceId);
+  presentationOwned(original.kind);
   if (original.uncertainExecution) throw conflict("module_reconciliation_required", "Review the uncertain command before starting another execution.");
   if (original.frozen) throw conflict("module_frozen", "Frozen module instances cannot be evaluated again.");
   await allowed(ctx, original.projectId, "instance");
@@ -177,6 +184,7 @@ export async function evaluateModuleInstance(ctx: PublicationContext, instanceId
 export async function freezeModuleInstance(ctx: PublicationContext, instanceId: string, expectedRevision: number) {
   const instance = await readModuleInstance(ctx, instanceId);
   await allowed(ctx, instance.projectId, "instance");
+  presentationOwned(instance.kind);
   if (instance.activeExecution) throw conflict("module_execution_pending", "Module execution is in progress.");
   if (instance.uncertainExecution) throw conflict("module_reconciliation_required", "Review the uncertain command before freezing this instance.");
   if (!instance.lastExecutionId || instance.revision !== expectedRevision) throw conflict("module_freeze_invalid", "Evaluate the current inputs and provide the current revision before freezing.");
