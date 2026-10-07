@@ -279,9 +279,9 @@
       id,
       document_type:documentType(doc),
       title:firstText(doc.title, doc.label, doc.file_name, doc.name, meta.label),
-      type_label:firstText(doc.type_label, meta.label),
-      icon:firstText(doc.icon, meta.icon),
-      color:firstText(doc.color, meta.color),
+      type_label:cleanText(doc.type_label) === 'Document' && meta.label !== 'Document' ? meta.label : firstText(doc.type_label, meta.label),
+      icon:cleanText(doc.type_label) === 'Document' && meta.label !== 'Document' ? meta.icon : firstText(doc.icon, meta.icon),
+      color:cleanText(doc.type_label) === 'Document' && meta.label !== 'Document' ? meta.color : firstText(doc.color, meta.color),
       url:documentUrl(doc),
       project,
       project_id:firstText(doc.project_id, project.id, project.platform_project_id, project.base_project_id),
@@ -901,6 +901,11 @@
       order.push(id);
     });
     (Array.isArray(mediaItems) ? mediaItems : []).forEach((item) => {
+      const owner = objectValue(item.owner);
+      const metadata = objectValue(item.metadata);
+      const slot = firstText(owner.slot, item.slot, metadata.field, metadata.slot).toLowerCase();
+      const mime = firstText(item.content_type, item.mime_type, metadata.content_type).toLowerCase();
+      if (slot === 'documents' || slot === 'receipts' || (mime && !/^(image|video)\//.test(mime))) return;
       const projectId = mediaOwnerProjectId(item);
       const project = ensureProject(projectId);
       const reference = mediaReferenceFromItem(item);
