@@ -6,30 +6,6 @@
   const ui=Portal.CommunicationsUI,{esc,icon,request}=ui;
   let shell,win,title,nav,extra,compact,errorBar,runtime,tab='dialer',sequence=0,timer,frame,context,sources=[],trackKey='';
   let readinessVisible=false;
-  let toneContext;const toneOverrides=new Map();
-  const toneKey=()=>`fm-phone-keypad-sound:${ui.org()}:${ui.user()}`;
-  function tonesEnabled(){if(toneOverrides.has(toneKey()))return toneOverrides.get(toneKey());try{return localStorage.getItem(toneKey())!=='off';}catch{return true;}}
-  function playTone(digit){
-    const index='123456789*0#'.indexOf(digit);if(index<0||digit.length!==1||!tonesEnabled())return;
-    try{
-      toneContext ||= new (window.AudioContext||window.webkitAudioContext)();
-      if(toneContext.state==='suspended')void toneContext.resume().catch(()=>{});
-      const now=toneContext.currentTime,gain=toneContext.createGain();
-      gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.06,now+.005);
-      gain.gain.setValueAtTime(.06,now+.095);gain.gain.linearRampToValueAtTime(0,now+.12);
-      gain.connect(toneContext.destination);let remaining=2;
-      for(const frequency of [[697,770,852,941][Math.floor(index/3)],[1209,1336,1477][index%3]]){
-        const oscillator=toneContext.createOscillator();oscillator.type='sine';oscillator.frequency.value=frequency;
-        oscillator.connect(gain);oscillator.onended=()=>{oscillator.disconnect();if(!--remaining)gain.disconnect();};oscillator.start(now);oscillator.stop(now+.125);
-      }
-    }catch{/* Dialing remains available if local audio is unavailable. */}
-  }
-  function soundSetting(){
-    const label=document.createElement('label');label.className='fmcm-check';
-    const input=document.createElement('input');input.type='checkbox';input.checked=tonesEnabled();input.dataset.keypadSounds='';
-    input.onchange=()=>{toneOverrides.set(toneKey(),input.checked);try{localStorage.setItem(toneKey(),input.checked?'on':'off');}catch{toneOverrides.set(toneKey(),input.checked);}};
-    label.append(input,document.createTextNode('Keypad sounds'));return label;
-  }
   const style=document.createElement('style');style.textContent=`
   .fm-phone-tray{--phone-line:var(--border,#dadce0);--phone-muted:var(--muted,#5f6368);--phone-accent:var(--primary-readable,var(--primary,#d93025));background:var(--panel,#fff);color:var(--text,#202124);display:flex;flex-direction:column;overflow:hidden;font-family:inherit;font-size:13px;line-height:1.45;border:1px solid var(--phone-line);border-radius:var(--radius-lg,12px);box-shadow:var(--shadow,0 10px 30px #00000014)}
   .fm-phone-tray[hidden],.fm-phone-tray [hidden]{display:none!important}.fm-phone-tray:not([data-window=minimized]) .fm-window-header{flex-wrap:wrap;flex:none;gap:6px;padding:12px;background:var(--panel,#fff);border-bottom:1px solid var(--phone-line)}
@@ -53,8 +29,6 @@
   function attach(panel,api){
     if(!window.FirstMateWindows?.attach)return null;
     runtime=api;
-    panel.addEventListener('input',event=>{if(event.target.name==='customer_number'&&event.inputType==='insertText'&&!event.isComposing&&event.data)playTone(event.data);});
-    panel.addEventListener('click',event=>{const button=event.target.closest('button[data-digit]');if(button&&!button.disabled)playTone(button.dataset.digit);},true);
     const host=document.querySelector('main.main')||document.querySelector('.main')||document.body;
     shell=document.createElement('aside');shell.className='fm-phone-tray';shell.setAttribute('aria-label','Phone');shell.hidden=true;
     const header=document.createElement('header');title=document.createElement('div');title.className='fm-phone-title fm-window-minimized-identity';title.tabIndex=0;
@@ -64,7 +38,7 @@
     win=window.FirstMateWindows.attach({element:shell,header,title,body,host,contentTarget:host.querySelector(':scope > #mainPanels'),name:'phone',label:'Phone',mode:'docked',width:264,height:448,minWidth:264,minHeight:432,dockWidth:370,mobileFullDock:true,compactCall:true,minimizedHeight:32,allowFullscreen:false,topInset:()=>document.getElementById('platformTopbar')?.offsetHeight||0,onChange:({mode})=>{runtime.minimized(mode==='minimized');if(mode==='minimized'){title.setAttribute('aria-label','Open phone');title.title='Open phone';}},onClose:()=>runtime.action('close')});
     const controls=header.querySelector('.fm-window-controls');float.dataset.minimizedVisible='';controls.querySelector('[data-window-action=place]').dataset.minimizedVisible='';controls.prepend(compact,float);
     compact.onclick=event=>{const b=event.target.closest('[data-phone]');if(b){event.stopPropagation();void runtime.action(b.dataset.phone,b);}else win.restore();};
-    new MutationObserver(()=>{win.setVisible(!panel.hidden);if(panel.hidden&&toneContext){void toneContext.close().catch(()=>{});toneContext=null;}}).observe(panel,{attributes:true,attributeFilter:['hidden']});
+    new MutationObserver(()=>win.setVisible(!panel.hidden)).observe(panel,{attributes:true,attributeFilter:['hidden']});
     nav.onclick=e=>{const b=e.target.closest('[data-phone-tab]');if(b)void selectTab(b.dataset.phoneTab);};
     nav.onkeydown=event=>{const ids=['dialer','contacts','lists','followups'],index=ids.indexOf(tab);let next;if(event.key==='ArrowRight')next=ids[(index+1)%4];if(event.key==='ArrowLeft')next=ids[(index+3)%4];if(event.key==='Home')next=ids[0];if(event.key==='End')next=ids[3];if(next){event.preventDefault();void selectTab(next);nav.querySelector('[data-phone-tab='+next+']')?.focus();}};
     void selectTab('dialer');return win;
@@ -87,7 +61,7 @@
     const target=extra.querySelector('[data-results]');if(!target)return;
     try{const result=await request(`voice/contacts?query=${encodeURIComponent(query)}`);if(ticket!==sequence||extra.querySelector('input')?.value!==query)return;
       target.innerHTML=(result.contacts||[]).map((c,i)=>`<button class="fm-phone-result" data-contact="${i}"><span class="fm-phone-person">${esc((c.name||'?').trim().charAt(0).toUpperCase())}</span><span>${esc(c.name)}<small>${esc(c.phone)}</small></span>${icon('phone')}</button>`).join('')||emptyState('magnifying-glass','No matching contacts','Try another name or phone number.');
-      target.onclick=async e=>{const b=e.target.closest('[data-contact]');if(!b)return;const c=result.contacts[Number(b.dataset.contact)];await Portal.CustomerPhone.open({contact_id:c.id,customer_name:c.name,customer_number:c.phone});await selectTab('dialer');};
+      target.onclick=async e=>{const b=e.target.closest('[data-contact]');if(!b)return;const c=result.contacts[Number(b.dataset.contact)];await Portal.CustomerPhone.open({contact_id:c.id,project_id:c.project_id,customer_name:c.name,customer_number:c.phone});await selectTab('dialer');};
     }catch(error){if(ticket===sequence)target.textContent=error.message;}
   }
   function emptyState(symbol,heading,copy){return `<div class="fm-phone-empty"><span>${icon(symbol)}</span><strong>${heading}</strong><p>${copy}</p></div>`;}
@@ -117,12 +91,12 @@
         const options=document.createElement('details');options.className='fm-phone-options';options.innerHTML='<summary>Call details & options</summary>';
         const elements=[...body.children];
         elements.forEach(el=>{if(el.matches('.fmcm-form-grid,[name=purpose],.fmcm-field')||el.classList.contains('fmcm-help')&&!el.hasAttribute('data-dev-destination'))options.append(el);});
-        options.append(soundSetting());const dialer=document.createElement('div');dialer.className='fm-phone-dialer';const content=document.createElement('div');content.className='fm-phone-dialer-content';content.append(number,pad,start);dialer.append(content);body.append(dialer,options);const dev=body.querySelector('[data-dev-destination]');if(dev)body.append(dev);
+        const dialer=document.createElement('div');dialer.className='fm-phone-dialer';const content=document.createElement('div');content.className='fm-phone-dialer-content';content.append(number,pad,start);dialer.append(content);body.append(dialer,options);const dev=body.querySelector('[data-dev-destination]');if(dev)body.append(dev);
         const plus=document.createElement('button');plus.type='button';plus.dataset.digit='+';plus.textContent='+';plus.setAttribute('aria-label','Add country code plus');plus.className='fm-phone-plus';plus.onclick=()=>digit('+');number.append(plus);
       }
     }
     if(c&&['connected','held'].includes(c.state)&&(!c.owner_user_id||c.owner_user_id===ui.user()||state.status?.permissions?.manage)&&!state.panel.querySelector('.fm-phone-pad')){
-      const pad=document.createElement('div');pad.className='fm-phone-pad';pad.setAttribute('aria-label','Call keypad');pad.innerHTML=[...'123456789*0#'].map(digit=>`<button type="button" data-phone="tone" data-digit="${digit}" ${state.busy?'disabled':''}>${digit}</button>`).join('');state.panel.querySelector('.fmcp-controls')?.after(pad);pad.after(soundSetting());
+      const pad=document.createElement('div');pad.className='fm-phone-pad';pad.setAttribute('aria-label','Call keypad');pad.innerHTML=[...'123456789*0#'].map(digit=>`<button type="button" data-phone="tone" data-digit="${digit}" ${state.busy?'disabled':''}>${digit}</button>`).join('');state.panel.querySelector('.fmcp-controls')?.after(pad);
     }
     const body=state.panel.querySelector('.fmcp-body'),readiness=body?.querySelector('[data-phone-readiness]'),dialer=body?.querySelector('.fm-phone-dialer');
     if(readiness&&dialer){
@@ -167,5 +141,5 @@
       paint(status.development);container.prepend(details);if(status.development.onboarded)onComplete?.(status.development);
     }catch{/* The normal setup remains available when calling access is unavailable. */}
   }
-  Portal.PhoneTray={attach,update,selectTab,showDocked(){win?.dock('right');},developmentSetup,reset(){if(toneContext){void toneContext.close().catch(()=>{});toneContext=null;}++sequence;clearTimeout(timer);cancelAnimationFrame(frame);sources.forEach(s=>s.source.disconnect());sources=[];trackKey='';if(context){void context.close();context=null;}win?.setVisible(false);if(extra)extra.innerHTML='';}};
+  Portal.PhoneTray={attach,update,selectTab,showDocked(){win?.dock('right');},developmentSetup,reset(){++sequence;clearTimeout(timer);cancelAnimationFrame(frame);sources.forEach(s=>s.source.disconnect());sources=[];trackKey='';if(context){void context.close();context=null;}win?.setVisible(false);if(extra)extra.innerHTML='';}};
 })();

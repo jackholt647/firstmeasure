@@ -74,7 +74,7 @@ export function voiceDestination(destination:unknown){
   const value=text(destination);
   if(env.dataEnvironment!=="development"||/^sip:[A-Za-z0-9_.+%-]+@sip\.telnyx\.com$/.test(value))return value;
   if(!/^\+[1-9]\d{7,14}$/.test(value))throw forbidden('development_voice_destination_blocked','Use an international test phone destination.');
-  const target='+12069415049';assertVoiceDestination(target);return target;
+  const target='+14259700671';assertVoiceDestination(target);return target;
 }
 /** Development uses real carrier calls only to explicitly controlled test phones. */
 export function assertVoiceDestination(destination:unknown){

@@ -50,7 +50,7 @@ test('development onboarding is tenant-scoped, keeps one provider owner, and can
     assert.equal((await client().raw('POST',route(b.orgId),{})).status,401);
     assert.equal((await a.c.raw('POST',route(b.orgId),{})).status,403);
     const result=await b.c.request('POST',route(b.orgId),{});
-    assert.equal(result.development.onboarded,true);assert.equal(result.development.destination,'+12069415049');
+    assert.equal(result.development.onboarded,true);assert.equal(result.development.destination,'+14259700671');
     assert.equal((await store.resource(b.orgId,'application'))?.provider_id,'test-application');
     assert.equal((await store.resourceByProvider('application','test-application'))?.organization_id,a.orgId);
     assert.equal((await store.resource(a.orgId,'settings')),null);
@@ -75,15 +75,29 @@ test('mandatory dispositions block a new call while optional outcomes remain ski
   assert.equal((await c.raw('POST',`${base}/calls`,{operation_id:'disposition-second',customer_number:'+12065550101'})).status,201);
   assert.equal((await store.readCall(orgId,first.call.id)).wrap_up_state,'draft');
 });
+test('phone search finds saved Contacts records and preserves their project link',async()=>{
+  const {c,orgId}=await owner();
+  const projectId='phone_contact_project',contactId='phone_contact_person';
+  await c.request('POST',`/v1/platform/organizations/${orgId}/projects`,{id:projectId,data:{
+    title:'Taylor Reed',workflow_state:'contact_only',contacts:[{id:contactId,name:'Taylor Reed',phone:'+12025550131',primary:true}]
+  }});
+  const result=await c.request('GET',`/v1/comms/organizations/${orgId}/voice/contacts?query=Taylor`);
+  assert.deepEqual(result.contacts,[{id:contactId,project_id:projectId,name:'Taylor Reed',phone:'+12025550131'}]);
+  const call=await c.request('POST',`/v1/comms/organizations/${orgId}/calls`,{
+    operation_id:'contact-search-call',project_id:projectId,contact_id:contactId,customer_number:'+12025550131'
+  });
+  assert.equal(call.call.contact_id,contactId);
+  assert.equal(call.call.project_id,projectId);
+});
 test('carrier boundary reroutes development PSTN calls and transfers; production is unchanged',async()=>{
   const {env}=await import('../src/config/env.js');const {TelnyxVoiceClient}=await import('../telephony/telnyx.js');
   const previous=env.dataEnvironment,allowed=process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS;
   const payloads:any[]=[];
   const adapter=new TelnyxVoiceClient({request:async(_path:string,options:any)=>{payloads.push(JSON.parse(options.body));return {data:{id:'test'}};}} as any);
   try{
-    Object.assign(env,{dataEnvironment:'development'});process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='+12069415049';
+    Object.assign(env,{dataEnvironment:'development'});process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='+14259700671';
     await adapter.dial({to:'+442012345678'});await adapter.command('test','transfer',{to:'+12065550122'});
-    assert.deepEqual(payloads.map(p=>p.to),['+12069415049','+12069415049']);
+    assert.deepEqual(payloads.map(p=>p.to),['+14259700671','+14259700671']);
     await adapter.dial({to:'sip:test@sip.telnyx.com'});assert.equal(payloads[2].to,'sip:test@sip.telnyx.com');
     process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='';await assert.rejects(adapter.dial({to:'+12065550111'}));
     Object.assign(env,{dataEnvironment:'production'});await adapter.dial({to:'+12065550111'});assert.equal(payloads.at(-1).to,'+12065550111');

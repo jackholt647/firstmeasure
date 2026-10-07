@@ -276,8 +276,15 @@ export async function people(ctx:PlatformAuthContext){
 
 export async function phoneContacts(ctx:PlatformAuthContext,query:string){
   const needle=query.trim().toLowerCase().slice(0,150);if(!needle)return [];
-  return (await listDocuments(ctx.orgId,'contacts')).map(doc=>({id:doc.id,...object(doc.data)} as Json))
-    .filter(c=>manageCalls(ctx)||text(c.branch_id||'default')===(ctx.branchId||'default'))
-    .map(c=>({id:text(c.id),name:text(c.name||c.display_name||[c.first_name,c.last_name].filter(Boolean).join(' ')),phone:text(c.phone||c.phone_number||c.mobile)}))
-    .filter(c=>c.phone&&`${c.name} ${c.phone}`.toLowerCase().includes(needle)).slice(0,30);
+  const matches=new Map<string,{id:string;project_id:string;name:string;phone:string}>();
+  const projects=(await listDocuments(ctx.orgId,'projects')).sort((a,b)=>Number(b.data.workflow_state==='contact_only')-Number(a.data.workflow_state==='contact_only'));
+  for(const project of projects){
+    const data=object(project.data);
+    if(!manageCalls(ctx)&&text(data.branch_id||'default')!==(ctx.branchId||'default'))continue;
+    for(const raw of Array.isArray(data.contacts)?data.contacts:[]){
+      const contact=object(raw),id=text(contact.id||contact.contact_id),name=text(contact.name||contact.display_name),phone=text(contact.phone||contact.phone_number||contact.mobile);
+      if(id&&phone&&!matches.has(id)&&`${name} ${phone}`.toLowerCase().includes(needle))matches.set(id,{id,project_id:project.id,name,phone});
+    }
+  }
+  return [...matches.values()].slice(0,30);
 }
