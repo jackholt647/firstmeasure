@@ -43,9 +43,13 @@ test("every built-in published operation belongs to one known business permissio
   const dataIds = new Set(data);
   assert.ok(actions.length >= 80);
   assert.ok(data.length >= 33);
+  // Supervisor participation requires the interactive browser session's endpoint.
+  // Background agent contexts deliberately do not carry that session authority.
+  const interactiveSupervisorActions = new Set(['monitor','whisper','barge','takeover','leave'].map(mode=>`customer-calls.supervision.${mode}`));
   for (const action of actions) {
     assert.notEqual(publishedActionPermission(action.id), undefined, action.id);
-    assert.ok(action.executionKinds.includes("agent"), `Agent runtime cannot invoke ${action.id}.`);
+    if(interactiveSupervisorActions.has(action.id))assert.equal(action.executionKinds.includes('agent'),false,`Interactive phone authority leaked to ${action.id}.`);
+    else assert.ok(action.executionKinds.includes("agent"), `Agent runtime cannot invoke ${action.id}.`);
   }
   for (const id of data) assert.notEqual(publishedDataPermission(id), undefined, id);
   const permissionKeys = new Set(capabilityDefinitions().filter(node => node.kind === "permission").map(node => node.permission_key));
