@@ -25,6 +25,21 @@ test('projecting chimney retains all three exposed lower sides after covered sid
  }
  assert.ok(!covers(r.composed.filter(w=>w.chimney?.id===c.id),{...mix(c.points[2],c.points[3],.5),z:37}),'buried back face stays hidden');
 });
+test('editable parapets and a saved-state reload retain the visible lower chimney shell',()=>{
+ const P=require('../public/measure/internal/editor_scripts/wall_parapets'),M=require('../public/measure/internal/editor_scripts/exterior_model'),K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+ const state=structuredClone(r.state);
+ state.wallEdits.$surfaces.push(...P.build(state.roof,state.sources,r.composed));
+ assert.ok(state.wallEdits.$surfaces.some(f=>f.parapet));
+ for(const s of [state,JSON.parse(JSON.stringify(state))]){
+  const walls=G.canonicalGeneratedWalls(C.compose(r.aligned.walls,s));
+  const faces=M.collect(s,walls).flatMap(f=>C.visibleParts(f,s));
+  const c=s.chimneys.items.find(c=>c.sourceConnections.includes(53));
+  for(const [side,t]of [[0,.5],[1,.25],[3,.75]]){
+   const p={...mix(c.points[side],c.points[(side+1)%4],t),z:37};
+   assert.ok(faces.some(f=>{if(f.chimney?.id!==c.id)return false;const frame=K.frame(f),q=K.local(frame,p);return Math.abs(q.z)<.002&&G.contains({points:f.points.map(v=>K.local(frame,v)),holes:(f.holes||[]).map(r=>r.map(v=>K.local(frame,v)))},q);}),`rendered side ${side} remains visible with parapets`);
+  }
+ }
+});
 test('captured three-layer building retains the upper wall above the glass roof',()=>{
  const upper=r.state.sources.find(s=>s.id==='R11.0'),lower=r.state.sources.find(s=>s.id==='R72.0');assert.ok(upper&&lower);
  for(const t of [.1,.5,.9]){

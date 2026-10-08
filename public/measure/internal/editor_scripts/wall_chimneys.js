@@ -185,7 +185,10 @@ function updateScene(walls,state,cs){
  // Draft creation is selection, not a change to the building envelope. Keep
  // the roof-plane classifier when drafts or extrusion replacements appear;
  // otherwise the footprint-only fallback erases exposed chimney shoulders.
- const generated=!!state.options?.roofContacts,edited=!!(surfaces.length||edits.$base);
+ // Parapet caps and returns are editable surfaces too, but adding them does
+ // not change the house footprint below the roof. Keep the generated-body
+ // classifier so their presence cannot hide exposed lower chimney walls.
+ const generated=!!state.options?.roofContacts,edited=!!(surfaces.some(f=>!f.parapet)||edits.$base);
  if(!W||(!surfaces.length&&!generated)){scenes.delete(state);return;}
  const drafts=Object.values(edits.$drafts||{}).filter(d=>!d.chimney&&!d.mergedInto),claimed=new Set(drafts.flatMap(d=>d.members||[]).map(id=>id.split(':chimney-cut-')[0]));
  const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},faces=[...surfaces];
