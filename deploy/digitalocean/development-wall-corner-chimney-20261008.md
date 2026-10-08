@@ -21,4 +21,14 @@ The audited baseline on all four roles is
 `313db654c7ab8f246826cc5a67701514e3fc0749`; rollback uses each manifest role's
 previous_path. No project data, production, configuration or topology changes.
 
-Activation and verification receipt pending.
+Verified application release: `72c0ee4e1bec4da865d6e306ee7111ea0d8b0700`.
+All four roles passed runtime identity, content hashes, readiness and development
+isolation checks. Public HTTPS returned the expected release and both script
+checksums.
+
+A concurrent deployment changed compatibility to
+`0c01a90160780cdcef3131632d8be938245f2fe4` after staging. The baseline guard stopped
+activation; its editor files still matched the audited source. Compatibility was
+restaged from that newer release, preserving its unrelated changes. Its rollback
+baseline is therefore `0c01a90160780cdcef3131632d8be938245f2fe4`; the other three
+roles retain the baseline above. The manifest records those role-specific paths.
