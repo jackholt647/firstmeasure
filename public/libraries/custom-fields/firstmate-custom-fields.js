@@ -72,7 +72,10 @@
   const CONTACT_DEFAULT_FIELDS=[
     {entity:'contact',key:'relationships.employer',type:'org_contact',label:'Employer',order:0,builtin:true},
     {entity:'contact',key:'relationships.spouse',type:'human_contact',label:'Spouse',order:1,builtin:true},
-    {entity:'contact',key:'profile_photo',type:'photo',label:'Profile photo',order:2,builtin:true}
+    {entity:'contact',key:'profile_photo',type:'photo',label:'Profile photo',order:2,builtin:true},
+    {entity:'contact',key:'secondary_phone',type:'phone',label:'Secondary Phone',order:3,builtin:true},
+    {entity:'contact',key:'primary_phone_label',type:'select',label:'Primary Phone Label',options:['home','cell','work','other'],order:4,builtin:true},
+    {entity:'contact',key:'secondary_phone_label',type:'select',label:'Secondary Phone Label',options:['home','cell','work','other'],order:5,builtin:true}
   ];
   const TYPE_BY_VALUE = new Map(TYPE_CATALOG.map((item) => [item.value, item]));
   const optionValue = (item) => cleanText(typeof item === 'object' ? item.value ?? item.label : item);

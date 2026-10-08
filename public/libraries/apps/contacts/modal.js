@@ -4,7 +4,7 @@
 (function(){
   if (!window.Portal) return;
 
-  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20260930-v1',document.currentScript.src).href);
+  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20260930-v1',document.currentScript?.src||location.origin+'/libraries/apps/contacts/modal.js').href);
   const cfg = window.Portal.cfg || {};
   const state = {
     open: false,
@@ -22,7 +22,8 @@
     catalog: [],
     mediaTab: false,
     mediaLoading: false,
-    todoController: null
+    todoController: null,
+    secondaryPhoneOpen: false
   };
   let contactWindow = null;
   let contactShell=null,contactPanes=null,contactTrays=null;
@@ -46,6 +47,35 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+  const phoneLabels=['home','cell','work','other'];
+  function phoneLabelOptions(){
+    return `<option value="">Label…</option>${phoneLabels.map(label=>`<option value="${label}">${label[0].toUpperCase()+label.slice(1)}</option>`).join('')}`;
+  }
+  function formatPhone(value){
+    const raw=cleanText(value),digits=raw.replace(/\D/g,'');
+    if(raw.startsWith('+') && !(digits.length===11 && digits[0]==='1'))return raw;
+    if(digits.length>11)return raw;
+    if(digits.length===11 && digits[0]==='1')return `+1 (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+    if(digits.length>10)return raw;
+    if(digits.length>7)return `(${digits.slice(0,3)}) ${digits.slice(3,6)}${digits.length>6?'-'+digits.slice(6):''}`;
+    if(digits.length>3)return `${digits.slice(0,3)}-${digits.slice(3)}`;
+    return digits;
+  }
+  function validPhone(value){
+    const phone=cleanText(value),digits=phone.replace(/\D/g,'');
+    return !phone || (/^[+\d\s().-]+$/.test(phone) && digits.length>=7 && digits.length<=15);
+  }
+  function formatPhoneInput(input){
+    if(!input)return;
+    const before=input.value,position=input.selectionStart ?? before.length;
+    const digitOffset=before.slice(0,position).replace(/\D/g,'').length;
+    const formatted=formatPhone(before);
+    if(formatted===before)return;
+    input.value=formatted;
+    let cursor=0,digits=0;
+    while(cursor<formatted.length && digits<digitOffset){if(/\d/.test(formatted[cursor]))digits++;cursor++;}
+    input.setSelectionRange(cursor,cursor);
   }
   function orgId(){
     return firstText(cfg.userOrgId, cfg.orgId, window.__APP?.userOrgId);
@@ -243,6 +273,7 @@
       .fm-contact-field label{font-size:10px;font-weight:1000;color:#667085;letter-spacing:.06em;text-transform:uppercase}
       .fm-contact-input{width:100%;box-sizing:border-box;border:1px solid rgba(15,23,42,.14);border-radius:9px;min-height:34px;padding:6px 9px;font-size:12px;font-weight:850;color:#101828;outline:none}
       .fm-contact-input:focus{border-color:rgba(var(--primary-rgb,217,48,37),.55);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.10)}
+      .fm-contact-phone-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.fm-contact-phone-heading label{margin:0}.fm-contact-phone-add{border:0;background:transparent;color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:900;cursor:pointer;padding:2px 0}.fm-contact-phone-controls{display:grid;grid-template-columns:minmax(0,1fr) 100px;gap:6px}.fm-contact-phone-actions{display:flex;gap:8px}.fm-contact-phone-actions button{border:0;background:transparent;color:#667085;font:inherit;font-size:11px;font-weight:850;cursor:pointer;padding:2px 0}.fm-contact-phone-actions button:hover{color:var(--primary-readable,var(--primary,#d93025))}#fmContactSecondaryField[hidden],#fmContactAddPhone[hidden]{display:none!important}
       .pac-container{z-index:2147483600!important}
       .fm-contact-actions{display:flex;flex:0 0 auto;gap:8px}
       .fm-contact-actions .fm-contact-btn{flex:1 1 0}
@@ -376,7 +407,8 @@
           <div class="fm-contact-fields">
             <div class="fm-contact-profile" id="fmContactProfile"></div>
             <div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row"><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</span><span class="fm-contact-required">${(globalThis.PlatformLanguage?.htmlText("contacts","m_db97f048cd99aa","Required") ?? "Required")}</span></label><input class="fm-contact-input" id="fmContactName" autocomplete="name" required aria-required="true"></div>
-            <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_ed04c65845180f","Phone") ?? "Phone")}</label><input class="fm-contact-input" id="fmContactPhone" type="tel" autocomplete="tel"></div>
+            <div class="fm-contact-field"><div class="fm-contact-phone-heading"><label for="fmContactPhone">Primary Phone</label><button type="button" class="fm-contact-phone-add" id="fmContactAddPhone" aria-label="Add secondary phone"><i class="fas fa-plus" aria-hidden="true"></i> Add phone</button></div><div class="fm-contact-phone-controls"><input class="fm-contact-input" id="fmContactPhone" type="tel" inputmode="tel" autocomplete="tel" aria-label="Primary Phone"><select class="fm-contact-input" id="fmContactPrimaryPhoneLabel" aria-label="Primary phone label">${phoneLabelOptions()}</select></div></div>
+            <div class="fm-contact-field" id="fmContactSecondaryField" hidden><label for="fmContactSecondaryPhone">Secondary Phone</label><div class="fm-contact-phone-controls"><input class="fm-contact-input" id="fmContactSecondaryPhone" type="tel" inputmode="tel" autocomplete="tel-national" aria-label="Secondary Phone"><select class="fm-contact-input" id="fmContactSecondaryPhoneLabel" aria-label="Secondary phone label">${phoneLabelOptions()}</select></div><div class="fm-contact-phone-actions"><button type="button" id="fmContactMakeSecondaryPrimary">Set as primary</button><button type="button" id="fmContactRemoveSecondary">Remove</button></div></div>
             <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_5d2b9327181e33","Email") ?? "Email")}</label><input class="fm-contact-input" id="fmContactEmail" type="email" autocomplete="email"></div>
             <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_04774ec8f0f789","Default Address") ?? "Default Address")}</label><input class="fm-contact-input" id="fmContactAddress" autocomplete="street-address"></div>
             <div id="fmContactCustomFields"></div>
@@ -423,13 +455,33 @@
     });
     $('#fmContactPortal', overlay)?.addEventListener('click', ensureContactPortalLink);
     $('#fmContactNewProject', overlay)?.addEventListener('click', createProjectForContact);
-    ['fmContactName','fmContactPhone','fmContactEmail','fmContactAddress'].forEach((id) => {
+    ['fmContactName','fmContactPhone','fmContactSecondaryPhone','fmContactEmail','fmContactAddress'].forEach((id) => {
       $(`#${id}`, overlay)?.addEventListener('input', () => {
+        if(id==='fmContactPhone'||id==='fmContactSecondaryPhone')formatPhoneInput($(`#${id}`,overlay));
         readContactInputs();
         if (id === 'fmContactName') setNameRequired(!cleanText(state.contact.name));
         renderHeader();
         scheduleAutosave();
       });
+    });
+    ['fmContactPrimaryPhoneLabel','fmContactSecondaryPhoneLabel'].forEach(id=>{
+      $(`#${id}`,overlay)?.addEventListener('change',()=>{readContactInputs();scheduleAutosave();});
+    });
+    $('#fmContactAddPhone',overlay)?.addEventListener('click',()=>{
+      state.secondaryPhoneOpen=true;updateSecondaryPhoneVisibility();$('#fmContactSecondaryPhone',overlay)?.focus();
+    });
+    $('#fmContactRemoveSecondary',overlay)?.addEventListener('click',()=>{
+      $('#fmContactSecondaryPhone').value='';$('#fmContactSecondaryPhoneLabel').value='';
+      state.secondaryPhoneOpen=false;updateSecondaryPhoneVisibility();readContactInputs();scheduleAutosave();
+    });
+    $('#fmContactMakeSecondaryPrimary',overlay)?.addEventListener('click',()=>{
+      const primary=$('#fmContactPhone'),secondary=$('#fmContactSecondaryPhone');
+      const primaryLabel=$('#fmContactPrimaryPhoneLabel'),secondaryLabel=$('#fmContactSecondaryPhoneLabel');
+      if(!cleanText(secondary?.value))return;
+      [primary.value,secondary.value]=[secondary.value,primary.value];
+      [primaryLabel.value,secondaryLabel.value]=[secondaryLabel.value,primaryLabel.value];
+      state.secondaryPhoneOpen=!!cleanText(secondary.value);updateSecondaryPhoneVisibility();
+      readContactInputs();renderHeader();scheduleAutosave();
     });
     $('#fmContactCustomFields', overlay)?.addEventListener('input', () => scheduleAutosave());
     $('#fmContactCustomFields', overlay)?.addEventListener('change', () => scheduleAutosave());
@@ -465,10 +517,12 @@
   function readContactInputs(){
     const previousAddress = cleanText(state.contact?.address);
     const nextAddress = cleanText($('#fmContactAddress')?.value);
+    const customValues={...(state.contact?.custom_field_values || {}),secondary_phone:cleanText($('#fmContactSecondaryPhone')?.value),primary_phone_label:cleanText($('#fmContactPrimaryPhoneLabel')?.value),secondary_phone_label:cleanText($('#fmContactSecondaryPhoneLabel')?.value)};
     state.contact = {
       ...state.contact,
       name: cleanText($('#fmContactName')?.value),
       phone: cleanText($('#fmContactPhone')?.value),
+      custom_field_values:customValues,
       email: cleanText($('#fmContactEmail')?.value),
       address: nextAddress,
       ...(previousAddress && nextAddress !== previousAddress ? { lat: '', lng: '', address_components: {} } : {})
@@ -477,10 +531,21 @@
   }
   function writeContactInputs(){
     const contact = state.contact || {};
+    const values=contact.custom_field_values || {};
     if ($('#fmContactName')) $('#fmContactName').value = contact.name || '';
-    if ($('#fmContactPhone')) $('#fmContactPhone').value = contact.phone || '';
+    if ($('#fmContactPhone')) $('#fmContactPhone').value = formatPhone(contact.phone || '');
+    if ($('#fmContactSecondaryPhone')) $('#fmContactSecondaryPhone').value = formatPhone(values.secondary_phone || '');
+    if ($('#fmContactPrimaryPhoneLabel')) $('#fmContactPrimaryPhoneLabel').value = phoneLabels.includes(values.primary_phone_label)?values.primary_phone_label:'';
+    if ($('#fmContactSecondaryPhoneLabel')) $('#fmContactSecondaryPhoneLabel').value = phoneLabels.includes(values.secondary_phone_label)?values.secondary_phone_label:'';
+    updateSecondaryPhoneVisibility();
     if ($('#fmContactEmail')) $('#fmContactEmail').value = contact.email || '';
     if ($('#fmContactAddress')) $('#fmContactAddress').value = contact.address || '';
+  }
+  function updateSecondaryPhoneVisibility(){
+    const secondary=$('#fmContactSecondaryField'),add=$('#fmContactAddPhone');
+    const visible=state.secondaryPhoneOpen || !!cleanText($('#fmContactSecondaryPhone')?.value);
+    if(secondary)secondary.hidden=!visible;
+    if(add)add.hidden=visible;
   }
   function placeComponentsObject(place = {}){
     const out = {};
@@ -673,7 +738,7 @@
         location:'overview',
         showSave:false,
         flat:true,
-        excludePaths:['profile_photo'],
+        excludePaths:['profile_photo','secondary_phone','primary_phone_label','secondary_phone_label'],
         fieldClass:'fm-contact-field',
         inputClass:'fm-contact-input'
       });
@@ -810,8 +875,8 @@
       primary_contact_name: contact.name || project.primary_contact_name || '',
       customer_email: contact.email || project.customer_email || '',
       primary_contact_email: contact.email || project.primary_contact_email || '',
-      customer_phone: contact.phone || project.customer_phone || '',
-      primary_contact_phone: contact.phone || project.primary_contact_phone || '',
+      customer_phone: contact.phone ?? project.customer_phone ?? '',
+      primary_contact_phone: contact.phone ?? project.primary_contact_phone ?? '',
       contact_address: contact.address || project.contact_address || '',
       customer_address: contact.address || project.customer_address || '',
       primary_contact_address: contact.address || project.primary_contact_address || '',
@@ -822,6 +887,11 @@
   async function saveContact(){
     const savingRevision=revision;
     let contact = readContactInputs();
+    if(!validPhone(contact.phone) || !validPhone(contact.custom_field_values?.secondary_phone)){
+      setMeta('Enter a valid phone number with 7 to 15 digits.');
+      (!validPhone(contact.phone)?$('#fmContactPhone'):$('#fmContactSecondaryPhone'))?.focus();
+      return false;
+    }
     const customFieldMount = $('#fmContactCustomFields');
     if (customFieldMount && window.FirstMateCustomFields?.editorValues) {
       const validation = window.FirstMateCustomFields.validateEditor?.(customFieldMount, contact, 'contact');
@@ -1007,6 +1077,7 @@
     contactShell.validate({...layout,tray:null});
     if(layout.tray!=null&&!contactTrays.available({contact:nextContact,orgId:orgId()}).includes(layout.tray))throw Error('Unavailable window tray: '+layout.tray);
     clearTimeout(saveTimer);revision=0;savedRevision=0;draftMedia=[];
+    state.secondaryPhoneOpen=!!cleanText(nextContact.custom_field_values?.secondary_phone);
     contactTrays.reset();contactShell.reset();
     state.contact = nextContact;
     state.originalContact = { ...state.contact };
