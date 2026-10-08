@@ -757,3 +757,11 @@ test('automatic parapets default on, create editable faces, and preserve the adv
  assert.ok(prevented);assert.equal(f.ctx.WallMode.serialize().options.soffit,51);assert.equal(f.elements.get('wall-custom-soffit-error').textContent,'');
  input.value='0';go.onclick();assert.equal(f.ctx.WallMode.serialize().options.soffit,0);
  });
+
+test('From Roof closed-soffit checkbox generates editable faces and persists independently of visibility',()=>{
+ const C=require('../public/measure/internal/editor_scripts/wall_closed_soffits.js'),f=fixture(true,{WallClosedSoffits:C});f.ctx.activeGeometry.connections[0].type='eave';f.ctx.activeGeometry.points[2].z=12;f.ctx.activeGeometry.points[3].z=12;f.ctx.WallMode.setEnabled(true);
+ f.elements.get('wall-closed-soffits').onchange({target:{checked:true}});f.soffits[1].onclick();const saved=f.ctx.WallMode.serialize();assert.ok(saved.closedSoffits);assert.ok(saved.wallEdits.$surfaces.some(p=>p.closedSoffit&&p.roofLayer),f.elements.get('wall-status').textContent);
+ const original=JSON.stringify(saved.wallEdits);f.elements.get('wall-roof-visibility').onclick();assert.equal(f.ctx.WallMode.serialize().roofVisible,false);assert.equal(JSON.stringify(f.ctx.WallMode.serialize().wallEdits),original);
+ const fresh=fixture(true,{WallClosedSoffits:C});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});assert.equal(fresh.elements.get('wall-closed-soffits').checked,true);assert.equal(JSON.stringify(fresh.ctx.WallMode.serialize().wallEdits),original);
+ fresh.elements.get('wall-closed-soffits').onchange({target:{checked:false}});fresh.soffits[1].onclick();assert.ok(!fresh.ctx.WallMode.serialize().wallEdits?.$surfaces?.some(p=>p.closedSoffit));
+});
