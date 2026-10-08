@@ -156,7 +156,8 @@ export async function patchCall(orgId: string, callId: string, patch: Json, revi
 export async function listCalls(orgId: string, filter: Json = {}) {
   const values:SQLInputValue[]=[orgId]; const clauses=["organization_id=?"];
   if(filter.include_diagnostics!==true)clauses.push("mode<>'diagnostic'");
-  for(const key of ["project_id","contact_id","owner_user_id","direction","entry_id","mode","wrap_up_state"]) if(text(filter[key])){clauses.push(`${key}=?`);values.push(text(filter[key]));}
+  for(const key of ["project_id","contact_id","owner_user_id","direction","entry_id","mode","state","wrap_up_state"]) if(text(filter[key])){clauses.push(`${key}=?`);values.push(text(filter[key]));}
+  for(const [key,operator] of [["created_after",">="],["created_before","<"]] as const){const value=text(filter[key]);if(value&&Number.isFinite(Date.parse(value))){clauses.push(`created_at${operator}?`);values.push(new Date(value).toISOString());}}
   if(text(filter.branch_id)){clauses.push("branch_id=?");values.push(text(filter.branch_id));}
   if(filter.active===true)clauses.push("state NOT IN ('ended','canceled','failed','busy','no_answer','rejected') AND mode<>'external'");
   if(text(filter.query)){clauses.push("(customer_name LIKE ? ESCAPE '\\' OR customer_number LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");const q=`%${text(filter.query).replace(/[\\%_]/g,"\\$&")}%`;values.push(q,q,q);}

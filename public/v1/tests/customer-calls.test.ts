@@ -184,6 +184,9 @@ test("call history cursor pages do not repeat rows and wrap-up filters are appli
   const first=await c.request('GET',`${base}/calls?limit=2`);assert.equal(first.calls.length,2);assert.ok(first.next_cursor);
   const next=await c.request('GET',`${base}/calls?limit=2&cursor=${encodeURIComponent(first.next_cursor)}`);assert.equal(next.calls.length,1);assert.ok(!first.calls.some((call:any)=>call.id===next.calls[0].id));
   assert.equal((await c.request('GET',`${base}/calls?wrap_up_state=needs_wrap_up`)).calls.length,0);
+  assert.equal((await c.request('GET',`${base}/calls?state=${encodeURIComponent(first.calls[0].state)}`)).total,3);
+  assert.equal((await c.request('GET',`${base}/calls?created_after=${encodeURIComponent(new Date(Date.now()+86400_000).toISOString())}`)).total,0);
+  assert.equal((await c.request('GET',`${base}/calls?created_before=${encodeURIComponent(new Date(Date.now()-86400_000).toISOString())}`)).total,0);
 });
 
 test('delayed answered events preserve a connected or held call',async()=>{
