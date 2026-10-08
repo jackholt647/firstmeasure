@@ -80,7 +80,7 @@ function perf_finishEdit(){
         try{
             roofTrimEditor?.reset();baseEditor?.clearSelection();wallEditor?.clear();
             if(!entry.selectionOnly){const value=copy(redo?entry.after:entry.before);if(entry.full){const undoSelections=state?.undoSelections;state=value.state;if(state&&undoSelections!==undefined)state.undoSelections=undoSelections;stage=value.stage;sourceContext=state?.context||null;}else for(const k of historyKeys){if(k in value)state[k]=value[k];else delete state[k];}}
-            restoreSelection(redo?entry.afterSelection:entry.beforeSelection);to.push(entry);pendingEdit=null;pendingSelection=null;gestureSelection=null;nudgeEpoch++;nudgeKey=null;baseTerrainKey='';persist();render();stableSelection=selectionSnapshot();
+            retainGradeDraftOwnership();restoreSelection(redo?entry.afterSelection:entry.beforeSelection);to.push(entry);pendingEdit=null;pendingSelection=null;gestureSelection=null;nudgeEpoch++;nudgeKey=null;baseTerrainKey='';persist();render();stableSelection=selectionSnapshot();
         }finally{restoringHistory=false;}
         return true;
     }
@@ -188,22 +188,32 @@ function perf_finishEdit(){
             editHistory.push({full:true,before:{state:before,stage},after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()});editFuture=[];
         }catch(error){state=before;baseTerrainKey='';persist();render();throw error;}
     }
+    function retainGradeDraftOwnership(){
+        // Older regrades split hidden source walls and accidentally exposed the
+        // new IDs. Their edited replacement still owns every grade fragment.
+        const ids=[...new Set(['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'].flatMap(k=>(state?.[k]||[]).map(w=>w.id)))];
+        for(const d of Object.values(state?.wallEdits?.$drafts||{})){
+            const members=d.members||[];
+            d.members=[...new Set([...members,...ids.filter(id=>members.some(parent=>id.startsWith(parent+'-grade-')&&/^(-grade-\d+)+$/.test(id.slice(parent.length))))])];
+        }
+    }
     function regradeGeneratedWalls(previous){
-        const before=previous?.wallEdits?.$base||previous?.base,after=state?.wallEdits?.$base||state?.base,K=window.ExteriorGeometry,F=window.WallBaseBinding;
-        if(!before||!after||!K||!F?.walls)return false;
-        // Height-only edits must keep the existing roof contacts and deduplication.
-        // Footprint edits still go through the full construction pipeline.
-        const uncovered=(a,b)=>a.faces.reduce((sum,f)=>sum+K.difference(f,b.faces).reduce((n,p)=>n+K.area(p),0),0);
-        if(uncovered(before,after)>1e-5||uncovered(after,before)>1e-5)return false;
-        for(const key of ['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'])if(state[key])state[key]=F.walls(state[key],before,after);
+        const before=previous?.wallEdits?.$base||previous?.base,after=state?.wallEdits?.$base||state?.base,F=window.WallBaseBinding;
+        if(!before||!after||!F?.walls)return;
+        retainGradeDraftOwnership();
+        const edits=state.wallEdits||{},replaced=new Set(Object.values(edits.$drafts||{}).flatMap(d=>d.members||[]));
+        // Edited faces follow the base through WallBaseBinding.follow. Their
+        // hidden generated sources must retain their IDs and geometry.
+        for(const key of ['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'])if(state[key])state[key]=state[key].flatMap(w=>replaced.has(w.id)?[w]:F.walls([w],before,after));
         const planes=after.faces.map(f=>({f,plane:G.plane(f.points)})).filter(p=>p.plane);
         for(const key of ['preCleanupBase','cleanedBase','preAlignmentBase','alignedBase'])if(state[key]){const next=copy(state[key]);for(const f of next.faces)for(const p of f.points){const candidates=planes.filter(({f})=>G.contains(f,p)),chosen=(candidates.length?candidates:planes).slice().sort((a,b)=>Math.abs(a.plane.dx*p.x+a.plane.dy*p.y+a.plane.k-p.z)-Math.abs(b.plane.dx*p.x+b.plane.dy*p.y+b.plane.k-p.z))[0];if(chosen)p.z=chosen.plane.dx*p.x+chosen.plane.dy*p.y+chosen.plane.k;}delete next.sketch;state[key]=next;}
-        baseTerrainKey='';return true;
+        baseTerrainKey='';
     }
-    function groundChanged(rebuild=true,previous=pendingEdit){
-        if(rebuild&&regradeGeneratedWalls(previous)){selected=null;persist();render();return;}
-        if(rebuild){window.WallChimneys?.normalizeDrafts(state?.wallEdits);const prior=currentWalls();invalidateWalls();calculateStage(stage);const next=currentWalls();for(const d of Object.values(state?.wallEdits?.$drafts||{})){if(d.frame)continue;const source=w=>w.chimney?w.chimney.id+':side-'+w.chimney.side:w.sourceId,sources=new Set(prior.filter(w=>d.members.includes(w.id)).map(source).filter(Boolean));if(sources.size)d.members=[...new Set([...d.members,...next.filter(w=>sources.has(source(w))).map(w=>w.id)])];}selected=null;persist();render();}
-        else {persist();render();}
+    function groundChanged(rebind=true,previous=pendingEdit){
+        // Base/grade edits never rerun roof extrusion, deduplication, cleanup,
+        // or soffit generation. Only existing base-contact edges may follow.
+        if(rebind)regradeGeneratedWalls(previous);
+        selected=null;persist();render();
     }
     function invalidateWalls(){for(const k of ['extruded','deduplicated','extrusionWarnings','gapRepaired','gapReport','mergedWalls','mergeReport','cleanedWalls','rakeCleanupReport','preCleanupBase','cleanedBase','baseCleanupApplied','alignedWalls','chimneyCleanupReport','preAlignmentBase','alignedBase','baseAlignmentApplied'])delete state[k];}
     function upgradeEngine(){
@@ -295,7 +305,7 @@ function perf_persist(touch=true) {
         const candidates=[server,local].filter(valid).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
         if(candidates.length){state=copy(candidates[0]);sourceContext=state.context;stage=Math.max(1,Math.min(7,state.stage||1));roofVisible=state.roofVisible!==false;gapHighlights=state.gapHighlights!==false;initializeGround();}
         if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
-        const upgraded=upgradeEngine();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);
+        const upgraded=upgradeEngine();retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);
         restoreView(metadata,local);if(upgraded)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls);
     }
     function beforeProjectLoad() {drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}

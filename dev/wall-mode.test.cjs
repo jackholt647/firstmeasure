@@ -105,10 +105,10 @@ test('wall entry closes line selection; corrected types rebuild; reset and reloa
 });
 test('flat grade switching survives roof reset/save/load and never mutates roof points',()=>{
     const {ctx,elements,stages,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();
-    const roofBefore=JSON.stringify(ctx.activeGeometry);stages[1].onclick();
+    const roofBefore=JSON.stringify(ctx.activeGeometry);stages[1].onclick();const wallsBefore=JSON.stringify(ctx.WallMode.serialize().extruded);
     elements.get('ground-flat-z').value='2';elements.get('ground-flat').onclick();
     const saved=ctx.WallMode.serialize();assert.equal(saved.ground.points[0].z,2);assert.equal(saved.ground.faces.length,2);
-    assert.ok(saved.extruded.some(w=>w.bottom.some(p=>p.z>0)));
+    assert.equal(JSON.stringify(saved.extruded),wallsBefore,'reference-grade changes do not regenerate existing walls');
     elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().ground.points[0].z,2);
     ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+1000}});
     assert.equal(ctx.WallMode.serialize().ground.points[0].z,2);assert.equal(JSON.stringify(ctx.activeGeometry),roofBefore);
@@ -764,4 +764,25 @@ test('closed soffits toggle existing walls without regeneration and preserve edi
  const panels=JSON.stringify(saved.wallEdits);toggle.onclick();const off=f.ctx.WallMode.serialize();assert.equal(off.closedSoffits,false);assert.equal(JSON.stringify(off.wallEdits),panels);assert.equal(JSON.stringify(off.alignedWalls),walls);
  f.listeners['window:keydown']({key:'z',ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});assert.equal(f.ctx.WallMode.serialize().closedSoffits,true);
  const fresh=fixture(true,{WallClosedSoffits:C});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});assert.equal(fresh.ctx.WallMode.serialize().closedSoffits,true);assert.equal(JSON.stringify(fresh.ctx.WallMode.serialize().wallEdits),panels);
+});
+
+test('base regrade preserves replaced source IDs and never rebuilds walls after a resoffit',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_base_binding.js');let host,forbid=false;
+ const f=fixture(true,{WallBaseBinding:F,WallGeometry:{...G,extrude(...args){assert.equal(forbid,false,'base edits must not extrude from roof');return G.extrude(...args);}},createBaseEditor:h=>{host=h;return {setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false};}});
+ f.ctx.WallMode.setEnabled(true);f.soffits[3].onclick();const s=host.state(),p=(x,y,z=0)=>({x,y,z});
+ const old={faces:[{id:'recessed',points:[p(0,1),p(4,1),p(4,4),p(0,4)]},{id:'other',points:[p(4,0),p(8,0),p(8,4),p(4,4)]}]},next=structuredClone(old);next.faces.forEach(f=>f.points.forEach(p=>p.z=2));
+ const hidden={id:'old',bottom:[p(0,0),p(8,0)],top:[p(0,0,5),p(8,0,5)]};
+ s.base=old;s.wallEdits={$base:old,$drafts:{old:{members:['old'],faces:[]}},$surfaces:[{id:'resoffit',points:[p(0,1),p(4,1),p(4,1,5),p(0,1,5)],material:'brick'}]};
+ for(const k of ['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'])s[k]=[structuredClone(hidden)];
+ const before=structuredClone(s.wallEdits);host.recordHistory({base:old,wallEdits:before});s.wallEdits=F.follow(before,old,next);s.wallEdits.$base=next;forbid=true;host.changed();
+ for(const k of ['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'])assert.deepEqual(JSON.parse(JSON.stringify(s[k])),[hidden]);
+ assert.deepEqual(s.wallEdits.$surfaces[0].points.map(p=>[p.x,p.y,p.z]),[[0,1,2],[4,1,2],[4,1,5],[0,1,5]]);
+ // A changed base outline cannot fall back to roof generation either.
+ const last=structuredClone(s.wallEdits);host.recordHistory({wallEdits:last});s.wallEdits.$base.faces[0].points[0].x=.1;host.changed();assert.equal(s.alignedWalls[0].id,'old');
+});
+test('loading an older regrade keeps grade fragments owned by their edited replacement',()=>{
+ const f=fixture(true);f.ctx.WallMode.setEnabled(true);f.soffits[3].onclick();const saved=f.ctx.WallMode.serialize(),wall=saved.alignedWalls[0],parent=wall.id;
+ saved.alignedWalls[0]={...wall,id:parent+'-grade-0-grade-1'};saved.wallEdits={$drafts:{replacement:{members:[parent],faces:[]}}};
+ const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
+ assert.ok(fresh.ctx.WallMode.serialize().wallEdits.$drafts.replacement.members.includes(parent+'-grade-0-grade-1'));
 });
