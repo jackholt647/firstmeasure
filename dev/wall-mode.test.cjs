@@ -522,7 +522,7 @@ test('From Roof Auto and 24 inches match; every preset regenerates walls and bas
  f.ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'eave'}));f.ctx.WallMode.setEnabled(true);
  const result=value=>{f.soffits[0].dataset.soffit=value;f.soffits[0].onclick();const s=f.ctx.WallMode.serialize();return {base:s.base,sources:s.sources};};
  const auto=result('auto');assert.deepEqual(result('24'),auto);
- for(const inches of ['24','2.4','12','0','18']){
+ for(const inches of ['24','6','12','0','18','48']){
   const r=result(inches),setback=Number(inches)*G.INCH,ps=r.base.faces.flatMap(f=>f.points);
   assert.ok(Math.abs(Math.min(...ps.map(p=>p.x))-(-5+setback))<1e-5);
   assert.ok(Math.abs(Math.max(...ps.map(p=>p.x))-(5-setback))<1e-5);
@@ -727,3 +727,18 @@ test('automatic parapets default on, create editable faces, and preserve the adv
  fresh.elements.get('wall-auto-parapets').onchange({target:{checked:true}});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,8);
  fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,8,'rebuilding does not accumulate duplicate faces');
 });
+
+ test('From Roof custom feet generates walls and base, supports Enter, and rejects invalid lengths',()=>{
+ const f=fixture(true),points=f.ctx.activeGeometry.points;
+ for(const p of points)p.z+=p.y*.2;
+ f.ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'eave'}));f.ctx.WallMode.setEnabled(true);
+ const input=f.elements.get('wall-custom-soffit'),go=f.elements.get('wall-custom-soffit-go');
+ input.value='4';go.onclick();let saved=f.ctx.WallMode.serialize();
+ assert.equal(saved.options.soffit,48);
+ for(const source of saved.sources.filter(s=>s.kind==='perimeter'))assert.equal(source.setback,48*G.INCH);
+ assert.ok(Math.abs(Math.min(...saved.base.faces.flatMap(f=>f.points).map(p=>p.x))-(-5+48*G.INCH))<1e-5);
+ for(const value of ['', ' ', '-1', 'Infinity', 'no', '1e308']){input.value=value;go.onclick();assert.equal(f.ctx.WallMode.serialize().options.soffit,48);assert.ok(f.elements.get('wall-custom-soffit-error').textContent);}
+ input.value='4.25';let prevented=false;input.onkeydown({key:'Enter',preventDefault(){prevented=true;},stopPropagation(){}});
+ assert.ok(prevented);assert.equal(f.ctx.WallMode.serialize().options.soffit,51);assert.equal(f.elements.get('wall-custom-soffit-error').textContent,'');
+ input.value='0';go.onclick();assert.equal(f.ctx.WallMode.serialize().options.soffit,0);
+ });

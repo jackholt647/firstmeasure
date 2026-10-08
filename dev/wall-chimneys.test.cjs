@@ -191,3 +191,18 @@ test('previous explicit fills repair on load without disabling generated-wall cl
  assert.deepEqual(C.visibleParts(filled,state),[filled]);assert.equal(C.visibleParts(generated,state).length,0);
  const before=JSON.stringify(state);C.syncVolumes(state);assert.equal(JSON.stringify(state),before);
 });
+
+ test('overlapping roof-level contacts and a partial fourth side form one chimney',()=>{
+ const r=require('./fixtures/multilevel-partial-chimney.json'),before=JSON.stringify(r),detected=C.detect(r);
+ assert.equal(detected.items.length,2);assert.deepEqual(detected.warnings,[]);
+ const c=detected.items.find(c=>c.sourceConnections.includes(89));assert.ok(c);assert.equal(c.points.length,4);assert.equal(c.inferred,true);assert.equal(c.roofCrossing,null,'complete surveyed sides without mirroring their depth');
+ assert.deepEqual(c.sourceConnections,[81,82,83,84,85,86,87,89]);
+ assert.ok(Math.abs(area({points:c.points.map(p=>({...p,z:0}))})-1.267)<.01,'retain measured rectangular width and depth');
+ const shuffled=structuredClone(r);shuffled.connections.reverse();for(const e of shuffled.connections)[e.startIdx,e.endIdx]=[e.endIdx,e.startIdx];
+ const again=C.detect(shuffled);assert.equal(again.items.length,2);assert.deepEqual(again.warnings,[]);assert.equal(JSON.stringify(r),before);
+ const state={roof:r,chimneys:detected,wallEdits:{},options:{ground:34},base:{faces:[]}};C.syncVolumes(state);
+ const surfaces=state.wallEdits.$surfaces.filter(f=>f.chimney.id===c.id);assert.equal(surfaces.length,5);assert.ok(surfaces.find(f=>f.chimney.cap).points.every(p=>p.z>43.386));
+ });
+ test('partial fourth-side closure does not invent a corner for a nonrectangular path',()=>{
+ const r=roof([p(1,0),p(0,0),p(0,2),p(2,2),p(3,1)],false);assert.equal(C.detect(r).items.length,0);assert.ok(C.detect(r).warnings.length);
+ });

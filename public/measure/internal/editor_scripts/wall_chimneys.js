@@ -75,10 +75,32 @@ function heightExtension(roof,path,options){
  if(distance< -snapTolerance)return null;
  return {method:'height-map',distance:Math.abs(distance)<=snapTolerance?0:distance,measuredDistance:distance,snappedToRoof:Math.abs(distance)<=snapTolerance,resolution,rays:consistent.length};
 }
+// Four measured rectangle sides may stop at different roof crossings, leaving
+// just one corner open. Close their intersection, without mirroring the shaft.
+function completePartialRectangle(ps){
+ if(ps.length!==5)return null;
+ const [a,b,c,d,e]=ps,along=sub(a,b),across=sub(e,d),den=cross(along,across);
+ if(Math.abs(den)<EPS)return null;
+ const t=cross(sub(d,b),across)/den,u=cross(sub(d,b),along)/den;
+ if(t<1-EPS||u<1-EPS)return null;
+ const corner={x:b.x+t*along.x,y:b.y+t*along.y,z:Math.max(a.z,e.z)},ring=[b,c,d,corner];
+ if(!convex(ring)||ring.some((p,i)=>{const v=sub(ring[(i+1)%4],p),w=sub(ring[(i+2)%4],ring[(i+1)%4]);return Math.hypot(v.x,v.y)<.02||Math.abs(v.x*w.x+v.y*w.y)>.03*Math.hypot(v.x,v.y)*Math.hypot(w.x,w.y);}))return null;
+ return ring;
+}
 function detect(roof,options={}){
- const nodes=[],edges=[],warnings=[],seen=new Set();
- const node=p=>{let i=nodes.findIndex(q=>dist(p,q.p)<.002);if(i<0){i=nodes.length;nodes.push({p:{...p},edges:[]});}return i;};
- for(let i=0;i<(roof?.connections||[]).length;i++){const e=roof.connections[i];if(!TYPES.has(e.type))continue;const p=roof.points[e.startIdx],q=roof.points[e.endIdx];if(!p||!q||![p.x,p.y,p.z,q.x,q.y,q.z].every(Number.isFinite)||dist(p,q)<.002)continue;const a=node(p),b=node(q),key=[a,b].sort((a,b)=>a-b).join(':');if(seen.has(key))continue;seen.add(key);const index=edges.length;edges.push({a,b,index:i});nodes[a].edges.push(index);nodes[b].edges.push(index);}
+ const nodes=[],edges=[],warnings=[],seen=new Map(),segments=[];
+ const node=p=>{let i=nodes.findIndex(q=>dist(p,q.p)<.002);if(i<0){i=nodes.length;nodes.push({p:{...p},edges:[]});}else nodes[i].p.z=Math.max(nodes[i].p.z,p.z);return i;};
+ for(let i=0;i<(roof?.connections||[]).length;i++){const e=roof.connections[i];if(!TYPES.has(e.type))continue;const p=roof.points[e.startIdx],q=roof.points[e.endIdx];if(!p||!q||![p.x,p.y,p.z,q.x,q.y,q.z].every(Number.isFinite)||dist(p,q)<.002)continue;segments.push({p,q,index:i});node(p);node(q);}
+ // Roof levels can survey the same masonry side with overlapping segments.
+ // Split in plan before deduplicating, retaining every source connection.
+ for(const {p,q,index}of segments){
+  const v=sub(q,p),l2=v.x*v.x+v.y*v.y;
+  const cuts=nodes.map((n,i)=>({i,t:((n.p.x-p.x)*v.x+(n.p.y-p.y)*v.y)/l2})).filter(c=>G.onEdge(nodes[c.i].p,p,q,.002)).sort((a,b)=>a.t-b.t);
+  for(let j=1;j<cuts.length;j++){const a=cuts[j-1].i,b=cuts[j].i;if(a===b||dist(nodes[a].p,nodes[b].p)<.002)continue;const key=[a,b].sort((a,b)=>a-b).join(':');
+   if(seen.has(key)){edges[seen.get(key)].indices.push(index);continue;}
+   const id=edges.length;seen.set(key,id);edges.push({a,b,indices:[index]});nodes[a].edges.push(id);nodes[b].edges.push(id);
+  }
+ }
  const used=new Set(),chimneys=[];
  for(let seed=0;seed<edges.length;seed++){if(used.has(seed))continue;const component=[],stack=[seed],vertices=new Set();while(stack.length){const i=stack.pop();if(used.has(i))continue;used.add(i);component.push(i);for(const n of [edges[i].a,edges[i].b]){vertices.add(n);stack.push(...nodes[n].edges.filter(e=>!used.has(e)));}}
   const ends=[...vertices].filter(n=>nodes[n].edges.length===1),closed=!ends.length;
@@ -87,17 +109,21 @@ function detect(roof,options={}){
   for(let i=0;i<=component.length;i++){path.push(nodes[n].p);const next=nodes[n].edges.find(e=>e!==previous);if(next===undefined)break;const edge=edges[next];previous=next;n=edge.a===n?edge.b:edge.a;if(closed&&n===[...vertices][0])break;}
   let points=clean(path,closed),inferred=false,roofCrossing=null,extension=null;
   if(!closed){
+   const completed=completePartialRectangle(points);
+   if(completed){points=completed;inferred=true;}else{
    if(points.length!==4){warnings.push('An open chimney needs three rectangle sides before its outside half can be inferred.');continue;}
    const [a,b,c,d]=points,u=sub(c,b),v=sub(a,b),w=sub(d,c),lu=dist(b,c),lv=dist(a,b),lw=dist(c,d);
    if(Math.min(lu,lv,lw)<.02||Math.abs(u.x*v.x+u.y*v.y)>lu*lv*.03||Math.abs(cross(v,w))>lv*lw*.03||v.x*w.x+v.y*w.y<=0||Math.abs(lv-lw)>Math.max(.03,lv*.05)){warnings.push('The open chimney is not rectangular; its missing side was not guessed.');continue;}
    // Without a reliable height drop, retain the established mirrored fallback.
    const depth={x:(v.x+w.x)/2,y:(v.y+w.y)/2};extension=heightExtension(roof,points,options);const scale=extension?extension.distance/Math.hypot(depth.x,depth.y):1;
    roofCrossing={a:{...a},b:{...d},outward:depth,plane:G.plane(points)};points=extension?[b,c,{x:d.x+scale*depth.x,y:d.y+scale*depth.y,z:d.z},{x:a.x+scale*depth.x,y:a.y+scale*depth.y,z:a.z}]:[b,c,{x:c.x+2*depth.x,y:c.y+2*depth.y,z:d.z},{x:b.x+2*depth.x,y:b.y+2*depth.y,z:a.z}];inferred=true;
+   }
   }
   if(points.length<3||Math.abs(area(points))<.0004||!convex(points)){warnings.push('A chimney outline must enclose a simple convex footprint.');continue;}
   if(area(points)<0)points.reverse();
   const dsmTop=options.sampleHeight?.maximumInside?.(points);
-  chimneys.push({id:'roof-chimney-'+component.map(i=>edges[i].index).sort((a,b)=>a-b).join('-'),points:copy(points),...(Number.isFinite(dsmTop)?{dsmTop}:{}),inferred,roofCrossing,...(extension?{extension}:{}),sourceConnections:component.map(i=>edges[i].index).sort((a,b)=>a-b)});
+  const sourceConnections=[...new Set(component.flatMap(i=>edges[i].indices))].sort((a,b)=>a-b);
+  chimneys.push({id:'roof-chimney-'+sourceConnections.join('-'),points:copy(points),...(Number.isFinite(dsmTop)?{dsmTop}:{}),inferred,roofCrossing,...(extension?{extension}:{}),sourceConnections});
  }
  return {version:1,items:chimneys,warnings};
 }

@@ -219,3 +219,10 @@ test('driven soffits flatten both tower sides and front from measured contacts r
  }
  for(const wall of on.composed.filter(w=>/^R11[2-5][.]/.test(w.sourceId)))assert.ok(Math.abs(wall.top[0].z-wall.top[1].z)<.002,'final wall tops retain the level source geometry');
 });
+
+ test('split chimney contacts suppress their entire covered span and preserve exposed tails',()=>{
+ const p=(x,y=0,z=5)=>({x,y,z}),roof={points:[p(0),p(1),p(2),p(3),p(3,3),p(0,3)],connections:[{startIdx:0,endIdx:1,type:'chimney_edge'},{startIdx:1,endIdx:2,type:'chimney_back'},{startIdx:0,endIdx:3,type:'eave'}],faces:[{id:0,points:[p(0),p(3),p(3,3,6),p(0,3,6)]}]};
+ assert.equal(G.chimneyContact(roof,p(0),p(2)),true);assert.equal(G.chimneyContact(roof,p(0),p(3)),false);assert.equal(G.chimneyContact(roof,p(0,0,6),p(2,0,6)),false);
+ const sources=G.buildSources(roof,{soffit:24,roofContacts:true}).sources;
+ assert.equal(sources.length,1);assert.equal(sources[0].originalA.x,2);assert.equal(sources[0].originalB.x,3);assert.equal(sources[0].setback,24*G.INCH);
+ });

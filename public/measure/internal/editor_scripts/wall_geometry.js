@@ -62,13 +62,25 @@
     // A surveyed contact can also have a duplicate rake connection. It is
     // attached to masonry, not a free roof edge with an overhang. Compare in
     // 3D so an unrelated edge on another roof layer keeps its own soffit.
+    function chimneyContactIntervals(roof,a,b){
+        const length=distance(a,b);if(length<EPS)return [];
+        const dx=b.x-a.x,dy=b.y-a.y,intervals=[];
+        for(const e of roof.connections||[]){
+            if(!String(e.type).startsWith('chimney'))continue;
+            const p=roof.points[e.startIdx],q=roof.points[e.endIdx];if(!p||!q||distance(p,q)<EPS)continue;
+            if([p,q].some(v=>Math.abs((v.x-a.x)*dy-(v.y-a.y)*dx)/length>.002))continue;
+            const project=v=>((v.x-a.x)*dx+(v.y-a.y)*dy)/(length*length),u=project(p),v=project(q);
+            const lo=Math.max(0,Math.min(u,v)),hi=Math.min(1,Math.max(u,v));if(hi-lo<EPS)continue;
+            if([lo,hi].some(t=>Math.abs(mix(a,b,t).z-mix(p,q,(t-u)/(v-u)).z)>=.02))continue;
+            intervals.push([lo,hi]);
+        }
+        const merged=[];
+        for(const pair of intervals.sort((a,b)=>a[0]-b[0])){const last=merged.at(-1);if(last&&pair[0]<=last[1]+EPS)last[1]=Math.max(last[1],pair[1]);else merged.push(pair.slice());}
+        return merged;
+    }
     function chimneyContact(roof,a,b){
-        return (roof.connections||[]).some(e=>{
-            if(!String(e.type).startsWith('chimney'))return false;
-            const p=roof.points[e.startIdx],q=roof.points[e.endIdx];if(!p||!q)return false;
-            const length=distance(p,q);if(length<EPS)return false;
-            return [a,b].every(v=>{const t=((v.x-p.x)*(q.x-p.x)+(v.y-p.y)*(q.y-p.y))/(length*length);return onEdge(v,p,q,.002)&&Math.abs(v.z-mix(p,q,t).z)<.02;});
-        });
+        const spans=chimneyContactIntervals(roof,a,b);
+        return spans.length===1&&spans[0][0]<=EPS&&spans[0][1]>=1-EPS;
     }
     // Connected roof pitches form one support layer. Flashing and chimney
     // boundaries separate layers even when their measured endpoints coincide.
@@ -196,7 +208,14 @@
         const faces=surfaces(roof),warnings=[],sources=[],layers=roofLayers(roof,faces);
         const edges=(roof.connections||[]).map((c,i)=>({id:`R${i+1}`,a:roof.points[c.startIdx],b:roof.points[c.endIdx],type:c.type})).filter(e=>e.a&&e.b&&distance(e.a,e.b)>.01);
         const flashing=edges.filter(e=>isFlashing(e.type));
-        const sourceEdges=edges.flatMap(e=>{
+        const contactEdges=options.roofContacts?edges.flatMap(e=>{
+            if(!isPerimeter(e.type)&&!isFlashing(e.type))return [e];
+            const spans=chimneyContactIntervals(roof,e.a,e.b);if(!spans.length)return [e];
+            const parts=[];let start=0;
+            for(const [lo,hi]of [...spans,[1,1]]){if(lo-start>EPS)parts.push({...e,id:e.id+'.contact'+parts.length,a:mix(e.a,e.b,start),b:mix(e.a,e.b,lo)});start=hi;}
+            return parts;
+        }):edges;
+        const sourceEdges=contactEdges.flatMap(e=>{
             if(e.type!=='skylight')return [e];
             const ts=splitParameters(e.a,e.b,faces);
             return ts.slice(1).map((t,i)=>({...e,id:ts.length===2?e.id:e.id+'.sky'+i,a:mix(e.a,e.b,ts[i]),b:mix(e.a,e.b,t)})).filter(e=>exteriorEdge(faces,e.a,e.b));
