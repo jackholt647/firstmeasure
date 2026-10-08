@@ -27,3 +27,8 @@ Evidence and immutable four-script role-specific deltas are in
 Rollback baseline: `b89f6d445d348e8a0ca6b3d68e134dd4e60bc9b1` on all four roles;
 use each manifest role's previous_path. Project records, production, runtime
 configuration and topology are unchanged.
+
+Verified application release: `313db654c7ab8f246826cc5a67701514e3fc0749`.
+All four development roles passed content hashes, runtime identity, readiness
+and isolation checks. Public HTTPS matched the four script checksums and
+expected release ID.
