@@ -3381,7 +3381,7 @@
 .fmdw-lir-variants-wrap{grid-column:1 / -1;display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s cubic-bezier(.3,.8,.3,1),opacity .18s ease}
 .fmdw-lir-variants-wrap.open{grid-template-rows:1fr;opacity:1}
 .fmdw-lir-variants-clip{min-height:0;overflow:hidden}
-.fmdw-lir-variants{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 26px;border-top:1px solid #f0f2f7;margin-top:7px;padding:10px 2px 4px}
+.fmdw-lir-variants{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 26px;border-top:1px solid #f0f2f7;margin-top:7px;padding:11px 6px 6px}
 .fmdw-var-dim{flex:0 1 auto;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:7px}
 .fmdw-var-head{display:flex;align-items:center;gap:7px;white-space:nowrap}
 .fmdw-var-head strong{font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#475467}
