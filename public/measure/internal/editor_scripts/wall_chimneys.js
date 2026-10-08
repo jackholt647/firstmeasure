@@ -199,7 +199,10 @@ function updateScene(walls,state,cs){
  scenes.set(state,{W,generated,edited,faces:vertical,z:[...new Set(vertical.flatMap(v=>v.f.points.map(p=>p.z)))].sort((a,b)=>a-b)});
 }
 function inBuilding(state,p){const scene=scenes.get(state);if(!scene)return (buildingBase(state)).some(f=>contains(f,p));
- if(scene.generated&&!scene.edited&&buildingBase(state).some(f=>contains(f,p))){
+ if(scene.generated&&!scene.edited){
+  // Chimney cleanup removes covered siding before this query. Its open seam
+  // must not let ray parity classify exterior masonry as house interior.
+  if(!buildingBase(state).some(f=>contains(f,p)))return false;
   const ceilings=(state.roof?.faces||[]).filter(f=>G.contains({...f,holes:[]},p)).map(f=>G.plane(f.points)).filter(Boolean).map(f=>f.dx*p.x+f.dy*p.y+f.k);
   if(ceilings.length&&p.z<Math.min(...ceilings)-EPS)return true;
  }

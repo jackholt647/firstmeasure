@@ -175,11 +175,11 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
  const faces=C?C.buildingBase({base}):base.faces,regions=K.union(faces),terrainFaces=grade.faces.map(ids=>({points:ids.map(i=>grade.points[i])}));
  const height=(plane,p)=>plane.dx*p.x+plane.dy*p.y+plane.k;
  const floor=p=>{const f=terrainFaces.find(f=>G.contains(f,p));return f?height(G.plane(f.points),p):height(G.plane(grade.points),p);};
- const remaining=walls.filter(w=>!(w.kind==='perimeter'&&String(w.targetId).startsWith('ground'))&&!w.bottom.every(p=>Math.abs(p.z-floor(p))<.02));
+ const remaining=walls.filter(w=>!(w.kind==='perimeter'&&String(w.targetId).startsWith('ground'))&&!w.bottom.every(p=>Math.abs(p.z-floor(p))<.02)).map(copy);
  // A projecting lower roof moves the foundation perimeter outwards, but it
  // must not erase the upper wall behind its soffit. Retain just that exposed
  // height band, sampling lower support at the measured eave before setback.
- const contactLayers=G.roofLayers(roof),upperBands=[];
+ const contactLayers=G.roofLayers(roof),upperBands=[],contactJoins=remaining.map(w=>({w,original:w.top.map(p=>({...p})),moved:false}));
  for(const w of walls){
   if(w.kind!=='perimeter'||!String(w.targetId).startsWith('ground'))continue;
   const s=sources.find(s=>s.id===w.sourceId);if(!s?.originalA||!s.setback)continue;
@@ -196,9 +196,27 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
    // measured back edge instead of leaving a horizontal opening behind it.
    const entry=p=>{if(G.contains(support,p))return 0;const q=offset(p),cuts=G.splitParameters(p,q,[support]);for(let k=1;k<cuts.length;k++)if(G.contains(support,mix(p,q,(cuts[k-1]+cuts[k])/2)))return cuts[k-1];return null;};
    const middleEntry=entry(wallMid)||0;
-   const top=[ts[i-1],ts[i]].map(t=>{const p=mix(...w.top,t),q=mix(p,offset(p),entry(p)??middleEntry);return {...q,z:Math.min(p.z,s.sourcePlane?height(s.sourcePlane,q):p.z)};}),bottom=top.map((p,j)=>({...p,z:Math.max(mix(...w.bottom,[ts[i-1],ts[i]][j]).z,Math.min(p.z,height(support.plane,p)))}));
+   // Move the wall plane as a whole. Endpoint containment is ambiguous at
+   // deck corners and can otherwise turn a straight wall into a diagonal.
+   const original=[ts[i-1],ts[i]].map(t=>mix(...w.top,t));
+   const top=original.map(p=>{const q=mix(p,offset(p),middleEntry);return {...q,z:Math.min(p.z,s.sourcePlane?height(s.sourcePlane,q):p.z)};}),bottom=top.map((p,j)=>({...p,z:Math.max(mix(...w.bottom,[ts[i-1],ts[i]][j]).z,Math.min(p.z,height(support.plane,p)))}));
    if(top.every((p,j)=>p.z-bottom[j].z<.02))continue;
-   upperBands.push({...w,id:w.id+':upper-contact-'+i,targetId:support.id,bottom,top});
+   const band={...w,id:w.id+':upper-contact-'+i,targetId:support.id,bottom,top};upperBands.push(band);
+   contactJoins.push({w:band,original,moved:Math.abs(middleEntry*shift)>.00001});
+  }
+ }
+ // Rejoin connected runs at the intersection of their adjusted planes.
+ // This also extends an unchanged return to the moved wall's square corner.
+ for(let i=0;i<contactJoins.length;i++)for(let j=i+1;j<contactJoins.length;j++){
+  const a=contactJoins[i],b=contactJoins[j];if(!a.moved&&!b.moved)continue;
+  const u={x:a.w.top[1].x-a.w.top[0].x,y:a.w.top[1].y-a.w.top[0].y},v={x:b.w.top[1].x-b.w.top[0].x,y:b.w.top[1].y-b.w.top[0].y},den=u.x*v.y-u.y*v.x;
+  if(Math.abs(den)<=Math.max(1e-12,1e-6*Math.hypot(u.x,u.y)*Math.hypot(v.x,v.y)))continue;
+  for(let ai=0;ai<2;ai++)for(let bi=0;bi<2;bi++){
+   if(dist(a.original[ai],b.original[bi])>.002)continue;
+   const p=a.w.top[0],q=b.w.top[0],t=((q.x-p.x)*v.y-(q.y-p.y)*v.x)/den,join={x:p.x+t*u.x,y:p.y+t*u.y};
+   const limit=Math.max(...[a,b].map(c=>dist(c.original[0],c.w.top[0])),.02)*4;
+   if(dist(join,a.w.top[ai])>limit||dist(join,b.w.top[bi])>limit)continue;
+   for(const [c,k]of [[a,ai],[b,bi]])for(const edge of [c.w.top,c.w.bottom]){const dx=edge[1].x-edge[0].x,dy=edge[1].y-edge[0].y,l2=dx*dx+dy*dy;if(l2<1e-12)continue;const t=((join.x-edge[0].x)*dx+(join.y-edge[0].y)*dy)/l2;edge[k]={...edge[k],...join,z:edge[0].z+t*(edge[1].z-edge[0].z)};}
   }
  }
  const perimeters=sources.filter(s=>s.kind==='perimeter'),result=[];
