@@ -8,6 +8,7 @@ test('project trays share the assistant composer, scope, responsive layout and v
  try {
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('https://assistant.test/**',r=>r.fulfill({body:'<html></html>'}));await page.goto('https://assistant.test');
   await page.setContent('<style>body{font:14px Arial;margin:0}main{height:800px}#projects{display:flex;gap:20px}#one,#two{height:650px;width:380px;display:flex;flex-direction:column}</style><main class="main"><div id="mainPanels"></div></main><div id="projects"><section id="one"></section><section id="two"></section></div>');
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org'};window.Portal={can:()=>true,tabs:{activateTab(){}},util:{currentBranchId:()=> 'default'}};
@@ -31,6 +32,14 @@ test('project trays share the assistant composer, scope, responsive layout and v
   }
   await page.evaluate(async()=>{PlatformAssistant.open();window.first=PlatformAssistant.mountProject(document.querySelector('#one'),{projectId:'1'});window.second=PlatformAssistant.mountProject(document.querySelector('#two'),{projectId:'2'});await Promise.all([first.ready,second.ready]);});
   const one=page.locator('#one'),two=page.locator('#two'),global=page.locator('#platformAssistantDrawer');
+  await global.locator('[data-fma=input]').fill('Global draft retained');
+  await global.locator('.fma-head').click({button:'right'});
+  await page.getByRole('menuitem',{name:'Float',exact:true}).click();
+  assert.equal(await global.getAttribute('data-window'),'floating');
+  await global.locator('[data-window-action=close]').click();
+  await page.evaluate(()=>PlatformAssistant.open());
+  assert.equal(await global.getAttribute('data-window'),'docked');
+  assert.equal(await global.locator('[data-fma=input]').inputValue(),'Global draft retained');
   for(const selector of ['attach','mic','voice','send','history']){
    assert.equal(await one.locator(`[data-fma=${selector}]`).getAttribute('class'),await global.locator(`[data-fma=${selector}]`).getAttribute('class'));
   }
