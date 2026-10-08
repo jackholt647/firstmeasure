@@ -396,13 +396,18 @@ function syncVolumes(state){
 }
 const roofOpeningCache=new WeakMap();
 function roofWithOpenings(state){
+ const roof=chimneyRoofWithOpenings(state),P=commonModule()?require('./wall_parapets.js'):root.WallParapets;
+ const M=commonModule()?require('./exterior_model.js'):root.ExteriorModel;
+ return P?P.roofWithInsets(roof,M?M.collect(state):state?.wallEdits?.$surfaces):roof;
+}
+function chimneyRoofWithOpenings(state){
  const roof=state?.roof;if(!roof)return roof;
  const cs=definitions(state);if(!cs.length)return roof;
  const key=JSON.stringify(cs.map(c=>c.points)),cached=roofOpeningCache.get(roof);if(cached?.key===key)return cached.roof;
  const cuts=cs.map(c=>({points:c.points})),faces=(roof.faces||[]).flatMap(face=>{
   const plane=G.plane(face.points);if(!plane||!K.intersection([face],cuts).length)return [face];
   const originals=[face.points,...(face.holes||[])].flat(),lift=p=>({...p,z:originals.find(q=>dist(p,q)<EPS)?.z??(plane.dx*p.x+plane.dy*p.y+plane.k)});
-  return K.difference(face,cuts).map((part,i)=>({...face,id:(face.id||'roof')+':opening-'+i,points:part.points.map(lift),holes:(part.holes||[]).map(r=>r.map(lift))}));
+  return K.difference(face,cuts).map((part,i)=>({...face,id:(face.id??'roof')+':opening-'+i,points:part.points.map(lift),holes:(part.holes||[]).map(r=>r.map(lift))}));
  });
  const result={...roof,faces};roofOpeningCache.set(roof,{key,roof:result});return result;
 }

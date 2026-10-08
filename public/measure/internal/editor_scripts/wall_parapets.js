@@ -26,7 +26,7 @@ function build(roof,sources,walls){
   for(const [i,span]of merged.entries()){
    const outer=span.map(at);
    if(runs.some(r=>outer.every(p=>r.outer.some(q=>distance(p,q)<EPS&&Math.abs(p.z-q.z)<EPS))))continue;
-   runs.push({id:'parapet:'+s.id+':'+i,sourceId:s.id,outer,inner:outer.map(p=>({x:p.x+n.x*WIDTH,y:p.y+n.y*WIDTH,z:p.z})),n,u});
+   runs.push({id:'parapet:'+s.id+':'+i,sourceId:s.id,roofId:s.parentId,outer,inner:outer.map(p=>({x:p.x+n.x*WIDTH,y:p.y+n.y*WIDTH,z:p.z})),n,u});
   }
  }
  // Offset adjacent runs together. The shared miter belongs to both caps and
@@ -55,10 +55,26 @@ function build(roof,sources,walls){
   }
  }
  for(const r of runs){
-  add(r.id+':cap',[...r.outer.map(copy),...r.inner.slice().reverse().map(copy)],{x:0,y:0,z:1},{sourceId:r.sourceId,part:'cap'});
-  add(r.id+':inside',[...r.inner.map(p=>({...p,z:p.z-HEIGHT})),...r.inner.slice().reverse().map(copy)],{...r.n,z:0},{sourceId:r.sourceId,part:'inside'});
+  const raised=p=>({...p,z:p.z+HEIGHT});
+  add(r.id+':outside',[...r.outer.map(copy),...r.outer.slice().reverse().map(raised)],{x:-r.n.x,y:-r.n.y,z:0},{sourceId:r.sourceId,part:'outside'});
+  add(r.id+':cap',[...r.outer.map(raised),...r.inner.slice().reverse().map(raised)],{x:0,y:0,z:1},{sourceId:r.sourceId,roofId:r.roofId,part:'cap'});
+  add(r.id+':inside',[...r.inner.map(copy),...r.inner.slice().reverse().map(raised)],{...r.n,z:0},{sourceId:r.sourceId,part:'inside'});
  }
  return faces;
 }
-const api={build,WIDTH,HEIGHT};if(node)module.exports=api;else root.WallParapets=api;
+// Cut only the visible roof beneath live raised parapet caps. The surveyed
+// roof stays intact, and moved/deleted editable faces define the current inset.
+function roofWithInsets(roof,surfaces=[]){
+ const caps=surfaces.filter(f=>f.parapet?.part==='cap'&&!f.deleted&&!f.drafted);
+ if(!roof||!caps.length)return roof;
+ const faces=roof.faces.flatMap(face=>{
+  const plane=G.plane(face.points);if(!plane)return [face];
+  const cuts=caps.filter(cap=>String(face.id).split(':opening-')[0]===String(cap.parapet.roofId)&&cap.points.every(p=>p.z-plane.dx*p.x-plane.dy*p.y-plane.k>0));
+  if(!cuts.length||!K.intersection([face],cuts).length)return [face];
+  const original=[face.points,...(face.holes||[])].flat(),lift=p=>({...p,z:original.find(q=>distance(p,q)<1e-6)?.z??(plane.dx*p.x+plane.dy*p.y+plane.k)});
+  return K.difference(face,cuts).map((part,i)=>({...face,id:face.id+':parapet-'+i,points:part.points.map(lift),holes:(part.holes||[]).map(r=>r.map(lift))}));
+ });
+ return {...roof,faces};
+}
+const api={build,roofWithInsets,WIDTH,HEIGHT};if(node)module.exports=api;else root.WallParapets=api;
 })(typeof window==='undefined'?globalThis:window);

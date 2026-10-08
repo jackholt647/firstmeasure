@@ -56,7 +56,8 @@ function coversWalls(loops,walls){
 // corners, disconnected wings and offsets which collapse narrow regions.
 function insetRoof(roof,setback,chimneys=[],sources=null){
  const C=typeof module==='object'&&module.exports?require('./vendor/clipper-lib-6.4.2-clipper.js'):root.ClipperLib;
- const notchFill=chimneys.filter(c=>c.roofCrossing).map(c=>{
+ const notchFill=chimneys.map(c=>{
+  if(!c.roofCrossing)return {points:c.points};
   const {a,b,outward}=c.roofCrossing,inside=c.points.filter(p=>(p.x-a.x)*outward.x+(p.y-a.y)*outward.y<=1e-6),points=[...inside,a,b];
   const center=points.reduce((s,p)=>({x:s.x+p.x/points.length,y:s.y+p.y/points.length}),{x:0,y:0});
   return {points:points.sort((p,q)=>Math.atan2(p.y-center.y,p.x-center.x)-Math.atan2(q.y-center.y,q.x-center.x))};
@@ -175,6 +176,31 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
  const height=(plane,p)=>plane.dx*p.x+plane.dy*p.y+plane.k;
  const floor=p=>{const f=terrainFaces.find(f=>G.contains(f,p));return f?height(G.plane(f.points),p):height(G.plane(grade.points),p);};
  const remaining=walls.filter(w=>!(w.kind==='perimeter'&&String(w.targetId).startsWith('ground'))&&!w.bottom.every(p=>Math.abs(p.z-floor(p))<.02));
+ // A projecting lower roof moves the foundation perimeter outwards, but it
+ // must not erase the upper wall behind its soffit. Retain just that exposed
+ // height band, sampling lower support at the measured eave before setback.
+ const contactLayers=G.roofLayers(roof),upperBands=[];
+ for(const w of walls){
+  if(w.kind!=='perimeter'||!String(w.targetId).startsWith('ground'))continue;
+  const s=sources.find(s=>s.id===w.sourceId);if(!s?.originalA||!s.setback)continue;
+  const vx=s.originalB.x-s.originalA.x,vy=s.originalB.y-s.originalA.y,len=Math.hypot(vx,vy),nx=-vy/len,ny=vx/len;
+  const shift=((s.originalA.x-s.a.x)*nx+(s.originalA.y-s.a.y)*ny),offset=p=>({...p,x:p.x+nx*shift,y:p.y+ny*shift});
+  const a=offset(w.top[0]),b=offset(w.top[1]),layer=contactLayers.get(s.parentId)||[];
+  const lower=roof.faces.filter(f=>!layer.some(g=>g.id===f.id)).map(f=>({...f,plane:G.plane(f.points)})).filter(f=>f.plane);
+  const ts=G.splitParameters(a,b,lower),mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
+  for(let i=1;i<ts.length;i++){
+   const wallMid=mix(...w.top,(ts[i-1]+ts[i])/2);
+   if(![-.025,.025].every(d=>regions.some(f=>G.contains(f,{x:wallMid.x+nx*d,y:wallMid.y+ny*d}))))continue;
+   const mid=mix(a,b,(ts[i-1]+ts[i])/2),support=lower.filter(f=>G.contains(f,mid)&&height(f.plane,mid)<mid.z-.02).sort((a,b)=>height(b.plane,mid)-height(a.plane,mid))[0];if(!support)continue;
+   // Where the lower deck ends inside the upper overhang, meet its
+   // measured back edge instead of leaving a horizontal opening behind it.
+   const entry=p=>{if(G.contains(support,p))return 0;const q=offset(p),cuts=G.splitParameters(p,q,[support]);for(let k=1;k<cuts.length;k++)if(G.contains(support,mix(p,q,(cuts[k-1]+cuts[k])/2)))return cuts[k-1];return null;};
+   const middleEntry=entry(wallMid)||0;
+   const top=[ts[i-1],ts[i]].map(t=>{const p=mix(...w.top,t),q=mix(p,offset(p),entry(p)??middleEntry);return {...q,z:Math.min(p.z,s.sourcePlane?height(s.sourcePlane,q):p.z)};}),bottom=top.map((p,j)=>({...p,z:Math.max(mix(...w.bottom,[ts[i-1],ts[i]][j]).z,Math.min(p.z,height(support.plane,p)))}));
+   if(top.every((p,j)=>p.z-bottom[j].z<.02))continue;
+   upperBands.push({...w,id:w.id+':upper-contact-'+i,targetId:support.id,bottom,top});
+  }
+ }
  const perimeters=sources.filter(s=>s.kind==='perimeter'),result=[];
  const clearanceIds=new Set(sources.flatMap(s=>s.clearanceRoofIds||[])),lowerFaces=roof.faces.filter(f=>clearanceIds.has(f.id));
  for(let fi=0;fi<regions.length;fi++)for(const ring of [regions[fi].points,...regions[fi].holes])for(let ei=0;ei<ring.length;ei++){
@@ -200,6 +226,9 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
    result.push({id:`envelope-${fi}-${ei}-${i}`,sourceId:owner?.id||`envelope-${fi}-${ei}`,sourceRoofId:owner?.parentId??roofFace?.f.id,kind:'perimeter',type:owner?.type||'wall',targetId:'ground:envelope',bottom,top});
   }
  }
+ // Foundation walls already own their covered height. Subtract those bands
+ // before adding interior upper contacts, allowing only survey-scale drift.
+ if(upperBands.length)remaining.push(...G.deduplicate([...result.map(w=>({...w,kind:'flashing'})),...upperBands],.02,{preserveJunctions:true}).walls.filter(w=>w.kind!=='flashing'));
  // The incoming upper walls are already deduplicated. Reapplying survey
  // alignment here would move the exact foundation junctions apart again.
  // A grounded roof body cannot leave a flashing wing outside its outline.

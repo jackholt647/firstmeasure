@@ -719,13 +719,13 @@ test('automatic parapets default on, create editable faces, and preserve the adv
  const f=fixture(true,{WallParapets}),points=f.ctx.activeGeometry.points;
  f.ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'parapet'}));
  f.ctx.WallMode.setEnabled(true);f.soffits[0].onclick();const initial=f.ctx.WallMode.serialize();
- assert.equal(initial.options.autoParapets,true);assert.equal(initial.wallEdits.$surfaces.length,8);
+ assert.equal(initial.options.autoParapets,true);assert.equal(initial.wallEdits.$surfaces.length,12);
  f.elements.get('wall-auto-parapets').onchange({target:{checked:false}});
  const toggled=f.ctx.WallMode.serialize();assert.equal(toggled.autoParapets,false);assert.equal(toggled.options.autoParapets,true);assert.deepEqual(toggled.wallEdits,initial.wallEdits);
  f.soffits[0].onclick();const rebuilt=f.ctx.WallMode.serialize();assert.equal(rebuilt.options.autoParapets,false);assert.equal(rebuilt.wallEdits?.$surfaces?.length||0,0);
  const fresh=fixture(true,{WallParapets,activeGeometry:f.ctx.activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:rebuilt});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().options.autoParapets,false);
- fresh.elements.get('wall-auto-parapets').onchange({target:{checked:true}});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,8);
- fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,8,'rebuilding does not accumulate duplicate faces');
+ fresh.elements.get('wall-auto-parapets').onchange({target:{checked:true}});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,12);
+ fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,12,'rebuilding does not accumulate duplicate faces');
 });
 
  test('From Roof custom feet generates walls and base, supports Enter, and rejects invalid lengths',()=>{
