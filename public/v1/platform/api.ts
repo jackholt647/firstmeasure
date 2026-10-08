@@ -1722,6 +1722,11 @@ app.get("/auth/google/config", async () => ({
     const isOrganizationBrandingMedia = String(owner.type || "").toLowerCase() === "organization"
       && (slot === "logo" || scope === "branding" || collection === "branding" || slot.includes("brand") || slot.includes("logo"));
     const ctx = !isOrganizationBrandingMedia ? await requirePlatformAuth(request, { orgId }) : null;
+    const feedRootId = String(asObject(metadata.metadata).feed_root_id || "").trim();
+    if (feedRootId && String(owner.type || "").toLowerCase() === "channel") {
+      const { authorizeFeedAttachment } = await import("../channels/feed.js");
+      await authorizeFeedAttachment(ctx!, feedRootId);
+    }
     if (!canReadReceiptMedia(metadata, ctx)) {
       throw forbidden("receipt_media_forbidden", "This receipt media is not available to this user.");
     }

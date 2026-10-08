@@ -1142,6 +1142,13 @@ export async function listMessageRecords(orgId: string, channelId: string, optio
   return descending ? messages.reverse() : messages;
 }
 
+export async function listFeedManualMessageRecords(orgId: string, channelId: string, limit = 100) {
+  const sql = "SELECT * FROM messages WHERE organization_id = ? AND channel_id = ? AND parent_id IS NULL AND deleted_at IS NULL AND json_extract(metadata_json, '$.feed_manual') = 1 ORDER BY seq DESC LIMIT ?";
+  const postgres = sql.replace("json_extract(metadata_json, '$.feed_manual') = 1", "metadata_json::jsonb ->> 'feed_manual' = 'true'");
+  const rows = await getChannelsDatabase().prepare(sql, postgres).all(orgId, channelId, Math.min(Math.max(limit, 1), 200)) as JsonObject[];
+  return rows.map(messageFromRow);
+}
+
 export async function listMessageRevisions(messageId: string) {
   const rows = (await getChannelsDatabase()
     .prepare("SELECT * FROM message_revisions WHERE message_id = ? ORDER BY revision DESC")

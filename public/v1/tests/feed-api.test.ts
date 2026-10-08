@@ -100,6 +100,30 @@ async function registerOwner() {
   return { client, suffix, orgId: String(registered.organization.id), userId: String(registered.user.id) };
 }
 
+test('manual company and department posts obey membership and posts settings', async () => {
+  const {client,orgId,userId}=await registerOwner();
+  const {upsertDocument}=await import('../platform/storage.js');
+  const base=`/v1/channels/organizations/${orgId}/feed`;
+  const company=await client.request('POST',base+'/posts/manual',{text:'Happy birthday, team!',mention_user_ids:[userId],client_msg_id:'birthday'});
+  const duplicate=await client.request('POST',base+'/posts/manual',{text:'Happy birthday, team!',mention_user_ids:[userId],client_msg_id:'birthday'});
+  assert.equal(company.post.id,duplicate.post.id);
+  assert.equal(company.post.mention_users[0].id,userId);
+  assert.equal((await client.request('GET',base+'/catalog')).manual_posts.some((post:any)=>post.id===company.post.id),true);
+  const comment=await client.request('POST',`${base}/posts/${company.post.id}/comments`,{text:'Cheers!'});
+  assert.equal(comment.message.parent_id,company.post.id);
+  await upsertDocument(orgId,'organization_departments',{id:'catalog',data:{departments:[{id:'roofing',label:'Roofing',color:'#64748b',group_id:'',subject_keys:[`organization_user:${userId}`],role_ids:[],group_kind_ids:[]}],groups:[]}});
+  const department=await client.request('POST',base+'/posts/manual',{text:'Roofing crew update',department_id:'roofing'});
+  assert.equal((await client.request('GET',base+'/catalog')).manual_posts.some((post:any)=>post.id===department.post.id),true);
+  const settings=await client.request('GET',base+'/settings');
+  const saved=await client.request('PUT',base+'/settings',{...settings.settings,company_activity_types:['media.uploaded'],department_activity_types:{roofing:['note.created']}});
+  assert.deepEqual(saved.settings.department_activity_types.roofing,['note.created']);
+  await upsertDocument(orgId,'organization_departments',{id:'catalog',data:{departments:[{id:'roofing',label:'Roofing',color:'#64748b',group_id:'',subject_keys:[],role_ids:[],group_kind_ids:[]}],groups:[]},expected_revision:1},{replace:true});
+  const hidden=await client.request('GET',base+'/catalog');
+  assert.equal(hidden.manual_posts.some((post:any)=>post.id===department.post.id),false);
+  assert.equal((await client.raw('GET',`${base}/posts/${department.post.id}`)).statusCode,403);
+  assert.equal((await client.raw('POST',`${base}/posts/${department.post.id}/comments`,{text:'Should be denied'})).statusCode,403);
+});
+
 
 test('feed threads use shared messages/reactions, stay hidden, and reauthorize artifacts', async () => {
   const {client,orgId,userId}=await registerOwner();
