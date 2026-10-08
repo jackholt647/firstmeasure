@@ -51,6 +51,14 @@
             .sort((f,g)=>Math.abs(height(f,mid)-mid.z)-Math.abs(height(g,mid)-mid.z))[0];
     }
     const isFlashing = type => ['head_wall','side_wall','roof_to_wall','headwall','sidewall','roof-to-wall'].includes(type);
+    const isPerimeter = type => ['eave','rake','parapet','skylight'].includes(type);
+    // Ignore holes here: an ordinary inset skylight must not create house walls.
+    // Compare at the edge's elevation so another roof layer does not hide it.
+    function exteriorEdge(faces,a,b) {
+        const mid=mix(a,b,.5),len=distance(a,b),n={x:-(b.y-a.y)/len,y:(b.x-a.x)/len};
+        const covered=side=>{const p={x:mid.x+side*n.x*.02,y:mid.y+side*n.y*.02};return faces.some(f=>inside(p,f.points)&&Math.abs(height(f,mid)-mid.z)<.12);};
+        return covered(1)!==covered(-1);
+    }
     // A surveyed contact can also have a duplicate rake connection. It is
     // attached to masonry, not a free roof edge with an overhang. Compare in
     // 3D so an unrelated edge on another roof layer keeps its own soffit.
@@ -153,7 +161,7 @@
     // Propagate surveyed eave offsets only through connected eaves on one roof
     // layer. Compare evaluated heights; never flatten or move a roof plane.
     function driveSoffits(sources,faces,layers){
-        const runs=sources.filter(s=>s.kind==='perimeter'&&s.type==='eave'),resolved=new Map(),neighbors=new Map(runs.map(s=>[s,[]]));
+        const runs=sources.filter(s=>s.kind==='perimeter'&&s.type==='eave'&&!s.zeroSoffitDefault),resolved=new Map(),neighbors=new Map(runs.map(s=>[s,[]]));
         const same=(a,b)=>distance(a,b)<.005&&Math.abs(a.z-b.z)<.02;
         for(let i=0;i<runs.length;i++)for(let j=i+1;j<runs.length;j++){
             const a=runs[i],b=runs[j];if(layers.get(a.parentId)!==layers.get(b.parentId))continue;
@@ -188,22 +196,31 @@
         const faces=surfaces(roof),warnings=[],sources=[],layers=roofLayers(roof,faces);
         const edges=(roof.connections||[]).map((c,i)=>({id:`R${i+1}`,a:roof.points[c.startIdx],b:roof.points[c.endIdx],type:c.type})).filter(e=>e.a&&e.b&&distance(e.a,e.b)>.01);
         const flashing=edges.filter(e=>isFlashing(e.type));
-        for(const e of edges) {
-            if(!isFlashing(e.type) && !['eave','rake'].includes(e.type)) continue;
+        const sourceEdges=edges.flatMap(e=>{
+            if(e.type!=='skylight')return [e];
+            const ts=splitParameters(e.a,e.b,faces);
+            return ts.slice(1).map((t,i)=>({...e,id:ts.length===2?e.id:e.id+'.sky'+i,a:mix(e.a,e.b,ts[i]),b:mix(e.a,e.b,t)})).filter(e=>exteriorEdge(faces,e.a,e.b));
+        });
+        for(const e of sourceEdges) {
+            if(!isFlashing(e.type) && !isPerimeter(e.type)) continue;
             if(options.roofContacts&&chimneyContact(roof,e.a,e.b))continue;
             const parent=parentFace(faces,e.a,e.b);
             if(isFlashing(e.type)) { sources.push({...clone(e),kind:'flashing',direction:'up',parentId:parent?.id,setback:0}); continue; }
             if(!parent) { warnings.push(`${e.id}: no resolved roof face for ${e.type}.`); continue; }
             const n=normalFor(parent,e.a,e.b); if(!n) {warnings.push(`${e.id}: cannot determine inward side.`);continue;}
-            const inferred=options.soffit==='auto' ? inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n) : null;
+            // Pitch is rise per 12 inches, measured from the supporting roof plane.
+            // This is a generation default only; Resoffit can still move the wall.
+            const zeroSoffitDefault=e.type==='parapet'||e.type==='skylight'||Math.hypot(parent.plane.dx,parent.plane.dy)*12<1;
+            const inferred=!zeroSoffitDefault&&options.soffit==='auto' ? inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n) : null;
             let setback=options.soffit==='auto' ? (inferred?.distance??18*INCH) : Number(options.soffit??18)*INCH;
-            const contact=inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n);
+            const contact=zeroSoffitDefault?null:inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n);
             if(options.roofContacts&&contact?.coverage>=.45&&e.type==='eave')setback=options.drivenSoffits!==false&&Number(options.soffit)!==0?contact.distance:Math.min(setback,contact.distance);
             // Preserve at least a foot across a narrow roof-supported body.
             // Measure the whole connected layer, not an individual hip triangle.
             setback=layerSetback(layers.get(parent.id),setback);
-            const clearance=options.roofContacts&&e.type==='eave'?lowerLayerClearance(e,flashing,faces,parent,n):null;
+            const clearance=!zeroSoffitDefault&&options.roofContacts&&e.type==='eave'?lowerLayerClearance(e,flashing,faces,parent,n):null;
             if(clearance)setback=Math.max(setback,clearance.setback);
+            if(zeroSoffitDefault)setback=0;
             // Keep measured edge heights exact, using the parent only for the
             // inward pitch. A best-fit face need not pass through every vertex.
             const len=distance(e.a,e.b),u={x:(e.b.x-e.a.x)/len,y:(e.b.y-e.a.y)/len};
@@ -211,7 +228,7 @@
             const dx=along*u.x+inward*n.x,dy=along*u.y+inward*n.y;
             const sourcePlane={dx,dy,k:e.a.z-dx*e.a.x-dy*e.a.y};
             const shifted=p=>{const q={x:p.x+n.x*setback,y:p.y+n.y*setback};return {...q,z:height({plane:sourcePlane},q)};};
-            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(clearance?.roofIds.length?{clearanceRoofIds:clearance.roofIds}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
+            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,...(zeroSoffitDefault?{zeroSoffitDefault:true}:{}),inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(clearance?.roofIds.length?{clearanceRoofIds:clearance.roofIds}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
         }
         // A measured side wall ending at the lower roof's eave is a finite
         // junction. Keep the adjoining upper wall at that end plane instead of
@@ -285,7 +302,7 @@
         // A straight fascia remains one wall plane across a ridge. An inferred
         // setback on one roof pitch also applies to its collinear continuation.
         if(options.soffit==='auto'){
-            const remaining=new Set(sources.filter(s=>s.kind==='perimeter'));
+            const remaining=new Set(sources.filter(s=>s.kind==='perimeter'&&!s.zeroSoffitDefault));
             while(remaining.size){const group=[remaining.values().next().value];remaining.delete(group[0]);
                 for(let i=0;i<group.length;i++)for(const b of remaining){const a=group[i],u=sub(a.originalB,a.originalA),v=sub(b.originalB,b.originalA),la=distance(a.originalA,a.originalB),lb=distance(b.originalA,b.originalB);
                     if(Math.abs(cross(u,v))/(la*lb)>1e-5||![a.originalA,a.originalB].some(p=>[b.originalA,b.originalB].some(q=>distance(p,q)<.01&&Math.abs(p.z-q.z)<.05)))continue;

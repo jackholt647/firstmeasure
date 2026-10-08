@@ -518,6 +518,7 @@ test('Tab cycles wall display modes, including plane drawing, but leaves roof an
 
 test('From Roof Auto and 24 inches match; every preset regenerates walls and base from the original roof',()=>{
  const f=fixture(true),points=f.ctx.activeGeometry.points;
+ for(const p of points)p.z+=p.y*.2;
  f.ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'eave'}));f.ctx.WallMode.setEnabled(true);
  const result=value=>{f.soffits[0].dataset.soffit=value;f.soffits[0].onclick();const s=f.ctx.WallMode.serialize();return {base:s.base,sources:s.sources};};
  const auto=result('auto');assert.deepEqual(result('24'),auto);
@@ -711,4 +712,18 @@ test('driven soffits default on and the advanced preference applies only on rebu
  f.elements.get('wall-driven-soffits').onchange({target:{checked:false}});const toggled=f.ctx.WallMode.serialize();assert.equal(toggled.drivenSoffits,false);assert.equal(toggled.options.drivenSoffits,true);assert.deepEqual(toggled.sources,initial.sources);
  f.soffits[0].onclick();assert.equal(f.ctx.WallMode.serialize().options.drivenSoffits,false);
  const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().options.drivenSoffits,false);
+});
+
+test('automatic parapets default on, create editable faces, and preserve the advanced choice across rebuild and reload',()=>{
+ const WallParapets=require('../public/measure/internal/editor_scripts/wall_parapets');
+ const f=fixture(true,{WallParapets}),points=f.ctx.activeGeometry.points;
+ f.ctx.activeGeometry.connections=points.map((p,i)=>({start:p,end:points[(i+1)%4],type:'parapet'}));
+ f.ctx.WallMode.setEnabled(true);f.soffits[0].onclick();const initial=f.ctx.WallMode.serialize();
+ assert.equal(initial.options.autoParapets,true);assert.equal(initial.wallEdits.$surfaces.length,8);
+ f.elements.get('wall-auto-parapets').onchange({target:{checked:false}});
+ const toggled=f.ctx.WallMode.serialize();assert.equal(toggled.autoParapets,false);assert.equal(toggled.options.autoParapets,true);assert.deepEqual(toggled.wallEdits,initial.wallEdits);
+ f.soffits[0].onclick();const rebuilt=f.ctx.WallMode.serialize();assert.equal(rebuilt.options.autoParapets,false);assert.equal(rebuilt.wallEdits?.$surfaces?.length||0,0);
+ const fresh=fixture(true,{WallParapets,activeGeometry:f.ctx.activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:rebuilt});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().options.autoParapets,false);
+ fresh.elements.get('wall-auto-parapets').onchange({target:{checked:true}});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,8);
+ fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().wallEdits.$surfaces.length,8,'rebuilding does not accumulate duplicate faces');
 });

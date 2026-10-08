@@ -74,7 +74,7 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
  offset.AddPaths(paths,C.JoinType.jtMiter,C.EndType.etClosedPolygon);
  const result=[];offset.Execute(result,-setback*scale);
  let regular=result.map(path=>({points:path.map(p=>({x:p.X/scale,y:p.Y/scale}))}));
- if(sources?.some(s=>s.contactSetback!==undefined||s.clearanceRoofIds?.length)){
+ if(sources?.some(s=>s.zeroSoffitDefault||s.contactSetback!==undefined||s.clearanceRoofIds?.length)){
   const paths=[];
   for(const region of regions){
    let ps=region.points;if(area(ps)<0)ps=ps.slice().reverse();

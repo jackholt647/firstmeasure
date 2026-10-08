@@ -48,7 +48,7 @@ function candidates(faces,roof,sources){
    const matching=[];
    for(const s of sources||[]){
     if(f.resoffitSource!=null&&s.id!==f.resoffitSource)continue;
-    if(s.kind!=='perimeter'||!s.originalA||!['eave','rake'].includes(s.type))continue;
+    if(s.kind!=='perimeter'||!s.originalA||!['eave','rake','parapet','skylight'].includes(s.type))continue;
     const p=s.originalA,q=s.originalB,sl=Math.hypot(q.x-p.x,q.y-p.y);if(sl<.02||Math.abs((q.x-p.x)*u.y-(q.y-p.y)*u.x)/sl>.01)continue;
     const ts=[p,q].map(p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y).sort((a,b)=>a-b);if(Math.min(len,ts[1])-Math.max(0,ts[0])<.01)continue;
     let n={x:-(q.y-p.y)/sl,y:(q.x-p.x)/sl,z:0};const face=roof.faces.find(f=>f.id===s.parentId),mid=mix(p,q,.5);
@@ -75,6 +75,12 @@ function apply(faces,pairs,depth,roof,sources,options={}){
  for(const c of choices){const minimum=c.source.clearanceRoofIds?.length?c.source.contactSetback||0:0,target=Math.max(depth,minimum);limited ||= target>depth+.002;
   const normal=K.normal(faces.find(f=>f.id===c.faceId).points),alignment=dot(normal,c.normal);
   const request={n:normal,value:(target-c.inset)*alignment};const old=requests.get(c.faceId);if(old&&Math.abs(old.value-request.value)>.002)throw Error('The selected face has incompatible soffit references.');requests.set(c.faceId,request);
+ }
+ // Keep the thickness of an automatically built parapet when its outer wall
+ // is re-soffited. Shared cap vertices follow the two moving wall planes.
+ for(const c of choices)for(const f of faces){
+  if(f.deleted||f.parapet?.part!=='inside'||f.parapet.sourceId!==c.source.id)continue;
+  const request=requests.get(c.faceId),n=K.normal(f.points);if(n&&Math.abs(dot(n,request.n))>.9999)requests.set(f.id,{n,value:request.value*dot(n,request.n)});
  }
  // Connected coplanar fragments belong to the same wall, including its openings.
  for(let changed=true;changed;){changed=false;for(const f of faces){if(f.deleted||requests.has(f.id)||f.baseId||f.chimney||f.trim)continue;const n=K.normal(f.points);if(!n)continue;for(const [id,r]of requests){const owner=faces.find(f=>f.id===id);if(!owner||Math.abs(dot(n,r.n))<.9999||f.points.some(p=>Math.abs(dot(sub(p,owner.points[0]),r.n))>.002))continue;

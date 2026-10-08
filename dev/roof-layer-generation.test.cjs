@@ -132,7 +132,7 @@ test('lower-layer clearance leaves unrelated eaves at the selected soffit',()=>{
 
 test('clearance requires an overlapping lower layer reaching the same eave',()=>{
  const source=(x=4,y=0,z=3)=>{
-  const points=[{x:0,y:0,z:10},{x:10,y:0,z:10},{x:10,y:10,z:10},{x:0,y:10,z:10},
+  const points=[{x:0,y:0,z:10},{x:10,y:0,z:10},{x:10,y:10,z:12},{x:0,y:10,z:12},
    {x,y,z},{x:x+2,y,z},{x:x+2,y:y+.6,z:z+1},{x,y:y+.6,z:z+1}];
   const roof={points,faces:[{id:0,points:points.slice(0,4)},{id:1,points:points.slice(4)}],connections:[{type:'eave',startIdx:0,endIdx:1},{type:'head_wall',startIdx:6,endIdx:7}]};
   return G.buildSources(roof,{soffit:18,roofContacts:true}).sources.find(s=>s.id.startsWith('R1'));

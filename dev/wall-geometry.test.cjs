@@ -38,7 +38,8 @@ test('roof holes do not intercept a vertical extrusion',()=>{
 });
 test('auto setback infers the distance from lower flashing',()=>{
     const points=[p(0,0,8),p(10,0,8),p(0,.6096,3),p(10,.6096,3)];
-    const r=G.buildSources({points,connections:[{startIdx:0,endIdx:1,type:'eave'},{startIdx:2,endIdx:3,type:'head_wall'}],faces:[rect(0,0,10,10,8),rect(0,.6096,10,5,3)]},{soffit:'auto'});
+    const upper={points:[p(0,0,8),p(10,0,8),p(10,10,10),p(0,10,10)]};
+    const r=G.buildSources({points,connections:[{startIdx:0,endIdx:1,type:'eave'},{startIdx:2,endIdx:3,type:'head_wall'}],faces:[upper,rect(0,.6096,10,5,3)]},{soffit:'auto'});
     const e=r.sources.find(s=>s.kind==='perimeter');near(e.setback,.6096);assert.equal(e.inferred,true);
 });
 const wall=(kind,x0,x1,y,z0,z1)=>({id:kind,kind,sourceId:kind,bottom:[p(x0,y,z0),p(x1,y,z0)],top:[p(x0,y,z1),p(x1,y,z1)]});
@@ -176,7 +177,8 @@ test('generation welds millimetre roof-fit disagreements at shared wall columns'
 });
 test('soffit inference records its evidence and falls back only when that evidence is removed',()=>{
  const points=[p(0,0,8),p(10,0,8),p(0,.22,3),p(8,.22,3),p(0,.6096,3),p(2,.6096,3)];
- const roof={points,connections:[{startIdx:0,endIdx:1,type:'rake'},{startIdx:2,endIdx:3,type:'head_wall'},{startIdx:4,endIdx:5,type:'head_wall'}],faces:[rect(0,0,10,10,8),rect(0,.22,8,5,3)]};
+ const upper={points:[p(0,0,8),p(10,0,8),p(10,10,10),p(0,10,10)]};
+ const roof={points,connections:[{startIdx:0,endIdx:1,type:'rake'},{startIdx:2,endIdx:3,type:'head_wall'},{startIdx:4,endIdx:5,type:'head_wall'}],faces:[upper,rect(0,.22,8,5,3)]};
  const sources=G.buildSources(roof,{soffit:'auto'}).sources,source=sources.find(s=>s.kind==='perimeter');
  assert.deepEqual(source.setbackFrom,['R2']);near(source.setback,.22);
  assert.equal(G.soffitWithoutSources(source,sources,['R3']),null,'unrelated cleanup does not alter an inferred soffit');

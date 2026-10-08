@@ -38,7 +38,7 @@ test('overlap resolution is independent of roof-face order and zero-soffit keeps
 });
 
 test('only a nearby overlapping exterior run can override an inset; separate and deliberate large steps survive',()=>{
- const rect=(x0,x1,y0,y1,z)=>[{x:x0,y:y0,z},{x:x1,y:y0,z},{x:x1,y:y1,z},{x:x0,y:y1,z}];
+ const rect=(x0,x1,y0,y1,z)=>[{x:x0,y:y0,z},{x:x1,y:y0,z},{x:x1,y:y1,z:z+(y1-y0)*.2},{x:x0,y:y1,z:z+(y1-y0)*.2}];
  for(const scenario of ['nearby','large step','separate wing','opposite side','short return','higher layer']){
   const upper=rect(0,8,0,4,5),lower=rect(scenario==='separate wing'?20:2,scenario==='separate wing'?25:scenario==='short return'?2.2:7,scenario==='large step'?-.6:-.2,scenario==='opposite side'?-3:3,scenario==='higher layer'?6:4),roof={points:[...upper,...lower],faces:[{points:upper},{points:lower}],connections:[{startIdx:0,endIdx:1,type:'eave'},{startIdx:4,endIdx:5,type:'eave'}]},before=JSON.stringify(roof);
   const source=G.buildSources(roof,{soffit:18}).sources.find(s=>s.id.startsWith('R1.'));assert.ok(source,scenario);
@@ -49,7 +49,7 @@ test('only a nearby overlapping exterior run can override an inset; separate and
 
 
 test('a partial overlap stops at the dominant miter and leaves the exposed short run at its own setback',()=>{
- const rect=(x0,x1,y0,y1,z)=>[{x:x0,y:y0,z},{x:x1,y:y0,z},{x:x1,y:y1,z},{x:x0,y:y1,z}];
+ const rect=(x0,x1,y0,y1,z)=>[{x:x0,y:y0,z},{x:x1,y:y0,z},{x:x1,y:y1,z:z+(y1-y0)*.2},{x:x0,y:y1,z:z+(y1-y0)*.2}];
  const upper=rect(0,8,0,4,5),lower=rect(6,11,-.2,3,4),roof={points:[...upper,...lower],faces:[{points:upper},{points:lower}],connections:[{startIdx:0,endIdx:1,type:'eave'},{startIdx:1,endIdx:2,type:'rake'},{startIdx:4,endIdx:5,type:'eave'}]};
  const sources=G.buildSources(roof,{soffit:18}).sources,aligned=sources.filter(s=>s.soffitAlignment),exposed=sources.filter(s=>s.id.startsWith('R3.')&&!s.soffitAlignment&&!s.envelopeReturn),returns=sources.filter(s=>s.envelopeReturn);
  assert.ok(aligned.length);assert.ok(exposed.length);assert.equal(returns.length,1);
