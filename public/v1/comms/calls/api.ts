@@ -25,6 +25,20 @@ async function auth(req:FastifyRequest,write=false,admin=false){return requirePl
   permission:admin?"manage_communications|manage_company_settings":write?"make_calls|send_comms|send_communications|manage_projects|manage_company_settings":"view_comms|view_projects|manage_projects|manage_company_settings"});}
 const body=(req:FastifyRequest)=>object(req.body);
 const boundedId=z.string().min(8).max(180);
+async function voicemailLines(ctx:PlatformAuthContext){
+  const lines=await s.resources(ctx.orgId,'number');
+  return lines.filter(line=>manageCalls(ctx)||(
+    text(line.branch_id||'default')===(ctx.branchId||'default')&&
+    (!text(line.assigned_user_id)||text(line.assigned_user_id)===ctx.userId)
+  )).map(line=>text(line.phone_number)).filter(Boolean);
+}
+async function requireVoicemailAccess(ctx:PlatformAuthContext,call:s.CustomerCall){
+  if(!hasPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings'))throw forbidden('recording_access_denied','You do not have access to voicemails.');
+  requireCallAccess(ctx,call);
+  if(!(await voicemailLines(ctx)).includes(call.business_number))throw forbidden('voicemail_line_forbidden','This voicemail belongs to another line.');
+  return call;
+}
+const voicemailStateKey=(ctx:PlatformAuthContext,callId:string)=>`${ctx.userId}:${callId}`;
 
 export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   s.database();
@@ -79,7 +93,9 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.get("/organizations/:orgId/calls/:callId/artifacts",async req=>{
     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
     if(!hasPermission(ctx,"view_call_recordings|manage_communications|manage_company_settings"))throw forbidden("recording_access_denied","You do not have access to recordings and transcripts.");
-    return {ok:true,artifacts:(await s.artifacts(ctx.orgId,call.id)).filter(a=>text(a.expires_at)>s.now()).map(a=>({...a,data:{...object(a.data),file_path:undefined,download_url:undefined,provider_urls:undefined}}))};
+    const artifacts=await s.artifacts(ctx.orgId,call.id);
+    if(artifacts.some(a=>a.kind==='voicemail'))await requireVoicemailAccess(ctx,call);
+    return {ok:true,artifacts:artifacts.filter(a=>text(a.expires_at)>s.now()).map(a=>({...a,data:{...object(a.data),file_path:undefined,download_url:undefined,provider_urls:undefined}}))};
   });
   app.post("/organizations/:orgId/calls/:callId/link",async req=>{
     const ctx=await auth(req,true);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))),true);
@@ -90,6 +106,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.get("/organizations/:orgId/calls/:callId/artifacts/:artifactId/media",async(req,reply)=>{
     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
     if(!hasPermission(ctx,"view_call_recordings|manage_communications|manage_company_settings"))throw forbidden("recording_access_denied","You do not have access to this recording.");
+    if((await s.artifacts(ctx.orgId,call.id)).some(a=>a.id===param(req,'artifactId')&&a.kind==='voicemail'))await requireVoicemailAccess(ctx,call);
     (await s.appendEvent(ctx.orgId,call.id,"communication.call.recording_accessed",{artifact_id:param(req,"artifactId"),actor_user_id:ctx.userId}));
     return streamRecording(req,reply,ctx.orgId,call.id,param(req,"artifactId"));
   });
@@ -146,6 +163,33 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   });
   app.get('/organizations/:orgId/voice/health',async req=>{const ctx=await auth(req,false,true);return {ok:true,...(await voiceHealth(ctx.orgId))};});
   app.get("/organizations/:orgId/voice/contacts",async req=>({ok:true,contacts:await phoneContacts(await auth(req),text(query(req).query))}));
+  app.get('/organizations/:orgId/voice/voicemails',async req=>{
+    const ctx=await auth(req);
+    if(!hasPermission(ctx,'view_call_recordings|manage_communications|manage_company_settings'))throw forbidden('recording_access_denied','You do not have access to voicemails.');
+    const calls=await s.voicemailCalls(ctx.orgId,manageCalls(ctx)?'':ctx.branchId||'default',await voicemailLines(ctx));
+    const voicemails=await Promise.all(calls.map(async call=>{
+      const artifacts=(await s.artifacts(ctx.orgId,call.id)).filter(a=>text(a.expires_at)>s.now());
+      const audio=artifacts.filter(a=>a.kind==='voicemail').at(-1);
+      const recordingId=text(object(audio?.data).provider_recording_id);
+      const transcript=artifacts.filter(a=>a.kind==='transcript'&&(!recordingId||text(object(a.data).recording_id)===recordingId)).at(-1);
+      const state=object(await s.resource(ctx.orgId,'voicemail_state',voicemailStateKey(ctx,call.id)));
+      return {id:call.id,contact_id:call.contact_id,project_id:call.project_id,name:call.customer_name,phone:call.customer_number,business_number:call.business_number,created_at:call.created_at,
+        audio_artifact_id:audio?.state==='ready'?audio.id:null,audio_state:audio?.state||'unavailable',expires_at:audio?.expires_at||'',
+        transcript:text(object(transcript?.data).text),transcript_state:transcript?.state||'unavailable',sample:call.metadata.synthetic_voicemail===true,
+        read_at:text(state.read_at),archived_at:text(state.archived_at)};
+    }));
+    return {ok:true,voicemails,transcription_enabled:(await voiceSettings(ctx.orgId)).voicemail_transcription_enabled};
+  });
+  app.patch('/organizations/:orgId/voice/voicemails/:callId',async req=>{
+    const ctx=await requirePlatformAuth(req,{orgId:param(req,'orgId'),csrf:true,capability:'apps.comms',permission:'view_call_recordings|manage_communications|manage_company_settings'});
+    const call=await requireVoicemailAccess(ctx,await s.readCall(ctx.orgId,param(req,'callId')));
+    if(!(await s.artifacts(ctx.orgId,call.id)).some(a=>a.kind==='voicemail'&&text(a.expires_at)>s.now()))throw badRequest('voicemail_unavailable','This voicemail is unavailable.');
+    const input=z.object({read:z.boolean().optional(),archived:z.boolean().optional()}).refine(value=>value.read!==undefined||value.archived!==undefined).parse(body(req));
+    const key=voicemailStateKey(ctx,call.id),previous=object(await s.resource(ctx.orgId,'voicemail_state',key));
+    const state={read_at:input.read===undefined?text(previous.read_at):input.read?s.now():'',archived_at:input.archived===undefined?text(previous.archived_at):input.archived?s.now():''};
+    await s.saveResource(ctx.orgId,'voicemail_state',key,state);
+    return {ok:true,state};
+  });
   app.get("/organizations/:orgId/voice/people",async req=>({ok:true,people:await people(await auth(req))}));
   app.post("/organizations/:orgId/voice/development/onboard",async req=>({ok:true,development:await completeDevelopmentOnboarding(await auth(req,true,true))}));
   app.put("/organizations/:orgId/voice/settings",async req=>{const ctx=await auth(req,true,true);return {ok:true,settings:await configureVoice(ctx,body(req))};});

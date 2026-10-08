@@ -147,7 +147,7 @@ export async function processVoiceEvent(body:Json){
   }
   if(type==="call.speak.ended"&&state.phase==='voicemail_greeting'&&object(call.metadata.voicemail).pending===true){
     (await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,voicemail:{started:true},consent:{state:"voicemail_prompt",at}}}));
-    (await providerCommand(call,controlId,"record_start",{format:"mp3",channels:"single",play_beep:true,timeout_secs:5,max_length:180,transcription:(await voiceSettings(call.organization_id)).transcription_enabled},"voicemail-record"));
+    (await providerCommand(call,controlId,"record_start",{format:"mp3",channels:"single",play_beep:true,timeout_secs:5,max_length:180,transcription:(await voiceSettings(call.organization_id)).voicemail_transcription_enabled},"voicemail-record"));
   }
   if(type==="call.hangup"){
     if(role==='forwarded'&&!call.connected_at){

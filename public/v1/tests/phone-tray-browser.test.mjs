@@ -20,25 +20,28 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
       };
       window.__APP={orgId:'org-test',userId:'user-test'};
       window.Portal={appFlags:{has:()=>true},modules:{},navigation:{registerSchema(){},registerHandler(){},push(){}}};
-      window.PlatformAPI={projects:{listForContact:async()=>({documents:[]}),list:async()=>({documents:[]})},contacts:{settings:async()=>({settings:{tags:[]}})},media:{upload:async(_org,file,options)=>{window.lastImageUpload={name:file.name,options};return {media:{id:'image-one'}};},fileUrl:(_org,id)=>`/media/${id}`}};
+      window.PlatformAPI={projects:{listForContact:async()=>({documents:[]}),list:async()=>({documents:[]})},contacts:{settings:async()=>({settings:{tags:[{id:'customer',label:'Customer',enabled:true},{id:'lead',label:'Lead',enabled:true}]}})},media:{upload:async(_org,file,options)=>{window.lastImageUpload={name:file.name,options};return {media:{id:'image-one'}};},fileUrl:(_org,id)=>`/media/${id}`}};
       window.TelnyxWebRTC={TelnyxRTC:class{constructor(){this.handlers={};window.phoneClient=this;}on(n,cb){this.handlers[n]=cb;}connect(){if(!window.delayReady)this.handlers['telnyx.ready']();}async setAudioSettings(){}disconnect(){}}};
       window.testCall={id:'call-test',customer_name:'Test contact',customer_number:'+12025550123',state:'connected',mode:'browser',owner_user_id:'user-test',wrap_up_state:'draft',metadata:{}};
+      window.testVoicemail={id:'vm-one',contact_id:'contact-one',project_id:'project-one',name:'Jane Test',phone:'+12025550124',business_number:'+12065550199',created_at:new Date().toISOString(),audio_artifact_id:'artifact-one',audio_state:'ready',transcript:'Please call about the roof estimate.',transcript_state:'ready',sample:true,read_at:'',archived_at:''};
       window.CommsAPI={customer:async(_org,path,data)=>{
         if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
         if(path==='voice/diagnostics')return {result:{verdict:'blocked',reason:'Allow microphone access and try again.'}};
-        if(path==='voice/status')return {settings:{enabled:true,require_disposition:true,allowed_destination_countries:['US','CA','GB','DE','JP','MX'],allowed_country_prefixes:['+1','+44','+49','+81','+52']},permissions:{manage:true},numbers:[{phone_number:'+12065550199',label:'Main',status:'active'}],sms_numbers:[{phone_number:'+12065550199'}],default_number:'+12065550199'};
+        if(path==='voice/status')return {settings:{enabled:true,require_disposition:true,allowed_destination_countries:['US','CA','GB','DE','JP','MX'],allowed_country_prefixes:['+1','+44','+49','+81','+52']},permissions:{manage:true},numbers:[{phone_number:'+12065550199',label:'Development test line',status:'active'}],sms_numbers:[{phone_number:'+12065550199'}],default_number:'+12065550199'};
         if(path==='call-scripts')return {scripts:[]};
         if(path==='call-context')return {contacts:[]};
         if(path==='call-lists/queue')return {columns:[]};
-        if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-one',project_id:'project-one',name:'Jane Test',phone:'+12025550124'},{id:'contact-two',project_id:'project-two',name:'Avery Demo',phone:'+12025550125'}]};
+        if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-one',project_id:'project-one',name:'Jane Test',phone:'+12025550124',tags:['customer']},{id:'contact-two',project_id:'project-two',name:'Avery Demo',phone:'+12025550125',tags:['lead']}]};
+        if(path==='voice/voicemails')return {voicemails:[window.testVoicemail],transcription_enabled:true};
+        if(path==='voice/voicemails/vm-one'){if(data.read!==undefined)window.testVoicemail.read_at=data.read?new Date().toISOString():'';if(data.archived!==undefined)window.testVoicemail.archived_at=data.archived?new Date().toISOString():'';return {state:{read_at:window.testVoicemail.read_at,archived_at:window.testVoicemail.archived_at}};}
         if(path.endsWith('/wrap-up')){window.testCall={...window.testCall,wrap_up_state:'saved',result:{disposition:'answered'}};return {call:window.testCall};}
         if(path.includes('/actions')){if(data.action==='dtmf')window.sentTones.push(data.digits);if(data.action==='hangup')window.testCall={...window.testCall,state:'ended',wrap_up_state:'needs_wrap_up'};return {call:window.testCall};}
         if(path.startsWith('calls/'))return {call:window.testCall};
         return {};
-      },inbox:async()=>({conversations:[{id:'text-one',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',last_message:{text:'Hello'}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hello',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {ok:true};}}};
+      },customerUrl:(_org,path)=>`https://phone.test/v1/comms/organizations/org-test/${path}`,inbox:async()=>({conversations:[{id:'text-one',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',last_message:{text:'Hello'}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hello',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {ok:true};}}};
     });
-    for(const file of ['window-manager/window-manager.js','apps/comms/communications-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
+    for(const file of ['window-manager/window-manager.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
     await page.evaluate(()=>Portal.CustomerPhone.open());
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'docked');
@@ -54,7 +57,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/idle.png'});
     await page.locator('.fm-phone-title').click();
 
-    assert.deepEqual(await page.locator('[data-phone-tab]').allTextContents(),['Call','Text','Contacts']);
+    assert.deepEqual(await page.locator('[data-phone-tab]').allTextContents(),['Call','Text','Voicemail','Contacts']);
     assert.equal(await page.getByRole('button',{name:'Choose another country to call'}).textContent(),'+1');
     await page.getByRole('button',{name:'Choose another country to call'}).click();
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/country.png'});
@@ -64,9 +67,11 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.getByRole('button',{name:'Choose another country to call'}).textContent(),'+44');
     await page.locator('[data-line-picker] [aria-expanded]').click();
     assert.match(await page.locator('[data-line-picker] [data-line-choice]').textContent(),/\(206\) 555-0199/);
-    assert.equal(await page.locator('.fm-phone-line-toggle strong').textContent(),'(206) 555-0199');
-    const lineLabel=await page.locator('.fm-phone-line-title').boundingBox(),lineNumber=await page.locator('.fm-phone-line-toggle strong').boundingBox();
+    assert.equal(await page.locator('.fm-phone-line-name').textContent(),'Development test line');
+    assert.equal(await page.locator('.fm-phone-line-number').textContent(),'(206) 555-0199');
+    const lineLabel=await page.locator('.fm-phone-line-title').boundingBox(),lineNumber=await page.locator('.fm-phone-line-number').boundingBox();
     assert.ok(Math.abs(lineLabel.y-lineNumber.y)<8,JSON.stringify({lineLabel,lineNumber}));
+    assert.equal(await page.locator('.fm-phone-line').evaluate(e=>getComputedStyle(e).borderBottomWidth),'0px');
     await page.locator('[data-line-picker] [aria-expanded]').click();
     assert.equal(await page.getByText('Call options',{exact:true}).count(),0);
     assert.equal(await page.locator('.fm-phone-number').evaluate(e=>getComputedStyle(e).fontSize),'0px');
@@ -108,6 +113,10 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     for(let i=0;i<15;i++)await page.keyboard.press('Backspace');
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'');
     await page.locator('[data-phone-tab=contacts]').click();
+    await page.getByRole('combobox',{name:'Filter contacts by tag'}).selectOption('lead');
+    assert.equal(await page.getByRole('button',{name:'Open Jane Test'}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'Open Avery Demo'}).count(),1);
+    await page.getByRole('combobox',{name:'Filter contacts by tag'}).selectOption('');
     await page.getByRole('searchbox',{name:'Search contacts'}).fill('Jane');
     await page.getByRole('button',{name:'Open Jane Test'}).click();
     await page.waitForSelector('#fmContactOverlay.active');
@@ -117,6 +126,21 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+12025550124');
     assert.equal(await page.locator('.fm-phone-selected strong').textContent(),'Jane Test');
     await page.getByRole('button',{name:'Remove selected contact'}).click();
+    await page.locator('[data-phone-tab=voicemail]').click();
+    if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/voicemail-list.png'});
+    await page.getByRole('button',{name:/Jane Test/}).click();
+    if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/voicemail-detail.png'});
+    assert.match(await page.locator('.fm-phone-vm-transcript').textContent(),/roof estimate/);
+    assert.match(await page.locator('.fm-phone-vm-detail audio').getAttribute('src'),/artifact-one\/media/);
+    await page.getByRole('button',{name:'Mark unread'}).click();
+    await page.getByRole('combobox',{name:'Filter voicemails'}).selectOption('unread');
+    assert.equal(await page.locator('.fm-phone-vm-item').count(),1);
+    await page.locator('.fm-phone-vm-item').click();
+    await page.getByRole('button',{name:'Archive'}).click();
+    assert.equal(await page.locator('.fm-phone-vm-item').count(),0);
+    await page.getByRole('combobox',{name:'Filter voicemails'}).selectOption('archived');
+    assert.equal(await page.locator('.fm-phone-vm-item').count(),1);
+    await page.locator('[data-phone-tab=call]').click();
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/docked.png'});
     await page.evaluate(()=>{const e=document.createElement('aside'),h=document.createElement('header');h.textContent='Other minimized window';e.append(h);document.querySelector('main').append(e);window.otherWindow=FirstMateWindows.attach({element:e,header:h,host:document.querySelector('main'),mode:'minimized',name:'other'});});
     await page.getByRole('button',{name:'Move phone freely',exact:true}).click();
@@ -124,6 +148,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.getByRole('button',{name:/Maximize phone|Fill workspace|Fill entire screen/}).count(),0);
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().bottom<=856&&document.querySelector('.fm-phone-tray').getBoundingClientRect().width===264&&document.querySelector('.fm-phone-tray').getBoundingClientRect().height===448);
     const box=await page.locator('.fm-phone-tray').boundingBox();assert.ok(box.width===264&&box.height===448&&box.y+box.height<=858,JSON.stringify(box));
+    assert.equal(await page.locator('.fm-phone-line-number').evaluate(e=>e.getBoundingClientRect().right<=e.closest('.fm-phone-tray').getBoundingClientRect().right),true);
     await page.setViewportSize({width:1280,height:720});
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().bottom<=720);
     const tray=await page.locator('.fm-phone-tray').boundingBox(),callButton=await page.locator('[data-phone=start]').boundingBox();
@@ -203,6 +228,11 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.getByRole('button',{name:/Jane Test/}).click();
     await page.getByRole('textbox',{name:'Text message'}).fill('Thanks, Jane ');
     await page.getByRole('button',{name:'Insert emoji',exact:true}).click();
+    assert.equal(await page.locator('.fm-ch-popover').count(),1);
+    assert.equal(await page.getByRole('button',{name:'Insert 👍'}).evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
+    await page.mouse.click(10,10);
+    assert.equal(await page.locator('.fm-ch-popover').count(),0);
+    await page.getByRole('button',{name:'Insert emoji',exact:true}).click();
     await page.getByRole('button',{name:'Insert 👍'}).click();
     assert.equal(await page.getByRole('textbox',{name:'Text message'}).inputValue(),'Thanks, Jane 👍');
     await page.getByRole('button',{name:'Send text'}).click();
@@ -225,6 +255,18 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.getByRole('button',{name:'Send text'}).click();
     await page.waitForFunction(()=>window.lastNewText?.body.text==='');
     assert.equal(await page.evaluate(()=>lastImageUpload.name),'photo.jpg');
+    await page.evaluate(async()=>{
+      const key=`fm-customer-phone-check:org-test:user-test:${Portal.CustomerPhone.deviceId}`;
+      sessionStorage.setItem(key,JSON.stringify({at:Date.now(),audio:'{}'}));
+      Portal.CustomerPhone.state.deviceChecked=false;
+      await Portal.CustomerPhone.open({customer_number:'+12025550124'});
+    });
+    assert.equal(await page.evaluate(()=>Portal.CustomerPhone.state.deviceChecked),true);
+    await page.evaluate(()=>localStorage.setItem('fm-customer-phone-audio:org-test:user-test',JSON.stringify({microphone:'changed-device',speaker:''})));
+    await page.locator('[data-phone-tab=call]').click();
+    await page.locator('[data-phone=start]').click();
+    await page.waitForSelector('.fm-phone-readiness');
+    assert.equal(await page.evaluate(()=>Portal.CustomerPhone.state.deviceChecked),false);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

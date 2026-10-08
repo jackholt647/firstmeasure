@@ -292,6 +292,17 @@ export async function artifacts(orgId:string,callId:string):Promise<Json[]> {
   return (await database().prepare("SELECT * FROM customer_call_artifacts WHERE organization_id=? AND call_id=? AND state<>'deleted' ORDER BY created_at").all(orgId,callId))
     .map(row=>({...object(row),data:parse(object(row).data_json),data_json:undefined}));
 }
+export async function voicemailCalls(orgId:string,branchId:string,allowedNumbers:string[],limit=100):Promise<CustomerCall[]> {
+  if(!allowedNumbers.length)return [];
+  const numbers=allowedNumbers.map(()=>'?').join(',');
+  const rows=await database().prepare(`SELECT DISTINCT c.* FROM customer_calls c
+    JOIN customer_call_artifacts a ON a.organization_id=c.organization_id AND a.call_id=c.id
+    WHERE c.organization_id=? AND c.direction='inbound' AND a.kind='voicemail'
+      AND a.state<>'deleted' AND a.expires_at>? AND c.business_number IN (${numbers})
+      ${branchId?'AND c.branch_id=?':''}
+    ORDER BY c.created_at DESC,c.id DESC LIMIT ?`).all(orgId,now(),...allowedNumbers,...(branchId?[branchId]:[]),Math.max(1,Math.min(200,limit)));
+  return rows.map(callRow).filter(Boolean) as CustomerCall[];
+}
 export async function saveArtifact(orgId:string,callId:string,kind:string,key:string,data:Json,state="ready",retentionDays=30) {
   return (await database().transaction(async () => {
   const artifactId=id("ca",`${orgId}:${kind}:${key}`);

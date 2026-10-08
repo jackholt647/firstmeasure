@@ -942,13 +942,14 @@
 .fm-ch-panel .fm-ch-composer{padding:8px 12px 10px}
 .fm-ch-empty{color:var(--ch-muted);text-align:center;padding:32px 20px;font-size:13px}
 .fm-ch-popover{position:fixed;z-index:1601;background:#fff;border:1px solid var(--ch-border);border-radius:10px;box-shadow:0 8px 28px rgba(15,23,42,.16);max-width:360px;min-width:240px;max-height:340px;overflow-y:auto}
+.fm-ch-popover.fm-ch-emoji-popover{z-index:2147483400}
 .fm-ch-popover-head{padding:8px 12px;border-bottom:1px solid var(--ch-border);font-weight:700;font-size:12px;color:var(--ch-muted)}
 .fm-ch-revision{padding:8px 12px;border-bottom:1px solid var(--ch-border)}
 .fm-ch-revision:last-child{border-bottom:none}
 .fm-ch-revision-meta{color:var(--ch-muted);font-size:11px;margin-bottom:2px}
 .fm-ch-revision.current .fm-ch-revision-meta{color:var(--ch-accent);font-weight:700}
 .fm-ch-emoji-grid{display:grid;grid-template-columns:repeat(8,1fr)}
-.fm-ch-emoji-grid button{font-size:18px;padding:4px;border-radius:6px}
+.fm-ch-emoji-grid button{font-size:18px;padding:4px;border:0;background:transparent;color:inherit;box-shadow:none;border-radius:6px;cursor:pointer}
 .fm-ch-emoji-grid button:hover{background:var(--ch-hover)}
 .fm-ch-emoji-group{padding:6px 10px 0;color:var(--ch-muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .fm-ch-emoji-search{width:calc(100% - 16px);margin:8px;padding:5px 8px;border:1px solid var(--ch-border);border-radius:8px;font:inherit;font-size:12px;outline:none}
@@ -1106,6 +1107,61 @@
 .fm-ch-huddle-artifact video,.fm-ch-huddle-artifact audio{width:100%;max-height:180px}
 `;
     document.head.appendChild(style);
+  }
+
+  let sharedEmojiPopover = null;
+  let sharedEmojiAnchor = null;
+  function closeEmojiPicker(){
+    sharedEmojiPopover?.remove();
+    sharedEmojiPopover = null;
+    sharedEmojiAnchor = null;
+    document.removeEventListener('mousedown', emojiOutside, true);
+    document.removeEventListener('keydown', emojiEscape, true);
+  }
+  function emojiOutside(event){
+    if (sharedEmojiPopover && !sharedEmojiPopover.contains(event.target) && !sharedEmojiAnchor?.contains(event.target)) closeEmojiPicker();
+  }
+  function emojiEscape(event){
+    if (event.key === 'Escape') closeEmojiPicker();
+  }
+  function openSharedEmojiPicker(anchor, onPick){
+    if (sharedEmojiPopover) { closeEmojiPicker(); return; }
+    ensureStyles();
+    const pop = el('div', 'fm-ch-popover fm-ch-emoji-popover');
+    const search = el('input', 'fm-ch-emoji-search');
+    search.type = 'search';
+    search.setAttribute('aria-label', 'Search emoji');
+    search.placeholder = (globalThis.PlatformLanguage?.text('channels-ui','m_cd02d20f00360e','Search emoji…') ?? 'Search emoji…');
+    const holder = el('div');
+    pop.append(search, holder);
+    function renderGroups(){
+      const filter = cleanText(search.value).toLowerCase();
+      holder.replaceChildren();
+      for (const group of EMOJI_SET) {
+        const items = group.items.filter(emoji => !filter || emoji.includes(filter) || group.group.toLowerCase().includes(filter));
+        if (!items.length) continue;
+        if (!filter) holder.appendChild(el('div', 'fm-ch-emoji-group', esc(group.group)));
+        const grid = el('div', 'fm-ch-emoji-grid');
+        for (const emoji of items) {
+          const button = el('button', '', emoji);
+          button.type = 'button';
+          button.setAttribute('aria-label', `Insert ${emoji}`);
+          button.addEventListener('click', () => { closeEmojiPicker(); onPick(emoji); });
+          grid.appendChild(button);
+        }
+        holder.appendChild(grid);
+      }
+    }
+    search.addEventListener('input', renderGroups);
+    renderGroups();
+    document.body.appendChild(pop);
+    const rect = anchor.getBoundingClientRect(), popRect = pop.getBoundingClientRect();
+    const top = rect.bottom + popRect.height + 6 > window.innerHeight - 8 ? Math.max(8, rect.top - popRect.height - 6) : rect.bottom + 6;
+    pop.style.top = `${Math.max(8, top)}px`;
+    pop.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - popRect.width - 8))}px`;
+    sharedEmojiPopover = pop;
+    sharedEmojiAnchor = anchor;
+    setTimeout(() => { if (sharedEmojiPopover === pop) { document.addEventListener('mousedown', emojiOutside, true); document.addEventListener('keydown', emojiEscape, true); search.focus(); } }, 0);
   }
 
   // --- popover / modal plumbing -------------------------------------------------
@@ -4267,33 +4323,8 @@
     // --- emoji picker ------------------------------------------------------------------
 
     function openEmojiPicker(anchor, onPick){
-      showPopover(anchor, (pop) => {
-        const search = el('input', 'fm-ch-emoji-search');
-        search.type = 'text';
-        search.placeholder = (globalThis.PlatformLanguage?.text("channels-ui","m_cd02d20f00360e","Search emoji…") ?? "Search emoji…");
-        pop.appendChild(search);
-        const holder = el('div');
-        pop.appendChild(holder);
-        const renderGroups = (filter) => {
-          holder.innerHTML = '';
-          for (const group of EMOJI_SET) {
-            const items = filter ? group.items : group.items;
-            if (!items.length) continue;
-            if (!filter) holder.appendChild(el('div', 'fm-ch-emoji-group', esc(group.group)));
-            const grid = el('div', 'fm-ch-emoji-grid');
-            for (const emoji of items) {
-              const button = el('button', '', emoji);
-              button.addEventListener('click', () => { closePopover(); onPick(emoji); });
-              grid.appendChild(button);
-            }
-            holder.appendChild(grid);
-            if (filter) break; // single flat grid when filtering
-          }
-        };
-        renderGroups('');
-        search.addEventListener('input', () => renderGroups(cleanText(search.value)));
-        setTimeout(() => search.focus(), 0);
-      });
+      closePopover();
+      openSharedEmojiPicker(anchor, onPick);
     }
 
     // --- composer ------------------------------------------------------------------------
@@ -6153,5 +6184,5 @@
     return title;
   }
 
-  root.FirstMateChannels = { create, createChannelTitle, openChannelProject, EMOJI_SET, DEFAULT_FEATURES };
+  root.FirstMateChannels = { create, createChannelTitle, openChannelProject, openEmojiPicker:openSharedEmojiPicker, closeEmojiPicker, EMOJI_SET, DEFAULT_FEATURES };
 })();

@@ -9,6 +9,10 @@
     busy:false,error:'',dirty:false,notes:'',answers:{},panel:null,minimized:false,muted:false,localId:uid(),prepared:{},poll:0,saveTimer:0,tokenTimer:0,heartbeat:0,readyPromise:null,connectionSequence:0,connecting:false,disconnectPromise:null,openSequence:0};
   const audioKey='fm-customer-phone-audio';
   function audioPreferences(){try{return JSON.parse(localStorage.getItem(`${audioKey}:${scope()}`)||'{}');}catch{return {};}}
+  const checkKey=()=>`fm-customer-phone-check:${scope()}:${deviceId}`;
+  function checkValid(){try{const saved=JSON.parse(sessionStorage.getItem(checkKey())||'null');return saved&&saved.at>Date.now()-24*3600_000&&saved.audio===JSON.stringify(audioPreferences());}catch{return false;}}
+  function rememberCheck(){try{sessionStorage.setItem(checkKey(),JSON.stringify({at:Date.now(),audio:JSON.stringify(audioPreferences())}));}catch{}}
+  function clearCheck(){try{sessionStorage.removeItem(checkKey());}catch{}state.deviceChecked=false;}
   function audioElement(){const audio=document.getElementById('fm-customer-call-audio')||document.createElement('audio');audio.id='fm-customer-call-audio';audio.autoplay=true;audio.hidden=true;if(!audio.isConnected)document.body.append(audio);return audio;}
   async function applyAudio(client,preferences=audioPreferences()){
     if(client)await client.setAudioSettings(preferences.microphone?{micId:preferences.microphone,deviceId:{exact:preferences.microphone}}:{});
@@ -112,6 +116,8 @@
   async function refreshStatus(){const requestedScope=scope(),status=await request('voice/status');if(requestedScope!==scope())return {};const first=!state.status;state.status=status;if(first&&status.settings?.enabled)state.panel?.querySelector('[name=mode]')?.remove();changed();return status;}
   async function open(input={},options={}){
     state.boundScope=scope();
+    await identityReady;
+    if(!state.deviceChecked&&checkValid())state.deviceChecked=true;
     if(state.diagnosing)throw new Error('Wait for the audio check to finish before opening a call.');
     if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id)state.error='Finish the active call before opening another contact.';render();return false;}
     if(state.call&&state.call.wrap_up_state!=='saved'&&terminal.has(state.call.state)&&state.status?.settings?.require_disposition&&state.call.id!==input.call_id){state.minimized=false;state.error='Save this call outcome before starting another call.';render();return false;}
@@ -146,6 +152,7 @@
     const dialed=values.customer_number.startsWith('+')?values.customer_number:`${values.country_code||'+1'}${values.customer_number.replace(/\D/g,'')}`;
     if(!/^\+[1-9]\d{7,14}$/.test(dialed))throw new Error('Choose a contact or enter a valid phone number.');
     if(values.mode==='browser'){const ticket=state.openSequence;state.waitingToCall=true;render();try{await connect();}finally{state.waitingToCall=false;}if(ticket!==state.openSequence||state.panel?.hidden)return;}
+    if(values.mode==='browser'&&!checkValid())clearCheck();
     if(values.mode==='browser'&&!state.deviceChecked){state.deviceCheckRequired=true;state.checkMessage='';return;}
     state.deviceCheckRequired=false;
     const body={...state.prepared,entry_id:state.entry?.id||state.prepared.entry_id||'',customer_name:state.prepared.customer_name||'',customer_number:dialed,
@@ -286,7 +293,7 @@
       else if(name==='artifacts')await artifacts();
       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);
       else await action(name);
-    }catch(error){if(error.code==='device_check_required'){state.deviceChecked=false;state.deviceCheckRequired=true;state.checkMessage='';}else if(error.name!=='AbortError')state.error=error.message;}
+    }catch(error){if(error.code==='device_check_required'){clearCheck();state.deviceCheckRequired=true;state.checkMessage='';}else if(error.name!=='AbortError')state.error=error.message;}
     finally{state.busy=false;if(state.panel&&!state.panel.hidden){render();if(name==='artifacts')state.panel.querySelector('[data-artifacts]')?.scrollIntoView({block:'nearest'});}}
   }
   async function loadSDK(){
@@ -411,8 +418,8 @@
       if(microphone==='ready'){checks[2]=providerFailed?'Failed':connected?'Passed':'Timed out';checks[3]=metrics?'Measured':'No measurements';}
       const failedStep=step;progress(4,'Saving the device result and ending the test connection.');
       const result=await request('voice/diagnostics',{device_id:deviceId,microphone,connectivity:connected?'ready':'inconclusive',provider_verdict:providerFailed?'blocked':metrics?'ready':'inconclusive',...(metrics?{metrics}:{})});checks[4]='Saved';
-      state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);step=state.deviceChecked?4:failedStep;finish(result.result);return result;
-    }catch(error){state.deviceChecked=false;finish({verdict:'blocked',reason:error.message||'The check could not finish. Reconnect your phone and retry.'});throw error;
+      state.deviceChecked=['ready','degraded'].includes(result.result?.verdict);if(state.deviceChecked)rememberCheck();else clearCheck();step=state.deviceChecked?4:failedStep;finish(result.result);return result;
+    }catch(error){clearCheck();finish({verdict:'blocked',reason:error.message||'The check could not finish. Reconnect your phone and retry.'});throw error;
     }finally{
       clearInterval(elapsed);if(!finished&&el)el.querySelector('[data-check-progress]').textContent='Check stopped. Retry when you are ready.';
       if(state.diagnosticId){await request(`calls/${encodeURIComponent(state.diagnosticId)}/actions`,{operation_id:uid(),action:'hangup'}).catch(()=>{});await Promise.resolve(state.sdkCall?.hangup()).catch(()=>{});}
@@ -428,7 +435,7 @@
     dialog('Audio devices',select('Microphone','microphone',[['','System default'],...list.filter(d=>d.kind==='audioinput').map(d=>[d.deviceId,d.label||'Microphone'])],preferences.microphone)+select('Speaker','speaker',[['','System default'],...list.filter(d=>d.kind==='audiooutput').map(d=>[d.deviceId,d.label||'Speaker'])],preferences.speaker)+`<p class="fmcm-help">${(globalThis.PlatformLanguage?.htmlText("comms","m_9640d651adce54","Saved for your account in this browser. Run the readiness check after changing devices.") ?? "Saved for your account in this browser. Run the readiness check after changing devices.")}</p>`,async data=>{
       if(state.call&&!terminal.has(state.call.state))throw new Error('Change devices between calls.');
       const probe=await navigator.mediaDevices.getUserMedia({audio:data.microphone?{deviceId:{exact:data.microphone}}:true});probe.getTracks().forEach(track=>track.stop());
-      await applyAudio(state.client,data);localStorage.setItem(`${audioKey}:${scope()}`,JSON.stringify({microphone:data.microphone,speaker:data.speaker}));
+      await applyAudio(state.client,data);localStorage.setItem(`${audioKey}:${scope()}`,JSON.stringify({microphone:data.microphone,speaker:data.speaker}));clearCheck();
     });
   }
   Portal.navigation?.registerSchema?.('customerCall',{history:'push'});
