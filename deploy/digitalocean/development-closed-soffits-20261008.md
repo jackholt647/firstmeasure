@@ -28,8 +28,13 @@ construction display regions in about 104 ms, with wall coordinates unchanged.
 The broader editor suite has a previously recorded chimney-support selection
 failure; it is unrelated to this feature. Customer project data was read only.
 
-Final development rollout pending. Web and pool receive the seven editor files;
-worker retains its older unused PHP entrypoint and receives six JS files.
+Final development rollout verified on web, pool, and worker. The cumulative
+release 2bcbffbe12b1778c330da572cb768e2a765bf9f0 preserves all seven editor files
+on web and pool;
+worker retains its older unused PHP entrypoint and has the six JS files.
+Runtime readiness and development isolation passed on all three roles; the
+customer project and internal-editor capability return HTTP 200 on both web
+nodes. Full face-editor suite: 424/425 pass, with the known failure above.
 Compatibility staging was blocked by storage: root has 563 MiB free (below the
 1 GiB reserve), while the release volume has zero free inodes. No releases or
 customer data were deleted and no reserve was bypassed. Production is untouched.

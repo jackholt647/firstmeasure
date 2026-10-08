@@ -21,6 +21,19 @@ and every roof contact. Loading the saved broken state hides all four stray
 fragments behind their existing edited replacements. Customer data was read
 only; no project save was performed by the deployment.
 
-Development rollout receipt pending. Production is outside this deployment.
+Development web, pool, and worker are verified at
+2bcbffbe12b1778c330da572cb768e2a765bf9f0. Exact deployed hashes match the
+closed-soffit, base-level, and regrade sources (8 files per web node; 7 on worker).
+All three runtime readiness/isolation checks passed. The project and internal
+editor capability returned HTTP 200 on both web nodes. Anonymous asset requests
+redirect to the sign-in page; file verification was performed on the deployed
+release directly. Production is outside this deployment.
+
+Follow-up: N drawing now retains the supporting plane when started from a base
+point selected by the shared 3D picker. Previously, hovering outside a boundary
+could lose the face hit and measure edge snaps at Z=0. Two regression cases click
+six screen pixels inside/outside an oblique edge of a raised, pitched base and
+require an exact boundary endpoint and two resulting faces. All 60 base editor,
+sketch control, and sketch geometry tests pass. Snap follow-up rollout pending.
 The compatibility mirror remains blocked by its previously documented storage
 capacity and inode exhaustion; no cleanup or reserve bypass was performed.

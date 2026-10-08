@@ -110,7 +110,13 @@ window.createBaseSketchEditor=function(host){
   if(k==='m'&&!e.ctrlKey&&!e.metaKey&&drag?.height)return true;
   if(k==='escape'){cancel();return false;}if(curveTool){if(k==='f'&&typeof isFreeMove!=='undefined')isFreeMove=!isFreeMove;return true;}if(drag&&!e.ctrlKey&&!e.metaKey&&['m','h','n','c','u','delete','backspace'].includes(k)){if(e.repeat||!finishToolForSwitch())return true;}if(axisPreview){if(k==='h'&&!e.repeat)perpendicularCut();else if(k==='z'&&(e.ctrlKey||e.metaKey))cancel();return true;}if(k==='h'&&selected.length===1){if(!e.repeat)perpendicularCut();return true;}
   if(k==='s'&&!e.ctrlKey&&!e.metaKey&&selected.length===1){const start={...actual(node(selected[0]))},face=support()||host.base().faces.find(f=>onFace(start,f));curveTool={start,face,normal:window.WallSolidGeometry.normal(face.points),track:{}};armed=false;preview=null;host.message('Curve: click the center, then sweep to the endpoint; Escape cancels.');return true;}
-  if(k==='n'){armed=true;preview=null;host.message(selected.length===1?'Click an endpoint on this base face; Escape cancels.':'Click the base to place a starting point.');host.redraw();return true;}
+  if(k==='n'){
+   // A point picked through the shared 3D picker has no preferred face.
+   // Keep its supporting plane while the cursor crosses the far boundary;
+   // otherwise finite-edge snaps are projected at Z=0 outside the face hit.
+   const start=selected.length===1&&node(selected[0]);
+   if(start&&!onFace(start,support())){const m=host.mouse?.(),hit=m&&host.faceAt(m.e,m.v);preferredFace=copy(hit&&onFace(start,hit)?hit:host.base().faces.find(f=>onFace(start,f))||null);}
+   armed=true;preview=null;host.message(selected.length===1?'Click an endpoint on this base face; Escape cancels.':'Click the base to place a starting point.');host.redraw();return true;}
   if(['c','u'].includes(k)){if(perform(()=>connect(selected)))report();return true;}
   if(['delete','backspace'].includes(k)){perform(()=>S.remove(host.base(),selected,lines));selected=selected.filter(id=>node(id));lines=lines.filter(id=>sketch().edges.some(e=>e.id===id));report();return true;}
   if(['m','h'].includes(k)&&(selected.length||lines.length)){

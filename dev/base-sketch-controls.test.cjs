@@ -105,3 +105,16 @@ test('repeated M preserves a base point height move until click or Escape',()=>{
  editor.move(e(160),'3d');editor.keyDown({key:'Escape'});assert.equal(JSON.stringify(base),before);assert.equal(commits.length,count);
  editor.keyDown({key:'m'});editor.move(e(180),'3d');editor.keyDown({key:'m'});editor.move(e(160),'3d');editor.down(e(160),'3d');assert.equal(commits.length,count+1);assert.equal(JSON.stringify(commits.at(-1)),before);
 });
+
+for(const offset of [-6,6])test('N snaps across a raised pitched base to an oblique screen edge from a point selection '+offset,()=>{
+ const z=(x,y)=>10+.2*x+.1*y,p=(x,y)=>({x,y,z:z(x,y)});let base={faces:[{id:'pitched',points:[p(0,0),p(8,2),p(8,10),p(0,8)]}]},message='',commits=0;
+ const start=p(0,3),id=S.add(base,start,.0001);S.resolve(base);
+ const screen=p=>({x:(p.x+.25*p.z)*100,y:(p.y-.3*p.z)*100});
+ const position=(e,v,z)=>({x:e.clientX/100-.25*z,y:e.clientY/100+.3*z,z});
+ const at=e=>{const q=position(e,'3d',0),height=(10+.2*q.x+.1*q.y)/(1+.2*.25-.1*.3);return position(e,'3d',height);};
+ const ctx={BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);
+ const editor=ctx.createBaseSketchEditor({base:()=>base,active:()=>true,mode:()=>'point',position,screen,faceAt:e=>base.faces.find(f=>G.contains(f,at(e))),commit:()=>commits++,restore:b=>base=b,message:m=>message=m,redraw(){},isCenter:()=>false});
+ editor.selectEntities([start],[]);editor.keyDown({key:'n'});const q=screen(p(8,5.3)),e={clientX:q.x+offset,clientY:q.y,button:0,buttons:0};editor.move(e,'3d');editor.down(e,'3d');
+ assert.equal(base.faces.length,2,message);assert.equal(commits,1);
+ const end=base.sketch.nodes.find(n=>Math.abs(n.x-8)<1e-7&&n.y>3&&n.y<7);assert.ok(end,'endpoint lies exactly on the far boundary');assert.ok(Math.abs(end.z-z(end.x,end.y))<1e-7);
+});
