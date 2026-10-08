@@ -1,5 +1,7 @@
 # Height-map masking — development, October 8, 2026
 
+Verified application release: `5dc08befcab29d6ceec95078589d9f62a60c4d04`.
+
 Wall mode's 2D header now has Mask height map, Draw/Erase, Brush/Rectangle,
 brush size, Undo/Redo and Clear mask. The tinted image-space overlay follows
 zoom, pan and rotation. Escape cancels a pending gesture or exits masking.
@@ -21,4 +23,13 @@ Validation: 85 focused tests passed, including a Chrome browser test exercising
 brush/rectangle gestures, erasure, clear, undo/redo, cancellation, image rotation,
 save/restore, crop composition and masked-ground ray picking. Source DSM values
 remain unchanged. Evidence and the six-file development manifest are retained in
-`output/height-map-mask-20261008/`. Deployment verification is pending.
+`output/height-map-mask-20261008/`. All four development roles activated and
+passed six-file content checks, runtime identity, readiness and isolation checks.
+Public HTTPS verification matched all five JavaScript asset checksums and the
+release ID. PHP syntax passed on each role during staging. The worker's older
+unrelated editor markup was preserved while adding the guarded script include.
+
+Rollback baseline is `32468b06758541ffce9b39f3f31133b75ea26b55` on all roles.
+Use the manifest's role-specific `previous_path` to atomically restore current,
+restart that development service, reload PHP-FPM on web/compatibility, and verify
+readiness and identity. Production, databases and topology were not changed.
