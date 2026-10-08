@@ -9,7 +9,7 @@ import { readEventRecord, listEventRecords } from "../work/storage.js";
 import { grantFeedRoot } from "./feed-access.js";
 import * as store from "./storage.js";
 import * as channels from "./service.js";
-import { postMessageSchema, reactionSchema, editMessageSchema } from "./schemas.js";
+import { postMessageSchema, reactionSchema, editMessageSchema, giphyMessageSchema } from "./schemas.js";
 import {canAccessDepartmentResource,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
 import { allowedFeedDepartments, feedActivityOptions, feedGroupDirectory, readFeedPostSettings, requireFeedDepartment, saveFeedPostSettings } from "./feed-groups.js";
 
@@ -231,7 +231,7 @@ export function registerFeedRoutes(app:FastifyInstance) {
   });
   app.post(prefix+"/posts/manual",async request=>{
     const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");requirePermission(ctx,"comment_feed");
-    const body=z.object({text:z.string().trim().min(1).max(5000),department_id:z.string().trim().max(120).default(""),mention_user_ids:z.array(z.string().trim().min(1).max(160)).max(20).default([]),client_msg_id:z.string().trim().max(160).optional()}).strict().parse(request.body);
+    const body=z.object({text:z.string().trim().max(5000).default(""),department_id:z.string().trim().max(120).default(""),mention_user_ids:z.array(z.string().trim().min(1).max(160)).max(20).default([]),client_msg_id:z.string().trim().max(160).optional(),has_uploads:z.boolean().default(false),giphy:giphyMessageSchema.optional(),audio_note:z.record(z.unknown()).optional()}).strict().refine(value=>!!(value.text || value.has_uploads || value.giphy),{message:"A post needs text, a GIF, or an attachment."}).parse(request.body);
     const groups=await feedGroupDirectory(ctx.orgId);
     if(body.department_id)requireFeedDepartment(groups,ctx.userId,body.department_id);
     const directory=await channels.userDirectory(ctx.orgId);
@@ -242,7 +242,7 @@ export function registerFeedRoutes(app:FastifyInstance) {
       return {id,name:user.name};
     });
     const channel=await feedChannel(ctx.orgId);
-    const message=await createRootRecord({organization_id:ctx.orgId,channel_id:channel.id,author_id:ctx.userId,client_msg_id:body.client_msg_id,text:body.text,mention_users:mentions,metadata:{feed_post:true,feed_manual:true,feed_department_id:body.department_id}});
+    const message=await createRootRecord({organization_id:ctx.orgId,channel_id:channel.id,author_id:ctx.userId,client_msg_id:body.client_msg_id,text:body.text,mention_users:mentions,metadata:{feed_post:true,feed_manual:true,feed_department_id:body.department_id,...(body.giphy?{giphy:body.giphy}:{}),...(body.audio_note?{audio_note:body.audio_note}:{})}});
     grantFeedRoot(ctx,message.id);
     return {ok:true,post:(await channels.hydrateMessages(ctx,channel,[message]))[0]};
 
@@ -269,9 +269,8 @@ export function registerFeedRoutes(app:FastifyInstance) {
     if(!part)throw forbidden("file_required","Choose an attachment.");
     const manual=root.metadata.feed_manual === true && root.id === str((request.params as Obj).messageId);
     if(manual && root.author_id !== ctx.userId)throw forbidden("feed_post_upload_denied","Only the author can add images to this post.");
-    if(manual && !part.mimetype.startsWith("image/"))throw badRequest("feed_post_images_only","Choose an image for this post.");
     const bytes=await part.toBuffer();
-    if(manual && bytes.length>10*1024*1024)throw badRequest("feed_post_image_too_large","Images must be 10 MB or smaller.");
+    if(manual && bytes.length>(part.mimetype.startsWith("image/")?10:25)*1024*1024)throw badRequest("feed_post_file_too_large","Images must be 10 MB or smaller; other files must be 25 MB or smaller.");
     const media=await storeMediaUpload(ctx.orgId,{ownerType:"channel",ownerId:root.channel_id,slot:"attachment",fileName:part.filename,contentType:part.mimetype,bytes,metadata:{source:manual?"feed_post":"feed_comment",channel_id:root.channel_id,feed_root_id:root.id,uploaded_by:ctx.userId}});
     const attachment=await store.createAttachmentRecord({organization_id:ctx.orgId,channel_id:root.channel_id,media_id:str(media.id),file_name:part.filename,content_type:part.mimetype,size_bytes:bytes.length,uploaded_by:ctx.userId});
     if(manual)await store.attachToMessage(ctx.orgId,[attachment.id],root.id,root.channel_id,ctx.userId);

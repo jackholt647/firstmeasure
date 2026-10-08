@@ -56,17 +56,14 @@
     composerDepartment: '',
     composerMentions: new Set(),
     composerFiles: [],
+    composerGif: null,
+    composerAudioFile: null,
+    composerAudioNote: null,
     composerPreviewUrls: new Map(),
     composerPreviewIndex: -1,
     thumbnailStatus: new Map(),
     composerOperationId: '',
     composerBusy: false,
-    settingsOpen: false,
-    settingsScope: 'company',
-    settingsDraft: null,
-    settingsDepartments: [],
-    settingsActivityOptions: [],
-    settingsBusy: false,
     query: '',
     density: 'small',
     views:['list','small','large','mosaic','posts'],
@@ -1233,11 +1230,11 @@
         timestamp:note.created_at, dateKey:dateKey(note.created_at),
         search:[note.text,note.author?.name,projectTitle(project),projectAddress(project)].join(' ').toLowerCase() };
     }) : [];
-    const manualEntries = state.manualPosts.map((manual)=>({
+    const manualEntries = state.density === 'posts' ? state.manualPosts.map((manual)=>({
       id:`manual:${manual.id}`,kind:'manual',manual,project:{},projectId:'',
       timestamp:manual.created_at,dateKey:dateKey(manual.created_at),
       search:[manual.text,manual.author?.name,...(manual.mention_users || []).map(person=>person.name)].join(' ').toLowerCase()
-    }));
+    })) : [];
     const unpaired = new Set(activityEntries.map((entry) => entry.id));
     [...mediaEntries, ...documentEntries].forEach((asset) => {
       const match = activityEntries.find((entry) => unpaired.has(entry.id) && assetEventMatch(asset, entry.event));
@@ -1249,14 +1246,14 @@
       unpaired.delete(match.id);
     });
     const query = cleanText(state.query).toLowerCase();
-    const entries = state.visibleTags.size && !state.manualOnly
+    const entries = state.visibleTags.size && !(state.density === 'posts' && state.manualOnly)
       ? [...manualEntries,...mediaEntries]
       : [...manualEntries,...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id)), ...noteEntries];
     return entries
       .filter((entry) => entry.kind === 'manual' || entry.kind === 'note' || options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
-      .filter((entry) => !state.manualOnly || entry.kind === 'manual')
+      .filter((entry) => state.density !== 'posts' || !state.manualOnly || entry.kind === 'manual')
       .filter(feedEntryInScope)
-      .filter((entry) => entry.kind === 'manual' || automaticPostEnabled(entry))
+      .filter((entry) => state.density !== 'posts' || entry.kind === 'manual' || automaticPostEnabled(entry))
       .filter((entry) => !query || entry.search.includes(query))
       .sort((left, right) => String(right.timestamp).localeCompare(String(left.timestamp)));
   }
@@ -1612,8 +1609,8 @@
       .pf-wrap[data-density="list"] .pf-feed-grid{max-width:none}
       .pf-feed-list-row{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:13px;min-height:72px;padding:11px 15px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 1px 2px #10182808}.pf-feed-list-copy{min-width:0;display:grid;gap:5px}.pf-feed-list-copy strong{color:#182230;font-size:13px;line-height:1.35}.pf-feed-list-project{display:flex;align-items:center;gap:7px;min-width:0;color:#667085;font-size:11px}.pf-feed-list-project button{border:0;background:none;padding:0;color:#475467;font:inherit;font-weight:850;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-feed-list-project button:hover{text-decoration:underline;color:var(--primary-readable,var(--primary,#d93025))}.pf-feed-list-project .pf-feed-list-address{font-weight:650}.pf-feed-list-project .pf-feed-list-separator{color:#98a2b3}.pf-feed-list-time{color:#667085;font-size:11px;font-weight:750;white-space:nowrap;text-align:right}
       .pf-actor-avatar{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;position:relative;border-radius:50%;background:#e9eef4;color:#475467;font-size:16px;font-weight:850}.pf-actor-avatar>img{width:100%;height:100%;border-radius:50%;object-fit:cover}.pf-actor-badge{position:absolute;right:-3px;bottom:-3px;width:21px;height:21px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:var(--primary,#d93025);color:#fff;font-size:9px;box-shadow:0 1px 3px #10182820}.pf-post-head .pf-actor-avatar{width:44px;height:44px;flex-basis:44px}
-      .pf-wrap[data-density="mosaic"] .pf-feed-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:8px;gap:12px;align-items:start}
-      .pf-wrap[data-density="mosaic"] .pf-feed-grid>article{margin:0;border-radius:4px;overflow:hidden}
+      .pf-wrap[data-density="mosaic"] .pf-feed-grid{display:block;columns:4;column-gap:12px}
+      .pf-wrap[data-density="mosaic"] .pf-feed-grid>article{width:100%;box-sizing:border-box;break-inside:avoid;margin:0 0 12px;border-radius:4px;overflow:hidden}
       .pf-wrap[data-density="mosaic"] .pf-feed-card .pf-thumb{aspect-ratio:4/5}
       .pf-wrap[data-density="mosaic"] .pf-feed-card:nth-child(3n+2) .pf-thumb{aspect-ratio:4/3}
       .pf-wrap[data-density="mosaic"] .pf-feed-card:nth-child(5n+3) .pf-thumb{aspect-ratio:1/1}
@@ -1629,7 +1626,7 @@
       .pf-post-document{margin:0 18px 18px;padding:24px;background:#f6f4fc;border:1px solid #e4def3;border-radius:8px;display:flex;align-items:flex-start;gap:18px}.pf-post-document-icon{font-size:34px;color:#7c3aed}.pf-post-document small{display:block;color:#667085;margin-bottom:5px}.pf-post-document strong{display:block;font-size:18px;color:#182230}.pf-post-document .pf-action{margin-top:14px}.pf-post-value{display:block;font-size:30px;color:#182230;margin-top:10px;letter-spacing:-.5px}.pf-post-event{padding:10px 22px 26px;line-height:1.6;font-size:16px}.pf-post-event>i{color:var(--primary,#475467);font-size:26px}.pf-post-event p{margin:10px 0 0}
       .pf-post-stats{padding:12px 18px;display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#667085}.pf-post-stats button{border:0;background:none;color:inherit}.pf-post-actions{display:flex;align-items:center;margin:0 14px;border-top:1px solid #eaecf0;padding:5px 0;gap:6px}.pf-post-actions>button{flex:1;border:0;background:none;color:#667085;border-radius:7px;padding:10px;font-size:13px}.pf-post-actions>button:hover{background:#f2f4f7}.pf-post-actions>button[aria-pressed="true"]{color:#2563eb;background:#eff6ff}.pf-post-react{position:relative}.pf-post-react summary{padding:10px;cursor:pointer;list-style:none}.pf-post-react>div{position:absolute;right:0;bottom:100%;display:flex;background:#fff;border:1px solid #e4e7ec;box-shadow:0 4px 20px #10182820;padding:6px;border-radius:20px;z-index:5}.pf-post-react button{border:0;background:none;font-size:22px;padding:5px}
       .pf-comments{padding:14px 18px;border-top:1px solid #eaecf0;background:#fcfcfd}.pf-comment{display:flex;gap:9px;margin-bottom:14px}.pf-comment>.pf-post-avatar{width:30px;height:30px;flex-basis:30px;font-size:12px}.pf-comment-body{flex:1;min-width:0}.pf-comment-head{display:flex;justify-content:space-between;gap:8px;font-size:12px}.pf-comment-head time{font-size:11px;color:#98a2b3}.pf-comment [data-comment-content]{padding:8px 12px;margin-top:5px;border-radius:4px 14px 14px;background:#eef1f4;font-size:13px;overflow-wrap:anywhere}.pf-comment-actions{display:flex;gap:9px;margin-top:5px;flex-wrap:wrap}.pf-comment-actions button{border:0;background:none;color:#667085;font-size:11px;padding:0}.pf-comment-label{display:block;font-size:11px;color:#667085}.pf-comment-label textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:62px;margin-top:5px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:11px;font:inherit;font-size:13px}.pf-comment-tools{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}.pf-comment-tools>button[type="submit"]{margin-left:auto}.pf-comment-tools details{position:relative;font-size:12px;cursor:pointer}.pf-comment-tools details>div{position:absolute;bottom:100%;display:flex;z-index:5;background:#fff;border:1px solid #e4e7ec}.pf-comment-tools details button{border:0;background:none;padding:6px;font-size:20px}.pf-comment-tools [data-comment-attachments]{font-size:11px;max-width:180px;overflow-wrap:anywhere}
-      @media(max-width:1050px){.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+      @media(max-width:1050px){.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.pf-wrap[data-density="mosaic"] .pf-feed-grid{columns:3}}
       @media(max-width:760px){.pf-wrap:has(.pf-feed-grid) .pf-toolbar{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-density{display:flex}.pf-wrap:has(.pf-feed-grid) .pf-tools{flex-wrap:wrap}.pf-wrap:has(.pf-feed-grid) .pf-search{flex-basis:100%}.pf-wrap[data-density="small"] .pf-feed-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.pf-wrap[data-density="large"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-wrap[data-density="list"] .pf-feed-grid{grid-template-columns:1fr}.pf-wrap[data-density="mosaic"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pf-post-collage{height:270px}.pf-post-collage.count-1{height:300px}.pf-wrap[data-density="posts"] .pf-scroll{padding:8px}.pf-post-head{padding:14px}.pf-wrap[data-density="list"] .pf-feed-card{grid-template-columns:90px minmax(0,1fr)}}
       @media(max-width:760px){.pf-feed-list-row{grid-template-columns:46px minmax(0,1fr);gap:10px;padding:11px}.pf-feed-list-time{grid-column:2;text-align:left;margin-top:-2px}.pf-feed-list-project{flex-wrap:wrap;gap:3px 7px}.pf-feed-list-project button{white-space:normal;text-align:left}}
       .pf-project-identity{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:0 7px;max-width:100%;text-align:left;line-height:1.4}.pf-project-identity span{overflow-wrap:anywhere}.pf-project-identity .pf-feed-list-address{font-weight:650}.pf-project-identity:hover span{text-decoration:underline}.pf-feed-list-project .pf-project-identity{white-space:normal;overflow:visible}
@@ -1650,6 +1647,11 @@
       .pf-comment-tools>button:not([type="submit"]){border:0;background:none;color:#475467;font-size:12px;font-weight:700;cursor:pointer;padding:5px}.pf-comment-tools>button:not([type="submit"]):hover{color:var(--primary,#d93025)}[data-comment-emoji-picker]:not([hidden]){display:block;max-height:230px;overflow:auto;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:8px;box-shadow:0 8px 30px #1018281a}[data-comment-emoji-picker] input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #d0d5dd;border-radius:6px}[data-comment-emoji-picker] .pf-emoji-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:2px}[data-comment-emoji-picker] button{border:0;background:none;font-size:21px;cursor:pointer;padding:4px}.pf-gif-dialog{width:min(580px,92vw)}.pf-gif-grid{height:280px;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.pf-gif-grid button{border:2px solid transparent;background:#f2f4f7;border-radius:8px;overflow:hidden;padding:0;cursor:pointer}.pf-gif-grid button.selected{border-color:var(--primary,#d93025)}.pf-gif-grid img{display:block;width:100%;height:125px;object-fit:cover}.pf-gif-dialog footer{align-items:center}.pf-gif-dialog footer a{margin-right:auto;font-size:11px;color:#667085}
       .pf-compose-audience{display:flex;align-items:center;gap:4px;font-size:13px;color:#475467}.pf-compose-audience select{appearance:none;border:0;background:transparent;color:#182230;font:inherit;font-weight:750;max-width:260px;cursor:pointer}.pf-compose-audience i{font-size:10px;pointer-events:none}.pf-compose-message{position:relative}.pf-compose-message textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:150px;padding:12px;border:1px solid #d0d5dd;border-radius:10px;font:inherit;font-size:14px}.pf-mention-menu{position:absolute;left:0;right:0;top:100%;z-index:8;max-height:190px;overflow:auto;border:1px solid #d0d5dd;border-radius:8px;background:#fff;box-shadow:0 12px 30px #1018281f}.pf-mention-menu[hidden]{display:none}.pf-mention-menu button{display:block;width:100%;padding:9px 12px;border:0;background:#fff;text-align:left;cursor:pointer}.pf-mention-menu button:hover{background:#f2f4f7}.pf-dialog-files{gap:10px}.pf-image-preview{position:relative;width:84px;height:84px}.pf-image-preview>button:first-child{width:100%;height:100%;padding:0;border:0;border-radius:8px;overflow:hidden;cursor:zoom-in}.pf-image-preview img{width:100%;height:100%;object-fit:cover}.pf-image-preview>button:last-child{position:absolute;right:-6px;top:-6px;width:22px;height:22px;border:0;border-radius:50%;background:#344054;color:#fff;cursor:pointer}.pf-image-lightbox{position:fixed;inset:0;z-index:10010;display:grid;place-items:center;background:#101828e6;padding:30px}.pf-image-lightbox img{max-width:90vw;max-height:85vh;object-fit:contain}.pf-image-lightbox button{position:absolute;right:25px;top:18px;border:0;background:transparent;color:#fff;font-size:30px;cursor:pointer}
       @media(max-width:760px){.pf-feed-scopebar{padding:9px 11px}.pf-feed-scopebar>button:last-child{margin-left:0}.pf-dialog{padding:15px}.pf-settings-types{grid-template-columns:1fr}.pf-comment-tools{gap:8px}.pf-comment-tools>button[type="submit"]{width:100%}}
+      @media(max-width:760px){.pf-wrap[data-density="mosaic"] .pf-feed-grid{columns:2}}
+      .pf-comment-children{margin:2px 0 13px 42px;padding-left:12px;border-left:2px solid #e4e7ec}.pf-comment-children[hidden]{display:none}.pf-comment-children .pf-comment{margin-left:0}.pf-comment-replies-toggle{margin:0 0 9px 43px;border:0;background:none;color:#2456a8;font-size:11px;font-weight:750;cursor:pointer;padding:2px 0}.pf-comment-replies-toggle:hover{text-decoration:underline}
+      .pf-emoji-picker:not([hidden]){display:block;max-height:230px;overflow:auto;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:8px;box-shadow:0 8px 30px #1018281a}.pf-emoji-picker input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #d0d5dd;border-radius:6px}.pf-emoji-picker .pf-emoji-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:2px}.pf-emoji-picker button{border:0;background:none;font-size:21px;cursor:pointer;padding:4px}.pf-file-preview{display:flex;align-items:center;gap:7px;border:1px solid #e4e7ec;border-radius:8px;padding:6px 8px;font-size:11px;max-width:100%}.pf-file-preview span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-file-preview button{border:0;background:none;cursor:pointer;font-size:16px}
+      .pf-manual-gif,.pf-manual-files{padding:0 18px 14px}.pf-manual-gif img{display:block;max-width:100%;max-height:300px;border-radius:8px}.pf-manual-files{display:grid;gap:8px}.pf-manual-files a{color:#2456a8;font-size:12px}.pf-manual-tile .pf-manual-gif,.pf-manual-row .pf-manual-gif,.pf-manual-tile .pf-manual-files,.pf-manual-row .pf-manual-files{padding:0 0 9px}
+      .pf-comment-tools .pf-compose-tool,.pf-post-compose-tools .pf-compose-tool{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:none;border:0;border-radius:8px;background:transparent;color:#667085;font-size:12.5px;cursor:pointer;padding:0}.pf-comment-tools .pf-compose-tool:hover,.pf-post-compose-tools .pf-compose-tool:hover{background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}.pf-gif-icon{font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px}.pf-post-compose-tools{display:flex;align-items:center;gap:8px}.pf-comment-tools{gap:7px}.pf-composer-gif{position:relative;justify-self:start}.pf-composer-gif img{max-width:240px;max-height:160px;border-radius:8px}.pf-composer-gif button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border:0;border-radius:50%;background:#344054;color:#fff;cursor:pointer}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
@@ -2187,7 +2189,7 @@
     return state.posts.get(key);
   }
   function postAuthor(post){
-    if (post.kind === 'manual') return {name:firstText(post.manual?.author?.name,'Employee'),avatar:firstText(post.manual?.author?.avatar)};
+    if (post.kind === 'manual') return {name:firstText(post.manual?.author?.name,'Employee'),avatar:firstText(post.manual?.author?.profile_photo_url,post.manual?.author?.avatar)};
     const documentUploader=post.kind==='document' ? firstText(post.document?.uploaded_by_user_id,post.document?.created_by_user_id,objectValue(post.document?.metadata).uploaded_by_user_id,post.pairedEvent?.actor_user_id) : '';
     const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author))
       || (documentUploader ? state.users.find(u=>cleanText(u.id || u.user_id)===documentUploader) : null);
@@ -2234,8 +2236,10 @@
     return id ? firstText(state.departments.find(department=>department.id===id)?.label,'Department') : 'Company';
   }
   function manualPostBodyHtml(message = {}){
-    const attachments=(message.attachments || []).filter(attachment=>cleanText(attachment.content_type).startsWith('image/'));
-    return `<div class="pf-manual-text">${escapeHtml(message.text || '')}</div>${(message.mention_users || []).length ? `<div class="pf-manual-mentions" aria-label="Tagged people">${message.mention_users.map(person=>`<span>@${escapeHtml(person.name || 'Employee')}</span>`).join('')}</div>` : ''}${attachments.length ? `<div class="pf-manual-images">${attachments.slice(0,6).map((attachment,index)=>`<a href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener" aria-label="Open post image ${index+1}"><img loading="lazy" src="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" alt="${escapeHtml(attachment.file_name || `Post image ${index+1}`)}"></a>`).join('')}${attachments.length>6?`<span>+${attachments.length-6} more</span>`:''}</div>` : ''}`;
+    const attachments=message.attachments || [],images=attachments.filter(attachment=>cleanText(attachment.content_type).startsWith('image/'));
+    const other=attachments.filter(attachment=>!cleanText(attachment.content_type).startsWith('image/'));
+    const gif=message.metadata?.giphy;
+    return `${message.text?`<div class="pf-manual-text">${escapeHtml(message.text)}</div>`:''}${(message.mention_users || []).length ? `<div class="pf-manual-mentions" aria-label="Tagged people">${message.mention_users.map(person=>`<span>@${escapeHtml(person.name || 'Employee')}</span>`).join('')}</div>` : ''}${gif&&/^https:\/\/media\d*\.giphy\.com\/media\//i.test(gif.url||'')?`<div class="pf-manual-gif"><img loading="lazy" src="${escapeHtml(gif.url)}" alt="${escapeHtml(gif.title || 'GIF')}"></div>`:''}${images.length ? `<div class="pf-manual-images">${images.slice(0,6).map((attachment,index)=>`<a href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener" aria-label="Open post image ${index+1}"><img loading="lazy" src="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" alt="${escapeHtml(attachment.file_name || `Post image ${index+1}`)}"></a>`).join('')}${images.length>6?`<span>+${images.length-6} more</span>`:''}</div>` : ''}${other.length?`<div class="pf-manual-files">${other.map(attachment=>cleanText(attachment.content_type).startsWith('audio/')&&message.metadata?.audio_note&&window.FirstMateAudioNotes?.playerHtml?window.FirstMateAudioNotes.playerHtml({url:window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id),duration:Number(message.metadata.audio_note.duration_seconds)||0,peaks:message.metadata.audio_note.peaks||[]}):`<a href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener"><i class="fas fa-paperclip"></i> ${escapeHtml(attachment.file_name || 'Open attachment')}</a>`).join('')}</div>`:''}`;
   }
   function feedManualEntryHtml(entry = {}){
     const author=postAuthor(entry),message=entry.manual;
@@ -2259,6 +2263,20 @@
     const avatar=cleanText(author.avatar);
     return /^(https?:\/\/|\/)/.test(avatar)?`<img class="pf-post-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(author.name)}">`:`<span class="pf-post-avatar">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
   }
+  function feedComposerToolsHtml(prefix){
+    const voiceIcon=mode=>`<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat"></span>`;
+    return `<button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-emoji-open title="Insert emoji" aria-label="Insert emoji"><i class="fas fa-face-smile" aria-hidden="true"></i></button><button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-gif title="Send a GIF" aria-label="Send a GIF"><span class="pf-gif-icon">GIF</span></button><label class="fm-ch-icon-btn pf-compose-tool" title="Attach a file" aria-label="Attach a file"><i class="fas fa-paperclip" aria-hidden="true"></i><input type="file" data-${prefix==='comment'?'comment-file':'feed-compose-files'} hidden multiple></label><button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-audio title="Record an audio note" aria-label="Record an audio note">${voiceIcon('record')}</button><button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-dictate title="Dictate message" aria-label="Dictate message">${voiceIcon('dictation')}</button>`;
+  }
+  function toggleFeedEmojiPicker(picker,input,onChange){
+    if(!picker || !input)return;
+    picker.hidden=!picker.hidden;
+    if(picker.hidden)return;
+    const groups=window.FirstMateChannels?.EMOJI_SET || [{group:'Emoji',items:['👍','❤️','😂','🎉','😊','🙏']}];
+    picker.innerHTML='<input type="search" placeholder="Search emoji" aria-label="Search emoji"><div data-emoji-results></div>';
+    const search=picker.querySelector('input'),results=picker.querySelector('[data-emoji-results]');
+    const paint=()=>{results.replaceChildren();for(const group of groups){const items=group.items.filter(emoji=>!search.value || `${group.group} ${emoji}`.toLowerCase().includes(search.value.toLowerCase()));if(!items.length)continue;const title=document.createElement('strong');title.textContent=group.group;results.append(title);const grid=document.createElement('div');grid.className='pf-emoji-grid';for(const emoji of items){const button=document.createElement('button');button.type='button';button.textContent=emoji;button.onclick=()=>{const start=input.selectionStart,end=input.selectionEnd;input.value=input.value.slice(0,start)+emoji+input.value.slice(end);input.selectionStart=input.selectionEnd=start+emoji.length;onChange(input.value);picker.hidden=true;input.focus();};grid.append(button);}results.append(grid);}};
+    search.oninput=paint;paint();search.focus();
+  }
   function feedPostHtml(post){
     if (post.kind === 'note') {
       const author=postAuthor(post);
@@ -2276,7 +2294,7 @@
       ${body}
       <div class="pf-post-stats"><span>${reactions.length ? reactions.map(r=>`<span class="pf-reaction-count" title="${escapeHtml((r.users || []).map(user=>user.name).join(', ') || 'Someone')} reacted with ${escapeHtml(r.emoji)}">${escapeHtml(r.emoji)} ${r.count}</span>`).join('') : 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div>
       <div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><div class="pf-post-react"><button type="button" aria-label="More reactions"><i class="far fa-face-smile"></i><span>React</span></button><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></div>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>
-      ${current.open?`<section class="pf-comments" aria-label="Comments"><div class="pf-comments-title"><strong>Comments</strong><span>${current.root?.reply_count || 0}</span></div><div data-comment-list></div>${state.canComment?`<form data-comment-form><div class="pf-comment-compose">${avatarHtml({name:firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'),avatar:state.users.find(user=>user.id===APP.userId)?.profile_photo_url})}<div class="pf-comment-compose-body">${current.replyToName?`<div class="pf-comment-reply-target">Replying to ${escapeHtml(current.replyToName)} <button type="button" data-comment-cancel-reply aria-label="Cancel reply">×</button></div>`:''}<label class="pf-comment-label"><span class="sr-only">Write a comment</span><textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><button type="button" data-comment-gif aria-label="Send a GIF">GIF</button><button type="button" data-comment-emoji-open aria-label="Add emoji"><i class="far fa-face-smile"></i> Emoji</button><button type="button" data-comment-dictate aria-label="Dictate comment"><i class="fas fa-microphone-lines"></i> Dictate</button><button type="button" data-comment-audio aria-label="Record audio note"><i class="fas fa-microphone"></i> Audio</button><label class="pf-comment-attach"><i class="fas fa-paperclip"></i> Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post comment</button></div><div data-comment-emoji-picker hidden></div><div data-comment-dictation-mount></div><div data-comment-audio-mount></div></div></div></form>`:''}</section>`:''}</article>`;
+      ${current.open?`<section class="pf-comments" aria-label="Comments"><div class="pf-comments-title"><strong>Comments</strong><span>${current.root?.reply_count || 0}</span></div><div data-comment-list></div>${state.canComment?`<form data-comment-form><div class="pf-comment-compose">${avatarHtml({name:firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'),avatar:state.users.find(user=>user.id===APP.userId)?.profile_photo_url})}<div class="pf-comment-compose-body">${current.replyToName?`<div class="pf-comment-reply-target">Replying to ${escapeHtml(current.replyToName)} <button type="button" data-comment-cancel-reply aria-label="Cancel reply">×</button></div>`:''}<label class="pf-comment-label"><span class="sr-only">Write a comment</span><textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools">${feedComposerToolsHtml('comment')}<span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post comment</button></div><div class="pf-emoji-picker" data-comment-emoji-picker hidden></div><div data-comment-dictation-mount></div><div data-comment-audio-mount></div></div></div></form>`:''}</section>`:''}</article>`;
   }
   async function fetchPost(post,create=false){
     const current=postState(post.id);
@@ -2284,17 +2302,20 @@
     current.root=result.root;current.replies=result.replies || [];current.loaded=true;
     return current;
   }
-  function openFeedGifPicker(onSend,onError){
+  function openFeedGifPicker(onSend,onError,options={}){
     const overlay=document.createElement('div');overlay.className='pf-overlay';
-    overlay.innerHTML='<div class="pf-dialog pf-gif-dialog" role="dialog" aria-modal="true" aria-label="Send a GIF"><header><strong>Send a GIF</strong><button type="button" data-gif-close aria-label="Close">×</button></header><input type="search" data-gif-search placeholder="Search GIPHY" aria-label="Search GIPHY"><p data-gif-status role="status">Loading GIFs…</p><div class="pf-gif-grid" data-gif-grid></div><footer><a href="https://giphy.com" target="_blank" rel="noopener noreferrer">Powered by GIPHY</a><button type="button" data-gif-close>Cancel</button><button type="button" class="pf-action primary" data-gif-send disabled>Send GIF</button></footer></div>';
+    overlay.innerHTML=`<div class="pf-dialog pf-gif-dialog" role="dialog" aria-modal="true" aria-label="Choose a GIF"><header><strong>Choose a GIF</strong><button type="button" data-gif-close aria-label="Close">×</button></header><input type="search" data-gif-search placeholder="Search GIPHY" aria-label="Search GIPHY"><p data-gif-status role="status">Loading GIFs…</p><div class="pf-gif-grid" data-gif-grid></div><div data-gif-preview></div><footer><a href="https://giphy.com" target="_blank" rel="noopener noreferrer">Powered by GIPHY</a><button type="button" data-gif-close>Cancel</button><button type="button" class="pf-action primary" data-gif-send disabled>${escapeHtml(options.actionLabel || 'Send GIF')}</button></footer></div>`;
     document.body.append(overlay);
-    const close=()=>overlay.remove();overlay.querySelectorAll('[data-gif-close]').forEach(button=>button.onclick=close);
-    const search=overlay.querySelector('[data-gif-search]'),grid=overlay.querySelector('[data-gif-grid]'),status=overlay.querySelector('[data-gif-status]'),send=overlay.querySelector('[data-gif-send]');
-    let client,selected,timer,generation=0;
-    const paint=async()=>{const version=++generation;status.textContent='Loading GIFs…';grid.replaceChildren();selected=null;send.disabled=true;try{const result=search.value.trim()?await client.search(search.value.trim(),{limit:24,rating:'pg'}):await client.trending({limit:24,rating:'pg'});if(!overlay.isConnected||version!==generation)return;status.textContent=result.data.length?'Choose a GIF to send.':'No GIFs found.';for(const gif of result.data){const image=gif.images.fixed_width || gif.images.original;const button=document.createElement('button');button.type='button';button.innerHTML=`<img loading="lazy" src="${escapeHtml(image.url)}" alt="${escapeHtml(gif.title || 'GIF')}">`;button.onclick=()=>{grid.querySelector('.selected')?.classList.remove('selected');button.classList.add('selected');selected={id:String(gif.id),url:image.url,title:gif.title || 'GIF',width:Number(image.width),height:Number(image.height)};send.disabled=false;};grid.append(button);}}catch(error){status.textContent=error?.message || 'GIF search is unavailable.';}};
-    search.oninput=()=>{clearTimeout(timer);timer=setTimeout(paint,350);};
+    let disposed=false,removeGrid=null,timer=null,client,renderGrid,selected,generation=0;
+    const close=()=>{disposed=true;clearTimeout(timer);removeGrid?.();overlay.remove();};overlay.querySelectorAll('[data-gif-close]').forEach(button=>button.onclick=close);
+    const search=overlay.querySelector('[data-gif-search]'),grid=overlay.querySelector('[data-gif-grid]'),preview=overlay.querySelector('[data-gif-preview]'),status=overlay.querySelector('[data-gif-status]'),send=overlay.querySelector('[data-gif-send]');
+    const paint=()=>{const version=++generation;removeGrid?.();grid.replaceChildren();preview.replaceChildren();selected=null;send.disabled=true;status.textContent='Loading GIFs…';removeGrid=renderGrid({width:Math.max(240,Math.floor(grid.clientWidth)),columns:2,gutter:8,noLink:true,fetchGifs:async offset=>{
+      try{const query=search.value.trim();const result=await(query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));if(!disposed&&version===generation)status.textContent=result.data.length?'Choose a GIF to preview before sending.':'No GIFs found.';return result;}
+      catch(error){if(!disposed&&version===generation)status.textContent='GIF search is unavailable or its request limit was reached.';return{data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
+    },onGifClick:(gif,event)=>{event?.preventDefault();const image=gif.images.fixed_width || gif.images.original;selected={id:String(gif.id),url:image.url,title:gif.title || 'GIF',width:Number(image.width),height:Number(image.height)};preview.innerHTML=`<img src="${escapeHtml(selected.url)}" alt="${escapeHtml(selected.title)}" style="max-width:100%;max-height:160px;border-radius:8px">`;status.textContent='Ready to send. You can choose another GIF.';send.disabled=false;}},grid);};
+    search.oninput=()=>{clearTimeout(timer);timer=setTimeout(paint,500);};
     send.onclick=async()=>{if(!selected)return;send.disabled=true;try{await onSend(selected);close();}catch(error){send.disabled=false;onError(error);}};
-    window.ChannelsAPI.gifs.config(orgId()).then(async config=>{if(!config.enabled)throw new Error('GIF search is unavailable here.');const sdk=await import('/libraries/gif-picker/giphy-sdk.js?v=20260929');client=new sdk.GiphyFetch(config.sdk_key);await paint();}).catch(error=>{status.textContent=error?.message || 'GIF search is unavailable.';});
+    window.ChannelsAPI.gifs.config(orgId()).then(async config=>{if(!config.enabled)throw new Error('GIF search is unavailable here.');const sdk=await import('/libraries/gif-picker/giphy-sdk.js?v=20260929');if(disposed)return;client=new sdk.GiphyFetch(config.sdk_key);renderGrid=sdk.renderGrid;paint();}).catch(error=>{if(!disposed)status.textContent=error?.message || 'GIF search is unavailable.';});
     search.focus();
   }
   function renderFeedCommentContent(message,container){
@@ -2334,9 +2355,10 @@
       card.querySelector('.pf-post-react>button')?.addEventListener('click',event=>{event.currentTarget.parentElement.classList.toggle('open');});
       card.querySelectorAll('[data-post-emoji]').forEach(btn=>btn.addEventListener('click',()=>react(btn.dataset.postEmoji)));
       const comments=card.querySelector('[data-comment-list]');
+      const commentThreads=new Map();
       for(const message of current.replies){
         const row=document.createElement('article');row.className=`pf-comment${message.metadata?.feed_reply_to?' pf-comment-reply':''}`;
-        row.innerHTML=`${avatarHtml(message.author || {name:'Someone'})}<div class="pf-comment-body"><div class="pf-comment-head"><strong>${escapeHtml(message.author?.name || 'Someone')}</strong>${message.edited_at?'<em>(edited)</em>':''}<time>${escapeHtml(activityTime(message.created_at))}</time></div>${message.metadata?.feed_reply_to?`<small>Reply to ${escapeHtml(message.metadata.feed_reply_to.author_name)}</small>`:''}<div data-comment-content></div><div class="pf-comment-actions"></div></div>`;
+        row.innerHTML=`${avatarHtml(message.author || {name:'Someone'})}<div class="pf-comment-body"><div class="pf-comment-head"><strong>${escapeHtml(message.author?.name || 'Someone')}</strong>${message.edited_at?'<em>(edited)</em>':''}<time>${escapeHtml(activityTime(message.created_at))}</time></div><div data-comment-content></div><div class="pf-comment-actions"></div></div>`;
         const content=row.querySelector('[data-comment-content]');
         if(current.editingId===message.id){
           const edit=document.createElement('form');edit.className='pf-comment-edit';edit.innerHTML=`<textarea aria-label="Edit comment" maxlength="250000">${escapeHtml(current.editDraft ?? message.text)}</textarea><div><button type="submit">Save edit</button><button type="button">Cancel</button></div>`;
@@ -2351,24 +2373,36 @@
         if(message.can_restore && state.canComment)button('Restore',async()=>{await window.ChannelsAPI.feed.restore(orgId(),message.id);await fetchPost(post);});
         if(message.can_edit && state.canComment && current.editingId!==message.id)button('Edit',async()=>{current.editingId=message.id;current.editDraft=message.text;});
         if(message.can_delete && state.canComment)button('Delete',async()=>{await window.ChannelsAPI.feed.remove(orgId(),message.id);await fetchPost(post);});
-        comments?.append(row);
+        const thread=document.createElement('div');thread.className='pf-comment-thread';thread.append(row);
+        commentThreads.set(message.id,{thread,message,children:[]});
+      }
+      for(const item of commentThreads.values()){
+        const parent=commentThreads.get(item.message.metadata?.feed_reply_to?.id);
+        if(parent && parent!==item)parent.children.push(item.thread);
+        else comments?.append(item.thread);
+      }
+      for(const [id,item] of commentThreads){
+        if(!item.children.length)continue;
+        const collapsed=current.collapsedReplies?.has(id)===true;
+        const toggle=document.createElement('button');toggle.type='button';toggle.className='pf-comment-replies-toggle';toggle.setAttribute('aria-expanded',String(!collapsed));toggle.textContent=`${collapsed?'Show':'Hide'} ${item.children.length} ${item.children.length===1?'reply':'replies'}`;
+        toggle.onclick=()=>{current.collapsedReplies ||= new Set();if(collapsed)current.collapsedReplies.delete(id);else current.collapsedReplies.add(id);rerender();};
+        const children=document.createElement('div');children.className='pf-comment-children';children.hidden=collapsed;children.append(...item.children);
+        item.thread.append(toggle,children);
       }
       if(comments&&!current.replies.length)comments.textContent=current.checking?'Loading comments…':'No comments yet. Start the conversation.';
       const form=card.querySelector('[data-comment-form]'),input=form?.querySelector('textarea');
       input?.addEventListener('input',()=>{current.draft=input.value;});
       card.querySelector('[data-comment-cancel-reply]')?.addEventListener('click',()=>{current.replyTo='';current.replyToName='';rerender();});
       const picker=card.querySelector('[data-comment-emoji-picker]');
-      card.querySelector('[data-comment-emoji-open]')?.addEventListener('click',()=>{
-        picker.hidden=!picker.hidden;if(picker.hidden)return;
-        const groups=window.FirstMateChannels?.EMOJI_SET || [{group:'Emoji',items:['👍','❤️','😂','🎉','😊','🙏']}];
-        picker.innerHTML='<input type="search" placeholder="Search emoji" aria-label="Search emoji"><div data-emoji-results></div>';
-        const search=picker.querySelector('input'),results=picker.querySelector('[data-emoji-results]');
-        const paint=()=>{results.replaceChildren();for(const group of groups){const items=group.items.filter(emoji=>!search.value || `${group.group} ${emoji}`.toLowerCase().includes(search.value.toLowerCase()));if(!items.length)continue;const title=document.createElement('strong');title.textContent=group.group;results.append(title);const grid=document.createElement('div');grid.className='pf-emoji-grid';for(const emoji of items){const button=document.createElement('button');button.type='button';button.textContent=emoji;button.onclick=()=>{input.value+=emoji;current.draft=input.value;picker.hidden=true;input.focus();};grid.append(button);}results.append(grid);}};
-        search.oninput=paint;paint();search.focus();
-      });
+      card.querySelector('[data-comment-emoji-open]')?.addEventListener('click',()=>toggleFeedEmojiPicker(picker,input,value=>{current.draft=value;}));
       const send=async(metadata={},text=current.draft,clientId)=>{await fetchPost(post,true);await window.ChannelsAPI.feed.comment(orgId(),current.root.id,{text,parent_id:current.replyTo || undefined,client_msg_id:clientId || current.operationId || (current.operationId=globalThis.crypto?.randomUUID?.() || `feed_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`),attachment_ids:(current.attachments || []).map(a=>a.id),metadata:{...(current.audioNote?{audio_note:current.audioNote}:{}),...metadata}});current.draft='';current.attachments=[];current.audioNote=null;current.operationId='';current.replyTo='';current.replyToName='';await fetchPost(post);};
       form?.addEventListener('submit',event=>{event.preventDefault();if(current.draft.trim() || current.attachments?.length)act(()=>send());});
-      card.querySelector('[data-comment-gif]')?.addEventListener('click',()=>openFeedGifPicker(selected=>act(()=>send({giphy:selected},current.draft)),error));
+      card.querySelector('[data-comment-gif]')?.addEventListener('click',()=>openFeedGifPicker(async selected=>{
+        if(current.busy)throw new Error('Please wait for the current comment to finish.');
+        current.busy=true;
+        try{await send({giphy:selected},current.draft);}
+        finally{current.busy=false;rerender();}
+      },error));
       for(const mode of ['dictate','audio'])card.querySelector(`[data-comment-${mode}]`)?.addEventListener('click',async()=>{
         try{
           if(!window.FirstMateAudioNotes?.prepareInline)throw new Error('Audio tools are unavailable.');
@@ -2521,17 +2555,19 @@
   }
   function feedComposerHtml(){
     if(!state.composerOpen)return '';
-    const previews=state.composerFiles.map((file,index)=>`<div class="pf-image-preview"><button type="button" data-feed-compose-preview="${index}" aria-label="Preview ${escapeHtml(file.name)}"><img src="${escapeHtml(state.composerPreviewUrls.get(file) || '')}" alt="${escapeHtml(file.name)}"></button><button type="button" data-feed-compose-remove="${index}" aria-label="Remove ${escapeHtml(file.name)}">×</button></div>`).join('');
+    const previews=state.composerFiles.map((file,index)=>file.type.startsWith('image/')
+      ? `<div class="pf-image-preview"><button type="button" data-feed-compose-preview="${index}" aria-label="Preview ${escapeHtml(file.name)}"><img src="${escapeHtml(state.composerPreviewUrls.get(file) || '')}" alt="${escapeHtml(file.name)}"></button><button type="button" data-feed-compose-remove="${index}" aria-label="Remove ${escapeHtml(file.name)}">×</button></div>`
+      : `<div class="pf-file-preview"><i class="fas fa-paperclip"></i><span>${escapeHtml(file.name)}</span><button type="button" data-feed-compose-remove="${index}" aria-label="Remove ${escapeHtml(file.name)}">×</button></div>`).join('');
     const enlarged=state.composerFiles[state.composerPreviewIndex];
-    return `<div class="pf-overlay"><form class="pf-dialog" data-feed-compose role="dialog" aria-modal="true" aria-label="Create a post"><header><strong>Create a post</strong><button type="button" data-feed-compose-close aria-label="Close">×</button></header><label class="pf-compose-audience">Post to <select data-feed-compose-scope aria-label="Post audience"><option value="" ${!state.composerDepartment?'selected':''}>everyone in the company</option>${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)} department</option>`).join('')}</select><i class="fas fa-chevron-down"></i></label><div class="pf-compose-message"><textarea data-feed-compose-text maxlength="5000" rows="5" placeholder="Write a post… Use @ to mention someone." aria-label="Post message" required>${escapeHtml(state.composerText)}</textarea><div class="pf-mention-menu" data-feed-compose-mention-menu hidden></div></div><label class="pf-dialog-upload"><i class="fas fa-image"></i> Add images<input type="file" data-feed-compose-files accept="image/*" multiple hidden></label><div class="pf-dialog-files">${previews}</div><footer><button type="button" data-feed-compose-close>Cancel</button><button type="submit" class="pf-action primary" ${state.composerBusy?'disabled':''}>${state.composerBusy?'Posting…':'Post'}</button></footer></form>${enlarged?`<div class="pf-image-lightbox" data-feed-image-lightbox><button type="button" data-feed-preview-close aria-label="Close image preview">×</button><img src="${escapeHtml(state.composerPreviewUrls.get(enlarged) || '')}" alt="${escapeHtml(enlarged.name)}"></div>`:''}</div>`;
-  }
-  function feedSettingsHtml(){
-    if(!state.settingsOpen)return '';
-    const draft=state.settingsDraft || {company_activity_types:null,department_activity_types:{},revision:0};
-    const scope=state.settingsScope;
-    const selected=scope==='company' ? draft.company_activity_types : objectValue(draft.department_activity_types)[scope];
-    const defaults=!Array.isArray(selected);
-    return `<div class="pf-overlay"><div class="pf-dialog pf-settings-dialog" role="dialog" aria-modal="true" aria-label="Posts view settings"><header><div><strong>Posts view settings</strong><span>Choose which automatic activities become posts in each board.</span></div><button type="button" data-feed-settings-close aria-label="Close">×</button></header><label class="pf-dialog-field">Board<select data-feed-settings-scope><option value="company" ${scope==='company'?'selected':''}>Company board</option>${state.settingsDepartments.map(department=>`<option value="${escapeHtml(department.id)}" ${scope===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}</select></label><div class="pf-settings-actions"><button type="button" data-feed-settings-all>Show all</button><button type="button" data-feed-settings-none>Hide all</button></div><div class="pf-settings-types">${(state.settingsActivityOptions || state.activityOptions).map(option=>`<label><input type="checkbox" data-feed-settings-type value="${escapeHtml(option.type)}" ${defaults || selected.includes(option.type)?'checked':''}><span>${escapeHtml(option.label)}</span></label>`).join('')}</div><footer><button type="button" data-feed-settings-close>Cancel</button><button type="button" class="pf-action primary" data-feed-settings-save ${state.settingsBusy?'disabled':''}>${state.settingsBusy?'Saving…':'Save settings'}</button></footer></div></div>`;
+    return `<div class="pf-overlay"><form class="pf-dialog" data-feed-compose role="dialog" aria-modal="true" aria-label="Create a post">
+      <header><strong>Create a post</strong><button type="button" data-feed-compose-close aria-label="Close">×</button></header>
+      <label class="pf-compose-audience">Post to <select data-feed-compose-scope aria-label="Post audience"><option value="" ${!state.composerDepartment?'selected':''}>everyone in the company</option>${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)} department</option>`).join('')}</select><i class="fas fa-chevron-down"></i></label>
+      <div class="pf-compose-message"><textarea data-feed-compose-text maxlength="5000" rows="5" placeholder="Write a post… Use @ to mention someone." aria-label="Post message">${escapeHtml(state.composerText)}</textarea><div class="pf-mention-menu" data-feed-compose-mention-menu hidden></div></div>
+      <div class="pf-post-compose-tools">${feedComposerToolsHtml('feed-compose')}</div><div class="pf-emoji-picker" data-feed-compose-emoji-picker hidden></div><div data-feed-compose-dictation-mount></div><div data-feed-compose-audio-mount></div>
+      ${state.composerGif?`<div class="pf-composer-gif"><img src="${escapeHtml(state.composerGif.url)}" alt="${escapeHtml(state.composerGif.title)}"><button type="button" data-feed-compose-remove-gif aria-label="Remove GIF">×</button></div>`:''}
+      ${state.composerAudioFile?`<div class="pf-file-preview"><i class="fas fa-microphone"></i><span>Audio note ready</span><button type="button" data-feed-compose-remove-audio aria-label="Remove audio note">×</button></div>`:''}
+      <div class="pf-dialog-files">${previews}</div><footer><button type="button" data-feed-compose-close>Cancel</button><button type="submit" class="pf-action primary" ${state.composerBusy?'disabled':''}>${state.composerBusy?'Posting…':'Post'}</button></footer>
+    </form>${enlarged?.type.startsWith('image/')?`<div class="pf-image-lightbox" data-feed-image-lightbox><button type="button" data-feed-preview-close aria-label="Close image preview">×</button><img src="${escapeHtml(state.composerPreviewUrls.get(enlarged) || '')}" alt="${escapeHtml(enlarged.name)}"></div>`:''}</div>`;
   }
   function render(){
     if (!state.root) return;
@@ -2556,13 +2592,13 @@
               <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleTags.size || state.visibleDocuments.size || state.visibleMedia.size < DEFAULT_MEDIA_FILTERS.length || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
               ${String(shownMenuHtml())}
             </div>
-            ${state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}
+            ${state.density==='posts'&&state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}
             ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
           </div>
         </div>
-        <div class="pf-feed-scopebar"><label><i class="fas fa-people-group"></i><span>Show</span><select data-feed-scope>${feedScopeOptionsHtml()}</select></label><button type="button" data-feed-manual-only aria-pressed="${state.manualOnly}" class="${state.manualOnly?'active':''}"><i class="fas fa-pen-to-square"></i> Manual posts only</button>${state.density==='posts'&&state.canManagePostSettings?'<button type="button" data-feed-settings-open><i class="fas fa-gear"></i> Posts settings</button>':''}</div>
+        <div class="pf-feed-scopebar"><label><i class="fas fa-people-group"></i><span>Show</span><select data-feed-scope>${feedScopeOptionsHtml()}</select></label>${state.density==='posts'?`<button type="button" data-feed-manual-only aria-pressed="${state.manualOnly}" class="${state.manualOnly?'active':''}"><i class="fas fa-pen-to-square"></i> Manual posts only</button>`:''}</div>
         <div data-photo-feed-dynamic>${String(dynamicHtml())}</div>
-        ${feedComposerHtml()}${feedSettingsHtml()}
+        ${feedComposerHtml()}
       </div>`;
     bind();
   }
@@ -2593,6 +2629,19 @@
     };
     composeText?.addEventListener('input',event=>{state.composerText=event.target.value;updateMentionMenu();});
     composeText?.addEventListener('click',updateMentionMenu);
+    rootEl.querySelector('[data-feed-compose-emoji-open]')?.addEventListener('click',()=>toggleFeedEmojiPicker(rootEl.querySelector('[data-feed-compose-emoji-picker]'),composeText,value=>{state.composerText=value;updateMentionMenu();}));
+    rootEl.querySelector('[data-feed-compose-gif]')?.addEventListener('click',()=>openFeedGifPicker(selected=>{state.composerGif=selected;render();},error=>showToast?.('GIF',error?.message || 'Could not add GIF.',false),{actionLabel:'Add GIF'}));
+    rootEl.querySelector('[data-feed-compose-remove-gif]')?.addEventListener('click',()=>{state.composerGif=null;render();});
+    rootEl.querySelector('[data-feed-compose-remove-audio]')?.addEventListener('click',()=>{state.composerAudioFile=null;state.composerAudioNote=null;render();});
+    for(const mode of ['dictate','audio'])rootEl.querySelector(`[data-feed-compose-${mode}]`)?.addEventListener('click',async()=>{
+      try{
+        if(!window.FirstMateAudioNotes?.prepareInline)throw new Error('Audio tools are unavailable.');
+        const mount=rootEl.querySelector(mode==='dictate'?'[data-feed-compose-dictation-mount]':'[data-feed-compose-audio-mount]');
+        const prepared=await window.FirstMateAudioNotes.prepareInline(orgId(),null,{mount,mode:mode==='dictate'?'dictation':'record',upload:async file=>{state.composerAudioFile=file;return{id:'pending',url:URL.createObjectURL(file)};},onRemove:()=>{state.composerAudioFile=null;state.composerAudioNote=null;}});
+        if(mode==='dictate'){state.composerText=[state.composerText,prepared.text].filter(Boolean).join(' ');composeText.value=state.composerText;composeText.focus();}
+        else state.composerAudioNote=prepared.metadata;
+      }catch(error){if(!String(error?.message || '').toLowerCase().includes('cancelled'))showToast?.('Audio note',error?.message || 'Could not record audio.',false);}
+    });
     rootEl.querySelector('[data-feed-compose-scope]')?.addEventListener('change',event=>{
       state.composerDepartment=event.target.value;
       state.composerMentions.clear();render();
@@ -2602,60 +2651,30 @@
     rootEl.querySelectorAll('[data-feed-compose-remove]').forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.feedComposeRemove),file=state.composerFiles[index];if(file){URL.revokeObjectURL(state.composerPreviewUrls.get(file));state.composerPreviewUrls.delete(file);state.composerFiles.splice(index,1);}state.composerPreviewIndex=-1;render();}));
     rootEl.querySelector('[data-feed-compose-files]')?.addEventListener('change',event=>{
       const chosen=[...event.target.files];
-      if(chosen.length+state.composerFiles.length>6 || chosen.some(file=>!file.type.startsWith('image/') || file.size>10*1024*1024)){
-        showToast?.('Post images','Choose up to six images, each 10 MB or smaller.',false);return;
+      if(chosen.length+state.composerFiles.length>6 || chosen.some(file=>file.size>(file.type.startsWith('image/')?10:25)*1024*1024)){
+        showToast?.('Post attachments','Choose up to six files. Images must be 10 MB or smaller; other files must be 25 MB or smaller.',false);return;
       }
-      chosen.forEach(file=>state.composerPreviewUrls.set(file,URL.createObjectURL(file)));
+      chosen.filter(file=>file.type.startsWith('image/')).forEach(file=>state.composerPreviewUrls.set(file,URL.createObjectURL(file)));
       state.composerFiles.push(...chosen);render();
     });
     rootEl.querySelector('[data-feed-compose]')?.addEventListener('submit',async event=>{
-      event.preventDefault();if(state.composerBusy||!state.composerText.trim())return;
+      event.preventDefault();if(state.composerBusy||!(state.composerText.trim()||state.composerFiles.length||state.composerGif||state.composerAudioFile))return;
       state.composerBusy=true;render();
       try{
         state.composerOperationId ||= globalThis.crypto?.randomUUID?.() || `manual_${Date.now()}`;
         const eligible=eligibleMentions();
         const mentionIds=eligible.filter(user=>state.composerText.includes(`@${firstText(user.name,user.display_name,user.email)}`)).map(user=>user.id);
-        const response=await window.ChannelsAPI.feed.createPost(orgId(),{text:state.composerText.trim(),department_id:state.composerDepartment,mention_user_ids:mentionIds,client_msg_id:state.composerOperationId});
+        const response=await window.ChannelsAPI.feed.createPost(orgId(),{text:state.composerText.trim(),department_id:state.composerDepartment,mention_user_ids:mentionIds,client_msg_id:state.composerOperationId,has_uploads:!!(state.composerFiles.length||state.composerAudioFile),...(state.composerGif?{giphy:state.composerGif}:{}),...(state.composerAudioNote?{audio_note:state.composerAudioNote}:{})});
         const postId=response.post.id;
         for(const file of [...state.composerFiles]){
           await window.ChannelsAPI.feed.upload(orgId(),postId,file);
           state.composerFiles.shift();URL.revokeObjectURL(state.composerPreviewUrls.get(file));state.composerPreviewUrls.delete(file);
         }
-        state.composerOpen=false;state.composerText='';state.composerDepartment='';state.composerMentions.clear();state.composerPreviewIndex=-1;state.composerOperationId='';
+        if(state.composerAudioFile){await window.ChannelsAPI.feed.upload(orgId(),postId,state.composerAudioFile);state.composerAudioFile=null;}
+        state.composerOpen=false;state.composerText='';state.composerDepartment='';state.composerMentions.clear();state.composerPreviewIndex=-1;state.composerOperationId='';state.composerGif=null;state.composerAudioNote=null;
         await load({toast:true});
       }catch(error){showToast?.('Could not post',error?.message || 'Try again.',false);}
       finally{state.composerBusy=false;render();}
-    });
-    rootEl.querySelector('[data-feed-settings-open]')?.addEventListener('click',async()=>{
-      try{
-        const result=await window.ChannelsAPI.feed.settings(orgId());
-        state.settingsDraft=structuredClone(result.settings);
-        state.settingsDepartments=result.departments || [];
-        state.settingsActivityOptions=result.activity_options || [];
-        state.settingsScope='company';state.settingsOpen=true;render();
-      }catch(error){showToast?.('Posts settings',error?.message || 'Could not load settings.',false);}
-    });
-    rootEl.querySelectorAll('[data-feed-settings-close]').forEach(button=>button.addEventListener('click',()=>{if(!state.settingsBusy){state.settingsOpen=false;render();}}));
-    rootEl.querySelector('[data-feed-settings-scope]')?.addEventListener('change',event=>{state.settingsScope=event.target.value;render();});
-    const setSettingsSelection=(types)=>{
-      if(state.settingsScope==='company')state.settingsDraft.company_activity_types=types;
-      else state.settingsDraft.department_activity_types[state.settingsScope]=types;
-      render();
-    };
-    rootEl.querySelector('[data-feed-settings-all]')?.addEventListener('click',()=>setSettingsSelection((state.settingsActivityOptions || []).map(option=>option.type)));
-    rootEl.querySelector('[data-feed-settings-none]')?.addEventListener('click',()=>setSettingsSelection([]));
-    rootEl.querySelectorAll('[data-feed-settings-type]').forEach(input=>input.addEventListener('change',()=>{
-      const selected=[...rootEl.querySelectorAll('[data-feed-settings-type]:checked')].map(item=>item.value);
-      setSettingsSelection(selected);
-    }));
-    rootEl.querySelector('[data-feed-settings-save]')?.addEventListener('click',async()=>{
-      if(state.settingsBusy)return;state.settingsBusy=true;render();
-      try{
-        const result=await window.ChannelsAPI.feed.saveSettings(orgId(),state.settingsDraft);
-        state.postSettings=result.settings;state.settingsDraft=structuredClone(result.settings);
-        state.settingsOpen=false;showToast?.('Posts settings saved');
-      }catch(error){showToast?.('Posts settings',error?.message || 'Could not save settings.',false);}
-      finally{state.settingsBusy=false;render();}
     });
     rootEl.querySelector('input[type="search"]')?.addEventListener('input', (event) => {
       state.query = event.target.value || '';
@@ -2706,6 +2725,7 @@
     const rootEl = state.root;
     if (!rootEl) return;
     bindFeedPosts(rootEl);
+    window.FirstMateAudioNotes?.hydrate?.(rootEl);
     state.mosaicObserver?.disconnect();
     state.noteObserver?.disconnect();
     const notes=[...rootEl.querySelectorAll('.pf-note')];
@@ -2723,32 +2743,11 @@
       }
     };
     notes.forEach(measureNote);
-    if (notes.length && typeof ResizeObserver === 'function') {
-      state.noteObserver=new ResizeObserver((entries)=>entries.forEach(({target})=>measureNote(target)));
-      notes.forEach((note)=>state.noteObserver.observe(note));
+    if(notes.length && typeof ResizeObserver === 'function'){
+      state.noteObserver=new ResizeObserver(entries=>entries.forEach(({target})=>measureNote(target.parentElement)));
+      notes.forEach(note=>{const measure=note.querySelector('.pf-note-measure');if(measure)state.noteObserver.observe(measure);});
     }
     if(state.mosaicResizeHandler){window.removeEventListener('resize',state.mosaicResizeHandler);state.mosaicResizeHandler=null;}
-    if(state.density==='mosaic'){
-      const grids=[...rootEl.querySelectorAll('.pf-feed-grid')];
-      let pending=false;
-      const arrange=()=>{
-        if(pending)return;
-        pending=true;
-        requestAnimationFrame(()=>{
-          pending=false;
-          grids.forEach(grid=>[...grid.children].forEach(card=>{
-            const span=Math.max(1,Math.ceil((card.scrollHeight+12)/20));
-            if(card.style.gridRowEnd!==`span ${span}`)card.style.gridRowEnd=`span ${span}`;
-          }));
-        });
-      };
-      arrange();
-      state.mosaicResizeHandler=arrange;
-      window.addEventListener('resize',arrange);
-      grids.forEach(grid=>grid.querySelectorAll('img').forEach(img=>{
-        if(!img.complete)img.addEventListener('load',arrange,{once:true});
-      }));
-    }
     rootEl.querySelector('[data-selection-clear]')?.addEventListener('click', () => {
       setSelectionMode(false);
       render();

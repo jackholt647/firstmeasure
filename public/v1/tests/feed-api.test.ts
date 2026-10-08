@@ -108,6 +108,9 @@ test('manual company and department posts obey membership and posts settings', a
   const duplicate=await client.request('POST',base+'/posts/manual',{text:'Happy birthday, team!',mention_user_ids:[userId],client_msg_id:'birthday'});
   assert.equal(company.post.id,duplicate.post.id);
   assert.equal(company.post.mention_users[0].id,userId);
+  const gif=await client.request('POST',base+'/posts/manual',{text:'',giphy:{id:'birthday123',url:'https://media1.giphy.com/media/birthday123/giphy.gif',title:'Birthday GIF',width:200,height:150}});
+  assert.equal(gif.post.metadata.giphy.id,'birthday123');
+  assert.equal((await client.raw('POST',base+'/posts/manual',{text:''})).statusCode,400);
   assert.equal((await client.request('GET',base+'/catalog')).manual_posts.some((post:any)=>post.id===company.post.id),true);
   const comment=await client.request('POST',`${base}/posts/${company.post.id}/comments`,{text:'Cheers!'});
   assert.equal(comment.message.parent_id,company.post.id);
