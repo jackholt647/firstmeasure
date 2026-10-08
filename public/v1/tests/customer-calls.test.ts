@@ -237,6 +237,21 @@ test('recording range playback, expiry, and deletion are enforced by the authent
   await (await import('../comms/calls/media.js')).expireArtifacts();assert.equal((await store.artifacts(orgId,call.id)).length,0);
 });
 
+test('new recording media is stored and playable through the authenticated API',async()=>{
+  const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`;
+  const {call}=await c.request('POST',`${base}/calls`,{operation_id:'voicemail-media-fixture',customer_number:'+12065550145'});
+  const key='playable-recording',artifactId=store.id('ca',`${orgId}:recording:${key}`);
+  const media=await import('../comms/calls/media.js');
+  const recording=await media.saveRecording(orgId,artifactId,Buffer.from('RIFFtest'),'wav');
+  assert.equal(recording.content_type,'audio/wav');
+  const saved=await store.saveArtifact(orgId,call.id,'recording',key,recording);
+  assert.equal(saved,artifactId);
+  const response=await c.raw('GET',`${base}/calls/${call.id}/artifacts/${artifactId}/media`);
+  assert.equal(response.status,200);assert.equal(response.body,'RIFFtest');
+  await media.deleteArtifact(orgId,call.id,artifactId);
+  assert.equal((await c.raw('GET',`${base}/calls/${call.id}/artifacts/${artifactId}/media`)).status,404);
+});
+
 test('new inbound activity reopens a resolved conversation and read markers remain per user',async()=>{
   const {incomingWorkflow}=await import('../comms/calls/activity.js'),org='workflow-org';
   (await store.database().prepare("INSERT INTO customer_communication_workflow VALUES(?,?,?,?,?,?,?,?)").run(org,'conversation','thread','alice','closed','2099-01-01',3,'2026-01-01'));

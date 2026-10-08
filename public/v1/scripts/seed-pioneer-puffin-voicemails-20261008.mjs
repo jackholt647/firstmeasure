@@ -1,6 +1,5 @@
 /** Add playable synthetic voicemails only to the Pioneer Puffin development sandbox. */
 import {readFileSync} from 'node:fs';
-import {copyFile,mkdir} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
@@ -22,6 +21,7 @@ process.chdir(root);
 const load=async name=>import(pathToFileURL(path.join(root,'dist',name)).href);
 const platform=await load('platform/storage.js');
 const calls=await load('comms/calls/storage.js');
+const media=await load('comms/calls/media.js');
 const org=await platform.readOrganization(ORG_ID);
 if(!String(org.name||'').startsWith('Pioneer Puffin Test Co')||org.metadata?.sandbox_test_org!==true)throw new Error('Unexpected target organization.');
 
@@ -41,9 +41,6 @@ for(const project of projects){
 for(const spec of specs)if(!contacts.has(spec.name))throw new Error(`Missing synthetic contact: ${spec.name}`);
 const line=(await calls.resources(ORG_ID,'number')).find(item=>item.status==='active'&&String(item.branch_id||'default')==='default'&&!item.assigned_user_id);
 if(!line?.phone_number)throw new Error('No active company main line in the sandbox.');
-const storageRoot=process.env.MESSAGING_STORAGE_ROOT;
-if(!storageRoot||!path.isAbsolute(storageRoot))throw new Error('Missing persistent messaging storage root.');
-const recordingRoot=path.resolve(storageRoot,'call-recordings',calls.id('org',ORG_ID));
 const fixtureRoot=path.resolve(root,'fixtures','pioneer-puffin-voicemail');
 const stats={new_calls:0,existing_calls:0,new_artifacts:0,existing_artifacts:0};
 for(const [index,spec] of specs.entries()){
@@ -65,10 +62,9 @@ for(const [index,spec] of specs.entries()){
       metadata:{synthetic:true,synthetic_voicemail:true,source:SOURCE,voicemail:{started:true}}});
     await calls.patchCall(ORG_ID,callId,{ended_at:createdAt,wrap_up_state:'saved',result:{disposition:'voicemail',synthetic:true}});
   }
-  const filename=path.join(recordingRoot,`${SOURCE}-${spec.key}.wav`);
-  await mkdir(recordingRoot,{recursive:true});
-  await copyFile(path.join(fixtureRoot,spec.file),filename);
-  await calls.saveArtifact(ORG_ID,callId,'voicemail',recordingId,{file_path:filename,content_type:'audio/wav',provider_recording_id:recordingId,synthetic:true},'ready',365);
+  const artifactId=calls.id('ca',`${ORG_ID}:voicemail:${recordingId}`);
+  const recording=await media.saveRecording(ORG_ID,artifactId,readFileSync(path.join(fixtureRoot,spec.file)),'wav');
+  await calls.saveArtifact(ORG_ID,callId,'voicemail',recordingId,{...recording,provider_recording_id:recordingId,synthetic:true},'ready',365);
   await calls.saveArtifact(ORG_ID,callId,'transcript',recordingId,{text:spec.text,final:true,source:'synthetic',recording_id:recordingId},'ready',365);
 }
 console.log(JSON.stringify({organization_id:ORG_ID,applied:apply,line:line.phone_number,...stats}));

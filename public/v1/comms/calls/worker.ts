@@ -1,7 +1,5 @@
 import { platformBackgroundAllowed } from "../../platform/runtime.js";
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile, rename, unlink } from "node:fs/promises";
-import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { env } from "../../src/config/env.js";
 import { TelnyxError } from "../../messaging/telnyx.js";
@@ -12,7 +10,7 @@ import { voiceClient, voiceMode, voiceWebhookUrl } from "../../telephony/telnyx.
 import { applyWrapUpEffects } from "./service.js";
 import { voiceSettings, businessOpen } from "./settings.js";
 import { providerCommand } from "./voice.js";
-import { expireArtifacts } from "./media.js";
+import { expireArtifacts, removeRecording, saveRecording } from "./media.js";
 import { maintainVoiceSessions } from "./recovery.js";
 import { recordVoiceCost } from './operations.js';
 import * as s from "./storage.js";
@@ -181,14 +179,13 @@ async function ingestRecording(orgId:string,callId:string,input:Json){
   if(Number(response.headers.get("content-length"))>128*1024*1024)throw new Error("Recording exceeds the supported size");
   const chunks:Buffer[]=[];let bytes=0;
   for await(const chunk of response.body){bytes+=chunk.length;if(bytes>128*1024*1024)throw new Error("Recording exceeds the supported size");chunks.push(Buffer.from(chunk));}
-  const folder=path.resolve(env.messagingStorageRoot,"call-recordings",s.id("org",orgId));await mkdir(folder,{recursive:true});
-  const extension=urls.mp3?"mp3":"wav";const filename=path.join(folder,`${text(input.artifact_id)}.${extension}`);const temporary=`${filename}.${randomUUID()}.tmp`;
-  await writeFile(temporary,Buffer.concat(chunks),{mode:0o600});await rename(temporary,filename);
+  const extension=urls.mp3?"mp3":"wav";
+  const artifactData=await saveRecording(orgId,text(input.artifact_id),Buffer.concat(chunks),extension);
   const old=(await s.artifacts(orgId,callId)).find(a=>a.id===input.artifact_id);
-  if(!old){await unlink(filename);return;}
+  if(!old){await removeRecording(orgId,text(input.artifact_id),{data:artifactData});return;}
   const update=(await s.database().prepare("UPDATE customer_call_artifacts SET state='ready',data_json=? WHERE organization_id=? AND id=? AND state<>'deleted'")
-    .run(JSON.stringify({...object(old.data),file_path:filename,content_type:extension==="mp3"?"audio/mpeg":"audio/wav",bytes}),orgId,text(input.artifact_id)));
-  if(!update.changes){await unlink(filename).catch(()=>{});return;}
+    .run(JSON.stringify({...object(old.data),...artifactData}),orgId,text(input.artifact_id)));
+  if(!update.changes){await removeRecording(orgId,text(input.artifact_id),{data:artifactData});return;}
   (await s.appendEvent(orgId,callId,"communication.call.recording_ready",{artifact_id:input.artifact_id},`recording-ready:${input.artifact_id}`));
   if(object(call.metadata.voicemail).started)(await s.enqueue(orgId,callId,"missed_callback",{},`${callId}:missed-callback`));
 }
