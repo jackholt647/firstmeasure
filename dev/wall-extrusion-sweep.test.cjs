@@ -2,6 +2,13 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');
 const p=(x,y,z)=>({x,y,z}),front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]};
 const side={id:'left',points:[p(0,0,0),p(0,2,0),p(0,2,4),p(0,0,4)]};
+test('extruding a slanted edge over pitched ground tessellates returns without gaps or moving the source',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),input=require('./fixtures/extrusion-pitched-base-slanted-edge.json'),before=JSON.stringify(input),engine=M.createExtrusion({...input,supports:[input.face]});
+ for(const amount of [-.3,.3,1]){const r=engine.preview(amount),faces=[input.face,r.cap,...r.sides];assert.ok(r.sides.some(f=>f.id.includes('-facet-')));faces.forEach(f=>assert.doesNotThrow(()=>K.validateFace(f)));
+  const counts=new Map();for(const f of faces)for(let i=0;i<f.points.length;i++){const key=W.edgeKey(f.points[i],f.points[(i+1)%f.points.length]);counts.set(key,(counts.get(key)||0)+1);}assert.ok([...counts.values()].every(n=>n===2),'every boundary and triangulation seam is sealed');
+  const n=W.normal(input.face.points);r.cap.points.forEach((q,i)=>{const p=input.face.points[i];assert.ok(Math.hypot(q.x-p.x-n.x*amount,q.y-p.y-n.y*amount)<1e-8);});assert.equal(JSON.stringify(input),before);assert.deepEqual(engine.preview(amount),r);
+ }
+});
 function run(amount,neighbors=[side]){const e=W.extrude(front,-amount,{supports:neighbors});return {...W.trimExtrusion(e.sides,neighbors),cap:e.cap};}
 test('inward extrusion shortens a side wall instead of overlapping it',()=>{
  const before=JSON.stringify(side),r=run(1);assert.equal(r.sides.length,0);assert.equal(r.replacements.length,1);

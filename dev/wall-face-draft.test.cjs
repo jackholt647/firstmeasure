@@ -1,5 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),B=require('../public/measure/internal/editor_scripts/base_geometry.js'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
+test('small face over pitched ground extrudes, cancels and commits through the editor',()=>{
+ const {face,base}=structuredClone(require('./fixtures/extrusion-pitched-base-slanted-edge.json')),f=fixture({state:{base,wallEdits:{}},walls:[],selected:null}),before=JSON.stringify(f.state.wallEdits);
+ const start=()=>{f.editor.extrudeFace({face,event:f.e(0,0)});f.editor.distanceInput().set(.3);assert.match(f.message(),/Extrusion:/);assert.ok(f.state.wallEdits.$surfaces.some(s=>s.id.includes('-facet-')));};
+ start();f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);start();f.editor.down(f.e(0,0));assert.equal(f.history.length,1,f.message());assert.equal(JSON.stringify(f.history[0]),before);
+});
 test('C splits a pitched base between selected perimeter points instead of creating loose wire',()=>{
  const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),p=(x,y)=>({x,y,z:2+.1*x-.2*y}),base={faces:[{id:'base',points:[p(0,0),p(4,0),p(4,2),p(4,4),p(0,4),p(0,2)]}]},f=fixture({state:{base,wallEdits:{}},walls:[],selected:null});
  f.editor.restoreSelection({selectedBasePoints:[p(0,2),p(4,2)].map(W.vertexKey)});const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'c'});

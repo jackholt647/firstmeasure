@@ -77,6 +77,11 @@ function extrusionTrim(scene,sources,caps,keepStatic){
  const moved=W.followTrim([...scene.filter(f=>!selected.has(f.id)),...sources],{faces,moves:[],affected:[]},[...selected],keepStatic);
  const ids=new Set(moved.affected);return {ids,replacements:moved.faces.filter(f=>ids.has(f.id)).map(f=>({face:scene.find(s=>s.id===f.id),pieces:[f,...(moved.trimFragments?.[f.id]||[])]})).filter(r=>r.face)};
 }
+function planarExtrusionReturns(sides){
+ // Ground fitting can twist a return along a slanted source edge. Preserve
+ // all four boundary corners by tessellating that return before booleans.
+ return sides.flatMap(face=>{if(face.curvedSurface)return [face];const frame=K.frame(face);if(!frame)return [face];const rings=[face.points,...(face.holes||[])],points=rings.flat(),local=rings.map(r=>r.map(p=>K.local(frame,p)));if(local.flat().every(p=>Math.abs(p.z)<=K.CONTACT))return [face];return K.triangles(local[0],local.slice(1)).triangles.map((ids,i)=>({...face,id:i?face.id+'-facet-'+i:face.id,points:ids.map(j=>points[j]),holes:[]}));});
+}
 function createExtrusion(input){
  const start=copy(input),face=start.face,scene=(start.scene||[]).filter(f=>!f.deleted&&!f.snapOnly&&f.id!==face.id);
  K.validateFace(face);const topology=K.topology([face,...scene,...(start.base?.faces||[]).map(f=>({...f,id:'base:'+f.id}))],scene.flatMap(f=>f.retainedPoints||[]));
@@ -85,7 +90,7 @@ function createExtrusion(input){
  let previousAmount=null,previous=null;
  return {face:copy(face),topology,preview(amount,{fit=null}={}){
   if(!Number.isFinite(amount))throw Error('Enter a finite extrusion distance.');if(!fit&&amount===previousAmount&&previous)return copy(previous);
-  let shape=W.extrude(face,amount,{facets:true,supports:start.supports||scene});conformBase(face,shape.cap,shape.sides,start.base);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof);
+  let shape=W.extrude(face,amount,{facets:true,supports:start.supports||scene});conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof);
   const trim=extrusionTrim(scene,[face],[shape.cap],start.keepTrimStatic),trimmed=W.trimExtrusion(shape.sides,scene.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
   const result=validateResult({cap:shape.cap,sides:trimmed.sides,replacements:trimmed.replacements,base,amount,fitMoves});
   if(!fit){previousAmount=amount;previous=copy(result);}return result;
