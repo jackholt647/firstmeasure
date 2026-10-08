@@ -89,7 +89,7 @@ window.createBaseEditor=function(host){
 
  function setup(panel){
 
-  const box=document.createElement('div');box.innerHTML='<hr><h3>Editing</h3><div class="wall-row"><button id="base-visible">Base visible</button><button id="base-undo">Undo base</button><button id="base-rebuild-grade" title="Fit the base and attached wall bottoms to the current reference grade">Reground</button></div><div class="wall-fields"><label>Layer<select id="base-layer"><option value="base">Base</option><option value="walls">Walls</option></select></label><label>Selection<select id="base-selection"><option value="point">Points</option><option value="line">Lines</option><option value="face">Faces</option></select></label></div><div class="wall-row"><button id="base-connect">U · Connect</button><button id="base-new">N · Draw line</button><button id="base-curve" title="Draw a circular or elliptical arc from a selected point on a face">S · Draw curve</button><button id="base-arch" title="Curve a selected line through spline points; Enter, double-click or A finishes; Escape cancels">A · Arch line</button><button id="base-delete">Delete</button><button id="base-move">M · Height</button><button id="base-chamfer" title="Bevel selected corner edges or corner points">C &#183; Chamfer</button><button id="base-fillet" title="Round selected wall edges or corner points">R · Fillet</button><button id="base-extrude">E · Extrude</button><button id="base-flat">H · Horizontal</button><button id="base-pitch">Y · Pitch</button></div><p id="base-status"></p>';
+  const box=document.createElement('div');box.innerHTML='<hr><h3>Editing</h3><div class="wall-row"><button id="base-visible">Base visible</button><button id="base-undo">Undo base</button><button id="base-rebuild-grade" title="Fit the base and attached wall bottoms to the current reference grade">Reground</button></div><div class="wall-fields"><label>Layer<select id="base-layer"><option value="base">Base</option><option value="walls">Walls</option></select></label><label>Selection<select id="base-selection"><option value="point">Points</option><option value="line">Lines</option><option value="face">Faces</option></select></label></div><div class="wall-row"><button id="base-connect">U · Connect</button><button id="base-new">N · Draw line</button><button id="base-curve" title="Draw a circular or elliptical arc from a selected point on a face">S · Draw curve</button><button id="base-arch" title="Curve a selected line through spline points; Enter, double-click or A finishes; Escape cancels">A · Arch line</button><button id="base-delete">Delete</button><button id="base-move">M · Height</button><button id="base-chamfer" title="Bevel selected corner edges or corner points">C &#183; Chamfer</button><button id="base-fillet" title="Round selected wall edges or corner points">R · Fillet</button><button id="base-extrude">E · Extrude</button><button id="base-flat">H · Horizontal</button><button id="base-level" title="Level the selected base plane in both axes">L � Level</button><button id="base-pitch">Y · Pitch</button></div><p id="base-status"></p>';
 
   panel.appendChild(box);
 
@@ -120,7 +120,7 @@ window.createBaseEditor=function(host){
 
   $('undo').onclick=action(()=>{if(host.undo){host.undo();return;}sketchEditor?.clear();if(history.length){restoreHistory();select(null);changed(false);}});
 
-  for(const [id,key]of [['connect','u'],['chamfer','c'],['fillet','r'],['curve','s'],['arch','a'],['new','n'],['delete','delete'],['move','m'],['extrude','e'],['flat','h'],['pitch','y']])$(id).onclick=()=>{const e={key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}};if(!host.handleKey?.(e))keyDown(e);};
+  for(const [id,key]of [['connect','u'],['chamfer','c'],['fillet','r'],['curve','s'],['arch','a'],['new','n'],['delete','delete'],['move','m'],['extrude','e'],['flat','h'],['level','l'],['pitch','y']])$(id).onclick=()=>{const e={key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}};if(!host.handleKey?.(e))keyDown(e);};
 
   window.addEventListener('pointermove',move,true);window.addEventListener('pointerup',up,true);window.addEventListener('pointercancel',cancel,true);
 
@@ -138,7 +138,7 @@ window.createBaseEditor=function(host){
 
   $('chamfer').textContent='C · Chamfer';$('extrude').disabled=false;$('layer').value=host.layer();$('undo').disabled=host.canUndo?!host.canUndo():!history.length;if(host.undo)$('undo').textContent='Undo';$('move').textContent=host.layer()==='walls'?'M · In / out':'M · Height';
 
-  for(const id of ['connect','new','delete','pitch'])$(id).disabled=host.layer()!=='base';
+  for(const id of ['connect','new','delete','pitch','level'])$(id).disabled=host.layer()!=='base';
 
   $('status').textContent=message||(host.layer()==='walls'?'Walls selected':tool?tool.kind==='pitch'?(tool.direction?'Move vertically to preview pitch; click to place.':'Click to set radius and direction; near 45° increments snap.') :tool.kind==='path'?'Click a split path; Enter to finish.':'Move vertically to preview elevation; click to place.':face()?(selectedFaces.length>1?selectedFaces.length+' faces selected · H cycles reference planes':selectedFace+' · '+points.length+' selected points'):(base()?.faces.length||0)+' base faces · select a face or boundary points');
 
@@ -256,14 +256,14 @@ window.createBaseEditor=function(host){
 
   if(!active())return false;
 
-  const k=e.key.toLowerCase();if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['a','f','c','u','n','m','h','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
+  const k=e.key.toLowerCase();if(k==='l'&&(e.ctrlKey||e.metaKey||e.altKey))return false;if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['a','f','c','u','n','m','h','l','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
 
   e.preventDefault();e.stopImmediatePropagation();
 
   try{
 
    message='';
-   if(!e.ctrlKey&&!e.metaKey&&tool&&['m','y','n','h','c','u','s'].includes(k)&&!(tool.kind==='step'&&k==='s')&&!(tool.kind==='path'&&k==='c')&&!finishToolForSwitch())return true;
+   if(!e.ctrlKey&&!e.metaKey&&tool&&['m','y','n','h','l','c','u','s'].includes(k)&&!(tool.kind==='step'&&k==='s')&&!(tool.kind==='path'&&k==='c')&&!finishToolForSwitch())return true;
 
    if(sketchEditor?.interaction()==='Arch line')return sketchEditor.keyDown(e);
    if(k==='escape'){cancel();return true;}
@@ -285,6 +285,17 @@ window.createBaseEditor=function(host){
    if(!face())throw Error('Select a base face or one of its points first.');
 
    if(k!=='h')planeCycle=null;
+
+   if(k==='l'){
+    if(e.repeat)return true;
+    if(points.length||selectedFaces.length>1||sketchEditor?.singlePoint()||sketchEditor?.singleLine())throw Error('Select one purple base face to level.');
+    cancelPreview();
+    const f=face(),flat=B.transform(f,'flat',0);
+    if(JSON.stringify(f)===JSON.stringify(flat))return true;
+    checkpoint();Object.assign(f,flat);
+    window.BaseSketchGeometry?.rebind(history.at(-1).baseBefore,base());
+    changed();return true;
+   }
 
    if(k==='h'){
 

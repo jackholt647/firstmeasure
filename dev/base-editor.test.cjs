@@ -10,7 +10,7 @@ function fixture(withSketch=false){
  const e=(x,y,shiftKey=false)=>({clientX:x,clientY:y,button:0,buttons:1,shiftKey,target:{closest:s=>s==='#viewport'},preventDefault(){},stopImmediatePropagation(){}});
  const click=(x,y,shift=false)=>{editor.down(e(x,y,shift));listeners.pointerup(e(x,y));};
  const key=key=>editor.keyDown({key,preventDefault(){},stopImmediatePropagation(){}});
- return {ctx,editor,state,listeners,e,click,key,els,changes:()=>changes};
+ return {ctx,editor,state,listeners,e,click,key,els,setLayer:value=>layer=value,changes:()=>changes};
 }
 test('selected boundary points connect into two separately editable faces',()=>{
  const f=fixture();f.click(0,0);f.click(100,100,true);f.key('c');
@@ -176,4 +176,25 @@ test('Reground follows attached edited wall bottoms onto flat and pitched grade 
  f.els.get('base-rebuild-grade').onclick();const moved=f.state.wallEdits.$surfaces[0];assert.equal(moved.material,'brick');assert.ok(moved.points.some(p=>p.x===0&&p.z===1));assert.ok(moved.points.some(p=>p.x===100&&Math.abs(p.z-(1+100*slope))<1e-7));assert.ok(moved.points.filter(p=>p.z===5).length===2);assert.ok(Math.abs(moved.retainedPoints[0].z-(1+25*slope))<1e-7);assert.deepEqual(JSON.parse(JSON.stringify(f.state.wallEdits.$surfaces[1])),floating);assert.equal(f.state.wallEdits.$baseCuts,undefined);
  f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state),before);
  }
+});
+
+test('L levels both axes of a purple base face at its center and supports undo',()=>{
+ const f=fixture(true),face=f.state.base.faces[0];
+ face.points.forEach(p=>p.z=10+.1*p.x+.2*p.y);
+ f.els.get('base-selection').value='face';f.click(50,50);
+ const before=JSON.stringify(f.state.base),xy=face.points.map(p=>[p.x,p.y]);
+ f.key('l');
+ assert.deepEqual(face.points.map(p=>[p.x,p.y]),xy);
+ assert.ok(face.points.every(p=>Math.abs(p.z-25)<1e-9));
+ assert.equal(f.changes(),1);
+ f.key('l');assert.equal(f.changes(),1);
+ f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state.base),before);
+});
+test('L does not level point selections, wall layers, or browser shortcuts',()=>{
+ const f=fixture();f.state.base.faces[0].points.forEach(p=>p.z=.1*p.x);
+ const before=JSON.stringify(f.state.base);f.click(0,0);f.key('l');
+ assert.equal(JSON.stringify(f.state.base),before);
+ assert.equal(f.editor.keyDown({key:'l',ctrlKey:true}),false);
+ f.setLayer('walls');
+ assert.equal(f.key('l'),false);assert.equal(JSON.stringify(f.state.base),before);
 });
