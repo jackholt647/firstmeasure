@@ -44,6 +44,15 @@ test('2D mask tools hide the height mesh, coexist with crop, undo, and restore s
   // Image (30,40) rotates to screen image (60,30) around the image center.
   await page.mouse.click(rotated.x+10+60*3,rotated.y+10+30*3);
   assert.ok(await page.evaluate(()=>HeightMapMask.serialize().runs.some(([start,count])=>start<=4030&&start+count>4030)),'rotated painting remains aligned with DSM pixels');
+  await page.click('#height-mask-clear');await page.click('#height-mask-rectangle');
+  await page.evaluate(()=>{viewRotation=Math.PI/4;HeightMapMask.render();});
+  await draw([30,35],[65,70]);
+  const rectangular=await page.evaluate(()=>HeightMapMask.serialize().runs);
+  const check=(runs,erased=false)=>{const mask=new Uint8Array(10000);for(const [start,count]of runs)mask.fill(1,start,start+count);for(let y=0;y<100;y++)for(let x=0;x<100;x++){const sx=50+((x-50)-(y-50))/Math.sqrt(2),sy=50+((x-50)+(y-50))/Math.sqrt(2),inside=sx>=30-1e-8&&sx<=65+1e-8&&sy>=35-1e-8&&sy<=70+1e-8,cut=erased&&sx>=40-1e-8&&sx<=55+1e-8&&sy>=45-1e-8&&sy<=60+1e-8;assert.equal(mask[y*100+x],Number(inside&&!cut),`screen-aligned rectangle at image pixel ${x},${y}`);}};
+  check(rectangular);
+  await page.click('#height-mask-erase');await draw([55,60],[40,45]);check(await page.evaluate(()=>HeightMapMask.serialize().runs),true);
+  await page.click('#height-mask-undo');assert.deepEqual(await page.evaluate(()=>HeightMapMask.serialize().runs),rectangular);
+  await page.evaluate(()=>{viewRotation=0;HeightMapMask.render();});assert.deepEqual(await page.evaluate(()=>HeightMapMask.serialize().runs),rectangular,'rotation changes the view, not the saved mask');
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

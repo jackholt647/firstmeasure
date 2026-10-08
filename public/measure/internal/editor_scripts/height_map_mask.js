@@ -1,14 +1,22 @@
 /* Display-only DSM mask. Image-space pixels; source elevations stay untouched. */
 (function(root){'use strict';
+// Screen axes expressed in image coordinates (the view applies +rotation).
+function rectangleCorners(a,b,rotation=0){
+ const c=Math.cos(rotation),s=Math.sin(rotation),dx=b.x-a.x,dy=b.y-a.y,x=dx*c-dy*s,y=dx*s+dy*c;
+ return [{...a},{x:a.x+c*x,y:a.y-s*x},{...b},{x:a.x+s*y,y:a.y+c*y}];
+}
 function create(width,height,runs=[]){
  const data=new Uint8Array(width*height);
  function load(spans){data.fill(0);for(const span of spans||[]){if(!Array.isArray(span))continue;const [start,count]=span;if(Number.isInteger(start)&&Number.isInteger(count)&&start>=0&&count>0&&start+count<=data.length)data.fill(1,start,start+count);}}
  function serialize(){const spans=[];for(let i=0;i<data.length;){if(!data[i]){i++;continue;}const start=i;while(i<data.length&&data[i])i++;spans.push([start,i-start]);}return spans;}
- function paint(a,b,radius,erase=false,rectangle=false){
-  if(![a.x,a.y,b.x,b.y,radius].every(Number.isFinite))return;
-  const r=rectangle?0:Math.max(.5,radius),x0=Math.max(0,Math.floor(Math.min(a.x,b.x)-r)),x1=Math.min(width-1,Math.ceil(Math.max(a.x,b.x)+r)),y0=Math.max(0,Math.floor(Math.min(a.y,b.y)-r)),y1=Math.min(height-1,Math.ceil(Math.max(a.y,b.y)+r));
+ function paint(a,b,radius,erase=false,rectangle=false,rotation=0){
+  if(![a.x,a.y,b.x,b.y,radius,rotation].every(Number.isFinite))return;
+  const corners=rectangle?rectangleCorners(a,b,rotation):[a,b],c=Math.cos(rotation),s=Math.sin(rotation);
+  const r=rectangle?0:Math.max(.5,radius),x0=Math.max(0,Math.floor(Math.min(...corners.map(p=>p.x))-r)),x1=Math.min(width-1,Math.ceil(Math.max(...corners.map(p=>p.x))+r)),y0=Math.max(0,Math.floor(Math.min(...corners.map(p=>p.y))-r)),y1=Math.min(height-1,Math.ceil(Math.max(...corners.map(p=>p.y))+r));
   const dx=b.x-a.x,dy=b.y-a.y,len=dx*dx+dy*dy;
+  const rx=dx*c-dy*s,ry=dx*s+dy*c;
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+   if(rectangle){const px=(x-a.x)*c-(y-a.y)*s,py=(x-a.x)*s+(y-a.y)*c;if(px<Math.min(0,rx)-1e-8||px>Math.max(0,rx)+1e-8||py<Math.min(0,ry)-1e-8||py>Math.max(0,ry)+1e-8)continue;}
    const t=len?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/len)):0;
    if(rectangle||Math.hypot(x-a.x-dx*t,y-a.y-dy*t)<=r)data[y*width+x]=erase?0:1;
   }
@@ -22,7 +30,7 @@ function visibleIndices(index,data){
  for(let i=0;i<index.length;i+=3)if(!data[index[i]]&&!data[index[i+1]]&&!data[index[i+2]]){result[count++]=index[i];result[count++]=index[i+1];result[count++]=index[i+2];}
  return result.subarray(0,count);
 }
-if(typeof module==='object'&&module.exports){module.exports={create,visibleIndices};return;}
+if(typeof module==='object'&&module.exports){module.exports={create,visibleIndices,rectangleCorners};return;}
 let model=null,project='',context=null,savedAt=0,active=false,mode='draw',shape='brush',size=40,gesture=null,hover=null,undo=[],redo=[],bar,overlay,tint,stamp=0,tintStamp=-1,timer=null;
 const originalIndices=new WeakMap(),copy=v=>JSON.parse(JSON.stringify(v));
 const getContext=()=>({width:Number(imageWidth)||0,height:Number(imageHeight)||0,lat:Number(mapCenterLat)||0,lng:Number(mapCenterLng)||0,mpp:Number(root.getMetersPerPx?.())||0});
@@ -61,7 +69,7 @@ function render(){
  if(!tint||tint.width!==model.width||tint.height!==model.height){tint=document.createElement('canvas');tint.width=model.width;tint.height=model.height;tintStamp=-1;}
  if(tintStamp!==stamp){const ctx=tint.getContext('2d'),pixels=ctx.createImageData(model.width,model.height);for(let i=0;i<model.data.length;i++)if(model.data[i]){pixels.data[i*4]=185;pixels.data[i*4+1]=75;pixels.data[i*4+2]=230;pixels.data[i*4+3]=105;}ctx.putImageData(pixels,0,0);tintStamp=stamp;}
  const ctx=overlay.getContext('2d');ctx.clearRect(0,0,overlay.width,overlay.height);ctx.drawImage(tint,0,0);ctx.lineWidth=1.5/Math.max(.01,currentZoom);ctx.strokeStyle=mode==='erase'?'#ffffff':'#ffca57';
- if(gesture&&shape==='rectangle'){ctx.strokeRect(gesture.start.x,gesture.start.y,gesture.last.x-gesture.start.x,gesture.last.y-gesture.start.y);}
+ if(gesture&&shape==='rectangle'){const points=rectangleCorners(gesture.start,gesture.last,gesture.rotation);ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);for(const p of points.slice(1))ctx.lineTo(p.x,p.y);ctx.closePath();ctx.stroke();}
  else if(hover&&shape==='brush'){ctx.beginPath();ctx.arc(hover.x,hover.y,size/(2*Math.max(.01,currentZoom)),0,Math.PI*2);ctx.stroke();}
 }
 function applyGeometry(geometry){
@@ -99,13 +107,13 @@ const inside=e=>e.target.closest?.('#viewport'),stop=e=>{e.preventDefault();e.st
 // Register before wall-mode input handlers, including capture listeners.
 root.addEventListener('pointerdown',e=>{
  if(!active||!wallMode()||!inside(e)||e.button!==0||!ensure())return;
- stop(e);const p=screenToImage(e.clientX,e.clientY);gesture={id:e.pointerId,before:model.serialize(),start:p,last:p,radius:size/(2*Math.max(.01,currentZoom))};hover=p;
+ stop(e);const p=screenToImage(e.clientX,e.clientY);gesture={id:e.pointerId,before:model.serialize(),start:p,last:p,rotation:typeof viewRotation==='number'?viewRotation:0,radius:size/(2*Math.max(.01,currentZoom))};hover=p;
  if(shape==='brush')model.paint(p,p,gesture.radius,mode==='erase');changed();
 },true);
 root.addEventListener('pointermove',e=>{
  if(!active||!wallMode()||(!gesture&&!inside(e)))return;
  const p=screenToImage(e.clientX,e.clientY);hover=p;
- if(gesture&&e.pointerId===gesture.id){stop(e);if(shape==='rectangle'){model.load(gesture.before);model.paint(gesture.start,p,0,mode==='erase',true);}else model.paint(gesture.last,p,gesture.radius,mode==='erase');gesture.last=p;changed();}else render();
+ if(gesture&&e.pointerId===gesture.id){stop(e);if(shape==='rectangle'){model.load(gesture.before);model.paint(gesture.start,p,0,mode==='erase',true,gesture.rotation);}else model.paint(gesture.last,p,gesture.radius,mode==='erase');gesture.last=p;changed();}else render();
 },true);
 root.addEventListener('pointerup',e=>{if(!gesture||e.pointerId!==gesture.id)return;stop(e);const before=gesture.before;gesture=null;commit(before);render();},true);
 root.addEventListener('pointercancel',()=>cancel(),true);root.addEventListener('blur',()=>cancel());
