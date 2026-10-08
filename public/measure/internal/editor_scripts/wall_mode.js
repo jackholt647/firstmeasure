@@ -320,7 +320,7 @@ function perf_persist(touch=true) {
             initializeBase(true);
             sourceContext=state.context;projectId=currentId();calculateStage(7);stage=7;
             if(options.autoParapets&&window.WallParapets){const faces=WallParapets.build(state.roof,state.sources,currentWalls());if(faces.length){state.wallEdits||={};state.wallEdits.$surfaces||=[];state.wallEdits.$surfaces.push(...faces);}}
-            if(options.closedSoffits&&window.WallClosedSoffits){state.closedSoffitWalls=copy(currentWalls());state.wallEdits||={};state.wallEdits.$surfaces||=[];state.wallEdits.$surfaces.push(...WallClosedSoffits.build(state,state.closedSoffitWalls,window.RoofTrim?.panels(state.roof,state.roofTrim)||[]));}
+            if(options.closedSoffits&&window.WallClosedSoffits){state.closedSoffitWalls=copy(currentWalls());state.wallEdits||={};state.wallEdits.$surfaces||=[];state.wallEdits.$surfaces.push(...WallClosedSoffits.build(state,state.closedSoffitWalls));}
             selected=null;menu.hidden=true;document.getElementById('wall-auto').setAttribute('aria-expanded','false');
             details.textContent='';persist();render();
             if(before){const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);pendingSelection=entry;}editFuture=[];return true;

@@ -3,7 +3,7 @@
 From Roof now has an opt-in Closed soffits checkbox below the custom depth.
 It materializes editable underside faces for surviving eave/rake wall spans
 with nonzero setbacks. Walls stop at the underside instead of the roof plane.
-The underside meets the fascia bottom (or roof edge when fascia depth is zero),
+The underside meets the roof edge elevation, independently of fascia depth,
 is horizontal across the overhang, and follows the edge along sloping rakes.
 Adjacent runs share outer corner joins. Parapets and zero-soffit glass/flat
 edges remain excluded. Generated roof and wall sources stay unchanged.

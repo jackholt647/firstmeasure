@@ -2,7 +2,7 @@
 (function(root){'use strict';
 const node=typeof module==='object'&&module.exports,G=node?require('./wall_geometry.js'):root.WallGeometry,K=node?require('./exterior_geometry.js'):root.ExteriorGeometry,M=()=>node?require('./exterior_model.js'):root.ExteriorModel;
 const EPS=.002,COLOR='#a9c9bd',copy=v=>JSON.parse(JSON.stringify(v));
-function build(state,walls,trim=[]){
+function build(state,walls){
  const faces=[];
  for(const w of walls){
   if(w.chimney||!w.top||w.top.length!==2)continue;
@@ -10,8 +10,6 @@ function build(state,walls,trim=[]){
   if(!s)continue;
   const a=s.originalA,b=s.originalB,dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<EPS*EPS)continue;
   const outer=w.top.map(p=>{const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;return {x:a.x+dx*t,y:a.y+dy*t,z:a.z+(b.z-a.z)*t};});
-  const fascia=trim.find(f=>outer.every(p=>G.onEdge(p,f.a,f.b,.02))),drop=fascia?.height||0;
-  outer.forEach(p=>p.z-=drop);
   const inner=w.top.map((p,i)=>({...p,z:outer[i].z}));
   if(inner.some((p,i)=>p.z>w.top[i].z+EPS||p.z<=w.bottom[i].z+EPS))continue;
   const f={id:'closed-soffit:'+w.id,closedSoffit:{wallId:w.id,sourceId:s.id},roofLayer:true,material:'soffit',finishColor:COLOR,points:[inner[0],inner[1],outer[1],outer[0]],holes:[]};

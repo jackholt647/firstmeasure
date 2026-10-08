@@ -884,7 +884,7 @@ function perf_movePointer(e){
 
  function draw2D(rot,svg,inv){
 
-  if(!host.enabled()||(!host.visible()&&!host.roofVisible?.()))return;
+  if(!host.enabled()||!host.visible())return;
 
   draft?.draw2D(rot,svg,inv);
 
