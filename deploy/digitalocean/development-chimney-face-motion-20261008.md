@@ -18,6 +18,10 @@ project geometry and preserved the lower walls, footprint and base within
 one micrometer. The reproduction harness excluded collapsed generated wall
 fragments from the pickable scene; it did not modify customer data.
 
-Development rollout: pending verification. Only wall_face_draft.js is deployed
+Development rollout verified on web, pool, worker and compatibility at
+`c60591b18e8b33233f8ada53a084f07bf3602888`. Runtime identities, exact file
+hashes, readiness, development isolation and the public asset passed. Both
+roof-constrained and unconstrained saved-project runs passed (32 each).
+Only wall_face_draft.js is deployed
 from the verified immutable commit, preserving each role's unrelated runtime
 files. Production is outside this rollout.
