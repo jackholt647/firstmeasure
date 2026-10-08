@@ -12,4 +12,4 @@ Validation: 101 tests passed, including a layered-roof UI regression, save/reloa
 unchanged wall IDs and plan coordinates, fixed top edges, and isolated base
 attachment tests. No saved project geometry is rewritten. Already changed
 layouts need undo or regeneration before applying a new regrade.
-Development verification pending. Evidence: output/regrade-wall-contacts-20261008/.
+Activated source commit `cda9837ec5fc15ee531a7995993e206de75af633`. Both web nodes subsequently adopted concurrent release `f0d720c893796120f106af4fa1c0a303df7ee507` with the exact same two editor hashes; worker and compatibility remain on the source release. All four roles passed hashes, runtime identity, readiness and development isolation. Public assets match; saved-project access returned 200 on both web nodes. Evidence: output/regrade-wall-contacts-20261008/.
