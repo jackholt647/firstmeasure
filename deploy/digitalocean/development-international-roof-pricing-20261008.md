@@ -1,6 +1,9 @@
 # International roof pricing — development, October 8, 2026
 
-Application release: `629f7d6f3b89c40bf66a70fd97147713ea46c3f0`.
+Application release: `09bcf8335108ed8baa9ab62b85ba23cdbdc227fc`.
+Backend pricing was introduced in `629f7d6f3b89c40bf66a70fd97147713ea46c3f0`;
+the final release also accepts authoritative standard-only quotes and uses
+verified property gutter prices throughout client labels and totals.
 
 International roof reports are €25 residential and €50 per commercial or
 multifamily structure. The residential gutter add-on is €5. US/Canada accounts
@@ -41,5 +44,10 @@ this rollout.
 
 Verification evidence is in `output/international-pricing-20261008/`: isolated
 pricing/order/admin tests, TypeScript checking, role manifests and hashes,
-runtime readiness, and hosted API/browser verification. Test fixtures do not
+runtime readiness, and hosted API/browser verification. Twenty-five targeted
+tests passed. The hosted USD/France quote at EUR/USD 1.1186 returned $28
+residential, $56 commercial/multifamily and $6 gutters. The rendered residential
+order offered standard delivery only, displayed the $34 gutter-inclusive total,
+and enabled the Order button. Domestic quotes retained $7/$12 and rush options.
+Test fixtures do not
 send live payments or submit live measurement orders.
