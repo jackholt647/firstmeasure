@@ -34,27 +34,28 @@
   function changed(){queueMicrotask(()=>void advanceDialer());window.dispatchEvent(new CustomEvent('fm:customer-calls:changed',{detail:{call:state.call,registered:state.registered,available:state.available}}));}
   // A document-lifetime lock prevents two tabs from running a list for this caller.
   // Each call still uses the server's atomic entry/phone claim and operation ID.
-  const dialer={active:false,listId:'',title:'',seen:new Set(),timer:0,deadline:0,working:false,generation:0,release:null,message:''};
+  const dialer={active:false,listId:'',listIds:[],fast:false,title:'',seen:new Set(),timer:0,deadline:0,working:false,generation:0,release:null,message:''};
   function pauseDialer(message='Automatic dialing paused.'){
     dialer.active=false;dialer.generation++;clearInterval(dialer.timer);dialer.timer=0;dialer.deadline=0;dialer.release?.();dialer.release=null;dialer.message=message;
     state.panel?.querySelector('[data-dialer]')?.replaceWith(dialerElement());
   }
-  function dialerMarkup(){return dialer.listId?`<section class="fmcp-dialer" data-dialer aria-label="Automatic dialing"><strong>${esc(dialer.title||'Call list')}</strong><p role="status">${esc(dialer.deadline?`Next call in ${Math.max(0,Math.ceil((dialer.deadline-Date.now())/1000))} seconds`:dialer.active?'Automatic dialing on · Finish the call and save any required outcome.':dialer.message)}</p>${dialer.active?'<button type="button" data-phone="pause-dialer">Pause automatic dialing</button>':'<button type="button" data-phone="resume-dialer">Resume automatic dialing</button>'}</section>`:'';}
+  function dialerMarkup(){return dialer.listId?`<section class="fmcp-dialer" data-dialer aria-label="Automatic dialing"><strong>${esc(dialer.title||'Call list')}</strong><p role="status">${esc(dialer.deadline?`Next call in ${Math.max(0,Math.ceil((dialer.deadline-Date.now())/1000))} seconds`:dialer.active?dialer.message||'Automatic dialing on · Finish the call and save any required outcome.':dialer.message)}</p>${dialer.active?'<button type="button" data-phone="pause-dialer">Pause automatic dialing</button>':'<button type="button" data-phone="resume-dialer">Resume automatic dialing</button>'}</section>`:'';}
   function dialerElement(){const wrap=document.createElement('div');wrap.innerHTML=dialerMarkup();return wrap.firstElementChild||document.createElement('span');}
   async function startDialer(list){
     if(dialer.active)pauseDialer();
     if(!navigator.locks)throw new Error('Automatic dialing needs a browser with Web Locks. You can still call contacts individually.');
     const acquired=await new Promise((resolve,reject)=>{void navigator.locks.request(`firstmate-auto-dialer:${scope()}`,{ifAvailable:true},async lock=>{if(!lock){resolve(false);return;}await new Promise(release=>{dialer.release=release;resolve(true);});}).catch(reject);});
     if(!acquired)throw new Error('Automatic dialing is already running in another tab. Pause it there first.');
-    if(dialer.listId!==list.id){dialer.seen=new Set();dialer.listId=list.id;}
-    dialer.title=list.title||dialer.title;dialer.departmentId=list.departmentId||'';dialer.active=true;dialer.message='';dialer.generation++;dialer.boundScope=scope();
+    const listIds=Array.isArray(list.listIds)&&list.listIds.length?list.listIds:[list.id];
+    if(dialer.listId!==list.id||JSON.stringify(dialer.listIds)!==JSON.stringify(listIds)){dialer.seen=new Set();dialer.listId=list.id;}
+    dialer.listIds=listIds;dialer.fast=!!list.power;dialer.title=list.title||dialer.title;dialer.departmentId=list.departmentId||'';dialer.active=true;dialer.message='';dialer.generation++;dialer.boundScope=scope();
     if(state.call?.entry_id)dialer.seen.add(state.call.entry_id);
     try{if(!state.status)await refreshStatus();}catch(error){pauseDialer(error.message);throw error;}
     if(!state.status?.settings?.enabled){pauseDialer('Enable browser calling before starting automatic dialing.');throw new Error(dialer.message);}
     await advanceDialer();if(state.panel&&!state.panel.hidden)render();
   }
   async function advanceDialer(){
-    if(!dialer.active||dialer.working||dialer.deadline||state.busy)return;
+    if(!dialer.active||dialer.working||dialer.deadline||dialer.timer||state.busy)return;
     if(dialer.boundScope!==scope()||state.error||state.saveError){pauseDialer('Automatic dialing paused. Resolve the phone error before continuing.');return;}
     const c=state.call;
     if(c&&!terminal.has(c.state))return;
@@ -64,11 +65,12 @@
     try{
       const result=await request(`call-lists/queue${dialer.departmentId?'?department_id='+encodeURIComponent(dialer.departmentId):''}`);
       if(!dialer.active||generation!==dialer.generation)return;
-      const list=result.columns?.find(l=>l.id===dialer.listId),entry=list?.tasks?.find(e=>e.ready&&!dialer.seen.has(e.id));
-      if(!entry){pauseDialer('List complete. No more ready contacts.');return;}
+      const entry=(result.columns||[]).filter(list=>dialer.listIds.includes(list.id)).flatMap(list=>list.tasks||[]).find(e=>e.ready&&!dialer.seen.has(e.id));
+      if(!entry){dialer.message='Waiting for new leads in the selected lists…';state.panel?.querySelector('[data-dialer]')?.replaceWith(dialerElement());dialer.timer=setTimeout(()=>{dialer.timer=0;void advanceDialer();},5000);return;}
+      dialer.message='';
       if(await open({entry,entry_id:entry.id,project_id:entry.project_id})===false){pauseDialer('Finish the current call before resuming.');return;}
       if(!dialer.active||generation!==dialer.generation)return;
-      dialer.deadline=Date.now()+(c?Math.max(5,Number(state.status?.settings?.wrap_up_seconds)||0):5)*1000;
+      dialer.deadline=Date.now()+(dialer.fast?0:c?Math.max(5,Number(state.status?.settings?.wrap_up_seconds)||0):5)*1000;
       render();dialer.timer=setInterval(()=>{
         state.panel?.querySelector('[data-dialer]')?.replaceWith(dialerElement());
         if(state.call){clearInterval(dialer.timer);dialer.timer=0;dialer.deadline=0;return;}
@@ -200,7 +202,7 @@
     if(state.diagnosing)throw new Error('Wait for the audio check to finish before opening a call.');
     if(state.call&&!terminal.has(state.call.state)&&state.call.id!==input.call_id){state.minimized=false;if(input.call_id||input.entry_id)state.error='Finish the active call before opening another contact.';render();return false;}
     if(state.call&&state.call.wrap_up_state!=='saved'&&terminal.has(state.call.state)&&state.status?.settings?.require_disposition&&state.call.id!==input.call_id){state.minimized=false;state.error='Save this call outcome before starting another call.';render();return false;}
-    if(state.call&&(!Object.keys(input).length||input.call_id===state.call.id)){state.minimized=false;render();autoConnect();void Portal.PhoneTray?.selectTab('call');return true;}
+    if(state.call&&(!Object.keys(input).length||input.call_id===state.call.id)){state.minimized=false;if(options.artifacts&&callPermission('recordings'))await artifacts();render();autoConnect();void Portal.PhoneTray?.selectTab('call');return true;}
     const ticket=++state.openSequence;
     clearTimeout(state.saveTimer);if(state.dirty&&state.call)await saveNotes();
     if(ticket!==state.openSequence)return false;
@@ -220,6 +222,7 @@
     if(results[1].status==='fulfilled')state.scripts=results[1].value.scripts||[];
     await refreshContext().catch(error=>{if(ticket===state.openSequence)state.error=error.message;});if(ticket!==state.openSequence)return false;
     if(state.call)state.followupOptions=await request(callPath('/follow-up-options')).catch(()=>null);if(ticket!==state.openSequence)return false;
+    if(state.call&&options.artifacts&&callPermission('recordings'))await artifacts();
     render();if(state.call){schedulePoll();void request('conversation-workflow',{kind:'call',source_id:state.call.id,revision:0,action:'read'}).catch(()=>{});}else if(!options.fromRoute){state.panel.querySelector('[name=customer_number]')?.focus();}return true;
   }
   async function refreshContext(){const project=state.call?.project_id||state.prepared.project_id;if(!project)return;
@@ -337,7 +340,7 @@
   }
   async function handle(name,button){
     if(name==='pause-dialer'){pauseDialer();render();return;}
-    if(name==='resume-dialer'){try{state.error='';await startDialer({id:dialer.listId,title:dialer.title,departmentId:dialer.departmentId});}catch(error){state.error=error.message;render();}return;}
+    if(name==='resume-dialer'){try{state.error='';await startDialer({id:dialer.listId,listIds:dialer.listIds,power:dialer.fast,title:dialer.title,departmentId:dialer.departmentId});}catch(error){state.error=error.message;render();}return;}
     if(name==='new-call'){if(state.status?.settings?.require_disposition&&state.call?.wrap_up_state!=='saved')return;await saveNotes();state.call=null;await open();return;}
     if(name==='connect'){try{await connect();state.panel?.querySelector('[name=mode]')?.remove();render();}catch(error){state.error=error.message;render();}return;}
     if(name==='dismiss-check'&&!state.busy){state.deviceCheckRequired=false;state.checkMessage='';state.error='';render();return;}
@@ -548,7 +551,7 @@
     }
     if(ui.org()&&ui.user())void Portal.navigation?.applyCurrent?.({source:'phone-session-ready',only:'customer-call-workspace'});
   });
-  Portal.CustomerPhone={startDialer,pauseDialer,get dialer(){return dialer;},open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
+  Portal.CustomerPhone={startDialer,pauseDialer,supervise,get dialer(){return dialer;},open,connect,disconnect,availability,diagnose,devices,refreshStatus,saveNotes,get state(){return state;},get deviceId(){return deviceId;},
     get diagnostic(){return state.diagnostic;},
     get connecting(){return state.connecting;},get status(){return state.status;},get connected(){return state.registered;},get available(){return state.available;},get currentCall(){return state.call;},get currentEntry(){return state.panel&&!state.panel.hidden?state.entry?.id:null;}};
   Portal.Communications=Portal.Communications||{};Portal.Communications.open=open;
