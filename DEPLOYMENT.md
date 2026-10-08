@@ -1,6 +1,6 @@
 # FirstMeasure: local development and production deployment
 
-October 8 Feed boards: [Employee posts, department audiences, and Posts settings](deploy/digitalocean/development-feed-groups-20261008.md) records the development rollout, code locations, validation, and current-release verification.
+October 8 Feed posts: [Inline comments, media tools, composer and tile stability](deploy/digitalocean/development-feed-posts-polish-20261008.md) records the follow-up development rollout, validation and rollback baselines. [Employee posts, department audiences, and Posts settings](deploy/digitalocean/development-feed-groups-20261008.md) records the preceding rollout.
 
 October 8 header trays: [Reset placement after close](deploy/digitalocean/development-header-tray-reset-20261008.md) records docked reopening, retained drafts, browser regressions, and the verified development rollout.
 
