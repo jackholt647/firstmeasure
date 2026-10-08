@@ -2796,3 +2796,16 @@ test('double-click just outside a surface edge places an edge point without a fa
 test('standalone line midpoint placement honors the center toggle',()=>{
  for(const centers of [true,false]){const a={x:6,y:0,z:2},b={x:10,y:0,z:2},f=fixture({state:{lineCenters:centers,wallEdits:{$loose:{points:[a,b],edges:[[a,b]]}}},walls:[],selected:null});f.editor.doubleClick(f.e(7.95,2.03));const point=f.editor.pointSelection()[0];assert.ok(Math.abs(point.x-(centers?8:7.95))<1e-6);assert.equal(point.z,2);}
 });
+
+test('upper chimney E and M leave the lower shaft and house fixed across the roof boundary',()=>{
+ const C=require('../public/measure/internal/editor_scripts/wall_chimneys.js'),box=(x0,y0,x1,y1,z)=>[{x:x0,y:y0,z},{x:x1,y:y0,z},{x:x1,y:y1,z},{x:x0,y:y1,z}];
+ for(const key of ['e','m'])for(const amount of [-3,-.5,.5,3]){
+  const footprint=box(8,4,12,6,5),ground=box(0,0,10,10,0),roof={points:footprint,connections:footprint.map((_,i)=>({startIdx:i,endIdx:(i+1)%4,type:'chimney_edge'})),faces:[]},state={roof,chimneys:C.detect(roof),base:{faces:[{id:'ground',points:ground}]},wallEdits:{},options:{ground:0}};
+  state.chimneys.items[0].dsmTop=8;const walls=ground.map((a,i)=>({id:'wall-'+i,targetId:'ground',bottom:[a,ground[(i+1)%4]],top:[{...a,z:5},{...ground[(i+1)%4],z:5}]}));C.syncFoundation(state);C.syncVolumes(state);
+  const face=state.wallEdits.$surfaces.find(f=>f.chimney?.volume&&!f.chimney.cap&&f.points.every(p=>p.x===12)),before=JSON.stringify(state.wallEdits),defs=JSON.stringify(C.definitions(state)),lower=JSON.stringify(C.compose(walls,state)),base=JSON.stringify(state.wallEdits.$base||state.base),f=fixture({state,getWalls:()=>C.compose(walls,state),selected:null,globals:{WallChimneys:C,isFreeMove:true}});
+  const start=()=>{f.editor.restoreSelection({selectedSolid:face.id});f.listeners.pointermove(f.e(12,6));f.editor.key({key});f.editor.distanceInput().set(amount);};start();
+  assert.equal(JSON.stringify(C.definitions(state)),defs,key+' preserves footprint');assert.equal(JSON.stringify(C.compose(walls,state)),lower,key+' preserves lower walls');assert.equal(JSON.stringify(state.wallEdits.$base||state.base),base,key+' preserves base');
+  const cap=state.wallEdits.$surfaces.find(f=>f.id===face.id);assert.notDeepEqual(cap.points,face.points,f.message());assert.equal(cap.chimney.drivesFootprint,false);assert.ok(state.wallEdits.$surfaces.some(f=>f.chimney?.derived&&f.points.some(p=>p.x===12&&p.z===5)),'return connects to original bottom');
+  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);start();f.editor.down(f.e(12,6));assert.equal(f.history.length,1);assert.equal(JSON.stringify(C.definitions(JSON.parse(JSON.stringify(state)))),defs,'reload keeps footprint');assert.equal(JSON.stringify(C.compose(walls,state)),lower,'commit keeps lower walls');
+ }
+});
