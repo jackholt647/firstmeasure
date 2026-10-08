@@ -20,7 +20,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
       };
       window.__APP={orgId:'org-test',userId:'user-test'};
       window.Portal={appFlags:{has:()=>true},modules:{},navigation:{registerSchema(){},registerHandler(){},push(){}}};
-      window.PlatformAPI={projects:{listForContact:async()=>({documents:[]}),list:async()=>({documents:[]})},contacts:{settings:async()=>({settings:{tags:[]}})}};
+      window.PlatformAPI={projects:{listForContact:async()=>({documents:[]}),list:async()=>({documents:[]})},contacts:{settings:async()=>({settings:{tags:[]}})},media:{upload:async(_org,file,options)=>{window.lastImageUpload={name:file.name,options};return {media:{id:'image-one'}};},fileUrl:(_org,id)=>`/media/${id}`}};
       window.TelnyxWebRTC={TelnyxRTC:class{constructor(){this.handlers={};window.phoneClient=this;}on(n,cb){this.handlers[n]=cb;}connect(){if(!window.delayReady)this.handlers['telnyx.ready']();}async setAudioSettings(){}disconnect(){}}};
       window.testCall={id:'call-test',customer_name:'Test contact',customer_number:'+12025550123',state:'connected',mode:'browser',owner_user_id:'user-test',wrap_up_state:'draft',metadata:{}};
       window.CommsAPI={customer:async(_org,path,data)=>{
@@ -57,11 +57,16 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.deepEqual(await page.locator('[data-phone-tab]').allTextContents(),['Call','Text','Contacts']);
     assert.equal(await page.getByRole('button',{name:'Choose another country to call'}).textContent(),'+1');
     await page.getByRole('button',{name:'Choose another country to call'}).click();
-    assert.deepEqual(await page.locator('[data-country-choice]').allTextContents(),['USUnited States+1','CACanada+1','GBUnited Kingdom+44','DEGermany+49','JPJapan+81','MXMexico+52']);
+    if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/country.png'});
+    assert.deepEqual(await page.locator('[data-country-choice]').allTextContents(),['US+1','CA+1','GB+44','DE+49','JP+81','MX+52']);
+    assert.ok((await page.locator('.fm-phone-country .fm-phone-menu').boundingBox()).width<=120);
     await page.locator('[data-country-iso=GB]').click();
     assert.equal(await page.getByRole('button',{name:'Choose another country to call'}).textContent(),'+44');
     await page.locator('[data-line-picker] [aria-expanded]').click();
     assert.match(await page.locator('[data-line-picker] [data-line-choice]').textContent(),/\(206\) 555-0199/);
+    assert.equal(await page.locator('.fm-phone-line-toggle strong').textContent(),'(206) 555-0199');
+    const lineLabel=await page.locator('.fm-phone-line-title').boundingBox(),lineNumber=await page.locator('.fm-phone-line-toggle strong').boundingBox();
+    assert.ok(Math.abs(lineLabel.y-lineNumber.y)<8,JSON.stringify({lineLabel,lineNumber}));
     await page.locator('[data-line-picker] [aria-expanded]').click();
     assert.equal(await page.getByText('Call options',{exact:true}).count(),0);
     assert.equal(await page.locator('.fm-phone-number').evaluate(e=>getComputedStyle(e).fontSize),'0px');
@@ -84,6 +89,9 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).count(),0);
     await page.locator('[data-digit="3"]').click();
     await page.locator('[name=customer_number]').pressSequentially('4');
+    assert.equal(await page.getByRole('button',{name:'Delete last digit'}).isVisible(),true);
+    const eraseBox=await page.getByRole('button',{name:'Delete last digit'}).boundingBox(),numberInputBox=await page.locator('[name=customer_number]').boundingBox();
+    assert.ok(eraseBox.x>=numberInputBox.x&&eraseBox.x+eraseBox.width<=numberInputBox.x+numberInputBox.width);
     assert.equal(await page.evaluate(()=>tones.length),0);
     await page.evaluate(()=>Portal.CustomerPhone.open());
     assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).count(),0);
@@ -193,15 +201,22 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.locator('[data-phone-tab=text]').click();
     assert.equal(await page.locator('.fm-phone-extra [name=business_number]').inputValue(),'+12065550199');
     await page.getByRole('button',{name:/Jane Test/}).click();
-    await page.getByRole('textbox',{name:'Text message'}).fill('Thanks, Jane');
+    await page.getByRole('textbox',{name:'Text message'}).fill('Thanks, Jane ');
+    await page.getByRole('button',{name:'Insert emoji',exact:true}).click();
+    await page.getByRole('button',{name:'Insert 👍'}).click();
+    assert.equal(await page.getByRole('textbox',{name:'Text message'}).inputValue(),'Thanks, Jane 👍');
     await page.getByRole('button',{name:'Send text'}).click();
-    await page.waitForFunction(()=>window.lastReply?.text==='Thanks, Jane');
+    await page.waitForFunction(()=>window.lastReply?.text==='Thanks, Jane 👍');
     await page.locator('[data-phone-tab=contacts]').click();
     await page.getByRole('button',{name:'Text Avery Demo'}).click();
     await page.getByRole('textbox',{name:'Text message'}).fill('Hello, Avery');
+    await page.locator('.fm-phone-compose input[type=file]').setInputFiles({name:'photo.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});
+    assert.equal(await page.locator('.fm-phone-image-preview').isVisible(),true);
+    if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/text-image.png'});
     await page.getByRole('button',{name:'Send text'}).click();
     await page.waitForFunction(()=>window.lastNewText?.body.text==='Hello, Avery');
-    assert.deepEqual(await page.evaluate(()=>lastNewText),{project:'project-two',body:{to:'+12025550125',text:'Hello, Avery',business_number:'+12065550199',idempotency_key:await page.evaluate(()=>lastNewText.body.idempotency_key)}});
+    assert.deepEqual(await page.evaluate(()=>lastImageUpload),{name:'photo.png',options:{ownerType:'user',ownerId:'user-test',slot:'sms_image',scope:'communications'}});
+    assert.deepEqual(await page.evaluate(()=>lastNewText),{project:'project-two',body:{to:'+12025550125',text:'Hello, Avery',image:{media_id:'image-one'},business_number:'+12065550199',idempotency_key:await page.evaluate(()=>lastNewText.body.idempotency_key)}});
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

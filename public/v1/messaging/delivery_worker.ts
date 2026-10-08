@@ -23,6 +23,7 @@ import { createTelnyxClient, telnyxDeliveryWebhookUrl, TelnyxError } from "./tel
 import { outboundSmsComplianceIssue, smsConsentPurposesAllow } from "./compliance_rules.js";
 import { smsAutoresponsesReady } from "./autoresponses.js";
 import { audioMediaPublicUrl } from "../audio-notes/links.js";
+import { smsImagePublicUrl } from "../comms/sms-images.js";
 
 const workerId = `sms_worker_${process.pid}_${randomUUID().slice(0, 8)}`;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -198,13 +199,18 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
   try {
     const audioNote = asObject(asObject(message.metadata).audio_note);
     const audioMediaId = cleanText(audioNote.media_id);
+    const imageMediaId = cleanText(asObject(asObject(message.metadata).sms_image).media_id);
+    const mediaUrls = [
+      ...(audioMediaId ? [audioMediaPublicUrl(organizationId, audioMediaId)] : []),
+      ...(imageMediaId ? [smsImagePublicUrl(organizationId, imageMediaId)] : [])
+    ];
     const response = await createTelnyxClient().sendMessage({
       from: configuration.phoneNumber,
       to: recipientAddress,
       messaging_profile_id: configuration.messagingProfileId,
       text: cleanText(message.text_body),
-      type: audioMediaId ? "MMS" : "SMS",
-      ...(audioMediaId ? { media_urls: [audioMediaPublicUrl(organizationId, audioMediaId)] } : {}),
+      type: mediaUrls.length ? "MMS" : "SMS",
+      ...(mediaUrls.length ? { media_urls: mediaUrls } : {}),
       encoding: "auto",
       auto_detect: true,
       use_profile_webhooks: false,

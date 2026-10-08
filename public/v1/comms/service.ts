@@ -20,6 +20,7 @@ import {
   updateMessageRecord
 } from "../messaging/communications_storage.js";
 import { publishWorkCommunicationEvent, sendCommunication } from "../messaging/communications_service.js";
+import { validateSmsImage } from "./sms-images.js";
 import { ensureOrgEmailInbox, sendEngineEmail, normalizeEmailAddress } from "../email/engine.js";
 import { processInboundEmail } from "../email/inbound.js";
 import { readDocument } from "../platform/storage.js";
@@ -530,7 +531,7 @@ export async function sendProjectSms(
   orgId: string,
   branchId: string,
   projectId: string,
-  input: { to?: string | string[]; text: string; conversation_id?: string; business_number?: string; source?: Json; idempotency_key?: string; audio_note?: Json },
+  input: { to?: string | string[]; text: string; conversation_id?: string; business_number?: string; source?: Json; idempotency_key?: string; audio_note?: Json; image?: { media_id: string } },
   ctx?: Partial<PlatformAuthContext>
 ) {
   const contact = await projectPrimaryContact(orgId, projectId);
@@ -558,6 +559,7 @@ export async function sendProjectSms(
   const contactIds = recipients.map((recipient) => cleanText(recipient.contact_id)).filter(Boolean);
   const identity=input.business_number?(await listSenderIdentities(orgId,branchId,'sms')).find(sender=>sender.address===input.business_number&&sender.status==='active'):null;
   if(input.business_number&&!identity)throw badRequest('sms_sender_unavailable','This line is not ready to send text messages.');
+  const image=input.image?.media_id ? await validateSmsImage(orgId,input.image.media_id,cleanText(ctx?.userId)) : null;
   return await sendCommunication(orgId, {
     branch_id: branchId,
     conversation_id: cleanText(conversation.id),
@@ -568,7 +570,7 @@ export async function sendProjectSms(
     content: { text: input.text },
     context: { project_id: projectId, ...(contactIds.length === 1 ? { contact_id: contactIds[0] } : {}) },
     source: input.source as never,
-    metadata: cleanText(asObject(input.audio_note).media_id) ? { audio_note: asObject(input.audio_note) } : undefined,
+    metadata: { ...(cleanText(asObject(input.audio_note).media_id) ? { audio_note: asObject(input.audio_note) } : {}), ...(image ? { sms_image: image } : {}) },
     idempotency_key: input.idempotency_key
   } as never, ctx);
 }

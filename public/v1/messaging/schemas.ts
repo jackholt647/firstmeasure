@@ -114,7 +114,7 @@ export const sendCommunicationSchema = z.object({
   const html = String(value.content.html || "").trim();
   const subject = String(value.content.subject || "").trim();
   if (value.channel === "sms") {
-    if (!text) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["content", "text"], message: "SMS text is required." });
+    if (!text && !String((value.metadata?.sms_image as Record<string, unknown> | undefined)?.media_id || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["content", "text"], message: "SMS text or image is required." });
     if (text.length > 1600) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["content", "text"], message: "SMS text cannot exceed 1600 characters." });
   }
   if (value.channel === "email") {
