@@ -3335,6 +3335,7 @@ window.PlatformCommerce.onReady(function(){
         structure_count: String(state.type === 'additional_structure' ? reportRequestStructureCount() : 0),
         report_expedite_option: state.type === 'additional_structure' && reportExpediteOptionsEnabled() ? normalizeReportExpediteKey(state.expedite || 'standard_3_6') : 'standard_3_6',
         report_pricing_revision: reportExpediteOption(state.expedite || 'standard_3_6')?.pricing_revision ?? 0,
+        report_market_revision: reportExpediteOption(state.expedite || 'standard_3_6')?.report_market_revision ?? 0,
         billing_reason: state.type === 'additional_structure' ? 'additional_structure_request' : '',
         billing_label: state.type === 'additional_structure' ? (globalThis.PlatformLanguage?.text("measurements","m_735a0c9b004cb0","Additional structure request") ?? "Additional structure request") : '',
         billing_description: state.type === 'additional_structure' ? (globalThis.PlatformLanguage?.text("measurements","m_136eda8f76021e","Additional structures added to returned report") ?? "Additional structures added to returned report") : ''
@@ -3706,7 +3707,8 @@ window.PlatformCommerce.onReady(function(){
       const { data } = await postAction('expedite_queued_report', {
         project_id: projectId,
         report_expedite_option: optionKey,
-        report_pricing_revision: reportExpediteOption(optionKey)?.pricing_revision ?? 0
+        report_pricing_revision: reportExpediteOption(optionKey)?.pricing_revision ?? 0,
+        report_market_revision: reportExpediteOption(optionKey)?.report_market_revision ?? 0
       });
       if (!data?.success) throw new Error(data?.error || data?.message || (globalThis.PlatformLanguage?.text("measurements","m_2ba158e4424efb","Could not expedite this report.") ?? "Could not expedite this report."));
       mergeReportManifestIntoActiveProject(data.manifest || {});

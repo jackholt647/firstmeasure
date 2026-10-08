@@ -124,7 +124,7 @@
       bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
-      // DEPRECATED (2026-08): legacy proposals surface â€” hidden by its bundle
+      // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
       // (visible:false). Kept so historical proposals stay debuggable; the
       // document engine + unified Docs tab replace it.
       id: 'portal.proposals',
@@ -149,7 +149,7 @@
       bundles: [bundle('photos/project.js')]
     },
     {
-      // DEPRECATED (2026-08): legacy Proposals project tab â€” hidden by its
+      // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
       // bundle (visible:false). The bundle must keep loading: the document
       // engine still bridges into its scope-generation exports (see the
       // project.documents dependency note below).
@@ -186,7 +186,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       // project.proposal: the legacy module still owns scope generation
-      // (proposalBuilderScopeForTemplate â€” customer choice groups, optional
+      // (proposalBuilderScopeForTemplate — customer choice groups, optional
       // items); without it loaded, workflow generation degrades to raw
       // pricebook rows with no customer-selectable options. Remove when the
       // generator moves into the workflow runtime at legacy teardown.
@@ -292,7 +292,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261006-firstmeasure-complete-localization-v2')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261008-international-pricing-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -358,7 +358,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261006-firstmeasure-complete-localization-v2')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261008-international-pricing-v1')]
     },
     {
       id: 'project.checklists',

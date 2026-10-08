@@ -153,7 +153,7 @@ export const registerPublicFirstMeasureApi: FastifyPluginAsync = async (app) => 
       feature_flags: features,
       commerce: customerCommercialView(),
       property_country: country,
-      report_market_revision: 1,
+      report_market_revision: quote.report_market_revision,
       options: quote.options.filter((option) => !option.expedited || features.report_expedite_options),
       add_ons: {
         gutters: {

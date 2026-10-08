@@ -1,7 +1,8 @@
 import { env } from "../src/config/env.js";
 import { badRequest } from "../platform/errors.js";
 import { countryCode, isDomesticCountry } from "./regions.js";
-import { reportPropertyCountry } from "./profile.js";
+import { reportPropertyCountry, reportEuroExchange, currentProfile, internationalReportMarket } from "./profile.js";
+import { exchangeEstimate } from "./exchange.js";
 
 const cache = new Map<string, { country: string; expires: number }>();
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -82,5 +83,12 @@ export async function resolveReportPropertyCountry(input: Record<string, unknown
 }
 export async function withReportPropertyMarket<T>(input: Record<string, unknown>, callback: (country: string) => T, required = true): Promise<Awaited<T>> {
   const country = await resolveReportPropertyCountry(input, required);
-  return await reportPropertyCountry.run(country, () => callback(country));
+  return await reportPropertyCountry.run(country, async () => {
+    if(internationalReportMarket() && currentProfile().currency==="USD") {
+      const fx=await exchangeEstimate("EUR","USD");
+      if(!fx)throw badRequest("exchange_rate_unavailable","International prices are temporarily unavailable. Refresh the quote before ordering.");
+      return await reportEuroExchange.run({rate:fx.rate,date:fx.date},()=>callback(country));
+    }
+    return await callback(country);
+  });
 }

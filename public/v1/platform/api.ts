@@ -9015,7 +9015,7 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
     case "exteriors_quote":
       await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
       await requireExteriorAccess(ctx.orgId, cleanText(body.project_type)||"residential");
-      return {success:true,allow_incomplete_photo_review:!env.isProduction && await isCapabilityEnabled(ctx.orgId,"firstmeasure.exteriors_photo_review_test"),...exteriorQuote(Math.max(1,Math.min(10,Number(body.structure_count)||1)))};
+      return withReportPropertyMarket(body, async () => ({success:true,allow_incomplete_photo_review:!env.isProduction && await isCapabilityEnabled(ctx.orgId,"firstmeasure.exteriors_photo_review_test"),...exteriorQuote(Math.max(1,Math.min(10,Number(body.structure_count)||1)))}),false);
     case "exteriors_upload": {
       await requirePlatformAuth(request, {csrf:true,permission:"order_reports"});
       await requireExteriorAccess(ctx.orgId, cleanText(body.project_type)||"residential");

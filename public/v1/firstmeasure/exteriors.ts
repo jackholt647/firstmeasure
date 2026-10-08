@@ -1,4 +1,4 @@
-import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
+import { reportPrice, assertCommercialRevision, reportExpeditingAllowed } from "../commerce/profile.js";
 import { z } from "zod";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { readMediaMetadata } from "../platform/storage.js";
@@ -22,6 +22,7 @@ export function exteriorQuote(count=1) {
     options:[{key:"exteriors_standard",label:"Standard · 24 hours",minutes:1440,fee:0},
       {key:"exteriors_same_day",label:"Same day · under 6 hours",minutes:360,fee:config.exteriors_same_day_fee},
       {key:"exteriors_priority",label:"Priority · under 3 hours",minutes:180,fee:config.exteriors_priority_fee}]
+      .filter(o=>o.key==="exteriors_standard" || reportExpeditingAllowed())
       .map(o=>({...o,unit_price:Math.round((config.exteriors_base_price+o.fee)*100)/100,
         amount:Math.round((config.exteriors_base_price+o.fee)*count*100)/100,
         deadline:new Date(now.getTime()+o.minutes*60000).toISOString()}))};

@@ -1,4 +1,5 @@
-import { reportBasePrice, reportRushPrice, customerCommercialView } from "../commerce/profile.js";
+import { reportBasePrice, reportRushPrice, customerCommercialView, reportMarketRevision, reportExpeditingAllowed } from "../commerce/profile.js";
+import { FirstMeasureError } from "./errors.js";
 import { currentExpeditePricing, pricingContext } from "./pricing_config.js";
 export type ReportExpediteProjectType = "residential" | "commercial" | "multifamily";
 
@@ -142,12 +143,13 @@ function reportExpeditePricingForWait(optionKey: unknown, waitMinutes: number): 
 }
 
 export function reportExpediteBaseUnitPrice(projectType: unknown, optionKey: unknown, waitMinutes = 180) {
+  if(isExpeditedReportExpediteKey(optionKey) && !reportExpeditingAllowed())throw new FirstMeasureError("international_expedite_disabled",403,"Expedited delivery is not currently available for properties outside the US and Canada.");
   const type = normalizeReportExpediteProjectType(projectType);
   const standardBase = type === "commercial" || type === "multifamily" ? 12 : 7;
   const pricing = reportExpeditePricingForWait(optionKey, waitMinutes);
   const domesticSurcharge = type === "commercial" || type === "multifamily"
     ? roundCurrency(standardBase * (pricing.rushDelta / 7)) : pricing.rushDelta;
-  return roundCurrency(reportBasePrice(standardBase) + reportRushPrice(domesticSurcharge));
+  return roundCurrency(reportBasePrice(standardBase) + reportRushPrice(domesticSurcharge,standardBase));
 }
 
 function addMinutes(date: Date, minutes: number) {
@@ -266,7 +268,7 @@ export function buildReportExpediteOptions(input: {
   const now = input.now || pricingContext.getStore()?.now || new Date();
   const generatedAt = now.toISOString();
   const standardWait = estimatedStandardWait(now);
-  const options = REPORT_EXPEDITE_DEFINITIONS.map((definition): ReportExpediteOption => {
+  const options = REPORT_EXPEDITE_DEFINITIONS.filter(definition=>!definition.expedited || reportExpeditingAllowed()).map((definition): ReportExpediteOption => {
     const option = reportExpediteDefinition(definition.key)!;
     const pricing = reportExpeditePricingForWait(option.key, standardWait.wait);
     const additionalMinutes = expediteAdditionalStructureMinutes(projectType, option, structureCount);
@@ -307,7 +309,8 @@ export function buildReportExpediteOptions(input: {
     ok: true,
     success: true,
     algorithm: "wait_linked_v1",
-    report_market_revision: 1,
+    report_market_revision: reportMarketRevision(),
+    international_expedite_enabled: reportExpeditingAllowed(),
     report_prices: customerCommercialView().report_prices,
     pricing_revision: pricingContext.getStore()?.revision ?? 0,
     generated_at: generatedAt,

@@ -1,4 +1,4 @@
-import { reportPrice, reportGutterPrice, internationalReportMarket, assertCommercialRevision } from "../commerce/profile.js";
+import { reportPrice, reportGutterPrice, internationalReportMarket, reportMarketRevision, assertCommercialRevision } from "../commerce/profile.js";
 import { buildReportExpediteOptions, normalizeReportExpediteKey, reportExpediteBaseUnitPrice } from "./expedite.js";
 import { pricingContext } from "./pricing_config.js";
 import { FirstMeasureError } from "./errors.js";
@@ -85,7 +85,7 @@ export function firstMeasureReportExpediteDiscount(input: FirstMeasureReportPric
 
 export function assertReportPricingRevision(input: FirstMeasureReportPricingInput) {
   assertCommercialRevision(input);
-  if (internationalReportMarket() && Number(input.report_market_revision) !== 1) {
+  if (internationalReportMarket() && Number(input.report_market_revision) !== reportMarketRevision()) {
     throw new FirstMeasureError("pricing_changed", 409, "International report prices changed. Refresh the quote before ordering.");
   }
   const revision = pricingContext.getStore()?.revision ?? 0;

@@ -1,4 +1,5 @@
-// Reference rates are display estimates only. Stripe/card issuers own conversion.
+// ECB reference rates support display estimates and rounded same-currency report prices.
+// Card-issuer currency conversion remains separate from the prepaid ledger.
 type Rates={date:string;rates:Record<string,number>};
 let cached:Rates|null=null,lastAttempt=0,pending:Promise<Rates|null>|null=null;
 export function parseReferenceRates(xml:string):Rates {
@@ -17,7 +18,7 @@ export async function exchangeEstimate(base:string,local:string) {
     pending=(async()=>{
       try {const response=await fetch("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",{signal:AbortSignal.timeout(2500)});
         if(!response.ok)throw new Error("Reference rates unavailable");cached=parseReferenceRates(await response.text());
-      }catch{/* An unavailable estimate never changes or blocks the actual price. */}
+      }catch{/* Keep a recent cached rate; international USD report quotes fail closed if none is usable. */}
       return cached;
     })().finally(()=>{pending=null;});
   }

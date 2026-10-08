@@ -8,11 +8,12 @@ import { conflict } from "../platform/errors.js";
 
 const currencyCode=z.string().regex(/^[A-Z]{3}$/);
 export const commercialPolicySchema=z.object({
+  international_expedite_enabled:z.boolean().default(false),
   multipliers:z.object({domestic:z.literal(1),international:z.number().positive().max(20)}).strict(),
   currencies:z.record(currencyCode,z.object({minor_digits:z.number().int().min(0).max(3),report_multiplier:z.number().positive().max(10000)}).strict())
 }).strict().refine(p=>p.currencies.USD?.minor_digits===2 && p.currencies.EUR?.minor_digits===2,"USD and EUR must remain supported");
 export type CommercialPolicy=z.infer<typeof commercialPolicySchema>;
-export const DEFAULT_COMMERCIAL_POLICY:CommercialPolicy={multipliers:{domestic:1,international:2},currencies:{USD:{minor_digits:2,report_multiplier:1},EUR:{minor_digits:2,report_multiplier:1}}};
+export const DEFAULT_COMMERCIAL_POLICY:CommercialPolicy={international_expedite_enabled:false,multipliers:{domestic:1,international:2},currencies:{USD:{minor_digits:2,report_multiplier:1},EUR:{minor_digits:2,report_multiplier:1}}};
 export const profileSchema=z.object({
   version:z.literal(1),country:z.string(),source:z.string(),assigned_at:z.string(),
   tier:z.enum(["domestic","international"]),currency:currencyCode,local_currency:currencyCode,
@@ -46,18 +47,35 @@ export const commerceContext=new AsyncLocalStorage<{profile:CommercialProfile;po
 export function currentProfile(){ return commerceContext.getStore()?.profile || LEGACY_PROFILE; }
 /** Verified property country can raise a domestic account's report rate, never lower an international account's rate. */
 export const reportPropertyCountry = new AsyncLocalStorage<string>();
+export const reportEuroExchange = new AsyncLocalStorage<{rate:number;date:string}>();
+function internationalEuroPrice(euros:number) {
+  if(currentProfile().currency !== "USD")return euros;
+  const fx=reportEuroExchange.getStore();
+  if(!fx || !Number.isFinite(fx.rate) || fx.rate<=0)throw conflict("exchange_rate_unavailable","International prices are temporarily unavailable. Refresh the quote before ordering.");
+  return Math.round(euros*fx.rate);
+}
+export function reportMarketRevision() {
+  if(!internationalReportMarket())return 0;
+  if(currentProfile().currency!=="USD")return 2;
+  internationalEuroPrice(25); // A USD international quote requires a verified reference rate.
+  return 200000000+Math.round(reportEuroExchange.getStore()!.rate*1000000);
+}
+export function reportExpeditingAllowed() {
+  const country=reportPropertyCountry.getStore() || currentProfile().country;
+  return isDomesticCountry(country) || !!commerceContext.getStore()?.policy.international_expedite_enabled;
+}
 export function internationalReportMarket() {
   const profile = currentProfile();
   const property = reportPropertyCountry.getStore();
   return profile.tier === "international" || (!!property && !isDomesticCountry(property));
 }
 export function reportBasePrice(domesticBase: number) {
-  return internationalReportMarket() ? (currentProfile().currency === "USD" ? 21 : 20) : reportPrice(domesticBase);
+  return internationalReportMarket() ? internationalEuroPrice(domesticBase===7?25:50) : reportPrice(domesticBase);
 }
-export function reportRushPrice(domesticSurcharge: number) {
-  return internationalReportMarket() ? Math.round(Math.round(domesticSurcharge * 100) * 2.5) / 100 : reportPrice(domesticSurcharge);
+export function reportRushPrice(domesticSurcharge: number, domesticBase=7) {
+  return internationalReportMarket() ? Math.round(reportBasePrice(domesticBase)*domesticSurcharge/domesticBase*100)/100 : reportPrice(domesticSurcharge);
 }
-export function reportGutterPrice() { return 2; }
+export function reportGutterPrice() { return internationalReportMarket()?internationalEuroPrice(5):2; }
 
 export async function withOrganizationCommerce<T>(org:string,fn:()=>T) {
   const [profile,policy]=await Promise.all([organizationProfile(org),commercialPolicy()]);

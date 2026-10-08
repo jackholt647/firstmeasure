@@ -6217,11 +6217,12 @@ window.PlatformCommerce.onReady(async function(){
         production_deadline_at: (isAlias || useUiWindow) ? '' : (option.production_deadline_at || ''),
         expedited: key === 'standard_3_6' ? false : option.expedited !== false,
         _pricingAuthoritative: true,
-        pricing_revision: Number(data.pricing_revision ?? 0)
+        pricing_revision: Number(data.pricing_revision ?? 0),
+        report_market_revision: Number(data.report_market_revision ?? 0)
       };
     }).filter(Boolean);
     const byKey = new Map();
-    [...FALLBACK_REPORT_EXPEDITE_OPTIONS, ...normalizedOptions].forEach((option) => {
+    (normalizedOptions.length ? normalizedOptions : FALLBACK_REPORT_EXPEDITE_OPTIONS).forEach((option) => {
       byKey.set(option.key, { ...(byKey.get(option.key) || {}), ...option });
     });
     return ['standard_3_6', 'rush_1_3', 'rush_under_1'].map((key) => byKey.get(key)).filter(Boolean);
@@ -6342,7 +6343,7 @@ window.PlatformCommerce.onReady(async function(){
       report_expedite_net_total_price: String(reportExpediteNetTotalPrice(option, selectedType)),
       report_expedite_rush_delta: String(Math.max(0, Math.round((reportExpediteUnitPrice(option, selectedType) - reportDisplayedBasePrice(selectedType)) * 100) / 100)),
       report_pricing_revision: String(option.pricing_revision ?? 0),
-      report_market_revision: "1",
+      report_market_revision: String(option.report_market_revision ?? 0),
       report_expedite_structure_count: String(reportExpediteStructureCount(selectedType)),
       report_expedite_additional_structure_minutes: String(Number(option.additionalStructureMinutes ?? option.additional_structure_minutes ?? 0) || 0),
       report_expedite_coupon_available: reportExpediteCouponDiscount(option, selectedType) > 0 ? '1' : '0',

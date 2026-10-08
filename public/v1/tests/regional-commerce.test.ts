@@ -31,7 +31,7 @@ test("signup assigns organization prices, currency and localization once; custom
   try{
     for(const [country,currency,display,price,locale,units] of [
       ["US","USD","currency",7,"en-US","imperial"],["CA","USD","currency",7,"en-US","metric"],
-      ["GB","EUR","currency",20,"en-GB","metric"],["FR","EUR","currency",20,"fr-FR","metric"],["JP","EUR","currency",20,"ja-JP","metric"]
+      ["GB","EUR","currency",25,"en-GB","metric"],["FR","EUR","currency",25,"fr-FR","metric"],["JP","EUR","currency",25,"ja-JP","metric"]
     ] as const){
       const c=client(country);accounts.set(country,c);
       const registration=await c.request("POST","/v1/platform/auth/register",{email:country.toLowerCase()+"@regional.example.test",password:"regional-password-123",phone:country==="GB"?"+447700900001":"+120255501"+String(accounts.size).padStart(2,"0"),company:"Regional fixture",global:{commercial_profile:{currency:"JPY",tier:"domestic"}}});
@@ -59,7 +59,7 @@ test("regional report pricing is isolated across concurrent requests, including 
   const {firstMeasureReportAmount}=await import("../firstmeasure/pricing.js");
   const {exteriorQuote}=await import("../firstmeasure/exteriors.js");
   const input={project_type:"commercial",report_mode:"both",report_expedite_option:"rush_under_1",include_weather_report:true,pins:[{},{}]};
-  const values=await Promise.all(Array.from({length:24},(_,i)=>profile.withOrganizationCommerce(accounts.get(i%2?"FR":"US").org,async()=>{await new Promise(r=>setTimeout(r,i%4));return [firstMeasureReportAmount(input),exteriorQuote(2).options[2]!.amount];})));
+  const values=await Promise.all(Array.from({length:24},(_,i)=>profile.withOrganizationCommerce(accounts.get(i%2?"FR":"US").org,async()=>{await new Promise(r=>setTimeout(r,i%4));return [firstMeasureReportAmount({...input,report_expedite_option:'standard_3_6'}),exteriorQuote(2).options[0]!.amount];})));
   values.forEach((value,i)=>{assert.equal(value[0],values[i%2]![0]);assert.equal(value[1],values[0]![1]!*(i%2?2:1));});
   assert.ok(values[1]![0]! > values[0]![0]!);
 });
@@ -139,7 +139,7 @@ test("only internal administrators can revise policy; stale orders fail and acce
   const policy=await us.request("GET",endpoint);policy.config.multipliers.international=3;
   const saved=await us.request("PUT",endpoint,{revision:policy.revision,config:policy.config});assert.ok(saved.revision>policy.revision);
   assert.equal((await us.raw("PUT",endpoint,{revision:policy.revision,config:policy.config})).statusCode,409);
-  const view=await fr.request("GET",`/v1/platform/organizations/${fr.org}/commerce`);assert.equal(view.report_prices.residential,20);
+  const view=await fr.request("GET",`/v1/platform/organizations/${fr.org}/commerce`);assert.equal(view.report_prices.residential,25);
   await profile.withOrganizationCommerce(fr.org,()=>assert.throws(()=>profile.assertCommercialRevision({commercial_pricing_revision:0}),{code:"pricing_changed"}));
   const billing=await import("../platform-billing/storage.js");
   const subscription=(await billing.records<any>(fr.org,"subscription"))[0];assert.equal(subscription.price.monthly_cents,6000);assert.equal(subscription.price.currency,"EUR");
