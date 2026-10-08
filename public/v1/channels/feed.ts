@@ -151,7 +151,7 @@ export async function createFeedComment(ctx:PlatformAuthContext,messageId:string
   await feedActionAccess(ctx,"comment_feed");const {root}=await authorizedRoot(ctx,messageId),body=postMessageSchema.parse(input);
   let parentId=root.id,replyTo:Obj|undefined;
   if(body.parent_id && body.parent_id!==root.id){const {row,root:replyRoot}=await authorizedRoot(ctx,body.parent_id);if(replyRoot.id!==root.id || !row.parent_id || row.deleted_at)throw forbidden("feed_reply_denied","This comment is not in this post.");parentId=row.id;replyTo={id:row.id,author_name:(await channels.userDirectory(ctx.orgId)).get(row.author_id)?.name || "Someone"};}
-  return channels.postMessage(ctx,root.channel_id,{text:body.text,content:body.content,client_msg_id:body.client_msg_id,parent_id:parentId,attachment_ids:body.attachment_ids,metadata:{...(body.metadata.giphy?{giphy:body.metadata.giphy}:{}),...(replyTo?{feed_reply_to:replyTo}:{})}});
+  return channels.postMessage(ctx,root.channel_id,{text:body.text,content:body.content,client_msg_id:body.client_msg_id,parent_id:parentId,attachment_ids:body.attachment_ids,metadata:{...(body.metadata.giphy?{giphy:body.metadata.giphy}:{}),...(body.metadata.audio_note?{audio_note:body.metadata.audio_note}:{}),...(replyTo?{feed_reply_to:replyTo}:{})}});
 }
 export async function reactFeedMessage(ctx:PlatformAuthContext,messageId:string,input:unknown) {
   await feedActionAccess(ctx,"react_feed");await authorizedRoot(ctx,messageId);const body=reactionSchema.parse(input);
