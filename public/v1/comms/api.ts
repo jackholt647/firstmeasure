@@ -160,7 +160,7 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId"), mediaId = getParam(request.params, "mediaId");
     if (!validSmsImageToken(orgId, mediaId, getParam(request.params, "token"))) throw forbidden("invalid_sms_image_link", "This image link is invalid.");
     const file = await readMediaFile(orgId, mediaId);
-    if (!/^image\/(jpeg|png|gif|webp)$/.test(file.contentType)) throw forbidden("invalid_sms_image", "This is not a text image.");
+    if (!/^image\/(jpeg|png|gif)$/.test(file.contentType)) throw forbidden("invalid_sms_image", "This is not a text image.");
     reply.header("Content-Type", file.contentType);
     reply.header("Content-Length", String(file.bytes.length));
     reply.header("Cache-Control", "private, max-age=3600");

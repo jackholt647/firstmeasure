@@ -4,7 +4,8 @@ import { env } from "../src/config/env.js";
 import { badRequest, forbidden } from "../platform/errors.js";
 import { readMediaMetadata } from "../platform/storage.js";
 
-const allowedTypes = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+const allowedTypes = new Set(["image/jpeg", "image/png", "image/gif"]);
+const maxImageBytes = 900 * 1024;
 
 function signature(orgId: string, mediaId: string) {
   return createHmac("sha256", env.platformSessionSecret)
@@ -28,8 +29,8 @@ export async function validateSmsImage(orgId: string, mediaId: string, userId: s
   if (owner.type !== "user" || owner.id !== userId || owner.slot !== "sms_image") {
     throw forbidden("sms_image_owner", "Choose an image you attached to this message.");
   }
-  if (!allowedTypes.has(String(media.content_type)) || Number(media.size_bytes) > 5 * 1024 * 1024) {
-    throw badRequest("invalid_sms_image", "Attach a JPG, PNG, GIF, or WebP image under 5 MB.");
+  if (!allowedTypes.has(String(media.content_type)) || Number(media.size_bytes) > maxImageBytes) {
+    throw badRequest("invalid_sms_image", "Attach a JPG, PNG, or GIF image under 900 KB.");
   }
   return { media_id: mediaId, file_name: String(media.file_name || "image"), content_type: String(media.content_type) };
 }

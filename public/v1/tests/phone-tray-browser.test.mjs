@@ -217,6 +217,14 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.waitForFunction(()=>window.lastNewText?.body.text==='Hello, Avery');
     assert.deepEqual(await page.evaluate(()=>lastImageUpload),{name:'photo.png',options:{ownerType:'user',ownerId:'user-test',slot:'sms_image',scope:'communications'}});
     assert.deepEqual(await page.evaluate(()=>lastNewText),{project:'project-two',body:{to:'+12025550125',text:'Hello, Avery',image:{media_id:'image-one'},business_number:'+12065550199',idempotency_key:await page.evaluate(()=>lastNewText.body.idempotency_key)}});
+    const webp=await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=2;canvas.height=2;canvas.getContext('2d').fillRect(0,0,2,2);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp'));return [...new Uint8Array(await blob.arrayBuffer())];});
+    await page.locator('[data-phone-tab=contacts]').click();
+    await page.getByRole('button',{name:'Text Avery Demo'}).click();
+    await page.locator('.fm-phone-compose input[type=file]').setInputFiles({name:'photo.webp',mimeType:'image/webp',buffer:Buffer.from(webp)});
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-image-preview span')?.textContent==='photo.jpg');
+    await page.getByRole('button',{name:'Send text'}).click();
+    await page.waitForFunction(()=>window.lastNewText?.body.text==='');
+    assert.equal(await page.evaluate(()=>lastImageUpload.name),'photo.jpg');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
