@@ -3388,8 +3388,9 @@
 .fmdw-var-head small{font-size:10px;font-weight:800;color:var(--fmdw-muted);min-width:0;overflow:hidden;text-overflow:ellipsis}
 .fmdw-var-all{border:0;background:transparent;color:var(--fmdw-muted);font:inherit;font-size:10px;font-weight:900;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
 .fmdw-var-all:hover{color:var(--fmdw-primary)}
-.fmdw-var-include{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
-.fmdw-var-include input{position:absolute;opacity:0;pointer-events:none}
+.fmdw-var-include{position:relative;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+/* Kept inside its label: an absolutely placed input with no positioned parent sits far away, and focusing it scrolls the whole window to reach it. */
+.fmdw-var-include input{position:absolute;left:0;top:0;width:13px;height:13px;margin:0;opacity:0;pointer-events:none}
 .fmdw-var-include i{width:13px;height:13px;border-radius:4px;border:1.5px solid #c0c6d2;background:#fff;color:transparent;font-size:7px;display:grid;place-items:center;transition:background .12s ease,border-color .12s ease}
 .fmdw-var-include input:checked+i{background:var(--fmdw-primary);border-color:var(--fmdw-primary);color:#fff}
 .fmdw-var-include input:focus-visible+i{outline:2px solid var(--fmdw-primary);outline-offset:2px}
