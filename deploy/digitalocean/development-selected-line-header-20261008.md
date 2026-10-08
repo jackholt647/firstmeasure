@@ -7,4 +7,4 @@ independent of tool messages and model dimension-label visibility.
 
 Validation: 111 base/editor/mode tests passed, plus a focused wall-line test.
 Regressions cover sloped lengths, deselection, multiple lines, header updates
-and hiding outside wall mode. Development verification pending.
+and hiding outside wall mode. Activated `af3b797ac51a7dc132dbb84923f8657c0ebd6334` on all four development roles. Five script hashes, runtime identity, readiness, development isolation and public assets verified. Both web nodes returned 200 for the saved project. Evidence: output/selected-line-header-20261008/.
