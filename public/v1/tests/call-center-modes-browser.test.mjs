@@ -61,6 +61,11 @@ test('three Call Center screens wire personal history, queue controls and depart
     await page.getByRole('tab',{name:'Manager view'}).click();
     await page.getByText('Bea Rep').waitFor();
     assert.equal(await page.getByRole('button',{name:'Barge in'}).count(),0);
+    await page.locator('[data-action=center-list-toggle]').first().click();
+    await page.getByRole('button',{name:'Remove'}).click();
+    assert.equal(await page.evaluate(()=>requests.filter(path=>path.includes('call-list-entries/')).length),0);
+    await page.locator('dialog').getByRole('button',{name:'Remove lead'}).click();
+    await page.waitForFunction(()=>requests.includes('call-list-entries/lead-one'));
     await page.locator('[data-department]').selectOption('sales');
     await page.waitForFunction(()=>requests.some(path=>path.startsWith('voice/center?department_id=sales')));
     await page.getByRole('button',{name:'Listen'}).click();
