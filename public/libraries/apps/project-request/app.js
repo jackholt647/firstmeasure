@@ -32,7 +32,7 @@ window.PlatformCommerce.onReady(async function(){
   const INSTANT_ADDON_RESIDENTIAL = window.PlatformCommerce.price('instant_residential');
   const INSTANT_ADDON_COMMERCIAL = window.PlatformCommerce.price('instant_commercial');
   const INSTANT_ADDON_MULTIFAMILY = window.PlatformCommerce.price('instant_multifamily');
-  const GUTTER_REPORT_ADDON = window.PlatformCommerce.price('gutters');
+  function gutterReportAddonPrice(){ const value=reportExpeditePropertyKey===reportPropertyKey()?reportPropertyPrices?.gutters:null; return value!=null && Number.isFinite(Number(value))?Number(value):window.PlatformCommerce.price('gutters'); }
   const WEATHER_REPORT_ADDON = window.PlatformCommerce.price('weather');
   const EXPEDITE_FEE_PERCENT = 115;
   const MAX_PINS_RESIDENTIAL = 5;
@@ -3283,7 +3283,7 @@ window.PlatformCommerce.onReady(async function(){
       && reportExpediteOptionsProjectType === type
       && reportExpediteOptionsStructureCount === structureCount
       && reportExpediteOptionsSlot === currentSlot
-      && reportExpediteOptions.some((option) => option.expedited)
+      && reportExpediteOptions.some((option) => option.key === 'standard_3_6')
       && reportExpediteOptions.every((option) => option._pricingAuthoritative === true);
   }
   function reportExpeditePricingLoading(){
@@ -3424,7 +3424,7 @@ window.PlatformCommerce.onReady(async function(){
     const instant = includeInstantPreview ? instantAddonUnitPriceFor(selectedType) : 0;
     const unit = base + instant;
     const reportPrice = isPerStructureType(selectedType) ? unit * Math.max(1, pinCount()) : unit;
-    const gutterPrice = hasGutterAddon() ? GUTTER_REPORT_ADDON : 0;
+    const gutterPrice = hasGutterAddon() ? gutterReportAddonPrice() : 0;
     const weatherPrice = hasWeatherAddon() ? WEATHER_REPORT_ADDON * Math.max(1, pinCount()) : 0;
     return reportPrice + gutterPrice + weatherPrice;
   }
@@ -5945,7 +5945,7 @@ window.PlatformCommerce.onReady(async function(){
     const instant = includeInstantPreview ? instantAddonUnitPriceFor(normalizedType) : 0;
     const unit = reportUnit + instant;
     const reportTotal = isPerStructureType(normalizedType) ? unit * Math.max(1, pinCount()) : unit;
-    const gutters = normalizedType === 'residential' && hasGutterAddon() ? GUTTER_REPORT_ADDON : 0;
+    const gutters = normalizedType === 'residential' && hasGutterAddon() ? gutterReportAddonPrice() : 0;
     const weather = hasWeatherAddon() ? WEATHER_REPORT_ADDON * Math.max(1, pinCount()) : 0;
     return Math.round((reportTotal + gutters + weather) * 100) / 100;
   }
@@ -6534,7 +6534,7 @@ window.PlatformCommerce.onReady(async function(){
         : (globalThis.PlatformLanguage?.text("project-request","audit_c0eb0f8efba638","Choose type") ?? "Choose type");
     }
     const gutterPrice = document.querySelector('[data-addon-price="gutters"]');
-    if (gutterPrice) gutterPrice.textContent = `+${fmtCredit(GUTTER_REPORT_ADDON)}`;
+    if (gutterPrice) gutterPrice.textContent = `+${fmtCredit(gutterReportAddonPrice())}`;
     const weatherPrice = document.querySelector('[data-addon-price="weather"]');
     if (weatherPrice) weatherPrice.textContent = `+${fmtCredit(WEATHER_REPORT_ADDON * Math.max(1, pinCount()))}`;
   }
@@ -7268,7 +7268,7 @@ window.PlatformCommerce.onReady(async function(){
       proposalAgentEnabled: () => proposalAgentEnabled(),
       infoTip: (...args) => infoTip(...args),
       addonInfoIcon: (...args) => addonInfoIcon(...args),
-      gutterReportAddon: () => GUTTER_REPORT_ADDON,
+      gutterReportAddon: () => gutterReportAddonPrice(),
       weatherReportAddon: () => WEATHER_REPORT_ADDON,
       schedulingEnabled: () => schedulingEnabled(),
       ensureProposalOnlyBaseProject: () => ensureProposalOnlyBaseProject(),
@@ -7352,7 +7352,7 @@ window.PlatformCommerce.onReady(async function(){
       infoTip: (...args) => infoTip(...args),
       addonInfoIcon: (...args) => addonInfoIcon(...args),
       fmtMoney: (...args) => fmtMoney(...args),
-      gutterReportAddon: () => GUTTER_REPORT_ADDON,
+      gutterReportAddon: () => gutterReportAddonPrice(),
       weatherReportAddon: () => WEATHER_REPORT_ADDON
     };
   }

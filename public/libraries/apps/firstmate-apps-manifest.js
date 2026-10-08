@@ -292,7 +292,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261008-international-pricing-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261008-international-pricing-v2')]
     },
     {
       id: 'firstmeasure.order',
