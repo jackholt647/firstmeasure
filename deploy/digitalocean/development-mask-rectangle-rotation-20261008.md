@@ -10,4 +10,4 @@ pixel by pixel, undo, rotation after painting, and numeric cases at positive,
 negative and right-angle rotations. Preview corners share the paint transform.
 Evidence: `output/mask-rectangle-rotation-20261008/tests.txt`.
 
-Development rollout verification pending. No project data or configuration changes.
+Activated as `788c87f6389d345aa408b02134dfe3fb2aaac042` on all four development roles. Script hashes, runtime identity, health and development isolation verified; the public mask asset matches the commit. No project data or configuration changes.

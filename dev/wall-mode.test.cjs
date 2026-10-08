@@ -211,6 +211,10 @@ test('live edge length visibility defaults on and persists independently',()=>{
  const {ctx,elements,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[1].onclick();assert.notEqual(ctx.WallMode.serialize().wallLengths,false);elements.get('wall-lengths-all').onclick();assert.equal(ctx.WallMode.serialize().lineLengthMode,'all');elements.get('wall-lengths-off').onclick();
  const saved=ctx.WallMode.serialize();assert.equal(saved.wallLengths,false);ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...saved,savedAt:Date.now()+10000}});assert.equal(ctx.WallMode.serialize().wallLengths,false);
 });
+test('C with two base points reaches Connect instead of Chamfer',()=>{
+ const calls=[],base={setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false,chamferSelection:()=>({points:[{x:0,y:2,z:0},{x:4,y:2,z:0}],edges:[]}),keyDown:e=>{calls.push(e.key);return true;}},wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,chamferCommand:()=>calls.push('chamfer')};
+ const f=fixture(true,{createBaseEditor:()=>base,createWallEditor:()=>wall});f.ctx.WallMode.setEnabled(true);f.listeners['window:keydown']({key:'c',target:{closest:s=>s==='#viewport,#three-view-wrapper'},preventDefault(){},stopImmediatePropagation(){}});assert.deepEqual(calls,['c']);
+});
 test('base owns clicks and double-clicks when selected, including with hidden walls',()=>{
  const calls=[];let busy=false,hit=true;
  const base={cancelPointerGesture(){},setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>busy,canHit:()=>hit,down:()=>{calls.push('base-down');return true;},doubleClick:()=>{calls.push('base-double');return true;},keyDown:()=>{calls.push('base-key');return true;}};

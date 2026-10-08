@@ -13,4 +13,4 @@ roof insets and the parapet/chimney visibility regression. Evidence is under
 
 Development deployment is a one-script immutable delta, preserving each role's
 current baseline. Rollback paths are in the manifest. No project data or runtime
-configuration changes. Activation verification pending.
+configuration changes. Activated as `0c1cb1c191b116f8f806e39b9686a30300d806e4` on all four development roles. Parapet script hashes, runtime health and development isolation verified again after the subsequent mask release `788c87f6389d345aa408b02134dfe3fb2aaac042`.

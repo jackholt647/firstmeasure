@@ -137,7 +137,9 @@ function resolve(base){
   const center=B.center({points:ps});
   const original=group.faces.find(f=>G.contains(f,center))||group.faces[0],plane=G.plane(original.points);
   const points=ps.map(p=>({x:p.x,y:p.y,z:p.manualZ?p.z:plane.dx*p.x+plane.dy*p.y+plane.k,nodeId:p.id}));
-  B.validate({points});const signature=ps.map(p=>p.id).sort().join('|'),match=old.find(f=>f.points.map(p=>p.nodeId).sort().join('|')===signature);
+  // Partitioned cuts can produce small, valid corner regions on pitched bases.
+  // Keep the kernel's geometry tolerance rather than the new-face UI minimum.
+  B.validate({points},1e-8);const signature=ps.map(p=>p.id).sort().join('|'),match=old.find(f=>f.points.map(p=>p.nodeId).sort().join('|')===signature);
   // A divider changes a sticker's boundary, not its type. Inherit only when
   // the entire new region belongs to one prior sticker (including its holes).
   const featureOwner=match?.feature?match:old.find(f=>f.feature&&ps.every(p=>G.contains(f,p))&&K.difference({points:ps},[{points:f.points,holes:f.holes||[]}]).reduce((sum,r)=>sum+K.area(r),0)<=1e-8);
