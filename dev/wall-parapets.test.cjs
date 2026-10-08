@@ -7,7 +7,7 @@ function fixture(points=[p(0,0),p(10,0),p(10,8),p(0,8)],types=['parapet','parape
 }
 test('a single parapet rises two feet above the roof with a six-inch cap and inward return',()=>{
  const f=fixture(undefined,['parapet']),before=JSON.stringify(f),faces=P.build(f.roof,f.sources,f.extruded);
- assert.equal(faces.length,3);const cap=faces.find(f=>f.id.endsWith(':cap')),inner=faces.find(f=>f.id.endsWith(':inside'));
+ assert.equal(faces.length,5);const cap=faces.find(f=>f.id.endsWith(':cap')),inner=faces.find(f=>f.id.endsWith(':inside'));
  near(Math.max(...cap.points.map(p=>p.y)),.1524);assert.ok(cap.points.every(p=>p.z===5+.6096));
  near(Math.min(...inner.points.map(p=>p.z)),5);assert.ok(K.normal(cap.points).z>.99);assert.ok(K.normal(inner.points).y>.99);
  faces.forEach(K.validateFace);assert.equal(JSON.stringify(f),before);
@@ -28,7 +28,19 @@ test('cap materialization uses only surviving parapet tops, including merged wal
  const f=fixture(undefined,['parapet']),wall=f.extruded.find(w=>w.sourceId.startsWith('R1.'));
  assert.equal(P.build(f.roof,f.sources,[]).length,0);
  const merged={...wall,sourceId:'another-edge',top:[p(-2,0),p(4,0)]};
- const faces=P.build(f.roof,f.sources,[merged,merged]);assert.equal(faces.length,3);assert.ok(faces.flatMap(f=>f.points).every(p=>p.x>=0&&p.x<=4));
+ const faces=P.build(f.roof,f.sources,[merged,merged]);assert.equal(faces.length,5);assert.ok(faces.flatMap(f=>f.points).every(p=>p.x>=0&&p.x<=4));
+});
+for(const reverse of [false,true])for(const shape of ['single','corner','straight'])test(`open ${shape} parapet seals only exposed ends, reversed=${reverse}`,()=>{
+ const points=shape==='straight'?[p(0,0),p(5,0),p(10,0),p(10,8),p(0,8)]:undefined;
+ const f=fixture(points,shape==='single'?['parapet']:['parapet','parapet'],reverse),faces=P.build(f.roof,f.sources,f.extruded),ends=faces.filter(f=>f.parapet.part==='end');
+ assert.equal(ends.length,2);faces.forEach(K.validateFace);
+ for(const end of ends){near(K.area({points:end.points.map(p=>K.local(K.frame(end),p))}),P.WIDTH*P.HEIGHT);const cap=faces.find(f=>f.id===end.id.replace(/:end-\d$/,':cap'));assert.ok(cap);assert.equal(end.points.filter(p=>cap.points.some(q=>K.pointKey(p)===K.pointKey(q))).length,2,'end shares both top corners with the cap');}
+ const saved=JSON.parse(JSON.stringify({wallEdits:{$surfaces:faces}}));assert.deepEqual(M.collect(saved),faces,'end faces persist as editable geometry');
+});
+test('a removed middle interval leaves four sealed parapet ends',()=>{
+ const f=fixture(undefined,['parapet']),w=f.extruded.find(w=>w.sourceId.startsWith('R1.'));
+ const faces=P.build(f.roof,f.sources,[{...w,top:[p(0,0),p(3,0)]},{...w,top:[p(7,0),p(10,0)]}]);
+ assert.equal(faces.filter(f=>f.parapet.part==='end').length,4);faces.forEach(K.validateFace);
 });
 test('ordinary editable surfaces preserve an adjusted inside height across serialization',()=>{
  const f=fixture(),faces=P.build(f.roof,f.sources,f.extruded);

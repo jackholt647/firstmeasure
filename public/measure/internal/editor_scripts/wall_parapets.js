@@ -59,6 +59,14 @@ function build(roof,sources,walls){
   add(r.id+':outside',[...r.outer.map(copy),...r.outer.slice().reverse().map(raised)],{x:-r.n.x,y:-r.n.y,z:0},{sourceId:r.sourceId,part:'outside'});
   add(r.id+':cap',[...r.outer.map(raised),...r.inner.slice().reverse().map(raised)],{x:0,y:0,z:1},{sourceId:r.sourceId,roofId:r.roofId,part:'cap'});
   add(r.id+':inside',[...r.inner.map(copy),...r.inner.slice().reverse().map(raised)],{...r.n,z:0},{sourceId:r.sourceId,part:'inside'});
+  for(let end=0;end<2;end++){
+   // A shared cross-section is internal to a continuous parapet. Every
+   // other endpoint needs an editable face connecting its outer and inner skins.
+   const joined=runs.some(other=>other!==r&&other.outer.some((p,i)=>distance(p,r.outer[end])<EPS&&Math.abs(p.z-r.outer[end].z)<EPS&&distance(other.inner[i],r.inner[end])<EPS));
+   if(joined)continue;
+   const sign=end?1:-1;
+   add(r.id+':end-'+end,[copy(r.outer[end]),copy(r.inner[end]),raised(r.inner[end]),raised(r.outer[end])],{x:r.u.x*sign,y:r.u.y*sign,z:0},{sourceId:r.sourceId,part:'end',end});
+  }
  }
  return faces;
 }
