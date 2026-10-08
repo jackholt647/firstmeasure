@@ -17268,6 +17268,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (canCallWorkflows && activeTab === 'calls') renderCallsSettings();
       if (canContacts && activeTab === 'contacts') renderContactsSettings();
       if (canCompany && activeTab === 'connections') renderConnectionsSettings();
+      if (canCompany && activeTab === 'feed') void renderFeedSettings();
       if (canFeedback && activeTab === 'feedback') renderFeedbackSettings();
       if (canEquipment && activeTab === 'equipment') renderEquipmentSettings();
       if (canAssistant && activeTab === 'assistant') renderAssistantSettings();
