@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 8 Call Center: [Personal, caller and manager views](deploy/digitalocean/development-call-center-modes-20261008.md) records the three screens, multi-list power dialing, manager lead controls and verified development rollout.
+
 October 8 header trays: [Reset placement after close](deploy/digitalocean/development-header-tray-reset-20261008.md) records docked reopening, retained drafts, browser regressions, and the verified development rollout.
 
 October 8 international roof pricing: [Prices, exchange rates and launch expediting](deploy/digitalocean/development-international-roof-pricing-20261008.md) records €25/€50 roof reports, €5 gutters, rounded USD equivalents, the admin re-enable switch and verified development rollout.
