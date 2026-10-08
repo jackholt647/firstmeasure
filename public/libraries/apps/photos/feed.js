@@ -41,6 +41,29 @@
     activity: [],
     notes: [],
     users: [],
+    manualPosts: [],
+    departments: [],
+    userDepartments: {},
+    memberDepartmentIds: [],
+    activityOptions: [],
+    postSettings: {company_activity_types:null,department_activity_types:{},revision:0},
+    canPost: false,
+    canManagePostSettings: false,
+    feedScope: 'all',
+    manualOnly: false,
+    composerOpen: false,
+    composerText: '',
+    composerDepartment: '',
+    composerMentions: new Set(),
+    composerFiles: [],
+    composerOperationId: '',
+    composerBusy: false,
+    settingsOpen: false,
+    settingsScope: 'company',
+    settingsDraft: null,
+    settingsDepartments: [],
+    settingsActivityOptions: [],
+    settingsBusy: false,
     query: '',
     density: 'small',
     views:['list','small','large','mosaic','posts'],
@@ -1121,6 +1144,39 @@
     const activityAt = Date.parse(eventTimestamp(event) || '');
     return Number.isFinite(assetTime) && Number.isFinite(activityAt) && Math.abs(assetTime - activityAt) <= 5 * 60 * 1000;
   }
+  function feedEntryActorId(entry = {}){
+    if (entry.kind === 'media') return firstText(uploader(entry.media).id,entry.media?.uploaded_by_user_id,entry.media?.metadata?.uploaded_by_user_id);
+    if (entry.kind === 'document') return firstText(entry.document?.uploaded_by_user_id,entry.document?.created_by_user_id,entry.document?.metadata?.uploaded_by_user_id);
+    if (entry.kind === 'activity') return firstText(entry.event?.actor_user_id,activityContext(entry.event).actor_user_id);
+    if (entry.kind === 'note') return firstText(entry.note?.author?.id,entry.note?.author_id);
+    return '';
+  }
+  function feedEntryDepartments(entry = {}){
+    if (entry.kind === 'manual') return cleanText(entry.manual?.metadata?.feed_department_id) ? [cleanText(entry.manual.metadata.feed_department_id)] : [];
+    return state.userDepartments[feedEntryActorId(entry)] || [];
+  }
+  function feedEntryInScope(entry = {}){
+    const departments=feedEntryDepartments(entry);
+    if (state.feedScope === 'all') return true;
+    if (state.feedScope === 'company') return entry.kind === 'manual' ? departments.length === 0 : true;
+    if (state.feedScope === 'mine') return departments.some(id=>state.memberDepartmentIds.includes(id));
+    return departments.includes(state.feedScope);
+  }
+  function automaticPostType(entry = {}){
+    return entry.kind === 'activity' ? cleanText(entry.event?.type) : entry.kind === 'media' ? 'media.uploaded' : entry.kind === 'note' ? 'note.created' : entry.kind === 'document' ? firstText(entry.pairedEvent?.type,'document.ingested') : '';
+  }
+  function automaticPostEnabled(entry = {}){
+    if (state.density !== 'posts') return true;
+    const type=automaticPostType(entry),settings=state.postSettings || {};
+    const allowed=(scope)=>{
+      const selected=scope === 'company' ? settings.company_activity_types : objectValue(settings.department_activity_types)[scope];
+      return !Array.isArray(selected) || selected.includes(type);
+    };
+    if (state.feedScope === 'company') return allowed('company');
+    if (state.feedScope === 'mine') return feedEntryDepartments(entry).some(id=>state.memberDepartmentIds.includes(id) && allowed(id));
+    if (state.feedScope !== 'all') return allowed(state.feedScope);
+    return allowed('company') || feedEntryDepartments(entry).some(id=>state.memberDepartmentIds.includes(id) && allowed(id));
+  }
   function feedEntries(options = {}){
     const mediaEntries = state.items
       .filter((item) => !isPhotoTrashed(item.photo))
@@ -1174,6 +1230,11 @@
         timestamp:note.created_at, dateKey:dateKey(note.created_at),
         search:[note.text,note.author?.name,projectTitle(project),projectAddress(project)].join(' ').toLowerCase() };
     }) : [];
+    const manualEntries = state.manualPosts.map((manual)=>({
+      id:`manual:${manual.id}`,kind:'manual',manual,project:{},projectId:'',
+      timestamp:manual.created_at,dateKey:dateKey(manual.created_at),
+      search:[manual.text,manual.author?.name,...(manual.mention_users || []).map(person=>person.name)].join(' ').toLowerCase()
+    }));
     const unpaired = new Set(activityEntries.map((entry) => entry.id));
     [...mediaEntries, ...documentEntries].forEach((asset) => {
       const match = activityEntries.find((entry) => unpaired.has(entry.id) && assetEventMatch(asset, entry.event));
@@ -1185,11 +1246,14 @@
       unpaired.delete(match.id);
     });
     const query = cleanText(state.query).toLowerCase();
-    const entries = state.visibleTags.size
-      ? mediaEntries
-      : [...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id)), ...noteEntries];
+    const entries = state.visibleTags.size && !state.manualOnly
+      ? [...manualEntries,...mediaEntries]
+      : [...manualEntries,...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id)), ...noteEntries];
     return entries
-      .filter((entry) => entry.kind === 'note' || options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
+      .filter((entry) => entry.kind === 'manual' || entry.kind === 'note' || options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
+      .filter((entry) => !state.manualOnly || entry.kind === 'manual')
+      .filter(feedEntryInScope)
+      .filter((entry) => entry.kind === 'manual' || automaticPostEnabled(entry))
       .filter((entry) => !query || entry.search.includes(query))
       .sort((left, right) => String(right.timestamp).localeCompare(String(left.timestamp)));
   }
@@ -1389,7 +1453,8 @@
       };
       if (img.complete && img.naturalWidth > 0) markLoaded();
       else if (img.complete) window.setTimeout(retry, 450);
-      else window.setTimeout(retry, 3500);
+      // A slow image is still loading. Replacing its URL here aborts that
+      // request and can make a busy tile flash indefinitely.
       img.addEventListener('load', markLoaded, { once: true });
       img.addEventListener('error', markError);
     });
@@ -1574,6 +1639,11 @@
       .pf-note{position:relative}.pf-note-plain,.pf-note-measure{display:block;color:#475467;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.pf-note-measure{position:absolute;top:0;left:0;width:100%;visibility:hidden;pointer-events:none}.pf-note .pf-note-toggle{display:none}.pf-note.expandable .pf-note-plain{display:none}.pf-note.expandable .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline-flex;align-items:baseline;max-width:100%;min-width:0;vertical-align:top}.pf-note-toggle .pf-note-preview-text{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-note-toggle .pf-note-preview i{flex:none;margin-left:6px}
       .pf-feed-list-media{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;margin:5px 0 2px}.pf-feed-list-media .pf-thumb{width:52px;height:52px;flex:0 0 52px;aspect-ratio:auto;border:0;border-radius:7px}.pf-feed-list-media .pf-thumb:nth-of-type(n+7){display:none}.pf-feed-list-media .pf-video-badge{width:19px;height:19px;right:3px;bottom:3px;font-size:8px}.pf-feed-list-more{flex:none;border:0;background:none;padding:5px 3px;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:11px;font-weight:850;cursor:pointer;white-space:nowrap}.pf-feed-list-more:hover{text-decoration:underline}.pf-feed-list-more.mobile{display:none}
       @media(max-width:760px){.pf-feed-list-media .pf-thumb{width:43px;height:43px;flex-basis:43px}.pf-feed-list-media .pf-thumb:nth-of-type(n+5){display:none}.pf-feed-list-more.desktop{display:none}.pf-feed-list-more.mobile{display:inline-block}}
+      .pf-feed-scopebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 16px 11px;border-bottom:1px solid #e9edf2;background:#fff}.pf-feed-scopebar label{display:flex;align-items:center;gap:8px;color:#475467;font-size:12px;font-weight:700}.pf-feed-scopebar select{min-width:170px;padding:8px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit}.pf-feed-scopebar>button{border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer}.pf-feed-scopebar>button.active{border-color:#b8c8ed;background:#eef4ff;color:#2456a8}.pf-feed-scopebar>button:last-child{margin-left:auto}.pf-create-post{white-space:nowrap}
+      .pf-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:#1018288c}.pf-dialog{width:min(590px,100%);max-height:min(90vh,850px);overflow:auto;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:16px;background:#fff;box-shadow:0 24px 70px #1018283d;padding:20px;display:grid;gap:16px;color:#344054}.pf-dialog header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #eaecf0;padding-bottom:14px}.pf-dialog header strong{display:block;font-size:20px;color:#182230}.pf-dialog header span{display:block;margin-top:4px;font-size:12px;color:#667085}.pf-dialog header button{border:0;background:none;font-size:26px;line-height:1;color:#667085;cursor:pointer}.pf-dialog-field{display:grid;gap:7px;font-size:12px;font-weight:750}.pf-dialog-field select,.pf-dialog-field textarea{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#182230;font:inherit;font-size:14px}.pf-dialog-field textarea{resize:vertical;line-height:1.5}.pf-dialog footer{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #eaecf0;padding-top:14px}.pf-dialog footer>button:not(.pf-action){border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:9px 14px;color:#344054;font-weight:700;cursor:pointer}.pf-tag-picker{min-width:0;border:1px solid #eaecf0;border-radius:10px;padding:10px}.pf-tag-picker legend{font-size:12px;font-weight:750}.pf-tag-picker>div{display:flex;flex-wrap:wrap;gap:7px;max-height:128px;overflow:auto}.pf-tag-picker label{display:flex;align-items:center;gap:5px;border-radius:20px;background:#f2f4f7;padding:5px 9px;font-size:12px;cursor:pointer}.pf-dialog-upload{display:inline-flex;align-items:center;gap:7px;justify-self:start;padding:9px 12px;border:1px solid #d0d5dd;border-radius:8px;font-size:12px;font-weight:750;cursor:pointer}.pf-dialog-files{display:flex;flex-wrap:wrap;gap:6px}.pf-dialog-files span,.pf-manual-mentions span{padding:5px 8px;border-radius:15px;background:#eef4ff;color:#2456a8;font-size:11px}.pf-settings-dialog{width:min(640px,100%)}.pf-settings-actions{display:flex;gap:8px}.pf-settings-actions button{border:0;background:none;color:#2456a8;font-size:12px;font-weight:750;cursor:pointer}.pf-settings-types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:350px;overflow:auto}.pf-settings-types label{display:flex;align-items:center;gap:8px;padding:7px;border-radius:7px;font-size:12px}.pf-settings-types label:hover{background:#f2f4f7}
+      .pf-manual-text{padding:12px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.55;color:#344054}.pf-post>.pf-manual-text{padding:4px 18px 14px}.pf-manual-mentions{display:flex;flex-wrap:wrap;gap:5px;margin:0 18px 12px}.pf-manual-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:0 18px 16px}.pf-manual-images a{display:block;aspect-ratio:1/1;overflow:hidden;border-radius:7px;background:#f2f4f7}.pf-manual-images img{width:100%;height:100%;object-fit:cover}.pf-manual-tile .pf-manual-text,.pf-manual-row .pf-manual-text{padding:5px 0}.pf-manual-tile .pf-manual-mentions,.pf-manual-row .pf-manual-mentions{margin:0 0 8px}.pf-manual-tile .pf-manual-images,.pf-manual-row .pf-manual-images{padding:0;grid-template-columns:repeat(3,minmax(0,90px))}.pf-post-scope{display:inline-flex;gap:5px;align-items:center}.pf-post-scope i{font-size:11px}
+      .pf-comments{padding:16px 18px 18px;background:#f8fafc}.pf-comments-title{display:flex;align-items:center;gap:7px;margin:0 0 16px;color:#344054;font-size:13px}.pf-comments-title span{padding:2px 7px;border-radius:12px;background:#e9eef5;color:#667085;font-size:11px}.pf-comment{gap:10px;margin:0 0 18px}.pf-comment>.pf-post-avatar{width:34px;height:34px;flex-basis:34px}.pf-comment-head{align-items:baseline}.pf-comment-head strong{color:#182230}.pf-comment [data-comment-content]{display:inline-block;max-width:100%;box-sizing:border-box;padding:10px 13px;margin-top:6px;border-radius:5px 13px 13px 13px;background:#fff;border:1px solid #e4e7ec;line-height:1.5;color:#344054;box-shadow:0 1px 2px #10182808}.pf-comment-actions{gap:12px;margin-top:7px;padding-left:2px}.pf-comment-actions button{font-weight:700}.pf-comment-actions button:hover{text-decoration:underline;color:#2456a8}.pf-comment-compose{display:flex;align-items:flex-start;gap:10px;padding-top:14px;border-top:1px solid #e4e7ec}.pf-comment-compose>.pf-post-avatar{width:34px;height:34px;flex-basis:34px}.pf-comment-compose-body{flex:1;min-width:0}.pf-comment-label textarea{margin:0;min-height:70px;border-radius:11px;line-height:1.45;box-shadow:0 1px 2px #10182808}.pf-comment-label textarea:focus{outline:2px solid #bfd7ff;border-color:#5792e4}.pf-comment-tools{gap:12px}.pf-comment-tools details summary{list-style:none;cursor:pointer}.pf-comment-tools details summary:hover,.pf-comment-attach:hover{color:#2456a8}.pf-comment-attach{font-size:12px;font-weight:700;cursor:pointer}.pf-comment-reply-target{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;padding:6px 9px;border-radius:7px;background:#eaf1ff;color:#2456a8;font-size:11px;font-weight:700}.pf-comment-reply-target button{border:0;background:none;color:inherit;font-size:16px;cursor:pointer}.pf-post-actions .pf-post-react{flex:1;text-align:center}.pf-post-actions .pf-post-react summary{border-radius:7px;color:#667085;font-size:13px}.pf-post-actions .pf-post-react summary:hover{background:#f2f4f7}.pf-post-actions .pf-post-react summary span{margin-left:5px}.pf-post-stats button:hover{text-decoration:underline}
+      @media(max-width:760px){.pf-feed-scopebar{padding:9px 11px}.pf-feed-scopebar>button:last-child{margin-left:0}.pf-dialog{padding:15px}.pf-settings-types{grid-template-columns:1fr}.pf-comment-tools{gap:8px}.pf-comment-tools>button[type="submit"]{width:100%}}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
@@ -1589,6 +1659,19 @@
       state.views = catalog.views;
       state.canComment = catalog.can_comment;
       state.canReact = catalog.can_react;
+      state.canPost = catalog.can_post === true;
+      state.canManagePostSettings = catalog.can_manage_post_settings === true;
+      state.manualPosts = Array.isArray(catalog.manual_posts) ? catalog.manual_posts : [];
+      state.departments = Array.isArray(catalog.departments) ? catalog.departments : [];
+      state.userDepartments = objectValue(catalog.user_departments);
+      state.memberDepartmentIds = Array.isArray(catalog.member_department_ids) ? catalog.member_department_ids : [];
+      state.postSettings = objectValue(catalog.post_settings);
+      state.activityOptions = Array.isArray(catalog.activity_options) ? catalog.activity_options : [];
+      if (state.feedScope !== 'all' && state.feedScope !== 'company' && state.feedScope !== 'mine' && !state.memberDepartmentIds.includes(state.feedScope)) state.feedScope = 'all';
+      for (const manual of state.manualPosts) {
+        const current=postState(`manual:${manual.id}`);
+        current.root=manual;
+      }
       if (!state.views.includes(state.density)) state.density = state.views[0];
       const result={documents:catalog.projects},mediaResult={media:catalog.media},activityResult={events:catalog.events},userResult={documents:catalog.users};
       const projects = (Array.isArray(result?.documents) ? result.documents : [])
@@ -2011,17 +2094,26 @@
     clearInterval(state.feedTimer);
     state.feedTimer=setInterval(async()=>{
       if(state.density!=='posts' || document.hidden || !state.root?.isConnected)return;
-      let changed=false;
+      const changedPosts=[];
       for(const post of groupedPosts(feedEntries()).slice(0,state.visible)){
         if (post.kind === 'note') continue;
         const current=postState(post.id);if(!current.root || current.busy || current.checking)continue;
         const prior=JSON.stringify([current.root.reactions,current.root.reply_count,current.replies]);
-        try{await fetchPost(post);changed ||= prior!==JSON.stringify([current.root.reactions,current.root.reply_count,current.replies]);}
-        catch(error){if([403,404].includes(error.status)){post.entries.forEach(entry=>state.authorizedSources.delete(feedRefKey(entryRef(entry))));current.root=null;current.replies=[];changed=true;}}
+        try{await fetchPost(post);if(prior!==JSON.stringify([current.root.reactions,current.root.reply_count,current.replies]))changedPosts.push(post);}
+        catch(error){if([403,404].includes(error.status)){if(post.kind==='manual')state.manualPosts=state.manualPosts.filter(message=>message.id!==post.manual.id);else post.entries.forEach(entry=>state.authorizedSources.delete(feedRefKey(entryRef(entry))));current.root=null;current.replies=[];changedPosts.push(post);}}
       }
-      if(changed){const scroll=state.root.querySelector('[data-feed-scroll]'),at=scroll?.scrollTop;renderDynamic();if(at!=null)state.root.querySelector('[data-feed-scroll]').scrollTop=at;}
+      for(const post of changedPosts){
+        const card=[...state.root.querySelectorAll('[data-feed-post]')].find(node=>node.dataset.feedPost===post.id);
+        if(!card)continue;
+        if(!currentPostStillVisible(post)){card.remove();continue;}
+        const wrapper=document.createElement('div');wrapper.innerHTML=feedPostHtml(post);
+        const updated=wrapper.firstElementChild;
+        card.replaceWith(updated);
+        bindFeedPosts(state.root,updated);
+      }
     },15000);
   }
+  function currentPostStillVisible(post){return post.kind!=='manual' || state.manualPosts.some(message=>message.id===post.manual.id);}
   function entryRef(entry){
     return {kind:entry.kind,id:String(entry.kind==='media' ? photoIdentity(entry.media) : entry.kind==='document' ? entry.document.id : entry.event.id),project_id:String(entry.projectId || '')};
   }
@@ -2038,7 +2130,9 @@
   function groupedPosts(entries){
     const groups=new Map();
     for(const entry of entries){
-      const source=entry.kind === 'note'
+      const source=entry.kind === 'manual'
+        ? { key:entry.id, author:entry.manual?.author?.id }
+        : entry.kind === 'note'
         ? { key:`note:${entry.note.id}`, author:cleanText(entry.note.author?.id) }
         : state.authorizedSources.get(feedRefKey(entryRef(entry)));
       if(!source)continue;
@@ -2053,16 +2147,17 @@
     return state.posts.get(key);
   }
   function postAuthor(post){
-    const documentUploader=post.kind==='document' ? firstText(post.document?.uploaded_by_user_id,objectValue(post.document?.metadata).uploaded_by_user_id) : '';
+    if (post.kind === 'manual') return {name:firstText(post.manual?.author?.name,'Employee'),avatar:firstText(post.manual?.author?.avatar)};
+    const documentUploader=post.kind==='document' ? firstText(post.document?.uploaded_by_user_id,post.document?.created_by_user_id,objectValue(post.document?.metadata).uploaded_by_user_id,post.pairedEvent?.actor_user_id) : '';
     const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author))
       || (documentUploader ? state.users.find(u=>cleanText(u.id || u.user_id)===documentUploader) : null);
     const up=post.kind==='media'?uploader(post.media):{};
     const profile=person?.profile && typeof person.profile==='object' ? person.profile : {};
-    return {name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'Company update'),
+    return {name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'System activity'),
       avatar:firstText(person?.profile_photo_url,person?.profile_photo,profile.profile_photo,profile.profile_photo_url,person?.avatar_url,person?.avatar,post.note?.author?.avatar,up.avatar)};
   }
   function postIcon(post){
-    return post.kind==='media' ? 'fa-images' : post.kind==='document' ? 'fa-file-contract' : post.kind==='note' ? 'fa-note-sticky' : feedActivityIcon(post.event);
+    return post.kind==='manual' ? 'fa-pen-to-square' : post.kind==='media' ? 'fa-images' : post.kind==='document' ? 'fa-file-contract' : post.kind==='note' ? 'fa-note-sticky' : feedActivityIcon(post.event);
   }
   function uploadCountLabel(entries){
     const videos=entries.filter((entry)=>isVideoMedia(entry.media)).length;
@@ -2094,7 +2189,23 @@
     const more = (count, mode) => photos.length > count && projectId ? `<button type="button" class="pf-feed-list-more ${mode}" data-feed-more-project-id="${escapeHtml(projectId)}" aria-label="See all ${photos.length} uploads in project Photos">See more</button>` : '';
     return `<div class="pf-feed-list-media" aria-label="Uploaded media previews">${thumbnails}${more(6,'desktop')}${more(4,'mobile')}</div>`;
   }
+  function manualPostScope(message = {}){
+    const id=cleanText(message.metadata?.feed_department_id);
+    return id ? firstText(state.departments.find(department=>department.id===id)?.label,'Department') : 'Company';
+  }
+  function manualPostBodyHtml(message = {}){
+    const attachments=(message.attachments || []).filter(attachment=>cleanText(attachment.content_type).startsWith('image/'));
+    return `<div class="pf-manual-text">${escapeHtml(message.text || '')}</div>${(message.mention_users || []).length ? `<div class="pf-manual-mentions" aria-label="Tagged people">${message.mention_users.map(person=>`<span>@${escapeHtml(person.name || 'Employee')}</span>`).join('')}</div>` : ''}${attachments.length ? `<div class="pf-manual-images">${attachments.slice(0,6).map((attachment,index)=>`<a href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener" aria-label="Open post image ${index+1}"><img loading="lazy" src="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" alt="${escapeHtml(attachment.file_name || `Post image ${index+1}`)}"></a>`).join('')}${attachments.length>6?`<span>+${attachments.length-6} more</span>`:''}</div>` : ''}`;
+  }
+  function feedManualEntryHtml(entry = {}){
+    const author=postAuthor(entry),message=entry.manual;
+    return `<article class="pf-feed-activity pf-manual-tile">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-activity-copy"><strong>${escapeHtml(author.name)} posted to ${escapeHtml(manualPostScope(message))}</strong>${manualPostBodyHtml(message)}</div><time>${escapeHtml(feedListTime(entry.timestamp))}</time></article>`;
+  }
   function feedListEntryHtml(post){
+    if(post.kind==='manual'){
+      const author=postAuthor(post);
+      return `<article class="pf-feed-list-row pf-manual-row">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-list-copy"><strong>${escapeHtml(author.name)} posted to ${escapeHtml(manualPostScope(post.manual))}</strong>${manualPostBodyHtml(post.manual)}</div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
+    }
     const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
     const action=photos.length
       ? `${author.name} uploaded ${uploadCountLabel(photos)}`
@@ -2117,27 +2228,41 @@
     const amount=doc ? firstText(doc.total_formatted,doc.amount_formatted,doc.contract_value,doc.total,doc.amount) : firstText(activityPayload(post.event || {}).amount_formatted,activityPayload(post.event || {}).amount);
     const amountCents=Number(doc?.total_cents ?? doc?.amount_cents ?? activityPayload(post.event || {}).amount_cents);
     const money=Number.isFinite(amountCents)?new Intl.NumberFormat(undefined,{style:'currency',currency:doc?.currency || activityPayload(post.event || {}).currency || 'USD'}).format(amountCents/100):amount;
-    const body=photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
+    const body=post.kind==='manual' ? manualPostBodyHtml(post.manual) : photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
     const reactions=current.root?.reactions || [],liked=reactions.find(r=>r.emoji==='👍');
-    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}"><header class="pf-post-head">${actorAvatarHtml(author,postIcon(post))}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · ${feedProjectLinkHtml(post.project,post.projectId)}</span></div></header>${body}<div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div><div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions">☺</summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>${current.open?`<section class="pf-comments" aria-label="Comments"><div data-comment-list></div>${state.canComment?`<form data-comment-form><label class="pf-comment-label">${current.replyToName?`Reply to ${escapeHtml(current.replyToName)}`:'Write a comment'}<textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary>Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-action">Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post</button></div></form>`:''}</section>`:''}</article>`;
+    const location=post.kind==='manual' ? `<span class="pf-post-scope"><i class="fas ${post.manual?.metadata?.feed_department_id?'fa-people-group':'fa-building'}"></i>${escapeHtml(manualPostScope(post.manual))}</span>` : feedProjectLinkHtml(post.project,post.projectId);
+    return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}">
+      <header class="pf-post-head">${actorAvatarHtml(author,postIcon(post))}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · ${location}</span></div></header>
+      ${body}
+      <div class="pf-post-stats"><span>${reactions.map(r=>`${escapeHtml(r.emoji)} ${r.count}`).join('  ') || 'Be the first to react'}</span><button type="button" data-post-comments aria-expanded="${current.open}">${current.root?.reply_count || 0} ${current.root?.reply_count===1?'comment':'comments'}</button></div>
+      <div class="pf-post-actions">${state.canReact?`<button type="button" data-post-like aria-pressed="${liked?.reacted || false}" ${current.busy?'disabled':''}><i class="${liked?.reacted?'fas':'far'} fa-thumbs-up"></i> Like</button><details class="pf-post-react"><summary aria-label="More reactions"><i class="far fa-face-smile"></i><span>React</span></summary><div>${['❤️','😂','🎉','😮','😢'].map(emoji=>`<button type="button" data-post-emoji="${emoji}" aria-label="React ${emoji}">${emoji}</button>`).join('')}</div></details>`:''}<button type="button" data-post-comments aria-expanded="${current.open}"><i class="far fa-comment"></i> Comments</button></div>
+      ${current.open?`<section class="pf-comments" aria-label="Comments"><div class="pf-comments-title"><strong>Comments</strong><span>${current.root?.reply_count || 0}</span></div><div data-comment-list></div>${state.canComment?`<form data-comment-form><div class="pf-comment-compose">${avatarHtml({name:firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'),avatar:state.users.find(user=>user.id===APP.userId)?.profile_photo_url})}<div class="pf-comment-compose-body">${current.replyToName?`<div class="pf-comment-reply-target">Replying to ${escapeHtml(current.replyToName)} <button type="button" data-comment-cancel-reply aria-label="Cancel reply">×</button></div>`:''}<label class="pf-comment-label"><span class="sr-only">Write a comment</span><textarea rows="2" maxlength="250000" placeholder="Write a comment…">${escapeHtml(current.draft)}</textarea></label><div class="pf-comment-tools"><span data-comment-gif></span><details><summary aria-label="Add emoji"><i class="far fa-face-smile"></i> Emoji</summary><div>${['👍','❤️','😂','🎉','😊','🙏'].map(emoji=>`<button type="button" data-comment-emoji="${emoji}">${emoji}</button>`).join('')}</div></details><label class="pf-comment-attach"><i class="fas fa-paperclip"></i> Attach<input type="file" data-comment-file hidden multiple></label><span data-comment-attachments></span><button class="pf-action primary" type="submit" ${current.busy?'disabled':''}>Post comment</button></div></div></div></form>`:''}</section>`:''}</article>`;
   }
   async function fetchPost(post,create=false){
     const current=postState(post.id);
-    const result=create ? await window.ChannelsAPI.feed.resolve(orgId(),post.entries.slice(0,200).map(entryRef)) : current.root ? await window.ChannelsAPI.feed.thread(orgId(),current.root.id) : await window.ChannelsAPI.feed.lookup(orgId(),post.entries.slice(0,200).map(entryRef));
+    const result=post.kind === 'manual' ? await window.ChannelsAPI.feed.thread(orgId(),post.manual.id) : create ? await window.ChannelsAPI.feed.resolve(orgId(),post.entries.slice(0,200).map(entryRef)) : current.root ? await window.ChannelsAPI.feed.thread(orgId(),current.root.id) : await window.ChannelsAPI.feed.lookup(orgId(),post.entries.slice(0,200).map(entryRef));
     current.root=result.root;current.replies=result.replies || [];current.loaded=true;
     return current;
   }
-  function bindFeedPosts(root){
+  function bindFeedPosts(root,onlyCard=null){
     if(state.density!=='posts')return;
     const posts=new Map(groupedPosts(feedEntries()).map(p=>[p.id,p]));
-    root.querySelectorAll('[data-feed-post]').forEach(card=>{
+    (onlyCard?[onlyCard]:root.querySelectorAll('[data-feed-post]')).forEach(card=>{
       const post=posts.get(card.dataset.feedPost);if(!post)return;
       if(post.kind==='note')return;
       const current=postState(post.id);
       const error=e=>showToast?.('Feed',e?.message || 'Unable to update this post.',false);
       const rerender=()=>{if(state.root?.contains(card)){const scroll=state.root.querySelector('[data-feed-scroll]');const at=scroll?.scrollTop;renderDynamic();if(at!=null)state.root.querySelector('[data-feed-scroll]').scrollTop=at;}};
       const act=async callback=>{if(current.busy)return;current.busy=true;try{await callback();}catch(e){error(e);}finally{current.busy=false;rerender();}};
-      if(!current.loaded && !current.checking){current.checking=true;fetchPost(post).then(rerender).catch(error).finally(()=>{current.checking=false;});}
+      if(!current.loaded && !current.checking){
+        current.checking=true;
+        fetchPost(post).then(()=>{
+          const stats=card.querySelector('.pf-post-stats');
+          const fresh=document.createElement('div');fresh.innerHTML=feedPostHtml(post);
+          const updated=fresh.querySelector('.pf-post-stats');
+          if(stats&&updated)stats.replaceWith(updated);
+        }).catch(error).finally(()=>{current.checking=false;});
+      }
       card.querySelectorAll('[data-post-comments]').forEach(btn=>btn.addEventListener('click',()=>act(async()=>{current.open=!current.open;if(current.open)await fetchPost(post);})));
       const react=(emoji)=>act(async()=>{await fetchPost(post,true);const reaction=current.root.reactions?.find(r=>r.emoji===emoji);await window.ChannelsAPI.feed.react(orgId(),current.root.id,emoji,!reaction?.reacted);await fetchPost(post);});
       card.querySelector('[data-post-like]')?.addEventListener('click',()=>react('👍'));
@@ -2165,6 +2290,7 @@
       if(comments&&!current.replies.length)comments.textContent=current.checking?'Loading comments…':'No comments yet. Start the conversation.';
       const form=card.querySelector('[data-comment-form]'),input=form?.querySelector('textarea');
       input?.addEventListener('input',()=>{current.draft=input.value;});
+      card.querySelector('[data-comment-cancel-reply]')?.addEventListener('click',()=>{current.replyTo='';current.replyToName='';rerender();});
       card.querySelectorAll('[data-comment-emoji]').forEach(btn=>btn.addEventListener('click',()=>{input.value+=btn.dataset.commentEmoji;current.draft=input.value;input.focus();}));
       const send=async(metadata={},text=current.draft,clientId)=>{await fetchPost(post,true);await window.ChannelsAPI.feed.comment(orgId(),current.root.id,{text,parent_id:current.replyTo || undefined,client_msg_id:clientId || current.operationId || (current.operationId=globalThis.crypto?.randomUUID?.() || `feed_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`),attachment_ids:(current.attachments || []).map(a=>a.id),metadata});current.draft='';current.attachments=[];current.operationId='';current.replyTo='';current.replyToName='';await fetchPost(post);};
       form?.addEventListener('submit',event=>{event.preventDefault();if(current.draft.trim() || current.attachments?.length)act(()=>send());});
@@ -2204,7 +2330,7 @@
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
         ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
         ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
-        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
+        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : ''}
       </div>`;
   }
@@ -2307,6 +2433,22 @@
         ${String(shownGroupHtml('documents', 'Documents', 'fa-folder-open', DOCUMENT_FILTERS, state.visibleDocuments))}
       </div>`;
   }
+  function feedScopeOptionsHtml(value=state.feedScope,includeMine=true){
+    return `<option value="all" ${value==='all'?'selected':''}>All company activity</option><option value="company" ${value==='company'?'selected':''}>Company board</option>${includeMine?`<option value="mine" ${value==='mine'?'selected':''}>My departments</option>`:''}${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${value===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}`;
+  }
+  function feedComposerHtml(){
+    if(!state.composerOpen)return '';
+    const eligible=state.users.filter(user=>Object.prototype.hasOwnProperty.call(state.userDepartments,user.id) && (!state.composerDepartment || (state.userDepartments[user.id] || []).includes(state.composerDepartment)));
+    return `<div class="pf-overlay"><form class="pf-dialog" data-feed-compose role="dialog" aria-modal="true" aria-label="Create a post"><header><div><strong>Create a post</strong><span>Share an update with your company or department</span></div><button type="button" data-feed-compose-close aria-label="Close">×</button></header><label class="pf-dialog-field">Post to<select data-feed-compose-scope><option value="" ${!state.composerDepartment?'selected':''}>Everyone in the company</option>${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}</select></label><label class="pf-dialog-field">Message<textarea data-feed-compose-text maxlength="5000" rows="5" placeholder="Share news, celebrate someone, or ask your team a question…" required>${escapeHtml(state.composerText)}</textarea></label><fieldset class="pf-tag-picker"><legend>Tag people</legend><div>${eligible.map(user=>`<label><input type="checkbox" data-feed-compose-mention value="${escapeHtml(user.id)}" ${state.composerMentions.has(user.id)?'checked':''}><span>${escapeHtml(user.name || user.display_name || user.email || 'Employee')}</span></label>`).join('') || '<span>No employees available in this audience.</span>'}</div></fieldset><label class="pf-dialog-upload"><i class="fas fa-image"></i> Add images<input type="file" data-feed-compose-files accept="image/*" multiple hidden></label><div class="pf-dialog-files">${state.composerFiles.map(file=>`<span>${escapeHtml(file.name)}</span>`).join('')}</div><footer><button type="button" data-feed-compose-close>Cancel</button><button type="submit" class="pf-action primary" ${state.composerBusy?'disabled':''}>${state.composerBusy?'Posting…':'Post update'}</button></footer></form></div>`;
+  }
+  function feedSettingsHtml(){
+    if(!state.settingsOpen)return '';
+    const draft=state.settingsDraft || {company_activity_types:null,department_activity_types:{},revision:0};
+    const scope=state.settingsScope;
+    const selected=scope==='company' ? draft.company_activity_types : objectValue(draft.department_activity_types)[scope];
+    const defaults=!Array.isArray(selected);
+    return `<div class="pf-overlay"><div class="pf-dialog pf-settings-dialog" role="dialog" aria-modal="true" aria-label="Posts view settings"><header><div><strong>Posts view settings</strong><span>Choose which automatic activities become posts in each board.</span></div><button type="button" data-feed-settings-close aria-label="Close">×</button></header><label class="pf-dialog-field">Board<select data-feed-settings-scope><option value="company" ${scope==='company'?'selected':''}>Company board</option>${state.settingsDepartments.map(department=>`<option value="${escapeHtml(department.id)}" ${scope===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}</select></label><div class="pf-settings-actions"><button type="button" data-feed-settings-all>Show all</button><button type="button" data-feed-settings-none>Hide all</button></div><div class="pf-settings-types">${(state.settingsActivityOptions || state.activityOptions).map(option=>`<label><input type="checkbox" data-feed-settings-type value="${escapeHtml(option.type)}" ${defaults || selected.includes(option.type)?'checked':''}><span>${escapeHtml(option.label)}</span></label>`).join('')}</div><footer><button type="button" data-feed-settings-close>Cancel</button><button type="button" class="pf-action primary" data-feed-settings-save ${state.settingsBusy?'disabled':''}>${state.settingsBusy?'Saving…':'Save settings'}</button></footer></div></div>`;
+  }
   function render(){
     if (!state.root) return;
     const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
@@ -2329,15 +2471,92 @@
               <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleTags.size || state.visibleDocuments.size || state.visibleMedia.size < DEFAULT_MEDIA_FILTERS.length || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
               ${String(shownMenuHtml())}
             </div>
+            ${state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}
             ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
           </div>
         </div>
+        <div class="pf-feed-scopebar"><label><i class="fas fa-people-group"></i><span>Show</span><select data-feed-scope>${feedScopeOptionsHtml()}</select></label><button type="button" data-feed-manual-only aria-pressed="${state.manualOnly}" class="${state.manualOnly?'active':''}"><i class="fas fa-pen-to-square"></i> Manual posts only</button>${state.density==='posts'&&state.canManagePostSettings?'<button type="button" data-feed-settings-open><i class="fas fa-gear"></i> Posts settings</button>':''}</div>
         <div data-photo-feed-dynamic>${String(dynamicHtml())}</div>
+        ${feedComposerHtml()}${feedSettingsHtml()}
       </div>`;
     bind();
   }
   function bind(){
     const rootEl = state.root;
+    rootEl.querySelector('[data-feed-scope]')?.addEventListener('change',(event)=>{
+      state.feedScope=event.target.value;
+      state.visible=PAGE_SIZE;
+      writeFeedPreferences();render();
+    });
+    rootEl.querySelector('[data-feed-manual-only]')?.addEventListener('click',()=>{
+      state.manualOnly=!state.manualOnly;
+      state.visible=PAGE_SIZE;
+      writeFeedPreferences();render();
+    });
+    rootEl.querySelector('[data-feed-compose-open]')?.addEventListener('click',()=>{state.composerOpen=true;render();rootEl.querySelector('[data-feed-compose-text]')?.focus();});
+    rootEl.querySelectorAll('[data-feed-compose-close]').forEach(button=>button.addEventListener('click',()=>{if(!state.composerBusy){state.composerOpen=false;render();}}));
+    rootEl.querySelector('[data-feed-compose-text]')?.addEventListener('input',event=>{state.composerText=event.target.value;});
+    rootEl.querySelector('[data-feed-compose-scope]')?.addEventListener('change',event=>{
+      state.composerDepartment=event.target.value;
+      state.composerMentions.clear();render();
+    });
+    rootEl.querySelectorAll('[data-feed-compose-mention]').forEach(input=>input.addEventListener('change',()=>{
+      if(input.checked)state.composerMentions.add(input.value);else state.composerMentions.delete(input.value);
+    }));
+    rootEl.querySelector('[data-feed-compose-files]')?.addEventListener('change',event=>{
+      const chosen=[...event.target.files];
+      if(chosen.length+state.composerFiles.length>6 || chosen.some(file=>!file.type.startsWith('image/') || file.size>10*1024*1024)){
+        showToast?.('Post images','Choose up to six images, each 10 MB or smaller.',false);return;
+      }
+      state.composerFiles.push(...chosen);render();
+    });
+    rootEl.querySelector('[data-feed-compose]')?.addEventListener('submit',async event=>{
+      event.preventDefault();if(state.composerBusy||!state.composerText.trim())return;
+      state.composerBusy=true;render();
+      try{
+        state.composerOperationId ||= globalThis.crypto?.randomUUID?.() || `manual_${Date.now()}`;
+        const response=await window.ChannelsAPI.feed.createPost(orgId(),{text:state.composerText.trim(),department_id:state.composerDepartment,mention_user_ids:[...state.composerMentions],client_msg_id:state.composerOperationId});
+        const postId=response.post.id;
+        for(const file of [...state.composerFiles]){
+          await window.ChannelsAPI.feed.upload(orgId(),postId,file);
+          state.composerFiles.shift();
+        }
+        state.composerOpen=false;state.composerText='';state.composerDepartment='';state.composerMentions.clear();state.composerOperationId='';
+        await load({toast:true});
+      }catch(error){showToast?.('Could not post',error?.message || 'Try again.',false);}
+      finally{state.composerBusy=false;render();}
+    });
+    rootEl.querySelector('[data-feed-settings-open]')?.addEventListener('click',async()=>{
+      try{
+        const result=await window.ChannelsAPI.feed.settings(orgId());
+        state.settingsDraft=structuredClone(result.settings);
+        state.settingsDepartments=result.departments || [];
+        state.settingsActivityOptions=result.activity_options || [];
+        state.settingsScope='company';state.settingsOpen=true;render();
+      }catch(error){showToast?.('Posts settings',error?.message || 'Could not load settings.',false);}
+    });
+    rootEl.querySelectorAll('[data-feed-settings-close]').forEach(button=>button.addEventListener('click',()=>{if(!state.settingsBusy){state.settingsOpen=false;render();}}));
+    rootEl.querySelector('[data-feed-settings-scope]')?.addEventListener('change',event=>{state.settingsScope=event.target.value;render();});
+    const setSettingsSelection=(types)=>{
+      if(state.settingsScope==='company')state.settingsDraft.company_activity_types=types;
+      else state.settingsDraft.department_activity_types[state.settingsScope]=types;
+      render();
+    };
+    rootEl.querySelector('[data-feed-settings-all]')?.addEventListener('click',()=>setSettingsSelection((state.settingsActivityOptions || []).map(option=>option.type)));
+    rootEl.querySelector('[data-feed-settings-none]')?.addEventListener('click',()=>setSettingsSelection([]));
+    rootEl.querySelectorAll('[data-feed-settings-type]').forEach(input=>input.addEventListener('change',()=>{
+      const selected=[...rootEl.querySelectorAll('[data-feed-settings-type]:checked')].map(item=>item.value);
+      setSettingsSelection(selected);
+    }));
+    rootEl.querySelector('[data-feed-settings-save]')?.addEventListener('click',async()=>{
+      if(state.settingsBusy)return;state.settingsBusy=true;render();
+      try{
+        const result=await window.ChannelsAPI.feed.saveSettings(orgId(),state.settingsDraft);
+        state.postSettings=result.settings;state.settingsDraft=structuredClone(result.settings);
+        state.settingsOpen=false;showToast?.('Posts settings saved');
+      }catch(error){showToast?.('Posts settings',error?.message || 'Could not save settings.',false);}
+      finally{state.settingsBusy=false;render();}
+    });
     rootEl.querySelector('input[type="search"]')?.addEventListener('input', (event) => {
       state.query = event.target.value || '';
       state.visible = PAGE_SIZE;
@@ -2408,12 +2627,27 @@
       state.noteObserver=new ResizeObserver((entries)=>entries.forEach(({target})=>measureNote(target)));
       notes.forEach((note)=>state.noteObserver.observe(note));
     }
+    if(state.mosaicResizeHandler){window.removeEventListener('resize',state.mosaicResizeHandler);state.mosaicResizeHandler=null;}
     if(state.density==='mosaic'){
       const grids=[...rootEl.querySelectorAll('.pf-feed-grid')];
-      const arrange=()=>grids.forEach(grid=>[...grid.children].forEach(card=>{card.style.gridRowEnd=`span ${Math.ceil((card.getBoundingClientRect().height+12)/20)}`;}));
-      requestAnimationFrame(arrange);
-      state.mosaicObserver=new ResizeObserver(arrange);
-      grids.forEach(grid=>state.mosaicObserver.observe(grid));
+      let pending=false;
+      const arrange=()=>{
+        if(pending)return;
+        pending=true;
+        requestAnimationFrame(()=>{
+          pending=false;
+          grids.forEach(grid=>[...grid.children].forEach(card=>{
+            const span=Math.max(1,Math.ceil((card.scrollHeight+12)/20));
+            if(card.style.gridRowEnd!==`span ${span}`)card.style.gridRowEnd=`span ${span}`;
+          }));
+        });
+      };
+      arrange();
+      state.mosaicResizeHandler=arrange;
+      window.addEventListener('resize',arrange);
+      grids.forEach(grid=>grid.querySelectorAll('img').forEach(img=>{
+        if(!img.complete)img.addEventListener('load',arrange,{once:true});
+      }));
     }
     rootEl.querySelector('[data-selection-clear]')?.addEventListener('click', () => {
       setSelectionMode(false);
@@ -3465,7 +3699,7 @@
         if (!state.loaded) load();
         startFeedPolling();
       },
-      onHide:()=>{clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();}
+      onHide:()=>{clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
     });
     window.Portal.tabs.renderTabs?.();
     if (window.Portal?.routeState?.get?.().tab === TAB_ID) {

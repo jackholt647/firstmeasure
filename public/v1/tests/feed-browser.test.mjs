@@ -97,7 +97,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.match(await page.locator('.pf-post-value').first().textContent(),/24,500/);
   const post=page.locator('.pf-post').first();
   await post.getByRole('button',{name:'Comments',exact:true}).click();
-  await post.locator('textarea').fill('Looks great');await post.getByRole('button',{name:'Post',exact:true}).click();
+  await post.locator('textarea').fill('Looks great');await post.getByRole('button',{name:'Post comment',exact:true}).click();
   await page.waitForFunction(()=>window.replies.length===1);
   await page.waitForFunction(()=>document.querySelector('.pf-comment'));
   assert.match(await page.locator('.pf-comment').first().textContent(),/Looks great/);
