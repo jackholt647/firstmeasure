@@ -10,5 +10,5 @@ Validation: 48 geometry tests passed, plus an editor regression covering numeric
 extrusion, cancellation and a single undoable commit. The saved face also passed
 in its complete scene at -0.3, 0.3 and 1 metre. The regression verifies sealed
 edges, valid faces, immutable source geometry and deterministic previews.
-Evidence: output/face-extrusion-20261008/. Development verification pending.
+Evidence: output/face-extrusion-20261008/. Activated `e3626738f44bab2ff2d72c3438da5ac1a32c25a5` on all four development roles. Script hashes, runtime identity, readiness, development isolation and the public asset were verified. Both web nodes returned 200 for the saved full-house project.
 No saved project data or runtime configuration changes.

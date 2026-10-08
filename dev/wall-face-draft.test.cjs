@@ -1,5 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),B=require('../public/measure/internal/editor_scripts/base_geometry.js'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
+test('single selected line measurement uses 3D distance and clears for multiple lines',()=>{
+ const f=fixture(),pair=[{x:0,y:0,z:0},{x:3,y:0,z:4}];f.editor.restoreSelection({lineSelection:[{id:'a',pair}]});assert.equal(f.editor.selectedLineLength(),5);f.editor.restoreSelection({lineSelection:[{id:'a',pair},{id:'b',pair}]});assert.equal(f.editor.selectedLineLength(),null);f.editor.restoreSelection({});assert.equal(f.editor.selectedLineLength(),null);
+});
 test('small face over pitched ground extrudes, cancels and commits through the editor',()=>{
  const {face,base}=structuredClone(require('./fixtures/extrusion-pitched-base-slanted-edge.json')),f=fixture({state:{base,wallEdits:{}},walls:[],selected:null}),before=JSON.stringify(f.state.wallEdits);
  const start=()=>{f.editor.extrudeFace({face,event:f.e(0,0)});f.editor.distanceInput().set(.3);assert.match(f.message(),/Extrusion:/);assert.ok(f.state.wallEdits.$surfaces.some(s=>s.id.includes('-facet-')));};

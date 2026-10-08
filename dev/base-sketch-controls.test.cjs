@@ -27,6 +27,9 @@ function sharedBaseFixture(){
 test('base pseudo-selection mounts shared wall points and N splits the selected base despite another hit face',()=>{
  const f=sharedBaseFixture();assert.equal(f.editor.canHit(f.e(0,2),'3d'),true);f.editor.down(f.e(0,2),'3d');f.editor.up();const before=JSON.stringify(f.base());f.editor.keyDown({key:'n'});assert.equal(JSON.stringify(f.base()),before,'N waits for an endpoint');f.editor.move(f.e(4,2),'3d');f.editor.down(f.e(4,2),'3d');f.editor.up();assert.equal(f.base().faces.length,3,f.message());const shared=f.base().sketch.nodes.filter(n=>[0,4].includes(n.x)&&n.y===2);assert.equal(shared.length,2);assert.ok(shared.every(n=>n.z===0));assert.ok(f.base().faces.some(face=>face.points.some(p=>p.x===8&&p.z===2)));
 });
+test('selected base line measurement includes its pitch and clears with selection',()=>{
+ const f=sharedBaseFixture(),ps=f.base().faces[1].points;f.editor.selectEntities([],[[ps[0],ps[1]]]);assert.ok(Math.abs(f.editor.selectedLineLength()-Math.sqrt(20))<1e-8);f.editor.selectEntities([],[[ps[0],ps[1]],[ps[1],ps[2]]]);assert.equal(f.editor.selectedLineLength(),null);f.editor.clear();assert.equal(f.editor.selectedLineLength(),null);
+});
 test('Shift-selected wall/base points connect with C and upper step points stay off the base',()=>{
  const f=sharedBaseFixture();assert.equal(f.editor.canHit(f.e(.4,3),'3d'),false);f.editor.down(f.e(0,2),'3d');f.editor.up();f.editor.down({...f.e(4,2),shiftKey:true},'3d');f.editor.up();f.editor.keyDown({key:'c'});assert.equal(f.base().faces.length,3,f.message());assert.ok(!f.base().sketch.nodes.some(n=>n.x===0&&n.y===3));
 });
