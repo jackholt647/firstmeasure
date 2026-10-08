@@ -198,6 +198,7 @@
     if (mobileFullscreen()) win.mode = 'fullscreen';
     fitFloatingSize();
     win.rect.left=Math.max(0,host.clientWidth-win.rect.width-24);
+    const initialPlacement = {mode:options.mode || 'floating', rect:{...win.rect}, dockWidth:win.dockWidth, dockHeight:win.dockHeight};
     windows.add(win); element.classList.add('fm-window'); if (!options.customChrome) header.classList.add('fm-window-header'); title?.classList.add('fm-window-title'); if (options.titleMenu === false) title?.classList.add('fm-window-title-plain'); options.body?.classList.add('fm-window-content');
     element.setAttribute('role','region'); element.setAttribute('aria-label',options.label || 'Window');
     const controls = document.createElement('div'); controls.className = 'fm-window-controls'; (options.controlsHost || header).append(controls);
@@ -289,7 +290,21 @@
     }
     function setPinned(value,{silent=false}={}){ win.pinned=!!value; chrome(); if (!silent) notify('pin'); }
     function focus(){ win.stackOrder=++order; restack(); }
-    async function requestClose(){ if (buttons.close.disabled) return; buttons.close.disabled=true; try { if (options.onClose) await options.onClose(); else {win.visible=false;element.hidden=true;layout(win.host);} } finally { buttons.close.disabled=false; } }
+    function setVisible(value){
+      const wasVisible=win.visible;
+      win.visible=!!value;element.hidden=!win.visible;
+      if(options.resetOnHide && wasVisible && !win.visible){
+        endGesture?.();closeMenu();
+        win.rect={...initialPlacement.rect};win.dockWidth=initialPlacement.dockWidth;win.dockHeight=initialPlacement.dockHeight;
+        win.dockSide='right';win.previous=initialPlacement.mode;win.floated=false;win.pinned=false;
+        setMode(initialPlacement.mode);
+      } else if(options.resetOnHide && !wasVisible && win.visible){
+        // Re-evaluate the viewport when a closed mobile tray reopens on desktop.
+        setMode(initialPlacement.mode);
+      }
+      layout(win.host);if(value)focus();
+    }
+    async function requestClose(){ if (buttons.close.disabled) return; buttons.close.disabled=true; try { if (options.onClose) await options.onClose(); else setVisible(false); } finally { buttons.close.disabled=false; } }
     function dock(side='right'){if(!placements.includes(side))return;win.dockSide=side;element.dataset.dock=side;setMode('docked');}
     win.dock=dock;
     buttons.place.onclick=()=>dock(win.mode==='docked' && win.dockSide==='right' ? 'left' : 'right');
@@ -420,7 +435,7 @@
       setMinimizedWidth(width){if(win.minimizedWidth!==width){win.minimizedWidth=width;layout(win.host);}},
       restore,
       get state(){return {mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,visible:win.visible};},
-      setVisible(value){win.visible=!!value;element.hidden=!win.visible;layout(win.host);if(value)focus();},
+      setVisible,
       rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
       destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}

@@ -25,7 +25,7 @@
     shell=document.createElement('aside');shell.id='platformTodoTray';shell.className='fm-todo-tray';shell.setAttribute('aria-label','To Do');shell.hidden=true;
     const header=document.createElement('header'),title=document.createElement('div'),body=document.createElement('div');
     title.className='fm-todo-title fm-window-minimized-identity';title.innerHTML='<i class="fas fa-list-check" aria-hidden="true"></i><span>To Do</span>';title.tabIndex=0;body.className='fm-todo-body';header.append(title);shell.append(header,body);host.append(shell);
-    win=window.FirstMateWindows.attach({element:shell,header,title,body,host,contentTarget:host.querySelector(':scope > #mainPanels'),name:'todos',label:'To Do',mode:'docked',width:380,height:600,minWidth:300,minHeight:300,dockWidth:380,mobileFullDock:true,topInset:()=>document.getElementById('platformTopbar')?.offsetHeight||0,onClose:close});
+    win=window.FirstMateWindows.attach({element:shell,header,title,body,host,contentTarget:host.querySelector(':scope > #mainPanels'),name:'todos',label:'To Do',mode:'docked',resetOnHide:true,width:380,height:600,minWidth:300,minHeight:300,dockWidth:380,mobileFullDock:true,topInset:()=>document.getElementById('platformTopbar')?.offsetHeight||0,onClose:close});
     controller=window.PlatformActionItems.renderTodayList(body,{orgId:org(),branchId:branch(),userId:String(Portal.cfg?.userId||window.__APP?.userId||Portal.currentUser?.id||''),completedOpen:true,showProjectContext:true,showUpcoming:true,showFuture:true,scrollItemsOnly:true,query:{includeFuture:true}});
     return true;
   }

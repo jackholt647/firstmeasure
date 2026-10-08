@@ -112,3 +112,43 @@ test('mobile windows default to fullscreen close-only chrome through every place
   assert.deepEqual(await page.locator('[data-window-action]:visible').evaluateAll(nodes=>nodes.map(n=>n.dataset.windowAction).sort()),['close','maximize','minimize','place']);
  }finally{await browser.close();}
 });
+
+
+test('header trays reset placement on close while preserving contents and open-window placement',async()=>{
+ const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:1200,height:900}});
+  await page.setContent('<main style="position:relative;height:900px"><div id="panels"></div></main>');
+  await page.addScriptTag({content:await readFile(new URL('../../libraries/window-manager/window-manager.js',import.meta.url),'utf8')});
+  for(const closeKind of ['button','app','async']){
+   await page.evaluate(closeKind=>{
+    const element=document.createElement('section');element.innerHTML='<header>Tool</header><input value="Draft retained">';document.querySelector('main').append(element);
+    window.tray=FirstMateWindows.attach({element,header:element.querySelector('header'),host:document.querySelector('main'),contentTarget:document.querySelector('#panels'),mode:'docked',dockWidth:380,resetOnHide:true,onClose:closeKind==='async'?async()=>{await Promise.resolve();tray.setVisible(false);}:undefined});
+   },closeKind);
+   await page.evaluate(()=>{tray.setMode('floating');tray.setMode('minimized');tray.restore();});
+   assert.equal(await page.evaluate(()=>tray.state.mode),'floating');
+   if(closeKind==='app')await page.evaluate(()=>tray.setVisible(false));
+   else await page.click('[data-window-action=close]');
+   await page.waitForFunction(()=>!tray.state.visible);
+   assert.equal(await page.locator('#panels').evaluate(el=>el.style.marginRight),'');
+   await page.evaluate(()=>tray.setVisible(true));
+   assert.deepEqual(await page.evaluate(()=>tray.state),{mode:'docked',dockSide:'right',pinned:false,visible:true});
+   assert.equal(await page.locator('input').inputValue(),'Draft retained');
+   await page.evaluate(()=>{tray.dock('bottom-left');tray.setMode('minimized');tray.setVisible(false);tray.setVisible(true);});
+   assert.equal(await page.evaluate(()=>tray.state.mode),'docked');
+   assert.equal(await page.evaluate(()=>tray.state.dockSide),'right');
+   await page.waitForFunction(()=>Math.round(document.querySelector('section').getBoundingClientRect().width)===380);
+   assert.equal(await page.locator('section').evaluate(el=>Math.round(el.getBoundingClientRect().width)),380);
+   await page.setViewportSize({width:390,height:844});await page.evaluate(()=>tray.setVisible(false));
+   await page.setViewportSize({width:1200,height:900});await page.evaluate(()=>tray.setVisible(true));
+   assert.equal(await page.evaluate(()=>tray.state.mode),'docked');
+   await page.evaluate(()=>tray.destroy());
+  }
+  await page.evaluate(()=>{
+   const element=document.createElement('section');element.innerHTML='<header>Conversation</header>';document.querySelector('main').append(element);
+   window.other=FirstMateWindows.attach({element,header:element.querySelector('header'),host:document.querySelector('main'),mode:'docked'});
+   other.setMode('floating');other.setVisible(false);other.setVisible(true);
+  });
+  assert.equal(await page.evaluate(()=>other.state.mode),'floating');
+ }finally{await browser.close();}
+});

@@ -64,6 +64,9 @@ when another app activates. Floating windows stack above docks; minimized window
 remain available above both. Transient menus/dialogs stay above the window layers.
 
 `setVisible(false)` hides a reusable window and releases its reserved space.
+Header trays opt into `resetOnHide: true`: closing resets their original size
+and right-docked placement while retaining content. Minimize and restore keep
+the current placement until the tray is closed.
 `rehost(host, contentTarget)` moves a live window without recreating its content.
 `focus()` brings it forward; `refresh()` recomputes its host layout.
 `destroy()` removes the frame, controls and listeners and releases reservations.

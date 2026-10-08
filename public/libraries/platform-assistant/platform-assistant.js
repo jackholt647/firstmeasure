@@ -2384,7 +2384,7 @@
       element:drawer, header:drawer.querySelector('.fma-head'),
       body:q('body'), host,
       contentTarget:document.getElementById('mainPanels'), name:'assistant', label:(globalThis.PlatformLanguage?.text("platform-assistant","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
-      mode:'docked', dockWidth:440, width:760, height:650, mobileFullDock:true,
+      mode:'docked',resetOnHide:true, dockWidth:440, width:760, height:650, mobileFullDock:true,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || document.querySelector('.platform-topbar')?.offsetHeight || 0,
       onChange:({mode}) => {
         state.mode = mode;
