@@ -20,7 +20,7 @@ test('header to-dos work without a left column, retain the list across placement
     assert.equal(await page.evaluate(()=>reads[0].query.projectId||''),'');
     assert.equal(await page.locator('.fm-todo-tray [data-window-action=minimize]').isVisible(),false);
     assert.equal(await page.locator('.fm-todo-body').evaluate(element=>getComputedStyle(element).padding),'12px');
-    await page.locator('.fm-todo-tray [data-window-action=place]').click({button:'right'});
+    await page.locator('.fm-todo-title').click({button:'right'});
     await page.getByRole('menuitem',{name:'Float',exact:true}).click();
     assert.equal(await page.locator('.fm-todo-tray').getAttribute('data-window'),'floating');
     await page.locator('.fm-todo-tray [data-window-action=close]').click();
