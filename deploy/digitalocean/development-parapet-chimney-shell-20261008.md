@@ -16,4 +16,13 @@ shaft. Evidence: `output/parapet-chimney-shell-20261008/` and
 
 Deployment uses one-script immutable deltas from each role's freshly audited
 baseline; rollback paths are recorded in the manifest. No project data or
-configuration changes. Activation verification pending.
+configuration changes.
+
+Verified application release: `4c1b803530d8c24ceb3af207a0a72cdf78dc6d85`.
+All four roles passed content hashes, runtime identity, readiness and isolation.
+Public HTTPS served the expected script checksum and release. The baseline
+checks stopped several attempts during concurrent development activation;
+roles were freshly audited and restaged, preserving the newer changes.
+Final rollback baselines: web, pool and compatibility
+`79babd29eab8f515a98dcdeefebae5db7320a9e4`; worker
+`72c0ee4e1bec4da865d6e306ee7111ea0d8b0700`.
