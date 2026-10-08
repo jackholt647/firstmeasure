@@ -365,6 +365,13 @@ test("comms: explicit email recipients and recipient-combination SMS threads sup
     to: secondaryPhone,
     text: "A separate thread for Jordan."
   });
+  const unavailableLine = await client.raw("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, {
+    to: secondaryPhone,
+    text: "This sender is not assigned.",
+    business_number: "+12065550999"
+  });
+  assert.equal(unavailableLine.statusCode, 403);
+  assert.equal(unavailableLine.data.error, "business_line_unavailable");
   const group = await client.request("POST", `/v1/comms/organizations/${orgId}/projects/${projectId}/sms/send`, {
     to: [contactPhone, secondaryPhone, "+12065550000"],
     text: "A project group text."

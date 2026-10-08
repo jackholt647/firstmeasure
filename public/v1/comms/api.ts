@@ -68,6 +68,7 @@ const sendSmsSchema = z.object({
   to: z.union([z.string().trim().max(40), z.array(z.string().trim().min(1).max(40)).min(1).max(20)]).optional(),
   text: z.string().trim().min(1).max(1600),
   conversation_id: z.string().trim().max(180).optional(),
+  business_number: z.string().trim().max(40).optional(),
   idempotency_key: z.string().trim().max(500).optional(),
   audio_note: objectSchema.optional()
 });
@@ -219,6 +220,10 @@ export const registerCommsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: SEND_PERMISSION, capability: "comms.sms" });
     const body = sendSmsSchema.parse(request.body ?? {});
+    if(body.business_number){
+      const available=(await voiceResources(orgId,'number')).some(line=>line.phone_number===body.business_number&&line.status==='active'&&cleanText(line.branch_id||'default')===(ctx.branchId||'default')&&(!cleanText(line.assigned_user_id)||cleanText(line.assigned_user_id)===ctx.userId));
+      if(!available)throw forbidden('business_line_unavailable','Choose a company line available to you.');
+    }
     const result = await sendProjectSms(orgId, ctx.branchId || "default", getParam(request.params, "projectId"), {
       ...body,
       source: { type: "user", user_id: ctx.userId }

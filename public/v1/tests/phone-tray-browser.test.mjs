@@ -9,6 +9,8 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
     await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
+    await page.route('https://phone.test/libraries/apps/contacts/modal.js*',async route=>route.fulfill({body:await readFile(new URL('../../libraries/apps/contacts/modal.js',import.meta.url),'utf8'),contentType:'text/javascript'}));
+    await page.route('https://phone.test/libraries/window-manager/window-shell.js*',async route=>route.fulfill({body:await readFile(new URL('../../libraries/window-manager/window-shell.js',import.meta.url),'utf8'),contentType:'text/javascript'}));
     await page.goto('https://phone.test');
     await page.evaluate(()=>{
       window.sentTones=[];window.tones=[];window.AudioContext=class {
@@ -17,23 +19,24 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
         createOscillator(){return {frequency:{value:0},connect(){},disconnect(){},start(){window.tones.push(this.frequency.value);},stop(){this.onended?.();}};}
       };
       window.__APP={orgId:'org-test',userId:'user-test'};
-      window.Portal={appFlags:{has:()=>true},navigation:{registerSchema(){},registerHandler(){},push(){}}};
+      window.Portal={appFlags:{has:()=>true},modules:{},navigation:{registerSchema(){},registerHandler(){},push(){}}};
+      window.PlatformAPI={projects:{listForContact:async()=>({documents:[]}),list:async()=>({documents:[]})},contacts:{settings:async()=>({settings:{tags:[]}})}};
       window.TelnyxWebRTC={TelnyxRTC:class{constructor(){this.handlers={};window.phoneClient=this;}on(n,cb){this.handlers[n]=cb;}connect(){if(!window.delayReady)this.handlers['telnyx.ready']();}async setAudioSettings(){}disconnect(){}}};
       window.testCall={id:'call-test',customer_name:'Test contact',customer_number:'+12025550123',state:'connected',mode:'browser',owner_user_id:'user-test',wrap_up_state:'draft',metadata:{}};
       window.CommsAPI={customer:async(_org,path,data)=>{
         if(path==='voice/endpoint/token')return {token:'fixture',expires_at:new Date(Date.now()+3600000).toISOString()};
         if(path==='voice/endpoint/presence')return {availability:'unavailable'};
         if(path==='voice/diagnostics')return {result:{verdict:'blocked',reason:'Allow microphone access and try again.'}};
-        if(path==='voice/status')return {settings:{enabled:true,require_disposition:true,allowed_destination_countries:['US','CA'],allowed_country_prefixes:['+1']},permissions:{manage:true},numbers:[{phone_number:'+12065550199',label:'Main',status:'active'}],sms_numbers:[{phone_number:'+12065550199'}],default_number:'+12065550199'};
+        if(path==='voice/status')return {settings:{enabled:true,require_disposition:true,allowed_destination_countries:['US','CA','GB','DE','JP','MX'],allowed_country_prefixes:['+1','+44','+49','+81','+52']},permissions:{manage:true},numbers:[{phone_number:'+12065550199',label:'Main',status:'active'}],sms_numbers:[{phone_number:'+12065550199'}],default_number:'+12065550199'};
         if(path==='call-scripts')return {scripts:[]};
         if(path==='call-context')return {contacts:[]};
         if(path==='call-lists/queue')return {columns:[]};
-        if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-one',name:'Jane Test',phone:'+12025550124'}]};
+        if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-one',project_id:'project-one',name:'Jane Test',phone:'+12025550124'},{id:'contact-two',project_id:'project-two',name:'Avery Demo',phone:'+12025550125'}]};
         if(path.endsWith('/wrap-up')){window.testCall={...window.testCall,wrap_up_state:'saved',result:{disposition:'answered'}};return {call:window.testCall};}
         if(path.includes('/actions')){if(data.action==='dtmf')window.sentTones.push(data.digits);if(data.action==='hangup')window.testCall={...window.testCall,state:'ended',wrap_up_state:'needs_wrap_up'};return {call:window.testCall};}
         if(path.startsWith('calls/'))return {call:window.testCall};
         return {};
-      },inbox:async()=>({conversations:[{id:'text-one',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',last_message:{text:'Hello'}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hello',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};}};
+      },inbox:async()=>({conversations:[{id:'text-one',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',last_message:{text:'Hello'}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hello',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {ok:true};}}};
     });
     for(const file of ['window-manager/window-manager.js','apps/comms/communications-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
@@ -41,8 +44,8 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'docked');
     await page.getByRole('button',{name:/Minimize phone/i}).click();
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').getBoundingClientRect().height===32);
-    assert.equal(await page.locator('.fm-phone-title strong').textContent(),'Phone');
-    assert.equal(await page.locator('.fm-phone-title small').isVisible(),false);
+    assert.equal(await page.locator('.fm-phone-title').getAttribute('aria-label'),'Open phone');
+    assert.equal(await page.locator('.fm-phone-title strong').count(),0);
     assert.equal(await page.locator('.fm-phone-title>i').isVisible(),true);
     assert.equal(await page.locator('.fm-phone-compact').textContent(),'');
     assert.equal(await page.locator('.fm-phone-compact canvas').count(),0);
@@ -52,13 +55,25 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.locator('.fm-phone-title').click();
 
     assert.deepEqual(await page.locator('[data-phone-tab]').allTextContents(),['Call','Text','Contacts']);
-    assert.equal(await page.getByLabel('Choose another country to call').inputValue(),'+1');
+    assert.equal(await page.getByRole('button',{name:'Choose another country to call'}).textContent(),'+1');
+    await page.getByRole('button',{name:'Choose another country to call'}).click();
+    assert.deepEqual(await page.locator('[data-country-choice]').allTextContents(),['USUnited States+1','CACanada+1','GBUnited Kingdom+44','DEGermany+49','JPJapan+81','MXMexico+52']);
+    await page.locator('[data-country-iso=GB]').click();
+    assert.equal(await page.getByRole('button',{name:'Choose another country to call'}).textContent(),'+44');
+    await page.locator('[data-line-picker] [aria-expanded]').click();
+    assert.match(await page.locator('[data-line-picker] [data-line-choice]').textContent(),/\(206\) 555-0199/);
+    await page.locator('[data-line-picker] [aria-expanded]').click();
+    assert.equal(await page.getByText('Call options',{exact:true}).count(),0);
+    assert.equal(await page.locator('.fm-phone-number').evaluate(e=>getComputedStyle(e).fontSize),'0px');
     await page.locator('[name=customer_number]').fill('a');
     await page.waitForSelector('[data-match="0"]');
     assert.equal(await page.locator('.fm-phone-pad').isVisible(),false);
     await page.locator('[data-match="0"]').click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+12025550124');
-    await page.locator('[name=customer_number]').fill('');
+    assert.equal(await page.locator('.fm-phone-selected strong').textContent(),'Jane Test');
+    assert.equal(await page.locator('.fm-phone-selected small').textContent(),'(202) 555-0124');
+    assert.equal(await page.locator('.fm-phone-number').isVisible(),false);
+    await page.getByRole('button',{name:'Remove selected contact'}).click();
     await page.locator('[data-digit="2"]').click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'2');
     assert.deepEqual(await page.evaluate(()=>tones),[]);
@@ -66,13 +81,11 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.deepEqual(await page.evaluate(()=>tones),[]);
     await page.locator('[name=customer_number]').press('Backspace');
     assert.equal(await page.evaluate(()=>tones.length),0);
-    await page.locator('.fm-phone-options summary').click();
     assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).count(),0);
     await page.locator('[data-digit="3"]').click();
     await page.locator('[name=customer_number]').pressSequentially('4');
     assert.equal(await page.evaluate(()=>tones.length),0);
     await page.evaluate(()=>Portal.CustomerPhone.open());
-    await page.locator('.fm-phone-options summary').click();
     assert.equal(await page.getByLabel('Keypad sounds',{exact:true}).count(),0);
     await page.locator('[data-digit="#"]').click();
     assert.deepEqual(await page.evaluate(()=>tones),[]);
@@ -88,8 +101,14 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'');
     await page.locator('[data-phone-tab=contacts]').click();
     await page.getByRole('searchbox',{name:'Search contacts'}).fill('Jane');
-    await page.getByRole('button',{name:'Jane Test'}).click();
+    await page.getByRole('button',{name:'Open Jane Test'}).click();
+    await page.waitForSelector('#fmContactOverlay.active');
+    assert.equal(await page.locator('#fmContactName').inputValue(),'Jane Test');
+    await page.evaluate(()=>Portal.modules.contacts.close());
+    await page.getByRole('button',{name:'Call Jane Test'}).click();
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+12025550124');
+    assert.equal(await page.locator('.fm-phone-selected strong').textContent(),'Jane Test');
+    await page.getByRole('button',{name:'Remove selected contact'}).click();
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/docked.png'});
     await page.evaluate(()=>{const e=document.createElement('aside'),h=document.createElement('header');h.textContent='Other minimized window';e.append(h);document.querySelector('main').append(e);window.otherWindow=FirstMateWindows.attach({element:e,header:h,host:document.querySelector('main'),mode:'minimized',name:'other'});});
     await page.getByRole('button',{name:'Move phone freely',exact:true}).click();
@@ -158,7 +177,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.getByRole('button',{name:'Move phone freely',exact:true}).click();
     await page.getByRole('button',{name:/Minimize phone/i}).click();
     await page.locator('.fm-phone-compact [data-phone=hangup]').click();
-    await page.waitForFunction(()=>document.querySelector('.fm-phone-title').textContent.includes('Outcome ready'));
+    await page.waitForFunction(()=>document.querySelector('.fm-phone-title').getAttribute('aria-label')?.includes('outcome ready'));
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'minimized');
     await page.locator('.fm-phone-title').click();
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'floating');
@@ -172,11 +191,17 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.setViewportSize({width:390,height:844});await page.evaluate(()=>Portal.CustomerPhone.open());
     const mobile=await page.locator('.fm-phone-tray').boundingBox();assert.ok(mobile.x>=0&&mobile.x+mobile.width<=390);
     await page.locator('[data-phone-tab=text]').click();
-    assert.equal(await page.getByLabel('Text using').inputValue(),'+12065550199');
+    assert.equal(await page.locator('.fm-phone-extra [name=business_number]').inputValue(),'+12065550199');
     await page.getByRole('button',{name:/Jane Test/}).click();
     await page.getByRole('textbox',{name:'Text message'}).fill('Thanks, Jane');
     await page.getByRole('button',{name:'Send text'}).click();
     await page.waitForFunction(()=>window.lastReply?.text==='Thanks, Jane');
+    await page.locator('[data-phone-tab=contacts]').click();
+    await page.getByRole('button',{name:'Text Avery Demo'}).click();
+    await page.getByRole('textbox',{name:'Text message'}).fill('Hello, Avery');
+    await page.getByRole('button',{name:'Send text'}).click();
+    await page.waitForFunction(()=>window.lastNewText?.body.text==='Hello, Avery');
+    assert.deepEqual(await page.evaluate(()=>lastNewText),{project:'project-two',body:{to:'+12025550125',text:'Hello, Avery',business_number:'+12065550199',idempotency_key:await page.evaluate(()=>lastNewText.body.idempotency_key)}});
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

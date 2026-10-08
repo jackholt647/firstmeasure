@@ -4,7 +4,7 @@
 (function(){
   if (!window.Portal) return;
 
-  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20260930-v1',document.currentScript.src).href);
+  const shellReady=window.FirstMateWindowShell?Promise.resolve():import(new URL('../../window-manager/window-shell.js?v=20260930-v1',document.currentScript?.src||location.origin+'/libraries/apps/contacts/modal.js').href);
   const cfg = window.Portal.cfg || {};
   const state = {
     open: false,

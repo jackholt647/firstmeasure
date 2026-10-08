@@ -98,7 +98,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261005-contact-chrome-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20261001-sharing-polish-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261008-contact-loader-v1'), versionedBundle('settings/contacts.js', '20260930-contact-tags-v1'), versionedBundle('contacts/app.js', '20261001-sharing-polish-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -347,7 +347,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261007-phone-tabs-v2'), versionedBundle('comms/workspace.js', '20261007-phone-tabs-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261008-phone-tray-v1'), versionedBundle('comms/calling-runtime.js', '20261007-phone-tabs-v2'), versionedBundle('comms/workspace.js', '20261007-phone-tabs-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -523,7 +523,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'),
-        versionedBundle('comms/phone-tray.js', '20261007-phone-tabs-v1'), versionedBundle('comms/calling-runtime.js', '20261007-phone-tabs-v2'),
+        versionedBundle('comms/phone-tray.js', '20261008-phone-tray-v1'), versionedBundle('comms/calling-runtime.js', '20261007-phone-tabs-v2'),
         versionedBundle('comms/workspace.js', '20261007-phone-tabs-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]

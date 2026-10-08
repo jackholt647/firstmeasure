@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 8 phone tray: [Contact actions, country picker, and texting polish](deploy/digitalocean/development-phone-tray-polish-20261008.md) records the verified development-only rollout and subsequent release handoff.
+
 October 7 phone tray: [Call, Text, and Contacts](deploy/digitalocean/development-phone-tabs-20261007.md) records the redesigned tray, sender restrictions, validation, and verified development-only rollout.
 
 October 7 Feed follow-up: [Wrapped note toggles and project Photos link](deploy/digitalocean/development-feed-note-toggle-project-photos-20261007.md) records the latest verified development rollout. [List photo previews and long notes](deploy/digitalocean/development-feed-list-media-20261007.md) records the preceding rollout. [Notes, member portraits, and project photos](deploy/digitalocean/development-feed-notes-project-media-20261007.md) records the earlier Pioneer Puffin media repair and Feed changes.
