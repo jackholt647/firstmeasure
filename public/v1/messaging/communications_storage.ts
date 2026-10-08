@@ -68,7 +68,7 @@ export function getCommunicationsDatabase(): SqlStore {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   if (database) throw new Error("Close communications storage before changing its directory.");
-  database = openSqlStore({ id: "communications", filename: nextPath, initialize: initializeSchema });
+  database = openSqlStore({ id: "communications", filename: nextPath, schemaVersion: 2, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }

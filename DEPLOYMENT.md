@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 8 Communications samples: [Pioneer Puffin call history, scripts, follow-ups, lists, and History repair](deploy/digitalocean/development-pioneer-puffin-calls-20261008.md) records the additive development schema repair and verified sample data.
+
 October 8 phone tray: [Contact actions, country picker, and texting polish](deploy/digitalocean/development-phone-tray-polish-20261008.md) records the verified development-only rollout and subsequent release handoff.
 
 October 7 phone tray: [Call, Text, and Contacts](deploy/digitalocean/development-phone-tabs-20261007.md) records the redesigned tray, sender restrictions, validation, and verified development-only rollout.

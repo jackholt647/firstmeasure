@@ -44,6 +44,11 @@ export async function initializeCustomerCallsSchema(db: SqlStore) {
     CREATE INDEX IF NOT EXISTS customer_calls_contact ON customer_calls(organization_id,contact_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS customer_calls_entry ON customer_calls(organization_id,entry_id,created_at DESC,id DESC);
     CREATE INDEX IF NOT EXISTS customer_calls_active ON customer_calls(organization_id,state,owner_user_id);
+    CREATE TABLE IF NOT EXISTS customer_call_departments (
+      organization_id TEXT NOT NULL, call_id TEXT NOT NULL REFERENCES customer_calls(id), department_id TEXT NOT NULL,
+      PRIMARY KEY(organization_id,call_id,department_id)
+    );
+    CREATE INDEX IF NOT EXISTS customer_call_departments_scope ON customer_call_departments(organization_id,department_id,call_id);
     CREATE TABLE IF NOT EXISTS customer_call_legs (
       id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, call_id TEXT NOT NULL REFERENCES customer_calls(id),
       role TEXT NOT NULL, control_id TEXT UNIQUE, provider_leg_id TEXT NOT NULL DEFAULT '', session_id TEXT NOT NULL DEFAULT '',
