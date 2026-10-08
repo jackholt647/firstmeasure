@@ -184,11 +184,24 @@ function perf_finishEdit(){
             state.ground=ground;const b=GroundGeometry.bounds(state.roof);state.options.ground=GroundGeometry.at(ground.plane,{x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2});
             state.warnings=(state.warnings||[]).filter(w=>!w.startsWith('Ground:'));
             if(fitBase)window.WallChimneys?.syncFoundation(state,{force:true});
-            groundChanged();
+            groundChanged(true,before);
             editHistory.push({full:true,before:{state:before,stage},after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()});editFuture=[];
         }catch(error){state=before;baseTerrainKey='';persist();render();throw error;}
     }
-    function groundChanged(rebuild=true){
+    function regradeGeneratedWalls(previous){
+        const before=previous?.wallEdits?.$base||previous?.base,after=state?.wallEdits?.$base||state?.base,K=window.ExteriorGeometry,F=window.WallBaseBinding;
+        if(!before||!after||!K||!F?.walls)return false;
+        // Height-only edits must keep the existing roof contacts and deduplication.
+        // Footprint edits still go through the full construction pipeline.
+        const uncovered=(a,b)=>a.faces.reduce((sum,f)=>sum+K.difference(f,b.faces).reduce((n,p)=>n+K.area(p),0),0);
+        if(uncovered(before,after)>1e-5||uncovered(after,before)>1e-5)return false;
+        for(const key of ['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'])if(state[key])state[key]=F.walls(state[key],before,after);
+        const planes=after.faces.map(f=>({f,plane:G.plane(f.points)})).filter(p=>p.plane);
+        for(const key of ['preCleanupBase','cleanedBase','preAlignmentBase','alignedBase'])if(state[key]){const next=copy(state[key]);for(const f of next.faces)for(const p of f.points){const candidates=planes.filter(({f})=>G.contains(f,p)),chosen=(candidates.length?candidates:planes).slice().sort((a,b)=>Math.abs(a.plane.dx*p.x+a.plane.dy*p.y+a.plane.k-p.z)-Math.abs(b.plane.dx*p.x+b.plane.dy*p.y+b.plane.k-p.z))[0];if(chosen)p.z=chosen.plane.dx*p.x+chosen.plane.dy*p.y+chosen.plane.k;}delete next.sketch;state[key]=next;}
+        baseTerrainKey='';return true;
+    }
+    function groundChanged(rebuild=true,previous=pendingEdit){
+        if(rebuild&&regradeGeneratedWalls(previous)){selected=null;persist();render();return;}
         if(rebuild){window.WallChimneys?.normalizeDrafts(state?.wallEdits);const prior=currentWalls();invalidateWalls();calculateStage(stage);const next=currentWalls();for(const d of Object.values(state?.wallEdits?.$drafts||{})){if(d.frame)continue;const source=w=>w.chimney?w.chimney.id+':side-'+w.chimney.side:w.sourceId,sources=new Set(prior.filter(w=>d.members.includes(w.id)).map(source).filter(Boolean));if(sources.size)d.members=[...new Set([...d.members,...next.filter(w=>sources.has(source(w))).map(w=>w.id)])];}selected=null;persist();render();}
         else {persist();render();}
     }

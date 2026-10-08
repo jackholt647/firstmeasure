@@ -3,6 +3,12 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js');
+test('height-only base edit keeps the generated roof-contact stages and survives reload',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_base_binding.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');let host;const f=fixture(true,{ExteriorGeometry:K,WallBaseBinding:F,createBaseEditor:h=>{host=h;return {setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false};}});f.ctx.WallMode.setEnabled(true);f.soffits[3].onclick();
+ const r=require('./roof-generation-fixture.cjs').build(require('./fixtures/three-layer-wall-contacts.json')),s=host.state();Object.assign(s,r.state,{extruded:r.extruded.walls,deduplicated:r.dedup.walls,gapRepaired:r.gaps.walls,mergedWalls:r.merged.walls,cleanedWalls:r.clean.walls,alignedWalls:r.aligned.walls});const before=JSON.parse(JSON.stringify(s)),old=before.base,next=JSON.parse(JSON.stringify(old));next.faces.forEach(f=>f.points.forEach(p=>p.z=35));host.recordHistory({base:old,wallEdits:before.wallEdits});s.wallEdits={...s.wallEdits,$base:next};host.changed();
+ for(const key of ['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'])assert.deepEqual(JSON.parse(JSON.stringify(s[key])),F.walls(before[key],old,next),key);
+ for(const key of ['deduplicated','alignedWalls']){assert.equal(s[key].length,before[key].length);s[key].forEach((w,i)=>{assert.equal(w.id,before[key][i].id);assert.deepEqual(JSON.parse(JSON.stringify(w.top)),before[key][i].top);assert.deepEqual(w.bottom.map(p=>[p.x,p.y]),before[key][i].bottom.map(p=>[p.x,p.y]));});} const saved=f.ctx.WallMode.serialize(),fresh=fixture(true,{ExteriorGeometry:K,WallBaseBinding:F});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize().alignedWalls)),JSON.parse(JSON.stringify(saved.alignedWalls)));
+});
 
 // Exercise the actual UI handlers and persistence without imagery or a WebGL context.
 test('From Roof resolves chimney heights once, shares them with the base, and preserves them on reload',()=>{
