@@ -68,3 +68,4 @@ for(const [index,spec] of specs.entries()){
   await calls.saveArtifact(ORG_ID,callId,'transcript',recordingId,{text:spec.text,final:true,source:'synthetic',recording_id:recordingId},'ready',365);
 }
 console.log(JSON.stringify({organization_id:ORG_ID,applied:apply,line:line.phone_number,...stats}));
+process.exit(0);
