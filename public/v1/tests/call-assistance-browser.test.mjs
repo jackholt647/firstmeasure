@@ -21,7 +21,7 @@ async function setup(context,{supervisor=false}={}){
       if(path==='voice/endpoint/presence')return {availability:'unavailable'};
       if(path==='voice/status')return {settings:{enabled:true,require_disposition:true,wrap_up_seconds:0,recording_enabled:true,recording_policy_confirmed:true},permissions:{manage:false,record:true,recordings:true,analyze:true}};
       if(path.startsWith('call-scripts'))return {scripts:[]};
-      if(path.startsWith('call-lists/queue'))return {columns:[{id:'sales',title:'Inside sales',tasks:[{id:'one',name:'Jamie Cooper',phone:'+12025550123',ready:true},{id:'two',name:'Morgan Lee',phone:'+12025550124',ready:true}]}]};
+      if(path.startsWith('call-lists/queue'))return {columns:window.queueColumns||[{id:'sales',title:'Inside sales',tasks:[{id:'one',name:'Jamie Cooper',phone:'+12025550123',ready:true},{id:'two',name:'Morgan Lee',phone:'+12025550124',ready:true}]}]};
       if(path==='calls'&&data){callsSent.push(data);if(failDial)throw new Error('Provider status is uncertain');testCall={...testCall,id:'call-'+data.entry_id,entry_id:data.entry_id,owner_user_id:'user-test',state:'connected',wrap_up_state:'draft',metadata:{},notes:''};return {call:testCall};}
       if(path.endsWith('/analysis')){
         if(data){analysisNotes.push({id:'note-'+analysisNotes.length,kind:data.question?'answer':'summary',question:data.question||'',state:'pending',text:'',created_at:new Date().toISOString()});return {note:analysisNotes.at(-1)};}
@@ -113,6 +113,22 @@ test('auto dialer has cancellable countdown, cross-tab lock, required wrap-up an
     await page.evaluate(()=>{testCall={...testCall,state:'failed',wrap_up_state:'saved'};});
     await page.waitForFunction(()=>!Portal.CustomerPhone.dialer.active);
     assert.match(await page.locator('[data-dialer]').textContent(),/Review this call/);
+  }finally{await browser.close();}
+});
+
+test('power dialing watches selected lists and starts the next available lead promptly',async()=>{
+  const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const page=await setup(await browser.newContext());
+    await page.evaluate(async()=>{
+      queueColumns=[{id:'sales',tasks:[]},{id:'service',tasks:[{id:'service-lead',name:'Bea',phone:'+12025550127',ready:true}]}];
+      Portal.CustomerPhone.state.deviceChecked=true;
+      await Portal.CustomerPhone.startDialer({id:'all',listIds:['sales','service'],title:'Selected lists',power:true});
+    });
+    await page.waitForFunction(()=>callsSent.length===1,{},{timeout:3000});
+    assert.equal(await page.evaluate(()=>callsSent[0].entry_id),'service-lead');
+    assert.equal(await page.evaluate(()=>Portal.CustomerPhone.dialer.fast),true);
+    await page.getByRole('button',{name:'Pause automatic dialing'}).click();
   }finally{await browser.close();}
 });
 

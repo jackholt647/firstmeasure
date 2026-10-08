@@ -11,7 +11,9 @@
   Portal.navigation?.registerSchema?.('communicationsFilter',{history:'replace',scopes:[{tab:'chat'}]});
   Portal.navigation?.registerSchema?.('communicationsEntry',{history:'push',scopes:[{tab:'chat'}]});
   function mount(root,options={}){
-    const state={root,options,view:options.projectId?'history':options.standalone || (['setup','layout'].includes(route().communicationsView)?route().communicationsView:window.AppChrome.resolve('communications',route().communicationsView)),columns:[],calls:[],tasks:[],agents:[],status:null,query:'',filter:route().communicationsFilter||'all',error:'',sequence:0,disposed:false,skipped:new Set(),cursor:'',nextCursor:'',lastEntry:'',inboxHandle:null};
+    const state={root,options,view:options.projectId?'history':options.standalone || (['setup','layout'].includes(route().communicationsView)?route().communicationsView:window.AppChrome.resolve('communications',route().communicationsView)),columns:[],calls:[],personalCalls:[],tasks:[],agents:[],scripts:[],status:null,query:'',filter:route().communicationsFilter||'all',error:'',sequence:0,disposed:false,skipped:new Set(),cursor:'',nextCursor:'',lastEntry:'',inboxHandle:null,
+      centerMode:'call',centerQuery:'',centerDirection:'all',centerPeriod:'30',centerWrap:'all',centerList:'all',centerDialMode:'manual',centerSeen:new Set(),centerCursor:'',centerNextCursor:'',centerTotal:0,centerToday:0};
+    try{state.centerMode=sessionStorage.getItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`)||'call';}catch{}
     const listScroll=new Map();
     function rememberListScroll(){root.querySelectorAll('[data-list-scroll]').forEach(el=>listScroll.set(el.dataset.listScroll,el.scrollTop));}
     instances.add(state);
@@ -40,15 +42,23 @@
       void load();
     }
     state.nav=nav;
-    function onInput(event){if(event.target.dataset.search!==undefined){state.query=event.target.value;clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{if(state.view==='history')void load();else render();},240);}}
-    function onChange(event){if(event.target.dataset.department!==undefined){state.departmentId=event.target.value;state.cursor='';void load();return;}if(event.target.dataset.filter!==undefined){state.filter=event.target.value;if(!options.projectId&&!Portal.navigation?.applying)Portal.navigation?.replace?.({communicationsFilter:state.filter});void load();}}
+    function onInput(event){if(event.target.dataset.centerSearch!==undefined){state.centerQuery=event.target.value;clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{state.centerCursor='';void load();},260);return;}if(event.target.dataset.search!==undefined){state.query=event.target.value;clearTimeout(state.searchTimer);state.searchTimer=setTimeout(()=>{if(state.view==='history')void load();else render();},240);}}
+    function onChange(event){if(event.target.dataset.centerDirection!==undefined){state.centerDirection=event.target.value;state.centerCursor='';void load();return;}if(event.target.dataset.centerPeriod!==undefined){state.centerPeriod=event.target.value;state.centerCursor='';void load();return;}if(event.target.dataset.centerWrap!==undefined){state.centerWrap=event.target.value;state.centerCursor='';void load();return;}if(event.target.dataset.centerList!==undefined){state.centerList=event.target.value;render();return;}if(event.target.dataset.centerDialMode!==undefined){state.centerDialMode=event.target.value;render();return;}if(event.target.dataset.department!==undefined){state.departmentId=event.target.value;state.cursor='';state.centerCursor='';void load();return;}if(event.target.dataset.filter!==undefined){state.filter=event.target.value;if(!options.projectId&&!Portal.navigation?.applying)Portal.navigation?.replace?.({communicationsFilter:state.filter});void load();}}
     async function onClick(event){
       const target=event.target.closest('button');if(!target||!root.contains(target))return;
+      if(target.dataset.centerMode){state.centerMode=target.dataset.centerMode;state.centerCursor='';try{sessionStorage.setItem(`firstmate:call-center-mode:${ui.org()}:${ui.user()}`,state.centerMode);}catch{}void load();return;}
       if(target.dataset.view){nav(target.dataset.view);return;}
       const action=target.dataset.action;if(!action)return;
       target.disabled=true;
       try{
         if(action==='new-call')await phone.open({project_id:options.projectId||''});
+        else if(action==='center-record')await phone.open({call_id:target.dataset.id},{artifacts:true});
+        else if(action==='center-more'){state.centerCursor=state.centerNextCursor;await load(true);}
+        else if(action==='center-next')await callCenterNext();
+        else if(action==='center-power')await phone.startDialer({id:state.centerList,title:state.centerList==='all'?'All selected call lists':state.columns.find(c=>c.id===state.centerList)?.title||'Call list',listIds:state.centerList==='all'?state.columns.map(c=>c.id):[state.centerList],departmentId:state.departmentId||'',power:true});
+        else if(action==='center-pause'){phone.pauseDialer('Power dialing paused.');render();}
+        else if(action==='center-script')scriptEditor(state.scripts.find(s=>s.id===target.dataset.id));
+        else if(action==='center-supervise')await managerSupervise(target.dataset.id,target.dataset.mode);
         else if(action==='phone-menu')phoneMenu();
         else if(action==='open-call')await phone.open({call_id:target.dataset.id});
         else if(action==='auto-list'){const column=state.columns.find(c=>c.id===target.dataset.id);if(column)await phone.startDialer({...column,departmentId:state.departmentId});}
@@ -86,6 +96,19 @@
       if(await phone.open({entry,project_id:entry.project_id,entry_id:entry.id},{fromRoute})===false)return;
       state.lastEntry=entry.id;state.listId=state.columns.find(c=>c.tasks.some(t=>t.id===entry.id))?.id;
       if(!fromRoute&&!Portal.navigation?.applying)Portal.navigation?.push?.({communicationsEntry:entry.id,customerCall:null});}
+    async function callCenterNext(){
+      const lists=state.centerList==='all'?state.columns:state.columns.filter(c=>c.id===state.centerList);
+      const entry=lists.flatMap(c=>c.tasks||[]).find(e=>e.ready&&!state.centerSeen.has(e.id));
+      if(!entry){state.error='No ready leads in the selected lists. New leads will appear here automatically.';showError();return;}
+      if(await phone.open({entry,entry_id:entry.id,project_id:entry.project_id})!==false){state.centerSeen.add(entry.id);render();}
+    }
+    async function managerSupervise(callId,mode){
+      const call=state.calls.find(c=>c.id===callId),allowed=call?.supervision?.permissions||{};
+      if(!allowed[mode])throw new Error('You do not have permission to use this control on this call.');
+      const run=async()=>{if(await phone.open({call_id:callId})===false)return;await phone.supervise(mode);await load(false,true);};
+      if(mode==='takeover')dialog('Take over this call','<p>You will become the caller. Your teammate will leave the call after your connection is confirmed.</p>',run,{submit:'Take over'});
+      else await run();
+    }
     async function load(append=false,silent=false){
       const sequence=++state.sequence;state.error='';
       state.sessionScope=`${ui.org()}:${ui.user()}`;
@@ -103,7 +126,25 @@
         else if(view==='history'){
           const params={department_id:state.departmentId||'',limit:'50',query:state.query,project_id:options.projectId||'',...(state.filter==='wrap_up'?{wrap_up_state:'needs_wrap_up'}:{}),...(state.filter==='mine'?{owner_user_id:ui.user()}:{}),cursor:state.cursor};
           result=await request(`calls?${Object.entries(params).filter(([,v])=>v).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&')}`);
-        }else if(view==='center'){const data=await Promise.all([request('voice/center'+(state.departmentId?'?department_id='+encodeURIComponent(state.departmentId):'')),phone.refreshStatus()]);result=data[0];if(sequence===state.sequence)state.status=data[1];}
+        }else if(view==='center'){
+          const status=await phone.refreshStatus();
+          if(sequence!==state.sequence||state.disposed)return;
+          state.status=status;
+          const manager=['manage','monitor','whisper','barge','takeover'].some(key=>status.permissions?.[key]);
+          if(state.centerMode==='manager'&&!manager)state.centerMode='call';
+          const department=state.departmentId?`department_id=${encodeURIComponent(state.departmentId)}`:'';
+          if(state.centerMode==='personal'){
+            const since=state.centerPeriod==='all'?'':new Date(Date.now()-Number(state.centerPeriod)*86400000).toISOString();
+            const params={owner_user_id:ui.user(),limit:'50',query:state.centerQuery,department_id:state.departmentId||'',direction:state.centerDirection==='all'?'':state.centerDirection,created_after:since,wrap_up_state:state.centerWrap==='needs_wrap_up'?'needs_wrap_up':'',cursor:state.centerCursor};
+            result=await request(`calls?${Object.entries(params).filter(([,value])=>value).map(([key,value])=>`${key}=${encodeURIComponent(value)}`).join('&')}`);
+          }else if(state.centerMode==='manager'){
+            const [live,lists,today]=await Promise.all([request(`voice/center${department?'?'+department:''}`),request(`call-lists/queue${department?'?'+department:''}`),request(`calls?created_after=${encodeURIComponent(new Date(Date.now()-86400000).toISOString())}&limit=1${department?'&'+department:''}`)]);
+            result={...live,columns:lists.columns||[],can_manage_departments:lists.can_manage_departments,center_today:today.total||0};
+          }else{
+            const [lists,scripts]=await Promise.all([request(`call-lists/queue${department?'?'+department:''}`),request(`call-scripts?published=true${department?'&'+department:''}`)]);
+            result={...lists,scripts:scripts.scripts||[]};
+          }
+        }
         else if(view==='scripts'){result=await request('call-scripts'+(state.departmentId?'?department_id='+encodeURIComponent(state.departmentId):''));}
         else if(view==='setup'){result=await phone.refreshStatus();if(result.permissions?.manage){const extras=await Promise.all([request('voice/health'),request('voice/people')]);result.health=extras[0];result.people=extras[1].people||[];}}
         if(sequence!==state.sequence||state.disposed)return;
@@ -112,7 +153,11 @@
         if(view==='lists'){state.columns=result.columns||[];state.listScope=state.sessionScope;}
         else if(view==='followups')state.tasks=result.tasks||[];
         else if(view==='history'){state.calls=append?[...state.calls,...result.calls]:result.calls||[];state.nextCursor=result.next_cursor||'';}
-        else if(view==='center'){state.calls=result.calls||[];state.agents=result.agents||[];}
+        else if(view==='center'){
+          if(state.centerMode==='personal'){state.personalCalls=append?[...state.personalCalls,...(result.calls||[])]:result.calls||[];state.centerNextCursor=result.next_cursor||'';state.centerTotal=result.total||0;}
+          else if(state.centerMode==='manager'){state.calls=result.calls||[];state.agents=result.agents||[];state.columns=result.columns||[];state.centerToday=result.center_today||0;}
+          else{state.columns=result.columns||[];state.scripts=result.scripts||[];}
+        }
         else if(view==='scripts')state.scripts=result.scripts||[];
         else if(view==='setup')state.status=result;
         state.host.setAttribute('aria-busy','false');render();void phone.refreshStatus().then(updatePhone).catch(()=>{});
@@ -134,8 +179,43 @@
     function settingsTabs(){return chrome.settingsTabs('communications',state.view,'data-view',options.standalone || chrome.resolve('communications'));}
     function toolbar(title,action='',filters=false){return `<div class="fmcm-toolbar"><h3>${String(title)}</h3>${state.departmentContext?.show_selector?`<select data-department aria-label="${esc(state.departmentContext.department_label||'Department')}"><option value="">All available ${esc((state.departmentContext.departments_label||'Departments').toLowerCase())}</option>${state.departmentContext.departments.map(d=>`<option value="${esc(d.id)}" ${state.departmentId===d.id?"selected":""}>${esc(d.label)}</option>`).join("")}</select>`:""}${String(['lists','followups','history'].includes(state.view)?`<input class="fmcm-search" type="search" data-search placeholder="${((v0) => globalThis.PlatformLanguage?.htmlText("comms","m_eb57b9fe518a5c",`Search ${v0}…`,{v0}) ?? `Search ${v0}…`)(state.view==='lists'?'contacts':state.view==='history'?'calls':'follow-ups')}" value="${esc(state.query)}" aria-label="${((v2) => globalThis.PlatformLanguage?.htmlText("comms","m_f45808974d5c6c",`Search ${v2}`,{v2}) ?? `Search ${v2}`)(state.view)}">`:'')}${String(filters?`<select data-filter aria-label="${(globalThis.PlatformLanguage?.htmlText("comms","m_86e8933389c299","Filter communications") ?? "Filter communications")}"><option value="all" ${state.filter==='all'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</option><option value="mine" ${state.filter==='mine'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_b67cf521d59f4e","Assigned to me") ?? "Assigned to me")}</option>${state.view==='history'?`<option value="wrap_up" ${state.filter==='wrap_up'?'selected':''}>${(globalThis.PlatformLanguage?.htmlText("comms","m_54e60445f18e2e","Needs wrap-up") ?? "Needs wrap-up")}</option>`:''}</select>`:'')}${String(action)}${['center','lists','history'].includes(state.view)?'<button data-action="new-call">'+icon('plus')+' New call</button><button data-action="phone-menu" data-phone-status aria-label="Phone options and devices">'+icon('phone')+'</button>':''}</div>`;}
     function matches(value){return !state.query||JSON.stringify(value).toLowerCase().includes(state.query.toLowerCase());}
+    function centerDepartmentPicker(){const context=state.departmentContext;return context?.show_selector?`<label class="fmcc-department">${esc(context.department_label||'Department')}<select data-department><option value="">All available ${esc((context.departments_label||'departments').toLowerCase())}</option>${context.departments.map(d=>`<option value="${esc(d.id)}" ${state.departmentId===d.id?'selected':''}>${esc(d.label)}</option>`).join('')}</select></label>`:'';}
+    function centerSwitch(){const canManage=['manage','monitor','whisper','barge','takeover'].some(key=>state.status?.permissions?.[key]);return `<div class="fmcc-top"><div><h2>Call Center</h2><p>Calls, leads and your team in one workspace.</p></div>${centerDepartmentPicker()}</div><div class="fmcc-switch" role="tablist" aria-label="Call Center view">${[['personal','Personal'],['call','Call center'],...(canManage?[['manager','Manager view']]:[])].map(([id,title])=>`<button type="button" role="tab" data-center-mode="${id}" aria-selected="${state.centerMode===id}" tabindex="${state.centerMode===id?'0':'-1'}">${title}</button>`).join('')}</div>`;}
+    function renderPersonal(){
+      const calls=state.personalCalls;
+      const filters=`<div class="fmcc-filters"><label class="fmcc-search">Search calls<input type="search" data-center-search placeholder="Name, number or notes" value="${esc(state.centerQuery)}"></label><label>When<select data-center-period>${[['7','Past 7 days'],['30','Past 30 days'],['90','Past 90 days'],['all','All time']].map(([value,title])=>`<option value="${value}" ${state.centerPeriod===value?'selected':''}>${title}</option>`).join('')}</select></label><label>Direction<select data-center-direction><option value="all">All calls</option><option value="outbound" ${state.centerDirection==='outbound'?'selected':''}>Outgoing</option><option value="inbound" ${state.centerDirection==='inbound'?'selected':''}>Incoming</option></select></label><label>Status<select data-center-wrap><option value="all">All outcomes</option><option value="needs_wrap_up" ${state.centerWrap==='needs_wrap_up'?'selected':''}>Needs outcome</option></select></label></div>`;
+      const rows=calls.map(c=>{const duration=c.connected_at&&c.ended_at?Math.max(0,Math.floor((Date.parse(c.ended_at)-Date.parse(c.connected_at))/1000)):0;return `<article class="fmcc-history-row"><div class="fmcc-history-icon">${icon(c.direction==='inbound'?'phone-volume':'phone')}</div><div class="fmcc-history-main"><strong>${esc(c.customer_name||c.customer_number||'Unknown caller')}</strong><small>${esc(c.customer_number||'')} · ${esc(date(c.created_at))} · ${esc(label(c.direction))}${duration?` · ${Math.floor(duration/60)}m ${duration%60}s`:''}</small><span>${esc(label(c.result?.disposition||c.state||'Call'))}${c.wrap_up_state==='needs_wrap_up'?' · Needs outcome':''}</span></div><div class="fmcc-row-actions"><button data-action="open-call" data-id="${esc(c.id)}">Details</button>${c.mode==='browser'&&state.status?.permissions?.recordings?`<button data-action="center-record" data-id="${esc(c.id)}">Recording & transcript</button>`:''}</div></article>`;}).join('');
+      return `<section class="fmcc-section"><div class="fmcc-section-head"><div><h3>Your call history</h3><p>${state.centerTotal} calls match these filters</p></div></div>${filters}<div class="fmcc-history">${rows||empty('No matching calls','Try another search or date range. Calls you make will appear here.')}</div>${state.centerNextCursor?'<div class="fmcc-more"><button data-action="center-more">Load more calls</button></div>':''}</section>`;
+    }
+    function renderCaller(){
+      const columns=state.columns;
+      if(state.centerList!=='all'&&!columns.some(c=>c.id===state.centerList))state.centerList='all';
+      const selected=state.centerList==='all'?columns:columns.filter(c=>c.id===state.centerList);
+      const ready=selected.flatMap(c=>(c.tasks||[]).filter(t=>t.ready).map(t=>({...t,listTitle:c.title})));
+      const dialer=phone.dialer||{},current=phone.currentCall;
+      const canAdvance=!current||(['ended','canceled','failed','busy','no_answer','rejected'].includes(current.state)&&(!phone.status?.settings?.require_disposition||current.wrap_up_state==='saved'));
+      const controls=`<div class="fmcc-dial-controls"><label>Lead list<select data-center-list><option value="all">All call lists</option>${columns.map(c=>`<option value="${esc(c.id)}" ${state.centerList===c.id?'selected':''}>${esc(c.title)}</option>`).join('')}</select></label><label>Dialing<select data-center-dial-mode><option value="manual" ${state.centerDialMode==='manual'?'selected':''}>Manual · Call Next</option><option value="power" ${state.centerDialMode==='power'?'selected':''}>Power dial</option></select></label>${state.centerDialMode==='power'?(dialer.active?'<button data-action="center-pause">Pause dialing</button>':`<button class="fmcm-primary" data-action="center-power" ${selected.length?'':'disabled'}>Start power dialing</button>`):`<button class="fmcm-primary" data-action="center-next" ${ready.some(t=>!state.centerSeen.has(t.id))&&canAdvance?'':'disabled'}>Call Next</button>`}</div>`;
+      const queue=ready.slice(0,30).map((e,i)=>`<div class="fmcc-lead"><span class="fmcc-position">${i+1}</span><div><strong>${esc(e.name||e.title||e.phone)}</strong><small>${esc(e.listTitle)} · ${esc(e.phone||'No number')}${e.title&&e.title!==e.name?' · '+esc(e.title):''}</small></div><button data-action="open-entry" data-id="${esc(e.id)}" aria-label="Open ${esc(e.name||e.title||'lead')}">${icon('arrow-right')}</button></div>`).join('');
+      const scripts=state.scripts.map(s=>`<article class="fmcc-script"><div><strong>${esc(s.title)}</strong><small>Published version ${esc(s.version)}</small></div>${(s.data?.sections||[]).slice(0,2).map(section=>`<p><b>${esc(section.title)}</b> ${esc(String(section.body||'').slice(0,180))}</p>`).join('')}${state.status?.permissions?.manage||state.canManageDepartments?`<button data-action="center-script" data-id="${esc(s.id)}">Edit script</button>`:''}</article>`).join('');
+      return `<section class="fmcc-section"><div class="fmcc-section-head"><div><h3>Calling desk</h3><p>Work through your leads with the script beside you.</p></div><button data-action="new-call">${icon('phone')} New call</button></div>${!state.status?.settings?.enabled?'<p class="fmcc-notice">Browser calling is off. You can still review leads and log calls with an external phone.</p>':''}${controls}<div class="fmcc-columns"><div class="fmcc-stack"><section class="fmcc-card"><header><h4>Next leads</h4><span>${ready.length} ready</span></header>${queue||empty('No leads ready','New leads from the selected lists will appear here.')}</section></div><div class="fmcc-stack">${current?`<section class="fmcc-card fmcc-current"><header><h4>Current call</h4><span>${esc(label(current.state))}</span></header><strong>${esc(current.customer_name||current.customer_number)}</strong><p>${esc(current.customer_number||'')}</p><button data-action="open-call" data-id="${esc(current.id)}">Open phone and notes</button></section>`:''}<section class="fmcc-card"><header><h4>Call scripts</h4><span>${state.scripts.length} published</span></header>${scripts||empty('No published scripts','Published scripts will appear here and in the phone workspace.')}</section></div></div></section>`;
+    }
+    function renderManager(){
+      const live=state.calls.filter(c=>!['created','ended','failed','canceled','no_answer','busy','rejected'].includes(c.state));
+      const connected=live.filter(c=>['connected','held'].includes(c.state)).length,waiting=live.filter(c=>c.state==='queued').length,available=state.agents.filter(a=>a.availability==='available').length;
+      const stats=[['Calls · 24 hours',state.centerToday],['Connected now',connected],['Waiting',waiting],['Available reps',available]].map(([name,value])=>`<div class="fmcc-stat"><span>${name}</span><strong>${value}</strong></div>`).join('');
+      const agents=state.agents.map(a=>{const call=live.find(c=>c.owner_user_id===a.user_id),permissions=call?.supervision?.permissions||{},session=call?.supervision?.session;return `<article class="fmcc-agent"><div class="fmcc-person"><span class="fmcc-avatar">${esc((a.name||'?').charAt(0).toUpperCase())}</span><div><strong>${esc(a.name||a.user_id)}</strong><small>${call?`${esc(label(call.state))} · ${esc(call.customer_name||call.customer_number)}`:a.availability==='available'?'Ready for calls':esc(label(a.availability||'offline'))}</small></div></div>${call?`<div class="fmcc-row-actions">${[['monitor','Listen'],['whisper','Whisper'],['barge','Barge in'],['takeover','Take over']].filter(([mode])=>permissions[mode]).map(([mode,title])=>`<button data-action="center-supervise" data-id="${esc(call.id)}" data-mode="${mode}" ${session?.mode===mode&&session?.state==='active'?'disabled':''}>${title}</button>`).join('')}<button data-action="open-call" data-id="${esc(call.id)}">Call details</button></div>`:''}</article>`;}).join('');
+      const lists=state.columns.map(c=>`<article class="fmcc-managed-list"><div><strong>${esc(c.title)}</strong><small>${(c.tasks||[]).filter(t=>t.ready).length} ready · ${(c.tasks||[]).length} total leads</small></div><div class="fmcc-row-actions"><button data-action="add-entry" data-id="${esc(c.key||c.id)}">Add lead</button><button data-action="list-settings" data-id="${esc(c.id)}">Manage list</button></div></article>`).join('');
+      return `<section class="fmcc-section"><div class="fmcc-section-head"><div><h3>Manager view</h3><p>Live activity and leads in your available departments.</p></div><button data-action="reload">Refresh</button></div><div class="fmcc-stats">${stats}</div><div class="fmcc-columns"><section class="fmcc-card"><header><h4>Callers</h4><span>${state.agents.length} on roster</span></header>${agents||empty('No callers connected','Callers appear here when they connect their phone.')}</section><section class="fmcc-card"><header><h4>Leads and call lists</h4><button data-action="new-list">${icon('plus')} New list</button></header>${lists||empty('No call lists','Create a list to organize leads for your team.')}</section></div></section>`;
+    }
+    function renderCenter(){
+      const active=document.activeElement,searchActive=active?.matches?.('[data-center-search]'),cursor=searchActive?active.selectionStart:0;
+      state.host.innerHTML=`<div class="fmcc">${centerSwitch()}${state.centerMode==='personal'?renderPersonal():state.centerMode==='manager'?renderManager():renderCaller()}</div>`;
+      if(searchActive){const input=state.host.querySelector('[data-center-search]');input?.focus();try{input?.setSelectionRange(cursor,cursor);}catch{}}
+      if(state.error)showError();
+    }
     function render(){
       if(state.disposed)return;rememberListScroll();const active=document.activeElement,searchActive=active?.matches?.('[data-search]'),cursor=active?.selectionStart;
+      if(state.view==='center'){renderCenter();return;}
       if(state.view==='lists'){
         const columns=state.columns;
         state.host.innerHTML=toolbar('Call lists','<button data-action="new-list">'+icon('plus')+' New list</button>')+
