@@ -90,12 +90,24 @@ test('Prices authorization, validation, concurrency, shared quote/charge setting
     const upgraded = await readExpeditePricing();
     assert.equal(upgraded.config.fee_multiplier,2,'legacy saved prices survive schema expansion');
     assert.equal(upgraded.config.turnaround_max_minutes,420,'only absent workload fields use original defaults');
+    const internationalEndpoint=endpoint+'commercial';
+    assert.equal((await app.inject({method:'GET',url:internationalEndpoint,headers:users.customer})).statusCode,403);
+    const international=(await app.inject({method:'GET',url:internationalEndpoint,headers:users.admin})).json();
+    assert.equal(international.config.international_expedite_enabled,false);
+    for(const enabled of [true,false]){
+      const before=(await app.inject({method:'GET',url:internationalEndpoint,headers:users.admin})).json();
+      const saved=await app.inject({method:'PUT',url:internationalEndpoint,headers:users.admin,payload:{revision:before.revision,config:{...before.config,international_expedite_enabled:enabled}}});
+      assert.equal(saved.statusCode,200,saved.body);
+      assert.equal(saved.json().config.international_expedite_enabled,enabled);
+      assert.deepEqual(saved.json().config.multipliers,before.config.multipliers);
+      assert.deepEqual(saved.json().config.currencies,before.config.currencies);
+    }
     await saveInternalUser({email:'admin@prices.example.test',name:'admin',role:'admin',status:'inactive'});
     assert.equal((await app.inject({method:'GET',url:endpoint,headers:users.admin})).statusCode,403);
   } finally {
     await app.close();
     await otherApp.close();
-    await (await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();
+    await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();
     await rm(root,{recursive:true,force:true,maxRetries:3});
   }
 });

@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 8 international roof pricing: [Prices, exchange rates and launch expediting](deploy/digitalocean/development-international-roof-pricing-20261008.md) records €25/€50 roof reports, €5 gutters, rounded USD equivalents, the admin re-enable switch and verified development rollout.
+
 October 7 call center: [Supervisor controls, automatic dialing and AI notes](deploy/digitalocean/development-call-center-assistance-20261007.md) records the reusable agent analysis library, validation, UI handoff and verified four-role development rollout.
 
 October 7 phone tray: [Call, Text, and Contacts](deploy/digitalocean/development-phone-tabs-20261007.md) records the redesigned tray, sender restrictions, validation, and verified development-only rollout.
