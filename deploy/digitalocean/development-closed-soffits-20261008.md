@@ -1,29 +1,35 @@
-# Closed soffits — October 8, 2026
+# Closed soffits and construction wall areas — October 8, 2026
 
-From Roof now has an opt-in Closed soffits checkbox below the custom depth.
-It materializes editable underside faces for surviving eave/rake wall spans
-with nonzero setbacks. Walls stop at the underside instead of the roof plane.
-The underside meets the roof edge elevation, independently of fascia depth,
-is horizontal across the overhang, and follows the edge along sloping rakes.
-Adjacent runs share outer corner joins. Parapets and zero-soffit glass/flat
-edges remain excluded. Generated roof and wall sources stay unchanged.
+The Walls panel has a Closed soffits toggle. It applies to an existing model
+without invoking From Roof or changing wall geometry, base, grade, or drawing
+edits. The preference also applies on future From Roof rebuilds. Toggling off
+preserves underside edits for toggling back on; individually deleted panels
+remain deleted. The toggle is undoable and saved with the project.
 
-Undersides are tagged as roof-layer soffit material and shown in a distinct
-light green shade. Roof visibility controls their faces and drawing geometry,
-independently of wall visibility. They use the existing face drawing/deletion
-controls. Deletion restores the generated wall to the original roof height;
-remaining partial panels limit only their covered wall intervals. Existing
-wall drafts reflow when a full bound underside is removed. Undo and persisted
-drafts retain the binding and visibility ownership.
+Editable undersides meet the roof edge elevation, independently of fascia
+height. They are horizontal across the overhang and follow the edge along
+sloping rakes. Neighboring runs share outer corner joins; zero-setback flat,
+glass and parapet boundaries are excluded. Their distinct light green finish
+and roof ownership persist through drawing and save/reload. Roof visibility
+hides their faces and drawing geometry independently of Walls visibility.
 
-Validation: five geometry tests, 73 wall-mode tests, and focused face-editor
-checks for deletion/undo and independent roof visibility. The broader editor
-suite passed 432/433 tests before the visibility test was added; its previously
-recorded chimney-support selection failure remains unchanged. The saved
-three-layer house generated 25 valid panels without changing its 76 generated
-wall identities or count. No customer data was changed.
+Walls retain their full structural height to the roof. A derived presentation
+splits only their display/takeoff polygons at the underside: material enclosed
+between the soffit and roof is gray and marked constructionOnly. It remains
+selectable/editable but is excluded from siding totals. Deleting an underside,
+including partial deletion, or switching the global toggle off immediately
+restores the exposed area to normal siding classification. No wall reshaping
+or regeneration is involved. Reports retain the construction polygons separately.
 
-Development rollout pending. Overlay only the six editor runtime files on web,
-pool and compatibility; worker receives the five JavaScript files and retains
-its older unused PHP entrypoint (reviewed differences are unrelated customer
-mode and color-picker loading). Production is not part of this rollout.
+Validation: 79 geometry and wall-mode tests passed, 14 report/editor tests passed,
+and three focused face-editor tests cover deletion, roof visibility and gray
+construction rendering. Saved-house evaluation produced 25 panels and 53
+construction display regions in about 104 ms, with wall coordinates unchanged.
+The broader editor suite has a previously recorded chimney-support selection
+failure; it is unrelated to this feature. Customer project data was read only.
+
+Final development rollout pending. Web and pool receive the seven editor files;
+worker retains its older unused PHP entrypoint and receives six JS files.
+Compatibility staging was blocked by storage: root has 563 MiB free (below the
+1 GiB reserve), while the release volume has zero free inodes. No releases or
+customer data were deleted and no reserve was bypassed. Production is untouched.

@@ -114,7 +114,7 @@ window.exteriorSurfaceDisplay=function(group,mode=true){
      // Muted midtone fills leave bright drafting lines clearly distinguishable.
      const hsl=m.color.getHSL({});m.color.setHSL(hsl.h,hsl.s*.32,hsl.l*.65);
     }
-    if(textured)window.ExteriorFinishes?.apply(o,m);
+    if(textured&&!o.userData.constructionOnly)window.ExteriorFinishes?.apply(o,m);
     // Brighten the existing hue consistently in every display mode.
     if(o.userData.exteriorSelected&&THREE.Color&&m.color.lerp){m.color.lerp(new THREE.Color('#ffffff'),.6);if(translucent)m.opacity=.95;}
    }

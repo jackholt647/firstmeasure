@@ -2810,13 +2810,19 @@ test('upper chimney E and M leave the lower shaft and house fixed across the roo
  }
 });
 
-test('deleting a drawn closed soffit restores its drafted wall top and supports undo',()=>{
+test('deleting a closed soffit preserves its full-height drafted wall and supports undo',()=>{
  const C=require('../public/measure/internal/editor_scripts/wall_closed_soffits.js'),p=(x,y,z)=>({x,y,z}),w={id:'w',bottom:[p(0,1,0),p(4,1,0)],top:[p(0,1,5),p(4,1,5)]},state={sources:[{id:'edge',kind:'perimeter',type:'eave',setback:1,a:p(0,1,5),b:p(4,1,5),originalA:p(0,0,4),originalB:p(4,0,4)}],wallEdits:{},closedSoffitWalls:[w]};state.wallEdits.$surfaces=C.build(state,[w]);
- const f=fixture({state,getWalls:()=>C.apply([w],state),globals:{WallClosedSoffits:C},projectPoint:(d,e)=>({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.doubleClick(f.e(2,2),C.apply([w],state)[0]);assert.ok(f.state.wallEdits.$drafts.w);assert.equal(Math.max(...f.state.wallEdits.$drafts.w.sketch.nodes.map(n=>n.y)),4);
+ const f=fixture({state,getWalls:()=>C.apply([w],state),globals:{WallClosedSoffits:C},projectPoint:(d,e)=>({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.doubleClick(f.e(2,2),C.apply([w],state)[0]);assert.ok(f.state.wallEdits.$drafts.w);assert.equal(Math.max(...f.state.wallEdits.$drafts.w.sketch.nodes.map(n=>n.y)),5);
  const before=JSON.stringify(state.wallEdits);f.editor.restoreSelection({selectedSolid:'closed-soffit:w'});f.editor.key({key:'Delete'});assert.equal(Math.max(...state.wallEdits.$drafts.w.sketch.nodes.map(n=>n.y)),5,f.message());assert.equal(C.apply([w],state)[0].top[0].z,5);assert.equal(JSON.stringify(f.history.at(-1)),before);
 });
 
 test('closed soffit surfaces follow roof visibility independently of walls',()=>{
  let roof=true,walls=false;const p=(x,y,z)=>({x,y,z}),soffit={id:'soffit',roofLayer:true,closedSoffit:{wallId:'wall'},finishColor:'#a9c9bd',points:[p(0,0,4),p(3,0,4),p(3,1,4),p(0,1,4)],holes:[]},wall={id:'wall',points:[p(0,1,0),p(3,1,0),p(3,1,4),p(0,1,4)],holes:[]},state={wallEdits:{$surfaces:[soffit,wall]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals(),roofVisible:()=>roof,wallsVisible:()=>walls});
  const draw=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.userData?.solidId).map(o=>o.userData.solidId);};assert.deepEqual(draw(),['soffit']);roof=false;walls=true;assert.deepEqual(draw(),['wall']);roof=true;assert.deepEqual(draw().sort(),['soffit','wall']);
+});
+
+test('closed soffit display grays enclosed wall material without changing structural geometry',()=>{
+ const C=require('../public/measure/internal/editor_scripts/wall_closed_soffits.js'),p=(x,y,z)=>({x,y,z}),wall={id:'wall',material:'siding',points:[p(0,1,0),p(4,1,0),p(4,1,5),p(0,1,5)],holes:[]},panel={id:'soffit',closedSoffit:{wallId:'wall'},roofLayer:true,points:[p(0,0,4),p(4,0,4),p(4,1,4),p(0,1,4)],holes:[]},state={closedSoffits:true,wallEdits:{$surfaces:[wall,panel]}},before=JSON.stringify(wall.points),f=fixture({state,walls:[],selected:null,globals:{...renderGlobals(),WallClosedSoffits:C}});
+ const draw=()=>{const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.userData?.solidId==='wall');};let meshes=draw();assert.equal(meshes.length,2);assert.equal(meshes.filter(m=>m.userData.constructionOnly).length,1);assert.equal(meshes.find(m=>m.userData.constructionOnly).material.color,'#858b91');assert.equal(JSON.stringify(state.wallEdits.$surfaces.find(f=>f.id==='wall').points),before);
+ state.closedSoffits=false;meshes=draw();assert.equal(meshes.length,1);assert.ok(!meshes[0].userData.constructionOnly);
 });

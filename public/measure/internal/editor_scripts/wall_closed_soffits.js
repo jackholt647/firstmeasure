@@ -12,7 +12,7 @@ function build(state,walls){
   const outer=w.top.map(p=>{const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;return {x:a.x+dx*t,y:a.y+dy*t,z:a.z+(b.z-a.z)*t};});
   const inner=w.top.map((p,i)=>({...p,z:outer[i].z}));
   if(inner.some((p,i)=>p.z>w.top[i].z+EPS||p.z<=w.bottom[i].z+EPS))continue;
-  const f={id:'closed-soffit:'+w.id,closedSoffit:{wallId:w.id,sourceId:s.id},roofLayer:true,material:'soffit',finishColor:COLOR,points:[inner[0],inner[1],outer[1],outer[0]],holes:[]};
+  const f={id:'closed-soffit:'+w.id,closedSoffit:{wallId:w.id,sourceId:s.id,roofId:s.parentId},roofLayer:true,material:'soffit',finishColor:COLOR,points:[inner[0],inner[1],outer[1],outer[0]],holes:[]};
   if(K.area(f)>EPS*EPS)faces.push(f);
  }
  // Runs sharing an inset wall corner share the outer roof corner too. This
@@ -29,24 +29,33 @@ function build(state,walls){
  }
  return faces;
 }
-function active(state){const edits=state?.wallEdits;if(!edits||!((edits.$surfaces||[]).some(f=>f.closedSoffit)||Object.values(edits.$drafts||{}).some(d=>d.closedSoffit)))return [];return M().collect(state).filter(f=>f.closedSoffit&&!f.deleted&&!f.drafted);}
-function apply(walls,state){
- const panels=active(state);if(!panels.length)return walls;
- return walls.flatMap(w=>{
-  const matches=panels.filter(f=>f.closedSoffit.wallId===w.id);if(!matches.length)return [w];
-  const a=w.top[0],b=w.top[1],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<EPS*EPS)return [w];
-  const at=(pair,t)=>({x:pair[0].x+(pair[1].x-pair[0].x)*t,y:pair[0].y+(pair[1].y-pair[0].y)*t,z:pair[0].z+(pair[1].z-pair[0].z)*t});
-  const cuts=[0,1];for(const f of matches)for(const r of [f.points,...(f.holes||[])])for(const p of r){const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;if(t>1e-7&&t<1-1e-7)cuts.push(t);}
-  const ts=[...new Set(cuts.map(t=>Math.round(t*1e8)/1e8))].sort((a,b)=>a-b),parts=[];
-  for(let i=1;i<ts.length;i++){
-   const lo=ts[i-1],hi=ts[i],mid=at(w.top,(lo+hi)/2),f=matches.find(f=>G.contains(f,mid)),plane=f&&G.plane(f.points),top=[at(w.top,lo),at(w.top,hi)],bottom=[at(w.bottom,lo),at(w.bottom,hi)];
-   if(plane)top.forEach((p,j)=>p.z=Math.max(bottom[j].z,Math.min(p.z,plane.dx*p.x+plane.dy*p.y+plane.k)));
-   const previous=parts.at(-1),length=pair=>Math.hypot(pair[1].x-pair[0].x,pair[1].y-pair[0].y),slope=pair=>(pair[1].z-pair[0].z)/length(pair);
-   if(previous&&Math.abs(previous.top[1].z-top[0].z)<1e-6&&Math.abs(slope(previous.top)-slope(top))<1e-6){previous.top[1]=top[1];previous.bottom[1]=bottom[1];}
-   else parts.push({...w,top,bottom});
+let snapshot=null;
+function withSnapshot(state,run){const previous=snapshot,panels=active(state);snapshot={state,panels};try{return run();}finally{snapshot=previous;}}
+function active(state){if(snapshot?.state===state)return snapshot.panels;if(state?.closedSoffits===false)return [];const edits=state?.wallEdits;if(!edits||!((edits.$surfaces||[]).some(f=>f.closedSoffit)||Object.values(edits.$drafts||{}).some(d=>d.closedSoffit)))return [];return M().collect(state).filter(f=>f.closedSoffit&&!f.deleted&&!f.drafted);}
+// Construction classification is a presentation/takeoff operation only.
+// Editing and dimensions always retain the original full-height wall.
+function presentation(face,state,panels=active(state)){
+ if(face.closedSoffit)return state?.closedSoffits===false?[]:[face];
+ if(face.roofLayer||face.curvedSurface||!panels.length)return [face];
+ const frame=K.frame(face);if(!frame||Math.abs(frame.n.z)>.05)return [face];
+ const n=frame.n,len=Math.hypot(n.x,n.y),u={x:-n.y/len,y:n.x/len},origin=face.points[0],local=p=>({x:(p.x-origin.x)*u.x+(p.y-origin.y)*u.y,y:p.z,z:0}),world=p=>({x:origin.x+u.x*p.x,y:origin.y+u.y*p.x,z:p.y});
+ const polygon={points:face.points.map(local),holes:(face.holes||[]).map(r=>r.map(local))},xs=polygon.points.map(p=>p.x),lo=Math.min(...xs),hi=Math.max(...xs),top=Math.max(...face.points.map(p=>p.z))+1,masks=[];
+ const at=t=>({x:origin.x+u.x*(lo+(hi-lo)*t),y:origin.y+u.y*(lo+(hi-lo)*t)}),a=at(0),b=at(1);
+ for(const panel of panels){
+  const plane=G.plane(panel.points);if(!plane)continue;
+  const source=state.sources?.find(s=>s.id===panel.closedSoffit.sourceId),roof=state.roof?.faces?.find(f=>f.id===(panel.closedSoffit.roofId??source?.parentId)),upper=source?.sourcePlane||(roof&&G.plane(roof.points));
+  const ts=G.splitParameters(a,b,[panel]);
+  for(let i=1;i<ts.length;i++){const l=ts[i-1],r=ts[i];if(r-l<1e-8||!G.contains(panel,at((l+r)/2)))continue;
+   const ps=[at(l),at(r)],bottom=ps.map(p=>plane.dx*p.x+plane.dy*p.y+plane.k),ceiling=ps.map(p=>upper?upper.dx*p.x+upper.dy*p.y+upper.k:top),x=[lo+(hi-lo)*l,lo+(hi-lo)*r];
+   if(ceiling.every((z,j)=>z<=bottom[j]+1e-6))continue;
+   masks.push({points:[{x:x[0],y:bottom[0]},{x:x[1],y:bottom[1]},{x:x[1],y:Math.max(bottom[1],ceiling[1])},{x:x[0],y:Math.max(bottom[0],ceiling[0])}]});
   }
-  return parts.map((p,i)=>({...p,id:parts.length===1?w.id:w.id+':soffit-'+i}));
- });
+ }
+ if(!masks.length)return [face];
+ const enclosed=K.intersection([polygon],masks);if(!enclosed.length)return [face];
+ const map=(p,constructionOnly)=>({...face,constructionOnly,points:p.points.map(world),holes:p.holes.map(r=>r.map(world))});
+ return [...K.difference(polygon,masks).map(p=>map(p,false)),...enclosed.map(p=>map(p,true))];
 }
-const api={build,apply,active,COLOR};if(node)module.exports=api;else root.WallClosedSoffits=api;
+const apply=walls=>walls;
+const api={build,apply,active,presentation,withSnapshot,COLOR};if(node)module.exports=api;else root.WallClosedSoffits=api;
 })(typeof window==='undefined'?globalThis:window);
