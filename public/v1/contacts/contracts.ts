@@ -5,7 +5,10 @@ export const MEDIA_REFERENCE_TYPES = ["media", "photo", "video"];
 export const CONTACT_DEFAULT_FIELDS: JsonObject[] = [
  {entity:"contact",path:"relationships.employer",key:"relationships.employer",type:"org_contact",label:"Employer",required:false,enabled:true,location:"overview",order:0,builtin:true},
  {entity:"contact",path:"relationships.spouse",key:"relationships.spouse",type:"human_contact",label:"Spouse",required:false,enabled:true,location:"overview",order:1,builtin:true},
- {entity:"contact",path:"profile_photo",key:"profile_photo",type:"photo",label:"Profile photo",required:false,enabled:true,location:"overview",order:2,builtin:true}
+ {entity:"contact",path:"profile_photo",key:"profile_photo",type:"photo",label:"Profile photo",required:false,enabled:true,location:"overview",order:2,builtin:true},
+ {entity:"contact",path:"secondary_phone",key:"secondary_phone",type:"phone",label:"Secondary Phone",required:false,enabled:true,location:"overview",order:3,builtin:true},
+ {entity:"contact",path:"primary_phone_label",key:"primary_phone_label",type:"select",label:"Primary Phone Label",options:["home","cell","work","other"],required:false,enabled:true,location:"overview",order:4,builtin:true},
+ {entity:"contact",path:"secondary_phone_label",key:"secondary_phone_label",type:"select",label:"Secondary Phone Label",options:["home","cell","work","other"],required:false,enabled:true,location:"overview",order:5,builtin:true}
 ];
 export const asObject = (v:unknown):JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
 export const text = (v:unknown) => String(v ?? "").trim();
