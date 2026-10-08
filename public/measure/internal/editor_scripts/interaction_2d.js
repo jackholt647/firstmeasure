@@ -768,6 +768,7 @@ function redrawCanvas() {
             ctx.restore(); 
         }
     }
+    window.HeightMapMask?.render();
     drawVisualGrid();
     if (activeGeometry) {
         renderGeometry2D();

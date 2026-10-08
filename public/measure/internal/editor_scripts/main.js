@@ -3157,6 +3157,7 @@ window.saveProjectData = async function(isSilent = false, runInBackground = fals
             ...existingMeta,
             ...(window.FIRSTMEASURE_FULL_HOUSE === true ? {
                 exteriorsRoofTrim: window.WallMode?.serializeRoofTrim() ?? existingMeta.exteriorsRoofTrim ?? null,
+                exteriorsHeightMask: window.HeightMapMask?.serialize() ?? existingMeta.exteriorsHeightMask ?? null,
                 exteriorsView: window.WallMode?.serializeView() ?? existingMeta.exteriorsView ?? null,
                 exteriorsWalls: window.WallMode ? window.WallMode.serialize() : (existingMeta.exteriorsWalls ?? null)
             } : {}),
@@ -3943,6 +3944,7 @@ async function loadProjectFromFolder(folderHash) {
     }
 
     window.__editorHistoryReady=false;
+    window.HeightMapMask?.reset();
     window.WallMode?.beforeProjectLoad();
     resetLayerVisibility();
     _applePrefetchRunId += 1;
@@ -4412,6 +4414,7 @@ async function loadProjectFromFolder(folderHash) {
 
         window.restoreRoofHistory?.(savedEditorHistory?.roof);
         window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls);
+        window.HeightMapMask?.restore(requestedProjectId, meta.exteriorsHeightMask);
         window.__editorHistoryReady=true;
         console.log("Project loaded.");
 

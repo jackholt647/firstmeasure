@@ -5995,7 +5995,11 @@ function update3DCrop() {
         if(Math.abs(x-centerX)>maxDistX||Math.abs(y-centerY)>maxDistY||isMaskedPixel(x,y)){positions[i+2]=0;}
         else{const val=dsm[j]; positions[i+2]=(val>-9000)?(val-dsmMin)*zScale:0;}
     }
-    geometry.attributes.position.needsUpdate=true; geometry.computeVertexNormals();
+    geometry.attributes.position.needsUpdate=true;
+    window.HeightMapMask?.restoreGeometryIndex(geometry);
+    geometry.computeVertexNormals();
+    window.HeightMapMask?.applyGeometry(geometry);
+    _sceneDirty3D = true;
 }
 function update3DTextureForView() {
     if(!mesh) return;
