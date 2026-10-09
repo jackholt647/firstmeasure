@@ -335,7 +335,7 @@ test("registered 10DLC use cases default-deny every mismatched SMS purpose", asy
     }
   }
 
-  for (const usecase of ["AGENTS_FRANCHISES", "MIXED", "SOLE_PROPRIETOR"]) {
+  for (const usecase of ["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "SOLE_PROPRIETOR"]) {
     const profile = { brand: { displayName: "Acme" }, campaign: { usecase, enabledFeatures: ["crm_conversations", "operations", "customer_growth"] } };
     for (const purpose of everyPurpose) {
       const issue = outboundSmsComplianceIssue(profile, purpose, text);
@@ -345,10 +345,19 @@ test("registered 10DLC use cases default-deny every mismatched SMS purpose", asy
 
   assert.equal(outboundSmsComplianceIssue({ brand: {}, campaign: { usecase: "UNMAPPED" } }, "transactional", text)?.code, "sms_purpose_not_registered");
   assert.equal(outboundSmsComplianceIssue({ brand: {}, campaign: { usecase: "AGENTS_FRANCHISES", enabledFeatures: [] } }, "customer_care", text)?.code, "sms_purpose_not_registered");
+  assert.equal(outboundSmsComplianceIssue({ brand: {}, campaign: { usecase: "LOW_VOLUME", enabledFeatures: ["crm_conversations"] } }, "marketing", text)?.code, "sms_purpose_not_registered");
   assert.equal(smsConsentPurposesAllow(["customer_care"], "appointment"), false);
   assert.equal(smsConsentPurposesAllow(["appointment"], "appointment"), true);
   assert.equal(smsConsentPurposesAllow(["transactional"], "two_factor_auth"), false);
   assert.equal(smsConsentPurposesAllow(["two_factor_auth"], "two_factor_auth"), true);
+});
+
+test("10DLC setup defaults new campaigns to Low Volume Mixed", async () => {
+  const response = await app.inject({ method: "GET", url: "/v1/messaging/sms/10dlc/options" });
+  assert.equal(response.statusCode, 200, response.body);
+  const options = JSON.parse(response.body);
+  assert.equal(options.defaults.campaign.usecase, "LOW_VOLUME");
+  assert.ok(options.campaign_usecases.includes("LOW_VOLUME"));
 });
 
 test("10DLC provider fees separate brand, prepaid subscription, and campaign review costs", async () => {
@@ -1718,7 +1727,7 @@ test("10DLC mock campaign submit records qualification failure and still calls T
       const body = Buffer.concat(chunks).toString("utf8");
       requests.push({ method: request.method || "", url: request.url || "", body });
       response.setHeader("content-type", "application/json");
-      if (request.method === "GET" && request.url === "/10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/MIXED") {
+      if (request.method === "GET" && request.url === "/10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/LOW_VOLUME") {
         response.statusCode = 400;
         response.end(JSON.stringify({ errors: [{ detail: "Cannot qualify usecase: brand registration is still pending." }] }));
         return;
@@ -1769,7 +1778,7 @@ test("10DLC mock campaign submit records qualification failure and still calls T
       },
       campaign: {
         brandId: "B_MOCK_PENDING",
-        usecase: "MIXED",
+        usecase: "LOW_VOLUME",
         description: "Customer care messages for project updates and appointment coordination.",
         messageFlow: "Customers opt in by submitting a website form or asking for project updates from staff.",
         sample1: "Hi Jane, this is FirstMate with an update on your roof appointment. Reply STOP to opt out.",
@@ -1810,11 +1819,13 @@ test("10DLC mock campaign submit records qualification failure and still calls T
     assert.equal(submitted.profile.phone_number_campaign_status, "unassigned");
     assert.equal(submitted.profile.phone_number_campaign_id, "");
     assert.deepEqual(requests.map((request) => `${request.method} ${request.url}`), [
-      "GET /10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/MIXED",
+      "GET /10dlc/campaignBuilder/brand/B_MOCK_PENDING/usecase/LOW_VOLUME",
       "POST /10dlc/campaignBuilder"
     ]);
 
     const firstSubmission = JSON.parse(requests.find((request) => request.method === "POST")?.body || "{}");
+    assert.equal(firstSubmission.usecase, "LOW_VOLUME");
+    assert.deepEqual(firstSubmission.subUsecases, ["CUSTOMER_CARE", "ACCOUNT_NOTIFICATION"]);
     const rejected = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
     await updateSmsComplianceProfile(rejected, {
       status: "provider_update_pending",

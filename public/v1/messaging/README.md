@@ -44,7 +44,7 @@ SQLite is supported for the current single-host, multi-process deployment only. 
 
 Sole proprietor profiles additionally use the `/sole-proprietor/otp/request`, `/otp/status`, and `/otp/verify` routes before campaign submission.
 
-The provider/reseller setup UI registers `AGENTS_FRANCHISES` (or `SOLE_PROPRIETOR` when applicable), matching FirstMate's provider model. API-imported campaigns with a narrower Telnyx use case are enforced through an explicit purpose mapping; unknown and mismatched purposes fail closed. The submitted message flow and samples are organization-owned attestations; FirstMate does not manufacture opt-in claims.
+The setup UI defaults new non-sole-proprietor campaigns to Telnyx `LOW_VOLUME` (Low Volume Mixed), with sub-use cases derived from the organization's selected messaging features; sole proprietors continue to use `SOLE_PROPRIETOR`. Previously submitted campaigns retain their registered use case. API-imported campaigns with a narrower Telnyx use case are enforced through an explicit purpose mapping; unknown and mismatched purposes fail closed. The submitted message flow and samples are organization-owned attestations; FirstMate does not manufacture opt-in claims.
 
 Number selection is chargeable in live mode. It creates/reuses the organization Messaging Profile, records an idempotent provider operation, claims unique ownership, revalidates current provider inventory and price, creates the Telnyx number order with an organization customer reference, and records setup/monthly provider cost metadata. Brand and campaign submissions likewise record their non-recurring fees and campaign recurring commitment. These are provider-cost records, not customer invoices.
 

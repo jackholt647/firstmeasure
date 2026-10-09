@@ -91,6 +91,7 @@ const CAMPAIGN_USECASES = [
   "DELIVERY_NOTIFICATION",
   "FRAUD_ALERT",
   "HIGHER_EDUCATION",
+  "LOW_VOLUME",
   "MARKETING",
   "MIXED",
   "POLLING_VOTING",
@@ -594,9 +595,10 @@ function validateCampaignDraft(campaignInput: JsonObject) {
   }
   if (!usecase) missing.push("usecase");
   const enabledFeatures = Array.isArray(campaignInput.enabledFeatures) ? campaignInput.enabledFeatures.map(cleanText) : [];
-  if (["AGENTS_FRANCHISES", "MIXED", "SOLE_PROPRIETOR"].includes(usecase) && enabledFeatures.length === 0) missing.push("enabledFeatures");
-  if (enabledFeatures.includes("customer_growth") && !["AGENTS_FRANCHISES", "MIXED", "MARKETING", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
-  if (enabledFeatures.includes("operations") && !["AGENTS_FRANCHISES", "MIXED", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "SOLE_PROPRIETOR"].includes(usecase)
+    && (enabledFeatures.length === 0 || (usecase === "LOW_VOLUME" && lowVolumeSubUsecases(enabledFeatures).length === 0))) missing.push("enabledFeatures");
+  if (enabledFeatures.includes("customer_growth") && !["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "MARKETING", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (enabledFeatures.includes("operations") && !["AGENTS_FRANCHISES", "LOW_VOLUME", "MIXED", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
   if (normalizeBoolean(campaignInput.subscriberOptin, true) && !nonEmpty(campaignInput.optinMessage)) {
     missing.push("optinMessage");
   }
@@ -685,13 +687,24 @@ function brandSubmissionContext(profile: SmsComplianceProfile, payload: JsonObje
   return { existingBrandId, correcting: false, revision, operationType: "brand_submission" };
 }
 
+function lowVolumeSubUsecases(enabledFeatures: unknown): string[] {
+  const features = Array.isArray(enabledFeatures) ? enabledFeatures.map(cleanText) : [];
+  return [
+    ...(features.includes("crm_conversations") ? ["CUSTOMER_CARE"] : []),
+    ...(features.includes("operations") ? ["ACCOUNT_NOTIFICATION"] : []),
+    ...(features.includes("customer_growth") ? ["MARKETING"] : [])
+  ];
+}
+
 function campaignPayload(profile: SmsComplianceProfile, referenceRevision = "initial") {
   const campaign = asObject(profile.campaign);
   const providerRefs = asObject(profile.provider_refs);
   const brandId = cleanText(campaign.brandId || providerRefs.telnyx_brand_id || providerRefs.tcr_brand_id);
+  const usecase = cleanText(campaign.usecase || "CUSTOMER_CARE").toUpperCase();
   const payload: JsonObject = {
     brandId,
-    usecase: cleanText(campaign.usecase || "CUSTOMER_CARE").toUpperCase(),
+    usecase,
+    ...(usecase === "LOW_VOLUME" ? { subUsecases: lowVolumeSubUsecases(campaign.enabledFeatures) } : {}),
     description: cleanText(campaign.description),
     messageFlow: cleanText(campaign.messageFlow),
     sample1: cleanText(campaign.sample1),
@@ -1533,7 +1546,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     defaults: {
       brand: { country: "US", entityType: "PRIVATE_PROFIT", vertical: "CONSTRUCTION" },
       campaign: {
-        usecase: "AGENTS_FRANCHISES",
+        usecase: "LOW_VOLUME",
         subscriberOptin: true,
         subscriberOptout: true,
         subscriberHelp: true,

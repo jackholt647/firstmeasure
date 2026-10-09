@@ -4890,7 +4890,7 @@
         isReseller: false
       },
       campaign: {
-        usecase: 'AGENTS_FRANCHISES',
+        usecase: 'LOW_VOLUME',
         subscriberOptin: true,
         subscriberOptout: true,
         subscriberHelp: true,
@@ -5131,7 +5131,7 @@
         enabledFeatures: selectedIds,
         featuresConfirmed: base.campaign.featuresConfirmed === true,
         messageFlowConfirmed: base.campaign.messageFlowConfirmed === true,
-        usecase: soleProprietor ? 'SOLE_PROPRIETOR' : 'AGENTS_FRANCHISES',
+        usecase: smsHasProviderCampaign(base) ? base.campaign.usecase : soleProprietor ? 'SOLE_PROPRIETOR' : 'LOW_VOLUME',
         description: ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_06fe758a940598",`${v0} uses FirstMate CRM to send opted-in customers and leads SMS related to ${v1}. Messages support customer conversations, operational updates, reminders, and account-related communication from the business.`,{v0,v1}) ?? `${v0} uses FirstMate CRM to send opted-in customers and leads SMS related to ${v1}. Messages support customer conversations, operational updates, reminders, and account-related communication from the business.`)(company,featureLabels || 'customer communication'),
         messageFlow: savedMessageFlow && !legacyGeneratedFlow ? savedMessageFlow : documentedMessageFlow,
         sample1: `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply STOP to opt out.`,
