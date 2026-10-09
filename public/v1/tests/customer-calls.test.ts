@@ -123,7 +123,7 @@ test("readiness distinguishes missing media from a fast connection",async()=>{
   assert.equal(diagnosticVerdict({microphone:"ready",connectivity:"ready",metrics:{rtt_ms:900,jitter_ms:80,packet_loss_percent:8}}).verdict,"blocked");
 });
 
-test("full outbound voice flow dials staff first, joins the customer, holds, records, and ends both legs",async()=>{
+test("outbound voice calls work without a diagnostic, then join, hold, record, and end both legs",async()=>{
   const {TelnyxVoiceClient,setVoiceClientFactoryForTests}=await import("../telephony/telnyx.js");
   const submissions:Array<{path:string;method:string;body:Record<string,unknown>}> = [];
   let sequence=0;
@@ -147,7 +147,6 @@ test("full outbound voice flow dials staff first, joins the customer, holds, rec
     (await store.saveResource(orgId,'settings','default',{enabled:true,recording_enabled:true,recording_policy_confirmed:true,emergency_policy_confirmed:true,service_location:'Test office'}));
     await c.request('POST',`${base}/voice/endpoint/token`,{device_id:'simulated-device'});
     await c.request('POST',`${base}/voice/endpoint/presence`,{device_id:'simulated-device',registered:true,availability:'available'});
-    await c.request('POST',`${base}/voice/diagnostics`,{device_id:'simulated-device',microphone:'ready',connectivity:'ready',provider_verdict:'ready',metrics:{rtt_ms:60,jitter_ms:3,packet_loss_percent:0}});
     const {call}=await c.request('POST',`${base}/calls`,{operation_id:'simulated-outbound-call',mode:'browser',device_id:'simulated-device',customer_number:'+12065550111',customer_name:'Simulated customer'});
     await worker.processOneJob('simulation');assert.equal(submissions.filter(s=>s.path==='/calls').length,1);assert.equal(submissions.find(s=>s.path==='/calls')?.body.to,'sip:staff-endpoint@sip.telnyx.com');
     const event=async(type:string,control:string,extra:Record<string,unknown>={})=>worker.processVoiceEvent({data:{id:`evt-${Math.random()}`,event_type:type,occurred_at:new Date().toISOString(),payload:{call_control_id:control,...extra}}});

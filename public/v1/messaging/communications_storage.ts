@@ -923,9 +923,14 @@ export async function claimNextSmsCancellation(workerId: string) {
 }
 
 export async function findSmsConversationRecord(organizationId: string, remotePhoneNumber: string) {
+  const participants=getCommunicationsDatabase().isPostgres?'jsonb_array_elements(c.participants_json::jsonb)':'json_each(c.participants_json)';
+  const address=getCommunicationsDatabase().isPostgres?"participant.value->>'address'":"json_extract(participant.value, '$.address')";
+  const type=getCommunicationsDatabase().isPostgres?"participant.value->>'type'":"json_extract(participant.value, '$.type')";
   const row = (await getCommunicationsDatabase().prepare(`SELECT c.*
     FROM communication_conversations c
-    WHERE c.organization_id = ? AND c.status = 'open' AND EXISTS (SELECT 1 FROM ${getCommunicationsDatabase().isPostgres ? 'jsonb_array_elements(c.participants_json::jsonb)' : 'json_each(c.participants_json)'} participant WHERE ${getCommunicationsDatabase().isPostgres ? "participant.value->>'address'" : "json_extract(participant.value, '$.address')"} = ?)
+    WHERE c.organization_id = ? AND c.status = 'open' AND c.channel_strategy IN ('sms', 'omnichannel')
+      AND EXISTS (SELECT 1 FROM ${participants} participant WHERE ${address} = ?)
+      AND (SELECT COUNT(*) FROM ${participants} participant WHERE COALESCE(${type}, '') <> 'internal') = 1
     ORDER BY COALESCE(c.last_message_at, c.updated_at) DESC LIMIT 1`)
     .get(organizationId, remotePhoneNumber));
   return row ? conversationFromRow(row) : null;

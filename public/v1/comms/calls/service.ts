@@ -100,8 +100,6 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     if(text((await store.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>store.now())throw conflict('phone_reconnecting','Wait for your phone connection change to finish.');
     if(!endpoint||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==body.device_id||text(endpoint.heartbeat_at)<new Date(Date.now()-45_000).toISOString()||endpoint.registered!==true)throw conflict("phone_not_ready","Connect this browser's phone before calling.");
     if(Date.parse(text(endpoint.credential_expires_at))<Date.now()+settings.max_call_minutes*60000+60000)throw conflict('phone_refresh_required','Reconnect your phone so its credential lasts through the call.');
-    const diagnostic=(await store.resource(ctx.orgId,"diagnostic",`${ctx.userId}:${body.device_id}`));
-    if(!diagnostic||!['ready','degraded'].includes(text(diagnostic.verdict))||text(diagnostic.updated_at)<new Date(Date.now()-24*3600_000).toISOString())throw conflict("device_check_required","Run the microphone and network check before your first call on this device.");
   }
   return (await store.transaction(async ()=>{
     if(settings.require_disposition){

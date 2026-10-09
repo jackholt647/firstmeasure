@@ -363,6 +363,7 @@ export async function orgCommsInbox(orgId: string, options: { channel?: string; 
       project_title: projectId ? projectTitles.get(projectId) || "" : "",
       contact_name: cleanText(customer.name),
       contact_address: cleanText(customer.address || customer.email || customer.phone),
+      participants: participants.filter(participant=>cleanText(participant.type)!=='internal').map(participant=>({name:cleanText(participant.name),address:cleanText(participant.address || participant.phone),contact_id:cleanText(participant.contact_id)})),
       last_message: last,
       last_message_at: conversation.last_message_at || last?.created_at || conversation.updated_at
     });

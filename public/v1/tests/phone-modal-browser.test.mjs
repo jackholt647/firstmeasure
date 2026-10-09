@@ -15,9 +15,10 @@ test('phone modal combines call, text, voicemail, and searchable history',async(
     await page.evaluate(()=>{
       window.__APP={orgId:'org-test',userId:'user-test'};
       const now=new Date().toISOString();
-      window.fixtureCalls=[
+      window.callUnread=1;window.textUnread=1;window.fixtureCalls=[
         {id:'call-jane',organization_id:'org-test',customer_name:'Jane Test',customer_number:'+12025550124',business_number:'+12065550199',contact_id:'contact-jane',project_id:'project-jane',owner_user_id:'user-test',direction:'inbound',mode:'browser',state:'ended',wrap_up_state:'saved',created_at:now,connected_at:now,ended_at:now,notes:'Asked about the roof estimate.',result:{disposition:'answered',next_action:'callback'}},
-        {id:'call-erik',organization_id:'org-test',customer_name:'Erik Demo',customer_number:'+12025550125',business_number:'+12065550199',contact_id:'contact-erik',project_id:'project-erik',owner_user_id:'user-test',direction:'outbound',mode:'browser',state:'no_answer',wrap_up_state:'needs_wrap_up',created_at:now,notes:'Left a message.',result:{}}
+        {id:'call-erik',organization_id:'org-test',customer_name:'Erik Demo',customer_number:'+12025550125',business_number:'+12065550199',contact_id:'contact-erik',project_id:'project-erik',owner_user_id:'user-test',direction:'outbound',mode:'browser',state:'no_answer',wrap_up_state:'needs_wrap_up',created_at:now,notes:'Left a message.',result:{}},
+        {id:'call-missed',organization_id:'org-test',customer_name:'Missed Caller',customer_number:'+12025550126',business_number:'+12065550199',owner_user_id:'user-test',direction:'inbound',mode:'browser',state:'no_answer',wrap_up_state:'saved',created_at:now,notes:'',result:{}}
       ];
       window.fixtureVoicemail={id:'call-jane',contact_id:'contact-jane',project_id:'project-jane',name:'Jane Test',phone:'+12025550124',business_number:'+12065550199',created_at:now,audio_artifact_id:'audio-jane',audio_state:'ready',expires_at:new Date(Date.now()+86400000).toISOString(),transcript:'Please call about the roof estimate.',transcript_state:'ready',sample:true,read_at:'',archived_at:''};
       window.Portal={appFlags:{has:()=>true},modules:{},navigation:{registerSchema(){},registerHandler(){},push(){},read(){return {};},backOrClose(){}},modals:{register:()=>({unregister(){}})}};
@@ -34,10 +35,13 @@ test('phone modal combines call, text, voicemail, and searchable history',async(
         if(path.startsWith('voice/contacts'))return {contacts:[{id:'contact-jane',project_id:'project-jane',name:'Jane Test',phone:'+12025550124'}]};
         if(path==='calls/call-jane')return {call:window.fixtureCalls[0],events:[{type:'communication.call.connected',created_at:new Date().toISOString()}]};
         if(path==='calls/call-erik')return {call:window.fixtureCalls[1],events:[]};
+        if(path==='calls/call-missed')return {call:window.fixtureCalls[2],events:[]};
         if(path==='calls/call-jane/artifacts')return {artifacts:[{id:'audio-jane',kind:'recording',state:'ready',expires_at:new Date(Date.now()+86400000).toISOString()},{id:'transcript-jane',kind:'transcript',state:'ready',data:{text:'Please call about the roof estimate.'}}]};
         if(path==='calls/call-erik/artifacts')return {artifacts:[]};
+        if(path==='calls/call-missed/artifacts')return {artifacts:[]};
+        if(path==='conversation-workflow'){if(body.kind==='call'&&body.source_id==='call-missed')window.callUnread=0;if(body.kind==='conversation')window.textUnread=0;return {ok:true};}
         return {};
-      },customerUrl:(_org,path)=>`https://phone-modal.test/v1/comms/organizations/org-test/${path}`,inbox:async()=>({conversations:[{id:'thread-jane',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',project_id:'project-jane',last_message:{text:'Hi from Jane',created_at:new Date().toISOString()}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hi from Jane',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {message:{conversation_id:'thread-jane'}};}}};
+      },customerUrl:(_org,path)=>`https://phone-modal.test/v1/comms/organizations/org-test/${path}`,inbox:async(_org,params)=>({conversations:params.channel==='call'?[{id:'call-missed',unread_count:window.callUnread,last_message:{direction:'inbound',status:'no_answer'}}]:[{id:'thread-jane',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',project_id:'project-jane',unread_count:window.textUnread,last_message:{text:'Hi from Jane',created_at:new Date().toISOString()}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hi from Jane',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {message:{conversation_id:'thread-jane'}};}}};
     });
     for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
@@ -48,10 +52,15 @@ test('phone modal combines call, text, voicemail, and searchable history',async(
     const modal=page.locator('.fmpm-window');await modal.waitFor();
     assert.equal(await modal.getAttribute('data-window'),'modal');
     assert.equal(await modal.locator('.fmpm-call .fmcp').count(),1);
+    await page.waitForFunction(()=>[...document.querySelectorAll('.fmpm-window .fmpm-badge')].filter(b=>!b.hidden).length===3);
+    assert.equal(await modal.locator('.fmpm-layout.call-view').count(),1);
+    await modal.locator('[data-recent=call-missed]').click();
+    await modal.locator('.fmpm-detail-head strong').filter({hasText:'Missed Caller'}).waitFor();
+    await page.waitForFunction(()=>document.querySelector('[data-tray-tab=call] .fmpm-badge').hidden);
     if(process.env.PHONE_MODAL_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_MODAL_SCREENSHOTS+'/call.png'});
     await page.getByRole('tab',{name:'History'}).click();
     await modal.locator('.fmpm-detail-body p').filter({hasText:'Asked about the roof estimate.'}).first().waitFor();
-    assert.equal(await modal.locator('audio').count(),1);
+    assert.equal(await modal.locator('.fmpm-detail-body audio').count(),1);
     if(process.env.PHONE_MODAL_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_MODAL_SCREENSHOTS+'/history.png'});
     await modal.locator('[name=direction]').selectOption('outbound');
     await page.waitForFunction(()=>document.querySelectorAll('[data-history]').length===1);
