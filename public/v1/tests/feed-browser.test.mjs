@@ -38,6 +38,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   const assertTileBounds=async name=>assert.deepEqual(await tileBounds(),{horizontalOverflow:false,overflowing:[]},`${name} content stays within its tile`);
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pf-feed-grid')).gridTemplateColumns.split(' ').length===8);
   await page.waitForFunction(()=>document.querySelector('.pf-feed-note-card'));
+  await page.waitForTimeout(100);
   assert.equal(await cols(),8);
   await assertTileBounds('small');
   const tilePositions=()=>page.locator('.pf-feed-card').first().evaluate(e=>({top:e.getBoundingClientRect().top,height:e.getBoundingClientRect().height}));
