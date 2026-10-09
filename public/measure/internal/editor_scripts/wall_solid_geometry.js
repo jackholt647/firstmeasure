@@ -448,7 +448,11 @@ for(const pair of clip.edges)if(pair.every(p=>Math.abs(K.local(source,p).z)<=K.C
 // using the source chimney footprint. It no longer drives a single chimney side.
 function mergedOwnership(faces){
  const joinedChimneys=[...new Set(faces.flatMap(f=>[...(f.joinedChimneys||[]),...(f.chimney?.id?[f.chimney.id]:[])]))];
- return joinedChimneys.length?{chimney:undefined,joinedChimneys}:{};
+ // Joining sections of one chimney side must retain its finish/type. Only
+ // mixed house/chimney regions lose the single-side identity. A merged face
+ // is edited locally and must never become a handle for the whole shaft.
+ const first=faces[0]?.chimney,sameSide=first&&faces.every(f=>f.chimney?.id===first.id&&f.chimney.side===first.side&&!!f.chimney.cap===!!first.cap);
+ return joinedChimneys.length?{chimney:sameSide?{...first,volume:false,derived:true,drivesFootprint:false}:undefined,joinedChimneys}:{};
 }
 function mergeConnectedFaces(scene,{preserveTrim=false}={}){
  const groups=[];

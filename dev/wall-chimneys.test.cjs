@@ -206,3 +206,8 @@ test('previous explicit fills repair on load without disabling generated-wall cl
  test('partial fourth-side closure does not invent a corner for a nonrectangular path',()=>{
  const r=roof([p(1,0),p(0,0),p(0,2),p(2,2),p(3,1)],false);assert.equal(C.detect(r).items.length,0);assert.ok(C.detect(r).warnings.length);
  });
+
+test('merging the upper and lower sections of one chimney side retains chimney appearance and local editing',()=>{
+ const lower={id:'lower',chimney:{id:'shaft',side:0,inferred:true},points:[p(0,0,0),p(2,0,0),p(2,0,4),p(0,0,4)]},upper={id:'upper',chimney:{id:'shaft',side:0,volume:true,drivesFootprint:true},points:[p(0,0,4),p(2,0,4),p(2,0,6),p(0,0,6)]};
+ for(const faces of [[lower,upper],[upper,lower]]){const result=W.mergeConnectedFaces(faces)[0].pieces[0];assert.equal(result.chimney.id,'shaft');assert.equal(result.chimney.side,0);assert.equal(result.chimney.drivesFootprint,false);assert.equal(result.chimney.volume,false);assert.equal(result.chimney.derived,true);assert.deepEqual(result.joinedChimneys,['shaft']);assert.equal(area(result),12);}
+});

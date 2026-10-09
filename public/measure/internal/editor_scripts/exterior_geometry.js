@@ -44,7 +44,16 @@ function boolean(operation,subjects,clips=[]){
 const union=faces=>boolean('ctUnion',faces),difference=(face,cuts)=>boolean('ctDifference',[face],cuts),intersection=(a,b)=>boolean('ctIntersection',a,b);
 function triangles(points,holes=[]){
  if(!points?.every(finite)||holes.some(r=>!r.every(finite)))throw Error('Geometry contains a non-finite coordinate.');
- const flat=[points,...holes].flat(),data=flat.flatMap(p=>[p.x,p.y]),starts=[];let count=points.length;for(const h of holes){starts.push(count);count+=h.length;}
+ const flat=[points,...holes].flat(),projected=flat.map(p=>({x:p.x,y:p.y}));
+ // A roof cut can meet the outer ring exactly in world space, then miss it
+ // by floating-point roundoff after projection. Earcut interprets that as
+ // an overlapping hole. Stabilize only numerical contact, retaining all
+ // original vertices and indices for rendering, editing and area validation.
+ for(let i=points.length;i<projected.length;i++){const p=projected[i];let best=null;
+  for(let j=0;j<points.length;j++){const a=points[j],b=points[(j+1)%points.length],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1e-20)continue;const t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;if(t<0||t>1)continue;const q={x:a.x+dx*t,y:a.y+dy*t},distance=Math.hypot(q.x-p.x,q.y-p.y);if(distance<=1e-9&&(!best||distance<best.distance))best={q,distance};}
+  if(best)projected[i]=best.q;
+ }
+ const data=projected.flatMap(p=>[p.x,p.y]),starts=[];let count=points.length;for(const h of holes){starts.push(count);count+=h.length;}
  const ids=ear.default(data,starts,2),out=[];let total=0;
  // Sub-grid slivers from almost-collinear anchors cannot define a sweep plane.
  // Keep the original points/indices, but omit these numerical triangles.

@@ -111,3 +111,15 @@ test('quarter-circle snap uses the starting spoke and beats a nearby shorter poi
  const guides=K.curveDrawGuides({start,center,pointer:q.point,snap:q,normal});assert.ok(guides.some(g=>g.role==='radius-source'&&g.points[1]===start));assert.ok(guides.some(g=>g.role==='angle'));const circle=guides.find(g=>g.role==='radius-circle');assert.ok(circle);for(const point of circle.points)assert.ok(Math.abs(Math.hypot(point.x-2,point.y-2)-2)<1e-8);
  const exact=K.curveDrawSnap({start,center,normal,point:short,points:[short],screen});assert.deepEqual(exact.target,short);assert.ok(K.curveDrawGuides({start,center,pointer:exact.point,snap:exact,normal}).some(g=>g.role==='point-target'&&g.points[1]===short));
 });
+
+test('roof-return holes touching their outer edge survive world-to-face projection without changing vertices',()=>{
+ const source=require('./fixtures/chimney-roof-return-touching-hole.json'),before=JSON.stringify(source);
+ for(const reverse of [false,true]){const f=structuredClone(source);if(reverse){f.points.reverse();f.holes.forEach(r=>r.reverse());}const frame=K.frame(f),points=f.points.map(p=>K.local(frame,p)),holes=f.holes.map(r=>r.map(p=>K.local(frame,p))),result=K.triangles(points,holes),area=result.triangles.reduce((n,t)=>n+Math.abs(K.signedArea(t.map(i=>result.points[i]))),0);assert.ok(Math.abs(area-K.area({points,holes}))<1e-8);K.validateFace(f);}
+ assert.equal(JSON.stringify(source),before);
+});
+
+test('a merged chimney face extrudes past its neighboring roof without rejecting the trimmed return',()=>{
+ const input=require('./fixtures/chimney-merged-roof-extrusion.json'),before=JSON.stringify(input),operation=M.createExtrusion(input);
+ for(const amount of [-.3,-1.5,.3]){const result=operation.preview(amount);assert.ok(result.cap);for(const f of [result.cap,...result.sides,...result.replacements.flatMap(r=>r.pieces)])if(!f.deleted)K.validateFace(f);}
+ assert.equal(JSON.stringify(input),before);
+});
