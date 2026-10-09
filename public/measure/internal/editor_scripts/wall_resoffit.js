@@ -171,5 +171,73 @@ function apply(faces,pairs,depth,roof,sources,options={}){
  const selectedSources=new Set(choices.map(c=>c.source.id)),selectedPairs=candidates(followed.faces.filter(f=>requests.has(f.id)||selectedSources.has(f.resoffitSource)),roof,sources).map(c=>c.pair);
  return {...followed,trimFollowed:true,affected:[...new Set([...affected,...(followed.affected||[])])],pairs:selectedPairs,limited};
 }
-const api={candidates,apply,COLOR:'#ef633c'};if(node)module.exports=api;else root.WallResoffit=api;
+// Wallless is a local topology edit. The canopy remains roof geometry, but
+// its sheet no longer stops a wall descending from the roof above it.
+function wallless(faces,pairs,roof,sources,options={}){
+ const choices=candidates(faces,roof,sources).filter(c=>pairs.some(pair=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001)));
+ if(!choices.length)throw Error('Select roof-contact soffit lines first.');
+ const gone=new Set(choices.map(c=>c.faceId)),sourceIds=new Set(choices.map(c=>c.source.id));
+ const vertical=f=>!f.deleted&&!f.baseId&&!f.chimney&&!f.trim&&!f.feature&&Math.abs(K.normal(f.points)?.z??1)<.02;
+ for(let changed=true;changed;){changed=false;for(const f of faces.filter(vertical)){if(gone.has(f.id))continue;
+  if(choices.some(c=>{const [a,b]=c.pair,u=sub(b,a),l2=u.x*u.x+u.y*u.y;return c.source.sourcePlane&&f.points.every(p=>{const t=((p.x-a.x)*u.x+(p.y-a.y)*u.y)/l2;return t>=-.00001&&t<=1.00001&&p.z<=c.source.sourcePlane.dx*p.x+c.source.sourcePlane.dy*p.y+c.source.sourcePlane.k+ROOF_CONTACT;});})&&faces.some(g=>gone.has(g.id)&&W.coplanarContact(f,g)&&adjacent(f,g))){gone.add(f.id);changed=true;}
+ }}
+ for(const f of faces.filter(f=>f.feature&&!f.deleted))if(faces.some(g=>gone.has(g.id)&&W.containedBy(f,{...g,holes:[]})))gone.add(f.id);
+ const layers=G.roofLayers(roof),ignored=new Set(options.walllessRoofIds||[]);
+ for(const c of choices)for(const f of layers.get(c.source.parentId)||[])ignored.add(f.id);
+ const canopy=(roof.faces||[]).filter(f=>ignored.has(f.id)),planes=roofPlanes(roof),bases=faces.filter(f=>f.baseId&&!f.deleted),moves=[],affected=new Set(gone),additions=new Map(),replacements=new Map();
+ const copy=v=>JSON.parse(JSON.stringify(v)),add=(f,points)=>{if(points.length>=3){const list=additions.get(f.id)||[];list.push({points,holes:[]});additions.set(f.id,list);affected.add(f.id);}};
+ const height=(plane,p)=>plane.dx*p.x+plane.dy*p.y+plane.k;
+ const atRoof=(p,q)=>{const supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-height(r.plane,p))<ROOF_CONTACT);if(supports.length)return {...q,z:followRoof(p,q,supports,planes)};const base=bases.find(f=>{const pl=G.plane(f.points);return pl&&G.contains(f,p)&&Math.abs(p.z-height(pl,p))<.002;});return base?{...q,z:height(G.plane(base.points),q)}:q;};
+ const terminal=(f,component)=>f.points.flatMap((a,i)=>{const b=f.points[(i+1)%f.points.length];return Math.hypot(a.x-b.x,a.y-b.y)<.002&&Math.abs(a.z-b.z)>.002&&component.some(g=>W.sharedIntervals(a,b,[g]).length)?[[a,b]]:[];});
+ const pending=new Set(gone);let reconnected=0,extended=0;
+ while(pending.size){const component=[faces.find(f=>f.id===pending.values().next().value)];pending.delete(component[0].id);
+  for(let i=0;i<component.length;i++)for(const id of [...pending]){const f=faces.find(f=>f.id===id);if(adjacent(component[i],f)){component.push(f);pending.delete(id);}}
+  const neighbors=faces.filter(f=>vertical(f)&&!gone.has(f.id)).flatMap(f=>{const edges=terminal(f,component);return edges.length===1?[{f,edge:edges[0]}]:[];});
+  // More than two owners is an ambiguous junction, not permission to move
+  // unrelated walls. Its surviving ends stay open.
+  if(neighbors.length!==2)continue;
+  const [a,b]=neighbors,n=K.normal(a.f.points),m=K.normal(b.f.points),den=n.x*m.y-n.y*m.x;
+  if(Math.abs(den)<1e-6){
+   if(!b.f.points.every(p=>Math.abs(dot(sub(p,a.f.points[0]),n))<.002))continue;
+   const [al,ah]=a.edge.slice().sort((p,q)=>p.z-q.z),[bl,bh]=b.edge.slice().sort((p,q)=>p.z-q.z);
+   if(Math.hypot(al.x-bl.x,al.y-bl.y)<.002)continue;
+   // Fill only the gap between collinear surviving ends beneath this roof.
+   if(![.1,.5,.9].every(t=>canopy.some(f=>G.contains(f,mix(al,bl,t)))))continue;
+   add(a.f,[al,bl,bh,ah]);reconnected++;continue;
+  }
+  const ka=dot(n,a.f.points[0]),kb=dot(m,b.f.points[0]),q={x:(ka*m.y-n.y*kb)/den,y:(n.x*kb-ka*m.x)/den};
+  if(!canopy.some(f=>G.contains(f,q)))continue;
+  const forward=({f,edge})=>{const center=f.points.reduce((s,p)=>({x:s.x+p.x/f.points.length,y:s.y+p.y/f.points.length}),{x:0,y:0}),p=edge[0];return (q.x-p.x)*(p.x-center.x)+(q.y-p.y)*(p.y-center.y)>=-1e-7;};
+  if(!neighbors.every(forward))continue;
+  for(const {f,edge}of neighbors){const next=copy(replacements.get(f.id)||f);next.points=next.points.map(p=>{if(!on(p,...edge))return p;const to=atRoof(p,{...p,...q});moves.push({from:p,to});return to;});next.retainedPoints=(next.retainedPoints||[]).map(p=>on(p,...edge)?atRoof(p,{...p,...q}):p);K.validateFace(next);replacements.set(f.id,next);affected.add(f.id);}reconnected++;
+ }
+ const ground=bases.length?{points:bases.flatMap(f=>f.points),faces:[]}:options.ground;let offset=0;
+ if(bases.length)for(const f of bases){ground.faces.push(f.points.map((_,i)=>offset+i));offset+=f.points.length;}
+ for(const original of faces.filter(f=>vertical(f)&&!gone.has(f.id))){const f=replacements.get(original.id)||original,center=f.points.reduce((s,p)=>s+p.z/f.points.length,0);
+  for(let i=0;i<f.points.length;i++){const start=f.points[i],end=f.points[(i+1)%f.points.length];if(Math.hypot(end.x-start.x,end.y-start.y)<.002||center<=(start.z+end.z)/2+.002)continue;
+   const cuts=G.splitParameters(start,end,canopy);
+   for(let j=1;j<cuts.length;j++){const a=mix(start,end,cuts[j-1]),b=mix(start,end,cuts[j]);if(Math.hypot(b.x-a.x,b.y-a.y)<.002)continue;
+   if(![0,.5,1].every(t=>{const p=mix(a,b,t);return canopy.some(r=>{const pl=G.plane(r.points);return pl&&G.contains(r,p)&&Math.abs(p.z-height(pl,p))<ROOF_CONTACT;});}))continue;
+   if(ground==null)continue;
+   const mid=mix(a,b,.5),lower={...roof,faces:(roof.faces||[]).filter(r=>{const pl=G.plane(r.points);return !ignored.has(r.id)&&pl&&height(pl,mid)<mid.z-.02;})};
+   const result=G.extrude(lower,[{id:'wallless:'+f.id+':'+i,kind:'perimeter',type:'eave',direction:'down',a,b}],ground);
+   if(result.warnings.length)throw Error('The base must cover the wall continuation below this canopy.');
+   for(const wall of result.walls){add(f,[wall.bottom[0],wall.bottom[1],wall.top[1],wall.top[0]]);extended++;}
+   }
+  }
+ }
+ const result=faces.flatMap(f=>{
+  if(gone.has(f.id))return {...f,deleted:true,wallless:true,walllessSources:[...sourceIds]};
+  const next=replacements.get(f.id)||f,extra=additions.get(f.id);if(!extra)return next;
+  const frame=K.frame(next),local=r=>({points:r.points.map(p=>K.local(frame,p)),holes:(r.holes||[]).map(r=>r.map(p=>K.local(frame,p)))});
+  // Existing coplanar walls (including their openings) already own that area.
+  // A continuation must not double their siding or fill an existing opening.
+  const occupied=faces.filter(g=>g.id!==f.id&&!g.deleted&&!gone.has(g.id)&&!g.trim&&!g.feature&&g.points.every(p=>Math.abs(K.local(frame,p).z)<.002)).map(g=>local({...g,holes:[]}));
+  const regions=K.union([local(next),...extra.flatMap(r=>K.difference(local(r),occupied))]);
+  return regions.map((r,i)=>{const out={...next,...(i?{id:next.id+'~wallless-'+i,draft:false}:{}),points:r.points.map(p=>K.world(frame,p)),holes:r.holes.map(r=>r.map(p=>K.world(frame,p)))};K.validateFace(out);return out;});
+ });
+ const followed=W.followTrim(faces,{faces:result,moves,affected:[...affected]},[...affected],options.keepTrimStatic);
+ return {...followed,trimFollowed:true,pairs:[],walllessRoofIds:[...ignored],wallless:true,reconnected,extended,affected:[...new Set([...affected,...(followed.affected||[])])]};
+}
+const api={candidates,apply,wallless,COLOR:'#ef633c'};if(node)module.exports=api;else root.WallResoffit=api;
 })(typeof window==='undefined'?globalThis:window);

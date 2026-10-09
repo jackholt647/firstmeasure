@@ -1257,11 +1257,13 @@ function perf_previewLineMove(e){
   const ok=transaction(()=>{
    const scene=moveScene().filter(f=>!f.snapOnly),base=copy(host.state().wallEdits.$base||host.state().base);
    scene.push(...(base?.faces||[]).filter(f=>!f.deleted).map(f=>({...f,id:'resoffit-base:'+f.id,baseId:f.id})));
-   result=window.WallResoffit.apply(scene,pairs,depth,host.state().roof,host.state().sources,{keepTrimStatic:host.state().keepTrimStatic});
+   const options={keepTrimStatic:host.state().keepTrimStatic,ground:host.state().ground,walllessRoofIds:host.state().wallEdits.$walllessRoofIds};
+   result=depth==='wallless'?window.WallResoffit.wallless(scene,pairs,host.state().roof,host.state().sources,options):window.WallResoffit.apply(scene,pairs,depth,host.state().roof,host.state().sources,options);
    const edits=copy(host.state().wallEdits);applyLineResult({scene,base,op:Date.now()},result,edits);host.state().wallEdits=edits;
+   if(result.wallless)edits.$walllessRoofIds=result.walllessRoofIds;
    lineSelection=result.pairs.map(pair=>({id:W.edgeKey(...pair),pair}));
   },before);
-  if(ok)host.message(result.limited?'Resoffit applied; lower roof layers retain their required clearance.':'Selected soffits updated; neighboring wall planes preserved.');
+  if(ok)host.message(result.wallless?'Wallless applied; '+result.extended+' wall continuations and '+result.reconnected+' junctions updated.':result.limited?'Resoffit applied; lower roof layers retain their required clearance.':'Selected soffits updated; neighboring wall planes preserved.');
   return ok;
  }
  function moveScene(...args){if(!window.ExteriorPerf?.enabled)return perf_moveScene.apply(this,args);return window.ExteriorPerf.measure('Snap scene build',()=>perf_moveScene.apply(this,args));}
