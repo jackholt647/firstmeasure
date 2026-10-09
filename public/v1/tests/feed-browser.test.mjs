@@ -200,6 +200,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
    if(['Small tiles','Large tiles','Mosaic'].includes(name))await assertTileBounds(`mobile ${name}`);
    if(name==='List'){
     const row=page.locator('.pf-feed-list-row').first();
+    assert.equal(await row.locator('.pf-feed-list-time').evaluate(e=>getComputedStyle(e).gridColumnStart),'3');
     assert.equal(await row.locator('.pf-feed-list-media .pf-thumb:visible').count(),4);
     assert.equal(await row.locator('.pf-feed-list-more:visible').count(),1);
     await page.waitForFunction(()=>[...document.querySelectorAll('.pf-feed-list-row')].find(row=>row.textContent.includes('Customer confirmed driveway access'))?.querySelector('.pf-note.expandable'));
