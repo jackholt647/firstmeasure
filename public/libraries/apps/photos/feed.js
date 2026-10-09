@@ -386,7 +386,7 @@
   }
   function activityObjectLabel(event = {}){
     const payload = activityPayload(event);
-    if (cleanText(event.type) === 'project.event_scheduled') return firstText(payload.event?.title, payload.title);
+    if (['project.event_scheduled','project.event.started','project.event.completed'].includes(cleanText(event.type))) return firstText(payload.event?.title, payload.title);
     return firstText(payload.title, payload.document_title, payload.proposal_title, payload.invoice_number, payload.file_name, payload.contact_name);
   }
   function feedActivitySummary(event = {}){
@@ -394,6 +394,13 @@
     const object = activityObjectLabel(event);
     const type = cleanText(event.type);
     const documentType = cleanText(activityPayload(event).document_type).replace(/_/g, ' ');
+    if (type === 'project.event.started' || type === 'project.event.completed') {
+      const payload = activityPayload(event);
+      const eventType = firstText(payload.event_type_default_id, payload.event_kind, payload.event?.event_type_default_id, payload.event?.kind).replace(/_/g, ' ');
+      const verb = type === 'project.event.started' ? 'started' : 'completed';
+      const eventLabel = eventType === 'project work' ? eventType : eventType && eventType !== 'custom' ? `${/^[aeiou]/i.test(eventType) ? 'an' : 'a'} ${eventType}` : 'an event';
+      return `${actor} ${verb} ${eventLabel}${object ? `: ${object}` : ''}`;
+    }
     if (type === 'work.plan.stage_manually_set') {
       const stage = firstText(activityPayload(event).to_stage_title, activityPayload(event).stage_title);
       return `${actor} moved the project to ${stage || 'a new stage'}`;
@@ -432,8 +439,6 @@
       'project.created':'created a project',
       'project.contact.attached':'attached a contact',
       'project.event_scheduled':`scheduled a ${cleanText(activityPayload(event).event_type_default_id || activityPayload(event).event_kind || activityPayload(event).event?.event_type_default_id).replace(/_/g, ' ') || 'project event'}`,
-      'project.event.started':'started a scheduled event',
-      'project.event.completed':'completed a scheduled event',
       'material.delivery.completed':'completed a material delivery',
       'material.order.placed':'placed a material order',
       'crew.clock.in':'clocked in',
@@ -617,6 +622,10 @@
     return dateKey(date) === dateKey(new Date())
       ? `Today, ${time}`
       : `${date.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' })} · ${time}`;
+  }
+  function feedDayTime(value){
+    const date = parseDate(value);
+    return date ? date.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }) : cleanText(value);
   }
   function activityTarget(event = {}){
     return event.target && typeof event.target === 'object' ? event.target : {};
@@ -1636,6 +1645,10 @@
       .pf-wrap>.pf-toolbar{position:relative;top:auto;flex:none;background:transparent;z-index:1}.pf-wrap>[data-photo-feed-dynamic]{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden}.pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{flex:1;min-height:0}
       .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline;max-height:none}.pf-note-toggle .pf-note-preview i,.pf-note-toggle .pf-note-expanded i{display:inline-block;margin-left:6px;font-size:10px;vertical-align:baseline;transition:transform .28s ease}.pf-note.expanded .pf-note-preview{display:none}.pf-note.expanded .pf-note-expanded i{transform:rotate(180deg)}.pf-note-expanded>span{min-height:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#344054}
       .pf-note{position:relative}.pf-note-plain,.pf-note-measure{display:block;color:#475467;font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}.pf-note-measure{position:absolute;top:0;left:0;width:100%;visibility:hidden;pointer-events:none}.pf-note .pf-note-toggle{display:none}.pf-note.expandable .pf-note-plain{display:none}.pf-note.expandable .pf-note-toggle{display:block}.pf-note-toggle .pf-note-preview{display:inline-flex;align-items:baseline;max-width:100%;min-width:0;vertical-align:top}.pf-note-toggle .pf-note-preview-text{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-note-toggle .pf-note-preview i{flex:none;margin-left:6px}
+      .pf-wrap[data-density="list"] .pf-feed-grid{display:block;max-width:none;overflow:hidden;gap:0;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 1px 2px #10182808}
+      .pf-wrap[data-density="list"] .pf-feed-list-row{border:0;border-radius:0;box-shadow:none;background:transparent}.pf-wrap[data-density="list"] .pf-feed-list-row+.pf-feed-list-row{border-top:1px solid #eaecf0}
+      .pf-wrap[data-density="list"] .pf-feed-list-project{width:100%;max-width:620px}.pf-wrap[data-density="list"] .pf-project-card{display:grid;grid-template-columns:36px minmax(0,1fr);align-items:center;gap:9px;width:100%;max-width:100%;padding:6px 9px;border:1px solid transparent;border-radius:9px;background:#f2f4f7;text-align:left;white-space:normal;overflow:visible;box-sizing:border-box;line-height:1.35}.pf-wrap[data-density="list"] .pf-project-card:hover,.pf-wrap[data-density="list"] .pf-project-card:focus-visible{background:#e9edf3;border-color:#c9d3df;text-decoration:none}.pf-project-card-cover{width:36px;height:36px;border-radius:7px;background:#dfe4ec;color:#667085;display:grid;place-items:center;font-size:14px}.pf-project-card-details{display:flex;flex-direction:column;gap:2px;min-width:0}.pf-project-card-name{color:#182230;font-size:12px;font-weight:850}.pf-project-card-address{color:#667085;font-size:11px;font-weight:550}.pf-wrap[data-density="list"] .pf-project-card:hover span{text-decoration:none}.pf-wrap[data-density="list"] .pf-project-card:hover .pf-project-card-name{text-decoration:underline}
+      .pf-note-list .pf-note-toggle{width:100%}.pf-note-list .pf-note-toggle:hover{color:#475467}.pf-note-list .pf-note-preview{display:flex;align-items:baseline;width:100%;max-width:100%;min-width:0;white-space:nowrap}.pf-note-list .pf-note-preview-text{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-note-list .pf-note-more{flex:none;margin-left:8px;color:var(--primary-readable,var(--primary,#d93025));font-weight:850;white-space:nowrap}.pf-note-list .pf-note-less{display:block;margin-top:6px;color:var(--primary-readable,var(--primary,#d93025));font-weight:850}.pf-note-list .pf-note-expanded>span{display:block}
       .pf-feed-list-media{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;margin:5px 0 2px}.pf-feed-list-media .pf-thumb{width:52px;height:52px;flex:0 0 52px;aspect-ratio:auto;border:0;border-radius:7px}.pf-feed-list-media .pf-thumb:nth-of-type(n+7){display:none}.pf-feed-list-media .pf-video-badge{width:19px;height:19px;right:3px;bottom:3px;font-size:8px}.pf-feed-list-more{flex:none;border:0;background:none;padding:5px 3px;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:11px;font-weight:850;cursor:pointer;white-space:nowrap}.pf-feed-list-more:hover{text-decoration:underline}.pf-feed-list-more.mobile{display:none}
       @media(max-width:760px){.pf-feed-list-media .pf-thumb{width:43px;height:43px;flex-basis:43px}.pf-feed-list-media .pf-thumb:nth-of-type(n+5){display:none}.pf-feed-list-more.desktop{display:none}.pf-feed-list-more.mobile{display:inline-block}}
       .pf-feed-scopebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 16px 11px;border-bottom:1px solid #e9edf2;background:#fff}.pf-feed-scopebar label{display:flex;align-items:center;gap:8px;color:#475467;font-size:12px;font-weight:700}.pf-feed-scopebar select{min-width:170px;padding:8px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit}.pf-feed-scopebar>button{border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer}.pf-feed-scopebar>button.active{border-color:#b8c8ed;background:#eef4ff;color:#2456a8}.pf-feed-scopebar>button:last-child{margin-left:auto}.pf-create-post{white-space:nowrap}
@@ -2217,16 +2230,18 @@
       : `<span aria-hidden="true">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
     return `<span class="pf-actor-avatar">${image}<span class="pf-actor-badge" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span></span>`;
   }
-  function feedProjectLinkHtml(project = {}, projectId = ''){
+  function feedProjectLinkHtml(project = {}, projectId = '', listCard = false){
     const title = savedProjectTitle(project) || projectTitle(project);
     const address = projectAddress(project);
     const label = [title, address && address.toLowerCase() !== title.toLowerCase() ? address : ''].filter(Boolean).join(' · ');
+    if (listCard && projectId) return `<button type="button" class="pf-project-identity pf-project-card" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span class="pf-project-card-cover" aria-hidden="true"><i class="fas fa-image"></i></span><span class="pf-project-card-details"><span class="pf-project-card-name">${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-project-card-address">${escapeHtml(address)}</span>` : ''}</span></button>`;
     return projectId
       ? `<button type="button" class="pf-project-identity" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
       : `<span>${escapeHtml(label)}</span>`;
   }
-  function feedNoteHtml(note = {}){
+  function feedNoteHtml(note = {}, listNote = false){
     const body = cleanText(note.text);
+    if (listNote) return `<div class="pf-note pf-note-list"><span class="pf-note-measure" aria-hidden="true">${escapeHtml(body)}</span><span class="pf-note-plain">${escapeHtml(body)}</span><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview"><span class="pf-note-preview-text">${escapeHtml(body)}</span><span class="pf-note-more">Show more</span></span><span class="pf-note-expanded"><span>${escapeHtml(body)}<span class="pf-note-less">Show less</span></span></span></button></div>`;
     return `<div class="pf-note"><span class="pf-note-measure" aria-hidden="true">${escapeHtml(body)}</span><span class="pf-note-plain">${escapeHtml(body)}</span><button type="button" class="pf-note-toggle" data-feed-note-toggle aria-expanded="false" aria-label="Expand note"><span class="pf-note-preview"><span class="pf-note-preview-text">${escapeHtml(body)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></span><span class="pf-note-expanded"><span>${escapeHtml(body)}<i class="fas fa-chevron-down" aria-hidden="true"></i></span></span></button></div>`;
   }
   function feedListMediaHtml(photos = [], projectId = ''){
@@ -2252,7 +2267,7 @@
   function feedListEntryHtml(post){
     if(post.kind==='manual'){
       const author=postAuthor(post);
-      return `<article class="pf-feed-list-row pf-manual-row">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-list-copy"><strong>${escapeHtml(author.name)} posted to ${escapeHtml(manualPostScope(post.manual))}</strong>${manualPostBodyHtml(post.manual)}</div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
+      return `<article class="pf-feed-list-row pf-manual-row">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-list-copy"><strong>${escapeHtml(author.name)} posted to ${escapeHtml(manualPostScope(post.manual))}</strong>${manualPostBodyHtml(post.manual)}</div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time></article>`;
     }
     const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
     const action=photos.length
@@ -2261,7 +2276,7 @@
       : post.kind==='activity' ? feedActivitySummary(post.event)
       : post.pairedEvent && !['media.uploaded','document.ingested','receipt.uploaded'].includes(cleanText(post.pairedEvent.type)) ? feedActivitySummary(post.pairedEvent)
       : `${author.name} uploaded ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
-    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong>${post.kind==='note' ? feedNoteHtml(post.note) : ''}${feedListMediaHtml(photos,post.projectId)}<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedListTime(post.timestamp))}</time></article>`;
+    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy"><strong>${escapeHtml(action)}</strong>${post.kind==='note' ? feedNoteHtml(post.note,true) : ''}${feedListMediaHtml(photos,post.projectId)}<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,true)}</div></div><time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time></article>`;
   }
   function avatarHtml(author){
     const avatar=cleanText(author.avatar);
