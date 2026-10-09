@@ -1652,6 +1652,10 @@
       .pf-emoji-picker:not([hidden]){display:block;max-height:230px;overflow:auto;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:8px;box-shadow:0 8px 30px #1018281a}.pf-emoji-picker input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #d0d5dd;border-radius:6px}.pf-emoji-picker .pf-emoji-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:2px}.pf-emoji-picker button{border:0;background:none;font-size:21px;cursor:pointer;padding:4px}.pf-file-preview{display:flex;align-items:center;gap:7px;border:1px solid #e4e7ec;border-radius:8px;padding:6px 8px;font-size:11px;max-width:100%}.pf-file-preview span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-file-preview button{border:0;background:none;cursor:pointer;font-size:16px}
       .pf-manual-gif,.pf-manual-files{padding:0 18px 14px}.pf-manual-gif img{display:block;max-width:100%;max-height:300px;border-radius:8px}.pf-manual-files{display:grid;gap:8px}.pf-manual-files a{color:#2456a8;font-size:12px}.pf-manual-tile .pf-manual-gif,.pf-manual-row .pf-manual-gif,.pf-manual-tile .pf-manual-files,.pf-manual-row .pf-manual-files{padding:0 0 9px}
       .pf-comment-tools .pf-compose-tool,.pf-post-compose-tools .pf-compose-tool{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:none;border:0;border-radius:8px;background:transparent;color:#667085;font-size:12.5px;cursor:pointer;padding:0}.pf-comment-tools .pf-compose-tool:hover,.pf-post-compose-tools .pf-compose-tool:hover{background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}.pf-gif-icon{font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px}.pf-post-compose-tools{display:flex;align-items:center;gap:8px}.pf-comment-tools{gap:7px}.pf-composer-gif{position:relative;justify-self:start}.pf-composer-gif img{max-width:240px;max-height:160px;border-radius:8px}.pf-composer-gif button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border:0;border-radius:50%;background:#344054;color:#fff;cursor:pointer}
+      .pf-feed-scope-control{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;color:#475467;font-size:12px;font-weight:700}.pf-feed-scope-control select{min-width:170px;max-width:240px}.pf-feed-manual-only.active{border-color:#b8c8ed;background:#eef4ff;color:#2456a8}
+      .pf-compose-audience{display:inline-flex;justify-self:start;max-width:100%}.pf-compose-audience-picker{display:inline-flex;align-items:center;gap:6px;position:relative;max-width:100%;color:#182230;font-weight:750}.pf-compose-audience-picker select{position:absolute;inset:0;width:100%;height:100%;max-width:none;opacity:0;cursor:pointer}.pf-compose-audience-picker i{font-size:10px;pointer-events:none}
+      .pf-comment-reactions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.pf-comment-reactions button{border:1px solid #dce5f0;border-radius:999px;background:#fff;padding:2px 7px;color:#344054;font-size:11px;cursor:pointer}.pf-comment-reactions button:hover{background:#eef4ff;border-color:#b8c8ed}.pf-comment-actions .pf-comment-react{position:relative;display:inline-flex;align-items:center}.pf-comment-react>div{position:absolute;left:0;bottom:100%;z-index:12;display:flex;gap:2px;padding:6px;border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 4px 20px #10182820;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease}.pf-comment-react:hover>div,.pf-comment-react:focus-within>div,.pf-comment-react.open>div{visibility:visible;opacity:1;pointer-events:auto}.pf-comment-actions .pf-comment-react>div button{font-size:20px;padding:3px 5px}
+      @media(max-width:760px){.pf-feed-scope-control select{min-width:0;max-width:180px}}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
@@ -2368,7 +2372,26 @@
         }else renderFeedCommentContent(message,content);
         const actions=row.querySelector('.pf-comment-actions');
         const button=(label,action)=>{const btn=document.createElement('button');btn.type='button';btn.textContent=label;btn.onclick=()=>act(action);actions.append(btn);};
-        if(state.canReact&&!message.deleted_at)for(const emoji of ['👍','❤️','😂']){const r=message.reactions?.find(r=>r.emoji===emoji);button(`${emoji}${r?.count?' '+r.count:''}`,async()=>{await window.ChannelsAPI.feed.react(orgId(),message.id,emoji,!r?.reacted);await fetchPost(post);});}
+        if(state.canReact&&!message.deleted_at){
+          const reactComment=async emoji=>{const reaction=message.reactions?.find(item=>item.emoji===emoji);await window.ChannelsAPI.feed.react(orgId(),message.id,emoji,!reaction?.reacted);await fetchPost(post);};
+          const reactions=(message.reactions || []).filter(reaction=>Number(reaction.count)>0);
+          if(reactions.length){
+            const summary=document.createElement('div');summary.className='pf-comment-reactions';summary.setAttribute('aria-label','Comment reactions');
+            for(const reaction of reactions){
+              const count=Number(reaction.count),names=(reaction.users || []).map(user=>user.name).filter(Boolean);
+              const chip=document.createElement('button');chip.type='button';chip.textContent=`${reaction.emoji} ${count}`;
+              chip.title=`${count} ${count===1?'person':'people'} reacted with ${reaction.emoji}${names.length?`: ${names.join(', ')}`:''}`;
+              chip.setAttribute('aria-label',chip.title);chip.setAttribute('aria-pressed',String(!!reaction.reacted));
+              chip.onclick=()=>act(()=>reactComment(reaction.emoji));summary.append(chip);
+            }
+            content.after(summary);
+          }
+          const picker=document.createElement('div');picker.className='pf-comment-react';
+          const trigger=document.createElement('button');trigger.type='button';trigger.textContent='React';trigger.setAttribute('aria-label','React to comment');trigger.onclick=()=>picker.classList.toggle('open');
+          const choices=document.createElement('div');choices.setAttribute('aria-label','Comment reaction options');
+          for(const emoji of ['👍','❤️','😂','🎉','😮','😢']){const choice=document.createElement('button');choice.type='button';choice.textContent=emoji;choice.setAttribute('aria-label',`React ${emoji}`);choice.onclick=()=>act(()=>reactComment(emoji));choices.append(choice);}
+          picker.onmouseleave=()=>picker.classList.remove('open');picker.append(trigger,choices);actions.append(picker);
+        }
         if(state.canComment&&!message.deleted_at)button('Reply',async()=>{current.replyTo=message.id;current.replyToName=message.author?.name || 'Someone';});
         if(message.can_restore && state.canComment)button('Restore',async()=>{await window.ChannelsAPI.feed.restore(orgId(),message.id);await fetchPost(post);});
         if(message.can_edit && state.canComment && current.editingId!==message.id)button('Edit',async()=>{current.editingId=message.id;current.editDraft=message.text;});
@@ -2561,7 +2584,7 @@
     const enlarged=state.composerFiles[state.composerPreviewIndex];
     return `<div class="pf-overlay"><form class="pf-dialog" data-feed-compose role="dialog" aria-modal="true" aria-label="Create a post">
       <header><strong>Create a post</strong><button type="button" data-feed-compose-close aria-label="Close">×</button></header>
-      <label class="pf-compose-audience">Post to <select data-feed-compose-scope aria-label="Post audience"><option value="" ${!state.composerDepartment?'selected':''}>everyone in the company</option>${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)} department</option>`).join('')}</select><i class="fas fa-chevron-down"></i></label>
+      <label class="pf-compose-audience">Post to <span class="pf-compose-audience-picker"><span>${escapeHtml(state.composerDepartment ? `${state.departments.find(department=>department.id===state.composerDepartment)?.label || 'Department'} department` : 'everyone in the company')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i><select data-feed-compose-scope aria-label="Post audience"><option value="" ${!state.composerDepartment?'selected':''}>everyone in the company</option>${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)} department</option>`).join('')}</select></span></label>
       <div class="pf-compose-message"><textarea data-feed-compose-text maxlength="5000" rows="5" placeholder="Write a post… Use @ to mention someone." aria-label="Post message">${escapeHtml(state.composerText)}</textarea><div class="pf-mention-menu" data-feed-compose-mention-menu hidden></div></div>
       <div class="pf-post-compose-tools">${feedComposerToolsHtml('feed-compose')}</div><div class="pf-emoji-picker" data-feed-compose-emoji-picker hidden></div><div data-feed-compose-dictation-mount></div><div data-feed-compose-audio-mount></div>
       ${state.composerGif?`<div class="pf-composer-gif"><img src="${escapeHtml(state.composerGif.url)}" alt="${escapeHtml(state.composerGif.title)}"><button type="button" data-feed-compose-remove-gif aria-label="Remove GIF">×</button></div>`:''}
@@ -2577,8 +2600,7 @@
         <div class="pf-toolbar" data-app-header>
           <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
           <div class="pf-tools">
-            ${state.departmentContext?.show_selector?`<select class="pf-toolbar-action" data-feed-department aria-label="${escapeHtml(state.departmentContext.department_label||'Department')}"><option value="">All available ${escapeHtml((state.departmentContext.departments_label||'Departments').toLowerCase())}</option>${state.departmentContext.departments.map(d=>`<option value="${escapeHtml(d.id)}" ${state.departmentId===d.id?'selected':''}>${escapeHtml(d.label)}</option>`).join('')}</select>`:''}
-            <label class="pf-search"><i class="fas fa-search"></i><input type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("photos","m_3fb1d572340b7f","Search feed") ?? "Search feed")}"></label>
+            <label class="pf-feed-scope-control"><span>Show</span><select class="pf-toolbar-action" data-feed-scope aria-label="Feed audience">${feedScopeOptionsHtml()}</select></label>
             <div class="pf-density">
               ${String([
                 {id:'list',label:'List',icon:'list'},
@@ -2592,18 +2614,17 @@
               <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleTags.size || state.visibleDocuments.size || state.visibleMedia.size < DEFAULT_MEDIA_FILTERS.length || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>${(globalThis.PlatformLanguage?.htmlText("photos","m_092ad4c2ce9c6b","Shown") ?? "Shown")}</span></button>
               ${String(shownMenuHtml())}
             </div>
+            ${state.density==='posts'?`<button type="button" class="pf-toolbar-action pf-feed-manual-only${state.manualOnly?' active':''}" data-feed-manual-only aria-pressed="${state.manualOnly}"><i class="fas fa-pen-to-square"></i><span>Manual posts only</span></button>`:''}
             ${state.density==='posts'&&state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}
             ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
           </div>
         </div>
-        <div class="pf-feed-scopebar"><label><i class="fas fa-people-group"></i><span>Show</span><select data-feed-scope>${feedScopeOptionsHtml()}</select></label>${state.density==='posts'?`<button type="button" data-feed-manual-only aria-pressed="${state.manualOnly}" class="${state.manualOnly?'active':''}"><i class="fas fa-pen-to-square"></i> Manual posts only</button>`:''}</div>
         <div data-photo-feed-dynamic>${String(dynamicHtml())}</div>
         ${feedComposerHtml()}
       </div>`;
     bind();
   }
   function bind(){
-    state.root?.querySelector('[data-feed-department]')?.addEventListener('change',event=>{state.departmentId=event.target.value;state.documentsLoaded=false;void load();});
     const rootEl = state.root;
     rootEl.querySelector('[data-feed-scope]')?.addEventListener('change',(event)=>{
       state.feedScope=event.target.value;
