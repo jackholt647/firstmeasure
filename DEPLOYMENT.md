@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 SMS registration default: [Low Volume Mixed](deploy/digitalocean/development-sms-low-volume-default-20261009.md) records the default change, focused tests, and verified development rollout across web, pool, and compatibility.
+
 October 9 additional test phones: [Development conference test destinations](deploy/digitalocean/development-test-phones-20261009.md) records approved direct dialing, the conference test-phone picker and the verified development-only rollout.
 
 October 9 conference calls: [Add people to active calls](deploy/digitalocean/development-conference-20261009.md) records teammate/external invitations, participant controls, current-development integration, verification and the development-only rollout.
