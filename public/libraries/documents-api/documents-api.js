@@ -137,6 +137,8 @@
 
   const documents = {
     settings(orgId, branchId = "default"){ return request(`/organizations/${enc(orgId)}/settings${query({ branch_id: branchId })}`); },
+    types(orgId){ return request(`/organizations/${enc(orgId)}/document-types`); },
+    saveTypes(orgId, types, assignments){ return request(`/organizations/${enc(orgId)}/document-types`, { method: "PUT", body: { types, assignments } }); },
     pinTemplates(orgId, templateIds){ return request(`/organizations/${enc(orgId)}/settings/pinned-templates`, { method: "PUT", body: { template_ids: templateIds } }); },
     listForProject(orgId, projectId, filters = {}){ return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/documents${query(filters)}`); },
     createForProject(orgId, projectId, body = {}){ return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/documents`, { method: 'POST', body }); },

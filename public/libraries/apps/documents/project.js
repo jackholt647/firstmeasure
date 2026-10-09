@@ -2234,7 +2234,7 @@
         modal = openModal(contentHtml, { onClose: options.onClose, className: 'fmdx-create-modal' });
       }
       const body = modal.el.querySelector('[data-create-body]');
-      const [catalog, templates, pinSettings] = await Promise.all([loadCatalog(), loadTemplates(true), api().documents.settings(orgId(), 'default').catch(() => ({}))]);
+      const [catalog, templates, pinSettings, typeSettings] = await Promise.all([loadCatalog(), loadTemplates(true), api().documents.settings(orgId(), 'default').catch(() => ({})), api().documents.types(orgId()).catch(() => ({}))]);
       if (!modal.el.isConnected) return;
       const wizard = { type: cleanText(prefill.document_type).toLowerCase(), template: null, departmentId: state.departmentId };
 
@@ -2251,6 +2251,19 @@
       const picker = { query: '', type: '', departments: null, pins: Array.isArray(savedPins) ? savedPins.map(cleanText) : null };
       const PIN_LIMIT = 12;
       const activeTemplates = () => arrayValue(templates).filter((t) => cleanText(t.status).toLowerCase() !== 'archived');
+      // Document types are the organization's own groupings. Each has a kind:
+      // the built-in behavior a blank document of that type gets.
+      const org = { types: arrayValue(objectValue(typeSettings).types).map(objectValue), assignments: objectValue(objectValue(typeSettings).assignments), kinds: arrayValue(objectValue(typeSettings).kinds).map(objectValue) };
+      if (!org.types.length) org.types = typesList().map((type) => ({ id: firstText(type.id, type.type), label: firstText(type.label, typeMeta(firstText(type.id, type.type)).label), kind: firstText(type.id, type.type), color: '', icon: '', department_ids: [], archived: false }));
+      const liveTypes = () => org.types.filter((type) => type.archived !== true);
+      const typeView = (type) => { const base = typeMeta(type.kind, catalog.types); return { id: type.id, label: firstText(type.label, base.label), color: firstText(type.color, base.color), icon: firstText(type.icon, base.icon), kind: firstText(type.kind, 'generic') }; };
+      /** The type a template is filed under: where it was moved, else the first type of its kind. */
+      function typeOf(tpl){
+        const moved = liveTypes().find((type) => type.id === cleanText(org.assignments[cleanText(tpl.id)]));
+        return moved || liveTypes().find((type) => cleanText(type.kind) === cleanText(tpl.document_type)) || null;
+      }
+      const OTHER = { id: '__other__', label: 'Other', color: '#667085', icon: 'fa-file', kind: 'generic' };
+      const viewOf = (tpl) => { const type = typeOf(tpl); return type ? typeView(type) : OTHER; };
       const isUploadTemplate = (tpl) => cleanText(objectValue(tpl.metadata).intake) === 'upload';
       const departments = () => (state.departmentContext.enabled ? arrayValue(state.departmentContext.departments).map(objectValue) : []);
       /** The user's own departments to start with; everything when they have none or see them all. */
@@ -2262,15 +2275,17 @@
       }
       function inDepartments(tpl){
         const all = departments();
-        const ids = arrayValue(tpl.department_ids);
-        if (!all.length || !ids.length) return true;
+        if (!all.length) return true;
         const chosen = selectedDepartments();
-        return chosen.size === all.length || ids.some((id) => chosen.has(id));
+        if (chosen.size === all.length) return true;
+        // A type belongs to departments; a template may narrow that further.
+        const allows = (ids) => !arrayValue(ids).length || arrayValue(ids).some((id) => chosen.has(id));
+        return allows(objectValue(typeOf(tpl)).department_ids) && allows(tpl.department_ids);
       }
       /** Until the organization pins its own, the everyday documents: one each of the common types. */
       function defaultPins(){
         const list = activeTemplates().filter((tpl) => !isUploadTemplate(tpl));
-        return ['proposal', 'contract', 'change_order', 'invoice', 'work_order', 'estimate']
+        return ['proposal', 'contract', 'change_order', 'invoice', 'work_order']
           .map((type) => list.filter((tpl) => cleanText(tpl.document_type) === type))
           .map((group) => group.find((tpl) => objectValue(tpl.metadata).default === true) || group[0])
           .filter(Boolean).map((tpl) => cleanText(tpl.id));
@@ -2284,7 +2299,7 @@
         catch (error) { showToast('Documents', errorMessage(error, 'The pinned templates could not be saved.'), false); }
       }
       function tileHtml(tpl, pinned){
-        const meta = typeMeta(tpl.document_type, catalog.types);
+        const meta = viewOf(tpl);
         const upload = isUploadTemplate(tpl);
         const id = cleanText(tpl.id);
         const isPinned = pins().includes(id);
@@ -2299,16 +2314,16 @@
       }
 
       function renderStepOne(){
-        const types = typesList();
+        const types = [...liveTypes().map(typeView), OTHER];
         const query = picker.query.trim().toLowerCase();
-        const matches = (tpl) => !query || [tpl.name, tpl.description, typeMeta(tpl.document_type, catalog.types).label].some((value) => cleanText(value).toLowerCase().includes(query));
+        const matches = (tpl) => !query || [tpl.name, tpl.description, viewOf(tpl).label].some((value) => cleanText(value).toLowerCase().includes(query));
         const visible = activeTemplates().filter(inDepartments).filter(matches);
         const counts = new Map();
-        visible.forEach((tpl) => counts.set(cleanText(tpl.document_type), (counts.get(cleanText(tpl.document_type)) || 0) + 1));
+        visible.forEach((tpl) => counts.set(viewOf(tpl).id, (counts.get(viewOf(tpl).id) || 0) + 1));
         // A type is a filter only when it groups something.
-        const typeChips = types.map((type) => firstText(type.id, type.type)).filter((id) => counts.get(id));
+        const typeChips = types.filter((type) => counts.get(type.id));
         if (picker.type && !counts.get(picker.type)) picker.type = '';
-        const library = visible.filter((tpl) => !picker.type || cleanText(tpl.document_type) === picker.type);
+        const library = visible.filter((tpl) => !picker.type || viewOf(tpl).id === picker.type);
         const pinned = query ? [] : pins().map((id) => activeTemplates().find((tpl) => cleanText(tpl.id) === id)).filter(Boolean).filter(inDepartments);
         const deptChips = departments().length > 1 ? `
           <div class="fmdx-fchips" role="group" aria-label="${esc(state.departmentContext.departments_label || 'Departments')}">
@@ -2331,8 +2346,9 @@
           ${typeChips.length > 1 ? `
             <div class="fmdx-fchips">
               <button type="button" class="fmdx-fchip ${picker.type ? '' : 'on'}" data-pick-type="">All <small>${visible.length}</small></button>
-              ${typeChips.map((id) => { const meta = typeMeta(id, types); return `<button type="button" class="fmdx-fchip ${picker.type === id ? 'on' : ''}" data-pick-type="${esc(id)}" style="--fmdx-type:${esc(meta.color)}"><i class="fmdx-fchip-dot"></i>${esc(meta.label)} <small>${counts.get(id)}</small></button>`; }).join('')}
-            </div>` : ''}
+              ${typeChips.map((meta) => `<button type="button" class="fmdx-fchip ${picker.type === meta.id ? 'on' : ''}" data-pick-type="${esc(meta.id)}" style="--fmdx-type:${esc(meta.color)}"><i class="fmdx-fchip-dot"></i>${esc(meta.label)} <small>${counts.get(meta.id)}</small></button>`).join('')}
+              <button type="button" class="fmdx-fchip quiet" data-manage-types title="Rename, color, add or retire document types, and choose their departments"><i class="fas fa-sliders"></i> Edit types</button>
+            </div>` : `<div class="fmdx-fchips"><button type="button" class="fmdx-fchip quiet" data-manage-types><i class="fas fa-sliders"></i> Edit types</button></div>`}
           ${library.length
             ? `<div class="fmdx-tpl-grid">${library.map((tpl) => tileHtml(tpl, false)).join('')}</div>`
             : `<p class="fmdx-data-hint">${query ? 'No template matches that search.' : 'No templates here yet. Start from Blank, or upload a paper document.'}</p>`}`;
@@ -2346,6 +2362,7 @@
           renderStepOne();
         }));
         body.querySelectorAll('[data-pick-type]').forEach((btn) => btn.addEventListener('click', () => { picker.type = btn.dataset.pickType; renderStepOne(); }));
+        body.querySelector('[data-manage-types]')?.addEventListener('click', () => renderTypeEditor());
         body.querySelectorAll('[data-pin-template]').forEach((btn) => btn.addEventListener('click', () => togglePin(btn.dataset.pinTemplate)));
         body.querySelectorAll('[data-pick-template]').forEach((btn) => btn.addEventListener('click', () => {
           const tpl = activeTemplates().find((entry) => cleanText(entry.id) === btn.dataset.pickTemplate);
@@ -2356,12 +2373,88 @@
         }));
         /** Blank and Upload need to know what kind of document: the filter in use, else ask. */
         const withType = (anchor, run) => {
-          if (picker.type) { run(picker.type); return; }
-          const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${types.map((type) => { const id = firstText(type.id, type.type); const meta = typeMeta(id, types); return `<button type="button" data-menu-type="${esc(id)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i> ${esc(id === 'document' || id === 'generic' ? 'Plain document' : meta.label)}</button>`; }).join('')}`);
+          const current = types.find((type) => type.id === picker.type);
+          if (current) { run(current.kind); return; }
+          const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${liveTypes().map(typeView).map((meta) => `<button type="button" data-menu-type="${esc(meta.kind)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i> ${esc(meta.label)}</button>`).join('')}`);
           (menu?.el || document.querySelector('.fmdx-menu'))?.querySelectorAll('[data-menu-type]').forEach((item) => item.addEventListener('click', () => { document.querySelector('.fmdx-menu')?.remove(); run(item.dataset.menuType); }));
         };
         body.querySelector('[data-create-blank]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = null; proceed(body.querySelector('[data-create-blank]')); }));
         body.querySelector('[data-create-upload]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = '__upload__'; proceed(body.querySelector('[data-create-upload]')); }));
+      }
+
+      /** The organization edits its own types here: name, color, departments, order, and where each template is filed. */
+      function renderTypeEditor(){
+        const draft = { types: clone(org.types), assignments: { ...org.assignments } };
+        const palette = ['#2563eb', '#0f766e', '#7c3aed', '#c2410c', '#be185d', '#0369a1', '#4d7c0f', '#b45309', '#475467'];
+        const draw = () => {
+          const live = draft.types.filter((type) => type.archived !== true);
+          const filedUnder = (tpl) => { const moved = live.find((type) => type.id === cleanText(draft.assignments[cleanText(tpl.id)])); return (moved || live.find((type) => cleanText(type.kind) === cleanText(tpl.document_type)) || {}).id || ''; };
+          body.innerHTML = `
+            <div class="fmdx-create-top">
+              <button type="button" class="fmdx-btn" data-types-back><i class="fas fa-arrow-left"></i> Back</button>
+              <strong style="flex:1;font-size:14px">Document types</strong>
+              <button type="button" class="fmdx-btn" data-types-add><i class="fas fa-plus"></i> Add type</button>
+              <button type="button" class="fmdx-btn primary" data-types-save>Save</button>
+            </div>
+            <p class="fmdx-data-hint" style="margin:0">Types are how your templates are grouped. Rename them, give them a color and the ${esc((state.departmentContext.departments_label || 'departments').toLowerCase())} that use them, or add your own.</p>
+            <div class="fmdx-types">
+              ${draft.types.map((type, index) => { const view = typeView(type); return `
+                <div class="fmdx-type-row ${type.archived ? 'archived' : ''}" data-type-row="${index}">
+                  <span class="fmdx-type-move"><button type="button" data-type-up title="Move up" ${index === 0 ? 'disabled' : ''}><i class="fas fa-chevron-up"></i></button><button type="button" data-type-down title="Move down" ${index === draft.types.length - 1 ? 'disabled' : ''}><i class="fas fa-chevron-down"></i></button></span>
+                  <input type="color" data-type-color value="${esc(view.color)}" list="fmdx-type-colors" title="Color">
+                  <input type="text" class="fmdx-input" data-type-label value="${esc(type.label)}" maxlength="60" placeholder="Type name">
+                  <select class="fmdx-input" data-type-kind title="What a blank document of this type is">${org.kinds.map((kind) => `<option value="${esc(kind.id)}" ${cleanText(type.kind) === kind.id ? 'selected' : ''}>${esc(kind.label)}</option>`).join('')}</select>
+                  ${departments().length > 1 ? `<span class="fmdx-fchips">${departments().map((entry) => `<button type="button" class="fmdx-fchip ${arrayValue(type.department_ids).includes(entry.id) ? 'on' : ''}" data-type-department="${esc(entry.id)}" title="${arrayValue(type.department_ids).length ? '' : 'No department chosen: every department sees this type'}">${esc(entry.label)}</button>`).join('')}</span>` : ''}
+                  <button type="button" class="fmdx-icon-btn" data-type-archive title="${type.archived ? 'Bring back' : 'Retire this type'}"><i class="fas ${type.archived ? 'fa-rotate-left' : 'fa-box-archive'}"></i></button>
+                </div>`; }).join('')}
+              <datalist id="fmdx-type-colors">${palette.map((color) => `<option value="${color}"></option>`).join('')}</datalist>
+            </div>
+            <p class="fmdx-section-label">Templates</p>
+            <div class="fmdx-types">
+              ${activeTemplates().map((tpl) => `
+                <label class="fmdx-type-row template"><span>${esc(firstText(tpl.name, 'Template'))}</span>
+                  <select class="fmdx-input" data-template-type="${esc(tpl.id)}">${live.filter((type) => type.id).map((type) => `<option value="${esc(type.id)}" ${filedUnder(tpl) === type.id ? 'selected' : ''}>${esc(type.label)}</option>`).join('')}${filedUnder(tpl) ? '' : '<option value="" selected>Other</option>'}</select>
+                </label>`).join('')}
+            </div>`;
+          body.querySelector('[data-types-back]').addEventListener('click', () => renderStepOne());
+          body.querySelector('[data-types-add]').addEventListener('click', () => { draft.types.push({ id: '', label: 'New type', color: palette[draft.types.length % palette.length], icon: '', kind: 'generic', department_ids: [], archived: false }); draw(); body.querySelector(`[data-type-row="${draft.types.length - 1}"] [data-type-label]`)?.select(); });
+          body.querySelectorAll('[data-type-row]').forEach((row) => {
+            const index = Number(row.dataset.typeRow);
+            const type = draft.types[index];
+            const swap = (to) => { [draft.types[index], draft.types[to]] = [draft.types[to], draft.types[index]]; draw(); };
+            row.querySelector('[data-type-up]')?.addEventListener('click', () => swap(index - 1));
+            row.querySelector('[data-type-down]')?.addEventListener('click', () => swap(index + 1));
+            row.querySelector('[data-type-label]').addEventListener('change', (event) => { type.label = cleanText(event.target.value) || type.label; draw(); });
+            row.querySelector('[data-type-color]').addEventListener('change', (event) => { type.color = event.target.value; });
+            row.querySelector('[data-type-kind]').addEventListener('change', (event) => { type.kind = event.target.value; });
+            row.querySelectorAll('[data-type-department]').forEach((chip) => chip.addEventListener('click', () => {
+              const ids = new Set(arrayValue(type.department_ids));
+              if (ids.has(chip.dataset.typeDepartment)) ids.delete(chip.dataset.typeDepartment); else ids.add(chip.dataset.typeDepartment);
+              type.department_ids = [...ids];
+              draw();
+            }));
+            row.querySelector('[data-type-archive]').addEventListener('click', () => { type.archived = !type.archived; draw(); });
+          });
+          body.querySelectorAll('[data-template-type]').forEach((select) => select.addEventListener('change', () => {
+            // New types get their id when saved; until then they are told apart by position.
+            const target = live.find((type) => type.id === select.value);
+            if (target && target.id) draft.assignments[select.dataset.templateType] = target.id; else delete draft.assignments[select.dataset.templateType];
+          }));
+          body.querySelector('[data-types-save]').addEventListener('click', async (event) => {
+            event.currentTarget.disabled = true;
+            try {
+              const saved = objectValue(await api().documents.saveTypes(orgId(), draft.types, draft.assignments));
+              org.types = arrayValue(saved.types).map(objectValue);
+              org.assignments = objectValue(saved.assignments);
+              picker.type = '';
+              renderStepOne();
+            } catch (error) {
+              showToast('Documents', errorMessage(error, 'The document types could not be saved.'), false);
+              event.currentTarget.disabled = false;
+            }
+          });
+        };
+        draw();
       }
 
       /** Start the chosen document: paper intake, its workflow, or the inputs form. */

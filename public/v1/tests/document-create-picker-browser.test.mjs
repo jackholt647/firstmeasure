@@ -43,7 +43,7 @@ async function open(browser, { pinned = null } = {}) {
       const project = () => ({ name: 'Maple Street' });
       const showToast = (...args) => window.calls.push(['toast', ...args]);
       const errorMessage = (error, fallback) => (error && error.message) || fallback;
-      const api = () => ({ documents: { settings: async () => ({ settings: { pinned_template_ids: window.__pinned } }), pinTemplates: async (org, ids) => { window.calls.push(['pin', ids]); return { ok: true }; } } });
+      const api = () => ({ documents: { settings: async () => ({ settings: { pinned_template_ids: window.__pinned } }), pinTemplates: async (org, ids) => { window.calls.push(['pin', ids]); return { ok: true }; }, types: async () => window.__types, saveTypes: async (org, types, assignments) => { window.calls.push(['types', types, assignments]); window.__types = { ...window.__types, types: types.map((type, index) => ({ ...type, id: type.id || 'new_' + index })), assignments }; return window.__types; } } });
       const loadCatalog = async () => ({ types: [['proposal','Proposal'],['contract','Contract'],['change_order','Change Order'],['invoice','Invoice'],['completion_certificate','Completion Certificate'],['document','Document']].map(([id, label]) => ({ id, label })) });
       const loadTemplates = async () => window.__templates;
       const startPaperUpload = (templateId, type) => window.calls.push(['upload', templateId, type]);
@@ -52,6 +52,8 @@ async function open(browser, { pinned = null } = {}) {
       const paramFieldHtml = () => '';
     `;
     window.__templates = TEMPLATES; window.__pinned = pinned;
+    const kinds = [['proposal','Proposal'],['contract','Contract'],['change_order','Change Order'],['invoice','Invoice'],['completion_certificate','Completion Certificate'],['generic','Plain document']];
+    window.__types = { types: kinds.map(([id, label]) => ({ id, label: id === 'generic' ? 'Other' : label, kind: id, color: '', icon: '', department_ids: [], archived: false })), assignments: {}, kinds: kinds.map(([id, label]) => ({ id, label })) };
     // Step two is not under test: record that the picker handed over.
     const create = createCode.replace('      async function renderStepTwo(){', '      async function renderStepTwo(){ window.calls.push([\'create\', wizard.type, wizard.template && wizard.template.id]); return;');
     // eslint-disable-next-line no-new-func
@@ -76,7 +78,7 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     await page.locator('[data-pick-department="dep_gutter"]').click();
     assert.ok((await names(page, '.fmdx-tpl-grid')).includes('Gutter proposal'));
     // Types are filters with counts; a type with nothing to group is not one.
-    assert.equal(await page.locator('.fmdx-fchips [data-pick-type="document"]').count(), 0);
+    assert.equal(await page.locator('.fmdx-fchips [data-pick-type="generic"]').count(), 0);
     await page.locator('.fmdx-fchips [data-pick-type="contract"]').click();
     assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Roofing contract', 'Paper contract intake']);
     await page.locator('.fmdx-fchips [data-pick-type=""]').click();
@@ -109,7 +111,7 @@ test('pins are the organization\'s, Blank asks what kind, and Upload goes to pap
     assert.deepEqual(await page.evaluate(() => window.calls.filter((call) => call[0] === 'pin').map((call) => call[1])), [['tpl_inv', 'tpl_co'], ['tpl_co']]);
     // Blank: no type filter in use, so it asks; the generic type reads as a plain document.
     await page.locator('[data-create-blank]').click();
-    assert.match(await page.locator('.fmdx-menu').innerText(), /Plain document/);
+    assert.match(await page.locator('.fmdx-menu').innerText(), /Completion Certificate[\s\S]*Other/);
     await page.locator('.fmdx-menu [data-menu-type="change_order"]').click();
     await page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
     assert.deepEqual(await page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'change_order', null]);
@@ -121,5 +123,38 @@ test('pins are the organization\'s, Blank asks what kind, and Upload goes to pap
     await second.page.locator('[data-create-upload]').click();
     assert.deepEqual(await second.page.evaluate(() => window.calls.find((call) => call[0] === 'upload')), ['upload', '', 'contract']);
     assert.equal(await second.page.locator('.fmdx-tpl-row').count(), 0, 'an organization may pin nothing');
+  } finally { await browser.close(); }
+});
+
+test('document types belong to the organization: renamed, added, given departments, and templates refiled', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await open(browser);
+    await page.locator('[data-manage-types]').click();
+    // Rename Proposal, give Contract to Gutters only, add a type of our own.
+    await page.locator('[data-type-row="0"] [data-type-label]').fill('Estimates');
+    await page.locator('[data-type-row="0"] [data-type-label]').dispatchEvent('change');
+    await page.locator('[data-type-row="1"] [data-type-department="dep_gutter"]').click();
+    await page.locator('[data-types-add]').click();
+    await page.locator('[data-type-row="6"] [data-type-label]').fill('Warranties');
+    await page.locator('[data-type-row="6"] [data-type-label]').dispatchEvent('change');
+    await page.locator('[data-types-save]').click();
+    await page.waitForSelector('[data-tpl-search]');
+    const saved = await page.evaluate(() => window.calls.find((call) => call[0] === 'types'));
+    assert.equal(saved[1][0].label, 'Estimates');
+    assert.deepEqual(saved[1][1].department_ids, ['dep_gutter']);
+    assert.equal(saved[1][6].label, 'Warranties');
+    // The picker uses the new names, and a type given to another department is out of this user's view.
+    assert.match(await page.locator('.fmdx-fchips [data-pick-type="proposal"]').innerText(), /Estimates/);
+    assert.ok(!(await names(page, '.fmdx-tpl-grid')).includes('Roofing contract'), 'Contract now belongs to Gutters');
+    // File a template under the new type.
+    await page.locator('[data-manage-types]').click();
+    await page.locator('[data-template-type="tpl_cert"]').selectOption({ label: 'Warranties' });
+    await page.locator('[data-types-save]').click();
+    await page.waitForSelector('[data-tpl-search]');
+    await page.locator('.fmdx-fchips [data-pick-type="new_6"]').click();
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Completion certificate']);
+    if (process.env.TYPES_SHOT) { await page.locator('[data-manage-types]').click(); await page.screenshot({ path: process.env.TYPES_SHOT }); }
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
