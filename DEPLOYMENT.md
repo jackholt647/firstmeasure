@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 conference calls: [Add people to active calls](deploy/digitalocean/development-conference-20261009.md) records teammate/external invitations, participant controls, current-development integration, verification and the development-only rollout.
+
 October 9 phone workspace: [Calls layout, badges, optional audio, and group-safe routing](deploy/digitalocean/development-phone-workspace-20261009.md) records the verified development-only rollout and the remaining true group-MMS decision.
 
 October 8 shared trays: [Unified tray headers and tabs](deploy/digitalocean/development-tray-shell-20261008.md) records the AI Assistant, To Do, and Phone tray shell, phone workspace entry repair, focused browser checks, and development-only rollout.
