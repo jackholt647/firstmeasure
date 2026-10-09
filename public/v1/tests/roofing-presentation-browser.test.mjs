@@ -132,11 +132,19 @@ test('quick successive picks keep the last one on screen, and Details works when
   });
   const options=page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment"][data-part-role="option"]');
   const checked=()=>options.evaluateAll(list=>list.map(el=>el.getAttribute('aria-checked')).join());
-  await options.nth(1).click();await page.waitForTimeout(150);await options.nth(2).click();
+  const started=await page.evaluate(()=>slow.state().totals.total_cents);
+  await options.nth(1).click();
+  // The price moves at once, long before the slow server answers.
+  assert.equal(await page.evaluate(()=>slow.state().totals.total_cents),started+168000-142800);
+  assert.equal(await page.evaluate(()=>seen.length),0,'nothing has come back from the server yet');
+  await page.waitForTimeout(150);await options.nth(2).click();
+  assert.equal(await page.evaluate(()=>slow.state().totals.total_cents),started+226800-142800);
   // The answer to the first click arrives while the second is still on its way: nothing flips back.
   for(const wait of [120,200,200]){await page.waitForTimeout(wait);assert.equal(await checked(),'false,false,true');}
   await page.waitForFunction(()=>seen.length===2);
   assert.equal(await checked(),'false,false,true');
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(()=>slow.state().totals.total_cents),started+226800-142800,'the server agrees');
   // Details opens, and the option keeps its selected look.
   await page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment"][data-part-role="option.more"]').nth(1).click();
   assert.equal(await page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment_detail"][data-part-role="detail"]').getAttribute('data-part-open'),'');

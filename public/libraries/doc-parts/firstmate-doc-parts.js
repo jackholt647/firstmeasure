@@ -406,7 +406,7 @@
     const option = (entry) => ({
       id: text(obj(entry).id), title: text(obj(entry).title || obj(entry).name), description: text(obj(entry).description),
       image_url: text(obj(entry).image_url), swatch: text(obj(entry).swatch), color: text(obj(entry).color_hex), details: text(obj(entry).details), price_cents: Number(obj(entry).price_cents) || 0,
-      delta_cents: Number(obj(entry).delta_cents) || 0, selected: obj(entry).selected === true
+      delta_cents: obj(entry).delta_cents === undefined || obj(entry).delta_cents === null ? undefined : Number(obj(entry).delta_cents) || 0, selected: obj(entry).selected === true
     });
     const deposit = arr(obj(p.pricing).schedule).filter((entry) => obj(entry).due_rule === 'on_signature').reduce((sum, entry) => sum + (Number(obj(entry).amount_cents) || 0), 0);
     const total = Number(totals.total_cents) || 0;
@@ -436,16 +436,47 @@
     return { multiple: false, group: text(source.id), title: text(group.title), options: arr(group.options) };
   }
 
+  /**
+   * Move the totals by what a pick changes, at once. The server's answer
+   * replaces this a moment later; it is nearly always the same number, because
+   * each option already carries the exact difference it makes (delta_cents).
+   */
+  function shiftTotals(state, delta) {
+    const totals = obj(state.totals);
+    const before = Number(totals.total_cents) || 0;
+    if (!delta || !Number.isFinite(delta)) return;
+    const total = before + delta;
+    // The deposit keeps its share of the total.
+    const deposit = before > 0 ? Math.round((Number(totals.deposit_cents) || 0) * total / before) : Number(totals.deposit_cents) || 0;
+    state.totals = Object.assign({}, totals, { total_cents: total, subtotal_cents: (Number(totals.subtotal_cents) || 0) + delta, deposit_cents: deposit, balance_cents: total - deposit });
+  }
   /** Report a pick: one of a group, or an add-on on or off. */
   function choose(e, source, option, presented) {
+    const known = (value) => value !== undefined && value !== null && Number.isFinite(Number(value));
     if (source.multiple) {
       e.input({ type: 'addon', addon: option.id, selected: !option.selected, presented }, (state) => {
-        arr(state.addons).forEach((entry) => { if (entry.id === option.id) entry.selected = !option.selected; });
+        arr(state.addons).forEach((entry) => {
+          if (entry.id !== option.id) return;
+          const price = Number(entry.price_cents) || 0;
+          shiftTotals(state, known(entry.delta_cents) ? Number(entry.delta_cents) : (entry.selected ? -price : price));
+          entry.selected = !entry.selected;
+          // Toggling it back would undo exactly this.
+          if (known(entry.delta_cents)) entry.delta_cents = -Number(entry.delta_cents);
+        });
         return state;
       });
     } else if (!option.selected) {
       e.input({ type: 'choice', group: source.group, group_id: text(groupOf(e.state(), source.group).id), option: option.id, presented }, (state) => {
-        arr(groupOf(state, source.group).options).forEach((entry) => { entry.selected = entry.id === option.id; });
+        const options = arr(groupOf(state, source.group).options);
+        const from = obj(options.find((entry) => entry.selected));
+        const to = obj(options.find((entry) => entry.id === option.id));
+        const delta = known(to.delta_cents) ? Number(to.delta_cents) : (Number(to.price_cents) || 0) - (Number(from.price_cents) || 0);
+        shiftTotals(state, delta);
+        options.forEach((entry) => {
+          // Every other option's difference is now measured from the new choice.
+          if (known(entry.delta_cents)) entry.delta_cents = Number(entry.delta_cents) - delta;
+          entry.selected = entry.id === option.id;
+        });
         return state;
       });
     }
