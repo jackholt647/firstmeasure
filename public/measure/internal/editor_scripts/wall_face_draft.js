@@ -1993,7 +1993,11 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
    if(upperChimney){face={...copy(face),chimney:{...copy(face.chimney),drivesFootprint:false}};scene=scene.map(f=>f.id===face.id?copy(face):f);}
    if(face){const moveReference=k==='m'&&region&&d.faces.some(f=>f!==region&&!f.boundaryHole&&!f.solidId&&!deleted(d,f))?{key:currentDraftId(),id:region.id}:null;tool={upperChimney,chimneyFootprint:chimneyFootprint&&copy(chimneyFootprint),moveReference,moveMode:0,priorRegion:selectedRegion&&copy(selectedRegion),wholeDraft,mode:k==='e'?'extrude':'move',supports,scene,snapGeometry:sceneLines(),heightPoints:heightPoints(),sceneDrafts:scene?copy(all()):null,kind:'extrude',inwardSign:inwardDistanceSign(face),face:copy(face),before,priorSolid:selectedSolid,priorDraft:activeDraftKey,startX:mouse.clientX,startY:mouse.clientY,baseAmount:0,axis:extrudeAxis(face),baseFaces:copy(window.WallSolidGeometry.baseScope(face,host.state()?.wallEdits?.$base?.faces||host.state()?.base?.faces||[])),op:Date.now(),draftKey:region?currentDraftId():null,regionId:region?.id};if(moveReference){if(face.feature&&k==='m'){tool.moveMode=3;tool.moveFrame=F.viewFrame(face.points,p=>host.screen(p,'3d'));tool.planeStart=rayPoint({frame:tool.moveFrame},mouse);}moveModeStatus();host.redraw();}return true;}
   }
-if(k==='n'&&!tool){const ps=selectedWorldPoints();if(ps.length){const before=copy(host.state().wallEdits);d=pointDrawingOwner(ps);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}}}
+if(k==='n'&&!tool){const ps=selectedWorldPoints();if(ps.length){
+ // Shared bottom vertices are usually picked through their wall owner. N
+ // must still be able to draw on the base, unless a wall face was chosen.
+ if((!preferredDraft&&!preferredSolid||mouse&&host.pasteHost?.(mouse))&&host.startBaseLine?.(ps))return true;
+ const before=copy(host.state().wallEdits);d=pointDrawingOwner(ps);if(d){tool={kind:'draw',before};host.message('Click on this face to place the connected point');host.redraw();return true;}}}
 if(!d&&['n','q'].includes(k)&&selected())d=ensure(selected());if(!d)return false;
   if(k==='z'&&(e.ctrlKey||e.metaKey)&&tool){if(tool.before)host.state().wallEdits=tool.before;tool=null;clearGuides();host.redraw();return true;}
   if(k==='escape'&&tool){if(tool.before)host.state().wallEdits=tool.before;tool=null;clearGuides();host.redraw();return true;}

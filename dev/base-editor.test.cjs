@@ -198,3 +198,16 @@ test('L does not level point selections, wall layers, or browser shortcuts',()=>
  f.setLayer('walls');
  assert.equal(f.key('l'),false);assert.equal(JSON.stringify(f.state.base),before);
 });
+
+ test('N handed off from a shared wall corner draws and splits the pitched base',()=>{
+  const f=fixture(true);f.state.base.faces[0].points.forEach(p=>p.z=10+.1*p.x+.2*p.y);
+  const base=JSON.stringify(f.state.base);f.setLayer('walls');
+  assert.equal(f.editor.startLine([{x:0,y:0,z:15}]),false,'off-plane wall points stay with the wall');
+  assert.equal(f.editor.startLine([f.state.base.faces[0].points[0]]),true);
+  assert.equal(f.editor.busy(),true);assert.equal(JSON.stringify(f.state.base),base);
+  f.listeners.pointermove(f.e(100,100));f.click(100,100);
+  assert.equal(f.state.base.faces.length,2,f.els.get('base-status').textContent);assert.equal(f.changes(),1);
+  assert.ok(f.state.base.faces.every(face=>face.points.every(p=>Math.abs(p.z-10-.1*p.x-.2*p.y)<1e-8)));
+  f.editor.keyDown({key:'z',ctrlKey:true,preventDefault(){},stopImmediatePropagation(){}});
+  assert.equal(JSON.stringify(f.state.base),base,'undo restores the unsplit base');
+ });
