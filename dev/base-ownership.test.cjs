@@ -17,6 +17,17 @@ test('real chimney contact joins the base without losing its silhouette or reint
  // Point-only contacts must still be separate simple polygons.
  const square=(x,y)=>({points:[p(x,y),p(x+1,y),p(x+1,y+1),p(x,y+1)]});assert.equal(K.union([square(0,0),square(1,1)]).length,2);
 });
+
+test('joined chimney footprint stays in its base through rotation, leveling and saved reload',()=>{
+ let state=copy(require('./fixtures/exterior-engine-reloaded.json'));C.syncFoundation(state,{force:true});
+ for(const [mode,value,direction]of [['pitch',.15,{x:1,y:0}],['pitch',-.2,{x:0,y:1}],['flat',0,{x:1,y:0}]]){
+  const base=state.wallEdits.$base||state.base,before=copy(base),ids=base.faces.map(f=>f.id),area=base.faces.reduce((n,f)=>n+K.area({points:f.points.map(p=>({...p,z:0}))}),0);
+  for(const f of base.faces)Object.assign(f,B.transform(f,mode,value,direction));S.rebind(before,base);
+  state.wallEdits=F.follow(state.wallEdits,before,base);if(state.wallEdits.$base)state.wallEdits.$base=base;else state.base=base;
+  C.syncFoundation(state);S.resolve(base);assert.equal(base.faces.length,ids.length);assert.ok(Math.abs(base.faces.reduce((n,f)=>n+K.area({points:f.points.map(p=>({...p,z:0}))}),0)-area)<1e-5);graphIsSupported(base);
+  state=JSON.parse(JSON.stringify(state));const loaded=state.wallEdits.$base||state.base;C.syncFoundation(state);S.resolve(loaded);assert.equal(loaded.faces.length,1);graphIsSupported(loaded);
+ }
+});
 test('cut, recess across the cut, pitch and raise keep each wire on its own base plane',()=>{
  let base={faces:[{id:'base',points:[p(0,0),p(12,0),p(12,8),p(0,8)]}]};S.ensure(base);S.connect(base,[S.add(base,p(6,0)),S.add(base,p(6,8))]);assert.equal(base.faces.length,2);
  const source={points:[p(2,0),p(8,0),p(8,0,3),p(2,0,3)]},cap={points:source.points.map(p=>({...p,y:p.y+1}))};base=B.extrudeWall(base,source,cap);assert.equal(base.faces.length,2);graphIsSupported(base);
