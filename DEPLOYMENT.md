@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 phone workspace: [Calls layout, badges, optional audio, and group-safe routing](deploy/digitalocean/development-phone-workspace-20261009.md) records the verified development-only rollout and the remaining true group-MMS decision.
+
 October 8 shared trays: [Unified tray headers and tabs](deploy/digitalocean/development-tray-shell-20261008.md) records the AI Assistant, To Do, and Phone tray shell, phone workspace entry repair, focused browser checks, and development-only rollout.
 
 October 8 modal phone: [Phone workspace and call history](deploy/digitalocean/development-phone-modal-20261008.md) records the Windows-managed modal, browser validation, development-only rollout, and release handoff.
