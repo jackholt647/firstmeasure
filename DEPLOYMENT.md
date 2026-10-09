@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 project photos: [Typed cover and reference-photo fields](deploy/digitalocean/development-project-cover-20261009.md) records the shared Photo custom-field cover, validation and verified development rollout.
+
 October 8 Call Center: [Personal, caller and manager views](deploy/digitalocean/development-call-center-modes-20261008.md) records the three screens, multi-list power dialing, manager lead controls and verified development rollout.
 
 October 8 header trays: [Reset placement after close](deploy/digitalocean/development-header-tray-reset-20261008.md) records docked reopening, retained drafts, browser regressions, and the verified development rollout.
