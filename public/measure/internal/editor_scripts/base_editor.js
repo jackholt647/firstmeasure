@@ -299,7 +299,7 @@ window.createBaseEditor=function(host){
     if(e.repeat)return true;
     if(points.length||selectedFaces.length>1||sketchEditor?.singlePoint()||sketchEditor?.singleLine())throw Error('Select one purple base face to level.');
     cancelPreview();
-    const f=face(),flat=B.transform(f,'flat',0);
+    const f=face(),flat=B.transform(f,'flat',0,{x:1,y:0},B.levelPivot(f,base().faces));
     if(JSON.stringify(f)===JSON.stringify(flat))return true;
     checkpoint();Object.assign(f,flat);
     window.BaseSketchGeometry?.rebind(history.at(-1).baseBefore,base());

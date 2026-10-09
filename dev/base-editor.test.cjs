@@ -199,6 +199,15 @@ test('L does not level point selections, wall layers, or browser shortcuts',()=>
  assert.equal(f.key('l'),false);assert.equal(JSON.stringify(f.state.base),before);
 });
 
+test('L preserves the one neighbouring seam, follows only attached wall bottoms and undoes atomically',()=>{
+ const f=fixture(true),face=f.state.base.faces[0];face.points.forEach(p=>p.z=p.y/100);
+ const neighbour={id:'next',points:[{x:0,y:100,z:1},{x:100,y:100,z:1},{x:100,y:200,z:3},{x:0,y:200,z:3}]};f.state.base.faces.push(neighbour);
+ f.state.wallEdits={$surfaces:[{id:'wall',points:[{x:0,y:0,z:0},{x:100,y:0,z:0},{x:100,y:0,z:5},{x:0,y:0,z:5}]}]};
+ f.els.get('base-selection').value='face';f.click(50,50);const before=JSON.stringify(f.state),other=neighbour.points.map(({x,y,z})=>({x,y,z}));
+ f.key('l');assert.ok(face.points.every(p=>p.z===1));assert.deepEqual(neighbour.points.map(({x,y,z})=>({x,y,z})),other);assert.deepEqual(f.state.wallEdits.$surfaces[0].points.map(p=>p.z),[1,1,5,5]);
+ f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state),before);
+});
+
  test('N handed off from a shared wall corner draws and splits the pitched base',()=>{
   const f=fixture(true);f.state.base.faces[0].points.forEach(p=>p.z=10+.1*p.x+.2*p.y);
   const base=JSON.stringify(f.state.base);f.setLayer('walls');

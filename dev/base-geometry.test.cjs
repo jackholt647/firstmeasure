@@ -1,5 +1,15 @@
 const test=require('node:test'),assert=require('node:assert/strict'),B=require('../public/measure/internal/editor_scripts/base_geometry.js'),G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),T=require('../public/measure/internal/editor_scripts/ground_geometry.js');
 const p=(x,y,z=0)=>({x,y,z}),square={id:'base-1',points:[p(0,0),p(10,0),p(10,10),p(0,10)]};
+test('level pivot follows a single horizontal shared edge, including partial and subdivided contacts',()=>{
+ const low={id:'low',points:[p(0,0,0),p(10,0,0),p(10,5,1),p(0,5,1)]},slope={id:'slope',points:[p(0,5,1),p(5,5,1),p(10,5,1),p(10,10,3),p(0,10,3)]},high={id:'high',points:[p(2,10,3),p(8,10,3),p(8,15,4),p(2,15,4)]};
+ for(const [face,z]of [[low,1],[high,3]]){const before=JSON.stringify(slope),pivot=B.levelPivot(face,[low,slope,high]),flat=B.transform(face,'flat',0,{x:1,y:0},pivot);assert.equal(pivot.z,z);assert.ok(flat.points.every(p=>p.z===z));assert.deepEqual(flat.points.map(p=>[p.x,p.y]),face.points.map(p=>[p.x,p.y]));assert.equal(JSON.stringify(slope),before);}
+ assert.deepEqual(B.levelPivot(slope,[low,slope,high]),B.center(slope),'two neighbours retain the center');
+});
+test('level pivot ignores corner-only and vertically separated contacts and does not flatten about a sloped seam',()=>{
+ const f={id:'f',points:[p(0,0),p(10,0,1),p(10,10,1),p(0,10)]};
+ const corner={id:'corner',points:[p(10,10,1),p(12,10,1),p(12,12,1)]},above={id:'above',points:[p(10,0,2),p(12,0,2),p(12,10,2),p(10,10,2)]},sloped={id:'slope',points:[p(0,10),p(10,10,1),p(10,12,1),p(0,12)]};
+ for(const others of [[],[corner],[above],[sloped]])assert.deepEqual(B.levelPivot(f,[f,...others]),B.center(f));
+});
 test('split creates independent polygons and moving one section changes only its wall bottoms',()=>{
  const pieces=B.split(square,[p(5,0),p(5,10)]);assert.equal(pieces.length,2);
  const left=pieces.find(f=>B.center(f).x<5),right=pieces.find(f=>B.center(f).x>5),before=JSON.stringify(right);

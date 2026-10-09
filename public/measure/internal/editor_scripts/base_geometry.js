@@ -317,6 +317,24 @@ function split(face,path){
  const walk=(from,to)=>{const arr=[];for(let i=from;;i=(i+1)%ring.length){arr.push(ring[i]);if(i===to)break;}return arr;};
  return [validate({id:face.id,points:[...walk(a,b),...inner.slice().reverse()]}),validate({id:face.id+'-split',points:[...walk(b,a),...inner]})].map(copy);
 }
+// A single level contact is an unambiguous hinge for flattening a floor.
+// Corner-only contacts, multiple neighbours and sloping seams retain the
+// center pivot: a horizontal face cannot preserve a sloping shared edge.
+function levelPivot(face,others){
+ const W=typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):root.WallSolidGeometry;
+ const contacts=[];
+ for(const other of others){if(other===face||other.id===face.id||other.deleted)continue;const points=[];
+  for(const ring of [face.points,...(face.holes||[])])for(let i=0;i<ring.length;i++){
+   const a=ring[i],b=ring[(i+1)%ring.length];
+   for(const [lo,hi]of W.sharedIntervals(a,b,[other]))for(const t of [lo,hi])points.push({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
+  }
+  if(points.length)contacts.push(points);
+ }
+ if(contacts.length!==1)return center(face);
+ const points=contacts[0],zs=points.map(p=>p.z);
+ if(Math.max(...zs)-Math.min(...zs)>1e-5)return center(face);
+ return center({points});
+}
 function transform(face,mode,value,direction={x:1,y:0},pivot=center(face)){
  const next=copy(face),plane=mode==='pitch'?G.plane(face.points):null;
  for(const p of next.points){
@@ -409,6 +427,6 @@ function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
   }
  }return best;
 }
-const api={usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,center,triangles,terrain,fromRoof,repairInitial,fitGrade,split,transform,validate,boundary,followWalls};
+const api={usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,split,transform,validate,boundary,followWalls};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
