@@ -276,6 +276,52 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
  });
  return G.deduplicate(clipRoofTops([...supported,...result],roof),.002,{preserveJunctions:true}).walls;
 }
+// Correct persisted generated contact planes without regenerating walls or
+// moving a foundation. Drafts can own these panels even before a user edits
+// them; update their local coordinate system as well as cached wall records.
+function repairStoredRoofContacts(state){
+ if(!state?.roof||!state.sources)return false;
+ const keys=['deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'];
+ const edits=state.wallEdits||{},drafts=Object.values(edits.$drafts||{}),protectedIds=new Set(Object.keys(edits).filter(k=>!k.startsWith('$')));
+ const eligible=d=>d.generatedRoofContact&&!d.frame&&!(d.removedPoints||[]).length&&!(d.deletedFaces||[]).length&&(d.sketch?.nodes||[]).every(p=>p.fixed)&&(d.faces||[]).every(f=>!f.solidId&&!f.curvedSurface&&!f.opening&&!(f.holes||[]).length);
+ for(const d of drafts)if(!eligible(d))for(const id of d.members||[])protectedIds.add(id);
+ for(const f of edits.$surfaces||[])if(f.draftKey)for(const id of edits.$drafts?.[f.draftKey]?.members||[])protectedIds.add(id);
+ const latest=state.alignedWalls||state.cleanedWalls||state.mergedWalls||state.deduplicated||[],plans=new Map();
+ for(const w of latest){
+  if(!w.id.includes(':upper-contact-')||protectedIds.has(w.id))continue;
+  const support=state.roof.faces.find(f=>f.id===w.targetId),source=state.sources.find(s=>s.id===w.sourceId);if(!support||!source)continue;
+  const a=w.bottom[0],b=w.bottom[1],len=dist(a,b);if(len<.002)continue;
+  const u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x};
+  for(let i=0;i<support.points.length;i++){
+   const p=support.points[i],q=support.points[(i+1)%support.points.length],vx=q.x-p.x,vy=q.y-p.y,l=dist(p,q);if(l<.1||Math.abs(u.x*vy-u.y*vx)/l>.02)continue;
+   const den=n.x*vy-n.y*vx;if(Math.abs(den)<1e-9)continue;
+   const project=r=>{const t=((p.x-r.x)*vy-(p.y-r.y)*vx)/den;return {...r,x:r.x+n.x*t,y:r.y+n.y*t};};
+   const ends=[a,b].map(project),movement=Math.max(...ends.map((p,i)=>dist(p,w.bottom[i])));
+   if(movement<.00001||movement>.01||ends.some(r=>!G.onEdge(r,p,q,.002)))continue;
+   plans.set(w.id,{project,sourceId:w.sourceId,targetId:w.targetId});break;
+  }
+ }
+ // A draft must still occupy its generated plane. Fixed nodes alone do not
+ // prove it was never moved, and an intentional move must remain untouched.
+ for(const d of drafts){
+  const owned=(d.members||[]).map(id=>latest.find(w=>w.id===id));
+  if(!owned.some(w=>w&&plans.has(w.id)))continue;
+  const w=owned.find(w=>w&&plans.has(w.id)),a=w.bottom[0],b=w.bottom[1],len=dist(a,b);
+  const valid=eligible(d)&&owned.every(w=>w&&w.sourceId===plans.get(w.id)?.sourceId&&w.targetId===plans.get(w.id)?.targetId)&&d.faces.every(f=>f.points.every(p=>{const q={x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x};return Math.abs((q.x-a.x)*(b.y-a.y)-(q.y-a.y)*(b.x-a.x))/len<.002;}));
+  if(!valid)for(const id of d.members||[])plans.delete(id);
+ }
+ if(!plans.size)return false;
+ for(const d of drafts){const plan=(d.members||[]).map(id=>plans.get(id)).find(Boolean);if(!plan)continue;
+  const origin=plan.project(d.origin),unit=plan.project({x:d.origin.x+d.u.x,y:d.origin.y+d.u.y}),scale=dist(origin,unit);
+  const seen=new Set(),scalePoint=p=>{if(!seen.has(p)){p.x*=scale;seen.add(p);}};
+  for(const f of d.faces||[])for(const ring of [f.points,...(f.holes||[])])ring.forEach(scalePoint);
+  for(const p of d.sketch?.nodes||[])scalePoint(p);
+  for(const ring of d.sketch?.outlines||[])ring.forEach(scalePoint);
+  d.origin=origin;d.u={x:(unit.x-origin.x)/scale,y:(unit.y-origin.y)/scale};
+ }
+ for(const key of keys)for(const w of state[key]||[]){const plan=plans.get(w.id);if(plan){w.bottom=w.bottom.map(plan.project);w.top=w.top.map(plan.project);}}
+ return true;
+}
 function repairInitial(base,roof,grade,walls){
  if(base?.source!=='Wall perimeter'||base.sketch?.nodes.some(p=>!p.fixed)||base.sketch?.edges.some(e=>!e.fixed))return base;
  const pl=G.plane(grade.points),loops=base.faces.map(f=>f.points);
@@ -440,6 +486,6 @@ function boundaryAxis(face,direction,tolerance=5*Math.PI/180){
   }
  }return best;
 }
-const api={usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,split,transform,validate,boundary,followWalls};
+const api={repairStoredRoofContacts,usesRoofEnvelope,reconcileRoofWalls,boundaryAxis,cleanBoundarySpikes,extrudeWall,heightSnap,levelPivot,center,triangles,terrain,fromRoof,repairInitial,fitGrade,split,transform,validate,boundary,followWalls};
 if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BaseGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

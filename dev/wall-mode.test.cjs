@@ -800,3 +800,12 @@ test('Wallless is a resoffit preset alongside depths, with exclusive selection a
  input.value='';input.oninput();f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),'invalid');
  presets[5].onclick();presets[1].onclick();assert.equal(input.disabled,false);assert.deepEqual(selected(),['0.5']);f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),.1524);
 });
+
+test('restore repairs persisted generated contacts before rendering and persists the repaired draft',()=>{
+ const B=require('../public/measure/internal/editor_scripts/base_geometry'),captured=require('./fixtures/saved-wall-contact-drafts.json'),M=require('../public/measure/internal/editor_scripts/exterior_model');
+ const seed=fixture(true);seed.ctx.WallMode.setEnabled(true);seed.soffits[1].onclick();const saved=JSON.parse(JSON.stringify(seed.ctx.WallMode.serialize()));Object.assign(saved,JSON.parse(JSON.stringify(captured)));saved.roof.points=saved.roof.faces.flatMap(f=>f.points);saved.roof.connections=[];saved.stage=1;saved.engineVersion='exterior-kernel-2';
+ const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});const repaired=JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize()));
+ const expected=JSON.parse(JSON.stringify(saved));assert.equal(B.repairStoredRoofContacts(expected),true);assert.deepEqual(repaired.wallEdits,expected.wallEdits);
+ const reloaded=fixture(true);reloaded.ctx.WallMode.restore('fixture',{exteriorsWalls:repaired});assert.deepEqual(JSON.parse(JSON.stringify(reloaded.ctx.WallMode.serialize())).wallEdits,expected.wallEdits);
+ assert.notDeepEqual(repaired.wallEdits,saved.wallEdits,'restore repairs visible drafts rather than only future generation');
+});
