@@ -69,6 +69,7 @@
     ['photo','Photo','Choose an image from the associated library','fa-image'],
     ['video','Video','Choose a video from the associated library','fa-video']
   ].map(([value,label,hint,icon])=>({value,label,hint,icon,dataType:'reference'})));
+  const PROJECT_DEFAULT_FIELDS=[{entity:'project',key:'cover_photo',path:'cover_photo',type:'photo',cardinality:'one',label:'Cover photo',order:-1,builtin:true}];
   const CONTACT_DEFAULT_FIELDS=[
     {entity:'contact',key:'relationships.employer',type:'org_contact',label:'Employer',order:0,builtin:true},
     {entity:'contact',key:'relationships.spouse',type:'human_contact',label:'Spouse',order:1,builtin:true},
@@ -332,7 +333,7 @@
   function normalizeModule(input = {}){
     const source = objectValue(input);
     const declared=Array.isArray(source.fields)?source.fields:[];
-    const fields = [...CONTACT_DEFAULT_FIELDS.filter(builtin=>!declared.some(f=>f.entity==='contact' && (f.path || f.key)===builtin.key)),...declared]
+    const fields = [...[...CONTACT_DEFAULT_FIELDS,...PROJECT_DEFAULT_FIELDS].filter(builtin=>!declared.some(f=>f.entity===builtin.entity && (f.path || f.key)===builtin.key)),...declared]
       .map(normalizeDefinition)
       .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
     return { version: 3, fields };
@@ -408,7 +409,7 @@
 
   function definitionsFor(entityType, entity = {}, options = {}){
     const fields = [...(options.definitions || cachedFields(options))].filter(f => f.entity === entityType);
-    if (entityType === 'project') fields.push(...projectSchema(entity).fields);
+    if (entityType === 'project') fields.push(...PROJECT_DEFAULT_FIELDS.filter(builtin=>!fields.some(f=>(f.path || f.key)===builtin.path)),...projectSchema(entity).fields);
     const byPath = new Map();
     fields.forEach((field, index) => {
       const normalized = normalizeDefinition(field, index);
@@ -758,7 +759,8 @@
             if(options.entityType==='contact' && id && projectId)result=await root.PlatformAPI.contacts.media(orgId,{contact_id:id,project_id:projectId});
             else if(options.entityType==='project' && id)result=await root.PlatformAPI.media.list(orgId,{project_id:id});
             else result={media:[]};
-            definition.reference_choices=(result.media || []).filter(media=>definition.type==='media' || cleanText(media.content_type).startsWith(definition.type==='photo'?'image/':'video/')).map(media=>({label:media.file_name,reference:{media_id:media.id}}));
+            const trashed = new Set((Array.isArray(entity.photos)?entity.photos:[]).filter(p=>p.in_trash || p.trashed_at || p.deleted_at || p.metadata?.in_trash || p.metadata?.trashed_at || p.metadata?.deleted_at).map(p=>cleanText(p.media_id || p.mediaId || p.id)));
+            definition.reference_choices=(result.media || []).filter(media=>!trashed.has(cleanText(media.id))).filter(media=>definition.type==='media' || cleanText(media.content_type).startsWith(definition.type==='photo'?'image/':'video/')).map(media=>({label:media.file_name,reference:{media_id:media.id}}));
           }
         }catch(error){definition.reference_error=error.message || 'References are unavailable.';definition.reference_choices=[];}
         return;
@@ -1103,8 +1105,8 @@
         try { fields = (await saveDefinitions(fields, options)).fields; drafts.delete(selectedId); scope = next.entity; render(); root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("custom-fields","m_4bb4688766e904","Saved") ?? "Saved"), (globalThis.PlatformLanguage?.text("custom-fields","m_d66c043b6a8789","Custom field updated.") ?? "Custom field updated."), true); }
         catch (error) { button.disabled = false; form.querySelector('[data-cf-status]').textContent = error?.message || 'Could not save.'; }
       });
-      if(selected?.entity==='contact' && CONTACT_DEFAULT_FIELDS.some(row=>row.key===selected.key)){
-        form.querySelector('[data-cf-delete]')?.remove();['type','entity','enabled'].forEach(name=>{if(form.elements[name]){form.elements[name].disabled=true;}});if(form.elements.key)form.elements.key.readOnly=true;
+      if([...CONTACT_DEFAULT_FIELDS,...PROJECT_DEFAULT_FIELDS].some(row=>row.entity===selected?.entity && row.key===selected?.key)){
+        form.querySelector('[data-cf-delete]')?.remove();['type','entity','enabled',...(selected.entity==='project'?['cardinality']:[])].forEach(name=>{if(form.elements[name]){form.elements[name].disabled=true;}});if(form.elements.key)form.elements.key.readOnly=true;
       }
       form?.querySelector('[data-cf-delete]')?.addEventListener('click', async () => {
         const okay = root.Portal?.ui?.confirm ? await root.Portal.ui.confirm(((v0) => globalThis.PlatformLanguage?.text("custom-fields","m_e95c0ed36ba264",`Delete “${v0}”? Existing stored values will be retained but hidden.`,{v0}) ?? `Delete “${v0}”? Existing stored values will be retained but hidden.`)(selected?.label)) : root.confirm(((v0) => globalThis.PlatformLanguage?.text("custom-fields","m_d0987286fd2869",`Delete “${v0}”?`,{v0}) ?? `Delete “${v0}”?`)(selected?.label));

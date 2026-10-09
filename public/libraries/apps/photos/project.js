@@ -516,6 +516,44 @@
     viewer?.refreshIndicators?.();
   }
 
+  function coverPhotoId(){
+    const project = activeProject() || {};
+    return String((project.custom_field_values || project.custom_fields || {}).cover_photo?.media_id || '');
+  }
+
+  async function setProjectCover(photo, viewer){
+    const project = activeProject(), projectId = activeProjectId(project), oid = firstMeasurePhotoOptions().orgId;
+    if (!projectId || !oid) throw new Error('Save the project before choosing a cover.');
+    const target = {scope:'project',organizationId:oid,projectId};
+    const response = await window.PlatformAPI.publication.read(oid,{provider:'custom-fields-project',export:'contract',target});
+    const contract = response.result || response;
+    const field = contract.value?.fields?.find(f=>f.path==='cover_photo');
+    if(contract.status !== 'ready' || !field?.writable) throw new Error('You cannot change this project cover.');
+    const value = photo ? {media_id:projectPhotoId(photo)} : null;
+    const written = await window.PlatformAPI.publication.invoke(oid,'custom-fields.project.write',target,{values:{cover_photo:value},expectedRevision:contract.value.recordRevision},{idempotencyKey:crypto.randomUUID()});
+    const result = written.result || written;
+    if(result.status && result.status !== 'succeeded') throw new Error(result.message || 'The cover could not be saved.');
+    project.custom_field_values = {...(project.custom_field_values || project.custom_fields || {}),cover_photo:value};
+    project.custom_fields = project.custom_field_values;
+    // Synchronize mounted controls so a later autosave cannot restore the old selection.
+    document.querySelectorAll('[data-fm-cf-input="cover_photo"]').forEach(input=>{
+      const encoded = value ? JSON.stringify(value) : '';
+      if(encoded && ![...input.options].some(option=>option.value===encoded)) input.add(new Option(photo.file_name || 'Cover photo',encoded));
+      input.value = encoded;
+    });
+    viewer?.refreshActions?.();
+    viewer?.refreshIndicators?.({pulseId:'project_cover'});
+    showToast('Cover photo',value ? 'Project cover updated.' : 'Project cover removed.',true);
+  }
+
+  function coverViewerActions(){
+    const eligible = ({photo}) => !!projectPhotoId(photo) && String(photo.content_type || photo.mime || '').startsWith('image/');
+    return [
+      {id:'set_project_cover',label:'Set as project cover',icon:'image',visible:context=>eligible(context) && coverPhotoId()!==projectPhotoId(context.photo),onClick:({photo,viewer})=>setProjectCover(photo,viewer)},
+      {id:'remove_project_cover',label:'Remove project cover',icon:'image',visible:({photo})=>!!coverPhotoId() && coverPhotoId()===projectPhotoId(photo),onClick:({viewer})=>setProjectCover(null,viewer)}
+    ];
+  }
+
   function portalViewerIndicators(){
     const indicators = [{
       id:'project_note_conversation',
@@ -525,6 +563,7 @@
       tone:'info',
       visible:({ photo }) => String(photo?.metadata?.source || '').toLowerCase() === 'project_notes'
     }];
+    indicators.push({id:'project_cover',label:'Cover',detail:'Project cover photo',icon:'image',tone:'info',visible:({photo})=>!!coverPhotoId() && coverPhotoId()===projectPhotoId(photo)});
     if (!window.customerPortalMediaEnabled?.()) return indicators;
     indicators.push({
       id: 'customer_portal_shared',
@@ -557,9 +596,10 @@
         }));
       }
     };
-    if (!window.customerPortalMediaEnabled?.()) return [conversationAction];
+    if (!window.customerPortalMediaEnabled?.()) return [...coverViewerActions(),conversationAction];
     const available = ({ photo }) => !!projectPhotoId(photo) && !!window.customerPortalProjectId?.();
     return [
+      ...coverViewerActions(),
       conversationAction,
       {
         id: 'share_customer_portal',

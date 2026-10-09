@@ -5,6 +5,9 @@ import { assertSafeTenantSchema } from "../platform/publication/tenant-schema.js
 import type { JsonObject } from "../platform/storage.js";
 import { Worker } from "node:worker_threads";
 
+export const PROJECT_DEFAULT_FIELDS: JsonObject[] = [
+  {entity:"project",path:"cover_photo",key:"cover_photo",type:"photo",cardinality:"one",label:"Cover photo",required:false,enabled:true,location:"overview",order:-1,builtin:true}
+];
 export const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
 export const types = ["text", "multiline", "email", "phone", "url", "number", "integer", "currency", "percentage", "slider", "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list", "array", "object", "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection", "assignable_subject", ...CONTACT_REFERENCE_TYPES, ...MEDIA_REFERENCE_TYPES];
 export type FieldEntity = "project" | "contact" | "organization";
@@ -100,8 +103,9 @@ export function normalizeDefinitions(input: unknown): JsonObject[] {
     const entity = String(f.entity || "project");
     if (!["project", "contact", "organization"].includes(entity)) throw badRequest("custom_field_entity", "Unknown field owner.");
     const path = fieldPath(f.path || f.key);
-    const builtin=entity==="contact"?CONTACT_DEFAULT_FIELDS.find(row=>row.path===path):undefined;
-    if(builtin && (String(f.type || "text")!==builtin.type || f.enabled===false))throw badRequest("contact_builtin_field","Default contact fields retain their type and remain available; they can be optional and moved.");
+    const builtin=entity==="contact"?CONTACT_DEFAULT_FIELDS.find(row=>row.path===path):entity==="project"?PROJECT_DEFAULT_FIELDS.find(row=>row.path===path):undefined;
+    if(builtin && (String(f.type || "text")!==builtin.type || f.enabled===false))throw badRequest(entity === "contact" ? "contact_builtin_field" : "project_builtin_field","Default fields retain their type and remain available; they can be optional and moved.");
+    if(entity==="project" && builtin && f.cardinality === "many") throw badRequest("project_cover_cardinality","A project has one cover photo.");
     const key = `${entity}:${path}`;
     if ([...seen].some(p => p === key || p.startsWith(key + ".") || key.startsWith(p + "."))) throw badRequest("custom_field_conflict", "Field paths must be unique and cannot overlap. Declare subfields inside the parent schema.");
     seen.add(key);

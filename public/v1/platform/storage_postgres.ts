@@ -511,7 +511,7 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
       const fields = await import("../custom_fields/records.js");
       await withPlatformPostgresClient(client, async () => {
         data = await fields.prepareStoredFields(orgId, collection, data, asObject(current?.data));
-        await fields.validateStoredFields(orgId, collection, data, asObject(current?.data), options.replace);
+        await fields.validateStoredFields(orgId, collection, data, asObject(current?.data), options.replace, id);
       });
     }
     const next = current ? { ...current, data: options.replace ? data : { ...asObject(current.data), ...data }, metadata: options.replace ? metadata : { ...asObject(current.metadata), ...metadata }, revision: Number(current.revision ?? 0) + 1, updated_at: now }

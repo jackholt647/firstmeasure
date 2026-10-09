@@ -30,6 +30,7 @@ test('custom-field builder and editors handle organization values, integer valid
     assert.deepEqual(await page.locator('[data-cf-scope]').evaluateAll(els=>els.map(el=>el.dataset.cfScope)),['project','contact','organization']);
     assert.equal(await page.locator('[data-cf-scope="project"]').getAttribute('aria-selected'),'true');
     assert.equal(await page.locator('[data-cf-overview-label]').innerText(),'Project details');
+    await page.locator('[data-cf-add="project"]').click();
     await page.locator('[name="entity"]').selectOption('contact');
     assert.equal(await page.locator('[data-cf-overview-label]').innerText(),'Contact details');
     await page.locator('[name="entity"]').selectOption('organization');

@@ -5,7 +5,7 @@ import { badRequest, forbidden, conflict, PlatformError } from "../platform/erro
 import { hasPermission } from "../platform/auth.js";
 import { contentHash, jsonClone } from "../platform/publication/validation.js";
 import type { PublicationContext, TargetRef } from "../platform/publication/contracts.js";
-import { empty, fieldPath, fieldSchema, getValue, normalizeDefinitions, object, putValue, validateField, validatePattern, calculateFormula, type FieldEntity } from "./contracts.js";
+import { PROJECT_DEFAULT_FIELDS, empty, fieldPath, fieldSchema, getValue, normalizeDefinitions, object, putValue, validateField, validatePattern, calculateFormula, type FieldEntity } from "./contracts.js";
 
 export const valueKeys = ["custom_field_values", "custom_fields", "contact_custom_field_values"];
 export async function optional<T>(run: () => Promise<T>): Promise<T | null> {
@@ -15,7 +15,7 @@ export async function definitions(orgId: string, branchId: string, entity: Field
   const module = await optional(() => readBranchModule(orgId, entity === "organization" ? "default" : branchId, "custom_fields"));
   const fields = [...(Array.isArray(module?.data.fields) ? module.data.fields : []), ...(Array.isArray(module?.data.retired_fields) ? module.data.retired_fields : [])].map(object).filter(f => (f.entity || "project") === entity);
   const instance = entity === "project" ? object(record.custom_field_schema) : {};
-  const combined = new Map((entity === "contact" ? [...CONTACT_DEFAULT_FIELDS,...fields] : fields).map(f => [String(f.path || f.key), f]));
+  const combined = new Map((entity === "contact" ? [...CONTACT_DEFAULT_FIELDS,...fields] : entity === "project" ? [...PROJECT_DEFAULT_FIELDS,...fields] : fields).map(f => [String(f.path || f.key), f]));
   if(entity === "contact") for(const builtin of CONTACT_DEFAULT_FIELDS){
     const prior=combined.get(String(builtin.path));
     if(prior?.type !== builtin.type) throw badRequest("contact_default_field_type","Default contact fields must keep their reference type.");
@@ -25,6 +25,11 @@ export async function definitions(orgId: string, branchId: string, entity: Field
     const f = object(raw), path = String(f.path || f.key), prior = combined.get(path);
     if (prior && prior.type !== f.type) throw badRequest("custom_field_conflict", `Conflicting definition for ${path}.`);
     combined.set(path, { ...prior, ...f, entity });
+  }
+  if(entity === "project") for(const builtin of PROJECT_DEFAULT_FIELDS){
+    const prior=combined.get(String(builtin.path));
+    if(prior?.type !== builtin.type || prior?.cardinality === "many" || prior?.enabled === false) throw badRequest("project_cover_contract","The cover remains a single photo reference.");
+    combined.set(String(builtin.path),{...builtin,...prior,builtin:true,cardinality:"one"});
   }
   // Older integrations stored variables before defining fields. Publish those
   // values in place with an inferred read-only contract; do not create records.
@@ -58,8 +63,16 @@ export async function prepareStoredFields(orgId:string, collection:string, incom
   }
   const keys = entity === "contact" ? ["custom_field_values","contact_custom_field_values","custom_fields"] : ["custom_field_values","custom_fields"];
   const key = keys.find(k => Object.hasOwn(data,k));
-  if (!key) return data;
-  const patch = jsonClone(object(data[key])), before = valuesOf(previous,entity);
+  const before = valuesOf(previous,entity);
+  const cover = String(object((key ? object(data[key]) : before).cover_photo).media_id || object(before.cover_photo).media_id || "");
+  const identity = (raw:unknown) => { const p=object(raw); return String(p.media_id || p.mediaId || p.id || ""); };
+  const removedCover = entity === "project" && cover && Array.isArray(data.photos) && (
+    data.photos.some(raw => {const p=object(raw),m=object(p.metadata);return identity(p)===cover && !!(p.in_trash || p.trashed_at || p.deleted_at || m.in_trash || m.trashed_at || m.deleted_at);}) ||
+    Array.isArray(previous.photos) && previous.photos.some(raw=>identity(raw)===cover) && !data.photos.some(raw=>identity(raw)===cover)
+  );
+  if (!key && !removedCover) return data;
+  const patch = jsonClone(key ? object(data[key]) : {});
+  if (removedCover) patch.cover_photo = null;
   const merge = (a:JsonObject,b:JsonObject):JsonObject => {
     const result = {...a};
     for (const [k,v] of Object.entries(b)) result[k] = v && typeof v === "object" && !Array.isArray(v) && a[k] && typeof a[k] === "object" && !Array.isArray(a[k]) ? merge(object(a[k]),object(v)) : v;
@@ -104,7 +117,7 @@ export async function readFieldRecord(ctx: PublicationContext, target: TargetRef
 }
 // Called by storage on every project/contact/organization-field write, including
 // Work services. Unchanged legacy values do not block unrelated record edits.
-export async function validateStoredFields(orgId: string, collection: string, incoming: JsonObject, previous: JsonObject = {}, replace = false) {
+export async function validateStoredFields(orgId: string, collection: string, incoming: JsonObject, previous: JsonObject = {}, replace = false, recordId?: string) {
   if (collection === "projects" && Array.isArray(incoming.contacts)) {
     const oldContacts = Array.isArray(previous.contacts) ? previous.contacts.map(object) : [];
     for (const raw of incoming.contacts) {
@@ -114,7 +127,7 @@ export async function validateStoredFields(orgId: string, collection: string, in
   }
   const entity: FieldEntity = collection === "projects" ? "project" : collection === "customers" ? "contact" : "organization";
   if (entity!=="contact" && !valueKeys.some(k => k in incoming) && !("custom_field_schema" in incoming)) return;
-  const next = replace ? incoming : { ...previous, ...incoming };
+  const next: JsonObject = { ...(replace ? incoming : { ...previous, ...incoming }), ...(recordId ? {id:recordId} : {}) };
   const fields = await definitions(orgId, String(next.branch_id || previous.branch_id || "default"), entity, next);
   const values = valuesOf(next, entity), before = valuesOf(previous, entity);
   jsonClone(values);
@@ -125,7 +138,15 @@ export async function validateStoredFields(orgId: string, collection: string, in
       if (f.required===true && (empty(v) || Array.isArray(v) && !v.length)) validateField(f,v);
       continue;
     }
-    validateField(f,v); await validatePattern(f,v); await validateReference(orgId,f,v,next,entity);
+    validateField(f,v); await validatePattern(f,v);
+    if(entity === "project" && ["media","photo","video"].includes(String(f.type)) && Array.isArray(next.photos)) {
+      for(const ref of (Array.isArray(v) ? v : [v])) {
+        const id=String(object(ref).media_id || "");
+        const photo=next.photos.map(object).find(p=>String(p.media_id || p.mediaId || p.id || "")===id), meta=object(photo?.metadata);
+        if(photo && (photo.in_trash || photo.trashed_at || photo.deleted_at || meta.in_trash || meta.trashed_at || meta.deleted_at)) throw badRequest("media_reference_unavailable","Choose an active photo from the project library.");
+      }
+    }
+    await validateReference(orgId,f,v,next,entity);
   }
 }
 export async function readFields(ctx: PublicationContext, target: TargetRef, entity: FieldEntity, path?: string, contractOnly = false) {

@@ -1333,7 +1333,7 @@ export async function upsertDocument(orgId: string, collectionValue: string, inp
       const previous = exists ? asObject((await readJsonFile<StoredDocument>(filePath)).data) : {};
       const fields = await import("../custom_fields/records.js");
       data = await fields.prepareStoredFields(orgId, collection, data, previous);
-      await fields.validateStoredFields(orgId, collection, data, previous, options.replace);
+      await fields.validateStoredFields(orgId, collection, data, previous, options.replace, id);
     }
     if (!exists) {
       const created: StoredDocument = {
@@ -1466,12 +1466,12 @@ export async function saveBranchModule(orgId: string, branchId: string, moduleId
     input={...input,data:terminologyMappingsSchema.parse(input.data)};
   }
   if (moduleId === "custom_fields" && Array.isArray(asObject(input.data).fields)) {
-    const defaults=(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS;
+    const defaults=[...(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS,...(await import("../custom_fields/contracts.js")).PROJECT_DEFAULT_FIELDS];
     const submitted=asObject(input.data).fields as JsonObject[];
     const previous = await (await import("../custom_fields/records.js")).optional(() => readBranchModule(orgId, branchId || "default", moduleId));
     const prior = asObject(previous?.data);
     const priorFields=Array.isArray(prior.fields)?prior.fields.map(asObject):[];
-    const missing=defaults.filter(d=>!submitted.some(f=>f.entity==="contact" && (f.path || f.key)===d.path)).map(d=>priorFields.find(f=>f.entity==="contact" && (f.path || f.key)===d.path) || d);
+    const missing=defaults.filter(d=>!submitted.some(f=>(f.entity || "project")===d.entity && (f.path || f.key)===d.path)).map(d=>priorFields.find(f=>(f.entity || "project")===d.entity && (f.path || f.key)===d.path) || d);
     const fields = (await import("../custom_fields/contracts.js")).normalizeDefinitions([...missing,...submitted]);
     if (branchId !== "default" && fields.some(f => f.entity === "organization")) throw badRequest("custom_field_organization_branch", "Organization definitions belong to the default branch.");
     const identity = (f:JsonObject) => `${String(f.entity || "project")}:${String(f.path || f.key)}`;

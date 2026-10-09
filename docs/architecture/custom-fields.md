@@ -151,3 +151,27 @@ legacy values, nested validation, private/read-only access, revoked snapshots,
 concurrent writes, retries, stale revisions, and alias preservation. The browser
 test covers authoring, organization save, integer validation, and nested array
 editing. No production activation is part of this source change.
+
+## Project media references and cover
+
+`media`, `photo`, and `video` fields store a bounded reference `{media_id: ...}`
+to media in the owning record's library. `photo` requires an image; `video`
+requires a video. `cardinality: many` stores an array of references. Project
+fields select from the existing project library without copying uploads.
+
+Every project has the built-in optional `cover_photo` field, typed as `photo`
+with cardinality `one`. Settings may adjust its presentation, label, and field
+access, while its path, image type, availability, and single selection remain
+fixed. It uses ordinary `custom_field_values` / `custom_fields` values and the
+existing custom-field provider and revision-checked write action. Photos offers
+Set as project cover, Remove project cover, and a Cover viewer badge; Overview
+provides the same field editor. Choosing another photo replaces the reference.
+Trashing or removing the selected photo clears the cover during storage
+preparation on both backends; restoring a photo does not reselect it. Other
+reference fields retain unavailable values for recovery. Changed references to
+trashed project-library entries are rejected. Validation uses the authoritative
+document ID even when legacy record data does not repeat it.
+
+Focused verification: `tests/project-cover.test.ts` and
+`tests/project-cover-browser.test.mjs`, including PostgreSQL via the embedded
+runner.
