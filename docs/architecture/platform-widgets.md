@@ -80,3 +80,85 @@ renderer; returning it restores the widget render root. Runtime destruction owns
 controller cleanup. Activity instances own their filters, search, pagination and
 visibility-aware polling; refreshing retains loaded history and shows a single
 retryable error without replacing the current timeline.
+
+## Inherited widget types
+
+`platform-widgets/types.json` declares the type graph; `types.js` is the same
+resolver on the server and in the browser. Types have a stable `id`, optional
+`parent`, defaults, enforced configuration constraints, and optional configuration
+and selection JSON schemas. The resolver walks the complete ancestry, rejects
+cycles, missing parents and duplicate identities, and retains every ancestor's
+schema checks. There is no fixed number of subtype layers. Type inheritance is
+independent of `children`, which remains visual composition.
+
+Definitions opt in through a `types` array. Existing untyped widgets continue to
+mount by exact ID/version. `summary` and `data-entry` are independent roots;
+data-entry descendants must declare selection. Concrete summary types cover
+projects, saved contacts, organization users and documents. Document invoice,
+contract and receipt types inherit the general document implementation with an
+enforced `documentType` filter. The owning document record's `document_type` is
+authoritative; finance receipts/invoices stored outside the Documents domain are
+not silently treated as document instances.
+
+Resolution prefers the most specific compatible implementation. An ancestor
+implementation may satisfy a descendant request with its inherited constraints;
+discovery of a group includes its descendants. Equal best candidates return
+`ambiguous`, and no compatible permitted implementation returns `unavailable`.
+It never substitutes another widget version. New groups and subtypes require
+catalog declarations, not switches in every host. New behavior still needs a
+renderer implementing the declared contract.
+
+Browser consumers use `FirstMateWidgets.resolve({type, surface, config})` or
+`mountTyped(element, {type, target, config}, context)`. Local resolution selects
+presentation; it is not authority. API consumers use the authenticated
+`POST /v1/publication/organizations/:orgId/widgets/resolve` with the same request
+plus `target`. This filters by current publication access, validates the effective
+configuration and reauthorizes the selected widget. `GET .../widgets/types`
+describes the graph. Agent tools accept `type` for discovery/display, retain the
+resolved exact reference and intersect access with agent data-scope restrictions.
+
+The shared hover host accepts `data-fm-summary-type` and a JSON
+`data-fm-summary-target` (or `data-fm-summary-project`). It resolves through the
+authorized API and mounts on the `hover` surface. Feed project identity links use
+this host. Other object producers add the same attributes with their declared
+type and reference. The host has no per-object renderer switch.
+
+## Typed entry, capture and protected values
+
+Every editable custom-field type is represented in the graph, including scalar,
+choice, structured and reference values. Formula fields remain calculated.
+`field.input` reuses the shared field controls and server `validateField` rules;
+contact and assignment inputs have separately gated publication sources.
+Definitions can provide field options, cardinality, nested schemas and numeric
+bounds through `config.field`. These widgets collect local selections; they do
+not write custom fields. Domain actions still validate eligibility and revisions.
+Existing media/date/time/color/project pickers keep their selection shapes.
+Document pickers emit `{document_id, project_id}` and filter by subtype.
+
+Additional types cover emoji and GIF selection, icon selection, hyperlink and
+quote insertion, dictation, file/media upload and audio/video/screen capture.
+GIFs reuse the Channels keyboard; audio and dictation reuse AudioNotes. The
+exported `FirstMateMediaCapture.mount` owns camera/screen streams, recorder,
+preview and cleanup. Permission prompts follow an explicit Start click. Captures
+are reviewed before upload. Uploads use the authorized media domain and emit IDs,
+never file bytes. Dictation uses the existing authorized transcription endpoint.
+Selection transport remains bounded to 4 KB, three nesting levels and 512
+characters per string; larger structures/text require an artifact reference.
+
+`data-entry.secure` and its scalar/structured/SSH-key descendants use
+`secure.input`, backed by a principal-bound, expiring Connections credential
+request. A declared value type validates the entered value; structured values
+are JSON encoded for the existing encrypted credential store. Optional credential
+file input is limited to 16 KB. A connection definition and secure request must
+exist first; this does not introduce arbitrary secrets or SSH execution access.
+The existing `connections_credentials` tool now presents this shared widget.
+Plaintext goes directly to the native credential endpoint and encrypted vault,
+never to widget selections, serialized state, messages, agent context or code.
+History contains only a protected request reference and saved receipt. Closing
+the widget clears its controls; replay cannot recover plaintext. Existing native
+credential renders remain readable for older conversations.
+
+Verification: publication suite, TypeScript check,
+`tests/publication-widget-types.test.ts`, `tests/widget-types-browser.test.mjs`,
+existing picker browsers, and integrations/audio regressions. Keep new summary
+projections explicit and permission-gated; never publish arbitrary record blobs.

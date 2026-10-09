@@ -874,6 +874,13 @@
         "max": {
           "type": "integer",
           "minimum": 1
+        },
+        "mediaType": {
+          "type": "string",
+          "enum": [
+            "image",
+            "video"
+          ]
         }
       },
       "additionalProperties": false
@@ -904,7 +911,12 @@
         ],
         "additionalProperties": false
       }
-    }
+    },
+    "types": [
+      "data-entry.media",
+      "data-entry.photo",
+      "data-entry.video"
+    ]
   },
   {
     "id": "datetime.picker",
@@ -996,7 +1008,13 @@
         ],
         "additionalProperties": false
       }
-    }
+    },
+    "types": [
+      "data-entry.date",
+      "data-entry.time",
+      "data-entry.datetime",
+      "data-entry.date_range"
+    ]
   },
   {
     "id": "color.picker",
@@ -1046,7 +1064,10 @@
         ],
         "additionalProperties": false
       }
-    }
+    },
+    "types": [
+      "data-entry.color"
+    ]
   },
   {
     "id": "project.picker",
@@ -1101,6 +1122,1002 @@
         ],
         "additionalProperties": false
       }
+    },
+    "types": [
+      "data-entry.project"
+    ]
+  },
+  {
+    "id": "project.summary",
+    "version": "1",
+    "title": "Project summary",
+    "description": "Summary of one authorized project.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "widget-objects",
+        "export": "project"
+      }
+    ],
+    "types": [
+      "summary.project"
+    ]
+  },
+  {
+    "id": "contact.summary",
+    "version": "1",
+    "title": "Contact summary",
+    "description": "Summary of one authorized contact.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "widget-objects",
+        "export": "contact"
+      }
+    ],
+    "types": [
+      "summary.contact"
+    ]
+  },
+  {
+    "id": "user.summary",
+    "version": "1",
+    "title": "User summary",
+    "description": "Summary of one authorized user.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "widget-objects",
+        "export": "user"
+      }
+    ],
+    "types": [
+      "summary.user"
+    ]
+  },
+  {
+    "id": "document.summary",
+    "version": "1",
+    "title": "Document summary",
+    "description": "Summary of one authorized document.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "widget-objects",
+        "export": "document"
+      }
+    ],
+    "types": [
+      "summary.document"
+    ]
+  },
+  {
+    "id": "document.picker",
+    "version": "1",
+    "title": "Document picker",
+    "description": "Select a document in this project, optionally filtered by document type.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "widget-objects",
+        "export": "document-directory"
+      }
+    ],
+    "types": [
+      "data-entry.document"
+    ],
+    "selection": {
+      "description": "Reference to the chosen document; authorize it before use.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "project_id"
+        ],
+        "additionalProperties": false
+      }
     }
+  },
+  {
+    "id": "field.input",
+    "version": "1",
+    "title": "Field input",
+    "description": "Collect a typed value using the same editors and validation as project, contact and organization custom fields. Formula fields are calculated and are not user input.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "fieldType": {
+          "type": "string",
+          "enum": [
+            "text",
+            "multiline",
+            "email",
+            "phone",
+            "url",
+            "number",
+            "integer",
+            "currency",
+            "percentage",
+            "slider",
+            "timezone",
+            "boolean",
+            "toggle",
+            "select",
+            "radio",
+            "multiselect",
+            "tags",
+            "list",
+            "array",
+            "object",
+            "key_value",
+            "json"
+          ]
+        },
+        "field": {
+          "type": "object"
+        },
+        "value": {},
+        "branchId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fieldType"
+      ]
+    },
+    "sources": [],
+    "types": [
+      "data-entry.text",
+      "data-entry.multiline",
+      "data-entry.email",
+      "data-entry.phone",
+      "data-entry.url",
+      "data-entry.number",
+      "data-entry.integer",
+      "data-entry.currency",
+      "data-entry.percentage",
+      "data-entry.slider",
+      "data-entry.timezone",
+      "data-entry.boolean",
+      "data-entry.toggle",
+      "data-entry.select",
+      "data-entry.radio",
+      "data-entry.multiselect",
+      "data-entry.tags",
+      "data-entry.list",
+      "data-entry.array",
+      "data-entry.object",
+      "data-entry.key_value",
+      "data-entry.json"
+    ],
+    "selection": {
+      "description": "Typed field value in its custom-field storage shape. This does not save a record.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {}
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "emoji.picker",
+    "version": "1",
+    "title": "EMOJI picker",
+    "description": "Choose an emoji using the shared Channels keyboard.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "fieldType": {
+          "type": "string",
+          "enum": [
+            "emoji"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "types": [
+      "data-entry.emoji"
+    ],
+    "selection": {
+      "description": "Chosen emoji value.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "gif.picker",
+    "version": "1",
+    "title": "GIF picker",
+    "description": "Choose an gif using the shared Channels keyboard.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "fieldType": {
+          "type": "string",
+          "enum": [
+            "gif"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "types": [
+      "data-entry.gif"
+    ],
+    "selection": {
+      "description": "Chosen gif value.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "field.input.contact",
+    "version": "1",
+    "title": "Contact picker",
+    "description": "Collect a typed value using the same editors and validation as project, contact and organization custom fields. Formula fields are calculated and are not user input.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "fieldType": {
+          "type": "string",
+          "enum": [
+            "contact",
+            "human_contact",
+            "org_contact"
+          ]
+        },
+        "field": {
+          "type": "object"
+        },
+        "value": {},
+        "branchId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fieldType"
+      ]
+    },
+    "sources": [
+      {
+        "provider": "contacts",
+        "export": "options"
+      }
+    ],
+    "types": [
+      "data-entry.contact",
+      "data-entry.human_contact",
+      "data-entry.org_contact"
+    ],
+    "selection": {
+      "description": "Typed field value in its custom-field storage shape. This does not save a record.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {}
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "field.input.assignment",
+    "version": "1",
+    "title": "Assignment picker",
+    "description": "Collect a typed value using the same editors and validation as project, contact and organization custom fields. Formula fields are calculated and are not user input.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "documentType": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "fieldType": {
+          "type": "string",
+          "enum": [
+            "organization_user",
+            "resource_group",
+            "organization_connection",
+            "assignable_subject"
+          ]
+        },
+        "field": {
+          "type": "object"
+        },
+        "value": {},
+        "branchId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fieldType"
+      ]
+    },
+    "sources": [
+      {
+        "provider": "widget-objects",
+        "export": "assignments"
+      }
+    ],
+    "types": [
+      "data-entry.organization_user",
+      "data-entry.resource_group",
+      "data-entry.organization_connection",
+      "data-entry.assignable_subject"
+    ],
+    "selection": {
+      "description": "Typed field value in its custom-field storage shape. This does not save a record.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {}
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "media.upload",
+    "version": "1",
+    "title": "Upload media or file",
+    "description": "Upload media or file. Returns bounded plain values or authorized references, never file bytes or credentials.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "accept": {
+          "type": "string",
+          "maxLength": 150
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "media",
+        "export": "library"
+      }
+    ],
+    "types": [
+      "data-entry.media.upload",
+      "data-entry.file"
+    ],
+    "selection": {
+      "description": "Confirmed upload media or file result.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "media_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "maxItems": 1
+          }
+        },
+        "required": [
+          "media_ids"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "media.record",
+    "version": "1",
+    "title": "Record media",
+    "description": "Record media. Returns bounded plain values or authorized references, never file bytes or credentials.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "captureMode": {
+          "enum": [
+            "audio",
+            "video",
+            "screen"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "media",
+        "export": "library"
+      }
+    ],
+    "types": [
+      "data-entry.media.record.audio",
+      "data-entry.media.record.video",
+      "data-entry.media.record.screen"
+    ],
+    "selection": {
+      "description": "Confirmed record media result.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "media_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "maxItems": 1
+          }
+        },
+        "required": [
+          "media_ids"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "text.dictation",
+    "version": "1",
+    "title": "Dictate text",
+    "description": "Dictate text. Returns bounded plain values or authorized references, never file bytes or credentials.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "types": [
+      "data-entry.dictation"
+    ],
+    "selection": {
+      "description": "Confirmed dictate text result.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "text.hyperlink",
+    "version": "1",
+    "title": "Insert hyperlink",
+    "description": "Insert hyperlink. Returns bounded plain values or authorized references, never file bytes or credentials.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "types": [
+      "data-entry.hyperlink"
+    ],
+    "selection": {
+      "description": "Confirmed insert hyperlink result.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^https?://"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "url",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "text.quote",
+    "version": "1",
+    "title": "Insert quote",
+    "description": "Insert quote. Returns bounded plain values or authorized references, never file bytes or credentials.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "types": [
+      "data-entry.quote"
+    ],
+    "selection": {
+      "description": "Confirmed insert quote result.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "icon.picker",
+    "version": "1",
+    "title": "Choose icon",
+    "description": "Choose icon. Returns bounded plain values or authorized references, never file bytes or credentials.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "icons": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "pattern": "^fa-[a-z0-9-]+$",
+            "maxLength": 80
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [],
+    "types": [
+      "data-entry.icon"
+    ],
+    "selection": {
+      "description": "Confirmed choose icon result.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "pattern": "^fa-[a-z0-9-]+$",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "secure.input",
+    "version": "1",
+    "title": "Secure credential input",
+    "description": "Secure credential input. Returns bounded plain values or authorized references, never file bytes or credentials.",
+    "app": "platform",
+    "surfaces": [
+      "assistant",
+      "project",
+      "dashboard",
+      "hover"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 180
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "requestId": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "valueType": {
+          "enum": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "object",
+            "array",
+            "json",
+            "ssh-key"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "requestId"
+      ]
+    },
+    "sources": [
+      {
+        "provider": "widget-objects",
+        "export": "secure-entry"
+      }
+    ],
+    "types": [
+      "data-entry.secure"
+    ],
+    "selection": {
+      "description": "Confirmed secure credential input result.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "credential_request_id": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "stored": {
+            "const": true
+          }
+        },
+        "required": [
+          "credential_request_id",
+          "stored"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sensitive": true
   }
 ]

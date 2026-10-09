@@ -3,26 +3,33 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { readDocument } from '../storage.js';
 import { forbidden, badRequest } from '../errors.js';
-import { authorizePublicationDiscovery } from '../publication/context.js';
+import { authorizePublicationDiscovery, authorizePublication } from '../publication/context.js';
 import { authorizeSource, registerDataProvider, describeDataProvider } from '../publication/providers.js';
 import { validateJson } from '../publication/validation.js';
 import type { PublicationContext, TargetRef, JsonSchema, SourceRef, AccessPolicy } from '../publication/contracts.js';
 import { listProjectMaterialLists } from '../../materials/storage.js';
 import { widgetSelectionValue } from './selection.js';
+import { registerObjectWidgets } from './objects.js';
+import { validateField, formatValid } from '../../custom_fields/contracts.js';
 
 type Obj=Record<string,any>;
 const object=(v:unknown):Obj=>v&&typeof v==='object'&&!Array.isArray(v)?v as Obj:{};
 const widgetRoot=path.resolve(process.cwd(),'../libraries/platform-widgets');
 const scopeData=createRequire(import.meta.url)(path.join(widgetRoot,'scope-data.js')) as {measurements:(project:Obj,lists:Obj[],report:Obj)=>Obj};
-export type WidgetDefinition={id:string;version:string;title:string;description:string;app:string;surfaces:string[];sizing:Obj;configSchema:JsonSchema;sources:{provider:string;export:string}[];children?:{id:string;version:string;key:string}[];selection?:{description:string;schema:JsonSchema}};
+export type WidgetDefinition={id:string;version:string;title:string;description:string;app:string;surfaces:string[];sizing:Obj;configSchema:JsonSchema;sources:{provider:string;export:string}[];children?:{id:string;version:string;key:string}[];selection?:{description:string;schema:JsonSchema};types?:string[]};
 const definitions=JSON.parse(readFileSync(path.join(widgetRoot,'catalog.json'),'utf8')) as WidgetDefinition[];
+const typeModule=createRequire(import.meta.url)(path.join(widgetRoot,'types.js'));
+export const widgetTypes=typeModule.create(JSON.parse(readFileSync(path.join(widgetRoot,'types.json'),'utf8')));
+widgetTypes.validateDefinitions(definitions);
+export function validateWidgetType(def:WidgetDefinition,type:string,config:Obj){if(!def.types?.some(binding=>widgetTypes.contract(type).ancestors.includes(binding)))throw badRequest('widget_type_mismatch','Widget does not implement this type.');const effective=widgetTypes.config(type,config);validateJson(def.configSchema,effective,'typed widget configuration');for(const schema of widgetTypes.contract(type).configSchemas)validateJson(schema,effective,'widget type configuration');return effective as Obj;}
+export async function resolveWidget(ctx:PublicationContext,request:{type:string;surface?:string;config?:Obj;target?:TargetRef}){if(request.target)await authorizePublication(ctx,request.target,{scopes:['organization','project'],permissions:[],applications:false},'widgets.resolve');try{const resolved=widgetTypes.resolve(await listWidgets(ctx,request.target),request);if(resolved.status==='ready'){validateWidgetType(resolved.definition,resolved.widget.type,resolved.widget.config);if(request.target)await authorizeWidget(ctx,resolved.widget.id,resolved.widget.version,request.target,resolved.widget.config);}return resolved;}catch{throw badRequest('widget_type_invalid','Unknown widget type or conflicting subtype configuration.');}}
 // Selection is optional. A widget that declares one must describe a closed object, so discovery tells agents the answer's exact shape.
 for(const def of definitions)if(def.selection!==undefined){const schema=object(object(def.selection).schema);if(!String(object(def.selection).description||'').trim()||schema.type!=='object'||schema.additionalProperties!==false)throw Error(`Widget ${def.id} declares an invalid selection contract.`);}
 /** Screen-reported selection is untrusted presentation metadata. Returns it only when the exact widget version declares a selection and the value is bounded and matches that schema; otherwise null. Never an authorization input. */
-export function widgetSelection(id:string,version:string,value:unknown):Obj|null{
+export function widgetSelection(id:string,version:string,value:unknown,config:Obj={},type?:string):Obj|null{
  const def=definitions.find(d=>d.id===id&&d.version===version);if(!def?.selection||value==null)return null;
  const bounded=widgetSelectionValue.safeParse(value);if(!bounded.success)return null;
- try{validateJson(def.selection.schema,bounded.data,'widget selection');}catch{return null;}
+ try{validateJson(def.selection.schema,bounded.data,'widget selection');if(def.id==='datetime.picker'){const picked=object(bounded.data);if(config.mode&&picked.mode!==config.mode)throw Error('Picker mode mismatch');if(picked.mode==='date_range'){if(!formatValid('date',String(picked.start||''))||!formatValid('date',String(picked.end||''))||picked.start>picked.end)throw Error('Invalid date range');}else if(picked.mode==='time'){if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(picked.value)))throw Error('Invalid time');}else if(!formatValid(String(picked.mode),String(picked.value||'')))throw Error('Invalid date');}if(type){const effective=validateWidgetType(def,type,config);for(const schema of widgetTypes.contract(type).selectionSchemas)validateJson(schema,bounded.data,'typed selection');config=effective;}if(def.id==='field.input'||def.id.startsWith('field.input.')){const value=object(bounded.data).value;if(config.fieldType==='timezone'){if(typeof value!=='string'||!value||value.length>100||/^[+-]/.test(value))throw Error('Invalid timezone');new Intl.DateTimeFormat('en',{timeZone:value});}else validateField({...object(config.field),type:config.fieldType,path:'value',label:'Value',required:true},value);}}catch{return null;}
  return structuredClone(bounded.data) as Obj;
 }
 export function widgetDefinition(id:string,version='1'){const def=definitions.find(d=>d.id===id&&d.version===version);if(!def)throw badRequest('widget_unknown','This widget version is unavailable.');return structuredClone(def);}
@@ -31,11 +38,11 @@ export function widgetSources(def:WidgetDefinition):{provider:string;export:stri
 export function widgetMatchesQuery(def:WidgetDefinition,query:string){
  const normalize=(value:string)=>value.toLowerCase().replace(/\bto[\s-]*dos?\b/g,'todo').replace(/[^a-z0-9]+/g,' ').replace(/\b(tasks|lists|projects|measurements|widgets)\b/g,word=>word.slice(0,-1));
  const terms=[...new Set(normalize(query).split(/\s+/).filter(Boolean))];
- const text=normalize(`${def.id} ${def.title} ${def.description} ${def.app}`);
+ const text=normalize(`${def.id} ${def.title} ${def.description} ${def.app} ${(def.types||[]).flatMap(type=>widgetTypes.contract(type).ancestors).join(' ')}`);
  return terms.every(term=>text.includes(term));
 }
 export async function authorizeWidget(ctx:PublicationContext,id:string,version:string,target:TargetRef,config:Obj={}){
- const def=widgetDefinition(id,version);validateJson(def.configSchema,config,'widget configuration');
+ const def=widgetDefinition(id,version);if(def.id.startsWith('field.input')&&config.field&&object(config.field).pattern)throw badRequest('widget_field_pattern','Use bounded field schema constraints rather than patterns in picker configuration.');validateJson(def.configSchema,config,'widget configuration');
  for(const source of widgetSources(def))await authorizeSource(ctx,{...source,target});return def;
 }
 export async function listWidgets(ctx:PublicationContext,target?:TargetRef){
@@ -68,7 +75,7 @@ async function reportFor(ctx:PublicationContext,ref:SourceRef){
  return {id,manifest,storage};
 }
 const directorySchema={type:'object',properties:{results:{type:'array',items:{type:'object',properties:{id:string,title:string,subtitle:string},required:['id','title','subtitle'],additionalProperties:false}}},required:['results'],additionalProperties:false};
-export function registerWidgetProviders(){registerDataProvider({id:'project-widgets',version:'1',apps:['materials','measurements'],exports:{
+export function registerWidgetProviders(){registerObjectWidgets();registerDataProvider({id:'project-widgets',version:'1',apps:['materials','measurements'],exports:{
  directory:{description:'Bounded project search for the project picker widget: id, title and subtitle of matching or recent projects.',schema:directorySchema,schemaVersion:'1',argsSchema:{type:'object',properties:{query:{type:'string',maxLength:200},limit:{type:'integer',minimum:1,maximum:25}},additionalProperties:false},access:{scopes:['organization'],permissions:['view_projects']},read:async(ctx,ref)=>{
   const {searchPlatformProjectsAndContacts}=await import('../api.js');const found=await searchPlatformProjectsAndContacts(ctx.organizationId,{query:String(object(ref.args).query||''),types:'projects',limit:Number(object(ref.args).limit||12)});
   return {value:{results:found.results.map(row=>({id:String(row.project_id||row.id),title:String(row.title||''),subtitle:String(row.subtitle||'')}))}};

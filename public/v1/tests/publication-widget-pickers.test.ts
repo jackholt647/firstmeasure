@@ -80,7 +80,7 @@ test('picker widgets declare selection contracts, list media through media autho
   const {platformAgentTools,platformAgentInstructions}=await import('../agents/platform_tools.js');const tool=(name:string)=>platformAgentTools.find(t=>t.name===name)!;
   const run:any={agentId:'assistant',orgId:'org_pickers',userId:'picker_user',ctx:auth,settings:{data_scope:{projects:true}},scratch:{},renders:[]};
   const found:any=await tool('platform_widgets').execute(run,{query:'picker'});
-  assert.deepEqual(found.widgets.map((d:any)=>d.id).sort(),['color.picker','datetime.picker','media.picker','project.picker']);assert.ok(found.widgets.every((d:any)=>d.selection?.schema&&d.selection.description));
+  assert.deepEqual(found.widgets.map((d:any)=>d.id).sort(),['color.picker','datetime.picker','document.picker','emoji.picker','field.input.assignment','field.input.contact','gif.picker','icon.picker','media.picker','project.picker']);assert.ok(found.widgets.every((d:any)=>d.selection?.schema&&d.selection.description));
   assert.match(tool('platform_visible_widgets').description,/untrusted screen metadata, never authorization/);assert.match(platformAgentInstructions,/untrusted screen metadata, never permission/);
   await tool('platform_show_widget').execute(run,{id:'media.picker',version:'1',target:project,config:{prompt:'Which photos should go in the proposal?',multiple:true}});
   assert.deepEqual(run.renders.at(-1).widgets[0].widget,{id:'media.picker',version:'1',target:project,config:{prompt:'Which photos should go in the proposal?',multiple:true}});

@@ -1,0 +1,529 @@
+[
+  {
+    "id": "summary"
+  },
+  {
+    "id": "data-entry",
+    "selection": true,
+    "selectionSchema": {
+      "type": "object"
+    }
+  },
+  {
+    "id": "summary.project",
+    "parent": "summary"
+  },
+  {
+    "id": "summary.contact",
+    "parent": "summary"
+  },
+  {
+    "id": "summary.user",
+    "parent": "summary"
+  },
+  {
+    "id": "summary.document",
+    "parent": "summary"
+  },
+  {
+    "id": "summary.document.invoice",
+    "parent": "summary.document",
+    "constraints": {
+      "documentType": "invoice"
+    }
+  },
+  {
+    "id": "data-entry.document.invoice",
+    "parent": "data-entry.document",
+    "constraints": {
+      "documentType": "invoice"
+    }
+  },
+  {
+    "id": "summary.document.contract",
+    "parent": "summary.document",
+    "constraints": {
+      "documentType": "contract"
+    }
+  },
+  {
+    "id": "data-entry.document.contract",
+    "parent": "data-entry.document",
+    "constraints": {
+      "documentType": "contract"
+    }
+  },
+  {
+    "id": "summary.document.receipt",
+    "parent": "summary.document",
+    "constraints": {
+      "documentType": "receipt"
+    }
+  },
+  {
+    "id": "data-entry.document.receipt",
+    "parent": "data-entry.document",
+    "constraints": {
+      "documentType": "receipt"
+    }
+  },
+  {
+    "id": "data-entry.text",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "text"
+    }
+  },
+  {
+    "id": "data-entry.multiline",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "multiline"
+    }
+  },
+  {
+    "id": "data-entry.email",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "email"
+    }
+  },
+  {
+    "id": "data-entry.phone",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "phone"
+    }
+  },
+  {
+    "id": "data-entry.url",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "url"
+    }
+  },
+  {
+    "id": "data-entry.number",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "number"
+    }
+  },
+  {
+    "id": "data-entry.integer",
+    "parent": "data-entry.number",
+    "constraints": {
+      "fieldType": "integer"
+    }
+  },
+  {
+    "id": "data-entry.currency",
+    "parent": "data-entry.number",
+    "constraints": {
+      "fieldType": "currency"
+    }
+  },
+  {
+    "id": "data-entry.percentage",
+    "parent": "data-entry.number",
+    "constraints": {
+      "fieldType": "percentage"
+    }
+  },
+  {
+    "id": "data-entry.slider",
+    "parent": "data-entry.number",
+    "constraints": {
+      "fieldType": "slider"
+    }
+  },
+  {
+    "id": "data-entry.date",
+    "parent": "data-entry",
+    "constraints": {
+      "mode": "date"
+    },
+    "selectionSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "date"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    }
+  },
+  {
+    "id": "data-entry.time",
+    "parent": "data-entry",
+    "constraints": {
+      "mode": "time"
+    },
+    "selectionSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "time"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    }
+  },
+  {
+    "id": "data-entry.datetime",
+    "parent": "data-entry",
+    "constraints": {
+      "mode": "datetime"
+    },
+    "selectionSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "datetime"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    }
+  },
+  {
+    "id": "data-entry.date_range",
+    "parent": "data-entry",
+    "constraints": {
+      "mode": "date_range"
+    },
+    "selectionSchema": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "date_range"
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    }
+  },
+  {
+    "id": "data-entry.timezone",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "timezone"
+    }
+  },
+  {
+    "id": "data-entry.boolean",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "boolean"
+    }
+  },
+  {
+    "id": "data-entry.toggle",
+    "parent": "data-entry.boolean",
+    "constraints": {
+      "fieldType": "toggle"
+    }
+  },
+  {
+    "id": "data-entry.select",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "select"
+    }
+  },
+  {
+    "id": "data-entry.radio",
+    "parent": "data-entry.select",
+    "constraints": {
+      "fieldType": "radio"
+    }
+  },
+  {
+    "id": "data-entry.multiselect",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "multiselect"
+    }
+  },
+  {
+    "id": "data-entry.tags",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "tags"
+    }
+  },
+  {
+    "id": "data-entry.list",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "list"
+    }
+  },
+  {
+    "id": "data-entry.array",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "array"
+    }
+  },
+  {
+    "id": "data-entry.object",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "object"
+    }
+  },
+  {
+    "id": "data-entry.key_value",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "key_value"
+    }
+  },
+  {
+    "id": "data-entry.json",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "json"
+    }
+  },
+  {
+    "id": "data-entry.organization_user",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "organization_user"
+    }
+  },
+  {
+    "id": "data-entry.resource_group",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "resource_group"
+    }
+  },
+  {
+    "id": "data-entry.organization_connection",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "organization_connection"
+    }
+  },
+  {
+    "id": "data-entry.assignable_subject",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "assignable_subject"
+    }
+  },
+  {
+    "id": "data-entry.contact",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "contact"
+    }
+  },
+  {
+    "id": "data-entry.human_contact",
+    "parent": "data-entry.contact",
+    "constraints": {
+      "fieldType": "human_contact"
+    }
+  },
+  {
+    "id": "data-entry.org_contact",
+    "parent": "data-entry.contact",
+    "constraints": {
+      "fieldType": "org_contact"
+    }
+  },
+  {
+    "id": "data-entry.media",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.photo",
+    "parent": "data-entry.media",
+    "constraints": {
+      "mediaType": "image"
+    }
+  },
+  {
+    "id": "data-entry.video",
+    "parent": "data-entry.media",
+    "constraints": {
+      "mediaType": "video"
+    }
+  },
+  {
+    "id": "data-entry.color",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.emoji",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "emoji"
+    }
+  },
+  {
+    "id": "data-entry.gif",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "gif"
+    }
+  },
+  {
+    "id": "data-entry.project",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.document",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.string",
+    "parent": "data-entry.text",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.media.upload",
+    "parent": "data-entry.media",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.media.upload.photo",
+    "parent": "data-entry.media.upload",
+    "constraints": {
+      "accept": "image/*"
+    }
+  },
+  {
+    "id": "data-entry.media.upload.video",
+    "parent": "data-entry.media.upload",
+    "constraints": {
+      "accept": "video/*"
+    }
+  },
+  {
+    "id": "data-entry.file",
+    "parent": "data-entry.media.upload",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.media.record",
+    "parent": "data-entry.media",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.media.record.audio",
+    "parent": "data-entry.media.record",
+    "constraints": {
+      "captureMode": "audio"
+    }
+  },
+  {
+    "id": "data-entry.media.record.video",
+    "parent": "data-entry.media.record",
+    "constraints": {
+      "captureMode": "video"
+    }
+  },
+  {
+    "id": "data-entry.media.record.screen",
+    "parent": "data-entry.media.record",
+    "constraints": {
+      "captureMode": "screen"
+    }
+  },
+  {
+    "id": "data-entry.dictation",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.hyperlink",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.quote",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.icon",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.secure",
+    "parent": "data-entry",
+    "constraints": {}
+  },
+  {
+    "id": "data-entry.secure.string",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "string"
+    }
+  },
+  {
+    "id": "data-entry.secure.number",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "number"
+    }
+  },
+  {
+    "id": "data-entry.secure.integer",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "integer"
+    }
+  },
+  {
+    "id": "data-entry.secure.boolean",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "boolean"
+    }
+  },
+  {
+    "id": "data-entry.secure.object",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "object"
+    }
+  },
+  {
+    "id": "data-entry.secure.array",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "array"
+    }
+  },
+  {
+    "id": "data-entry.secure.json",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "json"
+    }
+  },
+  {
+    "id": "data-entry.secure.ssh-key",
+    "parent": "data-entry.secure",
+    "constraints": {
+      "valueType": "ssh-key"
+    }
+  }
+]

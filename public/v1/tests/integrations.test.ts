@@ -624,7 +624,7 @@ test("assistant opens the same private connection conversation and emits only a 
   const result = await connectionTools
     .find((t) => t.name === "connections_credentials")!
     .execute(run, { connectionId: c.id });
-  assert.equal(run.renders[0].type, "connection_credentials");
+  assert.equal(run.renders[0].type, "panel");
   assert.ok(!JSON.stringify({ result, renders: run.renders }).includes(token));
   const { connectionContext } = await import("../integrations/assistant.js");
   assert.match(
@@ -961,7 +961,7 @@ test("the real shared assistant routes setup tools, secure chat widgets and a bo
     assert.equal(reply.statusCode, 200, reply.body);
     const result = reply.json();
     assert.equal(result.status, "success", reply.body);
-    assert.equal(result.renders[0].type, "connection_credentials");
+    assert.equal(result.renders[0].type, "panel");
     const prompt = JSON.stringify(mocked.calls);
     assert.match(prompt, /Settings → Connections/);
     assert.ok(!prompt.includes(token));

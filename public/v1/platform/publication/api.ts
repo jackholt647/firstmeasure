@@ -6,6 +6,7 @@ import { authorizePublication, authorizePublicationDiscovery, userPublicationCon
 import { listDataProviders, readPublishedData, listPublishedData } from "./providers.js";
 import { listActions, invokeAction } from "./actions.js";
 import { listDatasetTypes } from "./datasets.js";
+import { resolveWidget, widgetTypes } from '../widgets/catalog.js';
 import { initializePublication } from "./bootstrap.js";
 import type { AccessPolicy, PublicationContext, TargetRef } from "./contracts.js";
 
@@ -64,6 +65,8 @@ export const registerPublicationApi: FastifyPluginAsync = async app => {
     // Discovery is a description, never permission to read or execute a particular resource.
     return { providers, actions, datasetTypes: listDatasetTypes() };
   });
+  app.post('/organizations/:orgId/widgets/resolve',async request=>{const input=z.object({type:identity,surface:identity.optional(),config:z.record(z.unknown()).optional(),target:publicationTargetSchema}).strict().parse(request.body);return resolveWidget(await context(request),input);});
+  app.get('/organizations/:orgId/widgets/types',async request=>{await context(request);return {types:widgetTypes.list()};});
   app.post("/organizations/:orgId/data/read", async request => {
     const source = publicationSourceSchema.parse(request.body);
     return readPublishedData(await context(request, source.target), source);

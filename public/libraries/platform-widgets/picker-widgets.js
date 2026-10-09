@@ -36,13 +36,13 @@
      * host-supplied photos in context.data['media.picker'] = {items:[...]} (items may be project photo objects). */
     W.attachRenderer('media.picker','1',async(root,{data,config,context,reference,state,notifySelection})=>{
       const feed=global.Portal?.PhotoFeed;if(!feed?.mountProjectMediaPicker)throw Error('The media picker is unavailable on this page.');
-      const target=reference.target||context.target||{},multiple=config.multiple!==false,video=config.kind==='image_video',max=multiple?Math.min(config.max||50,50):1;
+      const target=reference.target||context.target||{},multiple=config.multiple!==false,video=config.kind==='image_video'||config.mediaType==='video',max=multiple?Math.min(config.max||50,50):1;
       const source={provider:'media',export:'library'},read=context.read||((source,target)=>global.PlatformAPI.publication.read(target.organizationId,{...source,target}));
       const args={...(video?{kind:'image_video'}:{}),...(config.project_id&&target.scope==='organization'?{project_id:config.project_id}:{})};
       async function load(){const result=await read({...source,args},target);if(result.status!=='ready')throw Error(result.message||'Media is unavailable.');return result.value;}
       // The runtime's first read carries no arguments; repeat it only when this instance needs videos or a project filter.
       if(!context.data?.[reference.id]&&Object.keys(args).length)data=await load();
-      const photos=value=>(Array.isArray(value?.items)?value.items:[]).map(item=>item&&typeof item==='object'&&(item.media_id||item.src||item.url)?item:{id:item.id,media_id:item.id,content_type:item.content_type,label:item.label||item.file_name,file_name:item.file_name,uploaded_at:item.created_at,project_id:item.project_id});
+      const photos=value=>(Array.isArray(value?.items)?value.items:[]).filter(item=>!config.mediaType||String(item.content_type||'').startsWith(config.mediaType+'/')).map(item=>item&&typeof item==='object'&&(item.media_id||item.src||item.url)?item:{id:item.id,media_id:item.id,content_type:item.content_type,label:item.label||item.file_name,file_name:item.file_name,uploaded_at:item.created_at,project_id:item.project_id});
       const selection=ids=>ids.length?{media_ids:ids.slice(0,50)}:null,label=ids=>ids.length+(video?' item':' photo')+(ids.length===1?'':'s');
       const options={photos:photos(data),multiple,imageOnly:!video,projectId:target.projectId||config.project_id||'',selectedIds:Array.isArray(state?.media_ids)?state.media_ids:[],title:clean(config.prompt)||(video?'Select media':'Select photos'),subtitle:data?.truncated?'Showing the newest items.':' ',onUpload:context.onUpload,
         onConfirm(_chosen,ids){return notifySelection(selection(ids),{confirmed:true,label:label(ids)});}};

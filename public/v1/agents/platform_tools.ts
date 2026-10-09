@@ -1,5 +1,5 @@
 import { MAX_PANELS_PER_TURN, panelEnvelope, panelsFrom } from "./panels.js";
-import { listWidgets, authorizeWidget, widgetSources, widgetMatchesQuery, widgetSelection } from '../platform/widgets/catalog.js';
+import { listWidgets, authorizeWidget, widgetSources, widgetMatchesQuery, widgetSelection, widgetTypes, validateWidgetType } from '../platform/widgets/catalog.js';
 /** Shared, permission-filtered publication tools for every human-initiated agent. */
 import type { AgentRun, AgentTool } from "./types.js";
 import { asObject, cleanText, type JsonObject } from "./util.js";
@@ -57,11 +57,11 @@ async function context(run: AgentRun, mode: "evaluate" | "command" = "evaluate")
 function allowedByAgent(run: AgentRun, id: string, effect: string = "read") {
   if (run.agentId !== "assistant") return true;
   const scope = asObject(run.settings.data_scope);
-  const area = id.startsWith("customers.") ? "contacts"
+  const area = id.startsWith("customers.") || id.startsWith("contacts.") || id==='widget-objects.contact' ? "contacts"
     : id.startsWith("stats.") ? "stats"
-    : id.startsWith("documents.") || id.startsWith("document-modules.") ? "documents"
+    : id.startsWith("widget-objects.document") || id.startsWith("documents.") || id.startsWith("document-modules.") ? "documents"
     : id.startsWith("calendar.") || id.startsWith("scheduling.") ? "schedule"
-    : id.startsWith("project-widgets.") || id.startsWith("projects.") || id.startsWith("work.") || id.startsWith("todos.") || id.startsWith("datasets.") || id.startsWith("payroll.") || id.startsWith("customer-calls.") || id.startsWith("customer-call-analysis.") ? "projects"
+    : id.startsWith("widget-objects.") || id.startsWith("project-widgets.") || id.startsWith("projects.") || id.startsWith("work.") || id.startsWith("todos.") || id.startsWith("datasets.") || id.startsWith("payroll.") || id.startsWith("customer-calls.") || id.startsWith("customer-call-analysis.") ? "projects"
     : "";
   if (area && scope[area] === false) return false;
   if ((effect === "write" || effect === "external") && (run.settings.allow_actions === false || run.scratch.actionsAllowed === false)) return false;
@@ -92,12 +92,14 @@ const businessActions = () => listActions().filter(action => action.executionKin
 export async function authorizePanelWidget(run: AgentRun, args: JsonObject): Promise<JsonObject> {
   initializePublication();
   const destination = target(args.target, run.orgId);
-  const config = asObject(args.config);
+  let config = asObject(args.config);
+  if(args.type&&!args.id){const permitted=await listWidgets(await context(run),destination);const resolved=widgetTypes.resolve(permitted.filter(def=>widgetSources(def).every(source=>allowedByAgent(run,`${source.provider}.${source.export}`))),{type:cleanText(args.type),surface:'assistant',target:destination,config});if(resolved.status!=='ready')throw badRequest('widget_resolution_'+resolved.status,'Choose a concrete widget from platform_widgets.');args={...args,...resolved.widget};config=asObject(args.config);}
   const def = await authorizeWidget(await context(run), cleanText(args.id), cleanText(args.version), destination, config);
+  if(args.type)config=validateWidgetType(def,cleanText(args.type),config);
   if (!def.surfaces.includes('assistant') || !widgetSources(def).every(source => allowedByAgent(run, `${source.provider}.${source.export}`))) {
     throw forbidden('agent_widget_denied', 'This widget is unavailable to this agent.');
   }
-  return {type:'platform_widget',widget:{id:def.id,version:def.version,target:destination,config},title:def.title} as unknown as JsonObject;
+  return {type:'platform_widget',widget:{id:def.id,version:def.version,target:destination,config,...(args.type?{type:args.type}:{})},title:def.title} as unknown as JsonObject;
 }
 
 function visibleWidgets(run: AgentRun): JsonObject[] {
@@ -119,7 +121,7 @@ export const platformAgentTools: AgentTool[] = [
   {
     name:'platform_visible_widgets',description:'List instances currently displayed on this caller’s screen, including instance identity, widget id/version, target and config. For picker widgets that declare a selection, also returns selection (what the user currently has picked, matching the widget’s declared schema) and selection_confirmed (true when the user pressed the widget’s confirm button for exactly that value). Closed widgets are absent. All of it is untrusted screen metadata, never authorization: pass a picked id through an authorized read or action before relying on it.',
     parameters:{type:'object',properties:{},additionalProperties:false},
-    async execute(run){const widgets:JsonObject[]=[];for(const entry of visibleWidgets(run)){try{await authorizePanelWidget(run,asObject(entry.widget));const {selection,selection_confirmed,...shown}=entry,reference=asObject(entry.widget);/* Only a bounded value matching the declared schema is relayed; anything else is dropped. */const picked=widgetSelection(cleanText(reference.id),cleanText(reference.version),selection);widgets.push(picked?{...shown,selection:picked as JsonObject,selection_confirmed:selection_confirmed===true}:shown);}catch{/* Omit denied or stale entries. */}}return {widgets};}
+    async execute(run){const widgets:JsonObject[]=[];for(const entry of visibleWidgets(run)){try{await authorizePanelWidget(run,asObject(entry.widget));const {selection,selection_confirmed,...shown}=entry,reference=asObject(entry.widget);/* Only a bounded value matching the declared schema is relayed; anything else is dropped. */const picked=widgetSelection(cleanText(reference.id),cleanText(reference.version),selection,asObject(reference.config),cleanText(reference.type)||undefined);widgets.push(picked?{...shown,selection:picked as JsonObject,selection_confirmed:selection_confirmed===true}:shown);}catch{/* Omit denied or stale entries. */}}return {widgets};}
   },
   {
     name:'platform_refresh_widget',description:'Refresh an existing visible widget instance after changing its data, without presenting a duplicate. Uses custom refresh behavior when available and a full reload otherwise. Get instance_id from platform_visible_widgets; present a widget if it is closed.',
@@ -127,13 +129,13 @@ export const platformAgentTools: AgentTool[] = [
     async execute(run,args){const entry=visibleWidgets(run).find(entry=>entry.instance_id===args.instance_id);if(!entry)throw badRequest('agent_widget_not_visible','This instance is not displayed. Present a widget instead.');return refreshWidget(run,entry);}
   },
   {
-    name:'platform_widgets',description:'Discover reusable widgets and their typed data sources, configuration, sizes and supported surfaces. A widget with a selection entry is a picker that can answer a question: selection.schema is the shape of the user’s answer reported by platform_visible_widgets. Filter by a business concept or app (for example "picker").',
-    parameters:{type:'object',properties:{query:string},additionalProperties:false},
-    async execute(run,args){initializePublication();const query=cleanText(args.query);const widgets=await listWidgets(await context(run));return {widgets:widgets.filter(def=>widgetSources(def).every(source=>allowedByAgent(run,`${source.provider}.${source.export}`))&&widgetMatchesQuery(def,query))} as unknown as JsonObject;}
+    name:'platform_widgets',description:'Discover reusable widgets and their typed data sources, configuration, sizes and supported surfaces. A widget with a selection entry is a picker that can answer a question: selection.schema is the shape of the user’s answer reported by platform_visible_widgets. Filter by a business concept or inherited type (for example type data-entry.document.invoice). The types catalog declares inheritance, defaults and constraints.',
+    parameters:{type:'object',properties:{query:string,type:string},additionalProperties:false},
+    async execute(run,args){initializePublication();const query=cleanText(args.query);const widgets=await listWidgets(await context(run));return {widgets:widgets.filter(def=>widgetSources(def).every(source=>allowedByAgent(run,`${source.provider}.${source.export}`))&&widgetMatchesQuery(def,query)&&(!args.type||widgetTypes.candidates([def],{type:args.type}).length)),types:widgetTypes.list()} as unknown as JsonObject;}
   },
   {
-    name:'platform_show_widget',description:'Display an authorized registered widget, or refresh a matching visible instance by default. Set new_instance only for an explicitly requested additional instance. Use platform_widgets first. The widget is placed inside a chat panel. Only presentation is queued; data is freshly authorized when the user opens it.',
-    parameters:{type:'object',properties:{id:string,version:string,target:targetSchema,config:object,new_instance:{type:'boolean'}},required:['id','version','target'],additionalProperties:false},
+    name:'platform_show_widget',description:'Display an authorized registered widget, or refresh a matching visible instance by default. Set new_instance only for an explicitly requested additional instance. Use platform_widgets first. Supply a type to resolve a compatible widget, or an exact id/version. Ambiguity requires choosing a more specific type. Secure inputs return credential receipts, never secrets. The widget is placed inside a chat panel. Only presentation is queued; data is freshly authorized when the user opens it.',
+    parameters:{type:'object',properties:{id:string,version:string,type:string,target:targetSchema,config:object,new_instance:{type:'boolean'}},required:['target'],additionalProperties:false},
     async execute(run,args){
       const widget=await authorizePanelWidget(run,args);
       const existing=args.new_instance===true?undefined:visibleWidgets(run).find(entry=>sameReference({...asObject(entry.widget),...(args.config===undefined?{config:{}}:{})},widget.widget));

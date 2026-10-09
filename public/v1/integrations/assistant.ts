@@ -259,12 +259,7 @@ export const connectionTools: AgentTool[] = [
         c.id,
         await definition(auth.orgId, c, c.draftVersion),
       );
-      run.renders.push({
-        type: "connection_credentials",
-        requestId: request.id,
-        connectionId: c.id,
-        title: `Connect ${c.name}`,
-      });
+      run.renders.push({type:'panel',id:'credential_'+request.id,title:`Connect ${c.name}`,widgets:[{type:'platform_widget',title:'Secure credentials',widget:{id:'secure.input',version:'1',type:'data-entry.secure',target:{scope:'organization',organizationId:auth.orgId},config:{requestId:request.id}}}]});
       return { status: "secure_form_opened", connectionId: c.id };
     },
   ),

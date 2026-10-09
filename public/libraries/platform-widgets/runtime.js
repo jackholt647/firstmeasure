@@ -36,7 +36,11 @@
     const k=key(def.id,def.version);if(definitions.has(k))throw Error('Duplicate widget: '+k);
     definitions.set(k,Object.freeze(clone(def)));if(renderer)renderers.set(k,renderer);
   }
-  const ready=fetch(new URL('catalog.json?v=20261007-picker-widgets',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
+  function loadScript(path){return new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=new URL(path,base);script.onload=resolve;script.onerror=()=>reject(Error('Widget dependency unavailable'));document.head.append(script);});}
+  let typeGraph;
+  const typeReady=Promise.all([fetch(new URL('types.json?v=20261009',base)).then(r=>{if(!r.ok)throw Error('Widget types unavailable');return r.json();}),loadScript('types.js?v=20261009')]).then(([rows])=>{typeGraph=global.FirstMateWidgetTypes.create(rows);});
+  const catalogReady=fetch(new URL('catalog.json?v=20261009-inherited-widget-types',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
+  const ready=Promise.all([typeReady,catalogReady]).then(()=>{typeGraph.validateDefinitions([...definitions.values()]);return Promise.all([loadScript('grouped-widgets.js?v=20261009'),loadScript('extended-widgets.js?v=20261009')]);});
   ready.catch(()=>{});
   function styles(){
     if(document.getElementById('fm-widget-styles'))return;
@@ -70,7 +74,7 @@
     // Renderers report changes here; confirmed marks an explicit "use this" by the user. Widgets that declare no selection ignore it.
     function notifySelection(value,options={}){
       if(!alive||!definition?.selection)return false;
-      let next;try{next=boundedSelection(value);}catch(error){console.warn('[widgets] selection rejected:',error.message);return false;}
+      let next;try{next=boundedSelection(value);if(next&&ref.type)typeGraph.validateSelection(ref.type,next);}catch(error){console.warn('[widgets] selection rejected:',error.message);return false;}
       selection=next;confirmed=options.confirmed===true&&next!=null;
       const detail={instance_id:id,widget:{id:ref.id,version:ref.version||'1'},title:definition.title,surface:context.surface||'project',selection:clone(next),confirmed,label:String(options.label||'').replace(/[<>]/g,'').slice(0,120)};
       try{context.onSelect?.(detail.selection,detail);}finally{root.dispatchEvent(new CustomEvent('fm:widget-selection',{bubbles:true,detail}));}
@@ -98,7 +102,7 @@
         await ready;if(!alive||generation!==revision)return;
         definition=definitions.get(key(ref.id,ref.version||'1'));if(!definition)throw Error('This widget version is unavailable');
         if(!definition.surfaces.includes(context.surface||'project'))throw Error('This widget is not supported on this surface');
-        validate(definition,config);root.dataset.sizing=definition.sizing.mode;root.style.setProperty('--fm-widget-min-height',(definition.sizing.minHeight ?? 280)+'px');content.style.height=definition.sizing.mode==='content'?'auto':'100%';
+        if(ref.type){if(!(definition.types||[]).some(type=>typeGraph.contract(ref.type).ancestors.includes(type)))throw Error('Widget type mismatch');Object.assign(config,typeGraph.config(ref.type,config));}validate(definition,config);root.dataset.sizing=definition.sizing.mode;root.style.setProperty('--fm-widget-min-height',(definition.sizing.minHeight ?? 280)+'px');content.style.height=definition.sizing.mode==='content'?'auto':'100%';
         const renderer=renderers.get(key(definition.id,definition.version));clear();
         if(definition.children){content.className='fm-widget-stack';content.style.height='auto';for(const child of definition.children){const el=document.createElement('div');content.append(el);children.push(mount(el,child,{...context,target:ref.target||context.target}));}await Promise.all(children.map(c=>c.ready));return;}
         if(!renderer)throw Error('The widget renderer is unavailable');
@@ -175,8 +179,8 @@
       else if(prior.html!==el.outerHTML)el.animate?.([{backgroundColor:'#eef4ff'},{backgroundColor:'transparent'}],{duration:450});
     }
   }
-  function visibleInstances(){return [...mounted].filter(([,entry])=>entry.root.isConnected&&entry.root.getClientRects().length&&!entry.root.closest('[hidden],[inert]')).map(([instance_id,entry])=>{const ref=entry.reference();const picked=entry.selection();return {instance_id,panel_id:entry.root.closest('[data-panel-id]')?.dataset.panelId,widget:{id:ref.id,version:ref.version||'1',target:ref.target,config:ref.config||{}},...(picked.value!=null?{selection:clone(picked.value),selection_confirmed:picked.confirmed}:{})};});}
+  function visibleInstances(){return [...mounted].filter(([,entry])=>entry.root.isConnected&&entry.root.getClientRects().length&&!entry.root.closest('[hidden],[inert]')).map(([instance_id,entry])=>{const ref=entry.reference();const picked=entry.selection();return {instance_id,panel_id:entry.root.closest('[data-panel-id]')?.dataset.panelId,widget:{id:ref.id,version:ref.version||'1',target:ref.target,config:ref.config||{},...(ref.type?{type:ref.type}:{})},...(picked.value!=null?{selection:clone(picked.value),selection_confirmed:picked.confirmed}:{})};});}
   function refreshInstance(id){return mounted.get(id)?.handle.refresh();}
-  global.FirstMateWidgets={selectionMaxBytes:SELECTION_MAX_BYTES,visibleInstances,refreshInstance,reconcile,presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
+  global.FirstMateWidgets={types:async()=>{await ready;return typeGraph.list();},resolve:async(request)=>{await ready;return typeGraph.resolve([...definitions.values()],request);},mountTyped:async(root,request,context={})=>{await ready;const result=typeGraph.resolve([...definitions.values()],{...request,surface:context.surface||request.surface});if(result.status!=='ready'){status(root,result.status==='ambiguous'?'Choose a more specific widget type':'No compatible widget is available');return null;}return mount(root,{...result.widget,target:request.target||context.target},context);},selectionMaxBytes:SELECTION_MAX_BYTES,visibleInstances,refreshInstance,reconcile,presentationHtml,ready,register,attachRenderer,mount,library,registerDocumentWidget,list:async()=>{await ready;return [...definitions.values()].map(clone);},describe:async(id,version='1')=>{await ready;const def=definitions.get(key(id,version));return def?clone(def):null;}};
   global.FirstMateProjectTrays?.registerWidgets?.();
 })(window);

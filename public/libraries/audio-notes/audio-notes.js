@@ -252,6 +252,7 @@
       } catch (error) {}
 
       const cleanup = () => {
+        options.signal?.removeEventListener('abort',cancel);
         options.onRecordingState?.(null);
         root.clearInterval(timer);
         root.cancelAnimationFrame(animation);
@@ -343,6 +344,7 @@
         <div class="fm-an-inline-head"><span><span class="fm-an-record-dot"></span>${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_114d45a4f9a9ba","Recording audio note") ?? "Recording audio note")}</span><button class="fm-an-inline-remove" type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("audio-notes","m_ac946bb11e0417","Cancel recording") ?? "Cancel recording")}"><i class="fas fa-xmark"></i></button></div>
         <div class="fm-an-inline-body"><div class="fm-an-inline-wave" aria-hidden="true"></div><span class="fm-an-inline-clock">0:00</span><button class="fm-an-inline-stop ${String(options.submitStyle ? 'submit' : '')}" type="button" aria-label="${String(options.submitStyle ? 'Submit recording' : 'Finish recording')}"><i class="fas ${String(options.submitStyle ? 'fa-arrow-right' : 'fa-stop')}"></i></button></div>
       </div>`;
+      if(options.signal?.aborted){stream.getTracks().forEach(track=>track.stop());mount.replaceChildren();reject(new Error('Recording cancelled.'));return;}
       const card = mount.firstElementChild;
       if (options.mode === 'dictation') card.querySelector('.fm-an-inline-head > span').lastChild.textContent = 'Dictating…';
       const wave = card.querySelector('.fm-an-inline-wave');
@@ -364,6 +366,7 @@
       let animation = 0;
       let timer = 0;
       const cleanup = () => {
+        options.signal?.removeEventListener('abort',cancel);
         options.onRecordingState?.(null);
         root.clearInterval(timer);
         root.cancelAnimationFrame(animation);
@@ -375,6 +378,7 @@
         cancelled = true;
         if (recorder.state !== 'inactive') recorder.stop();
       };
+      options.signal?.addEventListener('abort',cancel,{once:true});
       card.querySelector('.fm-an-inline-remove').addEventListener('click', cancel);
       card.querySelector('.fm-an-inline-stop').addEventListener('click', () => recorder.state !== 'inactive' && recorder.stop());
       try {

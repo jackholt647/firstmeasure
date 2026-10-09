@@ -2116,7 +2116,7 @@
     const address = projectAddress(project);
     const label = [title, address && address.toLowerCase() !== title.toLowerCase() ? address : ''].filter(Boolean).join(' · ');
     return projectId
-      ? `<button type="button" class="pf-project-identity" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
+      ? `<button type="button" class="pf-project-identity" data-fm-summary-type="summary.project" data-fm-summary-project="${escapeHtml(projectId)}" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
       : `<span>${escapeHtml(label)}</span>`;
   }
   function feedNoteHtml(note = {}){

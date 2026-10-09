@@ -75,7 +75,7 @@
 `;
     document.head.append(style);
   }
-  async function mountCredential(container, org, requestId) {
+  async function mountCredential(container, org, requestId, options = {}) {
     styles();
     container.classList.add("ic-credentials");
     container.textContent = "Loading secure form…";
@@ -85,6 +85,9 @@
         `/credential-requests/${enc(requestId)}`,
       );
       container.innerHTML = `<h3>Connect ${esc(r.name)}</h3><p class="ic-destination">Credentials will be used for <strong>${esc(r.destination)}</strong>.</p><p>These values are stored securely and are never sent to the assistant.</p><form autocomplete="off">${r.fields.map((f) => `<label>${esc(f.label)}<input name="${esc(f.key)}" aria-label="${esc(f.label)}" type="${f.secret ? "password" : "text"}" ${f.required ? "required" : ""} maxlength="16000" autocomplete="off" spellcheck="false"></label>`).join("")}<button class="ic-primary" type="submit">Save credentials securely</button></form><div role="status" aria-live="polite"></div>`;
+      if(options.signal?.aborted){container.replaceChildren();return;}
+      options.signal?.addEventListener('abort',()=>container.replaceChildren(),{once:true});
+      if(options.allowFile){for(const field of r.fields){const input=container.querySelector(`[name="${CSS.escape(field.key)}"]`);const file=document.createElement('input');file.type='file';file.setAttribute('aria-label','Upload '+field.label+' securely');file.onchange=async()=>{const selected=file.files[0];if(!selected)return;if(selected.size>16000){container.querySelector('[role=status]').textContent='Choose a credential file up to 16 KB.';file.value='';return;}input.value=await selected.text();file.value='';};input.after(file);}}
       container.querySelector("form").onsubmit = async (event) => {
         event.preventDefault();
         const form = event.currentTarget,
@@ -94,10 +97,13 @@
         status.textContent = "Saving…";
         const values = Object.fromEntries(new FormData(form));
         try {
+          const kind=options.valueType||'string';
+          if(!['string','ssh-key'].includes(kind))for(const value of Object.values(values)){let parsed;try{parsed=JSON.parse(value);}catch{throw Error('Enter valid JSON for the secure value.');}if(kind==='number'&&typeof parsed!=='number'||kind==='integer'&&!Number.isInteger(parsed)||kind==='boolean'&&typeof parsed!=='boolean'||kind==='array'&&!Array.isArray(parsed)||kind==='object'&&(!parsed||typeof parsed!=='object'||Array.isArray(parsed)))throw Error('The secure value does not match its declared type.');}
           await request(org, `/credential-requests/${enc(requestId)}`, {
             values,
           });
           form.reset();
+          if(!options.signal?.aborted)options.onSaved?.({credential_request_id:requestId,stored:true});
           form.remove();
           status.textContent =
             "Credentials saved securely. You can ask the assistant to test the connection.";

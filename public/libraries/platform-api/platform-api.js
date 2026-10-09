@@ -3026,6 +3026,7 @@
     location.href
   ).href;
   const publication = {
+    resolveWidget(orgId, input){return request(publicationPath(orgId, '/widgets/resolve'), {method:'POST',body:input});},
     measurements(orgId, projectId){ return request(publicationPath(orgId, `/projects/${enc(projectId)}/measurements`)); },
     catalog(orgId, options = {}){
       const query = new URLSearchParams();

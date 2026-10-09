@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { readFileSync, mkdtempSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+const root=path.resolve('../libraries/platform-widgets'),module=createRequire(import.meta.url)(path.join(root,'types.js'));
+const fixtureRoot=mkdtempSync(path.join(os.tmpdir(),'widget-types-'));
+Object.assign(process.env,{NODE_ENV:'test',PLATFORM_STORAGE_ROOT:path.join(fixtureRoot,'platform'),FIRSTMEASURE_STORAGE_ROOT:path.join(fixtureRoot,'reports'),FIRSTMEASURE_INDEX_DB_PATH:path.join(fixtureRoot,'index.sqlite')});
+test('unbounded type lineage, fallback, constraints, surfaces and ambiguity use one shared resolver',()=>{
+ const graph=module.create([{id:'input',selection:true},{id:'input.document',parent:'input'},{id:'input.document.invoice',parent:'input.document',constraints:{documentType:'invoice'}},{id:'input.document.invoice.paid',parent:'input.document.invoice',defaults:{status:'paid'}}]);
+ const widget={id:'docs',version:'1',surfaces:['assistant'],types:['input.document'],selection:{schema:{type:'object'}}};
+ graph.validateDefinitions([widget]);const result=graph.resolve([widget],{type:'input.document.invoice.paid',surface:'assistant'});assert.equal(result.status,'ready');assert.deepEqual(result.widget.config,{status:'paid',documentType:'invoice'});assert.equal(result.widget.id,'docs');assert.equal(graph.resolve([widget],{type:'input.document.invoice',surface:'hover'}).status,'unavailable');
+ assert.throws(()=>graph.resolve([widget],{type:'input.document.invoice',config:{documentType:'contract'}}));assert.equal(graph.resolve([widget,{...widget,id:'other'}],{type:'input.document'}).status,'ambiguous');assert.throws(()=>graph.validateDefinitions([{...widget,selection:undefined}]));assert.throws(()=>module.create([{id:'a',parent:'b'},{id:'b',parent:'a'}]));assert.throws(()=>module.create([{id:'a',parent:'missing'}]));assert.throws(()=>module.create([{id:'a'},{id:'a'}]));
+});
+test('all editable custom-field types have declared picker contracts, formula remains calculated',async()=>{
+ const {types}=await import('../custom_fields/contracts.js');const defs=JSON.parse(readFileSync(path.join(root,'catalog.json'),'utf8'));const rows=JSON.parse(readFileSync(path.join(root,'types.json'),'utf8'));const graph=module.create(rows);graph.validateDefinitions(defs);
+ for(const type of types.filter(type=>type!=='formula'))assert.equal(graph.resolve(defs,{type:'data-entry.'+type,surface:'assistant'}).status,'ready',type);
+ for(const type of ['summary.project','summary.contact','summary.user','summary.document.invoice','summary.document.contract','summary.document.receipt','data-entry.document.invoice','data-entry.media.record.screen','data-entry.secure.ssh-key'])assert.equal(graph.resolve(defs,{type,surface:'assistant'}).status,'ready',type);
+});
+test('typed values enforce the field schema and secure selections contain receipts only',async()=>{
+ const {widgetSelection}=await import('../platform/widgets/catalog.js');
+ assert.deepEqual(widgetSelection('field.input','1',{value:'a@example.test'},{fieldType:'email'}),{value:'a@example.test'});assert.equal(widgetSelection('field.input','1',{value:'not an email'},{fieldType:'email'}),null);assert.equal(widgetSelection('field.input','1',{value:1.2},{fieldType:'integer'}),null);assert.equal(widgetSelection('secure.input','1',{value:'secret'},{requestId:'r'}),null);assert.deepEqual(widgetSelection('secure.input','1',{credential_request_id:'r',stored:true},{requestId:'r'}),{credential_request_id:'r',stored:true});assert.equal(widgetSelection('datetime.picker','1',{mode:'time',value:'12:00'},{mode:'date'},'data-entry.date'),null);
+});
+test('summary reads preserve permissions, ownership and record revisions',async()=>{
+ const s=await import('../platform/storage.js'),p=await import('../platform/publication/providers.js');const {userPublicationContext}=await import('../platform/publication/context.js');const {registerObjectWidgets}=await import('../platform/widgets/objects.js');registerObjectWidgets();
+ await s.createOrganization({id:'typed',name:'Typed'});await s.upsertDocument('typed','projects',{id:'p',data:{name:'Project',contacts:[{id:'c',name:'Contact',private_key:'never publish'}],private_key:'never publish'}});await s.upsertDocument('typed','documents',{id:'d',data:{project_id:'p',title:'Invoice',document_type:'invoice',params:{secret:'never publish'}}});
+ const auth:any={orgId:'typed',userId:'u',role:'member',permissions:{view_projects:true,view_contacts:true},applicationAccess:{management:{enabled:true,permissions:{'*':true}}}};const ctx=userPublicationContext(auth),target={scope:'project' as const,organizationId:'typed',projectId:'p'};
+ for(const [name,id]of [['project','p'],['contact','c'],['document','d']]){const read=await p.readPublishedData(ctx,{provider:'widget-objects',export:name,target:{...target,id}});assert.equal(read.status,'ready',JSON.stringify(read));assert.ok(!JSON.stringify(read).includes('never publish'));}
+ assert.equal((await p.readPublishedData(ctx,{provider:'widget-objects',export:'document',target:{...target,projectId:'other',id:'d'}})).status,'missing');auth.permissions.view_projects=false;assert.equal((await p.readPublishedData(ctx,{provider:'widget-objects',export:'project',target})).status,'denied');assert.equal((await s.readDocument('typed','projects','p')).revision,1);
+ await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();
+});
