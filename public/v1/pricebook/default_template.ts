@@ -31,11 +31,11 @@ const SHINGLE_FORMULA = { tokens: [{ type: "measurement", value: "shingleSquares
 const SHINGLE_PACKAGING = { order_unit: "bundle", order_unit_plural: "bundles", packages_per_unit: 3, description: "3 bundles per square" };
 
 /** Item ids added to the template after version 1; existing organization price books gain them on upgrade. */
-export const TEMPLATE_ADDED_ITEM_IDS: Record<number, string[]> = { 2: ["gaf_ns", "gaf_uhdz"], 3: ["gaf_feltbuster", "gaf_tiger_paw"] };
+export const TEMPLATE_ADDED_ITEM_IDS: Record<number, string[]> = { 2: ["gaf_ns", "gaf_uhdz"], 3: ["gaf_feltbuster", "gaf_tiger_paw"], 4: ["pipe_boot_lifetime", "warranty_system_plus", "warranty_silver_pledge"] };
 
 export const DEFAULT_PRICEBOOK_TEMPLATE = {
   key: DEFAULT_TEMPLATE_KEY,
-  version: 3,
+  version: 4,
   name: "Default Price Book",
   description: "Bundled price book template derived from the current portal default catalog.",
   catalog: {
@@ -183,6 +183,9 @@ export const DEFAULT_PRICEBOOK_TEMPLATE = {
       { id: "tpo_drain", name: "TPO Drain Detail", category: "flashing", segment: "flat", unit: "ea", unitPrice: 145, formulaConfig: { tokens: [{ type: "measurement", value: "structures" }], includeWaste: false }, autoAdd: false, description: "Flat roof drain flashing detail", options: [], images: [], metadata: {} },
       { id: "pipe_jack_paint", name: "Skylight Trim Kit", category: "accessories", unit: "ea", unitPrice: 28, formulaConfig: { tokens: [{ type: "measurement", value: "skylightsEa" }], includeWaste: false }, autoAdd: false, description: "Accessory skylight trim and finish pieces", options: [], images: [], metadata: {} },
       { id: "ridge_vent", name: "Ridge Vent", category: "accessories", unit: "lf", unitPrice: 7.5, formulaConfig: { tokens: [{ type: "measurement", value: "ridgesLf" }], includeWaste: false }, autoAdd: false, order_packaging: { order_unit: "piece", order_unit_plural: "pieces", units_per_package: 4, description: "4 ft stick" }, description: "Continuous ridge ventilation", options: [], images: [], metadata: {} },
+      { id: "pipe_boot_lifetime", name: "Lifetime pipe boots", category: "accessories", unit: "job", unitPrice: 385, formulaConfig: { tokens: [{ type: "number", value: "1" }], includeWaste: false }, autoAdd: false, description: "Every pipe boot upgraded to a lifetime silicone boot that will not crack in the sun", options: [], images: [], metadata: {} },
+      { id: "warranty_system_plus", name: "GAF System Plus warranty", category: "accessories", unit: "job", unitPrice: 450, formulaConfig: { tokens: [{ type: "number", value: "1" }], includeWaste: false }, autoAdd: false, description: "50-year non-prorated coverage on the whole roof system, registered for you", options: [], images: [], metadata: {} },
+      { id: "warranty_silver_pledge", name: "GAF Silver Pledge warranty", category: "accessories", unit: "job", unitPrice: 1150, formulaConfig: { tokens: [{ type: "number", value: "1" }], includeWaste: false }, autoAdd: false, description: "Adds 10 years of workmanship coverage, backed by the manufacturer", options: [], images: [], metadata: {} },
       { id: "chimney_flashing", name: "Chimney Flashing", category: "accessories", unit: "ea", unitPrice: 225, formulaConfig: { tokens: [{ type: "measurement", value: "chimneysEa" }], includeWaste: false }, autoAdd: false, description: "Counter flashing and base flashing at chimneys", options: [], images: [], metadata: {} },
       { id: "gutter_replace", name: "K-Style Gutter", category: "gutters", unit: "lf", unitPrice: 14.25, formulaConfig: { tokens: [{ type: "measurement", value: "gutterLf" }], includeWaste: false }, autoAdd: false, description: "5-inch seamless gutter replacement", options: [{ id: "color", label: "Color", input_type: "single_select", required: false, values: [{ id: "white", label: "White" }, { id: "brown", label: "Brown" }, { id: "black", label: "Black" }] }], images: [], metadata: {} },
       { id: "downspout", name: "Downspout", category: "gutters", unit: "lf", unitPrice: 11.5, formulaConfig: { tokens: [{ type: "measurement", value: "downspoutLf" }], includeWaste: false }, autoAdd: false, order_packaging: { order_unit: "piece", order_unit_plural: "pieces", units_per_package: 10, description: "10 ft section" }, description: "Downspout replacement", options: [], images: [], metadata: {} },

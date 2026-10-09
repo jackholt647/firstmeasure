@@ -341,11 +341,14 @@ type PieceRecipe = {
   /** Lines every report-based scope carries even when the assembly omits them. */
   ensure: string[];
   choices: ChoiceGroup[];
+  /** Optional extras offered with the job; not in the price until chosen. */
+  addons: string[];
 };
 
 const ROOF_REPLACEMENT: PieceRecipe = {
   assembly: "roof_replacement",
   ensure: ["headwall_flashing", "sidewall_flashing", "pipe_boot", "skylight_flashing", "chimney_flashing", "gutter_replace", "downspout"],
+  addons: ["pipe_boot_lifetime", "warranty_system_plus", "warranty_silver_pledge"],
   // `items` are the options a new proposal starts with; every other price
   // book item of the same item type can be added from the review screen.
   choices: [
@@ -453,6 +456,14 @@ export function generatePieceScope(catalogValue: unknown, templateIdValue: strin
   }
   root.children = children;
   for (const group of recipe.choices) applyChoiceGroup(catalog, root, group, measurements);
+  for (const id of recipe.addons) {
+    if (present.has(id) || !catalogHas(catalog, id)) continue;
+    const line = pricedLine(catalog, id, measurements);
+    line.selection = { mode: "optional", selected: false, default_selected: false, customer_visible: true, selectable_by: ["internal", "customer"] };
+    line.included = false;
+    line.price_driving = true;
+    (root.children as JsonObject[]).push(line);
+  }
   root.scope_template_id = templateId;
   // The modifiers in play and their current values, for the review screen.
   root.quantity_modifiers = catalogModifiers(catalog).map((modifier) => ({

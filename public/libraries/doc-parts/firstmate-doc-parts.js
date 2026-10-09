@@ -70,10 +70,10 @@
     if (/deck|plywood|sheath/.test(id)) return 'plywood';
     return '';
   }
-  /** An SVG data URI: kind is shingle | felt | membrane | plywood. */
-  function texture(kind, color, index) {
+  /** The drawing itself: { w, h, body } of SVG markup. */
+  function textureArt(kind, color, index) {
     const palette = TEXTURE_COLORS[kind];
-    if (!palette) return '';
+    if (!palette) return null;
     const base = /^#?[0-9a-f]{6}$/i.test(text(color)) ? (text(color).startsWith('#') ? text(color) : '#' + text(color)) : palette[(Number(index) || 0) % palette.length];
     const W = 240, H = 160;
     // Deterministic variation: the same product always draws the same.
@@ -103,7 +103,12 @@
       }
       body += `<ellipse cx="${60 + rand() * 120}" cy="${40 + rand() * 80}" rx="14" ry="6" fill="none" stroke="${shade(base, -0.2)}" stroke-width="1.4" opacity=".6"/>`;
     }
-    return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">${body}</svg>`);
+    return { w: W, h: H, body };
+  }
+  /** An SVG data URI: kind is shingle | felt | membrane | plywood. */
+  function texture(kind, color, index) {
+    const art = textureArt(kind, color, index);
+    return art ? 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${art.w} ${art.h}" preserveAspectRatio="xMidYMid slice">${art.body}</svg>`) : '';
   }
   const textureBackground = (kind, color, index) => { const uri = texture(kind, color, index); return uri ? `center / cover no-repeat url("${uri}")` : ''; };
 
@@ -118,28 +123,33 @@
     M.walkNodes(obj(doc), (node) => {
       const want = obj(obj(node.props).texture);
       if (!want.kind) return;
-      const uri = texture(text(want.kind), text(want.color));
-      if (!uri) return;
+      const art = textureArt(text(want.kind), text(want.color));
+      if (!art) return;
       rootEl.querySelectorAll(`[data-node-id="${String(node.id).replace(/[^a-z0-9_-]/gi, '')}"]`).forEach((el) => {
         const shape = el.querySelector('svg polygon, svg path, svg rect, svg ellipse');
-        if (!shape) { el.style.background = `center / cover no-repeat url("${uri}")`; return; }
+        if (!shape) { el.style.background = `center / cover no-repeat url("${texture(text(want.kind), text(want.color))}")`; return; }
         const svg = shape.ownerSVGElement;
         const id = 'fmtex-' + String(node.id).replace(/[^a-z0-9_-]/gi, '');
-        if (!svg.querySelector('#' + id)) {
-          const NS = 'http://www.w3.org/2000/svg';
-          const pattern = document.createElementNS(NS, 'pattern');
-          pattern.setAttribute('id', id);
-          pattern.setAttribute('patternContentUnits', 'objectBoundingBox');
-          pattern.setAttribute('width', '1');
-          pattern.setAttribute('height', '1');
-          const image = document.createElementNS(NS, 'image');
-          image.setAttribute('href', uri);
-          image.setAttribute('width', '1');
-          image.setAttribute('height', '1');
-          image.setAttribute('preserveAspectRatio', 'xMidYMid slice');
-          pattern.appendChild(image);
-          svg.insertBefore(pattern, svg.firstChild);
-        }
+        svg.querySelector('#' + id)?.remove();
+        const NS = 'http://www.w3.org/2000/svg';
+        const pattern = document.createElementNS(NS, 'pattern');
+        pattern.setAttribute('id', id);
+        pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+        pattern.setAttribute('width', '1');
+        pattern.setAttribute('height', '1');
+        // A four-cornered face (the top of a slab) gets the drawing laid in
+        // its own plane: courses run along its front edge and lean with it.
+        const points = shape.tagName.toLowerCase() === 'polygon' && shape.points && shape.points.numberOfItems === 4 ? Array.from({ length: 4 }, (_, i) => shape.points.getItem(i)) : null;
+        let box = null;
+        try { box = shape.getBBox(); } catch (e) { box = null; }
+        if (points) {
+          const [a, b, , d] = points;
+          pattern.setAttribute('patternTransform', `matrix(${b.x - a.x} ${b.y - a.y} ${d.x - a.x} ${d.y - a.y} ${a.x} ${a.y})`);
+        } else if (box && box.width && box.height) {
+          pattern.setAttribute('patternTransform', `matrix(${box.width} 0 0 ${box.height} ${box.x} ${box.y})`);
+        } else return;
+        pattern.innerHTML = `<g transform="scale(${1 / art.w} ${1 / art.h})">${art.body}</g>`;
+        svg.insertBefore(pattern, svg.firstChild);
         shape.setAttribute('fill', `url(#${id})`);
         shape.style.fill = `url(#${id})`;
       });
@@ -223,7 +233,8 @@
 [data-part-role="review.edit"],[data-part-action]{cursor:pointer}
 [data-part-role="review.edit"]:hover{filter:brightness(1.08)}
 [data-part-busy]{pointer-events:none}
-[data-part-role="option"][data-part-focus],[data-part-role="row.option"][data-part-focus]{outline-color:color-mix(in srgb,var(--fm-primary,#2563eb) 55%,transparent);outline-style:dashed}
+[data-part-focus] [data-part-role="option.more"],[data-part-focus] [data-part-role="row.option.info"]{background:var(--fm-primary,#2563eb)!important;filter:none}
+[data-part-focus] [data-part-role="option.more"] *,[data-part-focus] [data-part-role="row.option.info"] *{color:#fff!important}
 [data-part-role="option.more"],[data-part-role="row.option.info"],[data-part-role="detail.close"]{cursor:pointer;transition:filter .15s ease,transform .15s ease}
 [data-part-role="option.more"]:hover,[data-part-role="row.option.info"]:hover,[data-part-role="detail.close"]:hover{filter:brightness(.94);transform:scale(1.05)}
 [data-part-role="row.option"]{cursor:pointer;outline:2px solid transparent;outline-offset:-1px;transition:outline-color .15s ease,background .15s ease,transform .15s ease}
@@ -324,17 +335,23 @@
       }
     }
     /** Apply the click at once, then take the host's answer as the truth. */
+    let latest = 0;
+    let confirmed = null;
     async function input(change, optimistic) {
       if (opts.readonly === true) return;
-      const before = state;
+      const ticket = ++latest;
+      if (confirmed === null) confirmed = state;
       if (typeof optimistic === 'function') { state = optimistic(JSON.parse(JSON.stringify(state))); render(); }
       try {
         const next = await opts.onInput?.(change);
-        if (next && typeof next === 'object') state = next;
+        if (next && typeof next === 'object') confirmed = next;
       } catch (error) {
-        state = before;
         try { opts.onError?.(error, change); } catch (e) { /* host callback */ }
       }
+      // While a newer click is still on its way, what is on screen stays as clicked.
+      if (ticket !== latest) return;
+      if (confirmed) state = confirmed;
+      confirmed = null;
       render();
     }
     function onClick(event) {
@@ -553,7 +570,7 @@
       const index = e.keys('option').indexOf(key);
       const option = obj(source.options[index]);
       if (!text(option.id)) return false;
-      if (role === 'option.more') { e.setFocus({ group: source.group || 'addons', option: text(option.id) }); return true; }
+      if (role === 'option.more') { e.setFocus({ group: source.multiple ? 'addons' : text(groupOf(e.state(), source.group).id), option: text(option.id) }); return true; }
       choose(e, source, option, e.keys('option').map((_, i) => text(obj(source.options[i]).id)).filter(Boolean));
       return true;
     }
@@ -681,7 +698,7 @@
       const source = obj(e.config.source);
       const looking = e.focus();
       const match = looking && (source.kind !== 'group' || text(looking.group) === text(source.id) || text(looking.group).split(':').pop() === text(source.id))
-        ? allOptions(e.state()).find((entry) => text(entry.option.id) === looking.option && entry.group === looking.group) : null;
+        ? allOptions(e.state()).find((entry) => text(entry.option.id) === looking.option && (entry.group === looking.group || entry.group.split(':').pop() === text(looking.group).split(':').pop())) : null;
       e.parts('detail').forEach((el) => {
         el.setAttribute('data-part-live', '');
         el.toggleAttribute('data-part-open', !!match);

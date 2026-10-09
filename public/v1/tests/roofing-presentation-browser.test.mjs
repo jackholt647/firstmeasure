@@ -112,3 +112,36 @@ test('choosing options on the slides changes the price, and the review leads bac
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
+
+test('quick successive picks keep the last one on screen, and Details works when the estimate namespaces its groups',async()=>{
+ const browser=await launch();try{
+  const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('http://deck.test/**',async route=>{const p=new URL(route.request().url()).pathname;
+   try{return route.fulfill({contentType:p.endsWith('.html')?'text/html; charset=utf-8':'application/javascript; charset=utf-8',body:await readFile(path.join(libraries,p.replace(/^\/libraries\//,'')))});}catch{return route.fulfill({status:404,body:''});}});
+  await page.goto('http://deck.test/libraries/doc-present/dev-present.html');
+  await page.waitForFunction(()=>window.player);await page.evaluate(()=>player.ready());
+  // The same deck on a slow server whose group ids carry a scope-piece prefix.
+  await page.evaluate(async()=>{
+   const state=FMRoofingPresentation.priceSample(FMRoofingPresentation.sampleState());
+   state.groups.forEach(group=>{group.id='piece_1:'+group.id;});
+   window.server=JSON.parse(JSON.stringify(state));window.seen=[];
+   document.querySelector('#host').replaceChildren();
+   window.slow=FMDocPresent.mount(document.querySelector('#host'),{document:FMRoofingPresentation.build(),start:{page:5},live:{state,
+    onInput:input=>new Promise(resolve=>setTimeout(()=>{seen.push(input.option);const group=server.groups.find(g=>g.id===input.group_id);group.options.forEach(o=>{o.selected=o.id===input.option;});resolve(JSON.parse(JSON.stringify(FMRoofingPresentation.priceSample(server))));},400))}});
+   await slow.ready();
+  });
+  const options=page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment"][data-part-role="option"]');
+  const checked=()=>options.evaluateAll(list=>list.map(el=>el.getAttribute('aria-checked')).join());
+  await options.nth(1).click();await page.waitForTimeout(150);await options.nth(2).click();
+  // The answer to the first click arrives while the second is still on its way: nothing flips back.
+  for(const wait of [120,200,200]){await page.waitForTimeout(wait);assert.equal(await checked(),'false,false,true');}
+  await page.waitForFunction(()=>seen.length===2);
+  assert.equal(await checked(),'false,false,true');
+  // Details opens, and the option keeps its selected look.
+  await page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment"][data-part-role="option.more"]').nth(1).click();
+  assert.equal(await page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment_detail"][data-part-role="detail"]').getAttribute('data-part-open'),'');
+  assert.match(await page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment_detail"][data-part-role="detail.title"]').innerText(),/FeltBuster/);
+  assert.equal(await options.nth(1).evaluate(el=>getComputedStyle(el).outlineStyle),'solid','looking at an option does not change its outline');
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});
