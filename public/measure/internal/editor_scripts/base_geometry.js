@@ -196,10 +196,23 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
    // measured back edge instead of leaving a horizontal opening behind it.
    const entry=p=>{if(G.contains(support,p))return 0;const q=offset(p),cuts=G.splitParameters(p,q,[support]);for(let k=1;k<cuts.length;k++)if(G.contains(support,mix(p,q,(cuts[k-1]+cuts[k])/2)))return cuts[k-1];return null;};
    const middleEntry=entry(wallMid)||0;
-   // Move the wall plane as a whole. Endpoint containment is ambiguous at
-   // deck corners and can otherwise turn a straight wall into a diagonal.
+   // Resolve the actual entry edge once for the interval. Sampling one
+   // offset at each interval midpoint creates parallel stair-steps when a
+   // measured back edge is slightly skewed, and opens its corner junctions.
+   // Intersect both ends with that same line instead of testing containment
+   // at the ambiguous polygon corners.
+   const hit=mix(wallMid,offset(wallMid),middleEntry);
+   const boundary=middleEntry>1e-8?[support.points,...(support.holes||[])].flatMap(r=>r.map((a,i)=>[a,r[(i+1)%r.length]])).find(([a,b])=>G.onEdge(hit,a,b,.002)):null;
+   const contact=p=>{
+    if(boundary){const [a,b]=boundary,vx=b.x-a.x,vy=b.y-a.y,dx=nx*shift,dy=ny*shift,den=dx*vy-dy*vx;
+     if(Math.abs(den)>1e-12){const t=((a.x-p.x)*vy-(a.y-p.y)*vx)/den;
+      if(t>=-1e-5&&t<=1.00001)return {x:p.x+dx*t,y:p.y+dy*t,z:p.z};
+     }
+    }
+    return mix(p,offset(p),middleEntry);
+   };
    const original=[ts[i-1],ts[i]].map(t=>mix(...w.top,t));
-   const top=original.map(p=>{const q=mix(p,offset(p),middleEntry);return {...q,z:Math.min(p.z,s.sourcePlane?height(s.sourcePlane,q):p.z)};}),bottom=top.map((p,j)=>({...p,z:Math.max(mix(...w.bottom,[ts[i-1],ts[i]][j]).z,Math.min(p.z,height(support.plane,p)))}));
+   const top=original.map(p=>{const q=contact(p);return {...q,z:Math.min(p.z,s.sourcePlane?height(s.sourcePlane,q):p.z)};}),bottom=top.map((p,j)=>({...p,z:Math.max(mix(...w.bottom,[ts[i-1],ts[i]][j]).z,Math.min(p.z,height(support.plane,p)))}));
    if(top.every((p,j)=>p.z-bottom[j].z<.02))continue;
    const band={...w,id:w.id+':upper-contact-'+i,targetId:support.id,bottom,top};upperBands.push(band);
    contactJoins.push({w:band,original,moved:Math.abs(middleEntry*shift)>.00001});
