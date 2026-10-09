@@ -7,7 +7,10 @@ test('height-only base edit keeps the generated roof-contact stages and survives
  const F=require('../public/measure/internal/editor_scripts/wall_base_binding.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js');let host;const f=fixture(true,{ExteriorGeometry:K,WallBaseBinding:F,createBaseEditor:h=>{host=h;return {setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false};}});f.ctx.WallMode.setEnabled(true);f.soffits[3].onclick();
  const r=require('./roof-generation-fixture.cjs').build(require('./fixtures/three-layer-wall-contacts.json')),s=host.state();Object.assign(s,r.state,{extruded:r.extruded.walls,deduplicated:r.dedup.walls,gapRepaired:r.gaps.walls,mergedWalls:r.merged.walls,cleanedWalls:r.clean.walls,alignedWalls:r.aligned.walls});const before=JSON.parse(JSON.stringify(s)),old=before.base,next=JSON.parse(JSON.stringify(old));next.faces.forEach(f=>f.points.forEach(p=>p.z=35));host.recordHistory({base:old,wallEdits:before.wallEdits});s.wallEdits={...s.wallEdits,$base:next};host.changed();
  for(const key of ['extruded','deduplicated','gapRepaired','mergedWalls','cleanedWalls','alignedWalls'])assert.deepEqual(JSON.parse(JSON.stringify(s[key])),F.walls(before[key],old,next),key);
- for(const key of ['deduplicated','alignedWalls']){assert.equal(s[key].length,before[key].length);s[key].forEach((w,i)=>{assert.equal(w.id,before[key][i].id);assert.deepEqual(JSON.parse(JSON.stringify(w.top)),before[key][i].top);assert.deepEqual(w.bottom.map(p=>[p.x,p.y]),before[key][i].bottom.map(p=>[p.x,p.y]));});} const saved=f.ctx.WallMode.serialize(),fresh=fixture(true,{ExteriorGeometry:K,WallBaseBinding:F});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize().alignedWalls)),JSON.parse(JSON.stringify(saved.alignedWalls)));
+ // Intermediate stages can cross the final cleaned foundation; the exact
+ // binding comparison above permits their boundary split. Visible final walls
+ // must keep their count, IDs, top edges and XY coordinates.
+ for(const key of ['alignedWalls']){assert.equal(s[key].length,before[key].length);s[key].forEach((w,i)=>{assert.equal(w.id,before[key][i].id);assert.deepEqual(JSON.parse(JSON.stringify(w.top)),before[key][i].top);assert.deepEqual(w.bottom.map(p=>[p.x,p.y]),before[key][i].bottom.map(p=>[p.x,p.y]));});} const saved=f.ctx.WallMode.serialize(),fresh=fixture(true,{ExteriorGeometry:K,WallBaseBinding:F});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize().alignedWalls)),JSON.parse(JSON.stringify(saved.alignedWalls)));
 });
 
 // Exercise the actual UI handlers and persistence without imagery or a WebGL context.
@@ -808,4 +811,15 @@ test('restore repairs persisted generated contacts before rendering and persists
  const expected=JSON.parse(JSON.stringify(saved));assert.equal(B.repairStoredRoofContacts(expected),true);assert.deepEqual(repaired.wallEdits,expected.wallEdits);
  const reloaded=fixture(true);reloaded.ctx.WallMode.restore('fixture',{exteriorsWalls:repaired});assert.deepEqual(JSON.parse(JSON.stringify(reloaded.ctx.WallMode.serialize())).wallEdits,expected.wallEdits);
  assert.notDeepEqual(repaired.wallEdits,saved.wallEdits,'restore repairs visible drafts rather than only future generation');
+});
+
+test('captured narrow-roof junction rebuilds through From Roof and round-trips its resolved contact',()=>{
+ const captured=require('./fixtures/canopy-junction-roof.json'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),A=require('../public/measure/internal/editor_scripts/wall_chimney_cleanup'),D=require('../public/measure/internal/editor_scripts/wall_gaps');
+ const width=1000,height=1000,mpp=.1,toPixel=p=>({...p,x:width/2+p.x/mpp,y:height/2+p.y/mpp}),points=captured.roof.points.map(toPixel),activeGeometry={points,connections:captured.roof.connections.map(c=>({start:points[c.startIdx],end:points[c.endIdx],type:c.type})),manualFaces:captured.roof.faces.map(f=>({...f,points:f.points.map(toPixel),holes:(f.holes||[]).map(r=>r.map(toPixel))}))};
+ let host;const f=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry,createBaseEditor:h=>{host=h;return {setup(){},render(){},draw2D(){},draw3D(){},clearSelection(){},busy:()=>false};}});
+ f.ctx.WallMode.setEnabled(true);f.soffits[3].onclick();host.state().ground=structuredClone(captured.ground);f.elements.get('wall-rebuild').onclick();
+ const saved=JSON.parse(JSON.stringify(f.ctx.WallMode.serialize())),contacts=saved.sources.filter(s=>s.boundaryContact);assert.ok(contacts.length,'actual From Roof handler uses the lower roof back boundary');
+ const walls=A.compose(C.compose(saved.alignedWalls,saved),saved.chimneyCleanupReport);assert.equal(D.detect(walls,saved.ground).length,0,'rendered perimeter closes');
+ assert.ok(!walls.some(w=>w.id.includes('upper-contact')&&contacts.some(s=>s.id===w.sourceId)&&!contacts.find(s=>s.id===w.sourceId).boundaryContactRoofIds.includes(w.targetId)),'no jump onto a neighboring lower layer');
+ const fresh=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize().alignedWalls)),saved.alignedWalls,'refresh preserves the verified generated result');
 });

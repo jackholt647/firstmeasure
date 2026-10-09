@@ -232,7 +232,21 @@
             const zeroSoffitDefault=e.type==='parapet'||e.type==='skylight'||Math.hypot(parent.plane.dx,parent.plane.dy)*12<1;
             const inferred=!zeroSoffitDefault&&options.soffit==='auto' ? inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n) : null;
             let setback=options.soffit==='auto' ? (inferred?.distance??18*INCH) : Number(options.soffit??18)*INCH;
-            const contact=zeroSoffitDefault?null:inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n);
+            // Exterior skylight edges also describe surveyed flat/narrow roof
+            // layers. Their back boundary can be the wall contact beneath an
+            // eave, even without a separate head-flashing label. Prefer explicit
+            // flashing and require a lower layer crossing this eave's setback.
+            const lowerBackEdges=options.roofContacts?edges.filter(f=>{
+                if(f.type!=='skylight')return false;
+                const lower=parentFace(faces,f.a,f.b);if(!lower||layers.get(lower.id)===layers.get(parent.id))return false;
+                const inward=normalFor(lower,f.a,f.b);if(!inward||inward.x*n.x+inward.y*n.y>-.99)return false;
+                const depths=lower.points.map(p=>(p.x-e.a.x)*n.x+(p.y-e.a.y)*n.y);
+                if(Math.min(...depths)>.02||Math.max(...depths)>setback+.02)return false;
+                const mid=mix(f.a,f.b,.5);return contains(parent,mid)&&height(parent,mid)>mid.z+.02;
+            }):[];
+            const flashingContact=zeroSoffitDefault?null:inferredSetback(e,flashing.filter(f=>parentFace(faces,f.a,f.b)!==parent),n);
+            const boundaryContact=!zeroSoffitDefault&&!flashingContact?inferredSetback(e,lowerBackEdges,n):null;
+            const contact=flashingContact||boundaryContact;
             if(options.roofContacts&&contact?.coverage>=.45&&e.type==='eave')setback=options.drivenSoffits!==false&&Number(options.soffit)!==0?contact.distance:Math.min(setback,contact.distance);
             // Preserve at least a foot across a narrow roof-supported body.
             // Measure the whole connected layer, not an individual hip triangle.
@@ -247,7 +261,12 @@
             const dx=along*u.x+inward*n.x,dy=along*u.y+inward*n.y;
             const sourcePlane={dx,dy,k:e.a.z-dx*e.a.x-dy*e.a.y};
             const shifted=p=>{const q={x:p.x+n.x*setback,y:p.y+n.y*setback};return {...q,z:height({plane:sourcePlane},q)};};
-            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,...(zeroSoffitDefault?{zeroSoffitDefault:true}:{}),inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(clearance?.roofIds.length?{clearanceRoofIds:clearance.roofIds}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
+            const usesBoundaryContact=boundaryContact?.coverage>=.45&&e.type==='eave'&&Math.abs(setback-boundaryContact.distance)<.002;
+            sources.push({...clone(e),a:shifted(e.a),b:shifted(e.b),originalA:clone(e.a),originalB:clone(e.b),sourcePlane,kind:'perimeter',direction:'down',parentId:parent.id,setback,...(zeroSoffitDefault?{zeroSoffitDefault:true}:{}),inferred:inferred!==null,...(options.roofContacts&&contact?{contactSetback:contact.distance}:{}),...(usesBoundaryContact?{boundaryContactRoofIds:lowerBackEdges.filter(f=>boundaryContact.sourceIds.includes(f.id)).map(f=>parentFace(faces,f.a,f.b).id)}:{}),...(clearance?.roofIds.length?{clearanceRoofIds:clearance.roofIds}:{}),...(inferred?{setbackFrom:inferred.sourceIds}:{})});
+            if(usesBoundaryContact){
+                const edge=lowerBackEdges.find(f=>boundaryContact.sourceIds.includes(f.id));
+                sources.at(-1).boundaryContact={a:clone(edge.a),b:clone(edge.b)};
+            }
         }
         // A measured side wall ending at the lower roof's eave is a finite
         // junction. Keep the adjoining upper wall at that end plane instead of
@@ -278,6 +297,13 @@
             for(const [k,original]of [['a','originalA'],['b','originalB']]){const p=s[original],q={x:p.x+n.x*limit,y:p.y+n.y*limit};s[k]={...q,z:height({plane:s.sourcePlane},q)};}
         }
         if(options.roofContacts&&options.drivenSoffits!==false&&Number(options.soffit)!==0)driveSoffits(sources,faces,layers);
+        // Use the measured line, not its midpoint distance: a slightly skewed
+        // lower edge must still yield one continuous, planar upper wall.
+        for(const s of sources.filter(s=>s.boundaryContact)){
+            const {a,b}=s.boundaryContact,n=normalFor(faces.find(f=>f.id===s.parentId),s.originalA,s.originalB),v=sub(b,a),den=cross(n,v);
+            if(Math.abs(den)<EPS)continue;
+            for(const key of ['a','b']){const p=s[key],t=cross(sub(a,p),v)/den,q={x:p.x+n.x*t,y:p.y+n.y*t};s[key]={...q,z:height({plane:s.sourcePlane},q)};}
+        }
         // A short return/flashing/return chain inside two overlapping exterior
         // edges is an overlap seam, not a recess in the building. Resolve it
         // from measured roof edges before inset miters can invert the chain.

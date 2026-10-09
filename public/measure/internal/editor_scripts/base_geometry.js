@@ -122,6 +122,13 @@ function fromRoof(roof,grade,walls=[],setback=0,chimneys=null,sources=null){
  // A small closed dormer loop must not stand in for an open main perimeter.
  const complete=traced.length&&coversWalls(traced,groundWalls(walls,grade));
  let loops=complete?traced:insetRoof(roof,setback,occluders,sources);
+ // A lower roof can contribute a short miter beyond an already resolved
+ // upper wall corner. Retain the source junction rather than extruding that
+ // sub-two-inch footprint spur into a separate full-height wall.
+ if(!complete&&sources){
+  const corners=sources.filter(s=>s.boundaryContactRoofIds?.length).flatMap(s=>[s.a,s.b].filter(p=>sources.some(t=>t!==s&&t.kind==='perimeter'&&[t.a,t.b].some(q=>dist(p,q)<.002))));
+  if(corners.length)loops=K.union(loops.map(ring=>({points:ring.map(p=>corners.find(q=>dist(p,q)<.05)||p).filter((p,i,ps)=>dist(p,ps[(i+ps.length-1)%ps.length])>1e-7)}))).map(f=>f.points);
+ }
  // A measured flashing and the default inset can describe the same wall a
  // centimetre apart. Resolve that construction contact before unioning the
  // supporting bodies, rather than leaving two overlapping wall planes.
@@ -129,7 +136,7 @@ function fromRoof(roof,grade,walls=[],setback=0,chimneys=null,sources=null){
   loops=loops.map(ring=>{const result=ring.map(p=>({...p}));for(let i=0;i<ring.length;i++){
    const a=ring[i],b=ring[(i+1)%ring.length],length=dist(a,b);if(length<1)continue;
    const u={x:(b.x-a.x)/length,y:(b.y-a.y)/length};
-   const candidates=sources.filter(s=>s.kind==='flashing'&&Math.abs((s.b.x-s.a.x)*u.y-(s.b.y-s.a.y)*u.x)<.002&&[s.a,s.b].every(p=>Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)<.02)).filter(s=>{const ts=[s.a,s.b].map(p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y).sort((a,b)=>a-b);return Math.min(length,ts[1])-Math.max(0,ts[0])>.15;});
+   const candidates=sources.filter(s=>(s.kind==='flashing'||s.boundaryContact)&&Math.abs((s.b.x-s.a.x)*u.y-(s.b.y-s.a.y)*u.x)<.002&&[s.a,s.b].every(p=>Math.abs((p.x-a.x)*u.y-(p.y-a.y)*u.x)<.02)).filter(s=>{const ts=[s.a,s.b].map(p=>(p.x-a.x)*u.x+(p.y-a.y)*u.y).sort((a,b)=>a-b);return Math.min(length,ts[1])-Math.max(0,ts[0])>.15;});
    if(!candidates.length)continue;const s=candidates[0],d={x:s.b.x-s.a.x,y:s.b.y-s.a.y},l2=d.x*d.x+d.y*d.y;
    for(const j of [i,(i+1)%ring.length]){const p=result[j],t=((p.x-s.a.x)*d.x+(p.y-s.a.y)*d.y)/l2;result[j]={...p,x:s.a.x+t*d.x,y:s.a.y+t*d.y};}
   }return result;});loops=K.union(loops.map(points=>({points}))).map(f=>f.points);
@@ -186,7 +193,7 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
   const vx=s.originalB.x-s.originalA.x,vy=s.originalB.y-s.originalA.y,len=Math.hypot(vx,vy),nx=-vy/len,ny=vx/len;
   const shift=((s.originalA.x-s.a.x)*nx+(s.originalA.y-s.a.y)*ny),offset=p=>({...p,x:p.x+nx*shift,y:p.y+ny*shift});
   const a=offset(w.top[0]),b=offset(w.top[1]),layer=contactLayers.get(s.parentId)||[];
-  const lower=roof.faces.filter(f=>!layer.some(g=>g.id===f.id)).map(f=>({...f,plane:G.plane(f.points)})).filter(f=>f.plane);
+  const lower=roof.faces.filter(f=>!layer.some(g=>g.id===f.id)&&(!s.boundaryContactRoofIds?.length||s.boundaryContactRoofIds.includes(f.id))).map(f=>({...f,plane:G.plane(f.points)})).filter(f=>f.plane);
   const ts=G.splitParameters(a,b,lower),mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
   for(let i=1;i<ts.length;i++){
    const wallMid=mix(...w.top,(ts[i-1]+ts[i])/2);
