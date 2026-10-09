@@ -17,8 +17,8 @@ window.createBaseSketchEditor=function(host){
  function report(){host.message((mode()==='line'?lines.length+' lines':selected.length+' points')+' selected · gold = fixed wall boundary · cyan = editable');host.redraw();}
  function perform(fn){const before=copy(host.base());try{fn();host.commit(before);return true;}catch(e){host.restore(before);host.message(e.message);host.redraw();return false;}}
  function clearGuides(){guideEl?.remove?.();guideEl=null;}
- function showGuides(guides,v,plane){
-  clearGuides();if(!guides.length||typeof document==='undefined'||!document.createElementNS)return;
+ function showGuides(guides,v,plane,point=null){
+  clearGuides();const start=armed&&point&&selected.length===1&&node(selected[0]);if((!guides.length&&!start)||typeof document==='undefined'||!document.createElementNS)return;
   const element=document.getElementById(v==='3d'?'three-view-wrapper':'viewport');if(!element)return;
   const r=element.getBoundingClientRect(),ns='http://www.w3.org/2000/svg';guideEl=document.createElementNS(ns,'svg');
   Object.assign(guideEl.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',pointerEvents:'none',zIndex:10000,overflow:'hidden'});document.body.appendChild(guideEl);
@@ -27,6 +27,9 @@ window.createBaseSketchEditor=function(host){
    const dx=(b.x-a.x)/len*5000,dy=(b.y-a.y)/len*5000,line=document.createElementNS(ns,'line');
    for(const [k,value]of Object.entries({x1:a.x-dx-r.left,y1:a.y-dy-r.top,x2:a.x+dx-r.left,y2:a.y+dy-r.top,stroke:'#FFD700','stroke-width':1.5,'stroke-linecap':'round',opacity:.85}))line.setAttribute(k,value);guideEl.appendChild(line);
   }
+  // The finite drawing preview belongs above filled faces and yellow guides.
+  // Render it in screen space so transparent/opaque scene passes cannot hide it.
+  if(start){const a=screen(start),b=screen(point),line=document.createElementNS(ns,'line');for(const [k,value]of Object.entries({x1:a.x-r.left,y1:a.y-r.top,x2:b.x-r.left,y2:b.y-r.top,stroke:'#fff','stroke-width':2.5,'stroke-linecap':'round','data-base-draw-preview':'true'}))line.setAttribute(k,value);guideEl.appendChild(line);}
  }
  function position(e,v,unbounded=false){
   clearGuides();
@@ -40,9 +43,10 @@ window.createBaseSketchEditor=function(host){
   if(!unbounded&&window.WallSolidGeometry&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){
    const nodes=[...sketch().nodes.map(actual).filter(inScope),...references()],byId=id=>nodes.find(n=>n.id===id),edges=S.curveEdges(sketch()).map(e=>Object.assign([e.start,e.end],{curveId:e.curveId})).filter(pair=>pair.every(p=>p&&inScope(p)));
    const result=window.WallSolidGeometry.draftSnap(p,nodes,edges,selected.map(byId).filter(Boolean),p=>host.screen(plane?{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}:p,v),typeof snapRadius!=='undefined'?snapRadius:20,{lineCenters:host.lineCenters?.()!==false});
-   p=result.point;showGuides(result.guides,v,plane);if(result.kind)host.message(result.kind);
+   p=result.point;showGuides(result.guides,v,plane,p);if(result.kind)host.message(result.kind);
    if(plane)p.z=plane.dx*p.x+plane.dy*p.y+plane.k;
   }
+  if(!guideEl&&armed&&!unbounded)showGuides([],v,plane,p);
   return p;
  }
  function startArch(){
