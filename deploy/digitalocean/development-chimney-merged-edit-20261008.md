@@ -20,6 +20,9 @@ of merged face, direction and distance, with snapping enabled, returned no error
 The user's current failing state was unavailable. The exact null.dx exception
 was not independently reproduced; no speculative plane fallback was added.
 
-Development deployment receipt pending. Customer metadata was read only.
+Deployed source commit 386ba83e100408e04cdc1cb3825ce7c5fa5c822d to development
+web, pool, and worker. Both JavaScript hashes match on every role. Runtime
+readiness and development isolation passed. Internal editor capability and the
+saved project returned HTTP 200 on both web nodes. Customer metadata was read only.
 Production is untouched. The compatibility mirror remains excluded because its
 storage reserve/inode capacity blocked staging; no cleanup or bypass was made.
