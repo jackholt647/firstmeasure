@@ -62,7 +62,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.match(await batchRow.locator('strong').textContent(),/Sam Rivera uploaded 20 photos/);
   assert.equal(await batchRow.locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
   assert.equal(await batchRow.locator('.pf-actor-badge i').count(),1);
-  assert.match(await batchRow.locator('time').textContent(),/^\d{1,2}:\d{2}\s?(AM|PM)$/i);
+  assert.match(await batchRow.locator('time').textContent(),/^\d{1,2}:\d{2}\s?(am|pm)$/);
+  assert.equal((await batchRow.locator('.pf-feed-list-head').textContent()).replace(/\s+/g,' ').trim(),`${await batchRow.locator('time').textContent()}: Sam Rivera uploaded 20 photos`);
+  assert.ok(await batchRow.evaluate(e=>e.querySelector('.pf-feed-list-project').getBoundingClientRect().left>=e.querySelector('.pf-feed-list-copy').getBoundingClientRect().right-1),'project card sits to the right of activity content');
   assert.equal(await batchRow.locator('[data-feed-project-id]').count(),1);
   assert.equal(await batchRow.locator('[data-feed-project-id]').getAttribute('title'),'Open project');
   assert.equal(await batchRow.locator('.pf-project-card-cover').count(),1);
@@ -105,6 +107,10 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await page.getByText('Invented title',{exact:false}).count(),0);
   assert.equal(await page.getByText('Invented signature',{exact:false}).count(),0);
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'Roof replacement agreement'}).textContent(),/Sam Rivera uploaded Contract: Roof replacement agreement/);
+  const documentRow=page.locator('.pf-feed-list-row').filter({hasText:'Roof replacement agreement'});
+  assert.equal(await documentRow.locator('.pf-feed-list-document-thumb').count(),1);
+  await documentRow.locator('.pf-feed-list-document-thumb').click();
+  await page.waitForFunction(()=>window.lastOpenedProject?.options.tab==='docs');
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'scheduled a sales appointment'}).textContent(),/Roof inspection and estimate/);
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'started a sales appointment'}).textContent(),/Roof inspection and estimate/);
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'completed a sales appointment'}).textContent(),/Roof inspection and estimate/);
@@ -193,6 +199,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await composer.getByRole('button',{name:'Post',exact:true}).click();
   await page.waitForFunction(()=>window.createdPost);
   assert.deepEqual(await page.evaluate(()=>window.createdPost.mention_user_ids),['sam']);
+  await page.setViewportSize({width:620,height:844});
+  await page.getByRole('button',{name:'List',exact:true}).click();
+  assert.ok(await page.locator('.pf-feed-list-row').first().evaluate(e=>e.querySelector('.pf-feed-list-project').getBoundingClientRect().left>=e.querySelector('.pf-feed-list-copy').getBoundingClientRect().right-1),'medium viewport keeps project card on the right');
   await page.setViewportSize({width:390,height:844});
   for(const name of ['Small tiles','Large tiles','List','Mosaic','Posts']){
    await page.getByRole('button',{name,exact:true}).click();
@@ -200,7 +209,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
    if(['Small tiles','Large tiles','Mosaic'].includes(name))await assertTileBounds(`mobile ${name}`);
    if(name==='List'){
     const row=page.locator('.pf-feed-list-row').first();
-    assert.equal(await row.locator('.pf-feed-list-time').evaluate(e=>getComputedStyle(e).gridColumnStart),'3');
+    assert.equal(await row.locator('.pf-feed-list-project').evaluate(e=>getComputedStyle(e).gridColumnStart),'2');
     assert.equal(await row.locator('.pf-feed-list-media .pf-thumb:visible').count(),4);
     assert.equal(await row.locator('.pf-feed-list-more:visible').count(),1);
     await page.waitForFunction(()=>[...document.querySelectorAll('.pf-feed-list-row')].find(row=>row.textContent.includes('Customer confirmed driveway access'))?.querySelector('.pf-note.expandable'));
