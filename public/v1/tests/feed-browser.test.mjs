@@ -192,6 +192,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     assert.equal(await responsiveNote.locator('[data-feed-note-toggle]:visible').count(),1);
     assert.ok(await noteRow.locator('.pf-note-preview').evaluate(e=>e.getBoundingClientRect().height <= parseFloat(getComputedStyle(e).lineHeight)+1),'mobile preview stays on one line');
    }
+   if(name==='Posts')assert.equal(await page.locator('.pf-feed-manual-only .pf-manual-mobile').isVisible(),true);
   }
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
