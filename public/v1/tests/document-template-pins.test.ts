@@ -24,6 +24,13 @@ test("an organization's pinned templates are unset until chosen, then saved in o
     assert.equal(seeded.customized, false);
     assert.ok(seeded.types.some(type => type.id === "proposal" && type.kind === "proposal"));
     assert.ok(!seeded.types.some(type => type.id === "payment_receipt"), "receipts are never started by hand");
+    // Before an organization sets its own, a department starts with the kinds its name suggests.
+    const suggested = await settings.readOrganizationDocumentTypes(authContext.orgId, [{ id: "dep_sales", label: "Sales" }, { id: "dep_prod", label: "Production" }, { id: "dep_x", label: "Blue team" }]);
+    const departmentsOf = (id: string) => suggested.types.find(type => type.id === id)?.department_ids;
+    assert.deepEqual(departmentsOf("proposal"), ["dep_sales"]);
+    assert.deepEqual(departmentsOf("work_order"), ["dep_prod"]);
+    assert.deepEqual(departmentsOf("change_order"), ["dep_sales", "dep_prod"]);
+    assert.deepEqual(departmentsOf("generic"), [], "nothing is guessed for a type no name suggests");
     const saved = await settings.saveOrganizationDocumentTypes(authContext.orgId, {
       types: [{ id: "proposal", label: "Estimates", kind: "proposal", color: "#2563eb", department_ids: ["dep_a"] }, { label: "Warranties", kind: "not_a_kind" }, { label: "Warranties" }, { label: " " }],
       assignments: { tpl_cert: "warranties", tpl_gone: "no_such_type" }

@@ -55,14 +55,22 @@ export type OrganizationDocumentType = { id: string; label: string; color: strin
  * organization edits them, its types are one per built-in kind.
  * `assignments` moves a template to a type other than its kind's.
  */
-export async function readOrganizationDocumentTypes(orgId: string): Promise<{ types: OrganizationDocumentType[]; assignments: Record<string, string>; customized: boolean }> {
+// Which built-in kinds a department usually works with, by what it is called.
+// Only a starting point for an organization that has not set its own.
+const DEPARTMENT_KINDS: Array<[RegExp, string[]]> = [
+  [/sales|estimat|business dev/i, ["proposal", "contract", "change_order"]],
+  [/production|operation|install|field|crew|service|project/i, ["work_order", "completion_certificate", "change_order"]],
+  [/office|admin|account|financ|billing|bookkeep|payroll|hr|human res/i, ["invoice", "payroll_report", "report"]]
+];
+export async function readOrganizationDocumentTypes(orgId: string, departments: Array<{ id: string; label: string }> = []): Promise<{ types: OrganizationDocumentType[]; assignments: Record<string, string>; customized: boolean }> {
   let stored: JsonObject = {};
   try { stored = object(object(await readBranchModule(orgId, "default", DOCUMENT_TYPES_MODULE)).data); }
   catch (error) { if (!(error instanceof PlatformError && error.statusCode === 404)) throw error; }
   if (Array.isArray(stored.types)) return { types: normalizeDocumentTypes(stored.types), assignments: normalizeAssignments(stored.assignments), customized: true };
   // The receipt is produced by payments, never started from New document.
   const types = listDocumentTypes().filter(kind => kind.id !== "payment_receipt")
-    .map(kind => ({ id: kind.id, label: kind.id === "generic" ? "Other" : kind.label, color: "", icon: kind.icon, kind: kind.id, department_ids: [], archived: false }));
+    .map(kind => ({ id: kind.id, label: kind.id === "generic" ? "Other" : kind.label, color: "", icon: kind.icon, kind: kind.id, archived: false,
+      department_ids: departments.filter(department => DEPARTMENT_KINDS.some(([name, kinds]) => name.test(department.label) && kinds.includes(kind.id))).map(department => department.id) }));
   return { types, assignments: {}, customized: false };
 }
 const typeSlug = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);

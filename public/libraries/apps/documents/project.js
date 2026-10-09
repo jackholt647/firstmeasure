@@ -2256,7 +2256,16 @@
       const org = { types: arrayValue(objectValue(typeSettings).types).map(objectValue), assignments: objectValue(objectValue(typeSettings).assignments), kinds: arrayValue(objectValue(typeSettings).kinds).map(objectValue) };
       if (!org.types.length) org.types = typesList().map((type) => ({ id: firstText(type.id, type.type), label: firstText(type.label, typeMeta(firstText(type.id, type.type)).label), kind: firstText(type.id, type.type), color: '', icon: '', department_ids: [], archived: false }));
       const liveTypes = () => org.types.filter((type) => type.archived !== true);
-      const typeView = (type) => { const base = typeMeta(type.kind, catalog.types); return { id: type.id, label: firstText(type.label, base.label), color: firstText(type.color, base.color), icon: firstText(type.icon, base.icon), kind: firstText(type.kind, 'generic') }; };
+      const TYPE_COLORS = ['#2563eb', '#0d9488', '#7c3aed', '#ea580c', '#db2777', '#0891b2', '#65a30d', '#b45309', '#4f46e5', '#be123c', '#059669', '#9333ea'];
+      /** The type's own color, else one of a spread of distinct hues by its place in the list (never two alike until they run out). */
+      function typeColor(type){
+        if (cleanText(type.color)) return type.color;
+        const taken = new Set(org.types.map((entry) => cleanText(entry.color).toLowerCase()).filter(Boolean));
+        const free = TYPE_COLORS.filter((color) => !taken.has(color));
+        const unset = org.types.filter((entry) => !cleanText(entry.color));
+        return (free.length ? free : TYPE_COLORS)[Math.max(0, unset.indexOf(type)) % (free.length || TYPE_COLORS.length)];
+      }
+      const typeView = (type) => { const base = typeMeta(type.kind, catalog.types); return { id: type.id, label: firstText(type.label, base.label), color: typeColor(type), icon: firstText(type.icon, base.icon), kind: firstText(type.kind, 'generic') }; };
       /** The type a template is filed under: where it was moved, else the first type of its kind. */
       function typeOf(tpl){
         const moved = liveTypes().find((type) => type.id === cleanText(org.assignments[cleanText(tpl.id)]));
@@ -2306,8 +2315,8 @@
         return `
           <div class="fmdx-tpl ${pinned ? 'pinned' : ''}" style="--fmdx-type:${esc(meta.color)}" title="${esc(firstText(tpl.description, tpl.name))}">
             <button type="button" class="fmdx-tpl-open" data-pick-template="${esc(id)}">
-              <span class="fmdx-tpl-type"><i class="fas ${esc(upload ? 'fa-file-arrow-up' : meta.icon)}"></i>${esc(meta.label)}</span>
-              <strong>${esc(firstText(tpl.name, 'Template'))}</strong>
+              <span class="fmdx-tpl-icon"><i class="fas ${esc(upload ? 'fa-file-arrow-up' : meta.icon)}"></i></span>
+              <span class="fmdx-tpl-text"><strong>${esc(firstText(tpl.name, 'Template'))}</strong><small>${esc(meta.label)}</small></span>
             </button>
             <button type="button" class="fmdx-tpl-pin ${isPinned ? 'on' : ''}" data-pin-template="${esc(id)}" title="${isPinned ? 'Unpin for everyone' : 'Pin for everyone'}" aria-pressed="${isPinned}"><i class="fas fa-thumbtack"></i></button>
           </div>`;
@@ -2323,7 +2332,9 @@
         // A type is a filter only when it groups something.
         const typeChips = types.filter((type) => counts.get(type.id));
         if (picker.type && !counts.get(picker.type)) picker.type = '';
-        const library = visible.filter((tpl) => !picker.type || viewOf(tpl).id === picker.type);
+        const place = new Map(types.map((type, index) => [type.id, index]));
+        const library = visible.filter((tpl) => !picker.type || viewOf(tpl).id === picker.type)
+          .sort((a, b) => (place.get(viewOf(a).id) - place.get(viewOf(b).id)) || cleanText(a.name).localeCompare(cleanText(b.name)));
         const pinned = query ? [] : pins().map((id) => activeTemplates().find((tpl) => cleanText(tpl.id) === id)).filter(Boolean).filter(inDepartments);
         const deptChips = departments().length > 1 ? `
           <div class="fmdx-fchips" role="group" aria-label="${esc(state.departmentContext.departments_label || 'Departments')}">
@@ -2375,7 +2386,7 @@
         const withType = (anchor, run) => {
           const current = types.find((type) => type.id === picker.type);
           if (current) { run(current.kind); return; }
-          const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${liveTypes().map(typeView).map((meta) => `<button type="button" data-menu-type="${esc(meta.kind)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i> ${esc(meta.label)}</button>`).join('')}`);
+          const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${liveTypes().map(typeView).map((meta) => `<button type="button" class="fmdx-menu-item" data-menu-type="${esc(meta.kind)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i><span>${esc(meta.label)}</span></button>`).join('')}`);
           (menu?.el || document.querySelector('.fmdx-menu'))?.querySelectorAll('[data-menu-type]').forEach((item) => item.addEventListener('click', () => { document.querySelector('.fmdx-menu')?.remove(); run(item.dataset.menuType); }));
         };
         body.querySelector('[data-create-blank]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = null; proceed(body.querySelector('[data-create-blank]')); }));

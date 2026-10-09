@@ -606,8 +606,9 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
   // rename, color, add to, retire and give to departments.
   app.get("/organizations/:orgId/document-types", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
-    return { ok: true, ...await readOrganizationDocumentTypes(orgId), kinds: listDocumentTypes().filter((kind) => kind.id !== "payment_receipt").map((kind) => ({ id: kind.id, label: kind.id === "generic" ? "Plain document" : kind.label, icon: kind.icon })) };
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
+    const departments = (ctx.organizationStructure?.catalog.departments || []).map(({ id, label }) => ({ id, label }));
+    return { ok: true, ...await readOrganizationDocumentTypes(orgId, departments), kinds: listDocumentTypes().filter((kind) => kind.id !== "payment_receipt").map((kind) => ({ id: kind.id, label: kind.id === "generic" ? "Plain document" : kind.label, icon: kind.icon })) };
   });
   app.put("/organizations/:orgId/document-types", async (request) => {
     const orgId = getParam(request.params, "orgId");

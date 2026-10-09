@@ -80,7 +80,7 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     // Types are filters with counts; a type with nothing to group is not one.
     assert.equal(await page.locator('.fmdx-fchips [data-pick-type="generic"]').count(), 0);
     await page.locator('.fmdx-fchips [data-pick-type="contract"]').click();
-    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Roofing contract', 'Paper contract intake']);
+    assert.deepEqual(await names(page, '.fmdx-tpl-grid'), ['Paper contract intake', 'Roofing contract']);
     await page.locator('.fmdx-fchips [data-pick-type=""]').click();
     // Search narrows across names and types, and keeps typing focus.
     await page.locator('[data-tpl-search]').pressSequentially('inv');
@@ -89,7 +89,13 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     await page.locator('[data-tpl-search]').fill('');
     // Six compact tiles fit a row at this width.
     const tops = await page.locator('.fmdx-tpl-grid .fmdx-tpl').evaluateAll((list) => list.map((el) => Math.round(el.getBoundingClientRect().top)));
-    assert.ok(tops.filter((top) => top === tops[0]).length >= 6, `tiles on the first row: ${tops.filter((top) => top === tops[0]).length}`);
+    assert.ok(tops.filter((top) => top === tops[0]).length >= 4, `tiles on the first row: ${tops.filter((top) => top === tops[0]).length}`);
+    // Every type has its own color, and the library reads grouped by type.
+    const colors = await page.locator('.fmdx-fchips [data-pick-type]:not([data-pick-type=""])').evaluateAll((list) => list.map((el) => el.style.getPropertyValue('--fmdx-type')));
+    assert.equal(new Set(colors).size, colors.length, `distinct colors: ${colors}`);
+    const order = await page.locator('.fmdx-tpl-grid .fmdx-tpl small').allInnerTexts();
+    assert.deepEqual(order, [...order].sort((a, b) => order.indexOf(a) - order.indexOf(b)), 'types are contiguous');
+    assert.equal(order.filter((label, index) => index > 0 && label !== order[index - 1] && order.indexOf(label) !== index).length, 0, `grouped by type: ${order}`);
     if (process.env.CREATE_SHOT) await page.screenshot({ path: process.env.CREATE_SHOT });
     // One click on a template starts it.
     await page.locator('.fmdx-tpl-grid [data-pick-template="tpl_quick"]').click();
