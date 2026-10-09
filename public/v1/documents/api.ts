@@ -1,5 +1,5 @@
 import { canAccessDepartmentResource, hasResourcePermission, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
-import { readDocumentDeliveryDefaults } from "./settings.js";
+import { readDocumentDeliveryDefaults, readPinnedTemplateIds, savePinnedTemplateIds } from "./settings.js";
 import { registerDocumentTagRoutes } from "./tag-catalog.js";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { ZodError } from "zod";
@@ -599,7 +599,16 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const branchId = cleanText(asObject(request.query).branch_id) || "default";
-    return { ok: true, settings: await readDocumentDeliveryDefaults(orgId, branchId) };
+    return { ok: true, settings: { ...await readDocumentDeliveryDefaults(orgId, branchId), pinned_template_ids: await readPinnedTemplateIds(orgId) } };
+  });
+
+  // The templates pinned to the top of New document, for the whole organization.
+  app.put("/organizations/:orgId/settings/pinned-templates", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    await requirePlatformAuth(request, { orgId, permission: "manage_documents", csrf: true });
+    const ids = asObject(request.body).template_ids;
+    if (!Array.isArray(ids) || ids.length > 12 || ids.some((id) => typeof id !== "string" || !id.trim() || id.length > 160)) throw badRequest("pinned_templates_invalid", "Send up to 12 template ids.");
+    return { ok: true, pinned_template_ids: await savePinnedTemplateIds(orgId, ids as string[]) };
   });
 
   app.get("/organizations/:orgId/catalog", async (request) => {

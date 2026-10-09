@@ -2220,7 +2220,7 @@
       if (options.inlineHost) {
         ensureInlineStyles();
         const host = options.inlineHost;
-        host.innerHTML = `<div class="fmdx-inline-wrap"><div class="fmdx-modal">${contentHtml}</div></div>`;
+        host.innerHTML = `<div class="fmdx-inline-wrap"><div class="fmdx-modal fmdx-create-modal">${contentHtml}</div></div>`;
         const el = host.querySelector('.fmdx-modal');
         modal = {
           el,
@@ -2231,10 +2231,10 @@
           }
         };
       } else {
-        modal = openModal(contentHtml, { onClose: options.onClose });
+        modal = openModal(contentHtml, { onClose: options.onClose, className: 'fmdx-create-modal' });
       }
       const body = modal.el.querySelector('[data-create-body]');
-      const [catalog, templates] = await Promise.all([loadCatalog(), loadTemplates(true)]);
+      const [catalog, templates, pinSettings] = await Promise.all([loadCatalog(), loadTemplates(true), api().documents.settings(orgId(), 'default').catch(() => ({}))]);
       if (!modal.el.isConnected) return;
       const wizard = { type: cleanText(prefill.document_type).toLowerCase(), template: null, departmentId: state.departmentId };
 
@@ -2244,84 +2244,149 @@
         return Object.keys(TYPE_META).filter((k) => k !== 'receipt').map((id) => ({ id, label: typeMeta(id).label, icon: TYPE_META[id].icon }));
       }
 
+      // One screen: search, the organization's pinned templates, then the
+      // whole library filtered by type (and department). Picking a template
+      // starts the document; Blank and Upload are their own buttons.
+      const savedPins = objectValue(objectValue(pinSettings).settings).pinned_template_ids;
+      const picker = { query: '', type: '', departments: null, pins: Array.isArray(savedPins) ? savedPins.map(cleanText) : null };
+      const PIN_LIMIT = 12;
+      const activeTemplates = () => arrayValue(templates).filter((t) => cleanText(t.status).toLowerCase() !== 'archived');
+      const isUploadTemplate = (tpl) => cleanText(objectValue(tpl.metadata).intake) === 'upload';
+      const departments = () => (state.departmentContext.enabled ? arrayValue(state.departmentContext.departments).map(objectValue) : []);
+      /** The user's own departments to start with; everything when they have none or see them all. */
+      function selectedDepartments(){
+        if (picker.departments) return picker.departments;
+        const own = arrayValue(state.departmentContext.member_department_ids).filter((id) => departments().some((entry) => entry.id === id));
+        picker.departments = new Set(own.length ? own : departments().map((entry) => entry.id));
+        return picker.departments;
+      }
+      function inDepartments(tpl){
+        const all = departments();
+        const ids = arrayValue(tpl.department_ids);
+        if (!all.length || !ids.length) return true;
+        const chosen = selectedDepartments();
+        return chosen.size === all.length || ids.some((id) => chosen.has(id));
+      }
+      /** Until the organization pins its own, the everyday documents: one each of the common types. */
+      function defaultPins(){
+        const list = activeTemplates().filter((tpl) => !isUploadTemplate(tpl));
+        return ['proposal', 'contract', 'change_order', 'invoice', 'work_order', 'estimate']
+          .map((type) => list.filter((tpl) => cleanText(tpl.document_type) === type))
+          .map((group) => group.find((tpl) => objectValue(tpl.metadata).default === true) || group[0])
+          .filter(Boolean).map((tpl) => cleanText(tpl.id));
+      }
+      const pins = () => (picker.pins || defaultPins()).filter((id) => activeTemplates().some((tpl) => cleanText(tpl.id) === id));
+      async function togglePin(id){
+        const next = pins().includes(id) ? pins().filter((entry) => entry !== id) : [...pins(), id].slice(0, PIN_LIMIT);
+        picker.pins = next;
+        renderStepOne();
+        try { await api().documents.pinTemplates(orgId(), next); }
+        catch (error) { showToast('Documents', errorMessage(error, 'The pinned templates could not be saved.'), false); }
+      }
+      function tileHtml(tpl, pinned){
+        const meta = typeMeta(tpl.document_type, catalog.types);
+        const upload = isUploadTemplate(tpl);
+        const id = cleanText(tpl.id);
+        const isPinned = pins().includes(id);
+        return `
+          <div class="fmdx-tpl ${pinned ? 'pinned' : ''}" style="--fmdx-type:${esc(meta.color)}" title="${esc(firstText(tpl.description, tpl.name))}">
+            <button type="button" class="fmdx-tpl-open" data-pick-template="${esc(id)}">
+              <span class="fmdx-tpl-type"><i class="fas ${esc(upload ? 'fa-file-arrow-up' : meta.icon)}"></i>${esc(meta.label)}</span>
+              <strong>${esc(firstText(tpl.name, 'Template'))}</strong>
+            </button>
+            <button type="button" class="fmdx-tpl-pin ${isPinned ? 'on' : ''}" data-pin-template="${esc(id)}" title="${isPinned ? 'Unpin for everyone' : 'Pin for everyone'}" aria-pressed="${isPinned}"><i class="fas fa-thumbtack"></i></button>
+          </div>`;
+      }
+
       function renderStepOne(){
         const types = typesList();
-        const typeCards = types.map((type) => {
-          const id = firstText(type.id, type.type);
-          const meta = typeMeta(id, types);
-          return `<button type="button" class="fmdx-pick-card ${wizard.type === id ? 'selected' : ''}" data-pick-type="${esc(id)}">
-              <span class="fmdx-pick-icon"><i class="fas ${esc(meta.icon)}"></i></span>
-              <strong>${esc(meta.label)}</strong>
-            </button>`;
-        }).join('');
-        const typeTemplates = wizard.type
-          ? arrayValue(templates).filter((t) => cleanText(t.document_type) === wizard.type && cleanText(t.status).toLowerCase() !== 'archived' && (!wizard.departmentId || !arrayValue(t.department_ids).length || arrayValue(t.department_ids).includes(wizard.departmentId)))
-          : [];
-        const templateCards = wizard.type ? `
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_587d96db750df7","Template") ?? "Template")}</p>
-          <div class="fmdx-pick-grid">
-            <button type="button" class="fmdx-pick-card ${String(wizard.template === null ? 'selected' : '')}" data-pick-template="">
-              <span class="fmdx-pick-icon"><i class="fas fa-file"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_7860b2aaae1cb5","Blank") ?? "Blank")}</strong><small>${(globalThis.PlatformLanguage?.htmlText("documents","m_16e49e1ae8de06","Start from an empty page") ?? "Start from an empty page")}</small>
-            </button>
-            ${String(typeTemplates.map((tpl) => {
-              const isUpload = cleanText(objectValue(tpl.metadata).intake) === 'upload';
-              return `
-              <button type="button" class="fmdx-pick-card ${wizard.template?.id === tpl.id ? 'selected' : ''}" data-pick-template="${esc(tpl.id)}">
-                <span class="fmdx-pick-icon"><i class="fas ${isUpload ? 'fa-file-arrow-up' : 'fa-file-invoice'}"></i></span>
-                <strong>${esc(firstText(tpl.name, 'Template'))}</strong>
-                <small>${isUpload ? 'Paper upload — the agent extracts the fields' : esc(firstText(tpl.description, `v${tpl.current_version || 1}`))}</small>
-              </button>`;
-            }).join(''))}
-            <button type="button" class="fmdx-pick-card ${String(wizard.template === '__upload__' ? 'selected' : '')}" data-pick-template="__upload__">
-              <span class="fmdx-pick-icon"><i class="fas fa-arrow-up-from-bracket"></i></span>
-              <strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_38387e00ca292b","Upload a paper contract") ?? "Upload a paper contract")}</strong>
-              <small>${(globalThis.PlatformLanguage?.htmlText("documents","m_c67e5a6a1dff96","Free-form — scan or photo; add fields during review") ?? "Free-form — scan or photo; add fields during review")}</small>
-            </button>
+        const query = picker.query.trim().toLowerCase();
+        const matches = (tpl) => !query || [tpl.name, tpl.description, typeMeta(tpl.document_type, catalog.types).label].some((value) => cleanText(value).toLowerCase().includes(query));
+        const visible = activeTemplates().filter(inDepartments).filter(matches);
+        const counts = new Map();
+        visible.forEach((tpl) => counts.set(cleanText(tpl.document_type), (counts.get(cleanText(tpl.document_type)) || 0) + 1));
+        // A type is a filter only when it groups something.
+        const typeChips = types.map((type) => firstText(type.id, type.type)).filter((id) => counts.get(id));
+        if (picker.type && !counts.get(picker.type)) picker.type = '';
+        const library = visible.filter((tpl) => !picker.type || cleanText(tpl.document_type) === picker.type);
+        const pinned = query ? [] : pins().map((id) => activeTemplates().find((tpl) => cleanText(tpl.id) === id)).filter(Boolean).filter(inDepartments);
+        const deptChips = departments().length > 1 ? `
+          <div class="fmdx-fchips" role="group" aria-label="${esc(state.departmentContext.departments_label || 'Departments')}">
+            ${departments().map((entry) => `<button type="button" class="fmdx-fchip ${selectedDepartments().has(entry.id) ? 'on' : ''}" data-pick-department="${esc(entry.id)}" aria-pressed="${selectedDepartments().has(entry.id)}">${esc(entry.label)}</button>`).join('')}
           </div>` : '';
+        const focused = document.activeElement === body.querySelector('[data-tpl-search]');
         body.innerHTML = `
-          <p class="fmdx-section-label">${(globalThis.PlatformLanguage?.htmlText("documents","m_61cd09102e4af8","Document type") ?? "Document type")}</p>
-          <div class="fmdx-pick-grid" style="margin-bottom:14px">${String(typeCards)}</div>
-          ${state.departmentContext.show_selector ? `<label class="fmdx-field"><span>${esc(state.departmentContext.department_label || 'Department')}</span><select class="fmdx-input" data-template-department><option value="">${esc('All available ' + (state.departmentContext.departments_label || 'departments'))}</option>${arrayValue(state.departmentContext.departments).map(d => `<option value="${esc(d.id)}" ${wizard.departmentId === d.id ? 'selected' : ''}>${esc(d.label)}</option>`).join('')}</select></label>` : ''}
-          ${String(templateCards)}
-          <div class="fmdx-modal-foot">
-            <button type="button" class="fmdx-btn primary" data-create-next ${String(wizard.type ? '' : 'disabled')}>${(globalThis.PlatformLanguage?.htmlText("documents","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
-          </div>`;
-        body.querySelector('[data-template-department]')?.addEventListener('change', event => { wizard.departmentId = event.target.value; wizard.template = null; renderStepOne(); });
-        body.querySelectorAll('[data-pick-type]').forEach((btn) => btn.addEventListener('click', () => {
-          wizard.type = btn.dataset.pickType;
-          wizard.template = null;
+          <div class="fmdx-create-top">
+            <label class="fmdx-create-search"><i class="fas fa-magnifying-glass"></i><input type="search" data-tpl-search value="${esc(picker.query)}" placeholder="Search templates" autocomplete="off"></label>
+            <button type="button" class="fmdx-btn" data-create-blank title="Start from an empty page"><i class="fas fa-file"></i> Blank</button>
+            <button type="button" class="fmdx-btn" data-create-upload title="Scan or photo of a paper document; add fields during review"><i class="fas fa-arrow-up-from-bracket"></i> Upload</button>
+          </div>
+          ${pinned.length ? `
+            <p class="fmdx-section-label">Pinned</p>
+            <div class="fmdx-tpl-row">${pinned.map((tpl) => tileHtml(tpl, true)).join('')}</div>` : ''}
+          <div class="fmdx-create-library-head">
+            <p class="fmdx-section-label">${query ? 'Results' : 'Library'}</p>
+            ${deptChips}
+          </div>
+          ${typeChips.length > 1 ? `
+            <div class="fmdx-fchips">
+              <button type="button" class="fmdx-fchip ${picker.type ? '' : 'on'}" data-pick-type="">All <small>${visible.length}</small></button>
+              ${typeChips.map((id) => { const meta = typeMeta(id, types); return `<button type="button" class="fmdx-fchip ${picker.type === id ? 'on' : ''}" data-pick-type="${esc(id)}" style="--fmdx-type:${esc(meta.color)}"><i class="fmdx-fchip-dot"></i>${esc(meta.label)} <small>${counts.get(id)}</small></button>`; }).join('')}
+            </div>` : ''}
+          ${library.length
+            ? `<div class="fmdx-tpl-grid">${library.map((tpl) => tileHtml(tpl, false)).join('')}</div>`
+            : `<p class="fmdx-data-hint">${query ? 'No template matches that search.' : 'No templates here yet. Start from Blank, or upload a paper document.'}</p>`}`;
+        const search = body.querySelector('[data-tpl-search]');
+        if (focused) { search.focus(); search.setSelectionRange(picker.query.length, picker.query.length); }
+        search.addEventListener('input', (event) => { picker.query = event.target.value; renderStepOne(); });
+        body.querySelectorAll('[data-pick-department]').forEach((btn) => btn.addEventListener('click', () => {
+          const chosen = selectedDepartments();
+          const id = btn.dataset.pickDepartment;
+          if (chosen.has(id) && chosen.size > 1) chosen.delete(id); else chosen.add(id);
           renderStepOne();
         }));
+        body.querySelectorAll('[data-pick-type]').forEach((btn) => btn.addEventListener('click', () => { picker.type = btn.dataset.pickType; renderStepOne(); }));
+        body.querySelectorAll('[data-pin-template]').forEach((btn) => btn.addEventListener('click', () => togglePin(btn.dataset.pinTemplate)));
         body.querySelectorAll('[data-pick-template]').forEach((btn) => btn.addEventListener('click', () => {
-          const id = btn.dataset.pickTemplate;
-          wizard.template = id === '__upload__' ? '__upload__' : (id ? typeTemplates.find((t) => cleanText(t.id) === id) || null : null);
-          renderStepOne();
+          const tpl = activeTemplates().find((entry) => cleanText(entry.id) === btn.dataset.pickTemplate);
+          if (!tpl) return;
+          wizard.type = cleanText(tpl.document_type);
+          wizard.template = tpl;
+          proceed(btn);
         }));
-        body.querySelector('[data-create-next]')?.addEventListener('click', async (event) => {
-          const button = event.currentTarget;
-          // Paper uploads skip creation entirely: pick a file, ingest, review.
-          const uploadTemplateId = wizard.template === '__upload__'
-            ? ''
-            : (cleanText(objectValue(wizard.template?.metadata).intake) === 'upload' ? cleanText(wizard.template.id) : '');
-          if (wizard.template === '__upload__' || uploadTemplateId) {
-            startPaperUpload(uploadTemplateId, wizard.type, () => modal.close());
-            return;
-          }
-          // Workflow-first (§8): when the chosen type/template declares a
-          // workflow, skip the params form and open the stepper instead. Any
-          // failure along the way falls back to the classic params form.
-          const workflowHint = createWorkflowHint();
-          if (workflowHint) {
-            button.disabled = true;
-            button.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Preparing…';
-            const started = await tryWorkflowFirstCreate(workflowHint);
-            if (started || !modal.el.isConnected) return;
-            button.disabled = false;
-            button.innerHTML = 'Continue <i class="fas fa-arrow-right"></i>';
-          }
-          renderStepTwo();
-        });
+        /** Blank and Upload need to know what kind of document: the filter in use, else ask. */
+        const withType = (anchor, run) => {
+          if (picker.type) { run(picker.type); return; }
+          const menu = openMenu(anchor, `<p class="fmdx-menu-label">What kind of document?</p>${types.map((type) => { const id = firstText(type.id, type.type); const meta = typeMeta(id, types); return `<button type="button" data-menu-type="${esc(id)}"><i class="fas ${esc(meta.icon)}" style="color:${esc(meta.color)}"></i> ${esc(id === 'document' || id === 'generic' ? 'Plain document' : meta.label)}</button>`; }).join('')}`);
+          (menu?.el || document.querySelector('.fmdx-menu'))?.querySelectorAll('[data-menu-type]').forEach((item) => item.addEventListener('click', () => { document.querySelector('.fmdx-menu')?.remove(); run(item.dataset.menuType); }));
+        };
+        body.querySelector('[data-create-blank]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = null; proceed(body.querySelector('[data-create-blank]')); }));
+        body.querySelector('[data-create-upload]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = '__upload__'; proceed(body.querySelector('[data-create-upload]')); }));
+      }
+
+      /** Start the chosen document: paper intake, its workflow, or the inputs form. */
+      async function proceed(button){
+        const uploadTemplateId = wizard.template === '__upload__'
+          ? ''
+          : (cleanText(objectValue(wizard.template?.metadata).intake) === 'upload' ? cleanText(wizard.template.id) : '');
+        if (wizard.template === '__upload__' || uploadTemplateId) {
+          startPaperUpload(uploadTemplateId, wizard.type, () => modal.close());
+          return;
+        }
+        // Workflow-first (§8): when the chosen type/template declares a
+        // workflow, skip the params form and open the stepper instead. Any
+        // failure along the way falls back to the classic params form.
+        const workflowHint = createWorkflowHint();
+        if (workflowHint) {
+          const label = button ? button.innerHTML : '';
+          body.querySelectorAll('button').forEach((entry) => { entry.disabled = true; });
+          if (button) button.classList.add('busy');
+          const started = await tryWorkflowFirstCreate(workflowHint);
+          if (started || !modal.el.isConnected) return;
+          body.querySelectorAll('button').forEach((entry) => { entry.disabled = false; });
+          if (button) { button.classList.remove('busy'); button.innerHTML = label; }
+        }
+        renderStepTwo();
       }
 
       /** Workflow id declared by the picked template or the catalog type. */

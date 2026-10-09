@@ -1,4 +1,4 @@
-import { readBranchModule, type JsonObject } from "../platform/storage.js";
+import { readBranchModule, saveBranchModule, type JsonObject } from "../platform/storage.js";
 import { PlatformError } from "../platform/errors.js";
 
 const object = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
@@ -22,6 +22,26 @@ export async function readDocumentDeliveryDefaults(orgId: string, branchId = "de
     optionalModule("presentation_style")
   ]);
   return documentDeliveryDefaults(object(object(settings).data), object(object(object(style).data).proposal_defaults));
+}
+
+const PINNED_TEMPLATES_MODULE = "document_template_pins";
+/**
+ * The templates an organization keeps at the top of New document, in order.
+ * null means it has never chosen, and the picker shows its own everyday set.
+ */
+export async function readPinnedTemplateIds(orgId: string): Promise<string[] | null> {
+  try {
+    const ids = object(object(await readBranchModule(orgId, "default", PINNED_TEMPLATES_MODULE)).data).template_ids;
+    return Array.isArray(ids) ? ids.map(id => String(id)).filter(Boolean) : null;
+  } catch (error) {
+    if (error instanceof PlatformError && error.statusCode === 404) return null;
+    throw error;
+  }
+}
+export async function savePinnedTemplateIds(orgId: string, templateIds: string[]) {
+  const ids = [...new Set(templateIds.map(id => String(id).trim()).filter(Boolean))].slice(0, 12);
+  await saveBranchModule(orgId, "default", PINNED_TEMPLATES_MODULE, { data: { template_ids: ids } }, { replace: true });
+  return ids;
 }
 
 /** Completion is scoped to this issued document, never another project's payment. */
