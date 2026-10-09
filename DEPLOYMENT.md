@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 8 shared trays: [Unified tray headers and tabs](deploy/digitalocean/development-tray-shell-20261008.md) records the AI Assistant, To Do, and Phone tray shell, phone workspace entry repair, focused browser checks, and development-only rollout.
+
 October 8 modal phone: [Phone workspace and call history](deploy/digitalocean/development-phone-modal-20261008.md) records the Windows-managed modal, browser validation, development-only rollout, and release handoff.
 
 October 8 Communications samples: [Pioneer Puffin call history, scripts, follow-ups, lists, and History repair](deploy/digitalocean/development-pioneer-puffin-calls-20261008.md) records the additive development schema repair and verified sample data.
