@@ -3,7 +3,7 @@
 'use strict';
 window.createBaseSketchEditor=function(host){
  const S=window.BaseSketchGeometry,G=window.WallGeometry,copy=v=>JSON.parse(JSON.stringify(v));
- let selected=[],lines=[],drag=null,armed=false,box=null,rect=null,preferredFace=null,preview=null,axisPreview=null,curveTool=null,lastView=null;
+ let selected=[],lines=[],drag=null,armed=false,box=null,rect=null,preferredFace=null,preview=null,axisPreview=null,curveTool=null,lastView=null,guideEl=null;
  const sketch=()=>S.read(host.base()),mode=()=>host.mode(),active=()=>host.active()&&mode()!=='face';
  const support=()=>preferredFace&&(host.base().faces.find(f=>f.id===preferredFace.id)||preferredFace);
  function setFace(f){preferredFace=f&&copy(f);selected=[];lines=[];}
@@ -16,7 +16,20 @@ window.createBaseSketchEditor=function(host){
  const actual=n=>n;
  function report(){host.message((mode()==='line'?lines.length+' lines':selected.length+' points')+' selected · gold = fixed wall boundary · cyan = editable');host.redraw();}
  function perform(fn){const before=copy(host.base());try{fn();host.commit(before);return true;}catch(e){host.restore(before);host.message(e.message);host.redraw();return false;}}
+ function clearGuides(){guideEl?.remove?.();guideEl=null;}
+ function showGuides(guides,v,plane){
+  clearGuides();if(!guides.length||typeof document==='undefined'||!document.createElementNS)return;
+  const element=document.getElementById(v==='3d'?'three-view-wrapper':'viewport');if(!element)return;
+  const r=element.getBoundingClientRect(),ns='http://www.w3.org/2000/svg';guideEl=document.createElementNS(ns,'svg');
+  Object.assign(guideEl.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',pointerEvents:'none',zIndex:10000,overflow:'hidden'});document.body.appendChild(guideEl);
+  const screen=p=>host.screen(plane?{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}:p,v);
+  for(const g of guides){const a=screen(g.p1),b=screen(g.p2),len=Math.hypot(b.x-a.x,b.y-a.y);if(len<1e-6)continue;
+   const dx=(b.x-a.x)/len*5000,dy=(b.y-a.y)/len*5000,line=document.createElementNS(ns,'line');
+   for(const [k,value]of Object.entries({x1:a.x-dx-r.left,y1:a.y-dy-r.top,x2:a.x+dx-r.left,y2:a.y+dy-r.top,stroke:'#FFD700','stroke-width':1.5,'stroke-linecap':'round',opacity:.85}))line.setAttribute(k,value);guideEl.appendChild(line);
+  }
+ }
  function position(e,v,unbounded=false){
+  clearGuides();
   const f=curveTool?.face||support()||host.faceAt(e,v),plane=f&&G.plane(f.points);let p=host.position(e,v,f?f.points[0].z:host.base().faces[0].points[0].z);
   if(!p)return;
   if(plane){
@@ -26,7 +39,8 @@ window.createBaseSketchEditor=function(host){
   }
   if(!unbounded&&window.WallSolidGeometry&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){
    const nodes=[...sketch().nodes.map(actual).filter(inScope),...references()],byId=id=>nodes.find(n=>n.id===id),edges=S.curveEdges(sketch()).map(e=>Object.assign([e.start,e.end],{curveId:e.curveId})).filter(pair=>pair.every(p=>p&&inScope(p)));
-   p=window.WallSolidGeometry.draftSnap(p,nodes,edges,selected.map(byId).filter(Boolean),p=>host.screen(plane?{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}:p,v),typeof snapRadius!=='undefined'?snapRadius:20,{lineCenters:host.lineCenters?.()!==false}).point;
+   const result=window.WallSolidGeometry.draftSnap(p,nodes,edges,selected.map(byId).filter(Boolean),p=>host.screen(plane?{...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}:p,v),typeof snapRadius!=='undefined'?snapRadius:20,{lineCenters:host.lineCenters?.()!==false});
+   p=result.point;showGuides(result.guides,v,plane);if(result.kind)host.message(result.kind);
    if(plane)p.z=plane.dx*p.x+plane.dy*p.y+plane.k;
   }
   return p;
@@ -44,7 +58,7 @@ window.createBaseSketchEditor=function(host){
  function curveMove(e,v){if(curveTool.kind==='arch')return archMove(e,v);const t=curveTool,raw=position(e,v,true);if(!raw)return;const K=window.ExteriorGeometry,enabled=!(typeof isFreeMove!=='undefined'&&isFreeMove);t.snap=K.curveDrawSnap({start:t.start,center:t.center,point:raw,normal:t.normal,points:[...sketch().nodes,...references()],curves:sketch().curves||[],screen:p=>host.screen(p,v),snap:enabled,radius:typeof snapRadius!=='undefined'?snapRadius:20});const q=t.snap.point;t.pointer=q;t.track.close=t.snap.close;if(t.center){try{t.curve=window.ExteriorGeometry.arcPreview(t.start,t.center,q,t.normal,t.track,false);t.samples=window.ExteriorGeometry.curveSamples(t.curve);t.pointer=t.samples.at(-1);t.valid=Math.abs(t.curve.sweep)>1e-5;host.message((t.valid?'Curve':'Invalid curve')+' · '+(t.curve.radiusX===t.curve.radiusY?'Circle':'Ellipse')+' · '+(t.curve.sweep*180/Math.PI).toFixed(1)+'° · Click endpoint; Shift-click continues; Escape cancels.');}catch(error){t.valid=false;host.message(error.message);}}t.guides=K.curveDrawGuides({start:t.start,center:t.center,pointer:t.pointer,snap:t.snap,normal:t.normal});host.redraw();}
  function curveDown(e,v){if(curveTool.kind==='arch')return archDown(e,v);curveMove(e,v);const t=curveTool;if(!t.center){if(!t.pointer||Math.hypot(t.pointer.x-t.start.x,t.pointer.y-t.start.y,t.pointer.z-t.start.z)<1e-5)return true;t.center={...t.pointer};t.track={};host.message('Move around the center to set sweep; radius snaps to a circle. Shift-click continues another arc.');host.redraw();return true;}if(!t.valid)return true;let id;if(perform(()=>{id=S.addCurve(host.base(),t.curve);})){selected=[id];if(e.shiftKey){curveTool={start:copy(node(id)),center:copy(t.center),normal:copy(t.normal),face:t.face,track:{}};host.message('Continue around the same center. Shift-click adds another arc; click finishes; Escape cancels the pending arc.');host.redraw();}else{curveTool=null;report();}}return true;}
 
- function insert(e,v,join=false){lastView=v;const p=position(e,v);if(!p){host.message('Place the point on the selected base face.');return false;}const from=join&&selected.length===1?selected[0]:null;let id;const ok=perform(()=>{id=S.add(host.base(),p,.0001);if(from&&from!==id)connect([from,id]);else S.resolve(host.base());});if(ok){selected=[id];lines=[];armed=false;preview=null;report();}return ok;
+ function insert(e,v,join=false){lastView=v;const p=position(e,v);if(!p){host.message('Place the point on the selected base face.');return false;}const from=join&&selected.length===1?selected[0]:null;let id;const ok=perform(()=>{id=S.add(host.base(),p,.0001);if(from&&from!==id)connect([from,id]);else S.resolve(host.base());});if(ok){selected=[id];lines=[];armed=false;preview=null;clearGuides();report();}return ok;
  }
  function closest(e,v){
   let id=null,best=12;
@@ -103,7 +117,7 @@ window.createBaseSketchEditor=function(host){
  }
  function perpendicularCut(){const A=window.WallAxisCuts,W=window.WallSolidGeometry;if(!A||!W||selected.length!==1)return false;if(axisPreview){axisPreview.index=(axisPreview.index+1)%axisPreview.variants.length;previewCut();return true;}const start=actual(node(selected[0])),before=copy(host.base()),candidates=[];for(const f of host.base().faces.filter(f=>onFace(start,f))){const frame=W.faceFrame(f),local=p=>W.inFrame(frame,p),face={points:f.points.map(local)},origin=A.boundaryPoint(face,local(start));let direction;try{direction=A.perpendicular(face,origin);}catch{continue;}const nodes=sketch().nodes.map(actual).filter(p=>onFace(p,f)),byId=id=>nodes.find(n=>n.id===id),edges=sketch().edges.map(e=>[byId(e.a),byId(e.b)]).filter(pair=>pair.every(Boolean)),targets=A.targets(face,origin,direction,edges.map(e=>e.map(local)),nodes.map(local)).map(p=>W.fromFrame(frame,p));if(targets.length)candidates.push({face:f.id,targets});}candidates.sort((a,b)=>Number(b.face===support()?.id)-Number(a.face===support()?.id));if(!candidates.length){host.message('Select one point on a base edge with space for a perpendicular cut.');return true;}const variants=candidates.map(c=>[c]);if(candidates.length>1)variants.push(candidates);axisPreview={before,start:{...start},source:selected[0],variants,index:0};previewCut();return true;}
  function previewCut(){const t=axisPreview;host.restore(copy(t.before));t.lines=[];try{for(const c of t.variants[t.index])for(const p of c.targets){const id=S.add(host.base(),p,.0001);S.connect(host.base(),[t.source,id]);t.lines.push([t.start,p]);}t.valid=true;host.message('Perpendicular base cut: '+(t.variants[t.index].length>1?'both sides':'side '+(t.index+1))+' - H cycles; click to place; Escape cancels.');}catch(error){host.restore(copy(t.before));t.valid=false;host.message(error.message);}host.redraw();}
- function finishToolForSwitch(){if(curveTool){host.message('Finish the curve or press Escape before switching tools.');return false;}if(axisPreview?.valid===false||drag?.invalid){host.message('Correct or cancel the current preview before switching tools.');return false;}if(axisPreview){host.commit(axisPreview.before);axisPreview=null;}if(drag){const d=drag;drag=null;if(d.changed)host.commit(d.original);}armed=false;preview=null;return true;}
+ function finishToolForSwitch(){if(curveTool){host.message('Finish the curve or press Escape before switching tools.');return false;}if(axisPreview?.valid===false||drag?.invalid){host.message('Correct or cancel the current preview before switching tools.');return false;}if(axisPreview){host.commit(axisPreview.before);axisPreview=null;}if(drag){const d=drag;drag=null;if(d.changed)host.commit(d.original);}armed=false;preview=null;clearGuides();return true;}
  function keyDown(e){
   if(!active())return false;const k=e.key.toLowerCase();
   if(curveTool?.kind==='arch'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){cancel();report();}else if((k==='a'||k==='enter')&&!e.repeat)finishArch();else if(k==='f'&&!e.repeat&&typeof isFreeMove!=='undefined')isFreeMove=!isFreeMove;return true;}if(k==='a'&&!e.ctrlKey&&!e.metaKey&&!e.repeat&&!curveTool)return startArch();
@@ -128,7 +142,7 @@ window.createBaseSketchEditor=function(host){
   }
   return false;
  }
- function cancel(){curveTool=null;if(axisPreview){host.restore(axisPreview.before);axisPreview=null;}if(drag)host.restore(drag.original);drag=null;armed=false;preview=null;box=null;rect?.remove?.();rect=null;}
+ function cancel(){clearGuides();curveTool=null;if(axisPreview){host.restore(axisPreview.before);axisPreview=null;}if(drag)host.restore(drag.original);drag=null;armed=false;preview=null;box=null;rect?.remove?.();rect=null;}
  function color(fixed,chosen){return chosen?'#fff':fixed?'#e7ad52':'#6ce4ed';}
  function draw2D(rot,svg,inv){
   if(host.base()?.visible===false)return;

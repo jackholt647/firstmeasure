@@ -118,3 +118,15 @@ for(const offset of [-6,6])test('N snaps across a raised pitched base to an obli
  assert.equal(base.faces.length,2,message);assert.equal(commits,1);
  const end=base.sketch.nodes.find(n=>Math.abs(n.x-8)<1e-7&&n.y>3&&n.y<7);assert.ok(end,'endpoint lies exactly on the far boundary');assert.ok(Math.abs(end.z-z(end.x,end.y))<1e-7);
 });
+for(const view of ['2d','3d'])test('base N retains shared extension snapping and yellow guides on a pitched concave face '+view,()=>{
+ const p=(x,y)=>({x,y,z:10+.2*x+.1*y}),base={faces:[{id:'base',points:[[0,0],[2,2],[5,0],[10,0],[10,10],[0,10]].map(([x,y])=>p(x,y))}]};
+ const overlays=[],element=()=>({style:{},children:[],attrs:{},appendChild(c){this.children.push(c);},setAttribute(k,v){this.attrs[k]=v;},remove(){this.removed=true;}});
+ const document={createElementNS:()=>element(),getElementById:()=>({getBoundingClientRect:()=>({left:0,top:0,width:1500,height:1500})}),body:{appendChild:e=>overlays.push(e)}};
+ let message='';const ctx={document,BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W,isFreeMove:false};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);
+ const editor=ctx.createBaseSketchEditor({base:()=>base,active:()=>true,mode:()=>'point',faceAt:()=>base.faces[0],position:(e,v,z)=>({x:e.clientX/100,y:e.clientY/100,z}),screen:p=>({x:p.x*100,y:p.y*100}),commit(){},restore:b=>Object.assign(base,b),message:m=>message=m,redraw(){},isCenter:()=>false});
+ editor.selectEntities([p(2,2)],[]);editor.keyDown({key:'n'});const e={clientX:404,clientY:400,button:0,buttons:0};editor.move(e,view);
+ assert.match(message,/Guide/);let guide=overlays.at(-1);assert.ok(guide?.children.some(l=>l.attrs.stroke==='#FFD700'&&Math.abs((l.attrs.x2-l.attrs.x1)-(l.attrs.y2-l.attrs.y1))<1e-5),'yellow continuation of the incoming diagonal is visible');
+ ctx.isFreeMove=true;editor.move(e,view);assert.ok(guide.removed,'free move clears guides');ctx.isFreeMove=false;editor.move(e,view);guide=overlays.at(-1);editor.keyDown({key:'Escape'});assert.ok(guide.removed,'cancel clears guides');
+ editor.selectEntities([p(2,2)],[]);editor.keyDown({key:'n'});editor.move(e,view);guide=overlays.at(-1);editor.down(e,view);assert.ok(guide.removed,'placement clears guides');
+ assert.ok(base.sketch.nodes.some(n=>Math.abs(n.x-4)<.1&&Math.abs(n.x-n.y)<1e-6&&Math.abs(n.z-10-.2*n.x-.1*n.y)<1e-6),'placement is collinear with incoming edge and stays on the pitched plane');
+});
