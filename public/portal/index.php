@@ -2258,6 +2258,7 @@ session_write_close();
   <script src="../libraries/apps/comms/communications-ui.js?v=<?= portalAssetVersion('../libraries/apps/comms/communications-ui.js') ?>"></script>
   <script src="../libraries/apps/comms/phone-tray.js?v=<?= portalAssetVersion('../libraries/apps/comms/phone-tray.js') ?>"></script>
   <script src="../libraries/apps/comms/calling-runtime.js?v=<?= portalAssetVersion('../libraries/apps/comms/calling-runtime.js') ?>"></script>
+  <script src="../libraries/apps/comms/phone-modal.js?v=<?= portalAssetVersion('../libraries/apps/comms/phone-modal.js') ?>"></script>
   <script src="../libraries/apps/comms/workspace.js?v=<?= portalAssetVersion('../libraries/apps/comms/workspace.js') ?>"></script>
   <script src="../libraries/communications-templates/communications-templates.js?v=<?= portalAssetVersion('../libraries/communications-templates/communications-templates.js') ?>"></script>
   <script src="../libraries/apps/comms/project.js?v=<?= portalAssetVersion('../libraries/apps/comms/project.js') ?>"></script>

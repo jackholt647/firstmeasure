@@ -4,11 +4,13 @@ import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
 test('phone modal combines call, text, voicemail, and searchable history',async()=>{
+  assert.match(await readFile(new URL('../../portal/index.php',import.meta.url),'utf8'),/libraries\/apps\/comms\/phone-modal\.js/);
   const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
     const page=await browser.newPage({viewport:{width:1360,height:900}}),errors=[];
     page.on('pageerror',error=>errors.push(error.message));
     await page.route('https://phone-modal.test/**',route=>route.fulfill({body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
+    await page.route('https://phone-modal.test/libraries/apps/comms/phone-modal.js*',async route=>route.fulfill({body:await readFile(new URL('../../libraries/apps/comms/phone-modal.js',import.meta.url),'utf8'),contentType:'text/javascript'}));
     await page.goto('https://phone-modal.test');
     await page.evaluate(()=>{
       window.__APP={orgId:'org-test',userId:'user-test'};
@@ -37,10 +39,12 @@ test('phone modal combines call, text, voicemail, and searchable history',async(
         return {};
       },customerUrl:(_org,path)=>`https://phone-modal.test/v1/comms/organizations/org-test/${path}`,inbox:async()=>({conversations:[{id:'thread-jane',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',project_id:'project-jane',last_message:{text:'Hi from Jane',created_at:new Date().toISOString()}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hi from Jane',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {message:{conversation_id:'thread-jane'}};}}};
     });
-    for(const file of ['window-manager/window-manager.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js','apps/comms/phone-modal.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
+    for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
     await page.evaluate(()=>Portal.CustomerPhone.open());
     await page.getByRole('button',{name:'Open phone workspace'}).click();
+    await page.waitForFunction(()=>typeof Portal.PhoneModal?.open==='function');
+    assert.equal(await page.evaluate(()=>typeof Portal.PhoneModal?.open),'function');
     const modal=page.locator('.fmpm-window');await modal.waitFor();
     assert.equal(await modal.getAttribute('data-window'),'modal');
     assert.equal(await modal.locator('.fmpm-call .fmcp').count(),1);

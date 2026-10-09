@@ -8,7 +8,8 @@ test('project trays share the assistant composer, scope, responsive layout and v
  try {
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.setContent('<style>body{font:14px Arial;margin:0}main{height:800px}#projects{display:flex;gap:20px}#one,#two{height:650px;width:380px;display:flex;flex-direction:column}</style><main class="main"><div id="mainPanels"></div></main><div id="projects"><section id="one"></section><section id="two"></section></div>');
+  await page.route('https://assistant-project.test/**',route=>route.fulfill({contentType:'text/html',body:'<style>body{font:14px Arial;margin:0}main{height:800px}#projects{display:flex;gap:20px}#one,#two{height:650px;width:380px;display:flex;flex-direction:column}</style><main class="main"><div id="mainPanels"></div></main><div id="projects"><section id="one"></section><section id="two"></section></div>'}));
+  await page.goto('https://assistant-project.test');
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org'};window.Portal={can:()=>true,tabs:{activateTab(){}},util:{currentBranchId:()=> 'default'}};
    const threads={main:{id:'main',subject_id:'main'},p1:{id:'p1',subject_id:'project:1'},p2:{id:'p2',subject_id:'project:2'}};
@@ -25,7 +26,7 @@ test('project trays share the assistant composer, scope, responsive layout and v
     async setRemoteDescription(){this.events.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'session.started'})}));}close(){}
    };
   });
-  for(const f of ['window-manager/window-manager.js','platform-assistant/platform-assistant.js']) {
+  for(const f of ['window-manager/window-manager.js','window-manager/window-shell.js','platform-assistant/platform-assistant.js']) {
    const source=process.env.ASSISTANT_ASSET_ORIGIN ? await(await fetch(`${process.env.ASSISTANT_ASSET_ORIGIN}/libraries/${f}?verify=${Date.now()}`)).text() : await readFile(new URL('../../libraries/'+f,import.meta.url),'utf8');
    await page.addScriptTag({content:source});
   }

@@ -36,6 +36,7 @@
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
+    versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
@@ -347,7 +348,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261008-phone-modal-entry-v1'), versionedBundle('comms/calling-runtime.js', '20261008-phone-audio-v1'), versionedBundle('comms/phone-modal.js', '20261008-phone-modal-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261008-tray-shell-v1'), versionedBundle('comms/calling-runtime.js', '20261008-phone-audio-v1'), versionedBundle('comms/phone-modal.js', '20261008-tray-shell-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -523,7 +524,8 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'),
-        versionedBundle('comms/phone-tray.js', '20261008-phone-modal-entry-v1'), versionedBundle('comms/calling-runtime.js', '20261008-phone-audio-v1'), versionedBundle('comms/phone-modal.js', '20261008-phone-modal-v1'),
+        versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
+        versionedBundle('comms/phone-tray.js', '20261008-tray-shell-v1'), versionedBundle('comms/calling-runtime.js', '20261008-phone-audio-v1'), versionedBundle('comms/phone-modal.js', '20261008-tray-shell-v1'),
         versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]
@@ -545,8 +547,9 @@
         versionedBundle('../channels-api/channels-api.js', '20261008-feed-manual-posts-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
+        versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-        ...widgetBundles, bookingBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
+        ...widgetBundles, bookingBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
         versionedBundle('photos/feed.js', '20261008-feed-groups-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261008-phone-emoji-v1'),
@@ -568,7 +571,7 @@
       placement: 'more',
       fullBleed: true,
       access: { applicationsAny: ['management', 'field'], permissionsAny: ['use_assistant', 'view_projects', 'manage_projects', 'manage_company_settings'] },
-      bundles: [...widgetBundles, bookingBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), bundle('../platform-assistant/platform-assistant.js')]
+      bundles: [...widgetBundles, bookingBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1')]
     },
     {
       id: 'portal.canvassing',

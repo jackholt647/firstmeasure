@@ -7,7 +7,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
   const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
     const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];
-    page.on('pageerror',e=>errors.push(e.message));
+    page.on('pageerror',e=>errors.push(e.stack||e.message));
     await page.route('https://phone.test/**',route=>route.fulfill({body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="platformPhoneSlot"><button id="platformPhoneBtn">Phone</button></div><div id="mainPanels"></div></main>',contentType:'text/html'}));
     await page.route('https://phone.test/libraries/apps/contacts/modal.js*',async route=>route.fulfill({body:await readFile(new URL('../../libraries/apps/contacts/modal.js',import.meta.url),'utf8'),contentType:'text/javascript'}));
     await page.route('https://phone.test/libraries/window-manager/window-shell.js*',async route=>route.fulfill({body:await readFile(new URL('../../libraries/window-manager/window-shell.js',import.meta.url),'utf8'),contentType:'text/javascript'}));
@@ -41,7 +41,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
         return {};
       },customerUrl:(_org,path)=>`https://phone.test/v1/comms/organizations/org-test/${path}`,inbox:async()=>({conversations:[{id:'text-one',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',last_message:{text:'Hello'}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hello',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {ok:true};}}};
     });
-    for(const file of ['window-manager/window-manager.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
+    for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
     await page.evaluate(()=>Portal.CustomerPhone.open());
     assert.equal(await page.locator('.fm-phone-tray').getAttribute('data-window'),'docked');
@@ -57,7 +57,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/idle.png'});
     await page.locator('.fm-phone-title').click();
 
-    assert.deepEqual(await page.locator('[data-phone-tab]').allTextContents(),['Call','Text','Voicemail','Contacts']);
+    assert.deepEqual(await page.locator('[data-tray-tab]').allTextContents(),['Call','Text','Voicemail','Contacts']);
     assert.equal(await page.getByRole('button',{name:'Choose another country to call'}).textContent(),'+1');
     await page.getByRole('button',{name:'Choose another country to call'}).click();
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/country.png'});
@@ -112,7 +112,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.evaluate(()=>document.activeElement.name),'customer_number');
     for(let i=0;i<15;i++)await page.keyboard.press('Backspace');
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'');
-    await page.locator('[data-phone-tab=contacts]').click();
+    await page.locator('[data-tray-tab=contacts]').click();
     await page.getByRole('combobox',{name:'Filter contacts by tag'}).selectOption('lead');
     assert.equal(await page.getByRole('button',{name:'Open Jane Test'}).count(),0);
     assert.equal(await page.getByRole('button',{name:'Open Avery Demo'}).count(),1);
@@ -126,7 +126,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('[name=customer_number]').inputValue(),'+12025550124');
     assert.equal(await page.locator('.fm-phone-selected strong').textContent(),'Jane Test');
     await page.getByRole('button',{name:'Remove selected contact'}).click();
-    await page.locator('[data-phone-tab=voicemail]').click();
+    await page.locator('[data-tray-tab=voicemail]').click();
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/voicemail-list.png'});
     await page.getByRole('button',{name:/Jane Test/}).click();
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/voicemail-detail.png'});
@@ -140,7 +140,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.locator('.fm-phone-vm-item').count(),0);
     await page.getByRole('combobox',{name:'Filter voicemails'}).selectOption('archived');
     assert.equal(await page.locator('.fm-phone-vm-item').count(),1);
-    await page.locator('[data-phone-tab=call]').click();
+    await page.locator('[data-tray-tab=call]').click();
     if(process.env.PHONE_TRAY_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_TRAY_SCREENSHOTS+'/docked.png'});
     await page.evaluate(()=>{const e=document.createElement('aside'),h=document.createElement('header');h.textContent='Other minimized window';e.append(h);document.querySelector('main').append(e);window.otherWindow=FirstMateWindows.attach({element:e,header:h,host:document.querySelector('main'),mode:'minimized',name:'other'});});
     await page.getByRole('button',{name:'Move phone freely',exact:true}).click();
@@ -223,7 +223,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     await page.waitForFunction(()=>document.querySelector('.fm-phone-tray').hidden);
     await page.setViewportSize({width:390,height:844});await page.evaluate(()=>Portal.CustomerPhone.open());
     const mobile=await page.locator('.fm-phone-tray').boundingBox();assert.ok(mobile.x>=0&&mobile.x+mobile.width<=390);
-    await page.locator('[data-phone-tab=text]').click();
+    await page.locator('[data-tray-tab=text]').click();
     assert.equal(await page.locator('.fm-phone-extra [name=business_number]').inputValue(),'+12065550199');
     await page.getByRole('button',{name:/Jane Test/}).click();
     await page.getByRole('textbox',{name:'Text message'}).fill('Thanks, Jane ');
@@ -237,7 +237,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.getByRole('textbox',{name:'Text message'}).inputValue(),'Thanks, Jane 👍');
     await page.getByRole('button',{name:'Send text'}).click();
     await page.waitForFunction(()=>window.lastReply?.text==='Thanks, Jane 👍');
-    await page.locator('[data-phone-tab=contacts]').click();
+    await page.locator('[data-tray-tab=contacts]').click();
     await page.getByRole('button',{name:'Text Avery Demo'}).click();
     await page.getByRole('textbox',{name:'Text message'}).fill('Hello, Avery');
     await page.locator('.fm-phone-compose input[type=file]').setInputFiles({name:'photo.png',mimeType:'image/png',buffer:Buffer.from('89504e470d0a1a0a','hex')});
@@ -248,7 +248,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.deepEqual(await page.evaluate(()=>lastImageUpload),{name:'photo.png',options:{ownerType:'user',ownerId:'user-test',slot:'sms_image',scope:'communications'}});
     assert.deepEqual(await page.evaluate(()=>lastNewText),{project:'project-two',body:{to:'+12025550125',text:'Hello, Avery',image:{media_id:'image-one'},business_number:'+12065550199',idempotency_key:await page.evaluate(()=>lastNewText.body.idempotency_key)}});
     const webp=await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=2;canvas.height=2;canvas.getContext('2d').fillRect(0,0,2,2);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp'));return [...new Uint8Array(await blob.arrayBuffer())];});
-    await page.locator('[data-phone-tab=contacts]').click();
+    await page.locator('[data-tray-tab=contacts]').click();
     await page.getByRole('button',{name:'Text Avery Demo'}).click();
     await page.locator('.fm-phone-compose input[type=file]').setInputFiles({name:'photo.webp',mimeType:'image/webp',buffer:Buffer.from(webp)});
     await page.waitForFunction(()=>document.querySelector('.fm-phone-image-preview span')?.textContent==='photo.jpg');
@@ -263,7 +263,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     });
     assert.equal(await page.evaluate(()=>Portal.CustomerPhone.state.deviceChecked),true);
     await page.evaluate(()=>localStorage.setItem('fm-customer-phone-audio:org-test:user-test',JSON.stringify({microphone:'changed-device',speaker:''})));
-    await page.locator('[data-phone-tab=call]').click();
+    await page.locator('[data-tray-tab=call]').click();
     await page.locator('[data-phone=start]').click();
     await page.waitForSelector('.fm-phone-readiness');
     assert.equal(await page.evaluate(()=>Portal.CustomerPhone.state.deviceChecked),false);

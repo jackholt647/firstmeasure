@@ -9,9 +9,9 @@
   const enabled=()=>!!org()&&Portal.can?.('topbar.todos')===true&&Portal.topbar?.isVisible?.()!==false;
   const style=document.createElement('style');style.textContent=`
     .fm-todo-tray{display:flex;flex-direction:column;min-height:0;background:var(--panel,#fff);color:var(--text,#202124);border:1px solid var(--border,#dadce0);border-radius:var(--radius-lg,12px);box-shadow:var(--shadow,0 10px 30px #00000014);overflow:hidden}
-    .fm-todo-tray[hidden]{display:none!important}.fm-todo-tray>.fm-window-header{flex:none;padding:10px 12px;border-bottom:1px solid var(--border,#dadce0)}
+    .fm-todo-tray[hidden]{display:none!important}
     .fm-todo-tray [data-window-action=minimize]{display:none!important}
-    .fm-todo-title{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-weight:600;font-size:13px}.fm-todo-body{flex:1;min-height:0;padding:12px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column}.fm-todo-body>.pai-today-list{flex:1;min-height:0}
+    .fm-todo-body{flex:1;min-height:0;padding:12px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column}.fm-todo-body>.pai-today-list{flex:1;min-height:0}
   `;document.head.append(style);
   function buttons(){return document.querySelectorAll('#platformTodoBtn,#mobilePlatformMoreTodos');}
   function setVisible(value){visible=value;win?.setVisible(value);buttons().forEach(button=>button.setAttribute('aria-expanded',String(value)));}
@@ -19,13 +19,14 @@
   function mount(){
     const key=org()+':'+branch();
     if(shell&&identity===key)return true;
-    if(!window.FirstMateWindows?.attach||!window.PlatformActionItems?.renderTodayList)return false;
+    if(!window.FirstMateWindows?.attach||!window.FirstMateWindowShell?.trayWindow||!window.PlatformActionItems?.renderTodayList)return false;
     controller?.destroy?.();win?.destroy?.();shell?.remove();identity=key;
     const host=document.querySelector('main.main')||document.querySelector('.main')||document.body;
     shell=document.createElement('aside');shell.id='platformTodoTray';shell.className='fm-todo-tray';shell.setAttribute('aria-label','To Do');shell.hidden=true;
     const header=document.createElement('header'),title=document.createElement('div'),body=document.createElement('div');
     title.className='fm-todo-title fm-window-minimized-identity';title.innerHTML='<i class="fas fa-list-check" aria-hidden="true"></i><span>To Do</span>';title.tabIndex=0;body.className='fm-todo-body';header.append(title);shell.append(header,body);host.append(shell);
-    win=window.FirstMateWindows.attach({element:shell,header,title,body,host,contentTarget:host.querySelector(':scope > #mainPanels'),name:'todos',label:'To Do',mode:'docked',width:380,height:600,minWidth:300,minHeight:300,dockWidth:380,mobileFullDock:true,topInset:()=>document.getElementById('platformTopbar')?.offsetHeight||0,onClose:close});
+    const tray=window.FirstMateWindowShell.trayWindow({element:shell,header,title,body,label:'To Do tabs',tabs:[{id:'today',label:'Today',element:body}]});
+    win=window.FirstMateWindows.attach({element:shell,header,title,body:tray.body,host,contentTarget:host.querySelector(':scope > #mainPanels'),name:'todos',label:'To Do',mode:'docked',width:380,height:600,minWidth:300,minHeight:300,dockWidth:380,mobileFullDock:true,topInset:()=>document.getElementById('platformTopbar')?.offsetHeight||0,onClose:close});
     controller=window.PlatformActionItems.renderTodayList(body,{orgId:org(),branchId:branch(),userId:String(Portal.cfg?.userId||window.__APP?.userId||Portal.currentUser?.id||''),completedOpen:true,showProjectContext:true,showUpcoming:true,showFuture:true,scrollItemsOnly:true,query:{includeFuture:true}});
     return true;
   }

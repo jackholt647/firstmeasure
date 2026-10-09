@@ -88,6 +88,7 @@
   const voiceChats = new Map();
   const voiceArchives = new Map();
   let assistantWindow = null;
+  let assistantTray = null;
   let voiceCall = null;
   let recorder = null;
   let recordingStream = null;
@@ -378,10 +379,10 @@
       .fma-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #e4e7ec;min-width:0;}
       .fma-head .fm-window-controls{margin-left:auto;}
       .fma-head .fm-window-controls [data-window-action=minimize]{display:none;}
-      .fma-head-title{flex:1;min-width:0;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .fma-tray-identity{flex:1;min-width:0}.fma-head-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .fma-drawer[data-window=full] .fma-head{position:absolute;top:10px;left:16px;right:16px;z-index:7;pointer-events:none;width:auto;min-height:0;padding:0;border:0;background:transparent;}
       .fma-drawer[data-window=full] .fma-head > *{pointer-events:auto;}
-      .fma-drawer[data-window=full] .fma-head-title{display:none;}
+      .fma-drawer[data-window=full] .fma-tray-identity{display:none;}
       .fma-visuals-toggle[aria-pressed=true]{color:var(--primary-readable,var(--primary,#175cd3));background:rgba(var(--primary-rgb,23,92,211),.1);}
       .fma-drawer[data-window=full] .fma-head .fma-sidebar-toggle,.fma-drawer[data-window=full] .fma-head .fma-visuals-toggle{width:34px;height:34px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-shadow:0 2px 8px #10182814;}
       .fma-drawer[data-window=full] .fma-head .fma-visuals-toggle[aria-pressed=true]{background:rgba(var(--primary-rgb,23,92,211),.1);border-color:transparent;}
@@ -683,7 +684,7 @@
     drawer.innerHTML = `
       <div class="fma-head">
         <button type="button" class="fma-icon-btn fma-sidebar-toggle" data-fma="history" title="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_ee81752261cfa1","Conversations") ?? "Conversations")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_f421bede1a732b","Open conversations") ?? "Open conversations")}" aria-expanded="false"><i class="fas fa-bars-staggered" aria-hidden="true"></i></button>
-        <span class="fma-head-title" data-fma="headTitle"></span>
+        <div class="fma-tray-identity fm-window-minimized-identity"><i class="fas fa-sparkles" aria-hidden="true"></i><span class="fma-head-title" data-fma="headTitle"></span></div>
         <span class="fma-voice-indicator" data-fma="voiceIndicator" role="img" aria-label="Voice conversation active" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="visualsToggle" title="Close panel view" aria-label="Close panel view" aria-pressed="true" hidden><i class="fas fa-chart-pie" aria-hidden="true"></i></button>
         <button type="button" class="fma-icon-btn ghost fma-visuals-toggle" data-fma="boardSide" aria-label="Move panels to the right" title="Move panels to the right" hidden><i class="fas fa-right-left" aria-hidden="true"></i></button>
@@ -1308,7 +1309,7 @@
   function syncTitles(){
     if (!els || disposed) return;
     const { title, sub } = currentTitle();
-    els.headTitle.textContent = title;
+    els.headTitle.textContent = title || (embedded ? '' : state.assistantName);
     els.barTitle.textContent = title;
     els.barSub.textContent = sub;
     resizeComposerInput();
@@ -2366,12 +2367,13 @@
 
   function attachSurfaceWindow(host){
     const drawer=els.drawer, q=name=>drawer.querySelector(`[data-fma="${name}"]`);
+    if(!embedded&&window.FirstMateWindowShell?.trayWindow)assistantTray=window.FirstMateWindowShell.trayWindow({element:drawer,header:drawer.querySelector('.fma-head'),title:drawer.querySelector('.fma-tray-identity'),body:q('body'),label:'Assistant tabs',tabs:[{id:'assistant',label:'Assistant',element:q('body')}]});
     assistantWindow = embedded ? {
       state:{mode:'docked'}, setVisible(visible){ drawer.hidden = !visible; },
       setMode(){}, restore(){}, destroy(){ drawer.remove(); }
     } : window.FirstMateWindows.attach({
-      element:drawer, header:drawer.querySelector('.fma-head'),
-      body:q('body'), host,
+      element:drawer, header:drawer.querySelector('.fma-head'),title:drawer.querySelector('.fma-tray-identity'),
+      body:assistantTray?.body||q('body'), host,
       contentTarget:document.getElementById('mainPanels'), name:'assistant', label:(globalThis.PlatformLanguage?.text("platform-assistant","m_4aaef822b47692","FirstMate Assistant") ?? "FirstMate Assistant"),
       mode:'docked', dockWidth:440, width:760, height:650, mobileFullDock:true,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || document.querySelector('.platform-topbar')?.offsetHeight || 0,

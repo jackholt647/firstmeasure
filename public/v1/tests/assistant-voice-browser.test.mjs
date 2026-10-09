@@ -7,7 +7,8 @@ test('voice connects, delegates once with context, preserves drafts, and release
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  try {
  const page=await browser.newPage({viewport:{width:1440,height:1000}});
- await page.setContent('<style>html,body{margin:0;height:100%;font:14px Arial}.main{position:relative;height:100vh}</style><main class="main"><div id="mainPanels"><section id="tab_assistant" class="fm-tabpanel active"></section></div></main>');
+ await page.route('https://assistant-voice.test/**',route=>route.fulfill({contentType:'text/html',body:'<style>html,body{margin:0;height:100%;font:14px Arial}.main{position:relative;height:100vh}</style><main class="main"><div id="mainPanels"><section id="tab_assistant" class="fm-tabpanel active"></section></div></main>'}));
+ await page.goto('https://assistant-voice.test');
  await page.evaluate(()=>{
   window.Portal={};window.__APP={userOrgId:'org'};window.calls=[];window.voiceClosed=[];window.uploads=[];
   const thread={id:'main',title:'Main thread'},messages=[];
@@ -29,7 +30,7 @@ test('voice connects, delegates once with context, preserves drafts, and release
   };
   window.emit=e=>window.events.dispatchEvent(new MessageEvent('message',{data:JSON.stringify(e)}));
  });
- for(const f of ['window-manager/window-manager.js','platform-assistant/platform-assistant.js']) {
+ for(const f of ['window-manager/window-manager.js','window-manager/window-shell.js','platform-assistant/platform-assistant.js']) {
   const source=process.env.ASSISTANT_ASSET_ORIGIN ? await (await fetch(`${process.env.ASSISTANT_ASSET_ORIGIN}/libraries/${f}?voice_verify=${Date.now()}`)).text() : await readFile(new URL('../../libraries/'+f,import.meta.url),'utf8');
   await page.addScriptTag({content:source});
  }
