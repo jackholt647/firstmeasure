@@ -30,13 +30,22 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.evaluate(()=>window.feedApp.mount(document.querySelector('#feed')));
   await page.waitForFunction(()=>document.querySelectorAll('.pf-feed-card').length>=10);
   const cols=()=>page.locator('.pf-feed-grid').first().evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);
+  const tileBounds=()=>page.evaluate(()=>{
+   const scroll=document.querySelector('[data-feed-scroll]');
+   const overflowing=[...document.querySelectorAll('.pf-feed-grid>article')].flatMap(card=>[...card.querySelectorAll('.pf-feed-activity-copy,.pf-note,.pf-note-measure,.pf-feed-list-project')].filter(child=>child.getBoundingClientRect().right>card.getBoundingClientRect().right+1).map(child=>child.className));
+   return {horizontalOverflow:scroll.scrollWidth>scroll.clientWidth+1,overflowing};
+  });
+  const assertTileBounds=async name=>assert.deepEqual(await tileBounds(),{horizontalOverflow:false,overflowing:[]},`${name} content stays within its tile`);
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.pf-feed-grid')).gridTemplateColumns.split(' ').length===8);
+  await page.waitForFunction(()=>document.querySelector('.pf-feed-note-card'));
   assert.equal(await cols(),8);
+  await assertTileBounds('small');
   const tilePositions=()=>page.locator('.pf-feed-card').first().evaluate(e=>({top:e.getBoundingClientRect().top,height:e.getBoundingClientRect().height}));
   const smallBefore=await tilePositions();await page.waitForTimeout(400);assert.deepEqual(await tilePositions(),smallBefore,'small tiles stay steady');
   assert.equal(await page.locator('.pf-feed-media-card .pf-thumb img').first().getAttribute('src'),'/photo.svg');
   assert.equal(await page.locator('.pf-feed-media-card .pf-tile-actor img').first().getAttribute('src'),'/avatar.svg');
   await page.getByRole('button',{name:'Large tiles',exact:true}).click();assert.equal(await cols(),4);
+  await assertTileBounds('large');
   const largeBefore=await tilePositions();await page.waitForTimeout(400);assert.deepEqual(await tilePositions(),largeBefore,'large tiles stay steady');
   await page.getByRole('button',{name:'List',exact:true}).click();assert.equal(await cols(),1);
   const batchRow=page.locator('.pf-feed-list-row').first();
@@ -88,6 +97,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
   await page.screenshot({path:new URL('../../../output/feed/screenshots/list.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
   await page.getByRole('button',{name:'Mosaic',exact:true}).click();assert.equal(await page.locator('.pf-feed-grid').first().evaluate(e=>getComputedStyle(e).columnCount),'4');await page.waitForTimeout(100);assert.notEqual(await page.locator('.pf-feed-card').nth(0).evaluate(e=>e.offsetHeight),await page.locator('.pf-feed-card').nth(1).evaluate(e=>e.offsetHeight));
+  await assertTileBounds('mosaic');
   const mosaicPositions=()=>page.locator('.pf-feed-card').first().evaluate(e=>({top:e.getBoundingClientRect().top,height:e.getBoundingClientRect().height}));
   const mosaicBefore=await mosaicPositions();await page.waitForTimeout(600);assert.deepEqual(await mosaicPositions(),mosaicBefore,'mosaic cards do not resize in a loop');
   assert.equal(await page.getByText('Company birthday board').count(),0);
@@ -157,6 +167,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   for(const name of ['Small tiles','Large tiles','List','Mosaic','Posts']){
    await page.getByRole('button',{name,exact:true}).click();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no mobile overflow in '+name);
+   if(['Small tiles','Large tiles','Mosaic'].includes(name))await assertTileBounds(`mobile ${name}`);
    if(name==='List'){
     const row=page.locator('.pf-feed-list-row').first();
     assert.equal(await row.locator('.pf-feed-list-media .pf-thumb:visible').count(),4);

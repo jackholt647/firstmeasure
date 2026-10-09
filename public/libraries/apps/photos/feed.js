@@ -1603,7 +1603,7 @@
       .pf-wrap[data-density="large"] .pf-feed-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
       .pf-wrap[data-density="small"] .pf-feed-card .pf-thumb,.pf-wrap[data-density="small"] .pf-document-preview{aspect-ratio:4/3;max-height:95px}
       .pf-wrap[data-density="large"] .pf-feed-card .pf-thumb,.pf-wrap[data-density="large"] .pf-document-preview{aspect-ratio:16/9;max-height:130px}
-      .pf-wrap[data-density="small"] .pf-feed-activity,.pf-wrap[data-density="large"] .pf-feed-activity{grid-column:auto;display:flex;flex-direction:column;align-items:flex-start;min-height:95px;gap:7px}
+      .pf-wrap[data-density="small"] .pf-feed-activity,.pf-wrap[data-density="large"] .pf-feed-activity{grid-column:auto;display:flex;flex-direction:column;align-items:stretch;min-height:95px;gap:7px}
       .pf-wrap[data-density="small"] .pf-document-icon i,.pf-wrap[data-density="large"] .pf-document-icon i{font-size:18px}
       .pf-wrap[data-density="small"] .pf-feed-activity-icon,.pf-wrap[data-density="large"] .pf-feed-activity-icon{width:21px;height:21px;border-radius:6px;font-size:8px}
       .pf-wrap[data-density="list"] .pf-feed-grid{max-width:none}
@@ -1614,7 +1614,7 @@
       .pf-wrap[data-density="mosaic"] .pf-feed-card .pf-thumb{aspect-ratio:4/5}
       .pf-wrap[data-density="mosaic"] .pf-feed-card:nth-child(3n+2) .pf-thumb{aspect-ratio:4/3}
       .pf-wrap[data-density="mosaic"] .pf-feed-card:nth-child(5n+3) .pf-thumb{aspect-ratio:1/1}
-      .pf-wrap[data-density="mosaic"] .pf-feed-activity{grid-column:auto;display:flex;flex-direction:column;align-items:flex-start;gap:15px;padding:22px 16px}
+      .pf-wrap[data-density="mosaic"] .pf-feed-activity{grid-column:auto;display:flex;flex-direction:column;align-items:stretch;gap:15px;padding:22px 16px}
       .pf-wrap[data-density="posts"] .pf-feed-grid{display:flex;flex-direction:column;max-width:700px;gap:20px;margin:auto}
       .pf-wrap[data-density="posts"] .pf-day-title{max-width:700px;margin:0 auto 12px}
       .pf-wrap[data-density="posts"] .pf-scroll{background:#f3f5f7;padding:18px}
