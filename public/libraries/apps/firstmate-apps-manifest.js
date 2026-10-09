@@ -39,7 +39,7 @@
     versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-    versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
+    versionedBundle('../platform-assistant/platform-assistant.js', '20261008-tray-shell-v1'),
     versionedBundle('photos/feed.js', '20261008-feed-groups-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261008-phone-emoji-v1'),
