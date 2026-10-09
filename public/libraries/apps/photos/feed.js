@@ -1678,9 +1678,10 @@
       .pf-manual-gif,.pf-manual-files{padding:0 18px 14px}.pf-manual-gif img{display:block;max-width:100%;max-height:300px;border-radius:8px}.pf-manual-files{display:grid;gap:8px}.pf-manual-files a{color:#2456a8;font-size:12px}.pf-manual-tile .pf-manual-gif,.pf-manual-row .pf-manual-gif,.pf-manual-tile .pf-manual-files,.pf-manual-row .pf-manual-files{padding:0 0 9px}
       .pf-comment-tools .pf-compose-tool,.pf-post-compose-tools .pf-compose-tool{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:none;border:0;border-radius:8px;background:transparent;color:#667085;font-size:12.5px;cursor:pointer;padding:0}.pf-comment-tools .pf-compose-tool:hover,.pf-post-compose-tools .pf-compose-tool:hover{background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}.pf-gif-icon{font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px}.pf-post-compose-tools{display:flex;align-items:center;gap:8px}.pf-comment-tools{gap:7px}.pf-composer-gif{position:relative;justify-self:start}.pf-composer-gif img{max-width:240px;max-height:160px;border-radius:8px}.pf-composer-gif button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border:0;border-radius:50%;background:#344054;color:#fff;cursor:pointer}
       .pf-feed-scope-control{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;color:#475467;font-size:12px;font-weight:700}.pf-feed-scope-control select{min-width:170px;max-width:240px}.pf-feed-manual-only.active{border-color:#b8c8ed;background:#eef4ff;color:#2456a8}.pf-feed-manual-only .pf-manual-mobile{display:none}
+      .pf-post-toolbar-actions{display:flex;align-items:center;gap:10px;margin-right:auto}.pf-wrap[data-density="posts"] .pf-tools{margin-left:auto}
       .pf-compose-audience{display:inline-flex;justify-self:start;max-width:100%}.pf-compose-audience-picker{display:inline-flex;align-items:center;gap:6px;position:relative;max-width:100%;color:#182230;font-weight:750}.pf-compose-audience-picker select{position:absolute;inset:0;width:100%;height:100%;max-width:none;opacity:0;cursor:pointer}.pf-compose-audience-picker i{font-size:10px;pointer-events:none}
       .pf-comment-reactions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.pf-comment-reactions button{border:1px solid #dce5f0;border-radius:999px;background:#fff;padding:2px 7px;color:#344054;font-size:11px;cursor:pointer}.pf-comment-reactions button:hover{background:#eef4ff;border-color:#b8c8ed}.pf-comment-actions .pf-comment-react{position:relative;display:inline-flex;align-items:center}.pf-comment-react>div{position:absolute;left:0;bottom:100%;z-index:12;display:flex;gap:2px;padding:6px;border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 4px 20px #10182820;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease}.pf-comment-react:hover>div,.pf-comment-react:focus-within>div,.pf-comment-react.open>div{visibility:visible;opacity:1;pointer-events:auto}.pf-comment-actions .pf-comment-react>div button{font-size:20px;padding:3px 5px}
-      @media(max-width:760px){.pf-feed-scope-control select{min-width:0;max-width:180px}.pf-feed-manual-only .pf-manual-desktop{display:none}.pf-feed-manual-only .pf-manual-mobile{display:inline}}
+      @media(max-width:760px){.pf-feed-scope-control select{min-width:0;max-width:180px}.pf-feed-manual-only .pf-manual-desktop{display:none}.pf-feed-manual-only .pf-manual-mobile{display:inline}.pf-wrap[data-density="posts"] .pf-toolbar{flex-wrap:wrap}.pf-wrap[data-density="posts"] .pf-tools{flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
@@ -2452,15 +2453,21 @@
       }
       for(const item of commentThreads.values()){
         const parent=commentThreads.get(item.message.metadata?.feed_reply_to?.id);
-        if(parent && parent!==item)parent.children.push(item.thread);
+        if(parent && parent!==item)parent.children.push(item);
         else comments?.append(item.thread);
       }
+      const descendantCount=(item,seen=new Set())=>{
+        if(seen.has(item))return 0;
+        seen.add(item);
+        return item.children.reduce((count,child)=>count+1+descendantCount(child,seen),0);
+      };
       for(const [id,item] of commentThreads){
         if(!item.children.length)continue;
         const collapsed=current.collapsedReplies?.has(id)===true;
-        const toggle=document.createElement('button');toggle.type='button';toggle.className='pf-comment-replies-toggle';toggle.setAttribute('aria-expanded',String(!collapsed));toggle.textContent=`${collapsed?'Show':'Hide'} ${item.children.length} ${item.children.length===1?'reply':'replies'}`;
+        const count=descendantCount(item);
+        const toggle=document.createElement('button');toggle.type='button';toggle.className='pf-comment-replies-toggle';toggle.setAttribute('aria-expanded',String(!collapsed));toggle.textContent=`${collapsed?'Show':'Hide'} ${count} ${count===1?'reply':'replies'}`;
         toggle.onclick=()=>{current.collapsedReplies ||= new Set();if(collapsed)current.collapsedReplies.delete(id);else current.collapsedReplies.add(id);rerender();};
-        const children=document.createElement('div');children.className='pf-comment-children';children.hidden=collapsed;children.append(...item.children);
+        const children=document.createElement('div');children.className='pf-comment-children';children.hidden=collapsed;children.append(...item.children.map(child=>child.thread));
         item.thread.append(toggle,children);
       }
       if(comments&&!current.replies.length)comments.textContent=current.checking?'Loading comments…':'No comments yet. Start the conversation.';
@@ -2643,6 +2650,7 @@
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
         <div class="pf-toolbar" data-app-header>
           <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
+          ${state.density==='posts'?`<div class="pf-post-toolbar-actions"><button type="button" class="pf-toolbar-action pf-feed-manual-only${state.manualOnly?' active':''}" data-feed-manual-only aria-pressed="${state.manualOnly}" aria-label="Manual posts only"><i class="fas fa-pen-to-square"></i><span class="pf-manual-desktop">Manual posts only</span><span class="pf-manual-mobile">Manual</span></button>${state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}</div>`:''}
           <div class="pf-tools">
             <label class="pf-feed-scope-control"><span>Show</span><select class="pf-toolbar-action" data-feed-scope aria-label="Feed audience">${feedScopeOptionsHtml()}</select></label>
             ${state.density==='list'?`<div class="pf-list-controls"><label>Organize by <select data-feed-list-organize aria-label="Organize feed"><option value="time"${state.listOrganize==='time'?' selected':''}>Time</option><option value="project"${state.listOrganize==='project'?' selected':''}>Project</option></select></label></div>`:''}
@@ -2659,8 +2667,6 @@
               <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>Filter</span></button>
               ${String(shownMenuHtml())}
             </div>
-            ${state.density==='posts'?`<button type="button" class="pf-toolbar-action pf-feed-manual-only${state.manualOnly?' active':''}" data-feed-manual-only aria-pressed="${state.manualOnly}" aria-label="Manual posts only"><i class="fas fa-pen-to-square"></i><span class="pf-manual-desktop">Manual posts only</span><span class="pf-manual-mobile">Manual</span></button>`:''}
-            ${state.density==='posts'&&state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}
             ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
           </div>
         </div>
@@ -2918,7 +2924,7 @@
         event.stopPropagation();
         const id = cleanText(btn.dataset.feedProjectId);
         const project = projectForId(id);
-        openProject(project, { groupKey:id, tab:'photos' }).catch((error) => {
+        openProject(project, { groupKey:id, tab:state.density==='list'?'map':'photos' }).catch((error) => {
           console.warn('Could not open project from Feed', error);
           showToast?.((globalThis.PlatformLanguage?.text("photos","m_3d2585ab4e8b80","Project issue") ?? "Project issue"), error?.message || 'Could not open that project.', false);
         });

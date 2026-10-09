@@ -87,6 +87,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await batchRow.locator('.pf-project-card-address').textContent(),'104 Oak Street');
   await batchRow.locator('.pf-project-card-cover').click();
   await page.waitForFunction(()=>window.lastOpenedProject?.project.id==='project');
+  assert.equal(await page.evaluate(()=>window.lastOpenedProject.options.tab),'map','list project card opens Overview');
   assert.equal(await batchRow.locator('.pf-feed-list-media .pf-thumb').count(),20);
   const visibleThumbs=await batchRow.locator('.pf-feed-list-media .pf-thumb:visible').count();
   assert.ok(visibleThumbs>6 && visibleThumbs<20,'thumbnails fill one activity row');
@@ -158,6 +159,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
   await page.screenshot({path:new URL('../../../output/feed/screenshots/mosaic.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
   await page.getByRole('button',{name:'Posts',exact:true}).click();
+  assert.ok(await page.locator('.pf-post-toolbar-actions').evaluate(element=>element.getBoundingClientRect().right <= document.querySelector('.pf-tools').getBoundingClientRect().left),'post actions are left of view and filter controls');
   assert.equal(await page.getByText('Company birthday board').count(),1);
   await page.waitForFunction(()=>document.querySelector('.pf-post-overflow'));
   assert.ok(await page.locator('.pf-post-document small').allTextContents().then(labels=>labels.includes('Contract')));
@@ -189,10 +191,16 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.waitForFunction(()=>window.replies.length===2);
   assert.equal(await post.locator('.pf-comment-reply').count(),1);
   assert.equal(await post.getByText('Reply to Sam Rivera').count(),0);
-  await post.getByRole('button',{name:'Hide 1 reply'}).click();
+  await post.locator('.pf-comment-reply').getByRole('button',{name:'Reply',exact:true}).click();
+  await post.locator('[data-comment-form] textarea').fill('Nested reply');
+  await post.getByRole('button',{name:'Post comment',exact:true}).click();
+  await page.waitForFunction(()=>window.replies.length===3);
+  assert.equal(await post.locator('.pf-comment-reply').count(),2);
+  assert.equal(await post.getByRole('button',{name:'Hide 2 replies'}).count(),1);
+  await post.getByRole('button',{name:'Hide 2 replies'}).click();
   assert.equal(await post.locator('.pf-comment-reply:visible').count(),0);
-  await post.getByRole('button',{name:'Show 1 reply'}).click();
-  assert.equal(await post.locator('.pf-comment-reply:visible').count(),1);
+  await post.getByRole('button',{name:'Show 2 replies'}).click();
+  assert.equal(await post.locator('.pf-comment-reply:visible').count(),2);
   assert.equal(await post.locator('.pf-comment-tools .pf-compose-tool').count(),5);
   await post.getByRole('button',{name:'Send a GIF'}).click();
   const gifPicker=page.getByRole('dialog',{name:'Choose a GIF'});
