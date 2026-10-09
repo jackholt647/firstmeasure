@@ -179,10 +179,14 @@ function clipRoofTops(walls,roof){
  const triangles=roof.faces.flatMap(f=>{const mesh=K.triangles(f.points,f.holes||[]);return mesh.triangles.map(ids=>({id:f.id,points:ids.map(i=>mesh.points[i])}));}).map(f=>({...f,plane:G.plane(f.points)})).filter(f=>f.plane);
  const mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t}),height=(f,p)=>f.plane.dx*p.x+f.plane.dy*p.y+f.plane.k;
  return walls.flatMap(w=>{
+  // A resolved finite survey contact may sit just outside the measured roof
+  // polygon. Keep that target through clipping instead of capping the wall at
+  // its own lower roof and erasing the inter-layer connection again.
+  const contact=roof.faces.find(f=>f.id===w.roofContactTargetId),contactPlane=contact&&G.plane(contact.points);
   const ts=G.splitParameters(...w.bottom,triangles),out=[];
   for(let i=1;i<ts.length;i++){
    const lo=ts[i-1],hi=ts[i],mid=mix(...w.top,(lo+hi)/2),cover=triangles.filter(f=>G.contains(f,mid)).sort((a,b)=>height(b,mid)-height(a,mid))[0];
-   const bottom=[lo,hi].map(t=>mix(...w.bottom,t)),top=[lo,hi].map((t,j)=>{const p=mix(...w.top,t);return {...p,z:Math.max(bottom[j].z,Math.min(p.z,cover?height(cover,p):Infinity))};});
+   const bottom=[lo,hi].map(t=>mix(...w.bottom,t)),top=[lo,hi].map((t,j)=>{const p=mix(...w.top,t),limit=cover?Math.max(height(cover,p),contactPlane?height({plane:contactPlane},p):-Infinity):Infinity;return {...p,z:Math.max(bottom[j].z,Math.min(p.z,limit))};});
    if(dist(...bottom)<.002||top.every((p,j)=>p.z-bottom[j].z<.00001))continue;
    out.push({...w,id:ts.length===2?w.id:w.id+':roof-'+i,bottom,top});
   }return out;

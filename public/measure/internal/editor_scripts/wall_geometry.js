@@ -600,6 +600,26 @@
     }
     function extrude(roof,sources,ground=0) {
         const faces=surfaces(roof),walls=[],warnings=[],layers=roofLayers(roof,faces);
+        // Surveyed flashing can run just outside the next roof's boundary.
+        // Resolve that finite contact before picking the nearest roof, so a
+        // tiny plan gap cannot make a three-layer junction skip its middle roof.
+        const contacts=[];
+        for(const s of sources.filter(s=>s.kind==='flashing'))for(const f of faces){
+            if(f.id===s.parentId)continue;
+            const len=distance(s.a,s.b),u=sub(s.b,s.a);
+            if(len<EPS)continue;
+            for(let i=0;i<f.points.length;i++){
+                const a=f.points[i],b=f.points[(i+1)%f.points.length],length=distance(a,b);
+                if(length<EPS||Math.abs(cross(u,sub(b,a)))/(len*length)>.002)continue;
+                if([a,b].some(p=>Math.abs(cross(sub(p,s.a),u))/len>.02))continue;
+                const ts=[a,b].map(p=>((p.x-s.a.x)*u.x+(p.y-s.a.y)*u.y)/(len*len)).sort((a,b)=>a-b),lo=Math.max(0,ts[0]),hi=Math.min(1,ts[1]);
+                if((hi-lo)*len<.15)continue;
+                const start=mix(s.a,s.b,lo),end=mix(s.a,s.b,hi);
+                if([start,end].some(p=>height(f,p)<=p.z+.02))continue;
+                contacts.push({lower:s.parentId,upper:f.id,a:start,b:end});
+            }
+        }
+        const contactContains=(f,p)=>contains(f,p)||contacts.some(c=>(c.lower===f.id||c.upper===f.id)&&onEdge(p,c.a,c.b,.02));
         const insideBody=(f,p)=>{
             if(!contains(f,p))return false;
             const layer=layers.get(f.id);
@@ -612,6 +632,12 @@
         const flat=typeof ground==='number'?ground:null;
         for(const s of sources) {
             if(s.referenceOnly)continue;
+            const contactRuns=contacts.filter(c=>{
+                const len=distance(s.a,s.b),u=sub(s.b,s.a),length=distance(c.a,c.b);
+                if(Math.abs(cross(u,sub(c.b,c.a)))/(len*length)>.002||[c.a,c.b].some(p=>Math.abs(cross(sub(p,s.a),u))/len>.02))return false;
+                const ts=[c.a,c.b].map(p=>((p.x-s.a.x)*u.x+(p.y-s.a.y)*u.y)/(len*len)).sort((a,b)=>a-b);
+                return Math.min(1,ts[1])-Math.max(0,ts[0])>EPS;
+            });
             // Ignore planes outside this wall's footprint; their infinite extensions
             // can cross thousands of times without changing the actual wall.
             // Along a measured roof boundary, use its actual slope instead of
@@ -633,11 +659,12 @@
             const relevant=[...alignedFaces,...(s.direction==='down'?terrain:[])].filter(f=>{
                 if(f.id===s.parentId||(s.envelopeReturn&&f.id===s.envelopeParentId))return false;
                 const cuts=splitParameters(s.a,s.b,[f]);
-                return cuts.some((t,i)=>i>0&&(contains(f,mix(s.a,s.b,(cuts[i-1]+t)/2))||s.direction==='down'&&faces.some(p=>p.id===s.parentId&&contains(p,mix(s.a,s.b,(cuts[i-1]+t)/2)))&&inside(mix(s.a,s.b,(cuts[i-1]+t)/2),f.points)));
+                return contactRuns.some(c=>c.lower===f.id||c.upper===f.id)||cuts.some((t,i)=>i>0&&(contains(f,mix(s.a,s.b,(cuts[i-1]+t)/2))||s.direction==='down'&&faces.some(p=>p.id===s.parentId&&contains(p,mix(s.a,s.b,(cuts[i-1]+t)/2)))&&inside(mix(s.a,s.b,(cuts[i-1]+t)/2),f.points)));
             });
             const ts=splitParameters(s.a,s.b,relevant);
             const envelopeRuns=s.outerEnvelope?sources.filter(r=>r.id===s.outerEnvelope.sourceId||r.id.startsWith(s.outerEnvelope.sourceId+'.')):[];
             const sourceLength=distance(s.a,s.b),sourceT=p=>((p.x-s.a.x)*(s.b.x-s.a.x)+(p.y-s.a.y)*(s.b.y-s.a.y))/(sourceLength*sourceLength);
+            for(const c of contactRuns)for(const p of [c.a,c.b]){const t=sourceT(p);if(t>EPS&&t<1-EPS)ts.push(t);}
             if(s.overlapSeam)for(const p of [s.overlapSeam.a,s.overlapSeam.b]){const t=sourceT(p);if(t>EPS&&t<1-EPS)ts.push(t);}
             for(const r of envelopeRuns)for(const p of [r.a,r.b]){const t=sourceT(p);if(t>EPS&&t<1-EPS)ts.push(t);}
             // Split where surfaces cross the source elevation, ground, or each other.
@@ -665,7 +692,7 @@
                 // A dormer opening removes roof material, not the house below it.
                 // Its upper roof still meets the lower support plane at the hole.
                 const parent=faces.find(f=>f.id===s.parentId),coveredOpening=f=>s.direction==='down'&&parent&&contains(parent,m)&&inside(m,f.points);
-                const targets=relevant.filter(f=>!inSeam&&!f.terrain&&(contains(f,m)||coveredOpening(f))&&(!s.outerEnvelope||f.id!==s.outerEnvelope.parentId||envelopeRuns.some(r=>onEdge(m,r.a,r.b,.005)))).map(f=>({f,z:height(f,m)}))
+                const targets=relevant.filter(f=>!inSeam&&!f.terrain&&(contactContains(f,m)||coveredOpening(f))&&(!s.outerEnvelope||f.id!==s.outerEnvelope.parentId||envelopeRuns.some(r=>onEdge(m,r.a,r.b,.005)))).map(f=>({f,z:height(f,m)}))
                     .filter(v=>s.direction==='up'?v.z>m.z+.02:v.z<(layers.get(s.parentId)?.includes(faces.find(f=>f.id===v.f.id))?m.z-.02:m.z+.02)&&v.z>floor);
                 targets.sort((a,b)=>s.direction==='up'?a.z-b.z:b.z-a.z);
                 const target=targets[0]?.f||(s.direction==='down'?groundFace:null);
@@ -679,7 +706,7 @@
                 const ta={...a,z:targetHeight(a)},tb={...b,z:targetHeight(b)};
                 if(s.direction==='down' && m.z<=floor+.02)continue;
                 const bottom=s.direction==='up'?[a,b]:[ta,tb],top=s.direction==='up'?[ta,tb]:[a,b];
-                walls.push({id:`${s.id}:${i}`,sourceId:s.id,...(s.originalA&&s.originalB?{roofCorners:[distance(a,s.a)<.005?clone(s.originalA):null,distance(b,s.b)<.005?clone(s.originalB):null]}:{}),...(s.parentId!==undefined?{sourceRoofId:s.parentId}:{}),kind:s.kind,type:s.type,bottom,top,targetId:target?.id??'ground'});
+                walls.push({id:`${s.id}:${i}`,sourceId:s.id,...(target&&!target.terrain&&!contains(target,m)&&contactContains(target,m)?{roofContactTargetId:target.id}:{}),...(s.originalA&&s.originalB?{roofCorners:[distance(a,s.a)<.005?clone(s.originalA):null,distance(b,s.b)<.005?clone(s.originalB):null]}:{}),...(s.parentId!==undefined?{sourceRoofId:s.parentId}:{}),kind:s.kind,type:s.type,bottom,top,targetId:target?.id??'ground'});
             }
             if(missed)warnings.push(`${s.id}: no upper roof over part or all of flashing; that span was skipped.`);
             if(uncovered)warnings.push(`${s.id}: wall extends outside the ground faces; enlarge the ground layer to cover it.`);
@@ -699,7 +726,7 @@
                 merged=false;
                 for(let i=0;i<result.length;i++){
                     const other=result[i];
-                    if(other.kind!==w.kind)continue;
+                    if(other.kind!==w.kind||other.roofContactTargetId!==w.roofContactTargetId)continue;
                     for(const reverse of [false,true]){
                         const b=reverse?{...w,bottom:[...w.bottom].reverse(),top:[...w.top].reverse(),...(w.roofCorners?{roofCorners:[...w.roofCorners].reverse()}:{})}:w;
                         for(const [left,right] of [[other,b],[b,other]]){
