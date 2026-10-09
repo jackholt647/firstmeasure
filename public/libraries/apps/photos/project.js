@@ -521,6 +521,18 @@
     return String((project.custom_field_values || project.custom_fields || {}).cover_photo?.media_id || '');
   }
 
+  function updateLocalCover(value, photo){
+    const project = activeProject();
+    if (!project) return;
+    project.custom_field_values = {...(project.custom_field_values || project.custom_fields || {}),cover_photo:value};
+    project.custom_fields = project.custom_field_values;
+    document.querySelectorAll('[data-fm-cf-input="cover_photo"]').forEach(input=>{
+      const encoded = value ? JSON.stringify(value) : '';
+      if(encoded && ![...input.options].some(option=>option.value===encoded)) input.add(new Option(photo?.file_name || 'Cover photo',encoded));
+      input.value = encoded;
+    });
+  }
+
   async function setProjectCover(photo, viewer){
     const project = activeProject(), projectId = activeProjectId(project), oid = firstMeasurePhotoOptions().orgId;
     if (!projectId || !oid) throw new Error('Save the project before choosing a cover.');
@@ -533,14 +545,8 @@
     const written = await window.PlatformAPI.publication.invoke(oid,'custom-fields.project.write',target,{values:{cover_photo:value},expectedRevision:contract.value.recordRevision},{idempotencyKey:crypto.randomUUID()});
     const result = written.result || written;
     if(result.status && result.status !== 'succeeded') throw new Error(result.message || 'The cover could not be saved.');
-    project.custom_field_values = {...(project.custom_field_values || project.custom_fields || {}),cover_photo:value};
-    project.custom_fields = project.custom_field_values;
     // Synchronize mounted controls so a later autosave cannot restore the old selection.
-    document.querySelectorAll('[data-fm-cf-input="cover_photo"]').forEach(input=>{
-      const encoded = value ? JSON.stringify(value) : '';
-      if(encoded && ![...input.options].some(option=>option.value===encoded)) input.add(new Option(photo.file_name || 'Cover photo',encoded));
-      input.value = encoded;
-    });
+    updateLocalCover(value, photo);
     viewer?.refreshActions?.();
     viewer?.refreshIndicators?.({pulseId:'project_cover'});
     showToast('Cover photo',value ? 'Project cover updated.' : 'Project cover removed.',true);
@@ -652,6 +658,15 @@
         selectionActions: portalSelectionActions(),
         viewerActions: portalViewerActions(),
         viewerIndicators: portalViewerIndicators(),
+        onProjectPhotosChanged: (photos) => {
+          const cover = coverPhotoId();
+          const selected = photos.find(photo=>projectPhotoId(photo)===cover);
+          const meta = selected?.metadata || {};
+          if(cover && (!selected || selected.in_trash || selected.trashed_at || selected.deleted_at || meta.in_trash || meta.trashed_at || meta.deleted_at)) updateLocalCover(null);
+          setProjectPhotosList(photos);
+          const project = activeProject();
+          if(project) project.photos = photos;
+        },
         onTagsChange: async ({ photo, tags }) => {
           const mediaId = projectPhotoId(photo);
           if (!mediaId || typeof window.PlatformAPI?.media?.updateTags !== 'function') throw new Error('Media tagging is not available.');

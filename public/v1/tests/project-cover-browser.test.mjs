@@ -49,5 +49,9 @@ test('project photo references and cover viewer actions share one selection',asy
     assert.equal(await page.locator('[data-fm-cf-input="cover_photo"]').inputValue(),'');
     assert.equal(await page.evaluate(()=>window.project.custom_fields.cover_photo),null);
     assert.equal(await page.evaluate(()=>window.writes[0][1]),'custom-fields.project.write');
+    await choose(0);
+    await page.evaluate(()=>window.gallery.onProjectPhotosChanged([{...window.project.photos[0],in_trash:true},window.project.photos[1]]));
+    assert.equal(await page.locator('[data-fm-cf-input="cover_photo"]').inputValue(),'');
+    assert.equal(await page.evaluate(()=>window.project.custom_fields.cover_photo),null);
   }finally{await browser.close();}
 });
