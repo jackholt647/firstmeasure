@@ -10,6 +10,7 @@ import { voiceSettings, diagnosticVerdict, validateVoiceSettings, updateVoiceSet
 import { requireCallAccess, manageCalls } from "./service.js";
 import * as s from "./storage.js";
 import { text, object, type Json, type CustomerCall } from "./storage.js";
+import { activeConferenceForUser, inviteParticipant, participants, participantActive, publicParticipants, removeParticipant } from './conference.js';
 
 export async function voiceStatus(ctx:PlatformAuthContext){
   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
@@ -115,7 +116,7 @@ async function createEndpointToken(ctx:PlatformAuthContext,deviceId:string){
   let endpoint=current;
   if(!endpoint?.provider_id||endpoint.session_id!==ctx.sessionId||Date.parse(text(endpoint.credential_expires_at))<Date.now()+settings.max_call_minutes*60000+300_000){
     if(current?.provider_id){
-      if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total)throw conflict('call_in_progress','Finish this call before renewing the phone credential.');
+      if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total || await activeConferenceForUser(ctx.orgId,ctx.userId))throw conflict('call_in_progress','Finish this call before renewing the phone credential.');
       await voiceClient().revokeCredential(text(current.provider_id));
     }
     const credentialName=`FirstMate ${s.id('user',`${ctx.orgId}:${ctx.userId}:${ctx.sessionId}`)}`;
@@ -143,6 +144,7 @@ export async function presence(ctx:PlatformAuthContext,input:Json){
   if(!endpoint||endpoint.device_id!==input.device_id||endpoint.session_id!==ctx.sessionId)throw conflict("phone_owner_changed","This browser no longer owns your phone session.");
   if(text((await s.resource(ctx.orgId,'endpoint_lock',ctx.userId))?.expires_at)>s.now())return {...endpoint,registered:false,availability:'unavailable'};
   let offered=false;if(text(endpoint.offered_call_id)){try{const call=(await s.readCall(ctx.orgId,text(endpoint.offered_call_id)));offered=!s.terminal.has(call.state)&&text(object(call.metadata.transfer).target_user_id)===ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));}catch{}}
+  offered = offered || !!await activeConferenceForUser(ctx.orgId,ctx.userId);
   const active=offered||(await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total>0;
   const availability=input.registered===true&&!active&&input.availability==="available"?"available":active?"busy":"unavailable";
   return (await s.saveResource(ctx.orgId,"endpoint",ctx.userId,{...endpoint,offered_call_id:offered?endpoint.offered_call_id:'',registered:input.registered===true,availability,heartbeat_at:s.now()}));
@@ -150,7 +152,7 @@ export async function presence(ctx:PlatformAuthContext,input:Json){
 export async function disconnectEndpoint(ctx:PlatformAuthContext,deviceId:string){
   return withEndpointLease(ctx.orgId,ctx.userId,async()=>{
   const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));if(!endpoint||endpoint.device_id!==deviceId||endpoint.session_id!==ctx.sessionId)return;
-  if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total)throw conflict("call_in_progress","End or transfer the active call before disconnecting your phone.");
+  if((await s.listCalls(ctx.orgId,{owner_user_id:ctx.userId,active:true,include_diagnostics:true})).total || await activeConferenceForUser(ctx.orgId,ctx.userId))throw conflict("call_in_progress","Leave or end the active call before disconnecting your phone.");
   (await s.saveResource(ctx.orgId,'endpoint',ctx.userId,{...endpoint,registered:false,availability:'unavailable'}));
   if(endpoint.provider_id)await voiceClient().revokeCredential(text(endpoint.provider_id));
   (await s.database().prepare("DELETE FROM customer_voice_resources WHERE organization_id=? AND kind='endpoint' AND id=?").run(ctx.orgId,ctx.userId));
@@ -167,7 +169,7 @@ export async function startDiagnostic(ctx:PlatformAuthContext,deviceId:string){
   if(!endpoint?.provider_id||!app?.provider_id||endpoint.session_id!==ctx.sessionId||endpoint.device_id!==deviceId||endpoint.registered!==true||text(endpoint.heartbeat_at)<new Date(Date.now()-45000).toISOString())throw conflict("phone_not_ready","Connect your browser phone first.");
   return (await s.transaction(async ()=>{
     const active=(await s.listCalls(ctx.orgId,{active:true,include_diagnostics:true}));
-    if(active.calls.some(c=>c.owner_user_id===ctx.userId))throw conflict("call_in_progress","Run the device check between calls.");
+    if(await activeConferenceForUser(ctx.orgId,ctx.userId)||active.calls.some(c=>c.owner_user_id===ctx.userId))throw conflict("call_in_progress","Run the device check between calls.");
     const recent=Number(object((await s.database().prepare("SELECT count(*) AS n FROM customer_calls WHERE organization_id=? AND mode='diagnostic' AND created_at>?").get(ctx.orgId,new Date(Date.now()-86400000).toISOString()))).n);
     if(recent>=50)throw conflict("diagnostic_daily_limit","The organization has reached today's device-check limit.");
     const number=(await s.resources(ctx.orgId,"number")).find(n=>n.status==='active');if(!number)throw conflict("voice_number_required","Connect a business number first.");
@@ -180,10 +182,23 @@ export async function startDiagnostic(ctx:PlatformAuthContext,deviceId:string){
 export async function providerCommand(call:CustomerCall,controlId:string,action:string,payload:Json={},key:string=randomUUID()){
   return (await s.enqueue(call.organization_id,call.id,"provider",{path:action,control_id:controlId,payload},`${call.id}:${key}`));
 }
-export const callActionSchema=z.object({operation_id:z.string().min(8).max(180),action:z.enum(["hangup","hold","resume","dtmf","consent","record_start","record_stop","record_pause","record_resume","transfer","transfer_cancel","transfer_complete","accept","decline"]),
-  digits:z.string().regex(/^[0-9*#wW]{1,32}$/).optional(),consent:z.enum(["granted","refused","withdrawn"]).optional(),target_user_id:z.string().max(180).optional(),transfer_mode:z.enum(["warm","cold"]).default("warm")});
+export const callActionSchema=z.object({operation_id:z.string().min(8).max(180),action:z.enum(["hangup","hold","resume","dtmf","consent","record_start","record_stop","record_pause","record_resume","transfer","transfer_cancel","transfer_complete","accept","decline","add_participant","remove_participant"]),
+  digits:z.string().regex(/^[0-9*#wW]{1,32}$/).optional(),consent:z.enum(["granted","refused","withdrawn"]).optional(),target_user_id:z.string().max(180).optional(),target_phone:z.string().max(40).optional(),target_name:z.string().max(250).optional(),participant_id:z.string().max(180).optional(),transfer_mode:z.enum(["warm","cold"]).default("warm")});
 export async function callAction(ctx:PlatformAuthContext,callId:string,input:unknown){
   const body=callActionSchema.parse(input);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,callId)));
+  const guest=(await participants(ctx.orgId,callId)).find(p=>p.user_id===ctx.userId&&participantActive(p));
+  if(guest&&['accept','decline','hangup'].includes(body.action)){
+    await s.transaction(async()=>{
+      const op=await s.operation(ctx.orgId,'action',body.operation_id,call.id,{...body,actor:ctx.userId});if(op.existing)return;
+      if(body.action==='accept'){
+        const leg=(await s.legs(ctx.orgId,callId)).find(l=>object(l.data).participant_id===guest.id&&l.state!=='ended');
+        if(!leg)throw conflict('participant_not_ready','Your invitation is still connecting.');
+        await providerCommand(call,text(leg.control_id),'answer',{},op.id);
+      }else await removeParticipant(call,guest.id,op.id,body.action==='decline'?'declined':'left');
+      await s.finishOperation(ctx.orgId,op.id,{call_id:call.id});
+    });
+    return {call,participants:publicParticipants(await participants(ctx.orgId,callId))};
+  }
   const consultation=text(object(call.metadata.transfer).target_user_id)===ctx.userId&&call.owner_user_id!==ctx.userId&&['dialing','consulting'].includes(text(object(call.metadata.transfer).state));
   if(consultation&&['accept','decline','hangup'].includes(body.action)){
     const leg=(await s.legs(ctx.orgId,callId)).find(l=>l.role==='consult'&&l.state!=='ended');if(!leg)throw conflict('consult_not_ready','The consultation is still connecting.');
@@ -209,7 +224,12 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
       for(const leg of callLegs.filter(l=>l.state!=="ended"))(await send(leg,"hangup",{},`hangup:${leg.id}`));
       if(!callLegs.length)updated=(await s.patchCall(ctx.orgId,call.id,{state:"canceled",ended_at:s.now(),wrap_up_state:"needs_wrap_up"}));
     }else if(body.action==="accept")(await send(agent,"answer"));
-    else if(body.action==="hold"||body.action==="resume")(await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action));
+    else if(body.action==="hold"||body.action==="resume"){
+      await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action);
+      for(const leg of callLegs.filter(l=>l.role==='participant'&&l.state==='answered'))await send(leg,body.action==="hold"?"conference_hold":"conference_unhold",{},`${body.action}:${leg.id}`);
+    }
+    else if(body.action==='add_participant')await inviteParticipant(requireCallAccess(ctx,await s.readCall(ctx.orgId,callId),true),ctx.userId,body,op.id);
+    else if(body.action==='remove_participant')await removeParticipant(call,text(body.participant_id),op.id);
     else if(body.action==="dtmf"){if(!body.digits)throw badRequest("digits_required","Enter keypad digits.");(await send(customer,"send_dtmf",{digits:body.digits}));}
     else if(body.action==="consent"){
       if(!body.consent)throw badRequest("consent_required","Record whether the caller agreed to recording.");
@@ -223,6 +243,7 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
       (await send(customer,body.action,body.action==="record_start"?{format:"mp3",channels:"dual",play_beep:true,transcription:settings.transcription_enabled,max_length:settings.max_call_minutes*60}:{}));
       updated=(await s.patchCall(ctx.orgId,call.id,{metadata:{...call.metadata,capture:{state:"pending",action:body.action,requested_at:s.now()}}}));
     }else if(body.action==="transfer"){
+      if((await participants(ctx.orgId,callId)).some(participantActive))throw conflict('conference_transfer_unavailable','Remove added participants before transferring this call.');
       if(!customer||!agent)throw conflict("call_not_connected","Connect the call before transferring it.");
       if(['dialing','consulting'].includes(text(object(call.metadata.transfer).state)))throw conflict("transfer_in_progress","Finish or cancel the current transfer first.");
       const target=(await s.resource(ctx.orgId,"endpoint",text(body.target_user_id)));
@@ -247,6 +268,6 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
       updated=(await s.patchCall(ctx.orgId,call.id,{owner_user_id:text(object(call.metadata.transfer).target_user_id),metadata:{...call.metadata,transfer:{...object(call.metadata.transfer),state:"completed"}}}));
     }
     (await s.appendEvent(ctx.orgId,call.id,`communication.call.action.${body.action}`,{actor_user_id:ctx.userId},op.id));
-    (await s.finishOperation(ctx.orgId,op.id,{call_id:call.id}));return {call:updated};
+    (await s.finishOperation(ctx.orgId,op.id,{call_id:call.id}));return {call:updated,participants:publicParticipants(await participants(ctx.orgId,callId))};
   }));
 }

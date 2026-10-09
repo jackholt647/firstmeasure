@@ -27,7 +27,7 @@
     if (document.getElementById('fm-communications-css')) return;
     const link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
     const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
-    link.href=new URL('communications.css?v=20260930-phone-polish-v2',source).href;
+    link.href=new URL('communications.css?v=20261009-conference-v1',source).href;
     document.head.append(link);
   }
   css();

@@ -12,6 +12,7 @@ import { emitWorkEvent } from "../../work/engine.js";
 import { requireVoiceEnvironment, voiceWebhookUrl } from "../../telephony/telnyx.js";
 import { normalizePhone, voiceSettings } from "./settings.js";
 import { followUpOptions } from './follow-up-policy.js';
+import { activeConferenceForUser } from './conference.js';
 import * as store from "./storage.js";
 import { text, object, strings, type Json, type CustomerCall } from "./storage.js";
 
@@ -109,6 +110,7 @@ export async function createCall(ctx:PlatformAuthContext,input:unknown){
     const op=(await store.operation(ctx.orgId,"create",body.operation_id,callId,{...body,actor:ctx.userId}));
     if(op.existing)return (await store.readCall(ctx.orgId,callId));
     if(body.mode==="browser"){
+      if(await activeConferenceForUser(ctx.orgId,ctx.userId))throw conflict('call_in_progress','Leave the conference before starting another call.');
       const active=(await store.listCalls(ctx.orgId,{active:true,limit:200}));
       if(active.total>=settings.max_concurrent_calls)throw conflict("voice_capacity","All phone lines are busy. Try again shortly.");
       if(active.calls.some(c=>c.owner_user_id===ctx.userId||c.customer_number===phone))throw conflict("call_in_progress","You or this customer already have an active call.");

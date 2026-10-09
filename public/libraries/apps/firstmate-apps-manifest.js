@@ -348,7 +348,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'), versionedBundle('comms/phone-tray.js', '20261009-phone-workspace-v2'), versionedBundle('comms/calling-runtime.js', '20261009-phone-workspace-v2'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [bundle('../comms-api/comms-api.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261009-conference-v1'), versionedBundle('comms/phone-tray.js', '20261009-conference-v1'), versionedBundle('comms/calling-runtime.js', '20261009-conference-v1'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -523,9 +523,9 @@
         bundle('../comms-api/comms-api.js'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
-        versionedBundle('comms/communications-ui.js', '20260930-phone-polish-v2'),
+        versionedBundle('comms/communications-ui.js', '20261009-conference-v1'),
         versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
-        versionedBundle('comms/phone-tray.js', '20261009-phone-workspace-v2'), versionedBundle('comms/calling-runtime.js', '20261009-phone-workspace-v2'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'),
+        versionedBundle('comms/phone-tray.js', '20261009-conference-v1'), versionedBundle('comms/calling-runtime.js', '20261009-conference-v1'), versionedBundle('comms/phone-modal.js', '20261009-phone-workspace-v2'),
         versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
       ]

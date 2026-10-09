@@ -110,3 +110,16 @@
 .fmcm-view>.app-tabs button{border:0;background:transparent}.fmcm-view>.app-tabs button[aria-current=page]{background:color-mix(in srgb,var(--primary,#d93025) 9%,white);color:var(--cm-readable)}
 
 .fmcm-empty>i{margin:0 auto 8px}
+
+.fmcp-participants{margin:12px 0;padding:10px 0;border-top:1px solid var(--cm-line,#dadce0);border-bottom:1px solid var(--cm-line,#dadce0)}
+.fmcp-participants>strong{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px}
+.fmcp-participant{display:flex;align-items:center;gap:8px;padding:7px 0;font-size:12px;min-width:0}
+.fmcp-participant>span{flex:1;min-width:0;overflow-wrap:anywhere}.fmcp-participant small{display:block;color:var(--cm-muted,#5f6368);font-size:11px;line-height:1.5}
+.fmcp .fmcp-participant button{display:grid;place-items:center;flex:none;width:28px;height:28px;padding:0;border:0;background:transparent}
+.fmcp-invite{width:min(420px,calc(100vw - 32px));box-sizing:border-box}.fmcp-invite .fmcm-form-body{min-height:180px}
+.fmcp-invite-modes{display:flex;gap:4px;padding:3px;background:var(--cm-bg,#f1f3f5);border-radius:7px;margin-bottom:16px}
+.fmcp-invite-modes label{position:relative;flex:1;padding:8px;text-align:center;border-radius:5px;font-size:12px;cursor:pointer}
+.fmcp-invite-modes label:has(input:checked){background:var(--panel,#fff);box-shadow:0 1px 3px #0002;font-weight:600}
+.fmcp-invite-modes label:focus-within{outline:2px solid var(--primary,#d93025);outline-offset:1px}.fmcp-invite-modes input{position:absolute;width:1px;height:1px;opacity:0}
+.fmcp-invite-results{max-height:180px;overflow:auto}.fmcp-invite-results button{display:flex;align-items:center;gap:8px;width:100%;padding:9px 2px;border:0;border-bottom:1px solid var(--cm-line,#dadce0);background:transparent;text-align:left;font:inherit;font-size:12px;cursor:pointer}
+.fmcp-invite-results button>span{flex:1;min-width:0;overflow-wrap:anywhere}.fmcp-invite-results small,.fmcp-invite [data-invite-selection]{display:block;color:var(--cm-muted,#5f6368);font-size:11px}

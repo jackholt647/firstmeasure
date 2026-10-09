@@ -16,6 +16,7 @@ import { changeConversationWorkflow } from "./workflow.js";
 import { reconcileCall } from "./recovery.js";
 import { voiceHealth } from './operations.js';
 import { followUpOptions } from './follow-up-policy.js';
+import { participants, publicParticipants } from './conference.js';
 import * as s from "./storage.js";
 import { text, object, type Json } from "./storage.js";
 
@@ -75,7 +76,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.post("/organizations/:orgId/calls",async(req,reply)=>{const ctx=await auth(req,true);const call=await createCall(ctx,body(req));return reply.code(201).send({ok:true,call});});
   app.get("/organizations/:orgId/calls/:callId",async req=>{
     const ctx=await auth(req);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,"callId"))));
-    return {ok:true,call,work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id))};
+    return {ok:true,call,participants:publicParticipants(await participants(ctx.orgId,call.id)),work:(await Promise.all(s.strings(call.metadata.source_node_ids).map(async id=>(await readNodeRecord(ctx.orgId,id))))).filter(Boolean).map(node=>({id:node!.id,title:node!.title,status:node!.status})),legs:(await s.legs(ctx.orgId,call.id)).map(l=>({id:l.id,role:l.role,state:l.state})),events:(await s.callEvents(ctx.orgId,call.id)),operations:(await s.jobs(ctx.orgId,call.id))};
   });
   app.get('/organizations/:orgId/calls/:callId/follow-up-options',async req=>{const ctx=await auth(req);return {ok:true,...await followUpOptions(requireCallAccess(ctx,(await s.readCall(ctx.orgId,param(req,'callId')))))};});
   app.patch("/organizations/:orgId/calls/:callId/draft",async req=>({ok:true,call:(await saveDraft(await auth(req,true),param(req,"callId"),body(req)))}));
@@ -210,7 +211,7 @@ export const registerCustomerCallsApi:FastifyPluginAsync=async app=>{
   app.post("/organizations/:orgId/voice/diagnostics/start",async req=>({ok:true,...(await startDiagnostic(await auth(req,true),boundedId.parse(body(req).device_id)))}));
   app.get("/organizations/:orgId/voice/center",async req=>{
     const ctx=await auth(req);const calls=(await s.listCalls(ctx.orgId,{active:true,...(!manageCalls(ctx)?{branch_id:ctx.branchId||"default"}:{})}));
-    return {ok:true,...calls,agents:(await s.resources(ctx.orgId,"endpoint")).map(e=>({user_id:e.user_id,name:e.name,availability:text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
+    return {ok:true,...calls,agents:(await s.resources(ctx.orgId,"endpoint")).map(e=>({user_id:e.user_id,name:e.name,branch_id:text(e.branch_id||'default'),availability:e.registered!==true||text(e.heartbeat_at)<new Date(Date.now()-45_000).toISOString()?"offline":e.availability}))};
   });
   // Isolated parser: signatures must be checked against the original bytes, never reserialized JSON.
   await app.register(async webhook=>{
