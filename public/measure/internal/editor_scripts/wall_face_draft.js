@@ -1885,6 +1885,8 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
   }catch(error){host.state().wallEdits=before;host.message(error.message);host.redraw();return true;}
  }
  function selectedLineLength(){
+  if(tool?.kind==='draw'&&tool.preview&&picked.length===1){const d=current(),a=d?.sketch.nodes.find(n=>n.id===picked[0]);if(a)return distance3(world(d,a),world(d,tool.preview));}
+  if(workingPlane?.drawing&&workingPlane.hover&&workingPlane.selection.length===1)return distance3(workingPlane.selection[0],workingPlane.hover);
   if(workingPlane){const pairs=workingPlane.selectedLines||[];return pairs.length===1?distance3(...pairs[0]):null;}
   if(lineSelection.length+solidEdges.length+pickedLines.length!==1)return null;
   if(lineSelection.length){const line=lineSelection[0];return (line.pairs||[line.pair]).reduce((sum,pair)=>sum+distance3(...pair),0);}

@@ -425,8 +425,8 @@ if ($editorAction === 'project_bundle' || $editorAction === 'project_feedback') 
 $userName = $_SESSION['user_name'] ?? 'Guest User';
 function fm_editor_asset_version($relativePath) {
     $path = __DIR__ . '/' . ltrim((string)$relativePath, '/');
-    $mtime = is_file($path) ? @filemtime($path) : false;
-    return $mtime ? (string)$mtime : '1';
+    $hash = is_file($path) ? @hash_file('sha256', $path) : false;
+    return $hash ? substr($hash, 0, 16) : '1';
 }
 function fm_editor_global_report_settings() {
     $path = storagePath('config/report_settings.json');

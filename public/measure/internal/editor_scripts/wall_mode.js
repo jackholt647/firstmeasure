@@ -814,15 +814,15 @@ function perf_render3DFrame() {
         const planeControls=document.createElement('label');planeControls.textContent='Other geometry ';planeControls.hidden=true;
         const planeDisplay=document.createElement('select');planeDisplay.id='plane-other-geometry';planeDisplay.setAttribute('aria-label','Off-plane geometry');
         for(const [value,text]of [['normal','Normal'],['faint','Faint'],['hidden','Hidden']]){const option=document.createElement('option');option.value=value;option.textContent=text;planeDisplay.appendChild(option);}planeDisplay.value='faint';planeDisplay.onchange=()=>wallEditor?.setPlaneDisplay(planeDisplay.value);planeControls.appendChild(planeDisplay);interaction.appendChild(planeControls);
-        const lineDimension=document.createElement('span');lineDimension.id='wall-selected-line-length';lineDimension.hidden=true;lineDimension.setAttribute('aria-label','Selected line length');lineDimension.style.cssText='white-space:nowrap;font:600 13px system-ui;color:#fff;padding:4px 8px;background:#34424e;border-radius:4px;';
+        const lineDimension=document.createElement('span');lineDimension.id='wall-selected-line-length';lineDimension.hidden=true;lineDimension.setAttribute('aria-label','Selected line length');lineDimension.style.cssText='position:absolute;right:8px;top:9px;width:132px;text-align:right;white-space:nowrap;font:400 11px system-ui;font-variant-numeric:tabular-nums;color:#bdc5cc;pointer-events:none;';
         const updateInteraction=()=>{
             const counts=selectionCounts();document.getElementById('wall-resoffit-count').textContent=counts.lines+' lines selected';document.getElementById('wall-resoffit-apply').disabled=!counts.lines;selectionReadout.textContent='Selected: '+counts.points+' points · '+counts.lines+' lines · '+counts.faces+' faces';
             const plane=wallEditor?.planeView?.();planeControls.hidden=!plane;cancelButton.textContent=plane?.rotating?'Cancel - Esc':plane?'Exit plane (P)':'Cancel - Esc';if(plane)planeDisplay.value=plane.display;
 
             const toolbar=document.querySelector('#three-container .enh-control-panel');const mainToolbar=document.getElementById('exterior-main-toolbar');if(mainToolbar&&advanced.parentElement!==mainToolbar)mainToolbar.appendChild(advanced);advanced.hidden=!enabled;if(!enabled)advanced.open=false;if(toolbar&&interaction.parentElement!==toolbar)toolbar.appendChild(interaction);
-            if(toolbar&&lineDimension.parentElement!==toolbar)toolbar.prepend(lineDimension);
+            if(toolbar){toolbar.style.paddingRight=enabled?'150px':'';if(lineDimension.parentElement!==toolbar)toolbar.appendChild(lineDimension);}
             const length=enabled?(editingLayer==='base'?baseEditor:wallEditor)?.selectedLineLength?.():null;
-            lineDimension.hidden=!(Number.isFinite(length)&&length>0);
+            lineDimension.hidden=!(Number.isFinite(length)&&length>=0);
             if(!lineDimension.hidden)lineDimension.textContent='Length: '+(window.ReportUnits?.current().distance(length,(length/.3048).toFixed(2)+'′')??(length/.3048).toFixed(2)+'′');
             const name=enabled&&(groundEditor?.interaction?.()||wallEditor?.interaction()||baseEditor?.interaction());
             interaction.hidden=!name;interaction.style.display=name?'flex':'none';

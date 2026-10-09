@@ -2843,3 +2843,7 @@ test('closed soffit display grays enclosed wall material without changing struct
   const selection=f.editor.selectionSnapshot();selection.preferredDraft=selection.activeDraftKey;f.editor.restoreSelection(selection);
   f.editor.key({key:'n'});assert.equal(f.editor.busy(),true);assert.match(f.message(),/this face/);
  });
+test('pending wall line length follows the cursor and clears on cancel',()=>{
+ const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(1,1),f.w);f.editor.key({key:'n'});f.listeners.pointermove(f.e(3,2));
+ assert.ok(Math.abs(f.editor.selectedLineLength()-Math.sqrt(5))<1e-8,f.message());f.editor.key({key:'Escape'});assert.equal(f.editor.selectedLineLength(),null);
+});
