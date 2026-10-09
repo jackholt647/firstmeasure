@@ -30,3 +30,10 @@ test('wallless does not duplicate an existing coplanar wall or fill its opening'
  const lower=wall('existing',[0,2],[4,2],0,2);lower.holes=[[p(1,2,.5),p(2,2,.5),p(2,2,1.5),p(1,2,1.5)]];
  const f=setup([wall('front',[0,0],[4,0]),wall('upper',[0,2],[4,2],3,6),lower,base],['front'],{faces:[roofFace('canopy',3),roofFace('roof',6)]}),r=run(f),upper=r.faces.find(f=>f.id==='upper');assert.equal(Math.min(...upper.points.map(p=>p.z)),2);assert.deepEqual(r.faces.find(f=>f.id==='existing'),lower);
 });
+test('wallless continuation meets a pitched base without moving its XY footprint',()=>{
+ const pitched={...base,points:base.points.map(p=>({...p,z:.1*p.x+.05*p.y+2}))},f=setup([wall('front',[0,0],[4,0],2),wall('upper',[0,2],[4,2],3,6),pitched],['front'],{faces:[roofFace('canopy',3),roofFace('roof',6)]}),r=run(f),upper=r.faces.find(f=>f.id==='upper');
+ assert.ok(upper.points.every(p=>Math.abs(p.y-2)<1e-8));assert.ok(upper.points.filter(p=>p.z<3).every(p=>Math.abs(p.z-(.1*p.x+.05*p.y+2))<1e-6));assert.deepEqual(r.faces.find(f=>f.baseId),pitched);
+});
+test('wallless fails atomically when a required continuation has no base coverage',()=>{
+ const small={...base,points:[p(0,-1),p(4,-1),p(4,1),p(0,1)]},f=setup([wall('front',[0,0],[4,0]),wall('upper',[0,2],[4,2],3,6),small],['front'],{faces:[roofFace('canopy',3),roofFace('roof',6)]}),before=JSON.stringify(f);assert.throws(()=>R.wallless(f.faces,f.pairs,f.roof,f.sources),/base must cover/);assert.equal(JSON.stringify(f),before);
+});
