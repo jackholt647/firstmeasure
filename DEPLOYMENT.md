@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 additional test phones: [Development conference test destinations](deploy/digitalocean/development-test-phones-20261009.md) records approved direct dialing, the conference test-phone picker and the verified development-only rollout.
+
 October 9 conference calls: [Add people to active calls](deploy/digitalocean/development-conference-20261009.md) records teammate/external invitations, participant controls, current-development integration, verification and the development-only rollout.
 
 October 9 phone workspace: [Calls layout, badges, optional audio, and group-safe routing](deploy/digitalocean/development-phone-workspace-20261009.md) records the verified development-only rollout and the remaining true group-MMS decision.
