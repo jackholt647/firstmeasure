@@ -63,7 +63,8 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await batchRow.locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
   assert.equal(await batchRow.locator('.pf-actor-badge i').count(),1);
   assert.match(await batchRow.locator('time').textContent(),/^\d{1,2}:\d{2}\s?(am|pm)$/);
-  assert.equal((await batchRow.locator('.pf-feed-list-head').textContent()).replace(/\s+/g,' ').trim(),`${await batchRow.locator('time').textContent()}: Sam Rivera uploaded 20 photos`);
+  assert.equal((await batchRow.locator('.pf-feed-list-head').textContent()).replace(/\s+/g,' ').trim(),`Sam Rivera uploaded 20 photos ${await batchRow.locator('time').textContent()}`);
+  assert.ok(await batchRow.locator('.pf-feed-list-head').evaluate(e=>e.querySelector('time').getBoundingClientRect().left>e.querySelector('strong').getBoundingClientRect().left+100),'time sits at the top-right of the activity column');
   assert.ok(await batchRow.evaluate(e=>e.querySelector('.pf-feed-list-project').getBoundingClientRect().left>=e.querySelector('.pf-feed-list-copy').getBoundingClientRect().right-1),'project card sits to the right of activity content');
   assert.equal(await batchRow.locator('[data-feed-project-id]').count(),1);
   assert.equal(await batchRow.locator('[data-feed-project-id]').getAttribute('title'),'Open project');
@@ -71,6 +72,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await batchRow.locator('.pf-project-card-cover img').getAttribute('src'),'/photo.svg');
   assert.ok(await batchRow.locator('.pf-project-card-cover').evaluate(e=>e.getBoundingClientRect().width>e.getBoundingClientRect().height),'project cover is rectangular');
   assert.equal(await batchRow.locator('.pf-project-card').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
+  await batchRow.locator('.pf-project-card').hover();
+  assert.equal(await batchRow.locator('.pf-project-card').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(242, 246, 251)');
+  assert.equal(await batchRow.locator('.pf-project-card-name').evaluate(e=>getComputedStyle(e).textDecorationLine),'none');
   assert.equal(await batchRow.locator('.pf-project-card-name').textContent(),'Oak Street renovation');
   assert.equal(await batchRow.locator('.pf-project-card-address').textContent(),'104 Oak Street');
   await batchRow.locator('.pf-project-card-cover').click();
