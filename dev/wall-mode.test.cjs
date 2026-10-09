@@ -786,3 +786,11 @@ test('loading an older regrade keeps grade fragments owned by their edited repla
  const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
  assert.ok(fresh.ctx.WallMode.serialize().wallEdits.$drafts.replacement.members.includes(parent+'-grade-0-grade-1'));
 });
+
+test('Wallless resoffit UI disables numeric depth and submits the canopy operation',()=>{
+ const calls=[],wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,resoffit:value=>{calls.push(value);return true;}};
+ const f=fixture(true,{createWallEditor:()=>wall}),input=f.ctx.document.getElementById('wall-resoffit-depth'),toggle=f.elements.get('wall-resoffit-wallless');input.value='';input.checkValidity=()=>false;input.reportValidity=()=>calls.push('invalid');
+ toggle.checked=true;toggle.onchange({target:toggle});assert.equal(input.disabled,true);f.elements.get('wall-resoffit-apply').onclick();assert.deepEqual(calls,['wallless']);
+ toggle.checked=false;toggle.onchange({target:toggle});assert.equal(input.disabled,false);f.elements.get('wall-resoffit-apply').onclick();assert.deepEqual(calls,['wallless','invalid']);
+ input.value='2';input.checkValidity=()=>true;f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),.6096);
+});
