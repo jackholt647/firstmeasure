@@ -837,6 +837,76 @@ test("masked EIN values from public profiles cannot overwrite stored legal data 
   assert.equal(stored.brand.ein, "12-3456789");
 });
 
+test("development carrier registration is scoped independently of captured message delivery", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const otherClient = createSessionClient();
+  const { orgId: otherOrgId } = await register(otherClient, true);
+  const { env } = await import("../src/config/env.js");
+  const previous = {
+    dataEnvironment: env.dataEnvironment,
+    communicationsDeliveryMode: env.communicationsDeliveryMode,
+    smsLiveRegistrationOrganizationIds: env.smsLiveRegistrationOrganizationIds,
+    telnyxApiKey: env.telnyxApiKey,
+    telnyxBaseUrl: env.telnyxBaseUrl
+  };
+  const requests: string[] = [];
+  const server = createServer((request, response) => {
+    requests.push(`${request.method} ${request.url}`);
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ data: [{ phone_number: "+12065550123", features: [{ name: "sms" }], cost_information: { monthly_cost: "1.00", upfront_cost: "0.00", currency: "USD" } }] }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  Object.assign(env, { dataEnvironment: "development", communicationsDeliveryMode: "capture", smsLiveRegistrationOrganizationIds: [orgId], telnyxApiKey: "TEST", telnyxBaseUrl: `http://127.0.0.1:${address.port}/v2` });
+  try {
+    const setup = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/setup`);
+    assert.equal(setup.telnyx.registration_live, true);
+    assert.equal(setup.telnyx.live_mode, false);
+    const otherSetup = await otherClient.request("GET", `/v1/messaging/organizations/${otherOrgId}/sms/setup`);
+    assert.equal(otherSetup.telnyx.registration_live, false);
+    const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
+      brand: { country: "US", displayName: "FirstMate", companyName: "FirstMate Test LLC", entityType: "PRIVATE_PROFIT", vertical: "TECHNOLOGY", email: "support@example.test", ein: "123456789", phone: "2065550100", street: "100 Main Street", city: "Boise", state: "ID", postalCode: "83702", website: "example.test", mock: true },
+      campaign: { usecase: "LOW_VOLUME", mock: true, brandId: "UNTRUSTED", enabledFeatures: ["crm_conversations"] }
+    });
+    assert.equal(created.profile.brand.mock, undefined);
+    assert.equal(created.profile.campaign.brandId, undefined);
+    assert.ok(created.profile.validation.campaign.missing.includes("consentAcknowledged"));
+    assert.ok(created.profile.validation.campaign.missing.includes("messageFlowConfirmed"));
+    const base = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`;
+    const preview = await client.request("POST", `${base}/submit-brand`, { dry_run: true });
+    assert.equal(preview.payload.mock, undefined);
+    const refused = await client.raw("POST", `${base}/submit-brand`, { submit: true });
+    assert.equal(JSON.parse(refused.body).error, "registration_attestation_required");
+    const numbers = await client.request("GET", `${base}/available-numbers?area_code=206`);
+    assert.equal(numbers.mock, false);
+    assert.equal(numbers.numbers[0].phone_number, "+12065550123");
+    assert.equal(requests.length, 1, "only the inventory read reaches the provider");
+    assert.match(requests[0] || "", /^GET \/v2\/available_phone_numbers/);
+    const other = await otherClient.request("POST", `/v1/messaging/organizations/${otherOrgId}/sms/compliance-profiles`, { brand: {}, campaign: {} });
+    const simulated = await otherClient.request("GET", `/v1/messaging/organizations/${otherOrgId}/sms/compliance-profiles/${other.profile.id}/available-numbers?area_code=206`);
+    assert.equal(simulated.mock, true);
+    assert.equal(requests.length, 1);
+    const { recordBrandRegistrationFee } = await import("../messaging/api.js");
+    const { listUsageEvents } = await import("../messaging/communications_storage.js");
+    await recordBrandRegistrationFee(orgId, "PILOT_BRAND", created.profile.id, "PRIVATE_PROFIT");
+    assert.equal((await listUsageEvents(orgId, { direction: "brand_registration" })).length, 1);
+    const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
+    const messagingOrg = await ensureMessagingOrganization(orgId);
+    const stored = await readSmsComplianceProfile(messagingOrg.id, created.profile.id);
+    await updateSmsComplianceProfile(stored, { events: [...stored.events, { type: "brand_submitted", mock: true }] });
+    const mockReplay = await client.raw("POST", `${base}/submit-brand`, { dry_run: true });
+    assert.equal(JSON.parse(mockReplay.body).error, "mock_registration_requires_new_profile");
+    const { smsRegistrationIsLive } = await import("../messaging/registration_mode.js");
+    Object.assign(env, { dataEnvironment: "production" });
+    assert.equal(smsRegistrationIsLive(orgId), false, "the development pilot does not enable registration in another environment");
+  } finally {
+    Object.assign(env, previous);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test("10DLC compliance profile workflow saves drafts and builds dry-run provider payloads", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client, true);

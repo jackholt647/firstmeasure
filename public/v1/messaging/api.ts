@@ -12,6 +12,7 @@ import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
+import { hasLiveSmsRegistration, smsRegistrationIsLive } from "./registration_mode.js";
 import { createTelnyxClient, TelnyxError, verifyTelnyxDeliveryWebhookToken, type TelnyxAutorespConfig } from "./telnyx.js";
 import { normalizeTelnyxAutoresponseOp, smsAutoresponseFieldsChanged, smsAutoresponsePlan, smsAutoresponsesReady, type DesiredSmsAutoresponse } from "./autoresponses.js";
 import { beginProviderOperation, claimPhoneNumberOwnership, closeCommunicationsDatabase, createUsageEvent, endBillingCommitment, findPhoneNumberOwner, findProviderOperation, findUnresolvedProviderOperationByPrefix, finishProviderOperation, listBillingCommitments, listSmsConsentEvents, listSmsConsents, listUsageEvents, listUsageSummaryRows, markProviderOperationFailed, releasePhoneNumberOwnership, resetProviderOperationForRetry, suspendOrganizationSmsDeliveries, updateProviderOperationContext, upsertBillingCommitment, upsertSmsConsent, verifyCommunicationsDatabaseWritable, webhookInboxStats } from "./communications_storage.js";
@@ -142,16 +143,16 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode"
 ] as const;
 
-function editableBrand(value: unknown) {
-  const editable = { ...pickFields(value, EDITABLE_BRAND_FIELDS), ...(!LIVE_MODE() ? pickFields(value, ["mock"]) : {}) };
+function editableBrand(value: unknown, organizationId: string) {
+  const editable = { ...pickFields(value, EDITABLE_BRAND_FIELDS), ...(!smsRegistrationIsLive(organizationId) ? pickFields(value, ["mock"]) : {}) };
   // Public profiles intentionally expose only ***last4. Wizard autosave sends
   // its whole visible model, so a mask must never overwrite encrypted legal data.
   if (/^\*{3,}\d{4}$/.test(cleanText(editable.ein))) delete editable.ein;
   return editable;
 }
 
-function editableCampaign(value: unknown) {
-  return { ...pickFields(value, EDITABLE_CAMPAIGN_FIELDS), ...(!LIVE_MODE() ? pickFields(value, ["brandId", "mock"]) : {}) };
+function editableCampaign(value: unknown, organizationId: string) {
+  return { ...pickFields(value, EDITABLE_CAMPAIGN_FIELDS), ...(!smsRegistrationIsLive(organizationId) ? pickFields(value, ["brandId", "mock"]) : {}) };
 }
 
 function changesStoredFields(current: unknown, patch: JsonObject) {
@@ -439,8 +440,14 @@ function brandReadyForCampaignStatus(status: unknown) {
 }
 
 function smsComplianceProfileIsMock(profile: SmsComplianceProfile) {
-  void profile;
-  return !LIVE_MODE();
+  return !smsRegistrationIsLive(profile.external_organization_id);
+}
+
+function requireCarrierRegistrationProfile(profile: SmsComplianceProfile) {
+  if (!smsComplianceProfileIsMock(profile) && profile.events.some((event) =>
+    ["brand_submitted", "brand_updated", "campaign_submitted"].includes(cleanText(asObject(event).type)) && asObject(event).mock === true)) {
+    throw conflict("mock_registration_requires_new_profile", "Create a new registration for the legal business. A simulated carrier registration cannot be converted to a real registration.");
+  }
 }
 
 function telnyxErrorDetails(error: unknown) {
@@ -481,7 +488,7 @@ async function reconcileAmbiguousBrand(client: ReturnType<typeof createTelnyxCli
 }
 
 export async function recordBrandRegistrationFee(organizationId: string, brandId: string, profileId: string, entityType = "", soleProprietorVerified = false) {
-  if (!LIVE_MODE() || !brandId) return;
+  if (!smsRegistrationIsLive(organizationId) || !brandId) return;
   const soleProprietor = cleanText(entityType).toUpperCase() === "SOLE_PROPRIETOR";
   if (soleProprietor && !soleProprietorVerified) return;
   const amount = soleProprietor
@@ -501,7 +508,7 @@ export async function recordBrandRegistrationFee(organizationId: string, brandId
 }
 
 export async function recordCampaignRegistrationFee(organizationId: string, campaignId: string, profileId: string, qualification: unknown, cost: unknown) {
-  if (!LIVE_MODE() || !campaignId) return;
+  if (!smsRegistrationIsLive(organizationId) || !campaignId) return;
   const qualificationData = providerData(qualification);
   const costData = providerData(cost);
   const amount = cleanText(qualificationData.quarterlyFee || costData.upFrontCost);
@@ -587,7 +594,7 @@ function validateBrandDraft(brandInput: JsonObject) {
   };
 }
 
-function validateCampaignDraft(campaignInput: JsonObject) {
+function validateCampaignDraft(campaignInput: JsonObject, liveRegistration = LIVE_MODE()) {
   const usecase = normalizeEnum(campaignInput.usecase, CAMPAIGN_USECASES, "");
   const missing = [];
   for (const key of ["description", "messageFlow", "sample1", "sample2", "helpMessage", "optoutMessage", "privacyPolicyLink", "termsAndConditionsLink"]) {
@@ -605,8 +612,8 @@ function validateCampaignDraft(campaignInput: JsonObject) {
   if (normalizeBoolean(campaignInput.embeddedLink, false) && !nonEmpty(campaignInput.embeddedLinkSample)) {
     missing.push("embeddedLinkSample");
   }
-  if (LIVE_MODE() && campaignInput.consentAcknowledged !== true) missing.push("consentAcknowledged");
-  if (LIVE_MODE() && campaignInput.messageFlowConfirmed !== true) missing.push("messageFlowConfirmed");
+  if (liveRegistration && campaignInput.consentAcknowledged !== true) missing.push("consentAcknowledged");
+  if (liveRegistration && campaignInput.messageFlowConfirmed !== true) missing.push("messageFlowConfirmed");
   if (campaignInput.featuresConfirmed !== true) missing.push("featuresConfirmed");
   if (campaignInput.termsAndConditions !== true) missing.push("termsAndConditions");
   if (campaignInput.subscriberOptout !== true) missing.push("subscriberOptout");
@@ -659,7 +666,7 @@ function brandPayload(profile: SmsComplianceProfile) {
     isReseller: normalizeBoolean(brand.isReseller, false),
     webhookURL: env.telnyxWebhookUrl,
     ...(env.telnyxWebhookFailoverUrl ? { webhookFailoverURL: env.telnyxWebhookFailoverUrl } : {}),
-    ...(LIVE_MODE() ? {} : { mock: true })
+    ...(smsComplianceProfileIsMock(profile) ? { mock: true } : {})
   };
   for (const key of Object.keys(payload)) {
     if (payload[key] === "" || payload[key] == null) delete payload[key];
@@ -802,7 +809,7 @@ function campaignSubmissionProfilePatch(
 
 function profileValidation(profile: SmsComplianceProfile) {
   const brand = validateBrandDraft(asObject(profile.brand));
-  const campaign = validateCampaignDraft(asObject(profile.campaign));
+  const campaign = validateCampaignDraft(asObject(profile.campaign), !smsComplianceProfileIsMock(profile));
   const selectedNumber = asObject(profile.campaign).selectedNumber;
   return {
     brand,
@@ -1243,7 +1250,7 @@ function requireDeveloperMessagingSurface() {
 
 export const registerMessagingApi: FastifyPluginAsync = async (app) => {
   app.addHook("onReady", async () => {
-    if (LIVE_MODE()) {
+    if (hasLiveSmsRegistration()) {
       const missing = [
         !env.telnyxApiKey && "TELNYX_API_KEY",
         !env.telnyxWebhookPublicKey && "TELNYX_WEBHOOK_PUBLIC_KEY",
@@ -1261,7 +1268,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         database_path: storageHealth.databasePath,
         wal_checkpoint: storageHealth.checkpoint
       }, "Messaging storage is writable and migrated");
-      startSmsDeliveryWorker();
+      if (LIVE_MODE()) startSmsDeliveryWorker();
     }
   });
   app.addHook("onClose", async () => {
@@ -1573,6 +1580,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       telnyx: {
         configured: Boolean(env.telnyxApiKey),
         live_mode: LIVE_MODE(),
+        registration_live: smsRegistrationIsLive(orgId),
         webhook_url: env.telnyxWebhookUrl,
         webhook_public_key_configured: Boolean(env.telnyxWebhookPublicKey),
         organization_profiles: true
@@ -1586,8 +1594,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const body = objectBodySchema.parse(request.body ?? {});
     const organization = await ensureMessagingOrganization(orgId);
     const profile = await createSmsComplianceProfile(organization, {
-      brand: editableBrand(body.brand),
-      campaign: editableCampaign(body.campaign),
+      brand: editableBrand(body.brand, orgId),
+      campaign: editableCampaign(body.campaign, orgId),
       actor: { source: "platform_settings" }
     });
     const validation = profileValidation(profile);
@@ -1607,7 +1615,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const orgId = param(request.params, "orgId");
     await requireSmsSettingsAccess(request, orgId, true);
     const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
-    if (LIVE_MODE() && cleanText(profile.status).toLowerCase() !== "active") {
+    if (smsRegistrationIsLive(orgId) && cleanText(profile.status).toLowerCase() !== "active") {
       throw conflict("sms_profile_not_active", "Only a fully provisioned SMS compliance profile can become the live default.");
     }
     const organization = await setDefaultSmsComplianceProfile(profile);
@@ -1624,7 +1632,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     if (!areaCode) {
       throw badRequest("invalid_area_code", "Enter a valid US/Canada three digit area code.");
     }
-    if (!LIVE_MODE()) return { ok: true, mock: true, area_code: areaCode, numbers: mockAvailableNumbers(areaCode) };
+    if (!smsRegistrationIsLive(orgId)) return { ok: true, mock: true, area_code: areaCode, numbers: mockAvailableNumbers(areaCode) };
     const response = asObject(await createTelnyxClient().searchAvailablePhoneNumbers(areaCode, 20));
     const numbers = (Array.isArray(response.data) ? response.data : [])
       .map(availableNumberView)
@@ -1637,13 +1645,14 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     await requireSmsSettingsAccess(request, orgId, true);
     const body = objectBodySchema.parse(request.body ?? {});
     const { profile: initialProfile } = await profileForRequest(orgId, param(request.params, "profileId"));
+    requireCarrierRegistrationProfile(initialProfile);
     const selectedNumber = normalizePhone(body.phone_number || body.phoneNumber);
     if (!selectedNumber) {
       throw badRequest("invalid_phone_number", "Select a valid US/Canada phone number.");
     }
     const existingRefs = asObject(initialProfile.provider_refs);
     const existingNumber = normalizePhone(asObject(initialProfile.campaign).selectedNumber);
-    if (LIVE_MODE() && cleanText(existingRefs.telnyx_number_order_id)) {
+    if (smsRegistrationIsLive(orgId) && cleanText(existingRefs.telnyx_number_order_id)) {
       if (existingNumber !== selectedNumber) throw conflict("number_already_ordered", "This SMS registration already has a number order. Refresh its status before selecting another number.");
       return { ok: true, mock: false, profile: publicSmsComplianceProfile(initialProfile), idempotent_replay: true };
     }
@@ -1660,13 +1669,13 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         selectedNumberLocality: inventory?.locality || cleanText(stored.selectedNumberLocality) || (acceptBodyMetadata ? cleanText(body.locality) : ""),
         selectedNumberRegion: inventory?.region || cleanText(stored.selectedNumberRegion) || (acceptBodyMetadata ? cleanText(body.region) : "") || "US",
         selectedNumberFeatures: inventory?.features ?? (storedFeatures.length ? storedFeatures : (acceptBodyMetadata && bodyFeatures.length ? bodyFeatures : ["sms"])),
-        selectedNumberMock: !LIVE_MODE(),
+        selectedNumberMock: !smsRegistrationIsLive(orgId),
         selectedNumberMonthlyCost: inventory?.monthly_cost || cleanText(stored.selectedNumberMonthlyCost) || (acceptBodyMetadata ? cleanText(body.monthly_cost || body.monthlyCost) : ""),
         selectedNumberSetupCost: inventory?.setup_cost || cleanText(stored.selectedNumberSetupCost) || (acceptBodyMetadata ? cleanText(body.setup_cost || body.setupCost) : ""),
         selectedNumberCurrency: inventory?.currency || cleanText(stored.selectedNumberCurrency) || (acceptBodyMetadata ? cleanText(body.currency) : "") || "USD"
       };
     };
-    if (!LIVE_MODE()) {
+    if (!smsRegistrationIsLive(orgId)) {
       const nextCampaign = campaignForSelection(null, true);
       const draft = { ...profile, campaign: nextCampaign };
       const saved = await appendSmsComplianceEvent(profile, {
@@ -1834,8 +1843,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     await requireSmsSettingsAccess(request, orgId, true);
     const body = objectBodySchema.parse(request.body ?? {});
     const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
-    const brandPatch = Object.prototype.hasOwnProperty.call(body, "brand") ? editableBrand(body.brand) : {};
-    const campaignPatch = Object.prototype.hasOwnProperty.call(body, "campaign") ? editableCampaign(body.campaign) : {};
+    const brandPatch = Object.prototype.hasOwnProperty.call(body, "brand") ? editableBrand(body.brand, orgId) : {};
+    const campaignPatch = Object.prototype.hasOwnProperty.call(body, "campaign") ? editableCampaign(body.campaign, orgId) : {};
     const mutation = await mutateSmsComplianceProfileAtomically(profile, async (current) => {
       const refs = asObject(current.provider_refs);
       const brandChanged = changesStoredFields(current.brand, brandPatch);
@@ -1844,16 +1853,16 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       const campaignCanBeCorrected = /failed|rejected|expired/.test(cleanText(current.campaign_status).toLowerCase());
       const brandOperation = (await findUnresolvedProviderOperationByPrefix(orgId, current.id, "brand"));
       const campaignOperation = (await findUnresolvedProviderOperationByPrefix(orgId, current.id, "campaign"));
-      if (LIVE_MODE() && cleanText(refs.telnyx_brand_id) && !brandCanBeCorrected && brandChanged) {
+      if (smsRegistrationIsLive(orgId) && cleanText(refs.telnyx_brand_id) && !brandCanBeCorrected && brandChanged) {
         throw conflict("submitted_brand_locked", "Submitted legal brand fields cannot be changed locally. Resolve a rejection first or use a synchronized provider update workflow.");
       }
-      if (LIVE_MODE() && cleanText(refs.telnyx_campaign_id) && !campaignCanBeCorrected && campaignChanged) {
+      if (smsRegistrationIsLive(orgId) && cleanText(refs.telnyx_campaign_id) && !campaignCanBeCorrected && campaignChanged) {
         throw conflict("submitted_campaign_locked", "Submitted campaign fields cannot be changed locally because the registered carrier campaign is immutable.");
       }
-      if (LIVE_MODE() && brandChanged && ["pending", "outcome_unknown"].includes(cleanText(brandOperation?.status))) {
+      if (smsRegistrationIsLive(orgId) && brandChanged && ["pending", "outcome_unknown"].includes(cleanText(brandOperation?.status))) {
         throw conflict("brand_submission_locked", "Brand fields cannot change while the Telnyx submission is in progress or awaiting reconciliation.");
       }
-      if (LIVE_MODE() && campaignChanged && ["pending", "outcome_unknown"].includes(cleanText(campaignOperation?.status))) {
+      if (smsRegistrationIsLive(orgId) && campaignChanged && ["pending", "outcome_unknown"].includes(cleanText(campaignOperation?.status))) {
         throw conflict("campaign_submission_locked", "Campaign fields cannot change while the Telnyx submission is in progress or awaiting reconciliation.");
       }
       const nextBrand = { ...asObject(current.brand), ...brandPatch };
@@ -1886,7 +1895,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const body = objectBodySchema.parse(request.body ?? {});
     const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
     const payload = brandPayload(profile);
-    const isMock = !LIVE_MODE();
+    requireCarrierRegistrationProfile(profile);
+    const isMock = smsComplianceProfileIsMock(profile);
     const validation = validateBrandDraft(payload);
     if (!validation.ok) {
       throw badRequest("brand_profile_incomplete", "The 10DLC brand profile is missing required fields.", { missing: validation.missing });
@@ -2085,7 +2095,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }
     let submissionContext = campaignSubmissionContext(profile);
     let payload = submissionContext.payload;
-    const validation = validateCampaignDraft(asObject(profile.campaign));
+    requireCarrierRegistrationProfile(profile);
+    const validation = validateCampaignDraft(asObject(profile.campaign), !smsComplianceProfileIsMock(profile));
     const isMock = smsComplianceProfileIsMock(profile);
     if (!cleanText(payload.brandId)) {
       throw badRequest("missing_brand_id", "Submit the 10DLC brand before submitting a campaign.");
@@ -2157,7 +2168,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         }
         throw error;
       }
-      const currentValidation = validateCampaignDraft(asObject(profile.campaign));
+      const currentValidation = validateCampaignDraft(asObject(profile.campaign), !smsComplianceProfileIsMock(profile));
       if (!currentValidation.ok) {
         throw conflict("profile_changed", "Campaign data changed during compliance preflight. Review the latest draft and retry.", { missing: currentValidation.missing });
       }
@@ -2487,6 +2498,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const orgId = param(request.params, "orgId");
     await requireSmsSettingsAccess(request, orgId, true);
     let { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
+    requireCarrierRegistrationProfile(profile);
     if (["deactivation_pending", "deactivated"].includes(cleanText(profile.status).toLowerCase())) {
       throw conflict("sms_service_deactivating", "Provider status repair is disabled while this SMS service is being deactivated.");
     }

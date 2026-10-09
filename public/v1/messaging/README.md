@@ -25,6 +25,16 @@ See `../.env.example`. Live startup fails closed unless the API key, webhook pub
 
 `COMMUNICATIONS_DELIVERY_MODE` defaults to `capture`; it must explicitly be `live` in production.
 
+For a controlled development registration pilot, `SMS_LIVE_REGISTRATION_ORGANIZATION_IDS`
+can list exact development organization IDs that use real carrier number inventory,
+number orders, brand registration, campaign registration, and provider fee records
+while message delivery remains captured. It has no effect outside the development
+data environment. All live-registration configuration requirements still apply,
+including the public HTTPS callback, webhook signing key, and shared compliance
+encryption key. Simulated submitted profiles cannot be converted into real ones;
+create a new legal-business registration. The UI leaves new carrier-registration
+business fields blank and does not replace this workflow with simulated phone onboarding.
+
 SQLite is supported for the current single-host, multi-process deployment only. `MESSAGING_STORAGE_ROOT` must be durable local storage shared by every worker on that host and covered by tested backups. A multi-host deployment requires moving the messaging state to a shared transactional database before scaling out.
 
 ## 10DLC setup routes

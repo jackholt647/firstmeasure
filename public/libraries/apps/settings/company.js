@@ -1980,9 +1980,11 @@
       /* 10DLC wizard chrome now comes from the shared FirstMateSetupWizard shell;
          the pane padding override keeps the original 18px workspace inset. */
       [data-fm-wizard="sms-workflow"] .fm-wizard-pane{padding:18px}
+      [data-fm-wizard="sms-workflow"] .fm-wizard{grid-template-columns:minmax(0,1fr);min-width:0}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-body,[data-fm-wizard="sms-workflow"] .fm-wizard-head,[data-fm-wizard="sms-workflow"] .fm-wizard-rail,[data-fm-wizard="sms-workflow"] .fm-wizard-foot{min-width:0}
       .sms-workspace{display:grid;align-content:start;gap:14px}
       .sms-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sms-form-grid .wide{grid-column:1/-1}
-      .sms-field{display:grid;gap:6px}.sms-field label{font-size:11px;font-weight:1000;color:#344054;text-transform:uppercase;letter-spacing:.25px}
+      .sms-field{display:grid;min-width:0;gap:6px}.sms-field label{font-size:11px;font-weight:1000;color:#344054;text-transform:uppercase;letter-spacing:.25px}
       .sms-field input,.sms-field select,.sms-field textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#101828;font:inherit;font-size:13px;font-weight:800;padding:10px 11px;outline:none}
       .sms-field textarea{min-height:94px;resize:vertical;line-height:1.45}.sms-field input:focus,.sms-field select:focus,.sms-field textarea:focus{border-color:rgba(var(--primary-rgb,217,48,37),.42);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.08)}
       .sms-field input:disabled,.sms-field select:disabled,.sms-field textarea:disabled{background:#f8fafc;color:#475467;cursor:not-allowed}
@@ -2030,7 +2032,7 @@
       .sms-submitted-panel.pending .sms-submitted-icon{color:#166534}.sms-submitted-panel h4{margin:0;font-size:20px;font-weight:1000;color:#101828}.sms-submitted-panel p{margin:0;color:#475467;font-size:13px;font-weight:850;line-height:1.55}
       .sms-submitted-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}.sms-submitted-meta span{display:inline-flex;align-items:center;gap:7px;border:1px solid #bbf7d0;background:#fff;color:#166534;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:1000}
       .sms-review{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sms-review-card{border:1px solid #eaecf0;border-radius:12px;background:#fff;padding:12px;display:grid;gap:7px}.sms-review-card strong{font-size:13px;font-weight:1000;color:#101828}.sms-review-card span{font-size:12px;font-weight:800;color:#667085;overflow-wrap:anywhere}
-      @media(max-width:860px){.sms-hero{grid-template-columns:1fr}.sms-form-grid,.sms-review,.sms-final-grid,.sms-final-summary-grid,.sms-number-search-row{grid-template-columns:1fr}}
+      @media(max-width:860px){.sms-hero{grid-template-columns:1fr}.sms-form-grid,.sms-review,.sms-final-grid,.sms-final-summary-grid,.sms-number-search-row{grid-template-columns:minmax(0,1fr)}[data-fm-wizard="sms-workflow"] .fm-wizard-body{grid-template-columns:minmax(0,1fr)}[data-fm-wizard="sms-workflow"] .fm-wizard-foot{flex-wrap:wrap}[data-fm-wizard="sms-workflow"] .fm-wizard-foot-note{flex-basis:100%}[data-fm-wizard="sms-workflow"] .fm-wizard-foot-actions{margin-left:auto}}
       .li-subtabs{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 14px}
       .li-subtab{border:1px solid #d8dde6;background:#fff;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:1000;cursor:pointer;color:#344054}
       .li-subtab.active{background:#111827;border-color:#111827;color:#fff}
@@ -4882,6 +4884,7 @@
       if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`;
       return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
     }
+    let smsRegistrationLiveMode = false;
     const smsDefaults = {
       brand: {
         country: 'US',
@@ -5172,6 +5175,7 @@
     }
     function smsPrefillProfile(profile = {}, setup = {}){
       const next = mergeSmsProfile(profile);
+      if (smsRegistrationLiveMode && !profile.id) return prepareSmsProfileForSave(next);
       const org = setup.organization || {};
       const orgContact = org.contact && typeof org.contact === 'object' ? org.contact : {};
       const currentUser = window.Portal?.currentUser || {};
@@ -5708,10 +5712,18 @@
       const orgId = currentOrgId();
       paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
-        if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
-        const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
+        let setup;
+        smsRegistrationLiveMode = false;
+        if (window.PlatformAPI?.appFlags?.has?.('platform','sms_settings')) {
+          setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
+          smsRegistrationLiveMode = setup.telnyx?.registration_live === true;
+        }
+        if (!smsRegistrationLiveMode && await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
+        setup ||= await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
+        smsRegistrationLiveMode = setup.telnyx?.registration_live === true;
         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
-        const profile = profiles[0] || smsPrefillProfile({}, setup);
+        const eligibleProfiles = smsRegistrationLiveMode ? profiles.filter((item) => !(item.events || []).some((event) => ['brand_submitted','brand_updated','campaign_submitted'].includes(event.type) && event.mock === true)) : profiles;
+        const profile = eligibleProfiles[0] || smsPrefillProfile({}, setup);
         const registrationStatus = smsCustomerRegistrationStatus(profile);
         paneSms.innerHTML = `
           <div class="sms-card">
@@ -5720,13 +5732,14 @@
                 <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3>
                 <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1ee85ae452b937","Set up standardized FirstMate SMS registration before sending customer texts.") ?? "Set up standardized FirstMate SMS registration before sending customer texts.")}</p>
               </div>
-              <button class="cs-btn primary" type="button" id="smsStartSetup"><i class="fas fa-up-right-from-square"></i> ${String(profiles.length ? 'Open Registration' : 'Set Up SMS Registration')}</button>
+              <button class="cs-btn primary" type="button" id="smsStartSetup"><i class="fas fa-up-right-from-square"></i> ${String(eligibleProfiles.length ? 'Open Registration' : 'Set Up SMS Registration')}</button>
             </div>
             <div class="sms-status-grid">
               <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4b7e9fa1e2965f","Telnyx") ?? "Telnyx")}</span><strong>${String(setup.telnyx?.configured ? 'Configured' : 'Missing API key')}</strong></div>
               <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_465d37244ded67","Messaging Profile") ?? "Messaging Profile")}</span><strong>${String(profile?.provider_refs?.telnyx_messaging_profile_id ? (String(profile?.autoresponse_state?.status || '').toLowerCase() === 'configured' ? 'Ready · STOP/START/HELP' : 'Created · keyword responses pending') : 'Created during number setup')}</strong></div>
               <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_14bce882a85510","Registration") ?? "Registration")}</span><strong>${String(escapeHtml(registrationStatus.label))}</strong></div>
             </div>
+            ${smsRegistrationLiveMode ? '<p class="cs-note"><i class="fas fa-tower-broadcast"></i> Carrier registration &middot; Low Volume Mixed. Enter the real sender\'s legal business details. Number selection and registration incur provider fees.</p>' : ''}
             <div class="sms-profile-list">
               ${String(profiles.length ? profiles.map((item) => `
                 <div class="sms-profile-row">
@@ -5736,7 +5749,7 @@
               `).join('') : `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.")}</div>`)}
             </div>
           </div>`;
-        void window.Portal?.PhoneTray?.developmentSetup(paneSms);
+        if (!smsRegistrationLiveMode) void window.Portal?.PhoneTray?.developmentSetup(paneSms);
         paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
         paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
           button.addEventListener('click', () => {
@@ -5761,6 +5774,7 @@
       const rawRequestedStep = String(options.initialStep || readSettingsRoute().workflowStep || '').trim();
       const requestedStep = rawRequestedStep === 'finalize' || rawRequestedStep === 'submitted' ? 'summary' : rawRequestedStep;
       let developmentStatus = null;
+      const carrierRegistration = smsRegistrationLiveMode;
       let profile = smsPrefillProfile(initialProfile || {});
       let numberSearch = { query: profile.campaign?.selectedNumberSearch || profile.campaign?.selectedNumberAreaCode || '', areaCode: profile.campaign?.selectedNumberAreaCode || '', results: [], searched: false, message: '' };
       let numberSearchTimer = null;
@@ -6128,7 +6142,7 @@
         ctxRef = shellCtx;
         if(developmentStatus?.onboarded){container.innerHTML=`<div class="sms-workspace"><h3>Fully onboarded for development</h3><p>Brand registration: mock approved</p><p>10DLC campaign: mock approved</p><p>Call center: test transport connected</p><p>All test calls route to ${escapeHtml(developmentStatus.destination)}. These are simulated registrations, not carrier approvals.</p></div>`;return;}
         container.innerHTML = `<div class="sms-workspace">${smsStepContent(stepId, profile, { numberSearch })}</div>`;
-        void window.Portal?.PhoneTray?.developmentSetup(container,status=>{if(!developmentStatus?.onboarded){developmentStatus=status;refresh();}});
+        if (!carrierRegistration) void window.Portal?.PhoneTray?.developmentSetup(container,status=>{if(!developmentStatus?.onboarded){developmentStatus=status;refresh();}});
         container.querySelectorAll('[data-sms-choose-number]').forEach((button) => {
           button.addEventListener('click', () => chooseSmsNumber(button));
         });
@@ -6210,7 +6224,7 @@
         id: 'sms-workflow',
         workflowKey: '10dlc',
         title: (globalThis.PlatformLanguage?.text("settings","m_aeccf7b990e6c6","10DLC Setup") ?? "10DLC Setup"),
-        subtitle: (globalThis.PlatformLanguage?.text("settings","m_b05796fe4d1d96","SMS registration workflow") ?? "SMS registration workflow"),
+        subtitle: carrierRegistration ? 'Carrier registration - Low Volume Mixed' : (globalThis.PlatformLanguage?.text("settings","m_b05796fe4d1d96","SMS registration workflow") ?? "SMS registration workflow"),
         icon: 'fa-message',
         initialStepId: requestedStep,
         statusNote: 'Draft autosaves as you move through the workflow.',
