@@ -29,11 +29,12 @@ test('From Roof resolves chimney heights once, shares them with the base, and pr
 function fixture(withBase=false,editors={}){
     const elements=new Map(),listeners={},storage=new Map(),timers=new Map();let timerId=0;
     const el=(id='')=>({id,hidden:false,disabled:false,value:'',textContent:'',dataset:{},style:{},
-        classList:{toggle(){},add(){},remove(){}},setAttribute(){},addEventListener(){},
+        classList:{toggle(){},add(){},remove(){}},attributes:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(){},
         prepend(...children){children.forEach(c=>this.appendChild(c));},append(...children){children.forEach(c=>this.appendChild(c));},querySelector(){return null;},appendChild(child){if(child.id)elements.set(child.id,child);},remove(){elements.delete(this.id);},
-        querySelectorAll(selector){return selector==='[data-stage]'?stages:selector==='[data-soffit]'?soffits:[];}});
+        querySelectorAll(selector){return selector==='[data-stage]'?stages:selector==='[data-soffit]'?soffits:selector==='[data-resoffit]'?resoffits:[];}});
     const stages=[1,2,3,4,5,6,7].map(n=>({...el(),dataset:{stage:String(n)}}));
     const soffits=['auto','12','18','24'].map(n=>({...el(),dataset:{soffit:n}}));
+    const resoffits=['0','0.5','1','1.5','2','wallless'].map(n=>({...el(),dataset:{resoffit:n}}));
     const document={readyState:'loading',head:el(),body:el(),createElement:()=>el(),
         addEventListener:(name,fn)=>listeners[name]=fn,querySelectorAll:()=>[],
         getElementById(id){if(id==='geoSvg'||id==='measurement-panel')return elements.get(id)||null;if(!elements.has(id))elements.set(id,el(id));return elements.get(id);}};
@@ -47,7 +48,7 @@ function fixture(withBase=false,editors={}){
     ctx.EditorHistory=require('../public/measure/internal/editor_scripts/editor_history.js');
     Object.assign(ctx,editors);vm.createContext(ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/ground_editor.js'),'utf8'),ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/wall_mode.js'),'utf8'),ctx);
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
-    return {ctx,elements,stages,soffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
+    return {ctx,elements,stages,soffits,resoffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
 }
 test('roof/wall preference survives before walls exist and is isolated per project',()=>{
  const {ctx}=fixture();ctx.WallMode.setEnabled(true);
@@ -787,10 +788,15 @@ test('loading an older regrade keeps grade fragments owned by their edited repla
  assert.ok(fresh.ctx.WallMode.serialize().wallEdits.$drafts.replacement.members.includes(parent+'-grade-0-grade-1'));
 });
 
-test('Wallless resoffit UI disables numeric depth and submits the canopy operation',()=>{
+test('Wallless is a resoffit preset alongside depths, with exclusive selection and Apply',()=>{
  const calls=[],wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},busy:()=>false,resoffit:value=>{calls.push(value);return true;}};
- const f=fixture(true,{createWallEditor:()=>wall}),input=f.ctx.document.getElementById('wall-resoffit-depth'),toggle=f.elements.get('wall-resoffit-wallless');input.value='';input.checkValidity=()=>false;input.reportValidity=()=>calls.push('invalid');
- toggle.checked=true;toggle.onchange({target:toggle});assert.equal(input.disabled,true);f.elements.get('wall-resoffit-apply').onclick();assert.deepEqual(calls,['wallless']);
- toggle.checked=false;toggle.onchange({target:toggle});assert.equal(input.disabled,false);f.elements.get('wall-resoffit-apply').onclick();assert.deepEqual(calls,['wallless','invalid']);
- input.value='2';input.checkValidity=()=>true;f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),.6096);
+ const f=fixture(true,{createWallEditor:()=>wall}),input=f.ctx.document.getElementById('wall-resoffit-depth'),presets=f.resoffits;
+ const selected=()=>presets.filter(b=>b.attributes['aria-pressed']==='true').map(b=>b.dataset.resoffit);
+ assert.deepEqual(selected(),['2']);assert.ok(!f.elements.get('wall-resoffit-control').innerHTML.includes('type="checkbox"'));
+ input.value='';input.checkValidity=()=>false;input.reportValidity=()=>calls.push('invalid');
+ presets[5].onclick();assert.equal(input.disabled,true);assert.deepEqual(selected(),['wallless']);f.elements.get('wall-resoffit-apply').onclick();assert.deepEqual(calls,['wallless']);
+ presets[0].onclick();assert.equal(input.disabled,false);assert.equal(input.value,'0');assert.deepEqual(selected(),['0']);input.checkValidity=()=>true;f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),0);
+ input.value='2.5';input.oninput();assert.deepEqual(selected(),[]);f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),.762);
+ input.value='';input.oninput();f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),'invalid');
+ presets[5].onclick();presets[1].onclick();assert.equal(input.disabled,false);assert.deepEqual(selected(),['0.5']);f.elements.get('wall-resoffit-apply').onclick();assert.equal(calls.at(-1),.1524);
 });
