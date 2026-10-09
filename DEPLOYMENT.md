@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 project primary images: [Satellite default and selected covers](deploy/digitalocean/development-project-primary-20261009.md) records the unified primary-image displays and verified development rollout.
+
 October 9 project photos: [Typed cover and reference-photo fields](deploy/digitalocean/development-project-cover-20261009.md) records the shared Photo custom-field cover, validation and verified development rollout.
 
 October 8 Call Center: [Personal, caller and manager views](deploy/digitalocean/development-call-center-modes-20261008.md) records the three screens, multi-list power dialing, manager lead controls and verified development rollout.
