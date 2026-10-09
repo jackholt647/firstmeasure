@@ -50,3 +50,18 @@ test('a roof opening through the proposed setback does not supply a continuous c
  const f=fixture('parapet',1.4);f.roof.faces[0].holes=[[p(2,1,5.2),p(3,1,5.2),p(3,2,5.4),p(2,2,5.4)]];
  const r=G.buildSources(f.roof,{soffit:24,roofContacts:true});assert.ok(r.sources.filter(s=>s.id.startsWith('R1.')).every(s=>s.setback===0));
 });
+
+for(const angle of [0,.71,2.1])test(`clearance on a flat layer preserves the neighboring hip footprint at rotation ${angle}`,()=>{
+ const f=structuredClone(require('./fixtures/canopy-junction-roof.json')),c=Math.cos(angle),s=Math.sin(angle),turn=p=>({...p,x:c*p.x-s*p.y,y:s*p.x+c*p.y});
+ f.roof.points=f.roof.points.map(turn);for(const face of f.roof.faces){face.points=face.points.map(turn);face.holes=(face.holes||[]).map(r=>r.map(turn));}
+ f.ground.points=f.ground.points.map(turn);f.ground.plane=G.plane(f.ground.points);delete f.chimneys;
+ const before=JSON.stringify(f),r=build(f);
+ // These points are inside the main house behind its normal front setback.
+ // An inset belonging to the adjacent flat roof used to cut them away when
+ // one source fragment acquired the hip face as its support after clipping.
+ for(const [u,n]of [[.5,-7],[.5,-7.5],[1,-7],[1,-6.5],[0,-7]]){
+  const q=turn({x:u*.796295-n*.604909,y:u*.604909+n*.796295,z:0});
+  assert.ok(r.state.base.faces.some(face=>G.contains(face,q)),`main house footprint lost at ${u},${n}`);
+ }
+ noPiercing(r.composed,r.state.roof.faces.find(f=>f.id===2));assert.equal(r.open.length,0);assert.equal(JSON.stringify(f),before);
+});

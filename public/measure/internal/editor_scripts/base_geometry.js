@@ -69,11 +69,10 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
  const contacts=roof.faces.filter(f=>clearanceLayers.has(f.id)).flatMap(f=>f.points);
  const input=[...roof.faces.flatMap(f=>{
   let parts=[{points:f.points}];
-  for(const s of (sources||[]).filter(s=>s.parentId===f.id&&s.overlapClearanceRoofIds?.length)){
-   const a=s.originalA,b=s.originalB,len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x},mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
-   if(!G.contains(f,{x:mid.x+n.x*.01,y:mid.y+n.y*.01})){n.x=-n.x;n.y=-n.y;}
+  for(const s of (sources||[]).filter(s=>s.overlapClearance?.parentId===f.id)){
+   const {a,b,n,setback:depth}=s.overlapClearance,len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len};
    const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;
-   parts=K.intersection(parts,[{points:[at(-size,s.setback),at(size,s.setback),at(size,size),at(-size,size)]}]);
+   parts=K.intersection(parts,[{points:[at(-size,depth),at(size,depth),at(size,size),at(-size,size)]}]);
   }
   return parts;
  }),...notchFill];
@@ -115,7 +114,7 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
   if(group.length===1&&group[0].points.every((p,i,ps)=>cross(ps[(i+ps.length-1)%ps.length],p,ps[(i+1)%ps.length])*area(ps)>=-1e-8)){
    let parts=[{points:group[0].points}];
    for(const edge of roof.connections||[]){const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx];
-    const clearance=(sources||[]).filter(s=>s.parentId===group[0].id&&s.overlapClearanceRoofIds?.length&&G.onEdge(s.originalA,a,b)&&G.onEdge(s.originalB,a,b));
+    const clearance=(sources||[]).filter(s=>s.overlapClearance?.parentId===group[0].id&&G.onEdge(s.originalA,a,b)&&G.onEdge(s.originalB,a,b));
     if(!['eave','rake'].includes(edge.type)&&!clearance.length)continue;
     const depth=clearance.length?Math.max(...clearance.map(s=>s.setback)):limit,mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(G.chimneyContact(roof,a,b)||!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
     const len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x};if(!G.contains(group[0],{x:mid.x+n.x*.02,y:mid.y+n.y*.02})){n.x=-n.x;n.y=-n.y;}

@@ -324,7 +324,12 @@
                 const edge=lowerBackEdges.find(f=>boundaryContact.sourceIds.includes(f.id));
                 sources.at(-1).boundaryContact={a:clone(edge.a),b:clone(edge.b)};
             }
-            if(overlapClearance)sources.at(-1).overlapClearanceRoofIds=overlapClearance.roofIds;
+            if(overlapClearance){
+                sources.at(-1).overlapClearanceRoofIds=overlapClearance.roofIds;
+                // Clipping at a hip can reassign a fragment to a neighboring
+                // support face. The inset still belongs to the original body.
+                sources.at(-1).overlapClearance=clone(overlapClearance);
+            }
         }
         // A measured side wall ending at the lower roof's eave is a finite
         // junction. Keep the adjoining upper wall at that end plane instead of
