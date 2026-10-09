@@ -130,10 +130,10 @@ test('project schemas add nested assignment fields without replacing global cust
     }
   };
   const fields = api.fieldsFor('project', project, { location:'all' });
-  assert.deepEqual(Array.from(fields, (field) => field.path), ['assignments.estimator', 'job_code']);
+  assert.deepEqual(Array.from(fields, (field) => field.path), ['cover_photo', 'assignments.estimator', 'job_code']);
   assert.equal(api.projectSchema(project).groups[0].collapsed_by_default, true);
   assert.equal(api.valueAtPath(api.rawValues(project), 'assignments.estimator').subject_id, 'user_1');
-  assert.equal(api.formatValue(fields[0], api.valueFor(fields[0], project, fields)), 'Ada');
+  assert.equal(api.formatValue(fields.find(f=>f.path==='assignments.estimator'), api.valueFor(fields.find(f=>f.path==='assignments.estimator'), project, fields)), 'Ada');
 
   const changed = api.applyValues(project, 'project', {
     assignments:{ project_manager:{ subject_type:'organization_user', subject_id:'user_2' } }
