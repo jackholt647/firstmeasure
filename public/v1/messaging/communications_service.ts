@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { badRequest, conflict, PlatformError } from "../platform/errors.js";
+import { badRequest, conflict, forbidden, PlatformError } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
+import { guardDevelopmentSms } from "../src/environment_safety.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import {
   createCommunicationEvent,
@@ -335,6 +336,13 @@ export async function conversationDetail(organizationId: string, conversationId:
 export async function sendCommunication(organizationId: string, input: SendCommunicationInput, ctx?: Partial<PlatformAuthContext>) {
   const branchId = cleanText(ctx?.branchId || input.branch_id || "default") || "default";
   const recipients = normalizeRecipients(input.channel, input.recipients as Array<Record<string, unknown>>);
+  const liveSms = input.channel === "sms" && env.communicationsDeliveryMode === "live";
+  if (liveSms) {
+    for (const recipient of recipients) {
+      const guard = guardDevelopmentSms(cleanText(recipient.address));
+      if (!guard.allowed) throw forbidden(guard.reason, "SMS delivery to this number is blocked in development.");
+    }
+  }
   const sender = await resolveSender(organizationId, branchId, input.channel, asObject(input.sender));
   const context = asObject(input.context);
   if (input.conversation_id) (await readConversationRecord(organizationId, input.conversation_id));
@@ -349,7 +357,6 @@ export async function sendCommunication(organizationId: string, input: SendCommu
     branchId, channel: input.channel, purpose: input.purpose || "customer_care", recipients,
     content: input.content, sender, context, source, tags: input.tags || [], scheduled_for: input.scheduled_for || ""
   })).digest("hex");
-  const liveSms = input.channel === "sms" && env.communicationsDeliveryMode === "live";
   const deliverEmail = input.channel === "email" && env.emailDeliveryMode !== "capture";
   const emailTenant = deliverEmail ? await requireActiveEmailTenant(organizationId) : null;
   if (liveSms) {

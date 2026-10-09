@@ -2,6 +2,7 @@ import { platformBackgroundAllowed } from "../platform/runtime.js";
 import { randomUUID } from "node:crypto";
 
 import { env } from "../src/config/env.js";
+import { guardDevelopmentSms } from "../src/environment_safety.js";
 import {
   claimNextSmsDelivery,
   claimNextSmsCancellation,
@@ -137,6 +138,16 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
   const recipient = asObject(delivery.recipient);
   const recipientAddress = cleanText(delivery.recipient_address);
   const scheduledFor = scheduleForProvider(message.scheduled_for);
+
+  const guard = guardDevelopmentSms(recipientAddress);
+  if (!guard.allowed) {
+    (await updateDeliveryRecord(organizationId, deliveryId, {
+      status: "failed", failed_at: new Date().toISOString(), lease_owner: "", lease_until: "",
+      error: { code: guard.reason, message: "SMS delivery to this number is blocked in development." }
+    }));
+    (await refreshParentMessageStatus(organizationId, messageId));
+    return;
+  }
 
   if (scheduledFor === "later") {
     const nextAttempt = new Date(Date.parse(cleanText(message.scheduled_for)) - (5 * 24 * 60 * 60_000) + 60_000).toISOString();
