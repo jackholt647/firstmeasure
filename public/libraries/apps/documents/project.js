@@ -1949,11 +1949,11 @@
           const options = await presentationOptions(state.doc?.id);
           const offers = arrayValue(options.offers).length ? arrayValue(options.offers) : ['send_estimate'];
           const presentable = canPresent(options);
+          // Sending the estimate is the step's own Send button; these sit to its left.
           return [
-            offers.includes('present') && presentable ? { id: 'present', label: 'Present', icon: 'fa-display', primary: options.default === 'present', title: 'Present this estimate to the customer', run: () => openPresentation() } : null,
-            offers.includes('send_estimate') ? { id: 'send_estimate', label: 'Send estimate', icon: 'fa-paper-plane', primary: options.default !== 'present' || !presentable, title: 'Send the estimate as it is', run: async () => { await flushAllWrites(); openSendModal(state.doc); } } : null,
-            presentable && window.FMPresentationEditorHost ? { id: 'edit_presentation', label: 'Edit presentation', icon: 'fa-pen-ruler', title: 'Open this presentation in the visual editor', run: () => editPresentation(objectValue(options.presentation).moduleId) } : null,
-            offers.includes('send_presentation') && presentable ? { id: 'send_presentation', label: 'Send presentation', icon: 'fa-share-from-square', title: 'Email the customer a link to go through the presentation themselves', run: () => sendPresentation() } : null
+            presentable && window.FMPresentationEditorHost ? { id: 'edit_presentation', label: 'Edit presentation', icon: 'fa-pen-ruler', quiet: true, title: 'Open this presentation in the visual editor', run: () => editPresentation(objectValue(options.presentation).moduleId) } : null,
+            offers.includes('send_presentation') && presentable ? { id: 'send_presentation', label: 'Send presentation', icon: 'fa-share-from-square', title: 'Email the customer a link to go through the presentation themselves', run: () => sendPresentation() } : null,
+            offers.includes('present') && presentable ? { id: 'present', label: 'Present', icon: 'fa-chalkboard-user', title: 'Present this estimate to the customer', run: () => openPresentation() } : null
           ].filter(Boolean);
         },
         scopeCandidates: async (templateId, group, measurements) => arrayValue((await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.candidates', { scope: 'organization', organizationId: orgId() }, { templateId, group, measurements: objectValue(measurements) })).value),
@@ -2780,7 +2780,7 @@
                 <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-preview title="Preview"><i class="fas fa-eye"></i></button>
                 <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-pdf title="PDF"><i class="fas fa-file-pdf"></i></button>
                 <button type="button" class="fmdx-btn fmdx-btn-more" data-fmdx-more title="More actions"><i class="fas fa-ellipsis"></i></button>
-                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-present title="Present this estimate to the customer" hidden><i class="fas fa-display"></i> Present</button>`)}
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-present title="Present this estimate to the customer" hidden><i class="fas fa-chalkboard-user"></i> Present</button>`)}
                 ${String(readOnly && isAmendableStatus(doc.status)
                   ? `<button type="button" class="fmdx-btn primary" data-fmdx-amend><i class="fas fa-file-medical"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_4986fc99e268e8"," Amend → Change Order") ?? " Amend → Change Order")}</button>`
                   : `<button type="button" class="fmdx-btn primary" data-fmdx-send><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>`)}

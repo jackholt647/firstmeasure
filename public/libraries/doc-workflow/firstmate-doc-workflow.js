@@ -2410,24 +2410,8 @@
               <b>${esc(row.value)}</b>
             </div>`).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c36246dea049d6","Nothing has been filled in yet.") ?? "Nothing has been filled in yet.")}</p>`}
         </div>
-        <div class="fmdw-deliver" data-fmdw-deliver hidden></div>
         ${ctx.hasPreview ? `<p class="fmdw-hint"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_eff08b0fc06db7"," The live preview shows the finished document with these answers.") ?? " The live preview shows the finished document with these answers.")}</p>` : ''}
       </div>`;
-    // What the workflow hands over is the host's to say: [{ id, label, icon,
-    // primary?, disabled?, title?, run }]. A workflow with no presentation
-    // simply has no Present button.
-    const deliver = el.querySelector('[data-fmdw-deliver]');
-    if (deliver && !ctx.readonly && typeof obj(ctx.services).deliverables === 'function') {
-      Promise.resolve().then(() => ctx.services.deliverables()).then((actions) => {
-        const list = arr(actions).map(obj).filter((action) => cleanText(action.label));
-        if (!list.length || !el.isConnected) return;
-        deliver.hidden = false;
-        deliver.innerHTML = list.map((action, index) => `<button type="button" class="fmdw-btn ${action.primary ? 'primary' : ''}" data-fmdw-deliver-run="${index}" ${action.disabled ? 'disabled' : ''} title="${esc(cleanText(action.title))}"><i class="fas ${esc(firstText(action.icon, 'fa-arrow-right'))}"></i> ${esc(action.label)}</button>`).join('');
-        deliver.querySelectorAll('[data-fmdw-deliver-run]').forEach((button) => button.addEventListener('click', () => {
-          try { list[Number(button.dataset.fmdwDeliverRun)].run?.(); } catch (e) { /* host action */ }
-        }));
-      }).catch(() => {});
-    }
     return {};
   });
 
@@ -2728,6 +2712,7 @@
             <button type="button" class="fmdw-btn" data-fmdw-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</button>
             <span class="fmdw-foot-note" data-fmdw-foot-note></span>
             ${String(preview && typeof services.openFullPreview !== 'function' ? `<button type="button" class="fmdw-btn ghost fmdw-preview-toggle" data-fmdw-preview-toggle title="Show or hide the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>` : '')}
+            <span class="fmdw-foot-deliver" data-fmdw-foot-deliver></span>
             <button type="button" class="fmdw-btn primary" data-fmdw-continue>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
           </footer>
         </section>
@@ -2887,6 +2872,24 @@
       el.cont.innerHTML = isLast
         ? `${esc(firstText(obj(opts.labels).finish, 'Submit'))} <i class="fas fa-check"></i>`
         : `${esc(firstText(obj(opts.labels).continue, 'Next'))} <i class="fas fa-arrow-right"></i>`;
+      // On the last step the host says what else the workflow hands over
+      // (present, share...): [{ label, icon, title?, disabled?, run }]. They
+      // sit beside the finish button; a workflow that declares none has none.
+      const deliver = el.root.querySelector('[data-fmdw-foot-deliver]');
+      if (deliver) {
+        deliver.innerHTML = '';
+        const forStep = st.currentId;
+        if (isLast && opts.readonly !== true && typeof services.deliverables === 'function') {
+          Promise.resolve().then(() => services.deliverables()).then((actions) => {
+            if (st.destroyed || st.currentId !== forStep) return;
+            const list = arr(actions).map(obj).filter((action) => cleanText(action.label));
+            deliver.innerHTML = list.map((action, at) => `<button type="button" class="fmdw-btn ${action.quiet ? 'ghost' : ''}" data-fmdw-deliver-run="${at}" ${action.disabled ? 'disabled' : ''} title="${esc(cleanText(action.title))}"><i class="fas ${esc(firstText(action.icon, 'fa-arrow-right'))}"></i> ${esc(action.label)}</button>`).join('');
+            deliver.querySelectorAll('[data-fmdw-deliver-run]').forEach((button) => button.addEventListener('click', () => {
+              try { list[Number(button.dataset.fmdwDeliverRun)].run?.(); } catch (e) { /* host action */ }
+            }));
+          }).catch(() => {});
+        }
+      }
       updateRail();
       // Scroll the pane back to the top on step change.
       try { el.items.scrollTop = 0; } catch (e) {}
@@ -3260,8 +3263,8 @@
 .fmdw-money{position:relative;display:block;max-width:460px}
 .fmdw-money::before{content:'$';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12.5px;font-weight:900;color:#98a2b3;pointer-events:none}
 .fmdw-money input{padding-left:26px}
-.fmdw-deliver{display:flex;flex-wrap:wrap;gap:8px;padding-top:4px}
-.fmdw-deliver .fmdw-btn{min-height:40px;padding:0 16px}
+.fmdw-foot-deliver{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.fmdw-foot-deliver:empty{display:none}
 .fmdw-hint{margin:0;font-size:11.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.5;text-transform:none;letter-spacing:0}
 .fmdw-hint i{margin-right:5px}
 .fmdw-card{border:1px solid var(--fmdw-line);border-radius:14px;background:var(--fmdw-card);padding:14px;display:flex;flex-direction:column;gap:11px}
