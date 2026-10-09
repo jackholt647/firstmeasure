@@ -26,8 +26,8 @@ for(const type of ['skylight','parapet'])for(const depth of [.4,1.4])for(const a
  const outside= {x:0.5*Math.cos(angle)-.1*Math.sin(angle),y:.5*Math.sin(angle)+.1*Math.cos(angle)};
  assert.ok(!base.faces.some(f=>G.contains(f,outside)),'no unsupported corner pillar is recreated by foundation fallback');
 });
-test('captured project has no generated wall passing through the walkway roof',()=>{
- const r=build(require('./fixtures/canopy-junction-roof.json'));
+for(const soffit of [24,36,48])test(`captured project at ${soffit} inches has no generated wall passing through the walkway roof`,()=>{
+ const r=build(require('./fixtures/canopy-junction-roof.json'),soffit);
  noPiercing(r.composed,r.state.roof.faces.find(f=>f.id===2));
  const run=r.state.sources.filter(s=>s.parentId===21&&s.overlapClearanceRoofIds?.includes(2));assert.ok(run.length);
  for(const s of run)assert.ok(Math.abs(s.setback-.403102808)<.00001);

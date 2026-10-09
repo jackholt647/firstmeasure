@@ -823,3 +823,20 @@ test('captured narrow-roof junction rebuilds through From Roof and round-trips i
  assert.ok(!walls.some(w=>w.id.includes('upper-contact')&&contacts.some(s=>s.id===w.sourceId)&&!contacts.find(s=>s.id===w.sourceId).boundaryContactRoofIds.includes(w.targetId)),'no jump onto a neighboring lower layer');
  const fresh=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize().alignedWalls)),saved.alignedWalls,'refresh preserves the verified generated result');
 });
+
+test('captured house honors two-foot preset and three/four-foot custom depths through UI and reload',()=>{
+ const captured=require('./fixtures/canopy-junction-roof.json'),width=1000,height=1000,mpp=.1,toPixel=p=>({...p,x:width/2+p.x/mpp,y:height/2+p.y/mpp}),points=captured.roof.points.map(toPixel);
+ const activeGeometry={points,connections:captured.roof.connections.map(c=>({start:points[c.startIdx],end:points[c.endIdx],type:c.type})),manualFaces:captured.roof.faces.map(f=>({...f,points:f.points.map(toPixel),holes:(f.holes||[]).map(r=>r.map(toPixel))}))};
+ const f=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});f.ctx.WallMode.setEnabled(true);
+ for(const feet of [2,3,4]){
+  if(feet===2)f.soffits[3].onclick();else{f.elements.get('wall-custom-soffit').value=String(feet);f.elements.get('wall-custom-soffit-go').onclick();}
+  const saved=JSON.parse(JSON.stringify(f.ctx.WallMode.serialize()));assert.equal(Number(saved.options.soffit),feet*12);assert.equal(saved.options.drivenSoffits,true);
+  for(const id of ['R7','R17','R18','R19','R20','R24','R25','R26','R33','R36']){
+   const sources=saved.sources.filter(s=>s.id.split('.')[0]===id);assert.ok(sources.length,id);
+   assert.ok(sources.every(s=>Math.abs(s.setback-feet*12*G.INCH)<1e-6),id+' follows selected depth');
+  }
+  const s=saved.sources.find(s=>s.id.startsWith('R17.')),dx=s.originalB.x-s.originalA.x,dy=s.originalB.y-s.originalA.y,len=Math.hypot(dx,dy),walls=saved.alignedWalls.filter(w=>w.sourceId?.startsWith('R17.'));assert.ok(walls.length);
+  for(const w of walls.filter(w=>Math.hypot(w.top[1].x-w.top[0].x,w.top[1].y-w.top[0].y)>2))for(const p of [...w.top,...w.bottom])assert.ok(Math.abs(Math.abs((p.x-s.originalA.x)*dy-(p.y-s.originalA.y)*dx)/len-feet*12*G.INCH)<.002,'rendered wall plane follows the preset');
+  const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize().alignedWalls)),saved.alignedWalls);
+ }
+});

@@ -39,3 +39,10 @@ test('competing measured contacts keep both anchors and resolve independently of
  const forward=G.buildSources(roof,options),reverse=G.buildSources({...roof,connections:[...roof.connections].reverse(),faces:[...roof.faces].reverse()},options);const rounded=v=>JSON.parse(JSON.stringify(v,(k,x)=>typeof x==='number'?Number(x.toFixed(7)):x));assert.deepEqual(rounded(normalize(reverse)),rounded(normalize(forward)));
  for(const [parent,depth] of [['pitch0',6],['pitch4',12]])assert.ok(forward.sources.filter(s=>s.parentId===parent&&s.kind==='perimeter').every(s=>Math.abs(s.setback-depth*G.INCH)<1e-6));
 });
+
+for(const depth of [24,36,48])test(`explicit ${depth} inch preset keeps ordinary eaves at that depth with driven soffits enabled`,()=>{
+ const roof=roofFixture({ring:Array.from({length:8},(_,i)=>({x:8*Math.cos(i*Math.PI/4),y:8*Math.sin(i*Math.PI/4),z:5}))}),sources=perimeter(G.buildSources(roof,{...options,soffit:depth,drivenSoffits:true}));
+ const contact=sources.filter(s=>s.id.startsWith('R1.')),ordinary=sources.filter(s=>!s.id.startsWith('R1.'));
+ assert.ok(contact.length&&ordinary.length);assert.ok(contact.every(s=>Math.abs(s.setback-6*G.INCH)<1e-6),'measured contact stays local');
+ assert.ok(ordinary.every(s=>Math.abs(s.setback-depth*G.INCH)<1e-6&&!s.drivenSoffit),'the preset is not replaced by a propagated contact');
+});

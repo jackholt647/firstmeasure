@@ -236,6 +236,7 @@
         }
     }
     function buildSources(roof,options={}) {
+        const automaticDepth=options.soffit==='auto';
         // New From Roof presets use a fixed default; legacy saved Auto retains its inferred sources.
         if(options.soffit==='auto'&&Number.isFinite(options.defaultSoffitInches))options={...options,soffit:options.defaultSoffitInches};
         const faces=surfaces(roof),warnings=[],sources=[],layers=roofLayers(roof,faces);
@@ -359,7 +360,9 @@
             if(limit>=s.setback)continue;s.setback=limit;s.junctionSetback={maximum:limit,flashingId};
             for(const [k,original]of [['a','originalA'],['b','originalB']]){const p=s[original],q={x:p.x+n.x*limit,y:p.y+n.y*limit};s[k]={...q,z:height({plane:s.sourcePlane},q)};}
         }
-        if(options.roofContacts&&options.drivenSoffits!==false&&Number(options.soffit)!==0)driveSoffits(sources,faces,layers);
+        // A numeric preset is an explicit depth. Measured roof contacts remain
+        // local constraints; only Auto may propagate them around other eaves.
+        if(automaticDepth&&options.roofContacts&&options.drivenSoffits!==false&&Number(options.soffit)!==0)driveSoffits(sources,faces,layers);
         // Use the measured line, not its midpoint distance: a slightly skewed
         // lower edge must still yield one continuous, planar upper wall.
         for(const s of sources.filter(s=>s.boundaryContact)){
