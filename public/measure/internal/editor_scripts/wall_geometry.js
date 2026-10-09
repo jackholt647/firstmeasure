@@ -163,6 +163,39 @@
         const t=cross(sub(c,a),v)/den,s=cross(sub(c,a),u)/den;
         return s>=-EPS && s<=1+EPS && t>EPS && t<1-EPS ? t : null;
     }
+    // Zero overhang is a default, not permission to drive a wall through a
+    // lower roof. Resolve a crossing layer against its whole back boundary
+    // before splitting skylight edges, so small exposed ends share the same
+    // wall plane instead of becoming independent ground-reaching pillars.
+    function zeroOverhangClearance(edge,edges,faces,parent,n,layers){
+        const len=distance(edge.a,edge.b),u={x:(edge.b.x-edge.a.x)/len,y:(edge.b.y-edge.a.y)/len};
+        const depth=p=>(p.x-edge.a.x)*n.x+(p.y-edge.a.y)*n.y;
+        let setback=0;const roofIds=[];
+        for(const back of edges){
+            if(!isPerimeter(back.type)&&!isFlashing(back.type))continue;
+            const lower=parentFace(faces,back.a,back.b);
+            if(!lower||layers.get(lower.id)===layers.get(parent.id))continue;
+            const inward=normalFor(lower,back.a,back.b),bl=distance(back.a,back.b);
+            if(!inward||inward.x*n.x+inward.y*n.y>-.999||Math.abs(cross(u,sub(back.b,back.a)))/bl>.002)continue;
+            const depths=[depth(back.a),depth(back.b)],required=Math.max(...depths);
+            if(Math.min(...depths)<=.002||required<=setback)continue;
+            if(Math.min(...lower.points.map(depth))>=-.002||Math.max(...lower.points.map(depth))>required+.002)continue;
+            const ts=splitParameters(edge.a,edge.b,[lower]);
+            const overlap=ts.slice(1).some((t,i)=>{
+                const p=mix(edge.a,edge.b,(ts[i]+t)/2);
+                return (t-ts[i])*len>.002&&contains(lower,p)&&height(parent,p)>height(lower,p)+.02;
+            });
+            if(!overlap)continue;
+            // The destination must be an actual upper-roof wall line, with
+            // room on its inward side, and remain above the lower support.
+            const a={x:edge.a.x+n.x*required,y:edge.a.y+n.y*required},b={x:edge.b.x+n.x*required,y:edge.b.y+n.y*required};
+            if([a,b].some(p=>!contains(parent,{x:p.x+n.x*.01,y:p.y+n.y*.01})||height(parent,p)<=height(lower,p)+.02))continue;
+            const stops=splitParameters(a,b,[parent]);
+            if(stops.slice(1).some((t,i)=>!contains(parent,mix(a,b,(t+stops[i])/2))))continue;
+            setback=required;roofIds.push(lower.id);
+        }
+        return setback?{setback,roofIds}:null;
+    }
     function splitParameters(a,b,faces) {
         const ts=[0,1];
         for(const f of faces) for(const poly of [f.points,...(f.holes||[])]) {
@@ -208,6 +241,28 @@
         const faces=surfaces(roof),warnings=[],sources=[],layers=roofLayers(roof,faces);
         const edges=(roof.connections||[]).map((c,i)=>({id:`R${i+1}`,a:roof.points[c.startIdx],b:roof.points[c.endIdx],type:c.type})).filter(e=>e.a&&e.b&&distance(e.a,e.b)>.01);
         const flashing=edges.filter(e=>isFlashing(e.type));
+        const zeroClearances=new Map();
+        if(options.roofContacts)for(const e of edges){
+            if(!isPerimeter(e.type))continue;
+            const parent=parentFace(faces,e.a,e.b);if(!parent)continue;
+            if(!['skylight','parapet'].includes(e.type)&&Math.hypot(parent.plane.dx,parent.plane.dy)*12>=1)continue;
+            const n=normalFor(parent,e.a,e.b);if(!n)continue;
+            const clearance=zeroOverhangClearance(e,edges,faces,parent,n,layers);
+            if(clearance)zeroClearances.set(e.id,{...clearance,a:e.a,b:e.b,n,parentId:parent.id});
+        }
+        // A crossing at a corner offers two possible inset directions. Resolve
+        // the shallow one first; once it clears that overlap, do not also push
+        // the perpendicular wall across the entire width of the lower roof.
+        const candidates=[...zeroClearances].sort((a,b)=>a[1].setback-b[1].setback);
+        zeroClearances.clear();
+        for(const [id,c]of candidates){
+            const lower=faces.filter(f=>c.roofIds.includes(f.id)),cuts=splitParameters(c.a,c.b,lower);
+            const prior=[...zeroClearances.values()].filter(p=>p.parentId===c.parentId);
+            for(const p of prior){const d=q=>(q.x-p.a.x)*p.n.x+(q.y-p.a.y)*p.n.y-p.setback,da=d(c.a),db=d(c.b);if(da*db<0)cuts.push(da/(da-db));}
+            cuts.sort((a,b)=>a-b);
+            if(!cuts.slice(1).some((t,i)=>{const q=mix(c.a,c.b,(t+cuts[i])/2);return (t-cuts[i])*distance(c.a,c.b)>.002&&lower.some(f=>contains(f,q))&&prior.every(p=>(q.x-p.a.x)*p.n.x+(q.y-p.a.y)*p.n.y>=p.setback+EPS);}))continue;
+            zeroClearances.set(id,c);
+        }
         const contactEdges=options.roofContacts?edges.flatMap(e=>{
             if(!isPerimeter(e.type)&&!isFlashing(e.type))return [e];
             const spans=chimneyContactIntervals(roof,e.a,e.b);if(!spans.length)return [e];
@@ -254,6 +309,8 @@
             const clearance=!zeroSoffitDefault&&options.roofContacts&&e.type==='eave'?lowerLayerClearance(e,flashing,faces,parent,n):null;
             if(clearance)setback=Math.max(setback,clearance.setback);
             if(zeroSoffitDefault)setback=0;
+            const overlapClearance=zeroClearances.get(e.id.split('.')[0]);
+            if(overlapClearance)setback=overlapClearance.setback;
             // Keep measured edge heights exact, using the parent only for the
             // inward pitch. A best-fit face need not pass through every vertex.
             const len=distance(e.a,e.b),u={x:(e.b.x-e.a.x)/len,y:(e.b.y-e.a.y)/len};
@@ -267,6 +324,7 @@
                 const edge=lowerBackEdges.find(f=>boundaryContact.sourceIds.includes(f.id));
                 sources.at(-1).boundaryContact={a:clone(edge.a),b:clone(edge.b)};
             }
+            if(overlapClearance)sources.at(-1).overlapClearanceRoofIds=overlapClearance.roofIds;
         }
         // A measured side wall ending at the lower roof's eave is a finite
         // junction. Keep the adjoining upper wall at that end plane instead of
@@ -308,7 +366,7 @@
         // edges is an overlap seam, not a recess in the building. Resolve it
         // from measured roof edges before inset miters can invert the chain.
         const seamRemoved=new Set();
-        const perimeterPairs=sources.filter(s=>s.kind==='perimeter'&&s.setback>0);
+        const perimeterPairs=sources.filter(s=>s.kind==='perimeter'&&s.setback>0&&!s.overlapClearanceRoofIds?.length);
         for(let i=0;i<perimeterPairs.length;i++)for(let j=i+1;j<perimeterPairs.length;j++){
             const a=perimeterPairs[i],b=perimeterPairs[j],la=distance(a.originalA,a.originalB),lb=distance(b.originalA,b.originalB);
             if(a.parentId===b.parentId||Math.min(la,lb)<2)continue;
@@ -365,7 +423,7 @@
         // nearby, overlapping, same-facing parallel runs.
         const envelopes=[];
         if(Number.isFinite(Number(options.soffit))){
-            const perimeter=sources.filter(s=>s.kind==='perimeter'&&s.setback>0);
+            const perimeter=sources.filter(s=>s.kind==='perimeter'&&s.setback>0&&!s.overlapClearanceRoofIds?.length);
             for(const upper of perimeter){
                 const len=distance(upper.originalA,upper.originalB),u={x:(upper.originalB.x-upper.originalA.x)/len,y:(upper.originalB.y-upper.originalA.y)/len},parent=faces.find(f=>f.id===upper.parentId),n=normalFor(parent,upper.originalA,upper.originalB);
                 const choices=[];
@@ -480,6 +538,14 @@
         };
         for(const s of sources) {
             if(s.kind==='flashing'){const ts=envelopeCuts(s),parts=[];for(let i=1;i<ts.length;i++)if(!hiddenByEnvelope(s,mix(s.a,s.b,(ts[i-1]+ts[i])/2)))parts.push({...s,a:mix(s.a,s.b,ts[i-1]),b:mix(s.a,s.b,ts[i])});clipped.push(...parts.map((p,i)=>({...p,id:i?s.id+'.envelope'+i:s.id})));continue;}
+            let outsideClearance=false;
+            for(const c of zeroClearances.values()){
+                if(c.parentId!==s.parentId)continue;
+                const d=p=>(p.x-c.a.x)*c.n.x+(p.y-c.a.y)*c.n.y-c.setback,da=d(s.a),db=d(s.b);
+                if(da<-EPS&&db<-EPS){outsideClearance=true;break;}
+                if(da<-EPS||db<-EPS){const p=mix(s.a,s.b,da/(da-db));if(da<0)s.a=p;else s.b=p;}
+            }
+            if(outsideClearance)continue;
             const reference=()=>{if(s.boundaryReference)clipped.push({...s,id:s.id+'.0',referenceOnly:true});};
             if(distance(s.a,s.b)<.005){reference();continue;}
             if(options.roofContacts&&!s.envelopeReturn&&!s.soffitAlignment&&!s.overlapSeam&&(s.b.x-s.a.x)*(s.originalB.x-s.originalA.x)+(s.b.y-s.a.y)*(s.originalB.y-s.originalA.y)<=0){reference();continue;}

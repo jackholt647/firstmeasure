@@ -67,7 +67,16 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
  // setback notch. This only normalizes the footprint, never the roof itself.
  const clearanceLayers=new Set((sources||[]).flatMap(s=>s.clearanceRoofIds||[]));
  const contacts=roof.faces.filter(f=>clearanceLayers.has(f.id)).flatMap(f=>f.points);
- const input=[...roof.faces.map(f=>({points:f.points})),...notchFill];
+ const input=[...roof.faces.flatMap(f=>{
+  let parts=[{points:f.points}];
+  for(const s of (sources||[]).filter(s=>s.parentId===f.id&&s.overlapClearanceRoofIds?.length)){
+   const a=s.originalA,b=s.originalB,len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x},mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+   if(!G.contains(f,{x:mid.x+n.x*.01,y:mid.y+n.y*.01})){n.x=-n.x;n.y=-n.y;}
+   const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;
+   parts=K.intersection(parts,[{points:[at(-size,s.setback),at(size,s.setback),at(size,size),at(-size,size)]}]);
+  }
+  return parts;
+ }),...notchFill];
  const regions=K.union(input.map(f=>({points:f.points.map(p=>contacts.find(q=>dist(p,q)<.002)||p)}))),scale=1/K.GRID;
  if(!setback&&!sources?.length)return regions.map(f=>f.points);
  const offset=new C.ClipperOffset(4),paths=[];
@@ -85,7 +94,8 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
     // The union has lost roof elevations: a tiny lower cap must not reduce
     // the entire main eave's setback. Keep the deeper supporting body here;
     // each narrow layer adds its own reduced footprint below.
-    const offsets=overlapping.map(s=>s.setback),d=offsets.length?Math.max(...offsets):setback;
+    const resolved=sources.some(s=>s.overlapClearanceRoofIds?.length&&[a,b].every(p=>Math.abs((p.x-s.a.x)*(s.b.y-s.a.y)-(p.y-s.a.y)*(s.b.x-s.a.x))/dist(s.a,s.b)<.005));
+    const offsets=overlapping.map(s=>s.setback),d=resolved?0:offsets.length?Math.max(...offsets):setback;
     return {a:{x:a.x+n.x*d,y:a.y+n.y*d},b:{x:b.x+n.x*d,y:b.y+n.y*d}};
    });
    const points=edges.flatMap((e,i)=>{const prev=edges[(i+edges.length-1)%edges.length],u={x:prev.b.x-prev.a.x,y:prev.b.y-prev.a.y},v={x:e.b.x-e.a.x,y:e.b.y-e.a.y},den=u.x*v.y-u.y*v.x;
@@ -104,9 +114,12 @@ function insetRoof(roof,setback,chimneys=[],sources=null){
   if(limit>=setback-1e-6&&!group.some(f=>clearanceLayers.has(f.id)))continue;
   if(group.length===1&&group[0].points.every((p,i,ps)=>cross(ps[(i+ps.length-1)%ps.length],p,ps[(i+1)%ps.length])*area(ps)>=-1e-8)){
    let parts=[{points:group[0].points}];
-   for(const edge of roof.connections||[]){if(!['eave','rake'].includes(edge.type))continue;const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx],mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(G.chimneyContact(roof,a,b)||!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
+   for(const edge of roof.connections||[]){const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx];
+    const clearance=(sources||[]).filter(s=>s.parentId===group[0].id&&s.overlapClearanceRoofIds?.length&&G.onEdge(s.originalA,a,b)&&G.onEdge(s.originalB,a,b));
+    if(!['eave','rake'].includes(edge.type)&&!clearance.length)continue;
+    const depth=clearance.length?Math.max(...clearance.map(s=>s.setback)):limit,mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};if(G.chimneyContact(roof,a,b)||!group[0].points.some((p,i)=>G.onEdge(mid,p,group[0].points[(i+1)%group[0].points.length],1e-5)))continue;
     const len=dist(a,b),u={x:(b.x-a.x)/len,y:(b.y-a.y)/len},n={x:-u.y,y:u.x};if(!G.contains(group[0],{x:mid.x+n.x*.02,y:mid.y+n.y*.02})){n.x=-n.x;n.y=-n.y;}
-    const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;parts=K.intersection(parts,[{points:[at(-size,limit),at(size,limit),at(size,size),at(-size,size)]}]);
+    const at=(t,d)=>({x:a.x+u.x*t+n.x*d,y:a.y+u.y*t+n.y*d}),size=10000;parts=K.intersection(parts,[{points:[at(-size,depth),at(size,depth),at(size,size),at(-size,size)]}]);
    }
    regular.push(...parts);continue;
   }
@@ -240,7 +253,7 @@ function reconcileRoofWalls(walls,roof,sources,base,grade){
   }
  }
  const perimeters=sources.filter(s=>s.kind==='perimeter'),result=[];
- const clearanceIds=new Set(sources.flatMap(s=>s.clearanceRoofIds||[])),lowerFaces=roof.faces.filter(f=>clearanceIds.has(f.id));
+ const clearanceIds=new Set(sources.flatMap(s=>[...(s.clearanceRoofIds||[]),...(s.overlapClearanceRoofIds||[])])),lowerFaces=roof.faces.filter(f=>clearanceIds.has(f.id));
  for(let fi=0;fi<regions.length;fi++)for(const ring of [regions[fi].points,...regions[fi].holes])for(let ei=0;ei<ring.length;ei++){
   const a=ring[ei],b=ring[(ei+1)%ring.length],length=dist(a,b);if(length<.002)continue;
   const u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},at=p=>((p.x-a.x)*u.x+(p.y-a.y)*u.y)/length;

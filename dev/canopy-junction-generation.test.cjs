@@ -22,7 +22,7 @@ for(const angle of [0,.71,2.1])test(`captured canopy junction follows one measur
  const main=r.state.sources.find(s=>s.originalA&&s.boundaryContactRoofIds?.includes(21)&&s.parentId===15);
  assert.ok(main,'the unlabelled lower back edge supplies the upper wall contact');
  assert.ok(!r.composed.some(w=>w.sourceRoofId===15&&w.targetId===2&&w.id.includes('upper-contact')),'the upper wall does not jump forward onto a different lower roof at its end');
- assert.ok(!r.composed.some(w=>w.sourceId?.split('.')[0]===main.id.split('.')[0]&&String(w.targetId).startsWith('ground')&&distance(...w.bottom)<.5),'no narrow full-height front return from the combined-roof miter');
+ assert.ok(!r.composed.some(w=>w.sourceId?.split('.')[0]===main.id.split('.')[0]&&String(w.targetId).startsWith('ground')&&distance(...w.bottom)<.5&&w.top.some(p=>p.z>Math.max(a.z,b.z)+.02)&&r.composed.filter(t=>(t.mergeGroup||t.id)===(w.mergeGroup||w.id)).reduce((n,t)=>n+distance(...t.bottom),0)<.5),'no narrow full-height front return from the combined-roof miter; lower-roof support walls may end below the awning');
  assert.equal(r.open.length,0,'ground perimeter remains closed');
  assert.equal(JSON.stringify(f),before,'generation never mutates input roof or grade');
 });
