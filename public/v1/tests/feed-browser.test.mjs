@@ -68,6 +68,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await batchRow.locator('[data-feed-project-id]').count(),1);
   assert.equal(await batchRow.locator('[data-feed-project-id]').getAttribute('title'),'Open project');
   assert.equal(await batchRow.locator('.pf-project-card-cover').count(),1);
+  assert.equal(await batchRow.locator('.pf-project-card-cover img').getAttribute('src'),'/photo.svg');
+  assert.ok(await batchRow.locator('.pf-project-card-cover').evaluate(e=>e.getBoundingClientRect().width>e.getBoundingClientRect().height),'project cover is rectangular');
+  assert.equal(await batchRow.locator('.pf-project-card').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
   assert.equal(await batchRow.locator('.pf-project-card-name').textContent(),'Oak Street renovation');
   assert.equal(await batchRow.locator('.pf-project-card-address').textContent(),'104 Oak Street');
   await batchRow.locator('.pf-project-card-cover').click();
