@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 FirstMate SMS registration: [Pioneer Puffin carrier-registration pilot](deploy/digitalocean/development-sms-registration-pilot-20261009.md) records scoped real Low Volume Mixed onboarding, encrypted legal details, the development rollout, and the remaining real-delivery activation requirements.
+
 October 9 SMS registration default: [Low Volume Mixed](deploy/digitalocean/development-sms-low-volume-default-20261009.md) records the default change, focused tests, and verified development rollout across web, pool, and compatibility.
 
 October 9 additional test phones: [Development conference test destinations](deploy/digitalocean/development-test-phones-20261009.md) records approved direct dialing, the conference test-phone picker and the verified development-only rollout.
