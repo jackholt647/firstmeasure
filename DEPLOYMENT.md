@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 Feed List: [Day panels, named appointments, and project cover placeholders](deploy/digitalocean/development-feed-list-day-panel-20261009.md) records the development rollout, validation, and file locations.
+
 October 8 Feed stability: [Stable tile layouts, Posts tools, and Settings > Feed](deploy/digitalocean/development-feed-stability-settings-20261008.md) records the latest development rollout and file locations.
 
 October 8 Feed posts: [Inline comments, media tools, composer and tile stability](deploy/digitalocean/development-feed-posts-polish-20261008.md) records the follow-up development rollout, validation and rollback baselines. [Employee posts, department audiences, and Posts settings](deploy/digitalocean/development-feed-groups-20261008.md) records the preceding rollout.
