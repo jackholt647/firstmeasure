@@ -1,6 +1,16 @@
 /* Internal reference viewer. Storage is independent of geometry and report state. */
 (() => {
  'use strict';
+ // Session-only LRU. Pending loads are shared; decoded images are budgeted
+ // by their pixel size rather than their much smaller compressed file size.
+ function referenceCache({maxBytes=96*1024*1024,maxEntries=24}={}){
+  const entries=new Map();let bytes=0;
+  function trim(){for(const [key,entry]of entries){if(bytes<=maxBytes&&entries.size<=maxEntries)break;if(!entry.ready)continue;entries.delete(key);bytes-=entry.bytes;}}
+  return {get(key,load,size=()=>0){const hit=entries.get(key);if(hit){entries.delete(key);entries.set(key,hit);return hit.promise;}
+   const entry={bytes:0,ready:false};entries.set(key,entry);
+   entry.promise=Promise.resolve().then(load).then(value=>{if(entries.get(key)===entry){entry.ready=true;entry.bytes=Math.max(0,size(value)||0);if(entry.bytes>maxBytes)entries.delete(key);else {bytes+=entry.bytes;trim();}}return value;},error=>{if(entries.get(key)===entry)entries.delete(key);throw error;});return entry.promise;
+  },clear(){entries.clear();bytes=0;},get bytes(){return bytes;},get count(){return entries.size;}};
+ }
  const roleName = role => ({qa:'QA',tech:'Tech',customer:'Customer'}[role] || 'Tech');
  const currentRole = () => {const p=new URLSearchParams(window.location.search);return p.has('qa_embed')||p.has('qa_feedback_editor')?'qa':'tech';};
  function referenceCatalog(bundle={},artifactUrl){
@@ -29,7 +39,7 @@
  }
  const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'House'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
  function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):null}));}
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews};return;}
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;
@@ -119,6 +129,12 @@
   let favorites = [], favoriteDraft = null, strokeWidth = 4, markupOpen = false, keyboardOwner = false;
   const favoritePrefix = 'internal-markup-favorite-';
   let frameLinks=new Map();
+  const imageCache=referenceCache(),markupCache=referenceCache({maxBytes:2*1024*1024,maxEntries:64});
+  let retainedMedia=null;
+  const referenceKey=file=>JSON.stringify([project,sourceUrl(file),file.updated_at||'',file.size||0]);
+  function cachedImage(src,key=src){return imageCache.get(key,()=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Image could not be previewed. Download the original from More actions.'));img.src=src;}),img=>img.naturalWidth*img.naturalHeight*4);}
+  function releaseMedia(){if(retainedMedia){retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();retainedMedia=null;}}
+
   const frameLink=file=>{const link=frameLinks.get(file?.name);return link&&files.some(f=>f.name===link.source)?link:null;};
   async function jumpToFrame(file){const link=frameLink(file);if(link)await open(files.find(f=>f.name===link.source),{time:link.time});}
   function savedFrameAtPlayhead(){const time=scrub?.target??media?.currentTime;return media?.videoWidth&&files.find(f=>{const link=frameLink(f);return link?.source===current?.name&&Math.abs(link.time-time)<.02;});}
@@ -204,7 +220,7 @@
    coreActive=false;$('.resource-core-grid').hidden=true;$('[data-action="coreViews"]').setAttribute('aria-pressed','false');
    favoriteDraft = null; $('.resource-favorite-entry').hidden = true;
    scrub = null; cancelAnimationFrame(seekFrame); seekFrame = 0;
-   if (media) { media.pause(); media.removeAttribute('src'); media.load(); }
+   if (media) media.pause();
    media = null; player.replaceChildren(); image = null; marks = []; history = []; redo = []; selected = -1;
    frameTime = null; frameSource = null; current = null; dirty = false; gesture = null; fitMode = 'contain';
    canvas.hidden = true; player.hidden = true; empty.hidden = false; $('.resource-transport').hidden = true;
@@ -212,7 +228,7 @@
   }
   async function syncProject() {
    const next = String(window.currentProjectId || ''); if (project === next || busy) return; if (dirty) await save();
-   remember(); const priorView=savedView(next);restoring=true; epoch++; project = next; collapsedGroups=priorView.collapsedGroups||{}; reset(); files = []; favorites = []; renderFavorites(); list.replaceChildren(); filesOpen = true; inspector = ''; updateDrawers();
+   remember(); const priorView=savedView(next);restoring=true; epoch++; releaseMedia(); imageCache.clear(); markupCache.clear(); project = next; collapsedGroups=priorView.collapsedGroups||{}; reset(); files = []; favorites = []; renderFavorites(); list.replaceChildren(); filesOpen = true; inspector = ''; updateDrawers();
    empty.innerHTML = '<strong>Project references</strong><span></span>';
    empty.querySelector('span').textContent = project ? 'Choose a file, or drop photos and walkthrough videos here.' : 'Open a saved project to add reference files.';
    if (project) {await refresh();await restoreView(priorView);}else restoring=false;
@@ -264,7 +280,7 @@
   async function sendBackground(file){
    const id=project,requestId=++overlayRequest;if(!id||!window.Resource3DOverlay)return;
    if(window.Resource3DOverlay.imageName===file.name){window.Resource3DOverlay.remove();message('3D background removed.');return;}
-   const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Background image could not be loaded.'));img.src=url(id,file.name);});
+   const img=await cachedImage(sourceUrl(file),referenceKey(file));
    if(project!==id||requestId!==overlayRequest)return;
    await window.Resource3DOverlay.show({image:img,label:label(file.name),project:id,name:file.name});
    panel.classList.remove('expanded');$('[data-action="expand"]').setAttribute('aria-label','Expand resources');renderList();message('3D background ready. Alignment is saved per image.');
@@ -273,10 +289,10 @@
   async function latestMarkup(file) {
    if(file.reference)return null;
    const revisions = files.filter(f => f.name.startsWith(markupPrefix + fileId(file.name) + '-')).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')) || b.name.localeCompare(a.name));
-   if (!revisions.length) return null; return (await request(project, revisions[0].name)).json();
+   if (!revisions.length) return null; const id=project,name=revisions[0].name;return structuredClone(await markupCache.get(id+'|'+name,async()=>(await request(id,name)).json(),value=>JSON.stringify(value).length*2));
   }
   async function loadImage(src, ticket) {
-   const img = new Image(); await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(Error('Image could not be previewed. Download the original from More actions.')); img.src = src; });
+   const img = await cachedImage(src,referenceKey(current));
    if (ticket !== epoch) return; image = img; canvas.hidden = false; player.hidden = true; empty.hidden = true; fit(); controls();
   }
   function timeLabel(seconds) {
@@ -331,14 +347,21 @@
     else if(/^(txt|md|csv)$/.test(ext)){const response=await fetch(src);if(!response.ok)throw Error('Reference could not be loaded.');const text=await response.text();if(ticket===epoch)empty.textContent=text;}
     else if (/^(png|jpe?g|gif|webp|avif|bmp)$/.test(ext)||src.startsWith('data:image/')) await loadImage(src, ticket);
     else if (/^(mp4|webm|mov|mp3|wav|ogg|m4a)$/.test(ext)) {
-     const isVideo = /^(mp4|webm|mov)$/.test(ext); media = document.createElement(isVideo ? 'video' : 'audio'); const element = media;
-     element.controls = false; element.preload = 'metadata'; element.playsInline = true;
-     element.onerror = () => { if (ticket === epoch) message('This format cannot play in this browser. Download the original from More actions.', true); };
-     element.addEventListener('loadedmetadata', () => { if (ticket !== epoch) return; if (options.time != null) element.currentTime = Math.min(options.time, Number.isFinite(element.duration) ? element.duration : options.time); fit(); controls(); updateTransport(); });
-     for (const event of ['timeupdate', 'durationchange', 'play', 'pause', 'ended', 'volumechange']) element.addEventListener(event, () => { if (ticket === epoch) updateTransport(); });
-     element.addEventListener('seeked', () => { if (ticket === epoch) queueScrub(); });
-     player.append(element); player.hidden = !isVideo; empty.hidden = isVideo; element.src = src; if (!isVideo) empty.textContent = 'Audio reference';
-     $('.resource-transport').hidden = false; panel.classList.toggle('has-video', isVideo); $('.resource-rate').value = '1';
+     const isVideo = /^(mp4|webm|mov)$/.test(ext),key=referenceKey(file);
+     if(retainedMedia?.key!==key||retainedMedia?.element.error)releaseMedia();
+     if(!retainedMedia){
+      const element=document.createElement(isVideo?'video':'audio'),entry={key,element,pendingTime:null};retainedMedia=entry;
+      element.controls=false;element.preload='auto';element.playsInline=true;
+      element.onerror=()=>{if(element===media)message('This format cannot play in this browser. Download the original from More actions.',true);};
+      element.addEventListener('loadedmetadata',()=>{if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();});
+      for(const event of ['timeupdate','durationchange','play','pause','ended','volumechange'])element.addEventListener(event,()=>{if(element===media)updateTransport();});
+      element.addEventListener('seeked',()=>{if(element===media)queueScrub();});
+      element.src=src;
+     }
+     const entry=retainedMedia,element=media=entry.element;player.append(element);player.hidden=!isVideo;empty.hidden=true;
+     const targetTime=options.time??entry.pendingTime;if(targetTime!=null){if(element.readyState>=1){element.currentTime=Math.min(targetTime,Number.isFinite(element.duration)?element.duration:targetTime);entry.pendingTime=null;}else entry.pendingTime=targetTime;}
+     if(!isVideo){empty.hidden=false;empty.textContent='Audio reference';}
+     $('.resource-transport').hidden=false;panel.classList.toggle('has-video',isVideo);$('.resource-rate').value=String(element.playbackRate);fit();controls();updateTransport();
     } else if(ext==='pdf'){const frame=document.createElement('iframe');frame.title=label(file.name);frame.src=src;frame.style.cssText='width:100%;height:100%;border:0';player.append(frame);player.hidden=false;empty.hidden=true;}
     else empty.textContent = 'Preview is unavailable for this file. Use More actions → Download original to open it.';
     if (ticket !== epoch) return; renderFavorites(); if (favorites.some(item => item.source === file.name)) { inspector = 'favorites'; updateDrawers(); } message('Wheel to zoom · Drag to pan · Double-click to fit'); draw();
