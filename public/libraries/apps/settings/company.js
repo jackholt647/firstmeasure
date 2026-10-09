@@ -13642,6 +13642,7 @@
     }
 
     let feedSettingsState = null;
+    const defaultFeedPostActivityTypes = new Set(['media.uploaded','note.created','project.created','project.event_scheduled','project.event.completed','crew.checklist.completed','proposal.signed','contract.signed','payment.received']);
     async function renderFeedSettings(){
       if (!paneFeed) return;
       if (!feedSettingsState) {
@@ -13656,10 +13657,10 @@
       }
       const model = feedSettingsState;
       const selection = model.scope === 'company' ? model.draft.company_activity_types : model.draft.department_activity_types?.[model.scope];
-      const checked = type => !Array.isArray(selection) || selection.includes(type);
+      const checked = type => Array.isArray(selection) ? selection.includes(type) : defaultFeedPostActivityTypes.has(type);
       paneFeed.innerHTML = `<section class="cs-feed-settings" data-settings-autosave="off" style="max-width:760px;display:grid;gap:16px">
-        <div><h3 style="margin:0 0 5px">Posts view</h3><p style="margin:0;color:#667085">Choose which automatic activities become posts for the company or each department. Manual posts always appear in Posts view.</p></div>
-        <label style="display:grid;gap:6px;font-weight:700">Board<select data-feed-board style="max-width:340px;padding:10px;border:1px solid #d0d5dd;border-radius:8px"><option value="company" ${model.scope==='company'?'selected':''}>Company board</option>${model.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${model.scope===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}</select></label>
+        <div><h3 style="margin:0 0 5px">Posts view</h3><p style="margin:0;color:#667085">Choose which automatic activities become posts across the company or in each department. Manual posts always appear in Posts view.</p></div>
+        <label style="display:grid;gap:6px;font-weight:700">Audience<select data-feed-board style="max-width:340px;padding:10px;border:1px solid #d0d5dd;border-radius:8px"><option value="company" ${model.scope==='company'?'selected':''}>Everyone in the company</option>${model.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${model.scope===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}</select></label>
         <div style="display:flex;gap:14px"><button type="button" data-feed-all>Show all</button><button type="button" data-feed-none>Hide all</button></div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px">${model.options.map(option=>`<label style="display:flex;gap:9px;align-items:center;padding:9px;border:1px solid #e4e7ec;border-radius:8px"><input type="checkbox" data-feed-activity value="${escapeHtml(option.type)}" ${checked(option.type)?'checked':''}><span>${escapeHtml(option.label)}</span></label>`).join('')}</div>
         <div style="display:flex;align-items:center;gap:12px"><button type="button" class="cs-btn primary" data-feed-save ${model.saving?'disabled':''}>${model.saving?'Saving…':'Save settings'}</button><span role="status" data-feed-status></span></div>

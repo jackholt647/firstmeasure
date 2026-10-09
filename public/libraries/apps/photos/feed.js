@@ -50,7 +50,7 @@
     canPost: false,
     canManagePostSettings: false,
     feedScope: 'all',
-    manualOnly: false,
+    scopeMenuOpen: false,
     composerOpen: false,
     composerText: '',
     composerDepartment: '',
@@ -1173,6 +1173,7 @@
     if (state.feedScope === 'mine') return departments.some(id=>state.memberDepartmentIds.includes(id));
     return departments.includes(state.feedScope);
   }
+  const DEFAULT_POST_ACTIVITY_TYPES = new Set(['media.uploaded','note.created','project.created','project.event_scheduled','project.event.completed','crew.checklist.completed','proposal.signed','contract.signed','payment.received']);
   function automaticPostType(entry = {}){
     return entry.kind === 'activity' ? cleanText(entry.event?.type) : entry.kind === 'media' ? 'media.uploaded' : entry.kind === 'note' ? 'note.created' : entry.kind === 'document' ? firstText(entry.pairedEvent?.type,'document.ingested') : '';
   }
@@ -1181,7 +1182,7 @@
     const type=automaticPostType(entry),settings=state.postSettings || {};
     const allowed=(scope)=>{
       const selected=scope === 'company' ? settings.company_activity_types : objectValue(settings.department_activity_types)[scope];
-      return !Array.isArray(selected) || selected.includes(type);
+      return Array.isArray(selected) ? selected.includes(type) : DEFAULT_POST_ACTIVITY_TYPES.has(type);
     };
     if (state.feedScope === 'company') return allowed('company');
     if (state.feedScope === 'mine') return feedEntryDepartments(entry).some(id=>state.memberDepartmentIds.includes(id) && allowed(id));
@@ -1257,12 +1258,11 @@
       unpaired.delete(match.id);
     });
     const query = cleanText(state.query).toLowerCase();
-    const entries = state.visibleTags.size && !(state.density === 'posts' && state.manualOnly)
+    const entries = state.visibleTags.size
       ? [...manualEntries,...mediaEntries]
       : [...manualEntries,...mediaEntries, ...documentEntries, ...activityEntries.filter((entry) => unpaired.has(entry.id)), ...noteEntries];
     return entries
       .filter((entry) => entry.kind === 'manual' || entry.kind === 'note' || options.unverified || state.authorizedSources.has(feedRefKey(entryRef(entry))))
-      .filter((entry) => state.density !== 'posts' || !state.manualOnly || entry.kind === 'manual')
       .filter(feedEntryInScope)
       .filter((entry) => state.density !== 'posts' || entry.kind === 'manual' || automaticPostEnabled(entry))
       .filter((entry) => !query || entry.search.includes(query))
@@ -1677,11 +1677,12 @@
       .pf-emoji-picker:not([hidden]){display:block;max-height:230px;overflow:auto;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:8px;box-shadow:0 8px 30px #1018281a}.pf-emoji-picker input{width:100%;box-sizing:border-box;padding:7px;border:1px solid #d0d5dd;border-radius:6px}.pf-emoji-picker .pf-emoji-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:2px}.pf-emoji-picker button{border:0;background:none;font-size:21px;cursor:pointer;padding:4px}.pf-file-preview{display:flex;align-items:center;gap:7px;border:1px solid #e4e7ec;border-radius:8px;padding:6px 8px;font-size:11px;max-width:100%}.pf-file-preview span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pf-file-preview button{border:0;background:none;cursor:pointer;font-size:16px}
       .pf-manual-gif,.pf-manual-files{padding:0 18px 14px}.pf-manual-gif img{display:block;max-width:100%;max-height:300px;border-radius:8px}.pf-manual-files{display:grid;gap:8px}.pf-manual-files a{color:#2456a8;font-size:12px}.pf-manual-tile .pf-manual-gif,.pf-manual-row .pf-manual-gif,.pf-manual-tile .pf-manual-files,.pf-manual-row .pf-manual-files{padding:0 0 9px}
       .pf-comment-tools .pf-compose-tool,.pf-post-compose-tools .pf-compose-tool{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:none;border:0;border-radius:8px;background:transparent;color:#667085;font-size:12.5px;cursor:pointer;padding:0}.pf-comment-tools .pf-compose-tool:hover,.pf-post-compose-tools .pf-compose-tool:hover{background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}.pf-gif-icon{font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px}.pf-post-compose-tools{display:flex;align-items:center;gap:8px}.pf-comment-tools{gap:7px}.pf-composer-gif{position:relative;justify-self:start}.pf-composer-gif img{max-width:240px;max-height:160px;border-radius:8px}.pf-composer-gif button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border:0;border-radius:50%;background:#344054;color:#fff;cursor:pointer}
-      .pf-feed-scope-control{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;color:#475467;font-size:12px;font-weight:700}.pf-feed-scope-control select{min-width:170px;max-width:240px}.pf-feed-manual-only.active{border-color:#b8c8ed;background:#eef4ff;color:#2456a8}.pf-feed-manual-only .pf-manual-mobile{display:none}
-      .pf-post-toolbar-actions{display:flex;align-items:center;gap:10px;margin-right:auto}.pf-wrap[data-density="posts"] .pf-tools{margin-left:auto}
+      .pf-wrap[data-density="posts"] .pf-tools{margin-left:auto}
+      .pf-feed-scope-departments button[hidden]{display:none}
+      .pf-feed-scope-control{position:relative;flex:none}.pf-feed-scope-trigger{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;border:1px solid #344054;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}.pf-feed-scope-trigger>span{color:#667085}.pf-feed-scope-trigger strong{font-weight:800;color:#182230}.pf-feed-scope-trigger i{margin-left:3px;font-size:10px}.pf-feed-scope-menu{position:absolute;top:calc(100% + 7px);left:0;z-index:30;width:300px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:9px;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 14px 32px #10182822}.pf-feed-scope-menu>button,.pf-feed-scope-departments button{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 11px;border:0;border-radius:8px;background:#fff;color:#344054;text-align:left;font:inherit;font-size:12px;cursor:pointer}.pf-feed-scope-menu button:hover,.pf-feed-scope-menu button[aria-selected="true"]{background:#f2f4f7}.pf-feed-scope-menu button i{color:var(--primary-readable,var(--primary,#d93025))}.pf-feed-scope-section{margin:6px 3px 8px;padding:11px 8px 0;border-top:1px solid #e4e7ec;color:#667085;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}.pf-feed-scope-search{display:flex;align-items:center;gap:8px;margin:0 2px 6px;padding:0 10px;border:1px solid #d0d5dd;border-radius:8px;color:#667085}.pf-feed-scope-search input{width:100%;min-width:0;height:35px;border:0;outline:0;font:inherit;font-size:12px}.pf-feed-scope-departments{max-height:220px;overflow:auto}.pf-list-controls{flex-wrap:nowrap;color:#667085;font-size:12px}.pf-list-segment{display:flex;align-items:center;padding:3px;border:1px solid #d0d5dd;border-radius:10px;background:#fff}.pf-list-segment button{border:0;border-radius:7px;background:transparent;color:#344054;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}.pf-list-segment button.active{background:#fff0ee;color:var(--primary-readable,var(--primary,#d93025));font-weight:850}
       .pf-compose-audience{display:inline-flex;justify-self:start;max-width:100%}.pf-compose-audience-picker{display:inline-flex;align-items:center;gap:6px;position:relative;max-width:100%;color:#182230;font-weight:750}.pf-compose-audience-picker select{position:absolute;inset:0;width:100%;height:100%;max-width:none;opacity:0;cursor:pointer}.pf-compose-audience-picker i{font-size:10px;pointer-events:none}
       .pf-comment-reactions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.pf-comment-reactions button{border:1px solid #dce5f0;border-radius:999px;background:#fff;padding:2px 7px;color:#344054;font-size:11px;cursor:pointer}.pf-comment-reactions button:hover{background:#eef4ff;border-color:#b8c8ed}.pf-comment-actions .pf-comment-react{position:relative;display:inline-flex;align-items:center}.pf-comment-react>div{position:absolute;left:0;bottom:100%;z-index:12;display:flex;gap:2px;padding:6px;border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 4px 20px #10182820;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease}.pf-comment-react:hover>div,.pf-comment-react:focus-within>div,.pf-comment-react.open>div{visibility:visible;opacity:1;pointer-events:auto}.pf-comment-actions .pf-comment-react>div button{font-size:20px;padding:3px 5px}
-      @media(max-width:760px){.pf-feed-scope-control select{min-width:0;max-width:180px}.pf-feed-manual-only .pf-manual-desktop{display:none}.pf-feed-manual-only .pf-manual-mobile{display:inline}.pf-wrap[data-density="posts"] .pf-toolbar{flex-wrap:wrap}.pf-wrap[data-density="posts"] .pf-tools{flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}}
+      @media(max-width:760px){.pf-wrap[data-density="posts"] .pf-toolbar{flex-wrap:wrap}.pf-wrap[data-density="posts"] .pf-tools{flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}.pf-feed-scope-menu{left:auto;right:0}.pf-list-controls{width:auto;order:0}.pf-list-segment button{padding:6px 9px}}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
     `);
   }
@@ -1706,7 +1707,7 @@
       state.memberDepartmentIds = Array.isArray(catalog.member_department_ids) ? catalog.member_department_ids : [];
       state.postSettings = objectValue(catalog.post_settings);
       state.activityOptions = Array.isArray(catalog.activity_options) ? catalog.activity_options : [];
-      if (state.feedScope !== 'all' && state.feedScope !== 'company' && state.feedScope !== 'mine' && !state.memberDepartmentIds.includes(state.feedScope)) state.feedScope = 'all';
+      if (state.feedScope !== 'all' && state.feedScope !== 'mine' && !state.memberDepartmentIds.includes(state.feedScope)) state.feedScope = 'all';
       for (const manual of state.manualPosts) {
         const current=postState(`manual:${manual.id}`);
         current.root=manual;
@@ -2243,9 +2244,9 @@
       : `<span aria-hidden="true">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
     return `<span class="pf-actor-avatar">${image}<span class="pf-actor-badge" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span></span>`;
   }
-  function feedProjectLinkHtml(project = {}, projectId = '', listCard = false){
+  function feedProjectLinkHtml(project = {}, projectId = '', listCard = false, nameOnly = false){
     const title = savedProjectTitle(project) || projectTitle(project);
-    const address = projectAddress(project);
+    const address = nameOnly ? '' : projectAddress(project);
     const label = [title, address && address.toLowerCase() !== title.toLowerCase() ? address : ''].filter(Boolean).join(' · ');
     if (listCard && projectId) {
       const cover = normalizePhotos(project).find((photo) => galleryMediaType(photo) === 'photo');
@@ -2336,7 +2337,7 @@
   function feedPostHtml(post){
     if (post.kind === 'note') {
       const author=postAuthor(post);
-      return `<article class="pf-post pf-note-post"><header class="pf-post-head">${actorAvatarHtml(author,'fa-note-sticky')}<div><strong>${escapeHtml(author.name)} added a note:</strong><span><time>${escapeHtml(feedListTime(post.timestamp))}</time></span><div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId)}</div></div></header><div class="pf-post-note-body">${feedNoteHtml(post.note)}</div></article>`;
+      return `<article class="pf-post pf-note-post"><header class="pf-post-head">${actorAvatarHtml(author,'fa-note-sticky')}<div><strong>${escapeHtml(author.name)} added a note:</strong><span><time>${escapeHtml(feedListTime(post.timestamp))}</time></span><div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,false,true)}</div></div></header><div class="pf-post-note-body">${feedNoteHtml(post.note)}</div></article>`;
     }
     const current=postState(post.id),author=postAuthor(post),photos=post.entries.filter(e=>e.kind==='media'),doc=post.document;
     const amount=doc ? firstText(doc.total_formatted,doc.amount_formatted,doc.contract_value,doc.total,doc.amount) : firstText(activityPayload(post.event || {}).amount_formatted,activityPayload(post.event || {}).amount);
@@ -2344,7 +2345,7 @@
     const money=Number.isFinite(amountCents)?new Intl.NumberFormat(undefined,{style:'currency',currency:doc?.currency || activityPayload(post.event || {}).currency || 'USD'}).format(amountCents/100):amount;
     const body=post.kind==='manual' ? manualPostBodyHtml(post.manual) : photos.length ? `<p class="pf-post-caption">Uploaded ${uploadCountLabel(photos)}</p><div class="pf-post-collage count-${Math.min(photos.length,4)}">${photos.slice(0,4).map((entry,i)=>`<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media)?'video':'photo'} ${i+1}">${mediaThumbHtml(entry.mediaItem)}${i===3&&photos.length>4?`<span class="pf-post-overflow">+${photos.length-4}</span>`:''}</button>`).join('')}</div>` : post.kind==='document' ? `<div class="pf-post-document"><span class="pf-post-document-icon"><i class="fas ${escapeHtml(doc.icon || 'fa-file-contract')}"></i></span><div><small>${escapeHtml(doc.type_label || 'Document')}</small><strong>${escapeHtml(doc.title || 'Document')}</strong>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}<button type="button" class="pf-action" data-feed-document-id="${escapeHtml(doc.id)}">Open document</button></div></div>` : `<div class="pf-post-event"><i class="fas ${escapeHtml(feedActivityIcon(post.event))}"></i><p>${escapeHtml(feedActivitySummary(post.event))}</p>${money?`<b class="pf-post-value">${escapeHtml(money)}</b>`:''}</div>`;
     const reactions=current.root?.reactions || [],liked=reactions.find(r=>r.emoji==='👍');
-    const location=post.kind==='manual' ? `<span class="pf-post-scope"><i class="fas ${post.manual?.metadata?.feed_department_id?'fa-people-group':'fa-building'}"></i>${escapeHtml(manualPostScope(post.manual))}</span>` : feedProjectLinkHtml(post.project,post.projectId);
+    const location=post.kind==='manual' ? `<span class="pf-post-scope"><i class="fas ${post.manual?.metadata?.feed_department_id?'fa-people-group':'fa-building'}"></i>${escapeHtml(manualPostScope(post.manual))}</span>` : feedProjectLinkHtml(post.project,post.projectId,false,true);
     return `<article class="pf-post" data-feed-post="${escapeHtml(post.id)}">
       <header class="pf-post-head">${actorAvatarHtml(author,postIcon(post))}<div><strong>${escapeHtml(author.name)}</strong><span><time>${escapeHtml(activityTime(post.timestamp))}</time> · ${location}</span></div></header>
       ${body}
@@ -2470,7 +2471,7 @@
         const children=document.createElement('div');children.className='pf-comment-children';children.hidden=collapsed;children.append(...item.children.map(child=>child.thread));
         item.thread.append(toggle,children);
       }
-      if(comments&&!current.replies.length)comments.textContent=current.checking?'Loading comments…':'No comments yet. Start the conversation.';
+      if(comments&&!current.replies.length&&current.checking)comments.textContent='Loading comments…';
       const form=card.querySelector('[data-comment-form]'),input=form?.querySelector('textarea');
       input?.addEventListener('input',()=>{current.draft=input.value;});
       card.querySelector('[data-comment-cancel-reply]')?.addEventListener('click',()=>{current.replyTo='';current.replyToName='';rerender();});
@@ -2624,8 +2625,10 @@
         <div class="pf-shown-options pf-activity-options">${ACTIVITY_FILTERS.map(item=>`<button type="button" class="${state.visibleActivity.has(item.id)?'active':''}" data-feed-filter-group="activity" data-feed-filter-id="${escapeHtml(item.id)}" aria-pressed="${state.visibleActivity.has(item.id)}"><span class="pf-shown-check"><i class="fas fa-check"></i></span><i class="fas ${escapeHtml(item.icon)}"></i><span>${escapeHtml(item.label)}</span></button>`).join('')}</div>
       </div>`;
   }
-  function feedScopeOptionsHtml(value=state.feedScope,includeMine=true){
-    return `<option value="all" ${value==='all'?'selected':''}>All company activity</option><option value="company" ${value==='company'?'selected':''}>Company board</option>${includeMine?`<option value="mine" ${value==='mine'?'selected':''}>My departments</option>`:''}${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${value===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}`;
+  function feedScopeControlHtml(){
+    const selected=state.feedScope==='mine'?'My departments':state.departments.find(department=>department.id===state.feedScope)?.label || 'All company activity';
+    const option=(value,label)=>`<button type="button" role="option" aria-selected="${state.feedScope===value}" data-feed-scope-option="${escapeHtml(value)}">${escapeHtml(label)}${state.feedScope===value?'<i class="fas fa-check" aria-hidden="true"></i>':''}</button>`;
+    return `<div class="pf-feed-scope-control"><button type="button" class="pf-feed-scope-trigger" data-feed-scope aria-label="Show ${escapeHtml(selected)}" aria-expanded="${state.scopeMenuOpen}"><span>Show</span><strong>${escapeHtml(selected)}</strong><i class="fas fa-chevron-${state.scopeMenuOpen?'up':'down'}" aria-hidden="true"></i></button>${state.scopeMenuOpen?`<div class="pf-feed-scope-menu" role="listbox" aria-label="Feed audience">${option('all','All company activity')}${option('mine','My departments')}<div class="pf-feed-scope-section">Departments</div><label class="pf-feed-scope-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-feed-scope-search placeholder="Find a department" aria-label="Find a department"></label><div class="pf-feed-scope-departments">${state.departments.map(department=>option(department.id,department.label)).join('')}</div></div>`:''}</div>`;
   }
   function feedComposerHtml(){
     if(!state.composerOpen)return '';
@@ -2650,10 +2653,10 @@
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
         <div class="pf-toolbar" data-app-header>
           <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
-          ${state.density==='posts'?`<div class="pf-post-toolbar-actions"><button type="button" class="pf-toolbar-action pf-feed-manual-only${state.manualOnly?' active':''}" data-feed-manual-only aria-pressed="${state.manualOnly}" aria-label="Manual posts only"><i class="fas fa-pen-to-square"></i><span class="pf-manual-desktop">Manual posts only</span><span class="pf-manual-mobile">Manual</span></button>${state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}</div>`:''}
           <div class="pf-tools">
-            <label class="pf-feed-scope-control"><span>Show</span><select class="pf-toolbar-action" data-feed-scope aria-label="Feed audience">${feedScopeOptionsHtml()}</select></label>
-            ${state.density==='list'?`<div class="pf-list-controls"><label>Organize by <select data-feed-list-organize aria-label="Organize feed"><option value="time"${state.listOrganize==='time'?' selected':''}>Time</option><option value="project"${state.listOrganize==='project'?' selected':''}>Project</option></select></label></div>`:''}
+            ${state.density==='posts'&&state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}
+            ${feedScopeControlHtml()}
+            ${state.density==='list'?`<div class="pf-list-controls"><span>Sort by</span><div class="pf-list-segment" role="group" aria-label="Sort feed by"><button type="button" data-feed-list-organize="time" aria-pressed="${state.listOrganize==='time'}" class="${state.listOrganize==='time'?'active':''}">Time</button><button type="button" data-feed-list-organize="project" aria-pressed="${state.listOrganize==='project'}" class="${state.listOrganize==='project'?'active':''}">Project</button></div></div>`:''}
             <div class="pf-density">
               ${String([
                 {id:'list',label:'List',icon:'list'},
@@ -2677,17 +2680,10 @@
   }
   function bind(){
     const rootEl = state.root;
-    rootEl.querySelector('[data-feed-scope]')?.addEventListener('change',(event)=>{
-      state.feedScope=event.target.value;
-      state.visible=PAGE_SIZE;
-      writeFeedPreferences();render();
-    });
-    rootEl.querySelector('[data-feed-list-organize]')?.addEventListener('change',event=>{state.listOrganize=event.target.value==='project'?'project':'time';writeFeedPreferences();render();});
-    rootEl.querySelector('[data-feed-manual-only]')?.addEventListener('click',()=>{
-      state.manualOnly=!state.manualOnly;
-      state.visible=PAGE_SIZE;
-      writeFeedPreferences();render();
-    });
+    rootEl.querySelector('[data-feed-scope]')?.addEventListener('click',()=>{state.scopeMenuOpen=!state.scopeMenuOpen;render();if(state.scopeMenuOpen)rootEl.querySelector('[data-feed-scope-search]')?.focus();});
+    rootEl.querySelectorAll('[data-feed-scope-option]').forEach(button=>button.addEventListener('click',()=>{state.feedScope=button.dataset.feedScopeOption;state.scopeMenuOpen=false;state.visible=PAGE_SIZE;writeFeedPreferences();render();}));
+    rootEl.querySelector('[data-feed-scope-search]')?.addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();rootEl.querySelectorAll('.pf-feed-scope-departments [data-feed-scope-option]').forEach(button=>{button.hidden=!button.textContent.toLowerCase().includes(query);});});
+    rootEl.querySelectorAll('[data-feed-list-organize]').forEach(button=>button.addEventListener('click',()=>{state.listOrganize=button.dataset.feedListOrganize==='project'?'project':'time';writeFeedPreferences();render();}));
     rootEl.querySelector('[data-feed-compose-open]')?.addEventListener('click',()=>{state.composerOpen=true;render();rootEl.querySelector('[data-feed-compose-text]')?.focus();});
     rootEl.querySelectorAll('[data-feed-compose-close]').forEach(button=>button.addEventListener('click',()=>{if(!state.composerBusy){state.composerOpen=false;render();}}));
     const composeText=rootEl.querySelector('[data-feed-compose-text]'),mentionMenu=rootEl.querySelector('[data-feed-compose-mention-menu]');
@@ -2749,7 +2745,7 @@
       }catch(error){showToast?.('Could not post',error?.message || 'Try again.',false);}
       finally{state.composerBusy=false;render();}
     });
-    rootEl.querySelector('input[type="search"]')?.addEventListener('input', (event) => {
+    rootEl.querySelector('.pf-search input[type="search"]')?.addEventListener('input', (event) => {
       state.query = event.target.value || '';
       state.visible = PAGE_SIZE;
       renderDynamic();

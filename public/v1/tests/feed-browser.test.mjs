@@ -141,14 +141,14 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await page.getByText('work plan started',{exact:false}).count(),0);
   assert.equal(await page.locator('[data-feed-list-expand]').count(),0);
   assert.equal(await batchRow.locator('.pf-feed-list-media:visible').count(),1);
-  await page.getByRole('combobox',{name:'Organize feed'}).selectOption('project');
+  await page.locator('[data-feed-list-organize="project"]').click();
   assert.ok(await page.locator('.pf-project-group').count()>0);
   assert.equal(await page.locator('.pf-project-group').first().locator('.pf-project-group-project .pf-project-card').count(),1);
   assert.ok(await page.locator('.pf-project-group').first().locator('.pf-project-group-events .pf-feed-list-row').count()>1);
   assert.equal(await page.locator('.pf-project-group').first().locator('.pf-project-group-events .pf-feed-list-project').count(),0);
   assert.equal(await page.locator('.pf-project-group').first().locator('.pf-feed-list-row').nth(1).evaluate(e=>getComputedStyle(e).borderTopWidth),'0px');
   await page.screenshot({path:new URL('../../../output/feed/screenshots/list-by-project.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
-  await page.getByRole('combobox',{name:'Organize feed'}).selectOption('time');
+  await page.locator('[data-feed-list-organize="time"]').click();
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
   await page.screenshot({path:new URL('../../../output/feed/screenshots/list.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
   await page.getByRole('button',{name:'Mosaic',exact:true}).click();assert.equal(await page.locator('.pf-feed-grid').first().evaluate(e=>getComputedStyle(e).columnCount),'4');await page.waitForTimeout(100);assert.notEqual(await page.locator('.pf-feed-card').nth(0).evaluate(e=>e.offsetHeight),await page.locator('.pf-feed-card').nth(1).evaluate(e=>e.offsetHeight));
@@ -159,18 +159,27 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await mkdir(new URL('../../../output/feed/screenshots/',import.meta.url),{recursive:true});
   await page.screenshot({path:new URL('../../../output/feed/screenshots/mosaic.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
   await page.getByRole('button',{name:'Posts',exact:true}).click();
-  assert.ok(await page.locator('.pf-post-toolbar-actions').evaluate(element=>element.getBoundingClientRect().right <= document.querySelector('.pf-tools').getBoundingClientRect().left),'post actions are left of view and filter controls');
-  assert.equal(await page.getByText('Company birthday board').count(),1);
-  await page.waitForFunction(()=>document.querySelector('.pf-post-overflow'));
-  assert.ok(await page.locator('.pf-post-document small').allTextContents().then(labels=>labels.includes('Contract')));
+  assert.equal(await page.locator('[data-feed-manual-only]').count(),0);
+  assert.ok(await page.locator('.pf-create-post').evaluate(element=>element.getBoundingClientRect().right <= document.querySelector('.pf-density').getBoundingClientRect().left),'Post sits at the left edge of the right-hand controls');
+  await page.locator('[data-feed-scope]').click();
+  assert.equal(await page.getByText('Company board',{exact:true}).count(),0);
+  assert.equal(await page.getByRole('searchbox',{name:'Find a department'}).count(),1);
+  await page.getByRole('searchbox',{name:'Find a department'}).fill('Sale');
+  assert.equal(await page.locator('[data-feed-scope-option="sales"]').isVisible(),true);
+  assert.equal(await page.getByText('Company birthday board').count(),1,'department search does not filter feed posts');
+  await page.locator('[data-feed-scope]').click();
+  assert.equal(await page.locator('.pf-post-overflow').count(),1);
+  assert.equal(await page.locator('.pf-post-document').count(),0,'unselected document activity does not become a post');
   assert.equal(await page.locator('.pf-post').first().locator('.pf-actor-avatar img').getAttribute('src'),'/avatar.svg');
   assert.equal(await page.locator('.pf-post').first().locator('.pf-actor-badge i').count(),1);
+  assert.match(await page.locator('.pf-post').first().locator('.pf-post-head').textContent(),/Oak Street renovation/);
+  assert.doesNotMatch(await page.locator('.pf-post').first().locator('.pf-post-head').textContent(),/104 Oak Street/);
   assert.match(await page.locator('.pf-post-caption').first().textContent(),/Uploaded 20 photos$/);
   assert.equal(await page.locator('.pf-post-overflow').textContent(),'+16');
   assert.equal(await page.locator('.pf-post-collage .pf-thumb').count(),4);
-  assert.match(await page.locator('.pf-post-value').first().textContent(),/24,500/);
   const post=page.locator('.pf-post').first();
   await post.getByRole('button',{name:'Comments',exact:true}).click();
+  assert.equal(await post.getByText('No comments yet. Start the conversation.').count(),0);
   await post.locator('textarea').fill('Looks great');await post.getByRole('button',{name:'Post comment',exact:true}).click();
   await page.waitForFunction(()=>window.replies.length===1);
   await page.waitForFunction(()=>document.querySelector('.pf-comment'));
@@ -255,7 +264,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     assert.equal(await responsiveNote.locator('.pf-note-plain:visible').count() + await responsiveNote.locator('[data-feed-note-toggle]:visible').count(),1);
     assert.ok(await noteRow.locator('.pf-note-preview-text').evaluate(e=>e.getBoundingClientRect().height <= parseFloat(getComputedStyle(e).lineHeight)*2+1),'mobile preview stays within two lines');
    }
-   if(name==='Posts')assert.equal(await page.locator('.pf-feed-manual-only .pf-manual-mobile').isVisible(),true);
+   if(name==='Posts')assert.equal(await page.locator('[data-feed-manual-only]').count(),0);
   }
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
