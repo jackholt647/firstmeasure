@@ -69,20 +69,22 @@ export class TelnyxVoiceClient {
       inbound:{codecs:["OPUS","G722","G711U","G711A"]}});
   }
 }
+export function developmentVoiceDestinations(){
+  return [...new Set(text(process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS).split(",").map(v=>v.trim()).filter(v=>/^\+[1-9]\d{7,14}$/.test(v)))];
+}
 /** Apply at the carrier boundary, including queued work, transfers and overflow. */
 export function voiceDestination(destination:unknown){
   const value=text(destination);
   if(env.dataEnvironment!=="development"||/^sip:[A-Za-z0-9_.+%-]+@sip\.telnyx\.com$/.test(value))return value;
   if(!/^\+[1-9]\d{7,14}$/.test(value))throw forbidden('development_voice_destination_blocked','Use an international test phone destination.');
-  const target='+14259700671';assertVoiceDestination(target);return target;
+  const target=developmentVoiceDestinations().includes(value)?value:'+14259700671';assertVoiceDestination(target);return target;
 }
 /** Development uses real carrier calls only to explicitly controlled test phones. */
 export function assertVoiceDestination(destination:unknown){
   if(env.dataEnvironment!=="development")return;
   const phone=text(destination);
   if(/^sip:[A-Za-z0-9_.+%-]+@sip\.telnyx\.com$/.test(phone))return;
-  const allowed=new Set(text(process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS).split(",").map(v=>v.trim()).filter(v=>/^\+[1-9]\d{7,14}$/.test(v)));
-  if(!allowed.has(phone))throw forbidden("development_voice_destination_blocked","Development calls are restricted to configured test phones.");
+  if(!developmentVoiceDestinations().includes(phone))throw forbidden("development_voice_destination_blocked","Development calls are restricted to configured test phones.");
 }
 let factory:()=>TelnyxVoiceClient=()=>new TelnyxVoiceClient();
 export function voiceClient(){return factory();}

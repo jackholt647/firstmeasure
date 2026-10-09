@@ -146,7 +146,18 @@ test('carrier boundary reroutes development PSTN calls and transfers; production
     await adapter.dial({to:'+442012345678'});await adapter.command('test','transfer',{to:'+12065550122'});
     assert.deepEqual(payloads.map(p=>p.to),['+14259700671','+14259700671']);
     await adapter.dial({to:'sip:test@sip.telnyx.com'});assert.equal(payloads[2].to,'sip:test@sip.telnyx.com');
+    process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='+14259700671, +12068590917,+15099600721,+12068590917,invalid';
+    await adapter.dial({to:'+12068590917'});await adapter.dial({to:'+15099600721'});
+    await adapter.command('test','transfer',{to:'+15099600721'});
+    assert.deepEqual(payloads.slice(-3).map(p=>p.to),['+12068590917','+15099600721','+15099600721']);
+    const {developmentCallStatus}=await import('../comms/calls/development.js');
+    assert.deepEqual((await developmentCallStatus('test-routing'))?.destinations,['+14259700671','+12068590917','+15099600721']);
+    process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='+14259700671';
+    await adapter.dial({to:'+12068590917'});assert.equal(payloads.at(-1).to,'+14259700671');
     process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS='';await assert.rejects(adapter.dial({to:'+12065550111'}));
+    await assert.rejects(adapter.dial({to:'+15099600721'}));
+    await assert.rejects(adapter.dial({to:'sip:test@untrusted.example'}));
     Object.assign(env,{dataEnvironment:'production'});await adapter.dial({to:'+12065550111'});assert.equal(payloads.at(-1).to,'+12065550111');
+    assert.equal(await developmentCallStatus('test-routing'),undefined);
   }finally{Object.assign(env,{dataEnvironment:previous});if(allowed===undefined)delete process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS;else process.env.TELNYX_VOICE_DEVELOPMENT_ALLOWED_NUMBERS=allowed;}
 });
