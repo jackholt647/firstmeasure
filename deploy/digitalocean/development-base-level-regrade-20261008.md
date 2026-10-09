@@ -34,6 +34,10 @@ point selected by the shared 3D picker. Previously, hovering outside a boundary
 could lose the face hit and measure edge snaps at Z=0. Two regression cases click
 six screen pixels inside/outside an oblique edge of a raised, pitched base and
 require an exact boundary endpoint and two resulting faces. All 60 base editor,
-sketch control, and sketch geometry tests pass. Snap follow-up rollout pending.
+sketch control, and sketch geometry tests pass. Snap follow-up deployed and verified at
+f5bce5c8d6a35b1d91949cfc1025758ec6f178f8 on web, pool, and worker. Cumulative
+verification matched all 9 editor files on each web node and 8 on worker.
+All readiness/isolation checks passed; the project and internal-editor
+capability again returned HTTP 200 on both web nodes.
 The compatibility mirror remains blocked by its previously documented storage
 capacity and inode exhaustion; no cleanup or reserve bypass was performed.
