@@ -2872,5 +2872,6 @@ for(const source of ['R7.0','R36.0'])for(const segment of [0,1])test(`captured t
  const updated=f.editor.soffitEdges().filter(c=>c.source.id===source);assert.ok(updated.length);assert.ok(updated.every(c=>Math.abs(c.inset-.6096)<.002));
  for(const face of state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
  const saved=JSON.parse(JSON.stringify(state)),reloaded=fixture({state:saved,walls,selected:null,globals});assert.ok(reloaded.editor.soffitEdges().some(c=>c.source.id===source&&Math.abs(c.inset-.6096)<.002));
+ for(const depth of [.6096,.9144,.6096]){assert.equal(reloaded.editor.soffitEdges().filter(c=>c.source.id===source).length>0,true);reloaded.editor.restoreSelection({lineSelection:reloaded.editor.soffitEdges().filter(c=>c.source.id===source).map(c=>({pair:c.pair}))});assert.equal(reloaded.editor.resoffit(depth),true,reloaded.message());assert.ok(reloaded.editor.soffitEdges().filter(c=>c.source.id===source).every(c=>Math.abs(c.inset-depth)<.002));}
  state.wallEdits=f.history.pop();assert.equal(JSON.stringify(state.wallEdits),before);
 });

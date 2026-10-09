@@ -111,7 +111,7 @@ function apply(faces,pairs,depth,roof,sources,options={}){
  const flexible=new Set(),span=f=>{const n=K.normal(f.points),ts=f.points.map(p=>p.x*n.y-p.y*n.x);return Math.max(...ts)-Math.min(...ts);};
  for(const f of faces){const n=K.normal(f.points);if(f.deleted||requests.has(f.id)||consumed.has(f.id)||f.baseId||f.chimney||f.trim||!n||Math.abs(n.z)>.02)continue;
   if(!faces.some(o=>requests.has(o.id)&&adjacent(f,o)))continue;
-  if(faces.some(g=>g.id!==f.id&&!g.deleted&&!requests.has(g.id)&&!g.baseId&&!g.chimney&&!g.trim&&Math.abs(dot(n,K.normal(g.points)||{x:0,y:0,z:0}))>.999&&span(f)<span(g)*.2&&adjacent(f,g)&&faces.some(o=>requests.has(o.id)&&adjacent(g,o))))flexible.add(f.id);
+  if(faces.some(g=>g.id!==f.id&&!g.deleted&&!requests.has(g.id)&&!g.baseId&&!g.chimney&&!g.trim&&(f.resoffitReturn||Math.abs(dot(n,K.normal(g.points)||{x:0,y:0,z:0}))>.999)&&span(f)<span(g)*.2&&adjacent(f,g)&&faces.some(o=>requests.has(o.id)&&adjacent(g,o))))flexible.add(f.id);
  }
  const planes=roofPlanes(roof),graph=K.topology(faces.filter(f=>!f.deleted),faces.flatMap(f=>f.retainedPoints||[])),moves=[];
  for(const v of graph.vertices){const p=v.point,owners=faces.filter(f=>!f.deleted&&!consumed.has(f.id)&&rings(f).some(r=>r.some((a,i)=>on(p,a,r[(i+1)%r.length]))));
@@ -128,9 +128,17 @@ function apply(faces,pairs,depth,roof,sources,options={}){
  }
  // Transfer the pivot along every station of the return, including base and
  // roof contacts. All shared vertices use the same displacement.
- for(const f of faces.filter(f=>flexible.has(f.id))){const n=K.normal(f.points),t=p=>p.x*n.y-p.y*n.x,lo=Math.min(...f.points.map(t)),hi=Math.max(...f.points.map(t));
-  const delta=end=>{const hits=moves.filter(m=>Math.abs(t(m.from)-end)<.002&&f.points.some(p=>Math.hypot(p.x-m.from.x,p.y-m.from.y)<.002)).sort((a,b)=>Math.hypot(b.to.x-b.from.x,b.to.y-b.from.y)-Math.hypot(a.to.x-a.from.x,a.to.y-a.from.y));return hits.length?sub(hits[0].to,hits[0].from):{x:0,y:0,z:0};},a=delta(lo),b=delta(hi);
-  for(const v of graph.vertices){const p=v.point;if(!rings(f).some(r=>r.some((q,i)=>on(p,q,r[(i+1)%r.length]))))continue;const d=mix(a,b,(t(p)-lo)/(hi-lo)),to={...p,x:p.x+d.x,y:p.y+d.y},supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<ROOF_CONTACT);if(supports.length)to.z=followRoof(p,to,supports,planes);else {const base=faces.find(g=>g.baseId&&rings(g).some(r=>r.some((q,i)=>on(p,q,r[(i+1)%r.length])))),plane=base&&G.plane(base.points);if(plane)to.z=plane.dx*to.x+plane.dy*to.y+plane.k;}const old=moves.find(m=>same(m.from,p));if(old)old.to=to;else moves.push({from:p,to,junction:0});}
+ for(const f of faces.filter(f=>flexible.has(f.id))){
+  const n=K.normal(f.points),t=p=>p.x*n.y-p.y*n.x,lo=Math.min(...f.points.map(t)),hi=Math.max(...f.points.map(t));
+  const anchor=end=>{const hits=moves.filter(m=>Math.abs(t(m.from)-end)<.002&&f.points.some(p=>Math.hypot(p.x-m.from.x,p.y-m.from.y)<.002)).sort((a,b)=>b.junction-a.junction);return hits.length?hits[0].to:f.points.slice().sort((a,b)=>Math.abs(t(a)-end)-Math.abs(t(b)-end))[0];},a=anchor(lo),b=anchor(hi);
+  for(const v of graph.vertices){
+   const p=v.point;if(!rings(f).some(r=>r.some((q,i)=>on(p,q,r[(i+1)%r.length]))))continue;
+   const station=t(p),fraction=station-lo<.002?0:hi-station<.002?1:(station-lo)/(hi-lo),q=mix(a,b,fraction),to={...p,x:q.x,y:q.y};
+   const supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<ROOF_CONTACT);
+   if(supports.length)to.z=followRoof(p,to,supports,planes);
+   else {const base=faces.find(g=>g.baseId&&rings(g).some(r=>r.some((q,i)=>on(p,q,r[(i+1)%r.length])))),plane=base&&G.plane(base.points);if(plane)to.z=plane.dx*to.x+plane.dy*to.y+plane.k;}
+   const old=moves.find(m=>same(m.from,p));if(old){old.to=to;old.pivot=true;}else moves.push({from:p,to,junction:0,pivot:true});
+  }
  }
  // Generated boundaries can retain millimetre-wide survey seams at a junction.
  // Move the coincident end of that seam with its corner, rather than folding
@@ -141,12 +149,12 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   const corner=corners[0];if(!corner)continue;const existing=moves.find(m=>same(m.from,p));
   if(existing&&corner.junction>existing.junction)existing.to={...corner.to};else if(!existing)moves.push({from:p,to:{...corner.to},junction:corner.junction});
  }
- const movedPoint=p=>{const move=moves.filter(m=>same(m.from,p)).sort((a,b)=>length(sub(a.from,p))-length(sub(b.from,p)))[0];return move?{...p,x:p.x+move.to.x-move.from.x,y:p.y+move.to.y-move.from.y,z:p.z+move.to.z-move.from.z}:p;},affected=[];
+ const movedPoint=p=>{const move=moves.filter(m=>same(m.from,p)).sort((a,b)=>length(sub(a.from,p))-length(sub(b.from,p)))[0];return move?{...p,x:move.pivot?move.to.x:p.x+move.to.x-move.from.x,y:move.pivot?move.to.y:p.y+move.to.y-move.from.y,z:p.z+move.to.z-move.from.z}:p;},affected=[];
  const usedIds=new Set(faces.map(f=>f.id));
  const result=faces.flatMap(f=>{if(f.deleted)return f;if(consumed.has(f.id)){affected.push(f.id);return {...f,deleted:true};}const replace=ring=>ring.flatMap((a,i)=>{const b=ring[(i+1)%ring.length],u=sub(b,a),l2=dot(u,u),cuts=moves.filter(m=>!same(m.from,a)&&!same(m.from,b)&&on(m.from,a,b)).sort((m,n)=>dot(sub(m.from,a),u)-dot(sub(n.from,a),u));return [a,...cuts.map(m=>m.from)].map(movedPoint);}).filter((p,i,all)=>length(sub(p,all[(i+1)%all.length]))>1e-7);
   const next={...f,points:replace(f.points),holes:(f.holes||[]).map(replace),retainedPoints:(f.retainedPoints||[]).map(movedPoint)};
   if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[]))return f;
-  const choice=choices.find(c=>c.faceId===f.id);if(choice)next.resoffitSource=choice.source.id;
+  const choice=choices.find(c=>c.faceId===f.id);if(choice)next.resoffitSource=choice.source.id;if(flexible.has(f.id))next.resoffitReturn=true;
   const n=K.normal(f.points),request=requests.get(f.id),offset=request?request.value*dot(request.n,n):0;
   const project=p=>{if(flexible.has(f.id))return p;const d=dot(sub(p,f.points[0]),n)-offset;return {...p,x:p.x-n.x*d,y:p.y-n.y*d,z:p.z-n.z*d};};
   next.points=next.points.map(project);next.holes=next.holes.map(r=>r.map(project));
