@@ -26,3 +26,11 @@ The development overlay changed only the Feed script, each role's manifest, and 
 The first activation restarted all three serving roles together and the public load balancer briefly returned 503 while re-admitting them. The final mobile-correction rollout restarted one role at a time, with public login HTTP 200 between roles and after completion.
 
 Open the [development Feed List](https://dev.1m8.ai/portal/?tab=photos_feed&feedDensity=list).
+
+## Follow-up: time and project columns
+
+Code commits `da5da69cbcf888e83bc9e5c92e2257354fead2ae` and `19b0cf9eee974520775c34fc8564a4e35b8cce7e` put the time before the activity sentence, keep note/photo/document previews below that sentence on the left, and move the single project card to the right. At widths below 560px, the project card stacks below the activity so the text remains readable. The final commit keeps the time and activity together on narrow screens. The current Feed manifest cache version is `20261009-feed-list-right-project-v4`.
+
+The focused Feed browser test passed against the development overlay, including a long activity at mobile width, the project column at desktop and tablet widths, document preview opening, and project-card navigation. The signed-in Pioneer Puffin Feed showed the time inline with the activity at mobile width. At a 1100px viewport, live page geometry placed the activity at x=210px and the project card at x=743px. The public Feed script SHA-256 is `4dc84299070081cfd7add5bbc055e2d34529ff24398dc080e90bf05badfd201d`; public login returned HTTP 200.
+
+Development web and pool now serve `/opt/firstmeasure/releases/19b0cf9eee974520775c34fc8564a4e35b8cce7e`. Compatibility serves `/opt/firstmeasure/releases-root-archive/19b0cf9eee974520775c34fc8564a4e35b8cce7e`. Each role passed local readiness with development data and enforced outbound safety. The prior release was `c7d9d4e28e65ba37973a47e2673fabc2d22a70d3` on web and `da5da69cbcf888e83bc9e5c92e2257354fead2ae` on pool and compatibility. Check active symlinks before any rollback because other development deployments may supersede these releases.
