@@ -57,9 +57,18 @@ test('captured gable aligns to chimney without changing roof or deliberate chimn
  // Previously retained wall strips ran diagonally through the upper shaft,
  // because clipping stopped at roof contact instead of the chimney cap.
  for(const w of composed.filter(w=>!w.chimney))assert.equal(C.intervals(...w.top,[{points:chimney[0].points}],true).length,0,'ordinary wall top ends at the chimney boundary');
- assert.equal(G.topology(merged).faces.length,10);assert.equal(D.detect(merged,s.ground).length,0);
+ assert.equal(G.topology(merged).faces.length,11,'chimney material retains its own coplanar region');assert.equal(D.detect(merged,s.ground).length,0);
  assert.deepEqual(s.roof,roof);assert.deepEqual(C.definitions(s),chimney);
  const side=composed.find(w=>w.chimney?.side===3);side.material='brick';
  const materialSplit=A.compose(composed,r.report);assert.notEqual(materialSplit.find(w=>w.id===side.id).mergeGroup,materialSplit.find(w=>w.sourceId==='R17.1').mergeGroup);
  assert.deepEqual(A.compose(composed,r.report,composed.map(w=>w.id)),composed);
+});
+
+test('default chimney material remains a distinct region after coplanar cleanup and legacy merges',()=>{
+ const strip=(id,x0,x1,chimney)=>({id,sourceId:id,kind:'perimeter',bottom:[{x:x0,y:0,z:0},{x:x1,y:0,z:0}],top:[{x:x0,y:0,z:3},{x:x1,y:0,z:3}],...(chimney?{chimney:{id:'c',side:0}}:{})}),walls=[strip('wall',0,2),strip('shaft',2,3,true)],before=copy(walls);
+ const report={alignments:[{chimneyId:'c',side:0,sourceIds:['wall']}]};
+ for(const records of [A.compose(walls,report),walls.map(w=>({...w,mergeGroup:'old-shared-plane'}))]){
+  const faces=G.topology(records).faces;assert.equal(faces.length,2);near(faces.filter(f=>f.chimney).reduce((s,f)=>s+f.area,0),3);near(faces.filter(f=>!f.chimney).reduce((s,f)=>s+f.area,0),6);
+ }
+ assert.deepEqual(walls,before,'material ownership does not move any geometry');
 });

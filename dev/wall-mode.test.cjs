@@ -282,7 +282,7 @@ test('rake cleanup is a sixth stage with reversible wall and foundation comparis
  const pixel=p=>({...p,x:p.x+5,y:p.y+5}),points=input.roof.points.map(pixel);
  ctx.activeGeometry={points,connections:input.roof.connections.map(c=>({...c,start:points[c.startIdx],end:points[c.endIdx]})),manualFaces:input.roof.faces.map(f=>({...f,points:f.points.map(pixel),holes:(f.holes||[]).map(r=>r.map(pixel))}))};
  ctx.dsmMin=input.options.ground;ctx.WallMode.setEnabled(true);soffits[0].onclick();
- const aligned=ctx.WallMode.serialize();assert.equal(aligned.stage,7);assert.equal(aligned.chimneyCleanupReport.alignments.length,1);assert.equal(aligned.geometry.faces.length,10);
+ const aligned=ctx.WallMode.serialize();assert.equal(aligned.stage,7);assert.equal(aligned.chimneyCleanupReport.alignments.length,1);assert.equal(aligned.geometry.faces.length,11);
  const alignedBase=JSON.stringify(aligned.base);
  stages[4].onclick();stages[6].onclick();assert.equal(JSON.stringify(ctx.WallMode.serialize().base),alignedBase);
  ctx.WallMode.beforeProjectLoad();ctx.WallMode.restore('fixture',{exteriorsWalls:{...aligned,savedAt:Date.now()+1000}});
@@ -296,7 +296,7 @@ test('rake cleanup is a sixth stage with reversible wall and foundation comparis
  assert.equal(JSON.stringify(ctx.WallMode.serialize().roof),roof);
  stages[4].onclick();elements.get('wall-rebuild').onclick();assert.equal(ctx.WallMode.serialize().stage,7);
  key('z');assert.equal(ctx.WallMode.serialize().stage,5);assert.equal(JSON.stringify(ctx.WallMode.serialize().base),JSON.stringify(detailed.base));
- key('y');assert.equal(ctx.WallMode.serialize().stage,7);assert.equal(ctx.WallMode.serialize().geometry.faces.length,10);
+ key('y');assert.equal(ctx.WallMode.serialize().stage,7);assert.equal(ctx.WallMode.serialize().geometry.faces.length,11);
 });
 test('translucency defaults on and toolbar preference round trips',()=>{const f=fixture(true);f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();assert.notEqual(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();const saved=f.ctx.WallMode.serialize();assert.equal(saved.translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(f.ctx.WallMode.serialize().translucent,false);f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');assert.equal(f.ctx.WallMode.serialize().translucent,false);f.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});assert.equal(f.ctx.WallMode.serialize().displayMode,'textured');f.elements.get('wall-translucency-toggle').onclick();assert.equal(f.ctx.WallMode.serialize().translucent,true);});
 
@@ -415,7 +415,7 @@ test('loading with the 2D canvas present draws SVG roof faces without requiring 
 });
 
 
-test('initial renderer keeps a merged wall and chimney in one mesh and removes the shared seam',()=>{
+test('initial renderer preserves chimney material within a legacy merged plane',()=>{
  const {ctx,soffits}=fixture();ctx.activeGeometry.connections[0].type='eave';ctx.WallMode.setEnabled(true);soffits[0].onclick();
  const state=ctx.WallMode.serialize(),p=(x,z)=>({x,y:0,z});
  state.alignedWalls=[{id:'left',sourceId:'left',mergeGroup:'common',bottom:[p(0,0),p(2,0)],top:[p(0,3),p(2,3)]},{id:'right',sourceId:'c',mergeGroup:'common',chimney:{id:'c',side:0},bottom:[p(2,0),p(4,0)],top:[p(2,3),p(4,3)]}];
@@ -428,11 +428,11 @@ test('initial renderer keeps a merged wall and chimney in one mesh and removes t
  ctx.THREE={Group,BufferGeometry:Geometry,Float32BufferAttribute:class{constructor(array){this.array=array;}},Mesh:Object3D,Line:Object3D,LineSegments:Object3D,Points:Object3D,MeshBasicMaterial:Material,LineBasicMaterial:Material,PointsMaterial:Material};
  ctx.ExteriorModel=require('../public/measure/internal/editor_scripts/exterior_model.js');ctx.scene=new Group();ctx.getVector3=p=>p;ctx.disposeObject3D=()=>{};ctx.WallMode.render3D();
  const objects=ctx.scene.children[0].children,meshes=objects.filter(o=>o.userData.pickLayer==='walls');
- assert.equal(meshes.length,1,'material source category cannot split the common plane');
- const wire=objects.filter(o=>o.geometry.position&&o.material.opacity===.95);assert.equal(wire.length,1);
- // No internal upright appears in the rendered line pairs (world conversion is irrelevant).
- const a=wire[0].geometry.position.array;let verticals=0;for(let i=0;i<a.length;i+=6)if(a[i]===a[i+3]&&a[i+1]===a[i+4])verticals++;
- assert.equal(verticals,2,'only the outer uprights are rendered');
+ assert.equal(meshes.length,2,'wall and chimney retain separate material regions');assert.equal(new Set(meshes.map(m=>m.material.color)).size,2,'chimney keeps its distinct rendering color');
+ const wire=objects.filter(o=>o.geometry.position&&o.material.opacity===.95);assert.equal(wire.length,2);
+ // Both regions retain the shared material boundary without moving it.
+ const verticals=new Set();for(const line of wire){const a=line.geometry.position.array;for(let i=0;i<a.length;i+=6)if(a[i]===a[i+3]&&a[i+1]===a[i+4])verticals.add([a[i],a[i+1]].join('|'));}
+ assert.equal(verticals.size,3,'the material boundary remains editable');
 });
 
 

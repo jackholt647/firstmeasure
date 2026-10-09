@@ -1253,11 +1253,12 @@ function perf_previewLineMove(e){
  function resoffit(depth){
   if(tool||workingPlane){host.message('Finish the current edit before resoffiting.');return false;}
   const pairs=lineSelection.flatMap(l=>l.pairs||[l.pair]);if(!pairs.length){host.message('Select roof-contact soffit lines first.');return false;}
+  const selectedSources=[...new Set(soffitEdges().filter(c=>pairs.some(pair=>W.sharedIntervals(...pair,[{points:c.pair}]).length)).map(c=>c.source.id))];
   const before=copy(host.state().wallEdits||{});let result;
   const ok=transaction(()=>{
    const scene=moveScene().filter(f=>!f.snapOnly),base=copy(host.state().wallEdits.$base||host.state().base);
    scene.push(...(base?.faces||[]).filter(f=>!f.deleted).map(f=>({...f,id:'resoffit-base:'+f.id,baseId:f.id})));
-   const options={keepTrimStatic:host.state().keepTrimStatic,ground:host.state().ground,walllessRoofIds:host.state().wallEdits.$walllessRoofIds};
+   const options={keepTrimStatic:host.state().keepTrimStatic,ground:host.state().ground,walllessRoofIds:host.state().wallEdits.$walllessRoofIds,selectedSources};
    result=depth==='wallless'?window.WallResoffit.wallless(scene,pairs,host.state().roof,host.state().sources,options):window.WallResoffit.apply(scene,pairs,depth,host.state().roof,host.state().sources,options);
    const edits=copy(host.state().wallEdits);applyLineResult({scene,base,op:Date.now()},result,edits);host.state().wallEdits=edits;
    if(result.wallless)edits.$walllessRoofIds=result.walllessRoofIds;

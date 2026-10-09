@@ -2861,3 +2861,16 @@ test('Wallless consumes generated draft ownership without leaving the original c
  const f=fixture({state,walls,selected:null,globals:{WallResoffit:R}}),before=JSON.stringify(state.wallEdits);f.editor.restoreSelection({lineSelection:[{pair:lower.top}]});assert.equal(f.editor.resoffit('wallless'),true,f.message());assert.equal(JSON.stringify(f.history.at(-1)),before);assert.ok(state.wallEdits.$surfaces.some(f=>f.deleted&&f.wallless));
  const saved=JSON.parse(JSON.stringify(state));fixture({state:saved,walls,selected:null,globals:{WallResoffit:R}});const visible=M.collect(saved,walls);assert.ok(!visible.some(f=>f.points.every(p=>Math.abs(p.y)<1e-7)));assert.ok(visible.some(f=>f.points.every(p=>Math.abs(p.y-2)<1e-7)&&Math.min(...f.points.map(p=>p.z))===0));
 });
+
+
+for(const source of ['R7.0','R36.0'])for(const segment of [0,1])test(`captured three-foot ${source} segment ${segment} edits locally to two feet, persists and undoes`,()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),A=require('../public/measure/internal/editor_scripts/wall_chimney_cleanup'),K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+ const state=structuredClone(require('./fixtures/local-resoffit-three-foot.json')),walls=A.compose(C.compose(state.alignedWalls,state),state.chimneyCleanupReport),globals={WallResoffit:R},f=fixture({state,walls,selected:null,globals});
+ const line=f.editor.soffitEdges().filter(c=>c.source.id===source)[segment];
+ assert.ok(Math.abs(line.inset-.9144)<.002);f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});const before=JSON.stringify(state.wallEdits),roof=JSON.stringify(state.roof);
+ assert.equal(f.editor.resoffit(.6096),true,f.message());assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(JSON.stringify(state.roof),roof);
+ const updated=f.editor.soffitEdges().filter(c=>c.source.id===source);assert.ok(updated.length);assert.ok(updated.every(c=>Math.abs(c.inset-.6096)<.002));
+ for(const face of state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
+ const saved=JSON.parse(JSON.stringify(state)),reloaded=fixture({state:saved,walls,selected:null,globals});assert.ok(reloaded.editor.soffitEdges().some(c=>c.source.id===source&&Math.abs(c.inset-.6096)<.002));
+ state.wallEdits=f.history.pop();assert.equal(JSON.stringify(state.wallEdits),before);
+});

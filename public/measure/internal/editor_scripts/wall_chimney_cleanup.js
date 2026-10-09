@@ -85,11 +85,16 @@ function cleanup(walls,sources,chimneys,ground,excluded=[]){
 // Keep editable records/IDs; only their common rendered boundary is merged.
 function compose(walls,report,excluded=[]){
  const result=copy(walls),blocked=id=>excluded.some(k=>id===k||id.startsWith(k+':'));
+ const ownership=w=>JSON.stringify([w.material||'default',w.color||null,w.chimney?.id||null,w.chimney?.side??null]),groups=new Map();
+ for(const w of result)if(w.mergeGroup){if(!groups.has(w.mergeGroup))groups.set(w.mergeGroup,new Set());groups.get(w.mergeGroup).add(ownership(w));}
+ // Repair legacy generated groups on read, keeping editable membership in
+ // agreement with the separate material regions used by the renderer.
+ for(const w of result)if(w.mergeGroup&&groups.get(w.mergeGroup).size>1)w.mergeGroup+='|region:'+ownership(w);
  for(const a of report?.alignments||[]){
   const batches=new Map();
   for(const w of result){
    if(blocked(w.id)||!(a.sourceIds.includes(w.sourceId)||w.chimney?.id===a.chimneyId&&w.chimney.side===a.side))continue;
-   const key=JSON.stringify([w.material||'default',w.color||null]);
+   const key=ownership(w);
    if(!batches.has(key))batches.set(key,[]);batches.get(key).push(w);
   }
   for(const batch of batches.values())for(const w of G.mergeCoplanar(batch).walls)Object.assign(result.find(p=>p.id===w.id),w);

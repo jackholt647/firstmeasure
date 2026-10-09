@@ -936,7 +936,8 @@
             const ar=ring(a).map(local),br=ring(b).map(local);
             return ar.some((p,i)=>{const q=ar[(i+1)%4],d=sub(q,p),l=distance(p,q);if(l<1e-5)return false;return br.some((r,j)=>{const t=br[(j+1)%4];if([r,t].some(v=>Math.abs(cross(sub(v,p),d))/l>1e-5))return false;const ts=[r,t].map(v=>((v.x-p.x)*d.x+(v.y-p.y)*d.y)/l).sort((a,b)=>a-b);return Math.min(l,ts[1])-Math.max(0,ts[0])>1e-5;});});
         };
-        for(let i=0;i<walls.length;i++)for(let j=i+1;j<walls.length;j++)if(!blocked.has(walls[i].id)&&!blocked.has(walls[j].id)&&touch(walls[i],walls[j]))parent[find(j)]=find(i);
+        const ownership=w=>JSON.stringify([w.material||'default',w.color||null,w.chimney?.id||null,w.chimney?.side??null]);
+        for(let i=0;i<walls.length;i++)for(let j=i+1;j<walls.length;j++)if(!blocked.has(walls[i].id)&&!blocked.has(walls[j].id)&&ownership(walls[i])===ownership(walls[j])&&touch(walls[i],walls[j]))parent[find(j)]=find(i);
         const groups=new Map();walls.forEach((w,i)=>{const key=find(i);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(w.id);});
         return {walls:canonicalGeneratedWalls(walls.map((w,i)=>{const ids=groups.get(find(i));return ids.length>1?{...w,mergeGroup:ids.slice().sort().join('|')}:clone(w);}),excluded),removed:[...groups.values()].reduce((s,g)=>s+g.length-1,0)};
     }
@@ -990,6 +991,12 @@
         return walls.map(w=>({...w,bottom:w.bottom.map(p=>({...p,...moves.get(key(p))})),top:w.top.map(p=>({...p,...moves.get(key(p))}))}));
     }
     function topology(walls) {
+        // Older generated merge groups can contain both siding and chimney
+        // strips. Preserve their material regions even when they share a plane.
+        const ownership=w=>JSON.stringify([w.material||'default',w.color||null,w.chimney?.id||null,w.chimney?.side??null]);
+        const groupOwners=new Map();
+        for(const w of walls)if(w.mergeGroup){if(!groupOwners.has(w.mergeGroup))groupOwners.set(w.mergeGroup,new Set());groupOwners.get(w.mergeGroup).add(ownership(w));}
+        walls=walls.map(w=>w.mergeGroup&&groupOwners.get(w.mergeGroup).size>1?{...w,mergeGroup:w.mergeGroup+'|region:'+ownership(w)}:w);
         const points=[],connections=[],faces=[],index=new Map(),edges=new Set(),corrections=new Map();
         const add=p=>{const key=[p.x,p.y,p.z].map(v=>v.toFixed(5)).join('|');if(!index.has(key)){index.set(key,points.length);points.push({...p});}return index.get(key);};
         walls.forEach(w=>{
@@ -1000,7 +1007,7 @@
             ids.forEach((id,i)=>{const end=ids[(i+1)%ids.length],key=[id,end].sort((a,b)=>a-b).join(':');if(!edges.has(key)){edges.add(key);connections.push({startIdx:id,endIdx:end,type:'wall'});}});
             const triangles=[];for(let i=1;i<ids.length-1;i++)triangles.push([ids[0],ids[i],ids[i+1]]);
             const area=distance(...w.bottom)*((w.top[0].z-w.bottom[0].z)+(w.top[1].z-w.bottom[1].z))/2;
-            if(area>EPS)faces.push({pointIndices:ids,triangles,area,sourceId:w.sourceId,kind:w.kind,...(w.chimney?{chimney:{...w.chimney},type:'chimney'}:{}),...(w.mergeGroup?{mergeGroup:w.mergeGroup}:{})});
+            if(area>EPS)faces.push({pointIndices:ids,triangles,area,sourceId:w.sourceId,kind:w.kind,...(w.material?{material:w.material}:{}),...(w.color?{color:w.color}:{}),...(w.chimney?{chimney:{...w.chimney},type:'chimney'}:{}),...(w.mergeGroup?{mergeGroup:w.mergeGroup}:{})});
         });
         const groups=[...new Set(faces.map(f=>f.mergeGroup).filter(Boolean))];
         if(groups.length){

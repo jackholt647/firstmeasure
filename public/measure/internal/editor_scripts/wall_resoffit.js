@@ -67,9 +67,16 @@ function solve(constraints){
  for(const c of constraints){let v={...c.n},value=c.value;for(const b of basis){const t=dot(v,b.v);v={x:v.x-t*b.v.x,y:v.y-t*b.v.y,z:v.z-t*b.v.z};value-=t*b.value;}const l=length(v);if(l<.0005){if(Math.abs(value)>.002)throw Error('These soffits cannot meet while preserving their connected planes.');continue;}basis.push({v:{x:v.x/l,y:v.y/l,z:v.z/l},value:value/l});}
  return basis.reduce((p,b)=>({x:p.x+b.v.x*b.value,y:p.y+b.v.y*b.value,z:p.z+b.v.z*b.value}),{x:0,y:0,z:0});
 }
+// A displayed merged roof-contact boundary may include a short hip return.
+// Resolve its proven source against the same editable face, even when that
+// return itself no longer passes the roof-contact sampling test after merging.
+function selectedCandidates(faces,pairs,roof,sources,options){
+ const all=candidates(faces,roof,sources);
+ return all.filter(c=>pairs.some(pair=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001))||options.selectedSources?.includes(c.source.id)&&pairs.some(pair=>W.sharedIntervals(...pair,[faces.find(f=>f.id===c.faceId)]).some(([a,b])=>b-a>.001)));
+}
 function apply(faces,pairs,depth,roof,sources,options={}){
  if(!Number.isFinite(depth)||depth<0||depth>5)throw Error('Enter a soffit depth from 0 to 16 feet.');
- const choices=candidates(faces,roof,sources).filter(c=>pairs.some(pair=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001)));
+ const choices=selectedCandidates(faces,pairs,roof,sources,options);
  if(!choices.length)throw Error('Select roof-contact soffit lines first.');
  const requests=new Map();let limited=false;
  for(const c of choices){const minimum=c.source.clearanceRoofIds?.length?c.source.contactSetback||0:0,target=Math.max(depth,minimum);limited ||= target>depth+.002;
@@ -98,11 +105,19 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   }
  }
  for(const f of faces.filter(f=>consumed.has(f.id))){const neighbors=faces.filter(o=>!o.deleted&&!consumed.has(o.id)&&!o.trim&&Math.abs(K.normal(o.points)?.z||0)<.02&&adjacent(f,o));bridges.push({face:f,neighbors});}
+ // A short surveyed return can meet a longer, almost collinear wall at
+ // the selected corner. Keeping both planes fixed overconstrains that corner.
+ // Let only the short return pivot about its far end; retain the long wall.
+ const flexible=new Set(),span=f=>{const n=K.normal(f.points),ts=f.points.map(p=>p.x*n.y-p.y*n.x);return Math.max(...ts)-Math.min(...ts);};
+ for(const f of faces){const n=K.normal(f.points);if(f.deleted||requests.has(f.id)||consumed.has(f.id)||f.baseId||f.chimney||f.trim||!n||Math.abs(n.z)>.02)continue;
+  if(!faces.some(o=>requests.has(o.id)&&adjacent(f,o)))continue;
+  if(faces.some(g=>g.id!==f.id&&!g.deleted&&!requests.has(g.id)&&!g.baseId&&!g.chimney&&!g.trim&&Math.abs(dot(n,K.normal(g.points)||{x:0,y:0,z:0}))>.999&&span(f)<span(g)*.2&&adjacent(f,g)&&faces.some(o=>requests.has(o.id)&&adjacent(g,o))))flexible.add(f.id);
+ }
  const planes=roofPlanes(roof),graph=K.topology(faces.filter(f=>!f.deleted),faces.flatMap(f=>f.retainedPoints||[])),moves=[];
  for(const v of graph.vertices){const p=v.point,owners=faces.filter(f=>!f.deleted&&!consumed.has(f.id)&&rings(f).some(r=>r.some((a,i)=>on(p,a,r[(i+1)%r.length]))));
   for(const b of bridges)if(rings(b.face).some(r=>r.some((a,i)=>on(p,a,r[(i+1)%r.length]))))for(const f of b.neighbors)if(!owners.includes(f))owners.push(f);
   if(!owners.some(f=>requests.has(f.id)))continue;
-  const constraints=[];for(const f of owners){const request=requests.get(f.id),n=K.normal(f.points);if(request)constraints.push({n:request.n,value:request.value-dot(sub(p,f.points[0]),request.n)});else if(n&&!f.trim)constraints.push({n,value:-dot(sub(p,f.points[0]),n)});}
+  const constraints=[];for(const f of owners){const request=requests.get(f.id),n=K.normal(f.points);if(request)constraints.push({n:request.n,value:request.value-dot(sub(p,f.points[0]),request.n)});else if(n&&!f.trim&&!flexible.has(f.id))constraints.push({n,value:-dot(sub(p,f.points[0]),n)});}
   const supports=planes.filter(f=>G.contains(f,p)&&Math.abs(p.z-f.plane.dx*p.x-f.plane.dy*p.y-f.plane.k)<ROOF_CONTACT);
   // Solve plan junctions first, then follow the contacted roof at the new point.
   // A corner may cross a hip into another pitch during this edit.
@@ -110,6 +125,12 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   const d=solve(constraints),to={x:p.x+d.x,y:p.y+d.y,z:p.z+d.z};
   if(supports.length)to.z=followRoof(p,to,supports,planes);
   moves.push({from:p,to,junction:constraints.filter(c=>Math.abs(c.n.z)<.02).length});
+ }
+ // Transfer the pivot along every station of the return, including base and
+ // roof contacts. All shared vertices use the same displacement.
+ for(const f of faces.filter(f=>flexible.has(f.id))){const n=K.normal(f.points),t=p=>p.x*n.y-p.y*n.x,lo=Math.min(...f.points.map(t)),hi=Math.max(...f.points.map(t));
+  const delta=end=>{const hits=moves.filter(m=>Math.abs(t(m.from)-end)<.002&&f.points.some(p=>Math.hypot(p.x-m.from.x,p.y-m.from.y)<.002)).sort((a,b)=>Math.hypot(b.to.x-b.from.x,b.to.y-b.from.y)-Math.hypot(a.to.x-a.from.x,a.to.y-a.from.y));return hits.length?sub(hits[0].to,hits[0].from):{x:0,y:0,z:0};},a=delta(lo),b=delta(hi);
+  for(const v of graph.vertices){const p=v.point;if(!rings(f).some(r=>r.some((q,i)=>on(p,q,r[(i+1)%r.length]))))continue;const d=mix(a,b,(t(p)-lo)/(hi-lo)),to={...p,x:p.x+d.x,y:p.y+d.y},supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<ROOF_CONTACT);if(supports.length)to.z=followRoof(p,to,supports,planes);else {const base=faces.find(g=>g.baseId&&rings(g).some(r=>r.some((q,i)=>on(p,q,r[(i+1)%r.length])))),plane=base&&G.plane(base.points);if(plane)to.z=plane.dx*to.x+plane.dy*to.y+plane.k;}const old=moves.find(m=>same(m.from,p));if(old)old.to=to;else moves.push({from:p,to,junction:0});}
  }
  // Generated boundaries can retain millimetre-wide survey seams at a junction.
  // Move the coincident end of that seam with its corner, rather than folding
@@ -127,7 +148,7 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[]))return f;
   const choice=choices.find(c=>c.faceId===f.id);if(choice)next.resoffitSource=choice.source.id;
   const n=K.normal(f.points),request=requests.get(f.id),offset=request?request.value*dot(request.n,n):0;
-  const project=p=>{const d=dot(sub(p,f.points[0]),n)-offset;return {...p,x:p.x-n.x*d,y:p.y-n.y*d,z:p.z-n.z*d};};
+  const project=p=>{if(flexible.has(f.id))return p;const d=dot(sub(p,f.points[0]),n)-offset;return {...p,x:p.x-n.x*d,y:p.y-n.y*d,z:p.z-n.z*d};};
   next.points=next.points.map(project);next.holes=next.holes.map(r=>r.map(project));
   // Retained sketch stations are not necessarily topology vertices. They must
   // follow the wall plane and roof just like the visible boundary corners.
@@ -147,7 +168,7 @@ function apply(faces,pairs,depth,roof,sources,options={}){
   // A shortened neighbor may still have intermediate roof vertices beyond
   // its new corner. Clip those to the moved plane instead of folding the ring.
   for(const owner of faces.filter(o=>!o.deleted&&!consumed.has(o.id)&&o.id!==f.id&&!o.trim&&!o.feature)){
-   const r=requests.get(owner.id)||{n:K.normal(owner.points),value:0};if(!r.n||Math.abs(dot(n,r.n))>.9999||!adjacent(f,owner))continue;
+   const r=requests.get(owner.id)||{n:K.normal(owner.points),value:0};if(flexible.has(f.id)||flexible.has(owner.id)||!r.n||Math.abs(dot(n,r.n))>.9999||!adjacent(f,owner))continue;
    const original=f.points.map(p=>dot(sub(p,owner.points[0]),r.n)),side=original.reduce((a,b)=>a+b,0)>=0?1:-1;
    if(Math.min(...original)<-.002&&Math.max(...original)>.002)continue;
    const clip=ring=>ring.flatMap((a,i)=>{const b=ring[(i+1)%ring.length],da=side*(dot(sub(a,owner.points[0]),r.n)-r.value),db=side*(dot(sub(b,owner.points[0]),r.n)-r.value),inside=da>=-1e-7,other=db>=-1e-7;return [...(inside?[a]:[]),...(inside!==other?[mix(a,b,da/(da-db))]:[])];}).filter((p,i,all)=>length(sub(p,all[(i+1)%all.length]))>1e-7);
@@ -174,7 +195,7 @@ function apply(faces,pairs,depth,roof,sources,options={}){
 // Wallless is a local topology edit. The canopy remains roof geometry, but
 // its sheet no longer stops a wall descending from the roof above it.
 function wallless(faces,pairs,roof,sources,options={}){
- const choices=candidates(faces,roof,sources).filter(c=>pairs.some(pair=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001)));
+ const choices=selectedCandidates(faces,pairs,roof,sources,options);
  if(!choices.length)throw Error('Select roof-contact soffit lines first.');
  const gone=new Set(choices.map(c=>c.faceId)),sourceIds=new Set(choices.map(c=>c.source.id));
  const vertical=f=>!f.deleted&&!f.baseId&&!f.chimney&&!f.trim&&!f.feature&&Math.abs(K.normal(f.points)?.z??1)<.02;
