@@ -13,12 +13,13 @@ test('project photo references and cover viewer actions share one selection',asy
     await page.route('http://localhost/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html><body></body></html>'}));
     await page.goto('http://localhost/');
     await page.setContent('<div id="fields"></div><div id="rPhotoGallery"></div>');
+    await page.addScriptTag({path:path.resolve('../libraries/platform-api/platform-api.js')});
     await page.evaluate(()=>{
-      window.project={id:'project',custom_field_values:{},photos:[{id:'a',content_type:'image/jpeg',file_name:'Front.jpg'},{id:'b',content_type:'image/png',file_name:'Back.png'},{id:'video',content_type:'video/mp4'}]};
+      window.project={id:'project',measurement_project_id:'roof',custom_field_values:{},photos:[{id:'a',content_type:'image/jpeg',file_name:'Front.jpg'},{id:'b',content_type:'image/png',file_name:'Back.png'},{id:'video',content_type:'video/mp4'}]};
       window.writes=[];window.revision=3;window.writable=true;window.failWrite=false;
       window.Portal={cfg:{orgId:'org'},PhotoFeed:{mountProjectGallery:(_el,options)=>{window.gallery=options;}}};
       window.projectOrgId=()=> 'org';
-      window.PlatformAPI={branchModules:{get:async()=>({data:{fields:[{entity:'project',key:'detail_photo',type:'photo',label:'Detail photo'}]}})},media:{list:async()=>({media:window.project.photos})},publication:{
+      window.PlatformAPI={projectMedia:window.PlatformAPI.projectMedia,branchModules:{get:async()=>({data:{fields:[{entity:'project',key:'detail_photo',type:'photo',label:'Detail photo'}]}})},media:{list:async()=>({media:window.project.photos})},publication:{
         read:async()=>({status:'ready',value:{recordRevision:window.revision,fields:[{path:'cover_photo',writable:window.writable}]}}),
         invoke:async(...args)=>{if(window.failWrite)throw Error('revision_conflict');window.writes.push(args);return {value:{revision:++window.revision},receipt:{status:'succeeded'}};}
       }};
@@ -36,6 +37,7 @@ test('project photo references and cover viewer actions share one selection',asy
     await choose(0);
     assert.equal(await page.locator('[data-fm-cf-input="cover_photo"]').inputValue(),'{"media_id":"a"}');
     assert.deepEqual(await page.evaluate(()=>window.project.custom_fields.cover_photo),{media_id:'a'});
+    assert.equal(await page.evaluate(()=>window.project.thumbnail_photo_id),'a');
     assert.equal(await page.evaluate(()=>window.gallery.viewerIndicators.find(i=>i.id==='project_cover').visible({photo:window.project.photos[0]})),true);
     await choose(1);
     assert.deepEqual(await page.evaluate(()=>window.project.custom_fields.cover_photo),{media_id:'b'});
@@ -48,6 +50,7 @@ test('project photo references and cover viewer actions share one selection',asy
     await page.evaluate(async()=>{window.writable=true;await window.gallery.viewerActions.find(a=>a.id==='remove_project_cover').onClick({});});
     assert.equal(await page.locator('[data-fm-cf-input="cover_photo"]').inputValue(),'');
     assert.equal(await page.evaluate(()=>window.project.custom_fields.cover_photo),null);
+    assert.equal(await page.evaluate(()=>window.project.thumbnail_photo_id),'top_down_thumbnail');
     assert.equal(await page.evaluate(()=>window.writes[0][1]),'custom-fields.project.write');
     await choose(0);
     await page.evaluate(()=>window.gallery.onProjectPhotosChanged([{...window.project.photos[0],in_trash:true},window.project.photos[1]]));

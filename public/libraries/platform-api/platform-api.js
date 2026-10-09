@@ -2366,9 +2366,24 @@
     setThumbnail(photos = [], photoId = '') {
       return projectMedia.ensureThumbnail(photos, photoId);
     },
-    hydrateProjectPhotos(project = {}, options = {}) {
+    // A cover is a single library reference. No cover means the satellite image;
+    // thumbnail aliases are derived display state, never the selection authority.
+    primaryPhoto(project = {}, options = {}) {
       const photos = projectMedia.withFirstMeasureTopDown(project, options);
-      const thumbnail = projectMedia.thumbnailPhoto(photos, project.thumbnail_photo_id || project.thumbnailPhotoId || project.thumbnail_id);
+      const coverId = cleanText((project.custom_field_values || project.custom_fields || {}).cover_photo?.media_id);
+      if (coverId) {
+        const existing = photos.find(photo => cleanText(photo.media_id || photo.id) === coverId);
+        if (!existing || (!existing.in_trash && !existing.trashed_at && mediaKind(existing) !== 'video')) {
+          return projectMedia.normalizePhoto({...existing, media_id: coverId}, options);
+        }
+      }
+      return photos.find(photo => photo.is_top_down_thumbnail || photo.designator === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR)
+        || photos.find(photo => !photo.in_trash && !photo.trashed_at && mediaKind(photo) !== 'video')
+        || null;
+    },
+    hydrateProjectPhotos(project = {}, options = {}) {
+      const thumbnail = projectMedia.primaryPhoto(project, options);
+      const photos = projectMedia.ensureThumbnail(projectMedia.withFirstMeasureTopDown(project, options), photoIdentity(thumbnail));
       return {
         ...(project || {}),
         photos,
@@ -2380,8 +2395,8 @@
       return projectMedia.normalizePhotos((await readDocumentData(api.projects, orgId, projectId))?.photos || [], { orgId });
     },
     async savePhotos(orgId, projectId, project, photos, metadata = {}){
-      const normalized = projectMedia.ensureThumbnail(photos, project?.thumbnail_photo_id || project?.thumbnailPhotoId || project?.thumbnail_id);
-      const thumbnail = projectMedia.thumbnailPhoto(normalized);
+      const thumbnail = projectMedia.primaryPhoto({...project, photos}, {orgId});
+      const normalized = projectMedia.ensureThumbnail(photos, photoIdentity(thumbnail));
       return api.projects.save(orgId, projectId, {
         ...(project || {}),
         photos: normalized,

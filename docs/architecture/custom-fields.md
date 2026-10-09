@@ -175,3 +175,12 @@ document ID even when legacy record data does not repeat it.
 Focused verification: `tests/project-cover.test.ts` and
 `tests/project-cover-browser.test.mjs`, including PostgreSQL via the embedded
 runner.
+
+An empty `cover_photo` means the existing top-down satellite image is the default
+primary image. `PlatformAPI.projectMedia.primaryPhoto` resolves a selected library
+photo or the satellite; `thumbnail_photo` and its ID are derived display aliases,
+not a second selection field. Project tiles and proposal defaults use the primary.
+Public customer displays use a cover only when that media is already explicitly
+shared; choosing a cover never publishes private media. Measurement maps keep
+their actual satellite imagery. Clearing, replacing, or trashing the cover updates
+the mounted selection, display aliases, and project-viewer cache together.

@@ -557,6 +557,8 @@ registerDocumentWidgetResolver("portal.nearby_jobs", async (ctx, config) => {
       if (allowedStatuses.size && !allowedStatuses.has(status)) continue;
       const mediaIds = sharedByProject.get(id) || [];
       if (!mediaIds.length) continue;
+      const coverId = cleanText(asObject(asObject(project.custom_field_values || project.custom_fields).cover_photo).media_id);
+      const thumbnailId = mediaIds.includes(coverId) ? coverId : mediaIds[0]!;
       const point = projectPoint(project);
       if (!point) continue;
       const distance = haversineMiles(center, point);
@@ -571,7 +573,7 @@ registerDocumentWidgetResolver("portal.nearby_jobs", async (ctx, config) => {
         distance_miles: Number(distance.toFixed(1)),
         lat: coarse.lat,
         lng: coarse.lng,
-        thumbnail_media_id: config.show_thumbnails === false ? "" : mediaIds[0]!
+        thumbnail_media_id: config.show_thumbnails === false ? "" : thumbnailId
       });
     }
     jobs.sort((a, b) => Number(a.distance_miles) - Number(b.distance_miles));

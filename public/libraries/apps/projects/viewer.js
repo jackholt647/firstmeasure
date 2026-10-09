@@ -4453,11 +4453,12 @@
       if (url) urls.push(url);
     };
     const thumbnailSource = String(p?.thumbnail_source || p?.thumbnail_artifact_name || '').trim();
-    const thumbnailPhoto = (p?.thumbnail_photo && typeof p.thumbnail_photo === 'object') ? p.thumbnail_photo : {};
+    const coverId = (p?.custom_field_values || p?.custom_fields || {}).cover_photo?.media_id;
+    const thumbnailPhoto = coverId ? window.PlatformAPI?.projectMedia?.primaryPhoto?.(p, {orgId:window.__APP?.userOrgId || window.Portal?.cfg?.orgId}) || {} : {};
     [thumbnailPhoto.thumb, thumbnailPhoto.thumbnail, thumbnailPhoto.src, thumbnailPhoto.url].forEach((url) => {
       if (url && !isQuadThumbnailUrl(url)) urls.push(url);
     });
-    const incomingThumb = String(p?.thumbnail || '').trim();
+    const incomingThumb = /\/thumbnail(?:\?|$)/i.test(String(p?.thumbnail || '')) ? String(p.thumbnail).trim() : '';
     const incomingIsApiThumbnail = /\/thumbnail(?:\?|$)/i.test(incomingThumb);
     if (incomingThumb && incomingIsApiThumbnail && !isQuadThumbnailUrl(incomingThumb)) urls.push(incomingThumb);
     const firstMeasureSources = [

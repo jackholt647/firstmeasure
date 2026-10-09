@@ -299,6 +299,7 @@
     const photos = projectPhotosList();
     const project = callHost('getProject') || state.model?.state?.activeBaseProject || window.activeBaseProject || {};
     const library = projectPhotoLibrary();
+    if (library?.primaryPhoto) return library.primaryPhoto({...project, photos}, firstMeasurePhotoOptions());
     if (library?.thumbnailPhoto) return library.thumbnailPhoto(photos, project.thumbnail_photo_id || project.thumbnailPhotoId || project.thumbnail_id);
     return photos.find((photo) => photo.is_thumbnail || photo.is_default_thumbnail) || photos[0] || null;
   }
@@ -526,6 +527,13 @@
     if (!project) return;
     project.custom_field_values = {...(project.custom_field_values || project.custom_fields || {}),cover_photo:value};
     project.custom_fields = project.custom_field_values;
+    const hydrated = projectPhotoLibrary()?.hydrateProjectPhotos?.(project, firstMeasurePhotoOptions());
+    if (hydrated) {
+      project.thumbnail_photo_id = hydrated.thumbnail_photo_id;
+      project.thumbnail_photo = hydrated.thumbnail_photo;
+    }
+    window.Portal?.ProjectStore?.cache?.(project);
+    window.dispatchEvent(new CustomEvent('fm:projects:optimistic-update', {detail:{project}}));
     document.querySelectorAll('[data-fm-cf-input="cover_photo"]').forEach(input=>{
       const encoded = value ? JSON.stringify(value) : '';
       if(encoded && ![...input.options].some(option=>option.value===encoded)) input.add(new Option(photo?.file_name || 'Cover photo',encoded));

@@ -6256,12 +6256,16 @@ function publicProjectTopDownThumbnail(project: JsonObject, apiBaseUrl = "") {
   };
 }
 
-function publicProjectView(project: JsonObject, apiBaseUrl = "") {
+function publicProjectView(project: JsonObject, apiBaseUrl = "", sharedMedia: JsonObject[] = []) {
   const contact = projectPrimaryContact(project);
   const address = cleanText(project.address);
   const title = projectDisplayTitle(project, "");
   const displayName = portalDisplayName(contact.name, title && title !== address ? title : "");
-  const thumbnail = publicProjectTopDownThumbnail(project, apiBaseUrl);
+  const satellite = publicProjectTopDownThumbnail(project, apiBaseUrl);
+  const coverId = cleanText(asObject(asObject(project.custom_field_values || project.custom_fields).cover_photo).media_id);
+  // Resolve only through the already authorized public library; choosing a cover
+  // must not implicitly share a private project photo.
+  const thumbnail = sharedMedia.find(photo => cleanText(photo.media_id) === coverId && photo.kind === "image") || satellite;
   return {
     id: cleanText(project.id),
     display_name: displayName,
@@ -6270,7 +6274,8 @@ function publicProjectView(project: JsonObject, apiBaseUrl = "") {
     name: displayName,
     address,
     summary: cleanText(project.summary),
-    ...(thumbnail ? { thumbnail_photo: thumbnail, top_down_thumbnail: thumbnail, photos: [thumbnail] } : {})
+    ...(thumbnail ? { thumbnail_photo: thumbnail, primary_photo: thumbnail, photos: [thumbnail] } : {}),
+    ...(satellite ? { top_down_thumbnail: satellite } : {})
   };
 }
 
@@ -7000,6 +7005,7 @@ async function publicPortalProjectBundle(orgId: string, document: JsonObject, po
   const portalUuid = cleanText(accessUuid || (preview ? portalData.preview_uuid : portalData.public_uuid));
   const settings = portalSettingsFor(await portalOrgDefaults(orgId), portalData);
   const customerSchedulingEnabled = settings.scheduling.enabled && settings.scheduling.reschedule;
+  const sharedMedia = await publicPortalMedia(orgId, project, portalData, portalUuid, preview, apiBaseUrl);
   return {
     portal: {
       id: cleanText(document.id),
@@ -7010,8 +7016,8 @@ async function publicPortalProjectBundle(orgId: string, document: JsonObject, po
       live_url: preview ? publicPortalUrl(cleanText(portalData.public_uuid), baseUrl, false) : publicPortalUrl(portalUuid, baseUrl, false),
       preview_url: publicPortalUrl(cleanText(portalData.preview_uuid), baseUrl, true)
     },
-    project: publicProjectView(project, apiBaseUrl),
-    media: await publicPortalMedia(orgId, project, portalData, portalUuid, preview, apiBaseUrl),
+    project: publicProjectView(project, apiBaseUrl, sharedMedia),
+    media: sharedMedia,
     resources: await publicPortalResources(orgId, project, preview, customerSchedulingEnabled),
     settings: publicPortalSettings(settings),
     // Customer-authored content, withdrawn entries already filtered out.

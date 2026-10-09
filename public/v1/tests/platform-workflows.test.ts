@@ -294,9 +294,18 @@ test("customer portal photo shares include markup by default with an API-only op
     data: {
       id: projectId,
       address: "12 Markup Way",
+      measurement_project_id: "portal_roof",
+      custom_field_values: { cover_photo: { media_id: mediaId } },
       photos: [{ id: mediaId, media_id: mediaId, media_type: "image", label: "Marked photo" }]
     }
   });
+
+  const privatePortal = await client.request("PATCH", `/v1/platform/organizations/${orgId}/projects/${projectId}/customer-portal`, {
+    share_media_ids: []
+  });
+  const privateCover = await client.request("GET", `/v1/platform/customer-portals/${privatePortal.portal.public_uuid}`);
+  assert.equal(privateCover.project.thumbnail_photo.id, "top_down_thumbnail");
+  assert.equal(privateCover.media.length, 0);
 
   const shared = await client.request("PATCH", `/v1/platform/organizations/${orgId}/projects/${projectId}/customer-portal`, {
     share_media_ids: [mediaId]
@@ -304,6 +313,9 @@ test("customer portal photo shares include markup by default with an API-only op
   assert.equal(shared.portal.shared_items[0].include_markup, true);
   const publicWithMarkup = await client.request("GET", `/v1/platform/customer-portals/${shared.portal.public_uuid}`);
   assert.equal(publicWithMarkup.media[0].include_markup, true);
+  assert.equal(publicWithMarkup.project.thumbnail_photo.media_id, mediaId);
+  assert.equal(publicWithMarkup.project.thumbnail_photo.thumb, publicWithMarkup.media[0].thumb);
+  assert.equal(publicWithMarkup.project.top_down_thumbnail.id, "top_down_thumbnail");
   assert.deepEqual(publicWithMarkup.media[0].markup, markup);
   assert.match(publicWithMarkup.media[0].thumb, /variant=thumb_320_markup/);
   assert.match(publicWithMarkup.media[0].thumb, new RegExp(`v=${marked.layer.revision}(?:&|$)`));
