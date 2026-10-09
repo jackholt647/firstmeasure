@@ -71,6 +71,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await batchRow.locator('.pf-project-card-cover').count(),1);
   assert.equal(await batchRow.locator('.pf-project-card-cover img').getAttribute('src'),'/photo.svg');
   assert.ok(await batchRow.locator('.pf-project-card-cover').evaluate(e=>e.getBoundingClientRect().width>e.getBoundingClientRect().height),'project cover is rectangular');
+  assert.equal(await batchRow.locator('.pf-project-card-cover').evaluate(e=>Math.round(e.getBoundingClientRect().height)),80);
   assert.equal(await batchRow.locator('.pf-project-card').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
   await batchRow.locator('.pf-project-card').hover();
   assert.equal(await batchRow.locator('.pf-project-card').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(242, 246, 251)');
@@ -209,6 +210,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.setViewportSize({width:620,height:844});
   await page.getByRole('button',{name:'List',exact:true}).click();
   assert.ok(await page.locator('.pf-feed-list-row').first().evaluate(e=>e.querySelector('.pf-feed-list-project').getBoundingClientRect().left>=e.querySelector('.pf-feed-list-copy').getBoundingClientRect().right-1),'medium viewport keeps project card on the right');
+  assert.equal(await page.locator('.pf-feed-list-row .pf-project-card-cover').first().evaluate(e=>Math.round(e.getBoundingClientRect().height)),60);
   await page.setViewportSize({width:390,height:844});
   for(const name of ['Small tiles','Large tiles','List','Mosaic','Posts']){
    await page.getByRole('button',{name,exact:true}).click();
@@ -218,6 +220,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     const row=page.locator('.pf-feed-list-row').first();
     assert.ok(await row.locator('.pf-feed-list-head').evaluate(e=>Math.abs(e.querySelector('time').getBoundingClientRect().top-e.querySelector('strong').getBoundingClientRect().top)<3),'time and activity begin on the same line');
     assert.equal(await row.locator('.pf-feed-list-project').evaluate(e=>getComputedStyle(e).gridColumnStart),'2');
+    assert.equal(await row.locator('.pf-project-card-cover').evaluate(e=>Math.round(e.getBoundingClientRect().height)),80);
     assert.equal(await row.locator('.pf-feed-list-media .pf-thumb:visible').count(),4);
     assert.equal(await row.locator('.pf-feed-list-more:visible').count(),1);
     await page.waitForFunction(()=>[...document.querySelectorAll('.pf-feed-list-row')].find(row=>row.textContent.includes('Customer confirmed driveway access'))?.querySelector('.pf-note.expandable'));
