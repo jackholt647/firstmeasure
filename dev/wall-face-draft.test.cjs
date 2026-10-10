@@ -2964,3 +2964,13 @@ test('Enter uses the recoverable placement boundary for a group extrusion',()=>{
  assert.doesNotThrow(()=>f.editor.key({key:'Enter'}));assert.equal(f.editor.busy(),true);assert.equal(f.history.length,0);assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.match(f.message(),/Could not place: Rejected group/);
  reject=false;f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),preview);
 });
+
+for(const sourceReversed of [false,true])for(const tilt of [0,.25])for(const reversed of [false,true])test(`plane paste preserves front orientation source reversed ${sourceReversed}, destination reversed ${reversed}, tilt ${tilt}`,()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),p=(x,y,z)=>({x,y,z}),shape={id:'shape',points:[p(0,0,0),p(3,0,0),p(0,0,1)]},source={points:[p(-1,0,3),p(4,0,4),p(4,0,-1),p(-1,0,-1)]},destination={points:[p(5,0,4),p(5,4,3),p(5,4,0),p(5,0,0)]};if(reversed)destination.points.reverse();if(sourceReversed)source.points.reverse();destination.points.forEach(q=>q.x+=tilt*q.z);
+ const f=fixture({state:{wallEdits:{$surfaces:[shape]}},walls:[],selected:null,globals:{isFreeMove:true,camera:{position:{x:10,y:-10,z:8}}},projectPoint:()=>({x:0,y:0,z:0})});
+ f.editor.togglePlane(source);planeSelection(f,shape.points);f.editor.clipboardCommand('copy');f.editor.togglePlane();f.editor.togglePlane(destination);f.listeners.pointermove(f.e(0,0));f.editor.clipboardCommand('paste');f.editor.planeDown(f.e(0,0));assert.equal(f.history.length,1,f.message());
+ const placed=f.editor.pointSelection(),a=placed[0],b=placed[1],c=placed[2];assert.equal(placed.length,3);
+ assert.ok(placed.every(q=>Math.abs(q.x-5-tilt*q.z)<1e-6),'all pasted points lie on destination');
+ assert.ok(Math.abs(b.y-a.y-3)<1e-6&&Math.abs(b.z-a.z)<1e-6,'source right must remain right, with no unintended roll');
+ assert.ok(Math.abs(c.y-a.y)<1e-6&&Math.abs(c.z-a.z-1/Math.hypot(1,tilt))<1e-6&&Math.abs(c.x-a.x-tilt/Math.hypot(1,tilt))<1e-6,'source up follows projected world up, preserving its length');
+});
