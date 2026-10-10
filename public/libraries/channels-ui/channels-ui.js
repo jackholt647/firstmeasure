@@ -288,7 +288,7 @@
   let pickerWidgetsLoading;
   function loadPickerWidgets(){
     if(root.FirstMatePickerWidgets)return Promise.resolve(root.FirstMatePickerWidgets);
-    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261010').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
+    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261010-loading-fix').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
     return pickerWidgetsLoading;
   }
   // Compatibility for Feed callers; rendering and state stay in Platform Widgets.
