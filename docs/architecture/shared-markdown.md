@@ -62,3 +62,5 @@ Behavior tests cover nested round trips, escaped URLs/HTML, literal code,
 document adapter validation, quoted tables/lists, numbered starts, editability
 and undo. Existing assistant/widget and presentation browser checks verify that
 the dependency and richer text rendering do not disturb those surfaces.
+
+Development rollout and rollback evidence: [October 10 release record](../../deploy/digitalocean/development-shared-markdown-20261010.md).
