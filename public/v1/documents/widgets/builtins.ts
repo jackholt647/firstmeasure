@@ -172,6 +172,15 @@ function scheduleBasisTotalCents(ctx: WidgetResolveContext) {
   return subtotal + Math.round(subtotal * taxPercent / 100);
 }
 
+/** When a payment falls due, in the customer's words. */
+function dueLabel(dueRule: string, dueAt: string) {
+  if (dueAt) return "";
+  if (dueRule === "on_signature") return "On signature";
+  if (dueRule === "on_invoice" || dueRule === "invoice") return "When invoiced";
+  if (dueRule === "manual") return "To be scheduled";
+  return "On completion";
+}
+
 function scheduleRowsFromParams(ctx: WidgetResolveContext, value: unknown) {
   const rows = normalizeScheduleRows(value);
   if (!rows.length) return [];
@@ -182,6 +191,8 @@ function scheduleRowsFromParams(ctx: WidgetResolveContext, value: unknown) {
     amount_cents: item.amount_cents,
     due_rule: cleanText(item.due_rule),
     due_at: cleanText(item.due_at),
+    due_date: cleanText(item.due_at),
+    due_label: dueLabel(cleanText(item.due_rule), cleanText(item.due_at)),
     status: "scheduled",
     allocated_cents: 0,
     balance_due_cents: item.amount_cents,
@@ -204,6 +215,8 @@ registerDocumentWidgetResolver("doc.payment_schedule", async (ctx, config) => {
         amount_cents: roundCents(item.amount_cents),
         due_rule: cleanText(item.due_rule),
         due_at: cleanText(item.due_at),
+        due_date: cleanText(item.due_at),
+        due_label: dueLabel(cleanText(item.due_rule), cleanText(item.due_at)),
         status: cleanText(item.status || "open") || "open",
         allocated_cents: roundCents(item.allocated_cents),
         balance_due_cents: Math.max(0, roundCents(item.amount_cents) - roundCents(item.allocated_cents))
@@ -287,7 +300,6 @@ registerDocumentWidgetResolver("doc.expense_breakdown", async (ctx, config) => {
       system_managed: group.system_managed === true
     };
   }).filter((row) => row.projected_cents > 0 || (row.actual_cents ?? 0) > 0 || row.current_cents > 0);
-  if (!rows.length) return null;
   const totals = asObject(summary.totals);
   return {
     rows: config.include_system === false ? rows.filter((row) => !row.system_managed) : rows,
@@ -333,7 +345,6 @@ registerDocumentWidgetResolver("doc.payment_history", async (ctx, config) => {
       cleared_at: cleanText(payment.cleared_at),
       status: cleanText(payment.status)
     }));
-  if (!payments.length) return null;
   const totalIn = payments.filter((p) => p.direction === "inbound").reduce((sum, p) => sum + p.amount_cents, 0);
   const totalOut = payments.filter((p) => p.direction === "outbound").reduce((sum, p) => sum + p.amount_cents, 0);
   return { rows: payments, totals: { inbound_cents: totalIn, outbound_cents: totalOut, net_cents: totalIn - totalOut }, currency: "USD" };

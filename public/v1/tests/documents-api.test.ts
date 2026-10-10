@@ -1359,11 +1359,11 @@ test("showcase seeds: legal, proposal, and completion templates validate; workfl
   const completion = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_completion_certificate`);
   assert.equal(completion.template.document_type, "completion_certificate");
   assert.equal(completion.template.metadata.customer_presentation.tab.id, "sign_off");
-  assert.equal(completion.template.metadata.customer_presentation.mode, "document");
-  assert.equal(completion.template.metadata.disable_default_workflow, true);
+  assert.equal(completion.template.metadata.customer_presentation.mode, "hybrid");
+  assert.equal(completion.template.metadata.default_workflow_id, "wfl_roofing_completion_signoff");
   assert.ok(FMDocModel.validateDocument(completion.template.definition).ok, "completion certificate validates");
   assert.ok(completion.template.definition.pages[0].children[0].children.length >= 8, "completion certificate seed contains its certificate content");
-  assert.ok(JSON.stringify(completion.template.definition).includes("params.final_payment_cents"), "completion pay-now card binds the final balance");
+  assert.ok(JSON.stringify(completion.template.definition).includes("params.amount_due_cents"), "completion pay-now card binds the remaining balance");
 
   // Republishing the seeded workflow definitions through the API proves every
   // step item passes the registered kind + writes validation.

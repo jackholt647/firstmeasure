@@ -66,6 +66,7 @@ import {
 import { registerBuiltinDocumentSources } from "./sources/builtins.js";
 import { buildRenderHarnessHtml } from "./render.js";
 import { renderDocumentFallbackPdf, renderDocumentPdf } from "./pdf.js";
+import { applyInvoiceOnSend, deriveAccountParams, documentPaymentTarget, persistAccountParams } from "./account.js";
 import { ensureDefaultDocumentAssets } from "./seeds.js";
 import { documentRequirementsStatus, documentSignatureRequirement, normalizeCustomerDocumentPresentation } from "./presentation.js";
 import {
@@ -649,7 +650,7 @@ export async function createDocumentInstance(orgId: string, projectId: string, i
   const projectData = projectId ? asObject(asObject(await readDocument(orgId, "projects", projectId).catch(() => null)).data) : {};
   const scaffold: JsonObject = { project_id: projectId };
   const entities = await documentScopeEntities(orgId, scaffold, asObject(input.params));
-  const params = resolveDocumentParams(paramDefs, asObject(input.params), entities);
+  const params = await deriveAccountParams(orgId, { id, project_id: projectId, document_type: typeDef.id, param_defs: paramDefs }, resolveDocumentParams(paramDefs, asObject(input.params), entities));
   const missing = FMDocModel.missingRequiredParams(Object.fromEntries(Object.entries(paramDefs).filter(([, definition]) => asObject(definition).disabled !== true)), params);
   const workflow = await resolveWorkflowForCreate(orgId, input, template, typeDef);
   if (workflow.workflow_ref) {
@@ -1686,7 +1687,7 @@ export async function resolveDocumentInstance(
   const workflowDefinition = rawWorkflowDefinition ? filterWorkflowByCapabilities(rawWorkflowDefinition, capabilityState) : null;
   const overrides = options.overrides !== undefined ? asArray(options.overrides) : asArray(documentValue.overrides);
   const applied = FMDocModel.applyOverrides(definition, overrides);
-  let params: JsonObject = { ...asObject(documentValue.params), ...asObject(options.params) };
+  let params: JsonObject = await deriveAccountParams(orgId, documentValue, { ...asObject(documentValue.params), ...asObject(options.params) });
   const outputs = asObject(documentValue.outputs);
   const entities = await documentScopeEntities(orgId, documentValue, params);
   // Cents enrichment for scope/line item lists (repeater + computed bindings),
@@ -1800,13 +1801,14 @@ export async function createSnapshot(orgId: string, documentId: string, input: J
 }
 async function createSnapshotLocked(orgId: string, documentId: string, input: JsonObject, ctx: PlatformAuthContext | null) {
   await assertSigningEditable(orgId, documentId);
-  const document = await readDocumentInstance(orgId, documentId);
+  let document = await readDocumentInstance(orgId, documentId);
   if (ctx) requireDocumentDepartmentAccess(ctx, document);
   const capabilityState = await documentCapabilityState(orgId);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(document.revision || 0)) {
     throw conflict("document_revision_conflict", "Document revision does not match.");
   }
+  document = await persistAccountParams(orgId, document);
   const reason = cleanText(input.reason || "manual") || "manual";
   // The public token is minted BEFORE widget resolution so doc.qr/doc.pay_now
   // can compute the portal URL that gets frozen into the snapshot.
@@ -1924,6 +1926,7 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
     updated_by_user_id: ctx.userId,
     updated_at: now
   });
+  await applyInvoiceOnSend(orgId, updated, ctx);
   await recordDocumentEvent(orgId, updated, "document.sent", {
     snapshot_id: cleanText(snapshot.id),
     recipients: recipients.map((recipient) => compactObject({
@@ -2258,7 +2261,8 @@ async function recordDocumentPaymentTransaction(
   outputKey: string,
   submitted: JsonObject,
   amountCents: number,
-  ctx?: PlatformAuthContext | null
+  ctx?: PlatformAuthContext | null,
+  target: { obligation_ids: string[]; hold?: boolean } | null = null
 ): Promise<JsonObject | null> {
   const amount = Math.max(0, Math.round(amountCents));
   if (amount <= 0) return null;
@@ -2320,7 +2324,8 @@ async function recordDocumentPaymentTransaction(
               kind: "customer_payment",
               currency: "USD",
               metadata: { ...metadata, provider: provider.provider },
-              allocation_mode: "document_payment"
+              allocation_mode: "document_payment",
+              ...(target?.obligation_ids[0] ? { obligation_id: target.obligation_ids[0] } : {})
             }
           }, paymentCtx);
           return asObject(charged.payment);
@@ -2338,7 +2343,9 @@ async function recordDocumentPaymentTransaction(
       contact_ref: contactRef,
       method: { type: "mock_document", label: "Document Payment" },
       metadata: { ...metadata, mock: true },
-      allocation_mode: "document_payment"
+      allocation_mode: "document_payment",
+      ...(target?.obligation_ids.length ? { allocation_obligation_ids: target.obligation_ids } : {}),
+      ...(target?.hold ? { allocate: false } : {})
     }, paymentCtx);
     return asObject(result.payment);
   } catch (error) {
@@ -2427,7 +2434,11 @@ async function recordDocumentOutputLocked(orgId: string, documentId: string, key
     const depositCents = Math.max(0, Math.round(Number(params.deposit_cents) || 0));
     const hasPaymentSchedule = normalizeScheduleRows(params.payment_schedule).length > 0;
     const hasPricingBasis = asArray(params.scope_items).length > 0 || depositCents > 0 || hasPaymentSchedule;
-    if (hasPricingBasis) {
+    const target = await documentPaymentTarget(orgId, documentId);
+    if (target && target.amount_cents !== null) {
+      if (target.amount_cents <= 0) throw conflict("document_nothing_due", "Nothing is due on this document.");
+      value = { ...asObject(value), amount_cents: target.amount_cents };
+    } else if (hasPricingBasis) {
       const pricing = await documentCheckoutPricing(orgId, document, params, {
         payment_method: submitted.payment_method ?? submitted.method,
         processing_fee_percent: submitted.processing_fee_percent
@@ -2467,7 +2478,7 @@ async function recordDocumentOutputLocked(orgId: string, documentId: string, key
     // BEFORE the output persists, so a declined charge fails the output and
     // a recorded payment always has a payment_transactions row behind it.
     const paymentAmountCents = Math.max(0, Math.round(Number(asObject(value).amount_cents ?? submitted.amount_cents) || 0));
-    const paymentTransaction = await recordDocumentPaymentTransaction(orgId, document, params, outputKey, submitted, paymentAmountCents, ctx);
+    const paymentTransaction = await recordDocumentPaymentTransaction(orgId, document, params, outputKey, submitted, paymentAmountCents, ctx, target);
     if (paymentTransaction) {
       value = {
         ...asObject(value),

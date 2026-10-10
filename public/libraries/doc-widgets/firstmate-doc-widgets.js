@@ -98,6 +98,7 @@
 .fmdoc-pay-now-confirm { margin-top: 6pt; font-size: 9pt; font-weight: 700; color: #047857; }
 .fmdoc-measure-title { margin: 0 0 6pt; font-size: 9pt; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--fmdoc-primary, var(--fm-primary, #2563eb)); }
 .fmdoc-measure-summary { margin-top: 6pt; font-size: 9pt; font-weight: 700; color: #475467; }
+.fmdoc-report-empty { padding: 10pt 0; font-size: 9.5pt; color: var(--fm-color-muted, #667085); border-top: 1px solid var(--fm-color-border, #e4e7ec); border-bottom: 1px solid var(--fm-color-border, #e4e7ec); }
 .fmdoc-li-select-col { width: 18pt; text-align: center; }
 .fmdoc-li-select { accent-color: var(--fmdoc-primary, var(--fm-primary, #2563eb)); }
 .fmdoc-input--textarea { min-height: 40pt; resize: vertical; font: inherit; }
@@ -3164,6 +3165,10 @@
       clearEl(el);
       const data = ctx.data || {};
       const rows = Array.isArray(data.rows) ? data.rows : [];
+      if (ctx.data && !rows.length) {
+        el.appendChild(h("div", "fmdoc-report-empty", "No costs recorded on this project yet."));
+        return;
+      }
       if (!rows.length) {
         placeholderBox(el, "Expense breakdown", "Projected vs. actual expenses resolve when the report is generated on a project.");
         return;
@@ -3218,6 +3223,10 @@
       clearEl(el);
       const data = ctx.data || {};
       const rows = Array.isArray(data.rows) ? data.rows : [];
+      if (ctx.data && !rows.length) {
+        el.appendChild(h("div", "fmdoc-report-empty", "No payments recorded on this project yet."));
+        return;
+      }
       if (!rows.length) {
         placeholderBox(el, "Payment history", "Settled payments resolve when the report is generated on a project.");
         return;

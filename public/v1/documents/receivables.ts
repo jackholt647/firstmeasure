@@ -147,10 +147,11 @@ export async function ensureReceivablesForSignedDocument(
   if (!rows.length) {
     rows = fallbackRows(typeId, basisTotalCents, centsNumber(params.deposit_cents), cleanText(document.title));
   }
-  // Rows on a change order that carry no explicit classification are change
-  // orders — profitability and scope triggers count them as contract additions.
+  // Every payment a change order schedules is a change order, whenever it
+  // falls due — profitability, scope triggers and the project account count
+  // them as contract additions.
   if (typeId === "change_order") {
-    rows = rows.map((row) => row.payment_kind === "other" ? { ...row, payment_kind: "change_order" } : row);
+    rows = rows.map((row) => ({ ...row, payment_kind: "change_order" }));
   }
   const items = resolveScheduleItems(rows, { total_cents: basisTotalCents, signed_at: signedAt });
   if (!items.length) return { skipped: true, reason: "no_schedule_items" };

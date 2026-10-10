@@ -13,6 +13,7 @@ const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 const root = await mkdtemp(path.join(os.tmpdir(), "template-audit-"));
 Object.assign(process.env, { NODE_ENV: "test", PLATFORM_STORAGE_ROOT: root, PRICEBOOK_STORAGE_ROOT: path.join(root, "pricebook"), PLATFORM_HEARTBEAT_DISABLED: "1", SIGNUP_SANDBOX_STORAGE_ROOT: path.join(root, "sandbox"), FIRSTMEASURE_DATA_ENVIRONMENT: "development", EMAIL_OUTBOUND_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0", WORK_SCHEDULER_DISABLED: "1", V1_LOG_LEVEL: "error" });
 const rows: Row[] = [];
+const production: Row[] = [];
 try {
   const storage = await import("../platform/storage.js");
   const signup = await import("../signup-sandbox/service.js");
@@ -73,8 +74,39 @@ try {
     row.problems = problems.join(" | ");
     rows.push(row);
   }
+  // The production documents against a signed agreement: $20,000, 30% paid
+  // at signing. Each line is what the document would tell the customer.
+  await (await import("../tests/helpers/platform-fixture.js")).enableExpandedPlatformFixture(ctx.orgId);
+  await storage.saveGlobal(ctx.orgId, { data: { app_flags: { platform: { expanded_access: true, money: true, documents: true } } } }, { replace: false });
+  const payments = await import("../payments/storage.js");
+  const terms = await import("../payments/schedule_terms.js");
+  const projectId = String(project.id);
+  await payments.ensureReceivablesFromSchedule(ctx.orgId, {
+    project_id: projectId, title: "Roof replacement agreement", source: { type: "document", id: "doc_signed_agreement", snapshot_id: "signed" },
+    items: terms.resolveScheduleItems(terms.normalizeScheduleRows([
+      { id: "deposit", label: "Deposit", kind: "percent", percent: 30, payment_kind: "deposit", due_rule: "on_signature" },
+      { id: "final", label: "Final payment", kind: "percent", percent: 70, payment_kind: "final", due_rule: "project_completion" }
+    ]), { total_cents: 2000000, signed_at: new Date().toISOString() }),
+    total_cents: 2000000, mode: "replace"
+  });
+  await payments.createPayment(ctx.orgId, { project_id: projectId, amount_cents: 600000, method: { type: "check" } }, ctx);
+  const money = (cents: unknown) => `$${(Number(cents || 0) / 100).toFixed(2)}`;
+  const make = async (kind: string, templateId: string, params: Row) => {
+    const created = object((await documents.createDocumentInstance(ctx.orgId, projectId, { document_type: kind, template_id: templateId, params }, ctx)).document);
+    const resolved = object(await documents.resolveDocumentInstance(ctx.orgId, created as never, { target: "static" }));
+    return { document: created, params: object(object(resolved.scope).params) };
+  };
+  const change = await make("change_order", "tpl_change_order_default", { source_document_id: "doc_signed_agreement", reason: "Rotted decking", scope_items: [{ id: "deck", name: "Replace roof decking", quantity: 12, unit: "sheet", unit_price: 95 }] });
+  production.push({ document: "change order", workflow: object(change.document.workflow_ref).workflow_id, original_contract: money(object(change.params.account).contract_cents), this_change: money(change.params.change_cents), new_total: money(change.params.new_total_cents), due_on_approval: money(change.params.due_now_cents) });
+  const final = list(object((await make("invoice", "tpl_invoice_default", {})).params.account).schedule).map(object).find(item => item.label === "Final payment");
+  const invoice = await make("invoice", "tpl_invoice_default", { bill: object(final).id, line_items: [{ id: "permit", name: "Building permit", quantity: 1, unit_price: 150 }] });
+  production.push({ document: "invoice", workflow: object(invoice.document.workflow_ref).workflow_id, number: invoice.params.invoice_number, lines: list(object(invoice.params.billing).lines).map(object).map(line => `${line.label} ${money(line.amount_cents)}`).join(" + "), paid_so_far: money(object(invoice.params.account).paid_cents), amount_due: money(invoice.params.amount_due_cents) });
+  const certificate = await make("completion_certificate", "tpl_roofing_completion_certificate", {});
+  production.push({ document: "completion certificate", workflow: object(certificate.document.workflow_ref).workflow_id, completed: certificate.params.completed_at, warranty_starts: certificate.params.warranty_start, final_payment: money(certificate.params.amount_due_cents) });
+  production.push({ document: "new document picker", hidden_system_templates: templates.filter(template => object(template.metadata).system === true).map(template => template.id).join(", ") });
 } finally {
   console.log(JSON.stringify(rows, null, 1));
+  console.log(JSON.stringify({ production }, null, 1));
   await (await import("../tests/helpers/platform-fixture.js")).closePlatformFixtureStores().catch(() => undefined);
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => undefined);
   process.exit(0);

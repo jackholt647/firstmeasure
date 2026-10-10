@@ -1473,9 +1473,12 @@
   // the total here is the document total. Lines that a quantity modifier
   // touched (waste) carry its badge, and the Modifiers panel changes a
   // modifier's value for every line it applies to.
-  // Writes the scope-item tree (params.scope_items).
+  // Writes the scope-item tree (params.scope_items). An item with
+  // generate:false has nothing to generate from (a change order's added
+  // work): its lines are added by hand or from the price book.
   registerKind('line_items_review', (el, ctx) => {
     const services = obj(ctx.services);
+    const generates = ctx.item.generate !== false;
     let items = arr(ctx.value()).map(normalizeScopeItem);
     let generating = false;
     let generateNote = '';
@@ -1939,9 +1942,9 @@
       const count = countScopeItems(items);
       const toolbar = ctx.readonly ? '' : `
         ${modifiers().length ? `<button type="button" class="fmdw-btn" data-fmdw-lir-modifiers title="Rules that adjust quantities, such as waste"><i class="fas fa-sliders"></i> Modifiers</button>` : ''}
-        <button type="button" class="fmdw-btn ${count ? '' : 'primary'}" data-fmdw-lir-generate ${generating ? 'disabled' : ''} title="Rebuild every line from the roof measurements and price book">
+        ${generates ? `<button type="button" class="fmdw-btn ${count ? '' : 'primary'}" data-fmdw-lir-generate ${generating ? 'disabled' : ''} title="Rebuild every line from the roof measurements and price book">
           <i class="fas ${generating ? 'fa-circle-notch fa-spin' : 'fa-rotate'}"></i> ${generating ? 'Generating…' : (count ? 'Regenerate' : 'Generate lines')}
-        </button>
+        </button>` : ''}
         ${services.pricebook && typeof services.pricebook.pick === 'function' ? `<button type="button" class="fmdw-btn" data-fmdw-lir-pricebook><i class="fas fa-book-open"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c38fcf1b64a2ea"," Pricebook") ?? " Pricebook")}</button>` : ''}
         <button type="button" class="fmdw-btn" data-fmdw-lir-add><i class="fas fa-plus"></i> Add line</button>`;
       if (actionsHost) actionsHost.innerHTML = toolbar;
@@ -2113,9 +2116,9 @@
 
     render();
     // Auto-generate on entry when nothing has been generated yet.
-    if (!countScopeItems(items)) generate();
+    if (generates && !countScopeItems(items)) generate();
     return {
-      validate: () => (ctx.item.required && !countScopeItems(arr(ctx.value())) ? 'Generate or add at least one line item.' : null),
+      validate: () => (ctx.item.required && !countScopeItems(arr(ctx.value())) ? (generates ? 'Generate or add at least one line item.' : 'Add at least one line item.') : null),
       destroy: () => {
         if (actionsHost) actionsHost.innerHTML = '';
         document.querySelectorAll('.fmdw-mod-pop').forEach((existing) => existing.remove());
@@ -2394,14 +2397,15 @@
           if (obj(item).required && !hiddenHere) checks.push(`${itemLabel(obj(item))} is not filled in.`);
           return;
         }
-        rows.push({ label: itemLabel(obj(item)), value: formatValue(obj(item), value), hidden: hiddenHere });
+        const chosen = kind === 'select' ? resolveOptions(obj(item), ctx.scope(), ctx.services).find((option) => option.value === cleanText(value)) : null;
+        rows.push({ label: itemLabel(obj(item)), value: chosen ? chosen.label : formatValue(obj(item), value), hidden: hiddenHere });
       });
     });
     el.innerHTML = `
       <div class="fmdw-field">
         <span class="fmdw-field-label">${esc(itemLabel(ctx.item) === 'Field' ? 'Review' : itemLabel(ctx.item))}</span>
         ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
-        ${total === null ? '' : `<div class="fmdw-card fmdw-review-total"><span>Scope total</span><b>${esc(moneyFromDollars(total))}</b></div>`}
+        ${total === null ? '' : `<div class="fmdw-card fmdw-review-total"><span>${esc(firstText(ctx.item.total_label, 'Scope total'))}</span><b>${esc(moneyFromDollars(total))}</b></div>`}
         ${checks.length ? `<div class="fmdw-card fmdw-review-checks">${checks.map((text) => `<p><i class="fas fa-triangle-exclamation"></i> ${esc(text)}</p>`).join('')}</div>` : ''}
         <div class="fmdw-card fmdw-review">
           ${rows.length ? rows.map((row) => `
@@ -2808,7 +2812,8 @@
         const holder = document.createElement('div');
         const itemTransition = obj(obj(item.presentation).transition);
         // Lists and grids need the full row; simple fields pair up.
-        const wide = ['measurements', 'payment_schedule', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind));
+        const wide = ['measurements', 'payment_schedule', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind))
+          || obj(item.presentation).multiline === true || ['cards', 'tiles'].includes(cleanText(obj(item.presentation).style));
         holder.className = `fmdw-item ${wide ? 'fmdw-item-wide' : ''} fmdw-enter-${firstText(itemTransition.type, 'fade').replace(/[^a-z-]/gi, '')}`;
         holder.style.setProperty('--fmdw-enter-ms', `${Math.max(0, Number(itemTransition.duration_ms || 180))}ms`);
         if (item.disabled === true) {

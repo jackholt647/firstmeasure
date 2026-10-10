@@ -2250,7 +2250,9 @@
       const savedPins = objectValue(objectValue(pinSettings).settings).pinned_template_ids;
       const picker = { query: '', type: '', departments: null, pins: Array.isArray(savedPins) ? savedPins.map(cleanText) : null };
       const PIN_LIMIT = 12;
-      const activeTemplates = () => arrayValue(templates).filter((t) => cleanText(t.status).toLowerCase() !== 'archived');
+      // System templates (payment receipts, payroll reports) are produced by
+      // other apps and are never started by hand.
+      const activeTemplates = () => arrayValue(templates).filter((t) => cleanText(t.status).toLowerCase() !== 'archived' && objectValue(t.metadata).system !== true);
       // Document types are the organization's own groupings. Each has a kind:
       // the built-in behavior a blank document of that type gets.
       const org = { types: arrayValue(objectValue(typeSettings).types).map(objectValue), assignments: objectValue(objectValue(typeSettings).assignments), kinds: arrayValue(objectValue(typeSettings).kinds).map(objectValue) };
@@ -2642,8 +2644,13 @@
         });
       }
 
-      if (wizard.type) renderStepTwo();
-      else renderStepOne();
+      // A prefilled type (Amend → Change Order) starts that type's own
+      // template, in its workflow when it has one.
+      if (wizard.type) {
+        const ofType = activeTemplates().filter((tpl) => cleanText(tpl.document_type) === wizard.type && !isUploadTemplate(tpl));
+        wizard.template = ofType.find((tpl) => objectValue(tpl.metadata).default === true) || ofType[0] || null;
+        proceed();
+      } else renderStepOne();
     }
 
     // ============================================================== editor
@@ -3055,7 +3062,8 @@
     }
 
     // Amend gesture (§10.3): a signed/completed document is never edited —
-    // revisions start a change order prefilled from the source document.
+    // revisions start a change order against it. The change order lists only
+    // what changes; the signed scope stays on the source document.
     function amendToChangeOrder(doc){
       const source = objectValue(doc);
       const params = objectValue(source.params);
@@ -3064,7 +3072,6 @@
         title: ((v0) => globalThis.PlatformLanguage?.text("documents","m_24d875eaf00564",`Change Order — ${v0}`,{v0}) ?? `Change Order — ${v0}`)(firstText(source.title, 'Document')),
         params: {
           source_document_id: firstText(source.id),
-          ...(arrayValue(params.scope_items).length ? { scope_items: clone(params.scope_items) } : {}),
           ...(params.tax_percent !== undefined ? { tax_percent: params.tax_percent } : {})
         }
       });

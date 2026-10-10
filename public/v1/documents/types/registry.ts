@@ -96,9 +96,11 @@ registerDocumentType("change_order", {
     amount_cents: { type: "currency" },
     payment_schedule: { type: "payment_schedule" }
   },
+  // A change order is complete once approved; whether money is due on
+  // approval is its payment schedule's business.
   output_schema: {
     sig_customer: { type: "signature", required: true, signer: "customer" },
-    payment: { type: "payment", required_for: "completed" }
+    payment: { type: "payment" }
   },
   default_theme_id: "thm_margin",
   seeded_templates: ["tpl_change_order_default"],
@@ -150,14 +152,17 @@ registerDocumentType("completion_certificate", {
     project: { type: "entity", entity: "project" },
     customer: { type: "entity", entity: "contact" },
     completed_at: { type: "date", label: "Completion date" },
-    work_summary: { type: "text", label: "Completed work" },
-    warranty_summary: { type: "text", label: "Warranty summary" },
-    final_payment_cents: { type: "currency", label: "Final payment" }
+    work_summary: { type: "text", label: "Work completed" },
+    punch_list: { type: "text", label: "Items still to finish" },
+    warranty_start: { type: "date", label: "Warranty starts" },
+    warranty_summary: { type: "text", label: "Warranty" },
+    amount_due_cents: { type: "currency", label: "Final payment" }
   },
+  // Signing completes the certificate; the balance can be paid then or later.
   output_schema: {
     completion_ack: { type: "select", required: true },
     sig_customer: { type: "signature", required: true, signer: "customer" },
-    final_payment: { type: "payment", obligation: "final", required_for: "completed" }
+    final_payment: { type: "payment", obligation: "final" }
   },
   default_theme_id: "thm_clean",
   default_workflow_id: "wfl_roofing_completion_signoff",

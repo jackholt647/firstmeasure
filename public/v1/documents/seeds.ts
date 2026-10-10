@@ -18,6 +18,14 @@ import {
 } from "./storage.js";
 import { uploadTemplateDefinition } from "./extraction.js";
 import {
+  changeOrderTemplateDefinition,
+  changeOrderWorkflowDefinition,
+  completionCertificateTemplateDefinition,
+  completionSignoffWorkflowDefinition,
+  invoiceTemplateDefinition,
+  invoiceWorkflowDefinition
+} from "./production-templates.js";
+import {
   addFlowPage,
   componentColumn,
   componentRow,
@@ -44,7 +52,7 @@ import {
  * "Roofing proposal intake". Presets upgrade by preset_revision, copying the
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
-export const DOCUMENT_PRESET_REVISION = 32;
+export const DOCUMENT_PRESET_REVISION = 33;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -654,94 +662,6 @@ function proposalTemplateDefinition(): JsonObject {
     sig_customer: { type: "signature", required: true, signer: "customer" },
     selections: { type: "select", from_widget: "doc.line_items" },
     deposit_payment: { type: "payment", obligation: "deposit", required_for: "completed" }
-  };
-  return doc;
-}
-
-function invoiceTemplateDefinition(): JsonObject {
-  const { doc, theme } = startFlowTemplate("thm_clean", "invoice");
-  addFlowPage(doc, theme, "body", "Invoice", [
-    flowLogo({ w: 150, h: 32 }),
-    flowText([
-      { text: "Invoice " },
-      { text: "", bind: "coalesce(params.invoice_number, '')" }
-    ], { font: { family: "var(--fm-display-font)", size_pt: 20, weight: 800 } }),
-    flowRow([
-      labeledText("Billed to", [{ text: "", bind: "coalesce(params.customer.name, customer.name, 'Customer')" }], { grow: 1 }),
-      labeledText("Due", [{ text: "", bind: "params.due_date | date" }], { w: 164, align: "right" })
-    ]),
-    flowSpacer(6),
-    flowWidget("doc.line_items@1", {
-      source: "params.line_items",
-      show_prices: true,
-      depth: 1,
-      columns: ["name", "description", "qty", "unit_price", "amount"]
-    }),
-    flowSpacer(6),
-    flowRow([
-      flowWidget("doc.payment_schedule@1", { source: "params.payment_schedule" }, { grow: 1 }),
-      flowColumn([
-        flowWidget("doc.pay_now@1", { label: "Amount due", source: "params.amount_due_cents" }, { h: 90 }),
-        flowWidget("doc.qr@1", { label: "Pay online" }, { w: 100, h: 104 })
-      ], { w: 164, gap: 14 })
-    ], { gap: 24 })
-  ]);
-  doc.params = {
-    project: { type: "entity", entity: "project" },
-    customer: { type: "entity", entity: "contact" },
-    invoice_number: { type: "string" },
-    issue_date: { type: "date" },
-    due_date: { type: "date" },
-    line_items: { type: "list", items: { type: "pricebook_line" }, required: true },
-    tax_percent: { type: "percent" },
-    amount_due_cents: { type: "currency" }
-  };
-  doc.outputs = {
-    payment: { type: "payment", required_for: "completed" }
-  };
-  return doc;
-}
-
-function changeOrderTemplateDefinition(): JsonObject {
-  const { doc, theme } = startFlowTemplate("thm_margin", "change_order");
-  addFlowPage(doc, theme, "body", "Change Order", [
-    flowLogo(),
-    flowText([{ text: "Change Order" }], { style_ref: "h1" }),
-    flowText([
-      { text: "", bind: "coalesce(params.project.title, project.title, '')" }
-    ], { font: mutedFont(11) }),
-    labeledText("Reason for change", [{ text: "", bind: "coalesce(params.reason, '')" }], { size_pt: 10.5 }),
-    flowSpacer(6),
-    flowWidget("doc.line_items@1", {
-      source: "params.scope_items",
-      show_prices: true,
-      depth: 1
-    })
-  ]);
-  addFlowPage(doc, theme, "signature", "Approval", [
-    flowText([{ text: "Approval" }], { style_ref: "h2" }),
-    flowText([
-      { text: "Signing this change order approves the added scope and pricing above as an amendment to the original agreement." }
-    ], { font: mutedFont(10) }),
-    flowWidget("doc.payment_schedule@1", { source: "params.payment_schedule" }),
-    flowSpacer(8),
-    flowRow([
-      flowWidget("doc.signature@1", { output: "sig_customer", label: "Customer Signature", signer: "customer" }, { grow: 1, h: 90 }),
-      flowWidget("doc.qr@1", { label: "Approve online" }, { w: 120, h: 130 })
-    ], { gap: 24 })
-  ]);
-  doc.params = {
-    project: { type: "entity", entity: "project" },
-    customer: { type: "entity", entity: "contact" },
-    source_document_id: { type: "string" },
-    reason: { type: "text" },
-    scope_items: { type: "list", items: { type: "pricebook_line" }, required: true },
-    amount_cents: { type: "currency" },
-    payment_schedule: { type: "payment_schedule" }
-  };
-  doc.outputs = {
-    sig_customer: { type: "signature", required: true, signer: "customer" },
-    payment: { type: "payment", required_for: "completed" }
   };
   return doc;
 }
@@ -1375,55 +1295,6 @@ function threeOptionProposalTemplateDefinition(): JsonObject {
   return doc;
 }
 
-function roofingCompletionCertificateTemplateDefinition(): JsonObject {
-  const { doc, theme } = startFlowTemplate("thm_clean", "completion_certificate");
-  addFlowPage(doc, theme, "body", "Completion certificate", [
-    flowLogo({ w: 150, h: 32 }),
-    flowText([{ text: "Roofing Project Completion Certificate" }], { style_ref: "h1" }),
-    flowRow([
-      labeledText("Project", [
-        { text: "", bind: "coalesce(project.title, params.project.title, 'Roofing project')" },
-        { text: "\n" },
-        { text: "", bind: "coalesce(project.address, params.project.address, '')" }
-      ], { grow: 1 }),
-      labeledText("Completed", [{ text: "", bind: "params.completed_at | date" }], { w: 164, align: "right" })
-    ]),
-    flowSpacer(8),
-    flowText([{ text: "Work completed" }], { style_ref: "h2" }),
-    flowText([
-      { text: "", bind: "coalesce(params.work_summary, 'Roofing work was completed in accordance with the approved scope and change orders.')" }
-    ], { font: { family: "var(--fm-body-font)", size_pt: 10.5 } }),
-    flowSpacer(8),
-    flowText([
-      { text: "Warranty\n", font: { size_pt: 9, weight: 800 } },
-      { text: "", bind: "coalesce(params.warranty_summary, 'Manufacturer and workmanship warranties apply according to the signed agreement.')" }
-    ], { font: mutedFont(10) }),
-    flowSpacer(16),
-    flowRow([
-      flowWidget("doc.signature@1", { output: "sig_customer", label: "Customer completion sign-off", signer: "customer" }, { grow: 1, h: 100 }),
-      flowWidget("doc.pay_now@1", { output: "final_payment", label: "Final payment", source: "params.final_payment_cents" }, { w: 164, h: 92 })
-    ], { gap: 24 }),
-    flowSpacer(12),
-    flowText([
-      { text: "Your signature confirms that the work described above has been presented as complete. It does not waive warranty rights or unresolved written punch-list items." }
-    ], { style_ref: "legal" })
-  ]);
-  doc.params = {
-    project: { type: "entity", entity: "project" },
-    customer: { type: "entity", entity: "contact" },
-    completed_at: { type: "date", label: "Completion date" },
-    work_summary: { type: "text", label: "Completed work" },
-    warranty_summary: { type: "text", label: "Warranty summary" },
-    final_payment_cents: { type: "currency", label: "Final payment" }
-  };
-  doc.outputs = {
-    completion_ack: { type: "select", required: true },
-    sig_customer: { type: "signature", required: true, signer: "customer" },
-    final_payment: { type: "payment", obligation: "final", required_for: "completed" }
-  };
-  return doc;
-}
-
 function sameDayServiceAgreementTemplateDefinition(): JsonObject {
   const { doc, theme } = startFlowTemplate("thm_clean", "contract");
   addFlowPage(doc, theme, "body", "Service authorization", [
@@ -1942,64 +1813,6 @@ function sameDayServiceFieldWorkflowDefinition(): JsonObject {
   };
 }
 
-function roofingCompletionSignoffWorkflowDefinition(): JsonObject {
-  return {
-    schema_version: 1,
-    name: "Roofing completion sign-off",
-    contract: {
-      params: {
-        project: { type: "entity", entity: "project" },
-        customer: { type: "entity", entity: "contact" },
-        completed_at: { type: "date", label: "Completion date" },
-        work_summary: { type: "text", label: "Completed work" },
-        warranty_summary: { type: "text", label: "Warranty summary" },
-        final_payment_cents: { type: "currency", label: "Final payment" }
-      },
-      outputs: {
-        completion_ack: { type: "select", required: true },
-        sig_customer: { type: "signature", required: true, signer: "customer" },
-        final_payment: { type: "payment", obligation: "final", required_for: "completed" }
-      }
-    },
-    steps: [
-      {
-        id: "st_completion_review",
-        title: "Review completed work",
-        audience: ["customer"],
-        items: [{
-          kind: "choice_group",
-          writes: "outputs.completion_ack",
-          required: true,
-          label: "Completion review",
-          options: [
-            { id: "accepted", label: "The work is complete", description: "Everything in the approved scope has been completed and I am ready to review the certificate." },
-            { id: "needs_follow_up", label: "I need follow-up before signing", description: "Something still needs attention. Notify the project team and pause the final sign-off." }
-          ],
-          presentation: { style: "cards" }
-        }]
-      },
-      {
-        id: "st_completion_document",
-        title: "Review certificate",
-        kind: "review",
-        audience: ["customer"],
-        items: [{ kind: "review", presentation: { live: true } }],
-        preview: { template_ref: "tpl_roofing_completion_certificate", live: true }
-      },
-      {
-        id: "st_completion_sign",
-        title: "Sign & finish",
-        audience: ["customer"],
-        items: [
-          { kind: "signature", writes: "outputs.sig_customer", required: true, label: "Customer completion signature" },
-          { kind: "payment", writes: "outputs.final_payment", label: "Final payment" }
-        ]
-      }
-    ],
-    audiences: { internal: {}, customer: { theme: "portal" } }
-  };
-}
-
 function roofingCustomerWorkflowOnlyDefinition(): JsonObject {
   const definition = threeOptionProposalWorkflowDefinition();
   definition.name = "Roofing choices, signature & payment";
@@ -2054,11 +1867,35 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     // over the type's default_workflow_id.
     metadata: { default_workflow_id: "wfl_roofing_proposal_intake" }
   },
-  { id: "tpl_invoice_default", name: "Standard Invoice", document_type: "invoice", description: "Single-page invoice with line items and pay-now.", definition: invoiceTemplateDefinition },
-  { id: "tpl_change_order_default", name: "Standard Change Order", document_type: "change_order", description: "Change scope summary with customer approval page.", definition: changeOrderTemplateDefinition },
+  // Production documents (production-templates.ts): each has a workflow, and
+  // the customer finishes it in the portal next to the document.
+  {
+    id: "tpl_invoice_default",
+    name: "Invoice",
+    document_type: "invoice",
+    description: "Bill a payment from the signed agreement, the remaining balance, or other charges. The customer pays from the invoice.",
+    definition: invoiceTemplateDefinition,
+    metadata: {
+      default_workflow_id: "wfl_invoice",
+      customer_presentation: { tab: { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 }, mode: "hybrid", workflow_cta: "Pay invoice" }
+    }
+  },
+  {
+    id: "tpl_change_order_default",
+    name: "Change Order",
+    document_type: "change_order",
+    description: "Added or changed work on a signed agreement: what changes, the new contract total, how it is paid, and the customer's approval.",
+    definition: changeOrderTemplateDefinition,
+    metadata: {
+      default_workflow_id: "wfl_change_order",
+      customer_presentation: { tab: { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 }, mode: "hybrid", workflow_cta: "Review & approve" }
+    }
+  },
   { id: "tpl_money_report_default", name: "Job Cost Report", document_type: "report", description: "Internal job cost report: money metrics, expense breakdown, payment history.", definition: moneyReportTemplateDefinition },
-  { id: "tpl_payroll_report_default", name: "Standard Payroll Report", document_type: "payroll_report", description: "Branded payroll report with configurable columns and rows.", definition: payrollReportTemplateDefinition },
-  { id: "tpl_payment_receipt_default", name: "Standard Payment Receipt", document_type: "payment_receipt", description: "Branded receipt for a recorded customer payment.", definition: paymentReceiptTemplateDefinition },
+  // Produced by the Payroll and Money apps, never started by hand:
+  // metadata.system keeps them out of the New document picker.
+  { id: "tpl_payroll_report_default", name: "Standard Payroll Report", document_type: "payroll_report", description: "Branded payroll report with configurable columns and rows.", definition: payrollReportTemplateDefinition, metadata: { system: true } },
+  { id: "tpl_payment_receipt_default", name: "Standard Payment Receipt", document_type: "payment_receipt", description: "Branded receipt for a recorded customer payment.", definition: paymentReceiptTemplateDefinition, metadata: { system: true } },
   {
     id: "tpl_one_page_legal",
     name: "One-Page Roofing Agreement",
@@ -2091,14 +1928,15 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
   },
   {
     id: "tpl_roofing_completion_certificate",
-    name: "Roofing Completion Certificate",
+    name: "Project Completion Certificate",
     document_type: "completion_certificate",
-    description: "Customer completion review, certificate signature and optional final-payment workflow.",
-    definition: roofingCompletionCertificateTemplateDefinition,
+    description: "The customer confirms the work is complete, signs, and pays the remaining balance. Starts the warranty.",
+    definition: completionCertificateTemplateDefinition,
     metadata: {
       default: true,
-      disable_default_workflow: true,
-      customer_presentation: { tab: { id: "sign_off", label: "Sign-Off", icon: "fa-flag-checkered", order: 70 }, mode: "document", document_cta: "Review certificate & sign" }
+      disable_default_workflow: false,
+      default_workflow_id: "wfl_roofing_completion_signoff",
+      customer_presentation: { tab: { id: "sign_off", label: "Sign-Off", icon: "fa-flag-checkered", order: 70 }, mode: "hybrid", workflow_cta: "Review & sign off" }
     }
   },
   {
@@ -2191,9 +2029,21 @@ export const WORKFLOW_SEEDS: WorkflowSeed[] = [
   },
   {
     id: "wfl_roofing_completion_signoff",
-    name: "Roofing completion sign-off",
-    description: "Customer completion review, certificate signature and final payment.",
-    definition: roofingCompletionSignoffWorkflowDefinition
+    name: "Completion sign-off",
+    description: "Completed work, open items and warranty; then the customer's walk-through, signature and final payment.",
+    definition: completionSignoffWorkflowDefinition
+  },
+  {
+    id: "wfl_change_order",
+    name: "Change order",
+    description: "What is changing, how it is paid, review; then the customer's approval and any payment due on approval.",
+    definition: changeOrderWorkflowDefinition
+  },
+  {
+    id: "wfl_invoice",
+    name: "Invoice",
+    description: "What to bill, dates and a note, review; then the customer's payment.",
+    definition: invoiceWorkflowDefinition
   },
   {
     id: "wfl_roofing_customer_workflow",
