@@ -18,6 +18,26 @@ function measurementInfo(key,row={}) {
  return {name:known?.[0] || (pitch?`${pitch[1]}/12 pitch`:label(key).replace(/\bLf$/,'').replace(/\bEa$/,'')),unit,group:known?.[2] || (pitch?'Pitch breakdown':'Other measurements'),digits:unit==='ft²'||unit==='m²'||unit==='each'?0:unit==='ft'||unit==='m'?1:2};
 }
 function measurementValue(value,key,row={}) {const digits=measurementInfo(key,row).digits;return typeof value==='number'&&Number.isFinite(value)?String(Number(value.toFixed(digits))):'';}
+const compactNames={roofSquares:'Roof squares',ventilationSquares:'Ventilated area',headWallLf:'Headwall',sideWallLf:'Sidewall / step',parapetLf:'Parapets',protrusionLf:'Protrusions',chimneyBackLf:'Chimney back pan',chimneyStepLf:'Chimney step',unknownLf:'Unclassified'};
+function measurementTip(key,info,missing) {
+ const notes=[info.name];
+ if(info.group==='Pitch breakdown')notes.push('Pitch is rise per 12 inches of horizontal run. This value is the roof area at this pitch, in roofing squares.');
+ if(info.unit==='sq')notes.push('1 roofing square = 100 square feet; roofing squares = roof area in square feet ÷ 100.');
+ if(missing)notes.push('The source did not supply this measurement. Enter a value to use a project override.');
+ return notes.join(' ');
+}
+// Each section measures its own labels; long flashing names must not force
+// short edge/pitch sections to use fewer columns. Recompute on rail resizing.
+export function fitMeasurementColumns(panel) {
+ const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+ for(const grid of panel.querySelectorAll('.sw-measure-grid')) {
+  const fields=[...grid.children];if(!fields.length||!grid.clientWidth)continue;
+  let needed=150;
+  for(const field of fields){const name=field.querySelector('.sw-measure-name'),unit=field.querySelector('small');ctx.font=getComputedStyle(name).font;const labelWidth=ctx.measureText(name.textContent).width;ctx.font=getComputedStyle(unit).font;needed=Math.max(needed,Math.ceil(labelWidth+ctx.measureText(unit.textContent).width+64+12));}
+  const columns=Math.min(3,fields.length,Math.max(1,Math.floor((grid.clientWidth+12)/(needed+12))));
+  grid.style.setProperty('--sw-measure-columns',columns);
+ }
+}
 function measurementFields(doc) {
  const values=doc.value?.measurements || {},keys=Object.keys(values),roof=keys.some(k=>k==='roofArea'||k==='roofSquares'),groups=new Map();
  // Show the full roof edge/flashing checklist, without inventing absent quantities.
@@ -25,8 +45,8 @@ function measurementFields(doc) {
  if(keys.some(k=>/^pitch\d+(?:\.\d+)?Squares$/.test(k)))for(let i=keys.length-1;i>=0;i--)if(/^pitch\d+to|^pitch13Plus|^flatRoofSquares$/.test(keys[i]))keys.splice(i,1);
  const order=['Area','Roof edges','Flashing & openings','Pitch breakdown','Counts','Drainage','Exterior','Other measurements'];
  keys.sort((a,b)=>{const ia=measurementInfo(a,values[a]),ib=measurementInfo(b,values[b]);return order.indexOf(ia.group)-order.indexOf(ib.group)||(ia.group==='Pitch breakdown' ? Number(a.match(/\d+/)?.[0]||0)-Number(b.match(/\d+/)?.[0]||0):0);});
- for(const key of keys){const row=values[key] || {},info=measurementInfo(key,row);if(!groups.has(info.group))groups.set(info.group,[]);groups.get(info.group).push(`<label class="sw-measure-field"><span>${esc(info.name)}</span><span><input type="number" min="0" step="${10**-info.digits}" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="Not available" aria-label="${esc(info.name)}"><small>${esc(info.unit)}</small></span></label>`);}
- return [...groups].map(([group,fields])=>`<section class="sw-measure-group"><h4>${esc(group)}</h4>${group==='Pitch breakdown'?'<p class="sw-measure-note">Rise per 12 inches of run · area in roofing squares</p>':''}<div class="sw-measure-grid">${fields.join('')}</div></section>`).join('')+'<p class="sw-measure-note">1 roofing square (sq) = 100 ft². Not available means the source did not supply this measurement.</p>';
+ for(const key of keys){const row=values[key] || {},info=measurementInfo(key,row),tip=measurementTip(key,info,row.value==null);if(!groups.has(info.group))groups.set(info.group,[]);groups.get(info.group).push(`<label class="sw-measure-field" title="${esc(tip)}"><span class="sw-measure-name">${esc(compactNames[key] || info.name)}</span><span><input type="number" min="0" step="${10**-info.digits}" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="—" aria-label="${esc(info.name)}" aria-description="${esc(tip)}"><small title="${esc(tip)}">${esc(info.unit)}</small></span></label>`);}
+ return [...groups].map(([group,fields])=>`<section class="sw-measure-group"><h4>${esc(group)}</h4><div class="sw-measure-grid">${fields.join('')}</div></section>`).join('');
 }
 const money = (value,currency='USD') => {try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(value);}catch{return `${number(value)} ${currency}`;}};
 
@@ -174,6 +194,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
         paint();state.observer=new ResizeObserver(()=>{if(stage.isConnected&&stage.clientWidth)paint();});state.observer.observe(stage);
       }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
     }else {
+      fitMeasurementColumns(panel);state.observer=new ResizeObserver(()=>fitMeasurementColumns(panel));state.observer.observe(panel);document.fonts?.ready.then(()=>{if(panel.isConnected)fitMeasurementColumns(panel);});
       panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;draw();});
       panel.querySelectorAll('[data-scope-measure]').forEach(input=>{
         const key=input.dataset.scopeMeasure;
