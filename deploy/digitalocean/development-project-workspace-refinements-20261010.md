@@ -47,3 +47,13 @@ read-only client fixtures for accepted document rendering and 18 measurements.
 The initial four-role rollout rebased after concurrent releases changed the
 worker and frontend baselines. The final frontend camera overlay retains each
 role baseline and the feature backend; the worker retains the feature release.
+
+Final activation: all three frontend roles run
+`b503165858815d7f6e47417891c815d85c39eb0a`; worker remains on
+`1d109809d4c4e39851ee1c355d89d31c719c9aa0`. Every role passed
+post-activation source-hash/runtime-safety verification. Public readiness
+confirmed the final frontend release and development isolation. Hosted desktop
+and mobile verification completed with no page errors, including company-color
+tab inheritance, New List, animated minimize/restore, full measurement rendering
+and the accepted snapshot renderer. The final camera overlays and per-role
+rollback paths are in `output/project-workspace-camera-20261010`.
