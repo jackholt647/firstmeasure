@@ -21,6 +21,8 @@ const TEMPLATES = [
   template('tpl_inv', 'invoice', 'Invoice'),
   template('tpl_cert', 'completion_certificate', 'Completion certificate'),
   template('tpl_paper', 'contract', 'Paper contract intake', { metadata: { intake: 'upload' } }),
+  // Produced by payments, never started by hand.
+  template('tpl_receipt', 'payment_receipt', 'Payment receipt', { metadata: { system: true } }),
   template('tpl_old', 'contract', 'Retired contract', { status: 'archived' })
 ];
 
@@ -74,7 +76,7 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     assert.deepEqual(await names(page, '.fmdx-tpl-row'), ['Roof replacement · Itemized proposal', 'Roofing contract', 'Change order', 'Invoice']);
     // The library starts on the user's own department; archived templates never show.
     const library = await names(page, '.fmdx-tpl-grid');
-    assert.ok(library.includes('Quick roof quote') && !library.includes('Gutter proposal') && !library.includes('Retired contract'));
+    assert.ok(library.includes('Quick roof quote') && !library.includes('Gutter proposal') && !library.includes('Retired contract') && !library.includes('Payment receipt'));
     await page.locator('[data-pick-department="dep_gutter"]').click();
     assert.ok((await names(page, '.fmdx-tpl-grid')).includes('Gutter proposal'));
     // Types are filters with counts; a type with nothing to group is not one.
