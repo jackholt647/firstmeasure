@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 10 Project preview contact card: [Conditional primary label and icon actions](deploy/digitalocean/development-project-preview-contact-icons-20261010.md) records the checks and verified development rollout.
+
 October 10 Project preview: [Configured priority fields and optional cover](deploy/digitalocean/development-project-preview-priority-20261010.md) records the shared resolver integration, checks, and development rollout.
 
 October 10 Project workspace: [published scope artifacts, compact rail and full-height resource panes](deploy/digitalocean/development-project-scope-work-20261010.md) records the terminology change, development rollout, validation and rollback.
