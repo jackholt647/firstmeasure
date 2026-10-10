@@ -84,6 +84,8 @@ export const communicationSourceSchema = z.object({
 }).passthrough();
 
 export const createConversationSchema = z.object({
+  sms_mode: z.enum(["individual", "group_mms"]).optional(),
+  sender: communicationSenderSchema.optional(),
   id: z.string().trim().max(180).optional(),
   branch_id: z.string().trim().max(180).optional(),
   subject: z.string().trim().max(998).optional(),
@@ -95,6 +97,7 @@ export const createConversationSchema = z.object({
 }).passthrough();
 
 export const sendCommunicationSchema = z.object({
+  sms_mode: z.enum(["individual", "group_mms"]).optional(),
   id: z.string().trim().max(180).optional(),
   branch_id: z.string().trim().max(180).optional(),
   conversation_id: z.string().trim().max(180).optional(),
@@ -110,6 +113,7 @@ export const sendCommunicationSchema = z.object({
   idempotency_key: z.string().trim().min(1).max(500).optional(),
   scheduled_for: z.string().trim().optional()
 }).passthrough().superRefine((value, ctx) => {
+  if (value.sms_mode === "group_mms" && value.channel !== "sms") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["sms_mode"], message: "Group MMS requires the SMS channel." });
   const text = String(value.content.text || "").trim();
   const html = String(value.content.html || "").trim();
   const subject = String(value.content.subject || "").trim();

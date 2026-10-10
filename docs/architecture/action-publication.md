@@ -168,3 +168,9 @@ See [to-dos and agent publication](todos.md) for the complete personal/project
 list, creation, editing, lifecycle, follow-up outcomes, display state, history
 and branch-configuration operations. They share Work domain services and retain
 current human and resource authorization.
+## Group MMS Actions
+
+`comms.smsGroup.create@1` and `comms.smsGroup.send@1` publish the group messaging
+domain through shared bootstrap and the `send_communications` permission bundle.
+See [group MMS](group-mms.md) for typed inputs, external effects, receipts,
+resource checks and delivery activation requirements.

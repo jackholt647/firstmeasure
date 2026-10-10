@@ -58,6 +58,8 @@ export async function onInboundCommunication(organizationId: string, messageId: 
   // Webchat already notifies through the live-chat pipeline (notifyTeam);
   // double-notifying every portal chat message would be noise.
   if (channel === "webchat") return null;
+  // Group replies must not trigger one-to-one appointment or AI workflows.
+  const groupMms = asObject(asObject(message.metadata).sms_group).mode === "group_mms";
 
   const branchId = cleanText(message.branch_id) || "default";
   const context = asObject(message.context);
@@ -73,7 +75,7 @@ export async function onInboundCommunication(organizationId: string, messageId: 
   let confirmation: unknown = null;
   try {
     const { handleInboundConfirmationResponse } = await import("../appointments/service.js");
-    confirmation = await handleInboundConfirmationResponse(organizationId, message);
+    if (!groupMms) confirmation = await handleInboundConfirmationResponse(organizationId, message);
   } catch (error) {
     console.error("appointment confirmation matching failed", error);
   }
@@ -82,7 +84,7 @@ export async function onInboundCommunication(organizationId: string, messageId: 
   // agent. It runs before agent auto-response so a numbered slot choice never
   // receives a second, competing reply from the model.
   let rescheduling: unknown = null;
-  if (projectId) {
+  if (projectId && !groupMms) {
     try {
       const { handleInboundReschedulingResponse } = await import("../appointments/rescheduling.js");
       rescheduling = await handleInboundReschedulingResponse(organizationId, branchId, message);
@@ -134,7 +136,7 @@ export async function onInboundCommunication(organizationId: string, messageId: 
 
   // Auto-response (project-resolved settings only — org-wide auto-reply to
   // unmatched senders is deliberately off the table).
-  if (projectId && !asObject(rescheduling).handled && resolved.agent && resolved.agent.enabled && resolved.agent.auto_response.enabled) {
+  if (!groupMms && projectId && !asObject(rescheduling).handled && resolved.agent && resolved.agent.enabled && resolved.agent.auto_response.enabled) {
     const channelEnabled = channel === "email"
       ? resolved.agent.auto_response.channels.email
       : channel === "sms" ? resolved.agent.auto_response.channels.sms : false;

@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import test from "node:test";
+
+const url = process.env.TEST_POSTGRES_URL || "";
+test("PostgreSQL group MMS shares threads, claims all recipients once, indexes group callbacks and recovers leases without resend", { skip: !url }, async t => {
+  Object.assign(process.env, { NODE_ENV: "test", FIRSTMATE_ENV: "test", FIRSTMEASURE_DATABASE_MODE: "postgres", DATABASE_URL: url, POSTGRES_POOL_MAX: "2", POSTGRES_AUTO_MIGRATE: "false" });
+  const store = await import("../messaging/communications_storage.js");
+  const group = await import("../messaging/group_mms.js");
+  t.after(async () => { await store.closeCommunicationsDatabase(); await (await import("../platform/sql_store.js")).closeSqlStoresForTests(); await (await import("../src/database/postgres.js")).closePostgresPools(); });
+  const org = `group_${randomUUID()}`, local = "+12065550199", members = ["+14259700671", "+12068590917"];
+  const threads = await Promise.all(Array.from({ length: 12 }, (_, i) => group.ensureGroupMmsConversation({ organization_id: org, branch_id: "default" }, local, (i % 2 ? members : [...members].reverse()).map(address => ({ address })) )));
+  assert.equal(new Set(threads.map(row => row.id)).size, 1);
+  assert.equal((await store.listConversationRecords(org, { group_mms: true })).length, 1);
+  await assert.rejects(store.readConversationRecord("another-org", String(threads[0]!.id)));
+  const message = (await store.createMessageRecord({ organization_id: org, conversation_id: threads[0]!.id, channel: "sms", sender: { address: local }, recipients: members.map(address => ({ address })), metadata: { sms_group: group.smsGroup(threads[0]!.metadata) } })).message;
+  for (const [index, address] of members.entries()) await store.createDeliveryRecord({ organization_id: org, message_id: message.id, channel: "sms", provider: "telnyx", transport_mode: "live", recipient_address: address, recipient: { address }, status: index ? "group_pending" : "queued", response: { group_mms: true } });
+  const claims = await Promise.all(Array.from({ length: 16 }, (_, i) => store.claimNextSmsDelivery(`worker-${i}`, 5)));
+  const accepted = claims.filter(Boolean);
+  assert.equal(accepted.length, 1);
+  const rows = await store.listDeliveryRecords(org, String(message.id));
+  assert.ok(rows.every(row => row.status === "submitting" && row.lease_owner === accepted[0]!.lease_owner && row.attempts === 1));
+  for (const row of rows) await store.updateDeliveryRecord(org, String(row.id), { lease_until: new Date(Date.now() - 1000).toISOString() });
+  assert.equal((await store.recoverExpiredSmsDeliveryLeases()).length, 2);
+  assert.equal(await store.claimNextSmsDelivery("after-crash", 5), null);
+  for (const row of rows) await store.updateDeliveryRecord(org, String(row.id), { provider_message_id: "shared-provider-group", response: { group_mms: true, group_message_id: "shared-provider-group" }, status: "sent" });
+  assert.equal((await store.findGroupMmsDeliveries("shared-provider-group", local)).length, 2);
+  assert.equal((await store.findGroupMmsDeliveries("shared-provider-group", "+15099600721")).length, 0);
+  await store.closeCommunicationsDatabase();
+  assert.equal((await store.listDeliveryRecords(org, String(message.id))).length, 2);
+  const queued = (await store.createMessageRecord({ organization_id: org, channel: "sms", sender: { address: local } })).message;
+  for (const [index, address] of members.entries()) await store.createDeliveryRecord({ organization_id: org, message_id: queued.id, channel: "sms", provider: "telnyx", transport_mode: "live", recipient_address: address, recipient: { address }, status: index ? "group_pending" : "queued", response: { group_mms: true } });
+  await store.suppressPendingSmsDeliveries(org, members[0]!, new Date().toISOString());
+  assert.ok((await store.listDeliveryRecords(org, String(queued.id))).every(row => row.status === "failed"));
+});

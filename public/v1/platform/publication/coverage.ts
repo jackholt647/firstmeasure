@@ -18,7 +18,7 @@ export const applicationPublication = {
   "project-map": { providers: ["projects"], domains: ["projects"] },
   "customer-portal": { providers: ["customer-portal"], domains: ["customerPortal"] },
   "project-schedule": { providers: ["calendar"], domains: ["scheduling", "workforce"] },
-  comms: { providers: ["comms"], domains: ["comms"] },
+  comms: { providers: ["comms", "comms-sms-groups"], domains: ["comms"] },
   measurements: { providers: ["datasets", "firstmeasure", "project-widgets"], domains: ["datasets"] },
   checklists: { providers: ["work", "todos"], domains: ["work"] },
   scheduling: { providers: ["workforce-departments", "calendar"], domains: ["scheduling", "workforce"] },

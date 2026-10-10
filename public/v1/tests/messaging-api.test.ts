@@ -53,6 +53,7 @@ before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-messaging-test-"));
   process.env.NODE_ENV = "test";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.V1_LOG_LEVEL = "error";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.MESSAGING_STORAGE_ROOT = path.join(storageRoot, "messaging");

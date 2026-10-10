@@ -11,6 +11,8 @@ import {
   claimPhoneNumberOwnership,
   findDeliveryById,
   findDeliveryByProviderMessageId,
+  findGroupMmsDeliveries,
+  listDeliveryRecords,
   findBillingCommitment,
   findPhoneNumberOwner,
   findSenderIdentityByAddress,
@@ -20,10 +22,12 @@ import {
   markWebhookInboxEventProcessed,
   markProviderOperationFailed,
   readMessageRecord,
+  readDeliveryRecord,
   suspendOrganizationSmsDeliveries,
   suppressPendingSmsDeliveries,
   touchConversationForMessage,
   updateDeliveryRecord,
+  withCommunicationsTransaction,
   updateMessageRecord,
   upsertSmsConsent,
   type CommunicationsJson
@@ -39,6 +43,7 @@ import {
   type SmsComplianceProfile
 } from "./storage.js";
 import { smsAutoresponsesReady } from "./autoresponses.js";
+import { ensureGroupMmsConversation, smsGroup } from "./group_mms.js";
 
 const STOP_KEYWORDS = new Set(["STOP", "STOPALL", "STOP ALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"]);
 const START_KEYWORDS = new Set(["START", "UNSTOP"]);
@@ -147,7 +152,7 @@ async function recordUsage(
     segments: Number(payload.parts || 0),
     amount: amount || "0",
     currency: cleanText(cost.currency || "USD"),
-    event_key: `telnyx:message:${cleanText(payload.id) || eventId}:${cleanText(payload.direction || "outbound")}:final_cost`,
+    event_key: `telnyx:message:${cleanText(payload.id) || eventId}:${cleanText(payload.direction || "outbound")}${metadata.group_mms ? `:${cleanText(metadata.recipient)}` : ""}:final_cost`,
     occurred_at: cleanText(payload.completed_at || payload.received_at || new Date().toISOString()),
     metadata: { cost_breakdown: payload.cost_breakdown, type: payload.type, encoding: payload.encoding, ...metadata }
   }));
@@ -166,12 +171,17 @@ async function processInbound(eventId: string, occurredAt: string, payload: Comm
   const identity = (await findSenderIdentityByAddress(toAddress, messagingProfileId)) || (await findSenderIdentityByAddress(toAddress));
   const organizationId = cleanText(owner.organization_id);
   const branchId = cleanText(identity?.branch_id || "default");
-  let conversation = (await findSmsConversationRecord(organizationId, fromAddress));
+  const cc = Array.isArray(payload.cc) ? payload.cc.map(phone).filter(Boolean) : [];
+  const groupMembers = [...new Set([fromAddress, ...cc, ...toValues.map(phone)].filter(address => address !== toAddress))];
+  const groupInbound = groupMembers.length > 1;
+  let conversation = groupInbound ? await ensureGroupMmsConversation({ organization_id: organizationId, branch_id: branchId,
+    subject: "Group MMS", metadata: { created_from: "telnyx_webhook" } }, toAddress, groupMembers.map(address => ({ address })))
+    : await findSmsConversationRecord(organizationId, fromAddress);
   // Attach the sender to a project/contact when their number is on file, so
   // the message lands in the project comms tab and routes notifications.
   let matchedProjectId = cleanText(conversation?.project_id);
   let matchedContactId = cleanText(conversation?.contact_id);
-  if (!matchedProjectId || !matchedContactId) {
+  if (!groupInbound && (!matchedProjectId || !matchedContactId)) {
     try {
       const { matchProjectContact } = await import("../comms/matching.js");
       const match = await matchProjectContact(organizationId, { phone: fromAddress });
@@ -224,13 +234,15 @@ async function processInbound(eventId: string, occurredAt: string, payload: Comm
     status: "delivered",
     text_body: cleanText(payload.text),
     sender: { address: fromAddress, ...(matchedContactId ? { contact_id: matchedContactId } : {}) },
-    recipients: [{ address: toAddress }],
+    recipients: [{ address: toAddress }, ...(groupInbound ? groupMembers.filter(address => address !== fromAddress).map(address => ({ address })) : [])],
     context: {
       ...(matchedProjectId ? { project_id: matchedProjectId } : {}),
       ...(matchedContactId ? { contact_id: matchedContactId } : {})
     },
     source: { type: "webhook", id: eventId },
-    metadata: { provider: "telnyx", provider_message_id: cleanText(payload.id), media: payload.media, keyword: HELP_KEYWORDS.has(keyword) ? "HELP" : STOP_KEYWORDS.has(keyword) ? "STOP" : START_KEYWORDS.has(keyword) ? "START" : "" }
+    metadata: { provider: "telnyx", provider_message_id: cleanText(payload.id), media: payload.media,
+      ...(groupInbound ? { sms_group: smsGroup(conversation.metadata) } : {}),
+      keyword: HELP_KEYWORDS.has(keyword) ? "HELP" : STOP_KEYWORDS.has(keyword) ? "STOP" : START_KEYWORDS.has(keyword) ? "START" : "" }
   }));
   const messageId = cleanText(created.message.id);
   if (created.created) {
@@ -255,14 +267,48 @@ function normalizedDeliveryStatus(eventType: string, payload: CommunicationsJson
   if (eventType === "message.sent") return "sent";
   if (raw === "delivered") return "delivered";
   if (["delivery_failed", "sending_failed", "failed", "expired"].includes(raw)) return "failed";
-  if (raw === "delivery_unconfirmed") return "delivery_unconfirmed";
+  if (raw === "delivery_unconfirmed" || raw === "unknown") return "delivery_unconfirmed";
   return raw || "sent";
 }
 
-async function processOutbound(eventId: string, eventType: string, occurredAt: string, payload: CommunicationsJson, correlatedDeliveryId = "") {
+async function processOutbound(eventId: string, eventType: string, occurredAt: string, payload: CommunicationsJson, correlatedDeliveryId = "", groupDelivery?: CommunicationsJson, groupCostRecipient?: string) {
   occurredAt = cleanText(occurredAt) || new Date().toISOString();
   const providerMessageId = cleanText(payload.id);
-  let delivery = (await findDeliveryByProviderMessageId("telnyx", providerMessageId));
+  if (!groupDelivery) {
+    let groupRows = await findGroupMmsDeliveries(cleanText(payload.group_message_id) || providerMessageId, phone(payload.from));
+    const anchor = correlatedDeliveryId ? await findDeliveryById(correlatedDeliveryId) : null;
+    if (!groupRows.length && anchor && asObject(anchor.response).group_mms === true) {
+      const message = await readMessageRecord(cleanText(anchor.organization_id), cleanText(anchor.message_id));
+      if (phone(payload.from) === cleanText(asObject(message.sender).address)) groupRows = await listDeliveryRecords(cleanText(anchor.organization_id), cleanText(anchor.message_id));
+    }
+    if (groupRows.length) {
+      const owner = await findPhoneNumberOwner(phone(payload.from));
+      if (!owner || cleanText(owner.organization_id) !== cleanText(groupRows[0]?.organization_id)
+        || (payload.messaging_profile_id && owner.messaging_profile_id !== payload.messaging_profile_id)) throw new Error("Group MMS webhook ownership does not match.");
+      // A recipient callback proves acceptance of the shared send even if the
+      // original POST times out. Persist its group identity on every sibling.
+      if (payload.group_message_id) await withCommunicationsTransaction(async () => {
+        for (const row of groupRows) await updateDeliveryRecord(cleanText(row.organization_id), cleanText(row.id), {
+          provider_message_id: cleanText(row.provider_message_id) || cleanText(payload.group_message_id),
+          response: { ...asObject(row.response), group_mms: true, group_message_id: payload.group_message_id }
+        });
+      });
+      const recipients = Array.isArray(payload.to) ? payload.to.map(asObject) : [];
+      let matched = 0;
+      for (const recipient of recipients) {
+        const row = groupRows.find(item => item.recipient_address === phone(recipient));
+        if (!row || (!recipient.status && recipients.length > 1)) continue;
+        matched += 1;
+        const costRecipient = matched === 1 ? recipients.map(phone).sort().join(",") : "";
+        await withCommunicationsTransaction(async () => processOutbound(eventId, eventType, occurredAt, { ...payload, to: [recipient] }, "",
+          await readDeliveryRecord(cleanText(row.organization_id), cleanText(row.id)), costRecipient));
+      }
+      if (!matched) throw new Error("Group MMS webhook does not identify a recorded recipient.");
+      return;
+    }
+    if (payload.group_message_id) throw new Error("Group MMS delivery mapping is not available yet.");
+  }
+  let delivery = groupDelivery || (await findDeliveryByProviderMessageId("telnyx", providerMessageId));
   if (!delivery) {
     const candidate = (await findDeliveryById(correlatedDeliveryId));
     if (candidate && cleanText(candidate.provider) === "telnyx" && cleanText(candidate.channel) === "sms"
@@ -316,7 +362,8 @@ async function processOutbound(eventId: string, eventType: string, occurredAt: s
     (await updateDeliveryRecord(organizationId, deliveryId, {
       status,
       provider_message_id: providerMessageId,
-      response: { ...asObject(delivery.response), latest_webhook: payload },
+      response: { ...asObject(delivery.response), ...(groupDelivery ? { group_mms: true, group_message_id: cleanText(payload.group_message_id) || cleanText(asObject(delivery.response).group_message_id) || providerMessageId } : {}), latest_webhook: payload },
+      lease_owner: "", lease_until: "", next_attempt_at: "",
       provider_status_at: occurredAt,
       ...(status === "sent" ? { sent_at: occurredAt } : {}),
       ...(status === "delivered" ? { delivered_at: occurredAt } : {}),
@@ -329,7 +376,8 @@ async function processOutbound(eventId: string, eventType: string, occurredAt: s
     type: `delivery.${status}`, provider: "telnyx", occurred_at: occurredAt,
     payload: { provider_event_id: eventId, stale, errors: payload.errors }
   }));
-  if (eventType === "message.finalized") (await recordUsage(organizationId, messageId, deliveryId, eventId, payload));
+  if (eventType === "message.finalized" && (!groupDelivery || groupCostRecipient)) (await recordUsage(organizationId, messageId, deliveryId, eventId, payload,
+    groupDelivery ? { group_mms: true, group_message_id: payload.group_message_id, recipient: groupCostRecipient } : {}));
   (await readMessageRecord(organizationId, messageId));
 }
 
@@ -708,7 +756,7 @@ export async function acceptTelnyxWebhook(body: unknown, correlatedDeliveryId = 
   if (!envelope.eventId || !envelope.eventType) throw new Error("Telnyx webhook is missing data.id or data.event_type.");
   const accepted = (await createWebhookInboxEvent({
     provider: "telnyx", event_id: envelope.eventId, event_type: envelope.eventType,
-    provider_object_id: cleanText(envelope.payload.id), payload: storedBody, occurred_at: envelope.occurredAt
+    provider_object_id: cleanText(envelope.payload.group_message_id || envelope.payload.id), payload: storedBody, occurred_at: envelope.occurredAt
   }));
   const claimed = (await claimWebhookInboxEvent("telnyx", envelope.eventId, webhookProcessorId));
   if (!claimed) return { duplicate: !accepted.created, in_progress: true, event_id: envelope.eventId };

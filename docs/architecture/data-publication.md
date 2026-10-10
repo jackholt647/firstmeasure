@@ -96,3 +96,8 @@ public exports. New consumers use explicit publication context and bindings.
 Referrals publishes the extracted read-only eligibility helper; creating an offer remains an action.
 
 User-filtered channel, training and chat snapshots retain subject IDs in provenance, including when a binding selects a scalar path. Frozen replay checks the original viewer and every captured subject against current permitted subjects. Document snapshots recheck all captured published keys. Revocation denies replay rather than substituting new values.
+## Group MMS Data
+
+Comms also publishes `comms-sms-groups@1` with typed `conversations` and
+`messages` exports. See [group MMS](group-mms.md) for paginated contracts,
+branch/project checks and frozen replay authorization.

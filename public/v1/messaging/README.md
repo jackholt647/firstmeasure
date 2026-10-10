@@ -135,3 +135,9 @@ Scheduled timestamps must be RFC 3339 with an explicit timezone. Telnyx native s
 ## Developer capture mode
 
 Capture mode remains available for local UI/automation tests. Developer simulation routes are unavailable in production or live mode. Telnyx configuration and health routes require authenticated company-management access and never expose credentials or profile details.
+## Group MMS
+
+True Telnyx group MMS is available through the group endpoints and the shared
+action/data publications. Existing bulk SMS remains individual delivery.
+See [the group MMS architecture and API guide](../../../docs/architecture/group-mms.md)
+for contracts, authorization, participant limits, delivery safety and activation.

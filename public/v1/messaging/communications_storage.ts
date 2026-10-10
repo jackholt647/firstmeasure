@@ -68,7 +68,7 @@ export function getCommunicationsDatabase(): SqlStore {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   if (database) throw new Error("Close communications storage before changing its directory.");
-  database = openSqlStore({ id: "communications", filename: nextPath, schemaVersion: 2, initialize: initializeSchema });
+  database = openSqlStore({ id: "communications", filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
@@ -248,9 +248,6 @@ async function initializeSchema(db: SqlStore) {
       ON communication_deliveries(organization_id, message_id, created_at ASC);
     CREATE INDEX IF NOT EXISTS communication_deliveries_status_idx
       ON communication_deliveries(organization_id, status, updated_at DESC);
-    CREATE UNIQUE INDEX IF NOT EXISTS communication_deliveries_provider_message_uq
-      ON communication_deliveries(provider, provider_message_id)
-      WHERE provider_message_id <> '';
 
     CREATE TABLE IF NOT EXISTS communication_events (
       id TEXT PRIMARY KEY,
@@ -367,6 +364,16 @@ async function initializeSchema(db: SqlStore) {
   await ensureSqlColumn(db, "communication_webhook_events", "next_attempt_at", "TEXT");
   await ensureSqlColumn(db, "communication_webhook_events", "processing_started_at", "TEXT");
   await ensureSqlColumn(db, "communication_webhook_events", "processor_id", "TEXT NOT NULL DEFAULT ''");
+  const groupId = db.isPostgres ? "(response_json::jsonb->>'group_message_id')" : "json_extract(response_json, '$.group_message_id')";
+  const isGroup = db.isPostgres ? "COALESCE(response_json::jsonb->>'group_mms', 'false') = 'true'" : "COALESCE(json_extract(response_json, '$.group_mms'), 0) = 1";
+  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS communication_deliveries_provider_individual_uq
+    ON communication_deliveries(provider, provider_message_id) WHERE provider_message_id <> '' AND NOT (${isGroup})`);
+  await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS communication_deliveries_provider_group_recipient_uq
+    ON communication_deliveries(provider, provider_message_id, recipient_address) WHERE provider_message_id <> '' AND (${isGroup})`);
+  await db.exec("DROP INDEX IF EXISTS communication_deliveries_provider_message_uq");
+  await db.exec(`CREATE INDEX IF NOT EXISTS communication_deliveries_group_idx ON communication_deliveries(provider, ${groupId}, message_id)`);
+  const groupMode = db.isPostgres ? "metadata_json::jsonb->'sms_group'->>'mode'" : "json_extract(metadata_json, '$.sms_group.mode')";
+  await db.exec(`CREATE INDEX IF NOT EXISTS communication_conversations_group_idx ON communication_conversations(organization_id, branch_id, updated_at DESC) WHERE ${groupMode} = 'group_mms'`);
   await initializeChatSchema(db);
   await initializeCommsSchema(db);
   await initializeCustomerCallsSchema(db);
@@ -474,7 +481,7 @@ export async function listSenderIdentities(organizationId: string, branchId = ""
     .all(...params)).map(senderIdentityFromRow);
 }
 
-export async function createConversationRecord(input: CommunicationsJson) {
+export async function createConversationRecord(input: CommunicationsJson, reuseExisting = false) {
   return (await getCommunicationsDatabase().transaction(async () => {
   const db = getCommunicationsDatabase();
   const now = nowIso();
@@ -484,7 +491,7 @@ export async function createConversationRecord(input: CommunicationsJson) {
   (await db.prepare(`INSERT INTO communication_conversations (
     id, organization_id, branch_id, status, channel_strategy, subject, project_id, contact_id,
     participants_json, context_json, metadata_json, created_by_user_id, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ${reuseExisting ? "ON CONFLICT DO NOTHING" : ""}`)
     .run(
       id, organizationId, cleanText(input.branch_id || "default") || "default",
       cleanText(input.status || "open") || "open", cleanText(input.channel_strategy || "omnichannel") || "omnichannel",
@@ -506,13 +513,18 @@ export async function readConversationRecord(organizationId: string, conversatio
 export async function listConversationRecords(organizationId: string, options: CommunicationsJson = {}) {
   const conditions = ["organization_id = ?"];
   const params: SQLInputValue[] = [organizationId];
-  for (const [column, value] of [["status", options.status], ["project_id", options.project_id], ["contact_id", options.contact_id]] as const) {
+  for (const [column, value] of [["status", options.status], ["project_id", options.project_id], ["contact_id", options.contact_id], ["branch_id", options.branch_id]] as const) {
     const text = cleanText(value);
     if (text) { conditions.push(`${column} = ?`); params.push(text); }
   }
   const limit = Math.max(1, Math.min(250, Number(options.limit || 50)));
+  if (options.group_mms === true) conditions.push(getCommunicationsDatabase().isPostgres ? "metadata_json::jsonb->'sms_group'->>'mode' = 'group_mms'" : "json_extract(metadata_json, '$.sms_group.mode') = 'group_mms'");
+  if (options.before_at && options.before_id) {
+    conditions.push("(COALESCE(last_message_at, updated_at) < ? OR (COALESCE(last_message_at, updated_at) = ? AND id < ?))");
+    params.push(cleanText(options.before_at), cleanText(options.before_at), cleanText(options.before_id));
+  }
   params.push(limit);
-  return (await getCommunicationsDatabase().prepare(`SELECT * FROM communication_conversations WHERE ${conditions.join(" AND ")} ORDER BY COALESCE(last_message_at, updated_at) DESC LIMIT ?`)
+  return (await getCommunicationsDatabase().prepare(`SELECT * FROM communication_conversations WHERE ${conditions.join(" AND ")} ORDER BY COALESCE(last_message_at, updated_at) DESC, id DESC LIMIT ?`)
     .all(...params)).map(conversationFromRow);
 }
 
@@ -577,8 +589,12 @@ export async function listMessageRecords(organizationId: string, options: Commun
     if (text) { conditions.push(`${column} = ?`); params.push(text); }
   }
   const limit = Math.max(1, Math.min(500, Number(options.limit || 100)));
+  if (options.before_at && options.before_id) {
+    conditions.push("(created_at < ? OR (created_at = ? AND id < ?))");
+    params.push(cleanText(options.before_at), cleanText(options.before_at), cleanText(options.before_id));
+  }
   params.push(limit);
-  return (await getCommunicationsDatabase().prepare(`SELECT * FROM communication_messages WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC LIMIT ?`)
+  return (await getCommunicationsDatabase().prepare(`SELECT * FROM communication_messages WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ?`)
     .all(...params)).map(messageFromRow);
 }
 
@@ -890,9 +906,20 @@ export async function suppressPendingSmsDeliveries(organizationId: string, phone
   const db = getCommunicationsDatabase();
   const rows = (await db.prepare(`SELECT * FROM communication_deliveries
     WHERE organization_id = ? AND channel = 'sms' AND recipient_address = ?
-      AND status IN ('queued', 'retry_pending', 'scheduled')`).all(organizationId, phoneNumber));
+      AND status IN ('queued', 'retry_pending', 'scheduled', 'group_pending')`).all(organizationId, phoneNumber));
+  const groupMessages = new Set<string>();
   for (const row of rows) {
     const delivery = deliveryFromRow(row);
+    if (asObject(delivery.response).group_mms === true && !delivery.provider_message_id) groupMessages.add(cleanText(delivery.message_id));
+  }
+  for (const messageId of groupMessages) {
+    for (const row of await db.prepare(`SELECT * FROM communication_deliveries WHERE organization_id = ? AND message_id = ? AND status IN ('queued', 'retry_pending', 'scheduled', 'group_pending')`).all(organizationId, messageId)) {
+      if (!rows.some(item => asObject(item).id === asObject(row).id)) rows.push(row);
+    }
+  }
+  for (const row of rows) {
+    const delivery = deliveryFromRow(row);
+    if (asObject(delivery.response).group_mms === true && delivery.provider_message_id) continue;
     const cancelProviderSchedule = cleanText(delivery.status) === "scheduled" && Boolean(cleanText(delivery.provider_message_id));
     (await db.prepare(`UPDATE communication_deliveries SET status = ?, failed_at = ?, next_attempt_at = NULL,
       lease_owner = '', lease_until = NULL, error_json = ?, updated_at = ? WHERE id = ?`)
@@ -936,6 +963,16 @@ export async function findSmsConversationRecord(organizationId: string, remotePh
   return row ? conversationFromRow(row) : null;
 }
 
+export async function findGroupMmsDeliveries(groupId: string, from: string) {
+  const db = getCommunicationsDatabase();
+  const group = db.isPostgres ? "sibling.response_json::jsonb->>'group_message_id'" : "json_extract(sibling.response_json, '$.group_message_id')";
+  const sender = db.isPostgres ? "m.sender_json::jsonb->>'address'" : "json_extract(m.sender_json, '$.address')";
+  return (await db.prepare(`SELECT d.* FROM communication_deliveries d JOIN communication_messages m ON m.id = d.message_id
+    WHERE d.provider = 'telnyx' AND ${sender} = ? AND EXISTS (SELECT 1 FROM communication_deliveries sibling
+      WHERE sibling.message_id = d.message_id AND sibling.organization_id = d.organization_id AND ${group} = ?)`)
+    .all(from, groupId)).map(deliveryFromRow);
+}
+
 export async function claimNextSmsDelivery(workerId: string, maxAttempts: number) {
   const db = getCommunicationsDatabase();
   const now = nowIso();
@@ -956,6 +993,10 @@ export async function claimNextSmsDelivery(workerId: string, maxAttempts: number
       status = 'submitting', attempts = attempts + 1, lease_owner = ?, lease_until = ?, updated_at = ?
       WHERE id = ? AND status IN ('queued', 'scheduled', 'retry_pending') AND (lease_until IS NULL OR lease_until < ?)`)
       .run(workerId, leaseUntil, now, cleanText(delivery.id), now));
+    if (claimed.changes && asObject(delivery.response).group_mms === true) {
+      await db.prepare(`UPDATE communication_deliveries SET status = 'submitting', attempts = attempts + 1, lease_owner = ?, lease_until = ?, updated_at = ?
+        WHERE organization_id = ? AND message_id = ? AND status = 'group_pending'`).run(workerId, leaseUntil, now, cleanText(delivery.organization_id), cleanText(delivery.message_id));
+    }
     return claimed.changes ? (await readDeliveryRecord(cleanText(delivery.organization_id), cleanText(delivery.id))) : null;
   }));
 }
@@ -1211,8 +1252,9 @@ export async function suspendOrganizationSmsDeliveries(organizationId: string, r
   const now = nowIso();
   return (await withCommunicationsTransaction(async () => {
     const rows = (await db.prepare(`SELECT * FROM communication_deliveries
-      WHERE organization_id = ? AND channel = 'sms' AND status IN ('queued', 'retry_pending', 'scheduled')`).all(organizationId)).map(deliveryFromRow);
+      WHERE organization_id = ? AND channel = 'sms' AND status IN ('queued', 'retry_pending', 'scheduled', 'group_pending')`).all(organizationId)).map(deliveryFromRow);
     for (const delivery of rows) {
+      if (asObject(delivery.response).group_mms === true && delivery.provider_message_id) continue;
       const cancelProviderSchedule = cleanText(delivery.status) === "scheduled" && Boolean(cleanText(delivery.provider_message_id));
       const message = reason === "sms_service_deactivated"
         ? "SMS service was deactivated before delivery."

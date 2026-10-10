@@ -359,6 +359,14 @@ export class TelnyxClient {
     return await this.request("/messages", { method: "POST", body: JSON.stringify(payload) });
   }
 
+  async sendGroupMms(payload: Record<string, unknown>) {
+    return await this.request("/messages/group_mms", { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  async getGroupMessages(groupMessageId: string) {
+    return await this.request(`/messages/group/${encodeURIComponent(groupMessageId)}`);
+  }
+
   async getMessage(messageId: string) {
     return await this.request(`/messages/${encodeURIComponent(messageId)}`);
   }

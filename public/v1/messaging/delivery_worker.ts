@@ -25,6 +25,8 @@ import { outboundSmsComplianceIssue, smsConsentPurposesAllow } from "./complianc
 import { smsAutoresponsesReady } from "./autoresponses.js";
 import { audioMediaPublicUrl } from "../audio-notes/links.js";
 import { smsImagePublicUrl } from "../comms/sms-images.js";
+import { smsGroup } from "./group_mms.js";
+import { dispatchGroupMms } from "./group_delivery.js";
 
 const workerId = `sms_worker_${process.pid}_${randomUUID().slice(0, 8)}`;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -57,7 +59,7 @@ export function deliveryAggregateStatus(deliveries: CommunicationsJson[]) {
   if (statuses.length && statuses.every((status) => status === "delivered")) return "delivered";
   if (statuses.some((status) => status === "sent")) return "sent";
   if (statuses.some((status) => status === "scheduled")) return "scheduled";
-  if (statuses.some((status) => ["queued", "retry_pending", "submitting", "cancel_pending", "cancelling"].includes(status))) return "queued";
+  if (statuses.some((status) => ["queued", "group_pending", "retry_pending", "submitting", "cancel_pending", "cancelling"].includes(status))) return "queued";
   const failureStatuses = new Set(["failed", "cancel_failed", "submission_unknown", "delivery_unconfirmed"]);
   if (statuses.some((status) => status === "delivered") && statuses.some((status) => failureStatuses.has(status))) return "partially_delivered";
   if (statuses.some((status) => ["submission_unknown", "delivery_unconfirmed"].includes(status))) return "delivery_unconfirmed";
@@ -78,10 +80,11 @@ export async function refreshParentMessageStatus(organizationId: string, message
   }));
 }
 
-async function activeConfiguration(organizationId: string) {
+async function activeConfiguration(organizationId: string, requestedNumber = "") {
   const organization = await ensureMessagingOrganization(organizationId);
   const profiles = await listSmsComplianceProfiles(organization.id);
-  const profile = profiles.find((entry) => entry.id === organization.default_sms_compliance_profile_id) || profiles[0];
+  const profile = requestedNumber ? profiles.find(entry => cleanText(asObject(entry.campaign).selectedNumber) === requestedNumber)
+    : profiles.find((entry) => entry.id === organization.default_sms_compliance_profile_id) || profiles[0];
   if (!profile) return null;
   const refs = asObject(profile.provider_refs);
   const campaign = asObject(profile.campaign);
@@ -135,6 +138,11 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
   const deliveryId = cleanText(delivery.id);
   const messageId = cleanText(delivery.message_id);
   const message = (await readMessageRecord(organizationId, messageId));
+  if (smsGroup(message.metadata)) {
+    await dispatchGroupMms(delivery, message, await activeConfiguration(organizationId, cleanText(asObject(message.sender).address)));
+    await refreshParentMessageStatus(organizationId, messageId);
+    return;
+  }
   const recipient = asObject(delivery.recipient);
   const recipientAddress = cleanText(delivery.recipient_address);
   const scheduledFor = scheduleForProvider(message.scheduled_for);
@@ -368,6 +376,24 @@ export async function runSmsReconciliation(limit = 25) {
     const organizationId = cleanText(delivery.organization_id);
     const deliveryId = cleanText(delivery.id);
     try {
+      if (asObject(delivery.response).group_mms === true) {
+        const groupId = cleanText(asObject(delivery.response).group_message_id);
+        const result = asObject(await createTelnyxClient().getGroupMessages(groupId));
+        const records = Array.isArray(result.data) ? result.data.map(asObject) : [];
+        const { acceptTelnyxWebhook } = await import("./telnyx_webhooks.js");
+        for (const record of records) {
+          if (cleanText(record.direction) !== "outbound") continue;
+          const to = Array.isArray(record.to) ? record.to.map(asObject) : [];
+          const recipient = to.find(item => item.phone_number === delivery.recipient_address);
+          if (!recipient || !["sent", "delivered", "delivery_failed", "delivery_unconfirmed", "sending_failed", "failed", "expired", "unknown"].includes(cleanText(recipient.status))) continue;
+          const happened = cleanText(record.completed_at || record.sent_at || record.updated_at);
+          if (!happened) continue;
+          await acceptTelnyxWebhook({ data: { id: `group-reconcile:${record.id}:${delivery.recipient_address}:${happened}:${recipient.status}`, event_type: recipient.status === "sent" ? "message.sent" : "message.finalized", occurred_at: happened, payload: { ...record, group_message_id: groupId, to: [recipient] } } });
+        }
+        await updateDeliveryRecord(organizationId, deliveryId, { last_reconciled_at: new Date().toISOString() });
+        reconciled += 1;
+        continue;
+      }
       const response = await createTelnyxClient().getMessage(cleanText(delivery.provider_message_id));
       const data = providerData(response);
       const to = Array.isArray(data.to) ? asObject(data.to[0]) : {};

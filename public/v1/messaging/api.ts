@@ -29,6 +29,9 @@ import {
   simulateMessageStatus
 } from "./communications_service.js";
 import { renderCommunicationsDeveloperPage } from "./developer_page.js";
+import { createSmsGroup, groupPage, readGroup, groupProjection, sendSmsGroup, sendGroupSchema } from "./group_service.js";
+import { smsGroup } from "./group_mms.js";
+import { requireGroupAccess } from "./group_access.js";
 import {
   createConversationSchema,
   sendCommunicationSchema,
@@ -1429,10 +1432,53 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     return { ok: true, summary: { by_currency: byCurrency, by_direction: byDirection }, commitments: (await listBillingCommitments(orgId)), events };
   });
 
+  app.get("/organizations/:orgId/sms/groups", async request => {
+    const orgId = param(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_comms|send_communications|manage_company_settings", capability: "comms.sms" });
+    const query = z.object({ limit: z.coerce.number().int().min(1).max(200).optional(), cursor: z.string().max(2000).optional(), project_id: z.string().max(180).optional() }).strict().parse(request.query);
+    return { ok: true, ...await groupPage(ctx, "conversations", {}, query, query.project_id) };
+  });
+  app.post("/organizations/:orgId/sms/groups", async (request, reply) => {
+    const orgId = param(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "send_communications|send_comms|manage_company_settings", capability: "comms.sms" });
+    const query = z.object({ project_id: z.string().max(180).optional() }).strict().parse(request.query);
+    const conversation = await createSmsGroup(ctx, request.body, query.project_id);
+    reply.code(201);
+    return { ok: true, conversation };
+  });
+  app.get("/organizations/:orgId/sms/groups/:conversationId", async request => {
+    const orgId = param(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_comms|send_communications|manage_company_settings", capability: "comms.sms" });
+    return { ok: true, conversation: groupProjection(await readGroup(ctx, param(request.params, "conversationId"))) };
+  });
+  app.get("/organizations/:orgId/sms/groups/:conversationId/messages", async request => {
+    const orgId = param(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "view_comms|send_communications|manage_company_settings", capability: "comms.sms" });
+    const query = z.object({ limit: z.coerce.number().int().min(1).max(200).optional(), cursor: z.string().max(2000).optional() }).strict().parse(request.query);
+    return { ok: true, ...await groupPage(ctx, "messages", { conversation_id: param(request.params, "conversationId") }, query) };
+  });
+  app.post("/organizations/:orgId/sms/groups/:conversationId/messages", async (request, reply) => {
+    const orgId = param(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "send_communications|send_comms|manage_company_settings", capability: "comms.sms" });
+    const body = asObject(request.body);
+    const key = z.string().trim().min(1).max(500).parse(body.idempotency_key);
+    const { idempotency_key: _key, ...input } = body;
+    const result = await sendSmsGroup(ctx, sendGroupSchema.parse({ ...input, conversation_id: param(request.params, "conversationId") }), key);
+    reply.code(result.created ? 202 : 200);
+    return { ok: true, ...result };
+  });
+
   app.get("/organizations/:orgId/conversations", async (request) => {
     const orgId = param(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
-    return { ok: true, conversations: (await listConversations(orgId, asObject(request.query))) };
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
+    const conversations = [];
+    for (const row of await listConversations(orgId, asObject(request.query))) {
+      if (smsGroup(row.metadata)) {
+        try { await requireGroupAccess(ctx, orgId, row); } catch (error) { if (error instanceof PlatformError && error.statusCode === 403) continue; throw error; }
+      }
+      conversations.push(row);
+    }
+    return { ok: true, conversations };
   });
 
   app.post("/organizations/:orgId/conversations", async (request, reply) => {
@@ -1445,8 +1491,10 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/conversations/:conversationId", async (request) => {
     const orgId = param(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
-    return { ok: true, conversation: (await conversationDetail(orgId, param(request.params, "conversationId"))) };
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
+    const conversation = await conversationDetail(orgId, param(request.params, "conversationId"));
+    if (smsGroup(asObject(conversation).metadata)) await requireGroupAccess(ctx, orgId, conversation);
+    return { ok: true, conversation };
   });
 
   app.post("/organizations/:orgId/conversations/:conversationId/messages", async (request, reply) => {
@@ -1460,8 +1508,13 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/messages", async (request) => {
     const orgId = param(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
-    return { ok: true, messages: (await listMessages(orgId, asObject(request.query))) };
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
+    const messages = [];
+    for (const row of await listMessages(orgId, asObject(request.query))) {
+      if (smsGroup(row.metadata)) { try { await readGroup(ctx, cleanText(row.conversation_id)); } catch (error) { if (error instanceof PlatformError && error.statusCode === 403) continue; throw error; } }
+      messages.push(row);
+    }
+    return { ok: true, messages };
   });
 
   app.post("/organizations/:orgId/messages", async (request, reply) => {
@@ -1474,8 +1527,10 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/messages/:messageId", async (request) => {
     const orgId = param(request.params, "orgId");
-    await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
-    return { ok: true, message: (await messageDetail(orgId, param(request.params, "messageId"))) };
+    const ctx = await requirePlatformAuth(request, { orgId, permission: "manage_projects|manage_sales|send_communications|manage_company_settings" });
+    const message = await messageDetail(orgId, param(request.params, "messageId"));
+    if (smsGroup(message.metadata)) await readGroup(ctx, cleanText(message.conversation_id));
+    return { ok: true, message };
   });
 
   app.get("/developer/test-messages", async (request, reply) => {

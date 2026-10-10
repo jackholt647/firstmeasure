@@ -34,6 +34,9 @@ import { scheduleSmsDeliveryQueue } from "./delivery_worker.js";
 import { outboundSmsComplianceIssue, smsConsentPurposesAllow } from "./compliance_rules.js";
 import { smsAutoresponsesReady } from "./autoresponses.js";
 import { activeEmailProvider } from "../email/providers.js";
+import { ensureGroupMmsConversation, groupMmsMembers, smsGroup } from "./group_mms.js";
+import { requireGroupAccess } from "./group_access.js";
+import { validateSmsImage } from "../comms/sms-images.js";
 
 const CAPTURE_SMS_NUMBER = "+12065550199";
 
@@ -204,7 +207,7 @@ export async function ensureDefaultSenderIdentities(organizationId: string, bran
       provider_profile_id: sms.profileId,
       status: sms.active ? "active" : "inactive",
       is_default: true,
-      capabilities: { sms: true, mms: false },
+      capabilities: { sms: true, mms: true, group_mms: true },
       metadata: { managed_by: "telnyx_setup", compliance_profile_id: sms.complianceProfileId, registration_status: sms.registrationStatus }
     }));
   }
@@ -227,9 +230,12 @@ async function resolveSender(organizationId: string, branchId: string, channel: 
   const identities = await ensureDefaultSenderIdentities(organizationId, branchId);
   const requestedId = cleanText(requested.identity_id);
   const identity = identities.find((item) => requestedId && item.id === requestedId)
+    || identities.find((item) => !requestedId && requested.address && item.channel === channel && item.address === normalizeAddress(channel, requested.address))
     || identities.find((item) => item.channel === channel && item.is_default === true)
     || identities.find((item) => item.channel === channel);
   if (!identity) throw badRequest("sender_identity_missing", `No ${channel} sender is configured for this organization.`);
+  if (requestedId && identity.id !== requestedId) throw badRequest("sender_identity_missing", "The requested sender is not available in this branch.");
+  if (identity.channel !== channel) throw badRequest("sender_channel_mismatch", "Choose a sender configured for this channel.");
   if (cleanText(identity.status) !== "active") throw badRequest("sender_identity_inactive", "The selected communications sender is not active.");
   const explicitAddress = normalizeAddress(channel, requested.address);
   if (explicitAddress && explicitAddress !== cleanText(identity.address)) {
@@ -313,6 +319,16 @@ export async function publishWorkCommunicationEvent(type: string, message: Commu
 }
 
 export async function createConversation(organizationId: string, input: CreateConversationInput, ctx?: Partial<PlatformAuthContext>) {
+  if (input.sms_mode === "group_mms") {
+    if (!ctx?.userId) throw forbidden("group_mms_user_required", "Group MMS requires an authenticated user.");
+    await requireGroupAccess(ctx as PlatformAuthContext, organizationId, { ...input, branch_id: input.branch_id || ctx.branchId || "default" }, true);
+    if (input.channel_strategy && input.channel_strategy !== "sms") throw badRequest("group_mms_channel_required", "Group MMS requires an SMS conversation.");
+    const sender = await resolveSender(organizationId, cleanText(ctx?.branchId || input.branch_id || "default"), "sms", asObject(input.sender));
+    const conversation = await ensureGroupMmsConversation({ ...input, branch_id: input.branch_id || ctx.branchId || "default", organization_id: organizationId, created_by_user_id: ctx.userId }, cleanText(sender.address), normalizeRecipients("sms", input.participants));
+    await requireGroupAccess(ctx as PlatformAuthContext, organizationId, conversation, true);
+    return conversation;
+  }
+  if (input.metadata?.sms_group) throw badRequest("group_mms_mode_required", "Group metadata is server-owned. Use sms_mode=group_mms.");
   return (await createConversationRecord({
     ...input,
     organization_id: organizationId,
@@ -344,8 +360,29 @@ export async function sendCommunication(organizationId: string, input: SendCommu
     }
   }
   const sender = await resolveSender(organizationId, branchId, input.channel, asObject(input.sender));
-  const context = asObject(input.context);
-  if (input.conversation_id) (await readConversationRecord(organizationId, input.conversation_id));
+  let context = asObject(input.context);
+  const conversation = input.conversation_id ? await readConversationRecord(organizationId, input.conversation_id) : null;
+  const conversationGroup = smsGroup(conversation?.metadata);
+  const groupMode = input.sms_mode === "group_mms" || Boolean(conversationGroup);
+  let groupConversation = conversation;
+  if (groupMode) {
+    if (!ctx?.userId) throw forbidden("group_mms_user_required", "Group MMS requires an authenticated user.");
+    await requireGroupAccess(ctx as PlatformAuthContext, organizationId, { branch_id: branchId, context: input.context }, true);
+    if (input.channel !== "sms" || input.sms_mode === "individual") throw badRequest("group_mms_channel_required", "A group thread must use group MMS, not individual messages.");
+    const members = groupMmsMembers(cleanText(sender.address), recipients.map(item => item.address));
+    if (conversation && (!conversationGroup || conversationGroup.local_number !== sender.address || JSON.stringify(conversationGroup.remote_numbers) !== JSON.stringify(members))) {
+      throw badRequest("group_mms_participants_changed", "Use the group's original sending line and full participant list. A changed group requires a new conversation.");
+    }
+    if (!groupConversation) groupConversation = await ensureGroupMmsConversation({ organization_id: organizationId, branch_id: branchId, context, created_by_user_id: ctx?.userId }, cleanText(sender.address), recipients);
+    await requireGroupAccess(ctx as PlatformAuthContext, organizationId, groupConversation, true);
+    if (context.project_id && context.project_id !== groupConversation.project_id) throw badRequest("group_mms_context_changed", "Use the group's existing project context.");
+    context = asObject(groupConversation.context);
+    const imageId = cleanText(asObject(input.metadata?.sms_image).media_id);
+    if (imageId) await validateSmsImage(organizationId, imageId, ctx.userId);
+    if (input.metadata?.audio_note) throw badRequest("group_mms_media_unsupported", "Group MMS currently supports validated image attachments.");
+  } else if (asObject(input.metadata).sms_group) {
+    throw badRequest("group_mms_mode_required", "Use sms_mode=group_mms instead of supplying group metadata.");
+  }
   const now = new Date().toISOString();
   const requestedSource = asObject(input.source);
   const source = {
@@ -354,7 +391,7 @@ export async function sendCommunication(organizationId: string, input: SendCommu
     user_id: cleanText(ctx?.userId || requestedSource.user_id)
   };
   const requestHash = createHash("sha256").update(JSON.stringify({
-    branchId, channel: input.channel, purpose: input.purpose || "customer_care", recipients,
+    branchId, channel: input.channel, ...(groupMode ? { sms_mode: "group_mms", conversation_id: groupConversation?.id, image_media_id: cleanText(asObject(input.metadata?.sms_image).media_id) } : {}), purpose: input.purpose || "customer_care", recipients,
     content: input.content, sender, context, source, tags: input.tags || [], scheduled_for: input.scheduled_for || ""
   })).digest("hex");
   const deliverEmail = input.channel === "email" && env.emailDeliveryMode !== "capture";
@@ -362,7 +399,8 @@ export async function sendCommunication(organizationId: string, input: SendCommu
   if (liveSms) {
     const messagingOrganization = await ensureMessagingOrganization(organizationId);
     const profiles = await listSmsComplianceProfiles(messagingOrganization.id);
-    const activeProfile = profiles.find((profile) => profile.id === messagingOrganization.default_sms_compliance_profile_id) || profiles[0];
+    const activeProfile = groupMode ? profiles.find(profile => cleanText(asObject(profile.campaign).selectedNumber) === sender.address)
+      : profiles.find((profile) => profile.id === messagingOrganization.default_sms_compliance_profile_id) || profiles[0];
     const issue = outboundSmsComplianceIssue(activeProfile, input.purpose || "customer_care", input.content.text);
     if (issue) throw badRequest(issue.code, issue.message);
   }
@@ -409,7 +447,7 @@ export async function sendCommunication(organizationId: string, input: SendCommu
       id: input.id,
       organization_id: organizationId,
       branch_id: branchId,
-      conversation_id: input.conversation_id,
+      conversation_id: groupConversation?.id || input.conversation_id,
       direction: "outbound",
       channel: input.channel,
       purpose: input.purpose || "customer_care",
@@ -424,6 +462,7 @@ export async function sendCommunication(organizationId: string, input: SendCommu
       metadata: {
         ...requestedMetadata,
         request_hash: requestHash,
+        ...(groupMode ? { sms_group: smsGroup(groupConversation?.metadata) } : {}),
         ...((deliverEmail || attachmentSummaries.length) ? {
           email: {
             ...requestedEmailMetadata,
@@ -445,7 +484,7 @@ export async function sendCommunication(organizationId: string, input: SendCommu
       type: scheduled ? "message.scheduled" : "message.queued",
       payload: scheduled ? { scheduled_for: message.scheduled_for } : { channel: input.channel, recipient_count: recipients.length }
     }));
-    for (const recipient of recipients) {
+    for (const [index, recipient] of recipients.entries()) {
       const provider = providerForChannel(input.channel);
       const capture = !(liveSms || deliverEmail);
       const delivery = (await createDeliveryRecord({
@@ -457,11 +496,11 @@ export async function sendCommunication(organizationId: string, input: SendCommu
         provider,
         transport_mode: capture ? "capture" : input.channel === "email" ? env.emailDeliveryMode : "live",
         provider_message_id: capture && !scheduled ? `${provider}_capture_${randomUUID().replace(/-/g, "")}` : "",
-        status: scheduled ? "scheduled" : capture ? "sent" : "queued",
+        status: groupMode && !capture && index > 0 ? "group_pending" : scheduled ? "scheduled" : capture ? "sent" : "queued",
         attempts: capture && !scheduled ? 1 : 0,
-        response: capture && !scheduled ? { accepted: true, captured_at: now } : {},
+        response: { ...(groupMode ? { group_mms: true } : {}), ...(capture && !scheduled ? { accepted: true, captured_at: now } : {}) },
         sent_at: capture && !scheduled ? now : "",
-        next_attempt_at: liveSms || deliverEmail ? now : ""
+        next_attempt_at: groupMode && scheduled ? message.scheduled_for : liveSms || deliverEmail ? now : ""
       }));
       if (capture && !scheduled) {
         (await createCommunicationEvent({

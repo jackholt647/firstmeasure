@@ -1,0 +1,201 @@
+import assert from "node:assert/strict";
+import { generateKeyPairSync, sign } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import test, { before, after } from "node:test";
+import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
+
+let app: any, root: string;
+const local = "+12065550199", members = ["+14259700671", "+12068590917"];
+before(async () => {
+  root = await mkdtemp(path.join(os.tmpdir(), "group-mms-"));
+  Object.assign(process.env, { NODE_ENV: "test", FIRSTMATE_ENV: "test", PLATFORM_HEARTBEAT_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0", WORK_SCHEDULER_DISABLED: "1", CUSTOMER_CALL_WORKER_DISABLED: "1", V1_LOG_LEVEL: "error", COMMUNICATIONS_DELIVERY_MODE: "capture" });
+  for (const key of ["PLATFORM", "MESSAGING", "INTERNAL", "FIRSTMEASURE", "PRICEBOOK"]) process.env[`${key}_STORAGE_ROOT`] = path.join(root, key.toLowerCase());
+  process.env.FIRSTMEASURE_INDEX_DB_PATH = path.join(root, "index.sqlite");
+  app = await (await import("../src/app.js")).buildApp();
+  await app.ready();
+});
+after(async () => { await app?.close(); await closePlatformFixtureStores(); await (await import("../platform/sql_store.js")).closeSqlStoresForTests(); await rm(root, { recursive: true, force: true }).catch(error => { if (!["EBUSY", "EPERM"].includes(error.code)) throw error; }); });
+async function client() {
+  const response = await app.inject({ method: "POST", url: "/v1/platform/auth/register", payload: { phone: nextTestPhone(), email: `group-${Date.now()}-${Math.random()}@example.test`, password: "correct horse battery staple", name: "Group Tester", company: "MMS Test" } });
+  assert.equal(response.statusCode, 201, response.body);
+  const orgId = response.json().organization.id;
+  await enableExpandedPlatformFixture(orgId);
+  const cookies = response.headers["set-cookie"].map((cookie: string) => cookie.split(";")[0]);
+  const headers = { cookie: cookies.join("; "), "x-platform-csrf": decodeURIComponent(cookies.find((cookie: string) => cookie.startsWith("fm_platform_session_csrf=")).split("=")[1]) };
+  const raw = (method: string, url: string, payload?: unknown) => app.inject({ method, url, payload, headers });
+  const request = async (method: string, url: string, payload?: unknown) => { const result = await raw(method, url, payload); assert.ok(result.statusCode < 400, result.body); return result.json(); };
+  return { orgId, raw, request, prefix: `/v1/messaging/organizations/${orgId}/sms/groups`, publication: `/v1/publication/organizations/${orgId}` };
+}
+
+test("group MMS API and publications retain shared threads, paginate, and reject tenant/participant/media changes", async () => {
+  const c = await client(), other = await client();
+  const created = await c.request("POST", c.prefix, { participants: members });
+  const id = created.conversation.id;
+  const again = await c.request("POST", c.prefix, { participants: [...members].reverse() });
+  assert.equal(again.conversation.id, id);
+  assert.equal(created.conversation.local_number, local);
+  assert.equal((await other.raw("GET", `${other.prefix}/${id}`)).statusCode, 404);
+  for (const participants of [[members[0]], [...members, members[0]], ["+448001234567", members[0]], ["+18005550199", members[0]], [local, members[0]], Array.from({ length: 9 }, (_, i) => `+120655501${10 + i}`)]) {
+    assert.equal((await c.raw("POST", c.prefix, { participants })).statusCode, 400);
+  }
+  const send = { text: "Hello group", idempotency_key: "group-capture" };
+  const first = await c.request("POST", `${c.prefix}/${id}/messages`, send);
+  assert.equal(first.created, true);
+  assert.equal((await c.request("POST", `${c.prefix}/${id}/messages`, send)).created, false);
+  assert.equal((await c.raw("POST", `${c.prefix}/${id}/messages`, { ...send, text: "Changed" })).statusCode, 409);
+  await c.request("POST", `${c.prefix}/${id}/messages`, { text: "Second", idempotency_key: "group-second" });
+  const page = await c.request("GET", `${c.prefix}/${id}/messages?limit=1`);
+  assert.equal(page.items.length, 1);
+  assert.ok(page.nextCursor);
+  const next = await c.request("GET", `${c.prefix}/${id}/messages?limit=1&cursor=${encodeURIComponent(page.nextCursor)}`);
+  assert.equal(next.items.length, 1);
+  assert.notEqual(next.items[0].id, page.items[0].id);
+  const changed = await c.raw("POST", `/v1/messaging/organizations/${c.orgId}/messages`, { channel: "sms", conversation_id: id, recipients: [{ address: members[0] }], content: { text: "No partial reply" }, idempotency_key: "partial" });
+  assert.equal(changed.statusCode, 400);
+  assert.equal((await c.raw("POST", `${c.prefix}/${id}/messages`, { text: "Foreign image", image_media_id: "missing", idempotency_key: "image" })).statusCode, 404);
+  const target = { scope: "organization" as const, organizationId: c.orgId, id };
+  const catalog = await c.request("GET", `${c.publication}/catalog?scope=organization`);
+  assert.ok(catalog.providers.some((p: any) => p.id === "comms-sms-groups"));
+  assert.ok(catalog.actions.some((a: any) => a.id === "comms.smsGroup.send" && a.effect === "external" && a.idempotency === "required"));
+  const action = { action: "comms.smsGroup.send", target, input: { text: "Published reply" }, idempotencyKey: "published-reply" };
+  const published = await c.request("POST", `${c.publication}/actions/invoke`, action);
+  assert.equal(published.value.conversation_id, id);
+  const replay = await c.request("POST", `${c.publication}/actions/invoke`, action);
+  assert.equal(replay.receipt.replayed, true);
+  const source = { provider: "comms-sms-groups", export: "messages", target, args: { conversation_id: id } };
+  const data = await c.request("POST", `${c.publication}/data/read`, source);
+  assert.equal(data.status, "ready");
+  assert.equal(data.value.length, 3);
+  const serialized = JSON.stringify(data.value);
+  assert.ok(!serialized.includes("provider_acceptance") && !serialized.includes("consent_id") && !serialized.includes("delivery_token"));
+  const denied = await other.request("POST", `${other.publication}/data/read`, { ...source, target: { ...target, organizationId: other.orgId } });
+  assert.equal(denied.status, "missing");
+  const storage = await import("../platform/storage.js");
+  await storage.upsertDocument(c.orgId, "projects", { id: "project-a", data: { name: "Project A" } });
+  await storage.upsertDocument(c.orgId, "projects", { id: "project-b", data: { name: "Project B" } });
+  const projectGroup = await c.request("POST", `${c.prefix}?project_id=project-a`, { participants: [members[0], "+15099600721"] });
+  const mismatched = await c.request("POST", `${c.publication}/data/read`, { provider: "comms-sms-groups", export: "messages", target: { scope: "project", organizationId: c.orgId, projectId: "project-b" }, args: { conversation_id: projectGroup.conversation.id } });
+  assert.notEqual(mismatched.status, "ready");
+  const owner = (await storage.listDocuments(c.orgId, "users"))[0]!;
+  const { backgroundAuthContext } = await import("../platform/auth.js");
+  const { resolveDataBinding } = await import("../platform/publication/bindings.js");
+  const ctx = { auth: await backgroundAuthContext(c.orgId, owner.id), organizationId: c.orgId, executionKind: "api" as const, mode: "evaluate" as const };
+  const binding = { kind: "data" as const, policy: "frozen" as const, source };
+  assert.equal((await resolveDataBinding(ctx, "group-consumer", "messages", binding)).status, "ready");
+  await storage.saveGlobal(c.orgId, { data: { app_flags: { comms: { sms: false } } } });
+  const revoked = { ...ctx, auth: await backgroundAuthContext(c.orgId, owner.id) };
+  await assert.rejects(resolveDataBinding(revoked, "group-consumer", "messages", binding));
+  assert.equal((await c.raw("POST", `${c.publication}/actions/invoke`, action)).statusCode, 403);
+});
+
+async function configureLive(orgId: string) {
+  const storage = await import("../messaging/storage.js"), store = await import("../messaging/communications_storage.js");
+  const org = await storage.ensureMessagingOrganization(orgId);
+  let profile = await storage.createSmsComplianceProfile(org, { brand: { displayName: "MMS Test" }, campaign: { selectedNumber: local, usecase: "LOW_VOLUME", enabledFeatures: ["operations"], optinKeywords: "START", optinMessage: "MMS Test: subscribed. Message frequency varies. Reply HELP for help or STOP to opt out. Msg & data rates may apply.", optoutKeywords: "STOP", optoutMessage: "MMS Test: unsubscribed. Reply START to resubscribe.", helpKeywords: "HELP", helpMessage: "MMS Test: Help at 206-555-0100. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out." }, provider_refs: { telnyx_messaging_profile_id: `profile-${orgId}`, telnyx_campaign_id: `campaign-${orgId}` } });
+  profile = await storage.updateSmsComplianceProfile(profile, { campaign: { ...profile.campaign, enabledFeatures: ["operations", "crm_conversations"] } });
+  const plan = (await import("../messaging/autoresponses.js")).smsAutoresponsePlan(profile);
+  assert.equal(plan.ok, true, JSON.stringify(plan.issues));
+  profile = await storage.updateSmsComplianceProfile(profile, { status: "active", brand_status: "verified", campaign_status: "mno_provisioned", phone_number_status: "success", phone_number_campaign_status: "assigned", phone_number_campaign_id: `campaign-${orgId}`, autoresponse_state: { status: "configured", messaging_profile_id: `profile-${orgId}`, desired_hash: plan.hash, applied_hash: plan.hash, config_ids: { start: "start", stop: "stop", info: "info" } } });
+  await store.claimPhoneNumberOwnership({ phone_number: local, organization_id: orgId, compliance_profile_id: profile.id, messaging_profile_id: `profile-${orgId}`, status: "active" });
+  for (const phone_number of members) await store.upsertSmsConsent({ organization_id: orgId, phone_number, status: "opted_in", consent_id: `consent-${phone_number}`, source: "web_form", evidence: { purposes: ["customer_care"] } });
+  return store;
+}
+
+test("group MMS sends one provider request, handles early per-recipient webhooks, inbound cc and STOP, and never resends uncertainty", async () => {
+  const c = await client(), store = await configureLive(c.orgId);
+  const { env } = await import("../src/config/env.js");
+  const previous = { ...env }, originalFetch = globalThis.fetch;
+  const keys = generateKeyPairSync("ed25519");
+  const requests: { url: string; body: any }[] = [];
+  let event = 0, mode = "accepted", callbackError = "";
+  const webhook = async (eventType: string, payload: any, url = "/v1/messaging/webhooks/telnyx") => {
+    const raw = JSON.stringify({ data: { id: `group-event-${++event}`, event_type: eventType, occurred_at: new Date(Date.now() + event * 100).toISOString(), payload } });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = sign(null, Buffer.from(`${timestamp}|${raw}`), keys.privateKey).toString("base64");
+    const response = await app.inject({ method: "POST", url, payload: raw, headers: { "content-type": "application/json", "telnyx-timestamp": timestamp, "telnyx-signature-ed25519": signature } });
+    assert.equal(response.statusCode, 200, response.body);
+    if (response.json().orphaned) callbackError = String((await store.getCommunicationsDatabase().prepare("SELECT processing_error FROM communication_webhook_events WHERE event_id = ?").get(`group-event-${event}`))?.processing_error);
+    assert.notEqual(response.json().orphaned, true, callbackError);
+    return { raw, timestamp, signature, result: response.json() };
+  };
+  try {
+    Object.assign(env, { communicationsDeliveryMode: "live", telnyxApiKey: "test-key", telnyxBaseUrl: "https://telnyx-group.test/v2", telnyxWebhookPublicKey: keys.publicKey.export({ format: "pem", type: "spki" }).toString(), telnyxWebhookUrl: "https://dev.1m8.ai/v1/messaging/webhooks/telnyx", messagingEncryptionKey: "group-test-encryption-key-with-sufficient-entropy" });
+    globalThis.fetch = (async (url: any, options: any) => {
+      if (!String(url).startsWith(env.telnyxBaseUrl)) return originalFetch(url, options);
+      const body = JSON.parse(options?.body || "{}"); requests.push({ url: String(url), body });
+      if (!options?.method || options.method === "GET") {
+        assert.equal(new URL(String(url)).pathname, "/v2/messages/group/group-no-callback");
+        return new Response(JSON.stringify({ data: members.map((phone_number, index) => ({ id: `reconciled-child-${index}`, direction: "outbound", from: { phone_number: local }, to: [{ phone_number, status: index ? "unknown" : "delivered" }], completed_at: new Date(Date.now() + 10000).toISOString() })) }), { status: 200 });
+      }
+      assert.equal(new URL(String(url)).pathname, "/v2/messages/group_mms");
+      assert.deepEqual(body.to, [...members].sort());
+      assert.equal(Object.hasOwn(body, "messaging_profile_id"), false);
+      assert.equal(Object.hasOwn(body, "send_at"), false);
+      if (mode === "unknown") throw new Error("Connection lost after submit");
+      if (mode === "rate-limit") return new Response(JSON.stringify({ errors: [{ code: "rate_limit", detail: "Try later" }] }), { status: 429 });
+      if (mode === "accept-no-callback" || mode === "retry-accepted") return new Response(JSON.stringify({ data: { id: mode === "accept-no-callback" ? "group-no-callback" : "group-retried", to: members.map(phone_number => ({ phone_number, status: "queued" })) } }), { status: 200 });
+      const callback = new URL(body.webhook_url);
+      await webhook("message.finalized", { id: "child-early", group_message_id: "group-accepted", from: { phone_number: local }, to: [{ phone_number: members[0], status: "delivered" }], type: "MMS", direction: "outbound", parts: 1, cost: { amount: "0.02", currency: "USD" } }, callback.pathname + callback.search);
+      return new Response(JSON.stringify({ data: { id: "group-accepted", to: members.map(phone_number => ({ phone_number, status: "queued" })) } }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    const group = (await c.request("POST", c.prefix, { participants: members })).conversation;
+    const sent = await c.request("POST", `${c.prefix}/${group.id}/messages`, { text: "True group", idempotency_key: "live-group" });
+    const worker = await import("../messaging/delivery_worker.js");
+    await worker.stopSmsDeliveryWorker();
+    let rows = await store.listDeliveryRecords(c.orgId, sent.message_id);
+    assert.equal(requests.length, 1);
+    assert.equal(rows.find(row => row.recipient_address === members[0])!.status, "delivered", callbackError || JSON.stringify(rows.map(row => row.error)));
+    assert.ok(rows.every(row => row.provider_message_id));
+    const final = await webhook("message.finalized", { id: "child-final", group_message_id: "group-accepted", from: { phone_number: local }, to: [{ phone_number: members[1], status: "unknown" }], type: "MMS", direction: "outbound", parts: 1, cost: { amount: "0.02", currency: "USD" } });
+    const duplicate = await app.inject({ method: "POST", url: "/v1/messaging/webhooks/telnyx", payload: final.raw, headers: { "content-type": "application/json", "telnyx-timestamp": final.timestamp, "telnyx-signature-ed25519": final.signature } });
+    assert.equal(duplicate.json().duplicate, true);
+    rows = await store.listDeliveryRecords(c.orgId, sent.message_id);
+    assert.equal(rows.find(row => row.recipient_address === members[1])!.status, "delivery_unconfirmed");
+    assert.equal((await store.listUsageEvents(c.orgId)).length, 2);
+    assert.equal((await store.readMessageRecord(c.orgId, sent.message_id)).status, "partially_delivered");
+    await worker.runSmsDeliveryQueue(10);
+    assert.equal(requests.length, 1);
+    await webhook("message.received", { id: "inbound-group", type: "MMS", direction: "inbound", messaging_profile_id: `profile-${c.orgId}`, from: { phone_number: members[0] }, to: [{ phone_number: local }], cc: [members[1]], text: "Shared reply", media: [{ url: "https://example.test/image.jpg", content_type: "image/jpeg" }] });
+    const inbound = await store.listMessageRecords(c.orgId, { direction: "inbound", conversation_id: group.id });
+    assert.equal(inbound.length, 1);
+    await webhook("message.received", { id: "inbound-direct", direction: "inbound", from: { phone_number: members[0] }, to: [{ phone_number: local }], text: "Private reply" });
+    const direct = await store.findSmsConversationRecord(c.orgId, members[0]!);
+    assert.notEqual(direct!.id, group.id);
+    await webhook("message.received", { id: "inbound-fork", direction: "inbound", from: { phone_number: members[0] }, to: [{ phone_number: local }], cc: ["+15099600721"], text: "Different members" });
+    assert.equal((await store.listConversationRecords(c.orgId, { group_mms: true })).length, 2);
+    mode = "rate-limit";
+    const retrying = await c.request("POST", `${c.prefix}/${group.id}/messages`, { text: "Retry only definitive rejection", idempotency_key: "rate-limited" });
+    await worker.stopSmsDeliveryWorker();
+    const retryRows = await store.listDeliveryRecords(c.orgId, retrying.message_id);
+    assert.equal(retryRows.filter(row => row.status === "retry_pending").length, 1);
+    assert.equal(retryRows.filter(row => row.status === "group_pending").length, 1);
+    await store.getCommunicationsDatabase().prepare("UPDATE communication_deliveries SET next_attempt_at = NULL WHERE message_id = ?").run(retrying.message_id);
+    mode = "retry-accepted";
+    await worker.runSmsDeliveryQueue(10);
+    assert.ok((await store.listDeliveryRecords(c.orgId, retrying.message_id)).every(row => row.provider_message_id === "group-retried"));
+    mode = "accept-no-callback";
+    const reconcile = await c.request("POST", `${c.prefix}/${group.id}/messages`, { text: "Reconcile missing callbacks", idempotency_key: "reconcile-group" });
+    await worker.stopSmsDeliveryWorker();
+    await store.getCommunicationsDatabase().prepare("UPDATE communication_deliveries SET updated_at = ? WHERE message_id = ?").run(new Date(Date.now() - 600000).toISOString(), reconcile.message_id);
+    await worker.runSmsReconciliation(10);
+    const reconciled = await store.listDeliveryRecords(c.orgId, reconcile.message_id);
+    assert.equal(reconciled.find(row => row.recipient_address === members[0])!.status, "delivered", JSON.stringify(reconciled.map(row => row.error)));
+    assert.equal(reconciled.find(row => row.recipient_address === members[1])!.status, "delivery_unconfirmed");
+    const submittedBeforeUncertain = requests.length;
+    mode = "unknown";
+    const uncertain = await c.request("POST", `${c.prefix}/${group.id}/messages`, { text: "Uncertain", idempotency_key: "uncertain-group" });
+    await worker.stopSmsDeliveryWorker();
+    assert.ok((await store.listDeliveryRecords(c.orgId, uncertain.message_id)).every(row => row.status === "submission_unknown"));
+    await worker.runSmsDeliveryQueue(10);
+    assert.equal(requests.length, submittedBeforeUncertain + 1);
+    const scheduled = await c.request("POST", `${c.prefix}/${group.id}/messages`, { text: "Future", scheduled_for: new Date(Date.now() + 3600000).toISOString(), idempotency_key: "scheduled-group" });
+    await worker.stopSmsDeliveryWorker();
+    assert.equal(requests.length, submittedBeforeUncertain + 1);
+    await webhook("message.received", { id: "inbound-stop", direction: "inbound", from: { phone_number: members[0] }, to: [{ phone_number: local }], cc: [members[1]], text: "STOP" });
+    assert.ok((await store.listDeliveryRecords(c.orgId, scheduled.message_id)).every(row => row.status === "failed"));
+    assert.equal((await c.raw("POST", `${c.prefix}/${group.id}/messages`, { text: "Blocked entire group", idempotency_key: "blocked-group" })).statusCode, 400);
+    assert.equal(requests.length, submittedBeforeUncertain + 1);
+  } finally { await (await import("../messaging/delivery_worker.js")).stopSmsDeliveryWorker(); globalThis.fetch = originalFetch; Object.assign(env, previous); }
+});
