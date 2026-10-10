@@ -71,8 +71,6 @@
     views:['list','small','large','mosaic','posts'],
     authorizedSources:new Map(),
     posts:new Map(),
-    summaryHandles:new Set(),
-    summaryRevision:0,
     canComment:true,
     canReact:true,
     shownMenuOpen: false,
@@ -1632,7 +1630,7 @@
       .pf-post{border:1px solid #e1e5ea;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 5px #10182806;min-width:0}
       .pf-post button{cursor:pointer}.pf-post-head{display:flex;align-items:center;gap:11px;padding:16px 18px}.pf-post-head>div{flex:1;min-width:0}.pf-post-head strong{font-size:14px;color:#182230}.pf-post-head>div>span{display:block;color:#798393;font-size:12px;margin-top:4px}.pf-post-head button{border:0;background:transparent;padding:0;color:inherit;font:inherit}.pf-post-head>i{color:#98a2b3}.pf-post-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover;background:#e9eef4;color:#475467;display:flex;align-items:center;justify-content:center;font-weight:700}
       .pf-post-head>.pf-actor-avatar{display:grid;margin-top:0;color:#475467}.pf-post-head>.pf-actor-avatar>.pf-actor-badge{display:grid;margin-top:0;color:#fff}
-      .pf-actor-avatar[data-fm-summary-type]{cursor:help}.pf-feed-list-summary{min-width:0}.pf-feed-list-summary [data-feed-summary-mount]:not([hidden]){max-width:100%;margin-top:6px}.pf-feed-list-summary [data-feed-summary-mount] .fm-typed-widget{font-size:12px!important;padding:10px!important;gap:6px!important}
+      .pf-actor-avatar[data-fm-summary-type]{cursor:help}
       .pf-post-caption{margin:0;padding:0 18px 14px;font-size:14px;color:#344054}
       .pf-post-collage{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:repeat(3,1fr);gap:3px;height:350px;background:#eef1f4}.pf-post-collage .pf-thumb{height:100%;width:100%;aspect-ratio:auto;border-radius:0;border:0;position:relative}.pf-post-collage .pf-thumb:first-child{grid-row:1/-1}.pf-post-collage.count-1{display:block;height:390px}.pf-post-collage.count-2{grid-template-rows:1fr}.pf-post-collage.count-3{grid-template-rows:repeat(2,1fr)}.pf-post-collage img,.pf-post-collage video{object-fit:cover;width:100%;height:100%}.pf-post-overflow{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#10182888;color:#fff;font-size:32px;font-weight:650}
       .pf-post-document{margin:0 18px 18px;padding:24px;background:#f6f4fc;border:1px solid #e4def3;border-radius:8px;display:flex;align-items:flex-start;gap:18px}.pf-post-document-icon{font-size:34px;color:#7c3aed}.pf-post-document small{display:block;color:#667085;margin-bottom:5px}.pf-post-document strong{display:block;font-size:18px;color:#182230}.pf-post-document .pf-action{margin-top:14px}.pf-post-value{display:block;font-size:30px;color:#182230;margin-top:10px;letter-spacing:-.5px}.pf-post-event{padding:10px 22px 26px;line-height:1.6;font-size:16px}.pf-post-event>i{color:var(--primary,#475467);font-size:26px}.pf-post-event p{margin:10px 0 0}
@@ -1667,6 +1665,9 @@
       .pf-wrap[data-density="list"] .pf-project-group-events .pf-feed-list-row+.pf-feed-list-row{border-top:0}
       @media(max-width:760px){.pf-wrap[data-density="list"] .pf-project-group{grid-template-columns:minmax(0,1fr) minmax(190px,38%)}.pf-project-group-events .pf-feed-list-row{grid-template-columns:42px minmax(0,1fr)}}
       @media(max-width:560px){.pf-wrap[data-density="list"] .pf-project-group{grid-template-columns:minmax(0,1fr) minmax(120px,34%)}.pf-wrap[data-density="list"] .pf-project-group-events .pf-feed-list-row{grid-template-columns:32px minmax(0,1fr);padding:8px}.pf-wrap[data-density="list"] .pf-project-group-project{grid-column:2;grid-row:1;padding:8px;border-left:1px solid #e9edf2}.pf-project-group-project .pf-project-card{grid-template-columns:1fr}.pf-project-group-project .pf-project-card-cover{width:100%;height:70px}}
+      .pf-wrap[data-density="list"] .pf-feed-list-row{min-height:50px}.pf-wrap[data-density="list"] .pf-list-time-row{grid-template-columns:46px minmax(0,1fr) auto;align-items:start}.pf-list-time-row .pf-feed-list-copy{grid-template-columns:minmax(0,1fr)}.pf-list-time-row .pf-feed-list-head{display:block}.pf-feed-list-title{color:#182230;font-size:13px;line-height:1.35;font-weight:400}.pf-feed-list-title strong{font-weight:850}.pf-wrap[data-density="list"] .pf-list-time-row .pf-feed-list-project{grid-column:auto;grid-row:auto;align-self:auto;width:auto;max-width:100%;padding:0;border:0;font-size:12px}.pf-list-time-row .pf-project-identity{color:#667085;font-size:12px;font-weight:500}.pf-list-time-row .pf-feed-list-time{grid-column:3;grid-row:1;align-self:start;padding-top:1px}.pf-feed-list-preview{min-width:0}.pf-project-group-events .pf-feed-list-row.pf-no-preview{align-items:center}.pf-project-group-events .pf-feed-list-row.pf-no-preview .pf-feed-list-head{align-items:center}
+      @media(max-width:760px){.pf-wrap[data-density="list"] .pf-list-time-row{grid-template-columns:42px minmax(0,1fr) auto}.pf-list-time-row .pf-feed-list-time{grid-column:3;grid-row:1;text-align:right;margin:0}}
+      @media(max-width:560px){.pf-wrap[data-density="list"] .pf-list-time-row{grid-template-columns:42px minmax(0,1fr) auto;gap:10px}.pf-list-time-row .pf-feed-list-time{grid-column:3;grid-row:1}.pf-wrap[data-density="list"] .pf-list-time-row .pf-feed-list-project{grid-column:auto;grid-row:auto;padding:0;border:0}}
       .pf-feed-scopebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 16px 11px;border-bottom:1px solid #e9edf2;background:#fff}.pf-feed-scopebar label{display:flex;align-items:center;gap:8px;color:#475467;font-size:12px;font-weight:700}.pf-feed-scopebar select{min-width:170px;padding:8px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit}.pf-feed-scopebar>button{border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer}.pf-feed-scopebar>button.active{border-color:#b8c8ed;background:#eef4ff;color:#2456a8}.pf-feed-scopebar>button:last-child{margin-left:auto}.pf-create-post{white-space:nowrap}
       .pf-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:#1018288c}.pf-dialog{width:min(590px,100%);max-height:min(90vh,850px);overflow:auto;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:16px;background:#fff;box-shadow:0 24px 70px #1018283d;padding:20px;display:grid;gap:16px;color:#344054}.pf-dialog header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #eaecf0;padding-bottom:14px}.pf-dialog header strong{display:block;font-size:20px;color:#182230}.pf-dialog header span{display:block;margin-top:4px;font-size:12px;color:#667085}.pf-dialog header button{border:0;background:none;font-size:26px;line-height:1;color:#667085;cursor:pointer}.pf-dialog-field{display:grid;gap:7px;font-size:12px;font-weight:750}.pf-dialog-field select,.pf-dialog-field textarea{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#182230;font:inherit;font-size:14px}.pf-dialog-field textarea{resize:vertical;line-height:1.5}.pf-dialog footer{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #eaecf0;padding-top:14px}.pf-dialog footer>button:not(.pf-action){border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:9px 14px;color:#344054;font-weight:700;cursor:pointer}.pf-tag-picker{min-width:0;border:1px solid #eaecf0;border-radius:10px;padding:10px}.pf-tag-picker legend{font-size:12px;font-weight:750}.pf-tag-picker>div{display:flex;flex-wrap:wrap;gap:7px;max-height:128px;overflow:auto}.pf-tag-picker label{display:flex;align-items:center;gap:5px;border-radius:20px;background:#f2f4f7;padding:5px 9px;font-size:12px;cursor:pointer}.pf-dialog-upload{display:inline-flex;align-items:center;gap:7px;justify-self:start;padding:9px 12px;border:1px solid #d0d5dd;border-radius:8px;font-size:12px;font-weight:750;cursor:pointer}.pf-dialog-files{display:flex;flex-wrap:wrap;gap:6px}.pf-dialog-files span,.pf-manual-mentions span{padding:5px 8px;border-radius:15px;background:#eef4ff;color:#2456a8;font-size:11px}.pf-settings-dialog{width:min(640px,100%)}.pf-settings-actions{display:flex;gap:8px}.pf-settings-actions button{border:0;background:none;color:#2456a8;font-size:12px;font-weight:750;cursor:pointer}.pf-settings-types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:350px;overflow:auto}.pf-settings-types label{display:flex;align-items:center;gap:8px;padding:7px;border-radius:7px;font-size:12px}.pf-settings-types label:hover{background:#f2f4f7}
       .pf-manual-text{padding:12px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.55;color:#344054}.pf-post>.pf-manual-text{padding:4px 18px 14px}.pf-manual-mentions{display:flex;flex-wrap:wrap;gap:5px;margin:0 18px 12px}.pf-manual-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:0 18px 16px}.pf-manual-images a{display:block;aspect-ratio:1/1;overflow:hidden;border-radius:7px;background:#f2f4f7}.pf-manual-images img{width:100%;height:100%;object-fit:cover}.pf-manual-images:not(.expanded) [data-feed-extra-image]{display:none}.pf-manual-images button{grid-column:1/-1;justify-self:start;border:0;background:transparent;color:var(--primary-readable,var(--primary,#d93025));padding:5px 0;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.pf-manual-tile .pf-manual-text,.pf-manual-row .pf-manual-text{padding:5px 0}.pf-manual-tile .pf-manual-mentions,.pf-manual-row .pf-manual-mentions{margin:0 0 8px}.pf-manual-tile .pf-manual-images,.pf-manual-row .pf-manual-images{padding:0;grid-template-columns:repeat(3,minmax(0,90px))}.pf-post-scope{display:inline-flex;gap:5px;align-items:center}.pf-post-scope i{font-size:11px}
@@ -2285,40 +2286,11 @@
     if (!entryId) return '';
     return `<button type="button" class="pf-feed-list-document-thumb" data-feed-document-id="${escapeHtml(entryId)}" aria-label="Open document: ${escapeHtml(doc.title || doc.type_label || 'Document')}">${documentPreviewHtml(doc)}</button>`;
   }
-  // Event producers can name a typed summary without teaching Feed about each new widget.
-  // Resolution and data reads still go through the authorized widget publication API.
-  function feedSummaryRequest(post = {}){
-    const event=post.event || post.pairedEvent || {},payload=activityPayload(event),target=activityTarget(event);
-    const supplied=objectValue(event.summary_widget || payload.summary_widget || target.summary_widget);
-    const projectId=cleanText(post.projectId || activityProjectId(event));
-    const document=post.kind==='document' ? post.document : null;
-    const documentId=firstText(document && !/^(invoice|receipt):/.test(cleanText(document.id)) ? document.id : '',payload.document_id,target.document_id);
-    const explicitType=cleanText(supplied.type || event.summary_type || payload.summary_type || target.summary_type);
-    const activityType=cleanText(event.type || automaticPostType(post));
-    const autoType=!explicitType && /^[a-z][a-z0-9_.-]{0,111}$/i.test(activityType) ? `summary.${activityType}` : '';
-    let type=explicitType;
-    let id=firstText(supplied.id,supplied.target?.id);
-    if(!type && documentId){type=`summary.document${['invoice','contract','receipt'].includes(cleanText(document?.document_type))?'.'+document.document_type:''}`;id=documentId;}
-    if(!type && cleanText(event.type)==='project.created'){type='summary.project';id=projectId;}
-    if(!type && cleanText(event.type)==='project.contact.attached'){type='summary.contact';id=firstText(payload.contact_id,target.contact_id);}
-    if(!type)type=autoType;
-    if(!type || !type.startsWith('summary.') || !/^[a-z][a-z0-9_.-]{0,119}$/i.test(type))return null;
-    const requestedTarget=objectValue(supplied.target);
-    const scope=cleanText(requestedTarget.scope || (type==='summary.user'?'organization':'project'));
-    if(!['organization','project'].includes(scope))return null;
-    const resolvedProjectId=firstText(requestedTarget.projectId,requestedTarget.project_id,projectId);
-    if(scope==='project' && (!resolvedProjectId || projectId && resolvedProjectId!==projectId))return null;
-    id=firstText(id,scope==='project' && type==='summary.project' ? resolvedProjectId : '',payload.subject_id,target.id,post.note?.id,post.media?.id,event.id);
-    if(!id)return null;
-    return {type,...(autoType && autoType!==type?{autoType}:{}),target:scope==='organization'?{scope,organizationId:orgId(),id}:{scope,organizationId:orgId(),projectId:resolvedProjectId,id},config:objectValue(supplied.config)};
-  }
-  function feedListSummaryHtml(post, fallback){
-    const request=feedSummaryRequest(post);
-    if(!request)return fallback;
-    return `<div class="pf-feed-list-summary" data-feed-summary-request="${escapeHtml(JSON.stringify(request))}"><div class="pf-feed-summary-mount" data-feed-summary-mount hidden></div><div data-feed-summary-fallback>${fallback}</div></div>`;
-  }
-  function feedListTitleHtml(timestamp, action){
-    return `<div class="pf-feed-list-head"><strong>${escapeHtml(action)}</strong> <span class="pf-feed-list-when"><time datetime="${escapeHtml(timestamp)}">${escapeHtml(feedDayTime(timestamp))}</time></span></div>`;
+  function feedListTitleHtml(timestamp, action, actor, withTime = true){
+    const name=cleanText(actor);
+    const actorPrefix=name && (action===name || action.startsWith(`${name} `)) ? name : '';
+    const title=actorPrefix ? `<strong>${escapeHtml(actorPrefix)}</strong>${escapeHtml(action.slice(actorPrefix.length))}` : escapeHtml(action);
+    return `<div class="pf-feed-list-head"><span class="pf-feed-list-title">${title}</span>${withTime?`<span class="pf-feed-list-when"><time datetime="${escapeHtml(timestamp)}">${escapeHtml(feedDayTime(timestamp))}</time></span>`:''}</div>`;
   }
   function manualPostScope(message = {}){
     const id=cleanText(message.metadata?.feed_department_id);
@@ -2349,7 +2321,7 @@
   function feedListEntryHtml(post, showProject = true){
     if(post.kind==='manual'){
       const author=postAuthor(post);
-      return `<article class="pf-feed-list-row pf-manual-row">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,`${author.name} posted to ${manualPostScope(post.manual)}`)}${manualPostBodyHtml(post.manual)}</div></article>`;
+      return `<article class="pf-feed-list-row pf-manual-row">${actorAvatarHtml(author,'fa-pen-to-square')}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,`${author.name} posted to ${manualPostScope(post.manual)}`,author.name)}${manualPostBodyHtml(post.manual)}</div></article>`;
     }
     const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
     const action=photos.length
@@ -2360,7 +2332,8 @@
       : `${author.name} uploaded ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
     const documentEntry=post.entries.find((entry)=>entry.kind==='document');
     const fallback=`${post.kind==='note' ? feedNoteHtml(post.note,true) : ''}${feedListMediaHtml(photos,post.projectId)}${post.kind==='document' ? feedListDocumentHtml(post.document,documentEntry?.id) : ''}`;
-    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action)}${feedListSummaryHtml(post,fallback)}</div>${showProject ? `<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,true)}</div>` : ''}</article>`;
+    const actionActor=post.kind==='activity' ? feedActor(post.event) : post.pairedEvent && action.startsWith(feedActor(post.pairedEvent)) ? feedActor(post.pairedEvent) : author.name;
+    return `<article class="pf-feed-list-row${showProject?' pf-list-time-row':''}${fallback?'':' pf-no-preview'}">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action,actionActor,!showProject)}${showProject?`<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,false,true)}</div>`:''}${fallback?`<div class="pf-feed-list-preview">${fallback}</div>`:''}</div>${showProject?`<time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time>`:''}</article>`;
   }
   function feedProjectGroupsHtml(entries){
     const projects=new Map();
@@ -2694,48 +2667,8 @@
   function renderDynamic(options = {}){
     const dynamic = state.root?.querySelector?.('[data-photo-feed-dynamic]');
     if (!dynamic) return render();
-    clearFeedSummaries();
     dynamic.innerHTML = dynamicHtml(options);
     bindDynamic(options);
-  }
-  function clearFeedSummaries(){
-    state.summaryRevision++;
-    for(const handle of state.summaryHandles)handle.destroy?.();
-    state.summaryHandles.clear();
-    state.root?.querySelectorAll('[data-feed-summary-request]').forEach(wrapper=>{
-      wrapper.querySelector('[data-feed-summary-mount]')?.setAttribute('hidden','');
-      wrapper.querySelector('[data-feed-summary-fallback]')?.removeAttribute('hidden');
-      delete wrapper.dataset.feedSummaryMounted;
-    });
-  }
-  function mountFeedSummaries(rootEl){
-    const publication=window.PlatformAPI?.publication,widgets=window.FirstMateWidgets;
-    if(!publication?.resolveWidget || !publication?.read || !widgets?.mount)return;
-    const revision=state.summaryRevision;
-    const availableTypes=widgets.types?.().then(rows=>new Set(rows.map(row=>row.id))).catch(()=>new Set());
-    rootEl.querySelectorAll('[data-feed-summary-request]').forEach(wrapper=>{
-      let request;
-      try{request=JSON.parse(wrapper.dataset.feedSummaryRequest);}catch{return;}
-      const host=wrapper.querySelector('[data-feed-summary-mount]'),fallback=wrapper.querySelector('[data-feed-summary-fallback]');
-      if(!host || !fallback || wrapper.dataset.feedSummaryMounted)return;
-      wrapper.dataset.feedSummaryMounted='1';
-      void (async()=>{
-        try{
-          const known=await availableTypes;
-          if(known && request.autoType && known.has(request.autoType))request.type=request.autoType;
-          if(known && !known.has(request.type))return;
-          const result=await publication.resolveWidget(orgId(),{type:request.type,target:request.target,config:request.config,surface:'dashboard'});
-          if(revision!==state.summaryRevision || !wrapper.isConnected || result?.status!=='ready')return;
-          const handle=widgets.mount(host,{...result.widget,target:request.target},{surface:'dashboard'});
-          state.summaryHandles.add(handle);
-          await handle.ready;
-          if(revision!==state.summaryRevision || !wrapper.isConnected)return;
-          if(host.querySelector('.fm-widget-status')){handle.destroy();state.summaryHandles.delete(handle);delete wrapper.dataset.feedSummaryMounted;return;}
-          host.hidden=false;
-          fallback.hidden=true;
-        }catch{/* Keep the existing preview when no authorized summary is available. */}
-      })();
-    });
   }
   function shownGroupHtml(group, title, icon, items = [], selected = new Set()){
     const allSelected = items.length > 0 && items.every((item) => selected.has(item.id));
@@ -2801,7 +2734,6 @@
     </form>${enlarged?.type.startsWith('image/')?`<div class="pf-image-lightbox" data-feed-image-lightbox role="dialog" aria-modal="true" aria-label="Image preview"><div class="pf-image-lightbox-panel"><header><strong>${escapeHtml(enlarged.name)}</strong><button type="button" data-feed-preview-close aria-label="Close image preview">×</button></header><img src="${escapeHtml(state.composerPreviewUrls.get(enlarged) || '')}" alt="${escapeHtml(enlarged.name)}"></div></div>`:''}</div>`;
   }
   function render(){
-    clearFeedSummaries();
     if (!state.root) return;
     state.composerMentionApi?.destroy?.();
     state.composerMentionApi=null;
@@ -2987,7 +2919,6 @@
   function bindDynamic(options = {}){
     const rootEl = state.root;
     if (!rootEl) return;
-    mountFeedSummaries(rootEl);
     bindFeedPosts(rootEl);
     window.FirstMateAudioNotes?.hydrate?.(rootEl);
     state.mosaicObserver?.disconnect();
@@ -4084,10 +4015,9 @@
       mount,
       onShow: () => {
         if (!state.loaded) load();
-        else if(state.root)mountFeedSummaries(state.root);
         startFeedPolling();
       },
-      onHide:()=>{clearInterval(state.feedTimer);clearFeedSummaries();state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
+      onHide:()=>{clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
     });
     window.Portal.tabs.renderTabs?.();
     if (window.Portal?.routeState?.get?.().tab === TAB_ID) {
