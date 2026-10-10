@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 resource custom fields: [Users, organizational groups and platform phone assignments](deploy/digitalocean/development-resource-custom-fields-20261009.md) records shared typed owners, protected phone issuance references, frontend handoff and verified four-role development rollout.
+
 October 9 Channels profiles: [User summary on avatar and @mention hover](deploy/digitalocean/development-channels-user-summary-hover-20261009.md) records the Platform Widgets integration, GitHub commits, development rollout, verification, and rollback.
 
 October 9 My Contacts follow-up: [Linked spouse and employer profiles plus Docs](deploy/digitalocean/development-contact-relationships-docs-20261009.md) records the expanded relationship flow, contact documents, verified development rollout and rollback.
