@@ -30,7 +30,9 @@ real sending. See [the domain contract](../../docs/architecture/group-mms.md).
 - Full publication suite: 50 passed, one PostgreSQL-dependent test skipped.
 - Real embedded-PostgreSQL group concurrency/migration test: one passed.
 - Linux merged-stage group and publication coverage tests: three passed on web,
-  pool and compatibility; Linux TypeScript check and build passed.
+  pool and compatibility; Linux TypeScript check and build passed. Final tests
+  additionally cover moved-project visibility and pagination across hidden
+  threads. Local TypeScript and group checks passed again for that change.
 - The wider Comms suite passed eight of nine checks; its ordinary email
   notification fixture did not produce the expected notification. This was not
   changed or treated as a passing check.
@@ -56,7 +58,45 @@ is prepared against `449e8316...` instead of reverting that release. Only the
 `libphonenumber-js@1.12.31` dependency are carried forward; all unrelated
 runtime files are retained from the current role.
 
-Final activation and public verification are recorded below when complete.
+The subsequent `00048e11d18454ed3ac907719a03692bc11b4543` number-search
+repair changed only `messaging/telnyx.ts` among the affected source files. It
+merged without conflict, including the original sending-line and registration
+behavior. Its directory retained runtime release ID `449e8316...`. Full group
+release `3ed5fc322b6e47af084e11259f2b139725e2c1e3` then activated on all three
+serving roles, passing readiness, captured-delivery and authorized pilot data
+reads. No existing call publication was removed.
+
+Final source `4b5a14d76b463f4f1de5cb3fbf8ebe0093727374` hardens organization
+thread lists against projects that move to another branch or become unavailable.
+Listings omit inaccessible rows while advancing pagination across scanned rows.
+Its regression checks pass. During staging another SMS API update landed as
+directory `14ceb1ddc0cb480fc16fb1899499ed5fbbe4f039`, retaining runtime release
+ID `3ed5fc32...`. That API source and compiled module were preserved exactly.
+All other affected files were verified against the prior full group manifest.
+Final stages copy this latest directory and overlay only three source/doc files,
+one compiled group service, release metadata and the refreshed manifest.
+
+Final web/pool stage path is
+`/opt/firstmeasure/releases-group-mms-final/4b5a14d76b463f4f1de5cb3fbf8ebe0093727374`.
+Compatibility uses
+`/opt/firstmeasure/releases-root-archive-group-mms-final/4b5a14d76b463f4f1de5cb3fbf8ebe0093727374`.
+The full prior-runtime artifact SHA-256 is
+`af37cb07cd514e9aceda1b242302f69b3a998d236f82f335f3af0b1b7130968c`;
+the final incremental artifact SHA-256 is
+`2aac525e92dc026b1085ba79c69362556efb5d024a8c205d4c07d9c3fc90053e`.
+Changed source/runtime checksums agree across the final stages. The source
+commits are pushed; this is a current-dev overlay, not a whole-branch replacement.
+
+Web, pool and compatibility have activated the final release. All pass readiness and a real
+authorized Pioneer data read with `comms-sms-groups` and both required-receipt
+actions registered. Existing `customer-calls` and `customer-call-analysis`
+publications remain registered. Public readiness reports the final release,
+development data and enforced outbound safety; unauthenticated group access and
+an unsigned Telnyx callback both return 401. Public readiness briefly returned
+503 during pool draining and recovered to 200 afterward. Compatibility's final
+restart, captured-delivery check and authorized catalog/data audit passed too.
+The complete changed-file manifest verifies on every active role. Public
+readiness and both 401 rejection checks passed again after all activations.
 
 ## Delivery Remains Captured
 
@@ -75,10 +115,15 @@ Do not switch capture to live before those conditions have been verified.
 
 ## Rollback
 
-Restore the immediately preceding `449e8316...` role directory and restart that
-role's development service plus `php8.3-fpm`. Preserve registration scoping,
+Restore the immediately preceding `14ceb1dd...` role directory and restart that
+role's development service plus `php8.3-fpm`. Web/pool rollback target is
+`/opt/firstmeasure/releases/14ceb1ddc0cb480fc16fb1899499ed5fbbe4f039`;
+compatibility target is
+`/opt/firstmeasure/releases-root-archive-group-mms/14ceb1ddc0cb480fc16fb1899499ed5fbbe4f039`.
+Preserve registration scoping,
 captured delivery, encryption key, writable storage and allowlist. Leave the
 additive group-aware database indexes in place; do not restore the old unique
-provider-ID index after shared group IDs have been persisted. Pool's
-`449e8316...` directory already contains the group overlay, unlike web and
-compatibility, so rollback is role-specific.
+provider-ID index after shared group IDs have been persisted. These rollback
+targets retain the full group backend but not the final moved-project listing
+hardening. To remove the group feature entirely, review older role-specific
+release provenance instead of blindly switching to a whole-branch checkout.
