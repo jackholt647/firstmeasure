@@ -17,13 +17,15 @@
  const element=(tag,text)=>{const el=document.createElement(tag);if(text!=null)el.textContent=String(text);return el;};
  function shell(root,title){const card=element('section');card.className='fm-typed-widget';card.style.cssText='background:var(--card,#fff);border:1px solid var(--border,#e4e7ec);border-radius:12px;padding:14px;color:var(--text,#344054);font:13px system-ui;display:grid;gap:12px';card.append(element('strong',title));root.replaceChildren(card);return card;}
  const userStyles=document.createElement('style');userStyles.textContent=`
- .fm-user-summary{gap:12px!important;padding:18px!important;line-height:1.45}
- .fm-user-summary-photo{width:88px;height:88px;border-radius:14px;object-fit:cover;background:#e9eef4;display:grid;place-items:center;color:#475467;font-size:28px;font-weight:700}
- .fm-user-summary-identity{display:grid;gap:4px;min-width:0}
- .fm-user-summary-heading{display:flex;align-items:center;gap:10px;min-width:0}
- .fm-user-summary-name{min-width:0;font-size:18px;line-height:1.25;color:var(--text,#182230);overflow-wrap:anywhere}
+ .fm-user-summary{gap:10px!important;padding:14px!important;line-height:1.4}
+ .fm-user-summary-head{display:grid;grid-template-columns:80px minmax(0,1fr);gap:12px;align-items:center;min-width:0}
+ .fm-user-summary-photo{width:80px;height:80px;border-radius:12px;object-fit:cover;background:#e9eef4;display:grid;place-items:center;color:#475467;font-size:26px;font-weight:700}
+ .fm-user-summary-identity{display:grid;gap:5px;align-content:center;min-width:0}
+ .fm-user-summary-heading{display:flex;align-items:center;gap:8px;min-width:0}
+ .fm-user-summary-name{min-width:0;font-size:17px;line-height:1.25;color:var(--text,#182230);overflow-wrap:anywhere}
  .fm-user-summary-subtitle{color:#667085;overflow-wrap:anywhere}
- .fm-user-summary-presence{display:flex;align-items:center;gap:7px;color:#667085;font-size:12px}
+ .fm-user-summary-presence{display:inline-flex;align-items:center;gap:6px;flex:none;padding:3px 7px;border-radius:999px;background:#f2f4f7;color:#667085;font-size:11px;font-weight:600}
+ .fm-user-summary-presence[data-status="active"]{background:#ecfdf3;color:#067647}
  .fm-user-summary-dot{width:9px;height:9px;border-radius:50%;background:#98a2b3;flex:none}
  .fm-user-summary-dot[data-status="active"]{background:#16a34a}
  .fm-user-summary-details{display:grid;gap:9px;margin:0;padding-top:12px;border-top:1px solid #eaecf0}
@@ -36,12 +38,13 @@
  W.attachRenderer('user.summary','1',(root,{data,reference,context})=>{
   const card=shell(root,null);card.classList.add('fm-user-summary');card.replaceChildren();
   const name=String(data.name||'Team member'),photo=String(data.profile_photo||'');
-  if(photo){try{const url=new URL(photo,location.href);if(['http:','https:'].includes(url.protocol)){const image=element('img');image.className='fm-user-summary-photo';image.src=url.href;image.alt=`${name} profile photo`;card.append(image);}}catch{}}
-  if(!card.firstChild){const fallback=element('div',name.split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase()||'?');fallback.className='fm-user-summary-photo';fallback.setAttribute('aria-label',`${name} profile photo`);card.append(fallback);}
+  const head=element('div');head.className='fm-user-summary-head';card.append(head);
+  if(photo){try{const url=new URL(photo,location.href);if(['http:','https:'].includes(url.protocol)){const image=element('img');image.className='fm-user-summary-photo';image.src=url.href;image.alt=`${name} profile photo`;head.append(image);}}catch{}}
+  if(!head.firstChild){const fallback=element('div',name.split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase()||'?');fallback.className='fm-user-summary-photo';fallback.setAttribute('aria-label',`${name} profile photo`);head.append(fallback);}
   const identity=element('div');identity.className='fm-user-summary-identity';const headingRow=element('div');headingRow.className='fm-user-summary-heading';const heading=element('strong',name);heading.className='fm-user-summary-name';headingRow.append(heading);
   const presence=element('div');presence.className='fm-user-summary-presence';const dot=element('span');dot.className='fm-user-summary-dot';dot.setAttribute('role','img');const status=element('span','Away');presence.append(dot,status);headingRow.append(presence);identity.append(headingRow);
-  const subtitle=[data.title,data.department].map(value=>String(value||'').trim()).filter(Boolean).join(', ');if(subtitle){const line=element('div',subtitle);line.className='fm-user-summary-subtitle';identity.append(line);}card.append(identity);
-  const updatePresence=users=>{const person=users.find(user=>user.user_id===data.id),active=person?.status==='active',label=active?'Active':awayLabel(person?.last_active_at);dot.dataset.status=active?'active':'away';dot.title=label;dot.setAttribute('aria-label',label);status.textContent=active?'Active':'Away';};
+  const subtitle=[data.title,data.department].map(value=>String(value||'').trim()).filter(Boolean).join(', ');if(subtitle){const line=element('div',subtitle);line.className='fm-user-summary-subtitle';identity.append(line);}head.append(identity);
+  const updatePresence=users=>{const person=users.find(user=>user.user_id===data.id),active=person?.status==='active',label=active?'Active':awayLabel(person?.last_active_at);presence.dataset.status=active?'active':'away';dot.dataset.status=active?'active':'away';dot.title=label;dot.setAttribute('aria-label',label);status.textContent=active?'Active':'Away';};
   updatePresence([]);const orgId=(reference.target||context.target)?.organizationId;const stop=orgId&&global.PlatformRealtime?.watchPresence?.(orgId,'online',updatePresence);
   const details=element('dl');details.className='fm-user-summary-details';const rows=[['Email',data.email,'mailto:'],['Phone',data.phone,'tel:'],...(Array.isArray(data.phone_fields)?data.phone_fields:[]).map(field=>[field.label,field.number,'tel:']),['Location',data.location],['Time zone',data.time_zone],['Pronouns',data.pronouns],['About',data.bio]];for(const [label,raw,scheme]of rows){const value=String(raw||'').trim();if(!value)continue;const row=element('div'),term=element('dt',String(label||'Phone')),definition=element('dd');if(scheme){const link=element('a',value);link.href=scheme+value;definition.append(link);}else definition.textContent=value;row.append(term,definition);details.append(row);}if(details.childElementCount)card.append(details);
   if(data.id&&String(data.id)!==String(global.__APP?.userId||'')){const button=element('button','Message in Channels'),error=element('div');button.type='button';button.className='fm-user-summary-action';error.className='fm-user-summary-error';error.setAttribute('role','status');button.onclick=async()=>{button.disabled=true;error.textContent='';try{if(!global.ChannelsAPI?.channels?.create||!global.FirstMateChannelsNavigation?.openMessage)throw Error('Channels is unavailable.');const result=await global.ChannelsAPI.channels.create(orgId,{type:'dm',member_user_ids:[data.id]});await global.FirstMateChannelsNavigation.openMessage({channel_id:result.channel.id});}catch(e){error.textContent=e?.message||'Could not open the message.';button.disabled=false;}};card.append(button,error);}
