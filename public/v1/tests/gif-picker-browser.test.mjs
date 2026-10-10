@@ -6,7 +6,7 @@ import {chromium} from 'playwright-core';
 const libraries=new URL('../../libraries/',import.meta.url);
 const sdk=`
 export class GiphyFetch {
-  async search(query,options){window.requests.push({query,...options});if(query==='error')throw Error('Offline');return {data:query==='empty'?[]:[{id:query||'trending'}]};}
+  async search(query,options){window.requests.push({query,...options});if(query==='stalled')await new Promise(()=>{});if(query==='error')throw Error('Offline');return {data:query==='empty'?[]:[{id:query||'trending'}]};}
   trending(options){return this.search('',options);}
 }
 export function renderGrid(options,host){
@@ -41,7 +41,7 @@ async function setup(browser,{realSdk=false}={}){
 }
 
 test('GIF picker is anchored, searchable, non-modal, and selects only once',async()=>{
-  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,ignoreDefaultArgs:["--hide-scrollbars"]});
   try{
     const {page,errors,trigger,pop}=await setup(browser);
     await trigger.click();await pop.getByRole('button',{name:'trending',exact:true}).waitFor();
@@ -67,7 +67,7 @@ test('GIF picker is anchored, searchable, non-modal, and selects only once',asyn
 });
 
 test('GIF picker dismisses and cleans up, handles empty/error results and fits small screens',async()=>{
-  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,ignoreDefaultArgs:["--hide-scrollbars"]});
   try{
     const {page,errors,trigger,pop}=await setup(browser);
     await trigger.click();await pop.getByRole('button',{name:'trending',exact:true}).waitFor();
@@ -87,7 +87,7 @@ test('GIF picker dismisses and cleans up, handles empty/error results and fits s
 });
 
 test('Feed compatibility adapters delegate to shared widgets, including temporary GIF buttons',async()=>{
-  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,ignoreDefaultArgs:["--hide-scrollbars"]});
   try{
     const {page,errors}=await setup(browser);
     await page.evaluate(()=>{
@@ -104,9 +104,10 @@ test('Feed compatibility adapters delegate to shared widgets, including temporar
 });
 
 test('widget library uses the bundled GIPHY grid and disposes its open picker',async()=>{
-  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,ignoreDefaultArgs:["--hide-scrollbars"]});
   try{
     const {page,errors,pop}=await setup(browser,{realSdk:true});
+    await page.addStyleTag({content:'.fm-picker-gif-grid::-webkit-scrollbar{width:16px}'});
     await page.route('https://**/*',async route=>{
       const url=new URL(route.request().url());
       if(url.hostname==='api.giphy.com'){
@@ -125,6 +126,12 @@ test('widget library uses the bundled GIPHY grid and disposes its open picker',a
     });
     await page.getByRole('button',{name:'Send a GIF'}).click();
     const tile=pop.locator('.fm-picker-gif-grid img').first();await tile.waitFor();
+    // A populated, scrolling grid must remain mounted after ResizeObserver runs.
+    const originalTile=await tile.elementHandle();
+    await page.waitForTimeout(500);
+    assert.equal(await originalTile.evaluate(node=>node.isConnected),true);
+    assert.equal(await pop.locator('.fm-picker-status').innerText(),'');
+    assert.ok(await pop.locator('.fm-picker-gif-grid').evaluate(grid=>grid.scrollHeight>grid.clientHeight&&grid.offsetWidth>grid.clientWidth));
     await page.setViewportSize({width:280,height:420});
     await page.waitForFunction(()=>{const grid=document.querySelector('.fm-picker-gif-grid');return grid.scrollWidth<=grid.clientWidth;});
     await tile.click();await pop.waitFor({state:'detached'});
@@ -137,7 +144,7 @@ test('widget library uses the bundled GIPHY grid and disposes its open picker',a
 });
 
 test('emoji widget works without Channels and shares its picker with the channel composer and reactions',async()=>{
-  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,ignoreDefaultArgs:["--hide-scrollbars"]});
   try{
     const {page,errors}=await setup(browser);
     await page.evaluate(()=>{delete window.FirstMateChannels;window.renderers={};window.FirstMateWidgets={attachRenderer:(id,version,renderer)=>renderers[id]=renderer};});
@@ -166,5 +173,29 @@ test('emoji widget works without Channels and shares its picker with the channel
     await page.getByRole('button',{name:'Send a GIF',exact:true}).click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'trending',exact:true}).click();
     assert.equal(await page.evaluate(()=>posts[0].metadata.giphy.id),'trending');
     await page.evaluate(()=>instance.destroy());assert.equal(await page.locator('.fm-picker-popover').count(),0);assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+
+test('stalled GIF requests stop loading and a new search can recover',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,ignoreDefaultArgs:["--hide-scrollbars"]});
+  try{
+    const {page,errors,trigger,pop}=await setup(browser);
+    await page.clock.install();
+    await trigger.click();await pop.getByRole('button',{name:'trending',exact:true}).waitFor();
+    await pop.getByRole('searchbox').fill('stalled');await page.clock.runFor(350);
+    assert.equal(await pop.locator('.fm-picker-status').innerText(),'Loading GIFs…');
+    await page.clock.runFor(15000);
+    await pop.getByText('GIF search is unavailable or its request limit was reached. Try again later.').waitFor();
+    await pop.getByRole('searchbox').fill('cats');await page.clock.runFor(350);
+    await pop.getByRole('button',{name:'cats',exact:true}).waitFor();
+    await page.keyboard.press('Escape');
+    await page.evaluate(()=>ChannelsAPI.gifs.config=()=>new Promise(()=>{}));
+    await trigger.click();await page.clock.runFor(15000);
+    await pop.getByText('GIF loading timed out. Close and reopen the picker to retry.').waitFor();
+    await page.keyboard.press('Escape');
+    await page.evaluate(()=>ChannelsAPI.gifs.config=async()=>({enabled:true,sdk_key:'test'}));
+    await trigger.click();await pop.getByRole('button',{name:'trending',exact:true}).waitFor();
+    assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

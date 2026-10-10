@@ -13,8 +13,15 @@
   const el=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!=null)node.textContent=text;return node;};
   const scripts=new Map();
   function loadScript(path){
-    if(!scripts.has(path))scripts.set(path,new Promise((resolve,reject)=>{const script=el('script');script.src=new URL(path,base);script.onload=resolve;script.onerror=()=>{scripts.delete(path);script.remove();reject(Error('The picker is unavailable.'));};document.head.append(script);}));
+    if(!scripts.has(path)){
+      const script=el('script');
+      scripts.set(path,loadWithin(new Promise((resolve,reject)=>{script.src=new URL(path,base);script.onload=resolve;script.onerror=()=>reject(Error('The picker is unavailable.'));document.head.append(script);})).catch(error=>{scripts.delete(path);script.remove();throw error;}));
+    }
     return scripts.get(path);
+  }
+  function loadWithin(promise){
+    let timeout;
+    return Promise.race([promise,new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('GIF loading timed out. Close and reopen the picker to retry.')),15000);})]).finally(()=>clearTimeout(timeout));
   }
   function styles(){
     if(document.getElementById('fm-picker-widget-styles'))return;
@@ -24,7 +31,7 @@
 .fm-picker-popover{position:fixed;z-index:1601;width:304px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border:1px solid var(--picker-border);border-radius:10px;background:var(--card,#fff);box-shadow:0 8px 28px rgba(15,23,42,.16);overflow:auto}
 .fm-picker-search{display:block;flex:none;width:calc(100% - 16px);margin:8px;padding:7px 9px;border:1px solid var(--picker-border);border-radius:8px;background:var(--card,#fff);color:inherit;font:inherit;font-size:12px}.fm-picker-search:focus-visible{outline:2px solid var(--picker-accent);outline-offset:-1px}
 .fm-picker-emoji{max-height:340px;overflow:auto}.fm-picker-emoji-group{padding:6px 12px 2px;font-size:11px;font-weight:700;color:var(--picker-muted)}.fm-picker-emoji-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;padding:4px 8px 8px}.fm-picker-emoji-grid button{font-size:22px;line-height:1;border-radius:6px;min-width:0;height:32px}.fm-picker-emoji-grid button:hover{background:var(--hover,#f2f4f7)}
-.fm-picker-popover.fm-picker-gif{height:340px;display:flex;flex-direction:column;overflow:hidden;padding:0 8px}.fm-picker-gif .fm-picker-search{width:100%;margin:8px 0}.fm-picker-gif-grid{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}.fm-picker-gif-grid [role=button]:focus-visible{outline:3px solid var(--picker-accent)}
+.fm-picker-popover.fm-picker-gif{height:340px;display:flex;flex-direction:column;overflow:hidden;padding:0 8px}.fm-picker-gif .fm-picker-search{width:100%;margin:8px 0}.fm-picker-gif-grid{flex:1;min-height:0;overflow-y:scroll;overflow-x:hidden;scrollbar-gutter:stable;overscroll-behavior:contain}.fm-picker-gif-grid [role=button]:focus-visible{outline:3px solid var(--picker-accent)}
 .fm-picker-status{flex:none;font-size:12px;color:var(--picker-muted);margin:0 0 8px}.fm-picker-status:empty{display:none}.fm-picker-attribution{flex:none;padding:6px 0;font-size:10px;line-height:1.2;color:var(--picker-muted);text-align:right}
 .fm-picker-trigger{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:6px;background:none;color:inherit;cursor:pointer}.fm-picker-trigger span{font:800 10px system-ui;border:1.5px solid currentColor;border-radius:3px;padding:1px}.fm-picker-trigger:hover{background:var(--hover,#f2f4f7)}
 `;document.head.append(style);
@@ -84,15 +91,15 @@
       (async()=>{
         if(!getConfig&&!root.ChannelsAPI)await loadScript('../channels-api/channels-api.js');
         if(disposed)return;
-        const config=await (getConfig?getConfig(orgId):root.ChannelsAPI.gifs.config(orgId));if(disposed)return;
+        const config=await loadWithin(getConfig?getConfig(orgId):root.ChannelsAPI.gifs.config(orgId));if(disposed)return;
         if(!config.enabled)throw Error('GIF search is not configured for this environment yet.');
-        const {GiphyFetch,renderGrid}=await import('../gif-picker/giphy-sdk.js?v=20260929');if(disposed)return;
+        const {GiphyFetch,renderGrid}=await loadWithin(import('../gif-picker/giphy-sdk.js?v=20260929'));if(disposed)return;
         const client=new GiphyFetch(config.sdk_key);
         function paint(){
           const query=search.value.trim(),version=++generation;removeGrid?.();grid.replaceChildren();status.textContent='Loading GIFs…';
           removeGrid=renderGrid({width:Math.max(1,Math.floor(grid.clientWidth)),columns:2,gutter:4,noLink:true,
             fetchGifs:async offset=>{
-              try{const data=await (query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));if(!disposed&&version===generation&&!sending)status.textContent=data.data.length?'':'No GIFs found. Try another search.';return data;}
+              try{const data=await loadWithin(query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));if(!disposed&&version===generation&&!sending)status.textContent=data.data.length?'':'No GIFs found. Try another search.';return data;}
               catch(error){if(!disposed&&version===generation&&!sending)status.textContent='GIF search is unavailable or its request limit was reached. Try again later.';return {data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
             },
             onGifClick:async(gif,event)=>{
@@ -106,7 +113,8 @@
           },grid);
         }
         search.oninput=()=>{clearTimeout(timer);timer=setTimeout(paint,300);};paint();
-        let width=grid.clientWidth;resizeObserver=new ResizeObserver(()=>{if(!disposed&&!sending&&grid.clientWidth!==width){width=grid.clientWidth;paint();}});resizeObserver.observe(grid);
+        // Observe the outer width, not the content width that changes with scrollbars.
+        let width=pop.clientWidth;resizeObserver=new ResizeObserver(()=>{if(!disposed&&!sending&&pop.clientWidth!==width){width=pop.clientWidth;paint();}});resizeObserver.observe(pop);
       })().catch(error=>{if(!disposed)status.textContent=error.message||'GIF search is unavailable.';});
       return ()=>{disposed=true;clearTimeout(timer);resizeObserver?.disconnect();removeGrid?.();};
     });

@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 10 shared pickers: [Widget-owned GIF and emoji pickers](deploy/digitalocean/development-shared-pickers-20261010.md) records Channels consumption, compact popovers, preserved Feed composer changes, and verified development rollout.
+
 October 10 Project preview contact card: [Conditional primary label and icon actions](deploy/digitalocean/development-project-preview-contact-icons-20261010.md) records the checks and verified development rollout.
 
 October 10 Project preview: [Configured priority fields and optional cover](deploy/digitalocean/development-project-preview-priority-20261010.md) records the shared resolver integration, checks, and development rollout.
