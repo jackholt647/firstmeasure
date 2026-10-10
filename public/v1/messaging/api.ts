@@ -1711,7 +1711,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     } else {
       let inventoryResponse: JsonObject;
       try {
-        inventoryResponse = asObject(await client.findExactAvailablePhoneNumber(selectedNumber));
+        inventoryResponse = asObject(await client.searchAvailablePhoneNumbers(selectedNumber.slice(2, 5), 20));
       } catch (error) {
         (await finishProviderOperation(operationId, { status: "failed", error: telnyxErrorDetails(error) }));
         throw error;
