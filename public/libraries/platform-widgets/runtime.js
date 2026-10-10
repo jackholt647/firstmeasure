@@ -40,7 +40,7 @@
   let typeGraph;
   const typeReady=Promise.all([fetch(new URL('types.json?v=20261009',base)).then(r=>{if(!r.ok)throw Error('Widget types unavailable');return r.json();}),loadScript('types.js?v=20261009')]).then(([rows])=>{typeGraph=global.FirstMateWidgetTypes.create(rows);});
   const catalogReady=fetch(new URL('catalog.json?v=20261009-inherited-widget-types',base),{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error('Widget catalog unavailable');return r.json();}).then(rows=>rows.forEach(def=>register(def)));
-  const ready=Promise.all([typeReady,catalogReady]).then(()=>{typeGraph.validateDefinitions([...definitions.values()]);return Promise.all([loadScript('grouped-widgets.js?v=20261009-user-phone-preview'),loadScript('extended-widgets.js?v=20261009')]);});
+  const ready=Promise.all([typeReady,catalogReady]).then(()=>{typeGraph.validateDefinitions([...definitions.values()]);return Promise.all([loadScript('grouped-widgets.js?v=20261010-project-priority-preview'),loadScript('extended-widgets.js?v=20261009')]);});
   ready.catch(()=>{});
   function styles(){
     if(document.getElementById('fm-widget-styles'))return;

@@ -4,26 +4,28 @@
  if(!document.getElementById('fm-typed-widget-styles')){const style=document.createElement('style');style.id='fm-typed-widget-styles';style.textContent='.fm-typed-widget{box-sizing:border-box;min-width:0}.fm-typed-widget input:not([type=checkbox]):not([type=radio]),.fm-typed-widget textarea,.fm-typed-widget select{box-sizing:border-box;max-width:100%;width:100%;padding:9px 11px;border:1px solid var(--border,#d0d5dd);border-radius:7px;background:var(--card,#fff);color:inherit;font:inherit}.fm-typed-widget textarea{min-height:90px}.fm-typed-widget button{border:1px solid var(--border,#d0d5dd);border-radius:7px;padding:9px 12px;background:var(--card,#fff);color:inherit;font:inherit;cursor:pointer}.fm-typed-widget button:hover{background:var(--hover,#f2f4f7)}.fm-typed-widget button:disabled{opacity:.5;cursor:default}.fm-typed-widget input:focus-visible,.fm-typed-widget button:focus-visible,.fm-typed-widget textarea:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}';document.head.append(style);}
  if(!document.getElementById('fm-project-summary-styles')){const style=document.createElement('style');style.id='fm-project-summary-styles';style.textContent=`
   .fm-project-summary.fm-typed-widget{display:grid;gap:14px;padding:16px;background:var(--card,#fff);border:1px solid var(--border,#e4e7ec);border-radius:14px;box-shadow:0 12px 32px #10182812;color:var(--text,#182230);font:13px/1.4 system-ui}
-  .fm-project-summary-head{display:grid;grid-template-columns:128px minmax(0,1fr);gap:14px;align-items:start;min-width:0}
-  .fm-project-summary-cover{height:118px;border-radius:10px;background:#eef2f6;color:#98a2b3;display:grid;place-items:center;overflow:hidden}
-  .fm-project-summary-cover img{width:100%;height:100%;object-fit:cover;grid-area:1/1}.fm-project-summary-cover img:not([hidden])~span{display:none}
-  .fm-project-summary-cover span{font-size:25px}.fm-project-summary-identity{min-width:0}.fm-project-summary-name{display:block;font-size:16px;line-height:1.25;color:#101828;overflow-wrap:anywhere}.fm-project-summary-address{display:block;margin-top:7px;color:#667085;line-height:1.4;overflow-wrap:anywhere}
-  .fm-project-summary-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.fm-project-summary-meta>div{min-width:0;padding:9px;background:#f7f9fc;border:1px solid #edf0f4;border-radius:9px}.fm-project-summary-meta small,.fm-project-summary-contact small{display:block;color:#667085;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}.fm-project-summary-meta strong{display:block;margin-top:4px;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+  .fm-project-summary-head{min-width:0}.fm-project-summary-head.has-cover{display:grid;grid-template-columns:128px minmax(0,1fr);gap:14px;align-items:start}
+  .fm-project-summary-cover{width:128px;height:118px;border-radius:10px;overflow:hidden}
+  .fm-project-summary-cover img{width:100%;height:100%;object-fit:cover;display:block}
+  .fm-project-summary-identity{min-width:0}.fm-project-summary-name{display:block;font-size:16px;line-height:1.25;color:#101828;overflow-wrap:anywhere}.fm-project-summary-address{display:block;margin-top:7px;color:#667085;line-height:1.4;overflow-wrap:anywhere}
+  .fm-project-summary-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}.fm-project-summary-meta[hidden]{display:none}.fm-project-summary-meta>div{min-width:0;padding:9px;background:#f7f9fc;border:1px solid #edf0f4;border-radius:9px}.fm-project-summary-meta small,.fm-project-summary-contact small{display:block;color:#667085;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}.fm-project-summary-meta strong{display:block;margin-top:4px;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
   .fm-project-summary-contact{padding:12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff}.fm-project-summary-contact strong{display:block;margin-top:4px;font-size:14px}.fm-project-summary-contact-detail{display:block;margin-top:3px;color:#667085;font-size:12px;overflow-wrap:anywhere}.fm-project-summary-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.fm-project-summary.fm-typed-widget .fm-project-summary-actions a{display:inline-flex;align-items:center;justify-content:center;min-width:62px;padding:6px 9px;border:1px solid #d0d5dd;border-radius:7px;color:#344054;text-decoration:none;font-weight:700}.fm-project-summary-actions a:hover{background:#f2f4f7}
   .fm-project-summary-footer{display:flex;justify-content:flex-end;border-top:1px solid #eaecf0;padding-top:12px}.fm-project-summary.fm-typed-widget .fm-project-summary-open{background:var(--primary,#175cd3);color:#fff;border-color:var(--primary,#175cd3);font-weight:700}.fm-project-summary.fm-typed-widget .fm-project-summary-open:hover{filter:brightness(.92);background:var(--primary,#175cd3)}
-  @media(max-width:390px){.fm-project-summary-head{grid-template-columns:96px minmax(0,1fr)}.fm-project-summary-cover{height:96px}.fm-project-summary-meta{grid-template-columns:1fr 1fr}.fm-project-summary-meta>div:last-child{grid-column:1/-1}}
+  @media(max-width:390px){.fm-project-summary-head.has-cover{grid-template-columns:96px minmax(0,1fr)}.fm-project-summary-cover{width:96px;height:96px}}
  `;document.head.append(style);}
  function load(path){if(!loads.has(path))loads.set(path,new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=new URL(path,base);s.onload=resolve;s.onerror=()=>{loads.delete(path);reject(Error('Control is unavailable'));};document.head.append(s);}));return loads.get(path);}
  const element=(tag,text)=>{const el=document.createElement(tag);if(text!=null)el.textContent=String(text);return el;};
  function shell(root,title){const card=element('section');card.className='fm-typed-widget';card.style.cssText='background:var(--card,#fff);border:1px solid var(--border,#e4e7ec);border-radius:12px;padding:14px;color:var(--text,#344054);font:13px system-ui;display:grid;gap:12px';card.append(element('strong',title));root.replaceChildren(card);return card;}
  const userStyles=document.createElement('style');userStyles.textContent=`
- .fm-user-summary{gap:12px!important;padding:18px!important;line-height:1.45}
- .fm-user-summary-photo{width:88px;height:88px;border-radius:14px;object-fit:cover;background:#e9eef4;display:grid;place-items:center;color:#475467;font-size:28px;font-weight:700}
- .fm-user-summary-identity{display:grid;gap:4px;min-width:0}
- .fm-user-summary-heading{display:flex;align-items:center;gap:10px;min-width:0}
- .fm-user-summary-name{min-width:0;font-size:18px;line-height:1.25;color:var(--text,#182230);overflow-wrap:anywhere}
+ .fm-user-summary{gap:10px!important;padding:14px!important;line-height:1.4}
+ .fm-user-summary-head{display:grid;grid-template-columns:80px minmax(0,1fr);gap:12px;align-items:center;min-width:0}
+ .fm-user-summary-photo{width:80px;height:80px;border-radius:12px;object-fit:cover;background:#e9eef4;display:grid;place-items:center;color:#475467;font-size:26px;font-weight:700}
+ .fm-user-summary-identity{display:grid;gap:5px;align-content:center;min-width:0}
+ .fm-user-summary-heading{display:flex;align-items:center;gap:8px;min-width:0}
+ .fm-user-summary-name{min-width:0;font-size:17px;line-height:1.25;color:var(--text,#182230);overflow-wrap:anywhere}
  .fm-user-summary-subtitle{color:#667085;overflow-wrap:anywhere}
- .fm-user-summary-presence{display:flex;align-items:center;gap:7px;color:#667085;font-size:12px}
+ .fm-user-summary-presence{display:inline-flex;align-items:center;gap:6px;flex:none;padding:3px 7px;border-radius:999px;background:#f2f4f7;color:#667085;font-size:11px;font-weight:600}
+ .fm-user-summary-presence[data-status="active"]{background:#ecfdf3;color:#067647}
  .fm-user-summary-dot{width:9px;height:9px;border-radius:50%;background:#98a2b3;flex:none}
  .fm-user-summary-dot[data-status="active"]{background:#16a34a}
  .fm-user-summary-details{display:grid;gap:9px;margin:0;padding-top:12px;border-top:1px solid #eaecf0}
@@ -36,29 +38,25 @@
  W.attachRenderer('user.summary','1',(root,{data,reference,context})=>{
   const card=shell(root,null);card.classList.add('fm-user-summary');card.replaceChildren();
   const name=String(data.name||'Team member'),photo=String(data.profile_photo||'');
-  if(photo){try{const url=new URL(photo,location.href);if(['http:','https:'].includes(url.protocol)){const image=element('img');image.className='fm-user-summary-photo';image.src=url.href;image.alt=`${name} profile photo`;card.append(image);}}catch{}}
-  if(!card.firstChild){const fallback=element('div',name.split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase()||'?');fallback.className='fm-user-summary-photo';fallback.setAttribute('aria-label',`${name} profile photo`);card.append(fallback);}
+  const head=element('div');head.className='fm-user-summary-head';card.append(head);
+  if(photo){try{const url=new URL(photo,location.href);if(['http:','https:'].includes(url.protocol)){const image=element('img');image.className='fm-user-summary-photo';image.src=url.href;image.alt=`${name} profile photo`;head.append(image);}}catch{}}
+  if(!head.firstChild){const fallback=element('div',name.split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase()||'?');fallback.className='fm-user-summary-photo';fallback.setAttribute('aria-label',`${name} profile photo`);head.append(fallback);}
   const identity=element('div');identity.className='fm-user-summary-identity';const headingRow=element('div');headingRow.className='fm-user-summary-heading';const heading=element('strong',name);heading.className='fm-user-summary-name';headingRow.append(heading);
   const presence=element('div');presence.className='fm-user-summary-presence';const dot=element('span');dot.className='fm-user-summary-dot';dot.setAttribute('role','img');const status=element('span','Away');presence.append(dot,status);headingRow.append(presence);identity.append(headingRow);
-  const subtitle=[data.title,data.department].map(value=>String(value||'').trim()).filter(Boolean).join(', ');if(subtitle){const line=element('div',subtitle);line.className='fm-user-summary-subtitle';identity.append(line);}card.append(identity);
-  const updatePresence=users=>{const person=users.find(user=>user.user_id===data.id),active=person?.status==='active',label=active?'Active':awayLabel(person?.last_active_at);dot.dataset.status=active?'active':'away';dot.title=label;dot.setAttribute('aria-label',label);status.textContent=active?'Active':'Away';};
+  const subtitle=[data.title,data.department].map(value=>String(value||'').trim()).filter(Boolean).join(', ');if(subtitle){const line=element('div',subtitle);line.className='fm-user-summary-subtitle';identity.append(line);}head.append(identity);
+  const updatePresence=users=>{const person=users.find(user=>user.user_id===data.id),active=person?.status==='active',label=active?'Active':awayLabel(person?.last_active_at);presence.dataset.status=active?'active':'away';dot.dataset.status=active?'active':'away';dot.title=label;dot.setAttribute('aria-label',label);status.textContent=active?'Active':'Away';};
   updatePresence([]);const orgId=(reference.target||context.target)?.organizationId;const stop=orgId&&global.PlatformRealtime?.watchPresence?.(orgId,'online',updatePresence);
   const details=element('dl');details.className='fm-user-summary-details';const rows=[['Email',data.email,'mailto:'],['Phone',data.phone,'tel:'],...(Array.isArray(data.phone_fields)?data.phone_fields:[]).map(field=>[field.label,field.number,'tel:']),['Location',data.location],['Time zone',data.time_zone],['Pronouns',data.pronouns],['About',data.bio]];for(const [label,raw,scheme]of rows){const value=String(raw||'').trim();if(!value)continue;const row=element('div'),term=element('dt',String(label||'Phone')),definition=element('dd');if(scheme){const link=element('a',value);link.href=scheme+value;definition.append(link);}else definition.textContent=value;row.append(term,definition);details.append(row);}if(details.childElementCount)card.append(details);
   if(data.id&&String(data.id)!==String(global.__APP?.userId||'')){const button=element('button','Message in Channels'),error=element('div');button.type='button';button.className='fm-user-summary-action';error.className='fm-user-summary-error';error.setAttribute('role','status');button.onclick=async()=>{button.disabled=true;error.textContent='';try{if(!global.ChannelsAPI?.channels?.create||!global.FirstMateChannelsNavigation?.openMessage)throw Error('Channels is unavailable.');const result=await global.ChannelsAPI.channels.create(orgId,{type:'dm',member_user_ids:[data.id]});await global.FirstMateChannelsNavigation.openMessage({channel_id:result.channel.id});}catch(e){error.textContent=e?.message||'Could not open the message.';button.disabled=false;}};card.append(button,error);}
   return {destroy(){stop?.();root.replaceChildren();}};
  });
- function projectSummary(root,data,reference,context){
+ async function projectSummary(root,data,reference,context){
   const target=reference.target||context.target||{},projectId=String(target.projectId||data.id||'');
   const card=element('section');card.className='fm-typed-widget fm-project-summary';root.replaceChildren(card);
   const head=element('div');head.className='fm-project-summary-head';card.append(head);
-  const cover=element('div');cover.className='fm-project-summary-cover';const placeholder=element('span','▧');placeholder.setAttribute('aria-hidden','true');
-  const mediaId=String(data.cover_media_id||'');if(mediaId&&target.organizationId&&global.PlatformAPI?.media?.fileUrl){const img=element('img');img.alt='';img.src=global.PlatformAPI.media.fileUrl(target.organizationId,mediaId,'thumb_320');img.onerror=()=>{img.hidden=true;};cover.append(img);}
-  cover.append(placeholder);head.append(cover);
+  const mediaId=String(data.cover_media_id||'');if(mediaId&&target.organizationId&&global.PlatformAPI?.media?.fileUrl){const cover=element('div'),img=element('img');cover.className='fm-project-summary-cover';img.alt='';img.onerror=()=>{cover.remove();head.classList.remove('has-cover');};img.src=global.PlatformAPI.media.fileUrl(target.organizationId,mediaId,'thumb_320');cover.append(img);head.append(cover);head.classList.add('has-cover');}
   const identity=element('div');identity.className='fm-project-summary-identity';const name=element('strong',data.title||data.name||'Project');name.className='fm-project-summary-name';identity.append(name);if(data.address){const address=element('span',data.address);address.className='fm-project-summary-address';identity.append(address);}head.append(identity);
-  const metadata=element('div');metadata.className='fm-project-summary-meta';card.append(metadata);
-  const addMeta=(label,value)=>{const cell=element('div');cell.append(element('small',label),element('strong',value||'—'));metadata.append(cell);};
-  const jobType=String(data.job_type||''),projectType=String(data.project_type||'');
-  addMeta('Stage',data.stage_label||'');addMeta(jobType?'Job type':'Project type',jobType||projectType);const amount=Number(data.deal_value_cents);addMeta('Deal value',data.deal_value_cents!=null&&Number.isFinite(amount)?new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(amount/100):'');
+  const metadata=element('div');metadata.className='fm-project-summary-meta';metadata.hidden=true;card.append(metadata);
   const contact=element('div');contact.className='fm-project-summary-contact';card.append(contact);contact.append(element('small','Primary contact'),element('strong',data.primary_contact_visible===false?'Contact details unavailable':data.primary_contact_name||'No primary contact'));
   if(data.primary_contact_phone){const line=element('span',data.primary_contact_phone);line.className='fm-project-summary-contact-detail';contact.append(line);}
   if(data.primary_contact_email){const line=element('span',data.primary_contact_email);line.className='fm-project-summary-contact-detail';contact.append(line);}
@@ -68,6 +66,11 @@
   if(/^[+0-9() .-]{3,32}$/.test(phone)&&dial.length>=3){action('Call','tel:'+dial);action('Text','sms:'+dial);}
   if(/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email))action('Email','mailto:'+encodeURIComponent(email));
   const footer=element('div');footer.className='fm-project-summary-footer';const open=element('button','Open project');open.type='button';open.className='fm-project-summary-open';open.disabled=!projectId;open.onclick=()=>{const project={id:projectId,title:data.title||data.name||'',address:data.address||''};if(global.Portal?.modules?.request?.openProject)global.Portal.modules.request.openProject(project,{tab:'map'});else global.FirstMateProjectWindows?.open?.(project,{tab:'map'});};footer.append(open);card.append(footer);
+  if(projectId&&target.organizationId){try{
+   if(!global.FirstMatePriorityFields)await load('../priority-fields/priority-fields.js');
+   const fields=global.FirstMatePriorityFields,items=await fields.resolve(target.organizationId,projectId);
+   for(const item of items){if(item.result?.status!=='ready'||item.result.value==null||item.result.value==='')continue;const value=fields.format(item);if(!value)continue;const cell=element('div');cell.append(element('small',item.label),element('strong',value));metadata.append(cell);}metadata.hidden=!metadata.childElementCount;
+  }catch{metadata.hidden=true;}}
   return {destroy(){root.replaceChildren();}};
  }
  for(const kind of ['project','contact','document'])W.attachRenderer(kind+'.summary','1',(root,{data,config,reference,context})=>{

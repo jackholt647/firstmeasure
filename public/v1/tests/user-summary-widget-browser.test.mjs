@@ -13,7 +13,7 @@ test('user preview shows profile, live presence, and opens a Channels direct mes
   await page.route('http://widgets.test/**',async route=>{
    const pathname=new URL(route.request().url()).pathname;
    if(pathname.startsWith('/libraries/'))return route.fulfill({contentType:pathname.endsWith('.json')?'application/json':'application/javascript',body:await readFile(new URL(pathname.slice('/libraries/'.length),libraries))});
-   return route.fulfill({contentType:'text/html',body:'<div id="host"></div>'});
+   return route.fulfill({contentType:'text/html',body:'<div id="host" style="width:360px"></div>'});
   });
   await page.goto('http://widgets.test/');
   await page.evaluate(()=>{
@@ -34,6 +34,11 @@ test('user preview shows profile, live presence, and opens a Channels direct mes
   assert.equal(await card.locator('.fm-user-summary-name').innerText(),'Avery Smith');
   assert.equal(await card.locator('.fm-user-summary-subtitle').innerText(),'Designer, Product Department');
   assert.equal(await card.locator('.fm-user-summary-heading .fm-user-summary-presence').count(),1);
+  const photoBox=await card.locator('.fm-user-summary-photo').boundingBox(),identityBox=await card.locator('.fm-user-summary-identity').boundingBox(),nameBox=await card.locator('.fm-user-summary-name').boundingBox(),presenceBox=await card.locator('.fm-user-summary-presence').boundingBox();
+  assert.ok(photoBox&&identityBox&&nameBox&&presenceBox);
+  assert.ok(identityBox.x>=photoBox.x+photoBox.width,'name, title, department and status sit to the right of the photo');
+  assert.ok(presenceBox.x>=nameBox.x+nameBox.width,'status remains beside the name');
+  assert.ok(identityBox.y<photoBox.y+photoBox.height,'identity aligns with the photo');
   assert.equal(await card.locator('.fm-user-summary-details dt').allInnerTexts().then(labels=>labels.includes('Title')||labels.includes('Department')),false);
   for(const value of ['avery@example.test','555-0102','+12065550123','555-0103','555-0104','Seattle','America/Los_Angeles','they/them','Designs products'])assert.ok((await card.innerText()).includes(value),value);
   assert.deepEqual(await card.locator('.fm-user-summary-details a[href^="tel:"]').allInnerTexts(),['555-0102','+12065550123','555-0103','555-0104']);
