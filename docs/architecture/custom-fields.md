@@ -211,8 +211,8 @@ publication implementation is needed. It does not invent new resource records.
 
 Branch, department, division/region, and team definitions are shared organization
 wide in the default branch module, just like organization and user definitions.
-Values live in `resource_custom_fields/<entity>_<owner-id>`, independent of domain
-catalog/team revisions. Reads verify the owner, never create value records, and
+Values live in `resource_custom_fields/<entity>_<sha256(owner-id)>`, independent of domain
+catalog/team revisions (hashed keys preserve all existing domain ID formats). Reads verify the owner, never create value records, and
 return revision 0 when values have not been saved. Writes require company
 settings permission, revision checks, and the existing action receipt/idempotency
 contract. Missing, foreign-organization, and mismatched branch owners fail. The
@@ -261,9 +261,16 @@ integration seam for an authorized phone-domain command, requiring phone
 management and the owner write permission. It checks the declared field and
 record revision and accepts only active numbers owned by the organization with
 the matching authoritative provider issuance ID. Pass null or [] to unassign;
-unassignment never releases a provider number. There is intentionally no public
-custom-field phone assignment action. Future phone-management UI should call an
-authorized phone-domain command that wraps this seam.
+unassignment never releases a provider number. The dedicated phone-domain action `platform-phones.<entity>.assignment.set` is available
+through the existing publication actions API (with ordinary CSRF, authorization,
+command mode and idempotency). Input is `{field, phoneNumbers: [E.164
+strings], expectedRevision}` and the usual owner target. Empty phoneNumbers
+unassigns. The server resolves issuance IDs from the phone system; clients cannot
+forge them. Its phone-management permission intersects the owner write and field
+permissions, checked again on receipt replay. It is not a custom-field write action and is intended only for the
+separate phone-management UI. Generic module/system grants cannot invoke it
+without a human authority context. Assignment never purchases, releases or
+reroutes a provider number.
 
 Use the `phones` export for contact/user summaries and calling. It lists each
 visible declared phone with `field`, `type`, `phone_number`, and `available`;

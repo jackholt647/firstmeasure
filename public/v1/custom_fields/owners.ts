@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import type { JsonObject } from "../platform/storage.js";
 import type { TargetRef } from "../platform/publication/contracts.js";
@@ -16,8 +17,8 @@ export const FIELD_OWNERS = {
 } as const;
 export type FieldEntity = keyof typeof FIELD_OWNERS;
 export function resourceFieldId(entity:FieldEntity,id:string) {
-  if(!FIELD_OWNERS[entity].sidecar || !/^[a-zA-Z0-9_-]{1,180}$/.test(id)) throw badRequest("custom_field_owner_invalid","Choose an existing resource owner.");
-  return `${entity}_${id}`;
+  if(!FIELD_OWNERS[entity].sidecar || !id || id.length>180) throw badRequest("custom_field_owner_invalid","Choose an existing resource owner.");
+  return `${entity}_${createHash("sha256").update(id).digest("hex")}`;
 }
 export function ownerForCollection(collection:string,data:JsonObject):FieldEntity {
   const entity = collection === "projects" ? "project" : collection === "customers" ? "contact" : collection === "users" ? "user" : collection === "resource_custom_fields" ? String(data.entity) : "organization";

@@ -9,6 +9,7 @@
  */
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
+  manage_communications: {actions:["platform-phones.project.assignment.set", "platform-phones.contact.assignment.set", "platform-phones.organization.assignment.set", "platform-phones.user.assignment.set", "platform-phones.branch.assignment.set", "platform-phones.department.assignment.set", "platform-phones.division.assignment.set", "platform-phones.team.assignment.set"]},
   manage_external_sharing:{actions:["collaboration.share.revoke"]},
   view_projects: { actions: ["work.todos.list", "work.todos.read", "work.todos.history", "work.configuration.read", "projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-project.phones", "custom-fields-organization.contract", "custom-fields-organization.values", "custom-fields-organization.phones", "projects.record", "widget-objects.assignments", "widget-objects.project", "widget-objects.document", "widget-objects.document-directory", "project-widgets.directory", "work.records", "todos.items", "organization.profile", "referrals.eligibility"] },
   manage_projects: { data: ["lead-import.deliveries"], actions: ["work.todos.create", "work.todos.patch", "work.todos.transition", "work.followUps.outcome", "leads.import", "materials.calculus.command", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
@@ -77,6 +78,6 @@ function index(kind: "actions" | "data") {
 
 const actionPermissions = index("actions");
 const dataPermissions = index("data");
-export function publishedActionPermission(id: string): string | undefined { const permission=actionPermissions.get(id); if(id==="payroll.contractor.worker.update")return "manage_company_users|manage_company_settings"; return id.startsWith("payroll.") && permission==="manage_payroll" ? "manage_payroll|manage_company_settings" : permission; }
+export function publishedActionPermission(id: string): string | undefined { const permission=actionPermissions.get(id); if(id.startsWith("platform-phones.") && id.endsWith(".assignment.set"))return "manage_communications|manage_company_settings"; if(id==="payroll.contractor.worker.update")return "manage_company_users|manage_company_settings"; return id.startsWith("payroll.") && permission==="manage_payroll" ? "manage_payroll|manage_company_settings" : permission; }
 export function publishedDataPermission(id: string): string | undefined { const permission=dataPermissions.get(id); return id.startsWith("payroll.") && permission==="manage_payroll" ? "manage_payroll|manage_company_settings" : permission; }
 export function publishedPermissionBundles() { return bundles; }

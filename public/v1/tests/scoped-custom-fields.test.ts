@@ -57,7 +57,14 @@ test("grouping fields use existing owners, independent revisions, and phone issu
     // Only server phone-domain code has this capability; neither HTTP nor a
     // generic module operation grant can populate or remove the managed value.
     const phoneCtx={...ctx,system:undefined,auth:{orgId:org,userId:"manager",role:"member",permissions:{manage_communications:true,manage_company_users:true},applicationAccess:{management:{enabled:true,permissions:{"*":true}}}}} as any;
-    await phones.setPlatformPhoneField(phoneCtx,target,"user","lines",[ref],1);
+    const {invokeAction}=await import("../platform/publication/actions.js");
+    const action={action:"platform-phones.user.assignment.set",target};
+    const input={field:"lines",phoneNumbers:[ref.phone_number],expectedRevision:1};
+    const assigned=await invokeAction(phoneCtx,action,input,{idempotencyKey:"assign-line"});assert.equal(assigned.receipt.status,"succeeded");
+    assert.equal((await invokeAction(phoneCtx,action,input,{idempotencyKey:"assign-line"})).receipt.status,"succeeded");
+    phoneCtx.auth.permissions.manage_company_users=false;
+    await assert.rejects(()=>invokeAction(phoneCtx,action,input,{idempotencyKey:"assign-line"}));
+    phoneCtx.auth.permissions.manage_company_users=true;
     const published=await readPublishedData(ctx,{provider:"custom-fields-user",export:"phones",target});
     assert.equal(published.status,"ready");assert.equal((published as any).value.find((p:any)=>p.type === "platform_phone").available,true);
     for(const values of [{lines:[]},{lines:null},{lines:[{...ref,issuance_id:"forged"}]}]) await assert.rejects(()=>storage.upsertDocument(org,"users",{id:"member",data:{custom_fields:values}}));
