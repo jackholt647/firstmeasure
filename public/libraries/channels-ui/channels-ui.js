@@ -955,10 +955,10 @@
 @media(prefers-reduced-motion:reduce){.fm-ch-side-typing>span{animation:none}}
 .fm-ch-typing{min-height:20px;color:var(--ch-muted);font-size:11px;padding:0 16px 4px;font-style:italic}
 .fm-ch-composer{border-top:1px solid var(--ch-border);padding:10px 16px 12px}
-.fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px;background:#fff}
+.fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px 9px;background:#fff}
 .fm-ch-composer-box:focus-within{border-color:var(--ch-accent)}
 .fm-ch-composer textarea{width:100%;border:none;outline:none;resize:none;font:inherit;background:transparent;max-height:180px;min-height:22px;color:var(--ch-text)}
-.fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.fm-ch-composer-box .fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:8px;min-height:32px;flex-wrap:wrap}
 .fm-ch-reply-broadcast{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ch-muted);margin-right:auto;cursor:pointer}.fm-ch-reply-broadcast[hidden]{display:none}.fm-ch-reply-broadcast input{width:15px;height:15px;margin:0;accent-color:var(--ch-accent)}.fm-ch-thread-broadcast{display:block;margin:0 0 6px;color:var(--ch-muted);font-size:11px;text-align:left}.fm-ch-thread-broadcast:hover{color:var(--ch-accent);text-decoration:underline}
 .fm-ch-audio-mount:not(:empty){width:100%;animation:fm-ch-audio-in .18s ease-out}.fm-ch-audio-mount .fm-an-inline{margin-top:7px}
 @keyframes fm-ch-audio-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
@@ -968,6 +968,7 @@
 .fm-ch-send:hover{filter:brightness(1.06)}
 .fm-ch-send:disabled{opacity:.45;cursor:default}
 .fm-ch-rich-editor{min-height:64px;max-height:220px;overflow:auto;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 2px;font-size:14px;line-height:1.5}
+.fm-ch-composer-box .fm-ch-rich-editor{min-height:72px}
 .fm-ch-rich-editor:empty:before{content:attr(data-placeholder);color:var(--ch-muted);pointer-events:none}
 .fm-ch-rich-editor table,.fm-ch-msg-body table{border-collapse:collapse;margin:8px 0;width:100%;table-layout:fixed}
 .fm-ch-table-card{border:1px solid var(--ch-border);border-radius:8px;margin:8px 0;overflow:auto;cursor:pointer;background:var(--ch-bg)}
@@ -4622,7 +4623,8 @@
       if (schedule) sendPair.appendChild(schedule);
       sendPair.appendChild(send);
       row.appendChild(sendPair);
-      composer.append(editNote, box, dictationMount, audioMount, pendingWrap, row);
+      box.appendChild(row);
+      composer.append(editNote, box, dictationMount, audioMount, pendingWrap);
 
       const autosize = () => {
         textarea.style.height = 'auto';
@@ -4929,7 +4931,8 @@
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
       row.append(broadcastLabel, send);
       if(features.attachments)row.prepend(gifPickerButton(state.threadRootId));
-      node.append(pendingWrap, box, row);
+      box.appendChild(row);
+      node.append(pendingWrap, box);
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
