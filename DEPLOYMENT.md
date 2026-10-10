@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 10 Feed editor: [Mentions, table controls and shared GIF/emoji picker integration](deploy/digitalocean/development-feed-editor-layout-20261010.md) records source locations, validation and development rollout.
+
 October 9 Feed List: [Day panels, named appointments, and project cover placeholders](deploy/digitalocean/development-feed-list-day-panel-20261009.md) records the development rollout, validation, and file locations.
 
 October 8 Feed stability: [Stable tile layouts, Posts tools, and Settings > Feed](deploy/digitalocean/development-feed-stability-settings-20261008.md) records the latest development rollout and file locations.
