@@ -19,12 +19,17 @@ export function contactKind(value:JsonObject):"human"|"org" {
 }
 export function normalizeContactSettings(value:unknown):JsonObject {
  const input=asObject(value),seen=new Set<string>();
- const tags=(Array.isArray(input.tags)?input.tags:[]).map(raw=>{
+ const defaults=[{id:"customer",label:"Customer"},{id:"vendor",label:"Vendor"},{id:"referral_partner",label:"Referral Partner"}];
+ const source=Array.isArray(input.tags)?input.tags:[];
+ const sourceIds=new Set(source.map(raw=>text(asObject(raw).id)));
+ const starter=Number(input.version) >= 2 ? source : [...source,...defaults.filter(row=>!sourceIds.has(row.id))];
+ const tags=starter.map(raw=>{
   const row=asObject(raw),id=text(row.id),label=text(row.label);
-  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(id) || !label || label.length>80 || seen.has(id)) throw badRequest("contact_tag_invalid","Tags need unique stable IDs and labels of up to 80 characters.");
+  if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(id) || !label || label.length>80) throw badRequest("contact_tag_invalid","Tags need unique stable IDs and labels of up to 80 characters.");
+  if(seen.has(id))throw badRequest("contact_tag_invalid","Tags need unique stable IDs and labels of up to 80 characters.");
   seen.add(id);
   return {id,label,enabled:row.enabled!==false};
  }).filter(row=>row.id!=="org");
  if(tags.length>256)throw badRequest("contact_tags_limit","Use at most 256 contact tags.");
- return {version:1,tags:[{id:"org",label:"Org",enabled:true,builtin:true},...tags]};
+ return {version:2,track_time_zones:input.track_time_zones===true,tags:[{id:"org",label:"Org",enabled:true,builtin:true},...tags]};
 }

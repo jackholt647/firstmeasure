@@ -374,7 +374,10 @@ test("typed contact references, defaults, managed tags and required media are en
  await assert.rejects(create("badtag",{tags:["arbitrary"]}),/catalog/);
  const ref={project_id:"company",contact_id:"c_company"};
  await assert.rejects(create("badspouse",{custom_field_values:{relationships:{spouse:ref}}}),/human/);
- await create("employee",{custom_field_values:{relationships:{employer:ref}}});
+  await create("employee",{first_name:"Ada",last_name:"Smith",time_zone:"America/Los_Angeles",custom_field_values:{relationships:{employer:ref}}});
+  const employeeRecord=(await readDocument(orgId,"projects","employee")).data.contacts as any[];
+  assert.equal(employeeRecord[0].first_name,"Ada");assert.equal(employeeRecord[0].last_name,"Smith");assert.equal(employeeRecord[0].time_zone,"America/Los_Angeles");
+  await assert.rejects(create("badZone",{time_zone:"Mars/Olympus_Mons"}),/valid time zone/);
  await assert.rejects(create("badref",{custom_field_values:{relationships:{employer:{project_id:"missing",contact_id:"c_missing"}}}}));
  const options=await client.request("GET",`/v1/platform/organizations/${orgId}/contacts/options?kind=org`);
  assert.equal(options.contacts.length,1);assert.equal(options.contacts[0].contact_id,"c_company");
@@ -421,11 +424,15 @@ test("optional photos import into the contact library while invalid photos repor
 
 
 test("only admins manage catalogs through dedicated, generic and published APIs; draft uploads support required photos",async()=>{
+  const {normalizeContactSettings}=await import("../contacts/contracts.js");
+  assert.deepEqual((normalizeContactSettings({}).tags as any[]).slice(1).map(tag=>tag.id),["customer","vendor","referral_partner"]);
  const owner=createSessionClient(),{orgId}=await register(owner);
  const suffix=Date.now().toString(36),email=`contact-member-${suffix}@example.test`,password="contact member test password";
  await owner.request("POST",`/v1/platform/organizations/${orgId}/users`,{data:{name:"Contact Member",email,password,status:"active",role:"admin",send_invite:false,permissions:{manage_company_settings:false,view_contacts:true,manage_projects:true}}});
  const member=createSessionClient();await member.request("POST","/v1/platform/auth/login",{email,password,organization_id:orgId});
- const settings=await member.request("GET",`/v1/platform/organizations/${orgId}/contacts/settings`);assert.equal(settings.settings.tags[0].id,"org");
+  const settings=await member.request("GET",`/v1/platform/organizations/${orgId}/contacts/settings`);assert.equal(settings.settings.tags[0].id,"org");
+  for(const id of ["customer","vendor","referral_partner"])assert.ok(settings.settings.tags.some((tag:any)=>tag.id===id));
+  assert.equal(settings.settings.track_time_zones,false);
  assert.equal((await member.raw("PUT",`/v1/platform/organizations/${orgId}/contacts/settings`,{tags:[]})).statusCode,403);
  assert.equal((await member.raw("PUT",`/v1/platform/organizations/${orgId}/branch/default/modules/contact_settings`,{data:{tags:[]}})).statusCode,403);
  assert.equal((await member.raw("POST",`/v1/publication/organizations/${orgId}/actions/invoke`,{action:"contacts.settings.save",version:"1",target:{scope:"organization",organizationId:orgId},input:{tags:[]},idempotencyKey:"denied"})).statusCode,403);
@@ -435,6 +442,9 @@ test("only admins manage catalogs through dedicated, generic and published APIs;
  assert.equal(action.value.tags[1].label,"Priority");
  const replay=await owner.request("POST",`/v1/publication/organizations/${orgId}/actions/invoke`,payload);assert.equal(replay.receipt.replayed,true);
  const read=await member.request("POST",`/v1/publication/organizations/${orgId}/data/read`,{provider:"contacts",export:"settings",target});assert.equal(read.status,"ready");assert.equal(read.value.tags[1].label,"Priority");
+  const changed=await owner.request("PUT",`/v1/platform/organizations/${orgId}/contacts/settings`,{version:2,tags:[{id:"vendor",label:"Supplier",enabled:true},{id:"custom",label:"Custom",enabled:true}],track_time_zones:true});
+  assert.deepEqual(changed.settings.tags.map((tag:any)=>tag.id),["org","vendor","custom"]);
+  assert.equal(changed.settings.track_time_zones,true);
  const photo=await (await import("sharp")).default({create:{width:8,height:8,channels:3,background:"#338877"}}).png().toBuffer();
  const metadata={contact_record_project_id:"project_pending_photo",contact_draft:true};
  const upload=await member.request("POST",`/v1/platform/organizations/${orgId}/media`,{base64:photo.toString("base64"),content_type:"image/png",file_name:"portrait.png",owner_type:"contact",owner_id:"contact_pending_photo",slot:"profile",metadata});

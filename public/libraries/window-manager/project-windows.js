@@ -4,7 +4,7 @@
   'use strict';
   if (root.FirstMateProjectWindows) return;
   const records = new Map();
-  const contactsModuleUrl = document.currentScript?.src ? new URL('../apps/contacts/modal.js?v=20261008-contact-phones-v1', document.currentScript.src).href : '/libraries/apps/contacts/modal.js?v=20261008-contact-phones-v1';
+  const contactsModuleUrl = document.currentScript?.src ? new URL('../apps/contacts/modal.js?v=20261009-contact-window-v1', document.currentScript.src).href : '/libraries/apps/contacts/modal.js?v=20261009-contact-window-v1';
   let active = null;
   // Reload continuity belongs to this browser tab, not to the saved project.
   const orderSessionKey = 'fm-project-order-reload-v1';

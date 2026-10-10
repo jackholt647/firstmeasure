@@ -14,12 +14,14 @@
     saved: false,
     projects: [],
     loading: false,
-    portalLoading: false,
-    portalUrl: '',
     handle: null,
     addressAutocomplete: null,
     addressAutocompleteInput: null,
     catalog: [],
+    trackTimeZones: false,
+    relationshipMode: '',
+    relationshipType: '',
+    relationshipNames: {},
     mediaTab: false,
     mediaLoading: false,
     todoController: null,
@@ -49,6 +51,13 @@
       .replaceAll("'", '&#39;');
   }
   const phoneLabels=['home','cell','work','other'];
+  const timeZones=typeof Intl.supportedValuesOf==='function'?Intl.supportedValuesOf('timeZone'):['America/Los_Angeles','America/Denver','America/Chicago','America/New_York','UTC'];
+  function nameParts(contact={}){
+    const first=cleanText(contact.first_name),last=cleanText(contact.last_name);
+    if(first||last)return {first,last};
+    const full=cleanText(contact.name),split=full.lastIndexOf(' ');
+    return split>0?{first:full.slice(0,split),last:full.slice(split+1)}:{first:full,last:''};
+  }
   function phoneLabelOptions(){
     return `<option value="">Label…</option>${phoneLabels.map(label=>`<option value="${label}">${label[0].toUpperCase()+label.slice(1)}</option>`).join('')}`;
   }
@@ -110,6 +119,7 @@
     return {
       id: firstText(contact.id, contact.contact_id, project.contact_id, project.primary_contact_id),
       name: firstText(contact.name, project.customer_name, project.customerName, project.primary_contact_name, project.resident_name, project.residentName, typeof project.resident === 'string' ? project.resident : '', customer.name, resident.name),
+      first_name:firstText(contact.first_name),last_name:firstText(contact.last_name),time_zone:firstText(contact.time_zone),
       email: firstText(contact.email, project.customer_email, project.primary_contact_email, project.resident_email, project.residentEmail, customer.email, resident.email),
       phone: firstText(contact.phone, project.customer_phone, project.primary_contact_phone, project.resident_phone, project.residentPhone, customer.phone, resident.phone),
       address: firstText(contact.address, contact.default_address, project.contact_address, project.customer_address, project.primary_contact_address, customer.address, resident.address),
@@ -135,6 +145,7 @@
       project_id: firstText(contact.project_id, fallbackProject && projectId(fallbackProject)),
       project_ids: Array.isArray(contact.project_ids) ? contact.project_ids.map(cleanText).filter(Boolean) : [],
       name: firstText(contact.name, contact.customer_name, projectContact.name),
+      first_name:firstText(contact.first_name,projectContact.first_name),last_name:firstText(contact.last_name,projectContact.last_name),time_zone:firstText(contact.time_zone,projectContact.time_zone),
       email: firstText(contact.email, projectContact.email),
       phone: firstText(contact.phone, projectContact.phone),
       address: firstText(contact.address, contact.default_address, contact.contact_address, projectContact.address, fallbackProject?.contact_address, fallbackProject?.customer_address, fallbackProject?.primary_contact_address, fallbackProject?.workflow_state === 'contact_only' ? fallbackProject?.address : ''),
@@ -253,7 +264,7 @@
       .fm-contact-overlay.active{display:flex;opacity:1}
       #fmContactGallery[hidden],#fmContactProjects[hidden],#fmContactNewProject[hidden],#fmContactProjectCount[hidden]{display:none!important}#fmContactCustomFields{display:contents}.fm-contact-fields{align-content:start;grid-auto-rows:max-content}.fm-contact-profile{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}.fm-contact-profile-image{width:100px;height:100px;object-fit:cover;border-radius:10px}.fm-contact-tabs{display:flex;gap:8px;padding:0 18px;margin-bottom:12px}#fmContactGallery{min-width:0;overflow:auto;flex:1;padding:0 18px 18px}
       .fm-contact-win{width:min(1480px,94vw);height:min(940px,90vh);background:#fff;box-shadow:0 36px 120px rgba(15,23,42,.28);overflow:hidden;display:flex;flex-direction:column;position:relative}
-      .fm-contact-window-header{height:48px;min-height:48px;display:flex;align-items:center;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;flex:0 0 auto}
+       .fm-contact-window-header{min-height:36px;border-bottom:1px solid rgba(15,23,42,.10);background:#fff;flex:0 0 auto}
       .fm-contact-window-identity{display:flex;align-items:center;gap:9px;min-width:0;flex:1;padding:0 16px;color:#101828;font-size:13px;font-weight:1000}
       .fm-contact-window-identity i,.fm-contact-title-icon{color:var(--primary-readable,var(--primary,#d93025));flex:0 0 auto}
       .fm-contact-window-identity span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -266,9 +277,10 @@
       .fm-contact-kicker{font-size:10px;font-weight:1000;color:#667085;letter-spacing:.08em;text-transform:uppercase}
       .fm-contact-title-line{display:flex;align-items:center;gap:9px;min-width:0}
       .fm-contact-title{margin:2px 0 0;font-size:20px;font-weight:1000;color:#101828;letter-spacing:0;line-height:1.15;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .fm-contact-close{width:40px;height:40px;margin-right:5px;border-radius:10px;border:1px solid rgba(15,23,42,.10);background:#fff;color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer}
+       .fm-contact-close{position:absolute;top:0;right:5px;z-index:2;width:34px;height:34px;border-radius:10px;border:1px solid rgba(15,23,42,.10);background:#fff;color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer}
       .fm-contact-close:hover{color:#101828;background:#f8fafc}
       .fm-contact-fields{display:grid;flex:0 1 auto;min-height:0;gap:6px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:2px}
+       .fm-contact-name-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px}.fm-contact-relationship-actions{display:flex;gap:6px;flex-wrap:wrap}.fm-contact-relationship-panel{display:grid;gap:7px;border:1px solid #e4e7ec;border-radius:9px;padding:9px;background:#f8fafc}.fm-contact-relationship-panel[hidden],#fmContactTimeZoneField[hidden]{display:none!important}.fm-contact-relationship-match{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:850}.fm-contact-relationship-match button{border:0;background:none;color:#b42318;cursor:pointer}
       .fm-contact-field{display:grid;gap:3px}
       .fm-contact-field label{font-size:10px;font-weight:1000;color:#667085;letter-spacing:.06em;text-transform:uppercase}
       .fm-contact-input{width:100%;box-sizing:border-box;border:1px solid rgba(15,23,42,.14);border-radius:9px;min-height:34px;padding:6px 9px;font-size:12px;font-weight:850;color:#101828;outline:none}
@@ -353,7 +365,7 @@
     contactWindow = window.FirstMateWindows.attach({
       element, host, stackElement:overlay, menuHost:overlay,
       header:element.querySelector('.fm-contact-window-header'),
-      controlsHost:element.querySelector('.fm-contact-window-header'),
+      controlsHost:element.querySelector('.r-window-bar-actions'),
       title:element.querySelector('.fm-contact-window-identity'),
       contentTarget:document.getElementById('mainPanels'),
       customChrome:true, titleMenu:false, presentationModes:true, mobileFullscreen:true, viewportCoordinates:true, nativeModalLayout:true,
@@ -385,9 +397,9 @@
       }
       if(state.mediaTab&&!wasMediaVisible)void mountContactGallery();
     }});
-    const toolbar=document.createElement('div');toolbar.className='fm-shell-toolbar';const tabbar=element.querySelector('.fm-contact-tabs');tabbar.before(toolbar);toolbar.append(tabbar);
-    contactTrays=window.FirstMateWindowShell.trayHost({container:element.querySelector('.fm-contact-content'),header:toolbar,getContext:()=>({contact:state.contact,orgId:orgId()})});
-    contactShell=window.FirstMateWindowShell.mount({element,header:element.querySelector('.fm-contact-window-header'),identity:element.querySelector('.fm-contact-window-identity'),tabs:element.querySelector('.fm-contact-tabs'),sidebar:element.querySelector('.fm-contact-left'),panes:contactPanes,trays:contactTrays});
+    const header=element.querySelector('.fm-contact-window-header');
+    contactTrays=window.FirstMateWindowShell.trayHost({container:element.querySelector('.fm-contact-content'),header,getContext:()=>({contact:state.contact,orgId:orgId()})});
+    contactShell=window.FirstMateWindowShell.mount({element,header,identity:element.querySelector('.fm-contact-window-identity'),tabs:element.querySelector('.fm-contact-tabs'),sidebar:element.querySelector('.fm-contact-left'),panes:contactPanes,trays:contactTrays,headerRows:2});
   }
   function ensureUI(){
     injectCSS();
@@ -401,22 +413,26 @@
         <div class="fm-contact-window-header">
           <div class="fm-contact-window-identity"><i class="fas fa-address-card" aria-hidden="true"></i><span id="fmContactWindowTitle">${(globalThis.PlatformLanguage?.htmlText("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</span></div>
           <button type="button" class="fm-contact-close" id="fmContactClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
+           <div class="r-window-bar-actions"></div>
+           <div class="fm-contact-tabs" role="tablist" aria-label="Contact sections"><button type="button" role="tab" data-tab="projects" id="fmContactProjectsTab">Projects</button><button type="button" role="tab" data-tab="media" id="fmContactMediaTab">Photos &amp; Media</button></div>
         </div>
         <div class="fm-contact-content">
         <section class="fm-contact-left">
           <div class="fm-contact-fields">
             <div class="fm-contact-profile" id="fmContactProfile"></div>
-            <div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row"><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</span><span class="fm-contact-required">${(globalThis.PlatformLanguage?.htmlText("contacts","m_db97f048cd99aa","Required") ?? "Required")}</span></label><input class="fm-contact-input" id="fmContactName" autocomplete="name" required aria-required="true"></div>
+            <div class="fm-contact-name-fields"><div class="fm-contact-field" id="fmContactNameField"><label class="fm-contact-label-row" for="fmContactFirstName"><span>First name</span><span class="fm-contact-required">Required</span></label><input class="fm-contact-input" id="fmContactFirstName" autocomplete="given-name" required aria-required="true"></div><div class="fm-contact-field"><label for="fmContactLastName">Last name</label><input class="fm-contact-input" id="fmContactLastName" autocomplete="family-name"></div></div>
             <div class="fm-contact-field"><div class="fm-contact-phone-heading"><label for="fmContactPhone">Primary Phone</label><button type="button" class="fm-contact-phone-add" id="fmContactAddPhone" aria-label="Add secondary phone"><i class="fas fa-plus" aria-hidden="true"></i> Add phone</button></div><div class="fm-contact-phone-controls"><input class="fm-contact-input" id="fmContactPhone" type="tel" inputmode="tel" autocomplete="tel" aria-label="Primary Phone"><select class="fm-contact-input" id="fmContactPrimaryPhoneLabel" aria-label="Primary phone label">${phoneLabelOptions()}</select></div></div>
             <div class="fm-contact-field" id="fmContactSecondaryField" hidden><label for="fmContactSecondaryPhone">Secondary Phone</label><div class="fm-contact-phone-controls"><input class="fm-contact-input" id="fmContactSecondaryPhone" type="tel" inputmode="tel" autocomplete="tel-national" aria-label="Secondary Phone"><select class="fm-contact-input" id="fmContactSecondaryPhoneLabel" aria-label="Secondary phone label">${phoneLabelOptions()}</select></div><div class="fm-contact-phone-actions"><button type="button" id="fmContactMakeSecondaryPrimary">Set as primary</button><button type="button" id="fmContactRemoveSecondary">Remove</button></div></div>
             <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_5d2b9327181e33","Email") ?? "Email")}</label><input class="fm-contact-input" id="fmContactEmail" type="email" autocomplete="email"></div>
             <div class="fm-contact-field"><label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_04774ec8f0f789","Default Address") ?? "Default Address")}</label><input class="fm-contact-input" id="fmContactAddress" autocomplete="street-address"></div>
+            <div class="fm-contact-field" id="fmContactTimeZoneField" hidden><label for="fmContactTimeZone">Time zone</label><select class="fm-contact-input" id="fmContactTimeZone" aria-label="Contact time zone"></select></div>
             <div id="fmContactCustomFields"></div>
             <div class="fm-contact-field" id="fmContactTagsField">
               <label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_562d2cd3a48b8f","Tags") ?? "Tags")}</label>
               <div class="fm-contact-tags" id="fmContactTags"></div>
               <div class="fm-contact-import-meta" id="fmContactImportMeta" hidden></div>
             </div>
+            <div class="fm-contact-field" id="fmContactRelationships"><label>Relationships</label><div id="fmContactRelationshipMatches"></div><div class="fm-contact-relationship-actions"><button type="button" class="fm-contact-btn" data-add-relationship="employer">+ Add employer</button><button type="button" class="fm-contact-btn" data-add-relationship="spouse">+ Add spouse</button></div><div class="fm-contact-relationship-panel" id="fmContactRelationshipPanel" hidden></div></div>
           </div>
           <div class="fm-contact-todos" id="fmContactTodos" hidden>
             <label>${(globalThis.PlatformLanguage?.htmlText("contacts","m_a6534938817ec3","To-dos") ?? "To-dos")}</label>
@@ -425,11 +441,11 @@
           <div class="fm-contact-meta" id="fmContactMeta"></div>
           <div class="fm-contact-actions">
             <button type="button" class="fm-contact-btn" id="fmContactCall"><i class="fas fa-phone"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8d4eaa0da004be","Call") ?? "Call")}</span></button>
-            <button type="button" class="fm-contact-btn" id="fmContactPortal" data-fm-tooltip="Copy Customer Portal link"><i class="fas fa-link"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_a4cd44bc12f332","Portal") ?? "Portal")}</span></button>
+            <button type="button" class="fm-contact-btn" id="fmContactText"><i class="fas fa-comment-sms"></i><span>Text</span></button>
+            <button type="button" class="fm-contact-btn" id="fmContactEmailAction"><i class="fas fa-envelope"></i><span>Email</span></button>
           </div>
         </section>
         <section class="fm-contact-right">
-          <div class="fm-contact-tabs" role="tablist" aria-label="Contact sections"><button type="button" class="fm-contact-btn" role="tab" id="fmContactProjectsTab">Projects</button><button type="button" class="fm-contact-btn" role="tab" id="fmContactMediaTab">Photos &amp; Media</button></div>
           <input type="file" multiple hidden id="fmContactMediaUpload"><div id="fmContactGallery" hidden></div><div class="fm-contact-projects" id="fmContactProjects"></div>
           <button type="button" class="fm-contact-new-project" id="fmContactNewProject"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_0747045bf3d919","New Project") ?? "New Project")}</span></button>
         </section>
@@ -449,17 +465,18 @@
     $('#fmContactMediaTab', overlay)?.addEventListener('click',()=>showContactTab(true));
     $('#fmContactMediaUpload',overlay)?.addEventListener('change',event=>uploadContactFiles(event.target.files));
     $('#fmContactCall', overlay)?.addEventListener('click',async()=>{
-      const phone=window.Portal?.CustomerPhone,button=$('#fmContactCall');if(!phone||!state.contact?.phone)return;
-      button.disabled=true;try{await phone.open({contact_id:firstText(state.contact.id,state.contact.contact_id),customer_name:state.contact.name,customer_number:state.contact.phone});}
+      const phone=window.Portal?.CustomerPhone,button=$('#fmContactCall');if(!state.contact?.phone)return;
+      button.disabled=true;try{if(phone)await phone.open({contact_id:firstText(state.contact.id,state.contact.contact_id),customer_name:state.contact.name,customer_number:state.contact.phone});else window.location.href='tel:'+state.contact.phone.replace(/[^+0-9*#,;]/g,'');}
       catch(error){window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("contacts","m_8d4eaa0da004be","Call") ?? "Call"),error.message,false);}finally{button.disabled=false;}
     });
-    $('#fmContactPortal', overlay)?.addEventListener('click', ensureContactPortalLink);
+    $('#fmContactText',overlay)?.addEventListener('click',()=>{const number=cleanText(state.contact.phone).replace(/[^+0-9*#,;]/g,'');if(number)window.location.href='sms:'+number;});
+    $('#fmContactEmailAction',overlay)?.addEventListener('click',()=>{const email=cleanText(state.contact.email);if(email)window.location.href='mailto:'+encodeURIComponent(email);});
     $('#fmContactNewProject', overlay)?.addEventListener('click', createProjectForContact);
-    ['fmContactName','fmContactPhone','fmContactSecondaryPhone','fmContactEmail','fmContactAddress'].forEach((id) => {
+    ['fmContactFirstName','fmContactLastName','fmContactPhone','fmContactSecondaryPhone','fmContactEmail','fmContactAddress'].forEach((id) => {
       $(`#${id}`, overlay)?.addEventListener('input', () => {
         if(id==='fmContactPhone'||id==='fmContactSecondaryPhone')formatPhoneInput($(`#${id}`,overlay));
         readContactInputs();
-        if (id === 'fmContactName') setNameRequired(!cleanText(state.contact.name));
+        if (id === 'fmContactFirstName') setNameRequired(!cleanText(state.contact.name));
         renderHeader();
         scheduleAutosave();
       });
@@ -485,6 +502,11 @@
     });
     $('#fmContactCustomFields', overlay)?.addEventListener('input', () => scheduleAutosave());
     $('#fmContactCustomFields', overlay)?.addEventListener('change', () => scheduleAutosave());
+    $('#fmContactTimeZone',overlay)?.addEventListener('change',()=>{readContactInputs();scheduleAutosave();});
+    $('#fmContactRelationships',overlay)?.addEventListener('click',event=>{
+      const add=event.target.closest('[data-add-relationship]');if(add)return openRelationship(add.dataset.addRelationship);
+      const remove=event.target.closest('[data-remove-relationship]');if(remove){const type=remove.dataset.removeRelationship;const values={...(state.contact.custom_field_values||{})};values.relationships={...(values.relationships||{}),[type]:null};state.contact.custom_field_values=values;renderRelationships();scheduleAutosave();}
+    });
     $('#fmContactAddress', overlay)?.addEventListener('focus', initAddressAutocomplete);
     $('#fmContactProjects', overlay)?.addEventListener('click', (event) => {
       const card = event.target.closest('[data-contact-project-id]');
@@ -500,30 +522,32 @@
   }
   function setNameRequired(on){
     const field = $('#fmContactNameField');
-    const input = $('#fmContactName');
+    const input = $('#fmContactFirstName');
     field?.classList.toggle('required', !!on);
     if (input) input.setAttribute('aria-invalid', on ? 'true' : 'false');
   }
   function validateName(options = {}){
-    const name = cleanText($('#fmContactName')?.value || state.contact?.name);
+    const name = cleanText($('#fmContactFirstName')?.value || state.contact?.first_name);
     const valid = !!name;
     setNameRequired(!valid);
     if (!valid) {
-      setMeta('Name is required.');
-      if (options.focus) $('#fmContactName')?.focus();
+      setMeta('First name is required.');
+      if (options.focus) $('#fmContactFirstName')?.focus();
     }
     return valid;
   }
   function readContactInputs(){
     const previousAddress = cleanText(state.contact?.address);
     const nextAddress = cleanText($('#fmContactAddress')?.value);
+    const firstName=cleanText($('#fmContactFirstName')?.value),lastName=cleanText($('#fmContactLastName')?.value);
     const customValues={...(state.contact?.custom_field_values || {}),secondary_phone:cleanText($('#fmContactSecondaryPhone')?.value),primary_phone_label:cleanText($('#fmContactPrimaryPhoneLabel')?.value),secondary_phone_label:cleanText($('#fmContactSecondaryPhoneLabel')?.value)};
     state.contact = {
       ...state.contact,
-      name: cleanText($('#fmContactName')?.value),
+      first_name:firstName,last_name:lastName,name:[firstName,lastName].filter(Boolean).join(' '),
       phone: cleanText($('#fmContactPhone')?.value),
       custom_field_values:customValues,
       email: cleanText($('#fmContactEmail')?.value),
+      time_zone:cleanText($('#fmContactTimeZone')?.value),
       address: nextAddress,
       ...(previousAddress && nextAddress !== previousAddress ? { lat: '', lng: '', address_components: {} } : {})
     };
@@ -532,7 +556,9 @@
   function writeContactInputs(){
     const contact = state.contact || {};
     const values=contact.custom_field_values || {};
-    if ($('#fmContactName')) $('#fmContactName').value = contact.name || '';
+    const names=nameParts(contact);
+    if ($('#fmContactFirstName')) $('#fmContactFirstName').value = names.first;
+    if ($('#fmContactLastName')) $('#fmContactLastName').value = names.last;
     if ($('#fmContactPhone')) $('#fmContactPhone').value = formatPhone(contact.phone || '');
     if ($('#fmContactSecondaryPhone')) $('#fmContactSecondaryPhone').value = formatPhone(values.secondary_phone || '');
     if ($('#fmContactPrimaryPhoneLabel')) $('#fmContactPrimaryPhoneLabel').value = phoneLabels.includes(values.primary_phone_label)?values.primary_phone_label:'';
@@ -540,6 +566,14 @@
     updateSecondaryPhoneVisibility();
     if ($('#fmContactEmail')) $('#fmContactEmail').value = contact.email || '';
     if ($('#fmContactAddress')) $('#fmContactAddress').value = contact.address || '';
+    renderTimeZone();
+  }
+  function renderTimeZone(){
+    const field=$('#fmContactTimeZoneField'),select=$('#fmContactTimeZone');if(!field||!select)return;
+    field.hidden=!state.trackTimeZones;
+    const value=cleanText(state.contact.time_zone),choices=value&&!timeZones.includes(value)?[value,...timeZones]:timeZones;
+    select.innerHTML='<option value="">Select time zone…</option>'+choices.map(zone=>`<option value="${escapeHtml(zone)}">${escapeHtml(zone.replaceAll('_',' '))}</option>`).join('');
+    select.value=value;
   }
   function updateSecondaryPhoneVisibility(){
     const secondary=$('#fmContactSecondaryField'),add=$('#fmContactAddPhone');
@@ -587,7 +621,9 @@
     return state.addressAutocomplete;
   }
   function renderHeader(){
-    const callButton=$('#fmContactCall');if(callButton){callButton.hidden=!window.Portal?.CustomerPhone;callButton.disabled=!state.contact?.phone;}
+    const callButton=$('#fmContactCall');if(callButton)callButton.disabled=!state.contact?.phone;
+    const textButton=$('#fmContactText');if(textButton)textButton.disabled=!state.contact?.phone;
+    const emailButton=$('#fmContactEmailAction');if(emailButton)emailButton.disabled=!state.contact?.email;
     const label = contactTitle(state.contact);
     const title = $('#fmContactTitle');
     if (title) title.textContent = label;
@@ -635,6 +671,60 @@
         importMeta.hidden = true;
       }
     }
+  }
+  function relationshipValue(type){return state.contact?.custom_field_values?.relationships?.[type] || null;}
+  function setRelationship(type,reference,label){
+    const values={...(state.contact.custom_field_values||{})};
+    values.relationships={...(values.relationships||{}),[type]:reference};
+    state.contact.custom_field_values=values;
+    state.relationshipNames[type]=label;
+    state.relationshipMode='';renderRelationships();scheduleAutosave();
+  }
+  function renderRelationships(){
+    const matches=$('#fmContactRelationshipMatches');if(!matches)return;
+    matches.innerHTML=['employer','spouse'].map(type=>{
+      const ref=relationshipValue(type);if(!ref)return '';
+      const label=state.relationshipNames[type] || 'Linked contact';
+      return `<div class="fm-contact-relationship-match"><span>${type==='spouse'?'Spouse':'Employer'}: ${escapeHtml(label)}</span><button type="button" data-remove-relationship="${type}" aria-label="Remove ${type}">Remove</button></div>`;
+    }).join('');
+    const panel=$('#fmContactRelationshipPanel');if(panel&&!state.relationshipMode)panel.hidden=true;
+  }
+  async function openRelationship(type){
+    if(!['employer','spouse'].includes(type))return;
+    state.relationshipType=type;state.relationshipMode='choose';
+    const panel=$('#fmContactRelationshipPanel');panel.hidden=false;
+    panel.innerHTML=`<strong>Add ${type}</strong><div class="fm-contact-relationship-actions"><button type="button" class="fm-contact-btn" data-relationship-mode="search">Search existing contacts</button><button type="button" class="fm-contact-btn" data-relationship-mode="new">Add new contact</button><button type="button" class="fm-contact-btn" data-relationship-mode="cancel">Cancel</button></div>`;
+    panel.querySelectorAll('[data-relationship-mode]').forEach(button=>button.onclick=()=>showRelationshipMode(button.dataset.relationshipMode));
+  }
+  async function showRelationshipMode(mode){
+    if(mode==='cancel'){state.relationshipMode='';renderRelationships();return;}
+    state.relationshipMode=mode;
+    const panel=$('#fmContactRelationshipPanel'),type=state.relationshipType;
+    if(mode==='search'){
+      panel.innerHTML='<label>Search contacts<input class="fm-contact-input" type="search" data-relationship-search placeholder="Search by name"></label><div data-relationship-results>Loading contacts…</div>';
+      try{
+        const result=await window.PlatformAPI.contacts.options(orgId(),type==='spouse'?'human':'org');
+        const options=(result.contacts||[]).filter(row=>row.contact_id!==state.contact.id);
+        const input=panel.querySelector('[data-relationship-search]'),results=panel.querySelector('[data-relationship-results]');
+        const render=()=>{const query=cleanText(input.value).toLowerCase();results.innerHTML=options.filter(row=>!query||cleanText(row.name).toLowerCase().includes(query)).slice(0,30).map(row=>`<button type="button" class="fm-contact-btn" data-contact-id="${escapeHtml(row.contact_id)}" data-project-id="${escapeHtml(row.project_id)}">${escapeHtml(row.name)}</button>`).join('')||'<span>No matching contacts.</span>';results.querySelectorAll('[data-contact-id]').forEach(button=>button.onclick=()=>setRelationship(type,{contact_id:button.dataset.contactId,project_id:button.dataset.projectId},button.textContent));};
+        input.oninput=render;render();input.focus();
+      }catch(error){panel.textContent=error.message||'Could not load contacts.';}
+    }else if(mode==='new'){
+      panel.innerHTML=type==='spouse'?'<label>First name<input class="fm-contact-input" data-related-first autocomplete="off"></label><label>Last name<input class="fm-contact-input" data-related-last autocomplete="off"></label>':'<label>Organization name<input class="fm-contact-input" data-related-first autocomplete="off"></label>';
+      panel.insertAdjacentHTML('beforeend','<button type="button" class="fm-contact-btn primary" data-related-create>Create and link contact</button>');
+      panel.querySelector('[data-related-create]').onclick=()=>createRelatedContact(type);
+      panel.querySelector('[data-related-first]').focus();
+    }
+  }
+  async function createRelatedContact(type){
+    const panel=$('#fmContactRelationshipPanel'),first=cleanText(panel.querySelector('[data-related-first]')?.value),last=cleanText(panel.querySelector('[data-related-last]')?.value);
+    if(!first){panel.querySelector('[data-related-first]')?.focus();return;}
+    const name=[first,last].filter(Boolean).join(' '),id=ensureContactId(),recordId=`project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,10)}`;
+    const related={id,contact_id:id,first_name:first,last_name:last,name,contact_kind:type==='spouse'?'human':'org',tags:type==='spouse'?[]:['org'],custom_field_values:{}};
+    const record={id:recordId,title:name,project_title:name,workflow_state:'contact_only',project_type:'residential',contacts:[related],contact_id:id,primary_contact_id:id,contact_ids:[id],measurement:{},measurement_project:{},events:[],proposals:[],updated_at:new Date().toISOString()};
+    const button=panel.querySelector('[data-related-create]');button.disabled=true;
+    try{const saved=await window.Portal.ProjectStore.saveRemote(record);setRelationship(type,{contact_id:id,project_id:projectId(saved)||recordId},name);}
+    catch(error){setMeta(error.message||'Could not create the related contact.');button.disabled=false;}
   }
   function contactTodosEnabled(){
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
@@ -725,7 +815,8 @@
     }).join('');
   }
   function render(){
-    const callButton=$('#fmContactCall');if(callButton){callButton.hidden=!window.Portal?.CustomerPhone;callButton.disabled=!state.contact?.phone;}
+    renderHeader();
+    renderRelationships();
     writeContactInputs();setNameRequired(false);
     renderProfile();
     renderHeader();
@@ -738,13 +829,11 @@
         location:'overview',
         showSave:false,
         flat:true,
-        excludePaths:['profile_photo','secondary_phone','primary_phone_label','secondary_phone_label'],
+        excludePaths:['profile_photo','secondary_phone','primary_phone_label','secondary_phone_label','relationships.employer','relationships.spouse'],
         fieldClass:'fm-contact-field',
         inputClass:'fm-contact-input'
       });
     }
-    const portalButton = $('#fmContactPortal');
-    if (portalButton) portalButton.disabled = !!state.portalLoading;
   }
   function scheduleAutosave(){
     revision++;clearTimeout(saveTimer);setMeta(cleanText(state.contact.name)?'Saving…':'Add a name to save automatically');
@@ -840,6 +929,7 @@
       contact_kind: contact.contact_kind || 'human',
       profile_media_id: contact.profile_media_id || '',
       name: contact.name || '',
+      first_name:contact.first_name || '',last_name:contact.last_name || '',time_zone:contact.time_zone || '',
       phone: contact.phone || '',
       email: contact.email || '',
       address: contact.address || '',
@@ -950,56 +1040,6 @@
     return true;
   }
 
-  async function copyText(value, successMessage){
-    try {
-      await navigator.clipboard.writeText(value);
-      setMeta(successMessage);
-    } catch (_) {
-      setMeta('Could not copy the portal link.');
-    }
-  }
-
-  async function ensureContactPortalLink(){
-    const contact = readContactInputs();
-    if (!validateName()) return;
-    if (!state.saved || !firstText(state.contact.id)) {
-      scheduleAutosave();const saved = await flushAutosave();
-      if (!saved) return;
-    }
-    const projects = visibleProjects(state.projects);
-    if (!projects.length) {
-      setMeta('Create or link a project before creating a portal link.');
-      return;
-    }
-    const oid = orgId();
-    const project = projects[0];
-    const pid = projectId(project);
-    if (!oid || !pid || !window.PlatformAPI?.customerPortals?.ensure) {
-      setMeta('Customer Portal is not available right now.');
-      return;
-    }
-    const contactId = ensureContactId(state.contact);
-    const savedContact = { ...readContactInputs(), id: contactId, contact_id: contactId };
-    state.contact = savedContact;
-    state.portalLoading = true;
-    render();
-    setMeta('Creating portal link...');
-    try {
-      const result = await window.PlatformAPI.customerPortals.ensure(oid, pid, {
-        contact_id: savedContact.id,
-        customer: savedContact
-      });
-      const url = cleanText(result?.portal?.live_url);
-      state.portalUrl = url;
-      if (url) await copyText(url, 'Customer portal link copied.');
-      else setMeta('Portal link created.');
-    } catch (error) {
-      setMeta(error?.message || 'Could not create the portal link.');
-    } finally {
-      state.portalLoading = false;
-      render();
-    }
-  }
   async function refreshProjects(provided = [], options = {}){
     state.loading = true;
     renderProjects();
@@ -1078,6 +1118,7 @@
     if(layout.tray!=null&&!contactTrays.available({contact:nextContact,orgId:orgId()}).includes(layout.tray))throw Error('Unavailable window tray: '+layout.tray);
     clearTimeout(saveTimer);revision=0;savedRevision=0;draftMedia=[];
     state.secondaryPhoneOpen=!!cleanText(nextContact.custom_field_values?.secondary_phone);
+    state.relationshipMode='';state.relationshipNames={};
     contactTrays.reset();contactShell.reset();
     state.contact = nextContact;
     state.originalContact = { ...state.contact };
@@ -1105,7 +1146,8 @@
     state.mediaTab=false;
     contactShell.apply(layout);
     render();
-    window.PlatformAPI?.contacts?.settings(orgId()).then(result=>{state.catalog=result.settings?.tags || [];if(state.open)renderTags();}).catch(error=>setMeta(error.message));
+    window.PlatformAPI?.contacts?.settings(orgId()).then(result=>{state.catalog=result.settings?.tags || [];state.trackTimeZones=result.settings?.track_time_zones===true;if(state.open){renderTags();renderTimeZone();}}).catch(error=>setMeta(error.message));
+    for(const type of ['employer','spouse']){const ref=relationshipValue(type);if(ref)window.PlatformAPI?.contacts?.get(orgId(),ref).then(result=>{state.relationshipNames[type]=result.contact?.name||'Linked contact';if(state.open)renderRelationships();}).catch(()=>{});}
     mountContactTodos();
     if (projectsComplete && state.projects.length) {
       renderProjects();
@@ -1119,7 +1161,7 @@
     setMeta('');
     setTimeout(() => {
       initAddressAutocomplete();
-      $('#fmContactName')?.focus();
+      $('#fmContactFirstName')?.focus();
     }, 40);
   }
   async function close(options = {}){
@@ -1138,6 +1180,8 @@
   }
 
   window.Portal.modules = window.Portal.modules || {};
+  window.addEventListener('fm:contact-settings:updated',event=>{state.trackTimeZones=event.detail?.track_time_zones===true;if(state.open)renderTimeZone();});
+  window.addEventListener('fm:contact-tags:updated',()=>{if(state.open)window.PlatformAPI?.contacts?.settings(orgId()).then(result=>{state.catalog=result.settings?.tags||[];renderTags();}).catch(()=>{});});
   window.Portal.modules.contacts = { open, close, openProject,
     async setLayout(layout){await shellReady;ensureUI();return contactShell.apply(layout);},
     async registerTray(definition){await shellReady;ensureUI();return contactTrays.register(definition);}

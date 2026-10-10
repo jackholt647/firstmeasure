@@ -924,6 +924,7 @@
     state.loadedAt = 0;
     if (state.root) loadData({ force: true }).catch(() => null);
   });
+  window.addEventListener('fm:contact-tags:updated',()=>{if(state.root)loadData({force:true}).catch(()=>null);});
   document.addEventListener('DOMContentLoaded', () => queueSync());
   queueSync();
 })();
