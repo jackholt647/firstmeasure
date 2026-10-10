@@ -733,7 +733,7 @@ test('main header shows wall and roof line lengths without depending on the 3D t
  assert.equal(read().hidden,true);length=1.524;assert.equal(read().textContent,'Length: 5.00′');assert.equal(read().hidden,false);host.message('Unrelated tool message');assert.equal(read().textContent,'Length: 5.00′');length=3.048;assert.equal(read().textContent,'Length: 10.00′');length=null;assert.equal(read().hidden,true);length=1;f.ctx.WallMode.setEnabled(false);assert.equal(read().hidden,true);
  assert.equal(read().parentElement,f.elements.get('selected-line-length-slot'));assert.notEqual(read().parentElement,toolbar);
  f.ctx.getMetersPerPx=()=>.3048;const edge={start:{x:0,y:0,z:0},end:{x:3,y:4,z:3.6576}};f.ctx.selectedLines.add(edge);assert.equal(read().textContent,'Length: 13.00′');assert.equal(read().hidden,false);
- f.ctx.selectedLines.add({start:edge.start,end:edge.end});assert.equal(read().hidden,true);f.ctx.selectedLines.clear();assert.equal(read().hidden,true);
+ f.ctx.selectedLines.add({start:edge.start,end:edge.end});assert.equal(read().hidden,false);assert.equal(read().textContent,'Length: 26.00′');f.ctx.selectedLines.clear();assert.equal(read().hidden,true);
 });
 
 test('automatic parapets default on, create editable faces, and preserve the advanced choice across rebuild and reload',()=>{
@@ -851,4 +851,14 @@ test('From Roof at three feet closes the captured chimney pocket and joins its b
  assert.equal(state.options.soffit,36);assert.equal(state.base.faces.length,2);assert.ok(!state.base.faces.some(f=>f.chimneyFoundation));
  assert.ok(C.buildingBase(state).some(f=>G.contains(f,{x:2.346412,y:9.235337})));
  assert.equal(D.detect(A.compose(C.compose(state.alignedWalls,state),state.chimneyCleanupReport),state.ground).length,0);
+});
+test('selection menu routes roof, wall and plane context without mutating editor selection',()=>{
+ const SelectionActions=require('../public/measure/internal/editor_scripts/selection_actions.js');let host,context={mode:'walls',lines:2,transform:true,canExtrude:true,trim:true};
+ const wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},leave(){},busy:()=>false,actionContext:()=>context,planeActive:()=>context.mode==='plane'};
+ const f=fixture(true,{SelectionActions,createWallEditor:h=>{host=h;return wall;}});
+ f.ctx.selectedPoints.add(f.ctx.activeGeometry.points[0]);f.ctx.selectedPoints.add(f.ctx.activeGeometry.points[1]);
+ assert.ok(f.ctx.WallMode.selectionActions().some(a=>a.label==='Connect points'));assert.equal(f.ctx.selectedPoints.size,2);
+ f.ctx.WallMode.setEnabled(true);host.setLayer('walls');const actions=f.ctx.WallMode.selectionActions();assert.ok(actions.some(a=>a.label==='Extrude'));assert.ok(actions.some(a=>a.label==='Fillet'));assert.ok(actions.some(a=>a.label==='Trim'));
+ context={mode:'plane',points:3};assert.ok(f.ctx.WallMode.selectionActions().some(a=>a.label==='Subtract region'));assert.ok(!f.ctx.WallMode.selectionActions().some(a=>a.label==='Extrude'));
+ context.busy=true;assert.equal(f.ctx.WallMode.selectionActions().length,0);
 });
