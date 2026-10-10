@@ -88,14 +88,20 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     assert.equal(await page.locator('.fmdx-tpl-row').count(), 0, 'pinned steps aside while searching');
     await page.locator('[data-tpl-search]').fill('');
     // Six compact tiles fit a row at this width.
-    const tops = await page.locator('.fmdx-tpl-grid .fmdx-tpl').evaluateAll((list) => list.map((el) => Math.round(el.getBoundingClientRect().top)));
-    assert.ok(tops.filter((top) => top === tops[0]).length >= 4, `tiles on the first row: ${tops.filter((top) => top === tops[0]).length}`);
+    const columns = await page.locator('.fmdx-tpl-grid').first().evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    assert.ok(columns >= 4, `columns: ${columns}`);
     // Every type has its own color, and the library reads grouped by type.
     const colors = await page.locator('.fmdx-fchips [data-pick-type]:not([data-pick-type=""])').evaluateAll((list) => list.map((el) => el.style.getPropertyValue('--fmdx-type')));
     assert.equal(new Set(colors).size, colors.length, `distinct colors: ${colors}`);
     const order = await page.locator('.fmdx-tpl-grid .fmdx-tpl small').allInnerTexts();
     assert.deepEqual(order, [...order].sort((a, b) => order.indexOf(a) - order.indexOf(b)), 'types are contiguous');
     assert.equal(order.filter((label, index) => index > 0 && label !== order[index - 1] && order.indexOf(label) !== index).length, 0, `grouped by type: ${order}`);
+    // Each type is a headed group, and only the library scrolls.
+    assert.deepEqual(await page.locator('.fmdx-tpl-group h3').evaluateAll((list) => list.map((el) => el.childNodes[1].textContent.trim())), ['Proposal', 'Contract', 'Change Order', 'Invoice', 'Completion Certificate']);
+    await page.setViewportSize({ width: 1280, height: 420 });
+    const scroll = await page.evaluate(() => { const lib = document.querySelector('.fmdx-tpl-scroll'); const body = document.querySelector('[data-create-body]'); const search = document.querySelector('[data-tpl-search]').getBoundingClientRect().top; lib.scrollTop = 400; return { library: lib.scrollTop > 0, body: body.scrollTop, searchStill: Math.round(document.querySelector('[data-tpl-search]').getBoundingClientRect().top) === Math.round(search) }; });
+    assert.deepEqual(scroll, { library: true, body: 0, searchStill: true });
+    await page.setViewportSize({ width: 1280, height: 860 });
     if (process.env.CREATE_SHOT) await page.screenshot({ path: process.env.CREATE_SHOT });
     // One click on a template starts it.
     await page.locator('.fmdx-tpl-grid [data-pick-template="tpl_quick"]').click();

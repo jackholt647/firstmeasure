@@ -86,7 +86,7 @@ registerDocumentType("invoice", {
 
 registerDocumentType("change_order", {
   label: "Change Order",
-  icon: "fa-file-pen",
+  icon: "fa-pen-to-square",
   param_schema: {
     project: { type: "entity", entity: "project" },
     customer: { type: "entity", entity: "contact" },

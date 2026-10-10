@@ -241,7 +241,7 @@
     proposal: { icon: 'fa-file-signature', color: '#2563eb' },
     invoice: { icon: 'fa-file-invoice-dollar', color: '#175cd3' },
     change_order: { icon: 'fa-file-contract', color: '#7c3aed' },
-    contract: { icon: 'fa-file-pen', color: '#0f766e' },
+    contract: { icon: 'fa-file-contract', color: '#0f766e' },
     work_order: { icon: 'fa-clipboard-list', color: '#b45309' },
     receipt: { icon: 'fa-receipt', color: '#b54708' },
     generic: { icon: 'fa-file-lines', color: '#64748b' }
@@ -2361,7 +2361,11 @@
               <button type="button" class="fmdx-fchip quiet" data-manage-types title="Rename, color, add or retire document types, and choose their departments"><i class="fas fa-sliders"></i> Edit types</button>
             </div>` : `<div class="fmdx-fchips"><button type="button" class="fmdx-fchip quiet" data-manage-types><i class="fas fa-sliders"></i> Edit types</button></div>`}
           ${library.length
-            ? `<div class="fmdx-tpl-grid">${library.map((tpl) => tileHtml(tpl, false)).join('')}</div>`
+            ? `<div class="fmdx-tpl-scroll">${types.filter((type) => library.some((tpl) => viewOf(tpl).id === type.id)).map((type) => { const group = library.filter((tpl) => viewOf(tpl).id === type.id); return `
+                <section class="fmdx-tpl-group" style="--fmdx-type:${esc(type.color)}">
+                  <h3><i class="fas ${esc(type.icon)}"></i>${esc(type.label)}<small>${group.length}</small></h3>
+                  <div class="fmdx-tpl-grid">${group.map((tpl) => tileHtml(tpl, false)).join('')}</div>
+                </section>`; }).join('')}</div>`
             : `<p class="fmdx-data-hint">${query ? 'No template matches that search.' : 'No templates here yet. Start from Blank, or upload a paper document.'}</p>`}`;
         const search = body.querySelector('[data-tpl-search]');
         if (focused) { search.focus(); search.setSelectionRange(picker.query.length, picker.query.length); }

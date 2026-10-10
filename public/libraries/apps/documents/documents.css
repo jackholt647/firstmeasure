@@ -105,7 +105,14 @@
 /* ------------------------------------------------------- type/template picker */
 /* new document: search, pinned row, filtered library */
 .fmdx-modal.fmdx-create-modal{width:min(1080px,100%)}
-.fmdx-create-modal [data-create-body]{display:flex;flex-direction:column;gap:10px}
+.fmdx-modal.fmdx-create-modal{overflow:hidden}
+.fmdx-create-modal [data-create-body]{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow:auto}
+/* Search, pinned and filters stay put; only the library scrolls. */
+.fmdx-tpl-scroll{flex:1 1 auto;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:2px 4px 6px 2px;margin-right:-4px;scrollbar-width:thin}
+.fmdx-tpl-group{display:flex;flex-direction:column;gap:8px}
+.fmdx-tpl-group h3{margin:0;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:950;color:#111827;position:sticky;top:0;z-index:1;background:#fff;padding:4px 0}
+.fmdx-tpl-group h3 i{width:18px;text-align:center;color:var(--fmdx-type,#667085)}
+.fmdx-tpl-group h3 small{font-size:10.5px;font-weight:900;color:#98a2b3}
 .fmdx-create-modal .fmdx-section-label{margin:4px 0 0}
 .fmdx-create-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .fmdx-create-search{flex:1 1 260px;display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:11px;background:#fff;color:#98a2b3}
