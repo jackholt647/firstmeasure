@@ -44,7 +44,10 @@ typed, paginated and discoverable under Comms. Messages require a
 `conversation_id` argument. Organization and project targets are supported;
 project reads are restricted to the target project. Data uses `view_comms` and
 fresh organization/branch/project/feature checks, including frozen snapshot
-replay. No provider responses, callback credentials or consent evidence are
+replay. Organization lists reauthorize each thread's current project, omitting
+inaccessible or deleted projects even when the thread's original branch matches.
+Pagination advances across scanned rows, including omitted rows. No provider
+responses, callback credentials or consent evidence are
 published. Snapshot provenance retains viewer and conversation identities.
 
 - `comms.smsGroup.create@1`: write effect, required receipt, input mirrors group

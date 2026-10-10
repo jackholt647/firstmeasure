@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { PlatformAuthContext } from "../platform/auth.js";
-import { badRequest } from "../platform/errors.js";
+import { badRequest, PlatformError } from "../platform/errors.js";
 import { manageCalls } from "../comms/calls/service.js";
 import { contentHash } from "../platform/publication/validation.js";
 import { listConversationRecords, listMessageRecords, listDeliveryRecords, readConversationRecord, type CommunicationsJson as Json } from "./communications_storage.js";
@@ -46,8 +46,15 @@ export async function groupPage(ctx: PlatformAuthContext, kind: "conversations" 
     catch { throw badRequest("source_cursor_invalid", "This group-message cursor is invalid."); }
   }
   const rows = kind === "conversations" ? await listConversationRecords(ctx.orgId, { group_mms: true, ...(!manageCalls(ctx) ? { branch_id: ctx.branchId || "default" } : {}), ...(projectId ? { project_id: projectId } : {}), ...before, limit: limit + 1 }) : await listMessageRecords(ctx.orgId, { conversation_id: conversation!.id, ...before, limit: limit + 1 });
-  const selected = rows.slice(0, limit);
+  const scanned = rows.slice(0, limit);
+  const selected: Json[] = [];
+  for (const row of scanned) {
+    if (kind === "messages") { selected.push(row); continue; }
+    // A project's current branch can differ from the thread's original branch.
+    try { await requireGroupAccess(ctx, ctx.orgId, row); selected.push(row); }
+    catch (error) { if (!(error instanceof PlatformError) || ![403, 404].includes(error.statusCode)) throw error; }
+  }
   const items = kind === "conversations" ? selected.map(groupProjection) : await Promise.all(selected.map(async row => ({ id: text(row.id), conversation_id: text(row.conversation_id), direction: text(row.direction), sender: text(object(row.sender).address), recipients: (row.recipients as Json[]).map(item => text(item.address)), text: text(row.text_body), status: text(row.status), created_at: text(row.created_at), scheduled_for: text(row.scheduled_for), attachments: (Array.isArray(object(row.metadata).media) ? object(row.metadata).media as Json[] : []).map(item => ({ url: text(item.url), content_type: text(item.content_type) })), image_media_id: text(object(object(row.metadata).sms_image).media_id), deliveries: (await listDeliveryRecords(ctx.orgId, text(row.id))).map(item => ({ recipient: text(item.recipient_address), status: text(item.status), sent_at: text(item.sent_at), delivered_at: text(item.delivered_at), failed_at: text(item.failed_at) })) })));
-  const last = selected.at(-1);
+  const last = scanned.at(-1);
   return { items, ...(rows.length > limit && last ? { nextCursor: Buffer.from(JSON.stringify({ signature, at: text(kind === "conversations" ? last.last_message_at || last.updated_at : last.created_at), id: last.id })).toString("base64url") } : {}) };
 }

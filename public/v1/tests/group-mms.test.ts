@@ -82,6 +82,16 @@ test("group MMS API and publications retain shared threads, paginate, and reject
   const { backgroundAuthContext } = await import("../platform/auth.js");
   const { resolveDataBinding } = await import("../platform/publication/bindings.js");
   const ctx = { auth: await backgroundAuthContext(c.orgId, owner.id), organizationId: c.orgId, executionKind: "api" as const, mode: "evaluate" as const };
+  const limited = { ...ctx.auth, role: "member", permissions: { view_comms: true } };
+  const { groupPage } = await import("../messaging/group_service.js");
+  assert.ok((await groupPage(limited, "conversations")).items.some(row => row.id === projectGroup.conversation.id));
+  await storage.upsertDocument(c.orgId, "projects", { id: "project-a", data: { name: "Moved project", branch_id: "another-branch" } });
+  assert.ok(!(await groupPage(limited, "conversations")).items.some(row => row.id === projectGroup.conversation.id));
+  assert.ok((await groupPage(limited, "conversations")).items.some(row => row.id === id));
+  const hiddenPage = await groupPage(limited, "conversations", {}, { limit: 1 });
+  assert.equal(hiddenPage.items.length, 0);
+  assert.ok(hiddenPage.nextCursor);
+  assert.equal((await groupPage(limited, "conversations", {}, { limit: 1, cursor: hiddenPage.nextCursor })).items[0]!.id, id);
   const binding = { kind: "data" as const, policy: "frozen" as const, source };
   assert.equal((await resolveDataBinding(ctx, "group-consumer", "messages", binding)).status, "ready");
   await storage.saveGlobal(c.orgId, { data: { app_flags: { comms: { sms: false } } } });
