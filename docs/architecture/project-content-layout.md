@@ -15,7 +15,7 @@ An app-owned draggable, keyboard accessible divider remembers the proportion
 locally. Mobile stacks the rail and resource content. There is no shared rail API.
 
 The rail has three compact icon tabs along its bottom: Scope of Work, 3D Roof
-and Aerial View. Scope of Work shows accepted document publishers first and
+and Photos. Scope of Work shows accepted document publishers first and
 published measurement datasets below. Document membership comes from persisted
 material ledger origins, including an accepted snapshot identity, and requires a
 signed/completed document. Drafts, standalone presentations, document types and
@@ -31,7 +31,11 @@ tile replaces this rail's content with readable material details and
 the accepted snapshot rendered by FMDocRenderer; Back restores the tiles. This
 uses neither a modal nor a generic JSON instance viewer. Measurements appear
 directly below the documents, with every published value in compact inline editable rows. Each section
-measures its labels and uses up to three columns when the rail width permits.
+measures labels and value widths and uses up to three columns when the rail width permits.
+Oversized labels move to full-width rows at the end of a section. Pitch breakdown is a
+Pitch/Squares table. Zero and unavailable measurements are hidden by default; the
+Measurements heading includes a Show zero measurements toggle. Editable values accept
+nonnegative decimal text, never exponent notation.
 Pitch and roofing-square explanations are inline control tooltips. Edits use project-local measurement overrides, never write to the published
 source, and have the existing override lifetime. Measurement cards have no hover
 tooltip or separate detail view.
@@ -113,3 +117,17 @@ Scheduling uses its full tab width, with one + Appointment button opening the sh
 The global header also offers an independent dockable To Do tray through
 `topbar.todos`. It reuses the shared list across projects and remains available
 when the left column is collapsed or disabled. See [to-dos](todos.md).
+
+The Project Photos tab uses the reusable photo gallery over the full rail height.
+It reads the authorized completed-report publication and project-scoped Media list
+once, selecting the frozen report aerial first. Its image viewer fills the upper
+region and centers the largest contained image; a keyboard-accessible horizontal
+divider resizes the default scrolling thumbnail row into a multirow grid. Selection,
+zoom and divider state survive local tab switches.
+
+The roof key shows published linear feet (falling back to saved XML edge geometry
+in feet), with decimal inputs wired to the same project-local overrides as the
+Measurements section. Compact type names retain full-name tooltips. Selecting a
+type highlights all matching model edges. A top-left Pitch labels control toggles
+face-mounted labels; each anchor maximizes interior clearance from the outer
+boundary and all openings, avoiding concave voids and penetration holes.

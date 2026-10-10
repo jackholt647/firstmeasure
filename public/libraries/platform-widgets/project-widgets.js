@@ -28,9 +28,9 @@
   const el=element(media.video?'video':'img','fm-widget-photo');el.src=url;el.alt=media.label||'Aerial view';if(media.video){el.controls=true;el.playsInline=true;}el.onerror=()=>{root.replaceChildren(element('div','fm-widget-status','This media could not load.'));};root.append(el);
   return {setVisible(value){if(!value&&media.video)el.pause();},destroy(){if(media.video){el.pause();el.removeAttribute('src');el.load();}el.remove();}};
  });
- W.attachRenderer('reports.roof','1',async(root,{data,state})=>{
-  if(!global.FirstMeasureRoofViewer){await (roofScript||=(new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=new URL('../apps/measurements/roof-viewer.js?v=20261010-measurement-polish',base);s.onload=resolve;s.onerror=()=>{roofScript=null;reject(Error('The roof viewer could not load'));};document.head.append(s);})) );}
-  root.style.height='100%';return global.FirstMeasureRoofViewer.mount(root,{xmlUrl:data?.xmlUrl,edgeTypes:data?.edgeTypes||[],standalone:true,initialState:state});
+ W.attachRenderer('reports.roof','1',async(root,{data,state,context})=>{
+  if(!global.FirstMeasureRoofViewer){await (roofScript||=(new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=new URL('../apps/measurements/roof-viewer.js?v=20261010-project-roof-key',base);s.onload=resolve;s.onerror=()=>{roofScript=null;reject(Error('The roof viewer could not load'));};document.head.append(s);})) );}
+  root.style.height='100%';return global.FirstMeasureRoofViewer.mount(root,{xmlUrl:data?.xmlUrl,edgeTypes:data?.edgeTypes||[],standalone:true,initialState:state,measurements:data?.measurements||{},getMeasurements:context.getMeasurements,onMeasurementChange:context.onMeasurementChange,subscribeMeasurements:context.subscribeMeasurements});
  });
  global.FirstMateProjectWidgets={
   reportItems(media=[]){return [{key:'roof',id:'reports.roof',version:'1',title:'3D roof'},...media.map((m,index)=>({key:'photo-'+index,id:'reports.photo',version:'1',title:m.label||'Reference media',config:{mediaIndex:index}}))];},

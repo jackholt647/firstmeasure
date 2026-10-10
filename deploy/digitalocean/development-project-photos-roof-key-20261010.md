@@ -1,0 +1,13 @@
+# Project Photos and measurement presentation — October 10, 2026
+
+Project Photos replaces Aerial View. The authorized completed-report aerial is selected by default, followed by report reference and project Media images. The full-height image viewer centers the largest contained image. A draggable and keyboard-accessible divider expands the horizontal thumbnail row into a grid. Zoom and selection survive local tab switches; source reads never import or mutate media.
+
+Measurements use value-sized decimal inputs and place oversized labels in full-width rows at the end of otherwise adaptive sections. Pitch is a Pitch/Squares table with calculation tooltips. Zero and unavailable fields are hidden by default with a heading toggle. Decimal input validation rejects exponent text, including e-3.
+
+The 3D roof tray has Line types, Pitches and Summary tabs with animated collapse. Summary includes predominant pitch, squares, penetration counts and grouped horizontal opening footprint dimensions. Pitch and Area face labels can be shown independently. The 3D roof has a Pitch labels toggle, with anchors chosen in the largest clear interior region of each face, excluding holes. The key uses compact names with full-name tooltips, rounded editable linear feet, and selectable line types that highlight all matching edges. Editing either view uses the same project-local override path. Published source values remain intact.
+
+Validation: Focused browser/contract tests cover actual image/runtime sizing, cached aspect definitions, photo selection and zoom retention, drag-to-grid, narrow measurement columns and full-width outliers, decimal validation and zero toggle, pitch table markup, WebGL highlight behavior, and label anchors outside saved penetration holes. Development activation only, using immutable owned-file overlays over current audited web, pool, legacy and worker baselines.
+
+Resource columns read an organization resource-type catalog, with roofing defaults supplied without mutating reads. New categories and lists use inline empty Untitled placeholders; category icon and color are edited together through the shared icon picker. Lists inherit category appearance. Catalog writes enforce organization membership, project management permission, registration and revision conflicts. Typed publication adapters delegate to the domain writer.
+
+Columns retain equal relative widths regardless of item content. Compact item cards replace wide table layouts, redundant section headers and the separate labor estimate panel. Each column has a compact total footer; labor totals retain the existing expense projection.

@@ -17,8 +17,8 @@ function measurementInfo(key,row={}) {
  const unit=row.unit?(friendlyUnits[row.unit] || label(row.unit)):known?.[1] || '';
  return {name:known?.[0] || (pitch?`${pitch[1]}/12 pitch`:label(key).replace(/\bLf$/,'').replace(/\bEa$/,'')),unit,group:known?.[2] || (pitch?'Pitch breakdown':'Other measurements'),digits:unit==='ft²'||unit==='m²'||unit==='each'?0:unit==='ft'||unit==='m'?1:2};
 }
-function measurementValue(value,key,row={}) {const digits=measurementInfo(key,row).digits;return typeof value==='number'&&Number.isFinite(value)?String(Number(value.toFixed(digits))):'';}
-const compactNames={roofSquares:'Roof squares',ventilationSquares:'Ventilated area',headWallLf:'Headwall',sideWallLf:'Sidewall / step',parapetLf:'Parapets',protrusionLf:'Protrusions',chimneyBackLf:'Chimney back pan',chimneyStepLf:'Chimney step',unknownLf:'Unclassified'};
+function measurementValue(value,key,row={}) {const digits=measurementInfo(key,row).digits;return typeof value==='number'&&Number.isFinite(value)?Number(value.toFixed(digits)).toLocaleString('en-US',{useGrouping:false,maximumFractionDigits:digits}):'';}
+const compactNames={roofSquares:'Roof squares',ventilationSquares:'Ventilated area',headWallLf:'Head wall',sideWallLf:'Side wall',parapetLf:'Parapets',protrusionLf:'Protrusions',chimneyBackLf:'Back pan',chimneyStepLf:'Chimney',chimneyApronLf:'Chimney',unknownLf:'Unclassified'};
 function measurementTip(key,info,missing) {
  const notes=[info.name];
  if(info.group==='Pitch breakdown')notes.push('Pitch is rise per 12 inches of horizontal run. This value is the roof area at this pitch, in roofing squares.');
@@ -29,24 +29,29 @@ function measurementTip(key,info,missing) {
 // Each section measures its own labels; long flashing names must not force
 // short edge/pitch sections to use fewer columns. Recompute on rail resizing.
 export function fitMeasurementColumns(panel) {
- const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+ const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');const font=el=>{const style=getComputedStyle(el);return `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;};
  for(const grid of panel.querySelectorAll('.sw-measure-grid')) {
   const fields=[...grid.children];if(!fields.length||!grid.clientWidth)continue;
-  let needed=150;
-  for(const field of fields){const name=field.querySelector('.sw-measure-name'),unit=field.querySelector('small');ctx.font=getComputedStyle(name).font;const labelWidth=ctx.measureText(name.textContent).width;ctx.font=getComputedStyle(unit).font;needed=Math.max(needed,Math.ceil(labelWidth+ctx.measureText(unit.textContent).width+64+12));}
-  const columns=Math.min(3,fields.length,Math.max(1,Math.floor((grid.clientWidth+12)/(needed+12))));
+  fields.forEach((field,index)=>field.dataset.measureOrder ??= String(index));fields.sort((a,b)=>Number(a.dataset.measureOrder)-Number(b.dataset.measureOrder));
+  const widths=new Map();
+  for(const field of fields){const name=field.querySelector('.sw-measure-name'),unit=field.querySelector('small'),input=field.querySelector('input');ctx.font=font(input);const text=input.value||'—',digitWidth=Math.max(...'0123456789'.split('').map(digit=>ctx.measureText(digit).width)),textWidth=[...text].reduce((sum,char)=>sum+( /[0-9]/.test(char)?digitWidth:ctx.measureText(char).width),0),style=getComputedStyle(input),inset=parseFloat(style.paddingLeft)+parseFloat(style.paddingRight)+parseFloat(style.borderLeftWidth)+parseFloat(style.borderRightWidth);const inputWidth=Math.max(32,Math.min(72,Math.ceil(textWidth+inset+2)));field.style.setProperty('--sw-value-width',inputWidth+'px');ctx.font=font(name);const labelWidth=ctx.measureText(name.textContent).width;ctx.font=font(unit);widths.set(field,Math.ceil(labelWidth+Math.max(12,ctx.measureText(unit.textContent).width)+inputWidth+10));}
+  let columns=1,score=fields.length,wide=[];
+  for(let count=2;count<=Math.min(3,fields.length);count++){const available=(grid.clientWidth-12*(count-1))/count,overflow=fields.filter(field=>widths.get(field)>available),normal=fields.length-overflow.length;if(normal<count)continue;const cost=Math.ceil(normal/count)+overflow.length+overflow.length*.15;if(cost<score){columns=count;score=cost;wide=overflow;}}
   grid.style.setProperty('--sw-measure-columns',columns);
+  for(const field of fields)field.classList.toggle('is-wide',wide.includes(field));
+  const ordered=[...fields.filter(field=>!wide.includes(field)),...wide],current=[...grid.children];
+  if(ordered.some((field,index)=>field!==current[index])){const focused=document.activeElement;ordered.forEach(field=>grid.append(field));if(grid.contains(focused))focused.focus({preventScroll:true});}
  }
 }
-function measurementFields(doc) {
+function measurementFields(doc,showZero=false) {
  const values=doc.value?.measurements || {},keys=Object.keys(values),roof=keys.some(k=>k==='roofArea'||k==='roofSquares'),groups=new Map();
  // Show the full roof edge/flashing checklist, without inventing absent quantities.
  if(roof)for(const [key,definition] of Object.entries(measurementDefinitions))if(['Roof edges','Flashing & openings'].includes(definition[2])&&!keys.includes(key))keys.push(key);
  if(keys.some(k=>/^pitch\d+(?:\.\d+)?Squares$/.test(k)))for(let i=keys.length-1;i>=0;i--)if(/^pitch\d+to|^pitch13Plus|^flatRoofSquares$/.test(keys[i]))keys.splice(i,1);
  const order=['Area','Roof edges','Flashing & openings','Pitch breakdown','Counts','Drainage','Exterior','Other measurements'];
  keys.sort((a,b)=>{const ia=measurementInfo(a,values[a]),ib=measurementInfo(b,values[b]);return order.indexOf(ia.group)-order.indexOf(ib.group)||(ia.group==='Pitch breakdown' ? Number(a.match(/\d+/)?.[0]||0)-Number(b.match(/\d+/)?.[0]||0):0);});
- for(const key of keys){const row=values[key] || {},info=measurementInfo(key,row),tip=measurementTip(key,info,row.value==null);if(!groups.has(info.group))groups.set(info.group,[]);groups.get(info.group).push(`<label class="sw-measure-field" title="${esc(tip)}"><span class="sw-measure-name">${esc(compactNames[key] || info.name)}</span><span><input type="number" min="0" step="${10**-info.digits}" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="—" aria-label="${esc(info.name)}" aria-description="${esc(tip)}"><small title="${esc(tip)}">${esc(info.unit)}</small></span></label>`);}
- return [...groups].map(([group,fields])=>`<section class="sw-measure-group"><h4>${esc(group)}</h4><div class="sw-measure-grid">${fields.join('')}</div></section>`).join('');
+ for(const key of keys){const row=values[key] || {};if(!showZero&&!(Number(row.value)>0))continue;const info=measurementInfo(key,row),tip=measurementTip(key,info,row.value==null);if(!groups.has(info.group))groups.set(info.group,[]);groups.get(info.group).push(info.group==='Pitch breakdown'?`<tr title="${esc(tip)}"><th scope="row">${esc((compactNames[key] || info.name).replace(/ pitch$/, ''))}</th><td><input type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]*)?|[.][0-9]+" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="—" aria-label="${esc(info.name)}" aria-description="${esc(tip)}"></td></tr>`:`<label class="sw-measure-field" title="${esc(tip)}"><span class="sw-measure-name">${esc(compactNames[key] || info.name)}</span><span><input type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]*)?|[.][0-9]+" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="—" aria-label="${esc(info.name)}" aria-description="${esc(tip)}"><small title="${esc(tip)}">${esc(info.unit)}</small></span></label>`);}
+ return [...groups].map(([group,fields])=>`<section class="sw-measure-group"><h4>${esc(group)}</h4>${group==='Pitch breakdown'?`<table class="sw-pitch-table"><thead><tr><th scope="col">Pitch</th><th scope="col" title="1 roofing square = 100 square feet">Squares</th></tr></thead><tbody>${fields.join('')}</tbody></table>`:`<div class="sw-measure-grid">${fields.join('')}</div>`}</section>`).join('');
 }
 const money = (value,currency='USD') => {try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(value);}catch{return `${number(value)} ${currency}`;}};
 
@@ -134,9 +139,9 @@ function tile(doc,index) {
     ${summary(doc)}<span class="sw-tile-footer">${doc.source==='measurement'?'Published measurements':'Accepted · '+esc(label(doc.document_type))}<span aria-hidden="true">↗</span></span>
     <span class="sw-hover" role="tooltip" id="sw-preview-${index}"><strong>${esc(doc.title)}</strong>${doc.source==='measurement'?measurements(doc,8):doc.sets.map(set=>`<span>${esc(set.title)}</span>${set.lines.slice(0,4).map(line=>`<span>${esc(line.name)} · ${esc(number(line.quantity))} ${esc(line.unit)}</span>`).join('') || '<span>Published calculation · awaiting generated quantities</span>'}`).join('')}<span>Open to see all published data</span></span></button>`;
 }
-export function renderDocuments(documents=[],error='') {
+export function renderDocuments(documents=[],error='',showZero=false) {
   const docs=documents.filter(d=>d.source==='document'), measures=documents.filter(d=>d.source==='measurement');
-  return `<div class="sw-home"><section aria-label="Published scope documents"><h3>Scope documents</h3><div class="sw-tiles">${docs.map((d,i)=>tile(d,i)).join('') || '<p class="sw-empty">No accepted documents have published scope artifacts yet.</p>'}</div></section><section aria-label="Measurements"><h3>Measurements</h3>${measures.map(doc=>`<div class="sw-measurements" data-measurement-source="${esc(doc.id)}">${measurementFields(doc)}</div>`).join('') || '<p class="sw-empty">No published measurements yet.</p>'}</section>${error?`<p role="status" class="sw-empty">${esc(error)}</p>`:''}</div>`;
+  return `<div class="sw-home"><section aria-label="Published scope documents"><h3>Scope documents</h3><div class="sw-tiles">${docs.map((d,i)=>tile(d,i)).join('') || '<p class="sw-empty">No accepted documents have published scope artifacts yet.</p>'}</div></section><section aria-label="Measurements"><div class="sw-measure-heading"><h3>Measurements</h3><label title="Include zero and unavailable measurements"><input type="checkbox" data-show-zero ${showZero?'checked':''}>Show zero measurements</label></div>${measures.map(doc=>`<div class="sw-measurements" data-measurement-source="${esc(doc.id)}">${measurementFields(doc,showZero)}</div>`).join('') || '<p class="sw-empty">No published measurements yet.</p>'}</section>${error?`<p role="status" class="sw-empty">${esc(error)}</p>`:''}</div>`;
 }
 function detail(doc) {
   const materials=(doc.sets || []).map(set=>`<section><h3>${esc(set.title)}</h3>${set.lines.length?`<div class="sw-table-wrap"><table><thead><tr><th>Material</th><th>Required</th><th>Order quantity</th><th>Unit cost</th></tr></thead><tbody>${set.lines.map(line=>`<tr><td><strong>${esc(line.name)}</strong>${line.variant?`<small>${esc(line.variant)}</small>`:''}${line.explanation?`<small>${esc(line.explanation)}</small>`:''}${line.group||line.structure?`<small>${esc([line.group,line.structure].filter(Boolean).join(' · '))}</small>`:''}</td><td>${esc(number(line.quantity))} ${esc(line.unit)}</td><td>${esc(number(line.order_quantity))} ${esc(line.order_unit)}</td><td>${line.unit_cost==null?'—':esc(money(line.unit_cost,line.currency))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="sw-empty">This accepted document published a material calculation. Quantities have not been generated yet.</p>'}${set.evaluations?.find(e=>e.id===set.applied_evaluation)?.warnings?.map(w=>`<p class="sw-empty">${esc(w)}</p>`).join('') || ''}</section>`).join('');
@@ -158,17 +163,23 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
   if(!state || state.contextKey!==contextKey){
     disposeSidebar(root);
     state={contextKey,selected:null,handle:null,view:'scope',widgets:{},visible:true,generation:0};sidebars.set(root,state);
-    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="scope"></div><div class="sw-panel" data-scope-panel="roof" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${[['scope','fa-file-contract','Scope of Work'],['roof','fa-cube','3D Roof'],['aerial','fa-map','Aerial View']].map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="scope"></div><div class="sw-panel" data-scope-panel="roof" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${[['scope','fa-file-contract','Scope of Work'],['roof','fa-cube','3D Roof'],['aerial','fa-images','Photos']].map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
       tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();tabs[event.key==='Home'?0:event.key==='End'?2:(index+(event.key==='ArrowRight'?1:2))%3].click();}};
     });
+    state.measurementViewers=new Set();
     // Mount both report views once, before the user selects them. Their DOM,
     // network results and viewer state survive all local tab changes.
     for(const key of ['roof','aerial']){
       const stage=root.querySelector(`[data-scope-panel="${key}"]`);stage.setAttribute('role','tabpanel');
-      if(window.FirstMateWidgets)state.widgets[key]=window.FirstMateWidgets.mount(stage,{id:key==='roof'?'reports.roof':'reports.photo',version:'1',config:key==='aerial'?{mediaKind:'aerial'}:{}},{...options.widgetContext,read:(source,target)=>window.PlatformAPI.publication.read(target.organizationId,{...source,target})});
+      if(key==='aerial'){
+        let handle,disposed=false,visible=false;
+        state.widgets[key]={setVisible(value){visible=value;handle?.setVisible?.(value);},destroy(){disposed=true;handle?.destroy?.();},serialize(){return handle?.serialize?.();}};
+        stage.textContent='Loading photos…';
+        import('/libraries/image-viewer/photo-gallery.js?v=20261010-project-photos').then(module=>{if(disposed)return;handle=module.mount(stage,{context:options.widgetContext||{}});handle.setVisible(visible);}).catch(()=>{if(!disposed)stage.textContent='The photo viewer could not load.';});
+      }else if(window.FirstMateWidgets)state.widgets[key]=window.FirstMateWidgets.mount(stage,{id:'reports.roof',version:'1',config:{}},{...options.widgetContext,getMeasurements:()=>Object.assign({},...(state.documents||[]).filter(d=>d.source==='measurement').map(d=>d.value?.measurements||{}),Object.fromEntries(Object.entries(state.options.measurementOverrides||{}).map(([key,value])=>[key,{value}]))),onMeasurementChange:(key,value)=>state.editMeasurement?.(key,value),subscribeMeasurements:listener=>{state.measurementViewers.add(listener);return ()=>state.measurementViewers.delete(listener);},read:options.widgetContext?.read||((source,target)=>window.PlatformAPI.publication.read(target.organizationId,{...source,target}))});
       else stage.textContent='The report viewer could not load.';
     }
     showViews(root,state);
@@ -181,7 +192,9 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     state.observer?.disconnect();state.handle?.destroy?.();state.handle=null;state.generation++;
     const selected=state.documents.find(d=>d.id===state.selected);
     const panel=root.querySelector('[data-scope-panel="scope"]');
-    panel.innerHTML=selected?detail(selected):renderDocuments(state.documents,state.error);
+    const displayed=state.documents.map(doc=>doc.source==='measurement'?{...doc,value:{...doc.value,measurements:{...doc.value?.measurements,...Object.fromEntries(Object.entries(state.options.measurementOverrides||{}).map(([key,value])=>[key,{...doc.value?.measurements?.[key],value}]))}}}:doc);
+    panel.innerHTML=selected?detail(selected):renderDocuments(displayed,state.error,state.showZero===true);
+    for(const listener of state.measurementViewers||[])listener();
     if(selected){
       panel.querySelector('[data-scope-back]').onclick=()=>{const id=state.selected;state.selected=null;draw();[...panel.querySelectorAll('[data-scope-document]')].find(b=>b.dataset.scopeDocument===id)?.focus();};
       panel.querySelector('h2')?.focus({preventScroll:true});
@@ -194,15 +207,20 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
         paint();state.observer=new ResizeObserver(()=>{if(stage.isConnected&&stage.clientWidth)paint();});state.observer.observe(stage);
       }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
     }else {
+      panel.querySelector('[data-show-zero]')?.addEventListener('change',event=>{state.showZero=event.target.checked;draw();});
       fitMeasurementColumns(panel);state.observer=new ResizeObserver(()=>fitMeasurementColumns(panel));state.observer.observe(panel);document.fonts?.ready.then(()=>{if(panel.isConnected)fitMeasurementColumns(panel);});
       panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;draw();});
       panel.querySelectorAll('[data-scope-measure]').forEach(input=>{
         const key=input.dataset.scopeMeasure;
         if(Object.hasOwn(state.options.measurementOverrides || {},key))input.value=measurementValue(state.options.measurementOverrides[key],key);
-        input.onchange=()=>{if(input.value!==''&&input.checkValidity())state.options.onMeasurementChange?.(key,Number(input.value));};
+        let valid=input.value;
+        input.oninput=()=>{if(!/^\d*(?:\.\d*)?$/.test(input.value))input.value=valid;else valid=input.value;};
+        input.onkeydown=event=>{if(['e','E','+','-'].includes(event.key))event.preventDefault();};
+        input.onchange=()=>{if(input.value!==''&&input.checkValidity()&&Number.isFinite(Number(input.value))){const value=Number(input.value);state.editMeasurement(key,value);input.value=measurementValue(value,key);valid=input.value;fitMeasurementColumns(panel);}else input.value=valid;};
       });
     }
   };
+  state.editMeasurement=(key,value)=>{state.options={...state.options,measurementOverrides:{...state.options.measurementOverrides,[key]:value}};state.options.onMeasurementChange?.(key,value);draw();};
   draw();
 }
 function showViews(root,state){

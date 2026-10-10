@@ -6,7 +6,7 @@ export const MATERIAL_ORDER_SCHEMA_VERSION = 1;
 export const MATERIAL_DELIVERY_SCHEMA_VERSION = 1;
 
 export const jsonObjectSchema = z.object({}).passthrough();
-export const scopeResourceTypeSchema = z.enum(["material", "labor", "equipment"]);
+export const scopeResourceTypeSchema = z.string().trim().regex(/^[a-z][a-z0-9_-]{0,79}$/);
 
 const idSchema = z.string().trim().min(1).max(160);
 const optionalIdSchema = z.string().trim().max(160).optional();
