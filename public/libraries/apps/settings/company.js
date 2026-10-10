@@ -5476,7 +5476,7 @@
         if (campaign.optInEvidenceUrl && !smsValidHttpsUrl(campaign.optInEvidenceUrl)) missing.push('Valid HTTPS opt-in evidence URL');
         if (!smsValidHttpsUrl(campaign.privacyPolicyLink)) missing.push('Public HTTPS Privacy Policy URL');
         if (!smsValidHttpsUrl(campaign.termsAndConditionsLink)) missing.push('Public HTTPS SMS Terms URL');
-        if (!/\b(?:SMS|text messages?|texts?)\b/i.test(String(campaign.optInDisclosure || '')) || !/\bSTOP\b/i.test(String(campaign.optInDisclosure || '')) || !/\bHELP\b/i.test(String(campaign.optInDisclosure || '')) || !/\b(?:frequency|freq)\b/i.test(String(campaign.optInDisclosure || '')) || !/\b(?:message|msg)\b.*\bdata rates\b/i.test(String(campaign.optInDisclosure || '')) || !/not\s+(?:sell\s+or\s+)?share.*(?:mobile|phone|SMS|opt.in).*third.part/i.test(String(campaign.optInDisclosure || ''))) missing.push('Complete SMS consent disclosure');
+        if (!/\b(?:SMS|text messages?|texts?)\b/i.test(String(campaign.optInDisclosure || '')) || !/\bSTOP\b/i.test(String(campaign.optInDisclosure || '')) || !/\bHELP\b/i.test(String(campaign.optInDisclosure || '')) || !/\b(?:frequency|freq|messages? per|messages? may vary)\b/i.test(String(campaign.optInDisclosure || '')) || !/\b(?:message|msg)\b.*\bdata rates\b/i.test(String(campaign.optInDisclosure || '')) || !/not\s+(?:sell\s+or\s+)?share.*(?:mobile|phone|SMS|opt.in).*third.part/i.test(String(campaign.optInDisclosure || ''))) missing.push('Complete SMS consent disclosure');
         if (smsSelectedFeatures(profile).length < 2 && String(brand.entityType || '').toUpperCase() !== 'SOLE_PROPRIETOR') missing.push('At least two Low Volume Mixed purposes');
         if (campaign.policyContentConfirmed !== true) missing.push('SMS policy confirmation');
         if (campaign.optInMethod === 'WEBSITE_FORM' && campaign.websiteFormConfirmed !== true) missing.push('Website SMS opt-in confirmation');
@@ -5489,7 +5489,7 @@
     }
     function smsSummaryIssueText(issue){
       const guidance = {
-        'Complete SMS consent disclosure': 'The exact script must state the SMS message types, frequency, message and data rates, STOP, HELP, and that mobile opt-in data is not shared with third parties for marketing.',
+        'Complete SMS consent disclosure': 'The exact script must state the SMS message types, frequency, message and data rates, STOP, HELP, and that you will not share mobile opt-in data with third parties for marketing.',
         'Explicit marketing consent and purchase disclaimer': 'Customer Growth is selected: mention marketing or promotions in the description, opt-in flow, and script, and state that consent is not a condition of purchase.',
         'Opt-in flow of at least 40 characters': 'Describe when and how the customer agrees, who records consent, and what confirmation follows (at least 40 characters).',
         'SMS policy confirmation': 'Review the live Privacy Policy and SMS Terms, then check the policy confirmation below.',
