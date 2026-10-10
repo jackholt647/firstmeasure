@@ -30,7 +30,7 @@ test('only accepted artifact publishers and published measurement datasets appea
     assert.equal(result.documents[0].total,'$12,345.00');
     assert.ok(calls.every(path=>!path.includes('document-modules')));
     const html=module.renderDocuments(result.documents);
-    assert.match(html,/Roof proposal/);assert.match(html,/Roof report/);assert.match(html,/1,400/);assert.doesNotMatch(html,/draft|presentation|JSON/);
+    assert.match(html,/Roof proposal/);assert.match(html,/Measurements/);assert.match(html,/value="1400"/);assert.doesNotMatch(html,/draft|presentation|JSON/);
     assert.equal(result.error,'');
     window.PlatformAPI.request=async()=>{throw Error('denied')};window.PlatformAPI.publication.list=async()=>{throw Error('denied')};
     const denied=await module.loadDocuments('org','project');assert.equal(denied.documents.length,0);assert.match(denied.error,/could not load/);
@@ -91,6 +91,17 @@ test('failed creation does not persist an item and releases the saving state', a
   await ctx.addItem(null,'labor');assert.equal(adds,0);assert.equal(saving,false);assert.equal(state.creatingList,false);
 });
 
+test('deleting a list uses the domain writer and preserves it on failure or project change',async()=>{
+  for(const mode of ['success','failure','project-change','cancel']){
+    const list={id:'labor',title:'Roof labor',revision:4},state={lists:[list],activeList:list,activeListId:list.id,visibleListIds:new Set([list.id])},calls=[];
+    const button={dataset:{mtDeleteList:list.id},disabled:false};let current=true;
+    const ctx={state,cleanText:String,materialListById:()=>list,captureProjectOperation:()=>({orgId:'org'}),projectOperationIsCurrent:()=>current,confirmAction:async()=>mode!=='cancel',showToast(){},render(){},renderLeft(){},materialsAPI:{lists:{archive:async(org,id,input)=>{calls.push({org,id,input});if(mode==='failure')throw Error('denied');if(mode==='project-change')current=false;}}}};
+    vm.createContext(ctx);vm.runInContext(fn('bindResourceActions'),ctx);ctx.bindResourceActions({querySelectorAll:()=>[button]});await button.onclick();
+    assert.equal(state.lists.length,mode==='success'?0:1);assert.equal(button.disabled,false);
+    assert.equal(calls.length,mode==='cancel'?0:1);if(calls.length)assert.deepEqual(JSON.parse(JSON.stringify(calls[0])),{org:'org',id:'labor',input:{expected_revision:4,reason:'Removed in Project'}});
+  }
+});
+
 test('resource panes keep independent scroll, narrow empty columns, and a draggable split', async () => {
   const server=createServer((req,res)=>{res.setHeader('Content-Type',req.url.includes('helper')?'text/javascript':'text/html');res.end(req.url.includes('helper')?helper:'<html><head></head><body></body></html>')});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -99,13 +110,14 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
     const page=await browser.newPage({viewport:{width:1500,height:900}});
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.evaluate(({css,render,helper})=>{
-      window.state={lists:[],saving:false,loading:false};
+      window.state={lists:[],visibleListIds:new Set(),saving:false,loading:false};
       window.items=[];
       window.filteredItems=()=>window.items;
       window.resourceType=list=>list?.resource_type||'material';
       window.materialListById=id=>state.lists.find(list=>list.id===id);
       window.resourceTerms=type=>({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type],singular:type});
       window.escapeHtml=value=>String(value);
+      window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
       window.materialSectionDefinitions=()=>['material','labor','equipment'].map(type=>({key:type,resource_type:type}));
       window.lineSectionKey=item=>item.section;
       window.renderMaterialSection=(section,rows)=>`<section class="mt-section">${rows.map(row=>`<div style="height:30px">${row.name}</div>`).join('')}</section>`;
@@ -117,6 +129,8 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
     await page.evaluate(async()=>{window.helper=await import('/helper.js');helper.installDivider(document.querySelector('aside'));
       window.FMDocWidgets={};window.FMDocModel={paperDimensions:()=>({w_pt:612})};window.FMDocRenderer={render:(root,options)=>{root.innerHTML='<p>Rendered accepted roof contract</p>';window.renderedSnapshot=options.document;window.renderedContext=options.widgetContext;return {destroy(){}};}};
       window.scopeDocs=[{id:'contract',title:'Roof contract',source:'document',document_type:'contract',total:'$12,345.00',snapshot:{resolved_definition:{id:'captured-definition'},params:{contract_value:12345},outputs:{signed:true},widget_data:{}},sets:[{title:'Roof materials',lines:[{name:'Shingles',quantity:12,unit:'bundle',order_quantity:12,order_unit:'bundle'}]}]},{id:'report',title:'Roof report',source:'measurement',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[{id:'report/pdf',kind:'firstmeasure.report'}]}}];
+      window.widgetMounts=[];window.widgetDestroyed=0;
+      window.FirstMateWidgets={mount(root,ref){widgetMounts.push(ref.id);root.innerHTML='<div>Cached '+ref.id+'</div>';return {setVisible(){},destroy(){widgetDestroyed++;}};}};
       helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project');
     });
     const tile=page.locator('[data-scope-document="contract"]');
@@ -126,12 +140,19 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
     assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>renderedSnapshot.id),'captured-definition');assert.deepEqual(await page.evaluate(()=>renderedContext),{params:{contract_value:12345},outputs:{signed:true}});
     assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());
     await page.getByRole('button',{name:'Back',exact:false}).click();assert.ok(await tile.isVisible());
-    await page.locator('[data-scope-document="report"]').click();assert.match(await page.locator('aside').innerText(),/1,400 ft2/);
-    await page.getByRole('button',{name:'Back',exact:false}).click();
+    assert.equal(await page.locator('[data-scope-document="report"]').count(),0);
+    assert.equal(await page.locator('[data-scope-measure="roofArea"]').inputValue(),'1400');
+    assert.equal(await page.locator('.sw-measurements [role=tooltip]').count(),0);
+    for(let i=0;i<3;i++){await page.getByRole('tab',{name:'3D Roof',exact:true}).click();await page.getByRole('tab',{name:'Aerial View',exact:true}).click();await page.getByRole('tab',{name:'Scope of Work',exact:true}).click();}
+    await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1500},onMeasurementChange:(key,value)=>window.edited={key,value}}));
+    assert.equal(await page.locator('[data-scope-measure="roofArea"]').inputValue(),'1500');
+    await page.locator('[data-scope-measure="roofArea"]').fill('1600');await page.locator('[data-scope-measure="roofArea"]').press('Tab');
+    assert.deepEqual(await page.evaluate(()=>edited),{key:'roofArea',value:1600});
+    assert.deepEqual(await page.evaluate(()=>widgetMounts),['reports.roof','reports.photo']);assert.equal(await page.evaluate(()=>widgetDestroyed),0);
     assert.equal(await page.getByRole('tab').count(),3);assert.ok(await page.getByRole('tab',{name:'Scope of Work'}).isVisible());
     const widths=()=>page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width));
     let w=await widths();assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),3);
-    await page.evaluate(()=>{state.lists=[{id:'m',resource_type:'material'},{id:'l',resource_type:'labor'}];items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});
+    await page.evaluate(()=>{state.lists=[{id:'m',title:'Materials',resource_type:'material'},{id:'l',title:'Labor',resource_type:'labor'}];state.visibleListIds=new Set(['m','l']);items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});
     w=await widths();assert.ok(w[0]>w[2]*2);assert.ok(w[1]>w[2]*2);
     await page.locator('.mt-resource-scroll').nth(0).evaluate(el=>el.scrollTop=200);
     assert.equal(await page.locator('.mt-resource-scroll').nth(1).evaluate(el=>el.scrollTop),0);

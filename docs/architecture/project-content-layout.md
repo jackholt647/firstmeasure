@@ -25,24 +25,43 @@ reads use the existing typed dataset publication provider and retain units. Olde
 completed reports use the authorized project-widget report/measurement contracts
 without importing data; incomplete reports remain excluded.
 
-Tiles show retained contract totals when captured, material artifact counts and
-measurement summaries. Hover/focus exposes a concise content preview. Opening a
-tile replaces this rail's content with readable material/measurement details and
+Document tiles show retained contract totals when captured and material artifact
+counts. Hover/focus exposes a concise content preview. Opening a document
+tile replaces this rail's content with readable material details and
 the accepted snapshot rendered by FMDocRenderer; Back restores the tiles. This
-uses neither a modal nor a generic JSON instance viewer. Resource list controls
-remain available in a compact disclosure beneath the artifact sections.
+uses neither a modal nor a generic JSON instance viewer. Measurements appear
+directly below the documents, with every published value in an editable two-column
+grid. Edits use project-local measurement overrides, never write to the published
+source, and have the existing override lifetime. Measurement cards have no hover
+tooltip or separate detail view.
 
-The right side has no separate heading, toolbar or totals footer. Its three
-resource panes use the full available height, scroll independently and narrow
+The right side has a thin action header for New scope list, Generate lists
+automatically and minimized-list pills. Ten pixels of padding match its gutter.
+Its three resource panes use the remaining height, scroll independently and narrow
 empty panes when another has content. With no items, all three are equal and
 show Empty List. First Add creates a missing typed list through the existing
 writer and immediately adds an editable row. Later additions reuse that list.
-The Price Book control lives in the Materials pane heading.
+The Price Book control lives in the Materials pane heading. Each actual list
+has its own header, ordering/scheduling/compensation controls and direct Add.
+Minimizing animates the list closed and exposes a header pill to restore it.
+Deletion uses the domain archive writer; accepted document material sets cannot
+be deleted through that writer and remain available to minimize.
+
+The roof and aerial widgets mount eagerly once per project rail and remain in
+memory through view switches, document previews and background rail updates.
+Bottom tabs use the company primary color. Aerial images use the reusable image
+viewer with cursor-centered scroll zoom, pointer panning, keyboard controls and
+Fit. The roof viewer reserves bottom space for its collapsible 15-entry editor
+key, uses five/four columns as width permits, and re-centers within the remaining
+canvas. The authorized report publication provides bounded saved edge
+classifications to recover chimney/transition types folded by the XML exporter;
+endpoints absent from the saved geometry remain classified by XML. No report or
+editor record is modified.
 
 No manual page-refresh control is exposed. Idle visible background reads update
 persisted lists/artifacts without evaluating calculations or creating records.
 Focused edits, dialogs and writes defer these reads. Explicit generation,
-ordering and scheduling remain domain commands in the resource list controls.
+ordering and scheduling remain domain commands on the right.
 
 Removed contracts: `project_modal_region_app`, the dynamic left-region registry/mounting pipeline, `leftRegionRoot`, `setLeftColumnOverride`, `isLeftColumnOverridden`, and `projectModal.left`/`leftMode` interpretation. The window layout helper no longer has a shared-sidebar rollback flag or visibility callback. New apps must render their layout within their tab content rather than add shell regions or revive these contracts.
 

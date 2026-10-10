@@ -45,8 +45,10 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     await page.getByRole('button',{name:'3D roof model',exact:true}).click();
     assert.equal(await page.locator('.fm-roof-gallery').evaluate(e=>e.classList.contains('is-compact')),false);
     assert.equal(await page.locator('.fm-roof-key').isVisible(),true);
-    await page.getByRole('button',{name:'Key',exact:true}).click();assert.equal(await page.locator('.fm-roof-key').isVisible(),false);await page.getByRole('button',{name:'Key',exact:true}).click();
-    const row=await page.locator('.fm-roof-control-row').boundingBox(),legend=await page.locator('.fm-roof-key').boundingBox();assert.ok(legend.y>=row.y+row.height);assert.equal(await page.locator('[data-texture]').innerText(),'');
+    const beforeHeight=await page.locator('.fm-roof-canvas').evaluate(el=>el.clientHeight);
+    await page.getByRole('button',{name:'Collapse key',exact:true}).click();assert.equal(await page.locator('.fm-roof-key').isVisible(),false);assert.ok(await page.locator('.fm-roof-canvas').evaluate(el=>el.clientHeight)>beforeHeight);await page.getByRole('button',{name:'Expand key',exact:true}).click();
+    const canvasBox=await page.locator('.fm-roof-canvas').boundingBox(),legend=await page.locator('.fm-roof-legend').boundingBox();assert.ok(legend.y>=canvasBox.y+canvasBox.height-1);assert.equal(await page.locator('[data-texture]').innerText(),'');
+    assert.equal(await page.locator('.fm-roof-key>span').count(),15);assert.equal(await page.locator('.fm-roof-tools [data-key]').count(),0);assert.match(await page.locator('.fm-roof-key').innerText(),/Skylight/);assert.match(await page.locator('.fm-roof-key').innerText(),/Chimney Step/);assert.doesNotMatch(await page.locator('.fm-roof-key').innerText(),/Step flashing/);
     await page.getByRole('button',{name:'Texture',exact:true}).click();
     assert.equal(await page.locator('[data-texture]').getAttribute('aria-pressed'),'false');
     await assertOpenings();
@@ -70,6 +72,8 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     assert.equal(await page.evaluate(xml=>FirstMeasureRoofViewer.parseModel(xml)[0].faces[0].points.length,xml),4);
     assert.deepEqual(await page.evaluate(xml=>{const roof=xml.match(/<ROOF>[\s\S]*<\/ROOF>/)[0];return FirstMeasureRoofViewer.parseModel('<ROOT>'+roof+roof+'</ROOT>').map(r=>r.faces.map(f=>f.holes.length));},xml),[[2],[2]],'Face ids stay scoped to their structure');
     assert.equal(await page.evaluate(xml=>FirstMeasureRoofViewer.parseModel(xml)[0].faces[0].holes.length,solidXml),0);
+    const classified=await page.evaluate(()=>{const xml='<ROOT><ROOF><POINT id="C1" data="0,0,0"/><POINT id="C2" data="1,0,0"/><POINT id="C3" data="1,1,0"/><LINE id="L1" path="C1,C2" type="STEPFLASH"/><LINE id="L2" path="C2,C3" type="FLASHING"/></ROOF></ROOT>';return [...FirstMeasureRoofViewer.parseModel(xml,[{path:'C1,C2',type:'CHIMNEY_EDGE'},{path:'C2,C3',type:'CHIMNEY_BACK'}])[0].lines.values()].map(line=>line.type);});
+    assert.deepEqual(classified,['CHIMNEY_EDGE','CHIMNEY_BACK']);
     const uvs=await page.evaluate(()=>{
       const f=[[0,0,0],[12,0,0],[12,12,9],[0,12,9]];
       const rotate=([x,y,z])=>[(x-y)/Math.sqrt(2),(x+y)/Math.sqrt(2),z];

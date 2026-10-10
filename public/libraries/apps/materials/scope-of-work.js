@@ -81,7 +81,7 @@ function tile(doc,index) {
 }
 export function renderDocuments(documents=[],error='') {
   const docs=documents.filter(d=>d.source==='document'), measures=documents.filter(d=>d.source==='measurement');
-  return `<div class="sw-home"><section aria-label="Published scope documents"><h3>Scope documents</h3><div class="sw-tiles">${docs.map((d,i)=>tile(d,i)).join('') || '<p class="sw-empty">No accepted documents have published scope artifacts yet.</p>'}</div></section><section aria-label="Published measurements"><h3>Measurements</h3><div class="sw-tiles">${measures.map((d,i)=>tile(d,docs.length+i)).join('') || '<p class="sw-empty">No published measurements yet.</p>'}</div></section>${error?`<p role="status" class="sw-empty">${esc(error)}</p>`:''}</div>`;
+  return `<div class="sw-home"><section aria-label="Published scope documents"><h3>Scope documents</h3><div class="sw-tiles">${docs.map((d,i)=>tile(d,i)).join('') || '<p class="sw-empty">No accepted documents have published scope artifacts yet.</p>'}</div></section><section aria-label="Measurements"><h3>Measurements</h3>${measures.map(doc=>`<div class="sw-measurements" data-measurement-source="${esc(doc.id)}"><div class="sw-measure-grid">${Object.entries(doc.value?.measurements || {}).map(([key,row])=>`<label class="sw-measure-field"><span>${esc(label(key))}</span><span><input type="number" min="0" step="any" data-scope-measure="${esc(key)}" value="${esc(row.value)}" aria-label="${esc(label(key))}"><small>${esc(row.unit)}</small></span></label>`).join('')}</div></div>`).join('') || '<p class="sw-empty">No published measurements yet.</p>'}</section>${error?`<p role="status" class="sw-empty">${esc(error)}</p>`:''}</div>`;
 }
 function detail(doc) {
   const materials=(doc.sets || []).map(set=>`<section><h3>${esc(set.title)}</h3>${set.lines.length?`<div class="sw-table-wrap"><table><thead><tr><th>Material</th><th>Required</th><th>Order quantity</th><th>Unit cost</th></tr></thead><tbody>${set.lines.map(line=>`<tr><td><strong>${esc(line.name)}</strong>${line.variant?`<small>${esc(line.variant)}</small>`:''}${line.explanation?`<small>${esc(line.explanation)}</small>`:''}${line.group||line.structure?`<small>${esc([line.group,line.structure].filter(Boolean).join(' · '))}</small>`:''}</td><td>${esc(number(line.quantity))} ${esc(line.unit)}</td><td>${esc(number(line.order_quantity))} ${esc(line.order_unit)}</td><td>${line.unit_cost==null?'—':esc(money(line.unit_cost,line.currency))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="sw-empty">This accepted document published a material calculation. Quantities have not been generated yet.</p>'}${set.evaluations?.find(e=>e.id===set.applied_evaluation)?.warnings?.map(w=>`<p class="sw-empty">${esc(w)}</p>`).join('') || ''}</section>`).join('');
@@ -100,41 +100,63 @@ async function renderer() {
 }
 export function mountSidebar(root,documents,error,contextKey,options={}) {
   let state=sidebars.get(root);
-  if(!state || state.contextKey!==contextKey){state?.handle?.destroy?.();state?.widget?.destroy?.();state?.observer?.disconnect();state={contextKey,selected:null,handle:null,view:'scope'};sidebars.set(root,state);}
-  const fingerprint=JSON.stringify([documents,error,options.listKey]);
+  if(!state || state.contextKey!==contextKey){
+    disposeSidebar(root);
+    state={contextKey,selected:null,handle:null,view:'scope',widgets:{},visible:true,generation:0};sidebars.set(root,state);
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="scope"></div><div class="sw-panel" data-scope-panel="roof" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${[['scope','fa-file-contract','Scope of Work'],['roof','fa-cube','3D Roof'],['aerial','fa-map','Aerial View']].map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    const tabs=[...root.querySelectorAll('[data-scope-view]')];
+    tabs.forEach((tab,index)=>{
+      tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
+      tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();tabs[event.key==='Home'?0:event.key==='End'?2:(index+(event.key==='ArrowRight'?1:2))%3].click();}};
+    });
+    // Mount both report views once, before the user selects them. Their DOM,
+    // network results and viewer state survive all local tab changes.
+    for(const key of ['roof','aerial']){
+      const stage=root.querySelector(`[data-scope-panel="${key}"]`);stage.setAttribute('role','tabpanel');
+      if(window.FirstMateWidgets)state.widgets[key]=window.FirstMateWidgets.mount(stage,{id:key==='roof'?'reports.roof':'reports.photo',version:'1',config:key==='aerial'?{mediaKind:'aerial'}:{}},{...options.widgetContext,read:(source,target)=>window.PlatformAPI.publication.read(target.organizationId,{...source,target})});
+      else stage.textContent='The report viewer could not load.';
+    }
+    showViews(root,state);
+  }
+  state.options=options;
+  const fingerprint=JSON.stringify([documents,error,options.measurementOverrides]);
   if(state.fingerprint===fingerprint)return;
   state.fingerprint=fingerprint;state.documents=documents;state.error=error;
   const draw=()=>{
-    state.observer?.disconnect();state.handle?.destroy?.();state.handle=null;state.widget?.destroy?.();state.widget=null;state.generation=(state.generation||0)+1;
+    state.observer?.disconnect();state.handle?.destroy?.();state.handle=null;state.generation++;
     const selected=state.documents.find(d=>d.id===state.selected);
-    root.innerHTML=`<div class="sw-viewport" data-scope-viewport>${state.view==='scope'?(selected?detail(selected):renderDocuments(state.documents,state.error)):''}</div><nav class="sw-tabs" role="tablist" aria-label="Project views">${[['scope','fa-file-contract','Scope of Work'],['roof','fa-cube','3D Roof'],['aerial','fa-map','Aerial View']].map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
-    const tabs=[...root.querySelectorAll('[data-scope-view]')];tabs.forEach((tab,index)=>{tab.onclick=()=>{state.view=tab.dataset.scopeView;draw();root.querySelector(`[data-scope-view="${state.view}"]`).focus();};tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();tabs[event.key==='Home'?0:event.key==='End'?2:(index+(event.key==='ArrowRight'?1:2))%3].click();}};});
-    if(state.view!=='scope'){
-      const stage=root.querySelector('[data-scope-viewport]');stage.setAttribute('role','tabpanel');
-      if(window.FirstMateWidgets)state.widget=window.FirstMateWidgets.mount(stage,{id:state.view==='roof'?'reports.roof':'reports.photo',version:'1',config:state.view==='aerial'?{mediaKind:'aerial'}:{}},{...options.widgetContext,read:(source,target)=>window.PlatformAPI.publication.read(target.organizationId,{...source,target})});
-      else stage.textContent='The report viewer could not load.';
-      return;
-    }
-
+    const panel=root.querySelector('[data-scope-panel="scope"]');
+    panel.innerHTML=selected?detail(selected):renderDocuments(state.documents,state.error);
     if(selected){
-      root.querySelector('[data-scope-back]').onclick=()=>{const id=state.selected;state.selected=null;draw();[...root.querySelectorAll('[data-scope-document]')].find(b=>b.dataset.scopeDocument===id)?.focus();};
-      root.querySelector('h2')?.focus({preventScroll:true});
-      const stage=root.querySelector('[data-scope-stage]'), generation=state.generation;
+      panel.querySelector('[data-scope-back]').onclick=()=>{const id=state.selected;state.selected=null;draw();[...panel.querySelectorAll('[data-scope-document]')].find(b=>b.dataset.scopeDocument===id)?.focus();};
+      panel.querySelector('h2')?.focus({preventScroll:true});
+      const stage=panel.querySelector('[data-scope-stage]'),generation=state.generation;
       if(stage){stage.textContent='Loading accepted document…';renderer().then(()=>{
         if(!stage.isConnected || state.generation!==generation)return;
         const snapshot=selected.snapshot,definition=snapshot.resolved_definition;
         const dims=window.FMDocModel?.paperDimensions?.(definition) || {w_pt:612};
         const paint=()=>{state.handle?.destroy?.();stage.innerHTML='';state.handle=window.FMDocRenderer.render(stage,{document:definition,mode:'static',readonly:true,widgetData:snapshot.widget_data || {},widgetContext:{params:snapshot.params || {},outputs:snapshot.outputs || {}},theme:snapshot.theme,themeContext:{overrides:snapshot.theme_vars || {}},scale:Math.min(1,Math.max(0.1,stage.clientWidth/(dims.w_pt*96/72)))});};
-        paint();state.observer?.disconnect();state.observer=new ResizeObserver(()=>{if(stage.isConnected)paint();});state.observer.observe(stage);
+        paint();state.observer=new ResizeObserver(()=>{if(stage.isConnected&&stage.clientWidth)paint();});state.observer.observe(stage);
       }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
-    }else {root.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;draw();});
-      if(options.renderLists){const tools=document.createElement('details');tools.className='sw-list-tools';tools.innerHTML='<summary>Resource list controls</summary>';tools.append(options.renderLists());root.querySelector('.sw-home').append(tools);}
+    }else {
+      panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;draw();});
+      panel.querySelectorAll('[data-scope-measure]').forEach(input=>{
+        const key=input.dataset.scopeMeasure;
+        if(Object.hasOwn(state.options.measurementOverrides || {},key))input.value=state.options.measurementOverrides[key];
+        input.onchange=()=>{if(input.value!==''&&input.checkValidity())state.options.onMeasurementChange?.(key,Number(input.value));};
+      });
     }
   };
-  state.observer?.disconnect();draw();
+  draw();
 }
-export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.handle?.destroy?.();state?.widget?.destroy?.();sidebars.delete(root);}
-export function setSidebarVisible(root,visible){sidebars.get(root)?.widget?.setVisible?.(visible);}
+function showViews(root,state){
+  root.querySelectorAll('[data-scope-panel]').forEach(panel=>{panel.hidden=panel.dataset.scopePanel!==state.view;});
+  root.querySelectorAll('[data-scope-view]').forEach(tab=>{const active=tab.dataset.scopeView===state.view;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
+  for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key);
+  window.dispatchEvent(new Event('resize'));
+}
+export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.handle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
+export function setSidebarVisible(root,visible){const state=sidebars.get(root);if(state){state.visible=visible;showViews(root,state);}}
 
 export function installDivider(sidebar) {
   const parent = sidebar?.parentElement;
