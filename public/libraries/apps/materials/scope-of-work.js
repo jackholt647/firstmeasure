@@ -89,9 +89,9 @@ function detail(doc) {
 }
 let rendererReady;
 async function renderer() {
-  if(window.FMDocRenderer?.render && window.FMDocModel)return;
+  if(window.FMDocRenderer?.render && window.FMDocModel && window.FMDocWidgets)return;
   rendererReady ||= (async()=>{
-    for(const [global,url] of [['FMDocModel','/libraries/doc-model/firstmate-doc-model.js'],['FMDocRenderer','/libraries/doc-renderer/firstmate-doc-renderer.js']]){
+    for(const [global,url] of [['FMDocModel','/libraries/doc-model/firstmate-doc-model.js'],['FMDocWidgets','/libraries/doc-widgets/firstmate-doc-widgets.js'],['FMDocRenderer','/libraries/doc-renderer/firstmate-doc-renderer.js']]){
       if(window[global])continue;
       await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=url;script.onload=resolve;script.onerror=()=>reject(Error('The accepted document preview could not load.'));document.head.append(script);});
     }
@@ -124,7 +124,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
         if(!stage.isConnected || state.generation!==generation)return;
         const snapshot=selected.snapshot,definition=snapshot.resolved_definition;
         const dims=window.FMDocModel?.paperDimensions?.(definition) || {w_pt:612};
-        const paint=()=>{state.handle?.destroy?.();stage.innerHTML='';state.handle=window.FMDocRenderer.render(stage,{document:definition,mode:'static',readonly:true,widgetData:snapshot.widget_data || {},theme:snapshot.theme,themeContext:{overrides:snapshot.theme_vars || {}},scale:Math.min(1,Math.max(0.1,stage.clientWidth/(dims.w_pt*96/72)))});};
+        const paint=()=>{state.handle?.destroy?.();stage.innerHTML='';state.handle=window.FMDocRenderer.render(stage,{document:definition,mode:'static',readonly:true,widgetData:snapshot.widget_data || {},widgetContext:{params:snapshot.params || {},outputs:snapshot.outputs || {}},theme:snapshot.theme,themeContext:{overrides:snapshot.theme_vars || {}},scale:Math.min(1,Math.max(0.1,stage.clientWidth/(dims.w_pt*96/72)))});};
         paint();state.observer?.disconnect();state.observer=new ResizeObserver(()=>{if(stage.isConnected)paint();});state.observer.observe(stage);
       }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
     }else {root.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;draw();});

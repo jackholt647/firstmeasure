@@ -115,15 +115,15 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
       window.draw=()=>document.querySelector('[data-mt-material-grid]').innerHTML=renderMaterialSections();draw();
     },{css:fn('css'),render:fn('renderMaterialSections'),helper});
     await page.evaluate(async()=>{window.helper=await import('/helper.js');helper.installDivider(document.querySelector('aside'));
-      window.FMDocModel={paperDimensions:()=>({w_pt:612})};window.FMDocRenderer={render:(root,options)=>{root.innerHTML='<p>Rendered accepted roof contract</p>';window.renderedSnapshot=options.document;return {destroy(){}};}};
-      window.scopeDocs=[{id:'contract',title:'Roof contract',source:'document',document_type:'contract',total:'$12,345.00',snapshot:{resolved_definition:{id:'captured-definition'},widget_data:{}},sets:[{title:'Roof materials',lines:[{name:'Shingles',quantity:12,unit:'bundle',order_quantity:12,order_unit:'bundle'}]}]},{id:'report',title:'Roof report',source:'measurement',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[{id:'report/pdf',kind:'firstmeasure.report'}]}}];
+      window.FMDocWidgets={};window.FMDocModel={paperDimensions:()=>({w_pt:612})};window.FMDocRenderer={render:(root,options)=>{root.innerHTML='<p>Rendered accepted roof contract</p>';window.renderedSnapshot=options.document;window.renderedContext=options.widgetContext;return {destroy(){}};}};
+      window.scopeDocs=[{id:'contract',title:'Roof contract',source:'document',document_type:'contract',total:'$12,345.00',snapshot:{resolved_definition:{id:'captured-definition'},params:{contract_value:12345},outputs:{signed:true},widget_data:{}},sets:[{title:'Roof materials',lines:[{name:'Shingles',quantity:12,unit:'bundle',order_quantity:12,order_unit:'bundle'}]}]},{id:'report',title:'Roof report',source:'measurement',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[{id:'report/pdf',kind:'firstmeasure.report'}]}}];
       helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project');
     });
     const tile=page.locator('[data-scope-document="contract"]');
     await tile.hover();assert.ok(await tile.getByRole('tooltip').isVisible());
     await page.locator('[data-scope-document="contract"]').click();
     await page.getByText('Rendered accepted roof contract').waitFor();
-    assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>renderedSnapshot.id),'captured-definition');
+    assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>renderedSnapshot.id),'captured-definition');assert.deepEqual(await page.evaluate(()=>renderedContext),{params:{contract_value:12345},outputs:{signed:true}});
     assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());
     await page.getByRole('button',{name:'Back',exact:false}).click();assert.ok(await tile.isVisible());
     await page.locator('[data-scope-document="report"]').click();assert.match(await page.locator('aside').innerText(),/1,400 ft2/);

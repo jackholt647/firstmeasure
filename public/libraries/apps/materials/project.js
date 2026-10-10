@@ -5,7 +5,7 @@
   let materialsAPI;
   let scopeWorkspace;
   let refreshTimer;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261010-published-scope-report-fallback', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261010-published-scope-preview-runtime', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005-quantities', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
