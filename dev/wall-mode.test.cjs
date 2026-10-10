@@ -727,10 +727,13 @@ test('driven soffits default on and the advanced preference applies only on rebu
  f.soffits[0].onclick();assert.equal(f.ctx.WallMode.serialize().options.drivenSoffits,false);
  const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:f.ctx.WallMode.serialize()});fresh.soffits[0].onclick();assert.equal(fresh.ctx.WallMode.serialize().options.drivenSoffits,false);
 });
-test('3D header keeps selected line length visible independently of tools and model labels',()=>{
+test('main header shows wall and roof line lengths without depending on the 3D toolbar',()=>{
  let host,length=null;const updates=[],wall={apply:w=>w,draw2D(){},draw3D(){},clear(){},leave(){},interaction:()=>null,selectedLineLength:()=>length};
- const f=fixture(true,{createWallEditor:h=>{host=h;return wall;},setInterval:(fn,ms)=>{if(ms===150)updates.push(fn);return 0;}});f.ctx.WallMode.setEnabled(true);host.setLayer('walls');const toolbar=f.ctx.document.createElement('div');f.ctx.document.querySelector=()=>toolbar;const read=()=>{updates.forEach(fn=>fn());return f.elements.get('wall-selected-line-length');};
+ const f=fixture(true,{createWallEditor:h=>{host=h;return wall;},setInterval:(fn,ms)=>{if(ms===150)updates.push(fn);return 0;}});f.ctx.WallMode.setEnabled(true);host.setLayer('walls');const toolbar=f.ctx.document.createElement('div');f.ctx.document.querySelector=()=>toolbar;const slot=f.ctx.document.getElementById('selected-line-length-slot');slot.appendChild=child=>{child.parentElement=slot;f.elements.set(child.id,child);};const read=()=>{updates.forEach(fn=>fn());return f.elements.get('wall-selected-line-length');};
  assert.equal(read().hidden,true);length=1.524;assert.equal(read().textContent,'Length: 5.00′');assert.equal(read().hidden,false);host.message('Unrelated tool message');assert.equal(read().textContent,'Length: 5.00′');length=3.048;assert.equal(read().textContent,'Length: 10.00′');length=null;assert.equal(read().hidden,true);length=1;f.ctx.WallMode.setEnabled(false);assert.equal(read().hidden,true);
+ assert.equal(read().parentElement,f.elements.get('selected-line-length-slot'));assert.notEqual(read().parentElement,toolbar);
+ f.ctx.getMetersPerPx=()=>.3048;const edge={start:{x:0,y:0,z:0},end:{x:3,y:4,z:3.6576}};f.ctx.selectedLines.add(edge);assert.equal(read().textContent,'Length: 13.00′');assert.equal(read().hidden,false);
+ f.ctx.selectedLines.add({start:edge.start,end:edge.end});assert.equal(read().hidden,true);f.ctx.selectedLines.clear();assert.equal(read().hidden,true);
 });
 
 test('automatic parapets default on, create editable faces, and preserve the advanced choice across rebuild and reload',()=>{

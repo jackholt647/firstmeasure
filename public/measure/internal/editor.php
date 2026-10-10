@@ -1265,6 +1265,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 
             <div class="toolbar-section toolbar-section-right">
                 <div class="controls-group" id="toolbar-action-group" style="margin-left:auto; padding-right: 0;">
+                    <span id="selected-line-length-slot" style="flex:0 0 132px; width:132px; text-align:right; white-space:nowrap; font:400 11px system-ui; font-variant-numeric:tabular-nums; color:#666;" aria-live="off"></span>
                     <div class="btn-group" style="display:flex; border:1px solid #ccc; border-radius:4px; overflow:hidden;">
                         <button class="toolbar-btn" onclick="openGoogleEarth()" title="Open Google Earth" style="border:none; border-radius:0; padding:6px 9px;">
                             <i class="fas fa-globe-americas"></i>
