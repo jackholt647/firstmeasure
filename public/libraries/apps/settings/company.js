@@ -5120,6 +5120,7 @@
       const selectedIds = smsSelectedFeatures(base);
       const selected = smsFeatureOptions.filter((feature) => selectedIds.includes(feature.id));
       const company = smsCompanyName(base);
+      const companyKnown = Boolean(String(base.brand?.displayName || base.brand?.companyName || '').trim());
       const includesMarketing = selectedIds.includes('customer_growth');
       const featureLabels = selected.map((feature) => feature.label.toLowerCase()).join(', ');
       const website = String(base.brand?.website || '').trim();
@@ -5132,11 +5133,11 @@
         featuresConfirmed: base.campaign.featuresConfirmed === true,
         messageFlowConfirmed: base.campaign.messageFlowConfirmed === true,
         usecase: smsHasProviderCampaign(base) ? base.campaign.usecase : soleProprietor ? 'SOLE_PROPRIETOR' : 'LOW_VOLUME',
-        description: base.campaign.description || `${company} uses FirstMate CRM to send opted-in customers SMS for ${featureLabels || 'customer communication'}${includesMarketing ? ', including marketing and promotional offers' : ''}. Messages come from ${company} and reflect the selected purposes.`,
+        description: base.campaign.description && !/\byour company\b/i.test(base.campaign.description) ? base.campaign.description : companyKnown ? `${company} uses FirstMate CRM to send opted-in customers SMS for ${featureLabels || 'customer communication'}${includesMarketing ? ', including marketing and promotional offers' : ''}. Messages come from ${company} and reflect the selected purposes.` : '',
         messageFlow: savedMessageFlow && !legacyGeneratedFlow ? savedMessageFlow : '',
-        sample1: base.campaign.sample1 || (selectedIds.includes('crm_conversations') ? `Hi Jane, this is ${company}. Thanks for contacting us. How can we help with your project? Reply STOP to opt out.` : `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply STOP to opt out.`),
-        sample2: base.campaign.sample2 || (selectedIds.includes('operations') ? `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply HELP for help or STOP to opt out.` : `Hi Jane, this is ${company}. We received your question and will follow up shortly. Reply HELP for help or STOP to opt out.`),
-        sample3: base.campaign.sample3 || (includesMarketing ? `Hi Jane, ${company} has a seasonal offer available this week. Reply STOP to opt out.` : ''),
+        sample1: base.campaign.sample1 && !/\byour company\b/i.test(base.campaign.sample1) ? base.campaign.sample1 : companyKnown ? (selectedIds.includes('crm_conversations') ? `Hi Jane, this is ${company}. Thanks for contacting us. How can we help with your project? Reply STOP to opt out.` : `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply STOP to opt out.`) : '',
+        sample2: base.campaign.sample2 && !/\byour company\b/i.test(base.campaign.sample2) ? base.campaign.sample2 : companyKnown ? (selectedIds.includes('operations') ? `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply HELP for help or STOP to opt out.` : `Hi Jane, this is ${company}. We received your question and will follow up shortly. Reply HELP for help or STOP to opt out.`) : '',
+        sample3: base.campaign.sample3 && !/\byour company\b/i.test(base.campaign.sample3) ? base.campaign.sample3 : companyKnown && includesMarketing ? `Hi Jane, ${company} has a seasonal offer available this week. Reply STOP to opt out.` : '',
         subscriberOptin: true,
         subscriberOptout: true,
         subscriberHelp: true,
