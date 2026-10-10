@@ -10,6 +10,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://feed.test/**',r=>r.fulfill({contentType:r.request().url().endsWith('.svg')?'image/svg+xml':'text/html',body:r.request().url().endsWith('.svg')?'<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#87a5b8"/><path d="M0 430L350 80L650 380L900 180V600H0" fill="#365d71"/></svg>':'<html><body></body></html>'}));
   await page.route('http://feed.test/libraries/gif-picker/giphy-sdk.js*',r=>r.fulfill({contentType:'text/javascript',body:`export class GiphyFetch { constructor(key){this.key=key} async trending(){return {data:[]}} async search(){return {data:[]}} } export function renderGrid(options,container){const button=document.createElement('button');button.type='button';button.textContent='Choose birthday GIF';button.onclick=event=>options.onGifClick({id:'birthday123',title:'Birthday GIF',images:{fixed_width:{url:'https://media1.giphy.com/media/birthday123/giphy.gif',width:'200',height:'150'}}},event);container.append(button);return()=>button.remove();}`}));
+  await page.route('http://feed.test/libraries/platform-widgets/pickers.js*',async r=>r.fulfill({contentType:'text/javascript',body:await readFile(new URL('../../libraries/platform-widgets/pickers.js',import.meta.url),'utf8')}));
   await page.goto('http://feed.test/');
   await page.setContent('<main id="feed" style="height:830px;margin:25px"></main>');
   await page.evaluate(()=>{
@@ -26,7 +27,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
    window.FirstMateWidgets={types:async()=>[{id:'summary.project'},{id:'summary.document.contract'},{id:'summary.work.plan.stage_manually_set'}],mount:(host,reference,context)=>{const preview=document.createElement('section');preview.className='test-summary-widget';preview.textContent=`${reference.type} preview`;host.append(preview);return {ready:Promise.resolve(),destroy(){window.summaryDestroyed++;host.replaceChildren();}};}};
    window.FirstMateMarkup={openPhotoViewer:options=>{window.lastViewerOptions=options;window.viewerOpens=(window.viewerOpens||0)+1;return{close(){}};}};
    window.rootMessage={id:'root',reply_count:0,reactions:[],author:{id:'sam',name:'Sam Rivera'}};window.replies=[];
-   window.ChannelsAPI={feed:{catalog:async()=>({projects,media:[{id:'contract',content_type:'text/plain',owner:{type:'project',id:'project',slot:'documents'},metadata:{field:'documents'}}],events,users:[{id:'sam',name:'Sam Rivera',avatar:'/wrong.svg'}],views:['list','small','large','mosaic','posts'],can_comment:true,can_react:true,can_post:true,manual_posts:[{id:'manual-old',text:'Company birthday board',created_at:'2026-09-01T12:00:00Z',author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'},metadata:{feed_manual:true,feed_department_id:''}}],departments:[{id:'sales',label:'Sales'}],user_departments:{sam:['sales']}}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.kind==='media'?'media-batch':ref.id,author:'sam',at:uploadedAt}))}),lookup:async()=>({root:window.rootMessage,replies:window.replies}),resolve:async()=>({root:window.rootMessage,replies:window.replies}),thread:async()=>({root:window.rootMessage,replies:window.replies}),comment:async(_o,_id,body)=>{window.replies.push({...body,id:'comment'+window.replies.length,author:{name:'Sam Rivera'},created_at:new Date().toISOString(),can_edit:true,can_delete:true,metadata:{...body.metadata,...(body.parent_id?{feed_reply_to:{id:body.parent_id,author_name:'Sam Rivera'}}:{})}});window.rootMessage.reply_count++;return{};},edit:async(_o,id,text)=>{const message=window.replies.find(reply=>reply.id===id);message.text=text;message.edited_at=new Date().toISOString();},react:async(_o,id,emoji,on)=>{const target=id==='root'?window.rootMessage:window.replies.find(reply=>reply.id===id);target.reactions=on?[{emoji,count:1,reacted:true,users:[{name:'Sam Rivera'}]}]:[];},createPost:async(_o,input)=>{window.createdPost=input;return{post:{id:'manual-post'}};},upload:async()=>({attachment:{id:'image'}})},gifs:{config:async()=>({enabled:true,sdk_key:'test'})},channels:{list:async()=>({channels:[{id:'project-channel',type:'project',project_id:'project'}]})},messages:{list:async()=>({messages:[{id:'note-1',text:'The flashing needs a closer look before installation. The crew should take photos of the north edge and confirm that the replacement material matches the existing trim. Keep the back entry clear while the work is underway, then return tomorrow for one final photo after the sealant has cured. This gives the homeowner a clear record of the repair and lets the office confirm that the area is ready for the final walkthrough.',created_at:uploadedAt,metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}},{id:'note-2',text:'Done.',created_at:new Date(Date.parse(uploadedAt)-60000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}},{id:'note-3',text:'Customer confirmed driveway access. Stage materials on the left side of the garage.',created_at:new Date(Date.parse(uploadedAt)-120000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}}]})}};
+   window.ChannelsAPI={feed:{catalog:async()=>({projects,media:[{id:'contract',content_type:'text/plain',owner:{type:'project',id:'project',slot:'documents'},metadata:{field:'documents'}}],events,users:[{id:'sam',name:'Sam Rivera',avatar:'/wrong.svg'}],views:['list','small','large','mosaic','posts'],can_comment:true,can_react:true,can_post:true,manual_posts:[{id:'manual-old',text:'Company birthday board @Sam Rivera',mention_users:[{id:'sam',name:'Sam Rivera'}],created_at:'2026-09-01T12:00:00Z',author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'},metadata:{feed_manual:true,feed_department_id:''}}],departments:[{id:'sales',label:'Sales'}],user_departments:{sam:['sales']}}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.kind==='media'?'media-batch':ref.id,author:'sam',at:uploadedAt}))}),lookup:async()=>({root:window.rootMessage,replies:window.replies}),resolve:async()=>({root:window.rootMessage,replies:window.replies}),thread:async()=>({root:window.rootMessage,replies:window.replies}),comment:async(_o,_id,body)=>{window.replies.push({...body,id:'comment'+window.replies.length,author:{name:'Sam Rivera'},created_at:new Date().toISOString(),can_edit:true,can_delete:true,metadata:{...body.metadata,...(body.parent_id?{feed_reply_to:{id:body.parent_id,author_name:'Sam Rivera'}}:{})}});window.rootMessage.reply_count++;return{};},edit:async(_o,id,text)=>{const message=window.replies.find(reply=>reply.id===id);message.text=text;message.edited_at=new Date().toISOString();},react:async(_o,id,emoji,on)=>{const target=id==='root'?window.rootMessage:window.replies.find(reply=>reply.id===id);target.reactions=on?[{emoji,count:1,reacted:true,users:[{name:'Sam Rivera'}]}]:[];},createPost:async(_o,input)=>{window.createdPost=input;return{post:{id:'manual-post'}};},upload:async()=>({attachment:{id:'image'}})},gifs:{config:async()=>({enabled:true,sdk_key:'test'})},channels:{list:async()=>({channels:[{id:'project-channel',type:'project',project_id:'project'}]})},messages:{list:async()=>({messages:[{id:'note-1',text:'The flashing needs a closer look before installation. The crew should take photos of the north edge and confirm that the replacement material matches the existing trim. Keep the back entry clear while the work is underway, then return tomorrow for one final photo after the sealant has cured. This gives the homeowner a clear record of the repair and lets the office confirm that the area is ready for the final walkthrough.',created_at:uploadedAt,metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}},{id:'note-2',text:'Done.',created_at:new Date(Date.parse(uploadedAt)-60000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}},{id:'note-3',text:'Customer confirmed driveway access. Stage materials on the left side of the garage.',created_at:new Date(Date.parse(uploadedAt)-120000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera',avatar:'/avatar.svg'}}]})}};
   });
   await page.evaluate(()=>{
     window.PlatformAPI.users.list=async()=>({documents:[{id:'sam',data:{name:'Sam Rivera',profile_photo_url:'/avatar.svg'}}],users:[{id:'sam',name:'Sam Rivera',email:'sam@example.test'},{id:'outsider',name:'Outside Employee',email:'outside@example.test'}]});
@@ -34,7 +35,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     const catalog=window.ChannelsAPI.feed.catalog;
     window.ChannelsAPI.feed.catalog=async()=>{const data=await catalog();data.manual_posts[0].attachments=Array.from({length:8},(_,index)=>({id:`attached-${index}`,media_id:`post-image-${index}`,file_name:`Post image ${index+1}`,content_type:'image/png'}));return data;};
   });
-  for(const file of ['platform-tags/platform-tags.js','channels-ui/channels-ui.js','audio-notes/audio-notes.js','apps/photos/feed.js'])await page.addScriptTag({content:await readFile(file==='apps/photos/feed.js' && process.env.FEED_BROWSER_SCRIPT ? process.env.FEED_BROWSER_SCRIPT : file==='channels-ui/channels-ui.js' && process.env.CHANNELS_BROWSER_SCRIPT ? process.env.CHANNELS_BROWSER_SCRIPT : file==='audio-notes/audio-notes.js' && process.env.AUDIO_BROWSER_SCRIPT ? process.env.AUDIO_BROWSER_SCRIPT : new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
+  for(const file of ['platform-tags/platform-tags.js','channels-ui/channels-ui.js','audio-notes/audio-notes.js','apps/photos/feed.js'])await page.addScriptTag({content:await readFile(file==='apps/photos/feed.js' && process.env.FEED_BROWSER_SCRIPT ? process.env.FEED_BROWSER_SCRIPT : file==='channels-ui/channels-ui.js' && process.env.CHANNELS_BROWSER_SCRIPT ? process.env.CHANNELS_BROWSER_SCRIPT : file==='audio-notes/audio-notes.js' && process.env.AUDIO_BROWSER_SCRIPT ? process.env.AUDIO_BROWSER_SCRIPT : file==='platform-tags/platform-tags.js' && process.env.TAGS_BROWSER_SCRIPT ? process.env.TAGS_BROWSER_SCRIPT : new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
   await page.waitForFunction(()=>window.feedApp);
   await page.evaluate(()=>window.feedApp.mount(document.querySelector('#feed')));
   await page.waitForFunction(()=>document.querySelectorAll('.pf-feed-card').length>=10).catch(async error=>{throw new Error(`${error.message}; page errors: ${errors.join(' | ')}; feed: ${(await page.locator('#feed').textContent()).slice(0,400)}`);});
@@ -251,7 +252,6 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await post.getByRole('button',{name:'Send a GIF'}).click();
   const gifPicker=page.getByRole('dialog',{name:'Choose a GIF'});
   await gifPicker.getByRole('button',{name:'Choose birthday GIF'}).click();
-  await gifPicker.getByRole('button',{name:'Send GIF'}).click();
   await page.waitForFunction(()=>window.replies.some(reply=>reply.metadata?.giphy?.id==='birthday123'));
   assert.equal(await post.locator('.pf-comment [data-comment-content] img').count(),1);
   await post.getByRole('button',{name:'Edit',exact:true}).first().click();
@@ -297,6 +297,13 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.locator('.fm-ch-popover').getByRole('textbox',{name:'Find a teammate…'}).fill('Sam');
   await page.locator('.fm-ch-popover [data-mention-user="sam"]').click();
   assert.equal(await post.locator('textarea').inputValue(),'Hello @Sam Rivera ');
+  assert.ok(await post.locator('[data-mention-button]').evaluate(button=>button.getBoundingClientRect().left<button.nextElementSibling.getBoundingClientRect().left),'comment @ is before the flexible attachment spacer');
+  await post.getByRole('button',{name:'Post comment'}).click();
+  await post.locator('[data-comment-content] .fm-ch-mention').waitFor();
+  assert.equal(await post.locator('[data-comment-content] .fm-ch-mention').last().textContent(),'@Sam Rivera');
+  assert.equal(await post.locator('[data-comment-content] .fm-ch-mention').last().evaluate(node=>getComputedStyle(node).color),'rgb(217, 48, 37)');
+  assert.equal(await page.locator('.pf-manual-text .fm-ch-mention').textContent(),'@Sam Rivera','posted mentions use the Channels token');
+
 
   await page.screenshot({path:new URL('../../../output/feed/screenshots/posts.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
   assert.equal(await page.getByRole('button',{name:'Show 2 more images'}).count(),1);
@@ -341,7 +348,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await editor.fill('First line\nLast line');
   await editor.press('Control+End');
   await composer.getByRole('button',{name:'Insert emoji'}).click();
-  await page.locator('.pf-emoji-widget .fm-ch-emoji-search').fill('🎉');
+  await page.locator('.pf-emoji-widget .fm-picker-search').fill('🎉');
   await page.locator('.pf-emoji-widget').getByRole('button',{name:'🎉'}).click();
   assert.equal(await editor.evaluate(element=>element.textContent),'First lineLast line🎉','emoji returns to the caret after picker search takes focus');
   await editor.fill('Start end');await editor.press('Home');await editor.press('ArrowRight');await editor.press('ArrowRight');
@@ -355,10 +362,38 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await editor.locator('table tr').count(),2,'table picker inserts the chosen rows');
   assert.equal(await editor.locator('table tr').first().locator('th,td').count(),3);
   assert.match(await editor.evaluate(element=>element.value),/Table below[\s\S]*\| Heading \| Heading \| Heading \|/,'table is inserted after the caret and serializes');
+  assert.equal(await editor.locator('th,td').first().evaluate(cell=>getComputedStyle(cell).borderTopStyle),'solid');
+  assert.equal(await editor.locator('th,td').first().evaluate(cell=>getComputedStyle(cell).borderTopWidth),'1px','tables have visible borders in Posts');
+  await editor.locator('td,th').first().click();
+  const tableControls=composer.locator('.fm-ch-table-controls');
+  assert.deepEqual(await tableControls.getByRole('button').allTextContents(),['Insert ▾','Delete row','Delete column','Delete table']);
+  assert.ok(await composer.locator('[data-mention-button]').evaluate(button=>button.getBoundingClientRect().top<button.parentElement.querySelector('.fm-ch-table-controls').getBoundingClientRect().top),'@ stays on the main toolbar row');
+  await tableControls.getByRole('button',{name:'Insert',exact:true}).click();
+  assert.deepEqual(await page.getByRole('menu').getByRole('menuitem').allTextContents(),['Row above','Row below','Column left','Column right']);
+  await page.getByRole('menuitem',{name:'Row above',exact:true}).click();
+  assert.equal(await editor.locator('tr').count(),3);
+  await editor.locator('td,th').first().click();await tableControls.getByRole('button',{name:'Insert',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Column right',exact:true}).click();
+  assert.equal(await editor.locator('tr').first().locator('th,td').count(),4);
+  await editor.locator('td,th').first().click();await tableControls.getByRole('button',{name:'Delete column',exact:true}).click();
+  assert.equal(await editor.locator('tr').first().locator('th,td').count(),3);
+  await editor.locator('td,th').first().click();await tableControls.getByRole('button',{name:'Delete row',exact:true}).click();
+  assert.equal(await editor.locator('tr').count(),2);
+  await editor.locator('td,th').first().click();await tableControls.getByRole('button',{name:'Delete table',exact:true}).click();
+  assert.equal(await editor.locator('table').count(),0);
+
   await editor.evaluate(element=>{element.value='**Bold** and _italic_';element.focus();const range=document.createRange();range.selectNodeContents(element);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);element.saveSelection();});
   await composer.getByRole('button',{name:'Clear formatting'}).click();
   assert.equal(await editor.evaluate(element=>element.value),'Bold and italic','clear formatting works with a collapsed caret');
   assert.equal(await editor.locator('b,strong,i,em').count(),0);
+  await editor.evaluate(element=>{element.value='Intro\n- One\n- Two\n\n1. First\n2. Second';element.focus();const range=document.createRange();range.selectNodeContents(element);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);element.saveSelection();});
+  await composer.getByRole('button',{name:'Clear formatting'}).click();
+  assert.equal(await editor.locator('ul,ol,li').count(),0,'Clear formatting unwraps mixed bullet and numbered lists');
+  assert.match(await editor.evaluate(element=>element.value),/Intro[\s\S]*One[\s\S]*Two[\s\S]*First[\s\S]*Second/,'list clearing preserves every item');
+  await editor.evaluate(element=>{element.value='- Keep\n- Clear';const range=document.createRange();range.selectNodeContents(element.querySelectorAll('li')[1]);getSelection().removeAllRanges();getSelection().addRange(range);element.saveSelection();});
+  await composer.getByRole('button',{name:'Clear formatting'}).click();
+  assert.equal(await editor.locator('li').count(),1,'clearing one item preserves unselected list items');
+
   await editor.evaluate(element=>{element.value='**Keep** and **clear**';const range=document.createRange();range.selectNodeContents(element.querySelectorAll('strong,b')[1]);getSelection().removeAllRanges();getSelection().addRange(range);element.saveSelection();});
   await composer.getByRole('button',{name:'Clear formatting'}).click();
   assert.equal(await editor.evaluate(element=>element.value),'**Keep** and clear','clearing selected text retains other formatting');
@@ -369,10 +404,13 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await page.locator('.fm-ch-popover [data-mention-user="outsider"]').count(),0);
   await page.locator('.fm-ch-popover [data-mention-user="sam"]').click();
   assert.equal(await editor.evaluate(element=>element.value),'Tag here @Sam Rivera','toolbar tags insert at the saved caret');
+  await page.waitForFunction(()=>[...(CSS.highlights.get('fm-channel-mentions')||[])].some(range=>range.toString()==='@Sam Rivera'));
+  assert.equal(await editor.evaluate(node=>getComputedStyle(node,'::highlight(fm-channel-mentions)').color),'rgb(217, 48, 37)','Posts use Channels red mention styling');
+
   await composer.getByRole('button',{name:'Send a GIF'}).click();
   const postGifPicker=page.getByRole('dialog',{name:'Choose a GIF'});
+  assert.equal(await postGifPicker.evaluate(pop=>{const r=pop.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.width>=290&&pop.contains(document.elementFromPoint(r.left+r.width/2,r.top+20));}),true,'GIF picker is above the composer and fits the viewport');
   await postGifPicker.getByRole('button',{name:'Choose birthday GIF'}).click();
-  await postGifPicker.getByRole('button',{name:'Add GIF'}).click();
   assert.equal(await composer.locator('.pf-composer-gif img').count(),1,'shared GIF picker adds a preview');
   assert.equal(await composer.getByText('Create a post',{exact:true}).count(),1);
   assert.equal(await composer.getByText('Share an update with your company or department').count(),0);

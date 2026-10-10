@@ -357,7 +357,7 @@
       extractMentions(value, candidates()).forEach((user) => labels.add(user.name || user.email || user.id));
       selected.forEach((user) => allowed(user) && labels.add(user.name || user.email || user.id));
       return [...labels];
-    }, options.source === 'channels');
+    }, options.source === 'channels' || options.source === 'feed');
 
     function hide(){
       if (menu._mentionOwner && menu._mentionOwner !== textarea) return;

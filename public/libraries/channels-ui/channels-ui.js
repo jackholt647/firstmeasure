@@ -63,14 +63,6 @@
     { id: 'sales', label: (globalThis.PlatformLanguage?.text("channels-ui","m_2680c31facb03d","Sales") ?? "Sales") }
   ];
 
-  const EMOJI_SET = [
-    { group: 'Reactions', items: ['👍','👎','❤️','🔥','🎉','😂','😊','😮','😢','😡','🙏','👏','💯','✅','❌','👀','🤝','🫡','🤔','😅','🥳','😍','🚀','⭐'] },
-    { group: 'Faces', items: ['😀','😄','😁','😆','🙂','😉','😌','😎','🤩','🥲','😴','🤯','🤢','🥶','😱','😳','🙄','😬','🤐','😇','🤠','🤡','👻','💀'] },
-    { group: 'Hands', items: ['👋','✌️','🤞','🤟','👌','🤌','✋','🖐️','💪','🦾','🖖','👈','👉','👆','👇','☝️','✍️','🤙','🙌','🫶'] },
-    { group: 'Work', items: ['🏠','🏗️','🧰','🔨','🪜','📐','📏','🧱','🪵','🏡','🚧','⚒️','🛠️','📸','📋','📝','📞','📧','💰','🧾','📦','🚚','🗓️','⏰'] },
-    { group: 'Weather', items: ['☀️','⛅','☁️','🌧️','⛈️','🌨️','❄️','🌪️','🌈','💨','🌊','🌡️'] }
-  ];
-
   // --- tiny DOM + format helpers ---------------------------------------------
 
   function cleanText(value){
@@ -209,7 +201,7 @@
         const quoted = [line.replace(/^> ?/, '')];
         while (i + 1 < lines.length && /^>(?: |$)/.test(lines[i + 1])) quoted.push(lines[++i].replace(/^> ?/, ''));
         const contents = quoteDepth < 16
-          ? renderBody({ text:quoted.join('\n') }, undefined, quoteDepth + 1)
+          ? renderBody({ text:quoted.join('\n'), mention_users:message.mention_users }, undefined, quoteDepth + 1)
           : quoted.map(value => `<div>${inline(value) || '<br>'}</div>`).join('');
         blocks.push(`<blockquote>${contents}</blockquote>`);
       }
@@ -217,6 +209,13 @@
     }
     let html = blocks.join('');
     const labels = [...new Set(['channel','here',...(message.mention_users || []).map(user=>cleanText(user.name)).filter(Boolean)])].sort((a,b)=>b.length-a.length);
+    const mentionedUsers = new Map();
+    for (const user of message.mention_users || []) {
+      const name = cleanText(user.name).toLowerCase(), id = user.id || user.user_id;
+      if (!name || !id || name === 'channel' || name === 'here') continue;
+      if (mentionedUsers.has(name) && mentionedUsers.get(name) !== id) mentionedUsers.set(name, null);
+      else if (!mentionedUsers.has(name)) mentionedUsers.set(name, id);
+    }
     const escaped = labels.map(label=>label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
     const expression = new RegExp(`(^|[\\s([{])(@(?:${escaped.join('|')}))(?=$|[\\s.,!?;:)\\]}])`, 'gi');
     const container = document.createElement('div'); container.innerHTML = html;
@@ -229,7 +228,10 @@
       for (const match of value.matchAll(expression)) {
         const start = match.index + match[1].length;
         fragment.append(document.createTextNode(value.slice(cursor,start)));
-        const token = document.createElement('span'); token.className = 'fm-ch-mention'; token.textContent = match[2]; fragment.append(token);
+        const token = document.createElement('span'); token.className = 'fm-ch-mention'; token.textContent = match[2];
+        const mentionedId = mentionedUsers.get(match[2].slice(1).toLowerCase());
+        if (mentionedId) { token.dataset.fmSummaryUserId = mentionedId; token.tabIndex = 0; token.setAttribute('aria-label', `Preview ${match[2]}`); }
+        fragment.append(token);
         cursor = start + match[2].length;
       }
       if (!cursor) continue;
@@ -277,72 +279,42 @@
     link.append(img);card.append(link,el('figcaption','','Powered by GIPHY'));return card;
   }
 
-  function mountEmojiPicker(container, onPick){
-    ensureStyles();const search=el('input','fm-ch-emoji-search');search.type='search';search.placeholder='Search emoji groups';search.setAttribute('aria-label','Search emoji');const holder=el('div');container.replaceChildren(search,holder);
-    function paint(){holder.replaceChildren();const filter=cleanText(search.value).toLowerCase();for(const group of EMOJI_SET){const items=group.items.filter(emoji=>!filter||group.group.toLowerCase().includes(filter)||emoji.includes(filter));if(!items.length)continue;holder.append(el('div','fm-ch-emoji-group',esc(group.group)));const grid=el('div','fm-ch-emoji-grid');for(const emoji of items){const button=el('button','',emoji);button.type='button';button.setAttribute('aria-label',emoji);button.onclick=()=>onPick(emoji);grid.append(button);}holder.append(grid);}}search.oninput=paint;paint();return {focus:()=>search.focus(),destroy(){container.replaceChildren();}};
-  }
   function mountLinkInput(container, values = {}){
     ensureStyles();container.innerHTML='<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';const text=container.querySelector('[data-link-text]'),url=container.querySelector('[data-url]'),error=container.querySelector('.fm-ch-link-error');text.value=values.text||'';url.value=values.url||'';
     return {read(){let href;try{const parsed=new URL(url.value.trim());if(!['https:','http:'].includes(parsed.protocol))throw Error();href=parsed.href;}catch{error.textContent='Enter a complete http:// or https:// web address.';url.focus();throw Error(error.textContent);}if(!text.value.trim()){error.textContent='Enter the text for your link.';text.focus();throw Error(error.textContent);}error.textContent='';return {url:href,text:text.value.trim()};},destroy(){container.replaceChildren();}};
   }
-  function createGifPickerButton({ orgId, onSend, onError = error => root.alert(error.message), actionLabel = 'Send GIF', dialogTitle = 'Send a GIF' }){
+  // Picker implementations belong to Platform Widgets. Keep a small adapter for
+  // existing composer/Feed callers; Channels owns only message delivery.
+  let pickerWidgetsLoading;
+  function loadPickerWidgets(){
+    if(root.FirstMatePickerWidgets)return Promise.resolve(root.FirstMatePickerWidgets);
+    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261010-loading-fix').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
+    return pickerWidgetsLoading;
+  }
+  // Compatibility for Feed callers; rendering and state stay in Platform Widgets.
+  function mountEmojiPicker(container,onPick){
+    let picker,destroyed=false;
+    const ready=loadPickerWidgets().then(widgets=>{if(!destroyed)picker=widgets.mountEmojiPicker(container,onPick);}).catch(showPickerError);
+    return {focus:()=>ready.then(()=>picker?.focus()),destroy(){destroyed=true;picker?.destroy();}};
+  }
+  function createGifPickerButton(options){
     ensureStyles();
-    const api = root.ChannelsAPI;
     const button=el('button','fm-ch-icon-btn','<span style="font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px">GIF</span>');
     button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);
-    button.onclick=()=>{
-
-      let selected=null, removeGrid=null, timer=null, disposed=false;
-      const operationId=`gif_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-      showModal(dialogTitle,(body)=>{
-        const search=el('input');search.type='search';search.placeholder='Search GIPHY';search.setAttribute('aria-label',search.placeholder);
-        const status=el('p','fm-ch-people-summary','Loading GIFs…');status.setAttribute('role','status');
-        const grid=el('div','fm-ch-gif-grid'),preview=el('div');
-        const attribution=el('a','','Powered by GIPHY');attribution.href='https://giphy.com';attribution.target='_blank';attribution.rel='noopener noreferrer';
-        body.append(search,status,grid,preview,attribution);
-        const send=body.parentElement.querySelector('.fm-ch-modal-foot .primary');send.disabled=true;
-        (async()=>{
-          const config=await api.gifs.config(orgId);
-          if(disposed)return;
-          if(!config.enabled)throw new Error('GIF search is not configured for this environment yet.');
-          const {GiphyFetch,renderGrid}=await import('/libraries/gif-picker/giphy-sdk.js?v=20260929');
-          if(disposed)return;
-          const client=new GiphyFetch(config.sdk_key);
-          let generation=0;
-          const paint=()=>{
-            const query=search.value.trim(),version=++generation;
-            removeGrid?.();grid.replaceChildren();status.textContent='Loading GIFs…';
-            removeGrid=renderGrid({width:Math.max(240,Math.floor(grid.clientWidth)),columns:2,gutter:8,noLink:true,
-              fetchGifs:async offset=>{
-                try{
-                  const data=await (query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));
-                  if(!disposed && version===generation)status.textContent=data.data.length?'Choose a GIF to preview before sending.':'No GIFs found. Try another search.';
-                  return data;
-                }catch(error){if(!disposed && version===generation)status.textContent='GIF search is unavailable or its request limit was reached. Try again later.';return {data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
-              },
-              onGifClick:(gif,event)=>{
-                event?.preventDefault();
-                const image=gif.images.fixed_width || gif.images.original;
-                selected={id:String(gif.id),url:image.url,title:gif.title || 'GIF',width:Number(image.width),height:Number(image.height)};
-                preview.replaceChildren();const card=gifMessageCard(selected);if(!card){selected=null;return;}
-                preview.append(card);send.disabled=false;status.textContent='Ready to send. You can choose another GIF.';
-              }
-            },grid);
-          };
-          search.oninput=()=>{clearTimeout(timer);timer=setTimeout(paint,500);};paint();
-        })().catch(error=>{if(!disposed)status.textContent=error.message || 'GIF search is unavailable.';});
-        return ()=>{disposed=true;clearTimeout(timer);removeGrid?.();};
-      },[{label:'Cancel',onClick:close=>close()},{label:actionLabel,primary:true,onClick:async close=>{
-        if(!selected)return;
-        try{
-          await onSend(selected, operationId);
-          close();
-        }catch(error){onError(error);}
-      }}]);
+    button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');
+    let destroyed=false,loading=false;
+    button.onclick=async()=>{
+      if(loading||destroyed)return;loading=true;
+      // Feed invokes a temporary button from its own focused toolbar trigger.
+      const anchor=button.isConnected?button:(options.anchor||document.activeElement);
+      try{const widgets=await loadPickerWidgets();if(!destroyed&&anchor?.isConnected){closePopover();widgets.openGifPicker(anchor,options);}}
+      catch(error){(options.onError||showPickerError)(error);}
+      finally{loading=false;}
     };
+    button.destroy=()=>{destroyed=true;root.FirstMatePickerWidgets?.closeFor(button);};
     return button;
   }
-
+  function showPickerError(error){root.alert(error.message||'The picker is unavailable.');}
 
   function clipboardRichHtml(data){
     const html = data.getData('text/html');
@@ -734,7 +706,8 @@
           });
         } catch (error) { options.onError?.(error); }
       };
-      (options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar')))?.append(button);
+      const toolbar=options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar'));
+      toolbar?.insertBefore(button,toolbar.querySelector('.fm-ch-table-controls'));
       return button;
     }
 
@@ -789,9 +762,23 @@
             // removeFormat otherwise only changes the next typed character.
             if (selection.isCollapsed) { const range = document.createRange(); range.selectNodeContents(editor); selection.removeAllRanges(); selection.addRange(range); }
             document.execCommand('removeFormat'); document.execCommand('unlink');
-            if (document.queryCommandState('insertUnorderedList')) document.execCommand('insertUnorderedList');
-            if (document.queryCommandState('insertOrderedList')) document.execCommand('insertOrderedList');
             document.execCommand('formatBlock', false, 'div');
+            const range=selection.getRangeAt(0);
+            const listItems=new Set([...editor.querySelectorAll('li')].filter(item=>range.intersectsNode(item)));
+            // Mixed selections make queryCommandState report false. Unwrap
+            // selected list items explicitly, retaining unselected list runs.
+            for(const list of [...editor.querySelectorAll('ul,ol')].reverse()){
+              if(![...list.children].some(item=>listItems.has(item)))continue;
+              const fragment=document.createDocumentFragment();let retained=null;
+              for(const item of [...list.children]){
+                if(listItems.has(item)){
+                  const paragraph=el('div');paragraph.append(...item.childNodes);fragment.append(paragraph);retained=null;
+                }else{
+                  if(!retained){retained=list.cloneNode(false);fragment.append(retained);}retained.append(item);
+                }
+              }
+              list.replaceWith(fragment);
+            }
           } else document.execCommand(command, false, value);
           editor.saveSelection(); editor.dispatchEvent(new Event('input', {bubbles:true}));
         }
@@ -803,11 +790,16 @@
     editor.addEventListener('click', event => { selectedCell = event.target.closest('td,th'); tableControls.hidden = !selectedCell; });
     editor.addEventListener('keyup', () => { selectedCell = root.getSelection()?.anchorNode?.parentElement?.closest('td,th'); tableControls.hidden = !selectedCell || !editor.contains(selectedCell); });
     tableControls.hidden = true;
+    const insert=el('button','','Insert ▾');insert.type='button';insert.setAttribute('aria-label','Insert');insert.setAttribute('aria-haspopup','menu');
+    insert.onmousedown=event=>event.preventDefault();
+    tableControls.append(insert);
+    const insertActions=[];
     for (const [label, operation] of [['Row above', 'row-before'], ['Row below', 'row-after'], ['Column left', 'col-before'], ['Column right', 'col-after'], ['Delete row', 'delete-row'], ['Delete column', 'delete-col'], ['Delete table', 'delete-table']]) {
       const control = el('button', '', esc(label)); control.type = 'button'; control.title = label;
       control.onmousedown = event => event.preventDefault();
       control.onclick = () => {
         if (!selectedCell || !editor.contains(selectedCell)) return;
+        closePopover();
         const table = selectedCell.closest('table'), row = selectedCell.parentElement, column = selectedCell.cellIndex;
         if (operation === 'delete-table') table.remove();
         else if (operation === 'delete-row') row.remove();
@@ -826,8 +818,10 @@
         tableControls.hidden = true; selectedCell = null;
         editor.dispatchEvent(new Event('input', {bubbles:true}));
       };
-      tableControls.append(control);
+      if(operation.startsWith('row') || operation.startsWith('col'))insertActions.push(control);
+      else tableControls.append(control);
     }
+    insert.onclick=()=>{if(selectedCell && editor.contains(selectedCell))showPopover(insert,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of insertActions){action.setAttribute('role','menuitem');menu.append(action);}pop.append(menu);});};
     bar.append(tableControls);
     return bar;
   }
@@ -994,7 +988,7 @@
 @keyframes fm-ch-spin{to{transform:rotate(360deg)}}
 .fm-ch-translation-note{display:inline-flex;align-items:center;gap:5px;margin-top:2px;color:var(--ch-muted);font-size:9.5px;font-weight:700}
 .fm-ch-translation-note i{font-size:9px}
-.fm-ch-mention{background:rgba(217,48,37,.08);color:#d93025;border-radius:4px;padding:0 3px;font-weight:600}
+.fm-ch-mention{background:rgba(217,48,37,.08);color:#d93025;border-radius:4px;padding:0 3px;font-weight:600}.fm-ch-mention[data-fm-summary-type]{cursor:pointer}.fm-ch-mention:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 .fm-ch-formatbar button[data-mention-button]{color:#d93025}
 .fm-ch-msg-deleted{color:var(--ch-muted);font-style:italic;display:flex;align-items:center;gap:8px}
 .fm-ch-restore-link{color:var(--ch-muted);font-size:12px;font-style:normal;text-decoration:underline;opacity:.7}
@@ -1009,7 +1003,6 @@
 .fm-ch-quick-like:hover,.fm-ch-quick-like:focus-visible{opacity:1!important}
 .fm-ch-msg-body>.fm-ch-msg-edited{margin-left:6px}
 .fm-ch-gif{margin:8px 0;max-width:320px}.fm-ch-gif img{display:block;max-width:100%;height:auto;border-radius:10px}.fm-ch-gif figcaption{font-size:10px;color:var(--ch-muted);margin-top:4px}
-.fm-ch-gif-grid{min-height:100px;max-height:340px;overflow:auto}.fm-ch-gif-grid [role=button]:focus-visible{outline:3px solid var(--ch-accent)}
 .fm-ch-member-row[hidden]{display:none}
 @media(hover:none){.fm-ch-quick-like{opacity:.65}}
 .fm-ch-reaction{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--ch-border);background:#fff;border-radius:999px;padding:1px 8px;font-size:12px}
@@ -1032,10 +1025,10 @@
 @media(prefers-reduced-motion:reduce){.fm-ch-side-typing>span{animation:none}}
 .fm-ch-typing{min-height:20px;color:var(--ch-muted);font-size:11px;padding:0 16px 4px;font-style:italic}
 .fm-ch-composer{border-top:1px solid var(--ch-border);padding:10px 16px 12px}
-.fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px;background:#fff}
+.fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px 9px;background:#fff}
 .fm-ch-composer-box:focus-within{border-color:var(--ch-accent)}
 .fm-ch-composer textarea{width:100%;border:none;outline:none;resize:none;font:inherit;background:transparent;max-height:180px;min-height:22px;color:var(--ch-text)}
-.fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.fm-ch-composer-box .fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:8px;min-height:32px;flex-wrap:wrap}
 .fm-ch-reply-broadcast{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ch-muted);margin-right:auto;cursor:pointer}.fm-ch-reply-broadcast[hidden]{display:none}.fm-ch-reply-broadcast input{width:15px;height:15px;margin:0;accent-color:var(--ch-accent)}.fm-ch-thread-broadcast{display:block;margin:0 0 6px;color:var(--ch-muted);font-size:11px;text-align:left}.fm-ch-thread-broadcast:hover{color:var(--ch-accent);text-decoration:underline}
 .fm-ch-audio-mount:not(:empty){width:100%;animation:fm-ch-audio-in .18s ease-out}.fm-ch-audio-mount .fm-an-inline{margin-top:7px}
 @keyframes fm-ch-audio-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
@@ -1045,6 +1038,7 @@
 .fm-ch-send:hover{filter:brightness(1.06)}
 .fm-ch-send:disabled{opacity:.45;cursor:default}
 .fm-ch-rich-editor{min-height:64px;max-height:220px;overflow:auto;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 2px;font-size:14px;line-height:1.5}
+.fm-ch-composer-box .fm-ch-rich-editor{min-height:72px}
 .fm-ch-rich-editor:empty:before{content:attr(data-placeholder);color:var(--ch-muted);pointer-events:none}
 .fm-ch-rich-editor table,.fm-ch-msg-body table{border-collapse:collapse;margin:8px 0;width:100%;table-layout:fixed}
 .fm-ch-table-card{border:1px solid var(--ch-border);border-radius:8px;margin:8px 0;overflow:auto;cursor:pointer;background:var(--ch-bg)}
@@ -1059,7 +1053,7 @@
 .fm-ch-modal.fm-ch-table-modal{width:calc(100vw - 24px);max-width:none;height:calc(100dvh - 24px);max-height:none;display:flex;flex-direction:column}
 .fm-ch-table-modal .fm-ch-modal-body{flex:1;min-height:0;overflow:auto}.fm-ch-table-modal .fm-ch-rich-editor{max-height:none;min-height:100%;overflow:visible}
 .fm-ch-table-view table{border-collapse:collapse;min-width:100%;table-layout:fixed}.fm-ch-table-view td,.fm-ch-table-view th{border:1px solid var(--ch-border);padding:8px;min-width:80px;overflow-wrap:anywhere;vertical-align:top}
-.fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
+.fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border,#e4e7ec);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
 .fm-ch-rich-editor th,.fm-ch-msg-body th{background:var(--ch-hover);font-weight:700}
 .fm-ch-rich-editor blockquote,.fm-ch-msg-body blockquote{border-left:3px solid #98a2b3;margin:6px 0;padding:4px 12px;color:var(--ch-muted)}
 .fm-ch-rich-editor pre,.fm-ch-msg-body pre{padding:10px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap}
@@ -1086,13 +1080,9 @@
 .fm-ch-revision:last-child{border-bottom:none}
 .fm-ch-revision-meta{color:var(--ch-muted);font-size:11px;margin-bottom:2px}
 .fm-ch-revision.current .fm-ch-revision-meta{color:var(--ch-accent);font-weight:700}
-.fm-ch-emoji-grid{display:grid;grid-template-columns:repeat(8,1fr)}
-.fm-ch-emoji-grid button{font-size:18px;padding:4px;border-radius:6px}
-.fm-ch-emoji-grid button:hover{background:var(--ch-hover)}
-.fm-ch-emoji-group{padding:6px 10px 0;color:var(--ch-muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .fm-ch-emoji-search{width:calc(100% - 16px);margin:8px;padding:5px 8px;border:1px solid var(--ch-border);border-radius:8px;font:inherit;font-size:12px;outline:none}
 .fm-ch-modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.4);z-index:1600;display:flex;align-items:center;justify-content:center}
-.fm-ch-modal,.fm-ch-popover{color:var(--ch-text);font-family:inherit;font-size:13.5px;line-height:1.45;box-sizing:border-box}.fm-ch-profile-trigger{border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}.fm-ch-msg-author.fm-ch-profile-trigger{font-weight:700}.fm-ch-profile-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.fm-ch-profile-card{padding:18px;display:grid;gap:12px;overflow-wrap:anywhere}.fm-ch-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(15,23,42,.24);width:420px;max-width:calc(100vw - 32px);max-height:80vh;display:flex;flex-direction:column}
+.fm-ch-modal,.fm-ch-popover{color:var(--ch-text);font-family:inherit;font-size:13.5px;line-height:1.45;box-sizing:border-box}.fm-ch-summary-trigger{border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}.fm-ch-summary-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.fm-ch-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(15,23,42,.24);width:420px;max-width:calc(100vw - 32px);max-height:80vh;display:flex;flex-direction:column}
 .fm-ch-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--ch-border);font-weight:900;font-size:14.5px}
 .fm-ch-modal-body{padding:20px 24px;overflow-y:auto;min-height:0;overscroll-behavior:contain}
 .fm-ch-modal-body label{display:block;font-size:12px;font-weight:600;color:#344054;margin:18px 0 7px}
@@ -1190,21 +1180,7 @@
 .fm-ch-popover{max-width:min(360px,calc(100vw - 16px))}
 }
 `;
-    style.textContent += `
-.fm-ch{position:relative}
-.fm-ch-profile-card{width:320px;max-width:calc(100vw - 16px);padding:22px;gap:16px;box-shadow:0 12px 40px #10182824;border-radius:14px}
-.fm-ch-profile-summary{display:flex;gap:14px;align-items:center;padding-right:12px}.fm-ch-profile-summary .fm-ch-avatar{width:64px;height:64px;border-radius:12px;font-size:24px}
-.fm-ch-profile-summary strong,.fm-ch-profile-hero strong{display:block;font-size:18px;line-height:1.3;letter-spacing:-.3px}.fm-ch-profile-summary span:not(.fm-ch-avatar),.fm-ch-profile-summary small{display:block;color:#667085;margin-top:4px}
-.fm-ch-profile-email{font-size:12px;color:#475467;text-decoration:none;overflow-wrap:anywhere}
-.fm-ch-profile-actions{display:flex;gap:8px}.fm-ch-profile-actions .fm-ch-btn{flex:1;white-space:nowrap;padding:8px 10px}
-.fm-ch-profile-close{position:absolute;right:8px;top:8px;width:24px;height:24px;color:#667085!important;border-radius:6px}
-.fm-ch-profile-panel{flex:0 0 320px;width:320px;min-width:0;max-width:100%;background:#fff;border-left:1px solid #e4e7ec;display:flex;flex-direction:column;z-index:8}
-.fm-ch-profile-panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #e4e7ec}
-.fm-ch-profile-panel-body{overflow:auto;padding:24px;display:flex;flex-direction:column;gap:20px}
-.fm-ch-profile-hero .fm-ch-avatar{width:112px;height:112px;font-size:40px;border-radius:20px;margin-bottom:18px}.fm-ch-profile-hero span:not(.fm-ch-avatar),.fm-ch-profile-hero small{display:block;color:#667085;margin-top:6px}
-.fm-ch-profile-details{margin:0;padding-top:20px;border-top:1px solid #eaecf0;overflow-wrap:anywhere}.fm-ch-profile-details dt{font-size:11px;color:#667085;margin-top:16px}.fm-ch-profile-details dt:first-child{margin-top:0}.fm-ch-profile-details dd{margin:4px 0 0;font-size:13px}.fm-ch-profile-details a{color:#175cd3;text-decoration:none}.fm-ch-profile-panel-body h3{margin:0;font-size:13px}.fm-ch-profile-about{white-space:pre-wrap;margin:0}.fm-ch-profile-empty{color:#667085;font-size:12px}
-.fm-ch.fm-ch-profile-narrow .fm-ch-profile-panel{position:absolute;inset:0 0 0 auto;width:min(360px,100%);box-shadow:-12px 0 32px #1018281a}
-`;
+    style.textContent += `.fm-ch{position:relative}`;
     style.textContent += `
 :where(.fm-call-window) button{font:inherit;cursor:pointer;border:0}
 .fm-call-window .fm-ch-huddle{width:100%;height:100%;flex:1}
@@ -1616,8 +1592,6 @@
         renderMessages();
         renderComposer();
         renderSidebar();
-        const profileRoute = root.Portal?.navigation?.read?.();
-        if (profileRoute?.channelProfile && profileRoute.channelProfileChannel === channelId && mode !== 'list' && profilePanel?.dataset.userId !== profileRoute.channelProfile) showFullProfile({id:profileRoute.channelProfile}, {silent:true});
         scheduleMarkRead(Number(data.channel?.message_seq) || 0);
         if (state.revealTarget) await revealMessage(state.revealTarget);
         options.onNavigate?.({ channel: channelId });
@@ -3826,70 +3800,18 @@
       runTranslationQueue();
     }
 
-    let profilePanel = null;
-    const profileWidthObserver = root.ResizeObserver ? new ResizeObserver(() => shell.classList.toggle('fm-ch-profile-narrow', shell.clientWidth <= 680)) : null;
-    profileWidthObserver?.observe(shell);
-    const profileSummary = user => `${avatarHtml(user)}<div><strong>${esc(user.name || 'Team member')}${onlineDot(user.id)}</strong>${user.title ? `<span>${esc(user.title)}</span>` : ''}${user.pronouns ? `<small>${esc(user.pronouns)}</small>` : ''}</div>`;
-    async function messageProfile(user, button){
-      button.disabled = true;
-      try {
-        const data = await api.channels.create(orgId, {type:'dm', member_user_ids:[user.id]});
-        closePopover(); closeProfilePanel(); await loadChannels(); await setChannel(data.channel.id);
-      } catch (error) { button.disabled = false; showError(error); }
+    function bindUserSummary(trigger, author){
+      if (!author?.id || String(author.id).startsWith('agent_')) return;
+      trigger.dataset.fmSummaryType = 'summary.user';
+      trigger.dataset.fmSummaryTarget = JSON.stringify({scope:'organization',organizationId:orgId,id:author.id});
+      trigger.setAttribute('aria-label', `Preview ${author.name || 'team member'}`);
     }
-    function closeProfilePanel({silent = false} = {}){
-      if (!silent && root.Portal?.navigation?.read?.().channelProfile) {
-        const result = root.Portal.navigation.backOrClose(['channelProfile'], {channelProfile:null,channelProfileChannel:null});
-        if (result?.backed) return;
+    function bindMentionSummaries(container){
+      for (const token of container.querySelectorAll('[data-fm-summary-user-id]')) {
+        token.dataset.fmSummaryType = 'summary.user';
+        token.dataset.fmSummaryTarget = JSON.stringify({scope:'organization',organizationId:orgId,id:token.dataset.fmSummaryUserId});
+        delete token.dataset.fmSummaryUserId;
       }
-      profilePanel?.remove(); profilePanel = null;
-    }
-    function showFullProfile(user, {silent = false} = {}){
-      closePopover(); profilePanel?.remove();
-      const panel = el('aside', 'fm-ch-profile-panel'); panel.dataset.userId = user.id; profilePanel = panel;
-      panel.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_489a5044534481","Member profile") ?? "Member profile"));
-      panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); closeProfilePanel(); } });
-      const header = el('div', 'fm-ch-profile-panel-head', `<strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6f5dea53bf13f4","Profile") ?? "Profile")}</strong>`);
-      const close = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>'); close.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("channels-ui","m_c0934dcff7a79f","Close profile") ?? "Close profile")); close.onclick = () => closeProfilePanel(); header.append(close);
-      const body = el('div', 'fm-ch-profile-panel-body'); panel.append(header,body); shell.append(panel);
-      const render = person => {
-        body.innerHTML = `<div class="fm-ch-profile-hero">${profileSummary(person)}</div>`;
-        if (person.id !== currentUser.id && !person.disabled) {
-          const message = el('button','fm-ch-btn primary','<i class="fas fa-comment"></i> Message'); message.onclick = () => messageProfile(person,message); body.append(message);
-        }
-        const details = el('dl','fm-ch-profile-details');
-        for (const [label,value,link] of [['Email',person.email,person.email ? `mailto:${person.email}` : ''],['Phone',person.phone,person.phone ? `tel:${person.phone}` : ''],['Department',person.department],['Location',person.location],['Time zone',person.time_zone]]) {
-          if (!value) continue;
-          details.append(el('dt','',esc(label)),el('dd','',link ? `<a href="${esc(link)}">${esc(value)}</a>` : esc(value)));
-        }
-        if (details.childElementCount) body.append(details);
-        if (person.bio) body.append(el('h3','','About'),el('p','fm-ch-profile-about',esc(person.bio)));
-        if (!details.childElementCount && !person.bio) body.append(el('p','fm-ch-profile-empty','No additional profile details have been shared.'));
-      };
-      render(user); close.focus();
-      api.directory?.list(orgId).then(data => { if (panel.isConnected) render({...user,...data?.users?.find(person => person.id === user.id)}); }).catch(() => {});
-      if (!silent && !root.Portal?.navigation?.applying) root.Portal?.navigation?.push?.({channelProfile:user.id,channelProfileChannel:state.activeChannelId}, {ownedKeys:['channelProfile']});
-    }
-    function openUserProfile(author, anchor){
-      if (!author?.id) return;
-      const pop = showPopover(anchor, node => {
-        node.setAttribute('role','dialog'); node.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_6a58adc10a30f7",`${v0} profile`,{v0}) ?? `${v0} profile`)(author.name || 'User')); node.classList.add('fm-ch-profile-card');
-      });
-      const render = user => {
-        pop.innerHTML = `<div class="fm-ch-profile-summary">${profileSummary(user)}</div>${user.email ? `<a class="fm-ch-profile-email" href="mailto:${esc(user.email)}">${esc(user.email)}</a>` : ''}`;
-        const actions = el('div','fm-ch-profile-actions');
-        if (user.id !== currentUser.id && !user.disabled) {
-          const message = el('button','fm-ch-btn primary','Message'); message.onclick = () => messageProfile(user,message); actions.append(message);
-        }
-        const full = el('button','fm-ch-btn','View profile'); full.onclick = () => showFullProfile(user); actions.append(full); pop.append(actions);
-        const close = el('button','fm-ch-profile-close','<i class="fas fa-xmark"></i>'); close.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("channels-ui","m_3742924668fb10","Close") ?? "Close")); close.onclick = closePopover; pop.append(close);
-        const rect = anchor.getBoundingClientRect(), bounds = pop.getBoundingClientRect();
-        pop.style.top = `${Math.max(8,rect.bottom + bounds.height + 6 <= innerHeight - 8 ? rect.bottom + 6 : rect.top - bounds.height - 6)}px`;
-        pop.style.left = `${Math.max(8,Math.min(rect.left,innerWidth - bounds.width - 8))}px`;
-      };
-      render(author);
-      api.directory?.list(orgId).then(data => { if (pop.isConnected) render({...author,...data?.users?.find(user => user.id === author.id)}); }).catch(() => {});
-      pop.addEventListener('keydown', event => { if (event.key === 'Escape') { closePopover(); anchor.focus(); } }); pop.tabIndex = -1; pop.focus();
     }
 
     function messageRow(message, { inThread } = {}){
@@ -3933,9 +3855,9 @@
         content.append(context);
       }
 
-      const avatarButton = el('button', 'fm-ch-profile-trigger', avatarHtml(message.author));
-      avatarButton.type = 'button'; avatarButton.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_b49557609481cb",`View ${v0} profile`,{v0}) ?? `View ${v0} profile`)(message.author?.name || 'user'));
-      avatarButton.addEventListener('click', () => openUserProfile(message.author, avatarButton));
+      const avatarButton = el('button', 'fm-ch-summary-trigger', avatarHtml(message.author));
+      avatarButton.type = 'button';
+      bindUserSummary(avatarButton, message.author);
       gutter.append(avatarButton);
       const audience = audienceLabel(message.audience);
       const translation = message.translation || {};
@@ -3948,15 +3870,16 @@
         queueMicrotask(() => requestTranslation(message, true));
       }
       const head = el('div', 'fm-ch-msg-head', `
-        <button type="button" class="fm-ch-msg-author fm-ch-profile-trigger">${esc(message.author?.name || 'Unknown')}</button>
+        <button type="button" class="fm-ch-msg-author fm-ch-summary-trigger">${esc(message.author?.name || 'Unknown')}</button>
         <span class="fm-ch-msg-time">${esc(fmtTime(message.created_at))}</span>
         ${message.edited_at && features.editHistory ? `<a class="fm-ch-msg-edited" data-act="history">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</a>` : (message.edited_at ? `<span class="fm-ch-msg-edited">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</span>` : '')}
         ${(message.tags || []).map(tagChipHtml).join('')}
         ${audience ? `<span class="fm-ch-audience-note">${esc(audience)}</span>` : ''}
         ${translation.available ? `<button type="button" class="fm-ch-translate${shouldShowTranslation ? ' on' : ''}${message._translation_loading ? ' loading' : ''}" data-act="translate" title="${shouldShowTranslation ? 'Show original' : `Translate to ${esc(translationLabel(translation.target_language))}`}" aria-label="${shouldShowTranslation ? 'Show original message' : 'Translate message'}" aria-pressed="${shouldShowTranslation ? 'true' : 'false'}"><i class="fas ${message._translation_loading ? 'fa-circle-notch' : 'fa-language'}"></i></button>` : ''}
       `);
-      head.querySelector('.fm-ch-msg-author').addEventListener('click', event => openUserProfile(message.author, event.currentTarget));
+      bindUserSummary(head.querySelector('.fm-ch-msg-author'), message.author);
       const body = el('div', 'fm-ch-msg-body', renderBody(message, shouldShowTranslation ? translatedText : message.text));
+      bindMentionSummaries(body);
       decorateTables(body);
       const edited = head.querySelector('.fm-ch-msg-edited');
       if (edited) body.append(edited);
@@ -4405,8 +4328,8 @@
 
     // --- emoji picker ------------------------------------------------------------------
 
-    function openEmojiPicker(anchor, onPick){
-      showPopover(anchor,pop=>{const picker=mountEmojiPicker(pop,emoji=>{closePopover();onPick(emoji);});setTimeout(()=>picker.focus(),0);});
+    async function openEmojiPicker(anchor, onPick){
+      try{const widgets=await loadPickerWidgets();if(anchor.isConnected){closePopover();widgets.openEmojiPicker(anchor,onPick);}}catch(error){showError(error);}
     }
 
     // --- composer ------------------------------------------------------------------------
@@ -4673,7 +4596,8 @@
       if (schedule) sendPair.appendChild(schedule);
       sendPair.appendChild(send);
       row.appendChild(sendPair);
-      composer.append(editNote, box, dictationMount, audioMount, pendingWrap, row);
+      box.appendChild(row);
+      composer.append(editNote, box, dictationMount, audioMount, pendingWrap);
 
       const autosize = () => {
         textarea.style.height = 'auto';
@@ -4980,7 +4904,8 @@
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
       row.append(broadcastLabel, send);
       if(features.attachments)row.prepend(gifPickerButton(state.threadRootId));
-      node.append(pendingWrap, box, row);
+      box.appendChild(row);
+      node.append(pendingWrap, box);
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
@@ -6101,14 +6026,6 @@
       }
       await loadChannels();
     }
-    root.Portal?.navigation?.registerSchema?.('channelProfile', {});
-    root.Portal?.navigation?.registerSchema?.('channelProfileChannel', {});
-    const removeProfileHandler = root.Portal?.navigation?.registerHandler?.(`channels-profile-${Math.random().toString(36).slice(2)}`, {
-      priority:195, apply:route => {
-        if (route.channelProfile && route.channelProfileChannel === state.activeChannelId && mode !== 'list') { if (profilePanel?.dataset.userId !== route.channelProfile) showFullProfile({id:route.channelProfile}, {silent:true}); }
-        else closeProfilePanel({silent:true});
-      }
-    });
     root.Portal?.navigation?.registerSchema?.('huddleWindow', {values:['full','floating','docked','minimized']});
     root.Portal?.navigation?.registerSchema?.('huddlePinned', {values:['1']});
     root.Portal?.navigation?.registerSchema?.('huddleFullscreen', {values:['1']});
@@ -6132,9 +6049,6 @@
         state.clipCleanup?.();
         if (state.huddle?.id) api.huddles.leave(orgId, state.huddle.id).catch(() => {});
         removeHuddleRouteHandler?.();
-        removeProfileHandler?.();
-        profileWidthObserver?.disconnect();
-        closeProfilePanel({silent:true});
         state.destroyed = true;
         if(state.huddle?.id) (isHuddleAdmin()?api.huddles.end(orgId,state.huddle.id):api.huddles.leave(orgId,state.huddle.id)).catch(()=>{});
         if(!state.huddleRecording && !state.huddleRecordingUploads)root.removeEventListener("beforeunload",protectRecording);
@@ -6202,6 +6116,6 @@
     return title;
   }
 
-  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},mentionButton:mountMentionButton,renderBody};
-  root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, EMOJI_SET, DEFAULT_FEATURES };
+  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},mentionButton:mountMentionButton,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
+  root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();
