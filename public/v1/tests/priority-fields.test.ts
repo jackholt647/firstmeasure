@@ -93,3 +93,35 @@ test('published fields select documents, resolve priorities, retain provenance a
     const record=await storage.readDocument(org,'projects','p');assert.equal(record.revision,1,'Reading fields never mutates records');
   }finally{await rm(root,{recursive:true,force:true});}
 });
+
+
+test('one owner catalog resolves independent contact and user priorities, including embedded contacts, with owner authorization',async()=>{
+  const storage=await import('../platform/storage.js');
+  const {readPublishedData,authorizeSourceSnapshot}=await import('../platform/publication/providers.js');
+  const {systemPublicationContext}=await import('../platform/publication/context.js');
+  const {customPriorityField}=await import('../priority_fields/contracts.js');
+  const org='priority_owners_'+Date.now().toString(36),target={scope:'organization' as const,organizationId:org,id:'c'};
+  const contact={entity:'contact',path:'tier',label:'Relationship tier',type:'text'};
+  const user={entity:'user',path:'availability',label:'Availability',type:'text',calculation:{op:'first',inputs:[{op:'literal',value:''},{op:'literal',value:'Available'}]}};
+  const contactCtx=systemPublicationContext({kind:'module',organizationId:org,mode:'evaluate',operations:['priority-fields.contact-contract','priority-fields.contact-values','custom-fields-contact.values']});
+  const userCtx=systemPublicationContext({kind:'module',organizationId:org,mode:'evaluate',operations:['priority-fields.user-contract','priority-fields.user-values','custom-fields-user.values']});
+  try{
+    await storage.createOrganization({id:org,name:'Owners fixture'});
+    await storage.saveBranchModule(org,'default','custom_fields',{data:{fields:[contact,user]}},{replace:true});
+    await storage.upsertDocument(org,'customers',{id:'c',data:{branch_id:'default',custom_field_values:{tier:'Partner'}}});
+    await storage.upsertDocument(org,'users',{id:'u',data:{custom_field_values:{}}});
+    await storage.upsertDocument(org,'projects',{id:'embedded',data:{branch_id:'default',contacts:[{id:'embedded_c',custom_field_values:{tier:'Embedded partner'}}]}});
+    const empty=await readPublishedData(contactCtx,{provider:'priority-fields',export:'contact-values',target});assert.equal(empty.status,'ready');if(empty.status==='ready')assert.deepEqual((empty.value as any).items,[]);
+    await storage.saveBranchModule(org,'default','priority_fields',{data:{entities:{contact:[customPriorityField(contact)],user:[customPriorityField(user)]}}},{replace:true});
+    const result=await readPublishedData(contactCtx,{provider:'priority-fields',export:'contact-values',target});assert.equal(result.status,'ready');if(result.status!=='ready')throw Error(JSON.stringify(result));assert.equal((result.value as any).items[0].result.value,'Partner');
+    const embedded=await readPublishedData(contactCtx,{provider:'priority-fields',export:'contact-values',target:{scope:'project',organizationId:org,projectId:'embedded',id:'embedded_c'}});assert.equal(embedded.status,'ready');if(embedded.status==='ready')assert.equal((embedded.value as any).items[0].result.value,'Embedded partner');
+    const users=await readPublishedData(userCtx,{provider:'priority-fields',export:'user-values',target:{...target,id:'u'}});assert.equal(users.status,'ready');if(users.status==='ready')assert.equal((users.value as any).items[0].result.value,'Available');
+    assert.equal((await readPublishedData(contactCtx,{provider:'priority-fields',export:'user-values',target:{...target,id:'u'}})).status,'denied');
+    assert.equal((await readPublishedData(contactCtx,{provider:'priority-fields',export:'contact-values',target:{...target,organizationId:'other'}})).status,'denied');
+    const wrong=await readPublishedData(contactCtx,{provider:'priority-fields',export:'contact-values',target:{scope:'project',organizationId:org,projectId:'embedded',id:'c'}});assert.equal(wrong.status,'denied');
+    await assert.rejects(()=>storage.saveBranchModule(org,'default','priority_fields',{data:{entities:{unknown:[]}}}));
+    await storage.saveBranchModule(org,'default','custom_fields',{data:{fields:[{...contact,private:true},user]}},{replace:true});
+    await assert.rejects(()=>authorizeSourceSnapshot(contactCtx,{provider:'priority-fields',export:'contact-values',target},result));
+    assert.equal((await storage.readDocument(org,'customers','c')).revision,1);
+  }finally{await rm(root,{recursive:true,force:true});}
+});

@@ -4,18 +4,21 @@
   const clone=value=>JSON.parse(JSON.stringify(value));
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const meta={scope_type:['Scope type','text','fa-layer-group'],stage:['Stage','text','fa-circle-dot'],dollar_value:['Value','currency','fa-dollar-sign'],project_type:['Property type','text','fa-house'],start_date:['Start date','date'],end_date:['End date','date'],customer:['Customer','text','fa-user'],address:['Address','text','fa-location-dot'],owner:['Project owner','text','fa-user-tie'],created_date:['Created date','date'],updated_date:['Last updated','date'],project_number:['Project number','text','fa-hashtag']};
+  const sharedOwners=new Set(['organization','user','branch','department','division','team']);
+  const ownerTarget=entity=>entity==='project'?clone(target):{scope:'organization',organizationId:'$organization',id:'$record'};
   const target={scope:'project',organizationId:'$organization',projectId:'$project'};
   function builtin(id){const [label,format,icon]=meta[id];return {id,label,format,currency:'USD',icon:icon||'fa-tag',empty:'hide',source:{provider:'project-summary',export:id==='dollar_value'?'value':'details',target:clone(target),path:id==='dollar_value'?'/amount':'/'+id}};}
-  function custom(field){const path=String(field.path||field.key);return {id:'custom_field:'+path,label:field.ui?.project_tag_label||field.label||path,format:field.type==='currency'?'currency':['number','integer','formula','slider','percentage'].includes(field.type)?'number':['date','datetime'].includes(field.type)?'date':['array','object','json'].includes(field.type)?'json':'text',currency:field.currency||'USD',icon:field.ui?.project_tag_icon||field.ui?.icon||'fa-tag',empty:field.ui?.project_tag_empty_behavior||field.ui?.empty_behavior||'hide',source:{provider:'custom-fields-project',export:'values',target:clone(target),args:{field:path},path:'/'+path.split('.').map(escapePointer).join('/')}};}
-  function normalize(config={},customFields=[]){
+  function custom(field,entity=field.entity||'project'){const path=String(field.path||field.key);return {id:'custom_field:'+path,label:field.ui?.project_tag_label||field.label||path,format:field.type==='currency'?'currency':['number','integer','formula','slider','percentage'].includes(field.type)?'number':['date','datetime'].includes(field.type)?'date':['array','object','json'].includes(field.type)?'json':'text',currency:field.currency||'USD',icon:field.ui?.project_tag_icon||field.ui?.icon||'fa-tag',empty:field.ui?.project_tag_empty_behavior||field.ui?.empty_behavior||'hide',source:{provider:'custom-fields-'+entity,export:'values',target:ownerTarget(entity),args:{field:path},path:'/'+path.split('.').map(escapePointer).join('/')}};}
+  function normalize(config={},customFields=[],entity='project'){
     if(Array.isArray(config.priority_fields))return clone(config.priority_fields);
+    if(entity!=='project')return [];
     const ids=[...new Set([...(Array.isArray(config.project_header_pills)?config.project_header_pills:['scope_type','stage','dollar_value']),...customFields.filter(f=>f.ui?.project_tag||f.ui?.visible_tag).map(f=>'custom_field:'+(f.path||f.key)),'project_type'])];
     return ids.flatMap(id=>meta[id]?[builtin(id)]:customFields.some(f=>'custom_field:'+(f.path||f.key)===id)?[custom(customFields.find(f=>'custom_field:'+(f.path||f.key)===id))]:[]);
   }
   const escapePointer=value=>String(value).replace(/~/g,'~0').replace(/\//g,'~1');
   const human=value=>String(value||'').replace(/[_.-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
   function format(item,locale=root.PlatformLanguage?.formatLocale?.()){
-    const result=item.result;if(result?.status!=='ready'||result.value==null||result.value==='')return '';
+    const result=item.result;if(result?.status!=='ready'||result.value==null||typeof result.value==='string'&&!result.value.trim()||Array.isArray(result.value)&&!result.value.length||result.value&&typeof result.value==='object'&&!Object.keys(result.value).length)return '';
     const value=result.value;
     if(item.format==='currency'&&typeof value==='number')return new Intl.NumberFormat(locale,{style:'currency',currency:item.currency||'USD',maximumFractionDigits:2}).format(value);
     if(item.format==='number'&&typeof value==='number')return new Intl.NumberFormat(locale,{maximumFractionDigits:4}).format(value);
@@ -25,16 +28,16 @@
   }
   function visible(items=[]){return items.filter(item=>!['denied','error','pending'].includes(item.result?.status)&&(format(item)!==''||item.empty==='show'));}
   function html(items=[],options={}){return visible(items).map(item=>`<span class="${escape(options.className||'fm-priority-field')}" data-priority-field="${escape(item.id)}" title="${escape(item.label)}"><i class="fas ${escape(/^fa-[a-z0-9-]+$/.test(item.icon||'')?item.icon:'fa-tag')}" aria-hidden="true"></i><span>${escape(format(item)||item.label+': Unassigned')}</span></span>`).join('');}
-  async function resolve(orgId,projectId){const result=await root.PlatformAPI.publication.read(orgId,{provider:'priority-fields',export:'values',target:{scope:'project',organizationId:orgId,projectId}});if(result.status!=='ready')throw Error(result.message||'Priority fields could not be loaded.');return result.value.items;}
-  async function catalog(orgId,branchId){
-    const [published,module]=await Promise.all([root.PlatformAPI.publication.catalog(orgId,{scope:'all',branchId}),root.PlatformAPI.branchModules.get(orgId,branchId,'custom_fields',{refresh:true}).catch(e=>{if(Number(e.status)===404)return null;throw e;})]);
-    const definitions=(module?.data?.fields||module?.fields||[]).filter(f=>(f.entity||'project')==='project');
+  async function resolve(orgId,recordId,{entity='project',branchId,projectId}={}){const result=await root.PlatformAPI.publication.read(orgId,{provider:'priority-fields',export:entity==='project'?'values':entity+'-values',target:{...(entity==='project'?{scope:'project',projectId:recordId}:{scope:entity==='contact'&&projectId?'project':'organization',id:recordId,...(projectId?{projectId}:{})}),organizationId:orgId,...(branchId?{branchId}:{})}});if(result.status!=='ready')throw Error(result.message||'Priority fields could not be loaded.');return result.value.items;}
+  async function catalog(orgId,branchId,entity='project'){
+    const [published,module]=await Promise.all([root.PlatformAPI.publication.catalog(orgId,{scope:'all',branchId}),root.PlatformAPI.branchModules.get(orgId,sharedOwners.has(entity)?'default':branchId,'custom_fields',{refresh:true}).catch(e=>{if(Number(e.status)===404)return null;throw e;})]);
+    const definitions=(module?.data?.fields||module?.fields||[]).filter(f=>(f.entity||'project')===entity);
     const entries=[];
     for(const provider of published.providers||[])for(const [name,entry]of Object.entries(provider.exports||{})){
       if(provider.id==='priority-fields'||name==='contract')continue;
-      const scopes=entry.access?.scopes||[];const scope=scopes.includes('project')?'project':scopes.includes('organization')?'organization':'global';
+      const scopes=entry.access?.scopes||[];if(entity!=='project'&&!scopes.includes('organization')&&!scopes.includes('global'))continue;const scope=entity==='project'&&scopes.includes('project')?'project':scopes.includes('organization')?'organization':'global';
       const base={provider:provider.id,version:provider.version,export:name,target:{scope,...(scope!=='global'?{organizationId:'$organization'}:{}),...(scope==='project'?{projectId:'$project'}:{})}};
-      if(provider.id==='projects')base.target.id='$project';
+      if(provider.id==='projects')base.target.id='$project';if(provider.id==='custom-fields-'+entity || entity==='contact'&&provider.id==='customers')base.target.id=entity==='project'?'$project':'$record';
       const walk=(schema,path='',depth=0)=>{
         if(depth>8)return;
         const properties=schema?.properties;
@@ -44,8 +47,8 @@
       };
       walk(entry.schema);
     }
-    for(const field of definitions){const item=custom(field);entries.push({...item,label:field.label||field.path,listable:false});}
-    for(const id of Object.keys(meta)){const item=builtin(id);const exportName=item.source.export;if(published.providers?.some(p=>p.id==='project-summary'&&p.exports?.[exportName]))entries.unshift({...item,listable:false});}
+    for(const field of definitions){const item=custom(field,entity);entries.push({...item,label:field.label||field.path,listable:false});}
+    for(const id of entity==='project'?Object.keys(meta):[]){const item=builtin(id);const exportName=item.source.export;if(published.providers?.some(p=>p.id==='project-summary'&&p.exports?.[exportName]))entries.unshift({...item,listable:false});}
     return {entries,definitions};
   }
   function style(){if(document.getElementById('fmPriorityStyles'))return;const node=document.createElement('style');node.id='fmPriorityStyles';node.textContent=`.fm-priority-editor{display:grid;gap:12px}.fm-priority-editor input,.fm-priority-editor select,.fm-priority-editor textarea{box-sizing:border-box;max-width:100%;width:100%;padding:8px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;font:inherit;color:inherit}.fm-priority-row{display:grid;grid-template-columns:minmax(120px,1fr) auto;gap:10px;align-items:start;padding:10px;border:1px solid #e4e7ec;border-radius:8px}.fm-priority-actions{display:flex;gap:5px;flex-wrap:wrap}.fm-priority-actions button,.fm-priority-editor button{cursor:pointer;padding:6px 10px;border:1px solid #d0d5dd;border-radius:7px;background:white;color:inherit}.fm-priority-source{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.fm-priority-source label{display:grid;gap:4px;font-size:11px}.fm-priority-source .wide{grid-column:1/-1}.fm-priority-help{font-size:11px;color:#667085;line-height:1.5}.fm-priority-calc{display:grid;gap:10px;padding:12px;border:1px solid #e4e7ec;border-radius:8px}.fm-priority-status{font-size:12px;color:#b42318}@media(max-width:600px){.fm-priority-source,.fm-priority-row{grid-template-columns:1fr}}`;document.head.append(node);}
@@ -83,12 +86,12 @@
       host.querySelector('[data-calc-missing]').onchange=e=>{missing=e.target.value;};
     };render();return {get:()=>{capture();return operation==='source'?nodes[0]:{op:operation,inputs:clone(nodes),...(operation==='first'?{}:{missing})};}};
   }
-  async function mountEditor(host,{orgId,branchId,config,onchange=()=>{}}){
-    style();host.classList.add('fm-priority-editor');host.textContent='Loading declared fields…';const {entries,definitions}=await catalog(orgId,branchId);if(!host.isConnected)return;
-    let fields=normalize(config,definitions);let changed=false;
+  async function mountEditor(host,{orgId,branchId,config,entity='project',onchange=()=>{}}){
+    style();host.classList.add('fm-priority-editor');host.textContent='Loading declared fields…';const {entries,definitions}=await catalog(orgId,branchId,entity);if(!host.isConnected)return;
+    let fields=normalize(config,definitions,entity);let changed=false;
     const update=()=>{changed=true;config.priority_fields=clone(fields);onchange(fields);};
     const render=()=>{
-      host.innerHTML=`<p class="fm-priority-help">Choose the ordered fields used in project headers and other quick displays. A calculated value is its own declared field.</p><div data-priority-list></div><div class="fm-priority-actions"><select data-priority-add aria-label="Add priority field"><option value="">Choose a declared variable…</option>${entries.map(e=>`<option value="${escape(e.id)}">${escape(e.label)}</option>`).join('')}</select><button type="button" data-priority-calculate>Create calculated field</button></div><div data-priority-new></div><div class="fm-priority-status" role="status"></div>`;
+      host.innerHTML=`<p class="fm-priority-help">Choose the ordered fields used in ${escape(human(entity))} headers and other quick displays. A calculated value is its own declared field.</p><div data-priority-list></div><div class="fm-priority-actions"><select data-priority-add aria-label="Add priority field"><option value="">Choose a declared variable…</option>${entries.map(e=>`<option value="${escape(e.id)}">${escape(e.label)}</option>`).join('')}</select><button type="button" data-priority-calculate>Create calculated field</button></div><div data-priority-new></div><div class="fm-priority-status" role="status"></div>`;
       const list=host.querySelector('[data-priority-list]');
       fields.forEach((field,index)=>{
         const row=document.createElement('div');row.className='fm-priority-row';row.innerHTML=`<div><input aria-label="Field label" data-label value="${escape(field.label)}"><small class="fm-priority-help">${escape(human(field.source.provider)+' · '+human(field.source.path?.split('/').at(-1)||field.source.export))}</small><div class="fm-priority-actions"><label>Display<select data-format>${['text','number','currency','date','json'].map(f=>`<option value="${f}" ${field.format===f?'selected':''}>${human(f)}</option>`).join('')}</select></label><label>Currency<input data-currency value="${escape(field.currency||'USD')}" maxlength="3"></label><label>Empty field<select data-empty><option value="hide" ${field.empty!=='show'?'selected':''}>Hide</option><option value="show" ${field.empty==='show'?'selected':''}>Show unset</option></select></label></div><details><summary>Change source variable</summary><div data-source-editor></div></details></div><div class="fm-priority-actions"><button type="button" data-up aria-label="Move ${escape(field.label)} up" ${index===0?'disabled':''}>↑</button><button type="button" data-down aria-label="Move ${escape(field.label)} down" ${index===fields.length-1?'disabled':''}>↓</button><button type="button" data-remove>Remove</button></div>`;
@@ -108,16 +111,25 @@
           const status=host.querySelector('[role=status]');if(!label||!key||fields.length>=32){status.textContent='Enter a field name and stable key; choose at most 32 priorities.';return;}
           e.target.disabled=true;
           try{
-            const module=await root.PlatformAPI.branchModules.get(orgId,branchId,'custom_fields',{refresh:true}).catch(error=>{if(Number(error.status)===404)return {data:{fields:[]}};throw error;}),data=module?.data||module||{fields:[]};
-            if((data.fields||[]).some(f=>(f.entity||'project')==='project'&&(f.path||f.key)===key))throw Error('This field key already exists.');
-            const definition={entity:'project',path:key,key,label,type,currency:'USD',read_only:true,enabled:true,calculation:editor.get()};
-            await root.PlatformAPI.branchModules.save(orgId,branchId,'custom_fields',{...data,fields:[...(data.fields||[]),definition]},{kind:'branch_custom_fields',source:'priority_fields'});
-            const field=custom(definition);fields.push(field);definitions.push(definition);entries.push({...field,listable:false});update();render();root.dispatchEvent(new CustomEvent('fm:custom-fields:definitions-updated',{detail:{orgId,branchId,fields:definitions}}));
+            const module=await root.PlatformAPI.branchModules.get(orgId,sharedOwners.has(entity)?'default':branchId,'custom_fields',{refresh:true}).catch(error=>{if(Number(error.status)===404)return {data:{fields:[]}};throw error;}),data=module?.data||module||{fields:[]};
+            if((data.fields||[]).some(f=>(f.entity||'project')===entity&&(f.path||f.key)===key))throw Error('This field key already exists.');
+            const definition={entity,path:key,key,label,type,currency:'USD',read_only:true,enabled:true,calculation:editor.get()};
+            await root.PlatformAPI.branchModules.save(orgId,sharedOwners.has(entity)?'default':branchId,'custom_fields',{...data,fields:[...(data.fields||[]),definition]},{kind:'branch_custom_fields',source:'priority_fields'});
+            const field=custom(definition,entity);fields.push(field);definitions.push(definition);entries.push({...field,listable:false});update();render();root.dispatchEvent(new CustomEvent('fm:custom-fields:definitions-updated',{detail:{orgId,branchId,fields:definitions}}));
           }catch(error){status.textContent=error.message||'Could not save this field.';e.target.disabled=false;}
         };
       };
     };render();
     return {get:()=>clone(fields),commit:()=>{if(!changed)config.priority_fields=clone(fields);}};
   }
-  root.FirstMatePriorityFields={builtin,custom,normalize,format,visible,html,resolve,catalog,sourceEditor,calculationEditor,mountEditor};
+  const loadedConfigurations=new WeakSet();
+  async function mountOwnerEditor(host,{orgId,branchId='default',entity='project',config:provided,onchange}){
+    const configBranch=sharedOwners.has(entity)?'default':branchId;
+    const module=await root.PlatformAPI.branchModules.get(orgId,configBranch,'priority_fields',{refresh:true}).catch(error=>{if(Number(error.status)===404)return null;throw error;});
+    const data=module?.data||module||{},config=provided||{};if(!loadedConfigurations.has(config)&&Array.isArray(data.entities?.[entity]))config.priority_fields=clone(data.entities[entity]);loadedConfigurations.add(config);
+    if(entity==='project'&&!provided&&!config.priority_fields){const legacy=await root.PlatformAPI.branchModules.get(orgId,branchId,'project_configuration').catch(error=>{if(Number(error.status)===404)return null;throw error;});Object.assign(config,legacy?.data||legacy||{});}
+    const editor=await mountEditor(host,{orgId,branchId,entity,config,onchange});
+    return {...editor,save:async()=>{editor.commit();const latest=await root.PlatformAPI.branchModules.get(orgId,configBranch,'priority_fields',{refresh:true}).catch(error=>{if(Number(error.status)===404)return null;throw error;});const current=latest?.data||latest||{};await root.PlatformAPI.branchModules.save(orgId,configBranch,'priority_fields',{entities:{...current.entities,[entity]:config.priority_fields}},{kind:'priority_fields',source:'priority_fields'});root.dispatchEvent(new CustomEvent('fm:priority-fields:updated',{detail:{orgId,branchId:configBranch,entity}}));}};
+  }
+  root.FirstMatePriorityFields={builtin,custom,normalize,format,visible,html,resolve,catalog,sourceEditor,calculationEditor,mountEditor,mountOwnerEditor};
 })(window);

@@ -1,13 +1,15 @@
 # Priority fields and published calculations
 
-Priority fields are an ordered list of singular declared data references used
-by project quick displays. They are independent of a particular renderer.
+Priority fields are ordered lists of singular declared data references for each
+field owner: projects, contacts, users, organizations and organizational resources.
+They are independent of a particular renderer.
 The project header consumes the same result that cards, previews, lists,
 widgets and developer integrations can consume.
 
 ## Ownership and entry points
 
-- Branch configuration: `project_configuration.priority_fields`.
+- Shared configuration: `priority_fields.entities[entity]` in a branch module.
+- Project compatibility configuration: `project_configuration.priority_fields`.
 - Backend contracts and publication: `public/v1/priority_fields/`.
 - Published calculated custom fields: `custom_fields/calculations.ts`,
   `custom_fields/records.ts` and `custom_fields/publication.ts`.
@@ -263,3 +265,53 @@ arithmetic, source revision consistency, document-template selection,
 cross-project exclusion, denial, cycles, snapshot revocation, read-only fields,
 browser field creation/reordering and the same resolved values rendered by the
 header and another compact display.
+
+
+## Entity models and reusable owner editors
+
+The same field-owner catalog used by custom fields (`FIELD_OWNERS`) drives priority
+providers and authorization. Each model has an independent ordered list. Projects
+retain `priority-fields.contract` and `priority-fields.values`; other models use
+`priority-fields.contact-contract` / `contact-values`, `user-contract` / `user-values`,
+and the same suffixes for organization, branch, department, division and team.
+Contacts support organization records and contacts embedded in a project. Users
+and other shared owners use organization targets. Resource identity and branch
+checks reuse `readFieldRecord`; source permissions still apply per priority.
+
+`priority_fields` module configuration is `{ "entities": { "contact": [...],
+"user": [...] } }`. Project/contact lists live in the record's branch. Shared
+owner lists and definitions live in `default`. Project entries in this namespace
+have precedence over the legacy project configuration; the existing project
+settings editor now saves this namespace while retaining legacy compatibility.
+Nonproject models default to an empty list and never inherit project defaults or
+tag flags. Reads never create configuration or model records.
+
+```javascript
+const contactItems = await FirstMatePriorityFields.resolve(orgId, contactId, {
+  entity: 'contact', branchId
+});
+const embeddedItems = await FirstMatePriorityFields.resolve(orgId, contactId, {
+  entity: 'contact', projectId
+});
+const userItems = await FirstMatePriorityFields.resolve(orgId, userId, {
+  entity: 'user'
+});
+header.innerHTML = FirstMatePriorityFields.html(contactItems);
+const editor = await FirstMatePriorityFields.mountOwnerEditor(container, {
+  orgId, branchId, entity: 'contact'
+});
+await editor.save(); // preserve other entity lists in the current module
+```
+
+These are reusable model APIs and editors; adding priority rendering to each
+contact/user window is a consumer integration. No separate contact or user pill
+formula system is needed. `$record` binds a source ID to the current owner.
+A contact custom-field source using `$record` follows the embedded project
+context when the resolver's target is project-scoped. Calculated fields use the
+same token and owner rules. `$project` still requires a project context.
+
+Unset values, whitespace-only strings and empty arrays/objects hide by default.
+Zero and false remain values. An explicit `empty: "show"` retains the existing
+unset-placeholder option. Denied, pending and failed source values remain hidden.
+The owner editor filters custom definitions by entity and uses shared `default`
+placement for user calculations; it preserves other owners' configuration.

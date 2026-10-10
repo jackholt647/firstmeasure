@@ -4,7 +4,7 @@ export const applicationPublication = {
   partners:{providers:["collaboration"],domains:["collaboration"],note:"Authenticated organization connections, resource sharing and partner exchanges. Dedicated invitations and privacy administration remain explicit authenticated APIs."},
   assistant: { providers: [], domains: [], note: "Consumes the shared authorized publication catalog; assistant conversations, instructions and personal memories retain their dedicated subject-scoped APIs." },
   projects: { providers: ["widget-objects", "projects", "custom-fields-project", "priority-fields", "project-summary"], domains: ["projects", "custom-fields"] },
-  contacts: { providers: ["customers", "custom-fields-contact", "contacts"], domains: ["projects", "custom-fields", "contacts"] },
+  contacts: { providers: ["customers", "custom-fields-contact", "contacts", "priority-fields"], domains: ["projects", "custom-fields", "contacts"] },
   photos: { providers: ["media"], domains: ["media", "channels"], note:"Feed posts use hidden Channels roots; published feed reads, comments and reactions reauthorize source artifacts and default-on view/participation permissions." },
   receipts: { providers: ["media"], domains: ["media"] },
   proposals: { providers: ["proposals"], domains: ["proposals"] },

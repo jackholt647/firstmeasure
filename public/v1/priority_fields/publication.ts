@@ -1,7 +1,8 @@
 import { registerDataProvider, readPublishedData, authorizeSourceSnapshot } from '../platform/publication/providers.js';
 import { readBranchModule, readDocument, listDocuments } from '../platform/storage.js';
 import { object } from '../custom_fields/contracts.js';
-import { optional } from '../custom_fields/records.js';
+import { FIELD_OWNERS, type FieldEntity } from '../custom_fields/owners.js';
+import { optional, readFieldRecord } from '../custom_fields/records.js';
 import { bindFieldSource, inCalculationSession } from '../custom_fields/calculations.js';
 import { configuredPriorityFields, BUILTIN_FIELDS } from './contracts.js';
 import { contentHash } from '../platform/publication/validation.js';
@@ -44,13 +45,34 @@ async function projectState(ctx:PublicationContext,ref:SourceRef){
   const proposals=[...values(p.proposals),...stored.map(r=>({...object(r.data),id:r.id}))];
   return {row,p,proposals,revision:contentHash({project:row.revision,proposals:stored.map(r=>[r.id,r.revision])})};
 }
-async function configuration(ctx:PublicationContext,ref:SourceRef){
-  const row=ref.target.scope==='project'?await readDocument(ctx.organizationId,'projects',ref.target.projectId!):null;
-  const branchId=text(row?.data.branch_id || ref.target.branchId || ctx.branchId || 'default');
-  const config=await optional(()=>readBranchModule(ctx.organizationId,branchId,'project_configuration'));
+async function configuration(ctx:PublicationContext,ref:SourceRef,entity:FieldEntity='project',contractOnly=false){
+  const owner=entity==='project' && ref.target.scope==='project' || entity!=='project' && (!contractOnly || ref.target.id)
+    ?await readFieldRecord(ctx,ref.target,entity):null;
+  const branchId=owner?.branch || (FIELD_OWNERS[entity].shared?'default':text(ref.target.branchId || ctx.branchId || 'default'));
+  const priorities=await optional(()=>readBranchModule(ctx.organizationId,branchId,'priority_fields'));
+  const explicit=object(object(priorities?.data.entities))[entity];
+  const legacy=entity==='project'?await optional(()=>readBranchModule(ctx.organizationId,branchId,'project_configuration')):null;
   const customModule=await optional(()=>readBranchModule(ctx.organizationId,branchId,'custom_fields'));
-  const custom=values(customModule?.data.fields).filter(f=>(f.entity || 'project')==='project');
-  return {fields:configuredPriorityFields(object(config?.data),custom),revision:contentHash({config:config?.revision || 0,custom:customModule?.revision || 0}),branchId};
+  const custom=values(customModule?.data.fields).filter(f=>(f.entity || 'project')===entity);
+  return {entity,fields:configuredPriorityFields(explicit!==undefined?{priority_fields:explicit}:object(legacy?.data),custom,entity),revision:contentHash({priorities:priorities?.revision || 0,legacy:legacy?.revision || 0,custom:customModule?.revision || 0}),branchId};
+}
+function priorityExports(entity:FieldEntity){
+  const scopes=entity==='project'?['project'] as const:entity==='contact'?['organization','project'] as const:['organization'] as const;
+  const policy:AccessPolicy={scopes,permissions:[FIELD_OWNERS[entity].readPermission],systemKinds:['work','module','agent'],authorize:async(ctx,target)=>{await readFieldRecord(ctx,target,entity);}};
+  const contractPolicy:AccessPolicy={...policy,scopes:entity==='project'?['organization','project']:scopes,authorize:async(ctx,target)=>{if(target.scope==='project' || target.id)await readFieldRecord(ctx,target,entity);}};
+  return {
+    contract:{description:`Ordered ${entity} priority-field references shared by all quick displays.`,schema:{type:'object',additionalProperties:true},schemaVersion:'1',access:contractPolicy,read:async(ctx:PublicationContext,ref:SourceRef)=>{const c=await configuration(ctx,ref,entity,true);return {value:c,revision:c.revision};}},
+    values:{description:`Resolve the ${entity} priority list under current owner and source permissions. Calculations belong to declared fields.`,schema:{type:'object',additionalProperties:true},schemaVersion:'1',access:policy,
+      authorizeSnapshot:async(ctx:PublicationContext,_ref:SourceRef,result:any)=>{for(const item of result.provenance.sources || [])await authorizeSourceSnapshot(ctx,item.source,item);},
+      read:async(ctx:PublicationContext,ref:SourceRef)=>inCalculationSession(async()=>{
+        const identity=`priority:${ctx.organizationId}:${entity}:${ref.target.scope}:${ref.target.projectId || ''}:${ref.target.id || ''}`;
+        if(ctx.dependencyPath?.includes(identity))throw forbidden('priority_field_cycle','A priority field cannot depend on its own quick-display list.');
+        const c=await configuration(ctx,ref,entity),sources=[];const items=[];
+        const child={...ctx,...(ref.target.projectId?{projectId:ref.target.projectId}:{}),dependencyPath:[...(ctx.dependencyPath || []),identity]};
+        for(const field of c.fields){const result=await readPublishedData(child,bindFieldSource(field.source,child,{...ref.target,branchId:c.branchId}));if(result.status==='ready')sources.push(result);items.push({...field,result});}
+        return {value:{items,entity,branchId:c.branchId},revision:contentHash({config:c.revision,sources:sources.map(r=>r.source)}),provenance:{sources}};
+      })}
+  };
 }
 let registered=false;
 export function registerPriorityFieldsPublication(){
@@ -59,18 +81,7 @@ export function registerPriorityFieldsPublication(){
     details:{description:'Declared project quick-display fields. Scope type is the project scope-set name with a selected-proposal template fallback.',schema:{type:'object',properties:Object.fromEntries(Object.keys(BUILTIN_FIELDS).filter(k=>k!=='dollar_value').map(k=>[k,{type:['string','number','null']}])),additionalProperties:false},schemaVersion:'1',access,read:async(ctx,ref)=>{const s=await projectState(ctx,ref);return {value:projectSummaryDetails(s.p,s.proposals),revision:s.revision};}},
     value:{description:'Compatibility project value: explicit project total, then accepted or first proposal total and the domain pricing calculation over stored proposal content. Missing is null; zero is valid. New calculations should use declared custom fields.',schema:{type:'object',properties:{amount:{type:['number','null']}},required:['amount'],additionalProperties:false},schemaVersion:'1',units:{'/amount':'USD'},access:{...access,permissions:['view_financials'],capabilities:['platform.money']},read:async(ctx,ref)=>{const s=await projectState(ctx,ref);return {value:{amount:await projectSummaryValue(s.p,s.proposals)},revision:s.revision};}}
   }});
-  const configAccess:AccessPolicy={...access,scopes:['organization','project'],authorize:async(ctx,target)=>{if(target.scope==='project')await access.authorize?.(ctx,target);}};
-  registerDataProvider({id:'priority-fields',version:'1',apps:['projects','settings'],exports:{
-    contract:{description:'Ordered branch priority-field references shared by all quick displays. An absent configuration reads legacy settings without writing a migration.',schema:{type:'object',additionalProperties:true},schemaVersion:'1',access:configAccess,read:async(ctx,ref)=>{const c=await configuration(ctx,ref);return {value:c,revision:c.revision};}},
-    values:{description:'Resolve the same priority list with current source permissions. Each item preserves ready/missing/pending/denied/error and source provenance; calculations belong to declared fields.',schema:{type:'object',additionalProperties:true},schemaVersion:'1',access,
-      authorizeSnapshot:async(ctx,_ref,result)=>{for(const item of (result.provenance.sources || []) as any[])await authorizeSourceSnapshot(ctx,item.source,item);},
-      read:async(ctx,ref)=>inCalculationSession(async()=>{
-        const identity=`priority:${ctx.organizationId}:${ref.target.projectId}`;
-        if(ctx.dependencyPath?.includes(identity))throw forbidden('priority_field_cycle','A priority field cannot depend on its own quick-display list.');
-        const c=await configuration(ctx,ref),sources=[];const items=[];
-        const child={...ctx,projectId:ref.target.projectId,dependencyPath:[...(ctx.dependencyPath || []),identity]};
-        for(const field of c.fields){const result=await readPublishedData(child,bindFieldSource(field.source,child,{...ref.target,branchId:c.branchId}));if(result.status==='ready')sources.push(result);items.push({...field,result});}
-        return {value:{items,branchId:c.branchId},revision:contentHash({config:c.revision,sources:sources.map(r=>r.source)}),provenance:{sources}};
-      })}
-  }});
+  const exports:Record<string,ReturnType<typeof priorityExports>['contract'] | ReturnType<typeof priorityExports>['values']>={...priorityExports('project')};
+  for(const entity of Object.keys(FIELD_OWNERS) as FieldEntity[]){if(entity==='project')continue;const entries=priorityExports(entity);exports[`${entity}-contract`]=entries.contract;exports[`${entity}-values`]=entries.values;}
+  registerDataProvider({id:'priority-fields',version:'1',apps:['projects','contacts','settings'],exports});
 }

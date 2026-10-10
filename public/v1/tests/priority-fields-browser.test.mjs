@@ -59,3 +59,24 @@ test('priority editor reorders a shared list and creates a singular declared fie
     assert.equal(await page.locator('#header').innerText(),await page.locator('#card').innerText());assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
+
+
+test('owner editor configures users in the shared branch and preserves contact priorities; blank values hide',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage();await page.setContent('<div id="editor"></div><div id="display"></div>');
+    await page.evaluate(()=>{
+      window.saved=[];window.requests=[];window.modules={custom_fields:{data:{fields:[{entity:'user',path:'nickname',label:'Nickname',type:'text'},{entity:'contact',path:'tier',label:'Tier',type:'text'}]}},priority_fields:{data:{entities:{contact:[{id:'contact-placeholder'}]}}}};
+      window.PlatformAPI={branchModules:{get:async(_o,b,id)=>{requests.push({branch:b,id});return modules[id]||null;},save:async(_o,b,id,data)=>{saved.push({branch:b,id,data});modules[id]={data};}},publication:{catalog:async()=>({providers:[]}),read:async(_o,ref)=>{window.readReference=ref;return {status:'ready',value:{items:[]}};}}};
+    });
+    await page.addScriptTag({path:script});
+    await page.evaluate(async()=>{window.editor=await FirstMatePriorityFields.mountOwnerEditor(document.querySelector('#editor'),{orgId:'org',branchId:'west',entity:'user'});});
+    assert.equal(await page.locator('[data-priority-list]>div').count(),0);
+    assert.deepEqual(await page.locator('[data-priority-add] option').allTextContents(),['Choose a declared variable…','Nickname']);
+    await page.locator('[data-priority-add]').selectOption('custom_field:nickname');
+    await page.evaluate(()=>editor.save());
+    const state=await page.evaluate(()=>({saved,requests}));assert.equal(state.saved[0].branch,'default');assert.equal(state.saved[0].id,'priority_fields');assert.equal(state.saved[0].data.entities.contact[0].id,'contact-placeholder');assert.equal(state.saved[0].data.entities.user[0].source.provider,'custom-fields-user');assert.equal(state.saved[0].data.entities.user[0].source.target.id,'$record');
+    await page.evaluate(async()=>{await FirstMatePriorityFields.resolve('org','u',{entity:'user'});document.querySelector('#display').innerHTML=FirstMatePriorityFields.html([null,'','  ',[],{},0,false].map((value,i)=>({id:String(i),label:'Field',empty:'hide',result:{status:'ready',value}})));});
+    assert.deepEqual(await page.evaluate(()=>readReference.target),{scope:'organization',id:'u',organizationId:'org'});assert.equal(await page.evaluate(()=>readReference.export),'user-values');assert.equal(await page.locator('#display [data-priority-field]').count(),2);assert.match(await page.locator('#display').innerText(),/0.*false/);
+  }finally{await browser.close();}
+});

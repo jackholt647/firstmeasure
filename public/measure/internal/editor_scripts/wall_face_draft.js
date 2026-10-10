@@ -740,7 +740,8 @@ function perf_snap(d,e,raw=null){
  function planeClipboardFrame(origin=workingPlane.frame.origin){
   const n=workingPlane.frame.n,a=getVector3(host.toPixel(origin)),b=getVector3(host.toPixel({x:origin.x+n.x,y:origin.y+n.y,z:origin.z+n.z}));
   const toward=(b.x-a.x)*(camera.position.x-a.x)+(b.y-a.y)*(camera.position.y-a.y)+(b.z-a.z)*(camera.position.z-a.z),sign=toward<0?-1:1;
-  return W.clipboardFrame(origin,{x:n.x*sign,y:n.y*sign,z:n.z*sign});
+  const normal={x:n.x*sign,y:n.y*sign,z:n.z*sign},u=planeUnit(planeCross({x:0,y:0,z:1},normal))||{x:normal.z<0?-1:1,y:0,z:0};
+  return {origin:copy(origin),u,v:planeCross(normal,u),n:normal};
  }
  function orientPlaneClipboard(clip){clip.mounts=[{frame:planeClipboardFrame(geometryCenter(clip)),count:clip.points.length}];}
  function constrainPlaneClip(clip){if(workingPlane)clip.mounts=[{frame:{...copy(workingPlane.frame),origin:geometryCenter(clip)},count:clip.points.length}];return clip;}
