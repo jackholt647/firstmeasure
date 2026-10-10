@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 My Contacts: [Contact window, relationships, tags and time zones](deploy/digitalocean/development-contact-window-20261009.md) records the feature changes, follow-up guard, verification, development rollout and rollback.
+
 October 9 Channels composer: [Controls inside the message box](deploy/digitalocean/development-channels-composer-20261009.md) records the GitHub commit, staged frontend checks, verified development rollout and rollback.
 
 October 9 project primary images: [Satellite default and selected covers](deploy/digitalocean/development-project-primary-20261009.md) records the unified primary-image displays and verified development rollout.
