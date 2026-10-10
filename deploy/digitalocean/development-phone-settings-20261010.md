@@ -8,7 +8,8 @@ The available worker account is `ben` through SSH alias `firstmeasure-employee`;
 
 ## Verification
 
-- TypeScript checks pass on the integrated local source.
+- TypeScript checks pass on the integrated local source and all four staged server candidates.
+- All four staged candidates pass source-hash checks and compiled phone API runtime imports.
 - 105 focused backend tests pass: phone settings, customer calls, messaging API, and Telnyx compliance state. FirstMeasure background workers are disabled in isolated test processes.
 - Two browser tests pass: phone settings forms/navigation/mobile bounds and the existing docked phone tray.
 - An existing broader communication email-notification visibility assertion fails with the unchanged original notification module from `f7b6dd78`; it is recorded, not suppressed.
@@ -24,6 +25,6 @@ Other role candidates use the same release prefix with `-pool` and `-compat`.
 
 The web baseline includes concurrent conference, group MMS, feed and live-registration changes not present on the initial canonical branch. Reviewed integration patches are retained in `phone-settings-20261010/` and local per-role source/hash manifests are in `output/phone-settings/deploy/`. Web/pool/compatibility preserve those changes; group MMS checks all participants' sending windows before dispatch. Worker differences preserve its older UI by excluding frontend files. Revalidate current role baselines before using a staged candidate after any intervening deployment.
 
-No activation or readiness claim is implied by preparation. After access is supplied, inspect concurrent changes, refresh candidates as needed, activate worker/web/pool/compatibility with rollback guards, then verify public readiness, development isolation, asset hashes and authenticated settings behavior.
+No activation or readiness claim is implied by preparation. After access is supplied, inspect concurrent changes, refresh candidates as needed, activate worker/web/pool/compatibility with rollback guards, stamp the new release identity in each candidate’s `release.env`, then verify public readiness, development isolation, asset hashes and authenticated settings behavior.
 
 See [feature architecture](../../docs/architecture/phone-settings.md) for settings precedence, authorization, carrier contracts and functional limits.
