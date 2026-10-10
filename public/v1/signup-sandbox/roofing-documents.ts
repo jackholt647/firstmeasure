@@ -331,7 +331,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 12;
+export const INSTANT_ROOFING_PACK = 13;
 
 /** Roof measurements the proposals price from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [
@@ -369,7 +369,9 @@ export function scopedWorkflowSteps(spec: EstimateSpec, templateId: string) {
     // Optional: pages of photos and description ahead of the pricing.
     ...(spec.key === 'detailed' ? [{ id: 'details', title: 'Photos & description', description: 'Optional. Show the customer their roof and describe the work before they reach the pricing. Leave this empty and the proposal goes straight to the line items.', audience: ['internal'], items: [
       { kind: 'content_blocks', writes: 'params.content_blocks', label: 'Photos & description' }], preview: { template_ref: templateId, live: true } }] : []),
-    { id: 'items', title: 'Line items', audience: ['internal'], items: [{ kind: 'line_items_review', writes: 'params.scope_items', required: true, label: 'Line items' }] },
+    { id: 'items', title: 'Line items', audience: ['internal'], items: [{ kind: 'line_items_review', writes: 'params.scope_items', required: true, label: 'Line items',
+      // The three options open side by side, so their prices read across.
+      ...(spec.key === 'options' ? { compare: ['roof_package'] } : {}) }] },
     { id: 'terms', title: 'Payment terms', description: 'How the job is paid. The milestone due on signature is the deposit the customer pays when they approve.', audience: ['internal'], items: [{ kind: 'payment_schedule', writes: 'params.payment_schedule', label: 'Payment schedule', required: true }] },
     { id: 'review', title: 'Review & send', audience: ['internal'], items: [{ kind: 'review', label: 'Before you send' }], preview: { template_ref: templateId, live: true } },
     // The customer's side, in the portal: choose, approve, pay the deposit.

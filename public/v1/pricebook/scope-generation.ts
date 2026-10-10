@@ -396,7 +396,7 @@ const ROOF_REPLACEMENT_OPTIONS: PieceRecipe = {
   measurementFallbacks: GUTTER_FALLBACK,
   choices: ROOF_CHOICES,
   packages: {
-    group: "roof_package", title: "Your roof", defaultOption: "better",
+    group: "roof_package", title: "Roof", defaultOption: "better",
     options: [
       { id: "good", title: "Good", description: "A dependable architectural roof at the lowest price.",
         picks: { shingle_profile: "gaf_ns", underlayment_profile: "underlayment", leak_barrier_profile: "ice_water" }, include: [] },

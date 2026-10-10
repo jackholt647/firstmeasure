@@ -1636,6 +1636,19 @@
     // values the customer may be offered. A value can rule out values of
     // another dimension (excludes).
     const openVariants = new Set();
+    // View state of the tree: which items have their sub-lines folded away,
+    // and which choice groups are shown side by side. A workflow can open its
+    // groups in compare (item.compare: true, or a list of group ids).
+    const folded = new Set();
+    const compared = new Map();
+    const compareDefault = (groupId) => ctx.item.compare === true || arr(ctx.item.compare).includes(cleanText(groupId).split(':').pop()) || arr(ctx.item.compare).includes(groupId);
+    const isCompared = (groupId) => (compared.has(groupId) ? compared.get(groupId) : compareDefault(groupId));
+    const lineCount = (item) => { let n = 0; walkItems(item.children, () => { n += 1; }); return n; };
+    const foldHtml = (item) => (arr(item.children).length ? `<button type="button" class="fmdw-lir-fold ${folded.has(item.id) ? 'folded' : ''}" data-fmdw-lir-fold="${esc(item.id)}" title="${folded.has(item.id) ? 'Show' : 'Hide'} the ${lineCount(item)} lines under this" aria-expanded="${!folded.has(item.id)}"><i class="fas fa-chevron-down"></i></button>` : '');
+    const foldCountHtml = (item) => (arr(item.children).length ? `<span class="fmdw-lir-fold-count" data-fmdw-fold-count="${esc(item.id)}" ${folded.has(item.id) ? '' : 'hidden'}>${lineCount(item)} lines</span>` : '');
+    /** The name and description as shown, each renamed for this estimate by a double-click. */
+    const nameHtml = (item, fallback) => `<strong data-fmdw-rename="name" title="Double-click to rename for this estimate">${esc(firstText(item.display_name, item.name, fallback))}</strong>`;
+    const descHtml = (item) => (item.description ? `<small class="fmdw-lir-desc" data-fmdw-rename="description" title="Double-click to edit">${esc(item.description)}</small>` : '');
     const dimensionsOf = (item) => arr(item.variant_dimensions).map(obj).filter((dimension) => cleanText(dimension.id) && arr(dimension.values).length);
     /** A dimension left off the contract: nothing offered, nothing chosen, no price change. */
     const omittedOf = (item, dimension) => obj(item.variant_omitted)[dimension.id] === true;
@@ -1870,8 +1883,8 @@
         <div class="fmdw-lir-row ${on ? '' : 'off'} ${control ? 'pick' : ''}" data-fmdw-lir="${esc(item.id)}">
           ${control ? `<span class="fmdw-lir-pick">${control}</span>` : ''}
           <div class="fmdw-lir-name">
-            <span class="fmdw-lir-name-line">${attachThumbHtml(item)}<strong>${esc(firstText(item.display_name, item.name, 'Line item'))}</strong>${modifierBadges(item)}${pick === 'optional' ? `<span class="fmdw-li-flag optional">Optional</span>` : ''}${variantChipHtml(item)}</span>
-            ${item.description ? `<small class="fmdw-lir-desc">${esc(item.description)}</small>` : ''}
+            <span class="fmdw-lir-name-line">${foldHtml(item)}${attachThumbHtml(item)}${nameHtml(item, 'Line item')}${foldCountHtml(item)}${modifierBadges(item)}${pick === 'optional' ? `<span class="fmdw-li-flag optional">Optional</span>` : ''}${variantChipHtml(item)}</span>
+            ${descHtml(item)}
           </div>
           <div class="fmdw-lir-nums">
             ${isPackage(item) ? '' : `<label class="fmdw-lir-num" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}"><input type="number" step="any" min="0" data-fmdw-lir-qty value="${esc(formatNumber(item.quantity))}" ${ctx.readonly ? 'disabled' : ''}><i>${esc(item.unit || 'ea')}</i></label>
@@ -1898,16 +1911,21 @@
           done.add(groupId);
           const options = arr(children).filter((other) => choiceGroupOf(other) === groupId);
           const customer = options.some(customerPicks);
+          const comparing = isCompared(groupId);
           out.push(`
-            <div class="fmdw-lir-choice">
+            <div class="fmdw-lir-choice ${comparing ? 'comparing' : ''}">
               <div class="fmdw-lir-choice-head">
                 <strong>${esc(groupTitle(groupId, options))}</strong>
                 <span class="fmdw-li-flag choice" title="${customer ? 'The selected option is your recommendation: the proposal prices it, and the customer can switch before approving.' : 'The selected option is the one this proposal prices and prints.'}">${customer ? 'Customer can choose' : 'Choose one'}</span>
                 ${ctx.readonly || typeof services.scopeCandidates !== 'function' || options.some(isPackage) ? '' : `<button type="button" class="fmdw-lir-add-option" data-fmdw-lir-add-option="${esc(groupId)}" title="Add another option from your price book"><i class="fas fa-plus"></i> Add option</button>`}
+                <span class="fmdw-lir-view" role="group" aria-label="How to show these options">
+                  <button type="button" class="${comparing ? '' : 'on'}" data-fmdw-lir-view="list" data-fmdw-lir-view-group="${esc(groupId)}" title="One under another"><i class="fas fa-list"></i> List</button>
+                  <button type="button" class="${comparing ? 'on' : ''}" data-fmdw-lir-view="compare" data-fmdw-lir-view-group="${esc(groupId)}" title="Side by side"><i class="fas fa-table-columns"></i> Compare</button>
+                </span>
               </div>
-              <div class="fmdw-lir-children">
+              ${comparing ? compareHtml(options) : `<div class="fmdw-lir-children">
                 ${options.map((option) => rowHtml(option, 'choice') + nestedHtml(option)).join('')}
-              </div>
+              </div>`}
             </div>`);
           return;
         }
@@ -1915,21 +1933,44 @@
       });
       return out.join('');
     }
-    const nestedHtml = (item) => (arr(item.children).length ? `<div class="fmdw-lir-children">${childrenHtml(item.children)}</div>` : '');
+    const nestedHtml = (item) => (arr(item.children).length ? `<div class="fmdw-lir-fold-body ${folded.has(item.id) ? 'folded' : ''}" data-fmdw-fold-body="${esc(item.id)}"><div class="fmdw-lir-children">${childrenHtml(item.children)}</div></div>` : '');
+    /**
+     * The options of a choice group as columns: the same lines row for row
+     * where the options share them, so prices can be read across. Choosing
+     * works here; editing a line is done in List.
+     */
+    function compareHtml(options){
+      const group = cleanText(choiceGroupOf(options[0]));
+      const column = (option) => {
+        const on = scopeItemSelected(option);
+        const lines = [];
+        walkItems(option.children, (line) => { if (!arr(line.children).length) lines.push(line); });
+        return `
+          <div class="fmdw-lir-col ${on ? 'on' : ''}" data-fmdw-lir="${esc(option.id)}">
+            <label class="fmdw-lir-col-head">
+              <input type="radio" name="fmdw-lir-${esc(group)}" data-fmdw-lir-choose ${on ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''} title="Price and print this option">
+              <span class="fmdw-lir-name">${nameHtml(option, 'Option')}${descHtml(option)}</span>
+            </label>
+            <b class="fmdw-lir-col-total" data-fmdw-lir-amount="${esc(option.id)}">${esc(moneyFromDollars(rowAmount(option)))}</b>
+            ${lines.length ? `<ul class="fmdw-lir-col-lines">${lines.map((line) => `<li class="${scopeItemSelected(line) || !cleanText(obj(line.selection).mode) || cleanText(obj(line.selection).mode) === 'fixed' ? '' : 'off'}"><span>${esc(firstText(line.display_name, line.name))}</span><b>${esc(moneyFromDollars(lineAmount(line)))}</b></li>`).join('')}</ul>` : (cleanText(option.description) ? '' : '<p class="fmdw-lir-col-empty">No lines under this option.</p>')}
+          </div>`;
+      };
+      return `<div class="fmdw-lir-compare" style="--fmdw-cols:${options.length}">${options.map(column).join('')}</div>`;
+    }
 
     function rootHtml(item){
       if (!arr(item.children).length) return rowHtml(item, isOptional(item) ? 'optional' : '');
       return `
         <section class="fmdw-lir-group" data-fmdw-lir-group="${esc(item.id)}">
           <header class="fmdw-lir-row fmdw-lir-group-head">
-            <div class="fmdw-lir-name"><span class="fmdw-lir-name-line"><strong>${esc(firstText(item.display_name, item.name, 'Scope'))}</strong></span>${item.description ? `<small class="fmdw-lir-desc">${esc(item.description)}</small>` : ''}</div>
+            <div class="fmdw-lir-name" data-fmdw-rename-item="${esc(item.id)}"><span class="fmdw-lir-name-line">${foldHtml(item)}${nameHtml(item, 'Scope')}${foldCountHtml(item)}</span>${descHtml(item)}</div>
             <b class="fmdw-lir-amount" data-fmdw-lir-subtotal="${esc(item.id)}">${esc(moneyFromDollars(scopeItemAmount(item)))}</b>
             ${ctx.readonly ? '' : `<div class="fmdw-lir-actions"><button type="button" class="fmdw-icon-btn danger" data-fmdw-lir-remove-group="${esc(item.id)}" title="Remove this whole group"><i class="fas fa-xmark"></i></button></div>`}
           </header>
-          <div class="fmdw-lir-children">
+          <div class="fmdw-lir-fold-body ${folded.has(item.id) ? 'folded' : ''}" data-fmdw-fold-body="${esc(item.id)}"><div class="fmdw-lir-children">
             ${Number(item.unit_price || 0) > 0 ? rowHtml({ ...item, display_name: 'Base price', description: '', children: [] }, '') : ''}
             ${childrenHtml(item.children)}
-          </div>
+          </div></div>
         </section>`;
     }
 
@@ -1976,6 +2017,63 @@
           </div>
           <span class="fmdw-field-error" data-fmdw-error hidden></span>
         </div>`;
+      // Fold and unfold in place: a class on what is already there.
+      el.querySelectorAll('[data-fmdw-lir-fold]').forEach((button) => button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const id = button.dataset.fmdwLirFold;
+        const fold = !folded.has(id);
+        if (fold) folded.add(id); else folded.delete(id);
+        button.classList.toggle('folded', fold);
+        button.setAttribute('aria-expanded', String(!fold));
+        el.querySelectorAll('[data-fmdw-fold-body]').forEach((body) => { if (body.dataset.fmdwFoldBody === id) body.classList.toggle('folded', fold); });
+        el.querySelectorAll('[data-fmdw-fold-count]').forEach((count) => { if (count.dataset.fmdwFoldCount === id) count.hidden = !fold; });
+      }));
+      el.querySelectorAll('[data-fmdw-lir-view]').forEach((button) => button.addEventListener('click', () => {
+        compared.set(button.dataset.fmdwLirViewGroup, button.dataset.fmdwLirView === 'compare');
+        render();
+      }));
+      // Rename for this estimate: double-click the name or the description.
+      if (!ctx.readonly) el.querySelectorAll('[data-fmdw-rename]').forEach((target) => target.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const holder = target.closest('[data-fmdw-lir],[data-fmdw-rename-item]');
+        const id = holder ? (holder.dataset.fmdwLir || holder.dataset.fmdwRenameItem) : '';
+        const found = findItem(items, id);
+        const name = target.closest('.fmdw-lir-name');
+        if (!found || !name || name.querySelector('.fmdw-lir-edit')) return;
+        const editor = document.createElement('div');
+        editor.className = 'fmdw-lir-edit';
+        editor.innerHTML = `
+          <input type="text" data-fmdw-edit-name value="${esc(firstText(found.item.display_name, found.item.name))}" placeholder="${esc(firstText(found.item.name, 'Name'))}" maxlength="160" aria-label="Name on this estimate">
+          <textarea data-fmdw-edit-description rows="2" maxlength="600" placeholder="Description (optional)" aria-label="Description on this estimate">${esc(found.item.description || '')}</textarea>
+          <span class="fmdw-lir-edit-actions"><small>Only this estimate changes.</small><button type="button" class="fmdw-icon-btn" data-fmdw-edit-cancel title="Cancel (Esc)"><i class="fas fa-xmark"></i></button><button type="button" class="fmdw-icon-btn done" data-fmdw-edit-done title="Done (Enter)"><i class="fas fa-check"></i></button></span>`;
+        name.classList.add('editing');
+        name.appendChild(editor);
+        // Next frame, so the opening height animates from nothing.
+        requestAnimationFrame(() => editor.classList.add('open'));
+        const first = editor.querySelector(target.dataset.fmdwRename === 'description' ? '[data-fmdw-edit-description]' : '[data-fmdw-edit-name]');
+        first.focus();
+        first.select();
+        const finish = (save) => {
+          if (save) {
+            const title = cleanText(editor.querySelector('[data-fmdw-edit-name]').value);
+            const description = cleanText(editor.querySelector('[data-fmdw-edit-description]').value);
+            // The price book name stays as `name`; this estimate shows display_name.
+            if (title && title !== cleanText(found.item.name)) found.item.display_name = title; else delete found.item.display_name;
+            found.item.description = description;
+            commit();
+            ctx.requestPreview();
+          }
+          render();
+        };
+        editor.querySelector('[data-fmdw-edit-done]').addEventListener('click', () => finish(true));
+        editor.querySelector('[data-fmdw-edit-cancel]').addEventListener('click', () => finish(false));
+        editor.addEventListener('keydown', (key) => {
+          if (key.key === 'Escape') { key.preventDefault(); finish(false); }
+          else if (key.key === 'Enter' && (key.target.matches('[data-fmdw-edit-name]') || key.ctrlKey || key.metaKey)) { key.preventDefault(); finish(true); }
+        });
+        editor.addEventListener('click', (click) => click.stopPropagation());
+      }));
       el.querySelectorAll('[data-fmdw-lir]').forEach((row) => {
         const id = row.dataset.fmdwLir;
         const edit = (apply) => {
@@ -3354,6 +3452,56 @@
 .fmdw-lir-stale{margin:0;border:1px solid #f0d58a;background:#fffbea;color:#7a5b00;border-radius:10px;padding:9px 11px;font-size:11.5px;font-weight:850;line-height:1.45}
 .fmdw-lir-list,.fmdw-lir-group{display:flex;flex-direction:column;gap:6px;min-width:0}
 .fmdw-lir-children{display:flex;flex-direction:column;gap:6px;margin-left:22px;min-width:0}
+/* folding: the lines under an item slide away; the chevron and a count say so */
+.fmdw-lir-fold-body{display:grid;grid-template-rows:1fr;transition:grid-template-rows .2s cubic-bezier(.3,.8,.3,1),opacity .16s ease}
+.fmdw-lir-fold-body>.fmdw-lir-children{min-height:0;overflow:hidden}
+.fmdw-lir-fold-body.folded{grid-template-rows:0fr;opacity:0}
+.fmdw-lir-fold{flex:none;width:20px;height:20px;margin-left:-4px;border:0;border-radius:6px;background:transparent;color:#667085;font-size:9px;cursor:pointer;display:grid;place-items:center;padding:0;transition:transform .16s ease,background .12s ease}
+.fmdw-lir-fold:hover{background:#eef1f6;color:#111827}
+.fmdw-lir-fold.folded{transform:rotate(-90deg)}
+.fmdw-lir-fold-count{font-size:10px;font-weight:900;color:#667085;background:#eef1f6;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.fmdw-lir-fold-count[hidden]{display:none}
+/* renaming: the name block opens into two fields */
+[data-fmdw-rename]{cursor:text}
+.fmdw-lir-name.editing>.fmdw-lir-name-line>strong,.fmdw-lir-name.editing>.fmdw-lir-desc,.fmdw-lir-name.editing>strong{display:none}
+.fmdw-lir-name.editing .fmdw-lir-name-line{transform:none}
+.fmdw-lir-edit{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .2s cubic-bezier(.3,.8,.3,1),opacity .16s ease;min-width:0;width:100%}
+.fmdw-lir-edit.open{grid-template-rows:1fr;opacity:1}
+.fmdw-lir-edit>*{min-height:0}
+.fmdw-lir-edit{row-gap:0}
+.fmdw-lir-edit.open{row-gap:5px;padding:2px 0 3px}
+.fmdw-lir-edit input,.fmdw-lir-edit textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #d4d9e6;border-radius:8px;background:#fff;color:#111827;font:inherit;font-size:12.5px;font-weight:800;padding:6px 9px;outline:none;overflow:hidden}
+.fmdw-lir-edit textarea{font-size:11px;font-weight:700;line-height:1.4;resize:vertical;min-height:0}
+.fmdw-lir-edit.open textarea{min-height:42px;overflow:auto}
+.fmdw-lir-edit input:focus,.fmdw-lir-edit textarea:focus{border-color:var(--fmdw-primary)}
+.fmdw-lir-edit-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;overflow:hidden}
+.fmdw-lir-edit-actions small{margin-right:auto;font-size:10px;font-weight:800;color:var(--fmdw-muted)}
+.fmdw-lir-edit-actions .done{background:var(--fmdw-primary);border-color:var(--fmdw-primary);color:#fff}
+/* a choice group side by side */
+.fmdw-lir-view{margin-left:auto;display:inline-flex;border:1px solid var(--fmdw-line);border-radius:8px;overflow:hidden;background:#fff}
+.fmdw-lir-view button{border:0;background:transparent;color:#667085;font:inherit;font-size:10.5px;font-weight:900;padding:4px 9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.fmdw-lir-view button.on{background:#111827;color:#fff}
+.fmdw-lir-choice-head .fmdw-lir-add-option{margin-left:0}
+.fmdw-lir-compare{display:grid;grid-template-columns:repeat(var(--fmdw-cols,3),minmax(0,1fr));gap:8px;margin-left:22px}
+.fmdw-lir-col{display:flex;flex-direction:column;gap:8px;min-width:0;border:1.5px solid var(--fmdw-line);border-radius:12px;background:#fff;padding:10px 11px;transition:border-color .14s ease,box-shadow .14s ease}
+.fmdw-lir-col.on{border-color:var(--fmdw-primary);box-shadow:0 0 0 1px var(--fmdw-primary)}
+.fmdw-lir-col-head{display:flex;align-items:flex-start;gap:8px;cursor:pointer;min-width:0}
+.fmdw-lir-compare .fmdw-lir-col .fmdw-lir-col-head input[type=radio]{flex:0 0 16px;width:16px;height:16px;min-width:0;margin:2px 0 0;padding:0;accent-color:var(--fmdw-primary)}
+.fmdw-lir-col-head .fmdw-lir-name{flex:1 1 auto;min-width:0}
+.fmdw-lir-col-head .fmdw-lir-name{min-height:0}
+.fmdw-lir-col-head strong{font-size:13px;font-weight:1000}
+.fmdw-lir-col .fmdw-lir-desc{height:auto;opacity:1;white-space:normal}
+.fmdw-lir-col .fmdw-lir-name-line,.fmdw-lir-col .fmdw-lir-name:has(.fmdw-lir-desc) .fmdw-lir-name-line{transform:none}
+.fmdw-lir-col-total{font-size:17px;font-weight:1000;font-variant-numeric:tabular-nums}
+.fmdw-lir-col:not(.on) .fmdw-lir-col-total{color:#667085}
+.fmdw-lir-col-lines{list-style:none;margin:0;padding:8px 0 0;border-top:1px solid #f0f2f7;display:flex;flex-direction:column;gap:5px}
+.fmdw-lir-col-lines li{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;color:#344054}
+.fmdw-lir-col-lines li span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmdw-lir-col-lines li b{font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fmdw-lir-col-lines li.off{color:#98a2b3;text-decoration:line-through}
+.fmdw-lir-col-empty{margin:0;font-size:11px;font-weight:800;color:var(--fmdw-muted)}
+@container (max-width:560px){.fmdw-lir-compare{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.fmdw-lir-fold-body,.fmdw-lir-edit,.fmdw-lir-fold{transition:none}}
 .fmdw-lir-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px 10px;padding:7px 9px 7px 12px;border:1px solid var(--fmdw-line);border-radius:11px;background:#fff;min-width:0;transition:border-color .12s ease,box-shadow .12s ease}
 .fmdw-lir-row:hover,.fmdw-lir-row:focus-within{border-color:#cdd3e0;box-shadow:0 2px 10px rgba(16,24,40,.06)}
 .fmdw-lir-row.pick{grid-template-columns:auto minmax(0,1fr) auto auto}
