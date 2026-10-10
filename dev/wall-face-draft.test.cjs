@@ -2172,7 +2172,7 @@ for(const mode of ['m','e'])test(`${mode.toUpperCase()} moves three wall edges b
  f.editor.draw3D({add(){}},p=>p);assert.ok(markers.filter(e=>Math.abs(e.length-.6096)<1e-8).length>=3,'each moved edge shows displacement');
  assert.equal(JSON.stringify(state.base),baseBefore);assert.ok(!state.wallEdits.$base);
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
- begin();f.editor.distanceInput().set(.6096);const placed=JSON.stringify(state.wallEdits.$surfaces);f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(JSON.stringify(state.wallEdits.$surfaces),placed);assert.equal(JSON.stringify(state.wallEdits.$base.faces),JSON.stringify(state.base.faces));
+ begin();f.editor.distanceInput().set(.6096);const placed=JSON.stringify(state.wallEdits.$surfaces);f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);assert.equal(JSON.stringify(state.wallEdits.$surfaces),placed);assert.ok(!state.wallEdits.$base);assert.equal(JSON.stringify(state.base),baseBefore);
 });
 
 for(const amount of [-.6096,.6096])test(`edge extrusion ${amount} preserves unselected draft and loose edges`,()=>{
@@ -2234,7 +2234,7 @@ test('saved base-to-window cut splits bridged wall regions and commits without t
  assert.equal(f.editor.pickLine3D(f.e(input.point.x,input.point.z+.2)),true,'new line is selectable');const committed=JSON.stringify(state.wallEdits);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),committed);
 });
 test('unexpected axis cut commit rejection releases controls and restores the prior geometry',()=>{
- const M=require('../public/measure/internal/editor_scripts/exterior_model');let reject=false;const f=fixture({globals:{ExteriorModel:{...M,validateEdits(...args){if(reject)throw Error('Rejected test commit');return M.validateEdits(...args);}}}}),before=JSON.stringify(f.state.wallEdits);
+ const M=require('../public/measure/internal/editor_scripts/exterior_model');let reject=false;const f=fixture({globals:{ExteriorModel:{...M,prepareEdits(...args){if(reject)throw Error('Rejected test commit');return M.prepareEdits(...args);}}}}),before=JSON.stringify(f.state.wallEdits);
  f.editor.cutFromPoint({x:2,y:0,z:0},'v');assert.equal(f.editor.busy(),true);reject=true;assert.doesNotThrow(()=>f.editor.finishAxisCut());assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,0);assert.match(f.message(),/Rejected test commit/);
 });
 
@@ -2917,4 +2917,50 @@ test('solid draft import ignores off-plane retained anchors instead of projectin
  const p=(x,y,z)=>({x,y,z}),face={id:'moved-face',points:[p(0,1,0),p(4,1,0),p(4,1,4),p(0,1,4)],retainedPoints:[p(2,0,2),p(3,1,3)]},f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,globals:{isFreeMove:true}});
  f.editor.beginEntity('extrude',{point:p(0,1,4),event:f.e(0,3)});f.editor.distanceInput().set(1);f.editor.down(f.e(0,3));
  const d=f.state.wallEdits.$drafts['solid:moved-face'],W=require('../public/measure/internal/editor_scripts/wall_solid_geometry');assert.ok(d,f.message());const points=d.sketch.nodes.map(n=>W.fromFrame(d.frame,n));assert.ok(points.some(q=>Math.hypot(q.x-3,q.z-3)<1e-6));assert.ok(!points.some(q=>Math.hypot(q.x-2,q.z-2)<1e-6));
+});
+
+test('chimney boundary point remains visible and editable across extrusion, cancel, reload and undo',()=>{
+ const saved=require('./fixtures/chimney-visible-point.json'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),globals={isFreeMove:true,WallChimneys:C,...renderGlobals()};
+ let state=structuredClone(saved.state),point=saved.point;
+ for(let i=0;i<3;i++){
+  const f=fixture({state,walls:[],selected:null,globals}),expected={...point,z:point.z-.1524},e=f.e(point.x,expected.z),before=JSON.stringify(state.wallEdits);
+  assert.equal(f.editor.beginEntity('extrude',{point,event:e}),true,'iteration '+i+': '+f.message());assert.ok(f.editor.distanceInput(),'iteration '+i+': '+f.message());f.editor.distanceInput().set(.1524);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+  f.editor.beginEntity('extrude',{point,event:e});f.editor.distanceInput().set(.1524);f.editor.down(e);
+  assert.equal(f.history.length,1,f.message());const placed=f.editor.pointSelection();assert.equal(placed.length,1,'committed point must remain selectable');assert.ok(Math.hypot(placed[0].x-expected.x,placed[0].y-expected.y,placed[0].z-expected.z)<1e-6);
+  const displayed=[];f.editor.draw3D({add:o=>{if(o.geometry?.points&&o.material?.size)displayed.push(...o.geometry.points);}},p=>p);
+  assert.ok(displayed.some(p=>Math.hypot(p.x-expected.x,p.y-expected.y,p.z-expected.z)<1e-6),'committed point must be rendered');
+  const committed=JSON.parse(JSON.stringify(state));state.wallEdits=JSON.parse(JSON.stringify(f.history[0]));assert.equal(JSON.stringify(state.wallEdits),before,'undo snapshot restores the whole operation');
+  state=committed;point=placed[0];
+ }
+});
+
+test('extrusion preview and placement share finalization; rejected placement keeps preview and can retry',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model');let reject=false,calls=0;
+ const f=fixture({globals:{isFreeMove:true,ExteriorModel:{...M,prepareEdits(...args){calls++;if(reject)throw Error('Rejected candidate');return M.prepareEdits(...args);}}}});
+ f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.listeners.pointermove(f.e(2,2));f.editor.key({key:'e'});const before=JSON.stringify(f.state.wallEdits);f.editor.distanceInput().set(.3);
+ assert.ok(calls>0,'preview must run finalization');const preview=JSON.stringify(f.state.wallEdits);assert.notEqual(preview,before);
+ reject=true;f.editor.down(f.e(2,2));assert.equal(f.editor.busy(),true);assert.equal(f.history.length,0);assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.match(f.message(),/Could not place: Rejected candidate/);
+ reject=false;f.editor.down(f.e(2,2));assert.equal(f.history.length,1);assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),preview,'Place must not alter finalized preview');
+});
+
+test('candidate finalization is pure, repeatable, and does not rebind a chimney-free base',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),saved=require('./fixtures/chimney-visible-point.json'),state=structuredClone(saved.state),before=JSON.stringify(state),edits=state.wallEdits,next=M.prepareEdits(state,edits,edits);
+ assert.equal(JSON.stringify(state),before);assert.deepEqual(M.prepareEdits({...state,wallEdits:next},next,edits),next);
+ const plain={base:{faces:[{id:'base',points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:4,z:0},{x:0,y:4,z:0}]}]}},candidate={};assert.deepEqual(M.prepareEdits(plain,candidate,{}),{});assert.deepEqual(candidate,{});
+ const bad={$surfaces:[{id:'bad',points:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:0,y:1,z:0},{x:1,y:1,z:2}]}]},snapshot=JSON.stringify(bad);assert.throws(()=>M.prepareEdits(plain,bad,{}));assert.equal(JSON.stringify(bad),snapshot,'failed normalization must not partly mutate input');
+});
+
+test('explicit anchors inside a hidden chimney face remain hidden',()=>{
+ const C=require('../public/measure/internal/editor_scripts/wall_chimneys'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),p=(x,y,z)=>({x,y,z}),face={id:'covered',points:[p(10,4.2,1),p(10,5.8,1),p(10,5.8,2),p(10,4.2,2)]},frame=W.faceFrame(face),local={id:'part',points:face.points.map(q=>W.inFrame(frame,q))},d={frame,members:[],faces:[local],sketch:null},state={chimneys:{items:[{id:'chimney',points:[p(8,4,5),p(12,4,5),p(12,6,5),p(8,6,5)]}]},wallEdits:{$drafts:{covered:d}}};
+ S.ensure(d);d.sketch.nodes.forEach(n=>n.userDraftPoint=true);const f=fixture({state,walls:[],selected:null,globals:{WallChimneys:C,...renderGlobals()}}),points=[];
+ assert.equal(C.visibleParts(face,state).length,0);f.editor.restoreSelection({activeDraftKey:'covered',draftSelection:{covered:d.sketch.nodes.map(n=>n.id)}});
+ f.editor.draw3D({add:o=>{if(o.geometry?.points&&o.material?.size)points.push(...o.geometry.points);}},q=>q);assert.equal(points.length,0);
+});
+
+test('Enter uses the recoverable placement boundary for a group extrusion',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),p=(x,y,z)=>({x,y,z}),faces=[{id:'a',points:[p(0,0,0),p(2,0,0),p(2,0,2),p(0,0,2)]},{id:'b',points:[p(4,0,0),p(6,0,0),p(6,0,2),p(4,0,2)]}];let reject=false;
+ const f=fixture({state:{wallEdits:{$surfaces:faces}},walls:[],selected:null,globals:{ExteriorModel:{...M,prepareEdits(...args){if(reject)throw Error('Rejected group');return M.prepareEdits(...args);}}}});
+ f.editor.restoreSelection({selectedSolid:'a',faceSelection:[{solid:'a'},{solid:'b'}]});f.listeners.pointermove(f.e(1,1));f.editor.key({key:'e'});f.editor.distanceInput().set(.3);const preview=JSON.stringify(f.state.wallEdits);reject=true;
+ assert.doesNotThrow(()=>f.editor.key({key:'Enter'}));assert.equal(f.editor.busy(),true);assert.equal(f.history.length,0);assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.match(f.message(),/Could not place: Rejected group/);
+ reject=false;f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(f.editor.busy(),false);assert.equal(JSON.stringify(f.state.wallEdits),preview);
 });

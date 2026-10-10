@@ -125,10 +125,14 @@ function createExtrusions(input){
 function transaction(before,operation,validate=()=>{}){const candidate=copy(before);operation(candidate);validate(candidate,before);return candidate;}
 function reconcileChimneys(state,edits){
  const C=node?require('./wall_chimneys.js'):root.WallChimneys;if(!C)return edits;
+ const base=edits.$base||state.base;if(!state.chimneys?.items?.length&&!base?.chimneyFoundationVersion&&!base?.faces?.some(f=>f.chimneyFoundation))return edits;
  const candidate={...state,base:copy(state.base||null),wallEdits:copy(edits)};C.syncFoundation(candidate);C.alignRoofContacts?.(candidate);
  if(!candidate.wallEdits.$base&&JSON.stringify(candidate.base)!==JSON.stringify(state.base||null))candidate.wallEdits.$base=candidate.base;
  return candidate.wallEdits;
 }
+// Preview and placement must publish the same normalized candidate. Never mutate
+// the caller while reconciling or validating: failures leave its preview intact.
+function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before);return next;}
 function validateEdits(edits,before={}){
  if(edits.$surfaces)edits.$surfaces=K.compactSurfaces(edits.$surfaces);
  if(edits.$loose){if((edits.$loose.points||[]).some(p=>!K.finite3(p))||(edits.$loose.edges||[]).some(pair=>pair.length!==2||pair.some(p=>!K.finite3(p))))throw Error('Copied geometry contains an invalid point or line.');}
@@ -142,5 +146,5 @@ function validateEdits(edits,before={}){
   Object.assign(f,parts[0]);return [f,...parts.slice(1)];});}
  if(edits.$base&&JSON.stringify(edits.$base.faces)!==JSON.stringify(before.$base?.faces))for(const f of edits.$base.faces)K.triangles(f.points,f.holes||[]);
 }
-const api={version:2,indexOpenings,cutOpenings,draftFace,restoreDraftFaceOwnership,reconcileChimneys,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
+const api={version:2,indexOpenings,cutOpenings,draftFace,restoreDraftFaceOwnership,reconcileChimneys,prepareEdits,collect,createExtrusion,createExtrusions,validateResult,validateEdits,transaction};if(node)module.exports=api;else root.ExteriorModel=api;
 })(typeof window==='undefined'?globalThis:window);
