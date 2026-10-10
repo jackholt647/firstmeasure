@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 phone group texting: [Tray and modal group MMS](deploy/digitalocean/development-phone-group-text-20261009.md) records multi-contact selection, image/group replies, focused verification and the development-only frontend rollout.
+
 October 9 group MMS: [Telnyx backend and publication contracts](deploy/digitalocean/development-group-mms-20261009.md) records explicit group threads, images, delivery safety, typed data/actions, development rollout continuity and remaining live-delivery requirements.
 
 October 9 FirstMate SMS registration: [Pioneer Puffin carrier-registration pilot](deploy/digitalocean/development-sms-registration-pilot-20261009.md) records scoped real Low Volume Mixed onboarding, encrypted legal details, the development rollout, and the remaining real-delivery activation requirements.
