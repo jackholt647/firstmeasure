@@ -30,10 +30,19 @@ const PINNED_TEMPLATES_MODULE = "document_template_pins";
  * The templates an organization keeps at the top of New document, in order.
  * null means it has never chosen, and the picker shows its own everyday set.
  */
+/** What an organization that has not pinned its own starts with: the documents used every day. */
+export const DEFAULT_PINNED_TEMPLATE_IDS = ["tpl_instant_roofing_detailed", "tpl_instant_roofing_onepage", "tpl_instant_roofing_options", "tpl_change_order_default", "tpl_invoice_default", "tpl_roofing_completion_certificate"];
+// A pin on a retired template moves to the template that replaced it.
+const PIN_SUCCESSORS: Record<string, string> = {
+  tpl_proposal_default: "tpl_instant_roofing_detailed",
+  tpl_one_page_legal: "tpl_instant_roofing_onepage",
+  tpl_three_option_proposal: "tpl_instant_roofing_options",
+  tpl_roofing_good_better_best_workflow: "tpl_instant_roofing_options"
+};
 export async function readPinnedTemplateIds(orgId: string): Promise<string[] | null> {
   try {
     const ids = object(object(await readBranchModule(orgId, "default", PINNED_TEMPLATES_MODULE)).data).template_ids;
-    return Array.isArray(ids) ? ids.map(id => String(id)).filter(Boolean) : null;
+    return Array.isArray(ids) ? [...new Set(ids.map(id => PIN_SUCCESSORS[String(id)] || String(id)).filter(Boolean))] : null;
   } catch (error) {
     if (error instanceof PlatformError && error.statusCode === 404) return null;
     throw error;

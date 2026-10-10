@@ -2296,6 +2296,8 @@
       /** Until the organization pins its own, the everyday documents: one each of the common types. */
       function defaultPins(){
         const list = activeTemplates().filter((tpl) => !isUploadTemplate(tpl));
+        const named = arrayValue(objectValue(objectValue(pinSettings).settings).default_pinned_template_ids).map(cleanText).filter((id) => list.some((tpl) => cleanText(tpl.id) === id));
+        if (named.length) return named;
         return ['proposal', 'contract', 'change_order', 'invoice', 'work_order']
           .map((type) => list.filter((tpl) => cleanText(tpl.document_type) === type))
           .map((group) => group.find((tpl) => objectValue(tpl.metadata).default === true) || group[0])

@@ -1,5 +1,5 @@
 import { canAccessDepartmentResource, hasResourcePermission, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
-import { readDocumentDeliveryDefaults, readOrganizationDocumentTypes, readPinnedTemplateIds, saveOrganizationDocumentTypes, savePinnedTemplateIds } from "./settings.js";
+import { DEFAULT_PINNED_TEMPLATE_IDS, readDocumentDeliveryDefaults, readOrganizationDocumentTypes, readPinnedTemplateIds, saveOrganizationDocumentTypes, savePinnedTemplateIds } from "./settings.js";
 import { registerDocumentTagRoutes } from "./tag-catalog.js";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { ZodError } from "zod";
@@ -599,7 +599,7 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const branchId = cleanText(asObject(request.query).branch_id) || "default";
-    return { ok: true, settings: { ...await readDocumentDeliveryDefaults(orgId, branchId), pinned_template_ids: await readPinnedTemplateIds(orgId) } };
+    return { ok: true, settings: { ...await readDocumentDeliveryDefaults(orgId, branchId), pinned_template_ids: await readPinnedTemplateIds(orgId), default_pinned_template_ids: DEFAULT_PINNED_TEMPLATE_IDS } };
   });
 
   // Document types are the organization's own: groupings of templates it can

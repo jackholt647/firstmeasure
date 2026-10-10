@@ -120,6 +120,11 @@ export function inferPaymentKind(row: JsonObject, label: string): PaymentKind {
 
 const DUE_RULE_ALIASES: Record<string, DueRule> = {
   on_signature: "on_signature",
+  // Due on receipt: payable as soon as the customer has it, which for a
+  // document they approve is the moment they approve it.
+  on_receipt: "on_signature",
+  due_on_receipt: "on_signature",
+  receipt: "on_signature",
   on_acceptance: "on_signature",
   on_signing: "on_signature",
   signature: "on_signature",

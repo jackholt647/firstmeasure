@@ -54,6 +54,7 @@ function dueText(row: Omit<AccountRow, "due_text">) {
   const dueAt = cleanText(row.due_at).slice(0, 10);
   if (dueAt) return `Due ${dueAt}`;
   const rule = cleanText(row.due_rule);
+  if (rule === "on_receipt") return "Due on receipt";
   if (rule === "on_signature") return "Due at signing";
   if (rule === "project_completion") return "Due on completion";
   if (rule === "on_invoice" || rule === "invoice") return "Due when invoiced";

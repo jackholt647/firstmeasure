@@ -156,7 +156,7 @@ test("change order, invoice and completion certificate run against a signed agre
   let resolved = await docs.resolve(changeOrder.id);
   assert.equal(resolved.scope.params.change_cents, 114000, "the change is the sum of its lines");
   assert.equal(resolved.scope.params.new_total_cents, 2114000, "new contract total = original + change");
-  assert.equal(resolved.scope.params.due_now_cents, 0, "by default the change is paid with the final payment");
+  assert.equal(resolved.scope.params.due_now_cents, 114000, "by default the change is due on receipt: paid in full when the customer approves it");
   assert.match(resolvedText(resolved), /\$21,140\.00/);
   assert.match(resolvedText(resolved), /Roof replacement agreement/);
   // Half on approval, half at completion.

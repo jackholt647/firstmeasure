@@ -2145,6 +2145,7 @@
   // the document's schedule and pay widgets, and the receivables minted at
   // signing, all read. The milestone due on signature is the deposit.
   const SCHEDULE_DUE_OPTIONS = [
+    { value: 'on_receipt', label: 'On receipt' },
     { value: 'on_signature', label: 'On signature' },
     { value: 'project_completion', label: 'On completion' },
     { value: 'on_invoice', label: 'When invoiced' },
@@ -2158,6 +2159,8 @@
     { label: '40 / 30 / 30', title: '40% deposit on signature, 30% when invoiced mid-job, 30% on completion', parts: [{ label: 'Deposit', percent: 40, due_rule: 'on_signature' }, { label: 'Progress payment', percent: 30, due_rule: 'on_invoice' }, { label: 'Final payment', percent: 30, due_rule: 'project_completion' }] },
     { label: 'On completion', title: 'Paid in full on completion', parts: [{ label: 'Payment in full', percent: 100, due_rule: 'project_completion' }] }
   ];
+  /** Paid when the customer approves: due on signature, or on receipt. */
+  const dueNow = (row) => ['on_signature', 'on_receipt'].includes(cleanText(obj(row).due_rule));
   function normalizeScheduleRow(row, index){
     const source = obj(row);
     const kind = cleanText(source.kind) === 'fixed' || Number(source.amount_cents) > 0 ? 'fixed' : 'percent';
@@ -2182,7 +2185,7 @@
       const out = rows.map((row, index) => {
         const next = { ...row };
         if (!cleanText(next.payment_kind) || ['deposit', 'final', 'progress'].includes(cleanText(next.payment_kind))) {
-          next.payment_kind = next.due_rule === 'on_signature' ? 'deposit' : (index === rows.length - 1 ? 'final' : 'progress');
+          next.payment_kind = dueNow(next) ? 'deposit' : (index === rows.length - 1 ? 'final' : 'progress');
         }
         if (next.kind === 'percent') delete next.amount_cents; else delete next.percent;
         if (next.due_rule !== 'on_date') delete next.due_date;
@@ -2190,7 +2193,7 @@
       });
       ctx.write(out.length ? out : null);
       // Later steps ask for a deposit only when one falls due at signing.
-      ctx.writePath('params.deposit_at_signing', rows.some((row) => row.due_rule === 'on_signature' && (row.kind === 'fixed' ? row.amount_cents > 0 : row.percent > 0)));
+      ctx.writePath('params.deposit_at_signing', rows.some((row) => dueNow(row) && (row.kind === 'fixed' ? row.amount_cents > 0 : row.percent > 0)));
       ctx.requestPreview();
     };
     const presets = (arr(ctx.item.presets).length ? arr(ctx.item.presets) : SCHEDULE_PRESETS).map(obj).filter((entry) => cleanText(entry.label) && arr(entry.parts).length);
@@ -2215,7 +2218,7 @@
     function summaryHtml(){
       const basis = basisCents();
       const scheduled = rows.reduce((sum, row) => sum + rowCents(row), 0);
-      const deposit = rows.filter((row) => row.due_rule === 'on_signature').reduce((sum, row) => sum + rowCents(row), 0);
+      const deposit = rows.filter(dueNow).reduce((sum, row) => sum + rowCents(row), 0);
       const gap = basis - scheduled;
       // Percent rows round to the cent one by one; a cent or two of drift is not a gap.
       const shown = Math.abs(gap) <= rows.length ? basis : scheduled;

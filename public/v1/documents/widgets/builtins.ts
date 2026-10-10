@@ -175,6 +175,7 @@ function scheduleBasisTotalCents(ctx: WidgetResolveContext) {
 /** When a payment falls due, in the customer's words. */
 function dueLabel(dueRule: string, dueAt: string) {
   if (dueAt) return "";
+  if (dueRule === "on_receipt") return "On receipt";
   if (dueRule === "on_signature") return "On signature";
   if (dueRule === "on_invoice" || dueRule === "invoice") return "When invoiced";
   if (dueRule === "manual") return "To be scheduled";

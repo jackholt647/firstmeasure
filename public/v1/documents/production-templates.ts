@@ -116,7 +116,7 @@ export function changeOrderTemplateDefinition(): JsonObject {
     tax_percent: { type: "percent", label: "Tax percent" },
     // One payment for the whole change, due with the final payment, until the workflow says otherwise.
     payment_schedule: { type: "payment_schedule", label: "Payment", default: [
-      { id: "change_order", label: "Change order", kind: "percent", percent: 100, payment_kind: "change_order", due_rule: "project_completion" }
+      { id: "change_order", label: "Change order", kind: "percent", percent: 100, payment_kind: "change_order", due_rule: "on_receipt" }
     ] },
     account: ACCOUNT_PARAM,
     change_cents: { type: "currency" },
@@ -153,8 +153,8 @@ export function changeOrderWorkflowDefinition(): JsonObject {
       ] },
       { id: "payment", title: "Payment", description: "When the customer pays for this change. The payments already scheduled on their agreement stay as they are.", audience: ["internal"], items: [
         { kind: "payment_schedule", writes: "params.payment_schedule", label: "Payment for this change", required: true, presets: [
+          { label: "Due on receipt", title: "Paid in full as soon as the customer approves it", parts: [{ label: "Change order", percent: 100, due_rule: "on_receipt" }] },
           { label: "With the final payment", title: "Added to what is due when the job is complete", parts: [{ label: "Change order", percent: 100, due_rule: "project_completion" }] },
-          { label: "Due on approval", title: "Paid in full when the customer signs", parts: [{ label: "Change order", percent: 100, due_rule: "on_signature" }] },
           { label: "Half now, half at completion", title: "50% when the customer signs, 50% when the job is complete", parts: [{ label: "Change order deposit", percent: 50, due_rule: "on_signature" }, { label: "Change order balance", percent: 50, due_rule: "project_completion" }] }
         ] }
       ] },

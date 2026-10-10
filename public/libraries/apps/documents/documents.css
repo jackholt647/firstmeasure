@@ -106,9 +106,12 @@
 /* new document: search, pinned row, filtered library */
 .fmdx-modal.fmdx-create-modal{width:min(1080px,100%)}
 .fmdx-modal.fmdx-create-modal{overflow:hidden}
-.fmdx-create-modal [data-create-body]{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow:auto}
+.fmdx-btn.fmdx-btn[hidden]{display:none}
+.fmdx-create-modal [data-create-body]{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto}
+/* Everything keeps its height except the library, which takes what is left. */
+.fmdx-create-modal [data-create-body] > *{flex-shrink:0}
 /* Search, pinned and filters stay put; only the library scrolls. */
-.fmdx-tpl-scroll{flex:1 1 auto;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:2px 4px 6px 2px;margin-right:-4px;scrollbar-width:thin}
+.fmdx-create-modal [data-create-body] > .fmdx-tpl-scroll{flex:1 1 0;min-height:140px;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:2px 6px 6px 2px;scrollbar-width:thin}
 .fmdx-tpl-group{display:flex;flex-direction:column;gap:8px}
 .fmdx-tpl-group h3{margin:0;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:950;color:#111827;position:sticky;top:0;z-index:1;background:#fff;padding:4px 0}
 .fmdx-tpl-group h3 i{width:18px;text-align:center;color:var(--fmdx-type,#667085)}
@@ -128,7 +131,7 @@
 .fmdx-fchip.on small{color:rgba(255,255,255,.7)}
 .fmdx-fchip-dot{width:8px;height:8px;border-radius:50%;background:var(--fmdx-type,#98a2b3)}
 .fmdx-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
-.fmdx-tpl-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(210px,240px);justify-content:start;gap:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.fmdx-tpl-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(210px,240px);justify-content:start;gap:10px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 4px;scrollbar-width:thin}
 .fmdx-tpl{position:relative;min-width:0;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:13px;background:#fff;transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease}
 .fmdx-tpl:hover,.fmdx-tpl:focus-within{border-color:color-mix(in srgb,var(--fmdx-type,#98a2b3) 45%,#e4e7ec);box-shadow:0 6px 18px rgba(16,24,40,.08);transform:translateY(-1px)}
 .fmdx-tpl-open{width:100%;min-height:68px;border:0;background:transparent;font:inherit;text-align:left;cursor:pointer;padding:12px 30px 12px 12px;display:flex;align-items:center;gap:12px;color:#111827;border-radius:inherit}

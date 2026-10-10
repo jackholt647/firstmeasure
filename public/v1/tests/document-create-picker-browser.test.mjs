@@ -103,6 +103,11 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     await page.setViewportSize({ width: 1280, height: 420 });
     const scroll = await page.evaluate(() => { const lib = document.querySelector('.fmdx-tpl-scroll'); const body = document.querySelector('[data-create-body]'); const search = document.querySelector('[data-tpl-search]').getBoundingClientRect().top; lib.scrollTop = 400; return { library: lib.scrollTop > 0, body: body.scrollTop, searchStill: Math.round(document.querySelector('[data-tpl-search]').getBoundingClientRect().top) === Math.round(search) }; });
     assert.deepEqual(scroll, { library: true, body: 0, searchStill: true });
+    // In a short window the pinned row keeps its full height and nothing scrolls sideways.
+    const fit = await page.evaluate(() => { const row = document.querySelector('.fmdx-tpl-row'); const tile = row.querySelector('.fmdx-tpl'); const body = document.querySelector('[data-create-body]'); return { rowHoldsTile: row.clientHeight >= tile.offsetHeight, noSideScroll: body.scrollWidth <= body.clientWidth && document.querySelector('.fmdx-tpl-scroll').scrollWidth <= document.querySelector('.fmdx-tpl-scroll').clientWidth }; });
+    assert.deepEqual(fit, { rowHoldsTile: true, noSideScroll: true });
+    // A hidden header button really is hidden.
+    assert.equal(await page.evaluate(() => { const b = document.createElement('button'); b.className = 'fmdx-btn'; b.hidden = true; document.body.append(b); const shown = getComputedStyle(b).display; b.remove(); return shown; }), 'none');
     await page.setViewportSize({ width: 1280, height: 860 });
     if (process.env.CREATE_SHOT) await page.screenshot({ path: process.env.CREATE_SHOT });
     // One click on a template starts it.
