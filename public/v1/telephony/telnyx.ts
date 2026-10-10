@@ -14,7 +14,7 @@ export class TelnyxVoiceClient {
   async data(path:string,method="GET",body?:Json) { const result=object(await this.request(path,method,body));return object(result.data); }
   async dial(payload:Json) {payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);return this.data("/calls","POST",payload);}
   async command(controlId:string,action:string,payload:Json={}) {
-    const allowed=new Set(["answer","hangup","bridge","send_dtmf","speak","playback_start","playback_stop","record_start","record_stop","record_pause","record_resume","transcription_start","transcription_stop","transfer","enqueue","leave_queue"]);
+    const allowed=new Set(["answer","hangup","bridge","send_dtmf","speak","gather_using_speak","playback_start","playback_stop","record_start","record_stop","record_pause","record_resume","transcription_start","transcription_stop","transfer","enqueue","leave_queue"]);
     if(!allowed.has(action))throw badRequest("invalid_voice_command","Unsupported voice action.");
     if(action==="transfer"){payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);}
     return this.data(`/calls/${encodeURIComponent(controlId)}/actions/${action}`,"POST",payload);

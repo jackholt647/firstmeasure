@@ -91,8 +91,13 @@ export async function onInboundCommunication(organizationId: string, messageId: 
     }
   }
 
+  let phoneNotification=false, phoneReply=false;
+  if(channel==='sms')try{
+    const {notifyText}=await import('./phone/notifications.js');phoneNotification=await notifyText(organizationId,message,resolved.notifications);
+    if(!asObject(rescheduling).handled&&!asObject(confirmation).handled){const {automaticReply}=await import('./phone/messaging.js');const recipient=(Array.isArray(message.recipients)?message.recipients:[]).map(asObject)[0];phoneReply=await automaticReply(organizationId,cleanText(recipient?.address),cleanText(asObject(message.sender).address),'text',messageId,cleanText(message.conversation_id),context);}
+  }catch(error){console.error('Phone message notification failed',error);}
   let notification: unknown = null;
-  if (resolved.notifications.enabled) {
+  if (resolved.notifications.enabled && !phoneNotification) {
     const sender = asObject(message.sender);
     const senderName = cleanText(sender.name) || cleanText(sender.address) || "A customer";
     try {
@@ -134,7 +139,7 @@ export async function onInboundCommunication(organizationId: string, messageId: 
 
   // Auto-response (project-resolved settings only — org-wide auto-reply to
   // unmatched senders is deliberately off the table).
-  if (projectId && !asObject(rescheduling).handled && resolved.agent && resolved.agent.enabled && resolved.agent.auto_response.enabled) {
+  if (projectId && !phoneReply && !asObject(rescheduling).handled && resolved.agent && resolved.agent.enabled && resolved.agent.auto_response.enabled) {
     const channelEnabled = channel === "email"
       ? resolved.agent.auto_response.channels.email
       : channel === "sms" ? resolved.agent.auto_response.channels.sms : false;

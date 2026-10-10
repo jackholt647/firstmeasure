@@ -1708,7 +1708,7 @@
     const canScopeTemplates = canCompany && appFlag('platform', 'expanded_access') && appFlag('apps', 'projects');
     const canCallWorkflows = canCompany && appFlag('calls', 'app');
     const canStorage = canCompany && storageLimitsEnabled();
-    const canSmsSettings = canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
+    const canSmsSettings = appFlag('apps','comms') || canCompany && (appFlag('platform', 'sms_settings') || window.FirstMatePlatformBilling?.configured('platform', 'sms_settings'));
     const canDomains = canCompany && appFlag('apps', 'web_editor') && appFlag('web_editor', 'custom_domains');
     const canAssistant = appFlag('apps', 'assistant') && (canCompany || hasPerm('use_assistant') || hasPerm('view_projects') || hasPerm('manage_projects'));
     const canInterfaceLanguage = appFlag('platform', 'my_settings');
@@ -1726,7 +1726,7 @@
       { id:'notifications', allowed:appFlag('apps', 'notifications'), icon:'fas fa-bell', title:(globalThis.PlatformLanguage?.text("settings","m_5a9115e4033cb3","Notifications") ?? "Notifications"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c5f15c570faa05","Choose which updates appear here and on your phone.") ?? "Choose which updates appear here and on your phone."), tabId:'csTabNotifications', paneId:'csPaneNotifications' },
       { id:'company', allowed:canCompany, icon:'fas fa-building', term:'settings.company_tab', title:(globalThis.PlatformLanguage?.text("settings","m_500872d3c049f6","Company") ?? "Company"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_b21fe34fffb4ad","Company identity, contact details, branding, and defaults.") ?? "Company identity, contact details, branding, and defaults."), tabId:'csTabCompany', paneId:'csPaneCompany' },
       { id:'money', allowed:canPayments, icon:'fas fa-wallet', title:(globalThis.PlatformLanguage?.text("settings","m_05cb9dd7e5a780","Money") ?? "Money"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_764ee227ff8bd4","Accounts, payment defaults, and disputes.") ?? "Accounts, payment defaults, and disputes."), tabId:'csTabMoney', paneId:'csPaneMoney' },
-      { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","m_e830f5588df87c","Calls") ?? "Calls"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call queues, assignments, follow-ups, and outcomes.") ?? "Configure call queues, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
+      { id:'calls', allowed:canCallWorkflows, icon:'fas fa-phone', title:(globalThis.PlatformLanguage?.text("settings","phone_call_lists","Call Lists") ?? "Call Lists"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_cb8b711a9efc4a","Configure call lists, assignments, follow-ups, and outcomes.") ?? "Configure call lists, assignments, follow-ups, and outcomes."), tabId:'csTabCalls', paneId:'csPaneCalls' },
       { id:'contacts', allowed:canContacts, icon:'fas fa-address-book', term:'contacts.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fe082da60f3b0","Contacts") ?? "Contacts"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3b1e71af416b42","Import contacts and review prior imports.") ?? "Import contacts and review prior imports."), tabId:'csTabContacts', paneId:'csPaneContacts' },
       { id:'connections', allowed:canCompany && appFlag('platform', 'connections'), icon:'fas fa-plug', title:'Connections', subtitle:'Connect external tools, publish data, and automate workflows.', tabId:'csTabConnections', paneId:'csPaneConnections' },
       { id:'feedback', allowed:canFeedback, icon:'fas fa-star', term:'settings.feedback_tab', title:(globalThis.PlatformLanguage?.text("settings","m_d77e00c8c3f0b8","Feedback") ?? "Feedback"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_0b7fe3900fd0b1","Configure customer feedback and review responses.") ?? "Configure customer feedback and review responses."), tabId:'csTabFeedback', paneId:'csPaneFeedback' },
@@ -1744,7 +1744,7 @@
       { id:'crews', allowed:canCrews, icon:'fas fa-helmet-safety', term:'workforce.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6fc46689992fe4","Crews and Subcontractors") ?? "Crews and Subcontractors"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_26856461a3540a","Manage internal work groups and external organizations.") ?? "Manage internal work groups and external organizations."), tabId:'csTabCrews', paneId:'csPaneCrews' },
       { id:'project_scopes', allowed:canScopeTemplates, icon:'fas fa-layer-group', title:(globalThis.PlatformLanguage?.text("settings","m_7932b921135406","Project Scopes") ?? "Project Scopes"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_eeffd1a4887236","Choose project scopes and configure each scope’s workflow, fields, resources, and automations.") ?? "Choose project scopes and configure each scope’s workflow, fields, resources, and automations."), tabId:'csTabScopeTemplates', paneId:'csPaneScopeTemplates' },
       { id:'storage', allowed:canStorage, icon:'fas fa-hard-drive', term:'settings.storage_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_4926f46a0a9736","Review media usage and storage limits.") ?? "Review media usage and storage limits."), tabId:'csTabStorage', paneId:'csPaneStorage' },
-      { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', term:'settings.sms_tab', title:(globalThis.PlatformLanguage?.text("settings","m_e1dd22c36fbc9b","SMS") ?? "SMS"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Configure messaging registration and SMS setup.") ?? "Configure messaging registration and SMS setup."), tabId:'csTabSms', paneId:'csPaneSms' },
+      { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', title:(globalThis.PlatformLanguage?.text("settings","phone_settings_title","Phone Settings") ?? "Phone Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Manage phone lines, voicemail, routing, messaging, and tracking numbers.") ?? "Manage phone lines, voicemail, routing, messaging, and tracking numbers."), tabId:'csTabSms', paneId:'csPaneSms' },
       { id:'domains', allowed:canDomains, icon:'fas fa-globe', term:'settings.domains_tab', title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c02d45f8191c42","Register, connect, and manage website domains.") ?? "Register, connect, and manage website domains."), tabId:'csTabDomains', paneId:'csPaneDomains' },
       { id:'app_flags', allowed:canAppFlags, icon:'fas fa-code', term:'settings.developer_settings_tab', title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","developer_settings_subtitle","Developer tools, feature flags, and app configuration.") ?? "Developer tools, feature flags, and app configuration."), tabId:'csTabAppFlags', paneId:'csPaneAppFlags' },
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
@@ -5704,21 +5704,29 @@
       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
       return smsSummaryContent(profile);
     }
+    let phoneSettingsHandle = null;
     async function renderSmsSettings(){
-      if (!paneSms) return;
+      if(!paneSms)return;
+      phoneSettingsHandle?.destroy?.();
+      if(!appFlag('apps','comms'))return renderSmsRegistration(paneSms);
+      if(!window.FirstMatePhoneSettings?.mount){paneSms.textContent='Phone Settings could not load. Refresh the page.';return;}
+      phoneSettingsHandle=await window.FirstMatePhoneSettings.mount(paneSms,{orgId:currentOrgId(),initialTab:readSettingsRoute().workflow==='10dlc'?'registration':'personal',registration:renderSmsRegistration});
+    }
+    async function renderSmsRegistration(host = paneSms){
+      if (!host) return;
       const orgId = currentOrgId();
-      paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
+      host.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","phone_registration_title","10DLC Registration") ?? "10DLC Registration")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
-        if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
+        if (await window.FirstMatePlatformBilling?.setup(host, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:()=>renderSmsRegistration(host)})) return;
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
         const profile = profiles[0] || smsPrefillProfile({}, setup);
         const registrationStatus = smsCustomerRegistrationStatus(profile);
-        paneSms.innerHTML = `
+        host.innerHTML = `
           <div class="sms-card">
             <div class="sms-hero">
               <div>
-                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3>
+                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","phone_registration_title","10DLC Registration") ?? "10DLC Registration")}</h3>
                 <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1ee85ae452b937","Set up standardized FirstMate SMS registration before sending customer texts.") ?? "Set up standardized FirstMate SMS registration before sending customer texts.")}</p>
               </div>
               <button class="cs-btn primary" type="button" id="smsStartSetup"><i class="fas fa-up-right-from-square"></i> ${String(profiles.length ? 'Open Registration' : 'Set Up SMS Registration')}</button>
@@ -5737,9 +5745,9 @@
               `).join('') : `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.")}</div>`)}
             </div>
           </div>`;
-        void window.Portal?.PhoneTray?.developmentSetup(paneSms);
-        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
-        paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
+        void window.Portal?.PhoneTray?.developmentSetup(host);
+        host.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
+        host.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
           button.addEventListener('click', () => {
             const selected = profiles.find((item) => item.id === button.getAttribute('data-open-sms-profile')) || profile;
             openSmsWizard(selected, { initialStep: smsRegistrationSubmitted(selected) ? 'summary' : 'business' });
@@ -5750,7 +5758,7 @@
           openSmsWizard(profile, { initialStep: route.workflowStep || (smsRegistrationSubmitted(profile) ? 'summary' : 'business') });
         }
       } catch (error) {
-        paneSms.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
+        host.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
       }
     }
     function openSmsWizard(initialProfile, options = {}){
@@ -17257,7 +17265,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     const canScopeFlags = canCompany;
     const canCallWorkflows = canCompany && appFlag('calls', 'app');
     const canStorage = canCompany && storageLimitsEnabled();
-    const canSmsSettings = canCompany && appFlag('platform', 'sms_settings');
+    const canSmsSettings = appFlag('apps','comms') || canCompany && appFlag('platform', 'sms_settings');
     const canAppFlags = canCompany && window.Portal?.appFlags?.current?.()?.test_admin === true;
     const any = true; // Every authenticated user can reach harmless personal settings.
     const link = document.querySelector('.fm-link[data-tab="company_settings"]');

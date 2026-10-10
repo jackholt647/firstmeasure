@@ -21,7 +21,7 @@
     { title:(globalThis.PlatformLanguage?.text("settings","m_40f9425502b89f","Payment disputes") ?? "Payment disputes"), view:'disputes', keywords:'chargeback' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_18dc609c73fed7","Payment defaults") ?? "Payment defaults"), view:'payments', keywords:'deposit invoice' }
   ]);
-  add('calls', 'Calls', ['Call queues', 'Call assignments', 'Call follow-ups', 'Call outcomes', 'Phone call workflow']);
+  add('calls', 'Call Lists', ['Call queues', 'Call assignments', 'Call follow-ups', 'Call outcomes', 'Phone call workflow']);
   add('contacts', 'Contacts', [
     { title:(globalThis.PlatformLanguage?.text("settings","m_dd7c09f845edda","Import contacts") ?? "Import contacts"), view:'import', keywords:'csv vcard upload' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_21c1377746ce5f","Contact import history") ?? "Contact import history"), view:'history', keywords:'previous imports undo' }
@@ -72,7 +72,7 @@
     { title:(globalThis.PlatformLanguage?.text("settings","m_093e042581e1a6","Crew compensation") ?? "Crew compensation"), view:'groups', keywords:'pay rates commissions' }
   ]);
   add('storage', 'Storage', ['Media storage usage', 'Storage limits', 'Deleted media', 'Storage plan']);
-  add('sms', 'SMS', ['Messaging registration', '10DLC registration', 'SMS setup', 'Messaging profile']);
+  add('sms', 'Phone Settings', ['SMS', 'Voicemail', 'Work hours', 'Ring groups', 'Call routing', 'Tracking numbers', 'Porting', '10DLC registration', 'Phone billing']);
   add('domains', 'Domains & Hosting', ['Register domain', 'Connect domain', 'Website hosting', 'DNS settings']);
   add('app_flags', 'Developer Settings', [
     { title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), view:'', keywords:'developer settings development dev tools feature flags features apps enable disable' },

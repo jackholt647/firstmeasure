@@ -1,3 +1,4 @@
+import { senderConfiguration, deliveryEligibility } from '../comms/phone/messaging.js';
 import { platformBackgroundAllowed } from "../platform/runtime.js";
 import { randomUUID } from "node:crypto";
 
@@ -135,15 +136,17 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
   const message = (await readMessageRecord(organizationId, messageId));
   const recipient = asObject(delivery.recipient);
   const recipientAddress = cleanText(delivery.recipient_address);
-  const scheduledFor = scheduleForProvider(message.scheduled_for);
-
-  if (scheduledFor === "later") {
-    const nextAttempt = new Date(Date.parse(cleanText(message.scheduled_for)) - (5 * 24 * 60 * 60_000) + 60_000).toISOString();
-    (await updateDeliveryRecord(organizationId, deliveryId, {
-      status: "scheduled", attempts: Math.max(0, Number(delivery.attempts || 1) - 1), next_attempt_at: nextAttempt, lease_owner: "", lease_until: ""
-    }));
-    return;
+  const eligibility=await deliveryEligibility(organizationId,message,recipient);
+  if(eligibility.action==='cancel'){
+    await updateDeliveryRecord(organizationId,deliveryId,{status:'failed',failed_at:new Date().toISOString(),lease_owner:'',lease_until:'',error:{code:'phone_policy_canceled',message:eligibility.reason}});await refreshParentMessageStatus(organizationId,messageId);return;
   }
+  if(eligibility.action==='wait'){
+    await updateDeliveryRecord(organizationId,deliveryId,{status:'scheduled',attempts:Math.max(0,Number(delivery.attempts||1)-1),next_attempt_at:eligibility.at,lease_owner:'',lease_until:'',error:{code:'phone_policy_wait',message:eligibility.reason}});await refreshParentMessageStatus(organizationId,messageId);return;
+  }
+  // Retain schedules locally until due, so consent and policy are checked at actual dispatch.
+  const future=Date.parse(cleanText(message.scheduled_for))>Date.now();
+  const scheduledFor = future?'wait':'';
+
   if (scheduledFor === "wait") {
     (await updateDeliveryRecord(organizationId, deliveryId, {
       status: "scheduled", attempts: Math.max(0, Number(delivery.attempts || 1) - 1),
@@ -152,7 +155,7 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
     return;
   }
 
-  const configuration = await activeConfiguration(organizationId);
+  const configuration = await senderConfiguration(organizationId,cleanText(asObject(message.sender).address));
   if (!configuration) {
     (await updateDeliveryRecord(organizationId, deliveryId, {
       status: "failed", failed_at: new Date().toISOString(), lease_owner: "", lease_until: "",

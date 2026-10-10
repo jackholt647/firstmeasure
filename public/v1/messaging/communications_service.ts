@@ -1,3 +1,5 @@
+import { canUseLine } from '../comms/phone/service.js';
+import { senderConfiguration } from '../comms/phone/messaging.js';
 import { createHash, randomUUID } from "node:crypto";
 
 import { badRequest, conflict, PlatformError } from "../platform/errors.js";
@@ -225,7 +227,9 @@ export async function ensureDefaultSenderIdentities(organizationId: string, bran
 async function resolveSender(organizationId: string, branchId: string, channel: string, requested: CommunicationsJson) {
   const identities = await ensureDefaultSenderIdentities(organizationId, branchId);
   const requestedId = cleanText(requested.identity_id);
+  if(requestedId&&!identities.some(i=>i.id===requestedId&&i.channel===channel))throw badRequest("sender_identity_missing","Choose a configured sender for this channel.");
   const identity = identities.find((item) => requestedId && item.id === requestedId)
+    || identities.find((item)=>item.channel===channel&&requested.address&&item.address===requested.address)
     || identities.find((item) => item.channel === channel && item.is_default === true)
     || identities.find((item) => item.channel === channel);
   if (!identity) throw badRequest("sender_identity_missing", `No ${channel} sender is configured for this organization.`);
@@ -336,6 +340,7 @@ export async function sendCommunication(organizationId: string, input: SendCommu
   const branchId = cleanText(ctx?.branchId || input.branch_id || "default") || "default";
   const recipients = normalizeRecipients(input.channel, input.recipients as Array<Record<string, unknown>>);
   const sender = await resolveSender(organizationId, branchId, input.channel, asObject(input.sender));
+  if(input.channel==='sms'&&ctx?.userId&&!await canUseLine({...ctx,orgId:organizationId,branchId},cleanText(sender.address)))throw badRequest("sender_line_denied","You cannot send from this line.");
   const context = asObject(input.context);
   if (input.conversation_id) (await readConversationRecord(organizationId, input.conversation_id));
   const now = new Date().toISOString();
@@ -355,7 +360,9 @@ export async function sendCommunication(organizationId: string, input: SendCommu
   if (liveSms) {
     const messagingOrganization = await ensureMessagingOrganization(organizationId);
     const profiles = await listSmsComplianceProfiles(messagingOrganization.id);
-    const activeProfile = profiles.find((profile) => profile.id === messagingOrganization.default_sms_compliance_profile_id) || profiles[0];
+    const configuration=await senderConfiguration(organizationId,cleanText(sender.address));
+    if(!configuration)throw badRequest("sender_not_ready","This line is not ready to send SMS.");
+    const activeProfile = configuration.profile;
     const issue = outboundSmsComplianceIssue(activeProfile, input.purpose || "customer_care", input.content.text);
     if (issue) throw badRequest(issue.code, issue.message);
   }
