@@ -10,6 +10,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://feed.test/**',r=>r.fulfill({contentType:r.request().url().endsWith('.svg')?'image/svg+xml':'text/html',body:r.request().url().endsWith('.svg')?'<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><rect width="900" height="600" fill="#87a5b8"/><path d="M0 430L350 80L650 380L900 180V600H0" fill="#365d71"/></svg>':'<html><body></body></html>'}));
   await page.route('http://feed.test/libraries/gif-picker/giphy-sdk.js*',r=>r.fulfill({contentType:'text/javascript',body:`export class GiphyFetch { constructor(key){this.key=key} async trending(){return {data:[]}} async search(){return {data:[]}} } export function renderGrid(options,container){const button=document.createElement('button');button.type='button';button.textContent='Choose birthday GIF';button.onclick=event=>options.onGifClick({id:'birthday123',title:'Birthday GIF',images:{fixed_width:{url:'https://media1.giphy.com/media/birthday123/giphy.gif',width:'200',height:'150'}}},event);container.append(button);return()=>button.remove();}`}));
+  await page.route('http://feed.test/libraries/platform-widgets/pickers.js*',async route=>route.fulfill({contentType:'text/javascript; charset=utf-8',body:await readFile(process.env.PICKER_BROWSER_SCRIPT || new URL('../../libraries/platform-widgets/pickers.js',import.meta.url),'utf8')}));
   await page.goto('http://feed.test/');
   await page.setContent('<main id="feed" style="height:830px;margin:25px"></main>');
   await page.evaluate(()=>{
@@ -34,6 +35,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     const catalog=window.ChannelsAPI.feed.catalog;
     window.ChannelsAPI.feed.catalog=async()=>{const data=await catalog();data.manual_posts[0].attachments=Array.from({length:8},(_,index)=>({id:`attached-${index}`,media_id:`post-image-${index}`,file_name:`Post image ${index+1}`,content_type:'image/png'}));return data;};
   });
+  await page.addScriptTag({url:'http://feed.test/libraries/platform-widgets/pickers.js'});
   for(const file of ['platform-tags/platform-tags.js','channels-ui/channels-ui.js','audio-notes/audio-notes.js','apps/photos/feed.js'])await page.addScriptTag({content:await readFile(file==='apps/photos/feed.js' && process.env.FEED_BROWSER_SCRIPT ? process.env.FEED_BROWSER_SCRIPT : file==='channels-ui/channels-ui.js' && process.env.CHANNELS_BROWSER_SCRIPT ? process.env.CHANNELS_BROWSER_SCRIPT : file==='audio-notes/audio-notes.js' && process.env.AUDIO_BROWSER_SCRIPT ? process.env.AUDIO_BROWSER_SCRIPT : new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
   await page.waitForFunction(()=>window.feedApp);
   await page.evaluate(()=>window.feedApp.mount(document.querySelector('#feed')));
@@ -251,7 +253,6 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await post.getByRole('button',{name:'Send a GIF'}).click();
   const gifPicker=page.getByRole('dialog',{name:'Choose a GIF'});
   await gifPicker.getByRole('button',{name:'Choose birthday GIF'}).click();
-  await gifPicker.getByRole('button',{name:'Send GIF'}).click();
   await page.waitForFunction(()=>window.replies.some(reply=>reply.metadata?.giphy?.id==='birthday123'));
   assert.equal(await post.locator('.pf-comment [data-comment-content] img').count(),1);
   await post.getByRole('button',{name:'Edit',exact:true}).first().click();
@@ -341,7 +342,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await editor.fill('First line\nLast line');
   await editor.press('Control+End');
   await composer.getByRole('button',{name:'Insert emoji'}).click();
-  await page.locator('.pf-emoji-widget .fm-ch-emoji-search').fill('🎉');
+  await page.locator('.pf-emoji-widget .fm-picker-search').fill('🎉');
   await page.locator('.pf-emoji-widget').getByRole('button',{name:'🎉'}).click();
   assert.equal(await editor.evaluate(element=>element.textContent),'First lineLast line🎉','emoji returns to the caret after picker search takes focus');
   await editor.fill('Start end');await editor.press('Home');await editor.press('ArrowRight');await editor.press('ArrowRight');
@@ -371,8 +372,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await editor.evaluate(element=>element.value),'Tag here @Sam Rivera','toolbar tags insert at the saved caret');
   await composer.getByRole('button',{name:'Send a GIF'}).click();
   const postGifPicker=page.getByRole('dialog',{name:'Choose a GIF'});
-  await postGifPicker.getByRole('button',{name:'Choose birthday GIF'}).click();
-  await postGifPicker.getByRole('button',{name:'Add GIF'}).click();
+  await postGifPicker.getByRole('button',{name:'Choose birthday GIF'}).dispatchEvent('click');
   assert.equal(await composer.locator('.pf-composer-gif img').count(),1,'shared GIF picker adds a preview');
   assert.equal(await composer.getByText('Create a post',{exact:true}).count(),1);
   assert.equal(await composer.getByText('Share an update with your company or department').count(),0);
@@ -444,6 +444,16 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
    }
    if(name==='Posts')assert.equal(await page.locator('[data-feed-manual-only]').count(),0);
   }
+  await page.evaluate(()=>{
+    const previous=window.ChannelsAPI.feed.catalog;
+    window.ChannelsAPI.feed.catalog=async()=>({...await previous(),views:['posts'],can_view_all_departments:false,member_department_ids:['sales']});
+    window.feedApp.mount(document.querySelector('#feed'));
+  });
+  await page.waitForFunction(()=>document.querySelector('[data-density="posts"][aria-pressed="true"]'));
+  for(const name of ['Small tiles','Large tiles','List','Mosaic']) assert.equal(await page.getByRole('button',{name,exact:true}).count(),0,`${name} is hidden for posts-only access`);
+  await page.getByRole('button',{name:/Show Company and my departments/}).click();
+  assert.equal(await page.getByRole('option',{name:'All company activity',exact:true}).count(),0);
+  await page.getByRole('option',{name:'Company and my departments',exact:true}).click();
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });

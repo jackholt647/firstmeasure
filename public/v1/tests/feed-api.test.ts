@@ -102,7 +102,7 @@ async function registerOwner() {
 
 test('manual company and department posts obey membership and posts settings', async () => {
   const {client,orgId,userId}=await registerOwner();
-  const {upsertDocument}=await import('../platform/storage.js');
+  const {upsertDocument,readDocument}=await import('../platform/storage.js');
   const base=`/v1/channels/organizations/${orgId}/feed`;
   const company=await client.request('POST',base+'/posts/manual',{text:'Happy birthday, team!',mention_user_ids:[userId],client_msg_id:'birthday'});
   const duplicate=await client.request('POST',base+'/posts/manual',{text:'Happy birthday, team!',mention_user_ids:[userId],client_msg_id:'birthday'});
@@ -121,6 +121,8 @@ test('manual company and department posts obey membership and posts settings', a
   const saved=await client.request('PUT',base+'/settings',{...settings.settings,company_activity_types:['media.uploaded'],department_activity_types:{roofing:['note.created']}});
   assert.deepEqual(saved.settings.department_activity_types.roofing,['note.created']);
   await upsertDocument(orgId,'organization_departments',{id:'catalog',data:{departments:[{id:'roofing',label:'Roofing',color:'#64748b',group_id:'',subject_keys:[],role_ids:[],group_kind_ids:[]}],groups:[]},expected_revision:1},{replace:true});
+  const owner=await readDocument(orgId,'users',userId);
+  await upsertDocument(orgId,'users',{id:userId,data:{...owner.data,permission_overrides:{view_feed_all_departments:false}}});
   const hidden=await client.request('GET',base+'/catalog');
   assert.equal(hidden.manual_posts.some((post:any)=>post.id===department.post.id),false);
   assert.equal((await client.raw('GET',`${base}/posts/${department.post.id}`)).statusCode,403);
@@ -207,6 +209,71 @@ test('view denies override defaults and document permission revocation hides com
   assert.equal(authorization.sources.length,0);
 });
 
+
+test('feed managers can save and moderate without company-settings or comment access; denies revoke authority', async () => {
+  const {client,orgId,userId}=await registerOwner();
+  const {upsertDocument,readDocument}=await import('../platform/storage.js');
+  const {createMessageRecord}=await import('../channels/storage.js');
+  const base=`/v1/channels/organizations/${orgId}/feed`;
+  const post=await client.request('POST',base+'/posts/manual',{text:'Company update'});
+  const comment=await createMessageRecord({organization_id:orgId,channel_id:post.post.channel_id,author_id:'other_employee',parent_id:post.post.id,text:'A comment',metadata:{feed_comment:true}});
+  const user=await readDocument(orgId,'users',userId);
+  const {resolveAccessProfile}=await import('../workforce/access.js');
+  const manager=await resolveAccessProfile(orgId,{id:userId,data:{...user.data,access_role_ids:['manager']}});
+  assert.equal(manager.effective_permissions.manage_feed,true);
+  assert.equal(manager.effective_permissions.view_feed_all_departments,true);
+  const setPermissions=async (permissions:Json) => upsertDocument(orgId,'users',{id:userId,data:{...user.data,access_role_ids:['viewer'],permission_overrides:permissions}});
+  await setPermissions({manage_company_settings:false,manage_feed:true,comment_feed:false});
+  const settings=await client.request('GET',base+'/settings');
+  for (const type of ['proposal.signed','contract.signed','project.event.completed']) assert.equal(settings.default_activity_types.includes(type),false);
+  const saved=await client.request('PUT',base+'/settings',{...settings.settings,company_activity_types:['proposal.signed']});
+  assert.deepEqual(saved.settings.company_activity_types,['proposal.signed']);
+  assert.equal((await client.request('GET',base+`/posts/${post.post.id}`)).replies[0].can_delete,true);
+  await client.request('DELETE',base+`/messages/${comment.id}`);
+  await client.request('POST',base+`/messages/${comment.id}/restore`,{});
+  await setPermissions({manage_company_settings:false,manage_feed:false,comment_feed:true});
+  assert.equal((await client.raw('GET',base+'/settings')).statusCode,403);
+  assert.equal((await client.raw('PUT',base+'/settings',saved.settings)).statusCode,403);
+  assert.equal((await client.raw('DELETE',base+`/messages/${comment.id}`)).statusCode,403);
+});
+
+test('posts-only and department permissions gate discovery, direct threads, comments and attachments', async () => {
+  const {client,orgId,userId}=await registerOwner();
+  const {upsertDocument,readDocument}=await import('../platform/storage.js');
+  const base=`/v1/channels/organizations/${orgId}/feed`;
+  await upsertDocument(orgId,'organization_departments',{id:'catalog',data:{departments:[
+    {id:'sales',label:'Sales',color:'#64748b',group_id:'',subject_keys:[`organization_user:${userId}`],role_ids:[],group_kind_ids:[]},
+    {id:'roofing',label:'Roofing',color:'#64748b',group_id:'',subject_keys:[],role_ids:[],group_kind_ids:[]}
+  ],groups:[]}});
+  const company=await client.request('POST',base+'/posts/manual',{text:'Company notice'});
+  const {createMessageRecord}=await import('../channels/storage.js');
+  const other=await createMessageRecord({organization_id:orgId,channel_id:company.post.channel_id,author_id:'other_employee',text:'Roofing department',metadata:{feed_post:true,feed_manual:true,feed_department_id:'roofing'}});
+  await upsertDocument(orgId,'projects',{id:'dept_project',data:{title:'Department project',photos:[{id:'dept_photo',src:'/photo.jpg',department_ids:['roofing'],uploaded_by_user_id:userId}]}});
+  const refs=[{kind:'media',id:'dept_photo',project_id:'dept_project'}];
+  const user=await readDocument(orgId,'users',userId);
+  const setPermissions=async (permissions:Json) => upsertDocument(orgId,'users',{id:userId,data:{...user.data,permission_overrides:permissions}});
+  await setPermissions({view_feed_all_departments:false,view_feed_activity:false});
+  const restricted=await client.request('GET',base+'/catalog');
+  assert.deepEqual(restricted.views,['posts']);
+  assert.deepEqual(restricted.departments.map((d:Json)=>d.id),['sales']);
+  assert.equal(restricted.manual_posts.some((p:Json)=>p.id===other.id),false);
+  assert.equal(restricted.manual_posts.some((p:Json)=>p.id===company.post.id),true);
+  assert.equal((await client.request('POST',base+'/authorize',{refs})).sources.length,0);
+  assert.equal((await client.raw('GET',base+`/posts/${other.id}`)).statusCode,403);
+  assert.equal((await client.raw('POST',base+`/posts/${other.id}/comments`,{text:'Blocked'})).statusCode,403);
+  await setPermissions({view_feed_all_departments:true,view_feed_activity:false});
+  const all=await client.request('GET',base+'/catalog');
+  assert.deepEqual(all.views,['posts']);
+  assert.equal(all.departments.length,2);
+  assert.equal(all.manual_posts.some((p:Json)=>p.id===other.id),true);
+  await client.request('GET',base+`/posts/${other.id}`);
+  const automated=await client.request('POST',base+'/posts/resolve',{refs});
+  await setPermissions({view_feed_all_departments:false,view_feed_activity:false});
+  assert.equal((await client.raw('GET',base+`/posts/${automated.root.id}`)).statusCode,404);
+  await setPermissions({view_feed_activity:true,view_feed_posts:false});
+  assert.deepEqual((await client.request('GET',base+'/catalog')).views,['list','small','large','mosaic']);
+  assert.equal((await client.raw('GET',base+`/posts/${company.post.id}`)).statusCode,403);
+});
 
 test('durable automated event posts keep actor attribution, deduplicate and stay outside channel inboxes',async()=>{
   const {client,orgId,userId}=await registerOwner();

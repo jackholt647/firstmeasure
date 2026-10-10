@@ -1,3 +1,4 @@
+import { canManageFeed } from "./feed-permissions.js";
 import { hasFeedGrant, feedMessageGranted } from "./feed-access.js";
 import { createHash } from "node:crypto";
 import { messageTranslationPreferences } from "../platform/localization/message-preferences.js";
@@ -296,7 +297,7 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
 
 export async function channelAdminAllowed(ctx: PlatformAuthContext, channel: ChannelRow) {
   if(channel.settings.department_id)return hasResourcePermission(ctx,'manage_channels|manage_company_settings',{department_id:String(channel.settings.department_id)});
-  if (channel.type === "feed") return false;
+  if (channel.type === "feed") return canManageFeed(ctx);
   if (channel.type === "project") return canManageChannels(ctx);
   const membership = (await readChannelMember(channel.id, ctx.userId));
   return membership?.role === "owner" || membership?.role === "admin";

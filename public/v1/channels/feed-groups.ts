@@ -1,8 +1,12 @@
 import { z } from "zod";
-import { hasPermission, type PlatformAuthContext } from "../platform/auth.js";
+import { type PlatformAuthContext } from "../platform/auth.js";
 import { conflict, forbidden, notFound } from "../platform/errors.js";
 import { readDocument, upsertDocument } from "../platform/storage.js";
 import { resolveOrganizationStructure } from "../workforce/organization-structure.js";
+
+import { canManageFeed, canViewAllFeedDepartments } from "./feed-permissions.js";
+
+export const defaultFeedPostActivityTypes = ["media.uploaded", "note.created", "project.created", "project.event_scheduled", "crew.checklist.completed", "payment.received"];
 
 const activityTypes = [
   "payment.received", "payment.refunded", "proposal.payment.received", "document.payment.received",
@@ -33,9 +37,9 @@ export function allowedFeedDepartments(directory: Awaited<ReturnType<typeof feed
   return directory.user_departments[userId] || [];
 }
 
-export function requireFeedDepartment(directory: Awaited<ReturnType<typeof feedGroupDirectory>>, userId: string, departmentId: string) {
+export function requireFeedDepartment(directory: Awaited<ReturnType<typeof feedGroupDirectory>>, userId: string, departmentId: string, ctx?: PlatformAuthContext) {
   if (!directory.departments.some(department => department.id === departmentId)) throw notFound("feed_department_missing", "This department does not exist.");
-  if (!allowedFeedDepartments(directory, userId).includes(departmentId)) throw forbidden("feed_department_denied", "You are not a member of this department.");
+  if (!(ctx && canViewAllFeedDepartments(ctx)) && !allowedFeedDepartments(directory, userId).includes(departmentId)) throw forbidden("feed_department_denied", "You are not a member of this department.");
 }
 
 export async function readFeedPostSettings(orgId: string) {
@@ -47,7 +51,7 @@ export async function readFeedPostSettings(orgId: string) {
 }
 
 export async function saveFeedPostSettings(ctx: PlatformAuthContext, input: unknown) {
-  if (!hasPermission(ctx, "manage_company_settings")) throw forbidden("feed_settings_denied", "Company settings permission is required.");
+  if (!canManageFeed(ctx)) throw forbidden("feed_settings_denied", "Feed manager permission is required.");
   const body = saveSchema.parse(input);
   const current = await readFeedPostSettings(ctx.orgId);
   if (current.revision !== body.revision) throw conflict("feed_settings_stale", "Feed settings changed. Reload before saving.");
@@ -65,5 +69,6 @@ export async function saveFeedPostSettings(ctx: PlatformAuthContext, input: unkn
 }
 
 export function feedActivityOptions(extraTypes: string[] = []) {
-  return [...new Set([...activityTypes,...extraTypes.filter(Boolean)])].sort().map(type => ({ type, label: type.split(/[._]/).map(part => part[0]?.toUpperCase() + part.slice(1)).join(" ") }));
+  const labels: Record<string, string> = {"proposal.signed":"Proposal signed", "contract.signed":"Contract signed", "project.event.completed":"Job completed"};
+  return [...new Set([...activityTypes,...extraTypes.filter(Boolean)])].sort().map(type => ({ type, label: labels[type] || type.split(/[._]/).map(part => part[0]?.toUpperCase() + part.slice(1)).join(" ") }));
 }

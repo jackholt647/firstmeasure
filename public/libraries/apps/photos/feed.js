@@ -49,6 +49,9 @@
     postSettings: {company_activity_types:null,department_activity_types:{},revision:0},
     canPost: false,
     canManagePostSettings: false,
+    canManageFeed: false,
+    canViewAllDepartments: false,
+    postDepartments: [],
     feedScope: 'all',
     scopeMenuOpen: false,
     composerOpen: false,
@@ -1166,7 +1169,7 @@
   }
   function feedEntryDepartments(entry = {}){
     if (entry.kind === 'manual') return cleanText(entry.manual?.metadata?.feed_department_id) ? [cleanText(entry.manual.metadata.feed_department_id)] : [];
-    return state.userDepartments[feedEntryActorId(entry)] || [];
+    return entry.media?.department_ids || entry.document?.department_ids || entry.event?.department_ids || entry.note?.metadata?.department_ids || state.userDepartments[feedEntryActorId(entry)] || [];
   }
   function feedEntryInScope(entry = {}){
     const departments=feedEntryDepartments(entry);
@@ -1175,7 +1178,7 @@
     if (state.feedScope === 'mine') return departments.some(id=>state.memberDepartmentIds.includes(id));
     return departments.includes(state.feedScope);
   }
-  const DEFAULT_POST_ACTIVITY_TYPES = new Set(['media.uploaded','note.created','project.created','project.event_scheduled','project.event.completed','crew.checklist.completed','proposal.signed','contract.signed','payment.received']);
+  const DEFAULT_POST_ACTIVITY_TYPES = new Set(['media.uploaded','note.created','project.created','project.event_scheduled','crew.checklist.completed','payment.received']);
   function automaticPostType(entry = {}){
     return entry.kind === 'activity' ? cleanText(entry.event?.type) : entry.kind === 'media' ? 'media.uploaded' : entry.kind === 'note' ? 'note.created' : entry.kind === 'document' ? firstText(entry.pairedEvent?.type,'document.ingested') : '';
   }
@@ -1294,7 +1297,7 @@
           return [];
         }
       }));
-      return pages.flat().filter(note=>{const context=state.departmentContext||{},ids=note.metadata?.department_ids||[];if(!ids.length)return true;if(state.departmentId&&state.departmentId!=='all')return ids.includes(state.departmentId);return !context.enabled||context.organization_wide||ids.some(id=>(context.department_ids||[]).includes(id));});
+      return pages.flat().filter(note=>{const context=state.departmentContext||{},ids=note.metadata?.department_ids||state.userDepartments[note.author?.id || note.author_id]||[];if(!ids.length)return true;if(state.departmentId&&state.departmentId!=='all')return ids.includes(state.departmentId);return !context.enabled||context.organization_wide||ids.some(id=>(context.department_ids||[]).includes(id));});
     } catch (error) {
       console.warn('Could not list project notes for Feed', error);
       return [];
@@ -1714,13 +1717,16 @@
       state.canReact = catalog.can_react;
       state.canPost = catalog.can_post === true;
       state.canManagePostSettings = catalog.can_manage_post_settings === true;
+      state.canManageFeed = catalog.can_manage_feed === true;
+      state.canViewAllDepartments = catalog.can_view_all_departments === true;
+      state.postDepartments = Array.isArray(catalog.post_departments) ? catalog.post_departments : (catalog.departments || []);
       state.manualPosts = Array.isArray(catalog.manual_posts) ? catalog.manual_posts : [];
       state.departments = Array.isArray(catalog.departments) ? catalog.departments : [];
       state.userDepartments = objectValue(catalog.user_departments);
       state.memberDepartmentIds = Array.isArray(catalog.member_department_ids) ? catalog.member_department_ids : [];
       state.postSettings = objectValue(catalog.post_settings);
       state.activityOptions = Array.isArray(catalog.activity_options) ? catalog.activity_options : [];
-      if (state.feedScope !== 'all' && state.feedScope !== 'mine' && !state.memberDepartmentIds.includes(state.feedScope)) state.feedScope = 'all';
+      if (state.feedScope !== 'all' && state.feedScope !== 'mine' && !state.departments.some(department=>department.id===state.feedScope)) state.feedScope = 'all';
       for (const manual of state.manualPosts) {
         const current=postState(`manual:${manual.id}`);
         current.root=manual;
@@ -2505,9 +2511,9 @@
           picker.onmouseleave=()=>picker.classList.remove('open');picker.append(trigger,choices);actions.append(picker);
         }
         if(state.canComment&&!message.deleted_at)button('Reply',async()=>{current.replyTo=message.id;current.replyToName=message.author?.name || 'Someone';});
-        if(message.can_restore && state.canComment)button('Restore',async()=>{await window.ChannelsAPI.feed.restore(orgId(),message.id);await fetchPost(post);});
+        if(message.can_restore && (state.canComment || state.canManageFeed))button('Restore',async()=>{await window.ChannelsAPI.feed.restore(orgId(),message.id);await fetchPost(post);});
         if(message.can_edit && state.canComment && current.editingId!==message.id)button('Edit',async()=>{current.editingId=message.id;current.editDraft=message.text;});
-        if(message.can_delete && state.canComment)button('Delete',async()=>{await window.ChannelsAPI.feed.remove(orgId(),message.id);await fetchPost(post);});
+        if(message.can_delete && (state.canComment || state.canManageFeed))button('Delete',async()=>{await window.ChannelsAPI.feed.remove(orgId(),message.id);await fetchPost(post);});
         const thread=document.createElement('div');thread.className='pf-comment-thread';thread.append(row);
         commentThreads.set(message.id,{thread,message,children:[]});
       }
@@ -2695,9 +2701,9 @@
       </div>`;
   }
   function feedScopeControlHtml(){
-    const selected=state.feedScope==='mine'?'My departments':state.departments.find(department=>department.id===state.feedScope)?.label || 'All company activity';
+    const selected=state.feedScope==='mine'?'My departments':state.feedScope==='all'&&!state.canViewAllDepartments?'Company and my departments':state.departments.find(department=>department.id===state.feedScope)?.label || 'All company activity';
     const option=(value,label)=>`<button type="button" role="option" aria-selected="${state.feedScope===value}" data-feed-scope-option="${escapeHtml(value)}">${escapeHtml(label)}${state.feedScope===value?'<i class="fas fa-check" aria-hidden="true"></i>':''}</button>`;
-    return `<div class="pf-feed-scope-control"><button type="button" class="pf-feed-scope-trigger" data-feed-scope aria-label="Show ${escapeHtml(selected)}" aria-expanded="${state.scopeMenuOpen}"><span>Show</span><strong>${escapeHtml(selected)}</strong><i class="fas fa-chevron-${state.scopeMenuOpen?'up':'down'}" aria-hidden="true"></i></button>${state.scopeMenuOpen?`<div class="pf-feed-scope-menu" role="listbox" aria-label="Feed audience">${option('all','All company activity')}${option('mine','My departments')}<div class="pf-feed-scope-section">Departments</div><label class="pf-feed-scope-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-feed-scope-search placeholder="Find a department" aria-label="Find a department"></label><div class="pf-feed-scope-departments">${state.departments.map(department=>option(department.id,department.label)).join('')}</div></div>`:''}</div>`;
+    return `<div class="pf-feed-scope-control"><button type="button" class="pf-feed-scope-trigger" data-feed-scope aria-label="Show ${escapeHtml(selected)}" aria-expanded="${state.scopeMenuOpen}"><span>Show</span><strong>${escapeHtml(selected)}</strong><i class="fas fa-chevron-${state.scopeMenuOpen?'up':'down'}" aria-hidden="true"></i></button>${state.scopeMenuOpen?`<div class="pf-feed-scope-menu" role="listbox" aria-label="Feed audience">${option('all',state.canViewAllDepartments?'All company activity':'Company and my departments')}${option('mine','My departments')}<div class="pf-feed-scope-section">Departments</div><label class="pf-feed-scope-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-feed-scope-search placeholder="Find a department" aria-label="Find a department"></label><div class="pf-feed-scope-departments">${state.departments.map(department=>option(department.id,department.label)).join('')}</div></div>`:''}</div>`;
   }
   function feedPostFormatBarHtml(){
     return '<div data-feed-format-mount></div>';
@@ -2710,7 +2716,7 @@
     const enlarged=state.composerFiles[state.composerPreviewIndex];
     return `<div class="pf-overlay"><form class="pf-dialog" data-feed-compose role="dialog" aria-modal="true" aria-label="Create a post">
       <header><strong>Create a post</strong><button type="button" data-feed-compose-close aria-label="Close">×</button></header>
-      <div class="pf-compose-author">${avatarHtml({name:firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'),avatar:state.users.find(user=>user.id===APP.userId)?.profile_photo_url})}<div class="pf-compose-author-copy"><strong>${escapeHtml(firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'))}</strong><label class="pf-compose-audience">Post to <span class="pf-compose-audience-picker"><span>${escapeHtml(state.composerDepartment ? `${state.departments.find(department=>department.id===state.composerDepartment)?.label || 'Department'} department` : 'everyone in the company')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i><select data-feed-compose-scope aria-label="Post audience"><option value="" ${!state.composerDepartment?'selected':''}>everyone in the company</option>${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)} department</option>`).join('')}</select></span></label></div></div>
+      <div class="pf-compose-author">${avatarHtml({name:firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'),avatar:state.users.find(user=>user.id===APP.userId)?.profile_photo_url})}<div class="pf-compose-author-copy"><strong>${escapeHtml(firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'))}</strong><label class="pf-compose-audience">Post to <span class="pf-compose-audience-picker"><span>${escapeHtml(state.composerDepartment ? `${state.departments.find(department=>department.id===state.composerDepartment)?.label || 'Department'} department` : 'everyone in the company')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i><select data-feed-compose-scope aria-label="Post audience"><option value="" ${!state.composerDepartment?'selected':''}>everyone in the company</option>${state.postDepartments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)} department</option>`).join('')}</select></span></label></div></div>
       <div class="pf-compose-message">${feedPostFormatBarHtml()}<div data-feed-compose-editor-mount></div><div class="pf-post-compose-bottom"><div class="pf-post-compose-tools">${feedComposerToolsHtml('feed-compose')}</div><button type="submit" class="pf-action primary" ${state.composerBusy?'disabled':''}>${state.composerBusy?'Posting…':'Post'}</button></div><div class="pf-mention-menu" data-feed-compose-mention-menu hidden></div></div><div data-feed-compose-dictation-mount></div><div data-feed-compose-audio-mount></div>
       ${state.composerGif?`<div class="pf-composer-gif"><img src="${escapeHtml(state.composerGif.url)}" alt="${escapeHtml(state.composerGif.title)}"><button type="button" data-feed-compose-remove-gif aria-label="Remove GIF">×</button></div>`:''}
       ${previews?`<div class="pf-dialog-files">${previews}</div>`:''}
@@ -4123,4 +4129,9 @@
   loadBranchProjectConfig().then(rebuildProjectDisplayLabels).catch(() => null);
   window.Portal?.appFlags?.load?.().then(refreshRegistration).catch(refreshRegistration);
   setTimeout(refreshRegistration, 800);
+  window.addEventListener('firstmate:feed-settings-saved', event => {
+    if (String(event.detail?.orgId) !== String(orgId())) return;
+    state.postSettings = objectValue(event.detail.settings);
+    if (state.root?.isConnected && state.loaded) render();
+  });
 })();

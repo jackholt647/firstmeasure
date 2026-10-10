@@ -1131,13 +1131,13 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
     "view_contacts", "view_schedule", "view_financials", "view_documents",
     "view_materials", "view_proposals", "view_stats", "view_websites",
     "view_pricebook", "view_feedback", "view_canvassing", "view_media",
-    "view_comms", "view_customer_portals", "view_project_data"
+    "view_comms", "view_customer_portals", "view_project_data", "view_feed_all_departments"
   ].map(key => [key, true]));
   const managerWritePermissions: PermissionMap = Object.fromEntries([
     "manage_project_billing", "manage_documents", "issue_documents", "sign_documents", "import_document_signatures",
     "manage_proposals", "send_proposals", "manage_stats", "manage_websites",
     "request_feedback", "manage_canvassing", "manage_media",
-    "manage_customer_portals", "manage_project_data"
+    "manage_customer_portals", "manage_project_data", "manage_feed"
   ].map(key => [key, true]));
   const adminPermissions: PermissionMap = {
     "*": true,
@@ -1717,6 +1717,12 @@ export function notificationAccessPermissions(permissions: PermissionMap, user: 
   return { manage_own_notifications: allowed("manage_own_notifications", true), manage_notification_defaults: allowed("manage_notification_defaults", companySettings) };
 }
 
+export function feedAccessPermissions(permissions: PermissionMap) {
+  const allowed = (key: string, fallback: boolean) => permissions[key] !== false && (permissions[key] === true || permissions["*"] === true || fallback);
+  const companySettings = allowed("manage_company_settings", false);
+  return { manage_feed: allowed("manage_feed", companySettings), view_feed_all_departments: allowed("view_feed_all_departments", companySettings), view_feed_activity: allowed("view_feed_activity", true), view_feed_posts: allowed("view_feed_posts", true) };
+}
+
 function unionRolePermissions(roles: AccessRole[]) {
   const result: PermissionMap = {};
   for (const role of roles) {
@@ -2070,7 +2076,7 @@ export async function resolveAccessProfile(
   }
   for (const [permission, allowed] of Object.entries(globalPermissionOverrides)) effectivePermissions[permission] = allowed;
 
-  Object.assign(effectivePermissions, notificationAccessPermissions(effectivePermissions, user, roles));
+  Object.assign(effectivePermissions, notificationAccessPermissions(effectivePermissions, user, roles), feedAccessPermissions(effectivePermissions));
   const member = organizationStructure.users.find(entry => entry.id === cleanText(user.id || user.user_id));
   const membershipDefaults: Array<{ source: 'department_default' | 'group_default'; defaults: JsonObject }> = organizationStructure.catalog.departments
     .filter(department => member?.department_ids.includes(department.id))

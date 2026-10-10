@@ -61,6 +61,26 @@ role pass. Keep cross-app grants explicit and business meaningful.
 
 ## Shared agent runtime
 
+Feed uses `manage_feed` for automatic post settings and comment moderation,
+`view_feed_all_departments` for discovery outside a reader's own departments,
+and separate `view_feed_activity` and `view_feed_posts` permissions. Activity
+covers List, Small tiles, Large tiles and Mosaic; Posts-only readers fall back
+to Posts when their saved route requests another view. Existing per-layout
+denials continue to apply, but the role editor exposes the two product views.
+
+Managers receive Feed management and all-department access. Existing company
+settings administrators retain those powers unless explicitly denied. Ordinary
+members are limited to their own department content plus company-wide posts.
+All-department Feed access does not override project, document, financial,
+branch, media-privacy or restricted-department authorization. Discovery,
+direct threads, comments, reactions and attachment reads reauthorize the
+current audience. Posting to a department still requires membership.
+
+Activity and Posts retain their existing member defaults, with explicit denials
+taking precedence. Proposal signed, Contract signed and Job completed are off
+in the default automatic-post selection; saved explicit selections are retained.
+Automatic-post settings use revision-checked writes and an auto-save queue.
+
 `agents/runtime.ts` runs the common conversation loop for all registered
 agents. Human initiated turns receive the same six platform tools:
 `platform_search`, `platform_describe`, `platform_read`, `platform_list`,

@@ -11,7 +11,8 @@ import * as store from "./storage.js";
 import * as channels from "./service.js";
 import { postMessageSchema, reactionSchema, editMessageSchema, giphyMessageSchema } from "./schemas.js";
 import {canAccessDepartmentResource,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
-import { allowedFeedDepartments, feedActivityOptions, feedGroupDirectory, readFeedPostSettings, requireFeedDepartment, saveFeedPostSettings } from "./feed-groups.js";
+import { canManageFeed, canViewAllFeedDepartments, canViewFeedActivity, feedDepartmentContext, matchesFeedDepartment } from "./feed-permissions.js";
+import { defaultFeedPostActivityTypes, allowedFeedDepartments, feedActivityOptions, feedGroupDirectory, readFeedPostSettings, requireFeedDepartment, saveFeedPostSettings } from "./feed-groups.js";
 
 type Obj = Record<string, any>;
 const obj = (v: unknown): Obj => v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -44,6 +45,7 @@ async function projectAccess(ctx:PlatformAuthContext,id:string) {
   let promise=cache.get(id);if(!promise){promise=readDocument(ctx.orgId,"projects",id).then(r=>obj(r.data));cache.set(id,promise);}
   const p=await promise;
   if (p.deleted_at || p.trashed_at || p.branch_id && p.branch_id !== ctx.branchId && !hasPermission(ctx,"manage_company_settings")) throw notFound("feed_source_missing","This source is not available.");
+  if (!hasResourcePermission(ctx,"view_projects",p) || !canAccessDepartmentResource(ctx,p,"view_projects")) throw notFound("feed_source_missing","This project is not available.");
   return p;
 }
 export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
@@ -98,6 +100,7 @@ export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
   const department_ids=Array.isArray(data.department_ids)?data.department_ids:Array.isArray(metadata.department_ids)?metadata.department_ids:Array.isArray(payload.department_ids)?payload.department_ids:ctx.organizationStructure?.users.find(u=>u.id===author)?.department_ids||[];
   const resource={...data,department_ids,department_access:str(data.department_access||metadata.department_access)};
   if(!canAccessDepartmentResource(ctx,resource,ref.kind==="media"?"view_media":ref.kind==="activity"?permissionForType(str(data.type)):"view_documents|view_proposals|view_financials"))throw notFound('feed_source_missing','This source is not available.');
+  if (!matchesFeedDepartment(ctx,{department_ids})) throw notFound('feed_source_missing','This source is outside your feed departments.');
   return {ref:{...ref,project_id:projectId},key,author,at,department_ids};
 }
 async function authorizeRefs(ctx:PlatformAuthContext,refs:Ref[]) {
@@ -127,7 +130,7 @@ async function authorizedRoot(ctx:PlatformAuthContext,id:string) {
   if (!row || !root || root.deleted_at || root.metadata.feed_post !== true) throw notFound("feed_post_missing","This post is not available.");
   if (root.metadata.feed_manual === true) {
     const departmentId=str(root.metadata.feed_department_id);
-    if (departmentId) requireFeedDepartment(await feedGroupDirectory(ctx.orgId),ctx.userId,departmentId);
+    if (departmentId) requireFeedDepartment(await feedGroupDirectory(ctx.orgId),ctx.userId,departmentId,ctx);
   } else {
     const refs=z.array(refSchema).min(1).max(200).parse(root.metadata.feed_source);
     await authorizeRefs(ctx,refs);
@@ -193,8 +196,8 @@ export function registerFeedRoutes(app:FastifyInstance) {
   app.get(prefix+"/catalog",async request=>{
     const ctx=await auth(request);
     const departmentId=str(obj(request.query).department_id);
-    const relevant=(source:{department_ids:string[]})=>matchesDepartmentFilter(ctx,source,departmentId);
-    const allowedViews=views.filter(v=>feedPermission(ctx,`view_feed_${v}`));
+    const relevant=(source:{department_ids:string[]})=>matchesFeedDepartment(ctx,source,departmentId);
+    const allowedViews=views.filter(v=>feedPermission(ctx,`view_feed_${v}`) && (v === "posts" || canViewFeedActivity(ctx)));
     if (!allowedViews.length) throw forbidden("feed_views_denied","No feed views are available.");
     const [records,allMedia,events,directory,groups,settings]=await Promise.all([listDocuments(ctx.orgId,"projects"),listMedia(ctx.orgId),listEventRecords(ctx.orgId,{visibility:"activity",limit:500}),channels.userDirectory(ctx.orgId),feedGroupDirectory(ctx.orgId),readFeedPostSettings(ctx.orgId)]);
     const projects=[];
@@ -211,19 +214,20 @@ export function registerFeedRoutes(app:FastifyInstance) {
     for(const item of media){try{const d=obj(item),o=obj(d.owner);const source=await resolveFeedSource(ctx,{kind:'media',id:str(d.id),project_id:str(obj(d.metadata).project_id||(o.type==='project'?o.id:''))});if(relevant(source))permittedMedia.push({...d,department_ids:source.department_ids});}catch{}}
     for (const event of events) {try {const source=await resolveFeedSource(ctx,{kind:"activity",id:str(event.id),project_id:str(event.project_id)});if(relevant(source))permittedEvents.push({...event,department_ids:source.department_ids});}catch{}}
     const memberDepartments=allowedFeedDepartments(groups,ctx.userId);
+    const visibleDepartmentIds=canViewAllFeedDepartments(ctx) ? groups.departments.map(department=>department.id) : memberDepartments;
     const channel=await store.findChannelByDmKey(ctx.orgId,"company-feed");
-    const manualRecords=channel && feedPermission(ctx,"view_feed_posts") ? (await store.listFeedManualMessageRecords(ctx.orgId,channel.id)).filter(row=>!str(row.metadata.feed_department_id) || memberDepartments.includes(str(row.metadata.feed_department_id))) : [];
+    const manualRecords=channel && feedPermission(ctx,"view_feed_posts") ? (await store.listFeedManualMessageRecords(ctx.orgId,channel.id)).filter(row=>!str(row.metadata.feed_department_id) || visibleDepartmentIds.includes(str(row.metadata.feed_department_id))) : [];
     manualRecords.forEach(row=>grantFeedRoot(ctx,row.id));
     const manualPosts=channel ? await channels.hydrateMessages(ctx,channel,manualRecords) : [];
-    const visibleDepartments=groups.departments.filter(department=>memberDepartments.includes(department.id));
-    const visibleSettings={...settings,department_activity_types:Object.fromEntries(memberDepartments.map(id=>[id,settings.department_activity_types[id] ?? null]))};
-    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:relevantDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed"),can_post:feedPermission(ctx,"comment_feed"),manual_posts:manualPosts,departments:visibleDepartments,user_departments:groups.user_departments,member_department_ids:memberDepartments,post_settings:visibleSettings,activity_options:feedActivityOptions(permittedEvents.map(event=>str(event.type))),can_manage_post_settings:hasPermission(ctx,"manage_company_settings")};
+    const visibleDepartments=groups.departments.filter(department=>visibleDepartmentIds.includes(department.id));
+    const visibleSettings={...settings,department_activity_types:Object.fromEntries(visibleDepartmentIds.map(id=>[id,settings.department_activity_types[id] ?? null]))};
+    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:feedDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed"),can_post:feedPermission(ctx,"comment_feed"),manual_posts:manualPosts,departments:visibleDepartments,user_departments:groups.user_departments,member_department_ids:memberDepartments,post_settings:visibleSettings,activity_options:feedActivityOptions(permittedEvents.map(event=>str(event.type))),can_manage_post_settings:canManageFeed(ctx),can_manage_feed:canManageFeed(ctx),can_view_all_departments:canViewAllFeedDepartments(ctx),post_departments:groups.departments.filter(department=>memberDepartments.includes(department.id)),default_activity_types:defaultFeedPostActivityTypes};
   });
   app.get(prefix+"/settings",async request=>{
     const ctx=await auth(request);
-    if(!hasPermission(ctx,"manage_company_settings"))throw forbidden("feed_settings_denied","Company settings permission is required.");
+    if(!canManageFeed(ctx))throw forbidden("feed_settings_denied","Feed manager permission is required.");
     const events=await listEventRecords(ctx.orgId,{visibility:"activity",limit:500});
-    return {ok:true,settings:await readFeedPostSettings(ctx.orgId),departments:(await feedGroupDirectory(ctx.orgId)).departments,activity_options:feedActivityOptions(events.map(event=>str(event.type)))};
+    return {ok:true,settings:await readFeedPostSettings(ctx.orgId),departments:(await feedGroupDirectory(ctx.orgId)).departments,activity_options:feedActivityOptions(events.map(event=>str(event.type))),default_activity_types:defaultFeedPostActivityTypes};
   });
   app.put(prefix+"/settings",async request=>{
     const ctx=await auth(request,true);
@@ -250,7 +254,7 @@ export function registerFeedRoutes(app:FastifyInstance) {
   app.post(prefix+"/authorize",async request=>{
     const ctx=await auth(request,true),body=z.object({refs:z.array(refSchema).max(3000),department_id:z.string().optional()}).parse(request.body);
     const sources=[];
-    for (const ref of body.refs) {try {const source=await resolveFeedSource(ctx,ref);if(matchesDepartmentFilter(ctx,source,body.department_id))sources.push(source);}catch{}}
+    for (const ref of body.refs) {try {const source=await resolveFeedSource(ctx,ref);if(matchesFeedDepartment(ctx,source,body.department_id))sources.push(source);}catch{}}
     return {ok:true,sources};
   });
   app.post(prefix+"/posts/lookup",async request=>{
@@ -305,13 +309,15 @@ export function registerFeedRoutes(app:FastifyInstance) {
     return {ok:true,message:await channels.editMessage(ctx,id,editMessageSchema.parse(request.body))};
   });
   app.delete(prefix+"/messages/:messageId",async request=>{
-    const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");requirePermission(ctx,"comment_feed");
+    const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");
+    if(!canManageFeed(ctx))requirePermission(ctx,"comment_feed");
     const id=str((request.params as Obj).messageId),{row}=await authorizedRoot(ctx,id);
     if (!row.parent_id && row.metadata.feed_manual !== true) throw forbidden("feed_post_immutable","Automated posts cannot be deleted.");
     return {ok:true,message:await channels.deleteMessage(ctx,id)};
   });
   app.post(prefix+"/messages/:messageId/restore",async request=>{
-    const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");requirePermission(ctx,"comment_feed");
+    const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");
+    if(!canManageFeed(ctx))requirePermission(ctx,"comment_feed");
     const id=str((request.params as Obj).messageId),{row}=await authorizedRoot(ctx,id);
     if(!row.parent_id)throw forbidden("feed_post_immutable","Automated posts cannot be changed.");
     return {ok:true,message:await channels.restoreMessage(ctx,id)};
