@@ -24,6 +24,22 @@ export function measurementPayloadFromRoofplan(xml:string,reportId:string){
  if(observed){add("roofSquares",roofArea/100,"roofing_square");add("roofArea",roofArea,"ft2");}
  return {measurements,artifacts:[{id:reportId,kind:"firstmeasure.report",sourceRevision:contentHash(xml)},{id:`${reportId}/model_data.xml`,kind:"roofplan.xml",sourceRevision:contentHash(xml)}]};
 }
+/** Preserve the completed editor's saved classifications and exact pitch totals.
+ * Lengths are already feet; never recalculate its pixel geometry or infer counts. */
+export function measurementPayloadFromSavedReport(saved: unknown) {
+ const report=obj(obj(saved).report),materials=obj(report.materials);
+ const measurements:Record<string,{value:number;unit:string;source:string}>={};
+ const keys:Record<string,string>={ridge:'ridgesLf',hip:'hipsLf',valley:'valleyLf',rake:'rakesLf',eave:'eavesLf',head_wall:'headWallLf',side_wall:'sideWallLf',stepflash:'sideWallLf',trans:'transitionsLf',parapet:'parapetLf',protrusion:'protrusionLf',chimney_back:'chimneyBackLf',chimney_edge:'chimneyStepLf',chimney_front:'chimneyApronLf',skylight:'skylightLf',unknown:'unknownLf'};
+ const add=(key:string,value:unknown,unit:string)=>{if(typeof value==='number'&&Number.isFinite(value)&&value>=0)measurements[key]={value:(measurements[key]?.value||0)+value,unit,source:'firstmeasure'};};
+ // Saved line totals are authoritative even when XML merged their classifications.
+ const linear=obj(materials.linear);
+ if(Object.keys(linear).length)for(const [type,value] of Object.entries(linear)){const key=keys[type.toLowerCase()];if(key)add(key,value,'ft');}
+ else for(const raw of (Array.isArray(report.lines)?report.lines:[]).slice(0,20000)){const line=obj(raw),key=keys[String(line.type||'').toLowerCase()];if(key)add(key,line.length,'ft');}
+ for(const [pitch,value] of Object.entries(obj(materials.squares))){const match=pitch.match(/^(\d+(?:\.\d+)?)\/12$/);if(match)add(`pitch${match[1]}Squares`,value,'roofing_square');}
+ if(Object.keys(obj(materials.squares)).length&&typeof materials.totalSquares==='number'&&Number.isFinite(materials.totalSquares)&&materials.totalSquares>=0){add('roofSquares',materials.totalSquares,'roofing_square');add('roofArea',materials.totalSquares*100,'ft2');}
+ add('ventilationSquares',materials.ventilationSquares,'roofing_square');
+ return measurements;
+}
 /** Saved report quantities are authoritative. Do not rebuild editor geometry here. */
 export function measurementPayloadFromExterior(report: Obj, reportId: string) {
  const measurements: Record<string,{value:number;unit:string;source:string}> = {};
@@ -53,6 +69,7 @@ export async function readFirstMeasureMeasurements(manifest:ProjectManifest) {
  const payload=measurementPayloadFromRoofplan(text,manifest.id);
  if(!text)payload.artifacts=[];
  const pdfState=obj(await readPdfState(manifest.id));
+ Object.assign(payload.measurements,measurementPayloadFromSavedReport(pdfState));
  const exterior=measurementPayloadFromExterior(obj(pdfState.exteriorReport),manifest.id);
  Object.assign(payload.measurements,exterior.measurements);payload.artifacts.push(...exterior.artifacts);
  if(!payload.measurements.roofArea&&manifest.instant_enabled) {

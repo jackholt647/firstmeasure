@@ -21,3 +21,16 @@ test('image viewer zooms at the cursor, pans, fits and retains state across visi
   await page.evaluate(()=>viewer.destroy());assert.equal(await page.locator('.fm-image-viewer').count(),0);
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });
+
+
+test('aerial widget fills a tall project pane through the real runtime and remains full height when zoomed',async()=>{
+ const root=new URL('../../libraries/',import.meta.url);
+ const server=createServer(async(req,res)=>{const path=new URL(req.url,'http://fixture').pathname;if(path==='/'){res.setHeader('Content-Type','text/html');res.end('<style>body{margin:0}.pane{position:relative;width:540px;height:1100px}.pane>.widget{position:absolute;inset:0;overflow:hidden}</style><div class="pane"><div class="widget" id="root"></div></div><script src="/libraries/platform-widgets/runtime.js"></script><script src="/libraries/platform-widgets/project-widgets.js"></script>');return;}
+ if(path==='/image.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000"><rect width="1000" height="1000" fill="green"/></svg>');return;}
+ try {res.setHeader('Content-Type',path.endsWith('.json')?'application/json':'text/javascript');res.end(await readFile(new URL(path.replace('/libraries/',''),root)));}catch{res.statusCode=404;res.end();}});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{const page=await browser.newPage({viewport:{width:700,height:1200}});await page.goto(`http://127.0.0.1:${server.address().port}`);await page.evaluate(()=>{window.viewer=FirstMateWidgets.mount(document.querySelector('#root'),{id:'reports.photo',version:'1',config:{mediaKind:'aerial'}},{data:{'reports.photo':{media:[{url:'/image.svg',label:'Aerial view'}]}}});});
+ await page.locator('.fm-image-canvas').waitFor();await page.locator('.fm-image-status').waitFor({state:'detached'});const canvas=page.locator('.fm-image-canvas'),box=await canvas.boundingBox();assert.equal(box.height,1100);assert.equal(await page.locator('#root').getAttribute('data-sizing'),'fill');
+ await page.mouse.move(box.x+200,box.y+300);await page.mouse.wheel(0,-400);await page.waitForTimeout(80);assert.equal((await canvas.boundingBox()).height,1100);await page.getByRole('button',{name:'Fit image',exact:true}).click();assert.equal((await canvas.boundingBox()).height,1100);
+ }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+});

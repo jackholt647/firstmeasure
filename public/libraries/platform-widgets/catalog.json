@@ -41,10 +41,10 @@
       "dashboard"
     ],
     "sizing": {
-      "mode": "aspect",
+      "mode": "fill",
       "minWidth": 180,
       "minHeight": 280,
-      "aspectRatio": 1.5
+      "aspectRatio": null
     },
     "configSchema": {
       "type": "object",

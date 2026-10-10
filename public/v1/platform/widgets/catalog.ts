@@ -95,7 +95,7 @@ export function registerWidgetProviders(){registerObjectWidgets();registerDataPr
   }
   return {value:{rows:measurementRows(scopeData.measurements(object(project.data),lists,report))}};
  }},
-report:{description:'Completed report roof geometry reference and the aerial selected for the report, with reference media.',schema:{type:'object',properties:{reportId:string,xmlUrl:string,media:{type:'array',items:mediaSchema},edgeTypes:{type:'array',maxItems:20000,items:{type:'object',properties:{path:{type:'string',maxLength:80},type:{type:'string',enum:['RIDGE','HIP','VALLEY','RAKE','EAVE','HEAD_WALL','SIDE_WALL','TRANS','PARAPET','PROTRUSION','CHIMNEY_BACK','CHIMNEY_EDGE','CHIMNEY_FRONT','SKYLIGHT','UNKNOWN']}},required:['path','type'],additionalProperties:false}}},required:['reportId','xmlUrl','media'],additionalProperties:false},schemaVersion:'1',access:{...projectPolicy,permissions:['view_reports'],capabilities:[]},read:async(ctx,ref)=>{
+report:{description:'Completed report roof geometry reference and the aerial selected for the report, with reference media.',schema:{type:'object',properties:{reportId:string,xmlUrl:string,media:{type:'array',items:mediaSchema},measurements:{type:'object',additionalProperties:{type:'object',properties:{value:{type:'number'},unit:string,source:string},required:['value','unit','source'],additionalProperties:false}},edgeTypes:{type:'array',maxItems:20000,items:{type:'object',properties:{path:{type:'string',maxLength:80},type:{type:'string',enum:['RIDGE','HIP','VALLEY','RAKE','EAVE','HEAD_WALL','SIDE_WALL','TRANS','PARAPET','PROTRUSION','CHIMNEY_BACK','CHIMNEY_EDGE','CHIMNEY_FRONT','SKYLIGHT','UNKNOWN']}},required:['path','type'],additionalProperties:false}}},required:['reportId','xmlUrl','media'],additionalProperties:false},schemaVersion:'1',access:{...projectPolicy,permissions:['view_reports'],capabilities:[]},read:async(ctx,ref)=>{
   const report=await reportFor(ctx,ref);if(!report)return {status:'missing',code:'widget_report_unavailable',message:'No completed report is available for this project.'};
   const detail=await report.storage.getProjectDetail(report.id);const files=detail.files;
   const artifact=(name:string)=>`/v1/firstmeasure/projects/${encodeURIComponent(report.id)}/artifacts/${encodeURIComponent(name)}`;
@@ -103,6 +103,7 @@ report:{description:'Completed report roof geometry reference and the aerial sel
   if(typeof image==='string'&&/^data:image\/(jpeg|png|webp);base64,/i.test(image))media.push({url:image,label:'Aerial view',video:false});
   for(const file of files)if(/^customer-reference-.*\.(jpg|jpeg|png|webp|mp4|mov|webm)$/i.test(file.name))media.push({url:artifact(file.name),label:'Reference media',video:/\.(mp4|mov|webm)$/i.test(file.name)});
   const {reportEdgeTypes}=await import('./roof-classifications.js');
-  return {value:{reportId:report.id,xmlUrl:files.some(f=>f.name==='model_data.xml')?artifact('model_data.xml'):'',media,edgeTypes:reportEdgeTypes(detail.pdf_state)}};
+   const {readFirstMeasureMeasurements}=await import('../publication/firstmeasure-datasets.js');const quantities=await readFirstMeasureMeasurements(report.manifest);
+  return {value:{reportId:report.id,xmlUrl:files.some(f=>f.name==='model_data.xml')?artifact('model_data.xml'):'',media,measurements:quantities.measurements,edgeTypes:reportEdgeTypes(detail.pdf_state)}};
  }}
 }});}

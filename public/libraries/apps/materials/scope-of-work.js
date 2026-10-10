@@ -2,6 +2,32 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 const dividers = new WeakMap(), sidebars = new WeakMap();
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString(undefined,{maximumFractionDigits:2}) : 'Unavailable';
 const label = value => String(value || '').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_.-]/g,' ').replace(/^./,c=>c.toUpperCase());
+// Presentation precision never changes the published source quantities.
+const measurementDefinitions = {
+ roofArea:['Roof area','ft²','Area'],ventilationSquares:['Ventilated roof area','sq','Area'],roofSquares:['Roofing squares','sq','Area'],shingleSquares:['Shingle area','sq','Area'],flatRoofSquares:['Low slope · up to 2/12','sq','Pitch breakdown'],
+ ridgesLf:['Ridges','ft','Roof edges'],hipsLf:['Hips','ft','Roof edges'],valleyLf:['Valleys','ft','Roof edges'],eavesLf:['Eaves','ft','Roof edges'],rakesLf:['Rakes','ft','Roof edges'],
+ headWallLf:['Headwall flashing','ft','Flashing & openings'],sideWallLf:['Sidewall / step flashing','ft','Flashing & openings'],transitionsLf:['Transitions','ft','Flashing & openings'],parapetLf:['Parapet walls','ft','Flashing & openings'],protrusionLf:['Protrusion edges','ft','Flashing & openings'],chimneyBackLf:['Chimney back pan','ft','Flashing & openings'],chimneyStepLf:['Chimney step flashing','ft','Flashing & openings'],chimneyApronLf:['Chimney apron','ft','Flashing & openings'],skylightLf:['Skylight perimeter','ft','Flashing & openings'],unknownLf:['Unclassified edges','ft','Roof edges'],
+ chimneysEa:['Chimneys','each','Counts'],skylightsEa:['Skylights','each','Counts'],pipeBootsEa:['Pipe boots','each','Counts'],structureCount:['Structures','each','Counts'],gutterLf:['Gutters','ft','Drainage'],downspoutLf:['Downspouts','ft','Drainage'],
+ pitch2to4Squares:['Over 2/12–4/12','sq','Pitch breakdown'],pitch4to6Squares:['Over 4/12–6/12','sq','Pitch breakdown'],pitch6to8Squares:['Over 6/12–8/12','sq','Pitch breakdown'],pitch9to12Squares:['Over 8/12–12/12','sq','Pitch breakdown'],pitch13PlusSquares:['Over 12/12','sq','Pitch breakdown'],
+ wallGrossArea:['Gross wall area','ft²','Exterior'],wallNetArea:['Net wall area','ft²','Exterior'],wallOpeningArea:['Wall openings','ft²','Exterior'],wallOpeningPerimeter:['Opening perimeter','ft','Exterior'],wallTopLf:['Wall top edges','ft','Exterior'],wallBottomLf:['Wall bottom edges','ft','Exterior'],wallTransitionsLf:['Wall transitions','ft','Exterior'],wallTerminationsLf:['Wall terminations','ft','Exterior'],insideCornersLf:['Inside corners','ft','Exterior'],outsideCornersLf:['Outside corners','ft','Exterior'],wallReturnsArea:['Wall returns','ft²','Exterior']
+};
+const friendlyUnits={ft2:'ft²',sqft:'ft²',roofing_square:'sq',ft:'ft',m2:'m²',ea:'each',count:'each',percent:'%',degree:'°'};
+function measurementInfo(key,row={}) {
+ const known=measurementDefinitions[key],pitch=key.match(/^pitch(\d+(?:\.\d+)?)Squares$/);
+ const unit=row.unit?(friendlyUnits[row.unit] || label(row.unit)):known?.[1] || '';
+ return {name:known?.[0] || (pitch?`${pitch[1]}/12 pitch`:label(key).replace(/\bLf$/,'').replace(/\bEa$/,'')),unit,group:known?.[2] || (pitch?'Pitch breakdown':'Other measurements'),digits:unit==='ft²'||unit==='m²'||unit==='each'?0:unit==='ft'||unit==='m'?1:2};
+}
+function measurementValue(value,key,row={}) {const digits=measurementInfo(key,row).digits;return typeof value==='number'&&Number.isFinite(value)?String(Number(value.toFixed(digits))):'';}
+function measurementFields(doc) {
+ const values=doc.value?.measurements || {},keys=Object.keys(values),roof=keys.some(k=>k==='roofArea'||k==='roofSquares'),groups=new Map();
+ // Show the full roof edge/flashing checklist, without inventing absent quantities.
+ if(roof)for(const [key,definition] of Object.entries(measurementDefinitions))if(['Roof edges','Flashing & openings'].includes(definition[2])&&!keys.includes(key))keys.push(key);
+ if(keys.some(k=>/^pitch\d+(?:\.\d+)?Squares$/.test(k)))for(let i=keys.length-1;i>=0;i--)if(/^pitch\d+to|^pitch13Plus|^flatRoofSquares$/.test(keys[i]))keys.splice(i,1);
+ const order=['Area','Roof edges','Flashing & openings','Pitch breakdown','Counts','Drainage','Exterior','Other measurements'];
+ keys.sort((a,b)=>{const ia=measurementInfo(a,values[a]),ib=measurementInfo(b,values[b]);return order.indexOf(ia.group)-order.indexOf(ib.group)||(ia.group==='Pitch breakdown' ? Number(a.match(/\d+/)?.[0]||0)-Number(b.match(/\d+/)?.[0]||0):0);});
+ for(const key of keys){const row=values[key] || {},info=measurementInfo(key,row);if(!groups.has(info.group))groups.set(info.group,[]);groups.get(info.group).push(`<label class="sw-measure-field"><span>${esc(info.name)}</span><span><input type="number" min="0" step="${10**-info.digits}" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="Not available" aria-label="${esc(info.name)}"><small>${esc(info.unit)}</small></span></label>`);}
+ return [...groups].map(([group,fields])=>`<section class="sw-measure-group"><h4>${esc(group)}</h4>${group==='Pitch breakdown'?'<p class="sw-measure-note">Rise per 12 inches of run · area in roofing squares</p>':''}<div class="sw-measure-grid">${fields.join('')}</div></section>`).join('')+'<p class="sw-measure-note">1 roofing square (sq) = 100 ft². Not available means the source did not supply this measurement.</p>';
+}
 const money = (value,currency='USD') => {try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(value);}catch{return `${number(value)} ${currency}`;}};
 
 // Membership comes from persisted publications, never a document type or module draft.
@@ -49,11 +75,20 @@ export async function loadDocuments(orgId, projectId) {
       documents.push({...dataset,title:dataset.name,source:'measurement',value:result.value,provenance:result.provenance,revision:dataset.revision});
     }catch(error){failures.push(error);}
   }));
+  let completedReport;
+  try {
+    const report=completedReport=await api.publication.read(orgId,{provider:'project-widgets',export:'report',target});
+    if(report.status==='ready'&&report.value?.reportId&&Object.keys(report.value?.measurements || {}).length){
+      const same=documents.find(doc=>doc.source==='measurement'&&(doc.provenance?.reportId===report.value.reportId||doc.value?.artifacts?.some(a=>a.id===report.value.reportId)));
+      if(same)same.value={...same.value,measurements:{...report.value.measurements,...same.value.measurements}};
+      else if(!documents.some(doc=>doc.source==='measurement'))documents.push({id:`report:${report.value.reportId}`,source:'measurement',title:'Measurements',value:{measurements:report.value.measurements,artifacts:[{id:report.value.reportId,kind:'firstmeasure.report'}]}});
+    }
+  }catch(error){failures.push(error);}
   documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
   // Older completed reports can predate dataset publication. Reuse the
   // authorized read-only contracts rather than creating an import.
   if(!documents.some(doc=>doc.source==='measurement'))try {
-    const report=await api.publication.read(orgId,{provider:'project-widgets',export:'report',target});
+    const report=completedReport || await api.publication.read(orgId,{provider:'project-widgets',export:'report',target});
     if(report.status==='ready'){
       const quantities=await api.publication.read(orgId,{provider:'project-widgets',export:'measurements',target});
       if(quantities.status==='ready'){
@@ -81,7 +116,7 @@ function tile(doc,index) {
 }
 export function renderDocuments(documents=[],error='') {
   const docs=documents.filter(d=>d.source==='document'), measures=documents.filter(d=>d.source==='measurement');
-  return `<div class="sw-home"><section aria-label="Published scope documents"><h3>Scope documents</h3><div class="sw-tiles">${docs.map((d,i)=>tile(d,i)).join('') || '<p class="sw-empty">No accepted documents have published scope artifacts yet.</p>'}</div></section><section aria-label="Measurements"><h3>Measurements</h3>${measures.map(doc=>`<div class="sw-measurements" data-measurement-source="${esc(doc.id)}"><div class="sw-measure-grid">${Object.entries(doc.value?.measurements || {}).map(([key,row])=>`<label class="sw-measure-field"><span>${esc(label(key))}</span><span><input type="number" min="0" step="any" data-scope-measure="${esc(key)}" value="${esc(row.value)}" aria-label="${esc(label(key))}"><small>${esc(row.unit)}</small></span></label>`).join('')}</div></div>`).join('') || '<p class="sw-empty">No published measurements yet.</p>'}</section>${error?`<p role="status" class="sw-empty">${esc(error)}</p>`:''}</div>`;
+  return `<div class="sw-home"><section aria-label="Published scope documents"><h3>Scope documents</h3><div class="sw-tiles">${docs.map((d,i)=>tile(d,i)).join('') || '<p class="sw-empty">No accepted documents have published scope artifacts yet.</p>'}</div></section><section aria-label="Measurements"><h3>Measurements</h3>${measures.map(doc=>`<div class="sw-measurements" data-measurement-source="${esc(doc.id)}">${measurementFields(doc)}</div>`).join('') || '<p class="sw-empty">No published measurements yet.</p>'}</section>${error?`<p role="status" class="sw-empty">${esc(error)}</p>`:''}</div>`;
 }
 function detail(doc) {
   const materials=(doc.sets || []).map(set=>`<section><h3>${esc(set.title)}</h3>${set.lines.length?`<div class="sw-table-wrap"><table><thead><tr><th>Material</th><th>Required</th><th>Order quantity</th><th>Unit cost</th></tr></thead><tbody>${set.lines.map(line=>`<tr><td><strong>${esc(line.name)}</strong>${line.variant?`<small>${esc(line.variant)}</small>`:''}${line.explanation?`<small>${esc(line.explanation)}</small>`:''}${line.group||line.structure?`<small>${esc([line.group,line.structure].filter(Boolean).join(' · '))}</small>`:''}</td><td>${esc(number(line.quantity))} ${esc(line.unit)}</td><td>${esc(number(line.order_quantity))} ${esc(line.order_unit)}</td><td>${line.unit_cost==null?'—':esc(money(line.unit_cost,line.currency))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="sw-empty">This accepted document published a material calculation. Quantities have not been generated yet.</p>'}${set.evaluations?.find(e=>e.id===set.applied_evaluation)?.warnings?.map(w=>`<p class="sw-empty">${esc(w)}</p>`).join('') || ''}</section>`).join('');
@@ -142,7 +177,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
       panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;draw();});
       panel.querySelectorAll('[data-scope-measure]').forEach(input=>{
         const key=input.dataset.scopeMeasure;
-        if(Object.hasOwn(state.options.measurementOverrides || {},key))input.value=state.options.measurementOverrides[key];
+        if(Object.hasOwn(state.options.measurementOverrides || {},key))input.value=measurementValue(state.options.measurementOverrides[key],key);
         input.onchange=()=>{if(input.value!==''&&input.checkValidity())state.options.onMeasurementChange?.(key,Number(input.value));};
       });
     }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdir} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {chromium} from 'playwright-core';
 const source = await readFile(new URL('../../libraries/apps/materials/project.js',import.meta.url),'utf8');
@@ -163,4 +163,18 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
     await divider.focus();await page.keyboard.press('Home');assert.equal(await divider.getAttribute('aria-valuenow'),'20');
     await page.setViewportSize({width:390,height:844});assert.equal(await divider.isVisible(),false);
   } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
+});
+
+
+test('real report values have rounded editable quantities, full edge coverage and readable pitch units',async()=>{
+ const values={hipsLf:{value:166.4845006259476,unit:'ft'},roofArea:{value:4518,unit:'ft2'},roofSquares:{value:45.18,unit:'roofing_square'},pitch2to4Squares:{value:9.95999999999999,unit:'roofing_square'},chimneyStepLf:{value:12.3789,unit:'ft'},skylightLf:{value:9.5632,unit:'ft'}};
+ const html=module.renderDocuments([{id:'report',source:'measurement',value:{measurements:values}}]);
+ assert.match(html,/value="166.5"/);assert.match(html,/value="9.96"/);assert.match(html,/Over 2\/12–4\/12/);assert.match(html,/Chimney step flashing/);assert.match(html,/Skylight perimeter/);assert.match(html,/ft²/);assert.doesNotMatch(html,/166\.4845|roofing_square|Hips Lf|Pitch2to4Squares/);
+ const exact=module.renderDocuments([{id:'report',source:'measurement',value:{measurements:{...values,pitch3Squares:{value:9.96,unit:'roofing_square'},pitch7Squares:{value:32.64,unit:'roofing_square'}}}}]);assert.match(exact,/3\/12 pitch/);assert.doesNotMatch(exact,/Over 2\/12/);
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try {const page=await browser.newPage({viewport:{width:590,height:1000}});await page.setContent('<div class="r-overlay materials-workspace"><aside class="mt-widget-sidebar" style="width:540px">'+html+'</aside></div>');await page.evaluate(css=>{(0,eval)(css);const style=document.createElement('style');style.textContent=window.css();document.head.append(style);},fn('css'));
+ assert.equal(await page.locator('[data-scope-measure]').count(),18);assert.equal(await page.locator('[data-scope-measure="parapetLf"]').inputValue(),'');assert.equal(await page.getByLabel('Hips',{exact:true}).inputValue(),'166.5');
+ const a=await page.getByLabel('Hips',{exact:true}).boundingBox(),b=await page.getByLabel('Ridges',{exact:true}).boundingBox();assert.ok(Math.abs(a.y-b.y)<2);assert.ok(b.x>a.x);
+ await mkdir(new URL('../../../output/project-measurement-polish-20261010/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../../../output/project-measurement-polish-20261010/measurements.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1'),fullPage:true});
+ }finally{await browser.close();}
 });
