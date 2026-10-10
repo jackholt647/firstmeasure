@@ -303,7 +303,10 @@ export class TelnyxClient {
   }
 
   async findExactAvailablePhoneNumber(phoneNumber: string) {
-    return await this.request(`/available_phone_numbers?filter[country_code]=US&filter[phone_number]=${encodeURIComponent(phoneNumber)}&filter[phone_number_type]=local&filter[features]=sms&filter[limit]=1&filter[best_effort]=false&filter[exclude_held_numbers]=true`);
+    // Telnyx number search supports starts_with, not a phone_number filter.
+    // Exclude the +1 country code as required by the starts_with filter.
+    const nationalNumber = phoneNumber.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+    return await this.request(`/available_phone_numbers?filter[country_code]=US&filter[starts_with]=${encodeURIComponent(nationalNumber)}&filter[phone_number_type]=local&filter[features]=sms&filter[limit]=1&filter[best_effort]=false&filter[exclude_held_numbers]=true`);
   }
 
   async createNumberOrder(phoneNumber: string, messagingProfileId: string, customerReference: string) {

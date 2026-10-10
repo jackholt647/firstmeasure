@@ -6,9 +6,32 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
+import { TelnyxClient } from "../messaging/telnyx.js";
 
 let app: any = null;
 let storageRoot = "";
+
+test("10DLC exact availability lookup uses Telnyx's supported starts_with filter", async () => {
+  let requestedUrl = "";
+  const client = new TelnyxClient({
+    apiKey: "test-key",
+    baseUrl: "https://telnyx.example.test/v2",
+    fetchImpl: (async (input: string | URL | Request) => {
+      requestedUrl = String(input);
+      return new Response(JSON.stringify({ data: [{ phone_number: "+12066142205" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }) as typeof fetch
+  });
+
+  const result = await client.findExactAvailablePhoneNumber("+12066142205");
+  const url = new URL(requestedUrl);
+  assert.equal(url.pathname, "/v2/available_phone_numbers");
+  assert.equal(url.searchParams.get("filter[starts_with]"), "2066142205");
+  assert.equal(url.searchParams.has("filter[phone_number]"), false);
+  assert.equal((result as { data: Array<{ phone_number: string }> }).data[0]?.phone_number, "+12066142205");
+});
 
 function readCookie(setCookie: string[] | string | undefined, name: string) {
   const values = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
