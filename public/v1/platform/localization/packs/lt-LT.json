@@ -9602,7 +9602,7 @@
     "document_engine.completed_status": "Užbaigtas",
     "document_engine.declined_status": "Atmestas",
     "document_engine.void_status": "Anuliuotas",
-    "scope.project_tab": "Darbų apimtis",
+    "scope.project_tab": "Projektas",
     "scope.templates_settings_tab": "Darbų apimčių šablonai",
     "scope.flags_settings_tab": "Darbų apimčių parinktys",
     "scope.details_view": "Informacija",

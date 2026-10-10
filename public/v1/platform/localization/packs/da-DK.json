@@ -9602,7 +9602,7 @@
     "document_engine.completed_status": "Fuldført",
     "document_engine.declined_status": "Afvist",
     "document_engine.void_status": "Annulleret",
-    "scope.project_tab": "Arbejdsomfang",
+    "scope.project_tab": "Projekt",
     "scope.templates_settings_tab": "Skabeloner til arbejdsomfang",
     "scope.flags_settings_tab": "Markeringer for arbejdsomfang",
     "scope.details_view": "Detaljer",

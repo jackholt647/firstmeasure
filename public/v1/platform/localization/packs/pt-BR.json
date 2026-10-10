@@ -9618,7 +9618,7 @@
     "document_engine.completed_status": "Concluído",
     "document_engine.declined_status": "Recusado",
     "document_engine.void_status": "Anulado",
-    "scope.project_tab": "Escopo",
+    "scope.project_tab": "Projeto",
     "scope.templates_settings_tab": "Modelos de escopo",
     "scope.flags_settings_tab": "Sinalizadores de escopo",
     "scope.details_view": "Detalhes",

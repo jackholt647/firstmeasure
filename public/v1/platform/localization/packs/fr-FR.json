@@ -9405,7 +9405,7 @@
     "document_engine.completed_status": "Terminé",
     "document_engine.declined_status": "Refusé",
     "document_engine.void_status": "Annulé",
-    "scope.project_tab": "Périmètre",
+    "scope.project_tab": "Projet",
     "scope.templates_settings_tab": "Modèles de périmètre",
     "scope.flags_settings_tab": "Indicateurs de périmètre",
     "scope.details_view": "Détails",

@@ -45,7 +45,7 @@ test('existing lists render before slow catalog calls and refresh does not gener
   const state = { mounted: true, lists: [], activeListId: '' };
   const ctx = { state, performance, timingMark() {}, beginLoadContext: () => ({ orgId: 'org', projectId: 'project' }),
     loadContextIsCurrent: () => true, apiReady: () => true,
-    loadPricebookItems: () => slow, loadWorkResources: () => slow, requestMeasurementHydration: () => slow,
+    loadPricebookItems: () => slow, loadWorkResources: () => slow, requestMeasurementHydration: () => slow, loadScopeDocuments: () => slow,
     window: { MaterialsAPI: { projects: { list: async () => ({ material_lists: [{ id: 'existing' }] }) } } },
     applyMaterialLists: lists => { state.lists = lists; }, render: () => events.push(state.lists.length), renderLeft() {},
     initializeMaterialListsFromScope: () => { throw Error('must not regenerate existing lists'); },

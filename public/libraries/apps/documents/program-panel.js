@@ -132,7 +132,7 @@ async function ensureRuntime(globalName,url){
   await runtimeLoads.get(url);
 }
 /** Project users work with schema inputs and the existing workflow renderer. */
-export async function openModuleInstances(organizationId, projectId, selectedModuleId = '') {
+export async function openModuleInstances(organizationId, projectId, selectedModuleId = '', selectedInstanceId = '') {
   const request = moduleRequest(organizationId);
   await ensureRuntime('FMDocModel','/libraries/doc-model/firstmate-doc-model.js');
   await ensureRuntime('FMDocWorkflow','/libraries/doc-workflow/firstmate-doc-workflow.js');
@@ -183,7 +183,7 @@ export async function openModuleInstances(organizationId, projectId, selectedMod
   el('document').onclick=()=>perform(async()=>{const result=await request(`${path()}/document`,'POST',{}); el('output').textContent=((v0) => globalThis.PlatformLanguage?.text("documents","m_1caafc386fd960",`Portal document created: ${v0}`,{v0}) ?? `Portal document created: ${v0}`)(result.document.id);});
   const timer=setInterval(()=>{if(!instance||!instance.canEdit||instance.frozen||instance.uncertainExecution||busy||edited||document.hidden)return; void perform(async()=>{if((await request(`${path()}/freshness`)).stale)await refresh();});},10000);
   dialog.addEventListener('close',()=>{clearInterval(timer);handle?.destroy?.();dialog.remove();});
-  await perform(async()=>{const {modules}=await request('/modules'); for(const m of modules)el('modules').add(new Option(`${m.name} (${m.kind})`,m.id)); if(selectedModuleId)el('modules').value=selectedModuleId; await reloadList();});
+  await perform(async()=>{const {modules}=await request('/modules'); for(const m of modules)el('modules').add(new Option(`${m.name} (${m.kind})`,m.id)); if(selectedModuleId)el('modules').value=selectedModuleId; await reloadList(); if(selectedInstanceId)show(await request(`/instances/${encodeURIComponent(selectedInstanceId)}`));});
 }
 
 

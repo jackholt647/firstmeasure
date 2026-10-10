@@ -9594,7 +9594,7 @@
     "document_engine.completed_status": "Abgeschlossen",
     "document_engine.declined_status": "Abgelehnt",
     "document_engine.void_status": "Ungültig",
-    "scope.project_tab": "Leistungsumfang",
+    "scope.project_tab": "Projekt",
     "scope.templates_settings_tab": "Leistungsumfangsvorlagen",
     "scope.flags_settings_tab": "Umfangskennzeichnungen",
     "scope.details_view": "Details",

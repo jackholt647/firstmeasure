@@ -3,6 +3,9 @@
  */
 (function(){
   let materialsAPI;
+  let scopeWorkspace;
+  let refreshTimer;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261010', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005-quantities', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
@@ -65,6 +68,8 @@
     project: null,
     panelRoot: null,
     sidebarRoot: null,
+    scopeDocuments: [],
+    scopeDocumentsError: '',
     lists: [],
     activeListId: '',
     activeList: null,
@@ -549,7 +554,7 @@
     return `
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
-      .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 50%!important;width:50%;min-width:0;max-width:none;min-height:0;padding:0;overflow:hidden}
+      .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 var(--scope-sidebar-width,33.333%)!important;width:var(--scope-sidebar-width,33.333%);min-width:0;max-width:none;min-height:0;padding:0;overflow:hidden}
       .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden}
       .mt-widget-sidebar .mt-left{height:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:0}
       @media(max-width:850px){
@@ -581,8 +586,30 @@
       .mt-section-tabs::-webkit-scrollbar{display:none}
       .mt-section-tab{border:1px solid transparent;background:transparent;color:#667085;min-height:32px;padding:6px 9px;border-radius:8px;font-size:11px;font-weight:950;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer}
       .mt-section-tab.active{background:#fff;border-color:rgba(15,23,42,.1);color:#101828;box-shadow:0 5px 14px rgba(15,23,42,.06)}
-      .mt-material-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
-      .mt-material-scroll{flex:1;min-height:0;overflow:auto}
+      .mt-material-grid{display:flex;gap:10px;height:100%;min-height:0;align-items:stretch}
+      .mt-resource-column{flex:1 1 0;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e4e7ec;border-radius:8px;background:#fff}
+      .mt-resource-column[data-empty="true"]:not([data-all-empty="true"]){flex:0 0 100px}
+      .mt-resource-heading{margin:0;padding:9px;font-size:12px;border-bottom:1px solid #e4e7ec;white-space:nowrap}
+      .mt-resource-scroll{flex:1;min-height:0;overflow:auto;padding:6px;display:flex;flex-direction:column;gap:8px}
+      .mt-resource-scroll .mt-section{flex-shrink:0;min-width:350px}
+      .mt-resource-add{margin:6px;padding:7px;border:1px dashed #d0d5dd;border-radius:6px;background:#fff;color:#475467;cursor:pointer;font-size:11px;text-align:left}
+      .mt-resource-column[data-empty="true"] .mt-resource-add{white-space:normal}
+      .mt-resource-scroll .mt-empty{padding:12px 2px}
+      .mt-scope-documents{flex-shrink:0}
+      .mt-scope-document-strip{display:flex;gap:10px;overflow:auto;padding:2px 0 8px}
+      .mt-scope-document{flex:0 0 112px;padding:0;border:0;background:transparent;text-align:left;cursor:pointer;color:#344054}
+      .mt-scope-document-sheet{height:96px;border:1px solid #e4e7ec;border-radius:6px;background:#fff;display:flex;flex-direction:column;gap:6px;padding:10px;box-sizing:border-box;overflow:hidden}
+      .mt-scope-document-sheet img{height:100%;width:100%;object-fit:contain}
+      .mt-scope-document-sheet strong{font-size:10px;overflow:hidden}
+      .mt-scope-document-sheet i{color:#98a2b3;font-size:22px}
+      .mt-scope-document-sheet hr{width:100%;border:0;border-top:2px solid #eef0f3;margin:0}
+      .mt-scope-document>strong{display:block;font-size:11px;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mt-scope-document small{font-size:10px;color:#667085}
+      .mt-scope-divider{flex:0 0 8px;width:8px;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none;position:relative}
+      .mt-scope-divider:after{content:"";position:absolute;left:3px;top:0;bottom:0;width:2px;background:#e4e7ec}
+      .mt-scope-divider:hover:after,.mt-scope-divider:focus-visible:after{background:var(--primary,#d93025)}
+      @media(max-width:850px){.mt-scope-divider{display:none}}
+      .mt-material-scroll{flex:1;min-height:0;overflow:hidden}
       .mt-material-column{display:flex;flex-direction:column;gap:14px;min-width:0}
       .mt-material-empty{grid-column:1/-1}
       .mt-section{background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:8px;overflow:hidden}
@@ -670,8 +697,8 @@
       .mt-new-list-modal{width:min(470px,calc(100vw - 28px))}.mt-new-list-body{padding:16px;display:grid;gap:13px}.mt-color-field{display:grid;grid-template-columns:44px minmax(0,1fr);gap:9px}.mt-color-field input[type="color"]{width:44px;height:38px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:3px}
       .mt-order-modal{width:min(1120px,calc(100vw - 28px));height:min(720px,calc(100vh - 28px));display:grid;grid-template-rows:auto minmax(0,1fr) auto}.mt-order-layout{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr)}.mt-order-providers{padding:0 16px;border-bottom:1px solid #eaecf0;background:#f8fafc;display:flex;align-items:stretch;gap:4px;overflow-x:auto}.mt-provider{width:auto;min-width:150px;border:0;border-bottom:3px solid transparent;background:transparent;padding:9px 12px 8px;text-align:left;color:#344054;cursor:pointer;display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:center}.mt-provider i{width:28px;height:28px;border-radius:8px;background:#fff;border:1px solid #e4e7ec;display:grid;place-items:center}.mt-provider strong{display:block;font-size:11px;font-weight:1000}.mt-provider span{display:block;margin-top:2px;font-size:9px;font-weight:850;color:#98a2b3}.mt-provider:hover{background:rgba(255,255,255,.7)}.mt-provider.active{background:#fff;border-bottom-color:var(--primary-readable,var(--primary,#d93025));color:var(--primary-readable,var(--primary,#d93025))}.mt-order-content{min-height:0;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:13px}.mt-order-content.manual{overflow:hidden;display:grid;grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr);gap:16px}.mt-order-details{min-width:0;min-height:0;overflow:auto;padding-right:2px;display:flex;flex-direction:column;gap:13px}.mt-order-coming{height:100%;min-height:280px;display:grid;place-items:center;text-align:center;color:#667085}.mt-order-coming i{font-size:30px;color:#98a2b3}.mt-order-coming strong{display:block;margin-top:10px;font-size:15px;color:#344054}.mt-order-summary{display:grid;grid-template-columns:1fr;gap:8px}.mt-order-summary > div{border:1px solid #eaecf0;border-radius:9px;padding:9px;background:#f8fafc}.mt-order-summary span{display:block;font-size:9px;font-weight:1000;color:#667085;text-transform:uppercase}.mt-order-summary strong{display:block;margin-top:4px;font-size:12px;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-email-preview{min-width:0;min-height:0;border:1px solid #d0d5dd;border-radius:11px;background:#fff;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr)}.mt-email-preview-head{padding:10px 12px;border-bottom:1px solid #eaecf0;background:#f8fafc;display:flex;align-items:center;justify-content:space-between;gap:10px}.mt-email-preview-head strong{min-width:0;font-size:11px;color:#344054;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-email-copy{flex:0 0 auto;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;height:32px;padding:0 10px;font-size:10px;font-weight:1000;display:inline-flex;align-items:center;gap:6px;cursor:pointer;transition:.16s ease}.mt-email-copy.copied{border-color:#75e0a7;background:#ecfdf3;color:#067647}.mt-email-copy.failed{border-color:#fda29b;background:#fef3f2;color:#b42318}.mt-email-body{min-height:0;overflow:auto;padding:12px;font-size:11px;line-height:1.5;color:#344054}.mt-email-body p{margin:0 0 10px}.mt-order-table{width:100%;border-collapse:collapse}.mt-order-table th,.mt-order-table td{border:1px solid #e4e7ec;padding:7px;text-align:left;font-size:10px;vertical-align:top}.mt-order-table th{background:#f8fafc;color:#667085;text-transform:uppercase}.mt-order-table th:nth-child(1){width:35%}.mt-order-table th:nth-child(2){width:35%}.mt-order-table td:nth-child(3),.mt-order-table td:nth-child(4){white-space:nowrap}.mt-order-detail{display:block}.mt-order-detail+.mt-order-detail{margin-top:2px}.mt-order-detail strong{font-size:9px;color:#667085}.mt-order-lock-note{display:flex;align-items:flex-start;gap:8px;border:1px solid #fedf89;border-radius:9px;background:#fffaeb;color:#93370d;padding:9px;font-size:10px;font-weight:850;line-height:1.4}.mt-order-lock-note.ordered{border-color:#abefc6;background:#ecfdf3;color:#067647}
       .mt-order-modal{width:min(1440px,calc(100vw - 48px));height:calc(100vh - 48px);max-height:920px}.mt-order-layout{grid-template-rows:auto auto minmax(0,1fr)}.mt-order-workflow-tabs{min-height:44px;padding:0 16px;border-bottom:1px solid #eaecf0;background:#fff;display:flex;align-items:end;gap:18px}.mt-order-workflow-tabs button{height:44px;border:0;border-bottom:2px solid transparent;background:transparent;color:#667085;padding:0 2px;display:flex;align-items:center;gap:7px;font-size:11px;font-weight:950;cursor:pointer}.mt-order-workflow-tabs button.active{border-bottom-color:#101828;color:#101828}.mt-order-workflow-tabs .required{border-radius:999px;background:#fff3e0;color:#b54708;padding:2px 6px;font-size:8px;text-transform:uppercase}.mt-order-workflow-tabs .complete{width:17px;height:17px;border-radius:999px;background:#ecfdf3;color:#067647;display:grid;place-items:center;font-size:8px}.mt-order-section-head{display:flex;align-items:end;justify-content:space-between;gap:8px}.mt-order-section-head>div span{display:block;font-size:9px;font-weight:1000;color:#667085;text-transform:uppercase}.mt-order-section-head>div strong{display:block;margin-top:2px;font-size:12px;color:#101828}.mt-order-section-head>span{font-size:9px;color:#98a2b3}.mt-order-list-picker{display:flex;flex-direction:column;gap:7px}.mt-order-list-options{display:flex;flex-direction:column;gap:5px}.mt-order-list-option{min-width:0;border:1px solid #e4e7ec;border-radius:9px;background:#fff;padding:7px 8px;display:grid;grid-template-columns:18px 9px minmax(0,1fr) auto;align-items:center;gap:7px;cursor:pointer}.mt-order-list-option.selected{border-color:rgba(var(--primary-rgb,217,48,37),.3);background:rgba(var(--primary-rgb,217,48,37),.035)}.mt-order-list-option input{position:absolute;opacity:0;pointer-events:none}.mt-order-list-check{width:16px;height:16px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:transparent;display:grid;place-items:center;font-size:8px}.mt-order-list-option.selected .mt-order-list-check{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:#fff}.mt-order-list-option>span:nth-of-type(3){min-width:0}.mt-order-list-option strong{display:block;font-size:10px;color:#344054;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-order-list-option small{display:block;margin-top:2px;font-size:8px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-order-list-option em{font-style:normal;font-size:8px;font-weight:950;color:#667085;white-space:nowrap}.mt-order-list-option em.ordered{color:#067647}.mt-request-list-dot{width:9px;height:9px;border-radius:999px;background:var(--list-color,#667085);box-shadow:0 0 0 2px color-mix(in srgb,var(--list-color,#667085) 15%,transparent)}.mt-order-summary>button{width:100%;border:1px solid #eaecf0;border-radius:9px;padding:9px;background:#f8fafc;display:grid;grid-template-columns:minmax(0,1fr) auto;text-align:left;cursor:pointer}.mt-order-summary>button span,.mt-order-summary>button strong{grid-column:1}.mt-order-summary>button i{grid-column:2;grid-row:1 / span 2;align-self:center;color:#98a2b3}.mt-request-group{margin:12px 0 18px}.mt-request-delivery{border-radius:8px 8px 0 0;background:#f2f4f7;color:#344054;padding:8px 10px;display:flex;align-items:center;gap:7px}.mt-request-delivery strong{font-size:10px}.mt-request-list-head{padding:8px 2px 6px;display:grid;grid-template-columns:9px minmax(0,1fr) auto;align-items:center;gap:7px}.mt-request-list-head strong{font-size:11px}.mt-request-list-head>span:last-child{font-size:9px;color:#667085}.mt-order-content.schedule{overflow:hidden;display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:0;padding:0}.mt-order-schedule-side{min-height:0;overflow:auto;padding:16px;border-right:1px solid #eaecf0;background:#f8fafc;display:flex;flex-direction:column;gap:14px}.mt-order-schedule-tip{border:1px solid #d1e9ff;border-radius:9px;background:#eff8ff;color:#175cd3;padding:9px;display:flex;align-items:flex-start;gap:7px;font-size:9px;line-height:1.4}.mt-order-scheduler{min-width:0;min-height:0;overflow:auto;padding:18px 20px;background:#fff}.mt-order-scheduler-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.mt-order-scheduler-head span{display:block;font-size:9px;font-weight:1000;color:#667085;text-transform:uppercase}.mt-order-scheduler-head strong{display:block;margin-top:3px;font-size:15px;color:#101828}.mt-order-scheduler-head button{border:0;background:transparent;color:#475467;font-size:10px;font-weight:950;cursor:pointer}.mt-order-timing-choices{margin-top:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.mt-order-timing-choices>button{min-height:72px;border:1px solid #d0d5dd;border-radius:11px;background:#fff;color:#475467;padding:12px;text-align:left;display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:center;cursor:pointer}.mt-order-timing-choices>button>i{width:30px;height:30px;border-radius:9px;background:#f2f4f7;display:grid;place-items:center}.mt-order-timing-choices>button strong,.mt-order-timing-choices>button small{display:block}.mt-order-timing-choices>button strong{font-size:11px;color:#344054}.mt-order-timing-choices>button small{margin-top:3px;font-size:9px;color:#667085}.mt-order-timing-choices>button.active{border-color:rgba(var(--primary-rgb,217,48,37),.38);background:rgba(var(--primary-rgb,217,48,37),.045);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.08)}.mt-order-timing-choices>button.active>i{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}.mt-order-schedule-mode{margin-top:16px;padding:3px;border:1px solid #e4e7ec;border-radius:9px;background:#f2f4f7;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.mt-order-schedule-mode button{height:32px;border:0;border-radius:7px;background:transparent;color:#667085;font-size:9px;font-weight:950;cursor:pointer}.mt-order-schedule-mode button.active{background:#fff;color:#101828;box-shadow:0 2px 6px rgba(15,23,42,.08)}.mt-order-schedule-cards{margin-top:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.mt-order-schedule-card{border:1px solid #e4e7ec;border-radius:11px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:11px}.mt-order-schedule-card.shared{grid-column:1/-1}.mt-order-schedule-card-title{display:flex;align-items:center;gap:9px}.mt-order-schedule-card-title>i{width:30px;height:30px;border-radius:9px;background:#eff8ff;color:#175cd3;display:grid;place-items:center}.mt-order-schedule-card-title>div{min-width:0}.mt-order-schedule-card-title strong,.mt-order-schedule-card-title span{display:block}.mt-order-schedule-card-title strong{font-size:11px;color:#344054}.mt-order-schedule-card-title span{margin-top:2px;font-size:9px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-order-date-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.7fr);gap:8px}.mt-order-date-fields label>span{display:block;margin-bottom:4px;font-size:9px;font-weight:950;color:#475467}.mt-order-date-fields em{font-style:normal;color:#b54708}.mt-order-date-fields small{font-weight:800;color:#98a2b3}.mt-order-date-fields input{width:100%;box-sizing:border-box;height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:0 9px;color:#344054;font:inherit;font-size:10px}.mt-order-no-dates,.mt-order-timing-empty{margin-top:18px;min-height:150px;border:1px dashed #d0d5dd;border-radius:11px;background:#f8fafc;color:#667085;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px}.mt-order-no-dates>i,.mt-order-timing-empty>i{font-size:24px;color:#98a2b3}.mt-order-no-dates strong,.mt-order-timing-empty strong{margin-top:9px;font-size:12px;color:#344054}.mt-order-no-dates p,.mt-order-timing-empty span{max-width:420px;margin:5px 0 0;font-size:10px;line-height:1.45}
-      @container materials-workspace (max-width:900px){.mt-material-grid{grid-template-columns:1fr}.mt-toolbar{grid-template-columns:1fr}.mt-top{align-items:flex-start;flex-direction:column}.mt-top .mt-actions{justify-content:flex-start;width:100%}.mt-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-      @media (max-width:980px){.mt-material-grid{grid-template-columns:1fr}.mt-toolbar{grid-template-columns:1fr}.mt-summary-grid{grid-template-columns:1fr}.mt-form-grid{grid-template-columns:1fr}.mt-labor-breakdown{grid-template-columns:1fr}.mt-labor-breakdown-group+.mt-labor-breakdown-group{border-left:0;border-top:1px solid #eaecf0}.mt-top{align-items:flex-start;flex-direction:column}.mt-actions{justify-content:flex-start}.mt-order-content.manual{grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr)}.mt-order-content.schedule{grid-template-columns:240px minmax(0,1fr)}.mt-order-schedule-cards{grid-template-columns:1fr}.mt-order-modal{height:calc(100vh - 24px);width:calc(100vw - 24px)}}
+      @container materials-workspace (max-width:900px){.mt-material-grid{grid-template-columns:none}.mt-toolbar{grid-template-columns:1fr}.mt-top{align-items:flex-start;flex-direction:column}.mt-top .mt-actions{justify-content:flex-start;width:100%}.mt-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+      @media (max-width:980px){.mt-material-grid{grid-template-columns:none}.mt-toolbar{grid-template-columns:1fr}.mt-summary-grid{grid-template-columns:1fr}.mt-form-grid{grid-template-columns:1fr}.mt-labor-breakdown{grid-template-columns:1fr}.mt-labor-breakdown-group+.mt-labor-breakdown-group{border-left:0;border-top:1px solid #eaecf0}.mt-top{align-items:flex-start;flex-direction:column}.mt-actions{justify-content:flex-start}.mt-order-content.manual{grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr)}.mt-order-content.schedule{grid-template-columns:240px minmax(0,1fr)}.mt-order-schedule-cards{grid-template-columns:1fr}.mt-order-modal{height:calc(100vh - 24px);width:calc(100vw - 24px)}}
       @media (max-width:720px){.mt-order-content.manual{overflow:auto;display:flex}.mt-order-details{overflow:visible}.mt-email-preview{min-height:360px;flex:0 0 auto}.mt-email-body{overflow:auto}.mt-provider{min-width:132px}.mt-order-content.schedule{overflow:auto;display:flex}.mt-order-schedule-side{overflow:visible;border-right:0;border-bottom:1px solid #eaecf0}.mt-order-scheduler{overflow:visible}.mt-order-timing-choices{grid-template-columns:1fr}.mt-order-schedule-mode{grid-template-columns:1fr}.mt-order-date-fields{grid-template-columns:1fr}}
       @media (max-width:620px){.mt-top{padding:10px}.mt-main{padding:9px}.mt-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.mt-actions .mt-icon-btn{width:100%}.mt-order-providers{padding:0 8px}.mt-provider{min-width:120px;padding-inline:8px}.mt-order-modal{width:calc(100vw - 12px);height:calc(100vh - 12px)}.mt-modal-foot{align-items:stretch;flex-direction:column-reverse}.mt-modal-foot .mt-actions{grid-template-columns:1fr 1fr}.mt-scope-measures{grid-template-columns:1fr 1fr}}
       .mt-order-layout{grid-template-rows:auto minmax(0,1fr)}.mt-order-content.manual{grid-template-columns:minmax(330px,.72fr) minmax(0,1.28fr);padding:14px;gap:14px}.mt-order-details{gap:11px}
@@ -1769,6 +1796,47 @@
     };
   }
 
+  function workspaceIsEditing(){
+    return state.saving || state.creatingList || state.loading || state.panelRoot?.querySelector('dialog[open]')
+      || ([state.panelRoot, state.sidebarRoot].some((root) => root?.contains(document.activeElement))
+        && document.activeElement?.matches('input,textarea,select,[contenteditable="true"]'));
+  }
+
+  async function refreshWorkspace(){
+    if (!state.mounted || !state.active || document.hidden || workspaceIsEditing() || !materialsAPI || !scopeWorkspace) return;
+    const operation = captureProjectOperation();
+    const fingerprint = (lists) => JSON.stringify(lists.map((list) => [list.id, list.revision, list.status, list.delivery_status, list.current_items]));
+    try {
+      const [result, documents] = await Promise.all([
+        materialsAPI.projects.list(operation.orgId, operation.projectId),
+        scopeWorkspace.loadDocuments(operation.orgId, operation.projectId)
+      ]);
+      if (!projectOperationIsCurrent(operation) || !state.active || workspaceIsEditing()) return;
+      const lists = result.material_lists || [];
+      const listsChanged = fingerprint(lists) !== fingerprint(state.lists);
+      const documentsChanged = JSON.stringify(documents.documents) !== JSON.stringify(state.scopeDocuments) || documents.error !== state.scopeDocumentsError;
+      if (listsChanged) applyMaterialLists(lists);
+      state.scopeDocuments = documents.documents;
+      state.scopeDocumentsError = documents.error;
+      if (listsChanged || documentsChanged) { render({ preserveScroll:true }); renderLeft(); }
+    } catch { /* Keep the last usable view; the next background read retries. */ }
+  }
+
+  async function loadScopeDocuments(loadContext){
+    try {
+      scopeWorkspace ||= await import(scopeWorkspaceUrl);
+      const result = await scopeWorkspace.loadDocuments(loadContext.orgId, loadContext.projectId);
+      if (!loadContextIsCurrent(loadContext)) return;
+      state.scopeDocuments = result.documents;
+      state.scopeDocumentsError = result.error;
+      render({ preserveScroll:true });
+      scopeWorkspace.installDivider(state.sidebarRoot);
+    } catch (error) {
+      if (!loadContextIsCurrent(loadContext)) return;
+      state.scopeDocumentsError = 'Scope documents could not load.';
+    }
+  }
+
   async function loadData(){
     const timingStart = performance.now();
     timingMark('loadData:start');
@@ -1780,7 +1848,7 @@
     try {
       if (!apiReady()) throw new Error('materials_api_unavailable');
       if (!materialsAPI) materialsAPI = (await import(calculusAdapterUrl)).nativeCalculusAPI(window.MaterialsAPI, projectId);
-      const ancillary = Promise.allSettled([loadPricebookItems(loadContext), loadWorkResources(loadContext), requestMeasurementHydration()]);
+      const ancillary = Promise.allSettled([loadPricebookItems(loadContext), loadWorkResources(loadContext), requestMeasurementHydration(), loadScopeDocuments(loadContext)]);
       const result = await (materialsAPI || window.MaterialsAPI).projects.list(loadContext.orgId, loadContext.projectId);
       if (!loadContextIsCurrent(loadContext)) return;
       applyMaterialLists(Array.isArray(result.material_lists) ? result.material_lists : []);
@@ -2286,7 +2354,30 @@
     timingMark('addItem:start', { pricebook: !!item?.id });
     const fallbackSection = state.selectedSection === 'all' ? '' : state.selectedSection;
     const section = cleanText(requestedSection || fallbackSection || (item?.id ? sectionForMaterialType(item.itemTypeId, item.category, '') : ''));
-    const targetList = destinationListForSection(section || 'accessories', requestedListId);
+    if (state.saving || state.creatingList || state.loading) return;
+    let targetList = destinationListForSection(section || 'accessories', requestedListId);
+    if (!targetList) {
+      const operation = captureProjectOperation();
+      const type = resourceTypeForSection(section);
+      const terms = resourceTerms(type, null);
+      state.creatingList = true;
+      setWorkspaceSaving(true);
+      try {
+        const result = await (materialsAPI || window.MaterialsAPI).projects.create(operation.orgId, operation.projectId, {
+          title: terms.plural, resource_type: type, branch_id: branchId(), items: [], sections: [],
+          terminology: terms, color: firstUnusedListColor(), order_sources: projectOrderSources(),
+          metadata: { source:'scope_tab', role:`custom_${type}`, manually_created:true }
+        });
+        if (!projectOperationIsCurrent(operation)) return;
+        targetList = updateMaterialListState(result.material_list || result.list);
+        if (!targetList) throw Error('The resource list was not returned.');
+      } catch (error) {
+        if (projectOperationIsCurrent(operation)) showToast('Could not add item', error?.message || 'Please try again.', false);
+        return;
+      } finally {
+        if (projectOperationIsCurrent(operation)) { state.creatingList = false; setWorkspaceSaving(false); }
+      }
+    }
     if (!targetList) {
       showToast((globalThis.PlatformLanguage?.text("materials","m_a4269cbe0fe144","No matching list") ?? "No matching list"), ((v0) => globalThis.PlatformLanguage?.text("materials","m_0331e26e6a5102",`Create or enable a ${v0} list before adding this item.`,{v0}) ?? `Create or enable a ${v0} list before adding this item.`)(resourceTypeForSection(section)), false);
       return;
@@ -2320,7 +2411,13 @@
         renderLeft();
       }
       setWorkspaceSaving(false);
+      syncTopBar();
+      syncMaterialsGrid();
+      renderLeft();
       syncFooterTotals();
+      const nameInput = findByData(materialRoot(), '[data-mt-item-name]', 'mtItemName', line.id);
+      nameInput?.focus();
+      nameInput?.select();
       timingMark('addItem:end', { items: listItems().length }, timingStart);
     }
   }
@@ -3221,10 +3318,25 @@
     });
   }
 
+  function resourceScrollPositions(root){
+    return Array.from(root?.querySelectorAll('.mt-resource-column') || []).map((column) => {
+      const scroll = column.querySelector('.mt-resource-scroll');
+      return { type:column.dataset.resourceType, top:scroll?.scrollTop || 0, left:scroll?.scrollLeft || 0 };
+    });
+  }
+
+  function restoreResourceScroll(root, positions){
+    positions.forEach((position) => {
+      const scroll = root?.querySelector(`.mt-resource-column[data-resource-type="${position.type}"] .mt-resource-scroll`);
+      if (scroll) { scroll.scrollTop = position.top; scroll.scrollLeft = position.left; }
+    });
+  }
+
   function render(options = {}){
     const timingStart = performance.now();
     if (!state.panelRoot) return;
     closeListMenu();
+    const previousResourceScroll = options.preserveScroll ? resourceScrollPositions(state.panelRoot) : [];
     const activeSelector = document.activeElement?.matches?.('[data-mt-pricebook-search]')
       ? '[data-mt-pricebook-search]'
       : '';
@@ -3249,10 +3361,10 @@
       <div class="mt-top">
         <div class="mt-title">
           <i class="fas fa-clipboard-list"></i>
-          <div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</strong><span>${String(escapeHtml(list ? `${list.title || activeTerms.list} active · ${visibleCount} of ${state.lists.length} visible` : (state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("materials","m_c9170d09831e64","No scope lists") ?? "No scope lists"))))}</span></div>
+          <div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","scope_of_work","Scope of Work") ?? "Scope of Work")}</strong><span>${String(escapeHtml(list ? `${list.title || activeTerms.list} active · ${visibleCount} of ${state.lists.length} visible` : (state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("materials","m_c9170d09831e64","No scope lists") ?? "No scope lists"))))}</span></div>
         </div>
         <div class="mt-actions">
-          <button type="button" class="mt-icon-btn" data-mt-refresh title="${(globalThis.PlatformLanguage?.htmlText("materials","m_78973ce0cf3403","Refresh") ?? "Refresh")}"><i class="fas fa-rotate"></i></button>
+
           ${String(list && activeType === 'material' ? `<button type="button" class="mt-btn${state.pricebookOpen ? ' primary' : ''}" data-mt-open-pricebook ${!list ? 'disabled' : ''}><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_cf3630161575f6"," Price Book") ?? " Price Book")}</button>` : '')}
           <button type="button" class="mt-btn" data-mt-add-custom ${list ? '' : 'hidden'} ${String(!list ? 'disabled' : '')}><i class="fas fa-plus"></i> ${String(escapeHtml(activeTerms.singular))}</button>
           ${String(canSchedule ? `<button type="button" class="mt-btn" data-mt-schedule-list="${escapeHtml(list?.id || '')}" ${state.saving || state.schedulingListId ? 'disabled' : ''}><i class="fas ${state.schedulingListId === cleanText(list?.id) ? 'fa-rotate mt-spin' : 'fa-calendar-day'}"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>` : '')}
@@ -3263,6 +3375,7 @@
         <main class="mt-main">
           ${String(state.loading ? `<div class="mt-card"><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_7b94d3b02679a9","Loading scope...") ?? "Loading scope...")}</p></div>` : '')}
           ${String(state.lastError ? `<div class="mt-card"><p>${escapeHtml(state.lastError)}</p></div>` : '')}
+          ${scopeWorkspace?.renderDocuments(state.scopeDocuments, state.scopeDocumentsError) || ''}
           <div class="mt-material-scroll" data-mt-material-scroll>
             <div class="mt-material-grid" data-mt-material-grid>
               ${String(renderMaterialSections())}
@@ -3285,6 +3398,7 @@
     timingMark('render:innerHTML', { items: listItems().length, pricebookOpen: state.pricebookOpen, loading: state.loading }, htmlStart);
     const bindStart = performance.now();
     bindMain(root);
+    restoreResourceScroll(root, previousResourceScroll);
     timingMark('render:bindMain', { items: listItems().length }, bindStart);
     if (options.preserveScroll) {
       const scroller = root.querySelector('.mt-material-scroll');
@@ -3353,23 +3467,19 @@
   }
 
   function renderMaterialSections(){
-    const sections = materialSectionDefinitions()
-      .filter((section) => sectionItems(section.key).length > 0);
-    if (!sections.length) {
-      const message = state.lists.length
-        ? 'No visible scope items. Use the eye controls to show a list, or add an item to the active list.'
-        : 'No resource lists are defined for this scope.';
-      return `<section class="mt-section mt-material-empty"><div class="mt-empty">${escapeHtml(message)}</div></section>`;
-    }
-    const columns = [sections, []];
-    return columns.map((column) => `
-      <div class="mt-material-column">
-        ${column.map((section) => {
-      const items = sectionItems(section.key);
-      return renderMaterialSection(section, items);
-    }).join('')}
-      </div>
-    `).join('');
+    const items = filteredItems();
+    const types = ['material', 'labor', 'equipment'];
+    const allEmpty = !items.length;
+    return types.map((type) => {
+      const rows = items.filter((item) => resourceType(materialListById(item.__material_list_id)) === type);
+      const terms = resourceTerms(type, state.lists.find((list) => resourceType(list) === type));
+      const sections = materialSectionDefinitions().filter((section) => (section.resource_type || 'material') === type && rows.some((item) => lineSectionKey(item) === section.key));
+      return `<section class="mt-resource-column" data-resource-type="${type}" data-empty="${!rows.length}" data-all-empty="${allEmpty}">
+        <h3 class="mt-resource-heading">${escapeHtml(terms.plural)}</h3>
+        <div class="mt-resource-scroll">${sections.map((section) => renderMaterialSection(section, rows.filter((item) => lineSectionKey(item) === section.key))).join('') || '<div class="mt-empty">Empty List</div>'}</div>
+        <button type="button" class="mt-resource-add" data-mt-add-section="${type === 'material' ? 'accessories' : type}" ${state.saving || state.loading || state.creatingList ? 'disabled' : ''}>+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>
+      </section>`;
+    }).join('');
   }
 
   function renderMaterialSection(section, items = sectionItems(section.key)){
@@ -3391,48 +3501,7 @@
   }
 
   function arrangeMaterialColumns(root){
-    const timingStart = performance.now();
-    const scroll = root.querySelector('[data-mt-material-scroll]');
-    const grid = root.querySelector('[data-mt-material-grid]');
-    if (!scroll || !grid) {
-      positionColorPortal(root);
-      return;
-    }
-    const columns = Array.from(grid.querySelectorAll('.mt-material-column'));
-    if (columns.length < 2 || grid.clientWidth <= 900 || window.matchMedia?.('(max-width: 980px)')?.matches) {
-      if (columns.length >= 2) {
-        const sections = [...columns[0].children, ...columns[1].children];
-        columns[0].replaceChildren(...sections);
-        columns[1].replaceChildren();
-      }
-      positionColorPortal(root);
-      return;
-    }
-    const [left, right] = columns;
-    const sections = [...left.children, ...right.children];
-    if (sections.length <= 1) {
-      positionColorPortal(root);
-      return;
-    }
-    left.replaceChildren(...sections);
-    right.replaceChildren();
-    const gap = number(getComputedStyle(left).rowGap || getComputedStyle(left).gap, 14);
-    const heights = sections.map((section) => section.getBoundingClientRect().height);
-    let bestSplit = 1;
-    let bestDifference = Number.POSITIVE_INFINITY;
-    for (let split = 1; split < sections.length; split += 1) {
-      const leftHeight = heights.slice(0, split).reduce((sum, value) => sum + value, 0) + (gap * Math.max(0, split - 1));
-      const rightHeight = heights.slice(split).reduce((sum, value) => sum + value, 0) + (gap * Math.max(0, sections.length - split - 1));
-      const difference = Math.abs(leftHeight - rightHeight);
-      if (difference < bestDifference) {
-        bestDifference = difference;
-        bestSplit = split;
-      }
-    }
-    left.replaceChildren(...sections.slice(0, bestSplit));
-    right.replaceChildren(...sections.slice(bestSplit));
     positionColorPortal(root);
-    timingMark('arrangeMaterialColumns', { sections: sections.length, split: bestSplit, leftHeight: left.scrollHeight, rightHeight: right.scrollHeight }, timingStart);
   }
 
   function renderLineRow(item){
@@ -3623,9 +3692,9 @@
     const ordered = materialListOrdered(list);
     const canSchedule = !!list && resourceScheduleEnabled(list);
     return `<div class="mt-top">
-      <div class="mt-title"><i class="fas fa-clipboard-list"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</strong></div></div>
+      <div class="mt-title"><i class="fas fa-clipboard-list"></i><div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","scope_of_work","Scope of Work") ?? "Scope of Work")}</strong></div></div>
       <div class="mt-actions">
-        <button type="button" class="mt-icon-btn" data-mt-refresh title="${(globalThis.PlatformLanguage?.htmlText("materials","m_78973ce0cf3403","Refresh") ?? "Refresh")}"><i class="fas fa-rotate"></i></button>
+
         ${String(list && activeType === 'material' ? `<button type="button" class="mt-btn${state.pricebookOpen ? ' primary' : ''}" data-mt-open-pricebook ${!list ? 'disabled' : ''}><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_cf3630161575f6"," Price Book") ?? " Price Book")}</button>` : '')}
         <button type="button" class="mt-btn" data-mt-add-custom ${list ? '' : 'hidden'} ${String(!list ? 'disabled' : '')}><i class="fas fa-plus"></i> ${String(escapeHtml(activeTerms.singular))}</button>
         ${String(canSchedule ? `<button type="button" class="mt-btn" data-mt-schedule-list="${escapeHtml(list?.id || '')}" ${state.saving || state.schedulingListId ? 'disabled' : ''}><i class="fas ${state.schedulingListId === cleanText(list?.id) ? 'fa-rotate mt-spin' : 'fa-calendar-day'}"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>` : '')}
@@ -3672,28 +3741,16 @@
   }
 
   function syncMaterialSection(sectionKey){
-    const root = materialRoot();
-    const existing = findByData(root, '[data-mt-section-key]', 'mtSectionKey', sectionKey);
-    const section = materialSectionDefinitions().find((entry) => entry.key === sectionKey);
-    const items = sectionItems(sectionKey);
-    if (!existing || !section || !items.length) return syncMaterialsGrid();
-    const holder = document.createElement('div');
-    holder.innerHTML = renderMaterialSection(section, items);
-    const next = holder.firstElementChild;
-    if (!next) return false;
-    existing.replaceWith(next);
-    bindSectionContent(next);
-    syncFooterTotals();
-    scheduleArrange(root);
-    timingMark('syncMaterialSection', { sectionKey });
-    return true;
+    return syncMaterialsGrid();
   }
 
   function syncMaterialsGrid(){
     const root = materialRoot();
     const grid = root?.querySelector?.('[data-mt-material-grid]');
     if (!grid) return false;
+    const scrollPositions = resourceScrollPositions(grid);
     grid.innerHTML = renderMaterialSections();
+    restoreResourceScroll(grid, scrollPositions);
     bindSectionContent(grid);
     syncFooterTotals();
     scheduleArrange(root);
@@ -4207,13 +4264,14 @@
   }
 
   function bindMain(root){
-    root.querySelector('[data-mt-refresh]')?.addEventListener('click', loadData);
+
     root.querySelectorAll('[data-mt-section]').forEach((button) => button.addEventListener('click', () => {
       state.selectedSection = button.dataset.mtSection || 'all';
       rootWindow.Portal?.navigation?.replace?.({ materialSection:state.selectedSection === 'all' ? null : state.selectedSection }, { source:'scope-section', ownedKeys:['materialSection'] });
       render({ preserveScroll:true });
     }));
     bindSectionContent(root);
+    scopeWorkspace?.bindDocuments(root, orgId(), projectId());
     root.querySelector('[data-mt-open-pricebook]')?.addEventListener('click', () => {
       state.pricebookOpen = !state.pricebookOpen;
       syncPricebookPanel();
@@ -4396,6 +4454,7 @@
       scopeWidgetLibrary=widgets.library(target,{items:projectWidgets.scopeItems().filter(item => item.key !== 'materials'),selected:scopeWidgetSelection,layout:'stacked',context:scopeWidgetContext(),onSelect:key=>{scopeWidgetSelection=key;}});
     }else scopeWidgetLibrary.update(scopeWidgetContext(),{ids:['scope.overview','scope.lists','scope.measurements']});
     scopeWidgetLibrary.setVisible(true);
+    scopeWorkspace?.installDivider(state.sidebarRoot);
     timingMark('renderLeft:end', { active: state.active }, timingStart);
   }
 
@@ -4906,11 +4965,14 @@
   }
 
   function mount(context = {}){
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(refreshWorkspace, 20000);
     installTimingProbe();
     const timingStart = performance.now();
     timingMark('mount:start', { active: context.active !== false });
     state.contextGeneration += 1;
     state.saving = false;
+    state.creatingList = false;
     const nextProject = projectFromContext(context);
     const previousProjectId = cleanText(state.project?.id || state.context?.projectId || state.context?.entityId);
     const nextProjectId = cleanText(nextProject?.id || context.projectId || context.entityId);
@@ -4918,6 +4980,8 @@
     state.host = context.host || context.projectWorkspace || state.host;
     state.project = nextProject;
     if (previousProjectId && nextProjectId && previousProjectId !== nextProjectId) {
+      state.scopeDocuments = [];
+      state.scopeDocumentsError = '';
       state.lists = [];
       state.activeListId = '';
       state.activeList = null;
@@ -4979,7 +5043,7 @@
     setWorkspaceChrome(state.active);
     if (state.active) {
       renderLeft();
-      if (!state.lists.length && !state.loading) loadData();
+      if (!state.loading) loadData();
       else render();
     } else {
       scopeWidgetLibrary?.setVisible(false);
@@ -4993,6 +5057,9 @@
 
   function reset(){
     disposeScopeWidgets();
+    state.scopeDocuments = [];
+    state.scopeDocumentsError = '';
+    scopeWorkspace?.removeDivider(state.sidebarRoot);
     state.lists = [];
     state.activeListId = '';
     state.activeList = null;
@@ -5044,6 +5111,7 @@
   }
 
   function destroy(){
+    clearInterval(refreshTimer);
     if (arrangeFrame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(arrangeFrame);
     arrangeFrame = 0;
     if (noteVisibilityOutsideBound) document.removeEventListener('click', closeScopeNoteVisibilityOnOutsideClick);

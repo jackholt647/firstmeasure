@@ -9201,7 +9201,7 @@
     "document_engine.completed_status": "Slutförd",
     "document_engine.declined_status": "Avböjd",
     "document_engine.void_status": "Ogiltigförklarat",
-    "scope.project_tab": "Omfattning",
+    "scope.project_tab": "Projekt",
     "scope.templates_settings_tab": "Omfattningsmallar",
     "scope.flags_settings_tab": "Omfattningsflaggor",
     "scope.details_view": "Detaljer",

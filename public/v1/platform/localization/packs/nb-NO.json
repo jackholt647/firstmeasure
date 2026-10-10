@@ -9610,7 +9610,7 @@
     "document_engine.completed_status": "Fullført",
     "document_engine.declined_status": "Avslått",
     "document_engine.void_status": "Ugyldiggjort",
-    "scope.project_tab": "Omfang",
+    "scope.project_tab": "Prosjekt",
     "scope.templates_settings_tab": "Omfangsmaler",
     "scope.flags_settings_tab": "Omfangsflagg",
     "scope.details_view": "Detaljer",

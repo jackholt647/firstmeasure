@@ -9266,7 +9266,7 @@
     "document_engine.completed_status": "Completato",
     "document_engine.declined_status": "Rifiutato",
     "document_engine.void_status": "Annullato",
-    "scope.project_tab": "Ambito lavori",
+    "scope.project_tab": "Progetto",
     "scope.templates_settings_tab": "Modelli di ambito lavori",
     "scope.flags_settings_tab": "Indicatori ambito lavori",
     "scope.details_view": "Dettagli",

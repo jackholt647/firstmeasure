@@ -12670,7 +12670,7 @@
     "document_engine.completed_status": "Completed",
     "document_engine.declined_status": "Declined",
     "document_engine.void_status": "Void",
-    "scope.project_tab": "Scope",
+    "scope.project_tab": "Project",
     "scope.templates_settings_tab": "Scope Templates",
     "scope.flags_settings_tab": "Scope Flags",
     "scope.details_view": "Details",

@@ -9614,7 +9614,7 @@
     "document_engine.completed_status": "Ολοκληρώθηκε",
     "document_engine.declined_status": "Απορρίφθηκε",
     "document_engine.void_status": "Ακυρώθηκε",
-    "scope.project_tab": "Αντικείμενο εργασιών",
+    "scope.project_tab": "Έργο",
     "scope.templates_settings_tab": "Πρότυπα αντικειμένων εργασιών",
     "scope.flags_settings_tab": "Επισημάνσεις αντικειμένου εργασιών",
     "scope.details_view": "Λεπτομέρειες",

@@ -9102,7 +9102,7 @@
     "document_engine.completed_status": "Dokončeno",
     "document_engine.declined_status": "Odmítnuto",
     "document_engine.void_status": "Neplatné",
-    "scope.project_tab": "Rozsah prací",
+    "scope.project_tab": "Projekt",
     "scope.templates_settings_tab": "Šablony rozsahu prací",
     "scope.flags_settings_tab": "Příznaky rozsahu prací",
     "scope.details_view": "Podrobnosti",

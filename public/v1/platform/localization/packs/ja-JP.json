@@ -9618,7 +9618,7 @@
     "document_engine.completed_status": "完了",
     "document_engine.declined_status": "辞退",
     "document_engine.void_status": "無効",
-    "scope.project_tab": "作業範囲",
+    "scope.project_tab": "プロジェクト",
     "scope.templates_settings_tab": "作業範囲テンプレート",
     "scope.flags_settings_tab": "作業範囲フラグ",
     "scope.details_view": "詳細",

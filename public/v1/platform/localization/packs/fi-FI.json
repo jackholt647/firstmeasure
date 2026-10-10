@@ -9602,7 +9602,7 @@
     "document_engine.completed_status": "Valmis",
     "document_engine.declined_status": "Hylätty",
     "document_engine.void_status": "Mitätöity",
-    "scope.project_tab": "Työn sisältö",
+    "scope.project_tab": "Projekti",
     "scope.templates_settings_tab": "Työn sisältöpohjat",
     "scope.flags_settings_tab": "Työn sisältöliput",
     "scope.details_view": "Tiedot",

@@ -9566,7 +9566,7 @@
     "document_engine.completed_status": "Completado",
     "document_engine.declined_status": "Rechazado",
     "document_engine.void_status": "Anulado",
-    "scope.project_tab": "Alcance",
+    "scope.project_tab": "Proyecto",
     "scope.templates_settings_tab": "Plantillas de alcances",
     "scope.flags_settings_tab": "Indicadores de alcances",
     "scope.details_view": "Detalles",

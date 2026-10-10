@@ -9614,7 +9614,7 @@
     "document_engine.completed_status": "Voltooid",
     "document_engine.declined_status": "Afgewezen",
     "document_engine.void_status": "Ongeldig",
-    "scope.project_tab": "Werkzaamheden",
+    "scope.project_tab": "Project",
     "scope.templates_settings_tab": "Sjablonen voor werkzaamheden",
     "scope.flags_settings_tab": "Werkzaamheidsmarkeringen",
     "scope.details_view": "Details",

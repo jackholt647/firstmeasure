@@ -9378,7 +9378,7 @@
     "document_engine.completed_status": "Ukończono",
     "document_engine.declined_status": "Odrzucono",
     "document_engine.void_status": "Unieważniono",
-    "scope.project_tab": "Zakres",
+    "scope.project_tab": "Projekt",
     "scope.templates_settings_tab": "Szablony zakresów",
     "scope.flags_settings_tab": "Flagi zakresu",
     "scope.details_view": "Szczegóły",
