@@ -177,6 +177,7 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.getByRole('button',{name:'Posts',exact:true}).click();
   assert.equal(await page.locator('[data-feed-manual-only]').count(),0);
   assert.ok(await page.locator('.pf-create-post').evaluate(element=>element.getBoundingClientRect().right <= document.querySelector('.pf-density').getBoundingClientRect().left),'Post sits at the left edge of the right-hand controls');
+  assert.ok(await page.locator('[data-feed-scope]').evaluate(element=>element.getBoundingClientRect().right <= document.querySelector('.pf-create-post').getBoundingClientRect().left),'Show sits to the left of Post');
   await page.locator('[data-feed-scope]').click();
   assert.equal(await page.locator('[data-feed-scope]').evaluate(element=>getComputedStyle(element).borderTopWidth),'0px');
   assert.equal(await page.getByText('Company board',{exact:true}).count(),0);
@@ -255,6 +256,8 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await composer.screenshot({path:new URL('../../../output/feed/screenshots/composer.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1')});
   assert.equal(await composer.locator('.pf-post-compose-tools .pf-compose-tool').count(),5);
   assert.equal(await composer.locator('.pf-compose-author .pf-post-avatar').count(),1);
+  assert.equal(await composer.locator('.pf-compose-author-copy>strong').textContent(),'Sam Rivera');
+  assert.ok(await composer.evaluate(element=>element.getBoundingClientRect().bottom-element.querySelector('.pf-compose-message').getBoundingClientRect().bottom<35),'empty attachment mounts leave no footer gap');
   assert.equal(await composer.getByRole('button',{name:'Cancel',exact:true}).count(),0);
   assert.equal(await composer.getByRole('toolbar',{name:'Post formatting'}).count(),1);
   assert.ok(await composer.locator('[data-feed-compose-text]').evaluate(element=>element.getBoundingClientRect().height>=290),'post box is taller');
