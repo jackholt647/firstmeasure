@@ -72,6 +72,9 @@ Overview and other apps retain their own content rails as described in
 [project content ownership](project-content-layout.md). This does not restore
 the removed project left-region override or module injection contracts.
 
+Contacts declare Projects, Photos & Media, and Docs panes. Docs lists files owned
+by the contact and uploads to that contact's media library.
+
 `localPanes` retains in-document tab nodes (Contacts). Project panes retain their
 existing isolated documents and share the portal's transport. Changing ratios
 or order retains open panes. Project trays sit to the right of the entire
