@@ -2979,3 +2979,14 @@ test('horizontal plane clipboard uses world X and Y when projected world up is u
  const p=(x,y,z)=>({x,y,z}),shape={id:'shape',points:[p(0,0,2),p(3,0,2),p(0,1,2)]},source={points:[p(-1,-1,2),p(4,1,2),p(4,4,2),p(-1,4,2)]},destination={points:[p(0,0,4),p(4,0,3),p(4,0,0),p(0,0,0)]},f=fixture({state:{wallEdits:{$surfaces:[shape]}},walls:[],selected:null,globals:{isFreeMove:true,camera:{position:{x:2,y:-10,z:8}}},projectPoint:()=>({x:0,y:0,z:0})});
  f.editor.togglePlane(source);planeSelection(f,shape.points);f.editor.clipboardCommand('copy');f.editor.togglePlane();f.editor.togglePlane(destination);f.listeners.pointermove(f.e(0,0));f.editor.clipboardCommand('paste');f.editor.planeDown(f.e(0,0));const [a,b,c]=f.editor.pointSelection();assert.equal(f.history.length,1,f.message());assert.ok(Math.abs(b.x-a.x-3)<1e-6&&Math.abs(b.z-a.z)<1e-6);assert.ok(Math.abs(c.x-a.x)<1e-6&&Math.abs(c.z-a.z-1)<1e-6);
 });
+test('selection action context is read-only and follows plane point selection',()=>{
+ const f=fixture(),before=JSON.stringify(f.state);f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]});
+ planeSelection(f,[{x:0,y:0,z:0},{x:4,y:0,z:4}]);const selection=JSON.stringify(f.editor.selectionSnapshot()),state=JSON.stringify(f.state),ctx=f.editor.actionContext();
+ assert.equal(ctx.mode,'plane');assert.equal(ctx.points,2);assert.equal(ctx.busy,false);assert.equal(JSON.stringify(f.editor.selectionSnapshot()),selection);assert.equal(JSON.stringify(f.state),state);
+ f.editor.key({key:'n'});assert.equal(f.editor.actionContext().busy,true);
+});
+test('selection action context exposes multiple wall lines without modifying selection',()=>{
+ const f=fixture(),pair=[{x:0,y:0,z:0},{x:4,y:0,z:0}],pair2=[{x:0,y:0,z:4},{x:4,y:0,z:4}];
+ f.editor.restoreSelection({lineSelection:[{id:'one',pair},{id:'two',pair:pair2}]});const before=JSON.stringify(f.editor.selectionSnapshot());
+ const ctx=f.editor.actionContext();assert.equal(ctx.lines,2);assert.equal(ctx.canExtrude,true);assert.equal(ctx.transform,true);assert.equal(JSON.stringify(f.editor.selectionSnapshot()),before);
+});
