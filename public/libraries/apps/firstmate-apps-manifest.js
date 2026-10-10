@@ -29,7 +29,7 @@
   };
   const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-appointment-picker-v1');
   const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261010-priority-fields-v1');
-  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261010-project-priority-preview':'20261003-project-widgets-v1'));
+  const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261010-project-contact-icons':'20261003-project-widgets-v1'));
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),

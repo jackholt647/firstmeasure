@@ -4,7 +4,7 @@ import { registerDataProvider } from '../publication/providers.js';
 import { badRequest, forbidden, notFound } from '../errors.js';
 import type { AccessPolicy, PublicationContext, TargetRef } from '../publication/contracts.js';
 import { contentHash } from '../publication/validation.js';
-const fields=['id','name','title','first_name','last_name','email','phone','address','city','state','status','stage','document_type','type','created_at','updated_at','total_cents','cover_media_id','stage_label','job_type','project_type','primary_contact_name','primary_contact_phone','primary_contact_email','primary_contact_visible','deal_value_cents'];
+const fields=['id','name','title','first_name','last_name','email','phone','address','city','state','status','stage','document_type','type','created_at','updated_at','total_cents','cover_media_id','stage_label','job_type','project_type','primary_contact_name','primary_contact_phone','primary_contact_email','primary_contact_visible','project_contact_count','deal_value_cents'];
 const schema={type:'object',properties:Object.fromEntries(fields.map(k=>[k,{type:['string','number','boolean','null']}])),additionalProperties:false};
 const pick=(data:any,id:string)=>({...Object.fromEntries(fields.filter(k=>data[k]===null||['string','number','boolean'].includes(typeof data[k])).map(k=>[k,data[k]])),id});
 const userFields=['id','name','email','phone','profile_photo','title','department','location','time_zone','pronouns','bio'];
@@ -31,7 +31,9 @@ function projectSummary(data:any,id:string,contactsVisible:boolean,financialsVis
  const cover=obj(obj(data.custom_field_values).cover_photo||obj(data.custom_fields).cover_photo);
  const photos=Array.isArray(data.photos)?data.photos:[];
  const photo=photos.map(obj).find((item:any)=>label(item.media_id||item.mediaId))||{};
- const contact=(Array.isArray(data.contacts)?data.contacts:[]).map(obj).find((item:any)=>item.primary===true||label(item.id)===label(data.primary_contact_id))||{};
+ const contacts=(Array.isArray(data.contacts)?data.contacts:[]).map(obj);
+ const contact=contacts.find((item:any)=>item.primary===true||label(item.id)===label(data.primary_contact_id))||{};
+ const contactCount=contacts.length||([data.primary_contact_id,data.contact_id,data.primary_contact_name,data.customer_name].some(label)?1:0);
  const value=[data.deal_value_cents,data.estimated_value_cents,data.proposal_total_cents,data.project_total_cents].find((item:any)=>Number.isFinite(item)&&item>=0);
  return {...pick(data,id),
   cover_media_id:label(cover.media_id||photo.media_id||photo.mediaId),
@@ -39,6 +41,7 @@ function projectSummary(data:any,id:string,contactsVisible:boolean,financialsVis
   job_type:label(data.job_type||data.service_type),
   project_type:label(data.project_type),
   primary_contact_visible:contactsVisible,
+  project_contact_count:contactsVisible?contactCount:0,
   ...(contactsVisible?{
    primary_contact_name:label(data.primary_contact_name||data.customer_name||contact.name),
    primary_contact_phone:label(data.primary_contact_phone||data.customer_phone||contact.phone),
