@@ -30,8 +30,9 @@ counts. Hover/focus exposes a concise content preview. Opening a document
 tile replaces this rail's content with readable material details and
 the accepted snapshot rendered by FMDocRenderer; Back restores the tiles. This
 uses neither a modal nor a generic JSON instance viewer. Measurements appear
-directly below the documents, with every published value in an editable two-column
-grid. Edits use project-local measurement overrides, never write to the published
+directly below the documents, with every published value in compact inline editable rows. Each section
+measures its labels and uses up to three columns when the rail width permits.
+Pitch and roofing-square explanations are inline control tooltips. Edits use project-local measurement overrides, never write to the published
 source, and have the existing override lifetime. Measurement cards have no hover
 tooltip or separate detail view.
 
