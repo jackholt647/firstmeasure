@@ -1,0 +1,11 @@
+# Channels user summary hover — October 9, 2026
+
+Source commits `af80028b` (Platform Widgets User summary) and `a06ad83b` (Channels hover integration) were pushed to GitHub on `codex/consolidated-firstmeasure-20260923`. This is a development-only change.
+
+The library is **Platform Widgets**. Its `user.summary` widget has type `summary.user`. In Channels, hovering a message avatar, author name, or uniquely resolved `@person` mention opens that shared widget. The old click preview and right profile tray are removed. `@channel`, `@here`, and unresolved mentions do not open a person summary. The widget includes presence, public profile fields, and a Message in Channels action.
+
+The deployment overlaid the three frontend assets (Channels UI, widget renderer, widget runtime), the three widget/presence TypeScript sources, and their compiled JavaScript on development web, pool, and compatibility releases. The live permissions file contained independent SMS group additions; those were preserved when adding the widget permission changes. No data or production files were changed.
+
+Each stage passed JavaScript syntax and Linux TypeScript compilation. Activation was guarded by exact prior-release identity, file hashes, readiness, and development outbound isolation, with rollback on failure. Independent development releases landed during the rollout; stale stages were rejected and rebuilt from the latest baseline. The later combined releases retained the Channels asset (`7f523edbf8cab4dc24573708cb2967fd968062c7785834811f9060548eed8263`) and the widget changes across all three roles. Web's widget files had different line endings but identical source lines. The hosted browser test fetched the live assets and passed avatar hover, mention hover, broadcast-mention exclusion, click-preview removal, and the Message action. The backend widget/presence tests passed 5/5.
+
+Rollback: inspect each role's current development release first. Revert only the two source commits or overlay the prior Channels and Platform Widgets assets and prior widget/presence backend modules onto the latest release; retain unrelated changes from intervening deployments. Restart the development service and PHP-FPM, then verify readiness, development isolation, and both hover paths. Local staging receipts and scripts are in ignored `output/user-summary-hover-20261009/`.

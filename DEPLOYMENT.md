@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 Channels profiles: [User summary on avatar and @mention hover](deploy/digitalocean/development-channels-user-summary-hover-20261009.md) records the Platform Widgets integration, GitHub commits, development rollout, verification, and rollback.
+
 October 9 My Contacts follow-up: [Linked spouse and employer profiles plus Docs](deploy/digitalocean/development-contact-relationships-docs-20261009.md) records the expanded relationship flow, contact documents, verified development rollout and rollback.
 
 October 9 My Contacts: [Contact window, relationships, tags and time zones](deploy/digitalocean/development-contact-window-20261009.md) records the feature changes, follow-up guard, verification, development rollout and rollback.
