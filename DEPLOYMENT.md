@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 10 Priority fields: [shared quick-display fields and published calculations](deploy/digitalocean/development-priority-fields-20261010.md) records the architecture, GitHub feature commit, verified development rollout and prior role paths.
+
 October 9 resource custom fields: [Users, organizational groups and platform phone assignments](deploy/digitalocean/development-resource-custom-fields-20261009.md) records shared typed owners, protected phone issuance references, frontend handoff and verified four-role development rollout.
 
 October 9 Channels profiles: [User summary on avatar and @mention hover](deploy/digitalocean/development-channels-user-summary-hover-20261009.md) records the Platform Widgets integration, GitHub commits, development rollout, verification, and rollback.
