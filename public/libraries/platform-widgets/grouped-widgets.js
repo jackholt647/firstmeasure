@@ -105,10 +105,10 @@
   body.addEventListener('input',report);body.addEventListener('change',report);confirm.onclick=()=>{try{notifySelection({value:read()},{confirmed:true});}catch(e){error.textContent=e.message;}};report();return {destroy(){body.removeEventListener('input',report);body.removeEventListener('change',report);root.replaceChildren();}};
  };for(const id of ['field.input','field.input.contact','field.input.assignment'])W.attachRenderer(id,'1',fieldRenderer);
  W.attachRenderer('emoji.picker','1',async(root,{config,notifySelection})=>{
-  if(!global.FirstMateChannels)await load('../channels-ui/channels-ui.js');const card=shell(root,config.prompt||'Choose an emoji'),body=element('div');card.append(body);const picker=global.FirstMateChannels.mountEmojiPicker(body,emoji=>notifySelection({value:emoji},{confirmed:true,label:emoji}));return {destroy(){picker.destroy();root.replaceChildren();}};
+  if(!global.FirstMatePickerWidgets)await load('pickers.js?v=20261010');const card=shell(root,config.prompt||'Choose an emoji'),body=element('div');card.append(body);const picker=global.FirstMatePickerWidgets.mountEmojiPicker(body,emoji=>notifySelection({value:emoji},{confirmed:true,label:emoji}));return {destroy(){picker.destroy();root.replaceChildren();}};
  });
  W.attachRenderer('gif.picker','1',async(root,{config,reference,context,notifySelection})=>{
-  if(!global.FirstMateChannels)await load('../channels-ui/channels-ui.js');const card=shell(root,config.prompt||'Choose a GIF');card.append(global.FirstMateChannels.createGifPickerButton({orgId:(reference.target||context.target).organizationId,onSend:item=>{const url=item.url||item.src;if(url&&url.length<=512)notifySelection({value:url},{confirmed:true,label:'GIF'});}}));return {destroy(){root.replaceChildren();}};
+  if(!global.FirstMatePickerWidgets)await load('pickers.js?v=20261010');const card=shell(root,config.prompt||'Choose a GIF');const picker=global.FirstMatePickerWidgets.createGifPickerButton({orgId:(reference.target||context.target).organizationId,onSend:item=>{const url=item.url||item.src;if(url&&url.length<=512)notifySelection({value:url},{confirmed:true,label:'GIF'});}});card.append(picker);return {destroy(){picker.destroy();root.replaceChildren();}};
  });
  // Any object producer can opt in with type + target attributes. Hosts do not switch on object kind.
  let hover,owner,handle,generation=0,closeTimer;
