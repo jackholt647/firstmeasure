@@ -28,7 +28,7 @@ mutual-exclusion regression. The separate Messages browser suite passed two
 cases and failed one existing business-alert assertion (`business-bell` absent
 from the fixture result); it does not exercise the composer layout.
 
-| Role | Active release | Previous release path |
+| Role | Activated release | Previous release path |
 | --- | --- | --- |
 | Web | `c2998e823e68f9582a58b3944e061d13aedd86ae` | `/opt/firstmeasure/releases-group-mms-final/62ae7d72308f13d8c1df0c87d021edc5c9ebc37c` |
 | Pool | `c2998e823e68f9582a58b3944e061d13aedd86ae` | `/opt/firstmeasure/releases-group-mms-final/62ae7d72308f13d8c1df0c87d021edc5c9ebc37c` |
@@ -41,3 +41,8 @@ the public asset. The worker was not part of this frontend release.
 
 Local deployment scripts and receipts are in ignored
 `output/channels-composer-20261009/`.
+
+Subsequent independent contact and Feed rollouts superseded these release IDs
+while retaining the exact Channels asset hash on all three roles. After those
+rollouts, the public development endpoint again returned ready with isolation
+enforced, and its Channels asset still matched the committed file.
