@@ -277,6 +277,73 @@
     link.append(img);card.append(link,el('figcaption','','Powered by GIPHY'));return card;
   }
 
+  function mountEmojiPicker(container, onPick){
+    ensureStyles();const search=el('input','fm-ch-emoji-search');search.type='search';search.placeholder='Search emoji groups';search.setAttribute('aria-label','Search emoji');const holder=el('div');container.replaceChildren(search,holder);
+    function paint(){holder.replaceChildren();const filter=cleanText(search.value).toLowerCase();for(const group of EMOJI_SET){const items=group.items.filter(emoji=>!filter||group.group.toLowerCase().includes(filter)||emoji.includes(filter));if(!items.length)continue;holder.append(el('div','fm-ch-emoji-group',esc(group.group)));const grid=el('div','fm-ch-emoji-grid');for(const emoji of items){const button=el('button','',emoji);button.type='button';button.setAttribute('aria-label',emoji);button.onclick=()=>onPick(emoji);grid.append(button);}holder.append(grid);}}search.oninput=paint;paint();return {focus:()=>search.focus(),destroy(){container.replaceChildren();}};
+  }
+  function mountLinkInput(container, values = {}){
+    ensureStyles();container.innerHTML='<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';const text=container.querySelector('[data-link-text]'),url=container.querySelector('[data-url]'),error=container.querySelector('.fm-ch-link-error');text.value=values.text||'';url.value=values.url||'';
+    return {read(){let href;try{const parsed=new URL(url.value.trim());if(!['https:','http:'].includes(parsed.protocol))throw Error();href=parsed.href;}catch{error.textContent='Enter a complete http:// or https:// web address.';url.focus();throw Error(error.textContent);}if(!text.value.trim()){error.textContent='Enter the text for your link.';text.focus();throw Error(error.textContent);}error.textContent='';return {url:href,text:text.value.trim()};},destroy(){container.replaceChildren();}};
+  }
+  function createGifPickerButton({ orgId, onSend, onError = error => root.alert(error.message), actionLabel = 'Send GIF', dialogTitle = 'Send a GIF' }){
+    ensureStyles();
+    const api = root.ChannelsAPI;
+    const button=el('button','fm-ch-icon-btn','<span style="font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px">GIF</span>');
+    button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);
+    button.onclick=()=>{
+
+      let selected=null, removeGrid=null, timer=null, disposed=false;
+      const operationId=`gif_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+      showModal(dialogTitle,(body)=>{
+        const search=el('input');search.type='search';search.placeholder='Search GIPHY';search.setAttribute('aria-label',search.placeholder);
+        const status=el('p','fm-ch-people-summary','Loading GIFs…');status.setAttribute('role','status');
+        const grid=el('div','fm-ch-gif-grid'),preview=el('div');
+        const attribution=el('a','','Powered by GIPHY');attribution.href='https://giphy.com';attribution.target='_blank';attribution.rel='noopener noreferrer';
+        body.append(search,status,grid,preview,attribution);
+        const send=body.parentElement.querySelector('.fm-ch-modal-foot .primary');send.disabled=true;
+        (async()=>{
+          const config=await api.gifs.config(orgId);
+          if(disposed)return;
+          if(!config.enabled)throw new Error('GIF search is not configured for this environment yet.');
+          const {GiphyFetch,renderGrid}=await import('/libraries/gif-picker/giphy-sdk.js?v=20260929');
+          if(disposed)return;
+          const client=new GiphyFetch(config.sdk_key);
+          let generation=0;
+          const paint=()=>{
+            const query=search.value.trim(),version=++generation;
+            removeGrid?.();grid.replaceChildren();status.textContent='Loading GIFs…';
+            removeGrid=renderGrid({width:Math.max(240,Math.floor(grid.clientWidth)),columns:2,gutter:8,noLink:true,
+              fetchGifs:async offset=>{
+                try{
+                  const data=await (query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));
+                  if(!disposed && version===generation)status.textContent=data.data.length?'Choose a GIF to preview before sending.':'No GIFs found. Try another search.';
+                  return data;
+                }catch(error){if(!disposed && version===generation)status.textContent='GIF search is unavailable or its request limit was reached. Try again later.';return {data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
+              },
+              onGifClick:(gif,event)=>{
+                event?.preventDefault();
+                const image=gif.images.fixed_width || gif.images.original;
+                selected={id:String(gif.id),url:image.url,title:gif.title || 'GIF',width:Number(image.width),height:Number(image.height)};
+                preview.replaceChildren();const card=gifMessageCard(selected);if(!card){selected=null;return;}
+                preview.append(card);send.disabled=false;status.textContent='Ready to send. You can choose another GIF.';
+              }
+            },grid);
+          };
+          search.oninput=()=>{clearTimeout(timer);timer=setTimeout(paint,500);};paint();
+        })().catch(error=>{if(!disposed)status.textContent=error.message || 'GIF search is unavailable.';});
+        return ()=>{disposed=true;clearTimeout(timer);removeGrid?.();};
+      },[{label:'Cancel',onClick:close=>close()},{label:actionLabel,primary:true,onClick:async close=>{
+        if(!selected)return;
+        try{
+          await onSend(selected, operationId);
+          close();
+        }catch(error){onError(error);}
+      }}]);
+    };
+    return button;
+  }
+
+
   function clipboardRichHtml(data){
     const html = data.getData('text/html');
     if (!html) return clipboardTable(data) || renderBody({text:data.getData('text/plain')});
@@ -638,16 +705,11 @@
           const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
           const existing = root.getSelection()?.anchorNode?.parentElement?.closest('a');
           const selectedText = root.getSelection()?.toString() || existing?.textContent || '';
+          let linkInput;
           const modal = showModal(existing ? 'Edit link' : 'Insert link', body => {
-            body.innerHTML = '<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';
-            body.querySelector('[data-link-text]').value = selectedText;
-            body.querySelector('[data-url]').value = existing?.getAttribute('href') || '';
+            linkInput=mountLinkInput(body,{text:selectedText,url:existing?.getAttribute('href')||''});
           }, [{label:'Cancel', onClick:close => close()}, {label:existing ? 'Save link' : 'Insert link', primary:true, onClick:(close, body) => {
-            const field = body.querySelector('[data-url]'); let url = field.value.trim();
-            const label = body.querySelector('[data-link-text]').value.trim();
-            try { const parsed = new URL(url); if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(); url = parsed.href; }
-            catch (_) { body.querySelector('.fm-ch-link-error').textContent = 'Enter a complete http:// or https:// web address.'; field.focus(); return; }
-            if (!label) { body.querySelector('.fm-ch-link-error').textContent = 'Enter the text for your link.'; body.querySelector('[data-link-text]').focus(); return; }
+            let picked;try{picked=linkInput.read();}catch{return;}const url=picked.url,label=picked.text;
             editor.focus();
             if (existing && editor.contains(existing)) { const selected = document.createRange(); selected.selectNode(existing); root.getSelection().removeAllRanges(); root.getSelection().addRange(selected); }
             else if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
@@ -4267,33 +4329,7 @@
     // --- emoji picker ------------------------------------------------------------------
 
     function openEmojiPicker(anchor, onPick){
-      showPopover(anchor, (pop) => {
-        const search = el('input', 'fm-ch-emoji-search');
-        search.type = 'text';
-        search.placeholder = (globalThis.PlatformLanguage?.text("channels-ui","m_cd02d20f00360e","Search emoji…") ?? "Search emoji…");
-        pop.appendChild(search);
-        const holder = el('div');
-        pop.appendChild(holder);
-        const renderGroups = (filter) => {
-          holder.innerHTML = '';
-          for (const group of EMOJI_SET) {
-            const items = filter ? group.items : group.items;
-            if (!items.length) continue;
-            if (!filter) holder.appendChild(el('div', 'fm-ch-emoji-group', esc(group.group)));
-            const grid = el('div', 'fm-ch-emoji-grid');
-            for (const emoji of items) {
-              const button = el('button', '', emoji);
-              button.addEventListener('click', () => { closePopover(); onPick(emoji); });
-              grid.appendChild(button);
-            }
-            holder.appendChild(grid);
-            if (filter) break; // single flat grid when filtering
-          }
-        };
-        renderGroups('');
-        search.addEventListener('input', () => renderGroups(cleanText(search.value)));
-        setTimeout(() => search.focus(), 0);
-      });
+      showPopover(anchor,pop=>{const picker=mountEmojiPicker(pop,emoji=>{closePopover();onPick(emoji);});setTimeout(()=>picker.focus(),0);});
     }
 
     // --- composer ------------------------------------------------------------------------
@@ -4390,59 +4426,11 @@
     }
 
     function gifPickerButton(parentId = null){
-      const button=el('button','fm-ch-icon-btn','<span style="font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px">GIF</span>');
-      button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);
-      button.onclick=()=>{
-        const channelId=state.activeChannelId;
-        let selected=null, removeGrid=null, timer=null, disposed=false;
-        const operationId=`gif_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-        showModal('Send a GIF',(body)=>{
-          const search=el('input');search.type='search';search.placeholder='Search GIPHY';search.setAttribute('aria-label',search.placeholder);
-          const status=el('p','fm-ch-people-summary','Loading GIFs…');status.setAttribute('role','status');
-          const grid=el('div','fm-ch-gif-grid'),preview=el('div');
-          const attribution=el('a','','Powered by GIPHY');attribution.href='https://giphy.com';attribution.target='_blank';attribution.rel='noopener noreferrer';
-          body.append(search,status,grid,preview,attribution);
-          const send=body.parentElement.querySelector('.fm-ch-modal-foot .primary');send.disabled=true;
-          (async()=>{
-            const config=await api.gifs.config(orgId);
-            if(disposed)return;
-            if(!config.enabled)throw new Error('GIF search is not configured for this environment yet.');
-            const {GiphyFetch,renderGrid}=await import('/libraries/gif-picker/giphy-sdk.js?v=20260929');
-            if(disposed)return;
-            const client=new GiphyFetch(config.sdk_key);
-            let generation=0;
-            const paint=()=>{
-              const query=search.value.trim(),version=++generation;
-              removeGrid?.();grid.replaceChildren();status.textContent='Loading GIFs…';
-              removeGrid=renderGrid({width:Math.max(240,Math.floor(grid.clientWidth)),columns:2,gutter:8,noLink:true,
-                fetchGifs:async offset=>{
-                  try{
-                    const data=await (query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));
-                    if(!disposed && version===generation)status.textContent=data.data.length?'Choose a GIF to preview before sending.':'No GIFs found. Try another search.';
-                    return data;
-                  }catch(error){if(!disposed && version===generation)status.textContent='GIF search is unavailable or its request limit was reached. Try again later.';return {data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
-                },
-                onGifClick:(gif,event)=>{
-                  event?.preventDefault();
-                  const image=gif.images.fixed_width || gif.images.original;
-                  selected={id:String(gif.id),url:image.url,title:gif.title || 'GIF',width:Number(image.width),height:Number(image.height)};
-                  preview.replaceChildren();const card=gifMessageCard(selected);if(!card){selected=null;return;}
-                  preview.append(card);send.disabled=false;status.textContent='Ready to send. You can choose another GIF.';
-                }
-              },grid);
-            };
-            search.oninput=()=>{clearTimeout(timer);timer=setTimeout(paint,500);};paint();
-          })().catch(error=>{if(!disposed)status.textContent=error.message || 'GIF search is unavailable.';});
-          return ()=>{disposed=true;clearTimeout(timer);removeGrid?.();};
-        },[{label:'Cancel',onClick:close=>close()},{label:'Send GIF',primary:true,onClick:async close=>{
-          if(!selected)return;
-          try{
-            const result=await api.messages.post(orgId,channelId,{text:'',metadata:{giphy:selected},...(parentId?{parent_id:parentId}:{}),client_msg_id:operationId});
-            close();if(state.activeChannelId===channelId)applyIncomingMessage('channels.message.created',result.message,{channel_id:channelId});
-          }catch(error){showError(error);}
-        }}]);
-      };
-      return button;
+      const channelId = state.activeChannelId;
+      return createGifPickerButton({ orgId, onError:showError, onSend:async (selected, operationId) => {
+        const result = await api.messages.post(orgId, channelId, { text:'', metadata:{giphy:selected}, ...(parentId ? {parent_id:parentId} : {}), client_msg_id:operationId });
+        if (state.activeChannelId === channelId) applyIncomingMessage('channels.message.created', result.message, {channel_id:channelId});
+      } });
     }
 
     function postingBlocked(){ return state.activeChannel?.can_post === false || (state.activeChannel?.settings?.posting_locked === true && !state.activeChannel?.can_manage); }
@@ -6163,5 +6151,6 @@
     return title;
   }
 
-  root.FirstMateChannels = { create, createChannelTitle, openChannelProject, EMOJI_SET, DEFAULT_FEATURES };
+  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},renderBody};
+  root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, EMOJI_SET, DEFAULT_FEATURES };
 })();
