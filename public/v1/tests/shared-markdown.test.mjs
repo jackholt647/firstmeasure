@@ -15,7 +15,7 @@ test('escaping, code spans and URL validation keep untrusted content inert',()=>
  assert.doesNotMatch(MD.render('contact_email'),/<em>/);
 });
 test('input is bounded and malformed or deeply nested Markdown remains text',()=>{
- assert.throws(()=>MD.parse('x'.repeat(262145)),RangeError);assert.ok(MD.render('> '.repeat(40)+'nested').length<5000);assert.match(MD.render('**unfinished'),/\*\*unfinished/);assert.match(MD.render('```\nunclosed'),/<pre><code>unclosed/);
+ assert.equal(MD.listMarker('number',Infinity,2),'i.');assert.equal(MD.parse('999999999. Item').blocks[0].start,10000);assert.throws(()=>MD.parse('x'.repeat(262145)),RangeError);assert.ok(MD.render('> '.repeat(40)+'nested').length<5000);assert.match(MD.render('**unfinished'),/\*\*unfinished/);assert.match(MD.render('```\nunclosed'),/<pre><code>unclosed/);
 });
 test('DocModel adapter uses document blocks and cells, keeps literal prose, and reports export loss',()=>{
  const nodes=MD.toDocNodes(example),doc=M.createDocument({kind:'document'});doc.pages=[M.createPage('letter',{children:nodes})];assert.equal(M.validateDocument(doc).ok,true,JSON.stringify(M.validateDocument(doc)));
@@ -28,3 +28,5 @@ test('agents and secondary Markdown surfaces delegate to the shared implementati
 });
 
 test("quoted lists and tables stay structured through the document adapter",()=>{const text="> - First\n>   2. Child\n>\n> | A | B |\n> | --- | --- |\n> | C | D |";const parsed=MD.parse(text);assert.deepEqual(MD.parse(MD.stringify(MD.fromDocNodes(MD.toDocNodes(parsed)).content)),parsed);});
+
+test("table line breaks and document cell paragraphs retain their text",()=>{const nodes=[{type:"table",props:{rows:[{cells:[{text:"Header"}]},{cells:[{blocks:[{runs:[{text:"First"}]},{runs:[{text:"Second"}]}]}]}]}}];const exported=MD.fromDocNodes(nodes);const source=MD.stringify(exported.content);assert.match(source,/First<br>Second/);assert.equal(MD.parse(source).blocks[0].rows[1][0][0].text,"First\nSecond");assert.deepEqual(MD.parse(MD.stringify(MD.parse(source))),MD.parse(source));});
