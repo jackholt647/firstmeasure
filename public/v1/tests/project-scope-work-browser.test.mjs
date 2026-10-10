@@ -86,7 +86,14 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
       document.body.innerHTML='<div class="r-overlay materials-workspace"><div class="r-tab-content"><aside class="r-tab-sidebar mt-widget-sidebar"></aside><div class="r-tab-main"><div class="mt-app"><div class="mt-material-grid" data-mt-material-grid></div></div></div></div></div>';
       window.draw=()=>document.querySelector('[data-mt-material-grid]').innerHTML=renderMaterialSections();draw();
     },{css:fn('css'),render:fn('renderMaterialSections'),helper});
-    await page.evaluate(async()=>{window.helper=await import('/helper.js');helper.installDivider(document.querySelector('aside'))});
+    await page.evaluate(async()=>{window.helper=await import('/helper.js');helper.installDivider(document.querySelector('aside'));
+      window.Portal={navigation:{push:route=>window.openedScopeDocument=route}};
+      const docs=document.createElement('div');docs.innerHTML=helper.renderDocuments([{id:'contract',title:'Roof contract',source:'document',thumbnail:'/missing.png'}]);document.body.append(docs);helper.bindDocuments(docs,'org','project');
+    });
+    await page.locator('.mt-scope-document-sheet i').waitFor();
+    assert.equal(await page.locator('.mt-scope-document-sheet img').count(),0);
+    await page.locator('[data-scope-document="contract"]').click();
+    assert.deepEqual(await page.evaluate(()=>openedScopeDocument),{project:'project',projectTab:'docs',document:'contract'});
     const widths=()=>page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width));
     let w=await widths();assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),3);
     await page.evaluate(()=>{state.lists=[{id:'m',resource_type:'material'},{id:'l',resource_type:'labor'}];items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});

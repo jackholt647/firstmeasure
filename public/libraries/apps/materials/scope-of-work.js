@@ -31,7 +31,7 @@ export async function loadDocuments(orgId, projectId) {
   }
   for (const doc of documents) {
     const mediaId = doc.preview_media_ref?.media_id || doc.preview_media_ref?.id || doc.pdf?.latest_media_id;
-    if (mediaId) doc.thumbnail = api.media?.thumbnailUrl?.(orgId, mediaId, 240);
+    if (mediaId) doc.thumbnail = api.media?.thumbnailUrl?.(orgId, mediaId, 320);
   }
   return {documents, error:results.some(result => result.status === 'rejected') ? 'Some scope documents could not load.' : ''};
 }
@@ -43,6 +43,11 @@ export function renderDocuments(documents = [], error = '') {
 }
 
 export function bindDocuments(root, orgId, projectId) {
+  root.querySelectorAll('.mt-scope-document-sheet img').forEach(image => {
+    const fallback = () => { if (image.parentElement) image.parentElement.innerHTML = '<i class="fas fa-file-signature"></i><hr><hr><hr>'; };
+    image.addEventListener('error', fallback, {once:true});
+    if (image.complete && !image.naturalWidth) fallback();
+  });
   root.querySelectorAll('[data-scope-document]').forEach(button => button.addEventListener('click', async () => {
     if (button.dataset.scopeSource === 'module') {
       button.disabled = true;
