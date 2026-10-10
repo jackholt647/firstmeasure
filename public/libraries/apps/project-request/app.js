@@ -2,7 +2,7 @@
  * Staged request workflow with optional roof-report ordering.
  */
 (function(){
-  const contactsModuleUrl = new URL('../contacts/modal.js?v=20261009-contact-window-v2', document.currentScript.src);
+  const contactsModuleUrl = new URL('../contacts/modal.js?v=20261009-contact-window-v3', document.currentScript.src);
   const registryUrl = new URL('../../window-manager/project-windows.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);

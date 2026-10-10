@@ -98,7 +98,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261009-contact-window-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261009-contact-catalog-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261009-contact-window-v3'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261009-contact-catalog-v1')]
     },
     {
       id: 'portal.photos_feed',
