@@ -1,0 +1,9 @@
+import {zodToJsonSchema} from 'zod-to-json-schema';
+import {registerDataProvider} from '../platform/publication/providers.js';
+import {registerAction} from '../platform/publication/actions.js';
+import {backendImplementationDigest} from '../platform/publication/implementation.js';
+import {listResourceTypes,saveResourceType,resourceTypeInputSchema} from './resource-types.js';
+export function registerResourceTypePublication(){
+ registerDataProvider({id:'material-resource-types',version:'1',apps:['materials'],exports:{catalog:{description:'Organization resource type columns and their shared names, icons and colors.',schema:{type:'array',items:{type:'object',required:['id','name','icon','color','revision'],properties:{id:{type:'string'},name:{type:'string'},icon:{type:'string'},color:{type:'string'},revision:{type:'integer'}}}},schemaVersion:'1',access:{scopes:['organization'],permissions:['view_materials'],capabilities:['platform.materials']},read:async ctx=>{const value=await listResourceTypes(ctx.organizationId);return {value,revision:value.map(row=>row.id+':'+row.revision).join(',')};}}}});
+ for(const operation of ['create','update'])registerAction({id:'materials.resource-type.'+operation,version:'1',domain:'materials',implementation:backendImplementationDigest(),description:operation+' an organization resource type column.',inputSchema:zodToJsonSchema(resourceTypeInputSchema,{$refStrategy:'none'}) as Record<string,unknown>,outputSchema:{type:'object',required:['id','name','icon','color','revision'],additionalProperties:false,properties:{id:{type:'string'},name:{type:'string'},icon:{type:'string'},color:{type:'string'},revision:{type:'integer'}}},policy:{scopes:['organization'],permissions:['manage_projects'],capabilities:['platform.materials']},effect:'write',executionKinds:['api','module','agent','work'],idempotency:'required',execute:(ctx,_target,input)=>saveResourceType(ctx.organizationId,input,ctx.auth!,operation==='create')});
+}

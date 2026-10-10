@@ -30,6 +30,18 @@
         const refs=d.faceSelection?.length?d.faceSelection:d.selectedSolid?[{solid:d.selectedSolid}]:d.selectedRegion?[d.selectedRegion]:[];
         return {points,lines,faces:points||lines?0:unique(refs.map(r=>r.solid?'solid:'+r.solid:r.draft+':'+r.face))};
     }
+    function selectionActions(){
+        const A=window.SelectionActions;if(!A)return [];
+        if(!enabled){
+            const points=typeof selectedPoints!=='undefined'?selectedPoints.size:0,lines=typeof selectedLines!=='undefined'?selectedLines.size:0;
+            const busy=typeof interactState3D!=='undefined'&&interactState3D!=='IDLE'||typeof interactState!=='undefined'&&interactState!=='IDLE';
+            return A.actions({mode:'roof',points,lines,busy,canPaste:typeof geometryClipboard!=='undefined'&&!!geometryClipboard});
+        }
+        if(selectionBusy()||groundEditor?.sampling?.()||editingLayer==='grade')return [];
+        if(wallEditor?.planeActive?.()||editingLayer==='walls')return A.actions(wallEditor?.actionContext());
+        const counts=selectionCounts(),geometry=baseEditor?.chamferSelection?.(),entity=baseEditor?.entitySelection?.();
+        return A.actions({mode:'base',...counts,transform:(geometry?.points?.length||0)>=3,canExtrude:!!(entity?.point||entity?.pair||counts.faces===1),canPaste:!!window.exteriorGeometryClipboard});
+    }
     const selectionBusy=()=>baseEditor?.busy()||wallEditor?.busy()||roofTrimEditor?.busy();
     function restoreSelection(value){
         if(!value)return;value=copy(value);editingLayer=value.layer||'base';selected=value.selected||null;
@@ -980,6 +992,6 @@ function perf_render3DFrame() {
         }
         return {placed:added.length,ids:added.map(f=>f.id),skipped};
     }
-    window.WallMode={prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

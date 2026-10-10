@@ -1,3 +1,4 @@
+import {requireResourceType} from './resource-types.js';
 import { createHash, randomUUID } from "node:crypto";
 
 import type { PlatformAuthContext } from "../platform/auth.js";
@@ -598,7 +599,7 @@ export async function createMaterialList(orgId: string, projectId: string, input
   const { data: project } = await projectData(orgId, projectId);
   const id = materialListId(input);
   const now = nowIso();
-  const title = cleanText(input.title || project.title || project.address || "Materials") || "Materials";
+  const title = asObject(input.metadata).placeholder_title===true?cleanText(input.title):cleanText(input.title || project.title || project.address || "Materials") || "Materials";
   const items = await normalizeLineItems(orgId, input.items);
   const data = {
     schema_version: MATERIALS_SCHEMA_VERSION,
@@ -607,7 +608,7 @@ export async function createMaterialList(orgId: string, projectId: string, input
     branch_id: cleanText(input.branch_id || project.branch_id || ctx.branchId || "default") || "default",
     project_id: projectId,
     title,
-    resource_type: ["labor", "equipment"].includes(cleanText(input.resource_type)) ? cleanText(input.resource_type) : "material",
+    resource_type: await requireResourceType(orgId,input.resource_type),
     resource_subtype: cleanText(input.resource_subtype),
     terminology: asObject(input.terminology),
     controls: asObject(input.controls),
@@ -666,7 +667,7 @@ export async function createMaterialList(orgId: string, projectId: string, input
 
 function scopeResourceType(list: JsonObject) {
   const value = cleanText(list.resource_type).toLowerCase();
-  return ["labor", "equipment"].includes(value) ? value : "material";
+  return value || "material";
 }
 
 function scopeResourceScheduleDefaults(list: JsonObject) {
@@ -1526,7 +1527,7 @@ export async function initializeProjectMaterialListsFromScope(
       let list = await readMaterialList(orgId, listId).catch(() => null);
       const allowedSourceIds = new Set(normalizeStringArray(definition.order_source_ids));
       const orderSources = allowedSourceIds.size ? allOrderSources.filter((source) => allowedSourceIds.has(cleanText(source.id))) : allOrderSources;
-      const resourceType = ["labor", "equipment"].includes(cleanText(definition.resource_type)) ? cleanText(definition.resource_type) : "material";
+      const resourceType = await requireResourceType(orgId,definition.resource_type);
       const assignedFacts = resourceType === "material" ? (assignments.get(definitionId) || []) : [];
       const configuredItems = (Array.isArray(definition.items) ? definition.items : []).map((entry, itemIndex) => {
         const configured = asObject(entry);
@@ -1694,8 +1695,8 @@ export async function patchMaterialList(orgId: string, listId: string, patch: Js
   const items = lockNow ? await normalizeLineItems(orgId, currentItems, { lock: true, lockedAt: nowIso() }) : currentItems;
   const data = {
     ...current,
-    title: cleanText(patch.title || current.title) || "Materials",
-    resource_type: Object.prototype.hasOwnProperty.call(patch, "resource_type") ? cleanText(patch.resource_type) : cleanText(current.resource_type || "material"),
+    title:Object.prototype.hasOwnProperty.call(patch,"title")?cleanText(patch.title):cleanText(current.title),
+    resource_type: Object.prototype.hasOwnProperty.call(patch, "resource_type") ? await requireResourceType(orgId,patch.resource_type) : cleanText(current.resource_type || "material"),
     resource_subtype: Object.prototype.hasOwnProperty.call(patch, "resource_subtype") ? cleanText(patch.resource_subtype) : cleanText(current.resource_subtype),
     terminology: Object.prototype.hasOwnProperty.call(patch, "terminology") ? { ...asObject(current.terminology), ...asObject(patch.terminology) } : asObject(current.terminology),
     controls: Object.prototype.hasOwnProperty.call(patch, "controls") ? { ...asObject(current.controls), ...asObject(patch.controls) } : asObject(current.controls),

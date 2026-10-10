@@ -1,3 +1,4 @@
+import {registerResourceTypePublication} from '../../materials/resource-types-publication.js';
 import { registerSupervisionPublication } from '../../comms/calls/supervision-publication.js';
 import { registerCallAnalysisPublication } from '../../comms/calls/analysis-publication.js';
 import { registerCallPublication } from '../../comms/calls/publication.js';
@@ -44,6 +45,7 @@ export function initializePublication() {
   registerDatasetActions();
   registerModuleDataProvider();
   registerMaterialsCalculusPublication();
+  registerResourceTypePublication();
   registerMaterialsInputs();
   initialized = true;
 }

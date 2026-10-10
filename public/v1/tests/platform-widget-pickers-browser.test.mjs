@@ -121,3 +121,13 @@ test('date, color and project pickers report typed selections; the cap and the o
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
+
+
+test('icon picker edits icon and color in one confirmed selection',async()=>{
+ const browser=await launch();try{const {page,errors}=await open(browser);
+ await page.evaluate(async()=>{window.icon=FirstMateWidgets.mount(document.querySelector('#a'),{id:'icon.picker',version:'1',config:{includeColor:true,value:'fa-layer-group',color:'#125634'}},context);await icon.ready;});
+ await page.locator('#a button').filter({hasText:/^truck$/}).click();assert.equal(await page.evaluate(()=>picks.at(-1).confirmed),false);
+ await page.locator('#a input[type=color]').evaluate(el=>{el.value='#abcdef';el.dispatchEvent(new Event('input',{bubbles:true}));});
+ await page.getByRole('button',{name:'Apply',exact:true}).click();assert.deepEqual(await page.evaluate(()=>icon.selection()),{value:'fa-truck',color:'#abcdef'});assert.equal(await page.evaluate(()=>picks.at(-1).confirmed),true);assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});

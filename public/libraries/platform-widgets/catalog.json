@@ -2018,6 +2018,18 @@
             "pattern": "^fa-[a-z0-9-]+$",
             "maxLength": 80
           }
+        },
+        "includeColor": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^fa-[a-z0-9-]+$",
+          "maxLength": 80
         }
       },
       "additionalProperties": false
@@ -2035,6 +2047,10 @@
             "type": "string",
             "pattern": "^fa-[a-z0-9-]+$",
             "maxLength": 80
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
           }
         },
         "required": [
