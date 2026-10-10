@@ -5,7 +5,7 @@
   let materialsAPI;
   let scopeWorkspace;
   let refreshTimer;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261010-thumbnail-fallback', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261010-published-scope-rail', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005-quantities', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
@@ -555,7 +555,7 @@
       .mt-app{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f8fb;color:#111827;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;container-type:inline-size;container-name:materials-workspace}
       .r-overlay.materials-workspace #mtSidebarSection.visible{min-height:0}
       .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{display:flex;flex-direction:column;box-sizing:border-box;flex:0 0 var(--scope-sidebar-width,33.333%)!important;width:var(--scope-sidebar-width,33.333%);min-width:0;max-width:none;min-height:0;padding:0;overflow:hidden}
-      .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden}
+      .r-overlay.materials-workspace #mtSidebarList{height:100%;flex:1;min-height:0;gap:0;overflow:hidden;display:flex;flex-direction:column}
       .mt-widget-sidebar .mt-left{height:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding:0}
       @media(max-width:850px){
         .r-overlay.materials-workspace :has(> .r-tab-sidebar.mt-widget-sidebar){flex-direction:column!important;min-width:0;min-height:0}
@@ -578,7 +578,7 @@
       .mt-body{flex:1;min-height:0;display:flex;overflow:hidden}
       .mt-status{display:inline-flex;align-items:center;width:max-content;gap:6px;padding:4px 7px;border-radius:999px;background:#f2f4f7;color:#344054;font-size:10px;font-weight:1000;text-transform:capitalize}
       .mt-status.ordered,.mt-status.scheduled{background:#eff8ff;color:#175cd3}.mt-status.delivered{background:#ecfdf3;color:#067647}.mt-status.planning{background:#fffaeb;color:#93370d}
-      .mt-main{position:relative;flex:1;min-width:0;min-height:0;overflow:hidden;padding:14px;display:flex;flex-direction:column;gap:12px}
+      .mt-main{position:relative;flex:1;min-width:0;min-height:0;overflow:hidden;padding:0;display:flex;flex-direction:column;gap:0}
       .mt-toolbar{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:10px;align-items:center}
       .mt-search{width:100%;border:1px solid rgba(15,23,42,.12);border-radius:8px;padding:9px 11px;font-size:12px;font-weight:800;outline:none;background:#fff}
       .mt-search:focus,.mt-input:focus,.mt-select:focus{border-color:rgba(var(--primary-rgb,217,48,37),.36);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.1)}
@@ -589,22 +589,25 @@
       .mt-material-grid{display:flex;gap:10px;height:100%;min-height:0;align-items:stretch}
       .mt-resource-column{flex:1 1 0;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e4e7ec;border-radius:8px;background:#fff}
       .mt-resource-column[data-empty="true"]:not([data-all-empty="true"]){flex:0 0 100px}
-      .mt-resource-heading{margin:0;padding:9px;font-size:12px;border-bottom:1px solid #e4e7ec;white-space:nowrap}
+      .mt-resource-tool{float:right;border:0;background:transparent;color:#536c8e;cursor:pointer;padding:0 2px}.mt-resource-heading{margin:0;padding:9px;font-size:12px;border-bottom:1px solid #e4e7ec;white-space:nowrap}
       .mt-resource-scroll{flex:1;min-height:0;overflow:auto;padding:6px;display:flex;flex-direction:column;gap:8px}
       .mt-resource-scroll .mt-section{flex-shrink:0;min-width:350px}
       .mt-resource-add{margin:6px;padding:7px;border:1px dashed #d0d5dd;border-radius:6px;background:#fff;color:#475467;cursor:pointer;font-size:11px;text-align:left}
       .mt-resource-column[data-empty="true"] .mt-resource-add{white-space:normal}
       .mt-resource-scroll .mt-empty{padding:12px 2px}
-      .mt-scope-documents{flex-shrink:0}
-      .mt-scope-document-strip{display:flex;gap:10px;overflow:auto;padding:2px 0 8px}
-      .mt-scope-document{flex:0 0 112px;padding:0;border:0;background:transparent;text-align:left;cursor:pointer;color:#344054}
-      .mt-scope-document-sheet{height:96px;border:1px solid #e4e7ec;border-radius:6px;background:#fff;display:flex;flex-direction:column;gap:6px;padding:10px;box-sizing:border-box;overflow:hidden}
-      .mt-scope-document-sheet img{height:100%;width:100%;object-fit:contain}
-      .mt-scope-document-sheet strong{font-size:10px;overflow:hidden}
-      .mt-scope-document-sheet i{color:#98a2b3;font-size:22px}
-      .mt-scope-document-sheet hr{width:100%;border:0;border-top:2px solid #eef0f3;margin:0}
-      .mt-scope-document>strong{display:block;font-size:11px;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .mt-scope-document small{font-size:10px;color:#667085}
+      .sw-viewport{flex:1;min-height:0;overflow:hidden}.sw-tabs{display:flex;flex:0 0 36px;gap:0;border-top:1px solid #d5deeb;background:#fff}.sw-tabs button{flex:1;min-width:0;border:0;border-radius:0;background:none;cursor:pointer;color:#62718a;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;padding:6px 2px}.sw-tabs button[aria-selected=true]{color:#215ea5;background:#edf4ff;box-shadow:inset 0 -2px #4879cb}.sw-tabs i{font-size:13px}.sw-tabs button:focus-visible{outline:2px solid #4879cb;outline-offset:-2px}.sw-home,.sw-detail{height:100%;overflow:auto;padding:12px;box-sizing:border-box;color:#263349;background:#f7f9fc}
+      .sw-home section+section,.sw-detail section{margin-top:24px}.sw-home h3,.sw-detail h3{font-size:13px;letter-spacing:.02em;margin:0 0 12px;color:#475467}
+      .sw-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px}
+      .sw-tile{position:relative;text-align:left;padding:16px;border:1px solid #cbd8ec;border-top:3px solid #4879cb;border-radius:10px;background:linear-gradient(140deg,#fff,#edf4ff);color:#243956;cursor:pointer;box-shadow:0 2px 5px #183a5d08}
+      .sw-tile:hover,.sw-tile:focus-visible{border-color:#4879cb;box-shadow:0 4px 14px #183a5d22;outline:2px solid #c3d7fa;outline-offset:2px}
+      .sw-tile-measurement{background:linear-gradient(140deg,#fff,#edf8f4);border-color:#bddbcc;border-top-color:#34866d}
+      .sw-tile-heading{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4}.sw-tile-heading i{color:#4879cb;padding-top:2px}.sw-tile-measurement i{color:#34866d}
+      .sw-summary{display:flex;flex-direction:column;gap:6px;margin:16px 0}.sw-summary strong,.sw-total{font-size:21px;color:#172f50}.sw-summary span,.sw-tile-footer{font-size:11px;color:#52647e;line-height:1.5}.sw-tile-footer{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
+      .sw-empty{font-size:12px;line-height:1.6;color:#667085}.sw-measure{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e0e8ed;padding:9px 0;font-size:12px}.sw-measure strong{white-space:nowrap}.sw-measure small{font-weight:400;color:#52647e}
+      .sw-hover{display:none;position:absolute;left:0;right:0;top:calc(100% - 4px);z-index:15;padding:14px;border:1px solid #b4c8df;border-radius:8px;background:white;box-shadow:0 6px 20px #183a5d33;font-size:12px;line-height:1.5;color:#263349;pointer-events:none}.sw-hover>span,.sw-hover>strong{display:block;margin-bottom:5px}.sw-tile:hover .sw-hover,.sw-tile:focus-visible .sw-hover{display:block}
+      .sw-back{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:8px 12px;cursor:pointer;margin-bottom:20px;color:#263349}.sw-detail h2{font-size:22px;line-height:1.3;margin:8px 0 16px;overflow-wrap:anywhere}.sw-detail header>small{color:#52739a}.sw-detail header p{font-size:12px;color:#667085}
+      .sw-table-wrap{overflow:auto}.sw-detail table{border-collapse:collapse;width:100%;font-size:12px;background:#fff}.sw-detail th{text-align:left;color:#667085;background:#eff3f8;font-size:11px}.sw-detail td,.sw-detail th{padding:10px;border-bottom:1px solid #e4e9ef;vertical-align:top}.sw-detail td small,.sw-source-id{display:block;font-size:10px;color:#667085;margin-top:4px;overflow-wrap:anywhere}.sw-document-stage{width:100%;min-height:120px;overflow:hidden;background:white}.sw-list-tools{margin-top:24px;font-size:12px}.sw-list-tools>summary{cursor:pointer;padding:10px 0;color:#52647e}
+
       .mt-scope-divider{flex:0 0 8px;width:8px;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none;position:relative}
       .mt-scope-divider:after{content:"";position:absolute;left:3px;top:0;bottom:0;width:2px;background:#e4e7ec}
       .mt-scope-divider:hover:after,.mt-scope-divider:focus-visible:after{background:var(--primary,#d93025)}
@@ -700,7 +703,7 @@
       @container materials-workspace (max-width:900px){.mt-material-grid{grid-template-columns:none}.mt-toolbar{grid-template-columns:1fr}.mt-top{align-items:flex-start;flex-direction:column}.mt-top .mt-actions{justify-content:flex-start;width:100%}.mt-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media (max-width:980px){.mt-material-grid{grid-template-columns:none}.mt-toolbar{grid-template-columns:1fr}.mt-summary-grid{grid-template-columns:1fr}.mt-form-grid{grid-template-columns:1fr}.mt-labor-breakdown{grid-template-columns:1fr}.mt-labor-breakdown-group+.mt-labor-breakdown-group{border-left:0;border-top:1px solid #eaecf0}.mt-top{align-items:flex-start;flex-direction:column}.mt-actions{justify-content:flex-start}.mt-order-content.manual{grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr)}.mt-order-content.schedule{grid-template-columns:240px minmax(0,1fr)}.mt-order-schedule-cards{grid-template-columns:1fr}.mt-order-modal{height:calc(100vh - 24px);width:calc(100vw - 24px)}}
       @media (max-width:720px){.mt-order-content.manual{overflow:auto;display:flex}.mt-order-details{overflow:visible}.mt-email-preview{min-height:360px;flex:0 0 auto}.mt-email-body{overflow:auto}.mt-provider{min-width:132px}.mt-order-content.schedule{overflow:auto;display:flex}.mt-order-schedule-side{overflow:visible;border-right:0;border-bottom:1px solid #eaecf0}.mt-order-scheduler{overflow:visible}.mt-order-timing-choices{grid-template-columns:1fr}.mt-order-schedule-mode{grid-template-columns:1fr}.mt-order-date-fields{grid-template-columns:1fr}}
-      @media (max-width:620px){.mt-top{padding:10px}.mt-main{padding:9px}.mt-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.mt-actions .mt-icon-btn{width:100%}.mt-order-providers{padding:0 8px}.mt-provider{min-width:120px;padding-inline:8px}.mt-order-modal{width:calc(100vw - 12px);height:calc(100vh - 12px)}.mt-modal-foot{align-items:stretch;flex-direction:column-reverse}.mt-modal-foot .mt-actions{grid-template-columns:1fr 1fr}.mt-scope-measures{grid-template-columns:1fr 1fr}}
+      @media (max-width:620px){.mt-top{padding:10px}.mt-main{padding:0}.mt-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.mt-actions .mt-icon-btn{width:100%}.mt-order-providers{padding:0 8px}.mt-provider{min-width:120px;padding-inline:8px}.mt-order-modal{width:calc(100vw - 12px);height:calc(100vh - 12px)}.mt-modal-foot{align-items:stretch;flex-direction:column-reverse}.mt-modal-foot .mt-actions{grid-template-columns:1fr 1fr}.mt-scope-measures{grid-template-columns:1fr 1fr}}
       .mt-order-layout{grid-template-rows:auto minmax(0,1fr)}.mt-order-content.manual{grid-template-columns:minmax(330px,.72fr) minmax(0,1.28fr);padding:14px;gap:14px}.mt-order-details{gap:11px}
       .mt-order-list-options{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(142px,1fr);grid-template-rows:1fr;gap:6px;overflow-x:auto;padding:3px 3px 7px;scrollbar-width:thin}.mt-order-list-option{appearance:none;width:100%;min-width:0;min-height:64px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#344054;padding:8px;display:grid;grid-template-columns:9px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;gap:3px 7px;text-align:left;cursor:pointer}.mt-order-list-option>.mt-request-list-dot{grid-column:1;grid-row:1/span 2}.mt-order-list-option>span:nth-of-type(2){grid-column:2;grid-row:1;min-width:0}.mt-order-list-option>em{grid-column:2;grid-row:2;justify-self:start}.mt-order-list-option:hover{border-color:#b8c0cc;background:#f8fafc}.mt-order-list-option.selected{border-color:color-mix(in srgb,var(--primary,#d93025) 42%,#d0d5dd);background:color-mix(in srgb,var(--primary,#d93025) 5%,#fff);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--primary,#d93025) 12%,transparent)}.mt-order-list-option.focused{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.11)}.mt-order-list-picker.scheduling .mt-order-list-option:not(.focused){opacity:.78}.mt-order-section-head>button{border:0;background:transparent;color:#475467;padding:2px;font-size:9px;font-weight:950;cursor:pointer}.mt-order-section-head>button:hover{color:var(--primary-readable,var(--primary,#d93025))}
       .mt-order-delivery-choice{border:1px solid #e4e7ec;border-radius:11px;background:#f8fafc;padding:10px}.mt-required-pill{border-radius:999px;background:#fff3e0;color:#b54708!important;padding:3px 7px;font-size:8px!important;font-weight:1000;text-transform:uppercase}.mt-order-delivery-choice .mt-order-timing-choices{margin-top:8px;gap:7px}.mt-order-delivery-choice .mt-order-timing-choices>button{min-height:60px;padding:8px;grid-template-columns:26px minmax(0,1fr);gap:8px;border-radius:9px}.mt-order-delivery-choice .mt-order-timing-choices>button>i{width:26px;height:26px;border-radius:7px}.mt-order-delivery-choice .mt-order-timing-choices>button strong{font-size:10px}.mt-order-delivery-choice .mt-order-timing-choices>button small{font-size:8px}.mt-order-no-date-note{margin-top:8px;border-radius:8px;background:#fff;color:#667085;padding:8px;display:flex;align-items:flex-start;gap:7px;font-size:9px;line-height:1.4}.mt-order-no-date-note i{color:#175cd3;margin-top:1px}
@@ -1830,6 +1833,7 @@
       state.scopeDocuments = result.documents;
       state.scopeDocumentsError = result.error;
       render({ preserveScroll:true });
+      renderLeft();
       scopeWorkspace.installDivider(state.sidebarRoot);
     } catch (error) {
       if (!loadContextIsCurrent(loadContext)) return;
@@ -3358,24 +3362,10 @@
     const visibleCount = visibleMaterialLists().length;
     const htmlStart = performance.now();
     root.innerHTML = `
-      <div class="mt-top">
-        <div class="mt-title">
-          <i class="fas fa-clipboard-list"></i>
-          <div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","scope_of_work","Scope of Work") ?? "Scope of Work")}</strong><span>${String(escapeHtml(list ? `${list.title || activeTerms.list} active · ${visibleCount} of ${state.lists.length} visible` : (state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("materials","m_c9170d09831e64","No scope lists") ?? "No scope lists"))))}</span></div>
-        </div>
-        <div class="mt-actions">
-
-          ${String(list && activeType === 'material' ? `<button type="button" class="mt-btn${state.pricebookOpen ? ' primary' : ''}" data-mt-open-pricebook ${!list ? 'disabled' : ''}><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_cf3630161575f6"," Price Book") ?? " Price Book")}</button>` : '')}
-          <button type="button" class="mt-btn" data-mt-add-custom ${list ? '' : 'hidden'} ${String(!list ? 'disabled' : '')}><i class="fas fa-plus"></i> ${String(escapeHtml(activeTerms.singular))}</button>
-          ${String(canSchedule ? `<button type="button" class="mt-btn" data-mt-schedule-list="${escapeHtml(list?.id || '')}" ${state.saving || state.schedulingListId ? 'disabled' : ''}><i class="fas ${state.schedulingListId === cleanText(list?.id) ? 'fa-rotate mt-spin' : 'fa-calendar-day'}"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>` : '')}
-          ${String(list && activeType === 'material' ? `<button type="button" class="mt-btn ${ordered ? 'success' : 'primary'}" data-mt-order ${!listItems().length || state.saving ? 'disabled' : ''}><i class="fas ${ordered ? 'fa-circle-check' : 'fa-cart-shopping'}"></i> ${ordered ? 'Ordered' : 'Order'}</button>` : '')}
-        </div>
-      </div>
       <div class="mt-body">
         <main class="mt-main">
           ${String(state.loading ? `<div class="mt-card"><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_7b94d3b02679a9","Loading scope...") ?? "Loading scope...")}</p></div>` : '')}
           ${String(state.lastError ? `<div class="mt-card"><p>${escapeHtml(state.lastError)}</p></div>` : '')}
-          ${scopeWorkspace?.renderDocuments(state.scopeDocuments, state.scopeDocumentsError) || ''}
           <div class="mt-material-scroll" data-mt-material-scroll>
             <div class="mt-material-grid" data-mt-material-grid>
               ${String(renderMaterialSections())}
@@ -3383,13 +3373,6 @@
           </div>
           ${String(activeType === 'labor' ? renderLaborProjectionPanel(list) : '')}
           ${String(state.pricebookOpen && activeType === 'material' ? renderPricebookPanel() : '')}
-          <div class="mt-footer" ${state.lists.length ? '' : 'style="display:none"'}>
-            <div class="mt-summary-grid">
-              <div class="mt-stat"><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_929d3bd2149645","Projected") ?? "Projected")}</span><strong>${String(money(totals.projected))}</strong></div>
-              <div class="mt-stat"><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_f05be3d739b87e","Quoted") ?? "Quoted")}</span><strong>${String(money(totals.quoted))}</strong></div>
-              <div class="mt-stat"><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_956173c8527121","Paid") ?? "Paid")}</span><strong>${String(money(totals.paid))}</strong></div>
-            </div>
-          </div>
         </main>
       </div>
       ${String(activeType === 'material' ? renderOrderDialog() : '')}
@@ -3475,7 +3458,7 @@
       const terms = resourceTerms(type, state.lists.find((list) => resourceType(list) === type));
       const sections = materialSectionDefinitions().filter((section) => (section.resource_type || 'material') === type && rows.some((item) => lineSectionKey(item) === section.key));
       return `<section class="mt-resource-column" data-resource-type="${type}" data-empty="${!rows.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading">${escapeHtml(terms.plural)}</h3>
+        <h3 class="mt-resource-heading">${escapeHtml(terms.plural)}${type==='material'?'<button type="button" class="mt-resource-tool" data-mt-open-pricebook title="Price Book" aria-label="Price Book"><i class="fas fa-book" aria-hidden="true"></i></button>':''}</h3>
         <div class="mt-resource-scroll">${sections.map((section) => renderMaterialSection(section, rows.filter((item) => lineSectionKey(item) === section.key))).join('') || '<div class="mt-empty">Empty List</div>'}</div>
         <button type="button" class="mt-resource-add" data-mt-add-section="${type === 'material' ? 'accessories' : type}" ${state.saving || state.loading || state.creatingList ? 'disabled' : ''}>+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>
       </section>`;
@@ -4271,7 +4254,7 @@
       render({ preserveScroll:true });
     }));
     bindSectionContent(root);
-    scopeWorkspace?.bindDocuments(root, orgId(), projectId());
+
     root.querySelector('[data-mt-open-pricebook]')?.addEventListener('click', () => {
       state.pricebookOpen = !state.pricebookOpen;
       syncPricebookPanel();
@@ -4446,14 +4429,9 @@
       label.textContent = (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope");
       label.hidden = true;
     }
-    const widgets=window.FirstMateWidgets,projectWidgets=window.FirstMateProjectWidgets;
-    if(!widgets||!projectWidgets){target.textContent='The widget viewer could not load. Refresh to try again.';return;}
-    const key=JSON.stringify([orgId(),projectId(),activeMeasurementProjectId()]);
-    if(!scopeWidgetLibrary||scopeWidgetKey!==key||!target.querySelector('.fm-widget-library')){
-      const changed=scopeWidgetKey!==key;disposeScopeWidgets();scopeWidgetKey=key;if(changed)scopeWidgetSelection='overview';
-      scopeWidgetLibrary=widgets.library(target,{items:projectWidgets.scopeItems().filter(item => item.key !== 'materials'),selected:scopeWidgetSelection,layout:'stacked',context:scopeWidgetContext(),onSelect:key=>{scopeWidgetSelection=key;}});
-    }else scopeWidgetLibrary.update(scopeWidgetContext(),{ids:['scope.overview','scope.lists','scope.measurements']});
-    scopeWidgetLibrary.setVisible(true);
+    disposeScopeWidgets();
+    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{listKey:JSON.stringify(state.lists),widgetContext:scopeWidgetContext(),renderLists:()=>scopeWidgetContext().fragments['scope.lists']({})});
+    else target.textContent='Loading published scope data…';
     scopeWorkspace?.installDivider(state.sidebarRoot);
     timingMark('renderLeft:end', { active: state.active }, timingStart);
   }
@@ -5042,11 +5020,13 @@
     state.active = !!active;
     setWorkspaceChrome(state.active);
     if (state.active) {
+      scopeWorkspace?.setSidebarVisible(leftContentRoot(),true);
       renderLeft();
       if (!state.loading) loadData();
       else render();
     } else {
       scopeWidgetLibrary?.setVisible(false);
+      scopeWorkspace?.setSidebarVisible(leftContentRoot(),false);
       const activeTab = state.host?.getActivePreviewTab?.() || state.context?.activeTab || '';
       if (!['proposal', 'materials', 'schedule', 'money'].includes(activeTab)) {
         state.sidebarRoot?.classList?.remove('visible', 'mode-edit', 'mode-list', 'mode-send');
@@ -5059,6 +5039,7 @@
     disposeScopeWidgets();
     state.scopeDocuments = [];
     state.scopeDocumentsError = '';
+    scopeWorkspace?.disposeSidebar(leftContentRoot());
     scopeWorkspace?.removeDivider(state.sidebarRoot);
     state.lists = [];
     state.activeListId = '';

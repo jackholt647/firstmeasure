@@ -12,19 +12,27 @@ function fn(name) {
   assert.ok(start>=0,name); return source.slice(start,source.indexOf('\n  }',start)+4);
 }
 
-test('scope sources include proposals, contracts and modules, and exclude unrelated documents', async () => {
-  globalThis.window={PlatformAPI:{baseUrl:()=> 'https://fixture.test/v1/platform',request:async path=>path.includes('document-modules')?{instances:[{id:'workflow',moduleId:'roof-workflow',kind:'workflow'}]}:{documents:[
-    {id:'proposal',title:'Roof proposal',document_type:'roofing_proposal'},
-    {id:'change',title:'Gutters',document_type:'change_order'},
-    {id:'invoice',document_type:'invoice'},{id:'old',document_type:'contract',status:'archived'}
-  ]}}};
+test('only accepted artifact publishers and published measurement datasets appear', async () => {
+  const calls=[];
+  globalThis.window={PlatformAPI:{baseUrl:()=> 'https://fixture.test/v1/platform',request:async path=>{
+    calls.push(path);
+    if(path.includes('/calculus'))return {ledger:{sets:[
+      {origin:{type:'document',document_id:'proposal',snapshot_id:'accepted'},title:'Roof materials',lines:[{name:'Shingles',quantity:12,unit:'bundle'}]},
+      {origin:{type:'document',document_id:'draft',snapshot_id:'draft-snapshot'},lines:[]},
+      {origin:{type:'scope'},lines:[]}
+    ]}};
+    if(path.includes('/snapshots'))return {snapshots:[{id:'accepted',title:'Roof proposal',resolved_definition:{computed_values:{contract_total_cents:1234500}}}]};
+    return {documents:[{id:'proposal',title:'Roof proposal',status:'completed'},{id:'draft',status:'draft'},{id:'presentation',status:'completed'}]};
+  },publication:{list:async()=>({items:[{id:'roof',name:'Roof report',type:'measurements',revision:'r1'},{id:'generic',type:'generic'}]}),read:async()=>({status:'ready',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[]}})}}};
   try {
     const result=await module.loadDocuments('org','project');
-    assert.deepEqual(result.documents.map(doc=>doc.id),['proposal','change','workflow']);
+    assert.deepEqual(result.documents.map(doc=>doc.id),['proposal:accepted','roof']);
+    assert.equal(result.documents[0].total,'$12,345.00');
+    assert.ok(calls.every(path=>!path.includes('document-modules')));
     const html=module.renderDocuments(result.documents);
-    assert.match(html,/Roof proposal/);assert.match(html,/Gutters/);assert.match(html,/data-scope-source="module"/);
+    assert.match(html,/Roof proposal/);assert.match(html,/Roof report/);assert.match(html,/1,400/);assert.doesNotMatch(html,/draft|presentation|JSON/);
     assert.equal(result.error,'');
-    window.PlatformAPI.request=async()=>{throw Error('denied')};
+    window.PlatformAPI.request=async()=>{throw Error('denied')};window.PlatformAPI.publication.list=async()=>{throw Error('denied')};
     const denied=await module.loadDocuments('org','project');assert.equal(denied.documents.length,0);assert.match(denied.error,/could not load/);
   } finally {delete globalThis.window}
 });
@@ -49,6 +57,15 @@ test('first Add creates only the requested resource list; later adds reuse it', 
     assert.deepEqual(calls,[['create',type],['add',type],['add',type]]);
     assert.equal(state.lists[0].current_items.length,2);
   }
+});
+
+test('the project renderer mounts the compact published rail without requiring widget labels', () => {
+  let mounted=false,divider=false;
+  const target={querySelector(){},textContent:''};
+  const ctx={performance,state:{active:true,lists:[],scopeDocuments:[],scopeDocumentsError:'',sidebarRoot:{classList:{add(){},remove(){}},querySelector:()=>null}},
+    leftContentRoot:()=>target,orgId:()=> 'org',projectId:()=> 'project',timingMark(){},disposeScopeWidgets(){},scopeWidgetContext:()=>({fragments:{'scope.lists':()=>null}}),
+    scopeWorkspace:{mountSidebar:(root,docs,error,key)=>{assert.equal(key,'org:project');mounted=true},installDivider:()=>divider=true}};
+  vm.createContext(ctx);vm.runInContext(fn('renderLeft'),ctx);ctx.renderLeft();assert.ok(mounted&&divider);
 });
 
 test('failed creation does not persist an item and releases the saving state', async () => {
@@ -87,13 +104,20 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
       window.draw=()=>document.querySelector('[data-mt-material-grid]').innerHTML=renderMaterialSections();draw();
     },{css:fn('css'),render:fn('renderMaterialSections'),helper});
     await page.evaluate(async()=>{window.helper=await import('/helper.js');helper.installDivider(document.querySelector('aside'));
-      window.Portal={navigation:{push:route=>window.openedScopeDocument=route}};
-      const docs=document.createElement('div');docs.innerHTML=helper.renderDocuments([{id:'contract',title:'Roof contract',source:'document',thumbnail:'/missing.png'}]);document.body.append(docs);helper.bindDocuments(docs,'org','project');
+      window.FMDocModel={paperDimensions:()=>({w_pt:612})};window.FMDocRenderer={render:(root,options)=>{root.innerHTML='<p>Rendered accepted roof contract</p>';window.renderedSnapshot=options.document;return {destroy(){}};}};
+      window.scopeDocs=[{id:'contract',title:'Roof contract',source:'document',document_type:'contract',total:'$12,345.00',snapshot:{resolved_definition:{id:'captured-definition'},widget_data:{}},sets:[{title:'Roof materials',lines:[{name:'Shingles',quantity:12,unit:'bundle',order_quantity:12,order_unit:'bundle'}]}]},{id:'report',title:'Roof report',source:'measurement',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[{id:'report/pdf',kind:'firstmeasure.report'}]}}];
+      helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project');
     });
-    await page.locator('.mt-scope-document-sheet i').waitFor();
-    assert.equal(await page.locator('.mt-scope-document-sheet img').count(),0);
+    const tile=page.locator('[data-scope-document="contract"]');
+    await tile.hover();assert.ok(await tile.getByRole('tooltip').isVisible());
     await page.locator('[data-scope-document="contract"]').click();
-    assert.deepEqual(await page.evaluate(()=>openedScopeDocument),{project:'project',projectTab:'docs',document:'contract'});
+    await page.getByText('Rendered accepted roof contract').waitFor();
+    assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>renderedSnapshot.id),'captured-definition');
+    assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());
+    await page.getByRole('button',{name:'Back',exact:false}).click();assert.ok(await tile.isVisible());
+    await page.locator('[data-scope-document="report"]').click();assert.match(await page.locator('aside').innerText(),/1,400 ft2/);
+    await page.getByRole('button',{name:'Back',exact:false}).click();
+    assert.equal(await page.getByRole('tab').count(),3);assert.ok(await page.getByRole('tab',{name:'Scope of Work'}).isVisible());
     const widths=()=>page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width));
     let w=await widths();assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),3);
     await page.evaluate(()=>{state.lists=[{id:'m',resource_type:'material'},{id:'l',resource_type:'labor'}];items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});
@@ -101,7 +125,7 @@ test('resource panes keep independent scroll, narrow empty columns, and a dragga
     await page.locator('.mt-resource-scroll').nth(0).evaluate(el=>el.scrollTop=200);
     assert.equal(await page.locator('.mt-resource-scroll').nth(1).evaluate(el=>el.scrollTop),0);
     assert.ok(await page.locator('.mt-resource-scroll').nth(0).evaluate(el=>el.scrollTop)>0);
-    const divider=page.getByRole('separator');const box=await divider.boundingBox();
+    const divider=page.getByRole('separator',{name:'Resize project widgets and scope of work'});const box=await divider.boundingBox();
     await page.mouse.move(box.x+4,box.y+100);await page.mouse.down();await page.mouse.move(box.x+140,box.y+100);await page.mouse.up();
     assert.ok(Number(await divider.getAttribute('aria-valuenow'))>40);
     await divider.focus();await page.keyboard.press('Home');assert.equal(await divider.getAttribute('aria-valuenow'),'20');
