@@ -717,6 +717,8 @@
     }
   }
   async function createRelatedContact(type){
+    readContactInputs();
+    if(!validateName({focus:true}))return;
     const panel=$('#fmContactRelationshipPanel'),first=cleanText(panel.querySelector('[data-related-first]')?.value),last=cleanText(panel.querySelector('[data-related-last]')?.value);
     if(!first){panel.querySelector('[data-related-first]')?.focus();return;}
     const name=[first,last].filter(Boolean).join(' '),id=ensureContactId(),recordId=`project_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,10)}`;

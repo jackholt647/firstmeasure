@@ -104,7 +104,14 @@ try{
  await page.waitForSelector('[data-cti-import-photos]');await page.locator('[data-cti-import-photos]').check();await page.locator('[data-cti-commit]').click();
  await page.waitForFunction(()=>!!window.importOptions);assert.equal(await page.evaluate(()=>window.importOptions.import_photos),true);
  assert.match(await page.locator('.cti-done').textContent(),/1 photos imported/);
- await page.evaluate(()=>window.Portal.modules.contacts.open({}, {projectsComplete:true}));await page.locator('#fmContactMediaTab').click();await page.waitForSelector('#fmContactGallery .pf-toolbar');
+ await page.evaluate(()=>window.Portal.modules.contacts.open({}, {projectsComplete:true}));
+ await page.locator('[data-add-relationship="spouse"]').click();await page.locator('[data-relationship-mode="new"]').click();
+ await page.locator('[data-related-first]').fill('Unlinked');
+ const savedBeforeUnnamed=await page.evaluate(()=>window.savedContacts.length);
+ await page.locator('[data-related-create]').click();
+ assert.equal(await page.evaluate(()=>window.savedContacts.length),savedBeforeUnnamed);
+ assert.equal(await page.locator('#fmContactFirstName').evaluate(el=>el===document.activeElement),true);
+ await page.locator('#fmContactMediaTab').click();await page.waitForSelector('#fmContactGallery .pf-toolbar');
  await page.locator('#fmContactMediaUpload').setInputFiles({name:'draft.png',mimeType:'image/png',buffer:image});await page.waitForFunction(()=>window.uploads.length===4);assert.equal(await page.locator('#fmContactGallery [data-photo-feed-id]').count(),1);
  await page.locator('#fmContactFirstName').fill('Draft');await page.locator('#fmContactLastName').fill('with media');await page.waitForFunction(()=>window.savedContacts.at(-1)?.contacts[0]?.name==='Draft with media');
  await page.setViewportSize({width:390,height:780});await page.evaluate(()=>window.Portal.modules.contacts.open({name:'Mobile Contact'},{projectsComplete:true}));
