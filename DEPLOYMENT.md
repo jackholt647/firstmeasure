@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 10 Project workspace: [published scope artifacts, compact rail and full-height resource panes](deploy/digitalocean/development-project-scope-work-20261010.md) records the terminology change, development rollout, validation and rollback.
+
 October 10 Priority fields: [shared quick-display fields and published calculations](deploy/digitalocean/development-priority-fields-20261010.md) records the architecture, GitHub feature commit, verified development rollout and prior role paths.
 
 October 9 resource custom fields: [Users, organizational groups and platform phone assignments](deploy/digitalocean/development-resource-custom-fields-20261009.md) records shared typed owners, protected phone issuance references, frontend handoff and verified four-role development rollout.

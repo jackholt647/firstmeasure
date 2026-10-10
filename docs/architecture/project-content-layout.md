@@ -8,6 +8,42 @@ Overview (`map`) owns the project-details form inside its `.r-tab-content`, besi
 
 Scope, Money and legacy Proposals receive a private `.r-tab-sidebar` beneath their own tab panel. Their main renderer receives `.r-tab-main`; their context's `sidebarRoot` is confined to that same tab. These apps cannot replace Overview's details or another tab's rail. Ordinary tab switching and docked tabs use the same content layout.
 
+The Scope app's standard tab label is **Project**, resolved through the existing
+`scope.project_tab` terminology key. Its private rail occupies one third of the
+width by default; Materials, Labor and Equipment occupy the remaining two thirds.
+An app-owned draggable, keyboard accessible divider remembers the proportion
+locally. Mobile stacks the rail and resource content. There is no shared rail API.
+
+The rail has three compact icon tabs along its bottom: Scope of Work, 3D Roof
+and Aerial View. Scope of Work shows accepted document publishers first and
+published measurement datasets below. Document membership comes from persisted
+material ledger origins, including an accepted snapshot identity, and requires a
+signed/completed document. Drafts, standalone presentations, document types and
+unpublished module instances do not establish membership. Materialized module
+documents qualify through the same accepted-publication contract. Measurement
+reads use the existing typed dataset publication provider and retain units. Older
+completed reports use the authorized project-widget report/measurement contracts
+without importing data; incomplete reports remain excluded.
+
+Tiles show retained contract totals when captured, material artifact counts and
+measurement summaries. Hover/focus exposes a concise content preview. Opening a
+tile replaces this rail's content with readable material/measurement details and
+the accepted snapshot rendered by FMDocRenderer; Back restores the tiles. This
+uses neither a modal nor a generic JSON instance viewer. Resource list controls
+remain available in a compact disclosure beneath the artifact sections.
+
+The right side has no separate heading, toolbar or totals footer. Its three
+resource panes use the full available height, scroll independently and narrow
+empty panes when another has content. With no items, all three are equal and
+show Empty List. First Add creates a missing typed list through the existing
+writer and immediately adds an editable row. Later additions reuse that list.
+The Price Book control lives in the Materials pane heading.
+
+No manual page-refresh control is exposed. Idle visible background reads update
+persisted lists/artifacts without evaluating calculations or creating records.
+Focused edits, dialogs and writes defer these reads. Explicit generation,
+ordering and scheduling remain domain commands in the resource list controls.
+
 Removed contracts: `project_modal_region_app`, the dynamic left-region registry/mounting pipeline, `leftRegionRoot`, `setLeftColumnOverride`, `isLeftColumnOverridden`, and `projectModal.left`/`leftMode` interpretation. The window layout helper no longer has a shared-sidebar rollback flag or visibility callback. New apps must render their layout within their tab content rather than add shell regions or revive these contracts.
 
 Each docked tab still has its own owned document for legacy app isolation. Realtime transport is shared with its owning portal; do not introduce another independent stream per pane.
