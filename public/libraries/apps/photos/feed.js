@@ -60,6 +60,7 @@
     composerGif: null,
     composerAudioFile: null,
     composerAudioNote: null,
+    composerAudioAttachment: null,
     composerPreviewUrls: new Map(),
     composerPreviewIndex: -1,
     thumbnailStatus: new Map(),
@@ -2359,6 +2360,7 @@
   }
   function bindFeedVoiceControls(rootEl,prefix,options){
     const buttons={audio:rootEl.querySelector(`[data-${prefix}-audio]`),dictate:rootEl.querySelector(`[data-${prefix}-dictate]`)};
+    if(buttons.audio)buttons.audio.disabled=!!options.hasPendingAudio?.();
     let capturing=false,captureMode='',recorderControl=null;
     const labels={audio:['Record an audio note','Finish recording'],dictate:['Dictate message','Finish dictation']};
     const update=(mode,control)=>{
@@ -2378,12 +2380,23 @@
         await options.beforeStart?.();
         const mount=rootEl.querySelector(mode==='dictate'?`[data-${prefix}-dictation-mount]`:`[data-${prefix}-audio-mount]`);
         const prepared=await window.FirstMateAudioNotes.prepareInline(orgId(),null,{mount,mode:mode==='dictate'?'dictation':'record',upload:options.upload,onRemove:options.onRemove,onRecordingState:control=>update(mode,control)});
-        if(rootEl.isConnected)options.onPrepared(mode,prepared);
+        if(mount?.isConnected)options.onPrepared(mode,prepared);
       }catch(error){if(!String(error?.message || '').toLowerCase().includes('cancelled'))options.onError(error);}
       finally{
         capturing=false;recorderControl=null;
         for(const kind of ['audio','dictate']){const button=buttons[kind];button.classList.remove('voice-active');button.setAttribute('aria-pressed','false');button.title=labels[kind][0];button.setAttribute('aria-label',button.title);button.disabled=kind==='audio' && !!options.hasPendingAudio?.();}
       }
+    });
+  }
+  function clearComposerAudio(){
+    if(state.composerAudioAttachment?.url?.startsWith('blob:'))URL.revokeObjectURL(state.composerAudioAttachment.url);
+    state.composerAudioFile=null;state.composerAudioNote=null;state.composerAudioAttachment=null;
+  }
+  function mountFeedPreparedAudio(mount,attachment,metadata,onRemove){
+    if(!mount || !attachment || !metadata)return;
+    window.FirstMateAudioNotes?.mountPrepared?.(mount,{
+      url:attachment.url || attachment.public_url || window.ChannelsAPI?.mediaFileUrl?.(orgId(),attachment.media_id),
+      duration:metadata.duration_seconds,peaks:metadata.peaks,onRemove
     });
   }
   let feedEmojiClose=null;
@@ -2473,6 +2486,7 @@
         button.textContent=expanded?'Show fewer images':`Show ${button.dataset.feedMoreImages} more images`;
       });
       const current=postState(post.id);
+      current.mentionApi?.destroy?.();current.mentionApi=null;
       const error=e=>showToast?.('Feed',e?.message || 'Unable to update this post.',false);
       const rerender=()=>{if(!state.root?.contains(card))return;const replacement=document.createElement('div');replacement.innerHTML=feedPostHtml(post);const next=replacement.firstElementChild;card.replaceWith(next);bindFeedPosts(state.root,next);if(current.editingId)next.querySelector('.pf-comment-edit textarea')?.focus();else if(current.replyTo)next.querySelector('[data-comment-form] textarea')?.focus();};
       const act=async callback=>{if(current.busy)return;current.busy=true;try{await callback();}catch(e){error(e);}finally{current.busy=false;rerender();}};
@@ -2552,10 +2566,18 @@
       }
       if(comments&&!current.replies.length&&current.checking)comments.textContent='Loading comments…';
       const form=card.querySelector('[data-comment-form]'),input=form?.querySelector('textarea');
+      if(input && window.FirstMateTags?.attachMentionTextarea){
+        const department=post.manual?.metadata?.feed_department_id || '';
+        const memberIds=()=>state.users.filter(user=>Object.prototype.hasOwnProperty.call(state.userDepartments,user.id) && (!department || (state.userDepartments[user.id] || []).includes(department))).map(user=>user.id);
+        current.mentionApi=window.FirstMateTags.attachMentionTextarea(input,{orgId:orgId(),source:'feed',memberIds});
+        input._mentionApi=current.mentionApi;
+        const mentionButton=window.FirstMateChannels?.composerWidgets?.mentionButton?.(input,form,{mount:form.querySelector('.pf-comment-tools'),onSelect:()=>{current.draft=input.value;},onError:error});
+        if(mentionButton){mentionButton.classList.add('fm-ch-icon-btn','pf-compose-tool');form.querySelector('.pf-comment-send')?.before(mentionButton);}
+      }
       input?.addEventListener('input',()=>{current.draft=input.value;});
       card.querySelector('[data-comment-cancel-reply]')?.addEventListener('click',()=>{current.replyTo='';current.replyToName='';rerender();});
       card.querySelector('[data-comment-emoji-open]')?.addEventListener('click',event=>openFeedEmojiWidget(event.currentTarget,emoji=>{const start=input.selectionStart,end=input.selectionEnd;input.setRangeText(emoji,start,end,'end');current.draft=input.value;input.focus();}));
-      const send=async(metadata={},text=current.draft,clientId)=>{await fetchPost(post,true);await window.ChannelsAPI.feed.comment(orgId(),current.root.id,{text,parent_id:current.replyTo || undefined,client_msg_id:clientId || current.operationId || (current.operationId=globalThis.crypto?.randomUUID?.() || `feed_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`),attachment_ids:(current.attachments || []).map(a=>a.id),metadata:{...(current.audioNote?{audio_note:current.audioNote}:{}),...metadata}});current.draft='';current.attachments=[];current.audioNote=null;current.operationId='';current.replyTo='';current.replyToName='';await fetchPost(post);};
+      const send=async(metadata={},text=current.draft,clientId)=>{const mentions=current.mentionApi?.selectedMentions?.() || [];await fetchPost(post,true);await window.ChannelsAPI.feed.comment(orgId(),current.root.id,{text,mention_users:mentions,parent_id:current.replyTo || undefined,client_msg_id:clientId || current.operationId || (current.operationId=globalThis.crypto?.randomUUID?.() || `feed_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`),attachment_ids:(current.attachments || []).map(a=>a.id),metadata:{...(current.audioNote?{audio_note:current.audioNote}:{}),...metadata}});current.draft='';current.attachments=[];current.audioNote=null;current.operationId='';current.replyTo='';current.replyToName='';await fetchPost(post);};
       form?.addEventListener('submit',event=>{event.preventDefault();if(current.draft.trim() || current.attachments?.length)act(()=>send());});
       card.querySelector('[data-comment-gif]')?.addEventListener('click',()=>window.FirstMateChannels?.createGifPickerButton({orgId:orgId(),dialogTitle:'Choose a GIF',onSend:async selected=>{
         if(current.busy)throw new Error('Please wait for the current comment to finish.');
@@ -2563,19 +2585,21 @@
         try{await send({giphy:selected},current.draft);}
         finally{current.busy=false;rerender();}
       },onError:error}).click());
+      const removeCommentAudio=()=>{if(current.audioNote){current.attachments=(current.attachments || []).filter(attachment=>attachment.id!==current.audioAttachmentId);current.audioNote=null;current.audioAttachmentId='';}const button=card.querySelector('[data-comment-audio]');if(button)button.disabled=false;};
+      mountFeedPreparedAudio(card.querySelector('[data-comment-audio-mount]'),current.attachments?.find(attachment=>attachment.id===current.audioAttachmentId),current.audioNote,removeCommentAudio);
       bindFeedVoiceControls(card,'comment',{
         beforeStart:()=>fetchPost(post,true),
         upload:file=>window.ChannelsAPI.feed.upload(orgId(),current.root.id,file).then(result=>result.attachment),
-        onRemove:()=>{if(current.audioNote){current.attachments=(current.attachments || []).filter(attachment=>attachment.id!==current.audioAttachmentId);current.audioNote=null;current.audioAttachmentId='';}},
+        onRemove:removeCommentAudio,
         hasPendingAudio:()=>!!current.audioNote,
         onPrepared:(mode,prepared)=>{
           if(mode==='dictate'){current.draft=[current.draft,prepared.text].filter(Boolean).join(' ');input.value=current.draft;input.focus();}
-          else{current.attachments ||= [];current.attachments.push(prepared.attachment);current.audioAttachmentId=prepared.attachment.id;current.audioNote=prepared.metadata;const attachments=card.querySelector('[data-comment-attachments]');if(attachments)attachments.textContent=current.attachments.map(item=>item.file_name || 'Audio note').join(', ');}
+          else{current.attachments ||= [];current.attachments.push(prepared.attachment);current.audioAttachmentId=prepared.attachment.id;current.audioNote=prepared.metadata;}
         },
         onError:error
       });
       const attachments=card.querySelector('[data-comment-attachments]');
-      if(attachments)attachments.textContent=(current.attachments || []).map(a=>a.file_name).join(', ');
+      if(attachments)attachments.textContent=(current.attachments || []).filter(a=>a.id!==current.audioAttachmentId).map(a=>a.file_name).join(', ');
       card.querySelector('[data-comment-file]')?.addEventListener('change',event=>act(async()=>{
         await fetchPost(post,true);
         for(const file of event.target.files || []){const result=await window.ChannelsAPI.feed.upload(orgId(),current.root.id,file);(current.attachments ||= []).push(result.attachment);}
@@ -2723,7 +2747,6 @@
       <div class="pf-compose-author">${avatarHtml({name:firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'),avatar:state.users.find(user=>user.id===APP.userId)?.profile_photo_url})}<div class="pf-compose-author-copy"><strong>${escapeHtml(firstText(state.users.find(user=>user.id===APP.userId)?.name,'You'))}</strong><label class="pf-compose-audience">Post to <span class="pf-compose-audience-picker"><span>${escapeHtml(state.composerDepartment ? `${state.departments.find(department=>department.id===state.composerDepartment)?.label || 'Department'} department` : 'everyone in the company')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i><select data-feed-compose-scope aria-label="Post audience"><option value="" ${!state.composerDepartment?'selected':''}>everyone in the company</option>${state.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${state.composerDepartment===department.id?'selected':''}>${escapeHtml(department.label)} department</option>`).join('')}</select></span></label></div></div>
       <div class="pf-compose-message">${feedPostFormatBarHtml()}<div data-feed-compose-editor-mount></div><div class="pf-post-compose-bottom"><div class="pf-post-compose-tools">${feedComposerToolsHtml('feed-compose')}</div><button type="submit" class="pf-action primary" ${state.composerBusy?'disabled':''}>${state.composerBusy?'Posting…':'Post'}</button></div><div class="pf-mention-menu" data-feed-compose-mention-menu hidden></div></div><div data-feed-compose-dictation-mount></div><div data-feed-compose-audio-mount></div>
       ${state.composerGif?`<div class="pf-composer-gif"><img src="${escapeHtml(state.composerGif.url)}" alt="${escapeHtml(state.composerGif.title)}"><button type="button" data-feed-compose-remove-gif aria-label="Remove GIF">×</button></div>`:''}
-      ${state.composerAudioFile?`<div class="pf-file-preview"><i class="fas fa-microphone"></i><span>Audio note ready</span><button type="button" data-feed-compose-remove-audio aria-label="Remove audio note">×</button></div>`:''}
       ${previews?`<div class="pf-dialog-files">${previews}</div>`:''}
     </form>${enlarged?.type.startsWith('image/')?`<div class="pf-image-lightbox" data-feed-image-lightbox role="dialog" aria-modal="true" aria-label="Image preview"><div class="pf-image-lightbox-panel"><header><strong>${escapeHtml(enlarged.name)}</strong><button type="button" data-feed-preview-close aria-label="Close image preview">×</button></header><img src="${escapeHtml(state.composerPreviewUrls.get(enlarged) || '')}" alt="${escapeHtml(enlarged.name)}"></div></div>`:''}</div>`;
   }
@@ -2731,6 +2754,7 @@
     if (!state.root) return;
     state.composerMentionApi?.destroy?.();
     state.composerMentionApi=null;
+    for(const current of state.posts.values()){current.mentionApi?.destroy?.();current.mentionApi=null;}
     const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
     state.root.innerHTML = `
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
@@ -2811,7 +2835,12 @@
         onSelect:user=>state.composerMentions.add(user.id)
       });
       state.composerMentionApi.setSelectedMentions?.(eligibleMentions().filter(user=>state.composerMentions.has(user.id)).map(user=>({id:user.id,name:firstText(user.name,user.display_name,user.email),email:user.email})));
+      composeText._mentionApi=state.composerMentionApi;
     }
+    if(composeText)composerWidgets?.mentionButton?.(composeText,rootEl.querySelector('.pf-post-formatbar'),{
+      candidates:()=>eligibleMentions(),onSelect:user=>{state.composerMentions.add(user.id);state.composerText=composeText.value;},
+      onError:error=>showToast?.('Mention',error?.message || 'Could not tag a teammate.',false)
+    });
     const updateMentionMenu=()=>{
       if(state.composerMentionApi)return;
       if(!composeText || !mentionMenu)return;
@@ -2823,17 +2852,19 @@
     };
     composeText?.addEventListener('input',event=>{state.composerText=event.target.value;updateMentionMenu();});
     composeText?.addEventListener('click',updateMentionMenu);
+    rootEl.querySelector('[data-feed-compose-emoji-open]')?.addEventListener('mousedown',()=>composeText?.saveSelection());
     rootEl.querySelector('[data-feed-compose-emoji-open]')?.addEventListener('click',event=>openFeedEmojiWidget(event.currentTarget,emoji=>{composeText.insertText(emoji);state.composerText=composeText.value;updateMentionMenu();}));
     rootEl.querySelector('[data-feed-compose-gif]')?.addEventListener('click',()=>window.FirstMateChannels?.createGifPickerButton({orgId:orgId(),dialogTitle:'Choose a GIF',actionLabel:'Add GIF',onSend:selected=>{state.composerGif=selected;render();},onError:error=>showToast?.('GIF',error?.message || 'Could not add GIF.',false)}).click());
     rootEl.querySelector('[data-feed-compose-remove-gif]')?.addEventListener('click',()=>{state.composerGif=null;render();});
-    rootEl.querySelector('[data-feed-compose-remove-audio]')?.addEventListener('click',()=>{state.composerAudioFile=null;state.composerAudioNote=null;render();});
+    const removeComposerAudio=()=>{clearComposerAudio();const button=rootEl.querySelector('[data-feed-compose-audio]');if(button)button.disabled=false;};
+    mountFeedPreparedAudio(rootEl.querySelector('[data-feed-compose-audio-mount]'),state.composerAudioAttachment,state.composerAudioNote,removeComposerAudio);
     bindFeedVoiceControls(rootEl,'feed-compose',{
-      upload:async file=>{state.composerAudioFile=file;return{id:'pending',url:URL.createObjectURL(file)};},
-      onRemove:()=>{state.composerAudioFile=null;state.composerAudioNote=null;},
+      upload:async file=>{state.composerAudioFile=file;state.composerAudioAttachment={id:'pending',url:URL.createObjectURL(file)};return state.composerAudioAttachment;},
+      onRemove:removeComposerAudio,
       hasPendingAudio:()=>!!state.composerAudioNote,
       onPrepared:(mode,prepared)=>{
         if(mode==='dictate'){state.composerText=[state.composerText,prepared.text].filter(Boolean).join(' ');composeText.value=state.composerText;composeText.focus();}
-        else{state.composerAudioNote=prepared.metadata;render();}
+        else{state.composerAudioNote=prepared.metadata;state.composerAudioAttachment=prepared.attachment;}
       },
       onError:error=>showToast?.('Audio note',error?.message || 'Could not record audio.',false)
     });
@@ -2868,7 +2899,7 @@
           await window.ChannelsAPI.feed.upload(orgId(),postId,file);
           state.composerFiles.shift();URL.revokeObjectURL(state.composerPreviewUrls.get(file));state.composerPreviewUrls.delete(file);
         }
-        if(state.composerAudioFile){await window.ChannelsAPI.feed.upload(orgId(),postId,state.composerAudioFile);state.composerAudioFile=null;}
+        if(state.composerAudioFile){await window.ChannelsAPI.feed.upload(orgId(),postId,state.composerAudioFile);clearComposerAudio();}
         state.composerOpen=false;state.composerText='';state.composerDepartment='';state.composerMentions.clear();state.composerPreviewIndex=-1;state.composerOperationId='';state.composerGif=null;state.composerAudioNote=null;
         await load({toast:true});
       }catch(error){showToast?.('Could not post',error?.message || 'Try again.',false);}

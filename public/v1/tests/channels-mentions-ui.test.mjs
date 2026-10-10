@@ -17,7 +17,7 @@ test('mounted Channels mention menus agree and red tokens survive channel, threa
       const data=process.env.DEV_ASSETS?await (async()=>{
         const response=await fetch('https://dev.1m8.ai'+assets[req.url]+'?mentions='+Date.now());
         assert.ok(response.ok);return Buffer.from(await response.arrayBuffer());
-      })():await readFile(path.join(publicRoot,assets[req.url]));
+      })():await readFile(req.url==='/ui.js' && process.env.CHANNELS_BROWSER_SCRIPT ? process.env.CHANNELS_BROWSER_SCRIPT : path.join(publicRoot,assets[req.url]));
       res.end(data);return;
     }
     res.setHeader('Content-Type','text/html; charset=utf-8');
