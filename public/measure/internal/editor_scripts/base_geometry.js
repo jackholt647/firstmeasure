@@ -163,6 +163,22 @@ function fromRoof(roof,grade,walls=[],setback=0,chimneys=null,sources=null){
    if(t<0||t>1)continue;const q={x:a.x+dx*t,y:a.y+dy*t},d=dist(p,q);if(d<distance){best=q;distance=d;}
   }return best;
  }));
+ // Insetting a roof around a projecting chimney can leave a narrow pocket
+ // behind its shaft. The chimney then seals the pocket into an artificial
+ // courtyard and prevents its foundation from joining the house. Fill only
+ // enclosed, roof-covered construction slivers against a finite shaft side;
+ // open gaps, wider courtyards and roof openings remain untouched.
+ if(occluders.length){
+  const bodies=loops.map(points=>({points})),pockets=K.union([...bodies,...occluders]).flatMap(f=>f.holes||[]).filter(points=>{
+   const narrow=occluders.some(c=>c.points.some((a,i)=>{
+    const b=c.points[(i+1)%c.points.length],length=dist(a,b);if(length<1e-6)return false;
+    const u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},off=p=>(p.x-a.x)*u.y-(p.y-a.y)*u.x;
+    return points.every(p=>{const t=(p.x-a.x)*u.x+(p.y-a.y)*u.y;return t>=-1e-5&&t<=length+1e-5&&Math.abs(off(p))<=6*G.INCH+1e-5;})&&points.some((p,j)=>Math.abs(off(p))<1e-5&&Math.abs(off(points[(j+1)%points.length]))<1e-5&&dist(p,points[(j+1)%points.length])>.002);
+   }));
+   return narrow&&K.difference({points},roof.faces).reduce((sum,f)=>sum+K.area(f),0)<1e-7;
+  });
+  if(pockets.length)loops=K.union([...bodies,...pockets.map(points=>({points}))]).map(f=>f.points);
+ }
  if(!loops.length)throw Error('Cannot trace a closed house outline from the roof.');
  return {visible:true,centers:true,source:complete?'Wall perimeter':setback?'Inset roof footprint':'Roof footprint',faces:loops.map((ps,i)=>validate({id:'base-'+(i+1),points:ps.map(p=>({...p,z:plane.dx*p.x+plane.dy*p.y+plane.k}))}))};
 }

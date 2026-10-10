@@ -840,3 +840,12 @@ test('captured house honors two-foot preset and three/four-foot custom depths th
   const fresh=fixture(true);fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.deepEqual(JSON.parse(JSON.stringify(fresh.ctx.WallMode.serialize().alignedWalls)),saved.alignedWalls);
  }
 });
+
+test('From Roof at three feet closes the captured chimney pocket and joins its base',()=>{
+ const s=require('./fixtures/chimney-three-foot-pocket.json'),width=1000,height=1000,mpp=.1,toPixel=p=>({...p,x:width/2+p.x/mpp,y:height/2+p.y/mpp}),points=s.roof.points.map(toPixel),activeGeometry={points,connections:s.roof.connections.map(c=>({start:points[c.startIdx],end:points[c.endIdx],type:c.type})),manualFaces:s.roof.faces.map(f=>({...f,points:f.points.map(toPixel),holes:(f.holes||[]).map(r=>r.map(toPixel))}))};
+ const f=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});f.ctx.WallMode.restore('fixture',{exteriorsWalls:s});f.elements.get('wall-custom-soffit').value='3';f.elements.get('wall-custom-soffit-go').onclick();
+ const state=JSON.parse(JSON.stringify(f.ctx.WallMode.serialize())),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),A=require('../public/measure/internal/editor_scripts/wall_chimney_cleanup'),D=require('../public/measure/internal/editor_scripts/wall_gaps');
+ assert.equal(state.options.soffit,36);assert.equal(state.base.faces.length,2);assert.ok(!state.base.faces.some(f=>f.chimneyFoundation));
+ assert.ok(C.buildingBase(state).some(f=>G.contains(f,{x:2.346412,y:9.235337})));
+ assert.equal(D.detect(A.compose(C.compose(state.alignedWalls,state),state.chimneyCleanupReport),state.ground).length,0);
+});
