@@ -2803,12 +2803,14 @@
         if(!state.scopeMenuOpen || state.root?.querySelector('.pf-feed-scope-control')?.contains(event.target))return;
         state.scopeMenuOpen=false;
         state.root?.querySelector('.pf-feed-scope-menu')?.remove();
-        state.root?.querySelector('[data-feed-scope]')?.setAttribute('aria-expanded','false');
+        const trigger=state.root?.querySelector('[data-feed-scope]');
+        trigger?.setAttribute('aria-expanded','false');
+        trigger?.querySelector('i')?.classList.replace('fa-chevron-up','fa-chevron-down');
       });
       document.addEventListener('keydown',event=>{
         if(event.key!=='Escape')return;
         if(state.composerPreviewIndex>=0){state.composerPreviewIndex=-1;render();return;}
-        if(state.scopeMenuOpen){state.scopeMenuOpen=false;state.root?.querySelector('.pf-feed-scope-menu')?.remove();state.root?.querySelector('[data-feed-scope]')?.setAttribute('aria-expanded','false');}
+        if(state.scopeMenuOpen){state.scopeMenuOpen=false;state.root?.querySelector('.pf-feed-scope-menu')?.remove();const trigger=state.root?.querySelector('[data-feed-scope]');trigger?.setAttribute('aria-expanded','false');trigger?.querySelector('i')?.classList.replace('fa-chevron-up','fa-chevron-down');}
       });
     }
     rootEl.querySelector('[data-feed-scope]')?.addEventListener('click',()=>{state.scopeMenuOpen=!state.scopeMenuOpen;render();if(state.scopeMenuOpen)rootEl.querySelector('[data-feed-scope-search]')?.focus();});
