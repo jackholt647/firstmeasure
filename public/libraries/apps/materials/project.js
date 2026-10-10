@@ -1733,7 +1733,7 @@
     }
     const items = listItems(list);
     return items.reduce((totals, item) => {
-      totals.projected += number(item.projected_total, number(item.quantity,0)*number(item.projected_unit_price,0));
+      totals.projected += item.projected_total==null?number(item.quantity,0)*number(item.projected_unit_price,0):number(item.projected_total,0);
       totals.quoted += number(item.quoted_total, 0);
       totals.paid += number(item.paid_total, 0);
       return totals;
