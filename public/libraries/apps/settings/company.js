@@ -2014,6 +2014,9 @@
       .sms-number-option input{position:absolute;opacity:0;pointer-events:none}
       .sms-consent-box{border:1px solid #d0d5dd;background:#fff;border-radius:12px;padding:14px;display:grid;gap:10px}
       .sms-consent-box h4{margin:0;font-size:14px;font-weight:1000;color:#101828}.sms-consent-box p{margin:0;font-size:12px;font-weight:800;color:#667085;line-height:1.5}
+      .sms-summary-checklist{border:1px solid #f5c2b8;background:#fff7f5;border-radius:12px;padding:14px;color:#7a271a;font-size:12px;line-height:1.5}
+      .sms-summary-checklist.ready{border-color:#abefc6;background:#ecfdf3;color:#067647}
+      .sms-summary-checklist strong{display:block;font-size:13px;margin-bottom:5px}.sms-summary-checklist ul{margin:6px 0 0;padding-left:20px;display:grid;gap:5px}
       .sms-final-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
       .sms-final-summary-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:12px}
       .sms-final-panel{border:1px solid #eaecf0;border-radius:14px;background:#fff;padding:14px;display:grid;gap:10px;align-content:start}
@@ -5484,6 +5487,27 @@
       }
       return missing;
     }
+    function smsSummaryIssueText(issue){
+      const guidance = {
+        'Complete SMS consent disclosure': 'The exact script must state the SMS message types, frequency, message and data rates, STOP, HELP, and that mobile opt-in data is not shared with third parties for marketing.',
+        'Explicit marketing consent and purchase disclaimer': 'Customer Growth is selected: mention marketing or promotions in the description, opt-in flow, and script, and state that consent is not a condition of purchase.',
+        'Opt-in flow of at least 40 characters': 'Describe when and how the customer agrees, who records consent, and what confirmation follows (at least 40 characters).',
+        'SMS policy confirmation': 'Review the live Privacy Policy and SMS Terms, then check the policy confirmation below.',
+        'Opt-in flow confirmation': 'Check the box confirming that the described opt-in flow is accurate.',
+        'Consent acknowledgement': 'Check the final consent acknowledgement below.',
+        'Marketing sample message': 'Add a real promotional sample message that matches Customer Growth.',
+        'Public HTTPS SMS Terms URL': 'Enter the public HTTPS page containing the SMS program terms.',
+        'Public HTTPS Privacy Policy URL': 'Enter the public HTTPS Privacy Policy page.'
+      };
+      return guidance[issue] || issue;
+    }
+    function smsSummaryChecklistHtml(profile){
+      const issues = smsStepIssues('summary', profile);
+      const display = [...new Set(issues.map(smsSummaryIssueText))];
+      return issues.length
+        ? `<strong>${issues.length} item${issues.length === 1 ? '' : 's'} to finish before submission</strong><ul>${display.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('')}</ul>`
+        : '<strong>Ready to submit</strong>All required registration details are complete.';
+    }
     function smsStepStatus(step, index, activeIndex, profile){
       if (step.id === 'summary' && smsRegistrationSubmitted(profile)) {
         const verified = smsRegistrationVerified(profile);
@@ -5661,6 +5685,7 @@
           <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf2e7d56f0565","Review and confirm") ?? "Review and confirm")}</h4>
           <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_7208bb798610d6","Confirm the business, contact, and SMS feature details before submitting this registration.") ?? "Confirm the business, contact, and SMS feature details before submitting this registration.")}</p>
         </div>
+        <div class="sms-summary-checklist ${smsStepIssues('summary', profile).length ? '' : 'ready'}" data-sms-summary-checklist aria-live="polite">${smsSummaryChecklistHtml(profile)}</div>
         ${String(smsReviewRows(profile))}
         <div class="sms-consent-box"><h4>Campaign details for carrier review</h4><p>Use the business's real, live consent process and actual messages. Telnyx compares these answers with the public website and may reject a registration that uses generic or inaccurate examples.</p></div>
         <div class="sms-form-grid">
@@ -5668,7 +5693,7 @@
           ${String(smsField('campaign.optInMethod', 'How recipients agree to SMS', profile.campaign?.optInMethod, { kind: 'select', values: ['', 'WEBSITE_FORM', 'PAPER_FORM', 'VERBAL', 'KEYWORD'], required: true }))}
           ${String(smsField('campaign.optInLocationUrl', 'Public opt-in page or keyword location URL', profile.campaign?.optInLocationUrl, { type: 'url', wide: true, hint: 'Required for website forms. Link directly to the working form, not just the home page.' }))}
           ${String(smsField('campaign.optInEvidenceUrl', 'Public screenshot of opt-in (recommended)', profile.campaign?.optInEvidenceUrl, { type: 'url', wide: true, hint: 'Especially helpful for popups, paper forms, or a form behind a login.' }))}
-          ${String(smsField('campaign.optInDisclosure', 'Exact SMS consent language or verbal script', profile.campaign?.optInDisclosure, { kind: 'textarea', wide: true, required: true, hint: 'Copy the wording recipients actually see or hear. Include business and message types, frequency, rates, STOP, HELP, policy links, and no third-party sharing of SMS consent. For marketing, state that consent is not a condition of purchase.' }))}
+          ${String(smsField('campaign.optInDisclosure', 'Exact SMS consent language or verbal script', profile.campaign?.optInDisclosure, { kind: 'textarea', wide: true, required: true, hint: 'Copy the wording recipients actually see or hear. Include business and SMS message types, frequency, rates, STOP, HELP, and no third-party sharing of mobile opt-in data for marketing. If Customer Growth is selected, name marketing texts and say consent is not a condition of purchase. For verbal marketing, explain the YES confirmation step if that is your real process.' }))}
           ${String(smsField('campaign.messageFlow', 'Actual Recipient Opt-in Flow', smsGeneratedCampaign(profile).messageFlow, { kind: 'textarea', wide: true, required: true, hint: 'Describe only consent paths this business actually operates; carrier reviewers compare this to production behavior.' }))}
           ${String(smsField('campaign.privacyPolicyLink', 'Public Privacy Policy URL', profile.campaign?.privacyPolicyLink, { type: 'url', wide: true, required: true }))}
           ${String(smsField('campaign.termsAndConditionsLink', 'Public SMS Terms URL', profile.campaign?.termsAndConditionsLink, { type: 'url', wide: true, required: true }))}
@@ -5854,6 +5879,20 @@
           setStatus(message);
           showToast((globalThis.PlatformLanguage?.text("settings","m_ae559ed49f99f8","Registration incomplete") ?? "Registration incomplete"), message, false);
         }
+      };
+      const updateSummaryValidation = () => {
+        const checklist = rootEl()?.querySelector('[data-sms-summary-checklist]');
+        if (!checklist) return;
+        const issues = smsStepIssues('summary', profile);
+        checklist.classList.toggle('ready', issues.length === 0);
+        checklist.innerHTML = smsSummaryChecklistHtml(profile);
+        const submit = rootEl()?.querySelector('#smsSubmitMock');
+        if (submit) {
+          submit.disabled = issues.length > 0 || smsRegistrationLocked(profile);
+          submit.title = issues.length ? `Finish: ${issues.join(', ')}` : '';
+        }
+        const note = rootEl()?.querySelector('[data-fm-note]');
+        if (note) note.textContent = issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish before submitting.` : 'All required registration details are complete.';
       };
       const submitMock = async (submitOptions = {}) => {
         if (!(await flushDraft())) {
@@ -6152,6 +6191,7 @@
             }
             smsRefreshInputValidity(input);
             profile = smsCollect(rootEl(), profile);
+            updateSummaryValidation();
             ctxRef?.touch?.();
           });
           input.addEventListener('change', () => {
@@ -6165,6 +6205,7 @@
               profile = prepareSmsProfileForSave({ ...profile, brand: { ...profile.brand, addressAutocompleteSelected: false, formattedAddress: '' } });
             }
             profile = smsCollect(rootEl(), profile);
+            updateSummaryValidation();
             ctxRef?.touch?.();
             if (input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack') || input.hasAttribute('data-sms-consent-ack')) refresh();
           });
