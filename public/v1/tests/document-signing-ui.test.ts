@@ -47,7 +47,7 @@ test("send dialog assigns separate roles, skips unassigned optional roles and se
   const browser = await chromium.launch({ executablePath:await resolveBrowserExecutablePath(),headless:true }); t.after(()=>browser.close());
   const page = await browser.newPage(); await page.setContent('<!doctype html><body></body>');
   const source = await readFile(new URL('../../libraries/apps/documents/project.js',import.meta.url),'utf8');
-  const start = source.indexOf('    function openSendModal(docRecord){'), end = source.indexOf('    function renderSendSuccess(',start);
+  const start = source.indexOf('    async function openSendModal(docRecord){'), end = source.indexOf('    function renderSendSuccess(',start);
   assert.ok(start>0 && end>start);
   await page.addScriptTag({ content:`
     const objectValue=v=>v&&typeof v==='object'?v:{}; const arrayValue=v=>Array.isArray(v)?v:[];
@@ -56,12 +56,15 @@ test("send dialog assigns separate roles, skips unassigned optional roles and se
     const projectContacts=()=>[{name:'Customer',email:'customer@example.test',role:'customer'}];
     const orgId=()=> 'org'; const state={}; const loadDocs=()=>{}; const errorMessage=e=>e.message;
     const showToast=(title,message)=>{window.lastError=message;}; const renderSendSuccess=()=>{window.sent=true;};
-    const api=()=>({documents:{send:async(org,id,value)=>{window.sentValue=value;return{document:{id},emailed:[]};}}});
+    const project=()=>({}); const api=()=>({documents:{settings:async()=>({settings:{}}),send:async(org,id,value)=>{window.sentValue=value;return{document:{id},emailed:[]};}}});
     const openModal=html=>{const el=document.createElement('div');el.innerHTML=html;document.body.appendChild(el);return{el};};
     ${source.slice(start,end)}
     openSendModal({id:'contract',output_defs:{sig_customer:{type:'signature',required:true},sig_second:{type:'signature',signer_id:'second',required:true},sig_company:{type:'signature',signer:'internal',required:false}}});
   ` });
+  await page.waitForSelector('[data-send-go]');
   await page.locator('[data-signer-role="second"] [data-signer-email]').fill('second@example.test');
+  // Order, capacity and the paper-copy contact are tucked away until wanted.
+  await page.evaluate(() => document.querySelectorAll('details.fmdx-send-more').forEach(d => { (d as HTMLDetailsElement).open = true; }));
   await page.locator('[data-signer-role="second"] [data-signer-order]').fill('1');
   await page.locator('[data-consent-contact]').fill('support@example.test');
   await page.locator('[data-send-go]').click();

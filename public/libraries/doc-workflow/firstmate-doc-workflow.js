@@ -907,17 +907,8 @@
 
   registerKind('content_blocks', (el, ctx) => {
     let blocks = arr(ctx.value()).map(normalizeContentBlock);
-    let pickerOpenFor = ''; // block id whose project-photo grid is expanded
     const media = obj(ctx.services).media;
     const commit = () => { ctx.write(clone(blocks)); ctx.requestPreview(); };
-    const photoList = () => {
-      try { return arr(typeof media?.photos === 'function' ? media.photos() : media?.photos).map(obj).filter((p) => firstText(p.media_id, p.id)); }
-      catch (e) { return []; }
-    };
-    const photoUrl = (photo) => {
-      if (firstText(photo.url, photo.thumb_url, photo.src)) return firstText(photo.url, photo.thumb_url, photo.src);
-      try { return typeof media?.url === 'function' ? cleanText(media.url(firstText(photo.media_id, photo.id))) : ''; } catch (e) { return ''; }
-    };
     const blockThumb = (block) => {
       const source = obj(block.media);
       if (firstText(source.url)) return cleanText(source.url);
@@ -929,7 +920,7 @@
     const render = () => {
       const cards = blocks.map((block, index) => {
         const thumb = blockThumb(block);
-        const photos = pickerOpenFor === block.id ? photoList() : [];
+        const hasVideo = !!firstText(obj(block.video).url);
         return `
           <div class="fmdw-cb-card" data-fmdw-cb="${String(esc(block.id))}">
             <div class="fmdw-cb-head">
@@ -940,33 +931,13 @@
                 <button type="button" class="fmdw-icon-btn" data-fmdw-cb-down title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8dda6677ff0f34","Move down") ?? "Move down")}" ${index === blocks.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button>
                 <button type="button" class="fmdw-icon-btn danger" data-fmdw-cb-remove title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_e635189453de2e","Remove block") ?? "Remove block")}"><i class="fas fa-xmark"></i></button>`)}
             </div>
-            <textarea class="fmdw-cb-body" data-fmdw-cb-body placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8b606c39e02eaa","Body text — what should the customer read here?") ?? "Body text — what should the customer read here?")}" ${String(ctx.readonly ? 'disabled' : '')}>${String(esc(block.body))}</textarea>
-            <div class="fmdw-cb-media-row">
-              <div class="fmdw-cb-thumb ${String(thumb ? '' : 'empty')}">
-                ${String(thumb ? `<img src="${esc(thumb)}" alt="">` : '<i class="fas fa-image"></i>')}
-              </div>
-              <div class="fmdw-cb-media-controls">
-                ${String(ctx.readonly ? '' : `
-                  <div class="fmdw-row-actions">
-                    <button type="button" class="fmdw-btn ghost" data-fmdw-cb-pick><i class="fas fa-images"></i> ${pickerOpenFor === block.id ? 'Hide photos' : 'Pick photo'}</button>
-                    ${block.media ? `<button type="button" class="fmdw-btn ghost" data-fmdw-cb-clear-media><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_687e1653230514"," Clear") ?? " Clear")}</button>` : ''}
-                  </div>`)}
-                <input type="text" data-fmdw-cb-media-url value="${String(esc(firstText(obj(block.media).url)))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_bec0e58a594874","…or paste an image URL") ?? "…or paste an image URL")}" ${String(ctx.readonly ? 'disabled' : '')}>
-                <input type="text" data-fmdw-cb-video value="${String(esc(firstText(obj(block.video).url)))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_d4f98e183ac3e7","Video URL (YouTube, Vimeo, or file)") ?? "Video URL (YouTube, Vimeo, or file)")}" ${String(ctx.readonly ? 'disabled' : '')}>
-              </div>
+            <div class="fmdw-cb-main">
+              <button type="button" class="fmdw-cb-thumb ${String(thumb || hasVideo ? '' : 'empty')}" data-fmdw-cb-media ${String(ctx.readonly ? 'disabled' : '')} title="${thumb || hasVideo ? 'Change the photo or video' : 'Add a photo or video: pick from your library, upload, or paste a link'}">
+                ${String(thumb ? `<img src="${esc(thumb)}" alt="">` : `<i class="fas ${hasVideo ? 'fa-circle-play' : 'fa-image'}"></i>`)}
+                <span>${thumb || hasVideo ? 'Change' : 'Add media'}</span>
+              </button>
+              <textarea class="fmdw-cb-body" data-fmdw-cb-body placeholder="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8b606c39e02eaa","Body text \u2014 what should the customer read here?") ?? "Body text \u2014 what should the customer read here?")}" ${String(ctx.readonly ? 'disabled' : '')}>${String(esc(block.body))}</textarea>
             </div>
-            ${String(pickerOpenFor === block.id ? `
-              <div class="fmdw-photo-grid fmdw-cb-photo-grid">
-                ${photos.length ? photos.slice(0, 30).map((photo) => {
-                  const id = firstText(photo.media_id, photo.id);
-                  const active = firstText(obj(block.media).media_id) === id;
-                  return `
-                    <button type="button" class="fmdw-photo ${active ? 'active' : ''}" data-fmdw-cb-photo="${esc(id)}" title="${esc(photo.label || '')}">
-                      <img src="${esc(photoUrl(photo))}" alt="${esc(photo.label || 'Photo')}" loading="lazy">
-                      ${active ? '<i class="fas fa-circle-check"></i>' : ''}
-                    </button>`;
-                }).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_8c7d055c8d2a9d","No project photos are available — paste an image URL instead.") ?? "No project photos are available — paste an image URL instead.")}</p>`}
-              </div>` : '')}
             <div class="fmdw-cb-settings">
               <label>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_414b43a606b221","Layout\n                ") ?? "Layout\n                ")}<select data-fmdw-cb-layout ${String(ctx.readonly ? 'disabled' : '')}>
                   ${String(CONTENT_BLOCK_LAYOUTS.map(([value, label]) => `<option value="${esc(value)}" ${block.layout === value ? 'selected' : ''}>${esc(label)}</option>`).join(''))}
@@ -1001,20 +972,23 @@
           const block = blockAt(id);
           if (block) { block.body = String(event.target.value ?? ''); commit(); }
         });
-        card.querySelector('[data-fmdw-cb-media-url]')?.addEventListener('change', (event) => {
+        // The same attach popover the line items use: the shared media library
+        // (with upload) inside it, or one link that may be an image or a video.
+        card.querySelector('[data-fmdw-cb-media]')?.addEventListener('click', (event) => {
           const block = blockAt(id);
           if (!block) return;
-          const url = cleanText(event.target.value);
-          block.media = url ? { url } : (firstText(obj(block.media).media_id) ? block.media : null);
-          commit();
-          render();
-        });
-        card.querySelector('[data-fmdw-cb-video]')?.addEventListener('change', (event) => {
-          const block = blockAt(id);
-          if (!block) return;
-          const url = cleanText(event.target.value);
-          block.video = url ? { url } : null;
-          commit();
+          openMediaAttach({
+            anchor: event.currentTarget,
+            item: { media: block.media ? [block.media] : [], video: block.video, display: block.display },
+            services: ctx.services,
+            hideDisplay: true,
+            onSave: (patch) => {
+              block.media = obj(arr(obj(patch).media)[0]).media_id || obj(arr(obj(patch).media)[0]).url ? arr(patch.media)[0] : null;
+              block.video = obj(patch).video && firstText(obj(obj(patch).video).url) ? obj(patch).video : null;
+              commit();
+              render();
+            }
+          });
         });
         card.querySelector('[data-fmdw-cb-layout]')?.addEventListener('change', (event) => {
           const block = blockAt(id);
@@ -1024,22 +998,6 @@
           const block = blockAt(id);
           if (block) { block.display = cleanText(event.target.value) === 'popup' ? 'popup' : 'inline'; commit(); }
         });
-        card.querySelector('[data-fmdw-cb-pick]')?.addEventListener('click', () => {
-          pickerOpenFor = pickerOpenFor === id ? '' : id;
-          render();
-        });
-        card.querySelector('[data-fmdw-cb-clear-media]')?.addEventListener('click', () => {
-          const block = blockAt(id);
-          if (block) { block.media = null; commit(); render(); }
-        });
-        card.querySelectorAll('[data-fmdw-cb-photo]').forEach((button) => button.addEventListener('click', () => {
-          const block = blockAt(id);
-          if (!block) return;
-          const mediaId = button.dataset.fmdwCbPhoto;
-          block.media = firstText(obj(block.media).media_id) === mediaId ? null : { media_id: mediaId, variant: 'display' };
-          commit();
-          render();
-        }));
         card.querySelector('[data-fmdw-cb-remove]')?.addEventListener('click', () => {
           const index = blocks.findIndex((b) => b.id === id);
           if (index !== -1) { blocks.splice(index, 1); commit(); render(); }
@@ -1078,7 +1036,8 @@
     const rect = anchor.getBoundingClientRect?.() || { left: 40, right: 80, top: 40, bottom: 40 };
     const w = Math.min(width, Math.max(240, window.innerWidth - 16));
     pop.style.width = `${w}px`;
-    pop.style.left = `${Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8))}px`;
+    const left = rect.right - w >= 8 ? rect.right - w : rect.left;
+    pop.style.left = `${Math.max(8, Math.min(left, window.innerWidth - w - 8))}px`;
     const height = pop.offsetHeight || 0;
     const below = rect.bottom + 6;
     const above = rect.top - height - 6;
@@ -1185,13 +1144,13 @@
             <input type="text" data-fmdw-attach-caption value="${esc(state.caption)}" placeholder="Caption (optional)">
           </div>
         </div>
-        <details class="fmdw-attach-more" ${state.display === 'popup' ? 'open' : ''}>
+        ${opts.hideDisplay ? '' : `<details class="fmdw-attach-more" ${state.display === 'popup' ? 'open' : ''}>
           <summary>Display options</summary>
           <select data-fmdw-attach-display>
             <option value="inline" ${state.display === 'inline' ? 'selected' : ''}>Show in the line on the proposal</option>
             <option value="popup" ${state.display === 'popup' ? 'selected' : ''}>Show as a chip that opens the photo</option>
           </select>
-        </details>
+        </details>`}
         <div class="fmdw-attach-actions">
           ${hadAttachment ? `<button type="button" class="fmdw-btn ghost" data-fmdw-attach-remove><i class="fas fa-trash-can"></i> Remove</button>` : ''}
           <button type="button" class="fmdw-btn primary" data-fmdw-attach-save>Save</button>
@@ -2027,6 +1986,13 @@
         button.setAttribute('aria-expanded', String(!fold));
         el.querySelectorAll('[data-fmdw-fold-body]').forEach((body) => { if (body.dataset.fmdwFoldBody === id) body.classList.toggle('folded', fold); });
         el.querySelectorAll('[data-fmdw-fold-count]').forEach((count) => { if (count.dataset.fmdwFoldCount === id) count.hidden = !fold; });
+      }));
+      // A compare column is chosen by a click anywhere on it, not only on its heading.
+      el.querySelectorAll('.fmdw-lir-col').forEach((column) => column.addEventListener('click', (event) => {
+        const radio = column.querySelector('[data-fmdw-lir-choose]');
+        if (!radio || radio.disabled || radio.checked || event.target.closest('label, button, input, textarea, .fmdw-lir-edit')) return;
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
       }));
       el.querySelectorAll('[data-fmdw-lir-view]').forEach((button) => button.addEventListener('click', () => {
         compared.set(button.dataset.fmdwLirViewGroup, button.dataset.fmdwLirView === 'compare');
@@ -3382,7 +3348,9 @@
 .fmdw-money{position:relative;display:block;max-width:460px}
 .fmdw-money::before{content:'$';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12.5px;font-weight:900;color:#98a2b3;pointer-events:none}
 .fmdw-money input{padding-left:26px}
-.fmdw-foot-deliver{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.fmdw-foot-deliver{display:inline-flex;flex-wrap:nowrap;justify-content:flex-end;gap:8px;margin-left:auto}
+.fmdw-foot-deliver:not(:empty)+[data-fmdw-continue]{margin-left:0}
+.fmdw-foot .fmdw-btn{white-space:nowrap}
 .fmdw-foot-deliver:empty{display:none}
 .fmdw-hint{margin:0;font-size:11.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.5;text-transform:none;letter-spacing:0}
 .fmdw-hint i{margin-right:5px}
@@ -3483,7 +3451,7 @@
 .fmdw-lir-view button.on{background:#111827;color:#fff}
 .fmdw-lir-choice-head .fmdw-lir-add-option{margin-left:0}
 .fmdw-lir-compare{display:grid;grid-template-columns:repeat(var(--fmdw-cols,3),minmax(0,1fr));gap:8px;margin-left:22px}
-.fmdw-lir-col{display:flex;flex-direction:column;gap:8px;min-width:0;border:1.5px solid var(--fmdw-line);border-radius:12px;background:#fff;padding:10px 11px;transition:border-color .14s ease,box-shadow .14s ease}
+.fmdw-lir-col{cursor:pointer;display:flex;flex-direction:column;gap:8px;min-width:0;border:1.5px solid var(--fmdw-line);border-radius:12px;background:#fff;padding:10px 11px;transition:border-color .14s ease,box-shadow .14s ease}
 .fmdw-lir-col.on{border-color:var(--fmdw-primary);box-shadow:0 0 0 1px var(--fmdw-primary)}
 .fmdw-lir-col-head{display:flex;align-items:flex-start;gap:8px;cursor:pointer;min-width:0}
 .fmdw-lir-compare .fmdw-lir-col .fmdw-lir-col-head input[type=radio]{flex:0 0 16px;width:16px;height:16px;min-width:0;margin:2px 0 0;padding:0;accent-color:var(--fmdw-primary)}
@@ -3721,12 +3689,16 @@
 .fmdw-cb-index{flex:none;width:24px;height:24px;border-radius:99px;display:grid;place-items:center;font-size:10.5px;font-weight:1000;background:color-mix(in srgb,var(--fmdw-primary) 10%,#fff);color:var(--fmdw-primary)}
 .fmdw-cb-title{flex:1;min-width:0;max-width:none !important}
 .fmdw-cb-body{min-height:64px;max-width:none !important}
-.fmdw-cb-media-row{display:flex;align-items:flex-start;gap:10px;min-width:0}
-.fmdw-cb-thumb{flex:none;width:76px;height:58px;border-radius:10px;overflow:hidden;background:#eef1f6;border:1px solid var(--fmdw-line);display:grid;place-items:center;color:#98a2b3;font-size:16px}
-.fmdw-cb-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.fmdw-cb-media-controls{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
-.fmdw-cb-media-controls input{max-width:none !important;padding:7px 9px !important;font-size:12px !important;border-radius:9px !important}
-.fmdw-cb-photo-grid{border:1px solid var(--fmdw-line);border-radius:11px;padding:8px;background:#fafbfe;max-height:190px;overflow:auto}
+.fmdw-cb-main{display:flex;align-items:stretch;gap:10px;min-width:0}
+.fmdw-cb-main .fmdw-cb-body{flex:1;min-width:0;min-height:84px}
+.fmdw-cb-thumb{position:relative;flex:none;width:118px;min-height:84px;border-radius:11px;overflow:hidden;background:#f6f7fb;border:1px dashed #cfd5e2;color:#98a2b3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:inherit;font-size:10px;font-weight:900;cursor:pointer;padding:0;transition:border-color .12s ease,color .12s ease}
+.fmdw-cb-thumb:not(.empty){border-style:solid;border-color:var(--fmdw-line)}
+.fmdw-cb-thumb:hover:not(:disabled){border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
+.fmdw-cb-thumb:disabled{cursor:default}
+.fmdw-cb-thumb i{font-size:18px}
+.fmdw-cb-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.fmdw-cb-thumb img~span{position:absolute;left:6px;bottom:6px;background:rgba(17,20,28,.72);color:#fff;border-radius:999px;padding:3px 8px;opacity:0;transition:opacity .12s ease}
+.fmdw-cb-thumb:hover img~span,.fmdw-cb-thumb:focus-visible img~span{opacity:1}
 .fmdw-cb-settings{display:flex;gap:10px;flex-wrap:wrap}
 .fmdw-cb-settings label{flex:1 1 160px;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#8a94a6}
 .fmdw-cb-settings select{max-width:none !important;padding:7px 9px !important;font-size:12px !important;border-radius:9px !important}

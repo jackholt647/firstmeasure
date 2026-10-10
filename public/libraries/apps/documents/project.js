@@ -1734,10 +1734,8 @@
     function updateModeToggle(){
       const toggle = root.querySelector('[data-fmdx-mode-toggle]');
       if (!toggle) return;
-      toggle.hidden = !state.docWorkflow || isReadOnlyStatus(state.doc?.status);
-      toggle.querySelectorAll('[data-fmdx-mode]').forEach((button) => {
-        button.classList.toggle('active', cleanText(button.dataset.fmdxMode) === state.docView);
-      });
+      // A document with steps opens on them; this is the way back after "Edit manually".
+      toggle.hidden = !state.docWorkflow || isReadOnlyStatus(state.doc?.status) || state.docView !== 'editor';
     }
 
     // Debounced write-through: params.* accumulate into one PATCH, outputs.*
@@ -1947,13 +1945,11 @@
         // What the Review & send step offers: only what this workflow declares.
         deliverables: async () => {
           const options = await presentationOptions(state.doc?.id);
-          const offers = arrayValue(options.offers).length ? arrayValue(options.offers) : ['send_estimate'];
-          const presentable = canPresent(options);
-          // Sending the estimate is the step's own Send button; these sit to its left.
+          // Sending is the step's own Send button; these sit to its left. The
+          // presentation's own editor and its emailed link are under More.
           return [
-            presentable && window.FMPresentationEditorHost ? { id: 'edit_presentation', label: 'Edit presentation', icon: 'fa-pen-ruler', quiet: true, title: 'Open this presentation in the visual editor', run: () => editPresentation(objectValue(options.presentation).moduleId) } : null,
-            offers.includes('send_presentation') && presentable ? { id: 'send_presentation', label: 'Send presentation', icon: 'fa-share-from-square', title: 'Email the customer a link to go through the presentation themselves', run: () => sendPresentation() } : null,
-            offers.includes('present') && presentable ? { id: 'present', label: 'Present', icon: 'fa-chalkboard-user', title: 'Present this estimate to the customer', run: () => openPresentation() } : null
+            { id: 'edit_manually', label: 'Edit manually', icon: 'fa-pen-ruler', quiet: true, title: 'Open the finished document in the editor to change it by hand', run: () => setDocView('editor') },
+            canPresent(options) ? { id: 'present', label: 'Present', icon: 'fa-chalkboard-user', title: 'Present this estimate to the customer', run: () => openPresentation() } : null
           ].filter(Boolean);
         },
         scopeCandidates: async (templateId, group, measurements) => arrayValue((await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.candidates', { scope: 'organization', organizationId: orgId() }, { templateId, group, measurements: objectValue(measurements) })).value),
@@ -2685,7 +2681,13 @@
       state.doc = objectValue(docRecord);
       const record = objectValue(options.workflow);
       state.docWorkflow = arrayValue(objectValue(record.definition).steps).length ? record : null;
-      state.docView = options.view === 'workflow' && state.docWorkflow ? 'workflow' : 'editor';
+      // A document that has steps always opens on them, at the step it was
+      // left on; the editor is "Edit manually" on the last step. A locked
+      // document has nothing left to step through.
+      const stepsFirst = () => !!state.docWorkflow && options.manual !== true && !isReadOnlyStatus(state.doc?.status);
+      state.docView = stepsFirst() ? 'workflow' : 'editor';
+      state.canPresent = false;
+      state.presentOptions = null;
       state.resolved = null;
       state.working = null;
       state.workingDoc = null;
@@ -2703,7 +2705,16 @@
       renderDocScreen();
       // Attach the instance's workflow when the caller didn't hand one over
       // (silent — reveals the [Workflow | Editor] toggle when found).
-      if (!state.docWorkflow) loadDocWorkflow();
+      if (!state.docWorkflow) {
+        const opened = state.doc.id;
+        await loadDocWorkflow();
+        if (state.destroyed || state.view !== 'editor' || state.doc?.id !== opened) return;
+        if (stepsFirst()) {
+          state.docView = 'workflow';
+          updateModeToggle();
+          syncDocViewVisibility();
+        }
+      }
       if (state.docView === 'workflow') {
         mountWorkflowHost();
         loadCatalog(); // warm the catalog for the editor switch
@@ -2913,6 +2924,7 @@
         dataBtn.disabled = workflowMode;
         dataBtn.title = workflowMode ? 'The Data tray lives in the editor view' : '';
       }
+      syncDeliverableButtons();
       syncTrayOffset();
     }
 
@@ -2932,6 +2944,9 @@
       // already present in the right mode; rebuild when read-only flips.
       const existing = root.querySelector('[data-fmdx-editor-screen]');
       if (existing && existing.dataset.readonly === String(readOnly)) {
+        // The status can move without the lock flipping (draft to sent).
+        const chip = existing.querySelector('.fmdx-editor-top > .fmdx-chip');
+        if (chip) chip.outerHTML = statusChip(doc.status);
         updateSaveState();
         updateModeToggle();
         syncDocViewVisibility();
@@ -2950,10 +2965,7 @@
               ${String(statusChip(doc.status))}
               <span class="fmdx-top-total" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9403c7637d4905","Total") ?? "Total")}"><b data-card-total>—</b></span>
               <span class="fmdx-save-state" data-fmdx-save-state></span>
-              <div class="fmdx-mode-toggle" data-fmdx-mode-toggle hidden>
-                <button type="button" data-fmdx-mode="workflow" title="Workflow"><i class="fas fa-list-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6d5cbceb09ad8e"," Workflow") ?? " Workflow")}</button>
-                <button type="button" data-fmdx-mode="editor" title="Editor"><i class="fas fa-pen-ruler"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_cf117560db33b2"," Editor") ?? " Editor")}</button>
-              </div>
+              <button type="button" class="fmdx-btn" data-fmdx-mode-toggle data-fmdx-mode="workflow" title="Go back to this document's steps" hidden><i class="fas fa-list-check"></i> Back to steps</button>
               <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
                 ${String(readOnly ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle title="Data"><i class="fas fa-database"></i></button>`)}
                 ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-agent-btn title="Agent"><i class="fas fa-wand-magic-sparkles"></i></button>`)}
@@ -3039,7 +3051,8 @@
         presentButton.addEventListener('click', () => openPresentation());
         presentationOptions(doc.id).then((options) => {
           if (state.destroyed || state.doc?.id !== doc.id) return;
-          presentButton.hidden = !canPresent(options);
+          state.presentOptions = objectValue(options);
+          state.canPresent = canPresent(options);
           syncDeliverableButtons();
         });
       }
@@ -3400,7 +3413,10 @@
       const multi = isProposal && isMultiOptionDoc(doc, objectValue(doc.params));
       const menu = openMenu(anchor, `
         ${!readOnly && multi ? `<button type="button" class="fmdx-menu-item" data-more-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_95299bfa43bab3"," Add variant") ?? " Add variant")}</button>` : ''}
-        <button type="button" class="fmdx-menu-item" data-more-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>`);
+        <button type="button" class="fmdx-menu-item" data-more-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>
+        ${!readOnly && state.canPresent ? `${window.FMPresentationEditorHost ? '<button type="button" class="fmdx-menu-item" data-more-edit-presentation title="Open this presentation in the visual editor"><i class="fas fa-chalkboard"></i> Edit presentation</button>' : ''}${arrayValue(objectValue(state.presentOptions).offers).includes('send_presentation') ? '<button type="button" class="fmdx-menu-item" data-more-send-presentation title="Email the customer a link to go through the presentation themselves"><i class="fas fa-share-from-square"></i> Email presentation link</button>' : ''}` : ''}`);
+      menu.el.querySelector('[data-more-edit-presentation]')?.addEventListener('click', () => { menu.close(); editPresentation(objectValue(objectValue(state.presentOptions).presentation).moduleId); });
+      menu.el.querySelector('[data-more-send-presentation]')?.addEventListener('click', () => { menu.close(); sendPresentation(); });
       menu.el.querySelector('[data-more-variant]')?.addEventListener('click', (event) => {
         const button = event.currentTarget;
         menu.close();
@@ -4410,6 +4426,11 @@
       const host = state.root || document;
       const inWorkflow = state.docView === 'workflow' && !!state.workflowHandle;
       const isReady = !inWorkflow || (ready === undefined ? state.workflowHandle?.deliverablesReady?.() !== false : ready === true);
+      // On the steps, Present and Send are the last step's own buttons; the
+      // header carries them only while editing manually. No presentation, no Present.
+      const onSteps = state.docView === 'workflow';
+      host.querySelectorAll('[data-fmdx-send]').forEach((button) => { button.hidden = onSteps; });
+      host.querySelectorAll('[data-fmdx-present]').forEach((button) => { button.hidden = onSteps || state.canPresent !== true; });
       host.querySelectorAll('[data-fmdx-present],[data-fmdx-send]').forEach((button) => {
         if (!button.dataset.readyTitle) button.dataset.readyTitle = button.getAttribute('title') || '';
         button.disabled = !isReady;
@@ -4487,7 +4508,7 @@
 
       const overlay = document.createElement('div');
       overlay.className = 'fmdx-present-overlay';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:#0b0d12';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483540;background:#0b0d12'; // above the project window
       document.body.appendChild(overlay);
       let player = null;
       // Writes go one at a time, each on the revision the one before returned.
@@ -4570,6 +4591,8 @@
       } catch (error) { showToast('Send document', errorMessage(error, 'Could not load document delivery defaults.'), false); return; }
       const doc = objectValue(docRecord);
       if (!doc.id) return;
+      const branding = objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding);
+      const consentDefault = firstText(objectValue(doc.metadata).consent_contact, deliveryDefaults.consent_contact, branding.email, branding.support_email, branding.phone, window.Portal?.cfg?.userEmail);
       const emailValid = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
       const contacts = projectContacts();
       const signerRoles = [...new Set(Object.values(objectValue(doc.output_defs)).filter(d => d?.type === 'signature').map(d => cleanText(d.signer_id) || (['internal','company'].includes(d.party || d.signer) ? 'company' : 'customer')))];
@@ -4580,9 +4603,10 @@
         return `<fieldset class="fmdx-field wide" data-signer-role="${esc(role)}" data-signer-required="${required}"><legend>${((v2,v3) => globalThis.PlatformLanguage?.htmlText("documents","m_76f28d31e96fe0",`Signer: ${v2}${v3}`,{v2,v3}) ?? `Signer: ${v2}${v3}`)(esc(role),required ? '' : ' (optional)')}</legend>
           <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_8cf345002184e5","Name") ?? "Name")}<input data-signer-name value="${esc(contact.name || '')}"></label>
           <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_5d2b9327181e33","Email") ?? "Email")}<input type="email" data-signer-email value="${esc(contact.email || '')}"></label>
+          <details class="fmdx-send-more"><summary>Signing order, capacity, company signer</summary>
           <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_2673fb88cdc226","Organization user ID (for a signed-in company signer)") ?? "Organization user ID (for a signed-in company signer)")}<input data-signer-user value="${esc(contact.user_id || '')}"></label>
           <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_f8bc5a366f36e4","Signing order (same number signs in parallel)") ?? "Signing order (same number signs in parallel)")}<input type="number" min="0" max="1000" data-signer-order value="${Number(contact.order || 0)}"></label>
-          <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_32d13195480127","Capacity, such as homeowner or authorized representative") ?? "Capacity, such as homeowner or authorized representative")}<input data-signer-capacity value="${esc(contact.capacity || '')}"></label></fieldset>`;
+          <label>${(globalThis.PlatformLanguage?.htmlText("documents","m_32d13195480127","Capacity, such as homeowner or authorized representative") ?? "Capacity, such as homeowner or authorized representative")}<input data-signer-capacity value="${esc(contact.capacity || '')}"></label></details></fieldset>`;
       }).join('');
       const contactRows = contacts.length
         ? contacts.map((contact, index) => `
@@ -4597,7 +4621,7 @@
         <p class="fmdx-modal-sub">${((v0) => globalThis.PlatformLanguage?.htmlText("documents","m_5ae7520a0cb450",`${v0} — a snapshot is frozen and delivered to your customer.`,{v0}) ?? `${v0} — a snapshot is frozen and delivered to your customer.`)(esc(firstText(doc.title, 'Document')))}</p>
         <div class="fmdx-form-grid">
           ${signerRows}
-          ${signerRoles.length ? `<label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_0d57df484a893a","Your contact for paper copies and electronic-consent withdrawal") ?? "Your contact for paper copies and electronic-consent withdrawal")}</span><input data-consent-contact value="${esc(doc.metadata?.consent_contact || '')}" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_a434d7e39d7caf","Your company's support email or phone") ?? "Your company's support email or phone")}"></label><p class="fmdx-data-hint">${(globalThis.PlatformLanguage?.htmlText("documents","m_cefe9c9f1e3869","Each signer receives an individual invitation. Use a separate signer ID for each role in the template. Repeated fields may share a signer; each required field must be signed. Other recipients receive read-only copies.") ?? "Each signer receives an individual invitation. Use a separate signer ID for each role in the template. Repeated fields may share a signer; each required field must be signed. Other recipients receive read-only copies.")}</p>` : ''}
+          ${signerRoles.length ? `<details class="fmdx-send-more fmdx-field wide"><summary>Contact for paper copies: ${esc(consentDefault || 'your own email')}</summary><label class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_0d57df484a893a","Your contact for paper copies and electronic-consent withdrawal") ?? "Your contact for paper copies and electronic-consent withdrawal")}</span><input data-consent-contact value="${esc(consentDefault)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("documents","m_a434d7e39d7caf","Your company's support email or phone") ?? "Your company's support email or phone")}"></label></details>` : ''}
           <div class="fmdx-field wide"><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_c1791596944182","Recipients") ?? "Recipients")}</span>
             <div class="fmdx-recipient-list">${String(contactRows)}</div>
           </div>
@@ -4607,10 +4631,18 @@
           <label class="fmdx-check"><input type="checkbox" data-send-pdf ${deliveryDefaults.send_include_pdf !== false ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("documents","m_c96d1087aa82e3"," Attach PDF") ?? " Attach PDF")}</label>
         </div>
         <div class="fmdx-modal-foot">
+          <span class="fmdx-send-error" data-send-error role="alert" hidden></span>
           <button type="button" class="fmdx-btn primary" data-send-go><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>
         </div>`, { className: 'narrow' });
       modal.el.querySelector('[data-send-go]')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
+        const errorEl = modal.el.querySelector('[data-send-error]');
+        // Say what is wrong in the dialog and put the cursor on it.
+        const problem = (message, field) => {
+          if (errorEl) { errorEl.textContent = message; errorEl.hidden = !message; }
+          if (field) { const more = field.closest('details'); if (more) more.open = true; try { field.focus(); field.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }
+        };
+        problem('');
         let recipients = [...modal.el.querySelectorAll('[data-send-contact]')]
           .filter((input) => input.checked)
           .map((input) => contacts[Number(input.dataset.sendContact || 0)])
@@ -4618,7 +4650,7 @@
           .map((contact) => ({ name: contact.name, email: cleanText(contact.email), ...(contact.role ? { role: contact.role } : {}) }));
         const extra = cleanText(modal.el.querySelector('[data-send-extra]')?.value);
         if (extra) {
-          if (!emailValid(extra)) { showToast((globalThis.PlatformLanguage?.text("documents","m_c23a056552a09f","Send") ?? "Send"), (globalThis.PlatformLanguage?.text("documents","m_878e0d319b42ce","The extra email address is not valid.") ?? "The extra email address is not valid."), false); return; }
+          if (!emailValid(extra)) { problem('The extra email address is not valid.', modal.el.querySelector('[data-send-extra]')); return; }
           if (!recipients.some((r) => r.email.toLowerCase() === extra.toLowerCase())) recipients.push({ name: extra, email: extra, role: 'customer' });
         }
         if (signerRoles.length) {
@@ -4627,14 +4659,13 @@
             const email = cleanText(row.querySelector('[data-signer-email]').value);
             const user_id = cleanText(row.querySelector('[data-signer-user]').value);
             if (!email && !user_id && row.dataset.signerRequired !== 'true') continue;
-            if ((!emailValid(email) && !user_id) || (email && !emailValid(email))) { showToast((globalThis.PlatformLanguage?.text("documents","m_35113187e45ce7","Signer required") ?? "Signer required"), ((v0) => globalThis.PlatformLanguage?.text("documents","m_f50b15304da463",`Assign an email or organization user to ${v0}.`,{v0}) ?? `Assign an email or organization user to ${v0}.`)(row.dataset.signerRole), false); return; }
+            if ((!emailValid(email) && !user_id) || (email && !emailValid(email))) { problem('Enter an email address for the person who signs.', row.querySelector('[data-signer-email]')); return; }
             recipients.push({ signer_id: row.dataset.signerRole, name: cleanText(row.querySelector('[data-signer-name]').value), email, user_id, order: Number(row.querySelector('[data-signer-order]').value), capacity: cleanText(row.querySelector('[data-signer-capacity]').value) });
           }
           recipients = recipients.filter(r => r.role !== 'copy' || !recipients.some(s => s.signer_id && s.email && s.email.toLowerCase() === r.email.toLowerCase()));
-          if (!cleanText(modal.el.querySelector('[data-consent-contact]')?.value)) { showToast((globalThis.PlatformLanguage?.text("documents","m_284cab93d0a821","Signing contact required") ?? "Signing contact required"), (globalThis.PlatformLanguage?.text("documents","m_aee58c8436d9a7","Enter your company contact for paper copies and consent withdrawal.") ?? "Enter your company contact for paper copies and consent withdrawal."), false); return; }
         }
         if (!recipients.length) {
-          showToast((globalThis.PlatformLanguage?.text("documents","m_c23a056552a09f","Send") ?? "Send"), (globalThis.PlatformLanguage?.text("documents","m_dbf9b52b0188bd","Choose at least one recipient with a valid email address.") ?? "Choose at least one recipient with a valid email address."), false);
+          problem('Choose at least one recipient with an email address.', modal.el.querySelector('[data-send-extra]'));
           return;
         }
         button.disabled = true;
@@ -4654,10 +4685,13 @@
           }
           loadDocs({ silent: true });
           renderSendSuccess(modal, res);
+          // The draft is now a sent document: reopen it so the screen says so.
+          if (state.view === 'editor' && state.doc?.id === doc.id) openDocScreen(state.doc);
         } catch (error) {
           button.disabled = false;
           button.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-          showToast((globalThis.PlatformLanguage?.text("documents","m_c23a056552a09f","Send") ?? "Send"), errorMessage(error, 'Could not send the document.'), false);
+          const code = cleanText(error?.data?.code || error?.data?.error || error?.code);
+          problem(code === 'signature_contact_required' ? 'Add your company contact for paper copies under the signer\u2019s extra options.' : errorMessage(error, 'Could not send the document.'), code === 'signature_contact_required' ? modal.el.querySelector('[data-consent-contact]') : null);
         }
       });
     }

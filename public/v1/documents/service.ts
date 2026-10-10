@@ -1914,8 +1914,12 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
   if (ctx.userId !== "system_automation" && !hasPermission(ctx, "issue_documents")) throw forbidden("signature_issue_permission", "Document issuing permission is required to assign signers and send contracts.");
   let before = await readDocumentInstance(orgId, documentId);
   const defaults = await readDocumentDeliveryDefaults(orgId, cleanText(before.branch_id) || "default");
+  // A company with no contact on file still has the person sending: they are
+  // who a signer reaches for a paper copy until the company sets its own.
+  const senderContact = cleanText(asObject(ctx.identity).email) || cleanText(asObject(ctx.user).email) || cleanText(asObject(asObject(ctx.userDocument).data).email);
   input = {
     ...input,
+    ...(cleanText(input.consent_contact) || cleanText(asObject(before.metadata).consent_contact) || !senderContact || ctx.userId === "system_automation" ? {} : { consent_contact_fallback: senderContact }),
     include_pdf: input.include_pdf ?? defaults.send_include_pdf,
     include_portal: input.include_portal ?? defaults.send_include_portal
   };

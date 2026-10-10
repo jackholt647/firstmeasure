@@ -18,7 +18,7 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const STYLE_ID = 'fm-presentation-editor-host-styles';
   const CSS = `
-.fmpeh{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;background:#f4f6f8;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.fmpeh{position:fixed;inset:0;z-index:2147483150;display:flex;flex-direction:column;background:#f4f6f8;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 .fmpeh-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
 .fmpeh-wait{margin:auto;display:flex;align-items:center;gap:10px;color:#475467;font-size:13px;font-weight:600}
 .fmpeh-wait button{height:30px;padding:0 12px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit;cursor:pointer}

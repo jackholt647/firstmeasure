@@ -82,15 +82,15 @@
 .fmpe-banner button{height:22px;padding:0 10px;border:0;border-radius:11px;background:rgba(255,255,255,.16);color:#fff;font:700 11px/1 inherit;cursor:pointer}
 .fmpe-banner button:hover{background:rgba(255,255,255,.26)}
 /* spotlight (hovering a row, or a widget piece on the slide) */
-.fmpe-spot{position:fixed;z-index:2147483000;pointer-events:none;border:1.5px solid var(--fmde-accent,#2563eb);border-radius:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--fmde-accent,#2563eb) 18%,transparent)}
+.fmpe-spot{position:fixed;z-index:2147483160;pointer-events:none;border:1.5px solid var(--fmde-accent,#2563eb);border-radius:3px;box-shadow:0 0 0 3px color-mix(in srgb,var(--fmde-accent,#2563eb) 18%,transparent)}
 .fmpe-spot[hidden]{display:none}
 .fmpe-spot.part{border:1.5px dashed ${PART};box-shadow:none}
 .fmpe-spot span{position:absolute;left:-1.5px;top:100%;margin-top:4px;display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;border-radius:5px;background:${PART};color:#fff;font:700 10px/1 Inter,ui-sans-serif,system-ui,sans-serif;white-space:nowrap}
 .fmpe-spot span:empty{display:none}
 .fmpe-spot span i{font-size:8px}
-.fmpe-play{position:fixed;z-index:2147482990;overflow:hidden;border-radius:4px;box-shadow:0 0 0 2px var(--fmde-accent,#2563eb)}
+.fmpe-play{position:fixed;z-index:2147483155;overflow:hidden;border-radius:4px;box-shadow:0 0 0 2px var(--fmde-accent,#2563eb)}
 .fmpe-play .fmdp{min-height:0}
-.fmpe-present{position:fixed;inset:0;z-index:2147483200;background:#0b0d12}
+.fmpe-present{position:fixed;inset:0;z-index:2147483250;background:#0b0d12}
 /* shared panel vocabulary (Animate, Interactive, Layers) */
 .fmpe-pane{display:flex;flex-direction:column;gap:14px;padding:12px;color:#111827;font-size:12.5px}
 .fmpe-pane h4{margin:0;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#6b7280}
@@ -205,7 +205,7 @@
 .fmpe-layer.off>span:not(.fmpe-badge):not(.mark){opacity:.45;text-decoration:line-through}
 .fmpe-layer .mark{flex:none;color:#98a2b3;font-size:9.5px}
 /* menus */
-.fmpe-menu{position:fixed;z-index:2147483100;width:270px;padding:6px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 18px 50px rgba(16,24,40,.2);font:13px/1.3 Inter,ui-sans-serif,system-ui,sans-serif;color:#101828}
+.fmpe-menu{position:fixed;z-index:2147483200;width:270px;padding:6px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 18px 50px rgba(16,24,40,.2);font:13px/1.3 Inter,ui-sans-serif,system-ui,sans-serif;color:#101828}
 .fmpe-menu button{display:flex;align-items:flex-start;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .fmpe-menu button:hover{background:#f4f5f8}
 .fmpe-menu button>i{flex:none;width:16px;margin-top:2px;text-align:center;color:#667085;font-size:12px}

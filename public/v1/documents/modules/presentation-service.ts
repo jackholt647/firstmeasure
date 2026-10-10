@@ -556,16 +556,19 @@ async function share_(ctx: PublicationContext, instance: ModuleInstance, definit
   if (info.shares.length >= MAX_SHARES) throw conflict("presentation_share_limit", "Revoke an existing link before creating another.");
   const recipients = (input.recipients || []).map(object).map(recipient => ({ name: text(recipient.name), email: text(recipient.email).toLowerCase(), phone: text(recipient.phone), ...(text(recipient.signer_id || recipient.role) ? { signer_id: text(recipient.signer_id || recipient.role) } : {}) })).filter(recipient => recipient.name || recipient.email || recipient.phone).slice(0, 10);
   const mode = access === "choose" && definition.presentation.customer.contract === "direct" && input.contract?.mode !== "review" ? "direct" : "review";
+  let resolvedContact = "";
   if (mode === "direct") {
     // The sender authorizes the later issue now, against the draft it will issue.
     const document = await sourceDocument(ctx.organizationId, info.source);
     if (!document) throw badRequest("presentation_direct_source", "Direct contracts need a source draft and its signer.");
-    await (await import("../signing/service.js")).validateSigningIssue(ctx.organizationId, document, recipients, { consent_contact: input.contract?.consentContact });
+    // The contact a signer is given is settled now too: the company's own, or the sender when it has none on file.
+    const plan = await (await import("../signing/service.js")).validateSigningIssue(ctx.organizationId, document, recipients, { consent_contact: input.contract?.consentContact, consent_contact_fallback: text(object(auth.identity).email) || text(object(auth.user).email) });
+    resolvedContact = text(object(plan).contact);
   }
   const expiresAt = input.expiresAt || new Date(Date.now() + SHARE_DAYS * 86_400_000).toISOString();
   const link = await createPublicLink(ctx.organizationId, { kind: "presentation", resource_type: "document_module_instance", resource_id: instance.id, destination_path: PRESENTATION_PORTAL_PATH,
     allowed_actions: access === "choose" ? ["view", "choose", "submit"] : ["view"], expires_at: expiresAt, created_by: auth.userId, metadata: { project_id: instance.projectId } });
-  const share = { id: link.document.id, access, contract: { mode, ...(input.contract?.consentContact ? { consentContact: input.contract.consentContact } : {}), includePdf: input.contract?.includePdf === true }, recipients, expiresAt, createdBy: auth.userId, createdAt: new Date().toISOString() };
+  const share = { id: link.document.id, access, contract: { mode, ...(input.contract?.consentContact || resolvedContact ? { consentContact: input.contract?.consentContact || resolvedContact } : {}), includePdf: input.contract?.includePdf === true }, recipients, expiresAt, createdBy: auth.userId, createdAt: new Date().toISOString() };
   const saved = await save(ctx.organizationId, instance, { presentation: { shares: [...info.shares, share] } });
   await record(ctx.organizationId, saved, { kind: "user", ctx }, "shared", { shareId: share.id, access, recipients: recipients.map(recipient => recipient.email || recipient.phone) });
   await documentEvent(ctx.organizationId, saved, "shared", { share_id: share.id, access }, auth);

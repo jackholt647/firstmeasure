@@ -49,7 +49,7 @@ export async function validateSigningIssue(orgId: string, document: JsonObject, 
   await assertSigningEditable(orgId, text(document.id));
   const signers = signerPlan(fields, recipients);
   const org = object(await readOrganization(orgId));
-  const contact = text(input.consent_contact || object(document.metadata).consent_contact || org.email || object(org.data).email);
+  const contact = text(input.consent_contact || object(document.metadata).consent_contact || org.email || object(org.data).email || input.consent_contact_fallback);
   if (!contact) throw badRequest("signature_contact_required", "Set an organization contact or consent_contact for signing support and paper copies.");
   for (const signer of signers) {
     if (signer.required && !signer.email && !signer.user_id) throw badRequest("signature_recipient_required", `Assign an email recipient or organization user to required signer '${signer.id}'.`);

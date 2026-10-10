@@ -94,6 +94,14 @@
 .fmdx-modal-back{position:fixed;inset:0;z-index:2147483530;background:rgba(16,22,42,.52);backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px}
 .fmdx-modal{width:min(820px,100%);max-height:min(88dvh,860px);overflow:auto;border-radius:20px;background:#fff;padding:22px;display:flex;flex-direction:column;gap:16px;position:relative;box-shadow:0 30px 80px rgba(13,18,32,.35);color:#111827}
 .fmdx-modal.narrow{width:min(560px,100%)}
+.fmdx-send-more{border:0;padding:0;margin:2px 0 0}
+.fmdx-send-more>summary{cursor:pointer;font-size:11px;font-weight:900;color:#667085;list-style:none;display:inline-flex;align-items:center;gap:6px;padding:4px 0}
+.fmdx-send-more>summary::before{content:"\f054";font-family:"Font Awesome 6 Free","Font Awesome 5 Free";font-weight:900;font-size:9px;transition:transform .15s ease}
+.fmdx-send-more[open]>summary::before{transform:rotate(90deg)}
+.fmdx-send-more>summary::-webkit-details-marker{display:none}
+.fmdx-send-more>label{display:block;margin-top:8px}
+.fmdx-send-error{margin-right:auto;font-size:12px;font-weight:900;color:#b42318;display:inline-flex;align-items:center;gap:6px}
+.fmdx-send-error[hidden]{display:none}
 .fmdx-modal h2{margin:0;font-size:18px;font-weight:1000;padding-right:44px;display:flex;align-items:center;gap:10px}
 .fmdx-modal h2 i{color:var(--primary-readable,var(--fmdx-primary,#d93025))}
 .fmdx-modal-sub{margin:-8px 0 0;font-size:12px;font-weight:800;color:#667085}
