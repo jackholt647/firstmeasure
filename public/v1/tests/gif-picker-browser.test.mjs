@@ -86,6 +86,23 @@ test('GIF picker dismisses and cleans up, handles empty/error results and fits s
   }finally{await browser.close();}
 });
 
+test('Feed compatibility adapters delegate to shared widgets, including temporary GIF buttons',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try{
+    const {page,errors}=await setup(browser);
+    await page.evaluate(()=>{
+      document.querySelector('#outside').onclick=()=>FirstMateChannels.createGifPickerButton({orgId:'test',dialogTitle:'Choose a GIF',actionLabel:'Add GIF',onSend:item=>sent.push(item)}).click();
+    });
+    await page.getByRole('button',{name:'Outside',exact:true}).click();
+    const pop=page.getByRole('dialog',{name:'Choose a GIF'});await pop.getByRole('button',{name:'trending',exact:true}).click();
+    assert.equal(await page.evaluate(()=>sent[0].id),'trending');
+    await page.evaluate(()=>{window.emoji=FirstMateChannels.mountEmojiPicker(document.querySelector('#host'),value=>sent.push(value));emoji.focus();});
+    await page.getByRole('button',{name:'🎉',exact:true}).click();assert.equal(await page.evaluate(()=>sent[1]),'🎉');
+    assert.equal(await page.evaluate(()=>typeof FirstMateChannels.composerWidgets.createEditor),'function');
+    await page.evaluate(()=>emoji.destroy());assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
 test('widget library uses the bundled GIPHY grid and disposes its open picker',async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
