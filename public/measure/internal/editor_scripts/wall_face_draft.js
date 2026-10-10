@@ -1919,11 +1919,11 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
  function selectedLineLength(){
   if(tool?.kind==='draw'&&tool.preview&&picked.length===1){const d=current(),a=d?.sketch.nodes.find(n=>n.id===picked[0]);if(a)return distance3(world(d,a),world(d,tool.preview));}
   if(workingPlane?.drawing&&workingPlane.hover&&workingPlane.selection.length===1)return distance3(workingPlane.selection[0],workingPlane.hover);
-  if(workingPlane){const pairs=workingPlane.selectedLines||[];return pairs.length===1?distance3(...pairs[0]):null;}
-  if(lineSelection.length+solidEdges.length+pickedLines.length!==1)return null;
-  if(lineSelection.length){const line=lineSelection[0];return (line.pairs||[line.pair]).reduce((sum,pair)=>sum+distance3(...pair),0);}
-  if(pickedLines.length){const d=current();if(!d)return null;const segments=S.curveEdges(d.sketch).filter(e=>e.id===pickedLines[0]);return segments.length?segments.reduce((sum,e)=>sum+distance3(world(d,e.start),world(d,e.end)),0):null;}
-  const graph=wire(),edge=graph.edges.find(e=>e.id===solidEdges[0]);return edge?distance3(...[edge.a,edge.b].map(id=>graph.nodes.find(n=>n.id===id))):null;
+  if(workingPlane){const pairs=workingPlane.selectedLines||[];return pairs.length?pairs.reduce((sum,pair)=>sum+distance3(...pair),0):null;}
+  const pairs=lineSelection.flatMap(line=>line.pairs||[line.pair]);
+  if(pickedLines.length){const d=current();if(d)for(const e of S.curveEdges(d.sketch).filter(e=>pickedLines.includes(e.id)))pairs.push([world(d,e.start),world(d,e.end)]);}
+  if(solidEdges.length){const graph=wire(),nodes=new Map(graph.nodes.map(n=>[n.id,n]));for(const e of graph.edges.filter(e=>solidEdges.includes(e.id)))pairs.push([nodes.get(e.a),nodes.get(e.b)]);}
+  return pairs.length?pairs.reduce((sum,pair)=>sum+distance3(...pair),0):null;
  }
  function selectedTrimPairs(){
   const d=current(),graph=wire(),nodesById=new Map(graph.nodes.map(n=>[n.id,n])),byId=id=>nodesById.get(id),pairs=[...lineSelection.map(l=>l.pair),...solidEdges.map(id=>graph.edges.find(e=>e.id===id)).filter(Boolean).map(e=>[byId(e.a),byId(e.b)]),...(d?pickedLines.map(id=>d.sketch.edges.find(e=>e.id===id)).filter(e=>e&&!e.curveId).map(e=>[world(d,d.sketch.nodes.find(n=>n.id===e.a)),world(d,d.sketch.nodes.find(n=>n.id===e.b))]):[])];return pairs;
