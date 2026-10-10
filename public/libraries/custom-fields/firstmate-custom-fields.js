@@ -1074,7 +1074,7 @@
         const prepare=async()=>{
           calculationHost.hidden=!form.elements.published_calculation.checked;if(calculationHost.hidden || publishedCalculationEditor)return;
           calculationHost.textContent='Loading declared variables…';
-          try{const result=await root.FirstMatePriorityFields.catalog(options.orgId || currentOrgId(),options.branchId || currentBranchId());if(calculationHost.isConnected)publishedCalculationEditor=root.FirstMatePriorityFields.calculationEditor(calculationHost,result.entries,selected.calculation);}catch(error){calculationHost.textContent=error.message||'Variables could not be loaded.';}
+          try{const result=await root.FirstMatePriorityFields.catalog(options.orgId || currentOrgId(),options.branchId || currentBranchId(),selected.entity || 'project');if(calculationHost.isConnected)publishedCalculationEditor=root.FirstMatePriorityFields.calculationEditor(calculationHost,result.entries,selected.calculation);}catch(error){calculationHost.textContent=error.message||'Variables could not be loaded.';}
         };
         form.elements.published_calculation.onchange=prepare;prepare();
       }

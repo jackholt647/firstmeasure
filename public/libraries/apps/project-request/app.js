@@ -11588,7 +11588,7 @@ window.PlatformCommerce.onReady(async function(){
   });
 
   window.addEventListener('fm:perms:updated', updateButtonVisibility);
-  for(const type of ['fm:perms:updated','fm:platform-session:updated','fm:projects:refresh','fm:custom-fields:definitions-updated','fm:app-flags:updated'])window.addEventListener(type,()=>{priorityFieldStates.clear();renderProjectStageBar();});
+  for(const type of ['fm:perms:updated','fm:platform-session:updated','fm:projects:refresh','fm:custom-fields:definitions-updated','fm:priority-fields:updated','fm:app-flags:updated'])window.addEventListener(type,()=>{priorityFieldStates.clear();renderProjectStageBar();});
   window.setInterval(()=>{if(!document.hidden && document.getElementById('rOverlay')?.classList.contains('active'))renderProjectStageBar();},10000);
   window.addEventListener('fm:custom-fields:definitions-loaded', () => {
     if ($('#rOverlay')?.classList.contains('active')) renderProjectCustomFields();

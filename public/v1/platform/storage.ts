@@ -1463,6 +1463,7 @@ export async function readBranchModule(orgId: string, branchId: string, moduleId
 }
 
 export async function saveBranchModule(orgId: string, branchId: string, moduleId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if(moduleId==='priority_fields')input={...input,data:(await import('../priority_fields/contracts.js')).normalizePriorityConfiguration(input.data,branchId || 'default')};
   if(moduleId==='project_configuration' && asObject(input.data).priority_fields!==undefined){
     input={...input,data:{...asObject(input.data),priority_fields:(await import('../priority_fields/contracts.js')).normalizePriorityFields(asObject(input.data).priority_fields)}};
   }

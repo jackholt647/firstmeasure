@@ -1,3 +1,4 @@
+import { FIELD_OWNERS, type FieldEntity } from '../custom_fields/owners.js';
 import { z } from 'zod';
 import { badRequest } from '../platform/errors.js';
 import { fieldSourceSchema } from '../custom_fields/calculations.js';
@@ -16,9 +17,9 @@ export function builtinPriorityField(id:string):PriorityField {
   const meta=BUILTIN_FIELDS[id];if(!meta)throw badRequest('priority_field_unknown','Unknown compatibility field.');
   return priorityFieldSchema.parse({id,label:meta.label,format:meta.format || 'text',icon:meta.icon || 'fa-tag',source:{provider:'project-summary',export:id==='dollar_value'?'value':'details',target:{scope:'project',organizationId:'$organization',projectId:'$project'},path:id==='dollar_value'?'/amount':`/${id}`}});
 }
-export function customPriorityField(field:Record<string,any>):PriorityField {
+export function customPriorityField(field:Record<string,any>,entity:FieldEntity = field.entity || "project"):PriorityField {
   const path=String(field.path || field.key);
-  return priorityFieldSchema.parse({id:`custom_field:${path}`,label:field.ui?.project_tag_label || field.label || path,format:field.type==='currency'?'currency':['number','integer','formula','slider','percentage'].includes(field.type)?'number':['date','datetime'].includes(field.type)?'date':'text',currency:field.currency || 'USD',icon:field.ui?.project_tag_icon || field.ui?.icon || 'fa-tag',empty:field.ui?.project_tag_empty_behavior || field.ui?.empty_behavior || 'hide',source:{provider:'custom-fields-project',export:'values',target:{scope:'project',organizationId:'$organization',projectId:'$project'},args:{field:path},path:'/'+path.split('.').map(v=>v.replace(/~/g,'~0').replace(/\//g,'~1')).join('/')}});
+  return priorityFieldSchema.parse({id:`custom_field:${path}`,label:field.ui?.project_tag_label || field.label || path,format:field.type==='currency'?'currency':['number','integer','formula','slider','percentage'].includes(field.type)?'number':['date','datetime'].includes(field.type)?'date':'text',currency:field.currency || 'USD',icon:field.ui?.project_tag_icon || field.ui?.icon || 'fa-tag',empty:field.ui?.project_tag_empty_behavior || field.ui?.empty_behavior || 'hide',source:{provider:`custom-fields-${entity}`,export:'values',target:entity==='project'?{scope:'project',organizationId:'$organization',projectId:'$project'}:{scope:'organization',organizationId:'$organization',id:'$record'},args:{field:path},path:'/'+path.split('.').map(v=>v.replace(/~/g,'~0').replace(/\//g,'~1')).join('/')}});
 }
 export function normalizePriorityFields(input:unknown):PriorityField[] {
   const parsed=z.array(priorityFieldSchema).max(32).safeParse(input);
@@ -26,8 +27,9 @@ export function normalizePriorityFields(input:unknown):PriorityField[] {
   if(new Set(parsed.data.map(f=>f.id)).size!==parsed.data.length)throw badRequest('priority_fields_duplicate','Each priority field needs a unique identity.');
   return parsed.data;
 }
-export function configuredPriorityFields(config:Record<string,any>,custom:Record<string,any>[]=[]):PriorityField[] {
+export function configuredPriorityFields(config:Record<string,any>,custom:Record<string,any>[]=[],entity:FieldEntity="project"):PriorityField[] {
   if(config.priority_fields!==undefined)return normalizePriorityFields(config.priority_fields);
+  if(entity!=="project")return [];
   const legacy=Array.isArray(config.project_header_pills)?config.project_header_pills:['scope_type','stage','dollar_value'];
   const ids=[...new Set([...legacy,...custom.filter(f=>f.ui?.project_tag===true || f.ui?.visible_tag===true).map(f=>`custom_field:${f.path || f.key}`),'project_type'])];
   return ids.flatMap(id=>{
@@ -36,3 +38,15 @@ export function configuredPriorityFields(config:Record<string,any>,custom:Record
   }).slice(0,32);
 }
 export function isCompatibilityField(field:PriorityField,id:string){const ref:SourceRef=builtinPriorityField(id).source;return field.source.provider===ref.provider && field.source.export===ref.export && field.source.path===ref.path;}
+
+/** One namespace, independent ordered lists; project_configuration remains a compatibility fallback. */
+export function normalizePriorityConfiguration(input:unknown,branchId='default') {
+  const parsed=z.object({entities:z.record(z.array(priorityFieldSchema).max(32)).default({})}).strict().safeParse(input);
+  if(!parsed.success)throw badRequest('priority_configuration_invalid','Choose a supported field owner and ordered priority list.');
+  for(const [entity,fields] of Object.entries(parsed.data.entities)){
+    if(!Object.hasOwn(FIELD_OWNERS,entity))throw badRequest('priority_owner_invalid','Unknown priority field owner.');
+    if(branchId!=='default' && FIELD_OWNERS[entity as FieldEntity].shared)throw badRequest('priority_owner_branch','Shared owner priorities belong to the default branch.');
+    parsed.data.entities[entity]=normalizePriorityFields(fields);
+  }
+  return parsed.data;
+}

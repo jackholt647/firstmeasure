@@ -26,9 +26,10 @@ export function normalizeCalculation(input:unknown):Calculation {
   return parsed.data;
 }
 export function bindFieldSource(source:SourceRef,ctx:PublicationContext,target:TargetRef):SourceRef {
-  const tokens:Record<string,string|undefined>={'$organization':ctx.organizationId,'$project':target.projectId,'$branch':target.branchId || ctx.branchId};
+  const tokens:Record<string,string|undefined>={'$organization':ctx.organizationId,'$project':target.projectId,'$record':target.id || target.projectId,'$branch':target.branchId || ctx.branchId};
   const bound={...source,target:{...source.target}};
   for(const key of ['organizationId','projectId','branchId','id'] as const){const value=bound.target[key];if(value?.startsWith('$')){if(!tokens[value])throw badRequest('field_source_context','The selected source needs a context that is unavailable here.');bound.target[key]=tokens[value];}}
+  if(source.provider==='custom-fields-contact' && source.target.id==='$record' && target.scope==='project'){bound.target.scope='project';bound.target.projectId=target.projectId;}
   if(bound.target.scope!=='global')bound.target.organizationId ||= ctx.organizationId;
   if(bound.target.scope==='project')bound.target.projectId ||= target.projectId;
   return bound;

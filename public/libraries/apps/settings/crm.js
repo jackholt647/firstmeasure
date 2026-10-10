@@ -319,7 +319,7 @@
       trayLabel.append(traySelect);traySection.append(trayLabel);host.querySelector('.crm-settings').append(traySection);
       bindSubTabs();
       host.querySelectorAll('[data-title-mode]').forEach((button) => button.addEventListener('click', () => { config.title_mode = button.dataset.titleMode; renderProjects(); }));
-      root.FirstMatePriorityFields.mountEditor(host.querySelector('[data-priority-editor]'),{orgId,branchId,config}).then(editor=>{if(editor && host.querySelector('[data-priority-editor]'))host.querySelector('[data-priority-editor]').priorityEditor=editor;}).catch(error=>{const node=host.querySelector('[data-priority-editor]');if(node)node.textContent=error.message||'Priority fields could not be loaded.';});
+      root.FirstMatePriorityFields.mountOwnerEditor(host.querySelector('[data-priority-editor]'),{orgId,branchId,config}).then(editor=>{if(editor && host.querySelector('[data-priority-editor]'))host.querySelector('[data-priority-editor]').priorityEditor=editor;}).catch(error=>{const node=host.querySelector('[data-priority-editor]');if(node)node.textContent=error.message||'Priority fields could not be loaded.';});
       host.querySelector('#crmSaveProjectConfig')?.addEventListener('click', saveProjectConfig);
     }
     function renderMisc(){
@@ -335,7 +335,7 @@
     async function saveProjectConfig(){
       const button=host.querySelector('#crmSaveProjectConfig'); const status=host.querySelector('#crmStatus');
       if(button) button.disabled=true; if(status) status.textContent=(globalThis.PlatformLanguage?.text("settings","m_b82c4e12389843","Saving...") ?? "Saving...");
-      try { host.querySelector('[data-priority-editor]')?.priorityEditor?.commit(); await root.PlatformAPI.branchModules.save(orgId,branchId,'project_configuration',state.projectConfig,{kind:'branch_project_configuration',source:'crm_settings'}); root.dispatchEvent(new CustomEvent('fm:project-config:updated',{detail:state.projectConfig})); root.PlatformCelebrations?.configure?.({mode:state.projectConfig.celebrations_mode}); if(status) status.textContent=(globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"); toast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"),(globalThis.PlatformLanguage?.text("settings","m_5d77d007688eaa","Project CRM settings updated.") ?? "Project CRM settings updated."),true); }
+      try { await host.querySelector('[data-priority-editor]')?.priorityEditor?.save(); await root.PlatformAPI.branchModules.save(orgId,branchId,'project_configuration',state.projectConfig,{kind:'branch_project_configuration',source:'crm_settings'}); root.dispatchEvent(new CustomEvent('fm:project-config:updated',{detail:state.projectConfig})); root.PlatformCelebrations?.configure?.({mode:state.projectConfig.celebrations_mode}); if(status) status.textContent=(globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"); toast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"),(globalThis.PlatformLanguage?.text("settings","m_5d77d007688eaa","Project CRM settings updated.") ?? "Project CRM settings updated."),true); }
       catch(error){ if(status) status.textContent=error?.message||'Could not save'; toast((globalThis.PlatformLanguage?.text("settings","m_c8b7bd7ca69f49","Save failed") ?? "Save failed"),error?.message||'Could not save project settings.',false); }
       finally { if(button) button.disabled=false; }
     }
