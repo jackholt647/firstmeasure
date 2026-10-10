@@ -399,17 +399,24 @@
     const picker = el('div', 'fm-ch-table-picker');
     picker.setAttribute('role', 'group'); picker.setAttribute('aria-label', 'Choose table size');
     const grid = el('div', 'fm-ch-table-picker-grid'), label = el('div', 'fm-ch-table-picker-label');
-    let rows = 3, columns = 3;
+    let rows = 3, columns = 3, gridRows = 4, gridColumns = 4;
+    const cells = new Map();
     const draw = () => {
-      grid.style.gridTemplateColumns = `repeat(${Math.min(20, columns + 1)}, 19px)`; grid.replaceChildren();
-      for (let r = 1; r <= Math.min(20, rows + 1); r++) for (let c = 1; c <= Math.min(20, columns + 1); c++) {
-        const cell = el('button', 'fm-ch-table-picker-cell' + (r <= rows && c <= columns ? ' active' : ''));
+      gridRows = Math.max(gridRows, Math.min(20, rows + 1)); gridColumns = Math.max(gridColumns, Math.min(20, columns + 1));
+      grid.style.gridTemplateColumns = `repeat(${gridColumns}, 19px)`;
+      const nodes = [];
+      for (let r = 1; r <= gridRows; r++) for (let c = 1; c <= gridColumns; c++) {
+        const key = `${r}:${c}`;
+        const cell = cells.get(key) || el('button', 'fm-ch-table-picker-cell');
+        cells.set(key, cell); cell.classList.toggle('active', r <= rows && c <= columns);
         cell.type = 'button'; cell.dataset.row = r; cell.dataset.column = c;
         cell.setAttribute('aria-label', `${r} rows by ${c} columns`);
         cell.onmousedown = event => event.preventDefault();
         cell.onclick = () => onChoose(r, c);
-        grid.append(cell);
+        nodes.push(cell);
       }
+      // Retain the hovered button so pointer movement cannot destroy its click.
+      if (nodes.length !== grid.children.length) grid.replaceChildren(...nodes);
       label.textContent = `${columns} × ${rows} table`;
     };
     grid.onpointermove = event => {
@@ -478,9 +485,26 @@
     };
     Object.defineProperty(editor, 'value', {
       get: () => !editor.textContent.trim() && !editor.querySelector('table') ? '' : serializeChildren(editor).trim(),
-      set: value => { editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); }
+      set: value => { savedSelection = null; editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); }
     });
-    editor.insertText = text => { editor.focus(); document.execCommand('insertText', false, text); };
+    // Pickers move focus outside the editor. Keep the last actual caret/range,
+    // rather than trusting the selection created when the editor regains focus.
+    let savedSelection = null;
+    editor.saveSelection = () => {
+      const selection = root.getSelection();
+      if (selection?.rangeCount && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode)) savedSelection = selection.getRangeAt(0).cloneRange();
+      return savedSelection?.cloneRange();
+    };
+    editor.restoreSelection = (range = savedSelection) => {
+      const selected = range?.cloneRange();
+      editor.focus();
+      const selection = root.getSelection();
+      const restored = selected && editor.contains(selected.startContainer) && editor.contains(selected.endContainer) ? selected : document.createRange();
+      if (restored !== selected) { restored.selectNodeContents(editor); restored.collapse(false); }
+      selection.removeAllRanges(); selection.addRange(restored);
+    };
+    for (const event of ['input', 'keyup', 'mouseup', 'blur']) editor.addEventListener(event, editor.saveSelection);
+    editor.insertText = text => { editor.restoreSelection(); document.execCommand('insertText', false, text); editor.saveSelection(); };
     editor.setRangeText = text => editor.insertText(text);
     editor.addEventListener('paste', event => {
       const files = [...(event.clipboardData?.files || [])];
@@ -646,6 +670,47 @@
     return editor;
   }
 
+  function mountMentionButton(editor, box, options = {}){
+      const button = el('button', '', '@'); button.type = 'button'; button.title = (globalThis.PlatformLanguage?.text("channels-ui","m_c5226e930e6ce6","Mention a teammate") ?? "Mention a teammate"); button.setAttribute('aria-label', button.title);
+      button.dataset.mentionButton = 'true';
+      button.onmousedown = event => { editor.saveSelection?.(); event.preventDefault(); };
+      button.onclick = async () => {
+        const isCurrent = options.isCurrent || (() => editor.isConnected);
+        const range = root.getSelection()?.rangeCount && editor.contains(root.getSelection().anchorNode) ? root.getSelection().getRangeAt(0).cloneRange() : null;
+        const textRange = [editor.selectionStart, editor.selectionEnd];
+        try {
+          await editor._mentionApi?.ready;
+          if (!isCurrent()) return;
+          const users = editor._mentionApi?.mentionCandidates?.() || await options.candidates?.() || [];
+          if (!isCurrent()) return;
+          showPopover(button, pop => {
+            const search = el('input', 'fm-ch-emoji-search'); search.placeholder = (globalThis.PlatformLanguage?.text("channels-ui","m_2263d8ccee3221","Find a teammate…") ?? "Find a teammate…"); search.setAttribute('aria-label', search.placeholder);
+            const results = el('div', 'fm-ch-message-menu'); pop.append(search, results);
+            const render = () => {
+              results.innerHTML = '';
+              for (const user of users.filter(user => `${user.name} ${user.email || ''}`.toLowerCase().includes(search.value.toLowerCase()))) {
+                const label = user.id === 'broadcast:channel' ? 'Everyone in this conversation · @channel' : user.id === 'broadcast:here' ? 'Online members · @here' : user.name;
+                const item = el('button', '', esc(label)); item.dataset.mentionUser = user.id; item.onclick = () => {
+                  if (!isCurrent()) { closePopover(); return; }
+                  editor.focus(); if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
+                  if (editor.insertText) editor.insertText(`@${user.name} `);
+                  else { editor.setRangeText(`@${user.name} `, ...textRange, 'end'); editor.dispatchEvent(new Event('input', {bubbles:true})); }
+                  editor.mentionUsers ||= [];
+                  if (!editor.mentionUsers.some(person => person.id === user.id)) editor.mentionUsers.push(user);
+                  editor._mentionApi?.setSelectedMentions?.([...(editor._mentionApi.confirmedMentions?.() || []),user]);
+                  options.onSelect?.(user);
+                  closePopover();
+                }; results.append(item);
+              }
+            }; search.oninput = render; render(); search.focus();
+          });
+        } catch (error) { options.onError?.(error); }
+      };
+      (options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar')))?.append(button);
+      return button;
+    }
+
+
   function messageFormatBar(editor, tableOnly = false){
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
@@ -661,9 +726,9 @@
         button.setAttribute('aria-pressed', 'false');
         for (const event of ['input', 'keyup', 'mouseup', 'focus']) editor.addEventListener(event, update);
       }
-      button.addEventListener('mousedown', event => event.preventDefault());
+      button.addEventListener('mousedown', event => { editor.saveSelection(); event.preventDefault(); });
       button.addEventListener('click', () => {
-        editor.focus();
+        editor.restoreSelection();
         if (command === 'table') {
           const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
           showPopover(button, pop => {
@@ -689,7 +754,19 @@
             editor.dispatchEvent(new Event('input', {bubbles:true})); close();
           }}]);
           modal.body.querySelector(selectedText ? '[data-url]' : '[data-link-text]').focus();
-        } else { document.execCommand(command, false, value); editor.dispatchEvent(new Event('input', {bubbles:true})); }
+        } else {
+          if (command === 'removeFormat') {
+            const selection = root.getSelection();
+            // With no selected text, clear the whole draft. The browser's
+            // removeFormat otherwise only changes the next typed character.
+            if (selection.isCollapsed) { const range = document.createRange(); range.selectNodeContents(editor); selection.removeAllRanges(); selection.addRange(range); }
+            document.execCommand('removeFormat'); document.execCommand('unlink');
+            if (document.queryCommandState('insertUnorderedList')) document.execCommand('insertUnorderedList');
+            if (document.queryCommandState('insertOrderedList')) document.execCommand('insertOrderedList');
+            document.execCommand('formatBlock', false, 'div');
+          } else document.execCommand(command, false, value);
+          editor.saveSelection(); editor.dispatchEvent(new Event('input', {bubbles:true}));
+        }
       });
       bar.append(button);
     }
@@ -4265,43 +4342,17 @@
     }
 
     function bindRichMentions(editor, box){
-      const button = el('button', '', '@'); button.type = 'button'; button.title = (globalThis.PlatformLanguage?.text("channels-ui","m_c5226e930e6ce6","Mention a teammate") ?? "Mention a teammate"); button.setAttribute('aria-label', button.title);
-      button.dataset.mentionButton = 'true';
-      button.onmousedown = event => event.preventDefault();
-      button.onclick = async () => {
-        const channelId = state.activeChannel?.id;
-        const range = root.getSelection()?.rangeCount && editor.contains(root.getSelection().anchorNode) ? root.getSelection().getRangeAt(0).cloneRange() : null;
-        try {
-          await editor._mentionApi?.ready;
-          if (!editor.isConnected || state.activeChannel?.id !== channelId) return;
-          const users = editor._mentionApi?.mentionCandidates?.() || [
-            {id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'},
-            {id:'broadcast:here',name:'here',email:'Online members of this conversation'},
-            ...(await orgUsers()).filter(user => user.id === 'agent_assistant' || conversationMemberIds().includes(user.id))
-          ];
-          if (!editor.isConnected || state.activeChannel?.id !== channelId) return;
-          if (!users.some(user => user.id === 'agent_assistant')) users.push({id:'agent_assistant',name:'FirstMate Assistant'});
-          showPopover(button, pop => {
-            const search = el('input', 'fm-ch-emoji-search'); search.placeholder = (globalThis.PlatformLanguage?.text("channels-ui","m_2263d8ccee3221","Find a teammate…") ?? "Find a teammate…"); search.setAttribute('aria-label', search.placeholder);
-            const results = el('div', 'fm-ch-message-menu'); pop.append(search, results);
-            const render = () => {
-              results.innerHTML = '';
-              for (const user of users.filter(user => `${user.name} ${user.email || ''}`.toLowerCase().includes(search.value.toLowerCase()))) {
-                const label = user.id === 'broadcast:channel' ? 'Everyone in this conversation · @channel' : user.id === 'broadcast:here' ? 'Online members · @here' : user.name;
-                const item = el('button', '', esc(label)); item.dataset.mentionUser = user.id; item.onclick = () => {
-                  if (!editor.isConnected || state.activeChannel?.id !== channelId) { closePopover(); return; }
-                  editor.focus(); if (range) { root.getSelection().removeAllRanges(); root.getSelection().addRange(range); }
-                  editor.insertText(`@${user.name} `);
-                  if (!editor.mentionUsers.some(person => person.id === user.id)) editor.mentionUsers.push(user);
-                  editor._mentionApi?.setSelectedMentions?.([...(editor._mentionApi.confirmedMentions?.() || []),user]);
-                  closePopover();
-                }; results.append(item);
-              }
-            }; search.oninput = render; render(); search.focus();
-          });
-        } catch (error) { showError(error); }
-      };
-      box.querySelector('.fm-ch-formatbar')?.append(button);
+      const channelId = state.activeChannel?.id;
+      mountMentionButton(editor, box, {
+        isCurrent:()=>editor.isConnected && state.activeChannel?.id === channelId,
+        candidates:async()=>[
+          {id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'},
+          {id:'broadcast:here',name:'here',email:'Online members of this conversation'},
+          {id:'agent_assistant',name:'FirstMate Assistant'},
+          ...(await orgUsers()).filter(user => user.id !== 'agent_assistant' && conversationMemberIds().includes(user.id))
+        ],
+        onError:showError
+      });
     }
 
     function composerFileUploads(editor, pendingWrap, onAdd, onRemove){
@@ -6043,6 +6094,6 @@
     return title;
   }
 
-  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},renderBody};
+  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},mentionButton:mountMentionButton,renderBody};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();
