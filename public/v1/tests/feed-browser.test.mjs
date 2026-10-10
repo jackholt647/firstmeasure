@@ -62,6 +62,15 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await page.locator('.pf-shown-section-head').count(),0);
   assert.equal(await page.locator('[data-feed-filter-group="activity"][data-feed-filter-id]').count()>0,true);
   assert.equal(await page.getByText('Media tags',{exact:true}).count(),0);
+  await page.locator('.pf-shown-head strong').click();
+  assert.equal(await page.locator('[data-feed-shown-menu]').count(),1,'clicking inside keeps Filters open');
+  await page.locator('.pf-title').click();
+  assert.equal(await page.locator('[data-feed-shown-menu]').count(),0,'clicking outside closes Filters');
+  assert.equal(await page.locator('[data-feed-shown]').getAttribute('aria-expanded'),'false');
+  await page.getByRole('button',{name:'Filter',exact:true}).click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('[data-feed-shown-menu]').count(),0,'Escape closes Filters');
+  await page.getByRole('button',{name:'Filter',exact:true}).click();
   await page.getByRole('button',{name:'Close',exact:true}).click();
   const batchRow=page.locator('.pf-feed-list-row').first();
   assert.equal(await page.locator('.pf-feed-list-row').count(),16);

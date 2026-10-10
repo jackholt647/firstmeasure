@@ -2801,17 +2801,26 @@
     if(!state.dismissHandlersBound){
       state.dismissHandlersBound=true;
       document.addEventListener('pointerdown',event=>{
-        if(!state.scopeMenuOpen || state.root?.querySelector('.pf-feed-scope-control')?.contains(event.target))return;
-        state.scopeMenuOpen=false;
-        state.root?.querySelector('.pf-feed-scope-menu')?.remove();
-        const trigger=state.root?.querySelector('[data-feed-scope]');
-        trigger?.setAttribute('aria-expanded','false');
-        trigger?.querySelector('i')?.classList.replace('fa-chevron-up','fa-chevron-down');
+        if(state.scopeMenuOpen && !state.root?.querySelector('.pf-feed-scope-control')?.contains(event.target)){
+          state.scopeMenuOpen=false;
+          state.root?.querySelector('.pf-feed-scope-menu')?.remove();
+          const trigger=state.root?.querySelector('[data-feed-scope]');
+          trigger?.setAttribute('aria-expanded','false');
+          trigger?.querySelector('i')?.classList.replace('fa-chevron-up','fa-chevron-down');
+        }
+        if(state.shownMenuOpen && !state.root?.querySelector('.pf-shown-wrap')?.contains(event.target)){
+          state.shownMenuOpen=false;
+          state.root?.querySelector('[data-feed-shown-menu]')?.remove();
+          const trigger=state.root?.querySelector('[data-feed-shown]');
+          trigger?.setAttribute('aria-expanded','false');
+          trigger?.classList.toggle('active',state.visibleActivity.size<DEFAULT_ACTIVITY_FILTERS.length);
+        }
       });
       document.addEventListener('keydown',event=>{
         if(event.key!=='Escape')return;
         if(state.composerPreviewIndex>=0){state.composerPreviewIndex=-1;render();return;}
         if(state.scopeMenuOpen){state.scopeMenuOpen=false;state.root?.querySelector('.pf-feed-scope-menu')?.remove();const trigger=state.root?.querySelector('[data-feed-scope]');trigger?.setAttribute('aria-expanded','false');trigger?.querySelector('i')?.classList.replace('fa-chevron-up','fa-chevron-down');}
+        if(state.shownMenuOpen){state.shownMenuOpen=false;state.root?.querySelector('[data-feed-shown-menu]')?.remove();const trigger=state.root?.querySelector('[data-feed-shown]');trigger?.setAttribute('aria-expanded','false');trigger?.classList.toggle('active',state.visibleActivity.size<DEFAULT_ACTIVITY_FILTERS.length);}
       });
     }
     rootEl.querySelector('[data-feed-scope]')?.addEventListener('click',()=>{state.scopeMenuOpen=!state.scopeMenuOpen;render();if(state.scopeMenuOpen)rootEl.querySelector('[data-feed-scope-search]')?.focus();});
