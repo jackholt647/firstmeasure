@@ -48,6 +48,13 @@ show Empty List. First Add creates a missing typed list through the existing
 writer and immediately adds an editable row. Later additions reuse that list.
 The Price Book control lives in the Materials pane heading. Each actual list
 has its own header, ordering/scheduling/compensation controls and direct Add.
+Line items are dense rows, not cards. A pane container query picks the layout:
+under 360px a row is two tight lines (name, then variant or pay type with
+quantity, unit and price); from 360px it is one line with a column header; from
+480px it adds a read-only line total and labor joins the one-line layout. Keep
+new per-line fields inside that grid rather than adding stacked labelled boxes.
+A list's controls and unit toggle share one toolbar row, and each list shows
+its subtotal when its pane holds more than one list.
 Minimizing animates the list closed and exposes a header pill to restore it.
 Deletion uses the domain archive writer; accepted document material sets cannot
 be deleted through that writer and remain available to minimize.

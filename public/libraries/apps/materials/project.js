@@ -702,41 +702,87 @@
       .mt-scope-measures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.mt-scope-measure{border:1px solid rgba(15,23,42,.07);border-radius:7px;background:#fff;padding:7px;min-width:0}.mt-scope-measure span{display:block;font-size:9px;font-weight:950;color:#667085;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-scope-measure strong{display:block;margin-top:3px;font-size:12px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
       .mt-resource-column{container:resource-column / inline-size}
-      .mt-resource-column .mt-resource-scroll{overflow-x:hidden;padding:6px;gap:10px}
-      .mt-resource-column .mt-section{min-width:0;border:0;border-radius:0;background:transparent;box-shadow:none}
-      .mt-resource-column .mt-list-head{padding:4px 0;gap:3px}
-      .mt-resource-column .mt-list-head button{border:0;padding:3px;background:transparent;color:#667085;font-size:10px}
-      .mt-resource-column .mt-list-head input{font-size:11px;font-weight:600}
-      .mt-resource-column .mt-section-label{font-size:9px;font-weight:600;color:#667085;padding:5px 2px 3px}
+      .mt-resource-column .mt-resource-heading{padding:6px 8px}
+      .mt-resource-column .mt-resource-scroll{overflow-x:hidden;padding:0 6px 6px;gap:0}
+      .mt-resource-column .mt-list-pane+.mt-list-pane{margin-top:6px;border-top:1px solid #e4e7ec}
+      .mt-resource-column .mt-section{min-width:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
+      .mt-resource-column .mt-list-head{padding:5px 0 2px;gap:2px}
+      .mt-resource-column .mt-list-head button{flex:none;border:0;border-radius:4px;padding:3px 4px;background:transparent;color:#667085;font-size:10px}
+      .mt-resource-column .mt-list-head button:hover:not(:disabled){background:#f2f4f7;color:#344054}
+      .mt-resource-column .mt-list-head button:disabled{opacity:.4;cursor:default}
+      .mt-resource-column .mt-list-head input{font-size:12px;font-weight:600;text-overflow:ellipsis}
+      .mt-list-total{flex:none;padding:0 3px;font-size:11px;font-variant-numeric:tabular-nums;color:#475467}
+      .mt-list-tools{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:0 0 4px}
+      .mt-list-tools:empty{display:none}
+      .mt-resource-column .mt-list-secondary{flex:0 1 auto;flex-wrap:wrap;gap:4px;min-height:0;margin:0;padding:0;border:0;background:transparent}
+      .mt-resource-column .mt-list-secondary button{display:inline-flex;align-items:center;gap:4px;height:22px;min-height:22px;padding:0 7px;border-color:#e4e7ec;border-radius:4px;font-size:10px;font-weight:600}
+      .mt-resource-column .mt-list-secondary button:hover:not(:disabled){border-color:#d0d5dd;background:#f9fafb;color:#344054}
+      .mt-resource-column .mt-labor-controls{flex:1 1 100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:3px 4px}
+      .mt-resource-column .mt-labor-controls label{height:22px;gap:4px;padding-left:5px;border-color:#e4e7ec;border-radius:4px}
+      .mt-resource-column .mt-labor-controls label span{width:auto;font-size:9px;font-weight:500;text-transform:none}
+      .mt-resource-column .mt-labor-controls select,.mt-resource-column .mt-labor-controls input{height:20px;font-size:10px;font-weight:500}
+      .mt-resource-column .mt-labor-actions{grid-column:1/-1;grid-row:auto;flex-direction:row;flex-wrap:wrap}
+      .mt-resource-column .mt-labor-actions button{flex:none}
+      .mt-compact-units{margin-left:auto;border:0;border-radius:4px;background:transparent;color:#667085;font-size:10px;padding:2px 4px;white-space:nowrap;cursor:pointer}
+      .mt-compact-units:hover{background:#f2f4f7;color:#344054}
+      .mt-resource-column .mt-section-label{padding:6px 0 2px 13px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
       .mt-resource-column .mt-table,.mt-resource-column .mt-table tbody{display:block;width:100%}
       .mt-resource-column .mt-table colgroup,.mt-resource-column .mt-table thead{display:none}
-      .mt-resource-column .mt-table tr.mt-list-row{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 5px;border:1px solid #eaecf0;border-left:2px solid var(--list-color);border-radius:5px;margin:4px 0;padding:5px;background:#fff}
+      .mt-resource-column :is(tr.mt-list-row,.mt-list-cols){--row-cols:minmax(0,1fr) 40px 44px 32px 18px;--row-areas:"name name name name rm" "meta qty unit price price";grid-template-columns:var(--row-cols);grid-template-areas:var(--row-areas);align-items:center;gap:0 4px}
+      .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=material]{--row-areas:"name name name color rm" "meta qty unit price price"}
+      .mt-resource-column .mt-table tr.mt-list-row{display:grid;padding:2px 0 3px;border-bottom:1px solid #f0f2f5;background:none}
+      .mt-resource-column .mt-table tr.mt-list-row:hover,.mt-resource-column .mt-table tr.mt-list-row:focus-within{background:#f9fafb}
       .mt-resource-column .mt-table tr.mt-list-row td{display:block;min-width:0;padding:0;border:0;text-align:left;font-size:11px}
-      .mt-resource-column .mt-table tr.mt-list-row td:first-child{grid-column:1/-1;border:0;padding:0 24px 0 0}
-      .mt-resource-column .mt-table tr.mt-list-row td:last-child{position:absolute;right:3px;top:4px;padding:0}
-      .mt-resource-column .mt-table tr.mt-list-row td:last-child button{width:22px;min-width:22px;min-height:22px;height:22px;border:0;background:transparent;font-size:9px}
-      .mt-resource-column .mt-table tr.mt-list-row[data-resource-kind=material] td:nth-child(2),.mt-resource-column .mt-table tr.mt-list-row[data-resource-kind=labor] td:nth-child(2){grid-column:1/-1;display:flex;align-items:center;gap:5px}
-      .mt-resource-column .mt-table tr.mt-list-row[data-resource-kind=material] td:nth-child(2):has(>.mt-small){display:none}
-      .mt-resource-column .mt-table td:nth-last-child(4)::before{content:'Qty'}
-      .mt-resource-column .mt-table td:nth-last-child(3)::before{content:'Unit'}
-      .mt-resource-column .mt-table td:nth-last-child(2)::before{content:'Unit $'}
-      .mt-resource-column .mt-table [data-resource-kind=labor] td:nth-last-child(2)::before{content:'Rate'}
-      .mt-resource-column .mt-table td:nth-last-child(4)::before,.mt-resource-column .mt-table td:nth-last-child(3)::before,.mt-resource-column .mt-table td:nth-last-child(2)::before{display:block;color:#667085;font-size:8px;margin-bottom:1px}
-      .mt-resource-column .mt-cell-input{width:100%;min-width:0!important;box-sizing:border-box;padding:2px 3px;min-height:23px;font-size:11px;border-radius:3px;background:#f9fafb}
-      .mt-resource-column .mt-line-name{background:transparent;font-weight:600}
-      .mt-resource-column .mt-list-dot{width:6px;height:6px;min-width:6px;box-shadow:none}
-      .mt-resource-column .mt-line-main span{white-space:normal;font-size:9px;line-height:1.3}
-      .mt-resource-column .mt-variant-select{width:100%;min-width:0;font-size:10px}
-      .mt-resource-column .mt-color-trigger{max-width:100%;min-width:0;padding:2px;font-size:9px}
-      .mt-resource-column .mt-labor-controls{grid-template-columns:minmax(0,1fr);gap:3px;padding:4px 0;border:0;background:transparent}
-      .mt-resource-column .mt-labor-controls label{height:25px;font-size:9px}
-      .mt-resource-column .mt-labor-controls label span{width:44px;font-size:8px;font-weight:500}
-      .mt-resource-column .mt-labor-controls select,.mt-resource-column .mt-labor-controls input{font-size:10px}
-      .mt-resource-column .mt-labor-actions{grid-column:1;grid-row:auto;flex-direction:row;flex-wrap:wrap}
-      .mt-resource-column .mt-list-secondary{flex-wrap:wrap;padding:4px 0;border:0;background:transparent}
-      .mt-resource-column .mt-list-add-item{font-size:10px;margin:5px 0;padding:5px}
-      .mt-compact-units{border:0;background:transparent;color:#667085;font-size:9px;padding:2px;cursor:pointer}
-      .mt-column-total{flex:none;padding:7px 9px;border-top:1px solid #e4e7ec;display:flex;justify-content:space-between;gap:5px;color:#475467;font-size:11px;background:#f9fafb}
+      .mt-resource-column .mt-c-name{grid-area:name}.mt-resource-column .mt-c-meta{grid-area:meta}.mt-resource-column .mt-c-color{grid-area:color}.mt-resource-column .mt-c-qty{grid-area:qty}.mt-resource-column .mt-c-unit{grid-area:unit}.mt-resource-column .mt-c-price{grid-area:price}.mt-resource-column .mt-c-rm{grid-area:rm}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total,.mt-resource-column .mt-list-cols .mt-c-total{grid-area:total;display:none;overflow:hidden;padding-right:2px;text-align:right;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums;color:#344054}
+      .mt-resource-column .mt-list-cols{display:none;padding:2px 0;border-bottom:1px solid #e4e7ec;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
+      .mt-resource-column .mt-list-cols span{min-width:0;overflow:hidden;white-space:nowrap}
+      .mt-resource-column .mt-list-cols .mt-c-name{padding-left:13px}
+      .mt-resource-column .mt-list-cols .mt-c-qty,.mt-resource-column .mt-list-cols .mt-c-price,.mt-resource-column .mt-list-cols .mt-c-total{padding-right:4px;text-align:right}
+      .mt-resource-column .mt-list-cols .mt-c-unit{padding-left:4px}.mt-resource-column .mt-list-cols .mt-c-total{color:inherit}
+      .mt-resource-column .mt-line-title{display:flex;align-items:center;gap:6px;min-width:0}
+      .mt-resource-column .mt-list-dot{width:7px;height:7px;min-width:7px;box-shadow:none}
+      .mt-resource-column .mt-cell-input{width:100%;min-width:0!important;box-sizing:border-box;height:22px;min-height:22px;padding:0 4px;border:1px solid transparent;border-radius:4px;background:#f6f7f9;font-size:11px;font-weight:500;text-overflow:ellipsis}
+      .mt-resource-column .mt-cell-input:hover:not(:disabled){border-color:#d0d5dd;background:#fff}
+      .mt-resource-column .mt-cell-input:focus{border:1px solid var(--primary,#d93025)!important;box-shadow:none!important;background:#fff}
+      .mt-resource-column .mt-line-name{padding:0 3px;background:transparent;font-size:12px;font-weight:600}
+      .mt-resource-column input.mt-number{appearance:textfield;-moz-appearance:textfield;text-align:right;font-variant-numeric:tabular-nums}
+      .mt-resource-column input.mt-number::-webkit-inner-spin-button,.mt-resource-column input.mt-number::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price{position:relative}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price::before{content:'$';position:absolute;left:5px;top:50%;transform:translateY(-50%);font-size:10px;color:#98a2b3;pointer-events:none}
+      .mt-resource-column .mt-c-price .mt-cell-input{padding-left:13px}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta{display:flex;align-items:center;gap:5px;height:22px;padding-left:13px;font-size:10px;color:#667085}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta:has(>select){padding-left:9px}
+      .mt-resource-column .mt-c-meta>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mt-resource-column .mt-variant-select{flex:0 1 auto;width:auto;min-width:0;max-width:100%;height:20px;font-size:10px;font-weight:500;color:#475467;text-overflow:ellipsis;cursor:pointer}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-color{display:flex;justify-content:flex-end}
+      .mt-resource-column .mt-c-color:has(>.mt-small){visibility:hidden}
+      .mt-resource-column .mt-color-swatch{width:16px;height:16px;border-radius:4px}
+      .mt-resource-column .mt-order-qty-cell{flex-direction:row;align-items:center;justify-content:flex-end;height:22px;padding:0 5px}
+      .mt-resource-column .mt-c-unit .mt-order-qty-cell{justify-content:flex-start}
+      .mt-resource-column .mt-order-qty-cell strong{overflow:hidden;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+      .mt-resource-column .mt-order-qty-cell span{display:none}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button{width:18px;min-width:18px;height:22px;min-height:22px;border:0;border-radius:4px;background:transparent;box-shadow:none;color:#c0c5cf;font-size:10px}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button:hover:not(:disabled),.mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button:focus-visible{color:#d92d20;background:#fef3f2}
+      .mt-resource-column .mt-list-add-item{display:block;width:100%;margin:2px 0 4px;padding:4px 4px 4px 13px;border:0;border-radius:4px;background:transparent;color:#667085;font-size:11px;text-align:left}
+      .mt-resource-column .mt-list-add-item:hover:not(:disabled){background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}
+      .mt-resource-column .mt-empty{padding:10px 2px;font-size:11px;font-weight:500}
+      @container resource-column (min-width:360px){
+        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols):not([data-resource-kind=labor]){--row-cols:minmax(0,1fr) 46px 46px 60px 18px;--row-areas:"name qty unit price rm" "meta meta meta meta meta"}
+        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=material]{--row-cols:minmax(0,1fr) 20px 46px 46px 60px 18px;--row-areas:"name color qty unit price rm" "meta meta meta meta meta meta"}
+        .mt-resource-column .mt-table tr.mt-list-row:not([data-resource-kind=labor]) td.mt-c-meta{height:16px}
+        .mt-resource-column .mt-table tr.mt-list-row:not([data-resource-kind=labor]) td.mt-c-meta:empty{display:none}
+        .mt-resource-column .mt-list-cols:not([data-resource-kind=labor]){display:grid}
+      }
+      @container resource-column (min-width:480px){
+        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols):not([data-resource-kind=labor]){--row-cols:minmax(0,1fr) 48px 54px 62px 68px 18px;--row-areas:"name qty unit price total rm" "meta meta meta meta meta meta"}
+        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=material]{--row-cols:minmax(0,1fr) 20px 48px 54px 62px 68px 18px;--row-areas:"name color qty unit price total rm" "meta meta meta meta meta meta meta"}
+        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=labor]{--row-cols:minmax(0,1fr) 84px 48px 54px 62px 68px 18px;--row-areas:"name meta qty unit price total rm"}
+        .mt-resource-column .mt-table tr.mt-list-row[data-resource-kind=labor] td.mt-c-meta:has(>select){padding-left:0}
+        .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total,.mt-resource-column .mt-list-cols .mt-c-total{display:block}
+        .mt-resource-column .mt-list-cols{display:grid}
+      }
+      .mt-column-total{flex:none;padding:5px 9px;border-top:1px solid #e4e7ec;display:flex;justify-content:space-between;gap:5px;color:#475467;font-size:11px;background:#f9fafb}
       .mt-icon-dialog{border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054}.mt-icon-dialog::backdrop{background:rgba(15,23,42,.4)}
       .mt-project-notes{display:flex;flex-direction:column;gap:7px}.mt-note-compose{position:relative;display:flex;flex-direction:column;gap:6px}.mt-note-compose textarea{width:100%;min-height:68px;box-sizing:border-box;resize:vertical;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:8px;font:inherit;font-size:11px;line-height:1.4;color:#344054}.mt-note-compose-foot{display:flex;align-items:center;justify-content:space-between;gap:6px}.mt-note-visibility{width:28px;height:28px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#667085;cursor:pointer}.mt-note-save{border:0;border-radius:7px;background:#111827;color:#fff;height:28px;padding:0 9px;font-size:9px;font-weight:1000;cursor:pointer}.mt-note-visibility-pop{position:absolute;right:0;top:72px;z-index:2147483000;width:max-content;min-width:170px;min-height:34px;padding:5px;display:grid;grid-auto-rows:minmax(30px,auto);gap:2px;overflow:visible;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#344054;box-shadow:0 12px 32px rgba(15,23,42,.18)}.mt-note-visibility-pop[hidden]{display:none!important}.mt-note-visibility-pop button{width:100%;min-height:30px;border:0;border-radius:6px;background:#fff;padding:7px;display:flex;align-items:center;gap:7px;text-align:left;white-space:nowrap;font-size:10px;font-weight:900;color:#344054;cursor:pointer}.mt-note-visibility-pop button:hover{background:#f2f4f7}.mt-note-list{display:flex;flex-direction:column;gap:6px}.mt-note-card{border:1px solid rgba(15,23,42,.08);border-radius:8px;background:#fff;padding:7px;display:flex;flex-direction:column;gap:5px}.mt-note-card p{margin:0;white-space:pre-wrap;font-size:10px;line-height:1.4;color:#344054}.mt-note-meta{display:flex;align-items:center;justify-content:space-between;gap:5px;color:#667085;font-size:8px;font-weight:850}.mt-note-meta>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-note-actions{display:flex}.mt-note-actions button{width:20px;height:20px;border:0;background:transparent;color:#98a2b3;padding:0;cursor:pointer}.mt-note-empty{padding:8px;text-align:center;color:#98a2b3;font-size:9px;font-weight:850}
       dialog.mt-modal{border:0!important;padding:0!important;background:transparent!important;overflow:visible;max-width:none!important;max-height:none!important}dialog.mt-modal[open]{inset:0!important;width:100vw!important;height:100vh!important;margin:0!important;display:grid;place-items:center}dialog.mt-modal::backdrop{background:rgba(15,23,42,.48);backdrop-filter:blur(5px)}.mt-modal-backdrop-hit{position:absolute;inset:0;z-index:0}.mt-modal-shell{position:relative;z-index:1;background:#fff;border:1px solid rgba(15,23,42,.1);border-radius:16px;box-shadow:0 30px 90px rgba(15,23,42,.3);overflow:hidden}.mt-modal-head{min-height:62px;padding:13px 16px;border-bottom:1px solid #eaecf0;display:flex;align-items:center;justify-content:space-between;gap:14px}.mt-modal-title{display:flex;align-items:center;gap:10px;min-width:0}.mt-modal-title i{width:34px;height:34px;border-radius:10px;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));display:grid;place-items:center}.mt-modal-title strong{display:block;font-size:15px;font-weight:1000;color:#101828}.mt-modal-title span{display:block;margin-top:2px;font-size:10px;font-weight:850;color:#667085}.mt-modal-close{width:34px;height:34px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#475467;cursor:pointer}.mt-modal-foot{padding:12px 16px;border-top:1px solid #eaecf0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f8fafc}
@@ -3554,21 +3600,23 @@
       const category=resourceCategories().find(row=>row.id===type);
       const terms = resourceTerms(type, state.lists.find((list) => resourceType(list) === type));
       const lists=state.lists.filter(list=>resourceType(list)===type&&state.visibleListIds.has(cleanText(list.id)));
+      const listTotal=list=>type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected;
+      const columnLabels=`<span class="mt-c-name">${escapeHtml(terms.singular)}</span>${type==='material'?'<span class="mt-c-color"></span>':''}${type==='labor'?'<span class="mt-c-meta">Pay type</span>':''}<span class="mt-c-qty">${(globalThis.PlatformLanguage?.htmlText("materials","m_1a29aea570fbc4","Qty") ?? "Qty")}</span><span class="mt-c-unit">${(globalThis.PlatformLanguage?.htmlText("materials","m_4b91b73dae1ff3","Unit") ?? "Unit")}</span><span class="mt-c-price">${type==='labor'?'Rate':'Unit $'}</span><span class="mt-c-total">Total</span>`;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
         <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-add-section="${type==='material'?'accessories':escapeHtml(type)}" title="Add item" aria-label="Add ${escapeHtml(terms.singular.toLowerCase())}"><i class="fas fa-plus"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${type==='material'?'<button type="button" data-mt-open-pricebook title="Price Book" aria-label="Price Book"><i class="fas fa-book"></i></button>':''}</span></h3>
         <div class="mt-resource-scroll">${lists.map(list=>{
           const id=cleanText(list.id),listRows=rows.filter(item=>item.__material_list_id===id);
           const sections=materialSectionDefinitions().filter(section=>(section.resource_type||'material')===type&&listRows.some(item=>lineSectionKey(item)===section.key));
           const controls=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:type==='labor'?renderLaborListControls(list):renderListActionControls(list,type,materialListOrdered(list));
-          return `<article class="mt-list-pane" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-category-icon="${escapeHtml(type)}" style="color:var(--resource-color)" title="Edit resource type icon and color" aria-label="Edit list resource type appearance"><i class="fas ${escapeHtml(category.icon)}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(list.metadata?.placeholder_title?'':list.title||'')}" placeholder="Untitled" aria-label="List name"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-label="Minimize ${escapeHtml(list.title)}" title="Minimize list"><i class="fas fa-minus"></i></button><button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(list.title)}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; minimize to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header>${controls}${type==='material'?`<button type="button" class="mt-compact-units" data-mt-units-toggle title="Switch measured and order units">${state.unitsMode==='order'?'Order units':'Measured units'} <i class="fas fa-arrows-rotate"></i></button>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button></div></article>`;
+          return `<article class="mt-list-pane" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-category-icon="${escapeHtml(type)}" style="color:var(--resource-color)" title="Edit resource type icon and color" aria-label="Edit list resource type appearance"><i class="fas ${escapeHtml(category.icon)}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(list.metadata?.placeholder_title?'':list.title||'')}" placeholder="Untitled" aria-label="List name">${lists.length>1?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}<button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-label="Minimize ${escapeHtml(list.title)}" title="Minimize list"><i class="fas fa-minus"></i></button><button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(list.title)}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; minimize to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header><div class="mt-list-tools">${`${controls}${type==='material'?`<button type="button" class="mt-compact-units" data-mt-units-toggle title="Switch measured and order units">${state.unitsMode==='order'?'Order units':'Measured units'} <i class="fas fa-arrows-rotate"></i></button>`:''}`.trim()}</div>${listRows.length?`<div class="mt-list-cols" data-resource-kind="${escapeHtml(type)}" aria-hidden="true">${columnLabels}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button></div></article>`;
         }).join('')||'<div class="mt-empty">Empty List</div>'}</div>
         ${lists.length?'':`<button type="button" class="mt-resource-add" data-mt-add-section="${type==='material'?'accessories':type}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}
-        <footer class="mt-column-total"><span>Total</span><strong>${money(lists.reduce((sum,list)=>sum+(type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected),0))}</strong></footer>
+        <footer class="mt-column-total"><span>Total</span><strong>${money(lists.reduce((sum,list)=>sum+listTotal(list),0))}</strong></footer>
       </section>`;
     }).join('');
   }
 
-  function renderMaterialSection(section, items = sectionItems(section.key), listId = ''){
+  function renderMaterialSection(section, items = sectionItems(section.key), listId = '', labelled = false){
     const needsData = sectionNeedsMeasurements(section.key);
     const type = section.resource_type || 'material';
     const terms = resourceTerms(type, materialListById(items[0]?.__material_list_id));
@@ -3576,7 +3624,7 @@
     const labor = type === 'labor';
     return `
       <section class="mt-section${String(needsData ? ' needs-data' : '')}" data-mt-section-key="${String(escapeHtml(section.key))}">
-        ${material && section.key!=='accessories' ? `<div class="mt-section-label">${escapeHtml(section.title)}</div>` : ''}
+        ${material && (labelled || section.key!=='accessories') ? `<div class="mt-section-label">${escapeHtml(section.title)}</div>` : ''}
         <table class="mt-table">
           <colgroup><col>${String(material ? '<col style="width:52px">' : '')}${String(labor ? '<col style="width:90px">' : '')}<col style="width:82px"><col style="width:58px"><col style="width:74px"><col style="width:52px"></colgroup>
           <thead><tr><th>${String(escapeHtml(terms.singular))}</th>${String(material ? `<th>${(globalThis.PlatformLanguage?.htmlText("materials","m_db7002926d9977","Color") ?? "Color")}</th>` : '')}${String(labor ? `<th>${(globalThis.PlatformLanguage?.htmlText("materials","m_d9b2666bd68237","Pay type") ?? "Pay type")}</th>` : '')}<th>${(globalThis.PlatformLanguage?.htmlText("materials","m_1a29aea570fbc4","Qty") ?? "Qty")}</th><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_4b91b73dae1ff3","Unit") ?? "Unit")}</th><th>${String(type === 'labor' ? 'Rate' : 'Unit $')}</th><th></th></tr></thead>
@@ -3603,19 +3651,23 @@
     const labor = type === 'labor';
     const payType = cleanText(item?.metadata?.compensation_kind || item?.metadata?.pay_type || item?.metadata?.estimate_mode || 'piece_rate').replace('piece-rate', 'piece_rate');
     const orderInfo = material && state.unitsMode === 'order' ? orderInfoForLine(item, quantity) : null;
+    const unitPrice = item.projected_unit_price == null || item.projected_unit_price === '' ? NaN : Number(item.projected_unit_price);
+    const lineTotal = item.projected_total != null ? Number(item.projected_total) : quantity * unitPrice;
+    const meta = material ? `${renderVariantControl(item, variants)}${secondary ? `<span title="${escapeHtml(secondary)}">${escapeHtml(secondary)}</span>` : ''}`.trim() : '';
     const orderTooltip = orderInfo ? `Measured: ${quantity} ${cleanText(item.unit || 'ea')}${orderInfo.covered_quantity !== quantity ? ` · ${orderInfo.order_quantity} ${orderInfo.order_unit} covers ${orderInfo.covered_quantity} ${cleanText(item.unit || 'ea')}` : ''}${orderInfo.packaging?.description ? ` · ${orderInfo.packaging.description}` : ''}` : '';
     return `
       <tr class="mt-list-row ${String(incomplete ? 'incomplete' : 'complete')}" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" style="--list-color:${String(escapeHtml(listColor))}">
-        <td><div class="mt-line-main"><div class="mt-line-title"><button type="button" class="mt-list-dot" style="--list-color:${String(escapeHtml(listColor))}" data-mt-list-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" data-fm-tooltip="${String(escapeHtml(listTitle))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_b939dc874a0fda","Move to another list") ?? "Move to another list")}" aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("materials","m_790adaaf81ef83",`Change list for ${v8}`,{v8}) ?? `Change list for ${v8}`)(escapeHtml(materialPrimaryName(item)))}" aria-expanded="${String(state.listMenu?.itemId === item.id ? 'true' : 'false')}" ${String(state.saving ? 'disabled' : '')}></button><input class="mt-input mt-cell-input mt-line-name" data-mt-item-name="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" value="${String(escapeHtml(materialPrimaryName(item)))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_7bd2b28790fb35","Item name") ?? "Item name")}" ${String(state.saving ? 'disabled' : '')}></div>${String(material ? renderVariantControl(item, variants) : '')}${String(material && secondary ? `<span>${escapeHtml(secondary)}</span>` : '')}</div></td>
-        ${String(material ? `<td>${renderColorControl(item)}</td>` : '')}
-        ${String(labor ? `<td><select class="mt-input mt-cell-input" data-mt-item-pay-type="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d9b2666bd68237","Pay type") ?? "Pay type")}" ${state.saving ? 'disabled' : ''}><option value="piece_rate" ${payType === 'piece_rate' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</option><option value="hourly" ${payType === 'hourly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_6a122e6ae08ae2","Hourly") ?? "Hourly")}</option><option value="salary" ${payType === 'salary' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_40c128013ab7d0","Salary") ?? "Salary")}</option></select></td>` : '')}
+        <td class="mt-c-name"><div class="mt-line-title"><button type="button" class="mt-list-dot" style="--list-color:${String(escapeHtml(listColor))}" data-mt-list-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" data-fm-tooltip="${String(escapeHtml(listTitle))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_b939dc874a0fda","Move to another list") ?? "Move to another list")}" aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("materials","m_790adaaf81ef83",`Change list for ${v8}`,{v8}) ?? `Change list for ${v8}`)(escapeHtml(materialPrimaryName(item)))}" aria-expanded="${String(state.listMenu?.itemId === item.id ? 'true' : 'false')}" ${String(state.saving ? 'disabled' : '')}></button><input class="mt-input mt-cell-input mt-line-name" data-mt-item-name="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" value="${String(escapeHtml(materialPrimaryName(item)))}" title="${String(escapeHtml(materialPrimaryName(item)))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_7bd2b28790fb35","Item name") ?? "Item name")}" ${String(state.saving ? 'disabled' : '')}></div></td>
+        <td class="mt-c-meta">${labor ? `<select class="mt-input mt-cell-input" data-mt-item-pay-type="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d9b2666bd68237","Pay type") ?? "Pay type")}" ${state.saving ? 'disabled' : ''}><option value="piece_rate" ${payType === 'piece_rate' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</option><option value="hourly" ${payType === 'hourly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_6a122e6ae08ae2","Hourly") ?? "Hourly")}</option><option value="salary" ${payType === 'salary' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_40c128013ab7d0","Salary") ?? "Salary")}</option></select>` : meta}</td>
+        ${String(material ? `<td class="mt-c-color">${renderColorControl(item)}</td>` : '')}
         ${String(orderInfo ? `
-        <td><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_quantity)}</strong><span>${escapeHtml(`${quantity} ${cleanText(item.unit || 'ea')}`)}</span></div></td>
-        <td><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_unit)}</strong>${orderInfo.packaging?.description ? `<span>${escapeHtml(orderInfo.packaging.description)}</span>` : ''}</div></td>` : `
-        <td><input class="mt-input mt-cell-input mt-number mt-qty-input" aria-label="Quantity" data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' && !item.metadata?.calculus_line_id ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
-        <td><input class="mt-input mt-cell-input" aria-label="Unit" data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
-        <td><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" type="number" min="0" step="0.01" value="${String(escapeHtml(item.projected_unit_price ?? ''))}" title="${String(escapeHtml(item.projected_total != null ? `Total ${money(item.projected_total)}` : ''))}" ${String(state.saving ? 'disabled' : '')}></td>
-        <td><button type="button" class="mt-icon-btn" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-trash"></i></button></td>
+        <td class="mt-c-qty"><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_quantity)}</strong><span>${escapeHtml(`${quantity} ${cleanText(item.unit || 'ea')}`)}</span></div></td>
+        <td class="mt-c-unit"><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_unit)}</strong>${orderInfo.packaging?.description ? `<span>${escapeHtml(orderInfo.packaging.description)}</span>` : ''}</div></td>` : `
+        <td class="mt-c-qty"><input class="mt-input mt-cell-input mt-number mt-qty-input" aria-label="Quantity" placeholder="Qty" data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' && !item.metadata?.calculus_line_id ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
+        <td class="mt-c-unit"><input class="mt-input mt-cell-input" aria-label="Unit" placeholder="unit" data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
+        <td class="mt-c-price"><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0.00" data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" type="number" min="0" step="0.01" value="${String(escapeHtml(item.projected_unit_price ?? ''))}" title="${String(escapeHtml(item.projected_total != null ? `Total ${money(item.projected_total)}` : ''))}" ${String(state.saving ? 'disabled' : '')}></td>
+        <td class="mt-c-total">${Number.isFinite(lineTotal) ? escapeHtml(money(lineTotal)) : ''}</td>
+        <td class="mt-c-rm"><button type="button" class="mt-icon-btn" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-xmark"></i></button></td>
       </tr>
     `;
   }
@@ -3627,7 +3679,7 @@
       return variantName && variantName !== materialPrimaryName(item) ? `<span>${escapeHtml(variantName)}</span>` : '';
     }
     return `
-      <select class="mt-variant-select" data-mt-item-variant="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(item.__material_list_id || state.activeListId)}" ${state.saving ? 'disabled' : ''}>
+      <select class="mt-variant-select" title="${escapeHtml(cleanText(item.product_selection?.variant_name || item.pricebook_snapshot?.variant?.name))}" aria-label="Variant" data-mt-item-variant="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(item.__material_list_id || state.activeListId)}" ${state.saving ? 'disabled' : ''}>
         ${groupedVariantsForLine(item).map((group) => `
           <optgroup label="${escapeHtml(group.name)}">
             ${group.variants.map((variant) => `<option value="${escapeHtml(variant.id)}" ${variant.id === currentId ? 'selected' : ''}>${escapeHtml(variant.variantName || variant.name)}</option>`).join('')}
@@ -3764,6 +3816,7 @@
   function syncFooterTotals(){
     const root = materialRoot();
     root?.querySelectorAll?.('.mt-resource-column').forEach(column=>{const type=column.dataset.resourceType,total=column.querySelector('.mt-column-total strong');if(total)total.textContent=money(state.lists.filter(list=>resourceType(list)===type&&state.visibleListIds.has(cleanText(list.id))).reduce((sum,list)=>sum+(type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected),0));});
+    root?.querySelectorAll?.('[data-mt-list-total]').forEach(node=>{const list=materialListById(node.dataset.mtListTotal);if(list)node.textContent=money(resourceType(list)==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected);});
     const values = root?.querySelectorAll?.('.mt-footer .mt-stat strong');
     if (!values || values.length < 3) return;
     const totals = visibleListTotals();
