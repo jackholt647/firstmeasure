@@ -148,7 +148,7 @@ export async function validateStoredFields(orgId: string, collection: string, in
   const values = valuesOf(next, entity), before = valuesOf(previous, entity);
   jsonClone(values);
   for (const f of fields) {
-    if (!applies(f, next)) continue;
+    if (!applies(f, next) && f.type !== "platform_phone") continue;
     const v = getValue(values,String(f.path)), old = getValue(before,String(f.path));
     if (JSON.stringify(v) === JSON.stringify(old) && Object.keys(previous).length) {
       if (f.required===true && (empty(v) || Array.isArray(v) && !v.length)) validateField(f,v);
@@ -167,11 +167,12 @@ export async function validateStoredFields(orgId: string, collection: string, in
     if (entity !== "project" && entity !== "contact") await (await import("./service.js")).validateAssignmentFieldValue(orgId,String(next.branch_id || "default"),f,v);
   }
 }
-export async function readFields(ctx: PublicationContext, target: TargetRef, entity: FieldEntity, path?: string, contractOnly = false) {
+export async function readFields(ctx: PublicationContext, target: TargetRef, entity: FieldEntity, path?: string, contractOnly = false, phoneListOnly = false) {
   const state = await readFieldRecord(ctx,target,entity);
-  const fields = state.fields.filter(f => applies(f,state.record));
+  const fields = state.fields.filter(f => applies(f,state.record) || phoneListOnly && f.type === "platform_phone");
   const selected = path ? fields.filter(f => f.path === fieldPath(path)) : fields.filter(f => canReadField(ctx,f));
   if (path && selected.length && !canReadField(ctx,selected[0]!)) throw forbidden("custom_field_read_denied","This field is private in the current context.");
+  if(phoneListOnly) selected.splice(0,selected.length,...selected.filter(f=>["phone","platform_phone"].includes(String(f.type))));
   const values: JsonObject = {}, stored = valuesOf(state.record,entity);
   const dependencies = new Set<string>();
   const resolve = (path:string, seen = new Set<string>()):unknown => {
@@ -227,7 +228,7 @@ export async function writeFields(ctx: PublicationContext, target: TargetRef, en
   const changes = object(input.values);
   const values = jsonClone(valuesOf(state.record,entity));
   for (const [path,value] of Object.entries(changes)) {
-    const f = state.fields.find(f => f.path === fieldPath(path) && applies(f,state.record));
+    const f = state.fields.find(f => f.path === fieldPath(path) && (applies(f,state.record) || f.type === "platform_phone" && phoneProducer.getStore()));
     if (!f) throw badRequest("custom_field_unknown", `Unknown field ${path}.`);
     assertFieldWrite(ctx,f); validateField(f,value); await validatePattern(f,value); putValue(values,path,value);
   }

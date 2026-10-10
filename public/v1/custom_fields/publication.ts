@@ -17,7 +17,7 @@ export function registerCustomFieldPublication() {
     const access: AccessPolicy = { scopes:entity === "project" ? ["project"] : entity === "contact" ? ["project", "organization"] : ["organization"], permissions:[FIELD_OWNERS[entity].readPermission], systemKinds:["work","module","agent"] };
     const provider = `custom-fields-${entity}`;
     const argsSchema = { type:"object", properties:{ field:{type:"string",minLength:1,maxLength:780} }, additionalProperties:false };
-    const resolve = (ctx:PublicationContext,ref:SourceRef) => readFields(ctx,ref.target,entity,ref.args?.field as string | undefined, ref.export === "contract");
+    const resolve = (ctx:PublicationContext,ref:SourceRef) => readFields(ctx,ref.target,entity,ref.args?.field as string | undefined, ref.export === "contract",ref.export === "phones");
     registerDataProvider({ id:provider, version:"1", apps:[entity === "project" ? "projects" : entity === "contact" ? "contacts" : "settings"], exports:Object.fromEntries(["contract","values","phones"].map(name => [name, {
       schema:name === "phones" ? {type:"array",items:{type:"object",additionalProperties:true}} : {type:"object",additionalProperties:true}, schemaVersion:"1", argsSchema, access,
       description:`${entity} custom ${name === "contract" ? "field definitions, nested schemas, access and record revision" : "field values, including read-only and background variables"}. Optional args.field selects a declared dotted field path. Private fields require their read permission.`,
