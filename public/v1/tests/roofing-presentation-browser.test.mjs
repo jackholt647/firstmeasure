@@ -153,3 +153,50 @@ test('quick successive picks keep the last one on screen, and Details works when
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
+
+test('the Good / Better / Best deck compares three options in columns; picking one moves every price',async()=>{
+ const M=require('../../libraries/doc-model/firstmate-doc-model.js');
+ const P=require('../../libraries/doc-parts/firstmate-doc-parts.js');
+ const deck=require('../../libraries/doc-present/templates/roofing-presentation.js');
+ const doc=deck.build({M,P,deck:'options'});
+ assert.deepEqual(M.validateDocument(doc).errors,[]);
+ assert.deepEqual(doc.pages.map(page=>page.id),['cover','about','good_roof','anatomy','compare','addons','estimate','sign']);
+ assert.deepEqual(deck.build({M,P,deck:'gutters'}).pages.map(page=>page.id),['cover','about','gutter_job','addons','estimate','sign']);
+ // The comparison is an assembly: its columns cannot lose a name or a price, and a review's Change leads to it.
+ assert.equal(doc.assemblies.asm_packages.type,'option_compare');
+ const price=M.assemblyParts(doc,'asm_packages').find(part=>part.role==='column.price');
+ assert.equal(M.partRemovalBlock(doc,[price.node.id]).assembly,'asm_packages');
+ assert.equal(P.pageForTarget(doc,{group:'piece_roof_replacement:roof_package'}),'compare');
+ const browser=await launch();try{
+  const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.route('http://deck.test/**',async route=>{const p=new URL(route.request().url()).pathname;
+   try{return route.fulfill({contentType:p.endsWith('.html')?'text/html; charset=utf-8':'application/javascript; charset=utf-8',body:await readFile(path.join(libraries,p.replace(/^\/libraries\//,'')))});}catch{return route.fulfill({status:404,body:''});}});
+  await page.goto('http://deck.test/libraries/doc-present/dev-present.html?deck=options');
+  await page.waitForFunction(()=>window.player);await page.evaluate(()=>player.ready());
+  await page.evaluate(()=>player.goTo(4,'end',{animate:false}));
+  const columns=page.locator('.fmdoc-page[data-fmdp-on] [data-part-role="column"]:not([data-part-empty])');
+  assert.equal(await columns.count(),3);
+  const read=()=>page.evaluate(()=>Array.from(document.querySelectorAll('.fmdoc-page[data-fmdp-on] [data-part-role="column"]')).map(column=>{
+   const part=role=>(column.querySelector(`[data-part-role="${role}"]`)?.textContent||'').trim();const box=column.getBoundingClientRect();
+   return {title:part('column.title'),price:part('column.price'),deposit:part('column.deposit'),pick:part('column.pick.label'),selected:column.hasAttribute('data-part-selected'),
+    features:Array.from(column.querySelectorAll('[data-part-role="column.feature.text"]:not([data-part-empty])')).map(el=>el.textContent.trim()),
+    band:getComputedStyle(column.querySelector('[data-part-role="column.band"]')).backgroundColor,left:Math.round(box.left),width:Math.round(box.width),
+    clipped:Array.from(column.querySelectorAll('[data-part-role="column.title"],[data-part-role="column.price"],[data-part-role="column.feature.text"]:not([data-part-empty])')).some(el=>{const run=el.querySelector('span')||el;return run.getBoundingClientRect().right>box.right+1;})};}));
+  await page.waitForTimeout(600);
+  let shown=await read();
+  assert.deepEqual(shown.map(column=>[column.title,column.price,column.selected,column.pick]),[['Good','$20,305',false,'Choose Good'],['Better','$22,706',true,'✓ Selected'],['Best','$26,563',false,'Choose Best']]);
+  assert.deepEqual(shown[2].features,['GAF Timberline UHDZ','GAF Tiger Paw','GAF WeatherWatch','Lifetime pipe boots','GAF Silver Pledge warranty']);
+  assert.equal(new Set(shown.map(column=>column.band)).size,3,'each column has its own color');
+  assert.ok(shown[0].left<shown[1].left&&shown[1].left<shown[2].left&&shown[2].left+shown[2].width-shown[0].left>1100,'the columns fill the slide side by side');
+  assert.ok(shown.every(column=>!column.clipped&&/deposit at signing/.test(column.deposit)),'nothing is cut off and every column states its deposit');
+  // Picking Best: the column takes the selection and the total follows on this slide and the next.
+  await columns.nth(2).click();await page.waitForTimeout(700);
+  shown=await read();
+  assert.deepEqual(shown.map(column=>column.selected),[false,false,true]);
+  assert.equal(shown[2].pick,'✓ Selected');
+  assert.equal(await page.evaluate(()=>player.state().totals.total_cents),2656300);
+  await page.evaluate(()=>player.goTo(6,'end',{animate:false}));await page.waitForTimeout(600);
+  assert.equal((await page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_total"][data-part-role="value"]').textContent()).trim(),'$26,563');
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});

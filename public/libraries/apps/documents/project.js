@@ -1968,7 +1968,7 @@
             const templateId = firstText(piece.template_id, piece.id);
             let generated = null;
             try {
-              const result = await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.generate', { scope: 'organization', organizationId: orgId() }, { templateId, measurements: objectValue(measurements) });
+              const result = await window.PlatformAPI.publication.invoke(orgId(), 'pricebook.scope.generate', { scope: 'organization', organizationId: orgId() }, { templateId, measurements: objectValue(measurements), ...(firstText(piece.variant) ? { variant: firstText(piece.variant) } : {}) });
               generated = applyScopePieceMetadata(objectValue(result.value), piece, index);
             } catch (error) {
               if (cleanText(error?.code || error?.data?.error) !== 'scope_generation_unsupported') console.warn('Server scope generation failed — using the legacy generator', error);
@@ -3397,7 +3397,7 @@
       const isProposal = cleanText(doc.document_type).toLowerCase() === 'proposal';
       const multi = isProposal && isMultiOptionDoc(doc, objectValue(doc.params));
       const menu = openMenu(anchor, `
-        ${!readOnly && isProposal ? `<button type="button" class="fmdx-menu-item" data-more-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_95299bfa43bab3"," Add variant") ?? " Add variant")}</button>` : ''}
+        ${!readOnly && multi ? `<button type="button" class="fmdx-menu-item" data-more-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_95299bfa43bab3"," Add variant") ?? " Add variant")}</button>` : ''}
         <button type="button" class="fmdx-menu-item" data-more-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>`);
       menu.el.querySelector('[data-more-variant]')?.addEventListener('click', (event) => {
         const button = event.currentTarget;

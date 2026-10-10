@@ -221,7 +221,7 @@ test("proposal lifecycle creates snapshots, PDFs, public views, signatures, and 
   const { readDocumentInstance } = await import("../documents/storage.js");
   const proposalDocument = await readDocumentInstance(orgId, `doc_legacy_proposal_${sent.snapshot.id}`);
   assert.equal(proposalDocument.document_type, "proposal");
-  assert.equal((proposalDocument.template_ref as any).template_id, "tpl_proposal_default");
+  assert.equal((proposalDocument.template_ref as any).template_id, "tpl_instant_roofing_detailed");
   const sentProject = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   const pipelineInstance = sentProject.document.data.work_projection.active_instances
     .find((instance: any) => instance.kind === "pipeline");

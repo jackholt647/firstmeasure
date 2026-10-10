@@ -26,13 +26,15 @@ function loadLibrary<T>(relative: string): T {
 }
 
 /** Raise when the deck in public/libraries/doc-present/templates/roofing-presentation.js changes. */
-export const ROOFING_PRESENTATION_REVISION = 5;
+export const ROOFING_PRESENTATION_REVISION = 6;
 
 /**
- * The roofing sales presentation's layout. The deck is authored once, in the
- * library the editor and the player use, so the seeded preset is exactly what
- * the editor's template builds.
+ * A roofing sales presentation's layout. The decks are authored once, in the
+ * library the editor and the player use, so a seeded preset is exactly what
+ * the editor's template builds. `deck` picks the pricing slides: "itemized"
+ * (a choice per roof layer), "options" (Good / Better / Best compared in
+ * columns) or "gutters".
  */
-export function roofingPresentationLayout(): JsonObject {
-  return loadLibrary<{ build: () => JsonObject }>("doc-present/templates/roofing-presentation.js").build();
+export function roofingPresentationLayout(deck = "itemized"): JsonObject {
+  return loadLibrary<{ build: (options?: { deck: string }) => JsonObject }>("doc-present/templates/roofing-presentation.js").build({ deck });
 }

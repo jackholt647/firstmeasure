@@ -17,7 +17,7 @@
  *
  * Live state (host-supplied; the same shape whatever produced the prices):
  *   {
- *     groups:  [{ id, title, options: [{ id, title, description?, image_url?, swatch?, price_cents, selected }] }],
+ *     groups:  [{ id, title, options: [{ id, title, description?, image_url?, swatch?, highlights?, price_cents, selected }] }],
  *     addons:  [{ id, title, description?, image_url?, price_cents, selected }],
  *     totals:  { subtotal_cents, tax_cents, total_cents, deposit_cents, ... },
  *     values:  { any other named amounts or text }
@@ -240,9 +240,16 @@
 [data-part-role="row.option"]{cursor:pointer;outline:2px solid transparent;outline-offset:-1px;transition:outline-color .15s ease,background .15s ease,transform .15s ease}
 [data-part-role="row.option"]:hover{transform:translateY(-1px)}
 [data-part-role="row.option"][data-part-selected]{outline-color:var(--fm-primary,#2563eb);background:color-mix(in srgb,var(--fm-primary,#2563eb) 8%,#fff)!important}
+[data-part-role="column"]{cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,outline-color .18s ease;outline:3px solid transparent;outline-offset:-1px}
+[data-part-role="column"]:hover{transform:translateY(-3px)}
+[data-part-role="column"][data-part-selected]{outline-color:var(--fmparts-column,var(--fm-primary,#2563eb));box-shadow:0 16px 36px color-mix(in srgb,var(--fmparts-column,#2563eb) 28%,transparent)}
+[data-part-role="column"]:focus-visible{outline-color:var(--fmparts-column,var(--fm-primary,#2563eb));outline-style:dashed}
+[data-part-role="column.pick"]{transition:background .18s ease}
+[data-part-role="column.pick"][data-part-selected]{background:var(--fmparts-column,var(--fm-primary,#2563eb))!important}
+[data-part-role="column.pick"][data-part-selected] *{color:#fff!important}
 [data-part-role="detail"][data-part-live]{transition:opacity .22s ease,transform .26s cubic-bezier(.3,.8,.3,1);opacity:0;pointer-events:none;transform:translateY(12px) scale(.98)}
 [data-part-role="detail"][data-part-live][data-part-open]{opacity:1;pointer-events:auto;transform:none}
-@media (prefers-reduced-motion:reduce){[data-part-role="option"],[data-part-role="option.mark"]{transition:none}}
+@media (prefers-reduced-motion:reduce){[data-part-role="option"],[data-part-role="option.mark"],[data-part-role="column"]{transition:none}}
 `;
   function ensureStyles() {
     if (typeof document === 'undefined' || document.getElementById(STYLE_ID)) return;
@@ -366,7 +373,7 @@
     }
     function onKey(event) {
       if (event.key === 'Escape' && focus) { focus = null; render(); event.stopPropagation(); return; }
-      if ((event.key !== 'Enter' && event.key !== ' ') || !event.target.matches?.('[data-part-role="option"],[data-part-role="review.edit"],[data-part-role="row.option"],[data-part-role="option.more"],[data-part-role="row.option.info"],[data-part-role="detail.close"]')) return;
+      if ((event.key !== 'Enter' && event.key !== ' ') || !event.target.matches?.('[data-part-role="option"],[data-part-role="column"],[data-part-role="review.edit"],[data-part-role="row.option"],[data-part-role="option.more"],[data-part-role="row.option.info"],[data-part-role="detail.close"]')) return;
       event.preventDefault();
       event.stopPropagation();
       event.target.click();
@@ -406,7 +413,10 @@
     const option = (entry) => ({
       id: text(obj(entry).id), title: text(obj(entry).title || obj(entry).name), description: text(obj(entry).description),
       image_url: text(obj(entry).image_url), swatch: text(obj(entry).swatch), color: text(obj(entry).color_hex), details: text(obj(entry).details), price_cents: Number(obj(entry).price_cents) || 0,
-      delta_cents: obj(entry).delta_cents === undefined || obj(entry).delta_cents === null ? undefined : Number(obj(entry).delta_cents) || 0, selected: obj(entry).selected === true
+      delta_cents: obj(entry).delta_cents === undefined || obj(entry).delta_cents === null ? undefined : Number(obj(entry).delta_cents) || 0, selected: obj(entry).selected === true,
+      // A whole-option alternative: what sets it apart, and the deposit that goes with it.
+      highlights: arr(obj(entry).highlights).map(text).filter(Boolean),
+      deposit_cents: obj(entry).deposit_cents === undefined || obj(entry).deposit_cents === null ? undefined : Number(obj(entry).deposit_cents) || 0
     });
     const deposit = arr(obj(p.pricing).schedule).filter((entry) => obj(entry).due_rule === 'on_signature').reduce((sum, entry) => sum + (Number(obj(entry).amount_cents) || 0), 0);
     const total = Number(totals.total_cents) || 0;
@@ -830,11 +840,116 @@
     }
   });
 
+  // Whole options side by side: one color-coded column per alternative of a
+  // selection, each with what sets it apart, the price with it chosen and the
+  // deposit that goes with that price. Picking a column picks the option.
+  const COMPARE_COLORS = ['#0f766e', '#1d4ed8', '#b45309', '#7c3aed'];
+  register('option_compare', {
+    title: 'Option comparison',
+    icon: 'fa-table-columns',
+    description: 'Complete options in columns: what is in each, its price and deposit. The customer picks one and the price follows.',
+    defaults: { source: { kind: 'group', id: '' }, colors: COMPARE_COLORS.slice(0, 3) },
+    required: [{ role: 'column', min: 2 }, { role: 'column.title', per: 'column' }, { role: 'column.price', per: 'column' }],
+    roles: {
+      column: 'Column', 'column.band': 'Color band', 'column.title': 'Option name', 'column.description': 'Summary', 'column.feature': 'Feature line', 'column.feature.text': 'Feature',
+      'column.price': 'Price', 'column.deposit': 'Deposit', 'column.pick': 'Choose button', 'column.pick.label': 'Choose button label'
+    },
+    presets: [
+      { id: 'columns', label: 'Columns', size: { w: 880, h: 388 }, build(h, o) {
+        const n = Math.max(2, Math.min(4, Number(o.count) || 3)), features = Math.max(1, Math.min(8, Number(o.features) || 5));
+        const gap = 16, w = (o.w - gap * (n - 1)) / n, ht = o.h, pad = 20;
+        const colors = arr(obj(o.config).colors).length ? arr(obj(o.config).colors) : COMPARE_COLORS;
+        // What the space between the summary and the price allows each feature line.
+        const top = 122, each = Math.min(24, (ht - top - 136) / features);
+        return Array.from({ length: n }, (_, i) => {
+          const color = text(colors[i % colors.length]) || COMPARE_COLORS[i % COMPARE_COLORS.length];
+          return h.box('Option ' + (i + 1), i * (w + gap), 0, w, ht, { fill: `color-mix(in srgb, ${color} 7%, #ffffff)`, radius: 16, stroke: `color-mix(in srgb, ${color} 28%, #ffffff)`, group: true, clip: true, role: 'column', key: i, children: [
+            h.box('Color band', 0, 0, w, 60, { fill: color, role: 'column.band', key: i }),
+            h.text('Name', pad, 15, w - pad * 2, 32, 'Option', { size: 22, weight: 800, color: '#ffffff', role: 'column.title', key: i }),
+            h.text('Summary', pad, 72, w - pad * 2, 44, 'What this option is, in a sentence.', { size: 9.5, color: '#475467', line_height: 1.4, role: 'column.description', key: i })
+          ].concat(Array.from({ length: features }, (_, j) => h.box('Feature ' + (j + 1), pad, top + j * each, w - pad * 2, each, { group: true, role: 'column.feature', key: i + '.' + j, children: [
+            h.box('Mark', 0, (each - 6) / 2, 6, 6, { fill: color, radius: 3 }),
+            h.text('Feature', 16, (each - 15) / 2, w - pad * 2 - 16, 15, 'Included feature', { size: 10.5, weight: 600, color: INK, role: 'column.feature.text', key: i + '.' + j })
+          ] })), [
+            h.box('Rule', pad, ht - 130, w - pad * 2, 1, { fill: `color-mix(in srgb, ${color} 22%, #ffffff)` }),
+            h.text('Price', pad, ht - 122, w - pad * 2, 44, '$0', { size: 31, weight: 800, color: INK, role: 'column.price', key: i }),
+            h.text('Deposit', pad, ht - 78, w - pad * 2, 16, 'Deposit at signing', { size: 10, weight: 600, color: MUTED, role: 'column.deposit', key: i }),
+            h.box('Choose', pad, ht - 52, w - pad * 2, 36, { fill: '#ffffff', radius: 18, stroke: color, stroke_width: 1.5, role: 'column.pick', key: i, children: [
+              h.text('Choose label', 0, 10, w - pad * 2, 16, 'Choose', { size: 11, weight: 800, color, align: 'center', role: 'column.pick.label', key: i })
+            ] })
+          ]) });
+        });
+      } }
+    ],
+    source(e) {
+      const group = groupOf(e.state(), obj(e.config.source).id);
+      return { multiple: false, group: text(obj(e.config.source).id), options: arr(group.options) };
+    },
+    /** The total and the deposit with this option chosen. The server prices each alternative whole. */
+    amounts(e, option) {
+      const totals = obj(e.state().totals);
+      const total = Number(totals.total_cents) || 0;
+      if (option.selected) return { total, deposit: Number(totals.deposit_cents) || 0 };
+      const known = (value) => value !== undefined && value !== null && Number.isFinite(Number(value));
+      const chosen = obj(arr(this.source(e).options).find((entry) => obj(entry).selected));
+      const next = total + (known(option.delta_cents) ? Number(option.delta_cents) : (Number(option.price_cents) || 0) - (Number(chosen.price_cents) || 0));
+      // Without the server's figure the deposit keeps its share of the total.
+      const deposit = known(option.deposit_cents) ? Number(option.deposit_cents) : (total > 0 ? Math.round((Number(totals.deposit_cents) || 0) * next / total) : 0);
+      return { total: next, deposit };
+    },
+    render(e) {
+      const { options } = this.source(e);
+      const colors = arr(e.config.colors);
+      const columns = e.keys('column');
+      columns.forEach((key, index) => {
+        const option = obj(options[index]);
+        const has = !!text(option.id);
+        const each = (role, fn) => e.parts(role, key).forEach((el) => { el.toggleAttribute('data-part-empty', !has); if (has) fn(el); });
+        const amounts = has ? this.amounts(e, option) : null;
+        each('column', (el) => {
+          if (text(colors[index])) el.style.setProperty('--fmparts-column', text(colors[index]));
+          el.toggleAttribute('data-part-selected', !!option.selected);
+          el.setAttribute('role', 'radio');
+          el.setAttribute('aria-checked', option.selected ? 'true' : 'false');
+          el.setAttribute('aria-label', `${text(option.title)}, ${money(amounts.total)}`);
+          if (!e.readonly) el.tabIndex = 0;
+        });
+        each('column.band', () => {});
+        each('column.title', (el) => { e.setText(el, option.title); e.fitLine(el); });
+        each('column.description', (el) => e.setText(el, option.description));
+        each('column.price', (el) => e.setMoney(el, amounts.total));
+        each('column.deposit', (el) => { el.toggleAttribute('data-part-empty', !(amounts.deposit > 0)); e.setText(el, `${money(amounts.deposit)} deposit at signing`); });
+        each('column.pick', (el) => el.toggleAttribute('data-part-selected', !!option.selected));
+        each('column.pick.label', (el) => e.setText(el, option.selected ? '✓ Selected' : 'Choose ' + text(option.title)));
+      });
+      // Feature lines: what the option says sets it apart, one per line.
+      for (const role of ['column.feature', 'column.feature.text']) {
+        e.parts(role).forEach((el) => {
+          const [column, line] = text(el.getAttribute('data-part-key')).split('.');
+          const value = text(arr(obj(options[columns.indexOf(column)]).highlights)[Number(line)]);
+          el.toggleAttribute('data-part-empty', !value);
+          if (value && role === 'column.feature.text') { e.setText(el, value); e.fitLine(el); }
+        });
+      }
+    },
+    click(e, role, key) {
+      if (role !== 'column' && role !== 'column.pick') return false;
+      const source = this.source(e);
+      const option = obj(source.options[e.keys('column').indexOf(key)]);
+      if (!text(option.id)) return false;
+      choose(e, source, option, source.options.map((entry) => text(obj(entry).id)).filter(Boolean));
+      return true;
+    }
+  });
+
+  // The widgets a customer picks in: a review's Change leads to one, and a slide of them with nothing to offer is passed over.
+  const PICKERS = ['choice_selection', 'option_compare'];
+
   /** True when a page's selections all have nothing to offer in this state (a slide to pass over). */
   function pageIsEmpty(doc, pageId, state) {
     const M = model();
     const ids = new Set(M.assemblyParts(doc, null, []).filter((part) => part.page && part.page.id === pageId).map((part) => part.assembly));
-    const selections = Array.from(ids).map((id) => obj(obj(obj(doc).assemblies)[id])).filter((entry) => entry.type === 'choice_selection');
+    const selections = Array.from(ids).map((id) => obj(obj(obj(doc).assemblies)[id])).filter((entry) => PICKERS.includes(entry.type));
     if (!selections.length) return false;
     return selections.every((entry) => !optionsFor({ config: obj(entry.config), state: () => obj(state) }).options.length);
   }
@@ -845,7 +960,7 @@
     const want = obj(target);
     for (const [id, entry] of Object.entries(obj(obj(doc).assemblies))) {
       const source = obj(obj(obj(entry).config).source);
-      if (obj(entry).type !== 'choice_selection') continue;
+      if (!PICKERS.includes(obj(entry).type)) continue;
       if (!((want.addons && source.kind === 'addons') || (want.group && source.kind !== 'addons' && (text(source.id) === text(want.group) || text(source.id) === text(want.group).split(':').pop())))) continue;
       const part = M.assemblyParts(doc, id, [])[0];
       if (part && part.page) return part.page.id;

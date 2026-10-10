@@ -182,6 +182,14 @@ function findRepeaterFor(definition: any, component: string) {
 }
 
 /** Per-block joined text (runs concatenated), for glyph+label assertions. */
+// The generic cover / details / pricing / signature proposal layout, with the
+// seeded pricing adjustments. It is no longer in an organization's library;
+// the kitchen remodel scope issues it by id, and so do the tests of the
+// engine behavior it exercises.
+const GENERIC_PROPOSAL = "tpl_kitchen_estimate";
+const RETIRED_TEMPLATES = ["tpl_proposal_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_good_better_best_workflow", "tpl_kitchen_estimate", "tpl_kitchen_selections", "tpl_same_day_service_authorization"];
+const SALES_TEMPLATES = ["tpl_instant_roofing_detailed", "tpl_instant_roofing_onepage", "tpl_instant_roofing_options", "tpl_instant_roofing_gutters"];
+
 function collectBlockTexts(definition: any): string[] {
   const texts: string[] = [];
   walkDefinitionNodes(definition, (node) => {
@@ -258,12 +266,12 @@ test("presets seed on first list: three themes and three showcase templates that
 
   const templates = await client.request("GET", `/v1/documents/organizations/${orgId}/templates`);
   const templateIds = templates.templates.map((template: any) => template.id);
-  for (const id of ["tpl_proposal_default", "tpl_invoice_default", "tpl_change_order_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_good_better_best_workflow", "tpl_roofing_completion_certificate"]) {
+  for (const id of [...SALES_TEMPLATES, "tpl_invoice_default", "tpl_change_order_default", "tpl_roofing_completion_certificate"]) {
     assert.ok(templateIds.includes(id), `seeded template ${id} is present`);
   }
 
   const { FMDocModel } = await import("../documents/schemas.js");
-  for (const id of ["tpl_proposal_default", "tpl_invoice_default", "tpl_change_order_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_good_better_best_workflow", "tpl_roofing_completion_certificate"]) {
+  for (const id of [...SALES_TEMPLATES, "tpl_invoice_default", "tpl_change_order_default", "tpl_roofing_completion_certificate"]) {
     const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/${id}`);
     assert.ok(detail.template.definition, `${id} has a published definition`);
     const result = FMDocModel.validateDocument(detail.template.definition);
@@ -271,13 +279,13 @@ test("presets seed on first list: three themes and three showcase templates that
     assert.ok(Number(detail.template.current_version) >= 1, `${id} has current_version >= 1`);
   }
 
-  for (const id of ["tpl_roofing_selection_to_document", "tpl_roofing_signature_payment", "tpl_roofing_good_better_best_document"]) {
+  for (const id of ["tpl_roofing_selection_to_document", "tpl_roofing_signature_payment", "tpl_roofing_good_better_best_document", ...RETIRED_TEMPLATES]) {
     assert.ok(!templateIds.includes(id), `retired preset ${id} is no longer seeded`);
   }
 
   // Seeded pages hold one body region fitted to the page style's margins;
   // content inside it carries no page coordinates.
-  const proposalPreset = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_proposal_default`);
+  const proposalPreset = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_instant_roofing_detailed`);
   for (const page of proposalPreset.template.definition.pages) {
     assert.equal(page.children.length, 1, `${page.name} has a single body region`);
     const region = page.children[0];
@@ -307,8 +315,11 @@ test("presets seed on first list: three themes and three showcase templates that
   assert.ok(catalog.fonts.includes("Montserrat") && catalog.fonts.length === 8, "catalog lists the 8 font families");
 
   // Workflow layer additions: seeded workflows + item kinds + named sources.
-  for (const id of ["wfl_roofing_proposal_intake", "wfl_one_page_legal", "wfl_three_option_proposal", "wfl_roofing_completion_signoff", "wfl_roofing_customer_workflow"]) {
+  for (const id of ["wfl_instant_roofing_detailed", "wfl_instant_roofing_onepage", "wfl_instant_roofing_options", "wfl_instant_roofing_gutters", "wfl_roofing_completion_signoff"]) {
     assert.ok(catalog.workflows.some((workflow: any) => workflow.id === id), `catalog lists seeded workflow ${id}`);
+  }
+  for (const id of ["wfl_roofing_proposal_intake", "wfl_one_page_legal", "wfl_three_option_proposal", "wfl_roofing_customer_workflow", "wfl_kitchen_selections", "wfl_same_day_service_field"]) {
+    assert.ok(!catalog.workflows.some((workflow: any) => workflow.id === id), `retired workflow ${id} is no longer seeded`);
   }
   for (const id of ["text", "select", "measurements", "piece_picker", "piece_select", "line_items_review", "choice_group", "content_blocks", "review", "signature", "payment"]) {
     assert.ok(catalog.item_kinds.some((kind: any) => kind.id === id), `catalog lists item kind ${id}`);
@@ -317,7 +328,7 @@ test("presets seed on first list: three themes and three showcase templates that
     assert.ok(catalog.sources.some((source: any) => source.id === id), `catalog lists source ${id}`);
   }
   const proposalType = catalog.types.find((type: any) => type.id === "proposal");
-  assert.equal(proposalType.default_workflow_id, "wfl_roofing_proposal_intake", "proposal type bundles the intake workflow");
+  assert.ok(!proposalType.default_workflow_id, "each proposal template pins its own workflow; the type names none");
 });
 
 test("template create, publish, version listing, and optimistic publish conflict", async () => {
@@ -388,6 +399,7 @@ test("templates with disabled payment elements still publish and launch with tho
 test("Kitchen finish selections workflow can be copied while document payments are disabled", async () => {
   const client = createSessionClient();
   const { orgId } = await registerOrg(client);
+  await (await import("../documents/seeds.js")).ensureScopeDocumentTemplate(orgId, "tpl_kitchen_selections");
   const seeded = await client.request("GET", `/v1/documents/organizations/${orgId}/workflows/wfl_kitchen_selections`);
   assert.equal(seeded.workflow.name, "Kitchen finish selections");
   await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, { values: { "documents.payments": false } });
@@ -512,7 +524,7 @@ test("roofing sign-and-pay template applies its percentage schedule to preview a
 
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
-    template_id: "tpl_proposal_default",
+    template_id: GENERIC_PROPOSAL,
     workflow_id: null,
     title: "Percentage Schedule Agreement",
     params: {
@@ -562,6 +574,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
   // --- create from the seeded proposal template with params -----------------
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
+    template_id: GENERIC_PROPOSAL,
     title: "Roof Replacement Proposal",
     params: {
       customer: { name: "Jane Homeowner", email: "jane@example.test" },
@@ -576,7 +589,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
   });
   const documentId = created.document.id as string;
   assert.equal(created.document.status, "draft");
-  assert.equal(created.document.template_ref.template_id, "tpl_proposal_default");
+  assert.equal(created.document.template_ref.template_id, GENERIC_PROPOSAL);
   assert.deepEqual(created.missing_params, [], "required params satisfied at create");
 
   // --- resolve: bindings applied + repeater instances + computed totals -----
@@ -631,7 +644,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
   assert.ok(resolvedJson.includes("Documents Test Org"), "org name binding resolved into the cover");
 
   // --- instance overrides survive a template republish ----------------------
-  const templateDetail = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_proposal_default`);
+  const templateDetail = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/${GENERIC_PROPOSAL}`);
   const coverNodes = templateDetail.template.definition.pages[0].children[0].children as any[];
   const textNode = coverNodes.find((node) => node.type === "text");
   assert.ok(textNode, "cover page has a text node to override");
@@ -641,7 +654,7 @@ test("document lifecycle: create → resolve (bindings + widget data) → overri
   const afterOverride = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/resolve`, {});
   assert.ok(JSON.stringify(afterOverride.resolved_definition).includes("OVERRIDDEN_COVER_TEXT"), "override applies");
 
-  await client.request("POST", `/v1/documents/organizations/${orgId}/templates/tpl_proposal_default/publish`, {
+  await client.request("POST", `/v1/documents/organizations/${orgId}/templates/${GENERIC_PROPOSAL}/publish`, {
     definition: templateDetail.template.definition,
     expected_version: Number(templateDetail.template.current_version)
   });
@@ -781,6 +794,7 @@ test("documents without a required template param stay draft with missing_params
 
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
+    template_id: GENERIC_PROPOSAL,
     title: "Empty Proposal"
   });
   assert.ok(created.missing_params.includes("scope_items"), "scope_items reported missing");
@@ -935,41 +949,42 @@ test("instances attach the default workflow; workflow routes serve state and aud
     }
   });
   const documentId = created.document.id as string;
-  assert.equal(created.document.workflow_ref.workflow_id, "wfl_roofing_proposal_intake", "seeded workflow attached by default");
+  assert.equal(created.document.template_ref.template_id, "tpl_instant_roofing_detailed", "a proposal made by type alone is the itemized roofing proposal");
+  assert.equal(created.document.workflow_ref.workflow_id, "wfl_instant_roofing_detailed", "its template's workflow is attached");
   assert.ok(Number(created.document.workflow_ref.version) >= 1, "workflow version pinned at creation");
-  assert.equal(created.document.workflow_state.current_step, "st_what", "state starts at the first step");
+  assert.equal(created.document.workflow_state.current_step, "measure", "state starts at the first step");
   assert.deepEqual(created.document.workflow_state.completed_steps, []);
 
   // Internal workflow view: definition + state + contract + resolved sources.
   const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}/workflow`);
-  assert.equal(detail.workflow.name, "Roofing proposal intake");
-  assert.deepEqual(detail.workflow.steps.map((step: any) => step.id), ["st_what", "st_measure", "st_items", "st_details", "st_options", "st_review"]);
+  assert.equal(detail.workflow.name, "Roof replacement · Itemized proposal");
+  assert.deepEqual(detail.workflow.steps.map((step: any) => step.id), ["measure", "details", "items", "terms", "review", "choose", "sign", "pay"]);
   assert.deepEqual(
     detail.workflow.steps.map((step: any) => (step.items || []).map((item: any) => item.kind)),
-    [["piece_select"], ["measurements"], ["line_items_review"], ["content_blocks"], ["choice_group"], ["review"]],
-    "native step kinds: piece_select → measurements → line_items_review → content_blocks → choice_group → review"
+    [["measurements", "text"], ["content_blocks"], ["line_items_review"], ["payment_schedule"], ["review"], ["choice_group"], ["signature"], ["payment"]],
+    "native step kinds: measurements → content_blocks → line_items_review → payment_schedule → review, then the customer's choice_group → signature → payment"
   );
   assert.ok(detail.contract.params.scope_items, "contract params exposed");
   assert.ok(detail.contract.params.scope_pieces, "contract declares the piece selection param");
   assert.ok(detail.contract.outputs.sig_customer, "contract outputs exposed");
-  assert.equal(detail.state.current_step, "st_what");
+  assert.equal(detail.state.current_step, "measure");
   assert.ok(detail.sources && typeof detail.sources === "object", "workflow sources resolved server-side");
-  // st_options derives its choices from params.scope_items now (options_from
+  // The customer's choices derive from params.scope_items (options_from
   // "scope_items"), not a detached pricebook-category source — no source rows
   // are expected for it.
-  const optionsStep = detail.workflow.steps.find((step: any) => step.id === "st_options");
+  const optionsStep = detail.workflow.steps.find((step: any) => step.id === "choose");
   assert.equal(optionsStep.items[0].options_from, "scope_items", "customer options derive from the scope's choice groups");
 
   // State updates: complete a step (advances), jump explicitly, reject unknown.
   const advanced = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/workflow/state`, {
-    complete_step: "st_what"
+    complete_step: "measure"
   });
-  assert.equal(advanced.state.current_step, "st_measure", "completing a step advances to the next");
-  assert.deepEqual(advanced.state.completed_steps, ["st_what"]);
+  assert.equal(advanced.state.current_step, "details", "completing a step advances to the next");
+  assert.deepEqual(advanced.state.completed_steps, ["measure"]);
   const jumped = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/workflow/state`, {
-    current_step: "st_review"
+    current_step: "review"
   });
-  assert.equal(jumped.state.current_step, "st_review");
+  assert.equal(jumped.state.current_step, "review");
   const badStep = await client.raw("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/workflow/state`, {
     current_step: "st_nope"
   });
@@ -982,14 +997,14 @@ test("instances attach the default workflow; workflow routes serve state and aud
   const afterWrite = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}`);
   assert.equal(afterWrite.document.params.measurements.roofSquares, 24, "workflow item writes land on instance params");
 
-  // Public: customer audience only sees options + review (st_what/st_measure/
-  // st_items are internal AND hidden via audiences.customer.hide_steps).
+  // Public: the customer audience sees only its own steps; the salesperson's
+  // are internal.
   const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/send`, {
     recipients: [{ name: "Jane Homeowner", email: "jane@example.test" }]
   });
   const token = (sent.signing?.invitations.find((i: any) => i.signer_id === "customer")?.token || sent.snapshot.public_token) as string;
   const publicWorkflow = await client.request("GET", `/v1/documents/public/${token}/workflow`);
-  assert.deepEqual(publicWorkflow.workflow.steps.map((step: any) => step.id), ["st_options", "st_review"], "internal steps filtered for the portal wizard");
+  assert.deepEqual(publicWorkflow.workflow.steps.map((step: any) => step.id), ["choose", "sign", "pay"], "internal steps filtered for the portal wizard");
   assert.equal(publicWorkflow.document.id, documentId);
   assert.ok(publicWorkflow.state, "public view includes navigation state");
   assert.equal(publicWorkflow.params.measurements.roofSquares, 24, "public workflow includes bound params for data-driven choices");
@@ -1333,29 +1348,22 @@ test("source registry: repeaters over 'source:<id>' resolve rows server-side and
   assert.equal(frozen.children.length, 2, "frozen definition carries the expanded instances");
 });
 
-test("showcase seeds: legal, proposal, and completion templates validate; workflows republish through kind validation", async () => {
+test("showcase seeds: the roofing sales and completion templates validate; workflows republish through kind validation", async () => {
   const client = createSessionClient();
   const { orgId } = await registerOrg(client);
   await client.request("GET", `/v1/documents/organizations/${orgId}/templates`); // lazy-seed
 
   const { FMDocModel } = await import("../documents/schemas.js");
-  const legal = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_one_page_legal`);
-  assert.equal(legal.template.document_type, "contract");
-  assert.equal(legal.template.definition.settings.paper.size, "legal", "one-page agreement uses legal paper");
-  assert.equal(legal.template.definition.pages.length, 1, "one-page agreement is a single page (all absolute nodes)");
-  assert.ok(FMDocModel.validateDocument(legal.template.definition).ok, "legal template validates");
-  assert.equal(legal.template.metadata.default_workflow_id, "wfl_one_page_legal", "legal template pins its fill workflow");
-
-  const threeOpt = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_three_option_proposal`);
-  assert.equal(threeOpt.template.document_type, "proposal");
-  assert.ok(FMDocModel.validateDocument(threeOpt.template.definition).ok, "three-option template validates");
-  const detailPage = threeOpt.template.definition.pages.find((page: any) => page.repeat?.for);
-  assert.ok(detailPage, "three-option template page-repeats over the options");
-  assert.equal(detailPage.repeat.as, "option");
-
-  const workflowOnly = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_good_better_best_workflow`);
-  assert.equal(workflowOnly.template.metadata.customer_presentation.mode, "workflow");
-  assert.equal(workflowOnly.template.metadata.default_workflow_id, "wfl_roofing_customer_workflow");
+  for (const id of SALES_TEMPLATES) {
+    const sales = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/${id}`);
+    assert.equal(sales.template.document_type, "proposal");
+    assert.ok(FMDocModel.validateDocument(sales.template.definition).ok, `${id} validates`);
+    assert.equal(sales.template.metadata.default_workflow_id, id.replace("tpl_", "wfl_"), `${id} pins its own workflow`);
+    assert.equal(sales.template.metadata.customer_presentation.mode, "hybrid", `${id} gives the customer the choose / approve / pay steps beside the document`);
+    assert.equal(sales.template.metadata.default === true, id === "tpl_instant_roofing_detailed", "the itemized proposal is the type's default");
+  }
+  const onePage = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_instant_roofing_onepage`);
+  assert.equal(onePage.template.definition.pages.length, 1, "the one-page proposal is authored as a single page");
   const completion = await client.request("GET", `/v1/documents/organizations/${orgId}/templates/tpl_roofing_completion_certificate`);
   assert.equal(completion.template.document_type, "completion_certificate");
   assert.equal(completion.template.metadata.customer_presentation.tab.id, "sign_off");
@@ -1367,7 +1375,7 @@ test("showcase seeds: legal, proposal, and completion templates validate; workfl
 
   // Republishing the seeded workflow definitions through the API proves every
   // step item passes the registered kind + writes validation.
-  for (const id of ["wfl_one_page_legal", "wfl_three_option_proposal", "wfl_roofing_completion_signoff", "wfl_roofing_customer_workflow"]) {
+  for (const id of ["wfl_instant_roofing_detailed", "wfl_instant_roofing_onepage", "wfl_instant_roofing_options", "wfl_instant_roofing_gutters", "wfl_roofing_completion_signoff"]) {
     const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/workflows/${id}`);
     assert.ok(Number(detail.workflow.current_version) >= 1, `${id} published at seed time`);
     const republished = await client.request("POST", `/v1/documents/organizations/${orgId}/workflows/${id}/publish`, {
@@ -1378,116 +1386,6 @@ test("showcase seeds: legal, proposal, and completion templates validate; workfl
   }
 });
 
-test("one-page legal agreement: params-driven checkbox glyphs, computed price panel, exactly one resolved page", async () => {
-  const client = createSessionClient();
-  const { orgId } = await registerOrg(client);
-  const projectId = "project_one_page_legal";
-  await createProject(client, orgId, projectId);
-
-  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
-    document_type: "contract",
-    title: "Roofing Agreement",
-    params: {
-      customer: { name: "Jane Homeowner", email: "jane@example.test" },
-      agreement_date: "2026-07-27",
-      customer_info: {
-        name: "Jane Homeowner",
-        phone: "(555) 111-2222",
-        email: "jane@example.test",
-        owner_address: "100 Document Lane",
-        city: "Lakeville",
-        state: "MN",
-        zip: "55044",
-        project_address: "100 Document Lane, Lakeville MN"
-      },
-      spec: {
-        tear_off: true,
-        tear_shingles: true,
-        tear_off_layers: 2,
-        haul_debris: true,
-        renail_deck: true,
-        underlayment: "synthetic",
-        ice_water_shield: true,
-        ridge_vent: true,
-        install_shingle_system: true,
-        gutters_5in: true
-      },
-      materials: {
-        manufacturer: "GAF",
-        product: "Timberline HDZ",
-        color: "Charcoal",
-        warranty_tier: "premium",
-        labor_years: 10,
-        manufacturer_years: 50
-      },
-      pricing: { contract_price_cents: 2485000, tax_code: "MN", tax_rate_percent: 7.375, amount_paid_cents: 500000 },
-      notes: "Deliver materials to the driveway; dog in the backyard.",
-      representative: "Alex Representative"
-    }
-  });
-  const documentId = created.document.id as string;
-  assert.equal(created.document.template_ref.template_id, "tpl_one_page_legal", "contract type defaults to the one-page legal template");
-  assert.equal(created.document.workflow_ref.workflow_id, "wfl_one_page_legal", "fill workflow attached via template metadata");
-
-  const resolved = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/resolve`, {});
-  assert.equal(resolved.resolved_definition.pages.length, 1, "agreement resolves to exactly one page");
-  const runs = collectTextRuns(resolved.resolved_definition).join("\n");
-  assert.ok(runs.includes("☑"), "checked spec boxes render the checked glyph");
-  assert.ok(runs.includes("☐"), "unchecked spec boxes render the empty glyph");
-  const blocks = collectBlockTexts(resolved.resolved_definition);
-  assert.ok(blocks.some((text) => text.includes("☑ Synthetic") && text.includes("☐ Safeguard")),
-    "select-driven underlayment sub-checkboxes check only the chosen value");
-  assert.ok(runs.includes("GAF"), "materials bind into the agreement");
-  const computed = resolved.resolved_definition.computed_values;
-  assert.equal(computed.contract_tax_cents, Math.round(2485000 * 7.375 / 100), "sales tax computed from rate");
-  assert.equal(computed.contract_total_cents, 2485000 + computed.contract_tax_cents, "total = price + tax");
-  assert.equal(computed.balance_due_cents, computed.contract_total_cents - 500000, "balance due nets the amount paid");
-  assert.ok(JSON.stringify(resolved.resolved_definition).includes("Jane Homeowner"), "customer info binds into the form fields");
-});
-
-test("one-page legal workflow starts with the native scope steps (piece_select → measurements → line_items_review)", async () => {
-  const client = createSessionClient();
-  const { orgId } = await registerOrg(client);
-  await client.request("GET", `/v1/documents/organizations/${orgId}/templates`); // lazy-seed
-
-  const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/workflows/wfl_one_page_legal`);
-  const definition = detail.workflow.definition;
-  assert.deepEqual(
-    definition.steps.map((step: any) => step.id),
-    ["st_what", "st_measure", "st_items", "st_customer", "st_specs", "st_materials", "st_pricing", "st_notes", "st_review"],
-    "legal workflow leads with the roofing-intake scope steps"
-  );
-  assert.deepEqual(
-    definition.steps.slice(0, 3).map((step: any) => (step.items || []).map((item: any) => item.kind)),
-    [["piece_select"], ["measurements"], ["line_items_review"]],
-    "scope steps use the native kinds"
-  );
-  assert.equal(definition.steps[1].auto_skip_when_complete, true, "measurements auto-skip when satisfied");
-  assert.ok(definition.contract.params.scope_items, "contract declares scope_items");
-  assert.ok(definition.contract.params.scope_pieces, "contract declares scope_pieces");
-  assert.ok(definition.contract.params.measurement_requirements, "contract declares measurement_requirements");
-  const specStep = definition.steps.find((step: any) => step.id === "st_specs");
-  assert.ok(String(specStep.description || "").includes("auto-derive"), "spec step explains checkboxes derive from the scope");
-  const priceItem = definition.steps.find((step: any) => step.id === "st_pricing").items[0];
-  assert.notEqual(priceItem.required, true, "contract price is an optional override now");
-  assert.ok(
-    definition.audiences.customer.hide_steps.includes("st_what") && definition.audiences.customer.hide_steps.includes("st_items"),
-    "scope steps hidden from the customer audience"
-  );
-
-  // The contract doc attaches this workflow and starts at the scope step.
-  const projectId = "project_legal_scope_steps";
-  await createProject(client, orgId, projectId);
-  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
-    document_type: "contract",
-    title: "Scope-driven Agreement"
-  });
-  assert.equal(created.document.workflow_ref.workflow_id, "wfl_one_page_legal");
-  assert.equal(created.document.workflow_state.current_step, "st_what", "fill starts at the piece selection step");
-});
-
-// Scope tree shaped like the org-generated roofing assembly (pricebook_ref
-// ids + choice-selection rows) — drives spec_derived + the price fallback.
 const CONTRACT_SCOPE_TREE = [{
   id: "scope_roof",
   name: "Roof Replacement",
@@ -1504,7 +1402,7 @@ const CONTRACT_SCOPE_TREE = [{
   ]
 }];
 
-test("one-page legal agreement derives spec checkboxes and contract price from the scope tree", async () => {
+test("contracts derive their specification checks from the scope tree", async () => {
   const client = createSessionClient();
   const { orgId } = await registerOrg(client);
   const projectId = "project_legal_spec_derived";
@@ -1512,13 +1410,13 @@ test("one-page legal agreement derives spec checkboxes and contract price from t
 
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "contract",
+    // The one-page agreement that printed these checks is retired; the
+    // derivation runs for any contract with a scope.
+    template_id: null,
     title: "Derived Agreement",
     params: {
       customer: { name: "Jane Homeowner", email: "jane@example.test" },
-      scope_items: CONTRACT_SCOPE_TREE,
-      // NO pricing.contract_price_cents — the price panel must fall back to
-      // the scope-computed total.
-      pricing: { tax_rate_percent: 0 }
+      scope_items: CONTRACT_SCOPE_TREE
     }
   });
   const documentId = created.document.id as string;
@@ -1535,98 +1433,8 @@ test("one-page legal agreement derives spec checkboxes and contract price from t
   assert.ok(!derived.flashing_pipes, "absent scope rows derive unchecked");
   assert.ok(!derived.gutter_covers, "gutter covers not derived from plain gutter rows");
 
-  // Glyphs: derived checks render checked, absent ones stay empty.
-  const blocks = collectBlockTexts(resolved.resolved_definition);
-  assert.ok(blocks.some((text) => text.includes("☑ Continuous ridge vent")), "derived ridge vent renders checked");
-  assert.ok(blocks.some((text) => text.includes("☑ Install complete shingle roof system")), "derived shingle system renders checked");
-  assert.ok(blocks.some((text) => text.includes("☑ Tiger Paw") && text.includes("☐ Synthetic")), "derived underlayment checks only the matching type");
-  assert.ok(blocks.some((text) => text.includes("☐ Pipe flashings")), "underived flashing stays unchecked");
-
-  // Included rows hide their separate prices but still contribute to the package total.
-  const expectedCents = 20 * 8500 + 40 * 1200 + 20 * 3000 + 20 * 39800 + 100 * 900;
-  const computed = resolved.resolved_definition.computed_values;
-  assert.equal(computed.scope_subtotal_cents, expectedCents, "scope subtotal sums the enriched rows");
-  assert.equal(computed.contract_price_cents, expectedCents, "contract price falls back to the scope total");
-  assert.equal(computed.contract_total_cents, expectedCents, "total follows the derived price at 0% tax");
-  assert.equal(computed.balance_due_cents, expectedCents, "balance due follows the derived total");
-
-  // Explicit override: rep-entered price beats the scope total; spec override
-  // unchecks a derived box.
-  await client.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${documentId}`, {
-    params: { pricing: { contract_price_cents: 999900, tax_rate_percent: 0 }, spec: { ridge_vent: false } }
-  });
-  const overridden = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/resolve`, {});
-  assert.equal(overridden.resolved_definition.computed_values.contract_price_cents, 999900, "explicit contract price overrides the scope total");
-  const overriddenBlocks = collectBlockTexts(overridden.resolved_definition);
-  assert.ok(overriddenBlocks.some((text) => text.includes("☐ Continuous ridge vent")), "explicit spec false overrides the derived check");
-});
-
-test("three-option proposal: slot normalization builds options, detail pages repeat, summary compares, choice solidifies", async () => {
-  const client = createSessionClient();
-  const { orgId } = await registerOrg(client);
-  const projectId = "project_three_option";
-  await createProject(client, orgId, projectId);
-
-  const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
-    document_type: "proposal",
-    template_id: "tpl_three_option_proposal",
-    title: "Good Better Best",
-    params: {
-      customer: { name: "Jane Homeowner", email: "jane@example.test" },
-      option_a_items: [{ id: "a_roof", name: "Architectural shingle system", quantity: 1, unit: "job", unit_price: 38000 }],
-      option_b_items: [
-        { id: "b_roof", name: "Designer shingle system", quantity: 1, unit: "job", unit_price: 45000 },
-        { id: "b_vent", name: "Ridge vent upgrade", quantity: 1, unit: "ea", unit_price: 2000 }
-      ],
-      option_c_items: [
-        { id: "c_roof", name: "Premium shingle system", quantity: 1, unit: "job", unit_price: 54000 },
-        { id: "c_vent", name: "Full ventilation package", quantity: 1, unit: "ea", unit_price: 2500 },
-        { id: "c_gutter", name: "Seamless gutters + covers", quantity: 1, unit: "ea", unit_price: 1500 }
-      ],
-      option_b_summary: "Our most popular package",
-      tax_percent: 0
-    }
-  });
-  const documentId = created.document.id as string;
-  assert.equal(created.document.workflow_ref.workflow_id, "wfl_three_option_proposal", "three-option workflow attached via template metadata");
-
-  const resolved = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/resolve`, {});
-  const options = resolved.scope.params.proposal_options as any[];
-  assert.equal(options.length, 3, "option_a/b/c slots synthesize proposal_options");
-  assert.deepEqual(options.map((option) => option.id), ["option_a", "option_b", "option_c"]);
-  assert.deepEqual(options.map((option) => option.label), ["Good", "Better", "Best"], "labels default Good/Better/Best");
-  assert.deepEqual(options.map((option) => option.total_cents), [3800000, 4700000, 5800000], "per-option totals enrich in cents");
-  assert.equal(options[1].price_cents, 4700000, "choice-card price alias set");
-  assert.equal(options[1].description, "Our most popular package", "summary aliases into the choice-card description");
-
-  // cover + one detail page per option + summary + signature.
-  const pages = resolved.resolved_definition.pages as any[];
-  assert.equal(pages.length, 6, "page repeat stamps one detail page per option");
-  const resolvedJson = JSON.stringify(resolved.resolved_definition);
-  assert.ok(resolvedJson.includes("$38,000.00") && resolvedJson.includes("$47,000.00") && resolvedJson.includes("$58,000.00"),
-    "summary/detail pages render all three totals");
-  const summaryPage = pages.find((page: any) => page.name === "Compare options");
-  assert.ok(summaryPage, "summary page present");
-  const cards = findNodeByType({ pages: [summaryPage] }, "repeater");
-  assert.equal(cards.children.length, 3, "summary compare renders three option cards");
-  assert.equal(cards.props.layout.columns, 3, "summary cards lay out in three columns");
-  let choiceWidget: any = null;
-  walkDefinitionNodes({ pages: [summaryPage] }, (node) => {
-    if (!choiceWidget && node.type === "widget" && String(node.props?.widget || "").startsWith("doc.choice_group")) choiceWidget = node;
-  });
-  assert.ok(choiceWidget, "summary page carries the choice group widget");
-  assert.equal(choiceWidget.props.config.output_key, "option_choice", "choice group writes outputs.option_choice");
-  assert.equal((choiceWidget.props.config.options as any[]).length, 3, "widget config options interpolate from proposal_options");
-  assert.equal((choiceWidget.props.config.options as any[])[2].label, "Best");
-
-  // Choice solidifies scope_items from the chosen slot-built option.
-  await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/outputs/option_choice`, { value: "option_b" });
-  const after = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}`);
-  const solidified = after.document.params.scope_items as any[];
-  assert.equal(solidified.length, 2, "scope_items derive from the chosen option");
-  assert.equal(solidified[0].name, "Designer shingle system");
-  const afterResolve = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/resolve`, {});
-  assert.equal(afterResolve.resolved_definition.computed_values.subtotal_cents, 4700000, "computed totals follow the solidified option");
+  // Rows the scope does not select stay out of the derivation's input.
+  assert.ok((resolved.scope.params.scope_rows as any[]).length > 0, "derivation reads the flat projection of the scope");
 });
 
 test("draft re-template: template_ref/workflow_ref patch merges defs, keeps params, resets workflow state; non-draft rejected", async () => {
@@ -1645,16 +1453,16 @@ test("draft re-template: template_ref/workflow_ref patch merges defs, keeps para
     }
   });
   const documentId = created.document.id as string;
-  assert.equal(created.document.template_ref.template_id, "tpl_proposal_default", "starts on the standard proposal template");
-  assert.equal(created.document.workflow_ref.workflow_id, "wfl_roofing_proposal_intake");
+  assert.equal(created.document.template_ref.template_id, "tpl_instant_roofing_detailed", "starts on the itemized proposal");
+  assert.equal(created.document.workflow_ref.workflow_id, "wfl_instant_roofing_detailed");
 
   // Complete a step on the OLD workflow so pruning is observable after switch.
   await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/workflow/state`, {
-    complete_step: "st_what"
+    complete_step: "measure"
   });
 
-  // Convert flow (rail card "Add variant" on a standard proposal): copy the
-  // scope into option slots and repoint template + workflow in one PATCH.
+  // Convert flow: write params and repoint template + workflow in one PATCH.
+  // The option slots ride along to show slot params still synthesize options.
   const patched = await client.request("PATCH", `/v1/documents/organizations/${orgId}/documents/${documentId}`, {
     params: {
       option_a_items: SCOPE_ITEMS,
@@ -1662,38 +1470,27 @@ test("draft re-template: template_ref/workflow_ref patch merges defs, keeps para
       option_b_items: SCOPE_ITEMS,
       option_b_label: "Option B"
     },
-    template_ref: { template_id: "tpl_three_option_proposal" },
-    workflow_ref: { workflow_id: "wfl_three_option_proposal" }
+    template_ref: { template_id: "tpl_instant_roofing_quick" },
+    workflow_ref: { workflow_id: "wfl_instant_roofing_quick" }
   });
-  assert.equal(patched.document.template_ref.template_id, "tpl_three_option_proposal", "template ref switched");
+  assert.equal(patched.document.template_ref.template_id, "tpl_instant_roofing_quick", "template ref switched");
   assert.ok(Number(patched.document.template_ref.version) >= 1, "template version pinned to the published version");
-  assert.equal(patched.document.workflow_ref.workflow_id, "wfl_three_option_proposal", "workflow ref switched");
+  assert.equal(patched.document.workflow_ref.workflow_id, "wfl_instant_roofing_quick", "workflow ref switched");
   assert.ok(Number(patched.document.workflow_ref.version) >= 1, "workflow version pinned");
-  assert.equal(patched.document.workflow_state.current_step, "st_option_a", "workflow state resets to the new first step");
+  assert.equal(patched.document.workflow_state.current_step, "scope", "workflow state resets to the new first step");
   assert.deepEqual(patched.document.workflow_state.completed_steps, [], "completed steps pruned to surviving step ids");
   // Existing param VALUES survive; new slot params land.
   assert.equal((patched.document.params.scope_items as any[]).length, 2, "scope_items preserved through the switch");
   assert.equal(patched.document.params.tax_percent, 7, "unrelated params untouched");
   assert.equal((patched.document.params.option_b_items as any[]).length, 2, "slot params from the same PATCH land");
   // Defs merged from the new template (template wins over stale defs).
-  assert.ok(patched.document.param_defs.option_b_items, "new template param defs merged into param_defs");
-  assert.ok(patched.document.param_defs.option_c_label, "all slot defs present");
-  assert.ok(patched.document.output_defs.option_choice, "new template output defs merged into output_defs");
+  assert.ok(patched.document.param_defs.rate_cents, "new template param defs merged into param_defs");
+  assert.ok(patched.document.param_defs.roof_squares, "all of the new template's defs present");
+  assert.ok(patched.document.output_defs.sig_customer, "new template output defs merged into output_defs");
 
-  // The workflow route follows the new ref; option B/C steps carry `when`
-  // slot gates (runtime-evaluated — the full step list still serves).
+  // The workflow route follows the new ref.
   const detail = await client.request("GET", `/v1/documents/organizations/${orgId}/documents/${documentId}/workflow`);
-  assert.deepEqual(
-    detail.workflow.steps.map((step: any) => step.id),
-    ["st_option_a", "st_option_b", "st_option_c", "st_choice", "st_review"],
-    "workflow detail serves the three-option definition"
-  );
-  const stepB = detail.workflow.steps.find((step: any) => step.id === "st_option_b");
-  const stepC = detail.workflow.steps.find((step: any) => step.id === "st_option_c");
-  const stepA = detail.workflow.steps.find((step: any) => step.id === "st_option_a");
-  assert.equal(stepB.when, "{{not_empty(params.option_b_items)}}", "option B gated on its slot");
-  assert.equal(stepC.when, "{{not_empty(params.option_c_items)}}", "option C gated on its slot");
-  assert.ok(!stepA.when, "option A is always visible");
+  assert.deepEqual(detail.workflow.steps.map((step: any) => step.id), ["scope", "review"], "workflow detail serves the new template's definition");
 
   // Resolution synthesizes proposal_options from the two filled slots.
   const resolved = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/resolve`, {});
@@ -1710,7 +1507,7 @@ test("draft re-template: template_ref/workflow_ref patch merges defs, keeps para
   // Non-draft documents cannot switch.
   await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${documentId}/issue`, {});
   const locked = await client.raw("PATCH", `/v1/documents/organizations/${orgId}/documents/${documentId}`, {
-    template_ref: { template_id: "tpl_proposal_default" }
+    template_ref: { template_id: "tpl_instant_roofing_detailed" }
   });
   assert.equal(locked.statusCode, 409, "re-template on a non-draft conflicts");
   assert.equal(JSON.parse(locked.body).error, "document_not_draft");
@@ -1725,6 +1522,7 @@ test("seeded pricing adjustments: default rows respond to checkout in resolve an
   const BASE = 1350000; // SCOPE_ITEMS base subtotal
   const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`, {
     document_type: "proposal",
+    template_id: GENERIC_PROPOSAL,
     title: "Adjustments Demo",
     params: {
       customer: { name: "Jane Homeowner", email: "jane@example.test" },

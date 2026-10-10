@@ -59,8 +59,8 @@ registerDocumentType("proposal", {
     deposit_payment: { type: "payment", obligation: "deposit", required_for: "completed" }
   },
   default_theme_id: "thm_margin",
-  default_workflow_id: "wfl_roofing_proposal_intake",
-  seeded_templates: ["tpl_proposal_default"],
+  // The roofing pack's itemized proposal; each proposal template pins its own workflow.
+  seeded_templates: ["tpl_instant_roofing_detailed"],
   behaviors: { on_signed: ["scopes.activateFromProposal.v1", "payments.ensureReceivables.v1"] }
 });
 
@@ -124,9 +124,7 @@ registerDocumentType("contract", {
     sig_company: { type: "signature", required: false, signer: "internal" }
   },
   default_theme_id: "thm_clean",
-  // Showcase one-page roofing agreement (spec §10.5); its rep-driven fill
-  // workflow rides in via the template's metadata.default_workflow_id.
-  seeded_templates: ["tpl_one_page_legal"]
+  seeded_templates: ["tpl_roofing_paper_upload"]
 });
 
 registerDocumentType("work_order", {

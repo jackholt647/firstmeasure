@@ -14,6 +14,7 @@ const root = await mkdtemp(path.join(os.tmpdir(), "template-audit-"));
 Object.assign(process.env, { NODE_ENV: "test", PLATFORM_STORAGE_ROOT: root, PRICEBOOK_STORAGE_ROOT: path.join(root, "pricebook"), PLATFORM_HEARTBEAT_DISABLED: "1", SIGNUP_SANDBOX_STORAGE_ROOT: path.join(root, "sandbox"), FIRSTMEASURE_DATA_ENVIRONMENT: "development", EMAIL_OUTBOUND_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0", WORK_SCHEDULER_DISABLED: "1", V1_LOG_LEVEL: "error" });
 const rows: Row[] = [];
 const production: Row[] = [];
+const sales: Row[] = [];
 try {
   const storage = await import("../platform/storage.js");
   const signup = await import("../signup-sandbox/service.js");
@@ -30,7 +31,7 @@ try {
   for (const template of templates) {
     const id = String(template.id), meta = object(template.metadata), kind = String(template.document_type);
     const row: Row = { id, name: template.name, kind, status: template.status };
-    row.source = meta.instant_roofing_pack ? "roofing sandbox pack" : meta.intake === "upload" ? "paper intake preset" : meta.preset || meta.preset_revision ? "default preset" : meta.scope_preset || meta.industry ? `industry preset (${meta.industry || meta.scope_preset})` : "other";
+    row.source = meta.instant_roofing_pack ? "roofing sales pack" : meta.intake === "upload" ? "paper intake preset" : meta.preset || meta.preset_revision ? "default preset" : meta.scope_preset || meta.industry ? `industry preset (${meta.industry || meta.scope_preset})` : "other";
     const problems: string[] = [];
     try {
       const version = object(await store.readDocumentTemplateVersion(ctx.orgId, id, Number(template.current_version || 1)));
@@ -104,9 +105,40 @@ try {
   const certificate = await make("completion_certificate", "tpl_roofing_completion_certificate", {});
   production.push({ document: "completion certificate", workflow: object(certificate.document.workflow_ref).workflow_id, completed: certificate.params.completed_at, warranty_starts: certificate.params.warranty_start, final_payment: money(certificate.params.amount_due_cents) });
   production.push({ document: "new document picker", hidden_system_templates: templates.filter(template => object(template.metadata).system === true).map(template => template.id).join(", ") });
+  // The sales proposals with a scope generated from one roof (29.6 squares,
+  // 197 ft of eaves): what the customer is quoted, option by option.
+  {
+    const { ROOFING_ESTIMATES } = await import("../signup-sandbox/roofing-documents.js");
+    const { generatePieceScope } = await import("../pricebook/scope-generation.js");
+    const { getOrganizationPricebook } = await import("../pricebook/storage.js");
+    const { documentCompletion } = await import("../documents/modules/presentation-service.js");
+    const catalog = (await getOrganizationPricebook(ctx.orgId)).catalog;
+    const dollars = (cents: unknown) => `$${(Number(cents || 0) / 100).toFixed(2)}`;
+    const roof = { roofSquares: 29.6, wastePercent: 10, eavesLf: 197.25, rakesLf: 208.6, ridgesLf: 93.4, hipsLf: 0, valleyLf: 16.2, sideWallLf: 82.8, headWallLf: 4.5 };
+    for (const spec of ROOFING_ESTIMATES) {
+      if (!spec.scope) continue;
+      const root = generatePieceScope(catalog, spec.scope, spec.scope === "gutters" ? { gutterLf: 180, downspoutLf: 60 } : roof, spec.variant);
+      const created = object(await documents.createDocumentInstance(ctx.orgId, String(project.id), { document_type: "proposal", template_id: `tpl_instant_roofing_${spec.key}`, params: { scope_items: [root] } }, ctx));
+      const resolved = object(await documents.resolveDocumentInstance(ctx.orgId, object(created.document) as never, { target: "static" }));
+      const params = object(object(resolved.scope).params);
+      const printed = list(params.scope_rows).map(object);
+      const completion = await documentCompletion(ctx.orgId, object(created.document));
+      sales.push({
+        document: spec.title, template: `tpl_instant_roofing_${spec.key}`, workflow: object(object(created.document).workflow_ref).workflow_id, presentation: completion.presentation?.moduleId || "none",
+        pages: list(object(resolved.resolved_definition).pages).length,
+        total: dollars(list(params.scope_items).map(object).reduce((sum, item) => sum + Number(item.amount_cents || 0), 0)),
+        printed_lines: printed.filter(row => Number(row.depth) > 0).length,
+        lines_add_up: printed.filter(row => Number(row.depth) === 1).reduce((sum, row) => sum + Number(row.amount_cents || 0), 0) === list(params.scope_items).map(object).reduce((sum, item) => sum + Number(item.amount_cents || 0), 0),
+        zero_quantity_lines: printed.filter(row => Number(row.depth) > 0 && !(Number(row.quantity) > 0)).length,
+        ...(list(params.scope_packages).length ? { options: list(params.scope_packages).map(object).map(option => `${option.name} ${dollars(option.price_cents)}${option.selected ? " (selected)" : ""}`).join(", ") } : {}),
+        optional_lines: list(root.children).map(object).filter(line => object(line.selection).mode === "optional").map(line => `${line.name} ${dollars(Math.round(Number(line.quantity) * Number(line.unit_price) * 100))}`).join(", ")
+      });
+    }
+  }
 } finally {
   console.log(JSON.stringify(rows, null, 1));
   console.log(JSON.stringify({ production }, null, 1));
+  console.log(JSON.stringify({ sales }, null, 1));
   await (await import("../tests/helpers/platform-fixture.js")).closePlatformFixtureStores().catch(() => undefined);
   await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => undefined);
   process.exit(0);

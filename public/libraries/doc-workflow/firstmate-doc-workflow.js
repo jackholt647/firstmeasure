@@ -229,6 +229,12 @@
     if (!scopeItemSelected(item)) return 0;
     return scopeItemOwnAmount(item) + arr(obj(item).children).reduce((sum, child) => sum + scopeItemAmount(child), 0);
   }
+  /** What a line and the lines under it cost when it is the one chosen: the
+   *  price of a whole option (Good / Better / Best), selected or not. */
+  function scopeItemAmountIfSelected(item){
+    const line = obj(item);
+    return scopeItemAmount({ ...line, selection: { ...obj(line.selection), selected: true } });
+  }
   function scopeItemsTotal(items){
     return arr(items).reduce((sum, item) => sum + scopeItemAmount(item), 0);
   }
@@ -583,12 +589,15 @@
         if (!gid && selections[cleanText(item.id)] !== undefined) return selections[cleanText(item.id)] === true;
         return sel.selected === true;
       };
-      const lineAmount = (item) => Math.max(0, Number(item.quantity || 0) || 0) * (Number(item.unit_price || item.base_price || 0) || 0);
+      const isPackage = (item) => arr(item.children).length > 0;
+      const lineAmount = (item) => (isPackage(item) ? scopeItemAmountIfSelected(item) : Math.max(0, Number(item.quantity || 0) || 0) * (Number(item.unit_price || item.base_price || 0) || 0));
       // In a choice group the customer is choosing between alternatives, so
       // each card shows the difference from the option currently selected;
-      // optional add-ons show what they add.
+      // optional add-ons show what they add. A whole option (its own set of
+      // lines) shows its full price: that is what is being compared.
       const priceTag = (item, gid) => {
         if (!gid) { const price = lineAmount(item); return price > 0 ? `<em>+ ${esc(moneyFromDollars(price))}</em>` : ''; }
+        if (isPackage(item)) return `<em>${esc(moneyFromDollars(lineAmount(item)))}</em>`;
         const current = arr(groups.get(gid)).find((other) => isSelected(other));
         if (!current || current === item) return isSelected(item) ? '<em>Selected</em>' : '';
         const delta = lineAmount(item) - lineAmount(current);
@@ -599,6 +608,7 @@
         <button type="button" class="fmdw-choice-card ${isSelected(item) ? 'active' : ''}" data-fmdw-scg-option="${esc(cleanText(item.id))}" data-fmdw-scg-group="${esc(gid)}" ${ctx.readonly ? 'disabled' : ''}>
           <strong>${esc(firstNonEmpty(item.display_name, item.name, 'Option'))}</strong>
           ${cleanText(item.description) ? `<span>${esc(cleanText(item.description))}</span>` : ''}
+          ${arr(item.highlights).length ? `<span class="fmdw-choice-includes">${arr(item.highlights).map((line) => esc(cleanText(line))).join('<br>')}</span>` : ''}
           ${priceTag(item, gid)}
           ${isSelected(item) ? '<i class="fas fa-circle-check"></i>' : ''}
         </button>`;
@@ -1520,6 +1530,9 @@
     };
     /** What the line costs when it is priced, whether or not it is selected. */
     const lineAmount = (item) => (item.price_driving === false ? 0 : Math.max(0, Number(item.quantity || 0) || 0) * (Number(item.unit_price || 0) || 0));
+    /** A whole option (a pick with its own lines) shows what all of it costs. */
+    const isPackage = (item) => !!(choiceGroupOf(item) || isOptional(item)) && arr(item.children).length > 0;
+    const rowAmount = (item) => (isPackage(item) ? scopeItemAmountIfSelected(item) : lineAmount(item));
     const formatNumber = (value) => String(Math.round((Number(value) || 0) * 100) / 100);
 
     // ------------------------------------------------------------ modifiers
@@ -1861,10 +1874,10 @@
             ${item.description ? `<small class="fmdw-lir-desc">${esc(item.description)}</small>` : ''}
           </div>
           <div class="fmdw-lir-nums">
-            <label class="fmdw-lir-num" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}"><input type="number" step="any" min="0" data-fmdw-lir-qty value="${esc(formatNumber(item.quantity))}" ${ctx.readonly ? 'disabled' : ''}><i>${esc(item.unit || 'ea')}</i></label>
+            ${isPackage(item) ? '' : `<label class="fmdw-lir-num" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c689ddee2f502","Quantity") ?? "Quantity")}"><input type="number" step="any" min="0" data-fmdw-lir-qty value="${esc(formatNumber(item.quantity))}" ${ctx.readonly ? 'disabled' : ''}><i>${esc(item.unit || 'ea')}</i></label>
             <span class="fmdw-lir-x">×</span>
-            <label class="fmdw-lir-num price" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}"><i>$</i><input type="number" step="0.01" min="0" data-fmdw-lir-price value="${esc(Number(item.unit_price || 0).toFixed(2))}" ${ctx.readonly ? 'disabled' : ''}></label>
-            <b class="fmdw-lir-amount" data-fmdw-lir-amount="${esc(item.id)}" ${on ? '' : 'title="Not selected — this is what it would add"'}>${esc(moneyFromDollars(lineAmount(item)))}</b>
+            <label class="fmdw-lir-num price" title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c68827ddeaf565","Unit price ($)") ?? "Unit price ($)")}"><i>$</i><input type="number" step="0.01" min="0" data-fmdw-lir-price value="${esc(Number(item.unit_price || 0).toFixed(2))}" ${ctx.readonly ? 'disabled' : ''}></label>`}
+            <b class="fmdw-lir-amount" data-fmdw-lir-amount="${esc(item.id)}" ${on ? '' : `title="Not selected — this is what ${isPackage(item) ? 'this option costs' : 'it would add'}"`}>${esc(moneyFromDollars(rowAmount(item)))}</b>
           </div>
           ${ctx.readonly ? '' : `<div class="fmdw-lir-actions">
             <button type="button" class="fmdw-icon-btn ${hasAttachment(item) ? 'has-media' : ''}" data-fmdw-lir-attach title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_74c8aa88118d1c","Attach photo or video") ?? "Attach photo or video")}"><i class="fas fa-camera"></i></button>
@@ -1890,7 +1903,7 @@
               <div class="fmdw-lir-choice-head">
                 <strong>${esc(groupTitle(groupId, options))}</strong>
                 <span class="fmdw-li-flag choice" title="${customer ? 'The selected option is your recommendation: the proposal prices it, and the customer can switch before approving.' : 'The selected option is the one this proposal prices and prints.'}">${customer ? 'Customer can choose' : 'Choose one'}</span>
-                ${ctx.readonly || typeof services.scopeCandidates !== 'function' ? '' : `<button type="button" class="fmdw-lir-add-option" data-fmdw-lir-add-option="${esc(groupId)}" title="Add another option from your price book"><i class="fas fa-plus"></i> Add option</button>`}
+                ${ctx.readonly || typeof services.scopeCandidates !== 'function' || options.some(isPackage) ? '' : `<button type="button" class="fmdw-lir-add-option" data-fmdw-lir-add-option="${esc(groupId)}" title="Add another option from your price book"><i class="fas fa-plus"></i> Add option</button>`}
               </div>
               <div class="fmdw-lir-children">
                 ${options.map((option) => rowHtml(option, 'choice') + nestedHtml(option)).join('')}
@@ -1924,7 +1937,7 @@
     function refreshAmounts(){
       el.querySelectorAll('[data-fmdw-lir-amount]').forEach((node) => {
         const found = findItem(items, node.dataset.fmdwLirAmount);
-        if (found) node.textContent = moneyFromDollars(lineAmount(found.item));
+        if (found) node.textContent = moneyFromDollars(rowAmount(found.item));
       });
       el.querySelectorAll('[data-fmdw-lir-subtotal]').forEach((node) => {
         const found = findItem(items, node.dataset.fmdwLirSubtotal);
@@ -3311,6 +3324,7 @@
 .fmdw-choice-icon{width:32px;height:32px;border-radius:9px;background:color-mix(in srgb,var(--fmdw-primary) 10%,#fff);color:var(--fmdw-primary);display:grid;place-items:center;font-size:14px}
 .fmdw-choice-card strong{font-size:12.5px;font-weight:1000;line-height:1.3}
 .fmdw-choice-card small{font-size:10.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.4}
+.fmdw-choice-card .fmdw-choice-includes{font-size:11px;font-weight:900;line-height:1.55}
 .fmdw-choice-price{font-size:11px;font-weight:1000;color:var(--fmdw-primary)}
 .fmdw-choice-tick{position:absolute;top:9px;right:9px;width:20px;height:20px;border-radius:99px;background:var(--fmdw-primary);color:var(--fmdw-on-primary);display:none;place-items:center;font-size:9px}
 .fmdw-choice-card.active .fmdw-choice-tick{display:grid}

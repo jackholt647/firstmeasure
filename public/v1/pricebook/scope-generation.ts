@@ -335,33 +335,92 @@ type ChoiceGroup = {
   customerItems: string[];
 };
 
+/**
+ * One complete way to do the job. A recipe with packages offers them as a
+ * single choice: each is a whole set of lines, so picking one swaps the lot.
+ */
+type PackageOption = {
+  id: string;
+  title: string;
+  description: string;
+  /** The product this option takes from each choice group, by group id. */
+  picks: Record<string, string>;
+  /** Extras this option includes in its price. */
+  include: string[];
+};
+
 type PieceRecipe = {
   /** Catalog assembly that supplies the fixed lines. */
-  assembly: string;
+  assembly?: string;
+  /** Heads the lines of a piece the catalog has no assembly for. */
+  root?: { name: string; description: string };
   /** Lines every report-based scope carries even when the assembly omits them. */
   ensure: string[];
   choices: ChoiceGroup[];
   /** Optional extras offered with the job; not in the price until chosen. */
   addons: string[];
+  /** Per item, the measurement a missing one falls back to. */
+  measurementFallbacks?: Record<string, Record<string, string>>;
+  packages?: { group: string; title: string; defaultOption: string; options: PackageOption[] };
 };
+
+// Gutters hang on the eaves, so an unmeasured gutter run is priced at the eave length.
+const GUTTER_FALLBACK = { gutter_replace: { gutterLf: "eavesLf" }, gutter_removal: { gutterLf: "eavesLf" }, gutter_guard: { gutterLf: "eavesLf" } };
+
+const ROOF_CHOICES: ChoiceGroup[] = [
+  // `items` are the options a new proposal starts with; every other price
+  // book item of the same item type can be added from the review screen.
+  { group: "shingle_profile", title: "Shingle", itemType: "field_shingles", category: "shingle_roofs",
+    items: ["gaf_ns", "gaf_hd", "gaf_uhdz"], defaultItem: "gaf_hd", customerItems: ["gaf_ns", "gaf_hd", "gaf_uhdz"] },
+  { group: "underlayment_profile", title: "Underlayment", itemType: "underlayment", category: "underlayments",
+    items: ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"], defaultItem: "underlayment", customerItems: ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"] },
+  { group: "leak_barrier_profile", title: "Leak barrier", itemType: "leak_barrier", category: "leak_barriers",
+    items: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"], defaultItem: "ice_water", customerItems: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"] }
+];
+const ROOF_ENSURE = ["headwall_flashing", "sidewall_flashing", "pipe_boot", "skylight_flashing", "chimney_flashing"];
 
 const ROOF_REPLACEMENT: PieceRecipe = {
   assembly: "roof_replacement",
-  ensure: ["headwall_flashing", "sidewall_flashing", "pipe_boot", "skylight_flashing", "chimney_flashing", "gutter_replace", "downspout"],
-  addons: ["pipe_boot_lifetime", "warranty_system_plus", "warranty_silver_pledge"],
-  // `items` are the options a new proposal starts with; every other price
-  // book item of the same item type can be added from the review screen.
-  choices: [
-    { group: "shingle_profile", title: "Shingle", itemType: "field_shingles", category: "shingle_roofs",
-      items: ["gaf_ns", "gaf_hd", "gaf_uhdz"], defaultItem: "gaf_hd", customerItems: ["gaf_ns", "gaf_hd", "gaf_uhdz"] },
-    { group: "underlayment_profile", title: "Underlayment", itemType: "underlayment", category: "underlayments",
-      items: ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"], defaultItem: "underlayment", customerItems: ["underlayment", "gaf_feltbuster", "gaf_tiger_paw"] },
-    { group: "leak_barrier_profile", title: "Leak barrier", itemType: "leak_barrier", category: "leak_barriers",
-      items: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"], defaultItem: "ice_water", customerItems: ["ice_water", "gaf_weatherwatch", "owens_weatherlock"] }
-  ]
+  ensure: ROOF_ENSURE,
+  // Gutters are a separate trade: offered with the roof, never assumed.
+  addons: ["pipe_boot_lifetime", "warranty_system_plus", "warranty_silver_pledge", "gutter_replace", "downspout"],
+  measurementFallbacks: GUTTER_FALLBACK,
+  choices: ROOF_CHOICES
 };
 
-const RECIPES: Record<string, PieceRecipe> = { roof_replacement: ROOF_REPLACEMENT };
+/** The same roof as three complete options; the customer picks one. */
+const ROOF_REPLACEMENT_OPTIONS: PieceRecipe = {
+  assembly: "roof_replacement",
+  ensure: ROOF_ENSURE,
+  addons: ["gutter_replace", "downspout"],
+  measurementFallbacks: GUTTER_FALLBACK,
+  choices: ROOF_CHOICES,
+  packages: {
+    group: "roof_package", title: "Your roof", defaultOption: "better",
+    options: [
+      { id: "good", title: "Good", description: "A dependable architectural roof at the lowest price.",
+        picks: { shingle_profile: "gaf_ns", underlayment_profile: "underlayment", leak_barrier_profile: "ice_water" }, include: [] },
+      { id: "better", title: "Better", description: "Our most chosen roof: high-definition shingles and a 50-year system warranty.",
+        picks: { shingle_profile: "gaf_hd", underlayment_profile: "gaf_feltbuster", leak_barrier_profile: "gaf_weatherwatch" }, include: ["warranty_system_plus"] },
+      { id: "best", title: "Best", description: "The thickest shingle, premium underlayment, lifetime pipe boots and manufacturer-backed workmanship coverage.",
+        picks: { shingle_profile: "gaf_uhdz", underlayment_profile: "gaf_tiger_paw", leak_barrier_profile: "gaf_weatherwatch" }, include: ["pipe_boot_lifetime", "warranty_silver_pledge"] }
+    ]
+  }
+};
+
+/** A gutter job on its own: take down, hang new, guards if wanted. */
+const GUTTER_REPLACEMENT: PieceRecipe = {
+  root: { name: "Gutter Replacement", description: "New seamless gutters and downspouts, with the old ones taken down and hauled away." },
+  ensure: ["gutter_removal", "gutter_replace", "downspout"],
+  addons: ["gutter_guard"],
+  measurementFallbacks: GUTTER_FALLBACK,
+  choices: []
+};
+
+// Keyed by the scope template the piece sells, so signing starts that scope.
+const RECIPES: Record<string, PieceRecipe> = { roof_replacement: ROOF_REPLACEMENT, gutters: GUTTER_REPLACEMENT };
+/** Other ways to price the same piece: "options" offers it as Good / Better / Best. */
+const VARIANTS: Record<string, Record<string, PieceRecipe>> = { roof_replacement: { options: ROOF_REPLACEMENT_OPTIONS } };
 
 export function scopeGenerationSupports(templateId: string) {
   return Object.prototype.hasOwnProperty.call(RECIPES, cleanText(templateId));
@@ -431,39 +490,117 @@ export function choiceGroupCandidates(catalogValue: unknown, templateIdValue: st
   return groupCandidates(catalog, group).map((item) => choiceLine(catalog, group, cleanText(item.id), measurements, false, true));
 }
 
-/** One priced root scope item for a scope piece. */
-export function generatePieceScope(catalogValue: unknown, templateIdValue: string, measurementsValue: unknown): JsonObject {
-  const templateId = cleanText(templateIdValue);
-  const recipe = RECIPES[templateId];
-  if (!recipe) throw badRequest("scope_generation_unsupported", `Scope generation is not available for '${templateId}'.`);
-  const catalog = asObject(catalogValue);
-  if (!catalogHas(catalog, recipe.assembly)) {
-    throw badRequest("scope_generation_assembly_missing", `The price book has no '${recipe.assembly}' assembly to build this scope from.`);
-  }
-  const measurements = normalizeScopeMeasurements(measurementsValue);
-  const root = pricedLine(catalog, recipe.assembly, measurements);
+const lineQuantity = (line: JsonObject) => Number(line.quantity) || 0;
+
+/** Measurements as one line reads them: its own, or the fallback the recipe names. */
+function lineMeasurements(recipe: PieceRecipe, itemId: string, measurements: Record<string, number>) {
+  const fallbacks = recipe.measurementFallbacks?.[itemId];
+  if (!fallbacks) return measurements;
+  const out = { ...measurements };
+  for (const [key, from] of Object.entries(fallbacks)) if (!((out[key] ?? 0) > 0)) out[key] = out[from] || 0;
+  return out;
+}
+
+/**
+ * The piece's fixed lines under its root: the assembly's own plus the ensured
+ * ones. A line measured at zero is left out, so nothing prints at no quantity
+ * for no money; measure it and regenerate to bring it in.
+ */
+function fixedScope(catalog: JsonObject, recipe: PieceRecipe, measurements: Record<string, number>) {
+  const fixed = (id: string) => pricedLine(catalog, id, lineMeasurements(recipe, id, measurements));
+  const root: JsonObject = recipe.assembly ? pricedLine(catalog, recipe.assembly, measurements) : {
+    id: scopeLineId("piece"), type: "scope_item", name: recipe.root!.name, display_name: recipe.root!.name, description: recipe.root!.description,
+    unit: "ea", quantity: "1", base_price: 0, unit_price: 0, included: false, price_driving: true, selection: { mode: "fixed", selected: true }, children: []
+  };
   const present = new Set<string>();
   const collect = (item: JsonObject) => { const id = referencedItemId(item); if (id) present.add(id); asArray(item.children).map(asObject).forEach(collect); };
   collect(root);
   const children = asArray(root.children).map(asObject);
   for (const id of recipe.ensure) {
-    if (!present.has(id) && catalogHas(catalog, id)) children.push(pricedLine(catalog, id, measurements));
+    if (!present.has(id) && catalogHas(catalog, id)) { children.push(fixed(id)); present.add(id); }
   }
   // Fixed lines are part of the package; alternatives are priced on their own.
   for (const child of children) {
     child.included = true;
     child.price_driving = child.price_driving !== false;
   }
-  root.children = children;
-  for (const group of recipe.choices) applyChoiceGroup(catalog, root, group, measurements);
+  root.children = children.filter((child) => cleanText(asObject(child.selection).mode) === "choice" || lineQuantity(child) > 0);
+  return { root, present };
+}
+
+const scopeLineId = (prefix: string) => `scope_${prefix}_${Math.random().toString(36).slice(2, 8)}`;
+
+/** Optional extras offered beside the scope, each priced from its own measurement. */
+function addonLines(catalog: JsonObject, recipe: PieceRecipe, measurements: Record<string, number>, present: Set<string>): JsonObject[] {
+  const lines: JsonObject[] = [];
   for (const id of recipe.addons) {
     if (present.has(id) || !catalogHas(catalog, id)) continue;
-    const line = pricedLine(catalog, id, measurements);
+    const line = pricedLine(catalog, id, lineMeasurements(recipe, id, measurements));
+    if (!(lineQuantity(line) > 0)) continue;
     line.selection = { mode: "optional", selected: false, default_selected: false, customer_visible: true, selectable_by: ["internal", "customer"] };
     line.included = false;
     line.price_driving = true;
-    (root.children as JsonObject[]).push(line);
+    lines.push(line);
   }
+  return lines;
+}
+
+/**
+ * One complete option: every fixed line, the option's product from each
+ * choice group, and the extras it includes. Its lines are fixed, so the
+ * option is chosen or passed over as a whole.
+ */
+function packageLine(catalog: JsonObject, recipe: PieceRecipe, option: PackageOption, measurements: Record<string, number>, selected: boolean): JsonObject {
+  const packages = recipe.packages!;
+  const { root } = fixedScope(catalog, recipe, measurements);
+  const grouped = new Set(recipe.choices.flatMap((group) => groupCandidates(catalog, group).map((item) => cleanText(item.id))));
+  const shared = asArray(root.children).map(asObject).filter((child) => cleanText(asObject(child.selection).mode) !== "choice" && !grouped.has(referencedItemId(child)));
+  // The products that set the option apart lead; the lines every option shares follow.
+  const children: JsonObject[] = [];
+  const highlights: string[] = [];
+  const add = (id: string) => {
+    if (!catalogHas(catalog, id)) return;
+    const line = pricedLine(catalog, id, lineMeasurements(recipe, id, measurements));
+    if (!(lineQuantity(line) > 0)) return;
+    line.selection = { mode: "fixed", selected: true };
+    line.included = true;
+    line.price_driving = true;
+    children.push(line);
+    highlights.push(cleanText(line.display_name || line.name));
+  };
+  for (const group of recipe.choices) add(option.picks[group.group] || group.defaultItem);
+  option.include.forEach(add);
+  children.push(...shared);
+  return {
+    id: scopeLineId(option.id), type: "scope_item", name: option.title, display_name: option.title, description: option.description,
+    // What sets this option apart, for the comparison the customer sees.
+    highlights,
+    unit: "ea", quantity: "1", base_price: 0, unit_price: 0, included: false, price_driving: true,
+    selection: { mode: "choice", group_id: packages.group, group_title: packages.title, group_behavior: "single", selected, default_selected: selected, customer_visible: true, selectable_by: ["internal", "customer"] },
+    children
+  };
+}
+
+/** One priced root scope item for a scope piece. */
+export function generatePieceScope(catalogValue: unknown, templateIdValue: string, measurementsValue: unknown, variantValue: unknown = ""): JsonObject {
+  const templateId = cleanText(templateIdValue);
+  const variant = cleanText(variantValue);
+  const recipe = variant ? VARIANTS[templateId]?.[variant] : RECIPES[templateId];
+  if (!recipe) throw badRequest("scope_generation_unsupported", `Scope generation is not available for '${[templateId, variant].filter(Boolean).join(" / ")}'.`);
+  const catalog = asObject(catalogValue);
+  if (recipe.assembly && !catalogHas(catalog, recipe.assembly)) {
+    throw badRequest("scope_generation_assembly_missing", `The price book has no '${recipe.assembly}' assembly to build this scope from.`);
+  }
+  const measurements = normalizeScopeMeasurements(measurementsValue);
+  const { root, present } = fixedScope(catalog, recipe, measurements);
+  if (recipe.packages) {
+    // The root only heads the options; each carries its own complete set of lines.
+    for (const option of recipe.packages.options) option.include.forEach((id) => present.add(id));
+    root.children = recipe.packages.options.map((option) => packageLine(catalog, recipe, option, measurements, option.id === recipe.packages!.defaultOption));
+  } else {
+    for (const group of recipe.choices) applyChoiceGroup(catalog, root, group, measurements);
+  }
+  (root.children as JsonObject[]).push(...addonLines(catalog, recipe, measurements, present));
   root.scope_template_id = templateId;
   // The modifiers in play and their current values, for the review screen.
   root.quantity_modifiers = catalogModifiers(catalog).map((modifier) => ({

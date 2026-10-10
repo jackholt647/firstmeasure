@@ -128,19 +128,27 @@ async function compute(organizationId: string, definition: Definition, projectId
     const choices = choicesOf(definition, inputs), current = await price(choices);
     items = current.applied;
     const totals = current.priced.totals, { offered, alternatives } = offeredChoices(items, choices);
+    // Same basis signing mints receivables from: percentages divide the contract value.
+    const rows = normalizeScheduleRows(inputs.payment_schedule);
+    const scheduleFor = (priced: typeof totals) => {
+      const scopeSubtotal = Math.max(0, priced.subtotal_cents - priced.adjustments_cents);
+      const basis = rows.length ? scopeSubtotal + Math.round(scopeSubtotal * Math.max(0, Number(inputs.tax_percent) || 0) / 100) : Math.max(0, priced.total_cents);
+      return resolveScheduleItems(rows, { total_cents: basis }).map(item => ({ ...(item.id ? { id: item.id } : {}), label: item.label, amount_cents: item.amount_cents, payment_kind: item.payment_kind, due_rule: item.due_rule }));
+    };
     // Each alternative is repriced whole, so its difference is exact under formulas and tax.
-    const differences = new Map<string, number>();
-    for (const alternative of alternatives.slice(0, MAX_ALTERNATIVES)) differences.set(alternative.path, (await price(alternative.choices)).priced.totals.total_cents);
-    const annotate = (entry: JsonObject, path: string) => { const total = differences.get(path); if (total !== undefined) Object.assign(entry, { total_cents: total, delta_cents: total - totals.total_cents }); };
+    const differences = new Map<string, typeof totals>();
+    for (const alternative of alternatives.slice(0, MAX_ALTERNATIVES)) differences.set(alternative.path, (await price(alternative.choices)).priced.totals);
+    const annotate = (entry: JsonObject, path: string) => {
+      const priced = differences.get(path);
+      if (!priced) return;
+      Object.assign(entry, { total_cents: priced.total_cents, delta_cents: priced.total_cents - totals.total_cents });
+      // A whole option is compared with the deposit that would go with it.
+      if (Array.isArray(entry.highlights)) entry.deposit_cents = scheduleFor(priced).filter(item => item.due_rule === "on_signature").reduce((sum, item) => sum + item.amount_cents, 0);
+    };
     for (const group of offered.groups) for (const option of group.options as JsonObject[]) annotate(option, `group:${group.id}:${option.id}`);
     for (const option of offered.optional) annotate(option, `optional:${option.id}`);
     for (const line of offered.variants) for (const dimension of line.dimensions as JsonObject[]) for (const value of dimension.values as JsonObject[]) annotate(value, `variant:${line.item_id}:${dimension.id}:${value.id}`);
-    // Same basis signing mints receivables from: percentages divide the contract value.
-    const rows = normalizeScheduleRows(inputs.payment_schedule);
-    const scopeSubtotal = Math.max(0, totals.subtotal_cents - totals.adjustments_cents);
-    const basis = rows.length ? scopeSubtotal + Math.round(scopeSubtotal * Math.max(0, Number(inputs.tax_percent) || 0) / 100) : Math.max(0, totals.total_cents);
-    const schedule = resolveScheduleItems(rows, { total_cents: basis }).map(item => ({ ...(item.id ? { id: item.id } : {}), label: item.label, amount_cents: item.amount_cents, payment_kind: item.payment_kind, due_rule: item.due_rule }));
-    outputs = { org, pricing: { currency: "USD", rows: current.priced.rows.map(publicRow), totals, schedule }, offered };
+    outputs = { org, pricing: { currency: "USD", rows: current.priced.rows.map(publicRow), totals, schedule: scheduleFor(totals) }, offered };
   }
   let authoredView: JsonObject | undefined;
   if (definition.source.trim()) {

@@ -365,23 +365,17 @@ function roofingSalesAppointmentTemplate(): ScopeTemplateDefinition {
             actionable: true,
             show_in_todo_list: true,
             assigned_role_ids: ["sales_appointments"],
-            external_triggers: [{ event: "document.signed", transition: "completed", conditions: { "payload.template_id": "tpl_roofing_good_better_best_workflow" } }],
+            external_triggers: [{ event: "document.signed", transition: "completed", conditions: { "payload.template_id": "tpl_instant_roofing_options" } }],
             automation_bindings: {
               onReady: [{
                 id: "issue_roofing_workflow_proposal",
                 automation: "documents.issue.v1",
-                explainer: "Prepare the workflow-only roofing proposal when the sales appointment becomes ready.",
+                explainer: "Prepare the Good / Better / Best roofing proposal when the sales appointment becomes ready. Its options are priced from the roof measurements.",
                 input: {
-                  template_id: "tpl_roofing_good_better_best_workflow",
-                  workflow_id: "wfl_roofing_customer_workflow",
+                  template_id: "tpl_instant_roofing_options",
+                  workflow_id: "wfl_instant_roofing_options",
                   deliver: "none",
-                  title: "Roofing Options & Approval",
-                  params: {
-                    deposit_cents: 350000,
-                    option_good_price: 14500,
-                    option_better_price: 17800,
-                    option_best_price: 21400
-                  }
+                  title: "Roofing Options & Approval"
                 }
               }]
             },

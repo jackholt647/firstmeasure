@@ -888,6 +888,13 @@
         if (!list.some((entry) => entry[0] === value)) list.push([value, text(source.id) ? `Group \u201c${source.id}\u201d` : 'Choose a selection\u2026']);
         return { label: 'Shows', value, list, write: (next) => (next === 'addons' ? { kind: 'addons' } : { kind: 'group', id: next.slice(6) }), groupId: source.kind === 'addons' ? null : text(source.id) };
       }
+      if (type === 'option_compare') {
+        const source = obj(config.source);
+        const list = groups.map((group) => ['group:' + group.id, group.title]);
+        const value = 'group:' + text(source.id);
+        if (!list.some((entry) => entry[0] === value)) list.push([value, text(source.id) ? `Group “${source.id}”` : 'Choose a selection…']);
+        return { label: 'Compares', value, list, write: (next) => ({ kind: 'group', id: next.slice(6) }), groupId: text(source.id) };
+      }
       if (type === 'price_display') {
         const value = text(config.source) || 'total';
         const list = [['total', 'Total'], ['subtotal', 'Subtotal'], ['deposit', 'Deposit (due at signing)'], ['balance', 'Balance']].concat(groups.map((group) => ['group:' + group.id, `Price of: ${group.title}`]));

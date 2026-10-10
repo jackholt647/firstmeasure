@@ -10,6 +10,12 @@
  * Company identity comes from bindings ({{org.logo_url}}, {{org.name}}) and the
  * theme's --fm-primary; choice groups are named by id so the same deck works
  * for whatever the estimate offers.
+ *
+ * build({ deck }) picks the pricing slides for the proposal being presented;
+ * the story around them is shared:
+ *   "itemized"  one slide per roof layer the customer chooses (the default)
+ *   "options"   Good / Better / Best compared in three columns
+ *   "gutters"   a gutter job: what is done, the extras, the price
  */
 (function (root, factory) {
   const api = factory(root);
@@ -37,15 +43,19 @@
     { key: 'shingles', name: 'Shingles', note: 'The part you see, and the first line of defense.', texture: 'shingle', top: '#565c66', front: '#3d424a', side: '#30343b' }
   ];
 
+  const DECKS = ['itemized', 'options', 'gutters'];
+
   function build(options) {
     const M = (options && options.M) || root.FMDocModel || require('../../doc-model/firstmate-doc-model.js');
     const P = (options && options.P) || root.FMDocParts || require('../../doc-parts/firstmate-doc-parts.js');
-    const groups = Object.assign({ shingles: 'shingle_profile', underlayment: 'underlayment_profile', leak_barrier: 'leak_barrier_profile' }, (options && options.groups) || {});
+    const groups = Object.assign({ shingles: 'shingle_profile', underlayment: 'underlayment_profile', leak_barrier: 'leak_barrier_profile', packages: 'roof_package' }, (options && options.groups) || {});
+    const deck = DECKS.includes(options && options.deck) ? options.deck : 'itemized';
+    const gutters = deck === 'gutters';
 
     const doc = M.createDocument({ kind: 'document' });
     doc.settings.paper = { size: 'slide' };
     doc.settings.base_font_pt = 11;
-    doc.metadata = Object.assign({}, doc.metadata, { presentation: { version: 1, template: 'roofing' } });
+    doc.metadata = Object.assign({}, doc.metadata, { presentation: { version: 1, template: 'roofing', deck } });
     doc.assemblies = {};
     doc.pages = [];
 
@@ -132,7 +142,7 @@
       panel('cover_glow', 'Accent glow', 500, -200, 700, 700, { type: 'radial', stops: [{ color: 'color-mix(in srgb, var(--fm-primary) 60%, transparent)', at: 0 }, { color: 'transparent', at: 0.68 }] }, 350, 0.6),
       logo('cover_logo', 72, 64, 200, 72),
       rect('cover_bar', 'Accent bar', 72, 214, 56, 5, ACCENT, { radius: 3 }),
-      text('cover_title', 'Title', 72, 236, 620, 120, 'Your new roof,\nbuilt around you.', { size: 46, weight: 800, color: '#ffffff', line_height: 1.08 }),
+      text('cover_title', 'Title', 72, 236, 620, 120, gutters ? 'New gutters,\nfitted to your home.' : 'Your new roof,\nbuilt around you.', { size: 46, weight: 800, color: '#ffffff', line_height: 1.08 }),
       text('cover_for', 'Prepared for', 72, 372, 620, 24, [{ text: 'Prepared for ', color: '#9fb0c7' }, { text: 'your home', bind: '{{customer.name}}', color: '#ffffff', weight: 700 }], { size: 14 }),
       text('cover_org', 'Company', 72, 478, 500, 18, [{ text: 'Your roofing company', bind: '{{org.name}}' }], { size: 10, color: '#7f8ea5', weight: 600 })
     ], { steps: [
@@ -161,12 +171,23 @@
     ] });
 
     // 3. What makes a good roof
-    const pillar = (id, x, number, title) => group(id, title, x, 208, 252, 250, [
+    const pillar = (id, x, number, title, body) => group(id, title, x, 208, 252, 250, [
       text(id + '_n', 'Number', 24, 22, 60, 40, number, { size: 28, weight: 800, color: ACCENT }),
       text(id + '_t', 'Title', 24, 72, 204, 52, title, { size: 17, weight: 800, line_height: 1.15 }),
-      text(id + '_b', 'Body', 24, 132, 204, 100, LOREM.slice(0, 118) + '.', { size: 10.5, color: BODY, line_height: 1.5 })
+      text(id + '_b', 'Body', 24, 132, 204, 100, body || LOREM.slice(0, 118) + '.', { size: 10.5, color: BODY, line_height: 1.5 })
     ], { fill: '#ffffff', radius: 16, stroke: LINE, shadow: { x: 0, y: 8, blur: 22, color: 'rgba(16,24,40,.06)' } });
-    slide('good_roof', 'What makes a good roof', SOFT, [
+    if (gutters) slide('gutter_job', 'What we do', SOFT, [
+      kicker('gut_k', 72, 72, 'What we do'),
+      text('gut_title', 'Title', 72, 96, 700, 84, 'Gutters that carry the water\naway from your house.', { size: 34, weight: 800, line_height: 1.1 }),
+      pillar('gut_1', 72, '01', 'Old gutters, gone', 'We take down the existing gutters, downspouts and hangers and haul them away the same day.'),
+      pillar('gut_2', 354, '02', 'Seamless, made to fit', 'Each run is formed on site in one piece, so there are no seams along the eave to leak.'),
+      pillar('gut_3', 636, '03', 'Pitched to drain', 'New hangers set the pitch, and the downspouts carry the water clear of the foundation.')
+    ], { transition: { type: 'push', direction: 'left', duration_ms: 600 }, steps: [
+      { id: 'gut_s1', name: 'Removal', actions: [{ node: 'gut_1', effect: 'rise' }] },
+      { id: 'gut_s2', name: 'Seamless', actions: [{ node: 'gut_2', effect: 'rise' }] },
+      { id: 'gut_s3', name: 'Drainage', actions: [{ node: 'gut_3', effect: 'rise' }] }
+    ] });
+    if (!gutters) slide('good_roof', 'What makes a good roof', SOFT, [
       kicker('good_k', 72, 72, 'What makes a good roof'),
       text('good_title', 'Title', 72, 96, 700, 84, 'A roof is a system,\nnot a single product.', { size: 34, weight: 800, line_height: 1.1 }),
       pillar('good_1', 72, '01', 'It keeps water out'),
@@ -193,7 +214,7 @@
       ]));
       anatomySteps.push({ id: 'an_step_' + spec.key, name: spec.name, auto: index === 0, actions: [{ node: 'an_' + spec.key, effect: 'rise', duration_ms: 650 }, { node: id, effect: 'fade_in', duration_ms: 500, delay_ms: 250 }] });
     });
-    slide('anatomy', 'Anatomy of a roof', '#ffffff', [
+    if (!gutters) slide('anatomy', 'Anatomy of a roof', '#ffffff', [
       kicker('an_k', 72, 56, 'Anatomy of a roof'),
       text('an_title', 'Title', 72, 80, 700, 44, 'Four layers, each with a job.', { size: 30, weight: 800 })
     ].concat(anatomy, labels), { transition: { type: 'fade', duration_ms: 500 }, steps: anatomySteps });
@@ -219,13 +240,27 @@
         { id: id + '_s1', name: 'Options', auto: true, actions: [{ node: id + '_lead_dot', effect: 'zoom_in', duration_ms: 300 }, { node: id + '_lead', effect: 'draw', duration_ms: 600 }] }
       ] });
     }
-    choiceSlide('choose_shingles', 'shingles', 'Choose your shingle.', 'Every option here is a full architectural shingle. The difference is thickness, definition and how long the color holds.', groups.shingles);
-    choiceSlide('choose_underlayment', 'underlayment', 'What goes under them.', 'Underlayment is the backup. If wind lifts a shingle, this is what keeps the deck dry.', groups.underlayment);
-    choiceSlide('choose_leak_barrier', 'leak_barrier', 'Where water backs up.', 'Eaves, valleys and penetrations get a self-sealing membrane. It closes around every nail.', groups.leak_barrier);
+    if (deck === 'itemized') {
+      choiceSlide('choose_shingles', 'shingles', 'Choose your shingle.', 'Every option here is a full architectural shingle. The difference is thickness, definition and how long the color holds.', groups.shingles);
+      choiceSlide('choose_underlayment', 'underlayment', 'What goes under them.', 'Underlayment is the backup. If wind lifts a shingle, this is what keeps the deck dry.', groups.underlayment);
+      choiceSlide('choose_leak_barrier', 'leak_barrier', 'Where water backs up.', 'Eaves, valleys and penetrations get a self-sealing membrane. It closes around every nail.', groups.leak_barrier);
+    }
+
+    // Good / Better / Best: the whole slide is the comparison. Each column is
+    // a complete roof; picking one moves every price in the deck.
+    if (deck === 'options') slide('compare', 'Compare your options', '#ffffff', [
+      kicker('cmp_k', 40, 26, 'Your options'),
+      text('cmp_title', 'Title', 40, 46, 520, 36, 'Three ways to do your roof.', { size: 25, weight: 800 }),
+      text('cmp_note', 'What every option includes', 580, 34, 340, 44, 'Every option is a complete replacement: tear-off, disposal, new flashing, ridge ventilation and cleanup.', { size: 9.5, color: MUTED, line_height: 1.5, align: 'right' }),
+      assembly('option_compare', 'columns', { id: 'asm_packages', name: 'Good, Better, Best', x: 40, y: 94, w: 880, h: 380, count: 3, features: 5, config: { source: { kind: 'group', id: groups.packages } } }),
+      button('compare_back', 'Back', 40, 488, 92, { type: 'back' }, false),
+      button('compare_next', 'Next', 142, 488, 110, { type: 'next' }, true),
+      text('cmp_hint', 'Hint', 520, 500, 400, 16, 'Tap a column to choose it. Your price follows.', { size: 9.5, color: MUTED, align: 'right' })
+    ], { transition: { type: 'fade', duration_ms: 500 } });
 
     // 8. Add-ons
     slide('addons', 'Add-ons', SOFT, [
-      kicker('add_k', 72, 56, 'While we are up there'),
+      kicker('add_k', 72, 56, gutters ? 'While we are at it' : 'While we are up there'),
       text('add_title', 'Title', 72, 80, 700, 44, 'Worth doing at the same time.', { size: 30, weight: 800 }),
       assembly('choice_selection', 'panels', { id: 'asm_addons', name: 'Add-ons', x: 72, y: 100, w: 816, h: 360, config: { source: { kind: 'addons' }, keep_title: true } }),
       button('addons_back', 'Back', 72, 478, 92, { type: 'back' }, false),
@@ -237,9 +272,10 @@
     // 9. The estimate
     slide('estimate', 'Your estimate', '#ffffff', [
       kicker('est_k', 72, 56, 'Your estimate'),
-      text('est_title', 'Title', 72, 80, 480, 44, 'The roof you just built.', { size: 30, weight: 800 }),
-      assembly('estimate_compare', 'rows', { id: 'asm_compare', name: 'Your selections', x: 72, y: 146, w: 500, h: 268, count: 4, options: 3 }),
-      text('est_note', 'Note', 72, 430, 500, 34, 'Includes tear-off, disposal, permits and cleanup. Tap another option on any row and the price follows.', { size: 9.5, color: MUTED, line_height: 1.5 }),
+      text('est_title', 'Title', 72, 80, 480, 44, gutters ? 'Your new gutters.' : 'The roof you just built.', { size: 30, weight: 800 }),
+      // One row per selection the estimate offers: the layers, the package, the add-ons.
+      assembly('estimate_compare', 'rows', { id: 'asm_compare', name: 'Your selections', x: 72, y: 146, w: 500, h: deck === 'itemized' ? 268 : (gutters ? 62 : 130), count: deck === 'itemized' ? 4 : (gutters ? 1 : 2), options: 3 }),
+      text('est_note', 'Note', 72, 430, 500, 34, gutters ? 'Includes removal, disposal and cleanup. Tap an add-on and the price follows.' : 'Includes tear-off, disposal, permits and cleanup. Tap another option on any row and the price follows.', { size: 9.5, color: MUTED, line_height: 1.5 }),
       group('est_card', 'Total card', 600, 56, 288, 428, [
         logo('est_logo', 28, 28, 120, 40),
         assembly('price_display', 'large', { id: 'asm_total', name: 'Total', x: 28, y: 110, w: 232, h: 92, config: { source: 'total' } }),
@@ -296,8 +332,25 @@
   }
 
   /** A stand-in live state, for previews and the editor before real prices exist. */
-  function sampleState() {
+  function sampleState(deck) {
     const option = (id, title, description, color, price_cents, selected) => ({ id, title, description, color: /^#/.test(color) ? color : '', swatch: /^#/.test(color) ? '' : color, details: description + ' Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', price_cents, selected: !!selected });
+    if (deck === 'gutters') return {
+      groups: [],
+      addons: [option('gutter_guard', 'Gutter guards', 'Micro-mesh guards that keep leaves and roof grit out.', 'linear-gradient(135deg,#d7dde5,#9aa7b5)', 171000)],
+      base_cents: 366000,
+      totals: {}
+    };
+    const roof = (id, title, description, price_cents, highlights, selected) => Object.assign(option(id, title, description, '', price_cents, selected), { highlights });
+    if (deck === 'options') return {
+      groups: [{ id: 'roof_package', title: 'Your roof', options: [
+        roof('good', 'Good', 'A dependable architectural roof at the lowest price.', 2030500, ['GAF Timberline NS', 'Synthetic underlayment', 'Ice & water shield']),
+        roof('better', 'Better', 'Our most chosen roof: high-definition shingles and a 50-year system warranty.', 2270600, ['GAF Timberline HDZ', 'GAF FeltBuster', 'GAF WeatherWatch', 'GAF System Plus warranty'], true),
+        roof('best', 'Best', 'The thickest shingle, premium underlayment and manufacturer-backed workmanship coverage.', 2656300, ['GAF Timberline UHDZ', 'GAF Tiger Paw', 'GAF WeatherWatch', 'Lifetime pipe boots', 'GAF Silver Pledge warranty'])
+      ] }],
+      addons: [option('gutters', 'Seamless gutters', 'New 5-inch aluminum gutters along the eaves.', 'linear-gradient(135deg,#e6e9ee,#b4bcc8)', 282200)],
+      base_cents: 0,
+      totals: {}
+    };
     return {
       groups: [
         { id: 'shingle_profile', title: 'Shingles', options: [
@@ -335,5 +388,5 @@
     return state;
   }
 
-  return { build, sampleState, priceSample, LAYERS };
+  return { build, sampleState, priceSample, LAYERS, DECKS };
 });

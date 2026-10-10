@@ -387,7 +387,7 @@ test("a checkpoint of a seeded proposal stays small (storage estimate)", async (
     }
   });
   const documentId = created.document.id as string;
-  assert.equal(created.document.template_ref.template_id, "tpl_proposal_default");
+  assert.equal(created.document.template_ref.template_id, "tpl_instant_roofing_detailed");
 
   const checkpoint = await client.request("POST", `/v1/documents/${documentId}/checkpoints`, {
     reason: "send",

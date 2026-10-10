@@ -67,7 +67,7 @@ import { registerBuiltinDocumentSources } from "./sources/builtins.js";
 import { buildRenderHarnessHtml } from "./render.js";
 import { renderDocumentFallbackPdf, renderDocumentPdf } from "./pdf.js";
 import { applyInvoiceOnSend, deriveAccountParams, documentPaymentTarget, persistAccountParams } from "./account.js";
-import { ensureDefaultDocumentAssets } from "./seeds.js";
+import { ensureDefaultDocumentAssets, ensureScopeDocumentTemplate } from "./seeds.js";
 import { documentRequirementsStatus, documentSignatureRequirement, normalizeCustomerDocumentPresentation } from "./presentation.js";
 import {
   DOCUMENT_CAPABILITIES,
@@ -635,6 +635,8 @@ async function resolveWorkflowForCreate(orgId: string, input: JsonObject, templa
 
 export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean; departmentPermission?: string } = {}): Promise<{ document: JsonObject; missing_params: string[] }> {
   await ensureDefaultDocumentAssets(orgId).catch(() => null);
+  // A scope may issue a template that only it uses; it is created on first use.
+  if (cleanText(input.template_id)) await ensureScopeDocumentTemplate(orgId, cleanText(input.template_id)).catch(() => null);
   const capabilityState = await documentCapabilityState(orgId);
   const typeDef = typeDefinitionFor(cleanText(input.document_type));
   requireDocumentTypeEnabled(capabilityState, typeDef.id);
@@ -1101,6 +1103,10 @@ export async function issueDocumentFromAutomation(orgId: string, input: {
   } as unknown as PlatformAuthContext;
   let documentTypeId = cleanText(input.document_type);
   if (!documentTypeId && cleanText(input.template_id)) {
+    // The type comes from the template, which may not have been seeded yet:
+    // this can be the organization's first document, or a scope's own template.
+    await ensureDefaultDocumentAssets(orgId).catch(() => null);
+    await ensureScopeDocumentTemplate(orgId, cleanText(input.template_id)).catch(() => null);
     const template = await readDocumentTemplate(orgId, cleanText(input.template_id)).catch(() => null);
     documentTypeId = cleanText(asObject(template).document_type) || "generic";
   }
@@ -1437,6 +1443,33 @@ export function applyScopeSelections(items: unknown[], rawValue: unknown): unkno
   return items.map(apply);
 }
 
+/**
+ * Whole-option alternatives in a scope: a choice whose options carry their
+ * own lines (Good / Better / Best). Each row has the price the option would
+ * have if chosen, so a page can compare all of them, not just the selected one.
+ */
+function scopePackageRows(items: unknown[]): JsonObject[] {
+  const rows: JsonObject[] = [];
+  const walk = (list: unknown[]) => {
+    for (const value of list) {
+      const item = asObject(value);
+      const selection = asObject(item.selection);
+      if (cleanText(selection.mode) !== "choice" || !asArray(item.children).length) { walk(asArray(item.children)); continue; }
+      rows.push({
+        id: cleanText(item.id),
+        group_id: cleanText(selection.group_id),
+        name: cleanText(item.display_name || item.name),
+        description: cleanText(item.description),
+        highlights: asArray(item.highlights).map(cleanText).filter(Boolean),
+        selected: scopeItemSelected(item),
+        price_cents: scopeItemPriceResult({ ...item, selection: { ...selection, selected: true } }).amount_cents
+      });
+    }
+  };
+  walk(items);
+  return rows;
+}
+
 function normalizedProposalOptions(params: JsonObject): unknown[] {
   const explicit = asArray(params.proposal_options);
   if (explicit.length) return explicit;
@@ -1475,6 +1508,7 @@ function enrichLineItemParams(params: JsonObject, pricingScope: JsonObject): Jso
     next[key] = priced.tree;
     next[key === "scope_items" ? "scope_rows" : "line_rows"] = priced.rows;
     next[key === "scope_items" ? "conditional_rows" : "line_conditional_rows"] = priced.conditional_rows;
+    if (key === "scope_items") next.scope_packages = scopePackageRows(priced.tree);
   }
   // Pricing adjustments (spec 10.4 seeded examples): a dedicated list of
   // conditional rows (ACH discount / card fee / early-signing discount) that

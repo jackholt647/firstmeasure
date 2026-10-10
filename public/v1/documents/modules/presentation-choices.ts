@@ -155,11 +155,14 @@ export function offeredChoices(items: unknown[], choices: ScopeChoices) {
     return text(object(values.find(value => text(value.id) === chosen) || values[0]).hex);
   };
   const line = (item: JsonObject) => ({ id: text(item.id), ...(colorHex(item) ? { color_hex: colorHex(item) } : {}), name: text(item.display_name || item.name), title: text(item.display_name || item.name), description: text(item.external_description || item.description), quantity: item.quantity ?? 1, unit: text(item.unit),
+    // A whole-option alternative says what sets it apart; a slide compares options by these.
+    ...(list(item.highlights).length ? { highlights: list(item.highlights).map(text).filter(Boolean) } : {}),
     price_cents: scopeItemPriceResult({ ...item, selection: { ...object(item.selection), selected: true } }).amount_cents, media_refs: list(item.media_refs).map(object), ...(text(item.image_url) ? { image_url: text(item.image_url) } : {}), offered: true });
   const withSelection = (patch: Record<string, string | boolean>): ScopeChoices => ({ selections: { ...choices.selections, ...patch }, variants: choices.variants });
-  walk(items, item => {
+  // Returns whether the lines under this one are open to choice: a line that is not chosen takes its lines with it.
+  const offer = (item: JsonObject): boolean => {
     const selection = object(item.selection), mode = text(selection.mode), id = text(item.id);
-    if (!id) return;
+    if (!id) return true;
     if (offeredTo(item) && mode === "choice" && text(selection.group_id)) {
       const groupId = text(selection.group_id);
       const group = groups.get(groupId) || { id: groupId, label: text(selection.group_title) || groupId, selected: null, options: [] };
@@ -172,7 +175,7 @@ export function offeredChoices(items: unknown[], choices: ScopeChoices) {
       alternatives.push({ path: `optional:${id}`, choices: withSelection({ [id]: selection.selected !== true }) });
     }
     // A deselected line's variants cannot change the price until it is chosen.
-    if (mode && mode !== "fixed" && selection.selected !== true) return;
+    if (mode && mode !== "fixed" && selection.selected !== true) return false;
     const dimensions = dimensionsOf(item).map(dimension => {
       const dimensionId = text(dimension.id), selected = text(object(item.selected_variants)[dimensionId]);
       const offered = offeredValues(item, dimension), excluded = excludedValues(item, dimension, object(item.selected_variants));
@@ -184,6 +187,9 @@ export function offeredChoices(items: unknown[], choices: ScopeChoices) {
       return { id: dimensionId, label: text(dimension.label) || dimensionId, kind: text(dimension.kind) || "option", selected, values };
     }).filter(dimension => dimension.values.length > 1);
     if (dimensions.length) variants.push({ item_id: id, name: text(item.display_name || item.name), dimensions });
-  });
+    return true;
+  };
+  const visit = (rows: unknown) => { for (const value of list(rows)) { const item = object(value); if (offer(item)) visit(item.children); } };
+  visit(items);
   return { offered: { groups: [...groups.values()].filter(group => (group.options as unknown[]).length > 1), optional, variants }, alternatives };
 }

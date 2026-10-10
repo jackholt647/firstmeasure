@@ -74,7 +74,7 @@ export async function renderProposalTemplatePdf(orgId: string, input: {
     orgId,
     documentId: `doc_legacy_proposal_${sourceId}`,
     documentType: "proposal",
-    templateId: cleanText(content.document_template_id || content.documents_template_id) || "tpl_proposal_default",
+    templateId: cleanText(content.document_template_id || content.documents_template_id) || "tpl_instant_roofing_detailed",
     projectId: cleanText(snapshot.project_id || proposal.project_id),
     branchId: cleanText(snapshot.branch_id || proposal.branch_id || "default"),
     actorUserId: cleanText(snapshot.updated_by_user_id || proposal.updated_by_user_id || "system_proposal"),
