@@ -7,6 +7,7 @@ import vm from 'node:vm';
 const publicRoot = path.resolve(import.meta.dirname, '..', '..');
 const source = await readFile(path.join(publicRoot, 'libraries/agent-chat/agent-chat.js'), 'utf8');
 const window = {};
+vm.runInNewContext(await readFile(path.join(publicRoot, "libraries/doc-markdown/firstmate-markdown.js"), "utf8"), { window, console });
 vm.runInNewContext(source, { window, console });
 const chat = window.FirstMateAgentChat;
 

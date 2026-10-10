@@ -1714,6 +1714,7 @@
       for (const block of resolved.props.blocks) {
         if (!Array.isArray(block.runs)) continue;
         for (const run of block.runs) {
+          if (run.literal === true) continue; // Imported prose is content, never a template expression.
           if (run.bind) {
             const value = typeof run.bind === "string" ? interpolate(hasInterpolation(run.bind) ? run.bind : "{{" + run.bind + "}}", scope) : undefined;
             run.text = value === null || value === undefined ? "" : String(value);

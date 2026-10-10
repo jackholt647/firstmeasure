@@ -72,6 +72,7 @@ $portalJsVer = @md5_file(__DIR__ . '/customer_portal.js') ?: (string)$assetVer;
        only when the payload carries a widget key + signed portal grant. -->
   <script defer src="../libraries/chat-embed/html2canvas.min.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer data-auto="false" src="../libraries/chat-embed/firstmate-chat-embed.js?v=<?php echo (int)$assetVer; ?>"></script>
+  <script defer src="../libraries/doc-markdown/firstmate-markdown.js?v=20261010"></script>
   <script defer src="../libraries/doc-renderer/firstmate-doc-renderer.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/doc-workflow/firstmate-doc-workflow.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/payment-intake/payment-intake.js?v=<?php echo (int)$assetVer; ?>"></script>

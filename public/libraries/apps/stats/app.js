@@ -48,38 +48,7 @@
   // Minimal markdown for assistant replies: escape everything first, then
   // apply bold/italic/code/link inline transforms and list/heading blocks.
   function renderMarkdown(raw){
-    const inline = (value) => esc(value)
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    const out = [];
-    let list = null;
-    const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
-    String(raw ?? '').split(/\r?\n/).forEach((line) => {
-      const trimmed = line.trim();
-      const bullet = trimmed.match(/^[-*•]\s+(.*)$/);
-      const numbered = trimmed.match(/^\d+[.)]\s+(.*)$/);
-      const heading = trimmed.match(/^#{1,4}\s+(.*)$/);
-      if (bullet) {
-        if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
-        out.push(`<li>${inline(bullet[1])}</li>`);
-      } else if (numbered) {
-        if (list !== 'ol') { closeList(); out.push('<ol>'); list = 'ol'; }
-        out.push(`<li>${inline(numbered[1])}</li>`);
-      } else if (heading) {
-        closeList();
-        out.push(`<div class="st-md-h">${inline(heading[1])}</div>`);
-      } else if (!trimmed) {
-        closeList();
-        out.push('<div class="st-md-gap"></div>');
-      } else {
-        closeList();
-        out.push(`<div>${inline(line)}</div>`);
-      }
-    });
-    closeList();
-    return out.join('');
+    return window.FMMarkdown.render(raw);
   }
 
   function formatBucket(bucket){

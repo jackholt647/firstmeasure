@@ -26,7 +26,7 @@ test('project trays share the assistant composer, scope, responsive layout and v
     async setRemoteDescription(){this.events.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'session.started'})}));}close(){}
    };
   });
-  for(const f of ['window-manager/window-manager.js','platform-assistant/platform-assistant.js']) {
+  for(const f of ['window-manager/window-manager.js','doc-markdown/firstmate-markdown.js','platform-assistant/platform-assistant.js']) {
    const source=process.env.ASSISTANT_ASSET_ORIGIN ? await(await fetch(`${process.env.ASSISTANT_ASSET_ORIGIN}/libraries/${f}?verify=${Date.now()}`)).text() : await readFile(new URL('../../libraries/'+f,import.meta.url),'utf8');
    await page.addScriptTag({content:source});
   }

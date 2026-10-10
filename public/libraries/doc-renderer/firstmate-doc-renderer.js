@@ -233,6 +233,7 @@ a.fmdoc-node.fmdoc-link { display: block; color: inherit; text-decoration: none;
 .fmdoc-block--list_item { position: relative; padding-left: calc(var(--fmdoc-list-indent, 0pt) + 18pt); }
 .fmdoc-block--list_item::before { content: attr(data-marker); position: absolute; left: calc(var(--fmdoc-list-indent, 0pt) + 3pt); }
 .fmdoc-block--list_item[data-list-style="check"]::before { content: "\\2610"; }
+.fmdoc-block--list_item[data-list-style="check"][data-checked="true"]::before { content: "\\2611"; }
 .fmdoc-run { white-space: pre-wrap; }
 .fmdoc-run--link { color: var(--fmdoc-primary); text-decoration: underline; }
 a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
@@ -1149,29 +1150,8 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
     return span;
   }
 
-  function listAlpha(n) {
-    let out = "";
-    let value = Math.max(1, n);
-    while (value > 0) { value -= 1; out = String.fromCharCode(97 + (value % 26)) + out; value = Math.floor(value / 26); }
-    return out;
-  }
-
-  function listRoman(n) {
-    const table = [[1000, "m"], [900, "cm"], [500, "d"], [400, "cd"], [100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
-    let out = "";
-    let value = Math.max(1, n);
-    for (const [num, sym] of table) while (value >= num) { out += sym; value -= num; }
-    return out;
-  }
-
   function listMarkerFor(styleKind, count, level) {
-    if (styleKind === "number") {
-      const kind = level % 3;
-      if (kind === 1) return listAlpha(count) + ".";
-      if (kind === 2) return listRoman(count) + ".";
-      return String(count) + ".";
-    }
-    return ["•", "◦", "▪"][level % 3];
+    return (root.FMMarkdown || (typeof require === "function" ? require("../doc-markdown/firstmate-markdown.js") : null)).listMarker(styleKind, count, level);
   }
 
   function renderTextBlocks(elm, node, rctx) {
@@ -1189,6 +1169,7 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
       // it, so the block stays editable in the designer.
       if (block.collapse_empty && (block.runs || []).every((run) => !run.bind && !String(run.text || ""))) continue;
       const blockEl = h("div", "fmdoc-block fmdoc-block--" + (block.type || "paragraph"));
+      if (block.markdown && block.markdown.kind === "code") { blockEl.style.whiteSpace = "pre-wrap"; blockEl.style.fontFamily = "monospace"; }
       if (block.id) blockEl.setAttribute("data-block-id", String(block.id));
       if (block.type === "heading") blockEl.setAttribute("data-level", String(block.level || 1));
       // Style precedence: style_ref (doc.styles over theme.type_styles) — else
@@ -1225,12 +1206,13 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
       if (block.space_before_pt !== undefined && block.space_before_pt !== null) blockEl.style.marginTop = pt(block.space_before_pt);
       if (block.space_after_pt !== undefined && block.space_after_pt !== null) blockEl.style.marginBottom = pt(block.space_after_pt);
       if (block.direction === "rtl" || block.direction === "ltr") blockEl.setAttribute("dir", block.direction);
+      if (block.list_style === "check") blockEl.setAttribute("data-checked", block.checked ? "true" : "false");
       if (block.list_style) blockEl.setAttribute("data-list-style", String(block.list_style));
       if (isList) {
         const level = Math.max(0, Math.min(8, Number(block.indent) || 0));
         if (block.list_style === "number") {
           if (!listCounters.length && block.list_continue && savedCounters.length) listCounters = savedCounters.slice();
-          if (block.list_restart) listCounters[level] = 0;
+          if (block.list_restart) listCounters[level] = Math.max(0, (Number(block.list_start) || 1) - 1);
           listCounters[level] = (listCounters[level] || 0) + 1;
           listCounters.length = level + 1;
           blockEl.setAttribute("data-marker", listMarkerFor("number", listCounters[level], level));
@@ -1839,6 +1821,7 @@ a.fmdoc-run { color: var(--fmdoc-primary); text-decoration: underline; }
       elm.setAttribute("data-view-variant", "desktop");
       elm.setAttribute("data-mobile-variant-enabled", enabled ? "true" : "false");
     }
+    if (props.markdown_quote) { elm.style.borderLeft = "2pt solid #98a2b3"; }
     if (props.page_region) elm.setAttribute("data-page-region", String(props.page_region));
     if (props.fmde_doc_placeholder) {
       elm.setAttribute("data-fmde-doc-placeholder", "true");

@@ -12,7 +12,7 @@ async function open(browser){
   return route.fulfill({contentType:'text/html; charset=utf-8',body:'<meta charset="utf-8"><style>html,body{margin:0;height:100%}#host{width:100vw;height:100vh}</style><div id="host"></div>'});
  });
  await page.goto('http://present.test/');
- for(const file of ['doc-model/firstmate-doc-model.js','doc-renderer/firstmate-doc-renderer.js','doc-present/firstmate-doc-present.js'])await page.addScriptTag({url:'/libraries/'+file});
+ for(const file of ['doc-model/firstmate-doc-model.js','doc-markdown/firstmate-markdown.js','doc-renderer/firstmate-doc-renderer.js','doc-present/firstmate-doc-present.js'])await page.addScriptTag({url:'/libraries/'+file});
  await page.evaluate(async()=>{
   const M=FMDocModel,doc=M.createDocument({kind:'document'});doc.settings.paper={size:{w_pt:960,h_pt:540}};
   const text=(id,name,x,y,value)=>M.createNode('text',{id,name,frame:{x,y,w:300,h:60},props:{blocks:[{type:'paragraph',runs:[{text:value}]}]}});

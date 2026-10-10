@@ -59,6 +59,7 @@ $assetVer = max(
        (they share one registry). -->
   <script defer src="/libraries/doc-model/firstmate-doc-model.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="/libraries/doc-widgets/firstmate-doc-widgets.js?v=<?php echo (int)$assetVer; ?>"></script>
+  <script defer src="/libraries/doc-markdown/firstmate-markdown.js?v=20261010"></script>
   <script defer src="/libraries/doc-renderer/firstmate-doc-renderer.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="/libraries/web-widgets/firstmate-web-widgets.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="/libraries/site-runtime/firstmate-site-runtime.js?v=<?php echo (int)$assetVer; ?>"></script>

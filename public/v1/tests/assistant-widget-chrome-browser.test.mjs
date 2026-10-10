@@ -14,7 +14,7 @@ test('widget owns its card and header; shared close floats outside and inline di
    window.AssistantAPI={context:async()=>({main_thread:thread,threads:[thread],agents:[],dashboard:board}),thread:async()=>({thread,messages}),dashboard:{remove:async()=>{board=[];return {dashboard:[]};}}};
    window.PlatformAPI={publication:{read:async()=>({status:'ready',value:[{id:'t',title:'Test global to-do list item',status:'ready',priority:0}]})}};
   });
-  for(const f of ['platform-widgets/runtime.js','platform-widgets/todo-widgets.js','window-manager/window-manager.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({url:'/libraries/'+f});
+  for(const f of ['platform-widgets/runtime.js','platform-widgets/todo-widgets.js','window-manager/window-manager.js','doc-markdown/firstmate-markdown.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({url:'/libraries/'+f});
   await page.evaluate(()=>PlatformAssistant.openFull());await page.locator('[data-fma=boardItems] .ftw').waitFor();
   const card=page.locator('[data-fma=boardItems] .fma-panel');assert.equal(await card.locator(':scope > header').count(),0);assert.equal(await card.locator('.ftw-head strong').count(),1);
   const style=await card.evaluate(e=>{const s=getComputedStyle(e);return {padding:s.padding,border:s.borderWidth,shadow:s.boxShadow};});assert.deepEqual(style,{padding:'0px',border:'0px',shadow:'none'});

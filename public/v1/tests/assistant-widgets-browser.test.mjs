@@ -25,7 +25,7 @@ test('assistant places widgets beside chat, remembers side, and expands inline c
   window.AssistantAPI={context:async()=>({main_thread:thread,threads:[thread],agents:[],dashboard:[{id:'board_panel',panel}]}),thread:async()=>({thread,messages})};
   window.PlatformAPI={publication:{read:async()=>({status:'ready',value:{rows:Array.from({length:180},(_,i)=>({label:'Measurement '+i,value:i,unit:'ft'}))}})}};
  });
- for(const f of ['platform-widgets/runtime.js','platform-widgets/project-widgets.js','window-manager/window-manager.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({url:'/libraries/'+f});
+ for(const f of ['platform-widgets/runtime.js','platform-widgets/project-widgets.js','window-manager/window-manager.js','doc-markdown/firstmate-markdown.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({url:'/libraries/'+f});
  await page.evaluate(()=>PlatformAssistant.openFull());
  await page.locator('[data-fma=boardItems]').getByText('Measurement 179',{exact:true}).waitFor();
  assert.equal(await page.locator('[data-fma=msgs] fm-platform-widget').count(),0);

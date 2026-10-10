@@ -18,6 +18,7 @@ import { DOCUMENT_NAMESPACES } from "../platform/localization/documents.js";
  */
 
 const LIBRARY_FILES = {
+  markdown: "doc-markdown/firstmate-markdown.js",
   docModel: "doc-model/firstmate-doc-model.js",
   docRenderer: "doc-renderer/firstmate-doc-renderer.js",
   docRendererCss: "doc-renderer/doc-renderer.css",
@@ -35,6 +36,7 @@ function librariesRootCandidates() {
 }
 
 type LibrarySources = {
+  markdown: string;
   docModel: string;
   docRenderer: string;
   docRendererCss: string;
@@ -65,13 +67,14 @@ async function librarySources(): Promise<LibrarySources> {
   // The renderer/widget libraries EMBED their own CSS — the harness only needs
   // the three JS files. A standalone doc-renderer.css is inlined when present
   // but is not required.
-  const [docModel, docRenderer, docWidgets, docRendererCss] = await Promise.all([
+  const [markdown, docModel, docRenderer, docWidgets, docRendererCss] = await Promise.all([
+    readLibraryFile(LIBRARY_FILES.markdown),
     readLibraryFile(LIBRARY_FILES.docModel),
     readLibraryFile(LIBRARY_FILES.docRenderer),
     readLibraryFile(LIBRARY_FILES.docWidgets),
     readLibraryFile(LIBRARY_FILES.docRendererCss).catch(() => "")
   ]);
-  cachedSources = { docModel, docRenderer, docRendererCss, docWidgets, loadedAt: Date.now() };
+  cachedSources = { markdown, docModel, docRenderer, docRendererCss, docWidgets, loadedAt: Date.now() };
   return cachedSources;
 }
 
@@ -162,6 +165,7 @@ ${themeCss}
 <body class="fmdoc-print">
 <div id="fmdoc-root"></div>
 ${languageBoot}
+<script>${escapeInlineScript(sources.markdown)}</script>
 <script>${escapeInlineScript(sources.docModel)}</script>
 <script>${escapeInlineScript(sources.docWidgets)}</script>
 <script>${escapeInlineScript(sources.docRenderer)}</script>

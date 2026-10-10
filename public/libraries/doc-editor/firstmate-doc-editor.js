@@ -8493,8 +8493,9 @@
 
       /** Insert a flow-anchored node after the caret's block node (source
        *  position — the renderer repaginates it into place). */
-      function insertFlowNode(node, caretOverride) {
-        if (!isActive() || !node) return null;
+      function insertFlowNode(node, caretOverride) { return insertFlowNodes([node], caretOverride); }
+      function insertFlowNodes(nodes, caretOverride) {
+        if (!isActive() || !nodes.length) return null;
         const caret = caretOverride !== undefined ? caretOverride : caretTarget();
         let parentId = null;
         let index = null;
@@ -8514,7 +8515,7 @@
           parentId = frame.id;
           index = (frame.children || []).length;
         }
-        return commitNow("insert", [{ type: "node.insert", node: node, parent_id: parentId, index: index }], caret || null);
+        return commitNow("insert", nodes.map(function (node, offset) { return { type: "node.insert", node: node, parent_id: parentId, index: index + offset }; }), caret || null);
       }
 
       function splitRunsAt(runs, offset) {
@@ -8775,6 +8776,7 @@
         applyStyleRef: applyStyleRef,
         mutateCoveredBlocks: mutateCoveredBlocks,
         insertFlowNode: insertFlowNode,
+        insertFlowNodes: insertFlowNodes,
         insertPageBreak: insertPageBreak,
         appendPageBreak: appendPageBreak,
         insertText: insertText,
@@ -12437,6 +12439,35 @@
       });
     }
 
+    function insertMarkdown(source, caret) {
+      if (!can("text_style") || state.mode !== "doc") return null;
+      const nodes = root.FMMarkdown.toDocNodes(source, { generateId: M.generateId });
+      return docProjection.insertFlowNodes(nodes, caret);
+    }
+    function exportMarkdown() {
+      docProjection.commitNow("markdown-export");
+      const nodes = state.doc.root ? state.doc.root.children || [] : (state.doc.pages || []).flatMap(function (page) { return page.children || []; });
+      const result = root.FMMarkdown.fromDocNodes(nodes);
+      return { markdown: root.FMMarkdown.stringify(result.content), diagnostics: result.diagnostics };
+    }
+    function showMarkdownImport() {
+      const caret = docProjection.caretTarget();
+      showEditorDialog("Insert Markdown", '<textarea data-markdown-source aria-label="Markdown to insert" style="width:100%;min-height:240px"></textarea><button type="button" data-markdown-insert>Insert</button>', function (dialog, close) {
+        dialog.querySelector("[data-markdown-insert]").onclick = function () {
+          try { const result = insertMarkdown(dialog.querySelector("[data-markdown-source]").value, caret); if (result && result.ok !== false) close(); else showStatus("Click in an editable document first", true); }
+          catch (error) { showStatus(error.message || "Unable to insert Markdown", true); }
+        };
+      });
+    }
+    function showMarkdownExport() {
+      const result = exportMarkdown();
+      showEditorDialog("Export Markdown", '<p>Markdown preserves text, lists and tables. Page layout and visual formatting remain in the original document.</p><textarea data-markdown-export readonly aria-label="Exported Markdown" style="width:100%;min-height:240px"></textarea><ul data-markdown-diagnostics></ul><button type="button" data-markdown-download>Download .md</button>', function (dialog) {
+        dialog.querySelector("[data-markdown-export]").value = result.markdown;
+        result.diagnostics.forEach(function (message) { const item = document.createElement("li"); item.textContent = message; dialog.querySelector("[data-markdown-diagnostics]").appendChild(item); });
+        dialog.querySelector("[data-markdown-download]").onclick = function () { const url = URL.createObjectURL(new Blob([result.markdown], { type: "text/markdown;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "document.md"; link.click(); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); };
+      });
+    }
+
     function buildDocumentMenubar() {
       if (!dom.menubar) return;
       dom.menubar.innerHTML = "";
@@ -12450,6 +12481,8 @@
       const toggleFullscreen = function () { if (document.fullscreenElement) document.exitFullscreen(); else dom.root.requestFullscreen && dom.root.requestFullscreen(); };
       const menuDefinitions = [
         { label: (globalThis.PlatformLanguage?.text("doc-editor","m_fa09b3f3085cdc","File") ?? "File"), items: [
+          { label: "Insert Markdown…", disabled: !can("text_style"), onClick: showMarkdownImport },
+          { label: "Export Markdown…", onClick: showMarkdownExport },
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_96834d2fc9c9a5","New") ?? "New"), icon: "plus", onClick: function () { invokeDocumentAction("new"); } },
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_c25cc66b28cc9d","Open") ?? "Open"), onClick: function () { invokeDocumentAction("open"); }, shortcut: "Ctrl+O" },
           { label: (globalThis.PlatformLanguage?.text("doc-editor","m_769d461c7b7abf","Make a copy") ?? "Make a copy"), icon: "copy", onClick: function () { invokeDocumentAction("copy"); } }, "-",
@@ -14461,6 +14494,8 @@
     }
 
     const editorHandle = {
+      insertMarkdown: insertMarkdown,
+      exportMarkdown: exportMarkdown,
       getDocument: function () { return M.deepClone(state.doc); },
       setDocument: function (doc, setOptions) {
         preserveCanvasScrollForRender();

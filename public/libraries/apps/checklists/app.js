@@ -56,73 +56,7 @@
 
   const RATING_ICONS = { good:'fa-check', neutral:'fa-minus', bad:'fa-xmark' };
   const RATING_WORDS = { good:'Good', neutral:'Okay', bad:'Needs work' };
-  const markdownInline = (value) => {
-    const code = [];
-    let source = esc(value).replace(/`([^`\n]+)`/g, (_match, content) => {
-      code.push(content);
-      return `\u0000FMCL_CODE_${code.length - 1}\u0000`;
-    });
-    source = source
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_]+)__/g, '<strong>$1</strong>')
-      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
-      .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-      .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, '$1<em>$2</em>');
-    return source.replace(/\u0000FMCL_CODE_(\d+)\u0000/g, (_match, index) => `<code>${code[Number(index)]}</code>`);
-  };
-  const renderMarkdown = (raw) => {
-    const output = [];
-    let list = '';
-    let fenced = false;
-    let fenceLines = [];
-    const closeList = () => { if (list) { output.push(`</${list}>`); list = ''; } };
-    const closeFence = () => {
-      if (!fenced) return;
-      output.push(`<pre><code>${esc(fenceLines.join('\n'))}</code></pre>`);
-      fenced = false;
-      fenceLines = [];
-    };
-    String(raw ?? '').split(/\r?\n/).forEach((line) => {
-      const trimmed = line.trim();
-      if (/^```/.test(trimmed)) {
-        closeList();
-        if (fenced) closeFence(); else fenced = true;
-        return;
-      }
-      if (fenced) { fenceLines.push(line); return; }
-      const bullet = trimmed.match(/^[-*+]\s+(.*)$/);
-      const numbered = trimmed.match(/^\d+[.)]\s+(.*)$/);
-      const heading = trimmed.match(/^(#{1,4})\s+(.*)$/);
-      const quote = trimmed.match(/^>\s?(.*)$/);
-      if (bullet || numbered) {
-        const nextList = bullet ? 'ul' : 'ol';
-        if (list !== nextList) { closeList(); output.push(`<${nextList}>`); list = nextList; }
-        const content = (bullet || numbered)[1];
-        const task = content.match(/^\[([ xX])\]\s+(.*)$/);
-        output.push(task
-          ? `<li class="fmcl-md-task"><i class="fas ${task[1].trim() ? 'fa-square-check' : 'fa-square'}"></i><span>${markdownInline(task[2])}</span></li>`
-          : `<li>${markdownInline(content)}</li>`);
-      } else if (heading) {
-        closeList();
-        output.push(`<h${heading[1].length + 2}>${markdownInline(heading[2])}</h${heading[1].length + 2}>`);
-      } else if (quote) {
-        closeList();
-        output.push(`<blockquote>${markdownInline(quote[1])}</blockquote>`);
-      } else if (/^([-*_])\1\1+$/.test(trimmed)) {
-        closeList();
-        output.push('<hr>');
-      } else if (!trimmed) {
-        closeList();
-      } else {
-        closeList();
-        output.push(`<p>${markdownInline(line)}</p>`);
-      }
-    });
-    closeList();
-    closeFence();
-    return output.join('');
-  };
+  const renderMarkdown = raw => window.FMMarkdown.render(raw);
   const formatMarkdown = (textarea, format) => {
     const value = textarea.value;
     const start = textarea.selectionStart;

@@ -2146,6 +2146,7 @@ session_write_close();
   <script src="../libraries/financials-api/financials-api.js?v=<?= portalAssetVersion('../libraries/financials-api/financials-api.js') ?>"></script>
   <script src="../libraries/stats-api/stats-api.js?v=<?= portalAssetVersion('../libraries/stats-api/stats-api.js') ?>"></script>
   <script src="../libraries/agents-api/agents-api.js?v=<?= portalAssetVersion('../libraries/agents-api/agents-api.js') ?>"></script>
+  <script src="../libraries/doc-markdown/firstmate-markdown.js?v=<?= portalAssetVersion('../libraries/doc-markdown/firstmate-markdown.js') ?>"></script>
   <script src="../libraries/agent-chat/agent-chat.js?v=<?= portalAssetVersion('../libraries/agent-chat/agent-chat.js') ?>"></script>
   <script src="../libraries/insights/firstmate-insights.js?v=<?= portalAssetVersion('../libraries/insights/firstmate-insights.js') ?>"></script>
   <script src="../libraries/doc-agent/doc-agent.js?v=<?= portalAssetVersion('../libraries/doc-agent/doc-agent.js') ?>"></script>
