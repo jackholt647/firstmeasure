@@ -2,15 +2,16 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { requirePlatformAuth, hasPermission, can, type PlatformAuthContext } from "../platform/auth.js";
-import { forbidden, notFound } from "../platform/errors.js";
+import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { listDocuments, listMedia, readDocument, readMediaMetadata, storeMediaUpload } from "../platform/storage.js";
 import { canReadReceiptMedia } from "../platform/media_access.js";
 import { readEventRecord, listEventRecords } from "../work/storage.js";
 import { grantFeedRoot } from "./feed-access.js";
 import * as store from "./storage.js";
 import * as channels from "./service.js";
-import { postMessageSchema, reactionSchema, editMessageSchema } from "./schemas.js";
+import { postMessageSchema, reactionSchema, editMessageSchema, giphyMessageSchema } from "./schemas.js";
 import {canAccessDepartmentResource,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
+import { allowedFeedDepartments, feedActivityOptions, feedGroupDirectory, readFeedPostSettings, requireFeedDepartment, saveFeedPostSettings } from "./feed-groups.js";
 
 type Obj = Record<string, any>;
 const obj = (v: unknown): Obj => v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -124,9 +125,19 @@ async function authorizedRoot(ctx:PlatformAuthContext,id:string) {
   const row=await store.readMessageRecord(ctx.orgId,id);
   const root=row?.parent_id ? await store.readMessageRecord(ctx.orgId,row.parent_id) : row;
   if (!row || !root || root.deleted_at || root.metadata.feed_post !== true) throw notFound("feed_post_missing","This post is not available.");
-  const refs=z.array(refSchema).min(1).max(200).parse(root.metadata.feed_source);
-  await authorizeRefs(ctx,refs);grantFeedRoot(ctx,root.id);
+  if (root.metadata.feed_manual === true) {
+    const departmentId=str(root.metadata.feed_department_id);
+    if (departmentId) requireFeedDepartment(await feedGroupDirectory(ctx.orgId),ctx.userId,departmentId);
+  } else {
+    const refs=z.array(refSchema).min(1).max(200).parse(root.metadata.feed_source);
+    await authorizeRefs(ctx,refs);
+  }
+  grantFeedRoot(ctx,root.id);
   return {row,root};
+}
+export async function authorizeFeedAttachment(ctx:PlatformAuthContext,rootId:string) {
+  await feedActionAccess(ctx,"view_feed_posts");
+  await authorizedRoot(ctx,rootId);
 }
 async function feedActionAccess(ctx:PlatformAuthContext,key:string) {
   if(!await can(ctx,"platform.photos_feed"))throw forbidden("feed_disabled","Feed is not enabled.");
@@ -140,7 +151,7 @@ export async function createFeedComment(ctx:PlatformAuthContext,messageId:string
   await feedActionAccess(ctx,"comment_feed");const {root}=await authorizedRoot(ctx,messageId),body=postMessageSchema.parse(input);
   let parentId=root.id,replyTo:Obj|undefined;
   if(body.parent_id && body.parent_id!==root.id){const {row,root:replyRoot}=await authorizedRoot(ctx,body.parent_id);if(replyRoot.id!==root.id || !row.parent_id || row.deleted_at)throw forbidden("feed_reply_denied","This comment is not in this post.");parentId=row.id;replyTo={id:row.id,author_name:(await channels.userDirectory(ctx.orgId)).get(row.author_id)?.name || "Someone"};}
-  return channels.postMessage(ctx,root.channel_id,{text:body.text,content:body.content,client_msg_id:body.client_msg_id,parent_id:parentId,attachment_ids:body.attachment_ids,metadata:{...(body.metadata.giphy?{giphy:body.metadata.giphy}:{}),...(replyTo?{feed_reply_to:replyTo}:{})}});
+  return channels.postMessage(ctx,root.channel_id,{text:body.text,content:body.content,client_msg_id:body.client_msg_id,parent_id:parentId,attachment_ids:body.attachment_ids,metadata:{...(body.metadata.giphy?{giphy:body.metadata.giphy}:{}),...(body.metadata.audio_note?{audio_note:body.metadata.audio_note}:{}),...(replyTo?{feed_reply_to:replyTo}:{})}});
 }
 export async function reactFeedMessage(ctx:PlatformAuthContext,messageId:string,input:unknown) {
   await feedActionAccess(ctx,"react_feed");await authorizedRoot(ctx,messageId);const body=reactionSchema.parse(input);
@@ -185,7 +196,7 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const relevant=(source:{department_ids:string[]})=>matchesDepartmentFilter(ctx,source,departmentId);
     const allowedViews=views.filter(v=>feedPermission(ctx,`view_feed_${v}`));
     if (!allowedViews.length) throw forbidden("feed_views_denied","No feed views are available.");
-    const [records,allMedia,events,directory]=await Promise.all([listDocuments(ctx.orgId,"projects"),listMedia(ctx.orgId),listEventRecords(ctx.orgId,{visibility:"activity",limit:500}),channels.userDirectory(ctx.orgId)]);
+    const [records,allMedia,events,directory,groups,settings]=await Promise.all([listDocuments(ctx.orgId,"projects"),listMedia(ctx.orgId),listEventRecords(ctx.orgId,{visibility:"activity",limit:500}),channels.userDirectory(ctx.orgId),feedGroupDirectory(ctx.orgId),readFeedPostSettings(ctx.orgId)]);
     const projects=[];
     for (const r of records) {try {
       const original=await projectAccess(ctx,r.id),p:Obj={id:r.id,title:original?.title,project_title:original?.project_title,address:original?.address,customer_name:original?.customer_name,contacts:original?.contacts,photos:[],documents:[]};
@@ -194,11 +205,47 @@ export function registerFeedRoutes(app:FastifyInstance) {
       projects.push({id:r.id,data:p});
     }catch{}}
     const projectIds=new Set(projects.map(p=>p.id));
+
     const media=allMedia.filter(m=>{const d=obj(m),o=obj(d.owner);return hasResourcePermission(ctx,"view_media",{...d,...obj(d.metadata)}) && canReadReceiptMedia(m,ctx) && projectIds.has(str(obj(d.metadata).project_id || (o.type==="project"?o.id:"")));});
-    const permittedEvents=[],permittedMedia=[];
+    const permittedEvents:Obj[]=[],permittedMedia:Obj[]=[];
     for(const item of media){try{const d=obj(item),o=obj(d.owner);const source=await resolveFeedSource(ctx,{kind:'media',id:str(d.id),project_id:str(obj(d.metadata).project_id||(o.type==='project'?o.id:''))});if(relevant(source))permittedMedia.push({...d,department_ids:source.department_ids});}catch{}}
     for (const event of events) {try {const source=await resolveFeedSource(ctx,{kind:"activity",id:str(event.id),project_id:str(event.project_id)});if(relevant(source))permittedEvents.push({...event,department_ids:source.department_ids});}catch{}}
-    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:relevantDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed")};
+    const memberDepartments=allowedFeedDepartments(groups,ctx.userId);
+    const channel=await store.findChannelByDmKey(ctx.orgId,"company-feed");
+    const manualRecords=channel && feedPermission(ctx,"view_feed_posts") ? (await store.listFeedManualMessageRecords(ctx.orgId,channel.id)).filter(row=>!str(row.metadata.feed_department_id) || memberDepartments.includes(str(row.metadata.feed_department_id))) : [];
+    manualRecords.forEach(row=>grantFeedRoot(ctx,row.id));
+    const manualPosts=channel ? await channels.hydrateMessages(ctx,channel,manualRecords) : [];
+    const visibleDepartments=groups.departments.filter(department=>memberDepartments.includes(department.id));
+    const visibleSettings={...settings,department_activity_types:Object.fromEntries(memberDepartments.map(id=>[id,settings.department_activity_types[id] ?? null]))};
+    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:relevantDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed"),can_post:feedPermission(ctx,"comment_feed"),manual_posts:manualPosts,departments:visibleDepartments,user_departments:groups.user_departments,member_department_ids:memberDepartments,post_settings:visibleSettings,activity_options:feedActivityOptions(permittedEvents.map(event=>str(event.type))),can_manage_post_settings:hasPermission(ctx,"manage_company_settings")};
+  });
+  app.get(prefix+"/settings",async request=>{
+    const ctx=await auth(request);
+    if(!hasPermission(ctx,"manage_company_settings"))throw forbidden("feed_settings_denied","Company settings permission is required.");
+    const events=await listEventRecords(ctx.orgId,{visibility:"activity",limit:500});
+    return {ok:true,settings:await readFeedPostSettings(ctx.orgId),departments:(await feedGroupDirectory(ctx.orgId)).departments,activity_options:feedActivityOptions(events.map(event=>str(event.type)))};
+  });
+  app.put(prefix+"/settings",async request=>{
+    const ctx=await auth(request,true);
+    return {ok:true,settings:await saveFeedPostSettings(ctx,request.body)};
+  });
+  app.post(prefix+"/posts/manual",async request=>{
+    const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");requirePermission(ctx,"comment_feed");
+    const body=z.object({text:z.string().trim().max(5000).default(""),department_id:z.string().trim().max(120).default(""),mention_user_ids:z.array(z.string().trim().min(1).max(160)).max(20).default([]),client_msg_id:z.string().trim().max(160).optional(),has_uploads:z.boolean().default(false),giphy:giphyMessageSchema.optional(),audio_note:z.record(z.unknown()).optional()}).strict().refine(value=>!!(value.text || value.has_uploads || value.giphy),{message:"A post needs text, a GIF, or an attachment."}).parse(request.body);
+    const groups=await feedGroupDirectory(ctx.orgId);
+    if(body.department_id)requireFeedDepartment(groups,ctx.userId,body.department_id);
+    const directory=await channels.userDirectory(ctx.orgId);
+    const mentions=[...new Set(body.mention_user_ids)].map(id=>{
+      const user=directory.get(id);
+      if(!user || !Object.prototype.hasOwnProperty.call(groups.user_departments,id))throw notFound("feed_mention_missing","A tagged employee was not found.");
+      if(body.department_id && !allowedFeedDepartments(groups,id).includes(body.department_id))throw forbidden("feed_mention_denied","Tagged employees must belong to this department.");
+      return {id,name:user.name};
+    });
+    const channel=await feedChannel(ctx.orgId);
+    const message=await createRootRecord({organization_id:ctx.orgId,channel_id:channel.id,author_id:ctx.userId,client_msg_id:body.client_msg_id,text:body.text,mention_users:mentions,metadata:{feed_post:true,feed_manual:true,feed_department_id:body.department_id,...(body.giphy?{giphy:body.giphy}:{}),...(body.audio_note?{audio_note:body.audio_note}:{})}});
+    grantFeedRoot(ctx,message.id);
+    return {ok:true,post:(await channels.hydrateMessages(ctx,channel,[message]))[0]};
+
   });
   app.post(prefix+"/authorize",async request=>{
     const ctx=await auth(request,true),body=z.object({refs:z.array(refSchema).max(3000),department_id:z.string().optional()}).parse(request.body);
@@ -220,9 +267,13 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const {root}=await authorizedRoot(ctx,str((request.params as Obj).messageId));
     const part=await request.file();
     if(!part)throw forbidden("file_required","Choose an attachment.");
+    const manual=root.metadata.feed_manual === true && root.id === str((request.params as Obj).messageId);
+    if(manual && root.author_id !== ctx.userId)throw forbidden("feed_post_upload_denied","Only the author can add images to this post.");
     const bytes=await part.toBuffer();
-    const media=await storeMediaUpload(ctx.orgId,{ownerType:"channel",ownerId:root.channel_id,slot:"attachment",fileName:part.filename,contentType:part.mimetype,bytes,metadata:{source:"feed_comment",channel_id:root.channel_id,feed_root_id:root.id,uploaded_by:ctx.userId}});
+    if(manual && bytes.length>(part.mimetype.startsWith("image/")?10:25)*1024*1024)throw badRequest("feed_post_file_too_large","Images must be 10 MB or smaller; other files must be 25 MB or smaller.");
+    const media=await storeMediaUpload(ctx.orgId,{ownerType:"channel",ownerId:root.channel_id,slot:"attachment",fileName:part.filename,contentType:part.mimetype,bytes,metadata:{source:manual?"feed_post":"feed_comment",channel_id:root.channel_id,feed_root_id:root.id,uploaded_by:ctx.userId}});
     const attachment=await store.createAttachmentRecord({organization_id:ctx.orgId,channel_id:root.channel_id,media_id:str(media.id),file_name:part.filename,content_type:part.mimetype,size_bytes:bytes.length,uploaded_by:ctx.userId});
+    if(manual)await store.attachToMessage(ctx.orgId,[attachment.id],root.id,root.channel_id,ctx.userId);
     return {ok:true,attachment};
   });
   app.post(prefix+"/posts/resolve",async request=>{
@@ -250,13 +301,13 @@ export function registerFeedRoutes(app:FastifyInstance) {
   app.patch(prefix+"/messages/:messageId",async request=>{
     const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");requirePermission(ctx,"comment_feed");
     const id=str((request.params as Obj).messageId),{row}=await authorizedRoot(ctx,id);
-    if (!row.parent_id) throw forbidden("feed_post_immutable","Automated posts cannot be edited.");
+    if (!row.parent_id && row.metadata.feed_manual !== true) throw forbidden("feed_post_immutable","Automated posts cannot be edited.");
     return {ok:true,message:await channels.editMessage(ctx,id,editMessageSchema.parse(request.body))};
   });
   app.delete(prefix+"/messages/:messageId",async request=>{
     const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");requirePermission(ctx,"comment_feed");
     const id=str((request.params as Obj).messageId),{row}=await authorizedRoot(ctx,id);
-    if (!row.parent_id) throw forbidden("feed_post_immutable","Automated posts cannot be deleted.");
+    if (!row.parent_id && row.metadata.feed_manual !== true) throw forbidden("feed_post_immutable","Automated posts cannot be deleted.");
     return {ok:true,message:await channels.deleteMessage(ctx,id)};
   });
   app.post(prefix+"/messages/:messageId/restore",async request=>{

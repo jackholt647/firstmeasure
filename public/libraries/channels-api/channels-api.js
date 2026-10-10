@@ -271,6 +271,9 @@
 
   api.feed = {
     catalog: (orgId,departmentId='') => request(orgPath(orgId, '/feed/catalog')+(departmentId?`?department_id=${enc(departmentId)}`:'')),
+    createPost: (orgId, body) => request(orgPath(orgId, '/feed/posts/manual'), {method:'POST',body}),
+    settings: orgId => request(orgPath(orgId, '/feed/settings')),
+    saveSettings: (orgId, body) => request(orgPath(orgId, '/feed/settings'), {method:'PUT',body}),
     authorize: (orgId, refs,department_id='') => request(orgPath(orgId, '/feed/authorize'), {method:'POST',body:{refs,department_id}}),
     lookup: (orgId, refs) => request(orgPath(orgId, '/feed/posts/lookup'), {method:'POST',body:{refs}}),
     upload: (orgId, id, file) => { const body=new FormData();body.append('file',file,file.name);return request(orgPath(orgId, `/feed/posts/${enc(id)}/uploads`),{method:'POST',body}); },

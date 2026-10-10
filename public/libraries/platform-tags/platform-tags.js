@@ -326,7 +326,9 @@
     const menu = ensureMenu();
     const selected = new Map();
     const oid = cleanText(options.orgId || orgId());
-    const allowed = user => options.source !== 'channels' || (user.id.startsWith('department:') || user.id === 'agent_assistant' || user.id === 'broadcast:channel' || user.id === 'broadcast:here' || (!user.id.startsWith('channel:') && (options.memberIds?.() || []).includes(user.id)));
+    const allowed = user => options.source === 'feed'
+      ? (options.memberIds?.() || []).includes(user.id)
+      : options.source !== 'channels' || (user.id.startsWith('department:') || user.id === 'agent_assistant' || user.id === 'broadcast:channel' || user.id === 'broadcast:here' || (!user.id.startsWith('channel:') && (options.memberIds?.() || []).includes(user.id)));
     const candidates = () => users.filter(allowed);
     // Team-messaging surfaces also offer the AI agent(s) as mention targets.
     const includeAgents = options.includeAgents === true || options.source === 'channels';

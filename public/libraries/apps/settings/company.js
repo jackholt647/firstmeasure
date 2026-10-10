@@ -1735,6 +1735,7 @@
       { id:'comms', allowed:canComms, icon:'fas fa-tower-broadcast', term:'settings.comms_tab', title:(globalThis.PlatformLanguage?.text("settings","m_643fa01aa77d59","Communications") ?? "Communications"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_a57e07cfe360a2","Communication preferences and reusable message templates.") ?? "Communication preferences and reusable message templates."), tabId:'csTabComms', paneId:'csPaneComms' },
       { id:'assistant', allowed:canAssistant, icon:'fas fa-wand-magic-sparkles', term:'settings.assistant_tab', title:(globalThis.PlatformLanguage?.text("settings","m_b9c1b384e304f3","AI Agents") ?? "AI Agents"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_f6b2be6bd071ce","Manage AI assistant capabilities and access.") ?? "Manage AI assistant capabilities and access."), tabId:'csTabAssistant', paneId:'csPaneAssistant' },
       { id:'channels', allowed:canChannels, icon:'fas fa-hashtag', term:'settings.channels_tab', title:(globalThis.PlatformLanguage?.text("settings","m_dc8b4f6c066b30","Channels") ?? "Channels"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_a06b0178fbed3b","Manage team channels and channel defaults.") ?? "Manage team channels and channel defaults."), tabId:'csTabChannels', paneId:'csPaneChannels' },
+      { id:'feed', allowed:canCompany && appFlag('platform', 'photos_feed'), icon:'fas fa-newspaper', title:'Feed', subtitle:'Choose which activities appear as posts on each board.', tabId:'csTabFeed', paneId:'csPaneFeed' },
       { id:'users', allowed:canUsers, icon:'fas fa-users', term:'settings.users_tab', title:(globalThis.PlatformLanguage?.text("settings","m_50ab7fe67b1e45","Users") ?? "Users"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_ae303cb7768995","Manage people, roles, and access.") ?? "Manage people, roles, and access."), tabId:'csTabUsers', paneId:'csPaneUsers' },
       { id:'payroll', allowed:canPayroll, icon:'fas fa-money-check-dollar', term:'payroll.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_45e0abb75231e4","Payroll") ?? "Payroll"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_208856d6358307","Configure pay schedules, assignments, and earnings.") ?? "Configure pay schedules, assignments, and earnings."), tabId:'csTabPayroll', paneId:'csPanePayroll' },
       { id:'reports', allowed:canReports, icon:'fas fa-file-lines', term:'reports.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_fc81637c875032","Reports") ?? "Reports"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_2024eaccc14e3f","Set defaults for measurement and customer reports.") ?? "Set defaults for measurement and customer reports."), tabId:'csTabReports', paneId:'csPaneReports' },
@@ -4248,6 +4249,7 @@
     const paneComms = $('#csPaneComms', panel);
     const paneAssistant = $('#csPaneAssistant', panel);
     const paneChannels = $('#csPaneChannels', panel);
+    const paneFeed = $('#csPaneFeed', panel);
     let paneCustomFields = null;
     const paneUsers   = firstMeasureUsers ? null : $('#csPaneUsers', panel);
     const panePayroll = $('#csPanePayroll', panel);
@@ -12695,6 +12697,7 @@
       if (which === 'comms' && canComms) renderCommsSettings();
       if (which === 'assistant' && canAssistant) renderAssistantSettings();
       if (which === 'channels' && canChannels) renderChannelsSettings();
+      if (which === 'feed' && canCompany) void renderFeedSettings();
       if (which === 'payroll' && canPayroll) renderPayrollSettings();
       if (which === 'reports' && canReports) renderReports();
       if (which === 'documents' && canDocuments) renderDocumentSettings();
@@ -13636,6 +13639,54 @@
       }).catch(() => {
         host.innerHTML = '';
       });
+    }
+
+    let feedSettingsState = null;
+    const defaultFeedPostActivityTypes = new Set(['media.uploaded','note.created','project.created','project.event_scheduled','project.event.completed','crew.checklist.completed','proposal.signed','contract.signed','payment.received']);
+    async function renderFeedSettings(){
+      if (!paneFeed) return;
+      if (!feedSettingsState) {
+        paneFeed.innerHTML = '<p role="status">Loading Feed settings…</p>';
+        try {
+          const result = await window.ChannelsAPI.feed.settings(currentOrgId());
+          feedSettingsState = { draft:structuredClone(result.settings), departments:result.departments || [], options:result.activity_options || [], scope:'company', saving:false };
+        } catch (error) {
+          paneFeed.textContent = error?.message || 'Could not load Feed settings.';
+          return;
+        }
+      }
+      const model = feedSettingsState;
+      const selection = model.scope === 'company' ? model.draft.company_activity_types : model.draft.department_activity_types?.[model.scope];
+      const checked = type => Array.isArray(selection) ? selection.includes(type) : defaultFeedPostActivityTypes.has(type);
+      paneFeed.innerHTML = `<section class="cs-feed-settings" data-settings-autosave="off" style="max-width:760px;display:grid;gap:16px">
+        <div><h3 style="margin:0 0 5px">Posts view</h3><p style="margin:0;color:#667085">Choose which automatic activities become posts across the company or in each department. Manual posts always appear in Posts view.</p></div>
+        <label style="display:grid;gap:6px;font-weight:700">Audience<select data-feed-board style="max-width:340px;padding:10px;border:1px solid #d0d5dd;border-radius:8px"><option value="company" ${model.scope==='company'?'selected':''}>Everyone in the company</option>${model.departments.map(department=>`<option value="${escapeHtml(department.id)}" ${model.scope===department.id?'selected':''}>${escapeHtml(department.label)}</option>`).join('')}</select></label>
+        <div style="display:flex;gap:14px"><button type="button" data-feed-all>Show all</button><button type="button" data-feed-none>Hide all</button></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px">${model.options.map(option=>`<label style="display:flex;gap:9px;align-items:center;padding:9px;border:1px solid #e4e7ec;border-radius:8px"><input type="checkbox" data-feed-activity value="${escapeHtml(option.type)}" ${checked(option.type)?'checked':''}><span>${escapeHtml(option.label)}</span></label>`).join('')}</div>
+        <div style="display:flex;align-items:center;gap:12px"><button type="button" class="cs-btn primary" data-feed-save ${model.saving?'disabled':''}>${model.saving?'Saving…':'Save settings'}</button><span role="status" data-feed-status></span></div>
+      </section>`;
+      const setSelection = types => {
+        if(model.scope==='company')model.draft.company_activity_types=types;
+        else (model.draft.department_activity_types ||= {})[model.scope]=types;
+        void renderFeedSettings();
+      };
+      paneFeed.querySelector('[data-feed-board]').onchange = event => {model.scope=event.target.value;void renderFeedSettings();};
+      paneFeed.querySelector('[data-feed-all]').onclick = () => setSelection(model.options.map(option=>option.type));
+      paneFeed.querySelector('[data-feed-none]').onclick = () => setSelection([]);
+      paneFeed.querySelectorAll('[data-feed-activity]').forEach(input => {input.onchange = () => setSelection([...paneFeed.querySelectorAll('[data-feed-activity]:checked')].map(node=>node.value));});
+      paneFeed.querySelector('[data-feed-save]').onclick = async () => {
+        if(model.saving)return;
+        model.saving=true;
+        const button=paneFeed.querySelector('[data-feed-save]'),status=paneFeed.querySelector('[data-feed-status]');
+        button.disabled=true;button.textContent='Saving…';
+        try {
+          const result=await window.ChannelsAPI.feed.saveSettings(currentOrgId(),model.draft);
+          model.draft=structuredClone(result.settings);
+          status.textContent='Saved.';
+          showToast?.('Feed settings saved');
+        } catch(error) { status.textContent=error?.message || 'Could not save Feed settings.'; }
+        finally {model.saving=false;button.disabled=false;button.textContent='Save settings';}
+      };
     }
 
     function renderChannelsSettings(){
@@ -17221,6 +17272,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (canCallWorkflows && activeTab === 'calls') renderCallsSettings();
       if (canContacts && activeTab === 'contacts') renderContactsSettings();
       if (canCompany && activeTab === 'connections') renderConnectionsSettings();
+      if (canCompany && activeTab === 'feed') void renderFeedSettings();
       if (canFeedback && activeTab === 'feedback') renderFeedbackSettings();
       if (canEquipment && activeTab === 'equipment') renderEquipmentSettings();
       if (canAssistant && activeTab === 'assistant') renderAssistantSettings();

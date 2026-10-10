@@ -1,0 +1,215 @@
+# Development Feed list day panels — October 9, 2026
+
+Source branch: `codex/feed-department-posts-dev`. Code commits: `f68a9490bcefaf1cec40ebd5fb81e6131f4cb352` and `e128ec4983363fca9e0d2d9336b2b2b315478988`.
+
+## File locations
+
+- `public/libraries/apps/photos/feed.js`: Feed event wording, day panels, list rows, project cards, cover-image placeholder, time formatting, and inline note controls.
+- `public/libraries/apps/firstmate-apps-manifest.js`: Feed asset cache version `20261009-feed-list-day-panel-v2`.
+- `public/v1/tests/feed-browser.test.mjs`: desktop and mobile Feed browser regression.
+- `public/v1/scripts/seed-pioneer-puffin-activity.mjs`: existing synthetic appointments, project notes, grouped photos, and other Feed examples. No reseeding was needed for this change.
+
+## Behavior and validation
+
+`project.event.started` and `project.event.completed` already carry `event_type_default_id` and usually the embedded event title. The Feed had hard-coded both labels as “scheduled event.” It now renders the type and available title, for example “started a sales appointment: Homeowner sales appointment.” No synthetic event fields were invented or changed.
+
+In List, each day has one white panel with separators between activities. Each row shows only the time at its right edge, including on mobile. Its project name and address form one gray clickable card with an “Open project” tooltip and a square image placeholder. That placeholder reserves the position for the planned primary or cover image; choosing and displaying that image is future work. Long notes retain a one-line preview sized by the available width, with inline “Show more” text in place of the chevron.
+
+The focused browser test passed against the repository source and the development overlay script. It covers event titles, daily panel/separators, time-only labels, project-card click target and placeholder, note expansion, and mobile alignment. Syntax and diff checks passed. The signed-in Pioneer Puffin sandbox showed the named appointment start/completion, white day panels, cover placeholders, and time on the right. The public Feed asset returned HTTP 200 with SHA-256 `d68dad5adadcde97f1d2f077d6a9492b8b50bb204cfde17b82abf158f01047bd`; public login returned HTTP 200.
+
+## Development rollout
+
+Development web and pool serve `/opt/firstmeasure/releases/e128ec4983363fca9e0d2d9336b2b2b315478988`. Compatibility serves `/opt/firstmeasure/releases-root-archive-sms-registration/e128ec4983363fca9e0d2d9336b2b2b315478988`. Each passed local readiness with development data and enforced outbound safety. The prior serving release on all three roles was `f68a9490bcefaf1cec40ebd5fb81e6131f4cb352`; the release before that was `70ddc9b70200a56f17c7f1bdf33aaa88c74eb03d`. Recheck current symlinks before a rollback because other dev deployments may supersede these paths.
+
+The development overlay changed only the Feed script, each role's manifest, and release metadata. The repository Feed source also contains an inline media-picker extension that was not in the prior serving asset; the overlay applied this Feed list change to the serving baseline, preserving that separation. Production and worker were unchanged.
+
+The first activation restarted all three serving roles together and the public load balancer briefly returned 503 while re-admitting them. The final mobile-correction rollout restarted one role at a time, with public login HTTP 200 between roles and after completion.
+
+Open the [development Feed List](https://dev.1m8.ai/portal/?tab=photos_feed&feedDensity=list).
+
+## Follow-up: time and project columns
+
+Code commits `da5da69cbcf888e83bc9e5c92e2257354fead2ae` and `19b0cf9eee974520775c34fc8564a4e35b8cce7e` put the time before the activity sentence, keep note/photo/document previews below that sentence on the left, and move the single project card to the right. At widths below 560px, the project card stacks below the activity so the text remains readable. The final commit keeps the time and activity together on narrow screens. The current Feed manifest cache version is `20261009-feed-list-right-project-v4`.
+
+The focused Feed browser test passed against the development overlay, including a long activity at mobile width, the project column at desktop and tablet widths, document preview opening, and project-card navigation. The signed-in Pioneer Puffin Feed showed the time inline with the activity at mobile width. At a 1100px viewport, live page geometry placed the activity at x=210px and the project card at x=743px. The public Feed script SHA-256 is `4dc84299070081cfd7add5bbc055e2d34529ff24398dc080e90bf05badfd201d`; public login returned HTTP 200.
+
+Development web and pool now serve `/opt/firstmeasure/releases/19b0cf9eee974520775c34fc8564a4e35b8cce7e`. Compatibility serves `/opt/firstmeasure/releases-root-archive/19b0cf9eee974520775c34fc8564a4e35b8cce7e`. Each role passed local readiness with development data and enforced outbound safety. The prior release was `c7d9d4e28e65ba37973a47e2673fabc2d22a70d3` on web and `da5da69cbcf888e83bc9e5c92e2257354fead2ae` on pool and compatibility. Check active symlinks before any rollback because other development deployments may supersede these releases.
+
+## Follow-up: project cover photos
+
+Code commit `1524703ffc0f3d269a64dd9a5ec5b631d85c7400` removes the gray project-card fill and uses a 64 × 46 px rectangular cover. It displays the first available project gallery photo, retaining the image placeholder for projects without photos. The cover remains part of the single project button. The Feed manifest cache version is `20261009-feed-list-project-photos-v5`.
+
+The newest Pioneer Puffin full test org (`Pioneer Puffin Test Co 6277ef`) has 16 stored synthetic projects. A live API audit found an address and at least four gallery photos on every one, so no duplicate media was added. The Feed browser test passed against both repository source and the development overlay. In the signed-in dev Feed, the cover images loaded at 320 px intrinsic width and appeared beside the project names and addresses. The public Feed script SHA-256 is `614c9dcd51e76a76683db677e61f57dbb53367793934126f176009002054d5d3`; public login returned HTTP 200.
+
+Development web and pool now serve `/opt/firstmeasure/releases/1524703ffc0f3d269a64dd9a5ec5b631d85c7400`. Compatibility serves `/opt/firstmeasure/releases-root-archive/1524703ffc0f3d269a64dd9a5ec5b631d85c7400`. Each role passed local readiness with development data and enforced outbound safety. Recheck active symlinks before rollback because other development deployments may supersede these releases.
+
+## Follow-up: right-aligned time, hover, and row-sized cover
+
+Code commits `c3d40d4d87774fae95b0f2984a120375369601fe` and `31c6fcc5f16d7050952c6c507a8da0db13c5cbbf` place the activity time at the upper-right of the left column and highlight the full project button on hover or keyboard focus. The project-name underline is gone; the “Open project” tooltip remains. The cover is 96 × 80 px at desktop and narrow-phone widths, and 72 × 60 px at tablet widths where the project column is constrained. The Feed manifest cache version is `20261009-feed-list-larger-cover-v7`.
+
+The Feed browser test passed against repository source and the development overlay at desktop, tablet, and narrow widths, including hover and project navigation. In the signed-in dev Feed at a 1200px viewport, an invoice row measured 118px high, the project cover measured 96 × 80 px, and the time was aligned to the right edge of the activity column. The public Feed script SHA-256 is `c516db2a281d732cbb7b94e58b5657875deda8ec7a1faa66b1c4f3c1b351a857`; public login returned HTTP 200.
+
+Development web and pool now serve `/opt/firstmeasure/releases/31c6fcc5f16d7050952c6c507a8da0db13c5cbbf`. Compatibility serves `/opt/firstmeasure/releases-root-archive/31c6fcc5f16d7050952c6c507a8da0db13c5cbbf`. Each role passed local readiness with development data and enforced outbound safety. Recheck active symlinks before rollback because other development deployments may supersede these releases.
+
+## Follow-up: compact List, project organization, and activity filters
+
+Code commit `a28ddbc60535e5644fa0562c18d3e20c77472578` adds List header controls to expand or collapse every row and organize each day's activities by time or project. Expanded/time remains the default. Collapsed rows show a smaller avatar, one activity line and time, plus only the project name at right. Project organization shows one right-side project card per project for that day, with its activities in a timeline on the left. The choice is retained in the Feed URL. Expanded notes use up to two lines of preview to fit the project-cover height. Photo thumbnails fill one available row; the remaining-media button says “Show more” at the same font size as the note control and opens project Photos.
+
+The Feed's top-right “Shown” control is now “Filter.” Its menu has a “Filters” title and only the nine existing activity choices. Media, media tags, and document controls were removed; all media and document types remain available in the Feed. The manifest cache version is `20261009-feed-list-organize-v8`.
+
+The browser regression passed against both repository source and the development overlay. It covers desktop and phone layouts, compact rows, project organization, fitted photo thumbnails, note expansion, and the activity-only filter. All three development roles passed local readiness and outbound-safety checks after sequential activation. The public Feed asset returned HTTP 200 with SHA-256 `3472e0154d939c674aa9478e2f2e2f5f64dd709b111bd1d353cb19c95c15a0ef`; the public login page returned HTTP 200. In the signed-in Pioneer Puffin sandbox, the compact first row measured 42px high, project grouping showed one project card for multiple events, and Filter showed only the nine activity choices.
+
+Development web and pool serve `/opt/firstmeasure/releases/a28ddbc60535e5644fa0562c18d3e20c77472578`. Compatibility serves `/opt/firstmeasure/releases-root-archive/a28ddbc60535e5644fa0562c18d3e20c77472578`. The previous release on all roles was `31c6fcc5f16d7050952c6c507a8da0db13c5cbbf`. Recheck active symlinks before rollback because other development deployments may supersede these paths. Compatibility staging used a 768 MiB free-space floor for this lightweight overlay because its root volume had just under 1 GiB free; the other capacity and health checks remained in place.
+
+## Follow-up: expanded project timeline and 40-photo sample
+
+Code commit `df46b1bfe76e111afe07e3c297ba1e5fe4632f94` removes the Collapse All control, compact-row styles, and saved compact setting. List activities are always expanded. Organize by Project retains the vertical timeline between avatars but removes the horizontal separators between that project's entries. The Feed asset cache version is `20261009-feed-list-project-cleanup-v9`.
+
+The idempotent [`seed-pioneer-puffin-40-photo-batch.mjs`](../../public/v1/scripts/seed-pioneer-puffin-40-photo-batch.mjs) created 40 actual project-owned media records and 40 matching gallery entries in the newest full Pioneer Puffin test org (`org_983c8e17cd313149`). All 40 belong to Cooper — Roof and gutter replacement, were attributed to Chris Bennett, and share one October 9 upload timestamp and one batch identifier. Verification found 40 catalog photos, 40 media records, 40 authorized Feed sources, and one Feed group key; a second dry run found zero remaining items.
+
+The browser regression passed against both repository source and the development overlay. All three development roles passed local readiness and outbound-safety checks after sequential activation. The public Feed asset returned HTTP 200 with SHA-256 `af34371f7575fb5b3c41369b3bba9c349097af56ae2650b9173be459984488eb`; public login returned HTTP 200. In the signed-in Pioneer Puffin Feed, Today showed one “Chris Bennett uploaded 40 photos” entry, the Collapse All control was absent, and project-grouped entries had zero-width top borders.
+
+Development web and pool serve `/opt/firstmeasure/releases/df46b1bfe76e111afe07e3c297ba1e5fe4632f94`. Compatibility serves `/opt/firstmeasure/releases-root-archive/df46b1bfe76e111afe07e3c297ba1e5fe4632f94`. The serving release before activation was `1177eb4cc3dfbfe81dd6249d64eb7b8703279170` on all roles; this Feed overlay was applied to that release to retain its unrelated changes.
+
+## Follow-up: nested replies, Posts controls, and List project navigation
+
+Code commit `ac8953cf0525d85386240c68c6cd347bcd383ea4` counts every descendant under a comment's Show/Hide replies control. The Posts header places Manual posts only and Post beside the Feed title, with audience, view options, and Filter at the right. Clicking a project card in List opens the project Overview tab (`map` internally); the photo batch Show more button still opens Photos. The Feed asset cache version is `20261009-feed-post-replies-v10`.
+
+The Feed browser regression passed against repository source and the development overlay, including a three-level comment thread, desktop and mobile header layouts, and both project navigation targets. All three development roles passed local readiness and outbound-safety checks after sequential activation. The public Feed script returned SHA-256 `e8d6aeefc7be0f4686e4f41af0c77ca819705df87e0763081926b7420f9d91fc`, and public login returned HTTP 200. In the signed-in Pioneer Puffin Feed, the nested parent displayed “Hide 2 replies”; a List project card opened with `projectTab=map`.
+
+Development web and pool serve `/opt/firstmeasure/releases/ac8953cf0525d85386240c68c6cd347bcd383ea4`. Compatibility serves `/opt/firstmeasure/releases-root-archive/ac8953cf0525d85386240c68c6cd347bcd383ea4`. The previous release on all roles was `df46b1bfe76e111afe07e3c297ba1e5fe4632f94`.
+
+## Follow-up: curated Posts and audience controls
+
+Code commit `32cfaa66b705030d42966e0b6a54b19e71b1fefd` moves Post to the left edge of the right-hand Feed controls and removes the Manual posts only toggle. Company admins choose which automatic activity types appear in Posts under Settings > Feed. Organizations without saved choices start with media uploads, notes, project creation, scheduled and completed events, completed crew checklists, signed proposals and contracts, and received payments. Explicitly saved selections override that default. Manual posts continue to appear in Posts.
+
+Posts no longer show an empty-comments prompt or project addresses. The Show menu now has All company activity, My departments, and a searchable department list; Company board was removed. List organization uses a labeled Time/Project segmented control. The Feed and company settings asset cache versions are `20261009-feed-post-controls-v11` and `20261009-feed-post-settings-v3`.
+
+The focused browser regression passed against repository source and the development overlay, including the department search not filtering Feed content. Syntax and diff checks passed. All three development roles passed local readiness with development data and enforced outbound safety after sequential activation. Public login returned HTTP 200 between roles and after completion. The public Feed and company settings assets returned SHA-256 `79b2161712e4be12bf781d7eb002760cc9ef85d87faade29274094770fda9859` and `3d76b72729e6a1112efe59bc1d7d5c688558392fcab45a119f405a8c02dbc734`. In the signed-in Pioneer Puffin Feed, the custom Show menu omitted Company board, a project post showed only its name, and opening zero comments showed the composer without an empty-comments prompt.
+
+Development web and pool serve `/opt/firstmeasure/releases/32cfaa66b705030d42966e0b6a54b19e71b1fefd`. Compatibility serves `/opt/firstmeasure/releases-root-archive/32cfaa66b705030d42966e0b6a54b19e71b1fefd`. The overlay was staged from the then-serving `80ffae0533ce180f92b205a3acda2142d951738d` release, replacing only Feed JavaScript, company settings JavaScript, and manifests so that release's unrelated changes remained. Recheck active symlinks before rollback because other development deployments may supersede these paths.
+
+## Follow-up: typed Feed summaries and hover previews
+
+Code commit `449e8316f6cc94c9190a896c11829ca1f7b634d5` lets List request a typed summary for an activity when the type is registered and authorized. It recognizes explicit `summary_widget` hints, future `summary.<event.type>` registrations, and current project, contact, and document summaries. A successfully mounted widget replaces the existing row preview. If no widget exists or rendering fails, the note, media, document icon, or ordinary text remains. The document preview retains its generic document icon when no specific icon is available. Project hover targets in Posts and List request `summary.project`; author avatars request `summary.user`. Project clicks continue to open the project modal. The Feed cache version is `20261009-feed-typed-summaries-v12`.
+
+The focused Feed browser regression passed against repository source and the deployed overlay. In the signed-in Pioneer Puffin List, three typed summaries mounted; two document summaries rendered while three document activities retained their existing previews. The page exposed 14 project and 14 user hover targets. User preview visibility follows the summary library's current `manage_company_users` publication permission; users without that permission will not see the hover widget.
+
+Development web and pool serve `/opt/firstmeasure/releases/449e8316f6cc94c9190a896c11829ca1f7b634d5`. Compatibility serves `/opt/firstmeasure/releases-root-archive/449e8316f6cc94c9190a896c11829ca1f7b634d5`. The overlay Feed SHA-256 is `951b9f36212edcad5b7900a81dfadffe66f1961bd2640e86ad14fba0d0a595ff`. Every role passed local readiness with development data and enforced outbound safety. Pool received another task's release during this rollout, so its overlay was restaged on that newer baseline before activation to retain those changes. Public login returned HTTP 200 after activation. Recheck active symlinks before rollback because other development deployments may supersede these paths.
+
+## Follow-up: Posts composer and audience menu
+
+Code commits `a780223ba3955d224bc78111aef666e49bd5c657` and `b5dff594442d6695458813120e0bd8b9bda72d42` remove the border from the Show audience selector and close its menu on an outside click or Escape. Posts comments now use a taller box with the attachment controls and send button inside its bottom edge. The Create a post dialog shows the author's avatar beside the audience, has a formatting bar and a taller message box, and places attachment controls and Post inside that box. The Cancel button is removed. Attached-image previews open in a named modal with a visible close button and backdrop dismissal. The Feed cache version is `20261009-feed-post-composer-v14`.
+
+The focused browser regression passed against repository source and the deployment overlay, covering selector dismissal and border, comment controls, post formatting, avatar, and the image modal. Syntax and diff checks passed. A signed-in live browser check was attempted after deployment, but the in-app browser timed out; the public Feed asset returned HTTP 200 and its SHA-256 matched the overlay (`afe1cc1c9ab36dfc77f46a94c81de4b5cf1217ebc138c775092c90300d3871a0`). Public login returned HTTP 200 between role activations.
+
+Development web and pool serve `/opt/firstmeasure/releases/b5dff594442d6695458813120e0bd8b9bda72d42`. Compatibility serves `/opt/firstmeasure/releases-root-archive/b5dff594442d6695458813120e0bd8b9bda72d42`. Each role passed local readiness with development data and enforced outbound safety. During rollout, another task combined the Feed and newer contact/Channels release on web and pool. The final overlay was staged from those combined active releases and preserved their manifests and assets. The compatibility overlay was staged from its then-active consolidated release. Recheck active symlinks before rollback because other development deployments may supersede these paths.
+
+## Follow-up: Posts control order and compact composer
+
+Code commit `2959d8af3c25af6352b632c8f5c6f0db5bf0c982` orders the Posts controls Show, Post, views, Filter. The Create a post modal shows the posting user's name beside the avatar and places the audience below the name. Empty attachment and audio mounts no longer create blank grid rows below the editor; attachments still appear when added. The Feed cache version is `20261009-feed-post-composer-v15`.
+
+The focused browser regression passed against repository source and the deployment overlay, including control order, posting name, empty-state spacing, and attachment preview. All three development roles passed local readiness with development data and enforced outbound safety at activation. Subsequent development rollouts superseded the web and pool release paths while retaining the same Feed asset. A final SHA-256 audit found `269e77ff866f21300d33c9a100f64543251c526f58c44ec8e62532e19907aa6e` on web, pool, compatibility, and the public Feed asset; public login and the asset returned HTTP 200. The signed-in workspace showed a loading error during a final live browser check, so that visual check did not complete. Recheck active symlinks before rollback.
+
+## Follow-up: Filter menu outside-click dismissal
+
+Code commit `21d8efd903d029c8405163288748489572eaff57` closes the Feed Filter menu when a user clicks outside it or presses Escape. Clicking inside the menu keeps it open, and dismissal resets its expanded state. The Feed cache version is `20261009-feed-post-composer-v16`.
+
+The focused browser regression passed against repository source and the deployment overlay, including inside clicks, outside clicks, and Escape. Syntax and diff checks passed. All three development roles passed readiness and outbound-safety checks during activation. A final SHA-256 audit found `2377ab324aa8448b72e377affd19759bd0a7fccc03b405fd98f36b90c3b53402` on web, pool, compatibility, and the public Feed asset. The public asset and login returned HTTP 200. Other development rollouts may supersede the active release paths, so recheck them before rollback.
+
+## Follow-up: 50-image posts and Channels composer parity
+
+Code commit `6cd0c7c032ca1435d7cad4bdc1ee3fba5817f61c` raises the manual post attachment limit from six to 50. Posts show the first six images with an actionable control to reveal the rest. The Create a post formatting bar uses the same list and link icon markup as Channels. Post @ tagging uses the shared Channels mention picker and respects the selected department's eligible members. Post and comment dictation and audio recording now use the Channels click-to-finish behavior and active icon state. Completed post audio notes show an attachment preview. The Feed cache version is `20261009-feed-post-composer-v17`.
+
+The browser regression passed against repository source and the deployed overlay, including 50 accepted images, a rejected 51st, the reveal control, shared mention selection, formatting icons, and finishing comment dictation and post recording from their icons. JavaScript syntax and diff checks passed. Web, pool, and compatibility passed local readiness and outbound-safety checks after sequential activation. The public Feed and tagging scripts returned HTTP 200 with SHA-256 hashes `a36e26185a63133097b363d5024dd6f1232267f7527a7aaf28a816adba3816b9` and `2d1b266fd67b6baaf011390fa658eacce717bcde188e64e686e962e5c498e513`; public login returned HTTP 200. The final server audit found those same assets on all three roles. Web and pool served `/opt/firstmeasure/releases/6cd0c7c032ca1435d7cad4bdc1ee3fba5817f61c`; compatibility served `/mnt/firstmeasure_dev_releases/releases/6cd0c7c032ca1435d7cad4bdc1ee3fba5817f61c`. Recheck active symlinks before rollback because other dev releases may supersede these paths.
+
+## Follow-up: separate List layouts for Time and Project
+
+Code commit `15b0e615d6b6d219f64438cb5966effcbd188c8d` makes Organize by Time a single-column activity row with the project name beneath the activity, a note or media/document preview below, and the time at far right. The project name still opens the Overview tab and still provides the project hover summary. Organize by Project keeps the existing right-side project panel with its cover image, name, and address, shared by that project's activity rows. Rows without previews align their activity line vertically with the actor avatar. Both organizations bold only the actor name. Inline typed event summary widgets are removed from List; existing media, note, and document previews remain. The Feed cache version is `20261009-feed-list-layout-v18`.
+
+The browser regression passed against repository source and the deployment overlay, covering both List organizations, project navigation and hover metadata, actor emphasis, media and document fallbacks, and responsive layout. JavaScript syntax and diff checks passed. Web, pool, and compatibility passed local readiness and outbound-safety checks after sequential activation. The public Feed asset and login returned HTTP 200; the served Feed asset matched SHA-256 `31440230dd2893a042b009ba30b2b4e3b5ec232809bf029458766307c46d9163` on all three roles. Web and pool serve `/opt/firstmeasure/releases/15b0e615d6b6d219f64438cb5966effcbd188c8d`; compatibility serves `/mnt/firstmeasure_dev_releases/releases/15b0e615d6b6d219f64438cb5966effcbd188c8d`. Recheck active symlinks before rollback because other development releases may supersede these paths.
+
+## Follow-up: Channels composer controls and post image viewer
+
+Code commit `1ff52d140a164f68219dd242a1b53aa892936d0a` replaces the manual-post plain textarea with the Channels rich editor and formatter. Selected text now formats in place, and posts render through the Channels message renderer. Posts and comments use the shared Channels emoji picker and GIF control. The Feed manifest loads Channels before Feed. Post image attachments open in a modal with close and previous/next controls, including images revealed by Show more. A follow-up test commit is `1466c0883b3710ed547c81ec172ebc70229bc980`. The Feed and Channels cache version is `20261009-feed-composer-widgets-v19`.
+
+The Feed browser regression passed against repository source and the staged development overlay. It exercised rich formatting, list serialization, link insertion, emoji insertion, GIF selection, mentions, image navigation, and closing the image modal. The Channels mentions browser test, JavaScript syntax, and diff checks passed. Web, pool, and compatibility passed local readiness and outbound-safety checks after sequential activation. The public Feed and Channels assets returned HTTP 200 and matched SHA-256 `aa2e176079490a8e6297c94e9182f8d4ffb4d3cdff7e90afd988657f05042e69` and `1beaf86981772984d9ff5591b0b8868268f3183cd8807147f6d39e20685fb0e4` on all three roles. Public login returned HTTP 200 between activations. Web and pool serve `/opt/firstmeasure/releases/1466c0883b3710ed547c81ec172ebc70229bc980`; compatibility serves `/mnt/firstmeasure_dev_releases/releases/1466c0883b3710ed547c81ec172ebc70229bc980`. Web was staged from release `68a734d5a50af9d12c31d68a3e35f98d74a10ea3`; pool and compatibility were restaged from the newer concurrent release `26022ecc-user-preview-phone` to retain its other changes. Recheck active symlinks before rollback.
+
+
+## October 10: caret, table, formatting, mentions and audio parity
+
+Source commit: `3323ab8dffd7fc0823066ac0394f5d3943f3223c`, pushed to
+`origin/codex/feed-department-posts-dev`.
+
+- The shared Channels rich editor remembers its real selection before an emoji
+  picker or other control takes focus. Emoji insertion returns to the selected
+  caret, including in the middle or last line of a draft.
+- The shared table size picker retains its hovered cells while updating the
+  selection, so clicking a size inserts the chosen table at the editor caret.
+- Clear formatting removes inline styles, links and block formatting from the
+  selection. When no text is selected, it clears the draft's formatting.
+- The Channels searchable @ toolbar menu is exported through `composerWidgets`
+  and used by Posts and comments. Feed candidates remain restricted to employees
+  in the post audience; Channels retains its conversation/group/agent targets.
+- Posts no longer discard the audio-note waveform player when recording finishes.
+  They retain the shared `FirstMateAudioNotes.prepareInline` and `mountPrepared`
+  playback/remove UI through attachment and audience changes. Comments remount
+  the same prepared player through card redraws. Audio-note blob URLs are released
+  when the note is removed or successfully posted. Dictation uses the same inline
+  recorder and transcription flow; clicking its active icon finishes capture.
+
+Local source files (under the shared `firstmeasure-feed-release` checkout):
+
+- `public/libraries/apps/photos/feed.js`
+- `public/libraries/channels-ui/channels-ui.js`
+- `public/libraries/apps/firstmate-apps-manifest.js`
+- `public/v1/tests/feed-browser.test.mjs`
+- `public/v1/tests/channels-mentions-ui.test.mjs`
+
+Prepared deployment: `output/feed-list-right-project/v20/`. It applies only this
+source delta onto downloaded active Feed/Channels files and changes the relevant
+manifest cache tokens to `20261010-feed-composer-parity-v20`. The current audio
+library remains part of each server baseline.
+
+Validation: Feed browser coverage passed against the prepared Feed/Channels files
+and the downloaded active audio library. The browser supplied a real oscillator
+stream rather than requesting a microphone; the real recorder, waveform builder,
+playback controls and dictation flow ran. This verifies the UI lifecycle, not
+physical microphone permissions or a live transcription provider. Tests also
+cover emoji caret placement after picker search, interior insertion, table rows
+and columns, whole-draft and selected-text Clear formatting, searched @ selection,
+post/comment audio playback and removal, and preview retention during dictation
+and audience changes. The Channels mention browser regression passed against the
+prepared Channels file.
+
+Runtime SHA-256:
+
+| File | Hash |
+| --- | --- |
+| Feed | `f3f984b26e1d62a572dca1a3f8653603b1d24fb7cecdde9b8d83d579221e4429` |
+| Channels UI | `e33914a8806a5c8b67febd4810b81429227bea9e584c13799ec3383e21f71e27` |
+| Web manifest | `210e81dbf10940517b5e6e662549ac56940ea82bcfd2f524825e9e9375204dcd` |
+| Pool manifest | `a2558139830e708b0fa1fa615722b194b9381dfaa48f9744bb70c2cdc7ccaf07` |
+| Compatibility manifest | `d6c47836e382b68d1edee1bd4354a7e9297257527a5010d23890696776a6ea6d` |
+
+The first staged web candidate was rejected by the activation guard after another
+release landed. It was preserved with suffix `-staged-from-9831303f`. Web was
+restaged from `/opt/firstmeasure/releases/aaa9d0d168ef83249663fcbf7e56a253e72668a5`,
+preserving that release's manifest change. Pool and compatibility were staged from
+`9831303f801cf56581e4fc0876d9a4e1d9d73393` on their respective release filesystems.
+
+Activation and final verification completed on web, pool and compatibility. All
+three report `ok:true`, release `3323ab8dffd7fc0823066ac0394f5d3943f3223c`,
+`data_environment:development` and enforced outbound safety. Active paths:
+
+- Web/pool: `/opt/firstmeasure/releases/3323ab8dffd7fc0823066ac0394f5d3943f3223c`
+- Compatibility: `/mnt/firstmeasure_dev_releases/releases/3323ab8dffd7fc0823066ac0394f5d3943f3223c`
+
+Public HTTPS Feed and Channels assets matched the runtime hashes above. The
+public manifest matched the web manifest and contains the new cache token.
+
+To rerun prepared-runtime coverage, set `FEED_BROWSER_SCRIPT`,
+`CHANNELS_BROWSER_SCRIPT` and `AUDIO_BROWSER_SCRIPT` to the corresponding prepared
+Feed/Channels files and downloaded active audio library, then run
+`node public/v1/tests/feed-browser.test.mjs`. The Channels mention test also accepts
+`CHANNELS_BROWSER_SCRIPT` for release-file verification.
