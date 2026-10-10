@@ -93,6 +93,7 @@ const CAMPAIGN_USECASES = [
   "HIGHER_EDUCATION",
   "MARKETING",
   "MIXED",
+  "LOW_VOLUME",
   "POLLING_VOTING",
   "PUBLIC_SERVICE_ANNOUNCEMENT",
   "SECURITY_ALERT",
@@ -138,7 +139,8 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "optoutMessage", "helpKeywords", "helpMessage", "embeddedLink", "embeddedLinkSample", "embeddedPhone",
   "numberPool", "directLending", "ageGated", "termsAndConditions", "termsAndConditionsLink", "privacyPolicyLink",
   "autoRenewal", "enabledFeatures", "featuresConfirmed", "consentAcknowledged", "standardizationVersion",
-  "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode"
+  "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode", "optInMethod", "optInLocationUrl",
+  "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed"
 ] as const;
 
 function editableBrand(value: unknown) {
@@ -586,6 +588,36 @@ function validateBrandDraft(brandInput: JsonObject) {
   };
 }
 
+function campaignSubUsecases(campaign: JsonObject) {
+  const features = Array.isArray(campaign.enabledFeatures) ? campaign.enabledFeatures.map(cleanText) : [];
+  return [
+    ...(features.includes("crm_conversations") ? ["CUSTOMER_CARE"] : []),
+    ...(features.includes("operations") ? ["ACCOUNT_NOTIFICATION"] : []),
+    ...(features.includes("customer_growth") ? ["MARKETING"] : [])
+  ];
+}
+
+function validPublicHttpsUrl(value: unknown) {
+  try {
+    const url = new URL(cleanText(value));
+    return url.protocol === "https:" && Boolean(url.hostname.includes(".")) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function campaignMessageFlow(campaign: JsonObject) {
+  if (cleanText(campaign.usecase).toUpperCase() !== "LOW_VOLUME") return cleanText(campaign.messageFlow);
+  return [
+    cleanText(campaign.messageFlow),
+    `Opt-in method: ${cleanText(campaign.optInMethod).replace(/_/g, " ")}.`,
+    cleanText(campaign.optInLocationUrl) ? `Opt-in location: ${cleanText(campaign.optInLocationUrl)}.` : "",
+    cleanText(campaign.optInEvidenceUrl) ? `Public opt-in evidence: ${cleanText(campaign.optInEvidenceUrl)}.` : "",
+    `Exact recipient-facing SMS consent language: ${cleanText(campaign.optInDisclosure)}`,
+    `Privacy Policy: ${cleanText(campaign.privacyPolicyLink)}. SMS Terms: ${cleanText(campaign.termsAndConditionsLink)}.`
+  ].filter(Boolean).join(" ");
+}
+
 function validateCampaignDraft(campaignInput: JsonObject) {
   const usecase = normalizeEnum(campaignInput.usecase, CAMPAIGN_USECASES, "");
   const missing = [];
@@ -594,9 +626,32 @@ function validateCampaignDraft(campaignInput: JsonObject) {
   }
   if (!usecase) missing.push("usecase");
   const enabledFeatures = Array.isArray(campaignInput.enabledFeatures) ? campaignInput.enabledFeatures.map(cleanText) : [];
-  if (["AGENTS_FRANCHISES", "MIXED", "SOLE_PROPRIETOR"].includes(usecase) && enabledFeatures.length === 0) missing.push("enabledFeatures");
-  if (enabledFeatures.includes("customer_growth") && !["AGENTS_FRANCHISES", "MIXED", "MARKETING", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
-  if (enabledFeatures.includes("operations") && !["AGENTS_FRANCHISES", "MIXED", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase) && enabledFeatures.length === 0) missing.push("enabledFeatures");
+  if (enabledFeatures.includes("customer_growth") && !["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "MARKETING", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (enabledFeatures.includes("operations") && !["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
+  if (usecase === "LOW_VOLUME") {
+    const subUsecases = campaignSubUsecases(campaignInput);
+    if (subUsecases.length < 2) missing.push("lowVolumeSubUsecases");
+    if (cleanText(campaignInput.description).length < 40 || cleanText(campaignInput.description).length > 4096) missing.push("descriptionLength");
+    if (cleanText(campaignInput.messageFlow).length < 40) missing.push("messageFlowLength");
+    if (campaignInput.policyContentConfirmed !== true) missing.push("policyContentConfirmed");
+    if (!["WEBSITE_FORM", "PAPER_FORM", "VERBAL", "KEYWORD"].includes(cleanText(campaignInput.optInMethod))) missing.push("optInMethod");
+    if (cleanText(campaignInput.optInMethod) === "WEBSITE_FORM" && campaignInput.websiteFormConfirmed !== true) missing.push("websiteFormConfirmed");
+    if (cleanText(campaignInput.optInMethod) === "WEBSITE_FORM" && !validPublicHttpsUrl(campaignInput.optInLocationUrl)) missing.push("optInLocationUrl");
+    if (cleanText(campaignInput.optInMethod) === "KEYWORD" && !validPublicHttpsUrl(campaignInput.optInLocationUrl) && !validPublicHttpsUrl(campaignInput.optInEvidenceUrl)) missing.push("optInLocationUrl");
+    if (cleanText(campaignInput.optInEvidenceUrl) && !validPublicHttpsUrl(campaignInput.optInEvidenceUrl)) missing.push("optInEvidenceUrl");
+    const disclosure = cleanText(campaignInput.optInDisclosure);
+    if (!/\b(?:SMS|text messages?|texts?)\b/i.test(disclosure) || !/\bSTOP\b/i.test(disclosure) || !/\bHELP\b/i.test(disclosure)
+      || !/\b(?:frequency|freq|messages? per|messages? may vary)\b/i.test(disclosure)
+      || !/\b(?:message|msg)\b.*\bdata rates\b/i.test(disclosure)
+      || !/not\s+(?:sell\s+or\s+)?share.*(?:mobile|phone|SMS|opt.in).*third.part/i.test(disclosure)) missing.push("optInDisclosure");
+    if (enabledFeatures.includes("customer_growth") && (!/marketing|promotional/i.test(cleanText(campaignInput.description))
+      || !/marketing|promotional/i.test(cleanText(campaignInput.messageFlow))
+      || !/marketing|promotional/i.test(disclosure)
+      || !/consent is not a condition of purchase|not required (?:to|for) (?:a )?purchase/i.test(disclosure)
+      || !nonEmpty(campaignInput.sample3))) missing.push("marketingDescriptionAndSamples");
+    if (campaignMessageFlow(campaignInput).length > 2048) missing.push("messageFlowMaxLength");
+  }
   if (normalizeBoolean(campaignInput.subscriberOptin, true) && !nonEmpty(campaignInput.optinMessage)) {
     missing.push("optinMessage");
   }
@@ -693,7 +748,8 @@ function campaignPayload(profile: SmsComplianceProfile, referenceRevision = "ini
     brandId,
     usecase: cleanText(campaign.usecase || "CUSTOMER_CARE").toUpperCase(),
     description: cleanText(campaign.description),
-    messageFlow: cleanText(campaign.messageFlow),
+    messageFlow: campaignMessageFlow(campaign),
+    ...(cleanText(campaign.usecase).toUpperCase() === "LOW_VOLUME" ? { subUsecases: campaignSubUsecases(campaign) } : {}),
     sample1: cleanText(campaign.sample1),
     sample2: cleanText(campaign.sample2),
     sample3: cleanText(campaign.sample3),
@@ -811,6 +867,14 @@ function validateCampaignContent(profile: SmsComplianceProfile) {
   if (brandName && samples.some((sample) => !sample.toLowerCase().includes(brandName))) issues.push("Every sample message must identify the registered business display name.");
   if (samples.some((sample) => !/\bSTOP\b/i.test(sample))) issues.push("Every sample message must explain how to opt out with STOP.");
   if (!/opt[ -]?in|consent|agree/i.test(cleanText(campaign.messageFlow))) issues.push("The message flow must clearly explain how recipients opt in or consent.");
+  if (cleanText(campaign.usecase).toUpperCase() === "LOW_VOLUME") {
+    if (brandName && !cleanText(campaign.optInDisclosure).toLowerCase().includes(brandName)) {
+      issues.push("The actual opt-in language must identify the registered business name.");
+    }
+    if (campaignSubUsecases(campaign).length > samples.length) {
+      issues.push("Provide at least one representative sample for each registered messaging purpose.");
+    }
+  }
   const autoresponses = smsAutoresponsePlan(profile);
   if (!autoresponses.ok) issues.push(`START/STOP/HELP response requirements are incomplete: ${autoresponses.issues.join(", ")}.`);
   return { ok: issues.length === 0, issues };
@@ -1533,7 +1597,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     defaults: {
       brand: { country: "US", entityType: "PRIVATE_PROFIT", vertical: "CONSTRUCTION" },
       campaign: {
-        usecase: "AGENTS_FRANCHISES",
+        usecase: "LOW_VOLUME",
         subscriberOptin: true,
         subscriberOptout: true,
         subscriberHelp: true,

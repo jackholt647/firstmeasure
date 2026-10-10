@@ -4891,7 +4891,7 @@
         isReseller: false
       },
       campaign: {
-        usecase: 'AGENTS_FRANCHISES',
+        usecase: 'LOW_VOLUME',
         subscriberOptin: true,
         subscriberOptout: true,
         subscriberHelp: true,
@@ -5125,19 +5125,18 @@
       const website = String(base.brand?.website || '').trim();
       const soleProprietor = String(base.brand?.entityType || '').toUpperCase() === 'SOLE_PROPRIETOR';
       const savedMessageFlow = String(base.campaign?.messageFlow || '').trim();
-      const legacyGeneratedFlow = /customer-facing FirstMate forms|appointment requests, project communications/i.test(savedMessageFlow);
-      const documentedMessageFlow = `Recipients provide consent directly to ${company} in a documented written or verbal customer interaction. For promotional messages, ${company} obtains prior express written consent. An authorized staff member records the consent source, timestamp, disclosure version, messaging purpose, and supporting evidence in FirstMate before sending. FirstMate blocks SMS without active consent. Recipients can opt out at any time by replying STOP and can request help by replying HELP.`;
+      const legacyGeneratedFlow = /customer-facing FirstMate forms|appointment requests, project communications|Recipients provide consent directly to .* in a documented written or verbal customer interaction/i.test(savedMessageFlow);
       return {
         ...base.campaign,
         enabledFeatures: selectedIds,
         featuresConfirmed: base.campaign.featuresConfirmed === true,
         messageFlowConfirmed: base.campaign.messageFlowConfirmed === true,
-        usecase: soleProprietor ? 'SOLE_PROPRIETOR' : 'AGENTS_FRANCHISES',
-        description: ((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_06fe758a940598",`${v0} uses FirstMate CRM to send opted-in customers and leads SMS related to ${v1}. Messages support customer conversations, operational updates, reminders, and account-related communication from the business.`,{v0,v1}) ?? `${v0} uses FirstMate CRM to send opted-in customers and leads SMS related to ${v1}. Messages support customer conversations, operational updates, reminders, and account-related communication from the business.`)(company,featureLabels || 'customer communication'),
-        messageFlow: savedMessageFlow && !legacyGeneratedFlow ? savedMessageFlow : documentedMessageFlow,
-        sample1: `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply STOP to opt out.`,
-        sample2: `Hi Jane, ${company} sent your estimate for review: ${website || 'https://example.com'}. Reply HELP for help or STOP to opt out.`,
-        sample3: includesMarketing ? `Hi Jane, ${company} has a seasonal offer available this week. Reply STOP to opt out.` : '',
+        usecase: smsHasProviderCampaign(base) ? base.campaign.usecase : soleProprietor ? 'SOLE_PROPRIETOR' : 'LOW_VOLUME',
+        description: base.campaign.description || `${company} uses FirstMate CRM to send opted-in customers SMS for ${featureLabels || 'customer communication'}${includesMarketing ? ', including marketing and promotional offers' : ''}. Messages come from ${company} and reflect the selected purposes.`,
+        messageFlow: savedMessageFlow && !legacyGeneratedFlow ? savedMessageFlow : '',
+        sample1: base.campaign.sample1 || (selectedIds.includes('crm_conversations') ? `Hi Jane, this is ${company}. Thanks for contacting us. How can we help with your project? Reply STOP to opt out.` : `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply STOP to opt out.`),
+        sample2: base.campaign.sample2 || (selectedIds.includes('operations') ? `Hi Jane, this is ${company}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply HELP for help or STOP to opt out.` : `Hi Jane, this is ${company}. We received your question and will follow up shortly. Reply HELP for help or STOP to opt out.`),
+        sample3: base.campaign.sample3 || (includesMarketing ? `Hi Jane, ${company} has a seasonal offer available this week. Reply STOP to opt out.` : ''),
         subscriberOptin: true,
         subscriberOptout: true,
         subscriberHelp: true,
@@ -5147,15 +5146,15 @@
         optinMessage: `${company}: You are subscribed to SMS. Message frequency varies. Msg & data rates may apply. Reply HELP for help or STOP to opt out.`,
         optoutMessage: `${company}: You are unsubscribed and will receive no more SMS messages. Reply START to resubscribe.`,
         helpMessage: `${company} SMS: Help at ${String(base.brand?.email || 'support').trim()}. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.`,
-        embeddedLink: true,
-        embeddedLinkSample: website || 'https://example.com',
-        embeddedPhone: false,
+        embeddedLink: /https?:\/\//i.test([base.campaign.sample1, base.campaign.sample2, base.campaign.sample3, base.campaign.sample4, base.campaign.sample5].filter(Boolean).join(' ')),
+        embeddedLinkSample: base.campaign.embeddedLinkSample || ([base.campaign.sample1, base.campaign.sample2, base.campaign.sample3, base.campaign.sample4, base.campaign.sample5].join(' ').match(/https?:\/\/[^\s]+/i) || [])[0] || '',
+        embeddedPhone: /(?:\+?1[\s.-]?)?\(?[2-9]\d{2}\)?[\s.-]?[2-9]\d{2}[\s.-]?\d{4}/.test([base.campaign.sample1, base.campaign.sample2, base.campaign.sample3, base.campaign.sample4, base.campaign.sample5].filter(Boolean).join(' ')),
         numberPool: false,
         directLending: false,
         ageGated: false,
         termsAndConditions: true,
-        privacyPolicyLink: base.campaign.privacyPolicyLink || (website ? `${website.replace(/\/+$/, '')}/privacy` : ''),
-        termsAndConditionsLink: base.campaign.termsAndConditionsLink || (website ? `${website.replace(/\/+$/, '')}/terms` : ''),
+        privacyPolicyLink: base.campaign.privacyPolicyLink || '',
+        termsAndConditionsLink: base.campaign.termsAndConditionsLink || '',
         standardizationVersion: 'firstmate-crm-10dlc-v2'
       };
     }
@@ -5388,6 +5387,14 @@
         return false;
       }
     }
+    function smsValidHttpsUrl(value){
+      try {
+        const url = new URL(String(value || '').trim());
+        return url.protocol === 'https:' && url.hostname.includes('.') && !url.username && !url.password;
+      } catch(e) {
+        return false;
+      }
+    }
     function smsValidPhone(value){
       const raw = String(value || '').trim();
       const compact = raw.replace(/[^\d+]/g, '');
@@ -5433,7 +5440,9 @@
           if (!smsValidPhone(brand.mobilePhone)) missing.push('Valid mobile phone for OTP');
         }
       } else if (step === 'features') {
-        if (!smsSelectedFeatures(profile).length) missing.push('At least one SMS feature');
+        if (String(brand.entityType || '').toUpperCase() === 'SOLE_PROPRIETOR') {
+          if (!smsSelectedFeatures(profile).length) missing.push('At least one SMS feature');
+        } else if (smsSelectedFeatures(profile).length < 2) missing.push('At least two Low Volume Mixed SMS purposes');
         if (campaign.featuresConfirmed !== true) missing.push('Feature confirmation');
       } else if (step === 'number') {
         if (!smsNormalizePhone(campaign.selectedNumber)) missing.push('Selected phone number');
@@ -5444,11 +5453,31 @@
         requireFields(smsGeneratedCampaign(profile), [
           ['description', 'Campaign description'],
           ['messageFlow', 'Opt-in / message flow'],
+          ['optInMethod', 'Opt-in method'],
+          ['optInDisclosure', 'Exact SMS consent language'],
+          ['privacyPolicyLink', 'Privacy policy URL'],
+          ['termsAndConditionsLink', 'SMS terms URL'],
           ['sample1', 'Sample message 1'],
+          ['sample2', 'Sample message 2'],
           ['optinMessage', 'Opt-in message'],
           ['optoutMessage', 'Opt-out message'],
           ['helpMessage', 'Help message']
         ]);
+        if (String(campaign.description || '').trim().length < 40) missing.push('Campaign description of at least 40 characters');
+        if (String(campaign.messageFlow || '').trim().length < 40) missing.push('Opt-in flow of at least 40 characters');
+        if (['sample1', 'sample2', 'sample3', 'sample4', 'sample5'].some((key) => String(campaign[key] || '').length > 255)) missing.push('Sample messages under 256 characters');
+        if (!['WEBSITE_FORM', 'PAPER_FORM', 'VERBAL', 'KEYWORD'].includes(campaign.optInMethod)) missing.push('Valid opt-in method');
+        if (campaign.optInMethod === 'WEBSITE_FORM' && !smsValidHttpsUrl(campaign.optInLocationUrl)) missing.push('Public HTTPS opt-in form URL');
+        if (campaign.optInMethod === 'KEYWORD' && !smsValidHttpsUrl(campaign.optInLocationUrl) && !smsValidHttpsUrl(campaign.optInEvidenceUrl)) missing.push('Public keyword advertisement or screenshot URL');
+        if (campaign.optInEvidenceUrl && !smsValidHttpsUrl(campaign.optInEvidenceUrl)) missing.push('Valid HTTPS opt-in evidence URL');
+        if (!smsValidHttpsUrl(campaign.privacyPolicyLink)) missing.push('Public HTTPS Privacy Policy URL');
+        if (!smsValidHttpsUrl(campaign.termsAndConditionsLink)) missing.push('Public HTTPS SMS Terms URL');
+        if (!/\b(?:SMS|text messages?|texts?)\b/i.test(String(campaign.optInDisclosure || '')) || !/\bSTOP\b/i.test(String(campaign.optInDisclosure || '')) || !/\bHELP\b/i.test(String(campaign.optInDisclosure || '')) || !/\b(?:frequency|freq)\b/i.test(String(campaign.optInDisclosure || '')) || !/\b(?:message|msg)\b.*\bdata rates\b/i.test(String(campaign.optInDisclosure || '')) || !/not\s+(?:sell\s+or\s+)?share.*(?:mobile|phone|SMS|opt.in).*third.part/i.test(String(campaign.optInDisclosure || ''))) missing.push('Complete SMS consent disclosure');
+        if (smsSelectedFeatures(profile).length < 2 && String(brand.entityType || '').toUpperCase() !== 'SOLE_PROPRIETOR') missing.push('At least two Low Volume Mixed purposes');
+        if (campaign.policyContentConfirmed !== true) missing.push('SMS policy confirmation');
+        if (campaign.optInMethod === 'WEBSITE_FORM' && campaign.websiteFormConfirmed !== true) missing.push('Website SMS opt-in confirmation');
+        if (smsSelectedFeatures(profile).includes('customer_growth') && !smsValuePresent(campaign.sample3)) missing.push('Marketing sample message');
+        if (smsSelectedFeatures(profile).includes('customer_growth') && (!/marketing|promotional/i.test(String(campaign.description || '')) || !/marketing|promotional/i.test(String(campaign.messageFlow || '')) || !/marketing|promotional/i.test(String(campaign.optInDisclosure || '')) || !/consent is not a condition of purchase|not required (?:to|for) (?:a )?purchase/i.test(String(campaign.optInDisclosure || '')))) missing.push('Explicit marketing consent and purchase disclaimer');
         if (campaign.consentAcknowledged !== true) missing.push('Consent acknowledgement');
         if (campaign.messageFlowConfirmed !== true) missing.push('Opt-in flow confirmation');
       }
@@ -5632,9 +5661,24 @@
           <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_7208bb798610d6","Confirm the business, contact, and SMS feature details before submitting this registration.") ?? "Confirm the business, contact, and SMS feature details before submitting this registration.")}</p>
         </div>
         ${String(smsReviewRows(profile))}
+        <div class="sms-consent-box"><h4>Campaign details for carrier review</h4><p>Use the business's real, live consent process and actual messages. Telnyx compares these answers with the public website and may reject a registration that uses generic or inaccurate examples.</p></div>
         <div class="sms-form-grid">
+          ${String(smsField('campaign.description', 'Campaign Description', profile.campaign?.description, { kind: 'textarea', wide: true, required: true, hint: 'Name the business and every selected messaging purpose. Include marketing or promotional texts when Customer Growth is selected.' }))}
+          ${String(smsField('campaign.optInMethod', 'How recipients agree to SMS', profile.campaign?.optInMethod, { kind: 'select', values: ['', 'WEBSITE_FORM', 'PAPER_FORM', 'VERBAL', 'KEYWORD'], required: true }))}
+          ${String(smsField('campaign.optInLocationUrl', 'Public opt-in page or keyword location URL', profile.campaign?.optInLocationUrl, { type: 'url', wide: true, hint: 'Required for website forms. Link directly to the working form, not just the home page.' }))}
+          ${String(smsField('campaign.optInEvidenceUrl', 'Public screenshot of opt-in (recommended)', profile.campaign?.optInEvidenceUrl, { type: 'url', wide: true, hint: 'Especially helpful for popups, paper forms, or a form behind a login.' }))}
+          ${String(smsField('campaign.optInDisclosure', 'Exact SMS consent language or verbal script', profile.campaign?.optInDisclosure, { kind: 'textarea', wide: true, required: true, hint: 'Copy the wording recipients actually see or hear. Include business and message types, frequency, rates, STOP, HELP, policy links, and no third-party sharing of SMS consent. For marketing, state that consent is not a condition of purchase.' }))}
           ${String(smsField('campaign.messageFlow', 'Actual Recipient Opt-in Flow', smsGeneratedCampaign(profile).messageFlow, { kind: 'textarea', wide: true, required: true, hint: 'Describe only consent paths this business actually operates; carrier reviewers compare this to production behavior.' }))}
+          ${String(smsField('campaign.privacyPolicyLink', 'Public Privacy Policy URL', profile.campaign?.privacyPolicyLink, { type: 'url', wide: true, required: true }))}
+          ${String(smsField('campaign.termsAndConditionsLink', 'Public SMS Terms URL', profile.campaign?.termsAndConditionsLink, { type: 'url', wide: true, required: true }))}
+          ${String(smsField('campaign.sample1', 'Sample SMS 1', profile.campaign?.sample1, { kind: 'textarea', wide: true, required: true }))}
+          ${String(smsField('campaign.sample2', 'Sample SMS 2', profile.campaign?.sample2, { kind: 'textarea', wide: true, required: true }))}
+          ${String(smsField('campaign.sample3', 'Sample SMS 3 (required for Customer Growth)', profile.campaign?.sample3, { kind: 'textarea', wide: true }))}
+          ${String(smsField('campaign.sample4', 'Sample SMS 4 (optional)', profile.campaign?.sample4, { kind: 'textarea', wide: true }))}
+          ${String(smsField('campaign.sample5', 'Sample SMS 5 (optional)', profile.campaign?.sample5, { kind: 'textarea', wide: true }))}
         </div>
+        <label class="sms-ack"><input type="checkbox" data-sms-field="campaign.policyContentConfirmed" ${profile.campaign?.policyContentConfirmed === true ? 'checked' : ''}><span>I checked the live Privacy Policy and SMS Terms. They describe this program, STOP and HELP, rates and frequency, and state that SMS opt-in data is not sold or shared for unrelated marketing.</span></label>
+        <label class="sms-ack"><input type="checkbox" data-sms-field="campaign.websiteFormConfirmed" ${profile.campaign?.websiteFormConfirmed === true ? 'checked' : ''}><span>If I use a website form, its SMS checkbox is optional, unchecked by default, separate from other consent, clearly names the business and message types, links to these policies, and records consent when submitted.</span></label>
         <div class="sms-compliance-note">
           <i class="fas fa-circle-info"></i>
           <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_82efa0807f285b","Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.") ?? "Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.")}</span>
@@ -5699,7 +5743,7 @@
         </div>`;
       }
       if (step === 'features') {
-        return `<div class="sms-consent-box"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_d91c5ee1137f8e","Choose SMS features") ?? "Choose SMS features")}</h4><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_f54fd77982326c","Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has explicit marketing consent and intends to send promotional content.") ?? "Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has explicit marketing consent and intends to send promotional content.")}</p></div>${String(smsFeatureTiles(profile))}`;
+        return `<div class="sms-consent-box"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_d91c5ee1137f8e","Choose SMS features") ?? "Choose SMS features")}</h4><p>Low Volume Mixed registration needs at least two messaging purposes. Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has separate, explicit marketing consent and intends to send promotional content.</p></div>${String(smsFeatureTiles(profile))}`;
       }
       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
       return smsSummaryContent(profile);

@@ -30,7 +30,7 @@ export function outboundSmsComplianceIssue(profile: SmsComplianceRuleProfile | n
   const configuredFeatures = Array.isArray(campaign.enabledFeatures) ? campaign.enabledFeatures.map((value) => cleanText(value)) : [];
   const allowed = new Set<string>();
 
-  if (["AGENTS_FRANCHISES", "MIXED", "SOLE_PROPRIETOR"].includes(usecase)) {
+  if (["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase)) {
     if (configuredFeatures.includes("crm_conversations")) allowed.add("customer_care");
     if (configuredFeatures.includes("operations")) {
       for (const value of ["transactional", "appointment", "project_update", "billing"]) allowed.add(value);

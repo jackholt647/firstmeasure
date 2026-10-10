@@ -901,6 +901,29 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
   assert.equal(campaignDryRun.payload.usecase, "CUSTOMER_CARE");
   assert.equal(campaignDryRun.payload.subscriberOptout, true);
 
+  const lowVolume = await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {
+    campaign: {
+      usecase: "LOW_VOLUME",
+      enabledFeatures: ["crm_conversations", "operations", "customer_growth"],
+      description: "FirstMate Test sends customer care, appointment updates, and marketing offers to customers who separately opt in.",
+      messageFlow: "Customers opt in to customer care, appointment notices, and marketing texts using an unchecked SMS checkbox on our public booking form before receiving messages.",
+      optInMethod: "WEBSITE_FORM",
+      optInLocationUrl: "https://example.test/book",
+      optInEvidenceUrl: "https://example.test/sms-consent-screenshot",
+      optInDisclosure: "Receive customer care, appointment notices, and marketing texts from FirstMate Test. Message frequency varies. Message & data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase. We will not share mobile information with third parties for marketing.",
+      policyContentConfirmed: true,
+      websiteFormConfirmed: true,
+      sample3: "FirstMate Test: Our fall roof inspection offer is available this week. Reply STOP to opt out."
+    }
+  });
+  assert.equal(lowVolume.profile.validation.campaign.ok, true);
+  const lowVolumeDryRun = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/submit-campaign`, { dry_run: true });
+  assert.equal(lowVolumeDryRun.payload.usecase, "LOW_VOLUME");
+  assert.deepEqual(lowVolumeDryRun.payload.subUsecases, ["CUSTOMER_CARE", "ACCOUNT_NOTIFICATION", "MARKETING"]);
+  assert.match(lowVolumeDryRun.payload.messageFlow, /https:\/\/example\.test\/book/);
+  assert.match(lowVolumeDryRun.payload.messageFlow, /marketing texts from FirstMate Test/);
+  assert.match(lowVolumeDryRun.payload.messageFlow, /sms-consent-screenshot/);
+
   const status = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/status`);
   assert.equal(status.status, "draft");
   assert.equal(status.validation.ready_for_brand_submission, true);
