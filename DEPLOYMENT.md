@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 9 Channels composer: [Controls inside the message box](deploy/digitalocean/development-channels-composer-20261009.md) records the GitHub commit, staged frontend checks, verified development rollout and rollback.
+
 October 9 project primary images: [Satellite default and selected covers](deploy/digitalocean/development-project-primary-20261009.md) records the unified primary-image displays and verified development rollout.
 
 October 9 project photos: [Typed cover and reference-photo fields](deploy/digitalocean/development-project-cover-20261009.md) records the shared Photo custom-field cover, validation and verified development rollout.
