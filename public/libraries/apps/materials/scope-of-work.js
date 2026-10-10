@@ -50,6 +50,18 @@ export async function loadDocuments(orgId, projectId) {
     }catch(error){failures.push(error);}
   }));
   documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
+  // Older completed reports can predate dataset publication. Reuse the
+  // authorized read-only contracts rather than creating an import.
+  if(!documents.some(doc=>doc.source==='measurement'))try {
+    const report=await api.publication.read(orgId,{provider:'project-widgets',export:'report',target});
+    if(report.status==='ready'){
+      const quantities=await api.publication.read(orgId,{provider:'project-widgets',export:'measurements',target});
+      if(quantities.status==='ready'){
+        const measurements=Object.fromEntries((quantities.value.rows || []).filter(row=>typeof row.value==='number'&&Number.isFinite(row.value)).map(row=>[row.key,{value:row.value,unit:row.unit}]));
+        if(Object.keys(measurements).length)documents.push({id:`report:${report.value.reportId}`,title:'Completed measurement report',source:'measurement',value:{measurements,artifacts:[{id:report.value.reportId,kind:'firstmeasure.report'}]}});
+      }else if(quantities.status!=='missing')failures.push(quantities);
+    }else if(report.status!=='missing')failures.push(report);
+  }catch(error){failures.push(error);}
   return {documents,error:failures.length?'Some published scope data could not load.':''};
 }
 

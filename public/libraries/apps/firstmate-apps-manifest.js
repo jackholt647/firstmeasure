@@ -270,7 +270,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261010-published-scope-rail')]
+    bundles: [...channelsLibBundles, bundle('../materials-api/materials-api.js'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261010-published-scope-report-fallback')]
     },
     {
       id: 'project.money',

@@ -59,6 +59,17 @@ test('first Add creates only the requested resource list; later adds reuse it', 
   }
 });
 
+test('completed reports predating dataset publication remain readable without an import', async () => {
+  const calls=[];
+  globalThis.window={PlatformAPI:{baseUrl:()=> '/v1/platform',request:async path=>path.includes('calculus')?{ledger:{sets:[]}}:{documents:[]},publication:{list:async()=>({items:[]}),read:async(org,source)=>{
+    calls.push(source.export);return source.export==='report'?{status:'ready',value:{reportId:'completed-report'}}:{status:'ready',value:{rows:[{key:'roofArea',value:1200,unit:'ft2'},{key:'missing',value:'Pending',unit:'ft'}]}};
+  }}}};
+  try {
+    const result=await module.loadDocuments('org','project');assert.deepEqual(calls,['report','measurements']);assert.equal(result.documents.length,1);assert.deepEqual(result.documents[0].value.measurements,{roofArea:{value:1200,unit:'ft2'}});assert.equal(result.error,'');
+    window.PlatformAPI.publication.read=async()=>({status:'missing',code:'widget_report_unavailable'});const incomplete=await module.loadDocuments('org','project');assert.equal(incomplete.documents.length,0);
+  }finally{delete globalThis.window;}
+});
+
 test('the project renderer mounts the compact published rail without requiring widget labels', () => {
   let mounted=false,divider=false;
   const target={querySelector(){},textContent:''};
