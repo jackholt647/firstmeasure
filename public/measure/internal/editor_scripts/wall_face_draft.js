@@ -49,7 +49,7 @@ window.createWallFaceDraft=function(host){
   const on=onWorkingPlane;workingPlane.sceneEdits=host.state().wallEdits;
   const graph=sceneLines(),lines=[...graph.lines.values()].filter(pair=>pair.every(on)),points=graph.points.filter(on);
   const roof=host.state()?.roof;if(roof?.points){points.push(...roof.points.filter(on));for(const edge of roof.connections||[]){const a=roof.points[edge.startIdx],b=roof.points[edge.endIdx];if(a&&b&&on(a)&&on(b))lines.push([a,b]);}}
-  return workingPlane.scene={points,lines,curveGroups:[...graph.curveGroups.values()].filter(c=>c.pairs.every(pair=>pair.every(on)))};
+  return workingPlane.scene={points,lines:[...filterDeletedSceneLines(new Map(lines.map(pair=>[W.edgeKey(...pair),pair]))).values()],curveGroups:[...graph.curveGroups.values()].filter(c=>c.pairs.every(pair=>pair.every(on)))};
  }
  // Axis-defined planes remain transient until the user confirms their angle.
  const planeDot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,planeCross=(a,b)=>({x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x}),planeUnit=a=>{const l=Math.hypot(a.x,a.y,a.z);return l>1e-8?{x:a.x/l,y:a.y/l,z:a.z/l}:null;};
@@ -294,7 +294,12 @@ window.createWallFaceDraft=function(host){
   for(let y=Math.ceil(loY/spacing)*spacing;y<=hiY;y+=spacing)previewLine(group,vector,world(loX,y),world(hiX,y),'#31606b',true);
   for(const [a,b]of scene.lines)previewLine(group,vector,a,b,'#70ddeb');
   for(const pair of plane.selectedLines||[])window.wallSelectedLine(group,vector,pair.pair||pair);
-  if(selectionMarkers){for(const p of scene.points)selectablePoint(group,vector,p,'#70ddeb',5,plane.selection.some(q=>W.vertexKey(q)===W.vertexKey(p)),9);}else if(scene.points.length)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(scene.points.map(vector)),new THREE.PointsMaterial({color:'#70ddeb',size:5,sizeAttenuation:false,depthTest:false})));
+  // Keep plane points in their own marked batch: mixing them with off-plane
+  // points makes applyPlaneDisplay dim the entire batch, including these anchors.
+  const anchors=[...new Map(scene.points.map(p=>[W.vertexKey(p),p])).values()];
+  if(anchors.length){const halo=new THREE.Points(new THREE.BufferGeometry().setFromPoints(anchors.map(vector)),new THREE.PointsMaterial({color:'#10232b',size:13,sizeAttenuation:false,depthTest:false,depthWrite:false}));halo.renderOrder=999;group.add(halo);}
+  if(window.wallSelectablePoints&&THREE.Color)window.wallSelectablePoints(group,vector,anchors.map(p=>({p,key:W.vertexKey(p),color:'#8fefff',size:7,selected:plane.selection.some(q=>W.vertexKey(q)===W.vertexKey(p)),selectedSize:11})));
+  else if(anchors.length)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(anchors.map(vector)),new THREE.PointsMaterial({color:'#8fefff',size:7,sizeAttenuation:false,depthTest:false,depthWrite:false})));
   if(plane.hover)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints([vector(K.world(plane.frame,plane.hover))]),new THREE.PointsMaterial({color:'#FFD700',size:9,sizeAttenuation:false,depthTest:false})));
   if(!selectionMarkers&&plane.selection.length)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(plane.selection.map(vector)),new THREE.PointsMaterial({color:'#ffffff',size:9,sizeAttenuation:false,depthTest:false})));
   if(plane.drawing&&plane.hover)for(const p of plane.selection)previewLine(group,vector,p,K.world(plane.frame,plane.hover),'#FFD700');
@@ -594,6 +599,13 @@ function perf_snap(d,e,raw=null){
   const usable=p=>!on(p,trims)||on(p,supports);
   return {...graph,points:graph.points.filter(p=>!on(p,trims)||supports.some(f=>[f.points,...(f.holes||[])].flat().some(q=>distance3(p,q)<1e-5))),lines:new Map([...graph.lines].filter(([,pair])=>{const mid={x:(pair[0].x+pair[1].x)/2,y:(pair[0].y+pair[1].y)/2,z:(pair[0].z+pair[1].z)/2};return usable(mid);} ))};
  }
+ function filterDeletedSceneLines(lines){
+  // Base and draft edges join the wire graph after surfaceWire applies deletion
+  // masks. Apply the same masks to this combined graph, including partial runs.
+  const cuts=(host.state()?.wallEdits?.$removedSurfaceEdges||[]).map(key=>({points:key.split('|').map(s=>{const [x,y,z]=s.split(',').map(Number);return {x,y,z};})})).filter(f=>f.points.length===2&&f.points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
+  if(cuts.length)for(const [key,[a,b]]of [...lines]){const intervals=W.sharedIntervals(a,b,cuts);if(!intervals.length)continue;lines.delete(key);let lo=0;const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});for(const [start,end]of [...intervals,[1,1]]){if(start-lo>1e-7){const pair=[at(lo),at(start)];lines.set(W.edgeKey(...pair),pair);}lo=Math.max(lo,end);}}
+  return lines;
+ }
  function collectSceneLines(){
   const curveGroups=new Map(),graph=wire(),nodesById=new Map(graph.nodes.map(n=>[n.id,n])),node=id=>nodesById.get(id),segments=graph.edges.map(e=>[node(e.a),node(e.b)]),points=graph.nodes.filter(n=>!n.curveSample);
   for(const e of graph.edges.filter(e=>e.curve)){if(!curveGroups.has(e.id))curveGroups.set(e.id,{id:e.id,surfaceId:e.surfaceId,pairs:[]});curveGroups.get(e.id).pairs.push([node(e.a),node(e.b)]);}
@@ -602,6 +614,7 @@ function perf_snap(d,e,raw=null){
   for(const d of Object.values(all()))if(visibleDraft(d)){segments.push(...draftSegments(d).map(e=>[world(d,e.start),world(d,e.end)]));points.push(...draftNodes(d).map(n=>world(d,n)));}
   const topology=undraftedWallTopology();points.push(...[...new Set(topology.faces.flatMap(f=>f.pointIndices))].map(i=>topology.points[i]));segments.push(...topology.connections.map(e=>[topology.points[e.startIdx],topology.points[e.endIdx]]));
   const pointIndex=W.pointRangeIndex(points),lines=new Map();for(const [a,b] of segments){const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z,l2=dx*dx+dy*dy+dz*dz;if(l2<1e-12)continue;const ts=[0,1];for(const p of pointIndex.segment(a,b)){const t=((p.x-a.x)*dx+(p.y-a.y)*dy+(p.z-a.z)*dz)/l2;if(t>1e-6&&t<1-1e-6&&Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy,p.z-a.z-t*dz)<1e-5)ts.push(t);}ts.sort((a,b)=>a-b);const at=t=>({x:a.x+dx*t,y:a.y+dy*t,z:a.z+dz*t});for(let i=1;i<ts.length;i++)if(ts[i]-ts[i-1]>1e-6){const pair=[at(ts[i-1]),at(ts[i])];lines.set(W.edgeKey(...pair),pair);}}
+  filterDeletedSceneLines(lines);
   return {points,lines,baseSegments,curveGroups};
  }
  function lineCenterPoints(){return withSelectionGeometry(()=>renderDerived('line-centers:'+JSON.stringify(workingPlane?.frame||null),buildLineCenterPoints));}
@@ -1144,6 +1157,21 @@ function perf_previewEntity(e){
   host.state().wallEdits=copy(t.before);lineSelection=t.originalPairs.map(pair=>({id:W.edgeKey(...pair),pair}));
   setLinePlane();t.start=rayPoint(t.plane,t.initialMouse);if(mouse)previewLineMove(mouse);return true;
  }
+ // Extend the selected boundary along its incident edges instead of translating
+ // both endpoints at a fixed height across a sloping wall/base contact.
+ function extrusionBoundaryMoves(t,amount){
+  const face=t.scene.find(f=>f.id===t.candidates[t.planeIndex].id);if(!face)return [];
+  const edges=[face.points,...(face.holes||[])].flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),moves=[];
+  for(const pair of t.pairs)for(const p of pair){let best=null;
+   for(const [a,b]of edges){const end=distance3(p,a)<1e-5?b:distance3(p,b)<1e-5?a:null;if(!end)continue;
+    const d={x:end.x-p.x,y:end.y-p.y,z:end.z-p.z},length=Math.hypot(d.x,d.y,d.z),along=planeDot(d,t.direction),score=Math.abs(along)/length;
+    if(!Number.isFinite(score)||score<.5||best&&score<=best.score)continue;
+    const scale=amount/along;best={score,to:{x:p.x+d.x*scale,y:p.y+d.y*scale,z:p.z+d.z*scale}};
+   }
+   if(best)moves.push({from:p,to:best.to});
+  }
+  return moves;
+ }
  function previewLineMove(...args){if(!window.ExteriorPerf?.enabled)return perf_previewLineMove.apply(this,args);return window.ExteriorPerf.measure('Line move preview',()=>perf_previewLineMove.apply(this,args));}
 function perf_previewLineMove(e){
   const t=tool,p=rayPoint(t.plane,e);if(!t.normalMode&&!p)return;if(!t.normalMode&&!t.start){t.start=p;return;}
@@ -1157,7 +1185,7 @@ function perf_previewLineMove(e){
     const previous=host.state().wallEdits;host.state().wallEdits=edits;
     try{result={pairs:moveDraftLines(edits.$drafts[t.planarDraftKey],t.pairs,{x:t.direction.x*amount,y:t.direction.y*amount,z:t.direction.z*amount})};}
     finally{host.state().wallEdits=previous;}
-   }else{result=W.slideLines(copy(t.scene),t.pairs,t.direction,amount,{preserveConnections:t.extrude});applyLineResult(t,result,edits);}
+   }else{result=W.slideLines(copy(t.scene),t.pairs,t.direction,amount,{preserveConnections:t.extrude,pointMoves:t.extrude?extrusionBoundaryMoves(t,amount):undefined});applyLineResult(t,result,edits);}
    host.state().wallEdits=edits;t.invalid=false;t.changed=Math.abs(amount)>1e-6;t.amount=amount;t.result=result;lineSelection=result.pairs.map(pair=>({id:W.edgeKey(...pair),pair}));host.message(t.pathSnap?t.pathSnap.kind+' snap - click to place':'Face '+(t.planeIndex+1)+' / '+t.candidates.length+' - Line offset: '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((amount/.3048), 'ft') : (amount/.3048).toFixed(2)+" ft")+" - M changes face; click to place");
   }catch(error){t.invalid=true;t.pathSnap=null;host.message(error.message);}host.redraw();
  }

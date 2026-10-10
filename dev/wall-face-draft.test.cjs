@@ -2699,7 +2699,7 @@ test('plane line selection renders an edge highlight distinct from two selected 
 test('entering a spline face plane clears its face highlight and exposes only original controls',()=>{
  const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),p=(x,z)=>({x,y:0,z}),c={...K.splineThrough([p(1,3),p(3,3)],[p(2,3.8)],p(0,1)),id:'arch'},face=K.archFaces([{id:'window',points:[p(1,1),p(3,1),p(3,3),p(1,3)],holes:[],feature:{type:'window'}}],c).faces[0],state={wallEdits:{$surfaces:[face]}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
  f.editor.restoreSelection({selectedSolid:'window',faceSelection:[{solid:'window'}]});const before=JSON.stringify(state.wallEdits);f.editor.key({key:'p'});const selection=f.editor.selectionSnapshot();assert.equal(selection.selectedSolid,null);assert.equal(selection.faceSelection.length,0);assert.equal(selection.workingPlane.selection.length,0);assert.equal(JSON.stringify(state.wallEdits),before);
- const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const markers=objects.filter(o=>o.userData.planeGuide&&o.material.color==='#70ddeb'&&o.material.size===5);assert.equal(markers.length,1);assert.equal(markers[0].geometry.points.length,5,'two lower corners and three spline controls');
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const markers=objects.filter(o=>o.userData.planeGuide&&o.material.color==='#8fefff'&&o.material.size===7);assert.equal(markers.length,1);assert.equal(markers[0].geometry.points.length,5,'two lower corners and three spline controls');
 });
 
 test('copying explicitly selected loose lines outside plane mode retains edges through paste',()=>{
@@ -2707,7 +2707,7 @@ test('copying explicitly selected loose lines outside plane mode retains edges t
 });
 
 test('generated arched wall retains its spline controls in plane mode',()=>{
- const f=fixture({globals:{...renderGlobals(),isFreeMove:true}}),pair=[{x:0,y:0,z:4},{x:4,y:0,z:4}];f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,4));f.editor.key({key:'a'});f.editor.down(f.e(2,5));f.editor.key({key:'Enter'});const [key,d]=Object.entries(f.state.wallEdits.$drafts)[0];f.editor.restoreSelection({selectedRegion:{draft:key,face:d.faces[0].id}});const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'p'});assert.equal(f.editor.pointSelection().length,0);const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const markers=objects.filter(o=>o.userData.planeGuide&&o.material.color==='#70ddeb'&&o.material.size===5);assert.equal(markers[0].geometry.points.length,5);assert.equal(JSON.stringify(f.state.wallEdits),before);
+ const f=fixture({globals:{...renderGlobals(),isFreeMove:true}}),pair=[{x:0,y:0,z:4},{x:4,y:0,z:4}];f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,4));f.editor.key({key:'a'});f.editor.down(f.e(2,5));f.editor.key({key:'Enter'});const [key,d]=Object.entries(f.state.wallEdits.$drafts)[0];f.editor.restoreSelection({selectedRegion:{draft:key,face:d.faces[0].id}});const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'p'});assert.equal(f.editor.pointSelection().length,0);const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const markers=objects.filter(o=>o.userData.planeGuide&&o.material.color==='#8fefff'&&o.material.size===7);assert.equal(markers[0].geometry.points.length,5);assert.equal(JSON.stringify(f.state.wallEdits),before);
 });
 
 test('moving a spline control in plane mode reshapes the original curve',()=>{
@@ -2874,4 +2874,26 @@ for(const source of ['R7.0','R36.0'])for(const segment of [0,1])test(`captured t
  const saved=JSON.parse(JSON.stringify(state)),reloaded=fixture({state:saved,walls,selected:null,globals});assert.ok(reloaded.editor.soffitEdges().some(c=>c.source.id===source&&Math.abs(c.inset-.6096)<.002));
  for(const depth of [.6096,.9144,.6096]){assert.equal(reloaded.editor.soffitEdges().filter(c=>c.source.id===source).length>0,true);reloaded.editor.restoreSelection({lineSelection:reloaded.editor.soffitEdges().filter(c=>c.source.id===source).map(c=>({pair:c.pair}))});assert.equal(reloaded.editor.resoffit(depth),true,reloaded.message());assert.ok(reloaded.editor.soffitEdges().filter(c=>c.source.id===source).every(c=>Math.abs(c.inset-depth)<.002));}
  state.wallEdits=f.history.pop();assert.equal(JSON.stringify(state.wallEdits),before);
+});
+
+test('plane line deletion removes the edge from the refreshed plane scene immediately',()=>{
+ const p=(x,z)=>({x,y:0,z}),face={id:'wall',points:[p(0,0),p(4,0),p(4,4),p(0,4)]},pair=[p(5,1),p(7,1)],state={wallEdits:{$surfaces:[face],$loose:{points:pair,edges:[pair]}}},f=fixture({state,walls:[],selected:null,globals:{document:{getElementById:()=>({value:'line'})}}});
+ f.editor.togglePlane(face);f.editor.down(f.e(6,1));f.listeners.pointerup(f.e(6,1));f.editor.key({key:'Delete'});
+ f.editor.down(f.e(6,1));f.listeners.pointerup(f.e(6,1));assert.equal(f.editor.pointSelection().length,0,'deleted edge must not remain visible or snappable in plane mode');
+});
+
+test('plane mode does not resurrect a removed base edge or its noded subsegments',()=>{
+ const p=(x,y)=>({x,y,z:0}),face={id:'base',points:[p(0,0),p(4,0),p(4,4),p(0,4)]},W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),state={roof:{points:[p(0,0),p(4,0)],connections:[{startIdx:0,endIdx:1}]},base:{faces:[face]},wallEdits:{$removedSurfaceEdges:[W.edgeKey(p(1,0),p(3,0))],$loose:{points:[p(2,0)],edges:[]}}},f=fixture({state,walls:[],selected:null,screen:p=>({x:p.x*100,y:p.y*100}),globals:{document:{getElementById:()=>({value:'line'})}}});
+ f.editor.togglePlane(face);f.editor.down(f.e(2.5,0));f.listeners.pointerup(f.e(2.5,0));assert.equal(f.editor.pointSelection().length,0,'partial deleted edge is not selectable');f.editor.down(f.e(.5,0));f.listeners.pointerup(f.e(.5,0));assert.equal(f.editor.pointSelection().length,2,'unremoved remainder stays selectable');
+});
+for(const amount of [-.9,.9])test(`vertical edge extrusion follows its saved sloping wall boundaries (${amount})`,()=>{
+ const {face,base,pair}=structuredClone(require('./fixtures/sloped-base-edge-extrusion.json')),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),state={base,wallEdits:{$surfaces:[face]}},f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}}),before=JSON.stringify(state.wallEdits);
+ f.editor.restoreSelection({lineSelection:[{id:W.edgeKey(...pair),pair}]});f.listeners.pointermove(f.e(pair[0].x,38));f.editor.key({key:'e'});f.editor.distanceInput().set(amount);
+ const moved=f.editor.selectionSnapshot().lineSelection[0].pair,bottom=moved.reduce((a,b)=>a.z<b.z?a:b),plane=G.plane(base.faces.find(f=>f.id==='base-face-52').points);assert.ok(Math.abs(bottom.z-plane.dx*bottom.x-plane.dy*bottom.y-plane.k)<.002,'extruded endpoint must stay on the sloping base');assert.ok(Math.abs(bottom.z-pair[0].z)>.05,'height follows the slope in both directions');
+ const next=state.wallEdits.$surfaces.find(f=>f.id===face.id);assert.ok(next);assert.ok(next.points.some(p=>Math.hypot(p.x-bottom.x,p.y-bottom.y,p.z-bottom.z)<1e-6));f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+});
+
+test('plane selection markers have their own undimmed batch above the grid',()=>{
+ const THREE=require('../public/v1/node_modules/three'),p=(x,y,z)=>({x,y,z}),face={id:'plane-wall',points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},state={wallEdits:{$surfaces:[face,{id:'other-wall',points:face.points.map(p=>({...p,y:2}))}]}},f=fixture({state,walls:[],selected:null,globals:{...renderGlobals(),THREE,getVector3:p=>new THREE.Vector3(p.x,p.y,p.z)}});
+ f.editor.togglePlane(face);const group=new THREE.Group();f.editor.draw3D(group,p=>new THREE.Vector3(p.x,p.y,p.z));const points=group.children.filter(o=>o.userData.planeGuide&&o.userData.selectionMarkerKeys);assert.equal(points.length,1);const markers=points[0];assert.equal(markers.material.opacity,1);assert.equal(markers.material.depthTest,false);assert.equal(markers.geometry.getAttribute('markerSize').getX(0),7);assert.ok(markers.renderOrder>=1000);assert.ok(group.children.some(o=>o.userData.planeGuide&&o.isPoints&&o.material.size===13),'dark halo separates anchors from grid');markers.userData.updatePointSelection(new Set([markers.userData.selectionMarkerKeys[0]]));assert.equal(markers.geometry.getAttribute('markerSize').getX(0),11);assert.equal(markers.geometry.getAttribute('color').getX(0),1);
 });
