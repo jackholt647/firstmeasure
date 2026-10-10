@@ -23,7 +23,7 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/measurements/roof-viewer.js',import.meta.url),'utf8')});
     await page.addScriptTag({url:'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'});
     // Observe actual mesh rendering without a production debug API.
-    await page.evaluate(()=>{const Renderer=THREE.WebGLRenderer;THREE.WebGLRenderer=function(options){const renderer=new Renderer(options),render=renderer.render;renderer.render=function(scene,camera){window.drawnScene=scene;return render.call(renderer,scene,camera);};return renderer;};});
+    await page.evaluate(()=>{const Renderer=THREE.WebGLRenderer;THREE.WebGLRenderer=function(options){const renderer=new Renderer(options),render=renderer.render;renderer.render=function(scene,camera){window.drawnScene=scene;window.drawnCamera=camera;return render.call(renderer,scene,camera);};return renderer;};});
     await page.evaluate(()=>{window.viewer=FirstMeasureRoofViewer.mount(document.querySelector('#viewer'),{xmlUrl:'/model.xml',media:[{label:'Aerial view',url:'/rgb.tif',solar:true},{label:'Reference photo',url:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="tan"/></svg>')}]});});
     await page.waitForFunction(()=>document.querySelector('.fm-roof-canvas canvas') && document.querySelector('.fm-roof-message').hidden,{},{timeout:45000});
     const assertOpenings=async()=>{
@@ -81,6 +81,12 @@ test('read-only roof viewer draws saved geometry, switches modes and media, and 
     });
     for(const uv of uvs){assert.ok(Math.abs(uv[2][0]-uv[1][0])<1e-8);assert.ok(Math.abs(Math.abs(uv[2][1]-uv[1][1])-1.25)<1e-8);}
     await page.evaluate(()=>viewer.destroy());assert.equal(await page.locator('canvas').count(),0);
+    await page.evaluate(()=>{const root=document.querySelector('#viewer');root.hidden=true;window.viewer=FirstMeasureRoofViewer.mount(root,{xmlUrl:'/model.xml',standalone:true});});
+    await page.waitForFunction(()=>document.querySelector('.fm-roof-canvas canvas')&&document.querySelector('.fm-roof-message').hidden);
+    assert.ok(await page.evaluate(()=>drawnCamera.position.toArray().every(Number.isFinite)),'Hidden eager initialization retains a finite camera');
+    await page.evaluate(()=>{document.querySelector('#viewer').hidden=false;viewer.setVisible(true);});
+    assert.ok(await page.evaluate(()=>drawnCamera.position.toArray().every(Number.isFinite)));await assertOpenings();
+    await page.evaluate(()=>viewer.destroy());
   }finally{await browser.close();}
 });
 

@@ -115,7 +115,7 @@
       }
       const label=document.createElement('span');label.textContent=entry.label;button.append(label);button.onclick=()=>{if(entry.solar&&!entry.url){message.textContent='Loading solar image…';message.hidden=false;return;}select(entry);};library.append(button);
     }
-    function reset(){if(!camera)return;const aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);camera.position.set(1,1,1.3).normalize().multiplyScalar(190*Math.max(1,1/aspect));controls.target.set(0,0,0);controls.update();draw();}
+    function reset(){if(!camera)return;const aspect=canvas.clientWidth&&canvas.clientHeight?canvas.clientWidth/canvas.clientHeight:1;camera.position.set(1,1,1.3).normalize().multiplyScalar(190*Math.max(1,1/aspect));controls.target.set(0,0,0);controls.update();draw();}
     function applyAppearance(){
       geometryGroup?.children.forEach(mesh=>{const mat=mesh.material;mat.map=textureEnabled?texture:null;mat.color.set(textureEnabled?'#ffffff':'#cbd5e1');mat.transparent=!textureEnabled;mat.opacity=textureEnabled?1:.62;mat.depthWrite=textureEnabled;mat.needsUpdate=true;});
       if(lineGroup)lineGroup.visible=coloredLinesEnabled;
