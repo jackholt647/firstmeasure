@@ -105,7 +105,7 @@
 /* ------------------------------------------------------- type/template picker */
 /* new document: search, pinned row, filtered library */
 .fmdx-modal.fmdx-create-modal{width:min(1080px,100%)}
-.fmdx-modal.fmdx-create-modal{overflow:hidden}
+.fmdx-modal.fmdx-create-modal{overflow:hidden;height:min(88dvh,860px)}
 .fmdx-btn.fmdx-btn[hidden]{display:none}
 .fmdx-create-modal [data-create-body]{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto}
 /* Everything keeps its height except the library, which takes what is left. */

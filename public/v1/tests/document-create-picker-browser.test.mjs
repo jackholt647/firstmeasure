@@ -98,6 +98,8 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     const order = await page.locator('.fmdx-tpl-grid .fmdx-tpl small').allInnerTexts();
     assert.deepEqual(order, [...order].sort((a, b) => order.indexOf(a) - order.indexOf(b)), 'types are contiguous');
     assert.equal(order.filter((label, index) => index > 0 && label !== order[index - 1] && order.indexOf(label) !== index).length, 0, `grouped by type: ${order}`);
+    // The dialog uses the height the window gives it.
+    assert.ok(await page.locator('.fmdx-create-modal').evaluate((el) => el.getBoundingClientRect().height) >= 700, 'tall dialog in a tall window');
     // Each type is a headed group, and only the library scrolls.
     assert.deepEqual(await page.locator('.fmdx-tpl-group h3').evaluateAll((list) => list.map((el) => el.childNodes[1].textContent.trim())), ['Proposal', 'Contract', 'Change Order', 'Invoice', 'Completion Certificate']);
     await page.setViewportSize({ width: 1280, height: 420 });
