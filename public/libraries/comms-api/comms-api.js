@@ -52,8 +52,9 @@
       const token = csrfToken();
       if (token) headers['X-Platform-CSRF'] = token;
     }
-    const response = await fetch(`${baseUrl()}/${clean(path).replace(/^\/+/, '')}`, {
-      ...options,
+    const { apiBase, ...fetchOptions } = options;
+    const response = await fetch(`${apiBase || baseUrl()}/${clean(path).replace(/^\/+/, '')}`, {
+      ...fetchOptions,
       method,
       body,
       cache:options.cache || 'no-store',
@@ -83,6 +84,12 @@
     return `organizations/${enc(orgId)}/projects/${enc(projectId)}${suffix}`;
   }
 
+  function messagingBase(){ return clean(window.__APP?.messagingApiBase) || baseUrl().replace(/\/comms$/i, '/messaging'); }
+  function groupRequest(orgId, suffix, options={}){
+    const { params, ...rest } = options;
+    return request(`organizations/${enc(orgId)}/sms/groups${suffix}${query(params)}`, { ...rest, apiBase:messagingBase() });
+  }
+
   const api = {
     version:1,
     configure,
@@ -104,6 +111,15 @@
       send(orgId, projectId, body){ return request(projectPath(orgId, projectId, '/email/send'), { method:'POST', body:object(body) }); }
     },
     sms:{
+      groups:{
+        list(orgId, params){ return groupRequest(orgId, '', { params }); },
+        get(orgId, id){ return groupRequest(orgId, `/${enc(id)}`); },
+        messages(orgId, id, params){ return groupRequest(orgId, `/${enc(id)}/messages`, { params }); },
+        send(orgId, id, body){ return groupRequest(orgId, `/${enc(id)}/messages`, { method:'POST', body }); },
+        create(orgId, participants, number){
+          return request(`organizations/${enc(orgId)}/conversations`, { apiBase:messagingBase(), method:'POST', body:{ sms_mode:'group_mms', channel_strategy:'sms', subject:'Group MMS', participants, sender:{address:number} } });
+        }
+      },
       conversation(orgId, projectId, conversationId){
         return request(projectPath(orgId, projectId, '/sms') + query({ conversation_id:conversationId }));
       },

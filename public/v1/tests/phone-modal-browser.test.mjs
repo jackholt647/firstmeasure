@@ -43,6 +43,7 @@ test('phone modal combines call, text, voicemail, and searchable history',async(
         return {};
       },customerUrl:(_org,path)=>`https://phone-modal.test/v1/comms/organizations/org-test/${path}`,inbox:async(_org,params)=>({conversations:params.channel==='call'?[{id:'call-missed',unread_count:window.callUnread,last_message:{direction:'inbound',status:'no_answer'}}]:[{id:'thread-jane',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',project_id:'project-jane',unread_count:window.textUnread,last_message:{text:'Hi from Jane',created_at:new Date().toISOString()}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hi from Jane',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {message:{conversation_id:'thread-jane'}};}}};
     });
+    await page.evaluate(()=>CommsAPI.sms.groups={list:async()=>({items:[]})});
     for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
     await page.evaluate(()=>Portal.CustomerPhone.open());
@@ -69,7 +70,7 @@ test('phone modal combines call, text, voicemail, and searchable history',async(
     await modal.locator('[name=query]').fill('Jane');
     await page.waitForFunction(()=>document.querySelectorAll('[data-history]').length===1&&document.querySelector('[data-history]').textContent.includes('Jane Test'));
     await page.getByRole('tab',{name:'Text'}).click();
-    await page.getByText('Hi from Jane',{exact:true}).waitFor();
+    await modal.locator('.fm-text-body').filter({hasText:'Hi from Jane'}).waitFor();
     await modal.locator('.fmpm-compose textarea').fill('Thanks, Jane');
     await modal.locator('[data-send-text]').click();
     await page.waitForFunction(()=>window.lastReply?.text==='Thanks, Jane');

@@ -123,3 +123,24 @@
 .fmcp-invite-modes label:focus-within{outline:2px solid var(--primary,#d93025);outline-offset:1px}.fmcp-invite-modes input{position:absolute;width:1px;height:1px;opacity:0}
 .fmcp-invite-results{max-height:180px;overflow:auto}.fmcp-invite-results button{display:flex;align-items:center;gap:8px;width:100%;padding:9px 2px;border:0;border-bottom:1px solid var(--cm-line,#dadce0);background:transparent;text-align:left;font:inherit;font-size:12px;cursor:pointer}
 .fmcp-invite-results button>span{flex:1;min-width:0;overflow-wrap:anywhere}.fmcp-invite-results small,.fmcp-invite [data-invite-selection]{display:block;color:var(--cm-muted,#5f6368);font-size:11px}
+.fm-text-body{display:block;white-space:pre-wrap;overflow-wrap:anywhere}
+.fm-text-author{display:block;font-size:12px;margin-bottom:5px}
+.fm-text-members{font-size:12px;line-height:1.6;color:var(--muted,#687080)}
+.fm-text-members summary{cursor:pointer}.fm-text-members div{overflow-wrap:anywhere}
+.fm-text-members strong{font-size:12px!important;white-space:normal!important}
+.fm-text-deliveries{font-size:11px;margin-top:5px;line-height:1.6}.fm-text-deliveries summary{cursor:pointer}
+.fm-text-group-line{font-size:12px;padding:8px 0;color:var(--muted,#687080);overflow-wrap:anywhere}
+.fm-text-recipients{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0}
+.fm-text-recipients button{display:flex;align-items:center;gap:8px;max-width:100%;overflow-wrap:anywhere;border:1px solid var(--line,#dce1e8);border-radius:6px;padding:6px 8px;background:var(--panel,#fff);color:inherit;font:inherit;font-size:12px;text-align:left;cursor:pointer}
+.fm-text-contact-list{overflow:auto;min-height:0}.fm-text-contact-list .fm-phone-result{display:flex;gap:10px;width:100%;align-items:center;text-align:left;border:0;border-bottom:1px solid var(--line,#e4e7ec);background:transparent;color:inherit;cursor:pointer;padding:10px 8px;font:inherit}
+.fm-text-contact-list .fm-phone-result>span:last-child{min-width:0;overflow-wrap:anywhere}.fm-text-contact-list small{display:block;font-size:11px;color:var(--muted,#687080);margin-top:3px}
+.fm-text-contact-list .fm-phone-person{display:grid;place-items:center;width:28px;height:28px;flex:0 0 28px;background:var(--soft,#f1f3f5);border-radius:6px}
+.fm-text-contact-list [aria-pressed=true]{background:var(--soft,#f1f3f5)}.fm-text-contact-list [aria-pressed=true] .fm-phone-person{color:var(--primary,#d33b44)}
+.fm-text-recipient-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 0;font-size:12px}
+.fm-text-recipient-footer button{border:0;border-radius:6px;background:var(--primary,#d33b44);color:#fff;font:inherit;padding:8px 12px;cursor:pointer}.fm-text-recipient-footer button:disabled{opacity:.45;cursor:default}
+.fmpm-recipient-picker{display:flex;flex-direction:column;min-height:0;padding:0 12px;height:100%;overflow:auto}.fmpm-recipient-picker .fm-phone-search{display:flex;gap:8px;align-items:center;margin:6px 0}.fmpm-recipient-picker input{width:100%;min-width:0;padding:9px;border:1px solid var(--line,#dce1e8);border-radius:6px;font:inherit}.fmpm-recipient-picker .fm-text-recipient-footer{flex-shrink:0}
+.fm-text-unread{border-radius:8px;padding:2px 5px;background:var(--primary,#d33b44);color:#fff;font-size:11px}
+.fmpm-window [data-more-groups],.fm-phone-tray [data-more-groups]{display:block;width:100%;border:0;border-top:1px solid var(--line,#dce1e8);background:transparent;color:var(--muted,#687080);font:inherit;font-size:12px;padding:10px;cursor:pointer}
+.fmpm-window [data-older-messages],.fm-phone-tray [data-older-messages]{flex-shrink:0}
+.fm-phone-thread-head>span{min-width:0;flex:1}.fm-phone-thread-head>span>strong{white-space:normal;overflow-wrap:anywhere}.fm-phone-thread-head [data-text-refresh],.fm-phone-thread-head [data-edit-recipients]{flex:0 0 28px}
+.fmpm-detail-head:has(.fm-text-members){align-items:flex-start;flex-wrap:wrap}.fmpm-detail-head:has(.fm-text-members)>span{min-width:0;flex:1 1 200px}.fmpm-detail-head:has(.fm-text-members)>span>strong{white-space:normal;overflow-wrap:anywhere}.fmpm-detail-head .fm-text-group-line{max-width:100%;padding:0}

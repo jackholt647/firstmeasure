@@ -41,6 +41,7 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
         return {};
       },customerUrl:(_org,path)=>`https://phone.test/v1/comms/organizations/org-test/${path}`,inbox:async()=>({conversations:[{id:'text-one',channel:'sms',contact_name:'Jane Test',contact_address:'+12025550124',last_message:{text:'Hello'}}]}),conversation:async()=>({conversation:{messages:[{id:'message-one',channel:'sms',direction:'inbound',text:'Hello',created_at:new Date().toISOString()}]}}),reply:async(_org,_id,body)=>{window.lastReply=body;return {ok:true};},sms:{send:async(_org,project,body)=>{window.lastNewText={project,body};return {ok:true};}}};
     });
+    await page.evaluate(()=>CommsAPI.sms.groups={list:async()=>({items:[]})});
     for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/calling-runtime.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/'+file,import.meta.url),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('../../libraries/apps/comms/communications.css',import.meta.url),'utf8')});
     await page.evaluate(()=>Portal.CustomerPhone.open());

@@ -37,6 +37,28 @@ The existing generic API still accepts the complete group recipient set and
 configured sender. It applies the same group checks. The dedicated API derives
 these details from the conversation to prevent accidental partial replies.
 
+## Phone Texting Surfaces
+
+The phone tray and phone workspace share `Portal.PhoneTexting` for recipient
+selection, thread loading, images and replies. New text supports 1-8 unique
+phone numbers. One recipient retains the existing project SMS workflow; two or
+more create an explicit group MMS conversation through the generic messaging
+API with the selected configured sending line and contact display names.
+Group replies use the dedicated group-message endpoint, never client-supplied
+recipients or an alternate sending line. Legacy bulk threads remain separate.
+
+The inbox merges private SMS threads with the paginated group catalog by ID.
+Older group history is loaded on demand. Incoming group authors, images,
+participants and per-recipient delivery results are visible in both surfaces.
+Attachments reuse the shared user-owned SMS image upload and preparation flow;
+an unchanged failed send retains its upload and idempotency key on retry.
+Refresh controls reload the conversation explicitly rather than replacing an
+unsent draft in the background. Emoji insertion uses the Channels picker.
+
+Browser verification: `node --test tests/phone-group-text-browser.test.mjs
+tests/phone-tray-browser.test.mjs tests/phone-modal-browser.test.mjs` in
+`public/v1`. These are isolated fixtures, not real provider sends.
+
 ## Publications
 
 Provider `comms-sms-groups@1` exports `conversations` and `messages`; both are
