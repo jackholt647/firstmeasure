@@ -257,3 +257,7 @@ explicit; no bulk data backfill or geometry migration is part of this release.
 Historical executable functions are not required. Accepted results and evidence
 are retained; an unavailable pinned action implementation fails rather than
 substituting another implementation. No moving-company product is included.
+
+## Priority fields
+
+See [priority fields](priority-fields.md) for ordered quick-display references and declared calculated fields that consume the shared publication contracts.

@@ -1113,7 +1113,8 @@ function proposalPricingSubtotalCents(snapshot: JsonObject) {
     }, 0);
 }
 
-function proposalTotalCents(snapshot: JsonObject) {
+/** Pure pricing over a supplied record/snapshot; never generates or refreshes a document. */
+export function proposalTotalCents(snapshot: JsonObject) {
   const content = asObject(snapshot.content);
   const scope = normalizeProposalScope(content.scope);
   const scopeTotal = proposalScopeTotalCents(scope);

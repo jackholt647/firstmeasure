@@ -28,9 +28,10 @@
     }
   };
   const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-appointment-picker-v1');
+  const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261010-priority-fields-v1');
   const widgetBundles = ['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js','20261003-project-widgets-v1'));
   const channelsLibBundles = [
-    ...widgetBundles, bookingBundle,
+    ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
     versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
@@ -98,7 +99,7 @@
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
       access: managementAccess,
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261009-contact-window-v3'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261009-contact-catalog-v1')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261009-contact-window-v3'), versionedBundle('settings/crm.js', '20261010-priority-fields-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261009-contact-catalog-v1')]
     },
     {
       id: 'portal.photos_feed',
@@ -292,7 +293,7 @@
       surfaces: ['modal', 'project_modal'],
       access: { applicationsAny: ['management', 'field'] },
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261006-firstmeasure-localization-v1'), versionedBundle('project-request/app.js', '20261008-international-pricing-v2')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-fields-v1'), versionedBundle('project-request/app.js', '20261010-priority-fields-v1')]
     },
     {
       id: 'firstmeasure.order',
@@ -546,7 +547,7 @@
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-        ...widgetBundles, bookingBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
+        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261005-linear-pla31'),
@@ -607,7 +608,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261008-contact-phones-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261007-crew-portraits-v1')]
+      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-v1'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261010-priority-fields-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261007-crew-portraits-v1')]
     },
     {
       id: 'portal.crew_overview',

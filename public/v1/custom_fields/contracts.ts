@@ -6,6 +6,7 @@ import type { JsonObject } from "../platform/storage.js";
 import { FIELD_OWNERS, type FieldEntity } from "./owners.js";
 export type { FieldEntity } from "./owners.js";
 import { Worker } from "node:worker_threads";
+import { normalizeCalculation } from './calculations.js';
 
 export const PROJECT_DEFAULT_FIELDS: JsonObject[] = [
   {entity:"project",path:"cover_photo",key:"cover_photo",type:"photo",cardinality:"one",label:"Cover photo",required:false,enabled:true,location:"overview",order:-1,builtin:true}
@@ -119,6 +120,10 @@ export function normalizeDefinitions(input: unknown): JsonObject[] {
     if ([...seen].some(p => p === key || p.startsWith(key + ".") || key.startsWith(p + "."))) throw badRequest("custom_field_conflict", "Field paths must be unique and cannot overlap. Declare subfields inside the parent schema.");
     seen.add(key);
     const result = { ...f, entity, path, key:path, type:String(f.type || "text") };
+    if (f.calculation != null) {
+      if (f.type === 'platform_phone' || builtin) throw badRequest('field_calculation_managed','Managed fields cannot be calculated.');
+      Object.assign(result,{calculation:normalizeCalculation(f.calculation),read_only:true});
+    }
     if (f.pattern) {
       if (typeof f.pattern !== "string" || f.pattern.length > 256) throw badRequest("custom_field_pattern", "Patterns may contain at most 256 characters.");
       try { new RegExp(f.pattern); } catch { throw badRequest("custom_field_pattern", "Invalid validation pattern."); }

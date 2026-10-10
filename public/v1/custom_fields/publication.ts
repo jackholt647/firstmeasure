@@ -1,7 +1,9 @@
 import { registerDataProvider } from "../platform/publication/providers.js";
+import { authorizeSourceSnapshot } from '../platform/publication/providers.js';
+import { contentHash } from '../platform/publication/validation.js';
 import { registerAction } from "../platform/publication/actions.js";
 import { backendImplementationDigest } from "../platform/publication/implementation.js";
-import { forbidden } from "../platform/errors.js";
+import { forbidden, PlatformError } from "../platform/errors.js";
 import { canReadField, readFieldRecord, readFields, writeFields } from "./records.js";
 import { FIELD_OWNERS, type FieldEntity } from "./owners.js";
 import { types, isManuallyEditableType } from "./contracts.js";
@@ -22,16 +24,21 @@ export function registerCustomFieldPublication() {
       schema:name === "phones" ? {type:"array",items:{type:"object",additionalProperties:true}} : {type:"object",additionalProperties:true}, schemaVersion:"1", argsSchema, access,
       description:`${entity} custom ${name === "contract" ? "field definitions, nested schemas, access and record revision" : "field values, including read-only and background variables"}. Optional args.field selects a declared dotted field path. Private fields require their read permission.`,
       authorizeSnapshot:async(ctx:PublicationContext,ref:SourceRef,result:any) => {
+        const identity=`snapshot:${contentHash(ref)}`;
+        if(ctx.dependencyPath?.includes(identity) || (ctx.dependencyPath?.length || 0)>32)throw forbidden('field_snapshot_cycle','Invalid calculated-field evidence.');
         const current = await readFieldRecord(ctx,ref.target,entity);
         for (const path of result.provenance.fieldPaths || []) {
           const f = current.fields.find(f => f.path === path);
           if (!f || !canReadField(ctx,f)) throw forbidden("custom_field_access_revoked","A captured field is no longer accessible.");
         }
         for (const ref of result.provenance.platformPhones || []) if(!(await resolvePlatformPhone(ctx.organizationId,ref)).available) throw forbidden("platform_phone_revoked","A captured platform phone is no longer issued to this organization.");
+        for(const dependency of result.provenance.sourceEvidence || [])await authorizeSourceSnapshot({...ctx,dependencyPath:[...(ctx.dependencyPath || []),identity]},dependency.source,dependency);
       },
       read:async(ctx:PublicationContext,ref:SourceRef) => {
-        const state = await resolve(ctx,ref);
-        return { value:name === "contract" ? { entity, id:state.id, recordRevision:state.row?.revision || 0, fields:state.contract } : name === "phones" ? state.phones : state.values, revision:state.revision, provenance:{entity, id:state.id, fieldPaths:state.dependencies,platformPhones:state.phones.filter(p=>p.type === "platform_phone" && p.available).map(p=>({phone_number:p.phone_number,issuance_id:p.issuance_id}))} };
+        let state;
+        try { state = await resolve(ctx,ref); }
+        catch(error){if(error instanceof PlatformError && (error.details as any)?.publicationStatus==='pending')return {status:'pending' as const,code:error.code,message:error.message};throw error;}
+        return { value:name === "contract" ? { entity, id:state.id, recordRevision:state.row?.revision || 0, fields:state.contract } : name === "phones" ? state.phones : state.values, revision:state.revision, provenance:{entity, id:state.id, fieldPaths:state.dependencies,sourceEvidence:state.sourceEvidence,platformPhones:state.phones.filter(p=>p.type === "platform_phone" && p.available).map(p=>({phone_number:p.phone_number,issuance_id:p.issuance_id}))} };
       }
     }])) });
   registerAction({id:`platform-phones.${entity}.assignment.set`,version:"1",implementation:backendImplementationDigest(),domain:"platform-phones",description:"Phone-system command: assign already issued organization phone numbers to a declared platform_phone field. Empty phoneNumbers unassigns; this never purchases, releases or routes numbers.",inputSchema:{type:"object",required:["field","phoneNumbers","expectedRevision"],properties:{field:{type:"string",minLength:1,maxLength:780},phoneNumbers:{type:"array",maxItems:100,uniqueItems:true,items:{type:"string",minLength:9,maxLength:16}},expectedRevision:{type:"integer",minimum:0}},additionalProperties:false},outputSchema:{type:"object",required:["id","revision"],properties:{id:{type:"string"},revision:{type:"integer"}},additionalProperties:false},policy:{...access,permissions:["manage_communications|manage_company_settings"],authorize:async(ctx,target)=>{await (await import("../platform/publication/context.js")).authorizePublication(ctx,target,{...access,permissions:[FIELD_OWNERS[entity].writePermission],systemKinds:[]},"platform-phone.owner");await readFieldRecord(ctx,target,entity);}},effect:"write",executionKinds:["api","agent","module","work"],idempotency:"required",execute:async(ctx,target,input)=>(await import("../comms/calls/field-assignments.js")).setPhoneFieldAssignment(ctx,target,{...input,entity})});

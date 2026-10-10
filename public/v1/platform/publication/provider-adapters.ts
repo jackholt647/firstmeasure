@@ -1,5 +1,5 @@
 import { listDocuments, readDocument, readOrganization, readGlobal, listMedia } from "../storage.js";
-import { badRequest, forbidden } from "../errors.js";
+import { badRequest, forbidden, PlatformError } from "../errors.js";
 import type { AccessPolicy, JsonSchema, PublicationContext, SourceRef, TargetRef } from "./contracts.js";
 import { registerDataProvider, type DataExport } from "./providers.js";
 import { contentHash } from "./validation.js";
@@ -78,6 +78,20 @@ function registerDocuments(){
     const values=object(data[kind]);const value=Object.fromEntries(keys.filter((k):k is string=>typeof k==="string"&&Object.hasOwn(values,k)&&!["__proto__","constructor","prototype"].includes(k)).map(k=>[k,values[k]]));
     return {value,revision:String(row.revision),provenance:{documentId:row.id,publishedKeys:Object.keys(value)}};
   }};}
+  // Metadata selection is separate from variable reads; selected instances still
+  // use each export's normal authorization and explicit publication keys.
+  for(const kind of ['params','outputs']) {
+    exports[kind]!.listItemSchema=shape(['id','template_id','template_version_id','status','created_at','updated_at']);
+    exports[kind]!.list=async(ctx,ref,page)=>{
+      const rows=[];
+      for(const row of await listDocuments(ctx.organizationId,'documents')) {
+        const data=object(row.data);if(data.project_id!==ref.target.projectId || !Array.isArray(object(data.publication)[kind]))continue;
+        if(ctx.auth){try{(await import('../../documents/service.js')).requireDocumentDepartmentAccess(ctx.auth,data,'view_projects');}catch(error){if(error instanceof PlatformError && error.statusCode===403)continue;throw error;}}
+        rows.push({...pick(data,['template_id','template_version_id','status','created_at','updated_at']),id:row.id});
+      }
+      return pageRows(rows,ref,page);
+    };
+  }
   exports.signed = {description:'Published parameters from one accepted document snapshot. Requires the exact signed snapshot ID; never recalculates.', schema:{type:'object',additionalProperties:true},schemaVersion:'1',access,
     argsSchema:{type:'object',properties:{snapshotId:{type:'string'}},required:['snapshotId'],additionalProperties:false},
     read:async(ctx,ref)=>{

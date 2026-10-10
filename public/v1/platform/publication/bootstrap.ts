@@ -14,6 +14,7 @@ import { registerDatasetActions } from "./dataset-actions.js";
 import { registerModuleDataProvider } from "../../documents/modules/provider.js";
 
 import { registerCustomFieldPublication } from "../../custom_fields/publication.js";
+import { registerPriorityFieldsPublication } from '../../priority_fields/publication.js';
 
 import { registerContactPublication } from "../../contacts/publication.js";
 import { registerCollaborationPublication } from "../../collaboration/publication.js";
@@ -31,6 +32,7 @@ export function initializePublication() {
   registerWidgetProviders();
   registerNotificationProvider();
   registerCustomFieldPublication();
+  registerPriorityFieldsPublication();
   registerContactPublication();
   registerCollaborationPublication();
   registerFormsPublication();

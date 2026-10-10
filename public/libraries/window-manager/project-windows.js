@@ -141,7 +141,7 @@
   }
   function closed(token){
     const record = records.get(token); if (!record) return;
-    records.delete(token); record.resolveReady?.(null); clearTimeout(record.timer); record.modal?.unregister?.();
+    records.delete(token); record.priorityHeaderAbort?.abort(); record.resolveReady?.(null); clearTimeout(record.timer); record.modal?.unregister?.();
     record.controller?.destroy(); record.layer.remove(); clearRoutePrecover();
     if (active === record) {
       active = null;
@@ -249,6 +249,8 @@
     record.ready = new Promise((resolve,reject)=>{record.resolveReady=resolve;record.rejectReady=reject;});
     record.ready.catch(()=>{});
     records.set(token,record);active=record;
+    record.priorityHeaderAbort=new AbortController();
+    root.addEventListener('fm:priority-fields:resolved',event=>{if(event.detail?.projectId===record.projectId)paintHeader();},{signal:record.priorityHeaderAbort.signal});
     paintHeader();
     Promise.resolve(root.Portal?.modules?.request?.prepareHeader?.()).then(paintHeader).catch(()=>{});
     // Fetch the authoritative project while the isolated document boots,
@@ -354,7 +356,7 @@
           // refreshes must not put the portal's boot cover above it.
           child.document.body.classList.remove('platform-booting');
           child.document.getElementById('fmPlatformBootCover')?.remove();
-          record.shellVisible=true;record.loading.remove();
+          record.shellVisible=true;record.priorityHeaderAbort?.abort();record.loading.remove();
           child.FirstMateWindowShell?.revealTabs?.(child.document.getElementById('rProjectViewerTabs'),record.openingTabIds);
         }
         record.controller.setVisible(value);placement(record.controller.state);

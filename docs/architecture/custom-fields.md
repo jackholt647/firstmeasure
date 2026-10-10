@@ -291,3 +291,7 @@ service tests on both storage backends with the embedded PostgreSQL runner,
 `npm run test:publication`, `npm run check`, and the custom-fields/users browser
 tests. Grouping editors and dedicated phone assignment UI are the frontend
 handoff, not part of this infrastructure release.
+
+## Priority fields
+
+[Priority fields and published calculations](priority-fields.md) describes read-only field calculations over authorized sources, document selection, provenance and reusable quick-display consumers.

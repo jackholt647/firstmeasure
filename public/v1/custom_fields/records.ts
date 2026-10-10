@@ -9,6 +9,8 @@ import { PROJECT_DEFAULT_FIELDS, empty, fieldPath, fieldSchema, getValue, normal
 
 import { FIELD_OWNERS, ownerForCollection, readResourceOwner, resourceFieldId } from "./owners.js";
 import { assertPlatformPhoneMutation, resolvePlatformPhone, phoneProducer } from "./platform-phone.js";
+import { evaluateCalculation, inCalculationSession, normalizeCalculation } from './calculations.js';
+import type { DataResult } from '../platform/publication/contracts.js';
 
 export const valueKeys = ["custom_field_values", "custom_fields", "contact_custom_field_values"];
 export async function optional<T>(run: () => Promise<T>): Promise<T | null> {
@@ -97,6 +99,7 @@ export function canReadField(ctx: PublicationContext, f: JsonObject) {
   return !permission || !!ctx.auth && hasPermission(ctx.auth, permission);
 }
 export function assertFieldWrite(ctx: PublicationContext, f: JsonObject) {
+  if (f.calculation) throw forbidden('custom_field_write_denied','Calculated fields are read-only.');
   if (f.type === "platform_phone" && !phoneProducer.getStore() || !canReadField(ctx, f) || f.read_only === true && !(f.type === "platform_phone" && phoneProducer.getStore()) || f.type === "formula" || f.enabled === false && !(f.type === "platform_phone" && phoneProducer.getStore()) || (f.write_permission && (!ctx.auth || !hasPermission(ctx.auth, String(f.write_permission))))) throw forbidden("custom_field_write_denied", `Field ${f.path} is not writable in this context.`);
 }
 export async function readFieldRecord(ctx: PublicationContext, target: TargetRef, entity: FieldEntity) {
@@ -168,6 +171,9 @@ export async function validateStoredFields(orgId: string, collection: string, in
   }
 }
 export async function readFields(ctx: PublicationContext, target: TargetRef, entity: FieldEntity, path?: string, contractOnly = false, phoneListOnly = false) {
+  return inCalculationSession(()=>readFieldsInSession(ctx,target,entity,path,contractOnly,phoneListOnly));
+}
+async function readFieldsInSession(ctx: PublicationContext, target: TargetRef, entity: FieldEntity, path?: string, contractOnly = false, phoneListOnly = false) {
   const state = await readFieldRecord(ctx,target,entity);
   const fields = state.fields.filter(f => applies(f,state.record) || phoneListOnly && f.type === "platform_phone");
   const selected = path ? fields.filter(f => f.path === fieldPath(path)) : fields.filter(f => canReadField(ctx,f));
@@ -175,25 +181,37 @@ export async function readFields(ctx: PublicationContext, target: TargetRef, ent
   if(phoneListOnly) selected.splice(0,selected.length,...selected.filter(f=>["phone","platform_phone"].includes(String(f.type))));
   const values: JsonObject = {}, stored = valuesOf(state.record,entity);
   const dependencies = new Set<string>();
-  const resolve = (path:string, seen = new Set<string>()):unknown => {
+  const sourceEvidence:Extract<DataResult,{status:'ready'}>[]=[];
+  const resolve = async (path:string, seen = new Set<string>()):Promise<unknown> => {
     if (seen.has(path) || seen.size > 32) throw badRequest("custom_field_formula_cycle","Custom field formulas contain a cycle or exceed the dependency limit.");
     const f = fields.find(f => f.path === path);
     if (!f) throw badRequest("custom_field_formula_missing",`Unknown formula field ${path}.`);
     if (!canReadField(ctx,f)) throw forbidden("custom_field_read_denied","A formula input is private in this context.");
     dependencies.add(path);
-    if (f.type === "formula") return calculateFormula(String(f.formula || "0"),p => resolve(p,new Set([...seen,path])));
+    const identity=`field:${ctx.organizationId}:${entity}:${state.id}:${path}`;
+    if(ctx.dependencyPath?.includes(identity) || (ctx.dependencyPath?.length || 0)>32)throw badRequest('custom_field_formula_cycle','Published calculated fields contain a cycle or exceed the dependency limit.');
+    if(f.calculation){
+      const value=await evaluateCalculation(normalizeCalculation(f.calculation),{...ctx,projectId:target.projectId || ctx.projectId,dependencyPath:[...(ctx.dependencyPath || []),identity]},{...target,branchId:state.branch},sourceEvidence);
+      if(value!==undefined)validateField(f,value);
+      return value;
+    }
+    if (f.type === "formula") {
+      const expression=String(f.formula || '0'), inputs=new Map<string,unknown>();
+      for(const match of expression.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g))inputs.set(match[1]!,await resolve(match[1]!,new Set([...seen,path])));
+      return calculateFormula(expression,p=>inputs.get(p));
+    }
     const value = getValue(stored,path);
     return value === undefined && !empty(f.default_value) ? f.default_value : value;
   };
   const phones:JsonObject[] = [];
   for (const f of selected) {
     if (contractOnly) { dependencies.add(String(f.path)); continue; }
-    const v = resolve(String(f.path));
+    const v = await resolve(String(f.path));
     if (v !== undefined) putValue(values,String(f.path),v);
     if (f.type === "phone") { if(typeof v === "string" && v) phones.push({field:f.path,type:"phone",phone_number:v,available:true}); }
     if (f.type === "platform_phone") for(const ref of (Array.isArray(v)?v:[v])) if(ref) phones.push({field:f.path,type:"platform_phone",...await resolvePlatformPhone(ctx.organizationId,ref)});
   }
-  return { ...state, values, phones, dependencies:[...dependencies], visible:selected, revision:contentHash({ revision:state.row?.revision || 0, fields, values, phones }), contract:selected.map(f => ({ ...f, schema:fieldSchema(f), writable:f.type !== "platform_phone" && f.read_only !== true && f.type !== "formula" && f.enabled !== false && (!f.write_permission || !!ctx.auth && hasPermission(ctx.auth,String(f.write_permission))) })) };
+  return { ...state, values, phones, sourceEvidence, dependencies:[...dependencies], visible:selected, revision:contentHash({ revision:state.row?.revision || 0, fields, values, phones, sources:sourceEvidence.map(e=>e.source) }), contract:selected.map(f => ({ ...f, schema:fieldSchema(f), writable:!f.calculation && f.type !== "platform_phone" && f.read_only !== true && f.type !== "formula" && f.enabled !== false && (!f.write_permission || !!ctx.auth && hasPermission(ctx.auth,String(f.write_permission))) })) };
 }
 
 /** Legacy HTTP saves use the same field write restrictions as action calls. */

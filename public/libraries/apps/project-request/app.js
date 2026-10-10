@@ -3,7 +3,7 @@
  */
 (function(){
   const contactsModuleUrl = new URL('../contacts/modal.js?v=20261009-contact-window-v3', document.currentScript.src);
-  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
+  const registryUrl = new URL('../../window-manager/project-windows.js?v=20261010-priority-fields-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
   const shellUrl = new URL('../../window-manager/window-shell.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
@@ -4893,7 +4893,40 @@ window.PlatformCommerce.onReady(async function(){
     return true;
   }
 
+  const priorityFieldStates = new Map();
+  function requestProjectPriorityFields(project){
+    const projectId=projectIdentity(project),orgId=projectOrgId();
+    if(!projectId || !orgId || !window.FirstMatePriorityFields || !window.PlatformAPI?.publication)return null;
+    const key=orgId+':'+projectId,configKey=JSON.stringify(branchProjectConfig),signature=JSON.stringify([project?.updated_at,project?.revision,project?.work_projection]);
+    let state=priorityFieldStates.get(key);
+    if(state && state.configKey===configKey && state.signature===signature && (state.pending || Date.now()-state.loadedAt<10000))return state;
+    state={configKey,signature,pending:true,items:state?.configKey===configKey?state.items:null,loadedAt:Date.now()};priorityFieldStates.set(key,state);
+    window.FirstMatePriorityFields.resolve(orgId,projectId).then(items=>{
+      if(priorityFieldStates.get(key)!==state)return;
+      state.items=items;state.pending=false;state.loadedAt=Date.now();
+      if(projectIdentity(activeBaseProject)===projectId)renderProjectStageBar();
+      window.dispatchEvent(new CustomEvent('fm:priority-fields:resolved',{detail:{projectId}}));
+    }).catch(()=>{if(priorityFieldStates.get(key)===state){state.items=[];state.pending=false;state.loadedAt=Date.now();if(projectIdentity(activeBaseProject)===projectId)renderProjectStageBar();}});
+    return state;
+  }
+  function priorityProjectPillHtml(item,project){
+    const runtime=window.FirstMatePriorityFields;
+    if(!runtime.visible([item]).length)return '';
+    const reference=item.source;
+    if(reference.provider==='project-summary' && reference.export==='details'){
+      if(reference.path==='/stage' && manualProjectStageMovementEnabled() && canManageProjectStages() && projectManualStageContexts(project).length){
+        const value=runtime.format(item);
+        return `<button type="button" class="r-project-tag status stage-editable" data-manual-stage-trigger title="${escapeHtml(item.label)}" aria-label="Change board stage, currently ${escapeHtml(value)}" aria-haspopup="dialog"><i class="fas fa-circle-dot" aria-hidden="true"></i><span>${escapeHtml(value)}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>`;
+      }
+      if(reference.path==='/project_type' && item.result?.status==='ready')return projectHeaderPillHtml('project_type',{...project,project_type:item.result.value},projectTagBoard(project));
+    }
+    return runtime.html([item],{className:'r-project-tag'});
+  }
   function projectHeaderPillsHtml(project){
+    const state=requestProjectPriorityFields(project);
+    if(state)return Array.isArray(state.items)?state.items.map(item=>priorityProjectPillHtml(item,project)).join(''):'';
+    // Compatibility for old embedded hosts without the shared publication client.
+    // Normal platform windows always consume the singular shared priority list.
     const board = projectTagBoard(project);
     const configuredFields = Array.isArray(branchProjectConfig?.project_header_pills) ? branchProjectConfig.project_header_pills : ['scope_type','stage','dollar_value'];
     const customFieldPills = window.FirstMateCustomFields?.definitionsFor?.('project', project, { location:'all' })
@@ -11555,6 +11588,8 @@ window.PlatformCommerce.onReady(async function(){
   });
 
   window.addEventListener('fm:perms:updated', updateButtonVisibility);
+  for(const type of ['fm:perms:updated','fm:platform-session:updated','fm:projects:refresh','fm:custom-fields:definitions-updated','fm:app-flags:updated'])window.addEventListener(type,()=>{priorityFieldStates.clear();renderProjectStageBar();});
+  window.setInterval(()=>{if(!document.hidden && document.getElementById('rOverlay')?.classList.contains('active'))renderProjectStageBar();},10000);
   window.addEventListener('fm:custom-fields:definitions-loaded', () => {
     if ($('#rOverlay')?.classList.contains('active')) renderProjectCustomFields();
   });
@@ -11562,6 +11597,7 @@ window.PlatformCommerce.onReady(async function(){
     if ($('#rOverlay')?.classList.contains('active')) renderProjectCustomFields();
   });
   window.addEventListener('fm:project-config:updated', (event) => {
+    priorityFieldStates.clear();
     branchProjectConfig = normalizeProjectConfig(event?.detail || branchProjectConfig);
     window.PlatformCelebrations?.configure?.({ mode: branchProjectConfig.celebrations_mode });
     updateModalTitle();
@@ -11959,6 +11995,7 @@ window.PlatformCommerce.onReady(async function(){
   });
   window.addEventListener('fm:platform-session:updated', () => restoreRouteState());
   window.addEventListener('fm:work:updated', () => {
+    priorityFieldStates.clear();
     if (!activeBaseProject?.id) return;
     loadProjectWorkPlans({ refresh: true }).catch(() => null);
     mountProjectTodoList({ force: true });

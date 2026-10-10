@@ -302,7 +302,8 @@
       write_permission:cleanText(source.write_permission),
       required: source.required === true,
       enabled: source.enabled !== false,
-      read_only: source.read_only === true || ['formula','platform_phone'].includes(type),
+      read_only: source.read_only === true || !!source.calculation || ['formula','platform_phone'].includes(type),
+      calculation:source.calculation ? clone(source.calculation) : null,
       placeholder: cleanText(source.placeholder),
       default_value: coerceDefault(source.default_value, type),
       options: normalizeOptions(source.options),
@@ -536,8 +537,10 @@
     } catch (_) { return 0; }
   }
 
+  const calculatedFieldValues = new WeakMap();
   function valueFor(definition, entity = {}, definitions = cachedFields()){
     const def = normalizeDefinition(definition);
+    if(def.calculation)return calculatedFieldValues.get(entity)?.get(def.path);
     if (def.type === 'formula') return evaluateCalculated(def, entity, definitions);
     const values = rawValues(entity, def.entity);
     return valueAtPath(values, def.path) ?? clone(def.default_value);
@@ -638,6 +641,7 @@
   function inputHtml(definition, value, options = {}){
     const inputClass = cleanText(options.inputClass) || 'fm-cf-input';
     const def = normalizeDefinition(definition);
+    if(def.calculation)return `<div class="fm-cf-formula" data-fm-cf-calculated="${escapeHtml(def.key)}">${escapeHtml(value===undefined?'Not set':formatValue(def,value))}</div>`;
     const bounds = `${def.type === 'integer' && def.step == null ? ' step="1"' : ''}${def.min != null ? ` min="${def.min}"` : ''}${def.max != null ? ` max="${def.max}"` : ''}${def.step != null ? ` step="${def.step}"` : ''}`;
     const textBounds = `${def.min_length != null ? ` minlength="${def.min_length}"` : ''}${def.max_length != null ? ` maxlength="${def.max_length}"` : ''}${def.pattern ? ` pattern="${escapeHtml(def.pattern)}"` : ''}`;
     const placeholder = def.placeholder ? ` placeholder="${escapeHtml(def.placeholder)}"` : '';
@@ -860,6 +864,15 @@
       });
     }
     const definitions = fieldsFor(entityType, entity, { ...options, location }).filter(def=>!(options.excludePaths || []).includes(def.path));
+    if(definitions.some(f=>f.calculation) && root.PlatformAPI?.publication){
+      const orgId=options.orgId || currentOrgId(),projectId=String(entity.project_id || entity.id || '');
+      const target={scope:entityType==='project'?'project':'organization',organizationId:orgId,...(entityType==='project'?{projectId}:{id:entity.id})};
+      const resolved=new Map();
+      for(const field of definitions.filter(f=>f.calculation)){
+        try { const result=await root.PlatformAPI.publication.read(orgId,{provider:'custom-fields-'+entityType,export:'values',target,args:{field:field.path},path:'/'+field.path.split('.').map(v=>v.replace(/~/g,'~0').replace(/\//g,'~1')).join('/')});if(result.status==='ready')resolved.set(field.path,result.value); }catch(_){}
+      }
+      calculatedFieldValues.set(entity,resolved);
+    }
     await hydrateAssignableDefinitions(definitions, {...options,entity,entityType});
     if (!definitions.length) {
       container.innerHTML = options.hideWhenEmpty === false ? `<div class="fm-cf-panel"><div class="fm-cf-empty">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a1bfa740917210","No custom fields apply here.") ?? "No custom fields apply here.")}</div></div>` : '';
@@ -1053,6 +1066,18 @@
         fields.push(field); drafts.add(field.id); selectedId = field.id; render();
       }));
       const form = container.querySelector('[data-cf-editor]');
+      let publishedCalculationEditor=null;
+      if(form && root.FirstMatePriorityFields && selected.type!=='platform_phone' && !selected.builtin){
+        const section=document.createElement('section');section.className='cf-section';section.innerHTML=`<label class="cf-toggle"><input type="checkbox" name="published_calculation" ${selected.calculation?'checked':''}><span><strong>Calculate from published variables</strong><br>Define this field from one variable, the first available value, or arithmetic across sources.</span></label><div data-published-calculation ${selected.calculation?'':'hidden'}></div>`;
+        form.querySelector('[data-cf-formula-row]')?.before(section);
+        const calculationHost=section.querySelector('[data-published-calculation]');
+        const prepare=async()=>{
+          calculationHost.hidden=!form.elements.published_calculation.checked;if(calculationHost.hidden || publishedCalculationEditor)return;
+          calculationHost.textContent='Loading declared variables…';
+          try{const result=await root.FirstMatePriorityFields.catalog(options.orgId || currentOrgId(),options.branchId || currentBranchId());if(calculationHost.isConnected)publishedCalculationEditor=root.FirstMatePriorityFields.calculationEditor(calculationHost,result.entries,selected.calculation);}catch(error){calculationHost.textContent=error.message||'Variables could not be loaded.';}
+        };
+        form.elements.published_calculation.onchange=prepare;prepare();
+      }
       const optionList = form?.querySelector('[data-cf-option-list]');
       const optionRows = () => [...(optionList?.querySelectorAll('[data-cf-option-row]') || [])];
       const readOptionRows = () => optionRows().map((row) => {
@@ -1142,8 +1167,10 @@
         }
         const current = fields.find((field) => field.id === selectedId);
         let schema; try { schema = JSON.parse(String(data.get('schema') || '{}')); if (!schema || typeof schema !== 'object' || Array.isArray(schema)) throw Error(); } catch { form.querySelector('[data-cf-status]').textContent = (globalThis.PlatformLanguage?.text("custom-fields","m_f128466a8caddb","The schema must be valid JSON.") ?? "The schema must be valid JSON."); return; }
+        if(form.elements.published_calculation?.checked && !publishedCalculationEditor){form.querySelector('[data-cf-status]').textContent='Wait for the declared variables to load before saving.';return;}
         const next = normalizeDefinition({
           ...current, schema, private:form.elements.private.checked, read_permission:data.get('read_permission'), write_permission:data.get('write_permission'), min_length:data.get('min_length'), max_length:data.get('max_length'), pattern:data.get('pattern'),
+          calculation:form.elements.published_calculation ? (form.elements.published_calculation.checked ? publishedCalculationEditor.get() : null) : current?.calculation,
           label:data.get('label'), key, path:key, entity:data.get('entity') || current?.entity, type:data.get('type') || current?.type, description:data.get('description'), placeholder:data.get('placeholder'),
           options:readOptionRows(), formula:data.get('formula'), scope_mode:data.get('scope_mode'), scopes:cleanText(data.get('scopes')).split(','),
           layout:data.get('layout'), currency:data.get('currency'), min:data.get('min'), max:data.get('max'), step:data.get('step'),

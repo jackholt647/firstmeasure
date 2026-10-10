@@ -1463,6 +1463,9 @@ export async function readBranchModule(orgId: string, branchId: string, moduleId
 }
 
 export async function saveBranchModule(orgId: string, branchId: string, moduleId: string, input: JsonObject = {}, options: { replace?: boolean } = {}) {
+  if(moduleId==='project_configuration' && asObject(input.data).priority_fields!==undefined){
+    input={...input,data:{...asObject(input.data),priority_fields:(await import('../priority_fields/contracts.js')).normalizePriorityFields(asObject(input.data).priority_fields)}};
+  }
   if(moduleId==='contact_settings' && input.data!==undefined){
     if(branchId && branchId!=='default')throw badRequest('contact_settings_branch','Contact settings belong to the organization default branch.');
     input={...input,data:(await import('../contacts/contracts.js')).normalizeContactSettings(input.data)};
