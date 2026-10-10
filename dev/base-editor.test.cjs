@@ -220,3 +220,14 @@ test('L preserves the one neighbouring seam, follows only attached wall bottoms 
   f.editor.keyDown({key:'z',ctrlKey:true,preventDefault(){},stopImmediatePropagation(){}});
   assert.equal(JSON.stringify(f.state.base),base,'undo restores the unsplit base');
  });
+for(const withSketch of [false,true])for(const command of ['m','y'])test(`multiple selected bases ${command} together, preserve seams, cancel and undo (sketch=${withSketch})`,()=>{
+ const f=fixture(withSketch),p=(x,y)=>({x,y,z:.1*x});f.state.base.faces=[{id:'f',points:[[0,0],[100,0],[100,100],[0,100]].map(([x,y])=>p(x,y))},{id:'g',points:[[100,0],[200,0],[200,100],[100,100]].map(([x,y])=>p(x,y))},{id:'untouched',points:[[300,0],[400,0],[400,100],[300,100]].map(([x,y])=>p(x,y))}];
+ f.els.get('base-selection').value='face';f.click(50,50);f.click(150,50,true);const before=JSON.stringify(f.state.base),original=JSON.parse(before),untouched=JSON.stringify(f.state.base.faces[2]);assert.match(f.els.get('base-status').textContent,/2 faces selected/);
+ const begin=()=>{f.key(command);if(command==='y')f.click(150,50);f.listeners.pointermove(f.e(150,0));};begin();
+ const moved=f.state.base.faces;for(const face of moved.slice(0,2))assert.notDeepEqual(face.points,original.faces.find(o=>o.id===face.id).points);
+ assert.deepEqual(moved[2].points.map(({x,y,z})=>({x,y,z})),JSON.parse(untouched).points);for(const y of [0,100])assert.equal(moved[0].points.find(p=>p.x===100&&p.y===y).z,moved[1].points.find(p=>p.x===100&&p.y===y).z,'shared seam stays connected');
+ if(command==='m')for(const face of moved.slice(0,2))for(const p of face.points)assert.ok(Math.abs(p.z-.1*p.x-1.5)<1e-8);else assert.ok(Math.abs(G.plane(moved[0].points).dx-G.plane(moved[1].points).dx)<1e-8);
+ f.key('escape');assert.equal(JSON.stringify(f.state.base),before);assert.equal(f.changes(),0);
+ // Restore the same mouse origin before repeating the gesture.
+ f.listeners.pointermove(f.e(150,50));begin();f.click(150,0);assert.equal(f.changes(),1);f.els.get('base-undo').onclick();assert.equal(JSON.stringify(f.state.base),before,'one undo restores the entire selection');
+});

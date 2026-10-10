@@ -131,3 +131,17 @@ for(const view of ['2d','3d'])test('base N retains shared extension snapping and
  editor.selectEntities([p(2,2)],[]);editor.keyDown({key:'n'});editor.move(e,view);guide=overlays.at(-1);editor.down(e,view);assert.ok(guide.removed,'placement clears guides');
  assert.ok(base.sketch.nodes.some(n=>Math.abs(n.x-4)<.1&&Math.abs(n.x-n.y)<1e-6&&Math.abs(n.z-10-.2*n.x-.1*n.y)<1e-6),'placement is collinear with incoming edge and stays on the pitched plane');
 });
+for(const view of ['2d','3d'])for(const count of [2,3,4])test(`base N previews and connects ${count} anchors to one endpoint in ${view}`,()=>{
+ const p=(x,y)=>({x,y,z:10+.2*x+.1*y}),corners=[[0,0],[10,0],[10,10],[0,10]].map(([x,y])=>p(x,y));let base={faces:[{id:'base',points:corners}]},commits=[];
+ const overlays=[],element=()=>({style:{},children:[],attrs:{},appendChild(c){this.children.push(c);},setAttribute(k,v){this.attrs[k]=v;},remove(){this.removed=true;}}),document={createElementNS:()=>element(),getElementById:()=>({getBoundingClientRect:()=>({left:0,top:0,width:1500,height:1500})}),body:{appendChild:e=>overlays.push(e)}};
+ const ctx={document,BaseSketchGeometry:S,WallGeometry:G,WallSolidGeometry:W};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/base_sketch_editor.js','utf8'),ctx);
+ const screen=p=>({x:p.x*100,y:p.y*100}),editor=ctx.createBaseSketchEditor({base:()=>base,active:()=>true,mode:()=>'point',faceAt:()=>null,position:(e,v,z)=>({x:e.clientX/100,y:e.clientY/100,z}),screen,toPixel:screen,commit:b=>commits.push(b),restore:b=>base=b,message(){},redraw(){},isCenter:()=>false});
+ editor.selectEntities(corners.slice(0,count),[]);const before=JSON.stringify(base),e={clientX:500,clientY:500,button:0,buttons:0};editor.keyDown({key:'n'});editor.move(e,view);
+ const overlay=overlays.at(-1),previews=overlay.children.filter(l=>l.attrs['data-base-draw-preview']);assert.equal(previews.length,count);for(let i=0;i<count;i++){assert.equal(previews[i].attrs.x1,corners[i].x*100);assert.equal(previews[i].attrs.y1,corners[i].y*100);assert.ok(Math.abs(previews[i].attrs.x2-500)<1e-6);assert.ok(Math.abs(previews[i].attrs.y2-500)<1e-6);}
+ const rendered=[];editor.draw2D({},(tag,attrs)=>rendered.push({tag,...attrs}),1);assert.equal(rendered.filter(l=>l.tag==='line'&&l.stroke==='#FFD700').length,count);
+ assert.equal(JSON.stringify(base),before,'preview never mutates geometry');editor.keyDown({key:'Escape'});assert.ok(overlay.removed);assert.equal(JSON.stringify(base),before);
+ editor.keyDown({key:'n'});editor.move(e,view);editor.down(e,view);assert.equal(commits.length,1,'entire fan is one undo operation');assert.equal(JSON.stringify(commits[0]),before);assert.ok(overlays.at(-1).removed);
+ const s=S.read(base),end=s.nodes.find(n=>Math.abs(n.x-5)<1e-7&&Math.abs(n.y-5)<1e-7);assert.ok(end);assert.equal(end.z,11.5);assert.equal(s.edges.filter(e=>e.a===end.id||e.b===end.id).length,count);assert.equal(base.faces.length,count,'fan partitions the base into usable faces');
+ for(const p of corners.slice(0,count)){const anchor=s.nodes.find(n=>n.x===p.x&&n.y===p.y);assert.ok(s.edges.some(e=>[e.a,e.b].includes(anchor.id)&&[e.a,e.b].includes(end.id)));}
+ editor.selectEntities(corners.slice(0,count),[]);editor.keyDown({key:'n'});editor.down({clientX:0,clientY:0,button:0},view);assert.ok(S.read(base).edges.every(e=>e.a!==e.b),'reusing an anchor never creates a self edge');
+});

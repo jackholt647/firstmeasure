@@ -327,9 +327,9 @@ window.createBaseEditor=function(host){
 
    if(k==='n')tool={kind:'path',path:points.length?[copy(face().points[points[0]])]:[]};
 
-   if(k==='m'){cancelPreview();tool={kind:'height',original:copy(base()),f:copy(face()),clientY:mouse?.e.clientY};}
+   if(k==='m'){cancelPreview();tool={kind:'height',original:copy(base()),f:copy(face()),faces:copy(base().faces.filter(f=>selectedFaces.includes(f.id))),clientY:mouse?.e.clientY};}
 
-   if(k==='y'){cancelPreview();points=[];tool={kind:'pitch',original:copy(base()),f:copy(face()),pivot:B.center(face()),direction:null,radius:0};}
+   if(k==='y'){cancelPreview();points=[];const faces=copy(base().faces.filter(f=>selectedFaces.includes(f.id)));tool={kind:'pitch',original:copy(base()),f:copy(face()),faces,pivot:B.center(faces.length>1?{points:faces.flatMap(f=>f.points)}:face()),direction:null,radius:0};}
 
    render();host.redraw();
 
@@ -467,13 +467,19 @@ window.createBaseEditor=function(host){
 
   if(tool.clientY===undefined)tool.clientY=e.clientY;
 
-  let delta=tool.numeric??((tool.clientY-e.clientY)*.03);tool.amount=delta;tool.heightSnap=null;if(tool.kind==='height'&&tool.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){tool.heightSnap=B.heightSnap(tool.f,tool.original.faces,delta,p=>screen(p,mouse?.v||'3d'));if(tool.heightSnap){delta=tool.heightSnap.amount;message=tool.heightSnap.kind;}else message='';}
+  let delta=tool.numeric??((tool.clientY-e.clientY)*.03);tool.amount=delta;tool.heightSnap=null;if(tool.kind==='height'&&tool.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){tool.heightSnap=(tool.faces||[tool.f]).map(f=>B.heightSnap(f,tool.original.faces.filter(other=>!(tool.faces||[tool.f]).some(f=>f.id===other.id)),delta,p=>screen(p,mouse?.v||'3d'))).filter(Boolean).sort((a,b)=>a.score-b.score)[0];if(tool.heightSnap){delta=tool.heightSnap.amount;message=tool.heightSnap.kind;}else message='';}
 
-  if(tool.kind==='height'){f.points=copy(tool.f.points);for(const i of points.length?points:f.points.map((_,i)=>i))f.points[i].z+=delta;}
-
-  else {const pl=G.plane(tool.f.points),slope=tool.numeric!=null?Math.tan(tool.numeric*Math.PI/180):pl.dx*tool.direction.x+pl.dy*tool.direction.y+delta/tool.radius;Object.assign(f,B.transform(tool.f,'pitch',slope,tool.direction,tool.pivot));tool.amount=Math.atan(slope)*180/Math.PI;}
-
-  B.validate(f);
+  const originals=tool.faces?.length?tool.faces:[tool.f],updates=[];
+  const pl=tool.kind==='pitch'&&G.plane(tool.f.points),oldSlope=pl&&(pl.dx*tool.direction.x+pl.dy*tool.direction.y);
+  const slope=tool.kind==='pitch'?(tool.numeric!=null?Math.tan(tool.numeric*Math.PI/180):oldSlope+delta/tool.radius):null;
+  for(const original of originals){const next=copy(original);
+   if(tool.kind==='height'){for(const i of originals.length===1&&points.length?points:next.points.map((_,i)=>i))next.points[i].z+=delta;}
+   else if(originals.length===1)Object.assign(next,B.transform(original,'pitch',slope,tool.direction,tool.pivot));
+   else for(const p of next.points)p.z+=(slope-oldSlope)*((p.x-tool.pivot.x)*tool.direction.x+(p.y-tool.pivot.y)*tool.direction.y);
+   B.validate(next);updates.push(next);
+  }
+  for(const next of updates)Object.assign(base().faces.find(f=>f.id===next.id),next);
+  tool.amount=tool.kind==='pitch'?Math.atan(slope)*180/Math.PI:delta;
   window.BaseSketchGeometry?.rebind(tool.original,base());
 
  }
