@@ -26,13 +26,17 @@ test('user preview shows profile, live presence, and opens a Channels direct mes
   await page.addScriptTag({url:'/libraries/platform-widgets/runtime.js'});
   await page.evaluate(async()=>{
    await FirstMateWidgets.ready;
-   window.widget=FirstMateWidgets.mount(document.querySelector('#host'),{id:'user.summary',version:'1',target:{scope:'organization',organizationId:'org',id:'member'}},{surface:'hover',read:async()=>({status:'ready',value:{id:'member',name:'Avery Smith',profile_photo:'/photos/avery',email:'avery@example.test',phone:'555-0102',department:'Product',title:'Designer',location:'Seattle',time_zone:'America/Los_Angeles',pronouns:'they/them',bio:'Designs products'}})});
+   window.widget=FirstMateWidgets.mount(document.querySelector('#host'),{id:'user.summary',version:'1',target:{scope:'organization',organizationId:'org',id:'member'}},{surface:'hover',read:async()=>({status:'ready',value:{id:'member',name:'Avery Smith',profile_photo:'/photos/avery',email:'avery@example.test',phone:'555-0102',phone_fields:[{label:'Direct line',number:'+12065550123',type:'platform_phone'},{label:'Mobile',number:'555-0103',type:'phone'},{label:'Desk',number:'555-0104',type:'phone'}],department:'Product Department',title:'Designer',location:'Seattle',time_zone:'America/Los_Angeles',pronouns:'they/them',bio:'Designs products'}})});
    await widget.ready;
   });
   const card=page.locator('.fm-user-summary');
   assert.equal(await card.locator('img').getAttribute('alt'),'Avery Smith profile photo');
   assert.equal(await card.locator('.fm-user-summary-name').innerText(),'Avery Smith');
-  for(const value of ['avery@example.test','555-0102','Product','Designer','Seattle','America/Los_Angeles','they/them','Designs products'])assert.ok((await card.innerText()).includes(value),value);
+  assert.equal(await card.locator('.fm-user-summary-subtitle').innerText(),'Designer, Product Department');
+  assert.equal(await card.locator('.fm-user-summary-heading .fm-user-summary-presence').count(),1);
+  assert.equal(await card.locator('.fm-user-summary-details dt').allInnerTexts().then(labels=>labels.includes('Title')||labels.includes('Department')),false);
+  for(const value of ['avery@example.test','555-0102','+12065550123','555-0103','555-0104','Seattle','America/Los_Angeles','they/them','Designs products'])assert.ok((await card.innerText()).includes(value),value);
+  assert.deepEqual(await card.locator('.fm-user-summary-details a[href^="tel:"]').allInnerTexts(),['555-0102','+12065550123','555-0103','555-0104']);
   assert.equal(await card.locator('.fm-user-summary-dot').getAttribute('title'),'Away');
   await page.evaluate(()=>presenceListener([{user_id:'member',status:'active',last_active_at:Date.now()}]));
   assert.equal(await card.locator('.fm-user-summary-dot').getAttribute('title'),'Active');
