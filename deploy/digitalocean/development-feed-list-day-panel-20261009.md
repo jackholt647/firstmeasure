@@ -134,3 +134,82 @@ The browser regression passed against repository source and the deployment overl
 Code commit `1ff52d140a164f68219dd242a1b53aa892936d0a` replaces the manual-post plain textarea with the Channels rich editor and formatter. Selected text now formats in place, and posts render through the Channels message renderer. Posts and comments use the shared Channels emoji picker and GIF control. The Feed manifest loads Channels before Feed. Post image attachments open in a modal with close and previous/next controls, including images revealed by Show more. A follow-up test commit is `1466c0883b3710ed547c81ec172ebc70229bc980`. The Feed and Channels cache version is `20261009-feed-composer-widgets-v19`.
 
 The Feed browser regression passed against repository source and the staged development overlay. It exercised rich formatting, list serialization, link insertion, emoji insertion, GIF selection, mentions, image navigation, and closing the image modal. The Channels mentions browser test, JavaScript syntax, and diff checks passed. Web, pool, and compatibility passed local readiness and outbound-safety checks after sequential activation. The public Feed and Channels assets returned HTTP 200 and matched SHA-256 `aa2e176079490a8e6297c94e9182f8d4ffb4d3cdff7e90afd988657f05042e69` and `1beaf86981772984d9ff5591b0b8868268f3183cd8807147f6d39e20685fb0e4` on all three roles. Public login returned HTTP 200 between activations. Web and pool serve `/opt/firstmeasure/releases/1466c0883b3710ed547c81ec172ebc70229bc980`; compatibility serves `/mnt/firstmeasure_dev_releases/releases/1466c0883b3710ed547c81ec172ebc70229bc980`. Web was staged from release `68a734d5a50af9d12c31d68a3e35f98d74a10ea3`; pool and compatibility were restaged from the newer concurrent release `26022ecc-user-preview-phone` to retain its other changes. Recheck active symlinks before rollback.
+
+
+## October 10: caret, table, formatting, mentions and audio parity
+
+Source commit: `3323ab8dffd7fc0823066ac0394f5d3943f3223c`, pushed to
+`origin/codex/feed-department-posts-dev`.
+
+- The shared Channels rich editor remembers its real selection before an emoji
+  picker or other control takes focus. Emoji insertion returns to the selected
+  caret, including in the middle or last line of a draft.
+- The shared table size picker retains its hovered cells while updating the
+  selection, so clicking a size inserts the chosen table at the editor caret.
+- Clear formatting removes inline styles, links and block formatting from the
+  selection. When no text is selected, it clears the draft's formatting.
+- The Channels searchable @ toolbar menu is exported through `composerWidgets`
+  and used by Posts and comments. Feed candidates remain restricted to employees
+  in the post audience; Channels retains its conversation/group/agent targets.
+- Posts no longer discard the audio-note waveform player when recording finishes.
+  They retain the shared `FirstMateAudioNotes.prepareInline` and `mountPrepared`
+  playback/remove UI through attachment and audience changes. Comments remount
+  the same prepared player through card redraws. Audio-note blob URLs are released
+  when the note is removed or successfully posted. Dictation uses the same inline
+  recorder and transcription flow; clicking its active icon finishes capture.
+
+Local source files (under the shared `firstmeasure-feed-release` checkout):
+
+- `public/libraries/apps/photos/feed.js`
+- `public/libraries/channels-ui/channels-ui.js`
+- `public/libraries/apps/firstmate-apps-manifest.js`
+- `public/v1/tests/feed-browser.test.mjs`
+- `public/v1/tests/channels-mentions-ui.test.mjs`
+
+Prepared deployment: `output/feed-list-right-project/v20/`. It applies only this
+source delta onto downloaded active Feed/Channels files and changes the relevant
+manifest cache tokens to `20261010-feed-composer-parity-v20`. The current audio
+library remains part of each server baseline.
+
+Validation: Feed browser coverage passed against the prepared Feed/Channels files
+and the downloaded active audio library. The browser supplied a real oscillator
+stream rather than requesting a microphone; the real recorder, waveform builder,
+playback controls and dictation flow ran. This verifies the UI lifecycle, not
+physical microphone permissions or a live transcription provider. Tests also
+cover emoji caret placement after picker search, interior insertion, table rows
+and columns, whole-draft and selected-text Clear formatting, searched @ selection,
+post/comment audio playback and removal, and preview retention during dictation
+and audience changes. The Channels mention browser regression passed against the
+prepared Channels file.
+
+Runtime SHA-256:
+
+| File | Hash |
+| --- | --- |
+| Feed | `f3f984b26e1d62a572dca1a3f8653603b1d24fb7cecdde9b8d83d579221e4429` |
+| Channels UI | `e33914a8806a5c8b67febd4810b81429227bea9e584c13799ec3383e21f71e27` |
+| Web manifest | `210e81dbf10940517b5e6e662549ac56940ea82bcfd2f524825e9e9375204dcd` |
+| Pool manifest | `a2558139830e708b0fa1fa615722b194b9381dfaa48f9744bb70c2cdc7ccaf07` |
+| Compatibility manifest | `d6c47836e382b68d1edee1bd4354a7e9297257527a5010d23890696776a6ea6d` |
+
+The first staged web candidate was rejected by the activation guard after another
+release landed. It was preserved with suffix `-staged-from-9831303f`. Web was
+restaged from `/opt/firstmeasure/releases/aaa9d0d168ef83249663fcbf7e56a253e72668a5`,
+preserving that release's manifest change. Pool and compatibility were staged from
+`9831303f801cf56581e4fc0876d9a4e1d9d73393` on their respective release filesystems.
+
+Activation and final verification completed on web, pool and compatibility. All
+three report `ok:true`, release `3323ab8dffd7fc0823066ac0394f5d3943f3223c`,
+`data_environment:development` and enforced outbound safety. Active paths:
+
+- Web/pool: `/opt/firstmeasure/releases/3323ab8dffd7fc0823066ac0394f5d3943f3223c`
+- Compatibility: `/mnt/firstmeasure_dev_releases/releases/3323ab8dffd7fc0823066ac0394f5d3943f3223c`
+
+Public HTTPS Feed and Channels assets matched the runtime hashes above. The
+public manifest matched the web manifest and contains the new cache token.
+
+To rerun prepared-runtime coverage, set `FEED_BROWSER_SCRIPT`,
+`CHANNELS_BROWSER_SCRIPT` and `AUDIO_BROWSER_SCRIPT` to the corresponding prepared
+Feed/Channels files and downloaded active audio library, then run
+`node public/v1/tests/feed-browser.test.mjs`. The Channels mention test also accepts
+`CHANNELS_BROWSER_SCRIPT` for release-file verification.
