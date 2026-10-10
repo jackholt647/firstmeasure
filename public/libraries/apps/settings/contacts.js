@@ -100,13 +100,14 @@
     const routeViewKey = routeScope === 'contacts' ? 'contactsSettingsView' : 'settingsView';
     const routedView = String(root.Portal?.navigation?.read?.()?.[routeViewKey] || options.initialSubtab || '').trim();
     const state = {
-      subtab: ['import','history','tags'].includes(routedView) ? routedView : 'import',
+      subtab: ['import','history','tags','preferences'].includes(routedView) ? routedView : 'import',
       step: 'upload',
       file: null,
       preview: null,
       mappingDraft: null,
       tags: [],
       catalog: [],
+      trackTimeZones: false,
       importPhotos: false,
       catalogError: '',
       duplicateAction: 'skip',
@@ -123,7 +124,7 @@
     const page = host.querySelector('.cti-page');
 
     function setSubtab(next, opts = {}){
-      const value = ['import','history','tags'].includes(next) ? next : 'import';
+      const value = ['import','history','tags','preferences'].includes(next) ? next : 'import';
       state.subtab = value;
       if (opts.updateRoute !== false && !root.Portal?.navigation?.applying) {
         const patch = routeScope === 'contacts'
@@ -135,7 +136,7 @@
     }
 
     function subTabs(){
-      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history'],...(canManageTags?[['tags','Contact tags']]:[])].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button">${esc(label)}</button>`).join('')}</div>`;
+      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history'],...(canManageTags?[['tags','Contact tags'],['preferences','Preferences']]:[])].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button">${esc(label)}</button>`).join('')}</div>`;
     }
     function bindSubTabs(){
       host.querySelectorAll('[data-cti-subtab]').forEach((button) => button.addEventListener('click', () => setSubtab(button.dataset.ctiSubtab)));
@@ -529,16 +530,17 @@
     function tagsMarkup(){
       return `<div class="cti-head"><div><h3>Contact tags</h3><p>Admins manage the tags available to contacts. Existing tags remain on contacts. The built-in ${esc(root.PlatformTerminology?.get?.('contacts.org','Org') || 'Org')} tag follows the contact type; its name is managed in Terminology.</p></div></div>
         ${state.catalogError?`<div class="cti-error">${esc(state.catalogError)}</div>`:''}
-        <div class="cti-block">${state.catalog.filter(row=>row.id!=='org').map(row=>`<div class="cti-history-row" data-catalog-id="${esc(row.id)}"><label>Tag name<input class="cti-input" data-catalog-label value="${esc(row.label)}" maxlength="80"></label><label><input type="checkbox" data-catalog-enabled ${row.enabled!==false?'checked':''}> Available</label></div>`).join('')}
+        <div class="cti-block">${state.catalog.filter(row=>row.id!=='org').map(row=>`<div class="cti-history-row" data-catalog-id="${esc(row.id)}"><label>Tag name<input class="cti-input" data-catalog-label value="${esc(row.label)}" maxlength="80"></label><label><input type="checkbox" data-catalog-enabled ${row.enabled!==false?'checked':''}> Available</label><button class="cti-btn danger" type="button" data-catalog-remove="${esc(row.id)}" aria-label="Remove ${esc(row.label)} tag">Remove</button></div>`).join('')}
         <button class="cti-btn" type="button" data-catalog-add>Add tag</button><button class="cti-btn primary" type="button" data-catalog-save>Save tags</button></div>`;
     }
     function bindCatalog(){
+      host.querySelectorAll('[data-catalog-remove]').forEach(button=>button.addEventListener('click',()=>{collectCatalog();state.catalog=state.catalog.filter(row=>row.id!==button.dataset.catalogRemove);render();}));
       host.querySelector('[data-catalog-add]')?.addEventListener('click',()=>{
         collectCatalog();state.catalog.push({id:'tag_'+crypto.randomUUID().replaceAll('-','').slice(0,16),label:'New tag',enabled:true});render();
       });
       host.querySelector('[data-catalog-save]')?.addEventListener('click',async event=>{
         collectCatalog();event.target.disabled=true;
-        try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{tags:state.catalog});state.catalog=result.settings.tags;state.catalogError='';toast('Contact tags','Saved.',true);root.dispatchEvent(new CustomEvent('fm:contact-tags:updated'));}
+         try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{version:2,tags:state.catalog,track_time_zones:state.trackTimeZones});state.catalog=result.settings.tags;state.catalogError='';toast('Contact tags','Saved.',true);root.dispatchEvent(new CustomEvent('fm:contact-tags:updated'));}
         catch(error){state.catalogError=error.message;}finally{render();}
       });
     }
@@ -549,6 +551,11 @@
     }
     function render(){
       if(state.subtab==='tags' && canManageTags){page.innerHTML=subTabs()+tagsMarkup();bindSubTabs();bindCatalog();return;}
+      if(state.subtab==='preferences' && canManageTags){
+        page.innerHTML=subTabs()+`<div class="cti-head"><div><h3>Contact preferences</h3><p>Choose which details your organization tracks on every contact.</p></div></div><div class="cti-block"><h4>Contact time zones</h4><p>Show a time-zone dropdown in the contact editor.</p><label class="cti-field"><span><input type="checkbox" data-cti-time-zones ${state.trackTimeZones?'checked':''}> Track individual contact time zones</span></label><div class="cti-actions"><button class="cti-btn primary" type="button" data-cti-save-preferences>Save preferences</button></div>${state.catalogError?`<div class="cti-error">${esc(state.catalogError)}</div>`:''}</div>`;
+        bindSubTabs();page.querySelector('[data-cti-save-preferences]').onclick=async event=>{event.target.disabled=true;try{const result=await root.PlatformAPI.contacts.saveSettings(orgId,{version:2,tags:state.catalog,track_time_zones:page.querySelector('[data-cti-time-zones]').checked});state.trackTimeZones=result.settings.track_time_zones===true;state.catalog=result.settings.tags;state.catalogError='';root.dispatchEvent(new CustomEvent('fm:contact-settings:updated',{detail:{track_time_zones:state.trackTimeZones}}));toast('Contact preferences','Saved.',true);}catch(error){state.catalogError=error.message;}finally{render();}};
+        return;
+      }
 
       if (!api) {
         page.innerHTML = (String(subTabs()) + "<div class=\"cti-error\">" + (globalThis.PlatformLanguage?.htmlText("settings","m_4d69c2b47d6b55","Contact imports are unavailable — the platform API client is missing.") ?? "Contact imports are unavailable — the platform API client is missing.") + "</div>");
@@ -570,7 +577,7 @@
     }
 
     render();
-    root.PlatformAPI?.contacts?.settings(orgId).then(result=>{state.catalog=result.settings?.tags || [];render();}).catch(error=>{state.catalogError=error.message;render();});
+    root.PlatformAPI?.contacts?.settings(orgId).then(result=>{state.catalog=result.settings?.tags || [];state.trackTimeZones=result.settings?.track_time_zones===true;render();}).catch(error=>{state.catalogError=error.message;render();});
 
     const unregisterRoute = root.Portal?.navigation?.registerHandler?.(`contacts-settings-view:${routeScope}:${options.instanceId || 'default'}`, {
       priority: 450,
@@ -579,7 +586,7 @@
           ? route.tab === 'contacts' && ['import','settings'].includes(route.contactsWorkspace)
           : route.tab === 'company_settings' && route.sub === 'contacts';
         if (!matches) return;
-        const next = ['import','history','tags'].includes(route[routeViewKey]) ? route[routeViewKey] : (options.initialSubtab || 'import');
+        const next = ['import','history','tags','preferences'].includes(route[routeViewKey]) ? route[routeViewKey] : (options.initialSubtab || 'import');
         if (next !== state.subtab) setSubtab(next, { updateRoute: false });
       }
     });

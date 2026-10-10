@@ -66,11 +66,14 @@ trays, tabStyle, headerRows})` accepts application-owned DOM nodes. `tabs` and
 the optional tray adapter supplies `available()` and `select(idOrNull)`.
 The returned shell supplies `validate`, `apply` and `reset`.
 
-Contacts inject their details column as the persistent sidebar and place tabs
-above the workspace to its right. Projects declare no persistent sidebar:
+Contacts inject their details column as the persistent sidebar and use the same
+two-row title and tab header as Projects. Projects declare no persistent sidebar:
 Overview and other apps retain their own content rails as described in
 [project content ownership](project-content-layout.md). This does not restore
 the removed project left-region override or module injection contracts.
+
+Contacts declare Projects, Photos & Media, and Docs panes. Docs lists files owned
+by the contact and uploads to that contact's media library.
 
 `localPanes` retains in-document tab nodes (Contacts). Project panes retain their
 existing isolated documents and share the portal's transport. Changing ratios

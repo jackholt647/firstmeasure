@@ -31,6 +31,12 @@ export async function contactOptions(orgId:string,kind="either") {
 }
 export async function normalizeContactRecord(orgId:string,incoming:JsonObject,previous:JsonObject={}) {
  const next={...incoming},kind=contactKind({...previous,...incoming});
+ const zone=text(next.time_zone ?? previous.time_zone);
+ if(zone){
+  try{new Intl.DateTimeFormat("en-US",{timeZone:zone});}
+  catch{throw badRequest("contact_time_zone_invalid","Choose a valid time zone.");}
+ }
+ next.time_zone=zone;
  const raw=Array.isArray(next.tags)?next.tags:Array.isArray(previous.tags)?previous.tags:[];
  const tags=[...new Set(raw.map(text).filter(Boolean))].filter(tag=>tag!=="org");
  if(tags.length>64 || tags.some(tag=>tag.length>80))throw badRequest("contact_tags_invalid","Use at most 64 tags, each up to 80 characters.");

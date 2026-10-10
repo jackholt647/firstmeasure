@@ -209,7 +209,7 @@
         const quoted = [line.replace(/^> ?/, '')];
         while (i + 1 < lines.length && /^>(?: |$)/.test(lines[i + 1])) quoted.push(lines[++i].replace(/^> ?/, ''));
         const contents = quoteDepth < 16
-          ? renderBody({ text:quoted.join('\n') }, undefined, quoteDepth + 1)
+          ? renderBody({ text:quoted.join('\n'), mention_users:message.mention_users }, undefined, quoteDepth + 1)
           : quoted.map(value => `<div>${inline(value) || '<br>'}</div>`).join('');
         blocks.push(`<blockquote>${contents}</blockquote>`);
       }
@@ -217,6 +217,13 @@
     }
     let html = blocks.join('');
     const labels = [...new Set(['channel','here',...(message.mention_users || []).map(user=>cleanText(user.name)).filter(Boolean)])].sort((a,b)=>b.length-a.length);
+    const mentionedUsers = new Map();
+    for (const user of message.mention_users || []) {
+      const name = cleanText(user.name).toLowerCase(), id = user.id || user.user_id;
+      if (!name || !id || name === 'channel' || name === 'here') continue;
+      if (mentionedUsers.has(name) && mentionedUsers.get(name) !== id) mentionedUsers.set(name, null);
+      else if (!mentionedUsers.has(name)) mentionedUsers.set(name, id);
+    }
     const escaped = labels.map(label=>label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
     const expression = new RegExp(`(^|[\\s([{])(@(?:${escaped.join('|')}))(?=$|[\\s.,!?;:)\\]}])`, 'gi');
     const container = document.createElement('div'); container.innerHTML = html;
@@ -229,7 +236,10 @@
       for (const match of value.matchAll(expression)) {
         const start = match.index + match[1].length;
         fragment.append(document.createTextNode(value.slice(cursor,start)));
-        const token = document.createElement('span'); token.className = 'fm-ch-mention'; token.textContent = match[2]; fragment.append(token);
+        const token = document.createElement('span'); token.className = 'fm-ch-mention'; token.textContent = match[2];
+        const mentionedId = mentionedUsers.get(match[2].slice(1).toLowerCase());
+        if (mentionedId) { token.dataset.fmSummaryUserId = mentionedId; token.tabIndex = 0; token.setAttribute('aria-label', `Preview ${match[2]}`); }
+        fragment.append(token);
         cursor = start + match[2].length;
       }
       if (!cursor) continue;
@@ -917,7 +927,7 @@
 @keyframes fm-ch-spin{to{transform:rotate(360deg)}}
 .fm-ch-translation-note{display:inline-flex;align-items:center;gap:5px;margin-top:2px;color:var(--ch-muted);font-size:9.5px;font-weight:700}
 .fm-ch-translation-note i{font-size:9px}
-.fm-ch-mention{background:rgba(217,48,37,.08);color:#d93025;border-radius:4px;padding:0 3px;font-weight:600}
+.fm-ch-mention{background:rgba(217,48,37,.08);color:#d93025;border-radius:4px;padding:0 3px;font-weight:600}.fm-ch-mention[data-fm-summary-type]{cursor:pointer}.fm-ch-mention:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 .fm-ch-formatbar button[data-mention-button]{color:#d93025}
 .fm-ch-msg-deleted{color:var(--ch-muted);font-style:italic;display:flex;align-items:center;gap:8px}
 .fm-ch-restore-link{color:var(--ch-muted);font-size:12px;font-style:normal;text-decoration:underline;opacity:.7}
@@ -955,10 +965,10 @@
 @media(prefers-reduced-motion:reduce){.fm-ch-side-typing>span{animation:none}}
 .fm-ch-typing{min-height:20px;color:var(--ch-muted);font-size:11px;padding:0 16px 4px;font-style:italic}
 .fm-ch-composer{border-top:1px solid var(--ch-border);padding:10px 16px 12px}
-.fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px;background:#fff}
+.fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px 9px;background:#fff}
 .fm-ch-composer-box:focus-within{border-color:var(--ch-accent)}
 .fm-ch-composer textarea{width:100%;border:none;outline:none;resize:none;font:inherit;background:transparent;max-height:180px;min-height:22px;color:var(--ch-text)}
-.fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.fm-ch-composer-box .fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:8px;min-height:32px;flex-wrap:wrap}
 .fm-ch-reply-broadcast{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ch-muted);margin-right:auto;cursor:pointer}.fm-ch-reply-broadcast[hidden]{display:none}.fm-ch-reply-broadcast input{width:15px;height:15px;margin:0;accent-color:var(--ch-accent)}.fm-ch-thread-broadcast{display:block;margin:0 0 6px;color:var(--ch-muted);font-size:11px;text-align:left}.fm-ch-thread-broadcast:hover{color:var(--ch-accent);text-decoration:underline}
 .fm-ch-audio-mount:not(:empty){width:100%;animation:fm-ch-audio-in .18s ease-out}.fm-ch-audio-mount .fm-an-inline{margin-top:7px}
 @keyframes fm-ch-audio-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
@@ -968,6 +978,7 @@
 .fm-ch-send:hover{filter:brightness(1.06)}
 .fm-ch-send:disabled{opacity:.45;cursor:default}
 .fm-ch-rich-editor{min-height:64px;max-height:220px;overflow:auto;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 2px;font-size:14px;line-height:1.5}
+.fm-ch-composer-box .fm-ch-rich-editor{min-height:72px}
 .fm-ch-rich-editor:empty:before{content:attr(data-placeholder);color:var(--ch-muted);pointer-events:none}
 .fm-ch-rich-editor table,.fm-ch-msg-body table{border-collapse:collapse;margin:8px 0;width:100%;table-layout:fixed}
 .fm-ch-table-card{border:1px solid var(--ch-border);border-radius:8px;margin:8px 0;overflow:auto;cursor:pointer;background:var(--ch-bg)}
@@ -1015,7 +1026,7 @@
 .fm-ch-emoji-group{padding:6px 10px 0;color:var(--ch-muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .fm-ch-emoji-search{width:calc(100% - 16px);margin:8px;padding:5px 8px;border:1px solid var(--ch-border);border-radius:8px;font:inherit;font-size:12px;outline:none}
 .fm-ch-modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.4);z-index:1600;display:flex;align-items:center;justify-content:center}
-.fm-ch-modal,.fm-ch-popover{color:var(--ch-text);font-family:inherit;font-size:13.5px;line-height:1.45;box-sizing:border-box}.fm-ch-profile-trigger{border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}.fm-ch-msg-author.fm-ch-profile-trigger{font-weight:700}.fm-ch-profile-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.fm-ch-profile-card{padding:18px;display:grid;gap:12px;overflow-wrap:anywhere}.fm-ch-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(15,23,42,.24);width:420px;max-width:calc(100vw - 32px);max-height:80vh;display:flex;flex-direction:column}
+.fm-ch-modal,.fm-ch-popover{color:var(--ch-text);font-family:inherit;font-size:13.5px;line-height:1.45;box-sizing:border-box}.fm-ch-summary-trigger{border:0;background:none;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}.fm-ch-summary-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.fm-ch-modal{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(15,23,42,.24);width:420px;max-width:calc(100vw - 32px);max-height:80vh;display:flex;flex-direction:column}
 .fm-ch-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--ch-border);font-weight:900;font-size:14.5px}
 .fm-ch-modal-body{padding:20px 24px;overflow-y:auto;min-height:0;overscroll-behavior:contain}
 .fm-ch-modal-body label{display:block;font-size:12px;font-weight:600;color:#344054;margin:18px 0 7px}
@@ -1113,21 +1124,7 @@
 .fm-ch-popover{max-width:min(360px,calc(100vw - 16px))}
 }
 `;
-    style.textContent += `
-.fm-ch{position:relative}
-.fm-ch-profile-card{width:320px;max-width:calc(100vw - 16px);padding:22px;gap:16px;box-shadow:0 12px 40px #10182824;border-radius:14px}
-.fm-ch-profile-summary{display:flex;gap:14px;align-items:center;padding-right:12px}.fm-ch-profile-summary .fm-ch-avatar{width:64px;height:64px;border-radius:12px;font-size:24px}
-.fm-ch-profile-summary strong,.fm-ch-profile-hero strong{display:block;font-size:18px;line-height:1.3;letter-spacing:-.3px}.fm-ch-profile-summary span:not(.fm-ch-avatar),.fm-ch-profile-summary small{display:block;color:#667085;margin-top:4px}
-.fm-ch-profile-email{font-size:12px;color:#475467;text-decoration:none;overflow-wrap:anywhere}
-.fm-ch-profile-actions{display:flex;gap:8px}.fm-ch-profile-actions .fm-ch-btn{flex:1;white-space:nowrap;padding:8px 10px}
-.fm-ch-profile-close{position:absolute;right:8px;top:8px;width:24px;height:24px;color:#667085!important;border-radius:6px}
-.fm-ch-profile-panel{flex:0 0 320px;width:320px;min-width:0;max-width:100%;background:#fff;border-left:1px solid #e4e7ec;display:flex;flex-direction:column;z-index:8}
-.fm-ch-profile-panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #e4e7ec}
-.fm-ch-profile-panel-body{overflow:auto;padding:24px;display:flex;flex-direction:column;gap:20px}
-.fm-ch-profile-hero .fm-ch-avatar{width:112px;height:112px;font-size:40px;border-radius:20px;margin-bottom:18px}.fm-ch-profile-hero span:not(.fm-ch-avatar),.fm-ch-profile-hero small{display:block;color:#667085;margin-top:6px}
-.fm-ch-profile-details{margin:0;padding-top:20px;border-top:1px solid #eaecf0;overflow-wrap:anywhere}.fm-ch-profile-details dt{font-size:11px;color:#667085;margin-top:16px}.fm-ch-profile-details dt:first-child{margin-top:0}.fm-ch-profile-details dd{margin:4px 0 0;font-size:13px}.fm-ch-profile-details a{color:#175cd3;text-decoration:none}.fm-ch-profile-panel-body h3{margin:0;font-size:13px}.fm-ch-profile-about{white-space:pre-wrap;margin:0}.fm-ch-profile-empty{color:#667085;font-size:12px}
-.fm-ch.fm-ch-profile-narrow .fm-ch-profile-panel{position:absolute;inset:0 0 0 auto;width:min(360px,100%);box-shadow:-12px 0 32px #1018281a}
-`;
+    style.textContent += `.fm-ch{position:relative}`;
     style.textContent += `
 :where(.fm-call-window) button{font:inherit;cursor:pointer;border:0}
 .fm-call-window .fm-ch-huddle{width:100%;height:100%;flex:1}
@@ -1539,8 +1536,6 @@
         renderMessages();
         renderComposer();
         renderSidebar();
-        const profileRoute = root.Portal?.navigation?.read?.();
-        if (profileRoute?.channelProfile && profileRoute.channelProfileChannel === channelId && mode !== 'list' && profilePanel?.dataset.userId !== profileRoute.channelProfile) showFullProfile({id:profileRoute.channelProfile}, {silent:true});
         scheduleMarkRead(Number(data.channel?.message_seq) || 0);
         if (state.revealTarget) await revealMessage(state.revealTarget);
         options.onNavigate?.({ channel: channelId });
@@ -3749,70 +3744,18 @@
       runTranslationQueue();
     }
 
-    let profilePanel = null;
-    const profileWidthObserver = root.ResizeObserver ? new ResizeObserver(() => shell.classList.toggle('fm-ch-profile-narrow', shell.clientWidth <= 680)) : null;
-    profileWidthObserver?.observe(shell);
-    const profileSummary = user => `${avatarHtml(user)}<div><strong>${esc(user.name || 'Team member')}${onlineDot(user.id)}</strong>${user.title ? `<span>${esc(user.title)}</span>` : ''}${user.pronouns ? `<small>${esc(user.pronouns)}</small>` : ''}</div>`;
-    async function messageProfile(user, button){
-      button.disabled = true;
-      try {
-        const data = await api.channels.create(orgId, {type:'dm', member_user_ids:[user.id]});
-        closePopover(); closeProfilePanel(); await loadChannels(); await setChannel(data.channel.id);
-      } catch (error) { button.disabled = false; showError(error); }
+    function bindUserSummary(trigger, author){
+      if (!author?.id || String(author.id).startsWith('agent_')) return;
+      trigger.dataset.fmSummaryType = 'summary.user';
+      trigger.dataset.fmSummaryTarget = JSON.stringify({scope:'organization',organizationId:orgId,id:author.id});
+      trigger.setAttribute('aria-label', `Preview ${author.name || 'team member'}`);
     }
-    function closeProfilePanel({silent = false} = {}){
-      if (!silent && root.Portal?.navigation?.read?.().channelProfile) {
-        const result = root.Portal.navigation.backOrClose(['channelProfile'], {channelProfile:null,channelProfileChannel:null});
-        if (result?.backed) return;
+    function bindMentionSummaries(container){
+      for (const token of container.querySelectorAll('[data-fm-summary-user-id]')) {
+        token.dataset.fmSummaryType = 'summary.user';
+        token.dataset.fmSummaryTarget = JSON.stringify({scope:'organization',organizationId:orgId,id:token.dataset.fmSummaryUserId});
+        delete token.dataset.fmSummaryUserId;
       }
-      profilePanel?.remove(); profilePanel = null;
-    }
-    function showFullProfile(user, {silent = false} = {}){
-      closePopover(); profilePanel?.remove();
-      const panel = el('aside', 'fm-ch-profile-panel'); panel.dataset.userId = user.id; profilePanel = panel;
-      panel.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_489a5044534481","Member profile") ?? "Member profile"));
-      panel.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); closeProfilePanel(); } });
-      const header = el('div', 'fm-ch-profile-panel-head', `<strong>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6f5dea53bf13f4","Profile") ?? "Profile")}</strong>`);
-      const close = el('button', 'fm-ch-icon-btn', '<i class="fas fa-xmark"></i>'); close.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("channels-ui","m_c0934dcff7a79f","Close profile") ?? "Close profile")); close.onclick = () => closeProfilePanel(); header.append(close);
-      const body = el('div', 'fm-ch-profile-panel-body'); panel.append(header,body); shell.append(panel);
-      const render = person => {
-        body.innerHTML = `<div class="fm-ch-profile-hero">${profileSummary(person)}</div>`;
-        if (person.id !== currentUser.id && !person.disabled) {
-          const message = el('button','fm-ch-btn primary','<i class="fas fa-comment"></i> Message'); message.onclick = () => messageProfile(person,message); body.append(message);
-        }
-        const details = el('dl','fm-ch-profile-details');
-        for (const [label,value,link] of [['Email',person.email,person.email ? `mailto:${person.email}` : ''],['Phone',person.phone,person.phone ? `tel:${person.phone}` : ''],['Department',person.department],['Location',person.location],['Time zone',person.time_zone]]) {
-          if (!value) continue;
-          details.append(el('dt','',esc(label)),el('dd','',link ? `<a href="${esc(link)}">${esc(value)}</a>` : esc(value)));
-        }
-        if (details.childElementCount) body.append(details);
-        if (person.bio) body.append(el('h3','','About'),el('p','fm-ch-profile-about',esc(person.bio)));
-        if (!details.childElementCount && !person.bio) body.append(el('p','fm-ch-profile-empty','No additional profile details have been shared.'));
-      };
-      render(user); close.focus();
-      api.directory?.list(orgId).then(data => { if (panel.isConnected) render({...user,...data?.users?.find(person => person.id === user.id)}); }).catch(() => {});
-      if (!silent && !root.Portal?.navigation?.applying) root.Portal?.navigation?.push?.({channelProfile:user.id,channelProfileChannel:state.activeChannelId}, {ownedKeys:['channelProfile']});
-    }
-    function openUserProfile(author, anchor){
-      if (!author?.id) return;
-      const pop = showPopover(anchor, node => {
-        node.setAttribute('role','dialog'); node.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_6a58adc10a30f7",`${v0} profile`,{v0}) ?? `${v0} profile`)(author.name || 'User')); node.classList.add('fm-ch-profile-card');
-      });
-      const render = user => {
-        pop.innerHTML = `<div class="fm-ch-profile-summary">${profileSummary(user)}</div>${user.email ? `<a class="fm-ch-profile-email" href="mailto:${esc(user.email)}">${esc(user.email)}</a>` : ''}`;
-        const actions = el('div','fm-ch-profile-actions');
-        if (user.id !== currentUser.id && !user.disabled) {
-          const message = el('button','fm-ch-btn primary','Message'); message.onclick = () => messageProfile(user,message); actions.append(message);
-        }
-        const full = el('button','fm-ch-btn','View profile'); full.onclick = () => showFullProfile(user); actions.append(full); pop.append(actions);
-        const close = el('button','fm-ch-profile-close','<i class="fas fa-xmark"></i>'); close.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("channels-ui","m_3742924668fb10","Close") ?? "Close")); close.onclick = closePopover; pop.append(close);
-        const rect = anchor.getBoundingClientRect(), bounds = pop.getBoundingClientRect();
-        pop.style.top = `${Math.max(8,rect.bottom + bounds.height + 6 <= innerHeight - 8 ? rect.bottom + 6 : rect.top - bounds.height - 6)}px`;
-        pop.style.left = `${Math.max(8,Math.min(rect.left,innerWidth - bounds.width - 8))}px`;
-      };
-      render(author);
-      api.directory?.list(orgId).then(data => { if (pop.isConnected) render({...author,...data?.users?.find(user => user.id === author.id)}); }).catch(() => {});
-      pop.addEventListener('keydown', event => { if (event.key === 'Escape') { closePopover(); anchor.focus(); } }); pop.tabIndex = -1; pop.focus();
     }
 
     function messageRow(message, { inThread } = {}){
@@ -3856,9 +3799,9 @@
         content.append(context);
       }
 
-      const avatarButton = el('button', 'fm-ch-profile-trigger', avatarHtml(message.author));
-      avatarButton.type = 'button'; avatarButton.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_b49557609481cb",`View ${v0} profile`,{v0}) ?? `View ${v0} profile`)(message.author?.name || 'user'));
-      avatarButton.addEventListener('click', () => openUserProfile(message.author, avatarButton));
+      const avatarButton = el('button', 'fm-ch-summary-trigger', avatarHtml(message.author));
+      avatarButton.type = 'button';
+      bindUserSummary(avatarButton, message.author);
       gutter.append(avatarButton);
       const audience = audienceLabel(message.audience);
       const translation = message.translation || {};
@@ -3871,15 +3814,16 @@
         queueMicrotask(() => requestTranslation(message, true));
       }
       const head = el('div', 'fm-ch-msg-head', `
-        <button type="button" class="fm-ch-msg-author fm-ch-profile-trigger">${esc(message.author?.name || 'Unknown')}</button>
+        <button type="button" class="fm-ch-msg-author fm-ch-summary-trigger">${esc(message.author?.name || 'Unknown')}</button>
         <span class="fm-ch-msg-time">${esc(fmtTime(message.created_at))}</span>
         ${message.edited_at && features.editHistory ? `<a class="fm-ch-msg-edited" data-act="history">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</a>` : (message.edited_at ? `<span class="fm-ch-msg-edited">${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cd7e9c529b0a41","(edited)") ?? "(edited)")}</span>` : '')}
         ${(message.tags || []).map(tagChipHtml).join('')}
         ${audience ? `<span class="fm-ch-audience-note">${esc(audience)}</span>` : ''}
         ${translation.available ? `<button type="button" class="fm-ch-translate${shouldShowTranslation ? ' on' : ''}${message._translation_loading ? ' loading' : ''}" data-act="translate" title="${shouldShowTranslation ? 'Show original' : `Translate to ${esc(translationLabel(translation.target_language))}`}" aria-label="${shouldShowTranslation ? 'Show original message' : 'Translate message'}" aria-pressed="${shouldShowTranslation ? 'true' : 'false'}"><i class="fas ${message._translation_loading ? 'fa-circle-notch' : 'fa-language'}"></i></button>` : ''}
       `);
-      head.querySelector('.fm-ch-msg-author').addEventListener('click', event => openUserProfile(message.author, event.currentTarget));
+      bindUserSummary(head.querySelector('.fm-ch-msg-author'), message.author);
       const body = el('div', 'fm-ch-msg-body', renderBody(message, shouldShowTranslation ? translatedText : message.text));
+      bindMentionSummaries(body);
       decorateTables(body);
       const edited = head.querySelector('.fm-ch-msg-edited');
       if (edited) body.append(edited);
@@ -4622,7 +4566,8 @@
       if (schedule) sendPair.appendChild(schedule);
       sendPair.appendChild(send);
       row.appendChild(sendPair);
-      composer.append(editNote, box, dictationMount, audioMount, pendingWrap, row);
+      box.appendChild(row);
+      composer.append(editNote, box, dictationMount, audioMount, pendingWrap);
 
       const autosize = () => {
         textarea.style.height = 'auto';
@@ -4929,7 +4874,8 @@
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
       row.append(broadcastLabel, send);
       if(features.attachments)row.prepend(gifPickerButton(state.threadRootId));
-      node.append(pendingWrap, box, row);
+      box.appendChild(row);
+      node.append(pendingWrap, box);
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
@@ -6050,14 +5996,6 @@
       }
       await loadChannels();
     }
-    root.Portal?.navigation?.registerSchema?.('channelProfile', {});
-    root.Portal?.navigation?.registerSchema?.('channelProfileChannel', {});
-    const removeProfileHandler = root.Portal?.navigation?.registerHandler?.(`channels-profile-${Math.random().toString(36).slice(2)}`, {
-      priority:195, apply:route => {
-        if (route.channelProfile && route.channelProfileChannel === state.activeChannelId && mode !== 'list') { if (profilePanel?.dataset.userId !== route.channelProfile) showFullProfile({id:route.channelProfile}, {silent:true}); }
-        else closeProfilePanel({silent:true});
-      }
-    });
     root.Portal?.navigation?.registerSchema?.('huddleWindow', {values:['full','floating','docked','minimized']});
     root.Portal?.navigation?.registerSchema?.('huddlePinned', {values:['1']});
     root.Portal?.navigation?.registerSchema?.('huddleFullscreen', {values:['1']});
@@ -6081,9 +6019,6 @@
         state.clipCleanup?.();
         if (state.huddle?.id) api.huddles.leave(orgId, state.huddle.id).catch(() => {});
         removeHuddleRouteHandler?.();
-        removeProfileHandler?.();
-        profileWidthObserver?.disconnect();
-        closeProfilePanel({silent:true});
         state.destroyed = true;
         if(state.huddle?.id) (isHuddleAdmin()?api.huddles.end(orgId,state.huddle.id):api.huddles.leave(orgId,state.huddle.id)).catch(()=>{});
         if(!state.huddleRecording && !state.huddleRecordingUploads)root.removeEventListener("beforeunload",protectRecording);

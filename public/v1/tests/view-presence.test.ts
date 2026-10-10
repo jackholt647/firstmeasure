@@ -32,6 +32,7 @@ test("presence is scoped, deduplicates tabs, streams changes, and expires discon
     assert.equal((await presenceRoster("a", "online")).length, 0, 'project viewers do not substitute for global tab presence');
     const inactiveTab = await join('a','online','Bill',2000);
     assert.equal((await presenceRoster('a','online'))[0]?.status,'away');
+    assert.ok(Number((await presenceRoster('a','online'))[0]?.last_active_at)>0,'away duration has a last activity timestamp');
     const activeTab = await join('a','online','Bill');
     assert.equal((await presenceRoster('a','online')).length,1);
     assert.equal((await presenceRoster('a','online'))[0]?.status,'active','activity in any tab wins');

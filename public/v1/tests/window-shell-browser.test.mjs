@@ -19,18 +19,19 @@ test('contact uses shared chrome, weighted panes, retained form nodes and option
     for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','apps/contacts/modal.js'])await load(page,file);
     await page.evaluate(async()=>{
       await Portal.modules.contacts.open({}, {layout:{panes:[{tab:'projects',weight:40},{tab:'media',weight:60}]}});
-      window.nameNode=document.querySelector('#fmContactName');nameNode.value='Unsaved name';
+      window.nameNode=document.querySelector('#fmContactFirstName');nameNode.value='Unsaved';document.querySelector('#fmContactLastName').value='name';
     });
     assert.equal(await page.locator('[data-contact-pane]:visible').count(),2);
     const a=await page.locator('[data-contact-pane=projects]').boundingBox(),b=await page.locator('[data-contact-pane=media]').boundingBox();
     assert.ok(Math.abs(a.width/(a.width+b.width)-.4)<.01);
-    assert.equal(await page.locator('.fm-shell-header').evaluate(e=>e.clientHeight),35);
+    assert.ok(await page.locator('.fm-shell-header').evaluate(e=>e.clientHeight)>=68);
+    assert.equal(await page.locator('.fm-shell-header>.fm-contact-tabs').count(),1);
     assert.equal(await page.locator('#fmContactProjectsTab').evaluate(e=>e.offsetHeight),32);
     await page.getByRole('textbox',{name:'Media draft'}).fill('Keep media draft');
     await page.evaluate(()=>Portal.modules.contacts.setLayout({panes:[{tab:'media',weight:3},{tab:'projects',weight:1}],sidebar:false,tabStyle:'pills'}));
     assert.equal(await page.locator('.fm-contact-left').isVisible(),false);
-    assert.equal(await page.evaluate(()=>nameNode===document.querySelector('#fmContactName')),true);
-    assert.equal(await page.locator('#fmContactName').inputValue(),'Unsaved name');
+    assert.equal(await page.evaluate(()=>nameNode===document.querySelector('#fmContactFirstName')),true);
+    assert.equal(await page.locator('#fmContactFirstName').inputValue(),'Unsaved');
     assert.equal(await page.getByRole('textbox',{name:'Media draft'}).inputValue(),'Keep media draft');
     await page.evaluate(async()=>{
       window.mounted=0;window.destroyed=0;

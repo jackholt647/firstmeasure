@@ -21,7 +21,8 @@ function database() {
 }
 export async function presenceRoster(orgId: string, scope: string) {
   if (scope === "online") return database().prepare(`SELECT p.user_id, MAX(p.name) AS name,
-    CASE WHEN MAX(a.last_active_at)>? THEN 'active' ELSE 'away' END AS status
+    CASE WHEN MAX(a.last_active_at)>? THEN 'active' ELSE 'away' END AS status,
+    MAX(a.last_active_at) AS last_active_at
     FROM platform_view_presence p LEFT JOIN platform_presence_activity a ON a.session_id=p.session_id
     WHERE p.organization_id=? AND p.scope='online' AND p.expires_at>? GROUP BY p.user_id ORDER BY p.user_id`).all(Date.now() - PRESENCE_IDLE_MS, orgId, Date.now());
   return database().prepare(`SELECT user_id, MAX(name) AS name FROM platform_view_presence
