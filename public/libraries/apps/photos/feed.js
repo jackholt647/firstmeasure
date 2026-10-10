@@ -70,6 +70,8 @@
     views:['list','small','large','mosaic','posts'],
     authorizedSources:new Map(),
     posts:new Map(),
+    summaryHandles:new Set(),
+    summaryRevision:0,
     canComment:true,
     canReact:true,
     shownMenuOpen: false,
@@ -1629,6 +1631,7 @@
       .pf-post{border:1px solid #e1e5ea;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 5px #10182806;min-width:0}
       .pf-post button{cursor:pointer}.pf-post-head{display:flex;align-items:center;gap:11px;padding:16px 18px}.pf-post-head>div{flex:1;min-width:0}.pf-post-head strong{font-size:14px;color:#182230}.pf-post-head>div>span{display:block;color:#798393;font-size:12px;margin-top:4px}.pf-post-head button{border:0;background:transparent;padding:0;color:inherit;font:inherit}.pf-post-head>i{color:#98a2b3}.pf-post-avatar{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover;background:#e9eef4;color:#475467;display:flex;align-items:center;justify-content:center;font-weight:700}
       .pf-post-head>.pf-actor-avatar{display:grid;margin-top:0;color:#475467}.pf-post-head>.pf-actor-avatar>.pf-actor-badge{display:grid;margin-top:0;color:#fff}
+      .pf-actor-avatar[data-fm-summary-type]{cursor:help}.pf-feed-list-summary{min-width:0}.pf-feed-list-summary [data-feed-summary-mount]:not([hidden]){max-width:100%;margin-top:6px}.pf-feed-list-summary [data-feed-summary-mount] .fm-typed-widget{font-size:12px!important;padding:10px!important;gap:6px!important}
       .pf-post-caption{margin:0;padding:0 18px 14px;font-size:14px;color:#344054}
       .pf-post-collage{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:repeat(3,1fr);gap:3px;height:350px;background:#eef1f4}.pf-post-collage .pf-thumb{height:100%;width:100%;aspect-ratio:auto;border-radius:0;border:0;position:relative}.pf-post-collage .pf-thumb:first-child{grid-row:1/-1}.pf-post-collage.count-1{display:block;height:390px}.pf-post-collage.count-2{grid-template-rows:1fr}.pf-post-collage.count-3{grid-template-rows:repeat(2,1fr)}.pf-post-collage img,.pf-post-collage video{object-fit:cover;width:100%;height:100%}.pf-post-overflow{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#10182888;color:#fff;font-size:32px;font-weight:650}
       .pf-post-document{margin:0 18px 18px;padding:24px;background:#f6f4fc;border:1px solid #e4def3;border-radius:8px;display:flex;align-items:flex-start;gap:18px}.pf-post-document-icon{font-size:34px;color:#7c3aed}.pf-post-document small{display:block;color:#667085;margin-bottom:5px}.pf-post-document strong{display:block;font-size:18px;color:#182230}.pf-post-document .pf-action{margin-top:14px}.pf-post-value{display:block;font-size:30px;color:#182230;margin-top:10px;letter-spacing:-.5px}.pf-post-event{padding:10px 22px 26px;line-height:1.6;font-size:16px}.pf-post-event>i{color:var(--primary,#475467);font-size:26px}.pf-post-event p{margin:10px 0 0}
@@ -2220,13 +2223,13 @@
     return state.posts.get(key);
   }
   function postAuthor(post){
-    if (post.kind === 'manual') return {name:firstText(post.manual?.author?.name,'Employee'),avatar:firstText(post.manual?.author?.profile_photo_url,post.manual?.author?.avatar)};
+    if (post.kind === 'manual') return {id:cleanText(post.manual?.author?.id),name:firstText(post.manual?.author?.name,'Employee'),avatar:firstText(post.manual?.author?.profile_photo_url,post.manual?.author?.avatar)};
     const documentUploader=post.kind==='document' ? firstText(post.document?.uploaded_by_user_id,post.document?.created_by_user_id,objectValue(post.document?.metadata).uploaded_by_user_id,post.pairedEvent?.actor_user_id) : '';
     const person=state.users.find(u=>cleanText(u.id || u.user_id)===cleanText(post.source?.author))
       || (documentUploader ? state.users.find(u=>cleanText(u.id || u.user_id)===documentUploader) : null);
     const up=post.kind==='media'?uploader(post.media):{};
     const profile=person?.profile && typeof person.profile==='object' ? person.profile : {};
-    return {name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'System activity'),
+    return {id:firstText(person?.id,person?.user_id,post.note?.author?.id,documentUploader,post.source?.author,post.event?.actor_user_id),name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'System activity'),
       avatar:firstText(person?.profile_photo_url,person?.profile_photo,profile.profile_photo,profile.profile_photo_url,person?.avatar_url,person?.avatar,post.note?.author?.avatar,up.avatar)};
   }
   function postIcon(post){
@@ -2242,7 +2245,9 @@
     const image=/^(https?:\/\/|\/)/.test(avatar)
       ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(author.name)}">`
       : `<span aria-hidden="true">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
-    return `<span class="pf-actor-avatar">${image}<span class="pf-actor-badge" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span></span>`;
+    const userId=cleanText(author.id);
+    const preview=userId ? ` data-fm-summary-type="summary.user" data-fm-summary-target="${escapeHtml(JSON.stringify({scope:'organization',organizationId:orgId(),id:userId}))}" tabindex="0" aria-label="Preview user: ${escapeHtml(author.name)}"` : '';
+    return `<span class="pf-actor-avatar"${preview}>${image}<span class="pf-actor-badge" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span></span>`;
   }
   function feedProjectLinkHtml(project = {}, projectId = '', listCard = false, nameOnly = false){
     const title = savedProjectTitle(project) || projectTitle(project);
@@ -2251,10 +2256,10 @@
     if (listCard && projectId) {
       const cover = normalizePhotos(project).find((photo) => galleryMediaType(photo) === 'photo');
       const coverUrl = cover ? photoThumb({photo:cover}) : '';
-      return `<button type="button" class="pf-project-identity pf-project-card" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span class="pf-project-card-cover" aria-hidden="true"><i class="fas fa-image"></i>${coverUrl ? `<img loading="lazy" src="${escapeHtml(coverUrl)}" alt="">` : ''}</span><span class="pf-project-card-details"><span class="pf-project-card-name">${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-project-card-address">${escapeHtml(address)}</span>` : ''}</span></button>`;
+      return `<button type="button" class="pf-project-identity pf-project-card" data-feed-project-id="${escapeHtml(projectId)}" data-fm-summary-type="summary.project" data-fm-summary-project="${escapeHtml(projectId)}" aria-label="Open project: ${escapeHtml(label)}"><span class="pf-project-card-cover" aria-hidden="true"><i class="fas fa-image"></i>${coverUrl ? `<img loading="lazy" src="${escapeHtml(coverUrl)}" alt="">` : ''}</span><span class="pf-project-card-details"><span class="pf-project-card-name">${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-project-card-address">${escapeHtml(address)}</span>` : ''}</span></button>`;
     }
     return projectId
-      ? `<button type="button" class="pf-project-identity" data-feed-project-id="${escapeHtml(projectId)}" title="Open project" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
+      ? `<button type="button" class="pf-project-identity" data-feed-project-id="${escapeHtml(projectId)}" data-fm-summary-type="summary.project" data-fm-summary-project="${escapeHtml(projectId)}" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
       : `<span>${escapeHtml(label)}</span>`;
   }
   function feedNoteHtml(note = {}, listNote = false){
@@ -2271,6 +2276,38 @@
   function feedListDocumentHtml(doc = {}, entryId = ''){
     if (!entryId) return '';
     return `<button type="button" class="pf-feed-list-document-thumb" data-feed-document-id="${escapeHtml(entryId)}" aria-label="Open document: ${escapeHtml(doc.title || doc.type_label || 'Document')}">${documentPreviewHtml(doc)}</button>`;
+  }
+  // Event producers can name a typed summary without teaching Feed about each new widget.
+  // Resolution and data reads still go through the authorized widget publication API.
+  function feedSummaryRequest(post = {}){
+    const event=post.event || post.pairedEvent || {},payload=activityPayload(event),target=activityTarget(event);
+    const supplied=objectValue(event.summary_widget || payload.summary_widget || target.summary_widget);
+    const projectId=cleanText(post.projectId || activityProjectId(event));
+    const document=post.kind==='document' ? post.document : null;
+    const documentId=firstText(document && !/^(invoice|receipt):/.test(cleanText(document.id)) ? document.id : '',payload.document_id,target.document_id);
+    const explicitType=cleanText(supplied.type || event.summary_type || payload.summary_type || target.summary_type);
+    const activityType=cleanText(event.type || automaticPostType(post));
+    const autoType=!explicitType && /^[a-z][a-z0-9_.-]{0,111}$/i.test(activityType) ? `summary.${activityType}` : '';
+    let type=explicitType;
+    let id=firstText(supplied.id,supplied.target?.id);
+    if(!type && documentId){type=`summary.document${['invoice','contract','receipt'].includes(cleanText(document?.document_type))?'.'+document.document_type:''}`;id=documentId;}
+    if(!type && cleanText(event.type)==='project.created'){type='summary.project';id=projectId;}
+    if(!type && cleanText(event.type)==='project.contact.attached'){type='summary.contact';id=firstText(payload.contact_id,target.contact_id);}
+    if(!type)type=autoType;
+    if(!type || !type.startsWith('summary.') || !/^[a-z][a-z0-9_.-]{0,119}$/i.test(type))return null;
+    const requestedTarget=objectValue(supplied.target);
+    const scope=cleanText(requestedTarget.scope || (type==='summary.user'?'organization':'project'));
+    if(!['organization','project'].includes(scope))return null;
+    const resolvedProjectId=firstText(requestedTarget.projectId,requestedTarget.project_id,projectId);
+    if(scope==='project' && (!resolvedProjectId || projectId && resolvedProjectId!==projectId))return null;
+    id=firstText(id,scope==='project' && type==='summary.project' ? resolvedProjectId : '',payload.subject_id,target.id,post.note?.id,post.media?.id,event.id);
+    if(!id)return null;
+    return {type,...(autoType && autoType!==type?{autoType}:{}),target:scope==='organization'?{scope,organizationId:orgId(),id}:{scope,organizationId:orgId(),projectId:resolvedProjectId,id},config:objectValue(supplied.config)};
+  }
+  function feedListSummaryHtml(post, fallback){
+    const request=feedSummaryRequest(post);
+    if(!request)return fallback;
+    return `<div class="pf-feed-list-summary" data-feed-summary-request="${escapeHtml(JSON.stringify(request))}"><div class="pf-feed-summary-mount" data-feed-summary-mount hidden></div><div data-feed-summary-fallback>${fallback}</div></div>`;
   }
   function feedListTitleHtml(timestamp, action){
     return `<div class="pf-feed-list-head"><strong>${escapeHtml(action)}</strong> <span class="pf-feed-list-when"><time datetime="${escapeHtml(timestamp)}">${escapeHtml(feedDayTime(timestamp))}</time></span></div>`;
@@ -2302,7 +2339,8 @@
       : post.pairedEvent && !['media.uploaded','document.ingested','receipt.uploaded'].includes(cleanText(post.pairedEvent.type)) ? feedActivitySummary(post.pairedEvent)
       : `${author.name} uploaded ${post.document?.type_label || 'a document'}${post.document?.title ? `: ${post.document.title}` : ''}`;
     const documentEntry=post.entries.find((entry)=>entry.kind==='document');
-    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action)}${post.kind==='note' ? feedNoteHtml(post.note,true) : ''}${feedListMediaHtml(photos,post.projectId)}${post.kind==='document' ? feedListDocumentHtml(post.document,documentEntry?.id) : ''}</div>${showProject ? `<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,true)}</div>` : ''}</article>`;
+    const fallback=`${post.kind==='note' ? feedNoteHtml(post.note,true) : ''}${feedListMediaHtml(photos,post.projectId)}${post.kind==='document' ? feedListDocumentHtml(post.document,documentEntry?.id) : ''}`;
+    return `<article class="pf-feed-list-row">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action)}${feedListSummaryHtml(post,fallback)}</div>${showProject ? `<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,true)}</div>` : ''}</article>`;
   }
   function feedProjectGroupsHtml(entries){
     const projects=new Map();
@@ -2600,8 +2638,48 @@
   function renderDynamic(options = {}){
     const dynamic = state.root?.querySelector?.('[data-photo-feed-dynamic]');
     if (!dynamic) return render();
+    clearFeedSummaries();
     dynamic.innerHTML = dynamicHtml(options);
     bindDynamic(options);
+  }
+  function clearFeedSummaries(){
+    state.summaryRevision++;
+    for(const handle of state.summaryHandles)handle.destroy?.();
+    state.summaryHandles.clear();
+    state.root?.querySelectorAll('[data-feed-summary-request]').forEach(wrapper=>{
+      wrapper.querySelector('[data-feed-summary-mount]')?.setAttribute('hidden','');
+      wrapper.querySelector('[data-feed-summary-fallback]')?.removeAttribute('hidden');
+      delete wrapper.dataset.feedSummaryMounted;
+    });
+  }
+  function mountFeedSummaries(rootEl){
+    const publication=window.PlatformAPI?.publication,widgets=window.FirstMateWidgets;
+    if(!publication?.resolveWidget || !publication?.read || !widgets?.mount)return;
+    const revision=state.summaryRevision;
+    const availableTypes=widgets.types?.().then(rows=>new Set(rows.map(row=>row.id))).catch(()=>new Set());
+    rootEl.querySelectorAll('[data-feed-summary-request]').forEach(wrapper=>{
+      let request;
+      try{request=JSON.parse(wrapper.dataset.feedSummaryRequest);}catch{return;}
+      const host=wrapper.querySelector('[data-feed-summary-mount]'),fallback=wrapper.querySelector('[data-feed-summary-fallback]');
+      if(!host || !fallback || wrapper.dataset.feedSummaryMounted)return;
+      wrapper.dataset.feedSummaryMounted='1';
+      void (async()=>{
+        try{
+          const known=await availableTypes;
+          if(known && request.autoType && known.has(request.autoType))request.type=request.autoType;
+          if(known && !known.has(request.type))return;
+          const result=await publication.resolveWidget(orgId(),{type:request.type,target:request.target,config:request.config,surface:'dashboard'});
+          if(revision!==state.summaryRevision || !wrapper.isConnected || result?.status!=='ready')return;
+          const handle=widgets.mount(host,{...result.widget,target:request.target},{surface:'dashboard'});
+          state.summaryHandles.add(handle);
+          await handle.ready;
+          if(revision!==state.summaryRevision || !wrapper.isConnected)return;
+          if(host.querySelector('.fm-widget-status')){handle.destroy();state.summaryHandles.delete(handle);delete wrapper.dataset.feedSummaryMounted;return;}
+          host.hidden=false;
+          fallback.hidden=true;
+        }catch{/* Keep the existing preview when no authorized summary is available. */}
+      })();
+    });
   }
   function shownGroupHtml(group, title, icon, items = [], selected = new Set()){
     const allSelected = items.length > 0 && items.every((item) => selected.has(item.id));
@@ -2647,6 +2725,7 @@
     </form>${enlarged?.type.startsWith('image/')?`<div class="pf-image-lightbox" data-feed-image-lightbox><button type="button" data-feed-preview-close aria-label="Close image preview">×</button><img src="${escapeHtml(state.composerPreviewUrls.get(enlarged) || '')}" alt="${escapeHtml(enlarged.name)}"></div>`:''}</div>`;
   }
   function render(){
+    clearFeedSummaries();
     if (!state.root) return;
     const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
     state.root.innerHTML = `
@@ -2793,6 +2872,7 @@
   function bindDynamic(options = {}){
     const rootEl = state.root;
     if (!rootEl) return;
+    mountFeedSummaries(rootEl);
     bindFeedPosts(rootEl);
     window.FirstMateAudioNotes?.hydrate?.(rootEl);
     state.mosaicObserver?.disconnect();
@@ -3889,9 +3969,10 @@
       mount,
       onShow: () => {
         if (!state.loaded) load();
+        else if(state.root)mountFeedSummaries(state.root);
         startFeedPolling();
       },
-      onHide:()=>{clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
+      onHide:()=>{clearInterval(state.feedTimer);clearFeedSummaries();state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
     });
     window.Portal.tabs.renderTabs?.();
     if (window.Portal?.routeState?.get?.().tab === TAB_ID) {
