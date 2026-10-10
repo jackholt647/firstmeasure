@@ -55,6 +55,7 @@
     composerText: '',
     composerDepartment: '',
     composerMentions: new Set(),
+    composerMentionApi: null,
     composerFiles: [],
     composerGif: null,
     composerAudioFile: null,
@@ -1668,7 +1669,7 @@
       @media(max-width:560px){.pf-wrap[data-density="list"] .pf-project-group{grid-template-columns:minmax(0,1fr) minmax(120px,34%)}.pf-wrap[data-density="list"] .pf-project-group-events .pf-feed-list-row{grid-template-columns:32px minmax(0,1fr);padding:8px}.pf-wrap[data-density="list"] .pf-project-group-project{grid-column:2;grid-row:1;padding:8px;border-left:1px solid #e9edf2}.pf-project-group-project .pf-project-card{grid-template-columns:1fr}.pf-project-group-project .pf-project-card-cover{width:100%;height:70px}}
       .pf-feed-scopebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 16px 11px;border-bottom:1px solid #e9edf2;background:#fff}.pf-feed-scopebar label{display:flex;align-items:center;gap:8px;color:#475467;font-size:12px;font-weight:700}.pf-feed-scopebar select{min-width:170px;padding:8px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit}.pf-feed-scopebar>button{border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer}.pf-feed-scopebar>button.active{border-color:#b8c8ed;background:#eef4ff;color:#2456a8}.pf-feed-scopebar>button:last-child{margin-left:auto}.pf-create-post{white-space:nowrap}
       .pf-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:#1018288c}.pf-dialog{width:min(590px,100%);max-height:min(90vh,850px);overflow:auto;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:16px;background:#fff;box-shadow:0 24px 70px #1018283d;padding:20px;display:grid;gap:16px;color:#344054}.pf-dialog header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #eaecf0;padding-bottom:14px}.pf-dialog header strong{display:block;font-size:20px;color:#182230}.pf-dialog header span{display:block;margin-top:4px;font-size:12px;color:#667085}.pf-dialog header button{border:0;background:none;font-size:26px;line-height:1;color:#667085;cursor:pointer}.pf-dialog-field{display:grid;gap:7px;font-size:12px;font-weight:750}.pf-dialog-field select,.pf-dialog-field textarea{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#182230;font:inherit;font-size:14px}.pf-dialog-field textarea{resize:vertical;line-height:1.5}.pf-dialog footer{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #eaecf0;padding-top:14px}.pf-dialog footer>button:not(.pf-action){border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:9px 14px;color:#344054;font-weight:700;cursor:pointer}.pf-tag-picker{min-width:0;border:1px solid #eaecf0;border-radius:10px;padding:10px}.pf-tag-picker legend{font-size:12px;font-weight:750}.pf-tag-picker>div{display:flex;flex-wrap:wrap;gap:7px;max-height:128px;overflow:auto}.pf-tag-picker label{display:flex;align-items:center;gap:5px;border-radius:20px;background:#f2f4f7;padding:5px 9px;font-size:12px;cursor:pointer}.pf-dialog-upload{display:inline-flex;align-items:center;gap:7px;justify-self:start;padding:9px 12px;border:1px solid #d0d5dd;border-radius:8px;font-size:12px;font-weight:750;cursor:pointer}.pf-dialog-files{display:flex;flex-wrap:wrap;gap:6px}.pf-dialog-files span,.pf-manual-mentions span{padding:5px 8px;border-radius:15px;background:#eef4ff;color:#2456a8;font-size:11px}.pf-settings-dialog{width:min(640px,100%)}.pf-settings-actions{display:flex;gap:8px}.pf-settings-actions button{border:0;background:none;color:#2456a8;font-size:12px;font-weight:750;cursor:pointer}.pf-settings-types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:350px;overflow:auto}.pf-settings-types label{display:flex;align-items:center;gap:8px;padding:7px;border-radius:7px;font-size:12px}.pf-settings-types label:hover{background:#f2f4f7}
-      .pf-manual-text{padding:12px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.55;color:#344054}.pf-post>.pf-manual-text{padding:4px 18px 14px}.pf-manual-mentions{display:flex;flex-wrap:wrap;gap:5px;margin:0 18px 12px}.pf-manual-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:0 18px 16px}.pf-manual-images a{display:block;aspect-ratio:1/1;overflow:hidden;border-radius:7px;background:#f2f4f7}.pf-manual-images img{width:100%;height:100%;object-fit:cover}.pf-manual-tile .pf-manual-text,.pf-manual-row .pf-manual-text{padding:5px 0}.pf-manual-tile .pf-manual-mentions,.pf-manual-row .pf-manual-mentions{margin:0 0 8px}.pf-manual-tile .pf-manual-images,.pf-manual-row .pf-manual-images{padding:0;grid-template-columns:repeat(3,minmax(0,90px))}.pf-post-scope{display:inline-flex;gap:5px;align-items:center}.pf-post-scope i{font-size:11px}
+      .pf-manual-text{padding:12px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.55;color:#344054}.pf-post>.pf-manual-text{padding:4px 18px 14px}.pf-manual-mentions{display:flex;flex-wrap:wrap;gap:5px;margin:0 18px 12px}.pf-manual-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:0 18px 16px}.pf-manual-images a{display:block;aspect-ratio:1/1;overflow:hidden;border-radius:7px;background:#f2f4f7}.pf-manual-images img{width:100%;height:100%;object-fit:cover}.pf-manual-images:not(.expanded) [data-feed-extra-image]{display:none}.pf-manual-images button{grid-column:1/-1;justify-self:start;border:0;background:transparent;color:var(--primary-readable,var(--primary,#d93025));padding:5px 0;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.pf-manual-tile .pf-manual-text,.pf-manual-row .pf-manual-text{padding:5px 0}.pf-manual-tile .pf-manual-mentions,.pf-manual-row .pf-manual-mentions{margin:0 0 8px}.pf-manual-tile .pf-manual-images,.pf-manual-row .pf-manual-images{padding:0;grid-template-columns:repeat(3,minmax(0,90px))}.pf-post-scope{display:inline-flex;gap:5px;align-items:center}.pf-post-scope i{font-size:11px}
       .pf-comments{padding:16px 18px 18px;background:#f8fafc}.pf-comments-title{display:flex;align-items:center;gap:7px;margin:0 0 16px;color:#344054;font-size:13px}.pf-comments-title span{padding:2px 7px;border-radius:12px;background:#e9eef5;color:#667085;font-size:11px}.pf-comment{gap:10px;margin:0 0 18px}.pf-comment>.pf-post-avatar{width:34px;height:34px;flex-basis:34px}.pf-comment-head{align-items:baseline}.pf-comment-head strong{color:#182230}.pf-comment [data-comment-content]{display:inline-block;max-width:100%;box-sizing:border-box;padding:10px 13px;margin-top:6px;border-radius:5px 13px 13px 13px;background:#fff;border:1px solid #e4e7ec;line-height:1.5;color:#344054;box-shadow:0 1px 2px #10182808}.pf-comment-actions{gap:12px;margin-top:7px;padding-left:2px}.pf-comment-actions button{font-weight:700}.pf-comment-actions button:hover{text-decoration:underline;color:#2456a8}.pf-comment-compose{display:flex;align-items:flex-start;gap:10px;padding-top:14px;border-top:1px solid #e4e7ec}.pf-comment-compose>.pf-post-avatar{width:34px;height:34px;flex-basis:34px}.pf-comment-compose-body{flex:1;min-width:0}.pf-comment-label textarea{margin:0;min-height:70px;border-radius:11px;line-height:1.45;box-shadow:0 1px 2px #10182808}.pf-comment-label textarea:focus{outline:2px solid #bfd7ff;border-color:#5792e4}.pf-comment-tools{gap:12px}.pf-comment-tools details summary{list-style:none;cursor:pointer}.pf-comment-tools details summary:hover,.pf-comment-attach:hover{color:#2456a8}.pf-comment-attach{font-size:12px;font-weight:700;cursor:pointer}.pf-comment-reply-target{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;padding:6px 9px;border-radius:7px;background:#eaf1ff;color:#2456a8;font-size:11px;font-weight:700}.pf-comment-reply-target button{border:0;background:none;color:inherit;font-size:16px;cursor:pointer}.pf-post-actions .pf-post-react{flex:1;text-align:center}.pf-post-actions .pf-post-react summary{border-radius:7px;color:#667085;font-size:13px}.pf-post-actions .pf-post-react summary:hover{background:#f2f4f7}.pf-post-actions .pf-post-react summary span{margin-left:5px}.pf-post-stats button:hover{text-decoration:underline}
       .pf-post-react>div{visibility:hidden;opacity:0;pointer-events:none;transition:opacity .12s ease}.pf-post-react:hover>div,.pf-post-react:focus-within>div,.pf-post-react.open>div{visibility:visible;opacity:1;pointer-events:auto}.pf-reaction-count{display:inline-flex;margin-right:8px;padding:2px 5px;border-radius:99px;cursor:help}.pf-reaction-count:hover{background:#eef4ff}.pf-comment.pf-comment-reply{margin-left:30px}.pf-comment-edit{display:grid;gap:8px;margin-top:6px}.pf-comment-edit textarea{width:100%;min-height:68px;box-sizing:border-box;border:1px solid #b8c7da;border-radius:9px;padding:9px;font:inherit}.pf-comment-edit>div{display:flex;gap:7px}.pf-comment-edit button{border:1px solid #d0d5dd;border-radius:7px;background:#fff;padding:6px 10px;cursor:pointer}.pf-comment-edit button[type="submit"]{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}.pf-comment-head em{font-style:normal;color:#667085;font-size:11px;font-weight:500}
       .pf-post-react>button{width:100%;border:0;background:none;border-radius:7px;color:#667085;font-size:13px;padding:10px;cursor:pointer}.pf-post-react>button:hover{background:#f2f4f7}.pf-post-react>button span{margin-left:5px}
@@ -2339,7 +2340,7 @@
     const attachments=message.attachments || [],images=attachments.filter(attachment=>cleanText(attachment.content_type).startsWith('image/'));
     const other=attachments.filter(attachment=>!cleanText(attachment.content_type).startsWith('image/'));
     const gif=message.metadata?.giphy;
-    return `${message.text?`<div class="pf-manual-text">${feedPostTextHtml(message.text)}</div>`:''}${(message.mention_users || []).length ? `<div class="pf-manual-mentions" aria-label="Tagged people">${message.mention_users.map(person=>`<span>@${escapeHtml(person.name || 'Employee')}</span>`).join('')}</div>` : ''}${gif&&/^https:\/\/media\d*\.giphy\.com\/media\//i.test(gif.url||'')?`<div class="pf-manual-gif"><img loading="lazy" src="${escapeHtml(gif.url)}" alt="${escapeHtml(gif.title || 'GIF')}"></div>`:''}${images.length ? `<div class="pf-manual-images">${images.slice(0,6).map((attachment,index)=>`<a href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener" aria-label="Open post image ${index+1}"><img loading="lazy" src="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" alt="${escapeHtml(attachment.file_name || `Post image ${index+1}`)}"></a>`).join('')}${images.length>6?`<span>+${images.length-6} more</span>`:''}</div>` : ''}${other.length?`<div class="pf-manual-files">${other.map(attachment=>cleanText(attachment.content_type).startsWith('audio/')&&message.metadata?.audio_note&&window.FirstMateAudioNotes?.playerHtml?window.FirstMateAudioNotes.playerHtml({url:window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id),duration:Number(message.metadata.audio_note.duration_seconds)||0,peaks:message.metadata.audio_note.peaks||[]}):`<a href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener"><i class="fas fa-paperclip"></i> ${escapeHtml(attachment.file_name || 'Open attachment')}</a>`).join('')}</div>`:''}`;
+    return `${message.text?`<div class="pf-manual-text">${feedPostTextHtml(message.text)}</div>`:''}${(message.mention_users || []).length ? `<div class="pf-manual-mentions" aria-label="Tagged people">${message.mention_users.map(person=>`<span>@${escapeHtml(person.name || 'Employee')}</span>`).join('')}</div>` : ''}${gif&&/^https:\/\/media\d*\.giphy\.com\/media\//i.test(gif.url||'')?`<div class="pf-manual-gif"><img loading="lazy" src="${escapeHtml(gif.url)}" alt="${escapeHtml(gif.title || 'GIF')}"></div>`:''}${images.length ? `<div class="pf-manual-images">${images.map((attachment,index)=>`<a ${index>=6?'data-feed-extra-image ':''}href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener" aria-label="Open post image ${index+1}"><img loading="lazy" src="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" alt="${escapeHtml(attachment.file_name || `Post image ${index+1}`)}"></a>`).join('')}${images.length>6?`<button type="button" data-feed-more-images="${images.length-6}" aria-expanded="false">Show ${images.length-6} more images</button>`:''}</div>` : ''}${other.length?`<div class="pf-manual-files">${other.map(attachment=>cleanText(attachment.content_type).startsWith('audio/')&&message.metadata?.audio_note&&window.FirstMateAudioNotes?.playerHtml?window.FirstMateAudioNotes.playerHtml({url:window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id),duration:Number(message.metadata.audio_note.duration_seconds)||0,peaks:message.metadata.audio_note.peaks||[]}):`<a href="${escapeHtml(window.ChannelsAPI.mediaFileUrl(orgId(),attachment.media_id))}" target="_blank" rel="noopener"><i class="fas fa-paperclip"></i> ${escapeHtml(attachment.file_name || 'Open attachment')}</a>`).join('')}</div>`:''}`;
   }
   function feedManualEntryHtml(entry = {}){
     const author=postAuthor(entry),message=entry.manual;
@@ -2380,6 +2381,35 @@
   function feedComposerToolsHtml(prefix){
     const voiceIcon=mode=>`<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat"></span>`;
     return `<button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-emoji-open title="Insert emoji" aria-label="Insert emoji"><i class="fas fa-face-smile" aria-hidden="true"></i></button><button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-gif title="Send a GIF" aria-label="Send a GIF"><span class="pf-gif-icon">GIF</span></button><label class="fm-ch-icon-btn pf-compose-tool" title="Attach a file" aria-label="Attach a file"><i class="fas fa-paperclip" aria-hidden="true"></i><input type="file" data-${prefix==='comment'?'comment-file':'feed-compose-files'} hidden multiple></label><button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-audio title="Record an audio note" aria-label="Record an audio note">${voiceIcon('record')}</button><button type="button" class="fm-ch-icon-btn pf-compose-tool" data-${prefix}-dictate title="Dictate message" aria-label="Dictate message">${voiceIcon('dictation')}</button>`;
+  }
+  function bindFeedVoiceControls(rootEl,prefix,options){
+    const buttons={audio:rootEl.querySelector(`[data-${prefix}-audio]`),dictate:rootEl.querySelector(`[data-${prefix}-dictate]`)};
+    let capturing=false,captureMode='',recorderControl=null;
+    const labels={audio:['Record an audio note','Finish recording'],dictate:['Dictate message','Finish dictation']};
+    const update=(mode,control)=>{
+      recorderControl=control;
+      const button=buttons[mode];
+      button?.classList.toggle('voice-active',!!control);
+      button?.setAttribute('aria-pressed',String(!!control));
+      if(button){button.disabled=!control;button.title=labels[mode][control?1:0];button.setAttribute('aria-label',button.title);}
+    };
+    for(const mode of ['dictate','audio'])buttons[mode]?.addEventListener('click',async()=>{
+      if(capturing){if(captureMode===mode)recorderControl?.stop();return;}
+      if(mode==='audio' && options.hasPendingAudio?.())return;
+      capturing=true;captureMode=mode;
+      buttons.audio.disabled=buttons.dictate.disabled=true;
+      try{
+        if(!window.FirstMateAudioNotes?.prepareInline)throw new Error('Audio tools are unavailable.');
+        await options.beforeStart?.();
+        const mount=rootEl.querySelector(mode==='dictate'?`[data-${prefix}-dictation-mount]`:`[data-${prefix}-audio-mount]`);
+        const prepared=await window.FirstMateAudioNotes.prepareInline(orgId(),null,{mount,mode:mode==='dictate'?'dictation':'record',upload:options.upload,onRemove:options.onRemove,onRecordingState:control=>update(mode,control)});
+        if(rootEl.isConnected)options.onPrepared(mode,prepared);
+      }catch(error){if(!String(error?.message || '').toLowerCase().includes('cancelled'))options.onError(error);}
+      finally{
+        capturing=false;recorderControl=null;
+        for(const kind of ['audio','dictate']){const button=buttons[kind];button.classList.remove('voice-active');button.setAttribute('aria-pressed','false');button.title=labels[kind][0];button.setAttribute('aria-label',button.title);button.disabled=kind==='audio' && !!options.hasPendingAudio?.();}
+      }
+    });
   }
   function toggleFeedEmojiPicker(picker,input,onChange){
     if(!picker || !input)return;
@@ -2450,6 +2480,12 @@
     (onlyCard?[onlyCard]:root.querySelectorAll('[data-feed-post]')).forEach(card=>{
       const post=posts.get(card.dataset.feedPost);if(!post)return;
       if(post.kind==='note')return;
+      card.querySelector('[data-feed-more-images]')?.addEventListener('click',event=>{
+        const button=event.currentTarget,grid=button.closest('.pf-manual-images');
+        const expanded=grid.classList.toggle('expanded');
+        button.setAttribute('aria-expanded',String(expanded));
+        button.textContent=expanded?'Show fewer images':`Show ${button.dataset.feedMoreImages} more images`;
+      });
       const current=postState(post.id);
       const error=e=>showToast?.('Feed',e?.message || 'Unable to update this post.',false);
       const rerender=()=>{if(!state.root?.contains(card))return;const replacement=document.createElement('div');replacement.innerHTML=feedPostHtml(post);const next=replacement.firstElementChild;card.replaceWith(next);bindFeedPosts(state.root,next);if(current.editingId)next.querySelector('.pf-comment-edit textarea')?.focus();else if(current.replyTo)next.querySelector('[data-comment-form] textarea')?.focus();};
@@ -2542,15 +2578,16 @@
         try{await send({giphy:selected},current.draft);}
         finally{current.busy=false;rerender();}
       },error));
-      for(const mode of ['dictate','audio'])card.querySelector(`[data-comment-${mode}]`)?.addEventListener('click',async()=>{
-        try{
-          if(!window.FirstMateAudioNotes?.prepareInline)throw new Error('Audio tools are unavailable.');
-          await fetchPost(post,true);
-          const mount=card.querySelector(mode==='dictate'?'[data-comment-dictation-mount]':'[data-comment-audio-mount]');
-          const prepared=await window.FirstMateAudioNotes.prepareInline(orgId(),null,{mount,mode:mode==='dictate'?'dictation':'record',upload:file=>window.ChannelsAPI.feed.upload(orgId(),current.root.id,file).then(result=>result.attachment),onRemove:()=>{if(current.audioNote){current.attachments=(current.attachments || []).filter(attachment=>attachment.id!==current.audioAttachmentId);current.audioNote=null;current.audioAttachmentId='';}}});
+      bindFeedVoiceControls(card,'comment',{
+        beforeStart:()=>fetchPost(post,true),
+        upload:file=>window.ChannelsAPI.feed.upload(orgId(),current.root.id,file).then(result=>result.attachment),
+        onRemove:()=>{if(current.audioNote){current.attachments=(current.attachments || []).filter(attachment=>attachment.id!==current.audioAttachmentId);current.audioNote=null;current.audioAttachmentId='';}},
+        hasPendingAudio:()=>!!current.audioNote,
+        onPrepared:(mode,prepared)=>{
           if(mode==='dictate'){current.draft=[current.draft,prepared.text].filter(Boolean).join(' ');input.value=current.draft;input.focus();}
-          else{current.attachments ||= [];current.attachments.push(prepared.attachment);current.audioAttachmentId=prepared.attachment.id;current.audioNote=prepared.metadata;}
-        }catch(e){if(!String(e?.message || '').toLowerCase().includes('cancelled'))error(e);}
+          else{current.attachments ||= [];current.attachments.push(prepared.attachment);current.audioAttachmentId=prepared.attachment.id;current.audioNote=prepared.metadata;const attachments=card.querySelector('[data-comment-attachments]');if(attachments)attachments.textContent=current.attachments.map(item=>item.file_name || 'Audio note').join(', ');}
+        },
+        onError:error
       });
       const attachments=card.querySelector('[data-comment-attachments]');
       if(attachments)attachments.textContent=(current.attachments || []).map(a=>a.file_name).join(', ');
@@ -2728,7 +2765,7 @@
     return `<div class="pf-feed-scope-control"><button type="button" class="pf-feed-scope-trigger" data-feed-scope aria-label="Show ${escapeHtml(selected)}" aria-expanded="${state.scopeMenuOpen}"><span>Show</span><strong>${escapeHtml(selected)}</strong><i class="fas fa-chevron-${state.scopeMenuOpen?'up':'down'}" aria-hidden="true"></i></button>${state.scopeMenuOpen?`<div class="pf-feed-scope-menu" role="listbox" aria-label="Feed audience">${option('all','All company activity')}${option('mine','My departments')}<div class="pf-feed-scope-section">Departments</div><label class="pf-feed-scope-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-feed-scope-search placeholder="Find a department" aria-label="Find a department"></label><div class="pf-feed-scope-departments">${state.departments.map(department=>option(department.id,department.label)).join('')}</div></div>`:''}</div>`;
   }
   function feedPostFormatBarHtml(){
-    return `<div class="pf-post-formatbar" role="toolbar" aria-label="Post formatting">${[['bold','Bold','<b>B</b>'],['italic','Italic','<i>I</i>'],['strike','Strikethrough','<s>S</s>'],['bullets','Bulleted list','☷'],['numbers','Numbered list','1.'],['quote','Quote','❞'],['link','Link','<i class="fas fa-link"></i>']].map(([command,label,icon])=>`<button type="button" data-feed-format="${command}" aria-label="${label}" title="${label}">${icon}</button>`).join('')}</div>`;
+    return `<div class="pf-post-formatbar" role="toolbar" aria-label="Post formatting">${[['bold','Bold','<b>B</b>'],['italic','Italic','<i>I</i>'],['strike','Strikethrough','<s>S</s>'],['bullets','Bulleted list','<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>'],['numbers','Numbered list','<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>'],['quote','Quote','❞'],['link','Link','Link']].map(([command,label,icon])=>`<button type="button" data-feed-format="${command}" aria-label="${label}" title="${label}">${icon}</button>`).join('')}</div>`;
   }
   function applyFeedPostFormatting(input,command){
     if(!input)return;
@@ -2766,6 +2803,8 @@
   function render(){
     clearFeedSummaries();
     if (!state.root) return;
+    state.composerMentionApi?.destroy?.();
+    state.composerMentionApi=null;
     const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
     state.root.innerHTML = `
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
@@ -2831,7 +2870,15 @@
     rootEl.querySelectorAll('[data-feed-compose-close]').forEach(button=>button.addEventListener('click',()=>{if(!state.composerBusy){state.composerOpen=false;render();}}));
     const composeText=rootEl.querySelector('[data-feed-compose-text]'),mentionMenu=rootEl.querySelector('[data-feed-compose-mention-menu]');
     const eligibleMentions=()=>state.users.filter(user=>Object.prototype.hasOwnProperty.call(state.userDepartments,user.id) && (!state.composerDepartment || (state.userDepartments[user.id] || []).includes(state.composerDepartment)));
+    if(composeText && window.FirstMateTags?.attachMentionTextarea){
+      state.composerMentionApi=window.FirstMateTags.attachMentionTextarea(composeText,{
+        orgId:orgId(),source:'feed',memberIds:()=>eligibleMentions().map(user=>user.id),
+        onSelect:user=>state.composerMentions.add(user.id)
+      });
+      state.composerMentionApi.setSelectedMentions?.(eligibleMentions().filter(user=>state.composerMentions.has(user.id)).map(user=>({id:user.id,name:firstText(user.name,user.display_name,user.email),email:user.email})));
+    }
     const updateMentionMenu=()=>{
+      if(state.composerMentionApi)return;
       if(!composeText || !mentionMenu)return;
       const before=composeText.value.slice(0,composeText.selectionStart),match=before.match(/(?:^|\s)@([^@\n]{0,40})$/);
       if(!match){mentionMenu.hidden=true;return;}
@@ -2846,14 +2893,15 @@
     rootEl.querySelector('[data-feed-compose-gif]')?.addEventListener('click',()=>openFeedGifPicker(selected=>{state.composerGif=selected;render();},error=>showToast?.('GIF',error?.message || 'Could not add GIF.',false),{actionLabel:'Add GIF'}));
     rootEl.querySelector('[data-feed-compose-remove-gif]')?.addEventListener('click',()=>{state.composerGif=null;render();});
     rootEl.querySelector('[data-feed-compose-remove-audio]')?.addEventListener('click',()=>{state.composerAudioFile=null;state.composerAudioNote=null;render();});
-    for(const mode of ['dictate','audio'])rootEl.querySelector(`[data-feed-compose-${mode}]`)?.addEventListener('click',async()=>{
-      try{
-        if(!window.FirstMateAudioNotes?.prepareInline)throw new Error('Audio tools are unavailable.');
-        const mount=rootEl.querySelector(mode==='dictate'?'[data-feed-compose-dictation-mount]':'[data-feed-compose-audio-mount]');
-        const prepared=await window.FirstMateAudioNotes.prepareInline(orgId(),null,{mount,mode:mode==='dictate'?'dictation':'record',upload:async file=>{state.composerAudioFile=file;return{id:'pending',url:URL.createObjectURL(file)};},onRemove:()=>{state.composerAudioFile=null;state.composerAudioNote=null;}});
+    bindFeedVoiceControls(rootEl,'feed-compose',{
+      upload:async file=>{state.composerAudioFile=file;return{id:'pending',url:URL.createObjectURL(file)};},
+      onRemove:()=>{state.composerAudioFile=null;state.composerAudioNote=null;},
+      hasPendingAudio:()=>!!state.composerAudioNote,
+      onPrepared:(mode,prepared)=>{
         if(mode==='dictate'){state.composerText=[state.composerText,prepared.text].filter(Boolean).join(' ');composeText.value=state.composerText;composeText.focus();}
-        else state.composerAudioNote=prepared.metadata;
-      }catch(error){if(!String(error?.message || '').toLowerCase().includes('cancelled'))showToast?.('Audio note',error?.message || 'Could not record audio.',false);}
+        else{state.composerAudioNote=prepared.metadata;render();}
+      },
+      onError:error=>showToast?.('Audio note',error?.message || 'Could not record audio.',false)
     });
     rootEl.querySelector('[data-feed-compose-scope]')?.addEventListener('change',event=>{
       state.composerDepartment=event.target.value;
@@ -2865,8 +2913,8 @@
     rootEl.querySelectorAll('[data-feed-compose-remove]').forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.feedComposeRemove),file=state.composerFiles[index];if(file){URL.revokeObjectURL(state.composerPreviewUrls.get(file));state.composerPreviewUrls.delete(file);state.composerFiles.splice(index,1);}state.composerPreviewIndex=-1;render();}));
     rootEl.querySelector('[data-feed-compose-files]')?.addEventListener('change',event=>{
       const chosen=[...event.target.files];
-      if(chosen.length+state.composerFiles.length>6 || chosen.some(file=>file.size>(file.type.startsWith('image/')?10:25)*1024*1024)){
-        showToast?.('Post attachments','Choose up to six files. Images must be 10 MB or smaller; other files must be 25 MB or smaller.',false);return;
+      if(chosen.length+state.composerFiles.length>50 || chosen.some(file=>file.size>(file.type.startsWith('image/')?10:25)*1024*1024)){
+        showToast?.('Post attachments','Choose up to 50 files. Images must be 10 MB or smaller; other files must be 25 MB or smaller.',false);return;
       }
       chosen.filter(file=>file.type.startsWith('image/')).forEach(file=>state.composerPreviewUrls.set(file,URL.createObjectURL(file)));
       state.composerFiles.push(...chosen);render();
@@ -2877,7 +2925,8 @@
       try{
         state.composerOperationId ||= globalThis.crypto?.randomUUID?.() || `manual_${Date.now()}`;
         const eligible=eligibleMentions();
-        const mentionIds=eligible.filter(user=>state.composerText.includes(`@${firstText(user.name,user.display_name,user.email)}`)).map(user=>user.id);
+        const tagged=state.composerMentionApi?.selectedMentions?.() || [];
+        const mentionIds=eligible.filter(user=>tagged.some(person=>person.id===user.id) || state.composerText.toLowerCase().includes(`@${firstText(user.name,user.display_name,user.email).toLowerCase()}`)).map(user=>user.id);
         const response=await window.ChannelsAPI.feed.createPost(orgId(),{text:state.composerText.trim(),department_id:state.composerDepartment,mention_user_ids:mentionIds,client_msg_id:state.composerOperationId,has_uploads:!!(state.composerFiles.length||state.composerAudioFile),...(state.composerGif?{giphy:state.composerGif}:{}),...(state.composerAudioNote?{audio_note:state.composerAudioNote}:{})});
         const postId=response.post.id;
         for(const file of [...state.composerFiles]){
