@@ -1192,7 +1192,7 @@
     if (state.feedScope === 'company') return allowed('company');
     if (state.feedScope === 'mine') return feedEntryDepartments(entry).some(id=>state.memberDepartmentIds.includes(id) && allowed(id));
     if (state.feedScope !== 'all') return allowed(state.feedScope);
-    return allowed('company') || feedEntryDepartments(entry).some(id=>state.memberDepartmentIds.includes(id) && allowed(id));
+    return allowed('company') || feedEntryDepartments(entry).some(id=>state.departments.some(department=>department.id===id) && allowed(id));
   }
   function feedEntries(options = {}){
     const mediaEntries = state.items

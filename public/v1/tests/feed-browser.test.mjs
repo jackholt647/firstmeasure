@@ -454,6 +454,13 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.getByRole('button',{name:/Show Company and my departments/}).click();
   assert.equal(await page.getByRole('option',{name:'All company activity',exact:true}).count(),0);
   await page.getByRole('option',{name:'Company and my departments',exact:true}).click();
+  await page.evaluate(()=>{
+    const previous=window.ChannelsAPI.feed.catalog;
+    window.ChannelsAPI.feed.catalog=async()=>({...await previous(),can_view_all_departments:true,departments:[{id:'sales',label:'Sales'},{id:'roofing',label:'Roofing'}],member_department_ids:['sales'],user_departments:{sam:['roofing']},post_settings:{company_activity_types:[],department_activity_types:{roofing:['media.uploaded']}}});
+    window.feedApp.mount(document.querySelector('#feed'));
+  });
+  await page.waitForFunction(()=>document.querySelectorAll('.pf-post-collage .pf-thumb').length===4);
+  assert.equal(await page.locator('.pf-post-collage .pf-thumb').count(),4,'all-department readers see enabled automatic posts from another department');
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
