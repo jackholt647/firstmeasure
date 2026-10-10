@@ -2897,3 +2897,24 @@ test('plane selection markers have their own undimmed batch above the grid',()=>
  const THREE=require('../public/v1/node_modules/three'),p=(x,y,z)=>({x,y,z}),face={id:'plane-wall',points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},state={wallEdits:{$surfaces:[face,{id:'other-wall',points:face.points.map(p=>({...p,y:2}))}]}},f=fixture({state,walls:[],selected:null,globals:{...renderGlobals(),THREE,getVector3:p=>new THREE.Vector3(p.x,p.y,p.z)}});
  f.editor.togglePlane(face);const group=new THREE.Group();f.editor.draw3D(group,p=>new THREE.Vector3(p.x,p.y,p.z));const points=group.children.filter(o=>o.userData.planeGuide&&o.userData.selectionMarkerKeys);assert.equal(points.length,1);const markers=points[0];assert.equal(markers.material.opacity,1);assert.equal(markers.material.depthTest,false);assert.equal(markers.geometry.getAttribute('markerSize').getX(0),7);assert.ok(markers.renderOrder>=1000);assert.ok(group.children.some(o=>o.userData.planeGuide&&o.isPoints&&o.material.size===13),'dark halo separates anchors from grid');markers.userData.updatePointSelection(new Set([markers.userData.selectionMarkerKeys[0]]));assert.equal(markers.geometry.getAttribute('markerSize').getX(0),11);assert.equal(markers.geometry.getAttribute('color').getX(0),1);
 });
+
+test('point placement on the saved resized chimney uses its current face, including repeat and reload',()=>{
+ const saved=require('./fixtures/resized-chimney-point.json'),state={wallEdits:{$surfaces:[structuredClone(saved.face)],$drafts:{[saved.face.draftKey]:structuredClone(saved.draft)}}},original=JSON.stringify(state.wallEdits.$drafts[saved.face.draftKey]);
+ const make=()=>fixture({state:JSON.parse(JSON.stringify(state)),walls:[],selected:null,globals:{isFreeMove:true}});
+ let f=make(),source=saved.source;
+ for(let i=0;i<3;i++){
+  const expected={...source,z:source.z-.3048},event=f.e(source.x,expected.z),before=JSON.stringify(f.state.wallEdits);
+  assert.equal(f.editor.beginEntity('extrude',{point:source,event}),true);f.editor.distanceInput().set(.3048);
+  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before,'cancel preserves saved geometry');
+  f.editor.beginEntity('extrude',{point:source,event});f.editor.distanceInput().set(.3048);f.editor.down(event);
+  assert.equal(f.editor.busy(),false,f.message());const placed=f.editor.pointSelection();assert.equal(placed.length,1,f.message());assert.ok(Math.hypot(placed[0].x-expected.x,placed[0].y-expected.y,placed[0].z-expected.z)<1e-6,'Place must retain the preview world position');
+  assert.equal(JSON.stringify(f.state.wallEdits.$drafts[saved.face.draftKey]),original,'consumed source draft must not receive the new point');
+  source=placed[0];state.wallEdits=JSON.parse(JSON.stringify(f.state.wallEdits));f=make();
+ }
+});
+
+test('solid draft import ignores off-plane retained anchors instead of projecting them onto the face',()=>{
+ const p=(x,y,z)=>({x,y,z}),face={id:'moved-face',points:[p(0,1,0),p(4,1,0),p(4,1,4),p(0,1,4)],retainedPoints:[p(2,0,2),p(3,1,3)]},f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,globals:{isFreeMove:true}});
+ f.editor.beginEntity('extrude',{point:p(0,1,4),event:f.e(0,3)});f.editor.distanceInput().set(1);f.editor.down(f.e(0,3));
+ const d=f.state.wallEdits.$drafts['solid:moved-face'],W=require('../public/measure/internal/editor_scripts/wall_solid_geometry');assert.ok(d,f.message());const points=d.sketch.nodes.map(n=>W.fromFrame(d.frame,n));assert.ok(points.some(q=>Math.hypot(q.x-3,q.z-3)<1e-6));assert.ok(!points.some(q=>Math.hypot(q.x-2,q.z-2)<1e-6));
+});
