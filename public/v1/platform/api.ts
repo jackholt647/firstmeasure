@@ -48,6 +48,7 @@ import {
   publicSchedulingPolicy
 } from "../appointments/availability.js";
 import { readSlotHold } from "../appointments/storage.js";
+import { withoutUserFieldValues } from "../custom_fields/user-view.js";
 import { applyProjectCustomFieldDefaults, mergeProjectCustomFieldsForSave, validateProjectCustomFieldValues } from "../custom_fields/service.js";
 import { normalizeProposalScope, proposalScopeTotalCents, publicScopeLineItems } from "../proposals/scope.js";
 import { publicProposalWorkflow } from "../proposals/storage.js";
@@ -2826,7 +2827,7 @@ app.get("/auth/google/config", async () => ({
     assertCanonicalPlatformCollection(collection);
     const ctx=await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(collection),allowScopedPermission:collection==='calendar_events' });
     const documents=await listDocuments(orgId,collection);
-    return {ok:true,documents:collection==='calendar_events'?documents.filter(d=>canViewAppointmentDepartment(ctx,d.data)):documents};
+    return {ok:true,documents:collection==='calendar_events'?documents.filter(d=>canViewAppointmentDepartment(ctx,d.data)):collection==='users'?documents.map(userDocumentView):documents};
   });
 
   app.post("/organizations/:orgId/:collection", async (request, reply) => {
@@ -2878,7 +2879,7 @@ app.get("/auth/google/config", async () => ({
     reply.code(201);
     return {
       ok: true,
-      document,
+      document:collection === "users" ? userDocumentView(document) : document,
       ...(collection === "users" ? {
         emailed: invite.ok,
         email_sent: invite.ok,
@@ -2895,7 +2896,7 @@ app.get("/auth/google/config", async () => ({
     const ctx=await requirePlatformAuth(request,{orgId,permission:collectionReadPermission(collection),allowScopedPermission:collection==='calendar_events'});
     const document=await readDocument(orgId,collection,getParam(request.params,'documentId'));
     if(collection==='calendar_events'&&!canViewAppointmentDepartment(ctx,document.data))throw forbidden('department_permission_denied','This appointment is unavailable.');
-    return {ok:true,document};
+    return {ok:true,document:collection === "users" ? userDocumentView(document) : document};
   });
 
   app.put("/organizations/:orgId/:collection/:documentId", async (request) => {
@@ -2962,7 +2963,7 @@ app.get("/auth/google/config", async () => ({
       });
     }
     if (platformSearchCollection(collection)) invalidatePlatformSearchCache(orgId);
-    return { ok: true, document };
+    return { ok: true, document:collection === "users" ? userDocumentView(document) : document };
   });
 
   app.patch("/organizations/:orgId/:collection/:documentId", async (request) => {
@@ -3023,7 +3024,7 @@ app.get("/auth/google/config", async () => ({
       });
     }
     if (platformSearchCollection(collection)) invalidatePlatformSearchCache(orgId);
-    return { ok: true, document };
+    return { ok: true, document:collection === "users" ? userDocumentView(document) : document };
   });
 
   app.delete("/organizations/:orgId/:collection/:documentId", async (request) => {
@@ -5350,12 +5351,16 @@ function publicIdentity(identity: unknown) {
   return value;
 }
 
+function userDocumentView(document: JsonObject) {
+  return {...document,data:withoutUserFieldValues(asObject(document.data))};
+}
+
 function platformUserView(userDoc: unknown) {
   const doc = asObject(userDoc);
   const data = asObject(doc.data);
   return {
     id: doc.id,
-    ...data,
+    ...withoutUserFieldValues(data),
     ...organizationUserProfileView(data),
     org_permissions: {
       level: String(data.role || "member"),
@@ -5653,6 +5658,7 @@ async function createPlatformOrgUser(orgId: string, body: Record<string, unknown
     branch_id: String(dataInput.branch_id || "default"),
     queue_mode: String(dataInput.queue_mode || "disabled"),
     ...organizationUserProfileFields(dataInput, { includeDefaults: true }),
+    ...("custom_field_values" in dataInput || "custom_fields" in dataInput ? {custom_field_values:asObject(dataInput.custom_field_values || dataInput.custom_fields)} : {}),
     shift_schedule: asObject(dataInput.shift_schedule),
     profile: asObject(dataInput.profile),
     stats: asObject(dataInput.stats),
@@ -5679,6 +5685,7 @@ async function createPlatformOrgUser(orgId: string, body: Record<string, unknown
 
 async function upsertPlatformOrgUserDocument(orgId: string, documentId: string, body: JsonObject, replace: boolean) {
   const dataInput = withoutRemovedUserTypeFields(body.data && typeof body.data === "object" ? body.data : body);
+  if (!Object.hasOwn(dataInput,"custom_field_values") && Object.hasOwn(dataInput,"custom_fields")) dataInput.custom_field_values = dataInput.custom_fields;
   if ('scoped_access_assignments' in dataInput) throw badRequest('scoped_access_profile_required', 'Assign scoped roles through the workforce user profile endpoint.');
   const metadata = asObject(body.metadata);
   const current = replace ? null : await readDocument(orgId, "users", documentId).catch(() => null);
@@ -9610,7 +9617,7 @@ function portalUserView(userDoc: unknown) {
   const items = asObject(orgPermissions.items);
   return {
     id: doc.id,
-    ...data,
+    ...withoutUserFieldValues(data),
     ...organizationUserProfileView(data),
     disabled: String(data.status || "active") === "disabled",
     deleted: data.deleted === true,

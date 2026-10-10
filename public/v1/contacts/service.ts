@@ -56,7 +56,7 @@ export async function validateReference(orgId:string,field:JsonObject,value:unkn
   }else{
    const id=text(asObject(entry).media_id);if(!id)throw badRequest("media_reference_invalid","Choose media from the associated library.");
    const media=await readMediaMetadata(orgId,id),owner=asObject(media.owner);
-   const expectedType=entity==="contact"?"contact":entity==="project"?"project":"organization";
+   const expectedType=entity==="contact"?"contact":entity==="project"?"project":entity==="user"?"user":entity==="organization"?"organization":entity;
    const expectedId=text(record.id || record.contact_id || (entity==="organization"?orgId:""));
    if(text(owner.type)!==expectedType || text(owner.id)!==expectedId)throw badRequest("media_reference_owner","Media must belong to this record's library.");
    const content=text(media.content_type);

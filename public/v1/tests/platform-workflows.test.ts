@@ -342,6 +342,41 @@ test("customer portal photo shares include markup by default with an API-only op
   assert.notEqual(clearedThumbnail.body, markedThumbnail.body);
 });
 
+test("user fields use typed publications and remain absent from raw user and account responses", async () => {
+  const client = createSessionClient();
+  const { orgId, userId } = await register(client);
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/branch/default/modules/custom_fields`, {
+    data: { fields: [{ entity:"user", path:"employee_number", type:"integer" }, { entity:"user", path:"private_note", type:"text", private:true }] }
+  });
+  const stored = await client.request("PATCH", `/v1/platform/organizations/${orgId}/users/${userId}`, {
+    data:{custom_field_values:{employee_number:42,private_note:"private employee note"}}
+  });
+  assert.equal(stored.document.data.custom_field_values, undefined);
+  const invalid = await client.raw("PATCH", `/v1/platform/organizations/${orgId}/users/${userId}`, {data:{custom_fields:{employee_number:4.2}}});
+  assert.equal(invalid.statusCode,400);
+  const user = await client.request("GET", `/v1/platform/organizations/${orgId}/users/${userId}`);
+  assert.equal(user.document.data.custom_field_values,undefined);
+  const listed = await client.request("GET", `/v1/platform/organizations/${orgId}/users`);
+  assert.equal(listed.documents.find((d:any)=>d.id===userId).data.custom_fields,undefined);
+  const account = await client.request("GET", "/v1/platform/me");
+  assert.equal(account.user.custom_field_values,undefined);
+  const target = {scope:"organization",organizationId:orgId,id:userId};
+  const published = await client.request("POST", `/v1/publication/organizations/${orgId}/data/read`, {provider:"custom-fields-user",export:"values",target});
+  assert.equal(published.status,"ready");
+  assert.equal(published.value.employee_number,42);
+  assert.equal(published.value.private_note,"private employee note");
+  const contract = await client.request("POST", `/v1/publication/organizations/${orgId}/data/read`, {provider:"custom-fields-user",export:"contract",target});
+  const written = await client.request("POST", `/v1/publication/organizations/${orgId}/actions/invoke`, {
+    action:"custom-fields.user.write",target,input:{values:{employee_number:43},expectedRevision:contract.value.recordRevision},idempotencyKey:"employee-number-43"
+  });
+  assert.equal(written.receipt.status,"succeeded");
+  const {readDocument,upsertDocument} = await import("../platform/storage.js");
+  assert.equal(((await readDocument(orgId,"users",userId)).data.custom_field_values as any).employee_number,43);
+  await upsertDocument(orgId,"users",{id:userId,data:{permission_overrides:{manage_company_users:"deny"}}});
+  const denied = await client.request("POST", `/v1/publication/organizations/${orgId}/data/read`, {provider:"custom-fields-user",export:"values",target});
+  assert.equal(denied.status,"denied");
+});
+
 test("application access is enforced independently from authentication and organization permissions", async () => {
   const client = createSessionClient();
   const { orgId, userId, email } = await register(client);

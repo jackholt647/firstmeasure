@@ -1,3 +1,4 @@
+import { withoutUserFieldValues } from "../custom_fields/user-view.js";
 import { routeNeedsExpandedPlatform } from "./rollout_routes.js";
 import { effectiveNavigationPreferences } from './navigation-defaults.js';
 
@@ -351,7 +352,7 @@ function orgUserPermissionState(user: JsonObject) {
 
 function sanitizeUser(userDoc: JsonObject, accessProfile?: ResolvedAccessProfile) {
   const data = asObject(userDoc.data);
-  const publicData = { ...data };
+  const publicData = withoutUserFieldValues(data);
   delete publicData.user_type_ids;
   delete publicData.user_types;
   delete publicData.classification_ids;

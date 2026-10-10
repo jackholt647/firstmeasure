@@ -1,6 +1,6 @@
 # Custom fields and publication
 
-Custom fields belong to projects, contacts, or the organization. Organization
+Custom fields belong to projects, contacts, users, or the organization. Organization and user
 definitions live in the default branch's `custom_fields` module; project and
 contact definitions remain branch-specific. Scope templates can contribute
 durable project definitions. Organization values use one
@@ -184,3 +184,100 @@ Public customer displays use a cover only when that media is already explicitly
 shared; choosing a cover never publishes private media. Measurement maps keep
 their actual satellite imagery. Clearing, replacing, or trashing the cover updates
 the mounted selection, display aliases, and project-viewer cache together.
+
+User fields belong to organization membership records (`users`), not global login
+identities. Their definitions are shared across branches from the default branch.
+Settings → Custom Fields → Users defines them; both user editors include them
+in Save changes. `custom-fields-user` publishes the contract and values, and
+`custom-fields.user.write` saves declared fields with a record revision under
+`manage_company_users`, preserving identity, roles, and the seven legacy flags.
+Private/read-only field policies and media ownership apply. User media references
+must point to that user's existing library. Raw user and authentication responses
+omit field values; the authorized field provider is their publication path.
+Unrelated user updates preserve fields, including replacement writes without a
+field patch. Both storage backends enforce typed validation.
+
+
+## Resource scopes and platform phones (frontend handoff)
+
+The shared owner catalog in `custom_fields/owners.ts` drives allowed entities,
+definition placement, publication access, and value ownership. Supported owners:
+`project`, `contact`, `organization`, `user`, `branch`, `department`, `division`,
+and `team`. `division` is the existing organizational-unit model: a Region,
+Division, or another configured kind uses its stable division ID. `team` refers
+to an existing workforce resource group. Adding a domain owner requires one
+catalog entry and an authoritative owner resolver; no new field-type library or
+publication implementation is needed. It does not invent new resource records.
+
+Branch, department, division/region, and team definitions are shared organization
+wide in the default branch module, just like organization and user definitions.
+Values live in `resource_custom_fields/<entity>_<owner-id>`, independent of domain
+catalog/team revisions. Reads verify the owner, never create value records, and
+return revision 0 when values have not been saved. Writes require company
+settings permission, revision checks, and the existing action receipt/idempotency
+contract. Missing, foreign-organization, and mismatched branch owners fail. The
+sidecar collection has no generic HTTP record API. Domain edits cannot erase
+these values; owner deletion makes retained values inaccessible.
+
+Each owner has `custom-fields-<entity>` exports `contract`, `values`, and `phones`,
+and action `custom-fields.<entity>.write`. Grouping targets use
+`{scope:"organization", organizationId, id:<domain-owner-id>}`; optional branchId
+must match a branch-bound owner. User reads/writes require `manage_company_users`.
+The same nested schemas, assignments, media references, formula evaluation,
+private/read-only fields, and retired-definition policies apply. Media references
+must use the associated owner's library (`team`, `division`, `department`, or
+`branch` owner type and its domain ID). No media-library UI is added here.
+
+`custom-fields-catalog.contract` publishes the owner catalog and type metadata
+under company settings permission. Frontend developers can use this contract to
+build the additional grouping editors. Existing user dialogs already save user
+fields. Ordinary Custom Fields settings preserve new owner definitions even
+before grouping editors are implemented.
+
+A `platform_phone` is a phone number **issued by the platform**. It is a semantic
+phone subtype (`base_type:"phone"`) storing an issuance reference, rather than
+an editable telephone string:
+
+```json
+{"phone_number":"+12065550123","issuance_id":"<provider-number-id>"}
+```
+
+`cardinality:"many"` stores an array of references (bounded to 100 per field);
+multiple fields are also supported. Normal `phone` values remain strings.
+Platform phone schemas are fixed. Definitions normalize to `read_only:true`,
+`producer:"phone-system"`, and `editor:"platform-phone"`. They cannot have default
+values or be required, and their type/cardinality cannot be changed to bypass
+issuance ownership. Retiring definitions keeps the protection. Ordinary field
+editors display existing numbers disabled with phone styling and do not offer
+platform phones as a manually selectable type. These are not ordinary picker
+widgets or manually entered structured JSON.
+
+Both storage backends reject changed platform references, including clears,
+outside the server phone-domain capability. Raw user/project/contact writes,
+custom-field actions, module grants, and forged read_only/producer flags cannot
+assign or remove them. Replacement updates preserve existing field values.
+`setPlatformPhoneField` in `custom_fields/platform-phone.ts` is the server-only
+integration seam for an authorized phone-domain command, requiring phone
+management and the owner write permission. It checks the declared field and
+record revision and accepts only active numbers owned by the organization with
+the matching authoritative provider issuance ID. Pass null or [] to unassign;
+unassignment never releases a provider number. There is intentionally no public
+custom-field phone assignment action. Future phone-management UI should call an
+authorized phone-domain command that wraps this seam.
+
+Use the `phones` export for contact/user summaries and calling. It lists each
+visible declared phone with `field`, `type`, `phone_number`, and `available`;
+platform entries include `issuance_id`. A released, inactive, foreign, or
+reissued number has `available:false`, even if its historical reference remains.
+Never call an unavailable entry. Values retain the historical reference for
+tracking; normal custom-field writes cannot erase it. Frozen exports recheck
+active platform issuance before replaying captured available references. No
+phone number is purchased, released, or routed by reading fields or summaries.
+
+Verification adds `tests/user-custom-fields.test.ts`,
+`tests/scoped-custom-fields.test.ts`, `tests/user-custom-fields-browser.test.mjs`,
+and the user-field API regression in `tests/platform-workflows.test.ts`. Run the
+service tests on both storage backends with the embedded PostgreSQL runner,
+`npm run test:publication`, `npm run check`, and the custom-fields/users browser
+tests. Grouping editors and dedicated phone assignment UI are the frontend
+handoff, not part of this infrastructure release.

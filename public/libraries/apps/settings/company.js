@@ -16210,6 +16210,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           </section>` : ''}
           <div data-user-departments data-settings-autosave="off"></div>
           <div data-user-scoped-access data-settings-autosave="off"></div>
+          ${canAddDelete ? '<section data-user-custom-fields data-settings-autosave="off"></section>' : ''}
           <div class="cs-note" id="cuEditStatus" style="margin-top:10px;"></div>
         `
       });
@@ -16240,6 +16241,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         draw();
       }).catch(error => { if (scopedHost.isConnected) scopedHost.textContent = error?.message || 'Could not load scoped roles.'; });
       wireWorkforceTristates(m.el);
+      const userFields = canAddDelete ? window.FirstMateCustomFields?.mountUserValues?.(m.el.querySelector('[data-user-custom-fields]'),{orgId:currentOrgId(),userId:u.id}) : null;
       const footer = document.createElement('div');
       footer.className = 'cu-mactions';
       footer.innerHTML = `
@@ -16282,6 +16284,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
         btnSave.disabled = true;
         elStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_7372b758cf9670","Saving changes...") ?? "Saving changes...");
+        try { await userFields?.save(); } catch(error) { btnSave.disabled=false;elStatus.textContent=error.message || 'Could not save custom fields.';return; }
         try { await (await userDepartmentEditor)?.save(); } catch(error) { btnSave.disabled=false;elStatus.textContent=error.message || 'Could not save departments.';return; }
         const ret = canAddDelete ? await userUpdate({ userId: u.id, email, name }) : { ok:true, sessionUpdated:false };
         elStatus.textContent = '';

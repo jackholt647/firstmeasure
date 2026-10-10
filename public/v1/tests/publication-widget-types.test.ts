@@ -13,9 +13,10 @@ test('unbounded type lineage, fallback, constraints, surfaces and ambiguity use 
  graph.validateDefinitions([widget]);const result=graph.resolve([widget],{type:'input.document.invoice.paid',surface:'assistant'});assert.equal(result.status,'ready');assert.deepEqual(result.widget.config,{status:'paid',documentType:'invoice'});assert.equal(result.widget.id,'docs');assert.equal(graph.resolve([widget],{type:'input.document.invoice',surface:'hover'}).status,'unavailable');
  assert.throws(()=>graph.resolve([widget],{type:'input.document.invoice',config:{documentType:'contract'}}));assert.equal(graph.resolve([widget,{...widget,id:'other'}],{type:'input.document'}).status,'ambiguous');assert.throws(()=>graph.validateDefinitions([{...widget,selection:undefined}]));assert.throws(()=>module.create([{id:'a',parent:'b'},{id:'b',parent:'a'}]));assert.throws(()=>module.create([{id:'a',parent:'missing'}]));assert.throws(()=>module.create([{id:'a'},{id:'a'}]));
 });
-test('all editable custom-field types have declared picker contracts, formula remains calculated',async()=>{
- const {types}=await import('../custom_fields/contracts.js');const defs=JSON.parse(readFileSync(path.join(root,'catalog.json'),'utf8'));const rows=JSON.parse(readFileSync(path.join(root,'types.json'),'utf8'));const graph=module.create(rows);graph.validateDefinitions(defs);
- for(const type of types.filter(type=>type!=='formula'))assert.equal(graph.resolve(defs,{type:'data-entry.'+type,surface:'assistant'}).status,'ready',type);
+test('all manually editable types have picker contracts; formula and platform phones remain managed',async()=>{
+ const {types,isManuallyEditableType}=await import('../custom_fields/contracts.js');const defs=JSON.parse(readFileSync(path.join(root,'catalog.json'),'utf8'));const rows=JSON.parse(readFileSync(path.join(root,'types.json'),'utf8'));const graph=module.create(rows);graph.validateDefinitions(defs);
+ for(const type of types.filter(isManuallyEditableType))assert.equal(graph.resolve(defs,{type:'data-entry.'+type,surface:'assistant'}).status,'ready',type);
+ assert.equal(isManuallyEditableType('platform_phone'),false);
  for(const type of ['summary.project','summary.contact','summary.user','summary.document.invoice','summary.document.contract','summary.document.receipt','data-entry.document.invoice','data-entry.media.record.screen','data-entry.secure.ssh-key'])assert.equal(graph.resolve(defs,{type,surface:'assistant'}).status,'ready',type);
 });
 test('typed values enforce the field schema and secure selections contain receipts only',async()=>{

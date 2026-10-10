@@ -33,6 +33,7 @@
     { value:'text', label:(globalThis.PlatformLanguage?.text("custom-fields","m_e9a41937fd46ec","Short text") ?? "Short text"), dataType:'string', icon:'fa-font', hint:'Names, codes, and short answers' },
     { value:'multiline', label:(globalThis.PlatformLanguage?.text("custom-fields","m_4cea0cfc5349a4","Long text") ?? "Long text"), dataType:'string', icon:'fa-align-left', hint:'Notes and longer descriptions' },
     { value:'email', label:(globalThis.PlatformLanguage?.text("custom-fields","m_2fbb4b11eb7b6f","Email address") ?? "Email address"), dataType:'string', icon:'fa-envelope', hint:'Validated email address' },
+    { value:'platform_phone', label:'Platform phone number', dataType:'object', icon:'fa-phone', managed:true, hint:'A phone number issued and assigned by the platform phone system' },
     { value:'phone', label:(globalThis.PlatformLanguage?.text("custom-fields","m_7ed66a4e107033","Phone number") ?? "Phone number"), dataType:'string', icon:'fa-phone', hint:'Phone number with a call-friendly input' },
     { value:'url', label:(globalThis.PlatformLanguage?.text("custom-fields","m_98de1ec0d6d171","Web address") ?? "Web address"), dataType:'string', icon:'fa-link', hint:'A website or shared link' },
     { value:'number', label:(globalThis.PlatformLanguage?.text("custom-fields","m_3e7027aa9d65ed","Number") ?? "Number"), dataType:'number', icon:'fa-hashtag', hint:'Amounts and measurements' },
@@ -95,6 +96,7 @@
       return value ? { value, label:value, color:'' } : null;
     }).filter(Boolean);
   const defaultForType = (type) => {
+    if(type === 'platform_phone') return null;
     const dataType = TYPE_BY_VALUE.get(type)?.dataType || 'string';
     if (dataType === 'boolean') return false;
     if (dataType === 'array') return [];
@@ -272,7 +274,7 @@
 
   function normalizeDefinition(input = {}, index = 0){
     const source = objectValue(input);
-    const entity = ['contact', 'organization'].includes(source.entity) ? source.entity : 'project';
+    const entity = ['contact', 'organization', 'user', 'branch', 'department', 'division', 'team'].includes(source.entity) ? source.entity : 'project';
     const requestedType = cleanText(source.type || source.presentation || source.widget);
     const type = TYPE_BY_VALUE.has(requestedType) ? requestedType : 'text';
     const typeInfo = TYPE_BY_VALUE.get(type);
@@ -300,7 +302,7 @@
       write_permission:cleanText(source.write_permission),
       required: source.required === true,
       enabled: source.enabled !== false,
-      read_only: source.read_only === true || type === 'formula',
+      read_only: source.read_only === true || ['formula','platform_phone'].includes(type),
       placeholder: cleanText(source.placeholder),
       default_value: coerceDefault(source.default_value, type),
       options: normalizeOptions(source.options),
@@ -330,6 +332,51 @@
     };
   }
 
+  // Share the typed editor and revision-checked writer with both user dialogs.
+  // The dialog's existing Save changes button owns the save lifecycle.
+  function mountUserValues(container, options = {}) {
+    const orgId = options.orgId || currentOrgId();
+    const target = {scope:'organization',organizationId:orgId,id:options.userId};
+    let record, definitions = [], initial = {}, revision, failure, ready;
+    const loadValues = async () => {
+      failure = null;
+      container.hidden = false;
+      container.innerHTML = '<div role="status">Loading custom fields…</div>';
+      try {
+        const [contractResult,valuesResult] = await Promise.all(['contract','values'].map(name => root.PlatformAPI.publication.read(orgId,{provider:'custom-fields-user',export:name,target})));
+        const contract = contractResult.result || contractResult, values = valuesResult.result || valuesResult;
+        if (contract.status !== 'ready' || values.status !== 'ready') throw Error(contract.message || values.message || 'Custom fields could not be loaded.');
+        revision = contract.value.recordRevision;
+        definitions = contract.value.fields.filter(f => f.show_in_overview !== false && !f.background_only).map(f => normalizeDefinition({...f,read_only:f.writable !== true || f.read_only}));
+        record = {id:options.userId,custom_field_values:values.value};
+        initial = clone(values.value);
+        await renderEditor(container,record,'user',{...options,branchId:'default',definitions,showSave:false});
+        container.hidden = !definitions.length;
+      } catch(error) {
+        failure = error;
+        container.innerHTML = `<div role="alert">${escapeHtml(error.message)}</div><button type="button" data-user-fields-retry>Try again</button>`;
+        container.querySelector('[data-user-fields-retry]').onclick = () => { ready = loadValues(); };
+      }
+    };
+    ready = loadValues();
+    return {ready, async save() {
+      await ready;
+      if (failure) throw failure;
+      if (!definitions.length) return;
+      const validation = validateEditor(container,record,'user',definitions);
+      if (!validation.valid) throw Error(validation.first.message);
+      const changes = Object.fromEntries(definitions.filter(f => !f.read_only && f.type !== 'formula').map(f => [f.path,valueAtPath(validation.values,f.path)]).filter(([path,value]) => value !== undefined && JSON.stringify(value) !== JSON.stringify(valueAtPath(initial,path))));
+      if (!Object.keys(changes).length) return;
+      const response = await root.PlatformAPI.publication.invoke(orgId,'custom-fields.user.write',target,{values:changes,expectedRevision:revision},{idempotencyKey:uid()});
+      const result = response.result || response;
+      if (result.status && result.status !== 'succeeded') throw Error(result.message || 'Custom fields could not be saved.');
+      revision = result.value.revision;
+      initial = clone(validation.values);
+      record = applyValues(record,'user',validation.values);
+      root.dispatchEvent(new CustomEvent('fm:custom-fields:values-updated',{detail:{entityType:'user',entity:record,values:initial}}));
+    }};
+  }
+
   function normalizeModule(input = {}){
     const source = objectValue(input);
     const declared=Array.isArray(source.fields)?source.fields:[];
@@ -353,8 +400,8 @@
         settings = normalizeModule(result?.module?.data || result?.data || result || {});
         if (branchId !== 'default') {
           const company = await root.PlatformAPI.branchModules.get(orgId, 'default', MODULE_ID).catch(error => { if (Number(error.status) === 404) return {}; throw error; });
-          const companyFields = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => f.entity === 'organization');
-          settings.fields = [...settings.fields.filter(f => f.entity !== 'organization'), ...companyFields];
+          const companyFields = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => ['organization','user','branch','department','division','team'].includes(f.entity));
+          settings.fields = [...settings.fields.filter(f => !['organization','user','branch','department','division','team'].includes(f.entity)), ...companyFields];
         }
       } catch (error) {
         if (Number(error?.status || 0) !== 404) throw error;
@@ -375,12 +422,12 @@
     const settings = normalizeModule({ fields });
     if (branchId !== 'default') {
       const company = await root.PlatformAPI.branchModules.get(orgId, 'default', MODULE_ID).catch(error => { if (Number(error.status) === 404) return {}; throw error; });
-      const retained = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => f.entity !== 'organization');
-      const priorOrg = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => f.entity === 'organization');
-      const nextOrg = settings.fields.filter(f => f.entity === 'organization');
+      const retained = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => !['organization','user','branch','department','division','team'].includes(f.entity));
+      const priorOrg = normalizeModule(company?.module?.data || company?.data || {}).fields.filter(f => ['organization','user','branch','department','division','team'].includes(f.entity));
+      const nextOrg = settings.fields.filter(f => ['organization','user','branch','department','division','team'].includes(f.entity));
       if (JSON.stringify(priorOrg) !== JSON.stringify(nextOrg)) await root.PlatformAPI.branchModules.save(orgId, 'default', MODULE_ID, { version:4, fields:[...retained, ...nextOrg] });
     }
-    await root.PlatformAPI.branchModules.save(orgId, branchId, MODULE_ID, { ...settings, fields:settings.fields.filter(f => branchId === 'default' || f.entity !== 'organization') }, {
+    await root.PlatformAPI.branchModules.save(orgId, branchId, MODULE_ID, { ...settings, fields:settings.fields.filter(f => branchId === 'default' || !['organization','user','branch','department','division','team'].includes(f.entity)) }, {
       kind:'branch_custom_fields', source:options.source || 'custom_fields_settings'
     });
     caches.set(cacheKey(orgId, branchId), settings);
@@ -626,6 +673,10 @@
       const selected = new Set(Array.isArray(value) ? value.map(cleanText) : []);
       return `<div class="fm-cf-options">${def.options.map((option) => `<label class="fm-cf-choice"><input type="checkbox" value="${escapeHtml(option.value)}" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="multiselect"${selected.has(option.value) ? ' checked' : ''}${def.read_only ? ' disabled' : ''}><span>${escapeHtml(option.label)}</span></label>`).join('')}</div>`;
     }
+    if (def.type === 'platform_phone') {
+      const entries = Array.isArray(value) ? value : [value];
+      return entries.filter(Boolean).map(ref => `<input type="tel" class="${escapeHtml(inputClass)}" value="${escapeHtml(ref.phone_number || '')}" disabled aria-label="${escapeHtml(def.label)}"><span class="cf-help">Managed by the phone system</span>`).join('') || '<span class="cf-help">Assigned by the phone system</span>';
+    }
     if (def.type === 'multiline') return `<textarea ${attrs}${textBounds}>${escapeHtml(value)}</textarea>`;
     if (['tags', 'list'].includes(def.type)) return `<textarea ${attrs}>${escapeHtml((Array.isArray(value) ? value : []).join(def.type === 'tags' ? ', ' : '\n'))}</textarea>`;
     if (def.type === 'key_value') {
@@ -758,6 +809,7 @@
             let result;
             if(options.entityType==='contact' && id && projectId)result=await root.PlatformAPI.contacts.media(orgId,{contact_id:id,project_id:projectId});
             else if(options.entityType==='project' && id)result=await root.PlatformAPI.media.list(orgId,{project_id:id});
+            else if(options.entityType==='user' && id){result=await root.PlatformAPI.media.list(orgId);result={media:(result.media || []).filter(media=>media.owner?.type==='user' && media.owner?.id===id)};}
             else result={media:[]};
             const trashed = new Set((Array.isArray(entity.photos)?entity.photos:[]).filter(p=>p.in_trash || p.trashed_at || p.deleted_at || p.metadata?.in_trash || p.metadata?.trashed_at || p.metadata?.deleted_at).map(p=>cleanText(p.media_id || p.mediaId || p.id)));
             definition.reference_choices=(result.media || []).filter(media=>!trashed.has(cleanText(media.id))).filter(media=>definition.type==='media' || cleanText(media.content_type).startsWith(definition.type==='photo'?'image/':'video/')).map(media=>({label:media.file_name,reference:{media_id:media.id}}));
@@ -836,7 +888,7 @@
     }).join('');
     const fieldsHtml = definitions.filter((definition) => !groupedFields.has(definition.path)).map(fieldHtml).join('');
     container.innerHTML = options.flat === true ? `<div class="fm-cf-flat">${groupHtml}${fieldsHtml}</div>` : `<section class="fm-cf-panel">
-      <div class="fm-cf-panel-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</strong><span>${String(entityType === 'organization' ? 'Organization-wide information' : entityType === 'contact' ? 'Contact-specific information' : 'Project-specific information and formula variables')}</span></div></div>
+      <div class="fm-cf-panel-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</strong><span>${String(entityType === 'organization' ? 'Organization-wide information' : entityType === 'user' ? 'Additional user information' : entityType === 'contact' ? 'Contact-specific information' : 'Project-specific information and formula variables')}</span></div></div>
       <div class="fm-cf-grid">${String(groupHtml)}${String(fieldsHtml)}</div>
       ${String(options.showSave === false ? '' : `<div><button type="button" class="fm-cf-save" data-fm-cf-save>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_afe31578587330","Save custom fields") ?? "Save custom fields")}</button> <span class="fm-cf-status" data-fm-cf-status></span></div>`)}
     </section>`;
@@ -919,9 +971,9 @@
       .cf-settings .cf-settings-head h3{font-size:20px;font-weight:650;line-height:1.3}.cf-settings .cf-settings-head p{font-size:13px;font-weight:400;margin-top:6px}
       .cf-settings .cf-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;min-height:36px;min-width:0;width:auto;flex:none;padding:0 12px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;line-height:1;white-space:nowrap;box-shadow:none}
       .cf-settings button:focus-visible,.cf-settings input:focus-visible,.cf-settings select:focus-visible{outline:2px solid #d93025;outline-offset:3px}
-      .cf-scope-bar{display:flex;gap:20px;border-bottom:1px solid #e4e7ec}.cf-settings .cf-scope-tab{display:flex;align-items:center;gap:8px;height:42px;padding:0 2px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:#667085;font:inherit;font-size:13px;font-weight:500;cursor:pointer}.cf-settings .cf-scope-tab[aria-selected=true]{border-bottom-color:var(--primary,#d93025);color:#182230;font-weight:600}.cf-scope-tab span{font-size:11px;padding:2px 6px;background:#f2f4f7;border-radius:5px;color:#667085}.cf-scope-description{margin:0;font-size:13px;color:#667085;line-height:1.5}
+      .cf-scope-bar{display:flex;flex-wrap:wrap;gap:0 20px;border-bottom:1px solid #e4e7ec}.cf-settings .cf-scope-tab{display:flex;align-items:center;gap:8px;height:42px;padding:0 2px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:#667085;font:inherit;font-size:13px;font-weight:500;cursor:pointer}.cf-settings .cf-scope-tab[aria-selected=true]{border-bottom-color:var(--primary,#d93025);color:#182230;font-weight:600}.cf-scope-tab span{font-size:11px;padding:2px 6px;background:#f2f4f7;border-radius:5px;color:#667085}.cf-scope-description{margin:0;font-size:13px;color:#667085;line-height:1.5}
       .cf-settings .cf-layout{grid-template-columns:260px minmax(0,1fr);gap:20px}.cf-settings .cf-layout.is-empty{grid-template-columns:1fr}.cf-layout.is-empty .cf-list-shell{display:none}.cf-settings .cf-detail{display:grid;gap:16px;min-width:0}.cf-settings .cf-list-shell{border-radius:10px}.cf-settings .cf-list-title{font-size:12px;font-weight:600;padding:12px}.cf-settings .cf-card{width:100%;font-family:inherit}.cf-settings .cf-card .cf-badge{display:none}.cf-settings .cf-card-icon{grid-column:1;grid-row:1/3}.cf-settings .cf-card strong{grid-row:1;font-size:13px;font-weight:600}.cf-settings .cf-card-meta{grid-row:2;font-size:12px;font-weight:400}.cf-settings .cf-empty-state{padding:28px 18px}.cf-settings .cf-empty-state i{display:none}.cf-settings .cf-empty-state strong{font-size:14px;font-weight:600}.cf-settings .cf-empty-state span{font-size:13px;color:#667085;line-height:1.5}.cf-settings .cf-editor-head{padding:14px 16px}.cf-settings .cf-editor-head p{font-size:12px;font-weight:400}.cf-settings .cf-editor-body{padding:16px;gap:20px}.cf-settings .cf-section-title{font-size:13px;font-weight:600}.cf-settings .cf-section-title i{display:none}.cf-settings .cf-row>label{font-size:12px;font-weight:500}.cf-settings .cf-help{font-size:12px;font-weight:400}.cf-settings .cf-toggle{font-size:12px;font-weight:400;line-height:1.5}.cf-settings .cf-toggle strong{font-weight:500}.cf-settings .cf-in{font-family:inherit;font-size:13px;font-weight:400}.cf-settings .cf-actions{position:static;padding:12px 16px}.cf-settings .cf-value-card{border:1px solid #e4e7ec;border-radius:10px;padding:16px}.cf-definition{border:1px solid #e4e7ec;border-radius:10px;overflow:hidden}.cf-definition>summary{padding:14px 16px;cursor:pointer;font-weight:600;font-size:13px}.cf-definition>summary span{font-weight:400;color:#667085;margin-left:10px}.cf-definition .cf-editor{border:0;border-top:1px solid #e4e7ec;border-radius:0}.cf-value-title{font-size:14px;font-weight:600;margin-bottom:12px}.cf-settings .cf-value-card .fm-cf-panel{padding:0;border:0;box-shadow:none;background:none}.cf-settings .cf-value-card .fm-cf-grid{grid-template-columns:1fr}.cf-settings .cf-value-card .fm-cf-field{grid-column:1/-1}.cf-settings .cf-value-card input,.cf-settings .cf-value-card textarea,.cf-settings .cf-value-card select{font-family:inherit;font-size:14px;font-weight:400}.cf-settings [hidden]{display:none!important}
-      @media(max-width:760px){.cf-settings .cf-layout{grid-template-columns:1fr}.cf-settings .cf-list-shell{position:static}.cf-settings .cf-list{max-height:220px}.cf-settings .cf-settings-head{align-items:flex-start}.cf-settings .cf-settings-head h3{font-size:18px}.cf-settings .cf-form-grid,.cf-settings .cf-toggles{grid-template-columns:1fr}.cf-scope-bar{gap:16px}}
+      @media(max-width:760px){.cf-settings .cf-layout{grid-template-columns:1fr}.cf-settings .cf-list-shell{position:static}.cf-settings .cf-list{max-height:220px}.cf-settings .cf-settings-head{align-items:flex-start}.cf-settings .cf-settings-head h3{font-size:18px}.cf-settings .cf-form-grid,.cf-settings .cf-toggles{grid-template-columns:1fr}.cf-scope-bar{gap:0 16px}}
 `;
     document.head.appendChild(style);
   }
@@ -946,9 +998,9 @@
       const optionTypes = new Set(['select', 'radio', 'multiselect']);
       const numericTypes = new Set(['integer', 'number', 'currency', 'percentage', 'slider']);
       container.innerHTML = `<div class="cf-settings" data-settings-autosave="off">
-        <div class="cf-settings-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_de761ed0e7c3f1","Manage the information saved for your organization, projects, and contacts.") ?? "Manage the information saved for your organization, projects, and contacts.")}</p></div><button type="button" class="cf-btn primary" data-cf-add="${scope}"><span aria-hidden="true">+</span>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_d20af8e8ec43c2"," Add field") ?? " Add field")}</button></div>
-        <div class="cf-scope-bar" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_c201cfcf3ec944","Field scope") ?? "Field scope")}">${[['project','Projects'],['contact','Contacts'],['organization','Organization']].map(([id,label]) => `<button type="button" role="tab" aria-selected="${scope === id}" class="cf-scope-tab" data-cf-scope="${id}">${label}<span>${fields.filter(f => f.entity === id).length}</span></button>`).join('')}</div>
-        <p class="cf-scope-description">${scope === 'organization' ? 'Shared company information. Add a field, then enter its value here.' : `Define the fields people fill in on individual ${scope === 'project' ? 'projects' : 'contacts'}.`}</p>
+        <div class="cf-settings-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_2d1233007f5250","Custom fields") ?? "Custom fields")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_de761ed0e7c3f1","Manage the information saved for your organization, projects, contacts, and users.") ?? "Manage the information saved for your organization, projects, contacts, and users.")}</p></div><button type="button" class="cf-btn primary" data-cf-add="${scope}"><span aria-hidden="true">+</span>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_d20af8e8ec43c2"," Add field") ?? " Add field")}</button></div>
+        <div class="cf-scope-bar" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_c201cfcf3ec944","Field scope") ?? "Field scope")}">${[['project','Projects'],['contact','Contacts'],['user','Users'],['organization','Organization']].map(([id,label]) => `<button type="button" role="tab" aria-selected="${scope === id}" class="cf-scope-tab" data-cf-scope="${id}">${label}<span>${fields.filter(f => f.entity === id).length}</span></button>`).join('')}</div>
+        <p class="cf-scope-description">${scope === 'organization' ? 'Shared company information. Add a field, then enter its value here.' : `Define the fields people fill in on individual ${scope === 'project' ? 'projects' : scope === 'user' ? 'users' : 'contacts'}.`}</p>
         <div class="cf-layout${visible.length ? '' : ' is-empty'}"><aside class="cf-list-shell"><div class="cf-list-title"><span>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_b6878598aff8e0","Your fields") ?? "Your fields")}</span><span>${String(visible.length)}</span></div><div class="cf-list">${String(visible.length ? visible.map((field) => {
           const type = TYPE_BY_VALUE.get(field.type) || TYPE_BY_VALUE.get('text');
           return `<button type="button" class="cf-card${field.id === selectedId ? ' active' : ''}" data-cf-select="${escapeHtml(field.id)}"><span class="cf-card-icon"><i class="fas ${escapeHtml(type.icon)}"></i></span><span class="cf-badge ${field.entity}">${escapeHtml(field.entity)}</span><strong>${escapeHtml(field.label)}</strong><span class="cf-card-meta">${escapeHtml(type.label)}${field.enabled ? '' : ' · Paused'}</span></button>`;
@@ -958,18 +1010,18 @@
           <div class="cf-editor-body">
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-pen"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_f070f5aa3901f5"," What should people see?") ?? " What should people see?")}</div><div class="cf-form-grid">
               <div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_e41c9b6634e3aa","Field name") ?? "Field name")}</label><input class="cf-in" name="label" value="${escapeHtml(selected.label)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_8e1fd88e019325","Example: Roof material") ?? "Example: Roof material")}" required></div>
-              <div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_30d69f0bb84476","Used on") ?? "Used on")}</label><select class="cf-in" name="entity"><option value="project"${selected.entity === 'project' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_19156e80fc8a6e","Projects") ?? "Projects")}</option><option value="organization"${selected.entity === 'organization' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_84b7f792c9d048","Organization") ?? "Organization")}</option><option value="contact"${selected.entity === 'contact' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_6fe082da60f3b0","Contacts") ?? "Contacts")}</option></select></div>
+              <div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_30d69f0bb84476","Used on") ?? "Used on")}</label><select class="cf-in" name="entity"><option value="project"${selected.entity === 'project' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_19156e80fc8a6e","Projects") ?? "Projects")}</option><option value="organization"${selected.entity === 'organization' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_84b7f792c9d048","Organization") ?? "Organization")}</option><option value="user"${selected.entity === 'user' ? ' selected' : ''}>Users</option><option value="contact"${selected.entity === 'contact' ? ' selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_6fe082da60f3b0","Contacts") ?? "Contacts")}</option></select></div>
               <div class="cf-row wide"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_67b299ee8d0d62","Helpful description ") ?? "Helpful description ")}<span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></label><input class="cf-in" name="description" value="${escapeHtml(selected.description)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_ccd3ead388103e","Explain what to enter or why it matters") ?? "Explain what to enter or why it matters")}"></div>
               <div class="cf-row wide"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_f0ebd864567d9e","Placeholder or toggle wording ") ?? "Placeholder or toggle wording ")}<span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></label><input class="cf-in" name="placeholder" value="${escapeHtml(selected.placeholder)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_5a60afabbd0833","Example answer or short instruction") ?? "Example answer or short instruction")}"></div>
             </div></section>
-            <section class="cf-section"><div class="cf-section-title"><i class="fas fa-shapes"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_817b5495dbf621"," How should people answer?") ?? " How should people answer?")}</div><select class="cf-in" name="type" aria-label="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_d71bdb1b5e587a","Field type") ?? "Field type")}">${TYPE_CATALOG.map(type => `<option value="${escapeHtml(type.value)}"${selected.type === type.value ? ' selected' : ''}>${escapeHtml(type.label)}</option>`).join('')}</select></section>
+            <section class="cf-section"><div class="cf-section-title"><i class="fas fa-shapes"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_817b5495dbf621"," How should people answer?") ?? " How should people answer?")}</div><select class="cf-in" name="type"${selected.type === 'platform_phone' ? ' disabled' : ''} aria-label="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_d71bdb1b5e587a","Field type") ?? "Field type")}">${TYPE_CATALOG.filter(type => !type.managed || selected.type === type.value).map(type => `<option value="${escapeHtml(type.value)}"${selected.type === type.value ? ' selected' : ''}>${escapeHtml(type.label)}</option>`).join('')}</select></section>
             <section class="cf-section" data-cf-options-row${optionTypes.has(selected.type) ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_c77ecb33d21e44"," Choices") ?? " Choices")}</div><div class="cf-choice-builder"><div class="cf-choice-head"><span></span><span>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_12f838600d730e","Choice shown to people") ?? "Choice shown to people")}</span><span>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_2c078b4e5e3896","Saved value ") ?? "Saved value ")}<em>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_82710819dd8da8","(optional)") ?? "(optional)")}</em></span><span></span></div><div data-cf-option-list>${selected.options.length ? selected.options.map((option) => `<div class="cf-choice-row" data-cf-option-row><span class="cf-choice-grip"><i class="fas fa-grip-vertical"></i></span><input class="cf-in" data-cf-option-label value="${escapeHtml(option.label)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_13ecdbd26d94c0","Choice name") ?? "Choice name")}"><input class="cf-in" data-cf-option-value value="${option.label === option.value ? '' : escapeHtml(option.value)}" placeholder="${escapeHtml(slug(option.label, 'saved_value'))}"><button type="button" class="cf-choice-remove" data-cf-option-remove aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("custom-fields","m_f2da0f4d54d9d9",`Remove ${v3}`,{v3}) ?? `Remove ${v3}`)(escapeHtml(option.label))}"><i class="fas fa-trash"></i></button></div>`).join('') : `<div class="cf-choice-empty" data-cf-choice-empty>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_cfbf5fb58f8468","Add the first choice below.") ?? "Add the first choice below.")}</div>`}</div><button type="button" class="cf-btn cf-choice-add" data-cf-option-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_9843402d556eeb"," Add choice") ?? " Add choice")}</button><span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_9c08edb112c438","The saved value is filled automatically from the choice name unless you provide one.") ?? "The saved value is filled automatically from the choice name unless you provide one.")}</span></div></section>
             <section class="cf-section" data-cf-formula-row${selected.type === 'formula' ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-calculator"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_3116869bf8a647"," Calculation") ?? " Calculation")}</div><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_f10e6b2e02d839","Formula") ?? "Formula")}</label><input class="cf-in" name="formula" value="${escapeHtml(selected.formula)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_3adc861bca73f6","{{labor_hours}} * {{hourly_rate}}") ?? "{{labor_hours}} * {{hourly_rate}}")}"><span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_bb19a5edd19102","Use another numeric field’s key inside double braces. Basic arithmetic and parentheses are supported.") ?? "Use another numeric field’s key inside double braces. Basic arithmetic and parentheses are supported.")}</span></div></section>
             <section class="cf-section" data-cf-number-row${numericTypes.has(selected.type) ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_e401a18d1f0811"," Number limits ") ?? " Number limits ")}<span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></div><div class="cf-form-grid"><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a98b9d676a49f1","Minimum") ?? "Minimum")}</label><input class="cf-in" type="number" step="any" name="min" value="${selected.min ?? ''}"></div><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_47cfe16c393bbc","Maximum") ?? "Maximum")}</label><input class="cf-in" type="number" step="any" name="max" value="${selected.max ?? ''}"></div><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_87cb6fb0a41c03","Step") ?? "Step")}</label><input class="cf-in" type="number" step="any" min="0" name="step" value="${selected.step ?? ''}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_61708f5a2ce411","Any") ?? "Any")}"></div><div class="cf-row" data-cf-currency${selected.type === 'currency' ? '' : ' hidden'}><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_c267b6350b9781","Currency") ?? "Currency")}</label><select class="cf-in" name="currency">${['USD','CAD','EUR','GBP','AUD'].map((currency) => `<option value="${currency}"${selected.currency === currency ? ' selected' : ''}>${currency}</option>`).join('')}</select></div></div></section>
             <section class="cf-section" data-cf-schema-row${['object','array','json'].includes(selected.type) ? '' : ' hidden'}><div class="cf-section-title">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_05fb7dcb3179a3","Subfields and item rules") ?? "Subfields and item rules")}</div><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_0e91ac64aa1bcc","JSON Schema") ?? "JSON Schema")}<textarea class="cf-in" name="schema" rows="8" spellcheck="false">${escapeHtml(JSON.stringify(selected.schema,null,2))}</textarea></label><span class="cf-help">Dictionary example: {"properties":{"count":{"type":"integer","minimum":0}},"required":["count"],"additionalProperties":false}. Array example: {"items":{"type":"object","properties":{"name":{"type":"string"}}}}. Formats: date, datetime, email, phone, url.</span></section>
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a48897118cb076"," Preview") ?? " Preview")}</div><div class="cf-preview"><div class="cf-preview-label">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_5b36a7157336fc","People will see") ?? "People will see")}</div><div class="fm-cf-field" data-cf-preview><label>${escapeHtml(selected.label)}${selected.required ? ' <em>*</em>' : ''}</label>${inputHtml(selected, selected.default_value)}</div></div></section>
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-location-dot"></i> <span data-cf-display-heading>${selected.entity === 'organization' ? 'Field behavior' : 'Where should it appear?'}</span></div><div class="cf-toggles">
-              <label class="cf-toggle" data-cf-overview-toggle${selected.entity === 'organization' ? ' hidden' : ''}><input type="checkbox" name="show_in_overview"${selected.show_in_overview ? ' checked' : ''}> <span><strong data-cf-overview-label>${selected.entity === 'contact' ? 'Contact details' : 'Project details'}</strong><br><span data-cf-overview-help>${selected.entity === 'contact' ? 'Show this field while viewing and editing a contact.' : 'Show this field while viewing and editing a project.'}</span></span></label>
+              <label class="cf-toggle" data-cf-overview-toggle${selected.entity === 'organization' ? ' hidden' : ''}><input type="checkbox" name="show_in_overview"${selected.show_in_overview ? ' checked' : ''}> <span><strong data-cf-overview-label>${selected.entity === 'user' ? 'User details' : selected.entity === 'contact' ? 'Contact details' : 'Project details'}</strong><br><span data-cf-overview-help>${selected.entity === 'user' ? 'Show this field while viewing and editing a user.' : selected.entity === 'contact' ? 'Show this field while viewing and editing a contact.' : 'Show this field while viewing and editing a project.'}</span></span></label>
               <label class="cf-toggle" data-cf-scope-toggle${selected.entity === 'project' ? '' : ' hidden'}><input type="checkbox" name="show_in_scope"${selected.show_in_scope ? ' checked' : ''}> <span><strong>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_737026ffd48d0a","Scope workspace") ?? "Scope workspace")}</strong><br>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_51346fc718fb3c","Show a read-only value alongside measurements.") ?? "Show a read-only value alongside measurements.")}</span></label>
               <label class="cf-toggle"><input type="checkbox" name="background_only"${selected.background_only ? ' checked' : ''}> <span><strong>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_bbcc1c701ee884","Store in the background") ?? "Store in the background")}</strong><br>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_5b23cea3dc5736","Keep integration data without showing an input.") ?? "Keep integration data without showing an input.")}</span></label>
               <label class="cf-toggle" data-cf-formula-toggle${['integer', 'number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(selected.type) ? '' : ' hidden'}><input type="checkbox" name="formula_available"${selected.formula_available ? ' checked' : ''}> <span><strong>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_10bd4359b657f4","Available in calculations") ?? "Available in calculations")}</strong><br>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a524481aeb415c","Use ") ?? "Use ")}<code>${escapeHtml(selected.formula_key)}</code>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_efe46e192e9efa"," in project formulas.") ?? " in project formulas.")}</span></label>
@@ -996,7 +1048,7 @@
       }
       container.querySelectorAll('[data-cf-select]').forEach((button) => button.addEventListener('click', () => { selectedId = button.dataset.cfSelect; render(); }));
       container.querySelectorAll('[data-cf-add]').forEach((button) => button.addEventListener('click', () => {
-        const entity = ['contact','organization'].includes(button.dataset.cfAdd) ? button.dataset.cfAdd : 'project';
+        const entity = ['contact','organization','user'].includes(button.dataset.cfAdd) ? button.dataset.cfAdd : 'project';
         const field = normalizeDefinition({ id:uid(), entity, label:((v0) => globalThis.PlatformLanguage?.text("custom-fields","m_0b54d9361ff7b4",`New ${v0} field`,{v0}) ?? `New ${v0} field`)(entity), key:`new_${entity}_field_${fields.length + 1}`, type:'text', show_in_overview:true, order:fields.length });
         fields.push(field); drafts.add(field.id); selectedId = field.id; render();
       }));
@@ -1032,8 +1084,8 @@
         form.querySelector('[data-cf-scopes]').hidden = entity !== 'project' || scopeMode !== 'selected';
         form.querySelector('[data-cf-scope-toggle]').hidden = entity !== 'project';
         form.querySelector('[data-cf-overview-toggle]').hidden = entity === 'organization';
-        form.querySelector('[data-cf-overview-label]').textContent = entity === 'contact' ? 'Contact details' : 'Project details';
-        form.querySelector('[data-cf-overview-help]').textContent = ((v0) => globalThis.PlatformLanguage?.text("custom-fields","m_c5a59651e9ca2f",`Show this field while viewing and editing a ${v0}.`,{v0}) ?? `Show this field while viewing and editing a ${v0}.`)(entity === 'contact' ? 'contact' : 'project');
+        form.querySelector('[data-cf-overview-label]').textContent = entity === 'user' ? 'User details' : entity === 'contact' ? 'Contact details' : 'Project details';
+        form.querySelector('[data-cf-overview-help]').textContent = ((v0) => globalThis.PlatformLanguage?.text("custom-fields","m_c5a59651e9ca2f",`Show this field while viewing and editing a ${v0}.`,{v0}) ?? `Show this field while viewing and editing a ${v0}.`)(entity === 'user' ? 'user' : entity === 'contact' ? 'contact' : 'project');
         form.querySelector('[data-cf-display-heading]').textContent = entity === 'organization' ? 'Field behavior' : 'Where should it appear?';
         form.querySelector('[data-cf-formula-toggle]').hidden = !['integer', 'number', 'currency', 'percentage', 'slider', 'boolean', 'toggle', 'formula'].includes(type);
         const label = cleanText(form.elements.label.value) || 'Untitled field';
@@ -1128,7 +1180,7 @@
     PROJECT_COMPAT_VALUE_KEY,
     CONTACT_VALUE_KEY,
     TYPE_CATALOG:clone(TYPE_CATALOG),
-    schemaError, validFormat, structuredHtml, structuredValue, inputHtml, wireStructured, mountOrganizationValues,
+    schemaError, validFormat, structuredHtml, structuredValue, inputHtml, wireStructured, mountOrganizationValues, mountUserValues,
     normalizeDefinition,
     normalizeModule,
     normalizePath,

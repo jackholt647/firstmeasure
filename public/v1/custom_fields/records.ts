@@ -7,12 +7,15 @@ import { contentHash, jsonClone } from "../platform/publication/validation.js";
 import type { PublicationContext, TargetRef } from "../platform/publication/contracts.js";
 import { PROJECT_DEFAULT_FIELDS, empty, fieldPath, fieldSchema, getValue, normalizeDefinitions, object, putValue, validateField, validatePattern, calculateFormula, type FieldEntity } from "./contracts.js";
 
+import { FIELD_OWNERS, ownerForCollection, readResourceOwner, resourceFieldId } from "./owners.js";
+import { assertPlatformPhoneMutation, resolvePlatformPhone, phoneProducer } from "./platform-phone.js";
+
 export const valueKeys = ["custom_field_values", "custom_fields", "contact_custom_field_values"];
 export async function optional<T>(run: () => Promise<T>): Promise<T | null> {
   try { return await run(); } catch (e) { if ((e instanceof PlatformError && e.statusCode === 404) || (e as any)?.code === "ENOENT") return null; throw e; }
 }
 export async function definitions(orgId: string, branchId: string, entity: FieldEntity, record: JsonObject = {}) {
-  const module = await optional(() => readBranchModule(orgId, entity === "organization" ? "default" : branchId, "custom_fields"));
+  const module = await optional(() => readBranchModule(orgId, FIELD_OWNERS[entity].shared ? "default" : branchId, "custom_fields"));
   const fields = [...(Array.isArray(module?.data.fields) ? module.data.fields : []), ...(Array.isArray(module?.data.retired_fields) ? module.data.retired_fields : [])].map(object).filter(f => (f.entity || "project") === entity);
   const instance = entity === "project" ? object(record.custom_field_schema) : {};
   const combined = new Map((entity === "contact" ? [...CONTACT_DEFAULT_FIELDS,...fields] : entity === "project" ? [...PROJECT_DEFAULT_FIELDS,...fields] : fields).map(f => [String(f.path || f.key), f]));
@@ -52,7 +55,7 @@ export function applyValues(record: JsonObject, entity: FieldEntity, values: Jso
 }
 
 export async function prepareStoredFields(orgId:string, collection:string, incoming:JsonObject, previous:JsonObject = {}):Promise<JsonObject> {
-  const entity:FieldEntity = collection === "projects" ? "project" : collection === "customers" ? "contact" : "organization";
+  const entity:FieldEntity = ownerForCollection(collection,{...previous,...incoming});
   let data = entity === "contact" ? await normalizeContactRecord(orgId,incoming,previous) : {...incoming};
   if (collection === "projects" && Array.isArray(data.contacts)) {
     const old = Array.isArray(previous.contacts) ? previous.contacts.map(object) : [];
@@ -70,7 +73,7 @@ export async function prepareStoredFields(orgId:string, collection:string, incom
     data.photos.some(raw => {const p=object(raw),m=object(p.metadata);return identity(p)===cover && !!(p.in_trash || p.trashed_at || p.deleted_at || m.in_trash || m.trashed_at || m.deleted_at);}) ||
     Array.isArray(previous.photos) && previous.photos.some(raw=>identity(raw)===cover) && !data.photos.some(raw=>identity(raw)===cover)
   );
-  if (!key && !removedCover) return data;
+  if (!key && !removedCover) return Object.keys(before).length ? applyValues(data,entity,before) : data;
   const patch = jsonClone(key ? object(data[key]) : {});
   if (removedCover) patch.cover_photo = null;
   const merge = (a:JsonObject,b:JsonObject):JsonObject => {
@@ -94,24 +97,32 @@ export function canReadField(ctx: PublicationContext, f: JsonObject) {
   return !permission || !!ctx.auth && hasPermission(ctx.auth, permission);
 }
 export function assertFieldWrite(ctx: PublicationContext, f: JsonObject) {
-  if (!canReadField(ctx, f) || f.read_only === true || f.type === "formula" || f.enabled === false || (f.write_permission && (!ctx.auth || !hasPermission(ctx.auth, String(f.write_permission))))) throw forbidden("custom_field_write_denied", `Field ${f.path} is not writable in this context.`);
+  if (f.type === "platform_phone" && !phoneProducer.getStore() || !canReadField(ctx, f) || f.read_only === true && !(f.type === "platform_phone" && phoneProducer.getStore()) || f.type === "formula" || f.enabled === false && !(f.type === "platform_phone" && phoneProducer.getStore()) || (f.write_permission && (!ctx.auth || !hasPermission(ctx.auth, String(f.write_permission))))) throw forbidden("custom_field_write_denied", `Field ${f.path} is not writable in this context.`);
 }
 export async function readFieldRecord(ctx: PublicationContext, target: TargetRef, entity: FieldEntity) {
+  if (FIELD_OWNERS[entity].shared && (target.scope !== "organization" || target.organizationId && target.organizationId !== ctx.organizationId)) throw forbidden("custom_field_owner_target","Fields belong to a resource in this organization.");
+  if (FIELD_OWNERS[entity].sidecar) {
+    const owner = await readResourceOwner(ctx.organizationId,entity,target);
+    const row = await optional(()=>readDocument(ctx.organizationId,"resource_custom_fields",resourceFieldId(entity,owner.id)));
+    const record:JsonObject = {...object(row?.data),id:owner.id,entity,owner_id:owner.id,branch_id:owner.branchId};
+    const fields = await definitions(ctx.organizationId,"default",entity,record);
+    return {id:resourceFieldId(entity,owner.id),collection:"resource_custom_fields",row,record,fields,branch:"default",embedded:false,parent:record};
+  }
   let id = entity === "project" ? target.projectId : entity === "organization" ? "values" : target.id;
   if (!id) throw badRequest("custom_field_target", "A record identity is required.");
   if (entity === "project" && target.id && target.id !== id) throw forbidden("custom_field_target", "Project identity does not match the target.");
   if (entity === "organization" && target.id && ![ctx.organizationId,"values"].includes(target.id)) throw forbidden("custom_field_target", "Organization identity does not match the target.");
   const embedded = entity === "contact" && target.scope === "project";
-  const collection = entity === "project" || embedded ? "projects" : entity === "contact" ? "customers" : "organization_custom_fields";
+  const collection = entity === "project" || embedded ? "projects" : entity === "contact" ? "customers" : entity === "user" ? "users" : "organization_custom_fields";
   const row = entity === "organization" ? await optional(() => readDocument(ctx.organizationId, collection, id!)) : await readDocument(ctx.organizationId, collection, embedded ? target.projectId! : id);
   const parent = object(row?.data);
   const contacts = Array.isArray(parent.contacts) ? parent.contacts.map(object) : [];
   const contact = embedded ? contacts.find(c => String(c.id || c.contact_id) === id) : undefined;
   if (embedded && !contact) throw forbidden("custom_field_contact","Contact does not belong to this project.");
   const primaryContact = parent.workflow_state === "contact_only" && (parent.primary_contact_id === id || String(contacts[0]?.id || contacts[0]?.contact_id) === id);
-  const record = embedded ? { ...contact, ...(primaryContact ? { custom_field_values:{...object(parent.contact_custom_field_values),...object(contact?.custom_field_values)}, contact_custom_field_values:{...object(parent.contact_custom_field_values),...object(contact?.custom_field_values)} } : {}), branch_id:parent.branch_id } : parent;
-  const branch = entity === "organization" ? "default" : String(record.branch_id || target.branchId || ctx.branchId || "default");
-  if (target.branchId && record.branch_id && target.branchId !== record.branch_id) throw forbidden("custom_field_branch", "Field target does not match the record branch.");
+  const record = embedded ? { ...contact, ...(primaryContact ? { custom_field_values:{...object(parent.contact_custom_field_values),...object(contact?.custom_field_values)}, contact_custom_field_values:{...object(parent.contact_custom_field_values),...object(contact?.custom_field_values)} } : {}), branch_id:parent.branch_id } : entity === "user" ? {...parent,id:row!.id} : parent;
+  const branch = FIELD_OWNERS[entity].shared ? "default" : String(record.branch_id || target.branchId || ctx.branchId || "default");
+  if (entity !== "user" && target.branchId && record.branch_id && target.branchId !== record.branch_id) throw forbidden("custom_field_branch", "Field target does not match the record branch.");
   const fields = await definitions(ctx.organizationId, branch, entity, record);
   return { id, collection, row, record, fields, branch, embedded, parent };
 }
@@ -125,9 +136,14 @@ export async function validateStoredFields(orgId: string, collection: string, in
       await validateStoredFields(orgId,"customers",{...contact,branch_id:incoming.branch_id || previous.branch_id || "default"},old,true);
     }
   }
-  const entity: FieldEntity = collection === "projects" ? "project" : collection === "customers" ? "contact" : "organization";
+  const entity: FieldEntity = ownerForCollection(collection,{...previous,...incoming});
+  if(collection === "resource_custom_fields") {
+    if(previous.entity && (incoming.entity !== previous.entity || incoming.owner_id !== previous.owner_id)) throw badRequest("custom_field_owner_immutable","Field owner identity cannot change.");
+    if(recordId !== resourceFieldId(entity,String(incoming.owner_id || ""))) throw badRequest("custom_field_owner_invalid","Field record identity must match its owner.");
+    await readResourceOwner(orgId,entity,{scope:"organization",organizationId:orgId,id:String(incoming.owner_id || "")});
+  }
   if (entity!=="contact" && !valueKeys.some(k => k in incoming) && !("custom_field_schema" in incoming)) return;
-  const next: JsonObject = { ...(replace ? incoming : { ...previous, ...incoming }), ...(recordId ? {id:recordId} : {}) };
+  const next: JsonObject = { ...(replace ? incoming : { ...previous, ...incoming }), ...(recordId ? {id:collection === "resource_custom_fields" ? String(incoming.owner_id || previous.owner_id) : recordId} : {}) };
   const fields = await definitions(orgId, String(next.branch_id || previous.branch_id || "default"), entity, next);
   const values = valuesOf(next, entity), before = valuesOf(previous, entity);
   jsonClone(values);
@@ -138,6 +154,7 @@ export async function validateStoredFields(orgId: string, collection: string, in
       if (f.required===true && (empty(v) || Array.isArray(v) && !v.length)) validateField(f,v);
       continue;
     }
+    if(f.type === "platform_phone") await assertPlatformPhoneMutation(orgId,f,v,old);
     validateField(f,v); await validatePattern(f,v);
     if(entity === "project" && ["media","photo","video"].includes(String(f.type)) && Array.isArray(next.photos)) {
       for(const ref of (Array.isArray(v) ? v : [v])) {
@@ -147,6 +164,7 @@ export async function validateStoredFields(orgId: string, collection: string, in
       }
     }
     await validateReference(orgId,f,v,next,entity);
+    if (entity !== "project" && entity !== "contact") await (await import("./service.js")).validateAssignmentFieldValue(orgId,String(next.branch_id || "default"),f,v);
   }
 }
 export async function readFields(ctx: PublicationContext, target: TargetRef, entity: FieldEntity, path?: string, contractOnly = false) {
@@ -166,21 +184,24 @@ export async function readFields(ctx: PublicationContext, target: TargetRef, ent
     const value = getValue(stored,path);
     return value === undefined && !empty(f.default_value) ? f.default_value : value;
   };
+  const phones:JsonObject[] = [];
   for (const f of selected) {
     if (contractOnly) { dependencies.add(String(f.path)); continue; }
     const v = resolve(String(f.path));
     if (v !== undefined) putValue(values,String(f.path),v);
+    if (f.type === "phone") { if(typeof v === "string" && v) phones.push({field:f.path,type:"phone",phone_number:v,available:true}); }
+    if (f.type === "platform_phone") for(const ref of (Array.isArray(v)?v:[v])) if(ref) phones.push({field:f.path,type:"platform_phone",...await resolvePlatformPhone(ctx.organizationId,ref)});
   }
-  return { ...state, values, dependencies:[...dependencies], visible:selected, revision:contentHash({ revision:state.row?.revision || 0, fields, values }), contract:selected.map(f => ({ ...f, schema:fieldSchema(f), writable:f.read_only !== true && f.type !== "formula" && f.enabled !== false && (!f.write_permission || !!ctx.auth && hasPermission(ctx.auth,String(f.write_permission))) })) };
+  return { ...state, values, phones, dependencies:[...dependencies], visible:selected, revision:contentHash({ revision:state.row?.revision || 0, fields, values, phones }), contract:selected.map(f => ({ ...f, schema:fieldSchema(f), writable:f.type !== "platform_phone" && f.read_only !== true && f.type !== "formula" && f.enabled !== false && (!f.write_permission || !!ctx.auth && hasPermission(ctx.auth,String(f.write_permission))) })) };
 }
 
 /** Legacy HTTP saves use the same field write restrictions as action calls. */
 export async function authorizeRecordFieldMutation(ctx: PublicationContext, collection: string, id: string, body: JsonObject) {
-  if (!["projects","customers"].includes(collection)) return;
+  if (!["projects","customers","users"].includes(collection)) return;
   const incoming = object(body.data);
   if (!valueKeys.some(k => k in incoming) && !("custom_field_schema" in incoming) && !Array.isArray(incoming.contacts)) return;
   const row = id ? await optional(() => readDocument(ctx.organizationId,collection,id)) : null;
-  const previous = object(row?.data), entity = collection === "projects" ? "project" : "contact";
+  const previous = object(row?.data), entity:FieldEntity = collection === "projects" ? "project" : collection === "users" ? "user" : "contact";
   if (collection === "projects" && Array.isArray(incoming.contacts)) {
     const oldContacts = Array.isArray(previous.contacts) ? previous.contacts.map(object) : [];
     for (const raw of incoming.contacts) {

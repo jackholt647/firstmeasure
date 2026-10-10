@@ -3,14 +3,17 @@ import { badRequest } from "../platform/errors.js";
 import { jsonClone, validateJson } from "../platform/publication/validation.js";
 import { assertSafeTenantSchema } from "../platform/publication/tenant-schema.js";
 import type { JsonObject } from "../platform/storage.js";
+import { FIELD_OWNERS, type FieldEntity } from "./owners.js";
+export type { FieldEntity } from "./owners.js";
 import { Worker } from "node:worker_threads";
 
 export const PROJECT_DEFAULT_FIELDS: JsonObject[] = [
   {entity:"project",path:"cover_photo",key:"cover_photo",type:"photo",cardinality:"one",label:"Cover photo",required:false,enabled:true,location:"overview",order:-1,builtin:true}
 ];
 export const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
-export const types = ["text", "multiline", "email", "phone", "url", "number", "integer", "currency", "percentage", "slider", "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list", "array", "object", "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection", "assignable_subject", ...CONTACT_REFERENCE_TYPES, ...MEDIA_REFERENCE_TYPES];
-export type FieldEntity = "project" | "contact" | "organization";
+export const types = ["text", "multiline", "email", "phone", "platform_phone", "url", "number", "integer", "currency", "percentage", "slider", "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list", "array", "object", "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection", "assignable_subject", ...CONTACT_REFERENCE_TYPES, ...MEDIA_REFERENCE_TYPES];
+
+export const isManuallyEditableType = (type:string) => !["formula","platform_phone"].includes(type);
 export function fieldPath(value: unknown): string {
   const path = String(value || "");
   if (!/^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/.test(path) || path.split(".").length > 12 || path.split(".").some(p => p.length > 64 || ["__proto__", "constructor", "prototype"].includes(p))) throw badRequest("custom_field_path_invalid", "Use a stable dotted field path without reserved keys.");
@@ -58,6 +61,11 @@ export function fieldSchema(field: JsonObject): JsonObject {
   else if (["list", "tags", "multiselect", "array"].includes(type)) schema = { type: "array", items: type === "array" ? {} : { type: "string" } };
   else if (["object", "key_value"].includes(type)) schema = { type: "object", additionalProperties: type === "key_value" ? { type: "string" } : true };
   else if (type === "json") schema = {};
+  else if (type === "platform_phone") {
+    // A platform phone is issued by the platform; its issuance identity prevents recycled numbers from reviving old assignments.
+    const ref = {type:"object",properties:{phone_number:{type:"string",format:"phone"},issuance_id:{type:"string",minLength:1,maxLength:180}},required:["phone_number","issuance_id"],additionalProperties:false};
+    schema = field.cardinality === "many" ? {type:"array",items:ref,maxItems:100} : ref;
+  }
   else if (CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) {
     const properties = CONTACT_REFERENCE_TYPES.includes(type) ? {contact_id:{type:"string",minLength:1,maxLength:180},project_id:{type:"string",minLength:1,maxLength:180}} : {media_id:{type:"string",minLength:1,maxLength:180}};
     const ref = {type:"object",properties,required:Object.keys(properties),additionalProperties:false};
@@ -69,7 +77,7 @@ export function fieldSchema(field: JsonObject): JsonObject {
   const declared = object(field.schema);
   if (declared.type && schema.type && declared.type !== schema.type) throw badRequest("custom_field_schema","The schema root type must match the selected field type.");
   if (field.step != null && field.step !== "" && !(Number(field.step) > 0 && Number.isFinite(Number(field.step)))) throw badRequest("custom_field_step","The field step must be positive.");
-  if ((CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) && Object.keys(declared).length) throw badRequest("custom_field_schema","Reference fields use the platform reference schema.");
+  if ((type === "platform_phone" || CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) && Object.keys(declared).length) throw badRequest("custom_field_schema","Reference fields use the platform reference schema.");
   schema = { ...schema, ...declared, ...(schema.type ? { type:schema.type } : {}) };
   for (const [from,to] of [["min","minimum"],["max","maximum"],["min_length","minLength"],["max_length","maxLength"]]) if (field[from!] !== null && field[from!] !== undefined && field[from!] !== "") schema[to!] = Number(field[from!]);
   const options = Array.isArray(field.options) ? field.options.map(v => typeof v === "object" ? object(v).value : v) : [];
@@ -83,6 +91,7 @@ export function fieldSchema(field: JsonObject): JsonObject {
 export function validateField(field: JsonObject, value: unknown) {
   if (empty(value) || Array.isArray(value) && !value.length) { if (field.required === true) throw badRequest("custom_field_required", `${field.label || field.path} is required.`); return; }
   const schema = fieldSchema(field);
+  if(field.type === "platform_phone") for(const ref of (Array.isArray(value)?value:[value])) if(!/^\+[1-9]\d{7,14}$/.test(String(object(ref).phone_number || ""))) throw badRequest("platform_phone_format","Platform phone numbers use E.164 format.");
   validateJson(withoutFormats(schema), value, String(field.label || field.path));
   if (typeof value === "number" && field.step != null && field.step !== "") {
     const step = Number(field.step), ratio = (value - Number(field.min || 0)) / step;
@@ -101,7 +110,7 @@ export function normalizeDefinitions(input: unknown): JsonObject[] {
   return input.map(raw => {
     const f = jsonClone(object(raw), 64000);
     const entity = String(f.entity || "project");
-    if (!["project", "contact", "organization"].includes(entity)) throw badRequest("custom_field_entity", "Unknown field owner.");
+    if (!Object.hasOwn(FIELD_OWNERS,entity)) throw badRequest("custom_field_entity", "Unknown field owner.");
     const path = fieldPath(f.path || f.key);
     const builtin=entity==="contact"?CONTACT_DEFAULT_FIELDS.find(row=>row.path===path):entity==="project"?PROJECT_DEFAULT_FIELDS.find(row=>row.path===path):undefined;
     if(builtin && (String(f.type || "text")!==builtin.type || f.enabled===false))throw badRequest(entity === "contact" ? "contact_builtin_field" : "project_builtin_field","Default fields retain their type and remain available; they can be optional and moved.");
@@ -113,6 +122,10 @@ export function normalizeDefinitions(input: unknown): JsonObject[] {
     if (f.pattern) {
       if (typeof f.pattern !== "string" || f.pattern.length > 256) throw badRequest("custom_field_pattern", "Patterns may contain at most 256 characters.");
       try { new RegExp(f.pattern); } catch { throw badRequest("custom_field_pattern", "Invalid validation pattern."); }
+    }
+    if(result.type === "platform_phone") {
+      if (!empty(f.default_value) || f.required === true) throw badRequest("platform_phone_managed","Platform phones are optional and assigned by the phone system, without defaults.");
+      Object.assign(result,{read_only:true,producer:"phone-system",base_type:"phone",editor:"platform-phone",cardinality:f.cardinality === "many" ? "many" : "one"});
     }
     fieldSchema(result);
     if (!empty(f.default_value) && (typeof f.default_value !== "object" || Object.keys(f.default_value as object).length)) validateField(result, f.default_value);

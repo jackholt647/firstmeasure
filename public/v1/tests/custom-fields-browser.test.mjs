@@ -27,7 +27,7 @@ test('custom-field builder and editors handle organization values, integer valid
     await page.evaluate(() => window.FirstMateCustomFields.mountSettings(document.querySelector('#panel')));
     await mkdir('.tmp/custom-fields',{recursive:true});
     await page.screenshot({path:'.tmp/custom-fields/settings-empty.png',fullPage:true});
-    assert.deepEqual(await page.locator('[data-cf-scope]').evaluateAll(els=>els.map(el=>el.dataset.cfScope)),['project','contact','organization']);
+    assert.deepEqual(await page.locator('[data-cf-scope]').evaluateAll(els=>els.map(el=>el.dataset.cfScope)),['project','contact','user','organization']);
     assert.equal(await page.locator('[data-cf-scope="project"]').getAttribute('aria-selected'),'true');
     assert.equal(await page.locator('[data-cf-overview-label]').innerText(),'Project details');
     await page.locator('[data-cf-add="project"]').click();

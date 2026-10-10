@@ -390,6 +390,30 @@ export function applyProjectCustomFieldDefaults(projectValue: unknown, now = new
   } : project;
 }
 
+export async function validateAssignmentFieldValue(orgId:string, branchId:string, field:JsonObject, value:unknown) {
+  if (!["organization_user", "resource_group", "organization_connection", "assignable_subject"].includes(cleanText(field.type)) || emptyValue(value)) return;
+  const path = cleanText(field.path);
+  field = normalizeField(field);
+  const references = (Array.isArray(value) ? value : [value]).map(asObject);
+  if (cleanText(field.cardinality) !== "many" && references.length > 1) {
+    throw badRequest("custom_field_cardinality_invalid", `${cleanText(field.label || path)} accepts one assignment.`, { path });
+  }
+  if (references.some((reference) => !ASSIGNABLE_TYPES.has(cleanText(reference.subject_type)) || !cleanText(reference.subject_id || reference.id))) {
+    throw badRequest("custom_field_reference_invalid", `${cleanText(field.label || path)} contains an invalid assignment reference.`, { path });
+  }
+  const source = asObject(asArray(field.sources)[0]);
+  const resolved = await resolveAssignableSubjects(orgId, branchId || "default", field.assignment_policy, {
+    scope_template_id: cleanText(source.scope_template_id)
+  });
+  const allowed = new Set(resolved.subjects.map((subject) => `${cleanText(subject.subject_type)}:${cleanText(subject.id || subject.resource_id)}`));
+  const rejected = references
+    .map((reference) => `${cleanText(reference.subject_type)}:${cleanText(reference.subject_id || reference.id)}`)
+    .filter((identity) => !allowed.has(identity));
+  if (rejected.length) {
+    throw badRequest("custom_field_assignment_not_allowed", `${cleanText(field.label || path)} contains an ineligible assignment.`, { path, rejected });
+  }
+}
+
 export async function validateProjectCustomFieldValues(
   orgId: string,
   branchId: string,
@@ -411,24 +435,7 @@ export async function validateProjectCustomFieldValues(
       previousPaths.has(path) &&
       JSON.stringify(value) === JSON.stringify(customFieldValueAtPath(previousValues, path))
     ) continue;
-    const references = (Array.isArray(value) ? value : [value]).map(asObject);
-    if (cleanText(field.cardinality) !== "many" && references.length > 1) {
-      throw badRequest("custom_field_cardinality_invalid", `${cleanText(field.label || path)} accepts one assignment.`, { path });
-    }
-    if (references.some((reference) => !ASSIGNABLE_TYPES.has(cleanText(reference.subject_type)) || !cleanText(reference.subject_id || reference.id))) {
-      throw badRequest("custom_field_reference_invalid", `${cleanText(field.label || path)} contains an invalid assignment reference.`, { path });
-    }
-    const source = asObject(asArray(field.sources)[0]);
-    const resolved = await resolveAssignableSubjects(orgId, branchId || "default", field.assignment_policy, {
-      scope_template_id: cleanText(source.scope_template_id)
-    });
-    const allowed = new Set(resolved.subjects.map((subject) => `${cleanText(subject.subject_type)}:${cleanText(subject.id || subject.resource_id)}`));
-    const rejected = references
-      .map((reference) => `${cleanText(reference.subject_type)}:${cleanText(reference.subject_id || reference.id)}`)
-      .filter((identity) => !allowed.has(identity));
-    if (rejected.length) {
-      throw badRequest("custom_field_assignment_not_allowed", `${cleanText(field.label || path)} contains an ineligible assignment.`, { path, rejected });
-    }
+    await validateAssignmentFieldValue(orgId,branchId,field,value);
   }
   return project;
 }

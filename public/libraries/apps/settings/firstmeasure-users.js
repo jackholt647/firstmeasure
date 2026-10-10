@@ -1032,9 +1032,11 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
               ${isSuperAdmin ? `<div class="fmu-shared-note" style="margin-top:2px;">${escapeHtml(lockedEmailMsg)}</div>` : ''}
             </div>
           </div>
+          ${canAddDelete ? '<section data-user-custom-fields data-settings-autosave="off"></section>' : ''}
           <div class="fmu-shared-note" id="cuEditStatus" style="margin-top:10px;"></div>
         `
       });
+      const userFields = canAddDelete ? window.FirstMateCustomFields?.mountUserValues?.(m.el.querySelector('[data-user-custom-fields]'),{orgId:currentOrgId(),userId:u.id}) : null;
       const footer = document.createElement('div');
       footer.className = 'fmu-mactions';
       footer.innerHTML = `
@@ -1060,6 +1062,7 @@ button.fmu-userName:hover{color:var(--primary-readable,var(--primary,#d93025));t
         }
         btnSave.disabled = true;
         elStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_7372b758cf9670","Saving changes...") ?? "Saving changes...");
+        try { await userFields?.save(); } catch(error) { btnSave.disabled=false;elStatus.textContent=error.message || 'Could not save custom fields.';return; }
         const ret = await userUpdate({ userId: u.id, email, name });
         btnSave.disabled = false;
         elStatus.textContent = '';
