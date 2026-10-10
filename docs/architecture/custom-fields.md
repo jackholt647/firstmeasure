@@ -276,7 +276,10 @@ Use the `phones` export for contact/user summaries and calling. It lists each
 visible declared phone with `field`, `type`, `phone_number`, and `available`;
 platform entries include `issuance_id`. A released, inactive, foreign, or
 reissued number has `available:false`, even if its historical reference remains.
-Never call an unavailable entry. Values retain the historical reference for
+Never call an unavailable entry. Platform phone assignments remain protected and
+listed in this export even when a project changes away from a field's selected
+scope. Authorized phone commands can unassign them; visibility never bypasses
+issuance ownership. Values retain the historical reference for
 tracking; normal custom-field writes cannot erase it. Frozen exports recheck
 active platform issuance before replaying captured available references. No
 phone number is purchased, released, or routed by reading fields or summaries.

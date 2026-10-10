@@ -32,7 +32,7 @@ test("grouping fields use existing owners, independent revisions, and phone issu
     const workforce=await import("../workforce/storage.js");
     const team=await workforce.createResourceGroup(org,{name:"Field crew",branch_id:"east"});
     const owners={branch:"east",department:"sales",division:"north",team:team.id};
-    await storage.saveBranchModule(org,"default","custom_fields",{data:{fields:[...Object.keys(owners).map(entity=>({entity,path:"priority",type:"integer"})),{entity:"user",path:"lines",type:"platform_phone",cardinality:"many"},{entity:"user",path:"external",type:"phone"}]}},{replace:true});
+    await storage.saveBranchModule(org,"default","custom_fields",{data:{fields:[...Object.keys(owners).map(entity=>({entity,path:"priority",type:"integer"})),{entity:"user",path:"lines",type:"platform_phone",cardinality:"many"},{entity:"user",path:"external",type:"phone"},{entity:"project",path:"scoped_line",type:"platform_phone",scope_mode:"selected",scopes:["different_scope"]}]}},{replace:true});
     for(const [entity,id] of Object.entries(owners)) {
       const ctx=systemPublicationContext({kind:"module",organizationId:org,operations:[`custom-fields-${entity}.contract`,`custom-fields-${entity}.values`,`custom-fields.${entity}.write`],mode:"command"});
       const target={scope:"organization" as const,organizationId:org,id:String(id)};
@@ -65,6 +65,12 @@ test("grouping fields use existing owners, independent revisions, and phone issu
     phoneCtx.auth.permissions.manage_company_users=false;
     await assert.rejects(()=>invokeAction(phoneCtx,action,input,{idempotencyKey:"assign-line"}));
     phoneCtx.auth.permissions.manage_company_users=true;
+    phoneCtx.auth.permissions.manage_projects=true;phoneCtx.auth.permissions.view_projects=true;
+    await storage.upsertDocument(org,"projects",{id:"scoped_project",data:{name:"Scoped project"}});
+    await invokeAction(phoneCtx,{action:"platform-phones.project.assignment.set",target:{scope:"project",organizationId:org,projectId:"scoped_project"}},{field:"scoped_line",phoneNumbers:[ref.phone_number],expectedRevision:1},{idempotencyKey:"scoped-line"});
+    const scopePhones=await readPublishedData(phoneCtx,{provider:"custom-fields-project",export:"phones",target:{scope:"project",organizationId:org,projectId:"scoped_project"}});assert.equal((scopePhones as any).value[0].phone_number,ref.phone_number);
+    await assert.rejects(()=>storage.upsertDocument(org,"projects",{id:"scoped_project",data:{custom_fields:{scoped_line:null}}}));
+    assert.deepEqual(((await storage.readDocument(org,"projects","scoped_project")).data.custom_field_values as any).scoped_line,ref);
     const published=await readPublishedData(ctx,{provider:"custom-fields-user",export:"phones",target});
     assert.equal(published.status,"ready");assert.equal((published as any).value.find((p:any)=>p.type === "platform_phone").available,true);
     for(const values of [{lines:[]},{lines:null},{lines:[{...ref,issuance_id:"forged"}]}]) await assert.rejects(()=>storage.upsertDocument(org,"users",{id:"member",data:{custom_fields:values}}));
