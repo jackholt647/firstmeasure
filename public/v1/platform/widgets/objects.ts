@@ -36,13 +36,14 @@ function projectSummary(data:any,id:string,contactsVisible:boolean,financialsVis
  const active=instances.find((item:any)=>obj(item).kind==='pipeline')||instances[0];
  const cover=obj(obj(data.custom_field_values).cover_photo||obj(data.custom_fields).cover_photo);
  const photos=Array.isArray(data.photos)?data.photos:[];
- const photo=photos.map(obj).find((item:any)=>label(item.media_id||item.mediaId))||{};
+ const coverId=label(cover.media_id);
+ const coverPhoto=photos.map(obj).find((item:any)=>[item.id,item.photo_id,item.media_id,item.mediaId].some(value=>label(value)===coverId))||{};
  const contacts=(Array.isArray(data.contacts)?data.contacts:[]).map(obj);
  const contact=contacts.find((item:any)=>item.primary===true||label(item.id)===label(data.primary_contact_id))||{};
  const contactCount=contacts.length||([data.primary_contact_id,data.contact_id,data.primary_contact_name,data.customer_name].some(label)?1:0);
  const value=[data.deal_value_cents,data.estimated_value_cents,data.proposal_total_cents,data.project_total_cents].find((item:any)=>Number.isFinite(item)&&item>=0);
  return {...pick(data,id),
-  cover_media_id:label(cover.media_id||photo.media_id||photo.mediaId),
+  cover_media_id:coverId?label(coverPhoto.media_id||coverPhoto.mediaId||coverId):'',
   stage_label:label(obj(active).stage_title||data.stage_label),
   job_type:label(data.job_type||data.service_type),
   project_type:label(data.project_type),

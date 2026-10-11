@@ -4661,6 +4661,15 @@ window.PlatformCommerce.onReady(async function(){
     }
     window.location.href='tel:'+contact.phone.replace(/[^+0-9*#,;]/g,'');
   }
+  async function openProjectContactDraft(channel,recipient){
+    const app=projectModalApps().find(app=>app.id==='comms');
+    if(!app || !validPreviewTabs().includes('comms'))throw new Error('Communications is not available for this project.');
+    closeProjectIdentityPopover();setActivePreviewTab('comms');
+    const mounted=await mountProjectModalApp(app);
+    const comms=window.Portal?.modules?.commsTab;
+    if(!mounted || !comms?.openContactDraft || !comms.context?.().mounted)throw new Error('Communications could not be opened.');
+    comms.openContactDraft(channel,recipient);
+  }
   async function handleProjectContactAction(event){
     const button=event.target.closest('[data-contact-shortcut]');if(!button)return;
     const card=button.closest('.r-contact-card');
@@ -4676,15 +4685,7 @@ window.PlatformCommerce.onReady(async function(){
         window.location.href=target;
       }
       else if(action==='call')await prepareProjectContactCall(contact);
-      else {
-        const app=projectModalApps().find(app=>app.id==='comms');
-        if(!app || !validPreviewTabs().includes('comms'))throw new Error('Communications is not available for this project.');
-        closeProjectIdentityPopover();setActivePreviewTab('comms');
-        await mountProjectModalApp(app);
-        const comms=window.Portal?.modules?.commsTab;
-        if(!comms?.openContactDraft)throw new Error('Communications could not be opened.');
-        comms.openContactDraft(action,value);
-      }
+      else await openProjectContactDraft(action,value);
       closeProjectIdentityPopover();
     }catch(error){window.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("project-request","contact_action_failed","Could not open contact action") ?? "Could not open contact action"),error.message,false);}
     finally{button.disabled=false;}
@@ -11968,7 +11969,7 @@ window.PlatformCommerce.onReady(async function(){
     });
   }
 
-  window.Portal.modules.request = { retainedProjectWindows:true, orderSession, open, openProject, openContact, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
+  window.Portal.modules.request = { retainedProjectWindows:true, orderSession, open, openProject, openContact, openProjectContactDraft, openDocumentDraft, close, setPhotos, restoreRouteState, ensureStyles: ensureProjectRequestStyles, ensureProposalContext: installProposalContextAccessors,
     projectDisplayTitle, formatProjectContactNames, openingHeader:openingProjectHeader, headerState:projectHeaderState,
     prepareHeader:()=>Promise.all([loadBranchProjectConfig(),loadProjectTagBoards()]),
     openingTabs:openingProjectTabs
