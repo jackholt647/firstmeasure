@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 Feed images: [Missing-thumbnail fallback across list and Posts](deploy/digitalocean/development-feed-photo-fallback-20261011.md) records the small-photo handling, cached fallback fix and development verification.
+
 October 11 table editing: [Retain table controls after insertion](deploy/digitalocean/development-feed-table-selection-20261011.md) records the shared editor fix, regression and development rollout.
 
 October 10 Feed editor: [Mentions, table controls and shared GIF/emoji picker integration](deploy/digitalocean/development-feed-editor-layout-20261010.md) records source locations, validation and development rollout.
