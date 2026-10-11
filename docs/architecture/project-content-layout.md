@@ -32,8 +32,7 @@ the accepted snapshot rendered by FMDocRenderer; Back restores the tiles. This
 uses neither a modal nor a generic JSON instance viewer. Measurements appear
 directly below the documents, with every published value in compact inline editable rows. Each section
 measures labels and value widths and uses up to three columns when the rail width permits.
-Oversized labels move to full-width rows at the end of a section. Pitch breakdown is a
-Pitch/Squares table. Zero and unavailable measurements are hidden by default; the
+Oversized labels move to full-width rows at the end of a section. Pitch breakdown is a two-row table with one column per pitch (a Pitch row above a Squares row) that scrolls sideways when the rail is narrow; the 3D roof key uses the same layout. Zero and unavailable measurements are hidden by default; the
 Measurements heading includes a Show zero measurements toggle. Editable values accept
 nonnegative decimal text, never exponent notation.
 Pitch and roofing-square explanations are inline control tooltips. Edits use project-local measurement overrides, never write to the published
