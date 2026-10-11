@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 Project preview: [Cover fallback and internal contact actions](deploy/digitalocean/development-project-preview-cover-actions-20261011.md) records the verified development rollout, tests, exact-project data observation and rollback paths.
+
 October 11 Phone Settings: [Voicemail drop, dialing pools and reputation monitoring](deploy/digitalocean/development-phone-extensions-20261011.md) records the complete staged release, checks, carrier prerequisites and worker-access activation blocker.
 
 October 11 GIF picker: [Hide creator profile overlays](deploy/digitalocean/development-gif-overlay-20261011.md) records the shared picker setting, hover/selection verification and development rollout.
