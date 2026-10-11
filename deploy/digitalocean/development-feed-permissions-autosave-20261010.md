@@ -38,3 +38,13 @@ The initial report incorrectly treated the dev worker at `137.184.44.82` as the 
 Feed publication actions can be called by Platform automations, but their registered execution kinds do not establish that the separate report-worker service runs those automations. The integration API registers its scheduler in the application runtime when platform background execution is enabled; the dedicated Platform worker is a separate entrypoint. The Feed backend changes belong in the runtime actually executing those actions, not automatically in every service described as a worker.
 
 The earlier request for root/deployment access to the report worker is withdrawn for this Feed task. General backend release synchronization can be handled through normal deployment maintenance; it must not be represented as an unmet Feed requirement.
+
+## October 11: portal component loading repair
+
+The screenshot's exact message, `Feed settings failed to load.`, originated from the Company settings guard when `FirstMateFeedSettings` was absent. The component was registered in the app manifest, but the primary portal template loaded Company settings directly without the Feed component. The original standalone component test explicitly injected the component and missed this integration path.
+
+Commit/release `940d95c71c3dc04ad133f4809772a0f5312b9bf6` adds Feed settings to the portal script list before Company settings. The tab renderer also loads the component on demand for shells that lack it, shares the in-flight request, and offers Retry after a download failure. The manifest advances only the Company bundle to `20261011-feed-loader-v3`.
+
+Browser tests passed for the actual tab renderer starting with an absent component, a failed first download, a successful Retry and repeated tab opening without duplicate loads. The existing auto-save/defaults/conflict tests passed locally and with the publicly served Feed component. JavaScript and PHP syntax checks passed. Each serving role preserved its latest unrelated changes and verified the three changed files against its receipt.
+
+Web and pool activated `/opt/firstmeasure/releases/940d95c71c3dc04ad133f4809772a0f5312b9bf6`; legacy activated `/mnt/firstmeasure_dev_releases/releases/940d95c71c3dc04ad133f4809772a0f5312b9bf6`. Their respective previous paths ended in `07b7a6c748a678941cc1b7e8bfdf9e4f0e3216fc` under the same parent. Local and public readiness passed with development isolation. The public site briefly returned 503 while services restarted and the load balancer readmitted them; it recovered before final verification. Worker and production were unchanged.
