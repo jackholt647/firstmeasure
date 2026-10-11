@@ -97,7 +97,7 @@
         const client=new GiphyFetch(config.sdk_key);
         function paint(){
           const query=search.value.trim(),version=++generation;removeGrid?.();grid.replaceChildren();status.textContent='Loading GIFs…';
-          removeGrid=renderGrid({width:Math.max(1,Math.floor(grid.clientWidth)),columns:2,gutter:4,noLink:true,
+          removeGrid=renderGrid({width:Math.max(1,Math.floor(grid.clientWidth)),columns:2,gutter:4,noLink:true,hideAttribution:true,
             fetchGifs:async offset=>{
               try{const data=await loadWithin(query?client.search(query,{offset,limit:12,rating:'pg'}):client.trending({offset,limit:12,rating:'pg'}));if(!disposed&&version===generation&&!sending)status.textContent=data.data.length?'':'No GIFs found. Try another search.';return data;}
               catch(error){if(!disposed&&version===generation&&!sending)status.textContent='GIF search is unavailable or its request limit was reached. Try again later.';return {data:[],pagination:{total_count:0,count:0,offset},meta:{status:200,msg:'Unavailable',response_id:''}};}
