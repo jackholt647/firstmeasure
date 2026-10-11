@@ -1422,10 +1422,11 @@
       const baseSrc = img.dataset.baseSrc || img.currentSrc || img.src || '';
       img.dataset.baseSrc = baseSrc;
       const cached = state.thumbnailStatus.get(baseSrc);
-      if (cached === 'loaded') tile.classList.add('loaded');
+      if (cached?.src && cached.src !== baseSrc) { img.dataset.fallbackStarted='true'; img.src=cached.src; }
+      if (cached === 'loaded' || cached?.src) tile.classList.add('loaded');
       if (cached === 'error') { tile.classList.add('error'); return; }
       const retry = () => {
-        if (tile.classList.contains('loaded')) return;
+        if (img.complete && img.naturalWidth > 0) return;
         const originalSrc = img.dataset.originalSrc || '';
         if(img.dataset.fallbackStarted==='true' && !img.complete)return;
         if (img.dataset.mediaKind === 'video' && originalSrc) {
@@ -1454,7 +1455,7 @@
       const markLoaded = () => {
         tile.classList.add('loaded');
         tile.classList.remove('error');
-        state.thumbnailStatus.set(baseSrc, 'loaded');
+        state.thumbnailStatus.set(baseSrc, {src:img.currentSrc || img.src});
       };
       const markError = () => {
         window.setTimeout(retry, 450);
@@ -1777,6 +1778,8 @@
     if (item.photo?.media_id && !isVideoMedia(item.photo) && markupThumbnailRevisions.has(item.photo.media_id) && window.PlatformAPI?.media?.markupThumbnailUrl) {
       return window.PlatformAPI.media.markupThumbnailUrl(orgId(), item.photo.media_id, 320, markupThumbnailRevisions.get(item.photo.media_id) || '');
     }
+    const variants=item.photo?.variants;
+    if (variants && !(Array.isArray(variants) ? variants.includes('thumb_320') : Object.hasOwn(variants,'thumb_320'))) return photoOriginal(item);
     if (item.photo?.media_id && window.PlatformAPI?.media?.thumbnailUrl) return window.PlatformAPI.media.thumbnailUrl(orgId(), item.photo.media_id, 320);
     return item.photo?.thumb || item.photo?.src || '';
   }
