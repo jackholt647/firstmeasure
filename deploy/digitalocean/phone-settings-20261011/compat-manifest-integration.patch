@@ -1,0 +1,38 @@
+--- a/public/libraries/apps/firstmate-apps-manifest.js
++++ b/public/libraries/apps/firstmate-apps-manifest.js
+@@ -102,7 +102,7 @@
+       portalTabId: 'contacts',
+       settingsTabId: 'contacts',
+       access: managementAccess,
+-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261009-contact-window-v3'), versionedBundle('settings/crm.js', '20261010-priority-owners-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261009-contact-catalog-v1')]
++      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261009-contact-window-v3'), versionedBundle('settings/crm.js', '20261011-phone-settings-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261009-contact-catalog-v1')]
+     },
+     {
+       id: 'portal.photos_feed',
+@@ -351,7 +351,7 @@
+       surfaces: ['project_modal'],
+       requiresContext: ['project'],
+       access: managementAccess,
+-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261009-group-text-v1'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261009-group-text-v1'), versionedBundle('comms/phone-tray.js', '20261009-group-text-v1'), versionedBundle('comms/calling-runtime.js', '20261009-test-phones-v1'), versionedBundle('comms/phone-modal.js', '20261009-group-text-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
++      bundles: [versionedBundle('../comms-api/comms-api.js', '20261009-group-text-v1'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261009-group-text-v1'), versionedBundle('comms/phone-tray.js', '20261009-group-text-v1'), versionedBundle('comms/calling-runtime.js', '20261011-outbound-phone-v1'), versionedBundle('comms/phone-modal.js', '20261009-group-text-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+     },
+     {
+       id: 'project.measurements',
+@@ -528,7 +528,7 @@
+         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
+         versionedBundle('comms/communications-ui.js', '20261009-group-text-v1'),
+         versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
+-        versionedBundle('comms/phone-tray.js', '20261009-group-text-v1'), versionedBundle('comms/calling-runtime.js', '20261009-test-phones-v1'), versionedBundle('comms/phone-modal.js', '20261009-group-text-v1'),
++        versionedBundle('comms/phone-tray.js', '20261009-group-text-v1'), versionedBundle('comms/calling-runtime.js', '20261011-outbound-phone-v1'), versionedBundle('comms/phone-modal.js', '20261009-group-text-v1'),
+         versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
+         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
+       ]
+@@ -613,7 +613,7 @@
+       portalTabId: 'company_settings',
+       placement: 'settings',
+       access: managementAccess,
+-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261010-priority-owners-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/feed.js', '20261010-feed-autosave-v1'), versionedBundle('settings/company.js', '20261010-feed-permissions-v2')]
++      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261011-phone-settings-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/feed.js', '20261010-feed-autosave-v1'), versionedBundle('settings/phone.js', '20261011-phone-settings-v2'), versionedBundle('settings/company.js', '20261011-phone-settings-v2')]
+     },
+     {
+       id: 'portal.crew_overview',
