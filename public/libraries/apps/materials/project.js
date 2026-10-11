@@ -74,6 +74,9 @@
     activeListId: '',
     activeList: null,
     visibleListIds: new Set(),
+    collapsedListIds: new Set(),
+    minimizedTypes: new Set(),
+    dragItem: null,
     leftSections: { lists: true, measurements: true, custom_fields: true, notes: true },
     noteVisibility: ['office', 'crew', 'sales'],
     pendingAudioNote: null,
@@ -702,85 +705,75 @@
       .mt-scope-measures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.mt-scope-measure{border:1px solid rgba(15,23,42,.07);border-radius:7px;background:#fff;padding:7px;min-width:0}.mt-scope-measure span{display:block;font-size:9px;font-weight:950;color:#667085;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-scope-measure strong{display:block;margin-top:3px;font-size:12px;font-weight:1000;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
       .mt-resource-column{container:resource-column / inline-size}
+      .mt-workspace-header button{padding:4px 8px}
       .mt-resource-column .mt-resource-heading{padding:6px 8px}
-      .mt-resource-column .mt-resource-scroll{overflow-x:hidden;padding:0 6px 6px;gap:0}
-      .mt-resource-column .mt-list-pane+.mt-list-pane{margin-top:6px;border-top:1px solid #e4e7ec}
+      .mt-resource-column .mt-resource-scroll{overflow-x:hidden;padding:4px 6px 6px;gap:6px}
       .mt-resource-column .mt-section{min-width:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
-      .mt-resource-column .mt-list-head{padding:5px 0 2px;gap:2px}
-      .mt-resource-column .mt-list-head button{flex:none;border:0;border-radius:4px;padding:3px 4px;background:transparent;color:#667085;font-size:10px}
-      .mt-resource-column .mt-list-head button:hover:not(:disabled){background:#f2f4f7;color:#344054}
+      .mt-resource-column .mt-list-head{box-sizing:border-box;min-height:24px;gap:1px;padding:2px;border-radius:4px;background:#f2f4f7}
+      .mt-resource-column .mt-list-pane.is-drop-target .mt-list-head{box-shadow:inset 0 0 0 1px var(--primary,#d93025)}
+      .mt-resource-column .mt-list-head button{flex:none;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;border:0;border-radius:4px;background:transparent;color:#667085;font-size:10px}
+      .mt-resource-column .mt-list-head button:hover:not(:disabled){background:#e4e7ec;color:#344054}
       .mt-resource-column .mt-list-head button:disabled{opacity:.4;cursor:default}
-      .mt-resource-column .mt-list-head input{font-size:12px;font-weight:600;text-overflow:ellipsis}
+      .mt-resource-column .mt-list-head button.is-done{color:#067647}
+      .mt-resource-column .mt-list-head input{height:20px;padding:0 2px;font-size:11px;font-weight:700;text-overflow:ellipsis}
+      .mt-resource-column .mt-list-head .mt-list-secondary{display:contents}
       .mt-list-total{flex:none;padding:0 3px;font-size:11px;font-variant-numeric:tabular-nums;color:#475467}
-      .mt-list-tools{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:0 0 4px}
-      .mt-list-tools:empty{display:none}
-      .mt-resource-column .mt-list-secondary{flex:0 1 auto;flex-wrap:wrap;gap:4px;min-height:0;margin:0;padding:0;border:0;background:transparent}
-      .mt-resource-column .mt-list-secondary button{display:inline-flex;align-items:center;gap:4px;height:22px;min-height:22px;padding:0 7px;border-color:#e4e7ec;border-radius:4px;font-size:10px;font-weight:600}
-      .mt-resource-column .mt-list-secondary button:hover:not(:disabled){border-color:#d0d5dd;background:#f9fafb;color:#344054}
-      .mt-resource-column .mt-labor-controls{flex:1 1 100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:3px 4px}
+      .mt-list-tools{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:3px 0 1px}
+      .mt-resource-column .mt-list-tools .mt-list-secondary{flex:0 1 auto;flex-wrap:wrap;gap:4px;min-height:0;margin:0;padding:0;border:0;background:transparent}
+      .mt-resource-column .mt-list-tools .mt-list-secondary button{display:inline-flex;align-items:center;gap:4px;height:22px;min-height:22px;padding:0 7px;border-color:#e4e7ec;border-radius:4px;font-size:10px;font-weight:600}
+      .mt-resource-column .mt-list-tools .mt-labor-controls{flex:1 1 100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:3px 4px}
       .mt-resource-column .mt-labor-controls label{height:22px;gap:4px;padding-left:5px;border-color:#e4e7ec;border-radius:4px}
       .mt-resource-column .mt-labor-controls label span{width:auto;font-size:9px;font-weight:500;text-transform:none}
       .mt-resource-column .mt-labor-controls select,.mt-resource-column .mt-labor-controls input{height:20px;font-size:10px;font-weight:500}
       .mt-resource-column .mt-labor-actions{grid-column:1/-1;grid-row:auto;flex-direction:row;flex-wrap:wrap}
       .mt-resource-column .mt-labor-actions button{flex:none}
-      .mt-compact-units{margin-left:auto;border:0;border-radius:4px;background:transparent;color:#667085;font-size:10px;padding:2px 4px;white-space:nowrap;cursor:pointer}
-      .mt-compact-units:hover{background:#f2f4f7;color:#344054}
-      .mt-resource-column .mt-section-label{padding:6px 0 2px 13px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
+      .mt-resource-column .mt-section-label{padding:4px 0 1px 11px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
       .mt-resource-column .mt-table,.mt-resource-column .mt-table tbody{display:block;width:100%}
       .mt-resource-column .mt-table colgroup,.mt-resource-column .mt-table thead{display:none}
-      .mt-resource-column :is(tr.mt-list-row,.mt-list-cols){--row-cols:minmax(0,1fr) 40px 44px 32px 18px;--row-areas:"name name name name rm" "meta qty unit price price";grid-template-columns:var(--row-cols);grid-template-areas:var(--row-areas);align-items:center;gap:0 4px}
-      .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=material]{--row-areas:"name name name color rm" "meta qty unit price price"}
-      .mt-resource-column .mt-table tr.mt-list-row{display:grid;padding:2px 0 3px;border-bottom:1px solid #f0f2f5;background:none}
+      .mt-resource-column .mt-table tr.mt-list-row{box-sizing:border-box;display:flex;align-items:center;gap:2px;height:24px;border-bottom:1px solid #f0f2f5;background:none}
       .mt-resource-column .mt-table tr.mt-list-row:hover,.mt-resource-column .mt-table tr.mt-list-row:focus-within{background:#f9fafb}
-      .mt-resource-column .mt-table tr.mt-list-row td{display:block;min-width:0;padding:0;border:0;text-align:left;font-size:11px}
-      .mt-resource-column .mt-c-name{grid-area:name}.mt-resource-column .mt-c-meta{grid-area:meta}.mt-resource-column .mt-c-color{grid-area:color}.mt-resource-column .mt-c-qty{grid-area:qty}.mt-resource-column .mt-c-unit{grid-area:unit}.mt-resource-column .mt-c-price{grid-area:price}.mt-resource-column .mt-c-rm{grid-area:rm}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total,.mt-resource-column .mt-list-cols .mt-c-total{grid-area:total;display:none;overflow:hidden;padding-right:2px;text-align:right;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums;color:#344054}
-      .mt-resource-column .mt-list-cols{display:none;padding:2px 0;border-bottom:1px solid #e4e7ec;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
-      .mt-resource-column .mt-list-cols span{min-width:0;overflow:hidden;white-space:nowrap}
-      .mt-resource-column .mt-list-cols .mt-c-name{padding-left:13px}
-      .mt-resource-column .mt-list-cols .mt-c-qty,.mt-resource-column .mt-list-cols .mt-c-price,.mt-resource-column .mt-list-cols .mt-c-total{padding-right:4px;text-align:right}
-      .mt-resource-column .mt-list-cols .mt-c-unit{padding-left:4px}.mt-resource-column .mt-list-cols .mt-c-total{color:inherit}
-      .mt-resource-column .mt-line-title{display:flex;align-items:center;gap:6px;min-width:0}
-      .mt-resource-column .mt-list-dot{width:7px;height:7px;min-width:7px;box-shadow:none}
-      .mt-resource-column .mt-cell-input{width:100%;min-width:0!important;box-sizing:border-box;height:22px;min-height:22px;padding:0 4px;border:1px solid transparent;border-radius:4px;background:#f6f7f9;font-size:11px;font-weight:500;text-overflow:ellipsis}
+      .mt-resource-column .mt-table tr.mt-list-row.is-dragging{opacity:.4}
+      .mt-resource-column .mt-table tr.mt-list-row.drop-before{box-shadow:inset 0 2px 0 var(--primary,#d93025)}
+      .mt-resource-column .mt-table tr.mt-list-row.drop-after{box-shadow:inset 0 -2px 0 var(--primary,#d93025)}
+      .mt-resource-column .mt-table tr.mt-list-row td{display:block;flex:none;min-width:0;padding:0;border:0;text-align:left;font-size:11px;white-space:nowrap}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-name{flex:1 1 0}
+      .mt-drag{display:flex;align-items:center;justify-content:center;width:9px;height:22px;color:#c0c5cf;font-size:9px;cursor:grab;touch-action:none}
+      .mt-drag:hover,.mt-drag:focus-visible,.mt-drag[aria-expanded=true]{color:#475467}
+      .mt-drag:active{cursor:grabbing}
+      .mt-resource-column .mt-cell-input{box-sizing:border-box;height:20px;min-height:20px;min-width:0!important;padding:0 3px;border:1px solid transparent;border-radius:3px;background:transparent;font-size:11px;font-weight:500;text-overflow:ellipsis}
       .mt-resource-column .mt-cell-input:hover:not(:disabled){border-color:#d0d5dd;background:#fff}
       .mt-resource-column .mt-cell-input:focus{border:1px solid var(--primary,#d93025)!important;box-shadow:none!important;background:#fff}
-      .mt-resource-column .mt-line-name{padding:0 3px;background:transparent;font-size:12px;font-weight:600}
+      .mt-resource-column .mt-line-name{width:100%;padding:0 2px;font-weight:600}
       .mt-resource-column input.mt-number{appearance:textfield;-moz-appearance:textfield;text-align:right;font-variant-numeric:tabular-nums}
       .mt-resource-column input.mt-number::-webkit-inner-spin-button,.mt-resource-column input.mt-number::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price{position:relative}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price::before{content:'$';position:absolute;left:5px;top:50%;transform:translateY(-50%);font-size:10px;color:#98a2b3;pointer-events:none}
-      .mt-resource-column .mt-c-price .mt-cell-input{padding-left:13px}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta{display:flex;align-items:center;gap:5px;height:22px;padding-left:13px;font-size:10px;color:#667085}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta:has(>select){padding-left:9px}
-      .mt-resource-column .mt-c-meta>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .mt-resource-column .mt-variant-select{flex:0 1 auto;width:auto;min-width:0;max-width:100%;height:20px;font-size:10px;font-weight:500;color:#475467;text-overflow:ellipsis;cursor:pointer}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-color{display:flex;justify-content:flex-end}
-      .mt-resource-column .mt-c-color:has(>.mt-small){visibility:hidden}
-      .mt-resource-column .mt-color-swatch{width:16px;height:16px;border-radius:4px}
-      .mt-resource-column .mt-order-qty-cell{flex-direction:row;align-items:center;justify-content:flex-end;height:22px;padding:0 5px}
-      .mt-resource-column .mt-c-unit .mt-order-qty-cell{justify-content:flex-start}
-      .mt-resource-column .mt-order-qty-cell strong{overflow:hidden;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+      .mt-resource-column .mt-c-qty .mt-cell-input,.mt-resource-column .mt-c-price .mt-cell-input{background:#f2f4f7}
+      .mt-resource-column .mt-c-unit .mt-cell-input{padding:0 1px;color:#667085}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price{display:flex;align-items:center;gap:1px}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price::before{content:'$';font-size:10px;color:#98a2b3}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta{flex:0 0 14px;overflow:hidden}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta:empty{display:none}
+      .mt-resource-column .mt-c-meta>span{display:none}
+      .mt-resource-column .mt-c-meta select{display:block;width:14px;min-width:0;max-width:100%;height:20px;min-height:20px;padding:0;border:0;border-radius:3px;background:transparent;color:#667085;font-size:10px;font-weight:500;text-overflow:ellipsis;cursor:pointer}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-color{display:flex}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-color:has(>.mt-small){display:none}
+      .mt-resource-column .mt-color-swatch{width:12px;height:12px;border-radius:3px}
+      .mt-resource-column .mt-order-qty-cell{flex-direction:row;align-items:center;height:20px;padding:0 2px}
+      .mt-resource-column .mt-order-qty-cell strong{font-size:11px;font-weight:500}
+      .mt-resource-column .mt-c-unit .mt-order-qty-cell strong{color:#667085}
       .mt-resource-column .mt-order-qty-cell span{display:none}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button{width:18px;min-width:18px;height:22px;min-height:22px;border:0;border-radius:4px;background:transparent;box-shadow:none;color:#c0c5cf;font-size:10px}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total{display:none;width:62px;overflow:hidden;text-align:right;text-overflow:ellipsis;font-variant-numeric:tabular-nums;color:#344054}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button{width:14px;min-width:14px;height:20px;min-height:20px;border:0;border-radius:3px;background:transparent;box-shadow:none;color:#c0c5cf;font-size:10px}
       .mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button:hover:not(:disabled),.mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button:focus-visible{color:#d92d20;background:#fef3f2}
-      .mt-resource-column .mt-list-add-item{display:block;width:100%;margin:2px 0 4px;padding:4px 4px 4px 13px;border:0;border-radius:4px;background:transparent;color:#667085;font-size:11px;text-align:left}
+      .mt-resource-column .mt-list-add-item{display:block;width:100%;margin:1px 0 0;padding:3px 4px 3px 11px;border:0;border-radius:4px;background:transparent;color:#667085;font-size:11px;text-align:left}
       .mt-resource-column .mt-list-add-item:hover:not(:disabled){background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}
-      .mt-resource-column .mt-empty{padding:10px 2px;font-size:11px;font-weight:500}
+      .mt-resource-column .mt-empty{padding:8px 2px;font-size:11px;font-weight:500}
       @container resource-column (min-width:360px){
-        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols):not([data-resource-kind=labor]){--row-cols:minmax(0,1fr) 46px 46px 60px 18px;--row-areas:"name qty unit price rm" "meta meta meta meta meta"}
-        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=material]{--row-cols:minmax(0,1fr) 20px 46px 46px 60px 18px;--row-areas:"name color qty unit price rm" "meta meta meta meta meta meta"}
-        .mt-resource-column .mt-table tr.mt-list-row:not([data-resource-kind=labor]) td.mt-c-meta{height:16px}
-        .mt-resource-column .mt-table tr.mt-list-row:not([data-resource-kind=labor]) td.mt-c-meta:empty{display:none}
-        .mt-resource-column .mt-list-cols:not([data-resource-kind=labor]){display:grid}
+        .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta{flex:0 1 auto;max-width:34%}
+        .mt-resource-column .mt-c-meta select{width:auto}
+        .mt-resource-column .mt-c-meta>span{display:block;overflow:hidden;text-overflow:ellipsis;font-size:10px;color:#98a2b3}
       }
       @container resource-column (min-width:480px){
-        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols):not([data-resource-kind=labor]){--row-cols:minmax(0,1fr) 48px 54px 62px 68px 18px;--row-areas:"name qty unit price total rm" "meta meta meta meta meta meta"}
-        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=material]{--row-cols:minmax(0,1fr) 20px 48px 54px 62px 68px 18px;--row-areas:"name color qty unit price total rm" "meta meta meta meta meta meta meta"}
-        .mt-resource-column :is(tr.mt-list-row,.mt-list-cols)[data-resource-kind=labor]{--row-cols:minmax(0,1fr) 84px 48px 54px 62px 68px 18px;--row-areas:"name meta qty unit price total rm"}
-        .mt-resource-column .mt-table tr.mt-list-row[data-resource-kind=labor] td.mt-c-meta:has(>select){padding-left:0}
-        .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total,.mt-resource-column .mt-list-cols .mt-c-total{display:block}
-        .mt-resource-column .mt-list-cols{display:grid}
+        .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total{display:block}
       }
       .mt-column-total{flex:none;padding:5px 9px;border-top:1px solid #e4e7ec;display:flex;justify-content:space-between;gap:5px;color:#475467;font-size:11px;background:#f9fafb}
       .mt-icon-dialog{border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054}.mt-icon-dialog::backdrop{background:rgba(15,23,42,.4)}
@@ -2460,7 +2453,7 @@
       setWorkspaceSaving(true);
       try {
         const result = await (materialsAPI || window.MaterialsAPI).projects.create(operation.orgId, operation.projectId, {
-          title: terms.plural, resource_type: type, branch_id: branchId(), items: [], sections: [],
+          title: 'Default', resource_type: type, branch_id: branchId(), items: [], sections: [],
           terminology: terms, color:materialListColor({resource_type:type}), order_sources: projectOrderSources(),
           metadata: { source:'scope_tab', role:`custom_${type}`, manually_created:true }
         });
@@ -2948,6 +2941,58 @@
       state.saving = false;
       setWorkspaceSaving(false);
       syncFooterTotals();
+    }
+  }
+
+  function clearDropMarkers(){
+    materialRoot()?.querySelectorAll?.('.drop-before,.drop-after,.is-drop-target')?.forEach((node) => node.classList.remove('drop-before', 'drop-after', 'is-drop-target'));
+  }
+
+  function dragAccepts(listId){
+    const target = materialListById(listId);
+    return !!state.dragItem && !!target && !state.saving && resourceType(target) === state.dragItem.type;
+  }
+
+  // Places an item beside an anchor item (or at the end) of a list of the same resource type.
+  async function dropItem(itemId, sourceListId, targetListId, anchorItemId = '', after = false){
+    const source = materialListById(sourceListId);
+    const target = materialListById(targetListId);
+    if (!source || !target || state.saving || resourceType(source) !== resourceType(target) || cleanText(itemId) === cleanText(anchorItemId)) return;
+    const same = source.id === target.id;
+    const sourceItems = listItems(source);
+    const targetItems = listItems(target);
+    const item = sourceItems.find((entry) => cleanText(entry.id) === cleanText(itemId));
+    if (!item) return;
+    const nextItems = targetItems.filter((entry) => cleanText(entry.id) !== cleanText(itemId));
+    const anchor = nextItems.findIndex((entry) => cleanText(entry.id) === cleanText(anchorItemId));
+    nextItems.splice(anchor < 0 ? nextItems.length : anchor + (after ? 1 : 0), 0, item);
+    if (same && nextItems.every((entry, index) => entry === targetItems[index])) return;
+    state.saving = true;
+    replaceListItems(target.id, nextItems);
+    if (!same) replaceListItems(source.id, sourceItems.filter((entry) => cleanText(entry.id) !== cleanText(itemId)));
+    syncMaterialsGrid();
+    setWorkspaceSaving(true);
+    try {
+      await persistVersion({ reason: same ? 'revision' : 'supplement', items: nextItems }, { list: target, baseItems: targetItems });
+      if (!same) {
+        await persistVersion({ reason: 'removal', remove_item_ids: [item.id] }, { list: materialListById(source.id) || source, baseItems: sourceItems });
+        showToast((globalThis.PlatformLanguage?.text("materials","m_599de4dbc508a0","List changed") ?? "List changed"), ((v0,v1) => globalThis.PlatformLanguage?.text("materials","m_dc3174ff4c2ae4",`${v0} moved to ${v1}.`,{v0,v1}) ?? `${v0} moved to ${v1}.`)(item.name || 'Item',target.title || resourceTerms(resourceType(target), target).list), true);
+      }
+    } catch (error) {
+      replaceListItems(target.id, targetItems);
+      if (!same) {
+        replaceListItems(source.id, sourceItems);
+        try {
+          const currentTarget = materialListById(target.id);
+          if (Number(currentTarget?.revision || 0) !== Number(target.revision || 0)) await persistVersion({ reason: 'removal', remove_item_ids: [item.id] }, { list: currentTarget, baseItems: targetItems });
+        } catch (_) {}
+      }
+      showToast(same ? 'Could not reorder items' : (globalThis.PlatformLanguage?.text("materials","m_90625e9a36ebcb","Could not change list") ?? "Could not change list"), error?.message || 'Please try again.', false);
+    } finally {
+      state.saving = false;
+      if (resourceType(target) === 'labor' && !same) await loadExpenseProjection();
+      setWorkspaceSaving(false);
+      syncMaterialsGrid();
     }
   }
 
@@ -3557,6 +3602,8 @@
   function bindResourceActions(root){
     if(!root)return;
     root.querySelectorAll('[data-mt-new-category]').forEach(button=>button.onclick=addResourceCategory);
+    root.querySelectorAll('[data-mt-units-toggle]').forEach(button=>button.onclick=()=>{state.unitsMode=state.unitsMode==='order'?'measured':'order';render({preserveScroll:true});});
+    root.querySelectorAll('[data-mt-minimize-type],[data-mt-restore-type]').forEach(button=>button.onclick=()=>{if(button.dataset.mtMinimizeType)state.minimizedTypes.add(button.dataset.mtMinimizeType);else state.minimizedTypes.delete(button.dataset.mtRestoreType);syncMaterialsGrid();});
     root.querySelectorAll('[data-mt-new-category-list]').forEach(button=>button.onclick=()=>createInlineList(button.dataset.mtNewCategoryList));
     root.querySelectorAll('[data-mt-category-icon]').forEach(button=>button.onclick=()=>editResourceAppearance(button.dataset.mtCategoryIcon));
     root.querySelectorAll('[data-mt-category-name]').forEach(input=>{input.oninput=()=>{const category=resourceCategories().find(row=>row.id===input.dataset.mtCategoryName);if(category)category.name=input.value;};input.onchange=()=>{const category=resourceCategories().find(row=>row.id===input.dataset.mtCategoryName);if(category){category.name=input.value.trim();saveResourceCategory(category);}};});
@@ -3565,11 +3612,7 @@
       button.onclick=async()=>{
         const id=button.dataset.mtRestoreList||button.dataset.mtCollapseList||button.dataset.mtDeleteList;
         if(button.dataset.mtRestoreList){state.visibleListIds.add(id);syncMaterialsGrid();return;}
-        if(button.dataset.mtCollapseList){
-          const pane=button.closest('[data-mt-pane-list]'),operation=captureProjectOperation();
-          pane?.classList.add('is-collapsing');
-          setTimeout(()=>{if(projectOperationIsCurrent(operation)){state.visibleListIds.delete(id);syncMaterialsGrid();}},matchMedia('(prefers-reduced-motion: reduce)').matches?0:220);return;
-        }
+        if(button.dataset.mtCollapseList){if(state.collapsedListIds.has(id))state.collapsedListIds.delete(id);else state.collapsedListIds.add(id);syncMaterialsGrid();return;}
         const operation=captureProjectOperation(),list=materialListById(id);
         if(!list||state.saving||!await confirmAction(`Delete ${list.title||'this list'}?`))return;
         if(!projectOperationIsCurrent(operation))return;
@@ -3585,7 +3628,7 @@
     });
   }
   function renderResourceHeader(){
-    return `<header class="mt-workspace-header"><button type="button" data-mt-new-category title="Add a resource type column"><i class="fas fa-plus"></i> New resource type</button><button type="button" data-mt-generate-materials ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas fa-wand-magic-sparkles"></i> ${state.generatingMaterials?'Generating…':'Generate lists automatically'}</button><div class="mt-collapsed-pills">${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div></header>`;
+    return `<header class="mt-workspace-header"><button type="button" data-mt-new-category title="Add a resource type column"><i class="fas fa-plus"></i> New resource type</button><button type="button" data-mt-generate-materials ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas fa-wand-magic-sparkles"></i> ${state.generatingMaterials?'Generating…':'Generate lists automatically'}</button><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" title="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><button type="button" data-mt-units-toggle title="Switch every list between measured and order units"><i class="fas fa-arrows-rotate"></i> ${state.unitsMode==='order'?'Order units':'Measured units'}</button></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
@@ -3593,7 +3636,7 @@
   }
   function renderMaterialSections(){
     const items = filteredItems();
-    const types = resourceCategories().map(row=>row.id);
+    const types = resourceCategories().map(row=>row.id).filter(type=>!state.minimizedTypes?.has(type));
     const allEmpty = !items.length;
     return types.map((type) => {
       const rows = items.filter((item) => resourceType(materialListById(item.__material_list_id)) === type);
@@ -3601,14 +3644,16 @@
       const terms = resourceTerms(type, state.lists.find((list) => resourceType(list) === type));
       const lists=state.lists.filter(list=>resourceType(list)===type&&state.visibleListIds.has(cleanText(list.id)));
       const listTotal=list=>type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected;
-      const columnLabels=`<span class="mt-c-name">${escapeHtml(terms.singular)}</span>${type==='material'?'<span class="mt-c-color"></span>':''}${type==='labor'?'<span class="mt-c-meta">Pay type</span>':''}<span class="mt-c-qty">${(globalThis.PlatformLanguage?.htmlText("materials","m_1a29aea570fbc4","Qty") ?? "Qty")}</span><span class="mt-c-unit">${(globalThis.PlatformLanguage?.htmlText("materials","m_4b91b73dae1ff3","Unit") ?? "Unit")}</span><span class="mt-c-price">${type==='labor'?'Rate':'Unit $'}</span><span class="mt-c-total">Total</span>`;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-add-section="${type==='material'?'accessories':escapeHtml(type)}" title="Add item" aria-label="Add ${escapeHtml(terms.singular.toLowerCase())}"><i class="fas fa-plus"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${type==='material'?'<button type="button" data-mt-open-pricebook title="Price Book" aria-label="Price Book"><i class="fas fa-book"></i></button>':''}</span></h3>
+        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-add-section="${type==='material'?'accessories':escapeHtml(type)}" title="Add item" aria-label="Add ${escapeHtml(terms.singular.toLowerCase())}"><i class="fas fa-plus"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${type==='material'?'<button type="button" data-mt-open-pricebook title="Price Book" aria-label="Price Book"><i class="fas fa-book"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button></span></h3>
         <div class="mt-resource-scroll">${lists.map(list=>{
-          const id=cleanText(list.id),listRows=rows.filter(item=>item.__material_list_id===id);
+          const id=cleanText(list.id),listRows=rows.filter(item=>item.__material_list_id===id),collapsed=!!state.collapsedListIds?.has(id);
           const sections=materialSectionDefinitions().filter(section=>(section.resource_type||'material')===type&&listRows.some(item=>lineSectionKey(item)===section.key));
-          const controls=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:type==='labor'?renderLaborListControls(list):renderListActionControls(list,type,materialListOrdered(list));
-          return `<article class="mt-list-pane" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-category-icon="${escapeHtml(type)}" style="color:var(--resource-color)" title="Edit resource type icon and color" aria-label="Edit list resource type appearance"><i class="fas ${escapeHtml(category.icon)}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(list.metadata?.placeholder_title?'':list.title||'')}" placeholder="Untitled" aria-label="List name">${lists.length>1?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}<button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-label="Minimize ${escapeHtml(list.title)}" title="Minimize list"><i class="fas fa-minus"></i></button><button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(list.title)}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; minimize to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header><div class="mt-list-tools">${`${controls}${type==='material'?`<button type="button" class="mt-compact-units" data-mt-units-toggle title="Switch measured and order units">${state.unitsMode==='order'?'Order units':'Measured units'} <i class="fas fa-arrows-rotate"></i></button>`:''}`.trim()}</div>${listRows.length?`<div class="mt-list-cols" data-resource-kind="${escapeHtml(type)}" aria-hidden="true">${columnLabels}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button></div></article>`;
+          // A list named after its category is the default list; the column heading already carries that name and icon.
+          const title=list.metadata?.placeholder_title||[category.name,terms.plural].some(label=>cleanText(label).toLowerCase()===cleanText(list.title).toLowerCase())?'':cleanText(list.title);
+          const tools=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:type==='labor'?renderLaborListControls(list):'';
+          const actions=list.metadata?.calculus_pending||type==='labor'?'':renderListActionControls(list,type,materialListOrdered(list));
+          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="Default" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${actions}<button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(title||'Default')}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; collapse to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
         }).join('')||'<div class="mt-empty">Empty List</div>'}</div>
         ${lists.length?'':`<button type="button" class="mt-resource-add" data-mt-add-section="${type==='material'?'accessories':type}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}
         <footer class="mt-column-total"><span>Total</span><strong>${money(lists.reduce((sum,list)=>sum+listTotal(list),0))}</strong></footer>
@@ -3642,9 +3687,6 @@
     const variants = variantsForLine(item);
     const secondary = materialSecondaryText(item, variants.length > 1);
     const listId = cleanText(item.__material_list_id || state.activeListId);
-    const listTitle = cleanText(item.__material_list_title || state.activeList?.title || (globalThis.PlatformLanguage?.text("materials","m_691187e28aba8e","Materials") ?? "Materials"));
-    const listColor = normalizeColor(materialListColor(materialListById(listId)));
-    const incomplete = item.__scope_list_incomplete === true;
     const type = cleanText(item.__resource_type || resourceType(materialListById(listId))) || 'material';
     const quantity = type === 'material' && !item.metadata?.calculus_line_id ? integerQuantity(item.quantity, 0) : preciseQuantity(item.quantity, 0);
     const material = type === 'material';
@@ -3653,19 +3695,26 @@
     const orderInfo = material && state.unitsMode === 'order' ? orderInfoForLine(item, quantity) : null;
     const unitPrice = item.projected_unit_price == null || item.projected_unit_price === '' ? NaN : Number(item.projected_unit_price);
     const lineTotal = item.projected_total != null ? Number(item.projected_total) : quantity * unitPrice;
-    const meta = material ? `${renderVariantControl(item, variants)}${secondary ? `<span title="${escapeHtml(secondary)}">${escapeHtml(secondary)}</span>` : ''}`.trim() : '';
+    const meta = material ? `${renderVariantControl(item, variants)}${secondary ? `<span>${escapeHtml(secondary)}</span>` : ''}`.trim() : '';
+    const name = materialPrimaryName(item);
+    const unit = cleanText(item.unit);
+    const variantName = cleanText(item.product_selection?.variant_name || item.pricebook_snapshot?.variant?.name);
+    // Rows are one line; the hover summary carries whatever the pane is too narrow to show.
+    const summary = [name, `${quantity || 0}${unit ? ` ${unit}` : ''}${Number.isFinite(unitPrice) ? ` × ${money(unitPrice)}` : ''}${Number.isFinite(lineTotal) ? ` = ${money(lineTotal)}` : ''}`, [variantName !== name ? variantName : '', secondary !== variantName ? secondary : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
+    const fit = (value, minimum) => `style="width:calc(${Math.max(minimum, String(value ?? '').length)}ch + 8px)" data-mt-fit="${minimum}"`;
     const orderTooltip = orderInfo ? `Measured: ${quantity} ${cleanText(item.unit || 'ea')}${orderInfo.covered_quantity !== quantity ? ` · ${orderInfo.order_quantity} ${orderInfo.order_unit} covers ${orderInfo.covered_quantity} ${cleanText(item.unit || 'ea')}` : ''}${orderInfo.packaging?.description ? ` · ${orderInfo.packaging.description}` : ''}` : '';
     return `
-      <tr class="mt-list-row ${String(incomplete ? 'incomplete' : 'complete')}" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" style="--list-color:${String(escapeHtml(listColor))}">
-        <td class="mt-c-name"><div class="mt-line-title"><button type="button" class="mt-list-dot" style="--list-color:${String(escapeHtml(listColor))}" data-mt-list-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" data-fm-tooltip="${String(escapeHtml(listTitle))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_b939dc874a0fda","Move to another list") ?? "Move to another list")}" aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("materials","m_790adaaf81ef83",`Change list for ${v8}`,{v8}) ?? `Change list for ${v8}`)(escapeHtml(materialPrimaryName(item)))}" aria-expanded="${String(state.listMenu?.itemId === item.id ? 'true' : 'false')}" ${String(state.saving ? 'disabled' : '')}></button><input class="mt-input mt-cell-input mt-line-name" data-mt-item-name="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" value="${String(escapeHtml(materialPrimaryName(item)))}" title="${String(escapeHtml(materialPrimaryName(item)))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_7bd2b28790fb35","Item name") ?? "Item name")}" ${String(state.saving ? 'disabled' : '')}></div></td>
+      <tr class="mt-list-row" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(summary)}">
+        <td class="mt-c-drag"><span class="mt-drag" role="button" tabindex="0" draggable="true" data-mt-list-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="Drag to reorder or move to another list. Click to choose a list." aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("materials","m_790adaaf81ef83",`Change list for ${v8}`,{v8}) ?? `Change list for ${v8}`)(escapeHtml(name))}" aria-expanded="${String(state.listMenu?.itemId === item.id ? 'true' : 'false')}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></span></td>
+        <td class="mt-c-name"><input class="mt-input mt-cell-input mt-line-name" data-mt-item-name="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" value="${String(escapeHtml(name))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_7bd2b28790fb35","Item name") ?? "Item name")}" ${String(state.saving ? 'disabled' : '')}></td>
         <td class="mt-c-meta">${labor ? `<select class="mt-input mt-cell-input" data-mt-item-pay-type="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d9b2666bd68237","Pay type") ?? "Pay type")}" ${state.saving ? 'disabled' : ''}><option value="piece_rate" ${payType === 'piece_rate' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</option><option value="hourly" ${payType === 'hourly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_6a122e6ae08ae2","Hourly") ?? "Hourly")}</option><option value="salary" ${payType === 'salary' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_40c128013ab7d0","Salary") ?? "Salary")}</option></select>` : meta}</td>
         ${String(material ? `<td class="mt-c-color">${renderColorControl(item)}</td>` : '')}
         ${String(orderInfo ? `
         <td class="mt-c-qty"><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_quantity)}</strong><span>${escapeHtml(`${quantity} ${cleanText(item.unit || 'ea')}`)}</span></div></td>
         <td class="mt-c-unit"><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_unit)}</strong>${orderInfo.packaging?.description ? `<span>${escapeHtml(orderInfo.packaging.description)}</span>` : ''}</div></td>` : `
-        <td class="mt-c-qty"><input class="mt-input mt-cell-input mt-number mt-qty-input" aria-label="Quantity" placeholder="Qty" data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' && !item.metadata?.calculus_line_id ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
-        <td class="mt-c-unit"><input class="mt-input mt-cell-input" aria-label="Unit" placeholder="unit" data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
-        <td class="mt-c-price"><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0.00" data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" type="number" min="0" step="0.01" value="${String(escapeHtml(item.projected_unit_price ?? ''))}" title="${String(escapeHtml(item.projected_total != null ? `Total ${money(item.projected_total)}` : ''))}" ${String(state.saving ? 'disabled' : '')}></td>
+        <td class="mt-c-qty"><input class="mt-input mt-cell-input mt-number" aria-label="Quantity" placeholder="0" ${fit(quantity || '', 3)} data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' && !item.metadata?.calculus_line_id ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
+        <td class="mt-c-unit"><input class="mt-input mt-cell-input" aria-label="Unit" placeholder="unit" ${fit(unit, 2)} data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
+        <td class="mt-c-price"><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0.00" ${fit(item.projected_unit_price ?? '', 4)} data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" type="number" min="0" step="0.01" value="${String(escapeHtml(item.projected_unit_price ?? ''))}" ${String(state.saving ? 'disabled' : '')}></td>
         <td class="mt-c-total">${Number.isFinite(lineTotal) ? escapeHtml(money(lineTotal)) : ''}</td>
         <td class="mt-c-rm"><button type="button" class="mt-icon-btn" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-xmark"></i></button></td>
       </tr>
@@ -4364,9 +4413,56 @@
       });
     });
     root.querySelectorAll('[data-mt-list-trigger]').forEach((button) => {
-      button.addEventListener('click', (event) => {
+      const openMenu = (event) => {
         event.stopPropagation();
-        toggleListMenu(button.dataset.mtListTrigger, button.dataset.mtListId, button);
+        if (!state.saving) toggleListMenu(button.dataset.mtListTrigger, button.dataset.mtListId, button);
+      };
+      button.addEventListener('click', openMenu);
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        openMenu(event);
+      });
+      button.addEventListener('dragstart', (event) => {
+        const row = button.closest('[data-mt-item-row]');
+        if (!row || state.saving) { event.preventDefault(); return; }
+        closeListMenu();
+        state.dragItem = { itemId: row.dataset.mtItemRow, listId: row.dataset.mtListId, type: resourceType(materialListById(row.dataset.mtListId)) };
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', row.dataset.mtItemRow);
+        event.dataTransfer.setDragImage(row, 8, 12);
+        row.classList.add('is-dragging');
+      });
+      button.addEventListener('dragend', () => {
+        state.dragItem = null;
+        clearDropMarkers();
+        button.closest('[data-mt-item-row]')?.classList.remove('is-dragging');
+      });
+    });
+    [...(root.matches?.('[data-mt-item-row]') ? [root] : []), ...root.querySelectorAll('[data-mt-item-row]')].forEach((row) => {
+      row.addEventListener('dragover', (event) => {
+        if (!dragAccepts(row.dataset.mtListId)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = row.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        clearDropMarkers();
+        row.classList.add(after ? 'drop-after' : 'drop-before');
+      });
+      row.addEventListener('drop', (event) => {
+        if (!dragAccepts(row.dataset.mtListId)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const drag = state.dragItem;
+        const after = row.classList.contains('drop-after');
+        state.dragItem = null;
+        clearDropMarkers();
+        dropItem(drag.itemId, drag.listId, row.dataset.mtListId, row.dataset.mtItemRow, after);
+      });
+    });
+    root.querySelectorAll('[data-mt-fit]').forEach((input) => {
+      input.addEventListener('input', () => {
+        input.style.width = `calc(${Math.max(Number(input.dataset.mtFit), input.value.length)}ch + 8px)`;
       });
     });
     root.querySelectorAll('[data-mt-item-name],[data-mt-item-qty],[data-mt-item-unit],[data-mt-item-price]').forEach((input) => {
@@ -4386,10 +4482,20 @@
     root.querySelectorAll('[data-mt-add-section]').forEach((button) => {
       button.addEventListener('click', () => addItem(null, button.dataset.mtAddSection, button.dataset.mtListId));
     });
-    root.querySelectorAll('[data-mt-units-toggle]').forEach((button) => {
-      button.addEventListener('click', () => {
-        state.unitsMode = state.unitsMode === 'order' ? 'measured' : 'order';
-        render({ preserveScroll: true });
+    root.querySelectorAll('[data-mt-pane-list]').forEach((pane) => {
+      pane.addEventListener('dragover', (event) => {
+        if (!dragAccepts(pane.dataset.mtPaneList)) return;
+        event.preventDefault();
+        clearDropMarkers();
+        pane.classList.add('is-drop-target');
+      });
+      pane.addEventListener('drop', (event) => {
+        if (!dragAccepts(pane.dataset.mtPaneList)) return;
+        event.preventDefault();
+        const drag = state.dragItem;
+        state.dragItem = null;
+        clearDropMarkers();
+        dropItem(drag.itemId, drag.listId, pane.dataset.mtPaneList);
       });
     });
     bindLineControls(root);
@@ -4742,10 +4848,7 @@
     const id = cleanText(list.id);
     const schedule = resourceScheduleEnabled(list);
     if (!schedule && type !== 'material') return '';
-    return `<div class="mt-list-secondary">
-      ${schedule ? `<button type="button" data-mt-list-schedule="${String(escapeHtml(id))}" ${String(state.schedulingListId ? 'disabled' : '')}><i class="fas fa-calendar-day"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>` : ''}
-      ${type === 'material' ? `<button type="button" data-mt-list-order="${escapeHtml(id)}"><i class="fas ${ordered ? 'fa-circle-check' : 'fa-cart-shopping'}"></i> ${ordered ? 'Ordered' : 'Order'}</button>` : ''}
-    </div>`;
+    return `<div class="mt-list-secondary">${schedule ? `<button type="button" data-mt-list-schedule="${escapeHtml(id)}" title="Schedule" aria-label="Schedule" ${state.schedulingListId ? 'disabled' : ''}><i class="fas fa-calendar-day"></i></button>` : ''}${type === 'material' ? `<button type="button" class="${ordered ? 'is-done' : ''}" data-mt-list-order="${escapeHtml(id)}" title="${ordered ? 'Ordered' : 'Order'}" aria-label="${ordered ? 'Ordered' : 'Order'}"><i class="fas ${ordered ? 'fa-circle-check' : 'fa-cart-shopping'}"></i></button>` : ''}</div>`;
   }
 
   function renderLaborListControls(list){
@@ -5113,7 +5216,7 @@
       state.resourceTypes = [];
       state.activeListId = '';
       state.activeList = null;
-      state.visibleListIds = new Set();
+      state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.minimizedTypes = new Set();
       state.orders = [];
       state.versions = [];
       state.deliveriesByOrderId = {};
@@ -5195,7 +5298,7 @@
     state.resourceTypes = [];
     state.activeListId = '';
     state.activeList = null;
-    state.visibleListIds = new Set();
+    state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.minimizedTypes = new Set();
     state.leftSections = { lists: true, measurements: true, custom_fields: true, notes: true };
     state.noteVisibility = ['office', 'crew', 'sales'];
     state.noteVisibilityOpen = false;

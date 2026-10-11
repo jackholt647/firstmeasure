@@ -40,22 +40,30 @@ Pitch and roofing-square explanations are inline control tooltips. Edits use pro
 source, and have the existing override lifetime. Measurement cards have no hover
 tooltip or separate detail view.
 
-The right side has a thin action header for New scope list, Generate lists
-automatically and minimized-list pills. Ten pixels of padding match its gutter.
+The right side has a thin action header for New resource type, Generate lists
+automatically, minimized resource type pills and the units switch. Ten pixels of padding match its gutter.
 Its three resource panes use the remaining height, scroll independently and narrow
 empty panes when another has content. With no items, all three are equal and
 show Empty List. First Add creates a missing typed list through the existing
 writer and immediately adds an editable row. Later additions reuse that list.
 The Price Book control lives in the Materials pane heading. Each actual list
 has its own header, ordering/scheduling/compensation controls and direct Add.
-Line items are dense rows, not cards. A pane container query picks the layout:
-under 360px a row is two tight lines (name, then variant or pay type with
-quantity, unit and price); from 360px it is one line with a column header; from
-480px it adds a read-only line total and labor joins the one-line layout. Keep
-new per-line fields inside that grid rather than adding stacked labelled boxes.
-A list's controls and unit toggle share one toolbar row, and each list shows
-its subtotal when its pane holds more than one list.
-Minimizing animates the list closed and exposes a header pill to restore it.
+Line items are single-line rows at every pane width: a thin drag handle, the
+name (truncated when the pane is narrow), an optional variant or pay-type
+selector that shrinks to its arrow under 360px, the color swatch, a quantity
+that sizes to its digits, the unit as plain text that becomes an input on
+focus, the unit price, and Remove. Panes of 480px or more add a read-only line
+total. The row's hover summary carries the full name, quantities and variant.
+Do not add second lines or stacked labelled fields to a row.
+Dragging the handle reorders an item or moves it to another list of the same
+resource type; clicking it offers the same move as a menu. Reordering writes
+the list's items as one version.
+A list header is one line with no icon: collapse, name, subtotal (when the pane
+has several lists or the list is collapsed), icon-only Schedule and Order, and
+Delete. A list named after its category shows as Default. Collapsing a list is
+local view state. Minimizing applies to a resource type column and leaves a
+header pill to restore it. The measured/order units switch is in the action
+header and applies to every list.
 Deletion uses the domain archive writer; accepted document material sets cannot
 be deleted through that writer and remain available to minimize.
 
