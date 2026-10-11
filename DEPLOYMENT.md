@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 Project preview contact details: [Tags and contact priority fields](deploy/digitalocean/development-project-preview-contact-priority-20261011.md) records the checks and verified development rollout.
+
 October 10 GIF loading: [Scrollbar resize loop fix](deploy/digitalocean/development-gif-loading-fix-20261010.md) records the reproduction, timeout recovery, regression checks and verified development rollout.
 
 October 10 Priority field owners: [shared contact, user and resource priorities](deploy/digitalocean/development-priority-owners-20261010.md) records the owner architecture, verified development rollout and rollback baselines.
