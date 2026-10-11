@@ -1194,7 +1194,7 @@
         state.caption = cleanText(pop.querySelector('[data-fmdw-attach-caption]')?.value ?? state.caption);
         const video = !state.media_id && VIDEO_URL.test(state.link);
         const mediaEntry = state.media_id
-          ? { media_id: state.media_id, variant: 'display' }
+          ? { media_id: state.media_id }
           : (state.link && !video ? { url: state.link } : null);
         if (mediaEntry && state.caption) mediaEntry.caption = state.caption;
         close();
@@ -2877,8 +2877,7 @@
       destroyItemHandles();
       el.stepHead.innerHTML = `
         <div class="fmdw-step-heading">
-          <h2>${esc(firstText(step.title, prettyKey(step.id)))}</h2>
-          ${cleanText(step.description) ? `<p>${esc(step.description)}</p>` : ''}
+          <h2>${esc(firstText(step.title, prettyKey(step.id)))}${cleanText(step.description) ? ` <button type="button" class="fmdw-step-info" aria-label="About this step" data-fmdw-tip="${esc(step.description)}"><i class="fas fa-circle-info"></i></button>` : ''}</h2>
         </div>
         <div class="fmdw-step-actions" data-fmdw-step-actions></div>`;
       el.items.innerHTML = '';
@@ -3122,6 +3121,12 @@
           themeContext: { ...obj(resolved.theme_context || resolved.themeContext), overrides: { ...obj(obj(resolved.theme_context || resolved.themeContext).overrides), ...obj(resolved.theme_vars) } },
           mode: 'static',
           widgetData: obj(resolved.widget_data || resolved.widgetData),
+          mediaUrl: (media, variant) => {
+            const id = firstText(obj(media).media_id);
+            const lib = obj(services.media);
+            if (!id) return '';
+            try { return cleanText(typeof lib.fileUrl === 'function' ? lib.fileUrl(id, variant) : (typeof lib.url === 'function' ? lib.url(id) : '')); } catch (e) { return ''; }
+          },
           scale
         });
         syncZoomLabel(scale);
@@ -3318,6 +3323,10 @@
 .fmdw-main{flex:1 1 0;width:100%;max-width:100%;min-width:0;overflow:hidden;display:flex;flex-direction:column}
 .fmdw-step-head{flex:none;padding:18px 22px 4px;display:flex;align-items:flex-start;gap:12px}
 .fmdw-step-heading{flex:1;min-width:0}
+.fmdw-step-info{position:relative;border:0;background:none;padding:2px 4px;margin-left:2px;color:#98a2b3;font-size:13px;cursor:help;vertical-align:middle}
+.fmdw-step-info:hover,.fmdw-step-info:focus-visible{color:var(--fmdw-primary);outline:0}
+.fmdw-step-info::after{content:attr(data-fmdw-tip);position:absolute;left:-6px;top:calc(100% + 6px);z-index:30;width:min(360px,72vw);padding:10px 12px;border-radius:10px;background:#111827;color:#fff;font-size:12px;font-weight:700;line-height:1.45;text-align:left;white-space:normal;box-shadow:0 12px 30px rgba(16,24,40,.25);opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity .12s ease,transform .12s ease;pointer-events:none}
+.fmdw-step-info:hover::after,.fmdw-step-info:focus::after{opacity:1;visibility:visible;transform:none}
 .fmdw-step-actions{flex:none;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .fmdw-step-actions:empty{display:none}
 .fmdw-step-actions .fmdw-btn{min-height:34px;padding:0 12px}

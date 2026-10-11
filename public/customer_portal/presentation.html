@@ -69,6 +69,32 @@ html,body{margin:0;height:100%;background:#0b0d12;font-family:Inter,"Segoe UI",s
     let writes = Promise.resolve();
     const canChoose = current.access === 'choose' && current.frozen !== true;
     let finishing = false;
+    /** Where a finished presentation rests on the customer's own device. */
+    function ending(headline, detail, url) {
+      const sheet = document.createElement('div');
+      sheet.style.cssText = 'position:fixed;inset:0;z-index:50;background:#0b0d12;color:#fff;display:grid;place-items:center;padding:24px;font-family:Montserrat,Segoe UI,Arial,sans-serif';
+      const box = document.createElement('div');
+      box.style.cssText = 'max-width:560px;text-align:center';
+      const mark = document.createElement('div');
+      mark.style.cssText = 'width:76px;height:76px;border-radius:50%;background:' + (primary || '#d93025') + ';display:grid;place-items:center;margin:0 auto 26px;font-size:34px;font-weight:800';
+      mark.textContent = '✓';
+      const h = document.createElement('h1');
+      h.style.cssText = 'margin:0 0 12px;font-size:32px;font-weight:800;line-height:1.15';
+      h.textContent = headline;
+      const text = document.createElement('p');
+      text.style.cssText = 'margin:0 0 28px;font-size:17px;line-height:1.5;color:#c9ced8';
+      text.textContent = detail;
+      box.append(mark, h, text);
+      if (url) {
+        const open = document.createElement('a');
+        open.href = url;
+        open.textContent = 'Open my estimate';
+        open.style.cssText = 'display:inline-block;border-radius:12px;background:' + (primary || '#d93025') + ';color:#fff;font-weight:800;font-size:15px;padding:15px 26px;text-decoration:none';
+        box.append(open);
+      }
+      sheet.append(box);
+      document.body.append(sheet);
+    }
     /** Sign or send: the agreement is made from what was chosen, exactly as when we present it. */
     async function finish(name) {
       if (finishing) return;
@@ -80,7 +106,10 @@ html,body{margin:0;height:100%;background:#0b0d12;font-family:Inter,"Segoe UI",s
         current = result.presentation || current;
         const url = (result.signing && result.signing.portalUrl) || (result.signTarget && result.signTarget.signers && result.signTarget.signers[0] && result.signTarget.signers[0].portalUrl) || '';
         if (name === 'sign' && url) { location.assign(url); return; }
-        toast(url ? 'We have emailed your agreement to you.' : 'Thank you. We have your selections and will be in touch with your agreement.');
+        // The customer is already on their own device with the link we sent: there is
+        // nothing to hand back and no address to ask for. Say where it went, and let them open it.
+        ending(url ? 'Thank you. Your estimate is ready.' : 'Thank you.', url ? 'We have emailed it to you with everything you chose. You can also open it now to read, save or approve it.' : 'We have your selections and will be in touch with your agreement.', url);
+        return;
       } catch (error) {
         toast(error.message || 'That did not go through. Please try again.');
       }
