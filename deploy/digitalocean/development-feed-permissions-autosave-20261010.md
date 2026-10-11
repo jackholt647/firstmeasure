@@ -1,6 +1,6 @@
 # Development Feed permissions and auto-save — October 10, 2026
 
-The browser-facing update is active on `https://dev.1m8.ai`. The background-worker permission rollout remains pending deployment access. Production was not changed.
+The Feed update was activated on `https://dev.1m8.ai`. The report-worker deployment is not a prerequisite for this Feed change; the earlier claim was corrected after inspecting its actual service entrypoint on October 11. Production was not changed.
 
 ## Behavior and source
 
@@ -31,10 +31,10 @@ Each app role was overlaid on its then-current release, preserving concurrent ch
 
 Before rollback, verify the current pointer because another deployment may have advanced it. Restore only that role's previous pointer, restart its existing development service and PHP-FPM, and recheck readiness and development isolation.
 
-## Pending background worker
+## Correction: report worker is not a Feed deployment dependency
 
-The dev worker at `137.184.44.82` was readable through the configured `ben` account but this account cannot install releases or restart the service without administrative access. Configured deployment keys were not accepted for worker root access. No worker files, service settings or privileges were changed.
+The initial report incorrectly treated the dev worker at `137.184.44.82` as the Platform automation runtime. The October 11 service inspection showed that `firstmeasure-development-worker` executes `dist/src/firstmeasure_worker.js`, which registers the FirstMeasure API and starts the durable report-job runtime. It does not start `src/platform_worker.ts` or the integration automation scheduler. No worker files, service settings or privileges were changed.
 
-At the last inspection its active release was `/opt/firstmeasure/releases/121e046e6bf8c4de5d0d3a5bbe1a786726bf54a8`; the Feed permission helper was absent. Publication actions such as `channels.feed.thread`, `channels.feed.resolve`, `channels.feed.comment`, and `channels.feed.react` can execute through background automation. Their existing worker-side checks remain active, but the new department checks cannot be claimed there until the worker is updated. The older worker permission definitions must also be updated to keep seeded role permissions consistent.
+Feed publication actions can be called by Platform automations, but their registered execution kinds do not establish that the separate report-worker service runs those automations. The integration API registers its scheduler in the application runtime when platform background execution is enabled; the dedicated Platform worker is a separate entrypoint. The Feed backend changes belong in the runtime actually executing those actions, not automatically in every service described as a worker.
 
-An operator with existing worker deployment access should apply the task's backend changes to the worker's latest audited baseline, add `channels/feed-permissions.ts`, compile the changed modules in isolation, activate the release using the normal worker deployment process, and verify development isolation and a fresh worker heartbeat. Preserve concurrent worker changes and the prior worker release. Do not substitute an app-server release wholesale for the worker release.
+The earlier request for root/deployment access to the report worker is withdrawn for this Feed task. General backend release synchronization can be handled through normal deployment maintenance; it must not be represented as an unmet Feed requirement.
