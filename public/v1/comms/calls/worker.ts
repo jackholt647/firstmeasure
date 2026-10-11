@@ -35,6 +35,7 @@ async function endCall(call:CustomerCall,cause:string,at=s.now()){
   if(s.terminal.has(call.state))return;
   (await s.patchCall(call.organization_id,call.id,{state:call.connected_at||object(call.metadata.voicemail_drop).state==='completed'?"ended":cause==="USER_BUSY"?"busy":cause==="ORIGINATOR_CANCEL"?"canceled":"no_answer",
     ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,...(dropWaiting(call)?{voicemail_drop:{...object(call.metadata.voicemail_drop),state:object(call.metadata.voicemail_drop).state==='playing'?'interrupted':'skipped',reason:'call_ended'}}:{}),hangup_cause:cause}}));
+  if(call.direction==='outbound'&&object(call.metadata.voicemail_drop).enabled)await s.appendEvent(call.organization_id,call.id,'phone.voicemail_drop.finished',{completed:object(call.metadata.voicemail_drop).state==='completed'},`${call.id}:drop-finished`);
   for(const leg of (await s.legs(call.organization_id,call.id)).filter(l=>l.state!=="ended"))(await providerCommand(call,text(leg.control_id),"hangup",{},`end:${leg.id}`));
   (await s.releaseClaims(call.organization_id,call.id));
   const endpoint=(await s.resource(call.organization_id,"endpoint",call.owner_user_id));
@@ -268,7 +269,7 @@ async function executeProvider(job:Json,payload:Json){
   }
   return result;
 }
-export async function processOneJob(workerId:string,lane:'all'|'voice'|'background'='all',onlyCallId=''){
+export async function processOneJob(workerId:string,lane:'all'|'voice'|'background'|'events'='all',onlyCallId=''){
   const job=(await s.claimJob(workerId,lane,onlyCallId));if(!job)return false;const orgId=text(job.organization_id),callId=text(job.call_id),payload=object(job.payload);
   try{
     let result:Json={};
@@ -283,6 +284,7 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
       finally {clearInterval(heartbeat);}
     }
     else if(job.kind==='phone_drop_timeout'){await expireVoicemailDetection(await s.readCall(orgId,callId));await ensureConference(await s.readCall(orgId,callId));}
+    else if(job.kind==='phone_event'){await (await import('../phone/events.js')).publishPhoneEvent(orgId,text(job.id),payload);}
     else if(job.kind==='phone_attribution'){await recordAttribution(await s.readCall(orgId,callId));}
     else if(job.kind==='phone_notice'){const call=await s.readCall(orgId,callId);await notifyPhone(call,payload.voicemail?'voicemail':'missed_calls');if(!call.connected_at)await automaticReply(orgId,call.business_number,call.customer_number,'missed_call',call.id,'',{project_id:call.project_id,contact_id:call.contact_id});}
     else if(job.kind==="missed_callback"){
@@ -351,7 +353,7 @@ export function startCallWorker(app:FastifyInstance){
   if (!customerCallWorkerAllowed()) return;
   if(process.env.CUSTOMER_CALL_WORKER_DISABLED==="1"||process.env.NODE_ENV==="test")return;
   const workerId=`voice:${process.pid}:${randomUUID()}`;let running=false,stopped=false,lastRetention=0;
-  let maintenance:Promise<void>|null=null,activeTick:Promise<void>|null=null,background:Promise<void>|null=null;
+  let maintenance:Promise<void>|null=null,activeTick:Promise<void>|null=null,background:Promise<void>|null=null,publication:Promise<void>|null=null;
   const tick=async()=>{
     if(running||stopped)return;running=true;
     try{
@@ -360,6 +362,8 @@ export function startCallWorker(app:FastifyInstance){
       for(let n=0;n<10&&!stopped;n++)if(!await processOneJob(workerId,'voice'))break;
       if(!background)background=(async()=>{for(let n=0;n<5&&!stopped;n++)if(!await processOneJob(`${workerId}:background`,'background'))break;})()
         .catch(()=>app.log.error('Customer call background processing failed')).finally(()=>{background=null;});
+      if(!publication)publication=(async()=>{for(let n=0;n<20&&!stopped;n++)if(!await processOneJob(`${workerId}:events`,'events'))break;})()
+        .catch(()=>app.log.error('Phone event publication failed')).finally(()=>{publication=null;});
       if(!maintenance&&Date.now()-lastRetention>60000){
         lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();await maintainReputation();})()
           .catch(error=>app.log.error({message:error instanceof Error?error.message:'Voice maintenance failed'},'Customer call maintenance'))
@@ -369,5 +373,5 @@ export function startCallWorker(app:FastifyInstance){
     finally{running=false;}
   };
   const timer=setInterval(()=>{if(!running)activeTick=tick();},1000);timer.unref();
-  app.addHook("preClose",async()=>{stopped=true;clearInterval(timer);await Promise.allSettled([activeTick,maintenance,background]);});
+  app.addHook("preClose",async()=>{stopped=true;clearInterval(timer);await Promise.allSettled([activeTick,maintenance,background,publication]);});
 }

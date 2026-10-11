@@ -85,3 +85,9 @@ Provider references checked October 11, 2026:
 - https://developers.telnyx.com/docs/number-reputation/phone-numbers
 - https://developers.telnyx.com/docs/number-reputation/settings
 - https://developers.telnyx.com/docs/number-reputation/quickstart
+
+## Shared publication contracts
+
+See [Phone Settings data, actions and triggers](phone-publication.md) for the typed
+exports, permission-checked domain actions, durable event bridge, dedicated carrier
+flows, tests and coordinated worker rollout dependency.

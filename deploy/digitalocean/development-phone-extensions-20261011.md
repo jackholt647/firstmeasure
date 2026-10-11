@@ -69,3 +69,20 @@ and compatibility each contain 27 overlaid source files; the worker contains 20
 backend source files. The candidate release identity still requires stamping at
 activation as described above. This record does not claim the staged release is
 serving development traffic.
+
+## Publication audit follow-up
+
+The [data, actions and triggers audit](../../docs/architecture/phone-publication.md)
+adds shared registration, typed phone exports, domain actions and an atomic Work
+event outbox. The previously staged `5ead8527` candidates are now superseded for
+this expanded scope and must be rebuilt before activation. This source follow-up
+does not activate any server or resolve the pending worker deployment access.
+The compatible worker must consume `phone_event` jobs before updated writers run.
+
+Audit validation: TypeScript passed; shared publication suite 80 passed (one
+PostgreSQL-only case skipped in SQLite); call/phone/messaging/webhook/automation
+regressions 123 passed; embedded PostgreSQL 13 passed, including that publication
+case and all 11 phone-publication tests. The publication suite uses a fresh outer
+storage directory because an existing custom-fields test imports environment
+configuration before assigning its own fixture directory. No live carrier action
+was executed. Concurrent project-preview commits through `6af9e000` were retained.

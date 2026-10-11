@@ -39,3 +39,7 @@ export type Routing=z.infer<typeof routingSchema>;
 export type Target=z.infer<typeof targetSchema>;
 export type Schedule=z.infer<typeof scheduleSchema>;
 export type MessagingPolicy=z.infer<typeof messagingPolicySchema>;
+
+export const messagingInputSchema=z.object({revision:z.number().int().nonnegative(),policy:messagingPolicySchema});
+export const leadInputSchema=z.object({project_id:z.string().max(180),status:z.enum(['new','qualified','converted','spam']),revision:z.number().int().nonnegative()});
+export const mailboxInputSchema=z.object({handled:z.boolean(),revision:z.number().int().nonnegative()});

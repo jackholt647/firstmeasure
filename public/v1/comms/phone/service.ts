@@ -1,12 +1,12 @@
 import { ensureMessagingOrganization, listSmsComplianceProfiles } from '../../messaging/storage.js';
 import { type PlatformAuthContext, hasPermission, backgroundAuthContext } from '../../platform/auth.js';
-import { hasResourcePermission } from '../../workforce/department-access.js';
+import { canUseScopedPermission, hasResourcePermission } from '../../workforce/department-access.js';
 import { listDocuments, readDocument, upsertDocument } from '../../platform/storage.js';
 import { badRequest, forbidden, notFound } from '../../platform/errors.js';
 import { voiceSettings, businessOpen } from '../calls/settings.js';
-import { people, projectContext, requireCallAccess, callListDepartmentFilter } from '../calls/service.js';
+import { people, projectContext, requireCallAccess, callDepartmentResource, callListDepartmentFilter } from '../calls/service.js';
 import * as s from '../calls/storage.js';
-import { lineSchema, groupSchema, personalSchema, routingSchema, messagingPolicySchema, type Routing, type Target, type Schedule } from './contracts.js';
+import { messagingInputSchema, leadInputSchema, mailboxInputSchema, lineSchema, groupSchema, personalSchema, routingSchema, messagingPolicySchema, type Routing, type Target, type Schedule } from './contracts.js';
 
 const scope=(r:s.Json)=>({department_ids:s.strings(r.department_ids),branch_id:s.text(r.branch_id)});
 export const manager=(ctx:PlatformAuthContext)=>hasPermission(ctx,'manage_communications|manage_company_settings');
@@ -66,7 +66,7 @@ export async function saveLine(ctx:PlatformAuthContext,number:string,input:unkno
   const value=lineSchema.parse(input);assertManage(ctx,value);await validateMembers(ctx,value.user_ids,value.department_ids,s.text(line.branch_id||'default'));
   if(value.group_id){const group=await s.resource(ctx.orgId,'phone_group',value.group_id);if(!group)throw badRequest('phone_group_missing','Choose an existing group.');if(s.text(group.branch_id||'default')!==s.text(line.branch_id||'default'))throw badRequest('phone_group_branch','Choose a group in this line’s branch.');assertManage(ctx,group);}
   await validateRouting(ctx,value.routing,number);
-  const result=await s.saveResource(ctx.orgId,'phone_line',number,value,'',value.revision);
+  const result=await s.saveResource(ctx.orgId,'phone_line',number,{...value,branch_id:s.text(line.branch_id)||'default'},'',value.revision);
   await s.appendEvent(ctx.orgId,'','phone.line.updated',{number,actor_user_id:ctx.userId,revision:result.revision});return result;
 }
 export async function saveGroup(ctx:PlatformAuthContext,id:string,input:unknown){
@@ -74,7 +74,7 @@ export async function saveGroup(ctx:PlatformAuthContext,id:string,input:unknown)
   await validateMembers(ctx,value.user_ids,value.department_ids,ctx.branchId||'default');await validateRouting(ctx,value.routing,id);
   return s.saveResource(ctx.orgId,'phone_group',id,{...value,branch_id:ctx.branchId||'default'},'',value.revision);
 }
-export async function savePersonal(ctx:PlatformAuthContext,input:unknown){const value=personalSchema.parse(input);if(value.voicemail_media_id&&(await s.resource(ctx.orgId,'phone_greeting',value.voicemail_media_id))?.owner_user_id!==ctx.userId)throw forbidden('greeting_denied','Choose your own greeting.');if(value.voicemail_drop.enabled&&!value.voicemail_drop.media_id)throw badRequest('drop_audio_required','Upload or record your outgoing voicemail message.');
+export async function savePersonal(ctx:PlatformAuthContext,input:unknown){assertPhoneAccess(ctx);const value=personalSchema.parse(input);if(value.voicemail_media_id&&(await s.resource(ctx.orgId,'phone_greeting',value.voicemail_media_id))?.owner_user_id!==ctx.userId)throw forbidden('greeting_denied','Choose your own greeting.');if(value.voicemail_drop.enabled&&!value.voicemail_drop.media_id)throw badRequest('drop_audio_required','Upload or record your outgoing voicemail message.');
 if(value.voicemail_drop.media_id&&(await s.resource(ctx.orgId,'phone_greeting',value.voicemail_drop.media_id))?.owner_user_id!==ctx.userId)throw forbidden('drop_audio_denied','Choose your own outgoing recording.');
 if(value.power_dial.enabled&&!value.power_dial.numbers.length)throw badRequest('dial_pool_empty','Choose at least one outgoing number.');
 for(const number of value.power_dial.numbers){const line=await s.resource(ctx.orgId,'number',number);if(line?.status!=='active'||!await canUseLine(ctx,number))throw forbidden('dial_pool_number_denied','Choose active numbers assigned to you.');}
@@ -125,4 +125,29 @@ export async function notifyPhone(call:s.CustomerCall,kind:'missed_calls'|'voice
     const preferences=s.object((await s.resource(call.organization_id,'phone_personal',user))?.notifications);if(preferences[kind]===false)continue;
     const {createPlatformNotification}=await import('../../platform/api.js');await createPlatformNotification(call.organization_id,{id:s.id('phone_notice',`${call.id}:${kind}:${user}`),title:kind==='voicemail'?'New voicemail':'Missed call',body:`${call.customer_name||call.customer_number} called ${call.business_number}`,kind:'comms_message',source:'comms',channel:'passive',push:preferences.push!==false,target_user_ids:[user],branch_id:call.branch_id,context:{call_id:call.id,project_id:call.project_id},frontend_action:call.project_id?{kind:'open_project_comms',project_id:call.project_id,comms_view:'calls'}:{}});
   }
+}
+
+/** Shared UI/publication writers. Publication receipts must never bypass these checks. */
+export function assertPhoneAccess(ctx:PlatformAuthContext){
+  if(!canUseScopedPermission(ctx,'make_calls|send_comms|send_communications|view_comms|manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You do not have access to phone settings.');
+}
+export async function saveMessaging(ctx:PlatformAuthContext,input:unknown){
+  assertManage(ctx);const value=messagingInputSchema.parse(input);
+  return s.saveResource(ctx.orgId,'phone_messaging','default',value.policy,'',value.revision);
+}
+export async function saveLead(ctx:PlatformAuthContext,id:string,input:unknown){
+  const lead=await s.resource(ctx.orgId,'phone_lead',id);if(!lead)throw notFound('phone_lead_missing','This inquiry is unavailable.');assertManage(ctx,lead);
+  const value=leadInputSchema.parse(input);if(value.project_id)await projectContext(ctx,value.project_id);
+  return s.saveResource(ctx.orgId,'phone_lead',id,{...lead,...value},'',value.revision);
+}
+export async function authorizeMailbox(ctx:PlatformAuthContext,id:string){
+  const call=requireCallAccess(ctx,await s.readCall(ctx.orgId,id));
+  if(call.mode==='diagnostic'||!hasResourcePermission(ctx,'view_call_recordings|manage_communications|manage_company_settings',callDepartmentResource(call)))throw forbidden('voicemail_denied','You cannot access this voicemail.');
+  const retained=(await s.artifacts(ctx.orgId,id)).filter(a=>a.state==='ready'&&s.text(a.expires_at)>s.now());
+  if(!retained.some(a=>a.kind==='voicemail'))throw notFound('voicemail_missing','This voicemail is no longer available.');
+  return {call,artifacts:retained};
+}
+export async function saveMailbox(ctx:PlatformAuthContext,id:string,input:unknown){
+  const {call}=await authorizeMailbox(ctx,id),value=mailboxInputSchema.parse(input);
+  return s.saveResource(ctx.orgId,'phone_mailbox',id,{handled:value.handled,handled_by:ctx.userId,branch_id:call.branch_id,project_id:call.project_id,department_ids:s.strings(call.metadata.department_ids)},'',value.revision);
 }
