@@ -1,0 +1,13 @@
+# Development chimney open-edge diagnostics
+
+October 11, 2026. Source `aaca872c24327857493c398e484d2ce68162dfd1`, integrated on the canonical GitHub branch through `cc2926e0` (concurrent deployment receipt merge completed in `336d6114`).
+
+The pink Open edges overlay previously passed generated wall strips directly to the gap detector, even when editable drafts or replacement faces superseded those strips. It now collects the current exterior faces through ExteriorModel and applies the same chimney visibility clipping as the exterior view. The cache includes editable geometry and chimney changes. Closed replacement chimney faces therefore close the diagnostic boundary, and old positions no longer provide warning coordinates.
+
+WallGaps.detectFaces slices vertical polygon faces, including concave outlines and holes, into temporary height intervals for the existing gap detector. It does not change geometry, suppress all chimney warnings, or alter the auto-repair generation path. Duplicate planes cannot falsely close an edge. A genuinely missing ground-contact face remains highlighted. This retains the existing vertical-wall diagnostic scope; it is not a general manifold-mesh validator.
+
+Validation: 138 tests passed across wall-gap, chimney and wall-mode suites. Regressions prove that two warnings from obsolete strips disappear for a closed edited chimney, return when a real face is removed, and update after editing through the wall-mode integration. Additional cases retain partial-height gaps, concave notches and holes. A captured roof-generation fixture remains free of warnings. Browser replay verified old detector: two warnings; current-face detector: zero; missing face: two. Evidence: `output/chimney-open-edges-20261011/tests.txt`, `before.png`, `after-detail.png`, and `real-gap.png`. The supplied screenshots were not an executable model; the browser reproduction uses synthetic replacement geometry and does not claim an exact replay of the user's current project.
+
+The immutable development overlay contains only wall_gaps.js and wall_mode.js under public/measure/internal/editor_scripts. Each role preserves its audited current backend and unrelated assets. Previous role paths are in `output/chimney-open-edges-20261011/manifest.json`; re-audit before rollback and reverse only these owned scripts after intervening changes. Production is unchanged.
+
+All four development roles passed exact script-hash, runtime readiness and development-isolation checks. HTTPS served both expected assets and healthy release `aaca872c`. Evidence: `output/chimney-open-edges-20261011/verified-deployment.json` and `http-verification.json`.
