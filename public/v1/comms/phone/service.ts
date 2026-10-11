@@ -30,7 +30,7 @@ export async function canUseLine(ctx:Partial<PlatformAuthContext>,number:string)
 export async function workspace(ctx:PlatformAuthContext){
   const all=await s.resources(ctx.orgId,'number'),configs=await s.resources(ctx.orgId,'phone_line'),groups=await s.resources(ctx.orgId,'phone_group');
   const lines=[];
-  for(const n of all){const c=configs.find(c=>c.id===n.id);if(manager(ctx)||hasResourcePermission(ctx,'manage_communications|manage_company_settings',scope(c||n))||await canUseLine(ctx,n.id))lines.push({phone_number:n.id,status:n.status,label:c?.label||n.label||n.id,branch_id:n.branch_id,config:c||null,can_manage:hasResourcePermission(ctx,'manage_communications|manage_company_settings',scope(c||n))});}
+  for(const n of all){const c=configs.find(c=>c.id===n.id);if(manager(ctx)||hasResourcePermission(ctx,'manage_communications|manage_company_settings',scope(c||n))||await canUseLine(ctx,n.id))lines.push({can_use:await canUseLine(ctx,n.id),phone_number:n.id,status:n.status,label:c?.label||n.label||n.id,branch_id:n.branch_id,config:c||null,can_manage:hasResourcePermission(ctx,'manage_communications|manage_company_settings',scope(c||n))});}
   const smsProfiles=manager(ctx)?(await listSmsComplianceProfiles((await ensureMessagingOrganization(ctx.orgId)).id)).map(p=>({id:p.id,label:p.display_name||p.id,status:p.status,campaign_status:p.campaign_status})):[];
   return {sms_profiles:smsProfiles,lines,groups:groups.filter(g=>manager(ctx)||s.strings(g.user_ids).includes(ctx.userId)||hasResourcePermission(ctx,'manage_communications|manage_company_settings',scope(g))),personal:await s.resource(ctx.orgId,'phone_personal',ctx.userId)||{revision:0},messaging:manager(ctx)?await s.resource(ctx.orgId,'phone_messaging')||{...messagingPolicySchema.parse({}),revision:0}:null,people:await people(ctx),departments:ctx.organizationStructure?.catalog.departments.filter(d=>d.status==='active')||[],can_manage:manager(ctx),can_bill:hasPermission(ctx,'view_platform_billing|manage_platform_billing|manage_billing'),default_number:s.text((await s.resource(ctx.orgId,'number_preference',ctx.userId))?.phone_number),user_id:ctx.userId};
 }
@@ -74,7 +74,11 @@ export async function saveGroup(ctx:PlatformAuthContext,id:string,input:unknown)
   await validateMembers(ctx,value.user_ids,value.department_ids,ctx.branchId||'default');await validateRouting(ctx,value.routing,id);
   return s.saveResource(ctx.orgId,'phone_group',id,{...value,branch_id:ctx.branchId||'default'},'',value.revision);
 }
-export async function savePersonal(ctx:PlatformAuthContext,input:unknown){const value=personalSchema.parse(input);if(value.voicemail_media_id&&(await s.resource(ctx.orgId,'phone_greeting',value.voicemail_media_id))?.owner_user_id!==ctx.userId)throw forbidden('greeting_denied','Choose your own greeting.');return s.saveResource(ctx.orgId,'phone_personal',ctx.userId,value,'',value.revision);}
+export async function savePersonal(ctx:PlatformAuthContext,input:unknown){const value=personalSchema.parse(input);if(value.voicemail_media_id&&(await s.resource(ctx.orgId,'phone_greeting',value.voicemail_media_id))?.owner_user_id!==ctx.userId)throw forbidden('greeting_denied','Choose your own greeting.');if(value.voicemail_drop.enabled&&!value.voicemail_drop.media_id)throw badRequest('drop_audio_required','Upload or record your outgoing voicemail message.');
+if(value.voicemail_drop.media_id&&(await s.resource(ctx.orgId,'phone_greeting',value.voicemail_drop.media_id))?.owner_user_id!==ctx.userId)throw forbidden('drop_audio_denied','Choose your own outgoing recording.');
+if(value.power_dial.enabled&&!value.power_dial.numbers.length)throw badRequest('dial_pool_empty','Choose at least one outgoing number.');
+for(const number of value.power_dial.numbers){const line=await s.resource(ctx.orgId,'number',number);if(line?.status!=='active'||!await canUseLine(ctx,number))throw forbidden('dial_pool_number_denied','Choose active numbers assigned to you.');}
+return s.saveResource(ctx.orgId,'phone_personal',ctx.userId,value,'',value.revision);}
 export function scheduleOpen(schedule:Schedule,date=new Date()){return businessOpen({...schedule} as Awaited<ReturnType<typeof voiceSettings>>,date);}
 export async function userAvailable(org:string,user:string,date=new Date()){
   const p=await s.resource(org,'phone_personal',user);if(p?.available===false)return false;

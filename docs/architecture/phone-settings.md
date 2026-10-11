@@ -31,3 +31,57 @@ Deploy the additive API and workers together. An older worker must not consume t
 Focused tests cover authentication/tenant isolation, revision conflicts, membership/loop validation, DST and missing-zone windows, ordered attribution, simultaneous-answer arbitration, signed audio, development carrier isolation, mocked Telnyx port recovery/documents and after-hours routing. The browser test exercises real form submissions against mocked HTTP contracts, existing 10DLC handoff, billing navigation and mobile bounds. Live carrier audibility and an actual transfer require a separately authorized test number.
 
 The broader communication suite has a pre-existing email-notification visibility failure, reproduced with the original notification module from `f7b6dd78`. It is not hidden by changing that assertion.
+
+
+## October 11: outgoing voicemail, dialing pools, reputation
+
+My Phone now saves a separate outgoing recording and opt-in voicemail-drop scope
+(power dialing or all browser calls). Creation snapshots the recording. Only the
+customer carrier leg requests Telnyx premium AMD. The conference waits for a
+human result; a confirmed beep starts a single durable playback command. Unknown
+results or 45 seconds without a confirmed beep connect the caller normally. A
+correlated `call.playback.ended` with `status=completed` records delivery and ends
+the customer leg. Duplicate, canceled, inbound and late events cannot start a
+second drop. Provider uncertainty is recorded, not retried blindly. Existing
+wrap-up requirements still apply. These are audio calls placed by an available
+user, not ringless voicemail.
+
+Personal power-dial pools use owned, active, assigned numbers in the correct
+branch. Selection and call creation share the SQL transaction/advisory lock.
+Round robin chooses the least recently used number; least-used chooses the
+fewest outgoing attempts over the rolling 24 hours. All browser outbound calls
+count, including manually placed calls. Per-number limits, cooldowns and optional
+high-risk exclusion pause the dialer if no number qualifies. Permissions and
+number ownership are checked again before carrier dispatch. The chosen number
+is retained on the call and stable under request retries. Existing suppression,
+call capacity, device readiness and outcome requirements remain enforced.
+
+Reputation uses Telnyx enterprise-scoped APIs. Platform operators must configure
+`TELNYX_REPUTATION_ENTERPRISES` as a JSON object mapping organization IDs to
+approved Telnyx enterprise IDs in the existing role environment configuration.
+Each enterprise must map to exactly one organization; tenant users cannot select
+arbitrary enterprises from the shared carrier account. Before binding, complete
+Telnyx enterprise registration, account-level terms acceptance, and signed LOA
+approval. Both reputation `status` and `loa_status` must be approved. This carrier
+onboarding is an external prerequisite, not automatically submitted by this UI.
+
+Managers can enroll/remove their active numbers, change the carrier's monitoring
+schedule, sync cached results, and request a confirmed billed refresh. Telnyx
+runs the scheduled checks. The existing voice maintenance worker polls cached
+inventory every 15 minutes and stores the last 30 score snapshots, timestamps,
+and errors. Polling uses the list endpoint: a single-number GET could cause a
+billed first lookup even without `fresh=true`. The UI shows actual nullable
+scores and their carrier update time. Cached high-risk results remain excluded
+until refreshed or the user disables that preference; unknown results are not
+claimed to be healthy. Development prevents enrollment, fresh lookups and
+frequency changes. No real carrier enrollment or calls were used during tests.
+
+No schema migration is required: settings, score snapshots and durable work use
+existing tenant-scoped voice resources and call jobs. Web and worker must be
+released together because the worker consumes new voicemail detection jobs.
+
+Provider references checked October 11, 2026:
+- https://developers.telnyx.com/docs/voice/programmable-voice/answering-machine-detection
+- https://developers.telnyx.com/docs/number-reputation/phone-numbers
+- https://developers.telnyx.com/docs/number-reputation/settings
+- https://developers.telnyx.com/docs/number-reputation/quickstart

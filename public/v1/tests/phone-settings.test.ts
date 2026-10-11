@@ -146,3 +146,101 @@ test('phone notification opt-outs prevent occurrence creation and shared lines r
  const {listDocuments}=await import('../platform/storage.js');assert.equal((await listDocuments(orgId,'notifications')).length,0);
  await store.saveResource(orgId,'phone_line',number,{user_ids:['another-user']});assert.equal(await canUseLine(await backgroundAuthContext(orgId,state.user_id),number),false);
 });
+
+
+test('outgoing preferences validate audio ownership and number access',async()=>{
+ const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}/phone`,w=await c.request('GET',base);
+ assert.equal((await c.raw('PUT',base+'/personal',{revision:0,voicemail_drop:{enabled:true}})).status,400);
+ await store.saveResource(orgId,'number','+12065551101',{phone_number:'+12065551101',status:'active',assigned_user_id:'another-user'});
+ assert.equal((await c.raw('PUT',base+'/personal',{revision:0,power_dial:{enabled:true,numbers:['+12065551101']}})).status,403);
+ await store.saveResource(orgId,'phone_greeting','outgoing',{owner_user_id:w.user_id,file:Buffer.from('RIFF0000WAVEtest').toString('base64'),content_type:'audio/wav'});
+ await c.request('PUT',base+'/personal',{revision:0,voicemail_drop:{enabled:true,media_id:'outgoing'}});
+ const {outgoingDrop}=await import('../comms/phone/outbound.js');assert.deepEqual(await outgoingDrop(orgId,w.user_id,false),{});assert.equal((await outgoingDrop(orgId,w.user_id,true)).media_id,'outgoing');
+});
+
+test('power dialing balances owned numbers, counts manual usage, and pauses at limits or high risk',async()=>{
+ const {orgId,c}=await owner(),w=await c.request('GET',`/v1/comms/organizations/${orgId}/phone`),ctx=await (await import('../platform/auth.js')).backgroundAuthContext(orgId,w.user_id),numbers=['+12065551102','+12065551103'];
+ const {selectPowerDialLine}=await import('../comms/phone/outbound.js');
+ for(const number of numbers)await store.saveResource(orgId,'number',number,{phone_number:number,status:'active',branch_id:'default'});
+ await store.saveResource(orgId,'phone_personal',w.user_id,{power_dial:{enabled:true,numbers,daily_limit:1,cooldown_seconds:0}});
+ assert.equal((await store.transaction(()=>selectPowerDialLine(ctx,'default')))?.id,numbers[0]);
+ await store.insertCall({id:store.id('call'),organization_id:orgId,branch_id:'default',mode:'browser',direction:'outbound',state:'ended',business_number:numbers[0]});
+ assert.equal((await store.transaction(()=>selectPowerDialLine(ctx,'default')))?.id,numbers[1]);
+ await store.saveResource(orgId,'phone_reputation_number',numbers[1]!,{reputation_data:{spam_risk:'high'}});
+ await assert.rejects(()=>store.transaction(()=>selectPowerDialLine(ctx,'default')),/paused/);
+ await store.saveResource(orgId,'phone_reputation_number',numbers[1]!,{reputation_data:{spam_risk:'low'}});
+ await store.saveResource(orgId,'phone_line',numbers[1]!,{user_ids:['other-user']});
+ await assert.rejects(()=>store.transaction(()=>selectPowerDialLine(ctx,'default')),/paused/);
+});
+
+test('voicemail drop waits for a beep and matching completed playback, with duplicate protection',async()=>{
+ const {orgId}=await owner(),callId=store.id('call'),control=store.id('control');
+ await store.insertCall({id:callId,organization_id:orgId,branch_id:'default',mode:'browser',direction:'outbound',state:'dialing',metadata:{voicemail_drop:{enabled:true,media_id:'audio',state:'pending'}}});
+ await store.saveLeg(orgId,callId,'agent',{call_control_id:store.id('agent'),state:'answered'},store.now());
+ await store.saveLeg(orgId,callId,'customer',{call_control_id:control,state:'initiated'},store.now());
+ const event=async(type:string,extra:any={})=>worker.processVoiceEvent({data:{id:store.id('event'),event_type:type,occurred_at:store.now(),payload:{call_control_id:control,...extra}}});
+ const jobs=async()=> (await store.database().prepare('SELECT payload_json FROM customer_call_jobs WHERE organization_id=? AND call_id=?').all(orgId,callId)).map((r:any)=>JSON.parse(r.payload_json));
+ await event('call.answered');assert.equal((await jobs()).some(j=>j.path==='conference_create'),false);
+ await event('call.machine.premium.detection.ended',{result:'machine'});assert.equal((await jobs()).some(j=>j.path==='playback_start'),false);
+ await event('call.machine.premium.greeting.ended',{result:'beep_detected'});await event('call.machine.premium.greeting.ended',{result:'beep_detected'});
+ const drops=(await jobs()).filter(j=>j.path==='playback_start');assert.equal(drops.length,1);assert.match(drops[0].payload.audio_url,/phone-greetings/);
+ await event('call.playback.ended',{status:'completed'});assert.equal(store.object((await store.readCall(orgId,callId)).metadata.voicemail_drop).state,'playing');
+ await event('call.playback.ended',{status:'completed',client_state:drops[0].payload.client_state});assert.equal(store.object((await store.readCall(orgId,callId)).metadata.voicemail_drop).state,'completed');assert.ok((await jobs()).some(j=>j.path==='hangup'));
+});
+
+test('human, uncertain, timeout, inbound and canceled calls cannot receive a voicemail drop',async()=>{
+ const {orgId}=await owner(),{voicemailDropEvent,expireVoicemailDetection}=await import('../comms/phone/outbound.js');
+ for(const result of ['human_residence','human_business','not_sure','silence']){
+  const call=await store.insertCall({id:store.id('call'),organization_id:orgId,branch_id:'default',mode:'browser',direction:'outbound',state:'dialing',metadata:{voicemail_drop:{enabled:true,media_id:'audio',state:'pending'}}});
+  await voicemailDropEvent(call,'call.machine.premium.detection.ended',{result,call_control_id:'control'},{},'customer');
+  assert.equal(store.object((await store.readCall(orgId,call.id)).metadata.voicemail_drop).state,'skipped');
+  assert.equal(await voicemailDropEvent(await store.readCall(orgId,call.id),'call.machine.premium.greeting.ended',{result:'beep_detected'},{},'customer'),false);
+ }
+ const timed=await store.insertCall({id:store.id('call'),organization_id:orgId,branch_id:'default',mode:'browser',direction:'outbound',state:'dialing',metadata:{voicemail_drop:{enabled:true,state:'machine'}}});await expireVoicemailDetection(timed);assert.equal(store.object((await store.readCall(orgId,timed.id)).metadata.voicemail_drop).state,'skipped');
+ for(const patch of [{direction:'inbound'}, {state:'ended'},{metadata:{voicemail_drop:{enabled:true,state:'pending'},canceled_at:store.now()}}])assert.equal(await voicemailDropEvent({...timed,...patch} as any,'call.machine.premium.greeting.ended',{result:'beep_detected'},{},'customer'),false);
+});
+
+test('reputation is tenant-bound, uses cached polling, and requires confirmed carrier changes',async()=>{
+ const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}/phone/reputation`,number='+12065551104';
+ const {TelnyxClient}=await import('../messaging/telnyx.js'),{env}=await import('../src/config/env.js'),original=TelnyxClient.prototype.request,oldEnv=env.dataEnvironment,oldMap=process.env.TELNYX_REPUTATION_ENTERPRISES;
+ const requests:any[]=[];let monitored=false,frequency='weekly';
+ await store.saveResource(orgId,'number',number,{phone_number:number,status:'active'});
+ process.env.TELNYX_REPUTATION_ENTERPRISES=JSON.stringify({[orgId]:'owned-enterprise'});(env as any).dataEnvironment='production';
+ TelnyxClient.prototype.request=async function(path:string,init:any={}){const body=init.body?JSON.parse(init.body):{};requests.push({path,method:init.method||'GET',body});assert.ok(path.startsWith('/enterprises/owned-enterprise/reputation'));
+ if(path.includes('/numbers?page'))return {data:monitored?[{phone_number:number,reputation_data:{spam_risk:'high',last_refreshed_at:'2026-10-11T12:00:00Z',connection_score:null}},{phone_number:'+12065559999',reputation_data:{spam_risk:'low'}}]:[]};
+ if(path.endsWith('/numbers')&&init.method==='POST'){monitored=true;return {data:{}};}
+ if(path.endsWith('/frequency')){frequency=body.check_frequency;return {data:{}};}
+ if(path.endsWith('/refresh'))return {data:{total_successful:1,total_failed:0}};
+ if(path.endsWith('/reputation'))return {data:{status:'approved',loa_status:'approved',check_frequency:frequency}};
+ throw Error('Unexpected reputation request '+path);
+ } as any;
+ try{
+ assert.equal((await c.raw('POST',base,{action:'monitor',phone_number:number})).status,409);
+ const result=await c.request('POST',base,{action:'monitor',phone_number:number,confirmed:true});assert.equal(result.numbers.length,1);assert.equal(result.numbers[0].reputation_data.spam_risk,'high');
+ await c.request('POST',base,{action:'monitor',phone_number:number,confirmed:true});assert.equal(requests.filter(r=>r.path.endsWith('/numbers')&&r.method==='POST').length,1);
+ await c.request('POST',base,{action:'frequency',frequency:'daily',confirmed:true});assert.equal((await store.resource(orgId,'phone_reputation'))?.check_frequency,'daily');
+ await c.request('POST',base,{action:'refresh',phone_number:number,confirmed:true});assert.ok(requests.some(r=>r.path.endsWith('/refresh')&&r.method==='POST'));assert.equal(requests.some(r=>r.method==='GET'&&r.path.includes('/numbers/')),false);
+ (env as any).dataEnvironment='development';assert.equal((await c.raw('POST',base,{action:'refresh',phone_number:number,confirmed:true})).status,403);
+ process.env.TELNYX_REPUTATION_ENTERPRISES=JSON.stringify({[orgId]:'owned-enterprise',another:'owned-enterprise'});assert.equal((await c.raw('POST',base,{action:'sync'})).status,409);
+ }finally{TelnyxClient.prototype.request=original;(env as any).dataEnvironment=oldEnv;if(oldMap===undefined)delete process.env.TELNYX_REPUTATION_ENTERPRISES;else process.env.TELNYX_REPUTATION_ENTERPRISES=oldMap;}
+});
+
+
+test('power-dial API snapshots the selected line and sends AMD only on the customer carrier leg',async()=>{
+ const {TelnyxVoiceClient,setVoiceClientFactoryForTests}=await import('../telephony/telnyx.js'),requests:any[]=[];let sequence=0;
+ class Provider extends TelnyxVoiceClient {override async request(path:string,method='GET',body:any={}){requests.push({path,method,body});if(path==='/calls')return {data:{call_control_id:`outbound-extension-${++sequence}`,call_leg_id:`extension-leg-${sequence}`}};if(path==='/telephony_credentials')return {data:{id:'extension-credential',sip_username:'extension-endpoint',expires_at:new Date(Date.now()+86400000).toISOString()}};if(path.endsWith('/token'))return `test.${Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+86400})).toString('base64url')}.sig`;return {data:{result:'ok'}};}}
+ setVoiceClientFactoryForTests(()=>new Provider());process.env.TELNYX_VOICE_MODE='live';
+ try{
+ const {c,orgId}=await owner(),base=`/v1/comms/organizations/${orgId}`,w=await c.request('GET',base+'/phone'),number='+12065551105';
+ await store.saveResource(orgId,'application','default',{},'extension-app');await store.saveResource(orgId,'connection','default',{},'extension-connection');
+ await store.saveResource(orgId,'number',number,{phone_number:number,status:'active',branch_id:'default'});await store.saveResource(orgId,'settings','default',{enabled:true,emergency_policy_confirmed:true,service_location:'Test office'});
+ await store.saveResource(orgId,'phone_greeting','extension-audio',{owner_user_id:w.user_id});
+ await c.request('PUT',base+'/phone/personal',{revision:0,power_dial:{enabled:true,numbers:[number],cooldown_seconds:0},voicemail_drop:{enabled:true,media_id:'extension-audio'}});
+ await c.request('POST',base+'/voice/endpoint/token',{device_id:'extension-device'});await c.request('POST',base+'/voice/endpoint/presence',{device_id:'extension-device',registered:true,availability:'available'});await c.request('POST',base+'/voice/diagnostics',{device_id:'extension-device',microphone:'ready',connectivity:'ready',provider_verdict:'ready',metrics:{rtt_ms:60,jitter_ms:3,packet_loss_percent:0}});
+ const body={operation_id:'extension-dial-operation',mode:'browser',power_dial:true,device_id:'extension-device',customer_number:'+12065551106'},result=await c.request('POST',base+'/calls',body);
+ assert.equal(result.call.business_number,number);assert.equal(result.call.metadata.voicemail_drop.state,'pending');assert.equal((await c.request('POST',base+'/calls',body)).call.id,result.call.id);
+ await worker.processOneJob('extension','voice',result.call.id);assert.equal(requests.find(r=>r.path==='/calls').body.answering_machine_detection,undefined);
+ await worker.processVoiceEvent({data:{id:'extension-answer',event_type:'call.answered',occurred_at:store.now(),payload:{call_control_id:'outbound-extension-1'}}});await worker.processOneJob('extension','voice',result.call.id);
+ const customer=requests.filter(r=>r.path==='/calls')[1];assert.equal(customer.body.answering_machine_detection,'premium');assert.equal(customer.body.from,number);assert.equal(customer.body.to,'+12065551106');
+ }finally{process.env.TELNYX_VOICE_MODE='disabled';setVoiceClientFactoryForTests(null);}
+});

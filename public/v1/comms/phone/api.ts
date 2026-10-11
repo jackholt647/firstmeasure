@@ -1,3 +1,4 @@
+import { reputationWorkspace, changeReputation } from './reputation.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { requirePlatformAuth, hasPermission } from '../../platform/auth.js';
@@ -17,6 +18,8 @@ const base='/organizations/:orgId/phone';
 const param=(r:FastifyRequest,k:string)=>s.text(s.object(r.params)[k]);
 async function auth(r:FastifyRequest,write=false){const ctx=await requirePlatformAuth(r,{orgId:param(r,'orgId'),csrf:write,capability:'apps.comms'});if(!canUseScopedPermission(ctx,'make_calls|send_comms|send_communications|view_comms|manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You do not have access to phone settings.');return ctx;}
 export function registerPhoneSettingsApi(app:FastifyInstance){
+  app.get(`${base}/reputation`,async r=>({ok:true,...await reputationWorkspace(await auth(r))}));
+  app.post(`${base}/reputation`,async r=>({ok:true,...await changeReputation(await auth(r,true),r.body)}));
   app.post(`${base}/greetings`,{bodyLimit:6*1024*1024},async r=>({ok:true,greeting:await saveGreeting(await auth(r,true),r.body)}));
   app.get('/phone-greetings/:orgId/:id',async(r,reply)=>{const q=s.object(r.query),audio=await readGreeting(param(r,'orgId'),param(r,'id'),s.text(q.expires),s.text(q.signature));return reply.header('Content-Type',audio.content_type).header('Cache-Control','private, no-store').send(audio.buffer);});
   app.get(base,async r=>({ok:true,...await workspace(await auth(r)),carrier_writes:carrierWritesAllowed()}));

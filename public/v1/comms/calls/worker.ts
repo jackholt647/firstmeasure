@@ -1,3 +1,5 @@
+import { maintainReputation } from '../phone/reputation.js';
+import { dropWaiting, voicemailDropEvent, expireVoicemailDetection } from '../phone/outbound.js';
 import { routeConfiguredCall, ringEvent } from '../phone/routing.js';
 import { resolveRoute, trackingSnapshot, recordAttribution, userAvailable, notifyPhone } from '../phone/service.js';
 import { automaticReply } from '../phone/messaging.js';
@@ -25,13 +27,13 @@ import { text, object, strings, type Json, type CustomerCall } from "./storage.j
 function decodeState(payload:Json){try{return object(JSON.parse(Buffer.from(text(payload.client_state),"base64").toString()));}catch{return {};}}
 async function queueDial(call:CustomerCall,role:string,to:string,key:string){
   const settings=(await voiceSettings(call.organization_id));const app=(await s.resource(call.organization_id,"application"));if(!app?.provider_id)throw new Error("Voice application is unavailable");
-  return (await s.enqueue(call.organization_id,call.id,"provider",{path:"dial",role,payload:{connection_id:app.provider_id,to,from:call.business_number,webhook_url:voiceWebhookUrl(),
+  return (await s.enqueue(call.organization_id,call.id,"provider",{path:"dial",role,payload:{connection_id:app.provider_id,to,from:call.business_number,...(role==='customer'&&object(call.metadata.voicemail_drop).enabled?{answering_machine_detection:'premium'}:{}),webhook_url:voiceWebhookUrl(),
     client_state:Buffer.from(JSON.stringify({call_id:call.id,role})).toString("base64"),timeout_secs:settings.ring_seconds,time_limit_secs:settings.max_call_minutes*60,
     custom_headers:[{name:"X-FirstMate-Call",value:call.id}]}},`${call.id}:${key}`));
 }
 async function endCall(call:CustomerCall,cause:string,at=s.now()){
   if(s.terminal.has(call.state))return;
-  (await s.patchCall(call.organization_id,call.id,{state:call.connected_at?"ended":cause==="USER_BUSY"?"busy":cause==="ORIGINATOR_CANCEL"?"canceled":"no_answer",
+  (await s.patchCall(call.organization_id,call.id,{state:call.connected_at||object(call.metadata.voicemail_drop).state==='completed'?"ended":cause==="USER_BUSY"?"busy":cause==="ORIGINATOR_CANCEL"?"canceled":"no_answer",
     ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,hangup_cause:cause}}));
   for(const leg of (await s.legs(call.organization_id,call.id)).filter(l=>l.state!=="ended"))(await providerCommand(call,text(leg.control_id),"hangup",{},`end:${leg.id}`));
   (await s.releaseClaims(call.organization_id,call.id));
@@ -50,6 +52,8 @@ async function matchInbound(orgId:string,number:string){
 }
 async function setCapture(call:CustomerCall,state:string,extra:Json={}){return (await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,capture:{...object(call.metadata.capture),state,...extra}}}));}
 async function ensureConference(call:CustomerCall){
+  if(s.terminal.has(call.state)||call.metadata.canceled_at)return;
+  if(object(call.metadata.voicemail_drop).enabled&&object(call.metadata.voicemail_drop).state!=='skipped')return;
   const legs=(await s.legs(call.organization_id,call.id));const agent=legs.find(l=>l.role==="agent"&&l.state==="answered"&&(!call.metadata.winning_control_id||l.control_id===call.metadata.winning_control_id));const customer=legs.find(l=>l.role==="customer"&&l.state==="answered");
   if(!agent||!customer)return;
   if(!text(call.metadata.conference_id))(await s.enqueue(call.organization_id,call.id,"provider",{path:"conference_create",payload:{call_control_id:agent.control_id,name:call.id,beep_enabled:"never",start_conference_on_create:true,end_conference_on_exit:false,max_participants:6,
@@ -124,6 +128,8 @@ export async function processVoiceEvent(body:Json){
   if(known?.state==='ended'&&['call.answered','call.hangup','call.initiated'].includes(type))return;
   if(role==='agent'&&await ringEvent(call,type,controlId,text(state.ring_user_id||object(known?.data).ring_user_id)))return;
   call=await s.readCall(call.organization_id,call.id);
+  if(await voicemailDropEvent(call,type,payload,state,role)){await ensureConference(await s.readCall(call.organization_id,call.id));return;}
+  if(type==='call.answered'&&role==='customer'&&dropWaiting(call))await s.enqueue(call.organization_id,call.id,'phone_drop_timeout',{},`${call.id}:drop-timeout`,45000);
   if(type==='call.gather.ended'&&call.state==='phone_menu'){
     const choice=(Array.isArray(call.metadata.phone_menu)?call.metadata.phone_menu:[]).map(object).find(m=>m.digit===payload.digits);
     await s.patchCall(call.organization_id,call.id,{state:'queued',metadata:{...call.metadata,route_target:choice?.target||call.metadata.menu_fallback||{kind:'voicemail'},queue_entered_at:s.now()}});return;
@@ -219,6 +225,13 @@ async function executeProvider(job:Json,payload:Json){
     if(payload.role==='agent'&&call.metadata.phone_routing&&call.metadata.winning_control_id)return {canceled:true};
     const settings=(await voiceSettings(orgId));if(!settings.enabled)throw conflict('voice_disabled',"Voice was disabled before dialing");
     if(payload.role==="customer"&&(await s.resource(orgId,"suppression",call.customer_number)))throw conflict('number_suppressed',"Customer requested no further calls");
+    if(call.direction==='outbound'&&(call.metadata.power_dial||object(call.metadata.voicemail_drop).enabled)){
+      const auth=await (await import('../../platform/auth.js')).backgroundAuthContext(orgId,call.owner_user_id);
+      const line=await s.resource(orgId,'number',call.business_number);
+      const {hasResourcePermission}=await import('../../workforce/department-access.js');
+      if(!hasResourcePermission(auth,'make_calls|send_comms|send_communications|manage_projects|manage_communications|manage_company_settings',{branch_id:call.branch_id,department_ids:strings(call.metadata.department_ids)}))throw conflict('outgoing_permission_changed','Calling permission changed before this call was placed.');
+      if(line?.status!=='active'||!await (await import('../phone/service.js')).canUseLine(auth,call.business_number))throw conflict('outgoing_line_access_changed','The outgoing line is no longer available to this caller.');
+    }
     const correlation:Json={...decodeState(input),call_id:callId,role:payload.role,operation_id:commandId};
     result=await voiceClient().dial({...input,client_state:Buffer.from(JSON.stringify(correlation)).toString('base64')});if(!text(result.call_control_id))throw new Error("Provider dial response did not include a call ID");
     // Provider event timestamps beat a synchronous create response, including when the webhook arrives first.
@@ -269,6 +282,7 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
       try { result=await (await import('./analysis.js')).processCallAnalysisJob(await s.readCall(orgId,callId),payload); }
       finally {clearInterval(heartbeat);}
     }
+    else if(job.kind==='phone_drop_timeout'){await expireVoicemailDetection(await s.readCall(orgId,callId));await ensureConference(await s.readCall(orgId,callId));}
     else if(job.kind==='phone_attribution'){await recordAttribution(await s.readCall(orgId,callId));}
     else if(job.kind==='phone_notice'){const call=await s.readCall(orgId,callId);await notifyPhone(call,payload.voicemail?'voicemail':'missed_calls');if(!call.connected_at)await automaticReply(orgId,call.business_number,call.customer_number,'missed_call',call.id,'',{project_id:call.project_id,contact_id:call.contact_id});}
     else if(job.kind==="missed_callback"){
@@ -280,6 +294,7 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
     const retry=!ambiguous&&!(error instanceof PlatformError)&&job.kind!=="provider"&&job.attempts<8;
     (await s.finishJob(text(job.id),workerId,ambiguous?"uncertain":retry?"pending":"failed",{},job.kind==='provider'?(ambiguous?'Provider response is uncertain; reconcile before retrying.':error instanceof PlatformError?error.message:'Provider rejected this operation.'):error instanceof Error?error.message:"Call processing failed",Math.min(300_000,1000*2**job.attempts)));
     if(job.kind==="provider"&&callId){let call=(await s.readCall(orgId,callId));
+      if(payload.path==='playback_start'&&decodeState(object(payload.payload)).phase==='outgoing_voicemail_drop'){await s.patchCall(orgId,callId,{metadata:{...call.metadata,voicemail_drop:{...object(call.metadata.voicemail_drop),state:ambiguous?'uncertain':'failed'}}});await endCall(await s.readCall(orgId,callId),'VOICEMAIL_DROP_FAILED');return true;}
       if(text(payload.path).startsWith('supervisor_')) { await supervisionFailed(job,payload,ambiguous); return true; }
       if(!ambiguous&&payload.path==='dial'&&payload.role==='agent'&&call.metadata.phone_routing){const input=object(payload.payload),state=decodeState(input);await ringEvent(call,'call.hangup',`failed:${job.id}`,text(state.ring_user_id));await s.appendEvent(orgId,callId,'phone.member_unavailable',{user_id:state.ring_user_id},`failed:${job.id}`);return true;}
       if(!ambiguous&&payload.path==='dial'){
@@ -346,7 +361,7 @@ export function startCallWorker(app:FastifyInstance){
       if(!background)background=(async()=>{for(let n=0;n<5&&!stopped;n++)if(!await processOneJob(`${workerId}:background`,'background'))break;})()
         .catch(()=>app.log.error('Customer call background processing failed')).finally(()=>{background=null;});
       if(!maintenance&&Date.now()-lastRetention>60000){
-        lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();})()
+        lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();await maintainReputation();})()
           .catch(error=>app.log.error({message:error instanceof Error?error.message:'Voice maintenance failed'},'Customer call maintenance'))
           .finally(()=>{maintenance=null;});
       }
