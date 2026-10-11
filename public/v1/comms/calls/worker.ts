@@ -34,7 +34,7 @@ async function queueDial(call:CustomerCall,role:string,to:string,key:string){
 async function endCall(call:CustomerCall,cause:string,at=s.now()){
   if(s.terminal.has(call.state))return;
   (await s.patchCall(call.organization_id,call.id,{state:call.connected_at||object(call.metadata.voicemail_drop).state==='completed'?"ended":cause==="USER_BUSY"?"busy":cause==="ORIGINATOR_CANCEL"?"canceled":"no_answer",
-    ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,hangup_cause:cause}}));
+    ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,...(dropWaiting(call)?{voicemail_drop:{...object(call.metadata.voicemail_drop),state:object(call.metadata.voicemail_drop).state==='playing'?'interrupted':'skipped',reason:'call_ended'}}:{}),hangup_cause:cause}}));
   for(const leg of (await s.legs(call.organization_id,call.id)).filter(l=>l.state!=="ended"))(await providerCommand(call,text(leg.control_id),"hangup",{},`end:${leg.id}`));
   (await s.releaseClaims(call.organization_id,call.id));
   const endpoint=(await s.resource(call.organization_id,"endpoint",call.owner_user_id));

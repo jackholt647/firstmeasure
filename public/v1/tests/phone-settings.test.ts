@@ -185,7 +185,7 @@ test('voicemail drop waits for a beep and matching completed playback, with dupl
  await event('call.machine.premium.greeting.ended',{result:'beep_detected'});await event('call.machine.premium.greeting.ended',{result:'beep_detected'});
  const drops=(await jobs()).filter(j=>j.path==='playback_start');assert.equal(drops.length,1);assert.match(drops[0].payload.audio_url,/phone-greetings/);
  await event('call.playback.ended',{status:'completed'});assert.equal(store.object((await store.readCall(orgId,callId)).metadata.voicemail_drop).state,'playing');
- await event('call.playback.ended',{status:'completed',client_state:drops[0].payload.client_state});assert.equal(store.object((await store.readCall(orgId,callId)).metadata.voicemail_drop).state,'completed');assert.ok((await jobs()).some(j=>j.path==='hangup'));
+ await event('call.playback.ended',{status:'completed',client_state:drops[0].payload.client_state});assert.equal(store.object((await store.readCall(orgId,callId)).metadata.voicemail_drop).state,'completed');assert.ok((await jobs()).some(j=>j.path==='hangup'));await event('call.hangup',{hangup_cause:'NORMAL_CLEARING'});assert.equal((await store.readCall(orgId,callId)).state,'ended');
 });
 
 test('human, uncertain, timeout, inbound and canceled calls cannot receive a voicemail drop',async()=>{

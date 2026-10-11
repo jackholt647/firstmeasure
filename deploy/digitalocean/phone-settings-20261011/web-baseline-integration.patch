@@ -336,7 +336,7 @@
  import { platformBackgroundAllowed } from "../../platform/runtime.js";
  import { randomUUID } from "node:crypto";
  import type { FastifyInstance } from "fastify";
-@@ -21,13 +26,13 @@
+@@ -21,14 +26,14 @@
  function decodeState(payload:Json){try{return object(JSON.parse(Buffer.from(text(payload.client_state),"base64").toString()));}catch{return {};}}
  async function queueDial(call:CustomerCall,role:string,to:string,key:string){
    const settings=(await voiceSettings(call.organization_id));const app=(await s.resource(call.organization_id,"application"));if(!app?.provider_id)throw new Error("Voice application is unavailable");
@@ -348,10 +348,12 @@
  async function endCall(call:CustomerCall,cause:string,at=s.now()){
    if(s.terminal.has(call.state))return;
 -  (await s.patchCall(call.organization_id,call.id,{state:call.connected_at?"ended":cause==="USER_BUSY"?"busy":cause==="ORIGINATOR_CANCEL"?"canceled":"no_answer",
+-    ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,hangup_cause:cause}}));
 +  (await s.patchCall(call.organization_id,call.id,{state:call.connected_at||object(call.metadata.voicemail_drop).state==='completed'?"ended":cause==="USER_BUSY"?"busy":cause==="ORIGINATOR_CANCEL"?"canceled":"no_answer",
-     ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,hangup_cause:cause}}));
++    ended_at:at,wrap_up_state:"needs_wrap_up",metadata:{...call.metadata,...(dropWaiting(call)?{voicemail_drop:{...object(call.metadata.voicemail_drop),state:object(call.metadata.voicemail_drop).state==='playing'?'interrupted':'skipped',reason:'call_ended'}}:{}),hangup_cause:cause}}));
    for(const leg of (await s.legs(call.organization_id,call.id)).filter(l=>l.state!=="ended"))(await providerCommand(call,text(leg.control_id),"hangup",{},`end:${leg.id}`));
    await finishParticipants(call);
+   (await s.releaseClaims(call.organization_id,call.id));
 @@ -47,7 +52,9 @@
  }
  async function setCapture(call:CustomerCall,state:string,extra:Json={}){return (await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,capture:{...object(call.metadata.capture),state,...extra}}}));}
