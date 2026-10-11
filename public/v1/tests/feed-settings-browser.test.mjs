@@ -3,6 +3,42 @@ import assert from 'node:assert/strict';
 import {readFile,mkdir} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
+test('portal includes Feed settings and an older shell loads the missing component with retry', async () => {
+  const portal=await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
+  const feedTag=portal.indexOf('<script src="../libraries/apps/settings/feed.js?');
+  assert.ok(feedTag>=0 && feedTag<portal.indexOf('<script src="../libraries/apps/settings/company.js?'),'portal loads Feed settings before Company settings');
+  const company=await readFile(new URL('../../libraries/apps/settings/company.js',import.meta.url),'utf8');
+  const start=company.indexOf('    async function renderFeedSettings(){');
+  const renderer=company.slice(start,company.indexOf('    function renderChannelsSettings()',start));
+  const feed=await readFile(new URL('../../libraries/apps/settings/feed.js',import.meta.url),'utf8');
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page=await browser.newPage();
+    let attempts=0;
+    await page.route('https://feed-settings.test/**',async route=>{
+      if(new URL(route.request().url()).pathname==='/libraries/apps/settings/feed.js') {
+        if(++attempts===1)return route.abort('failed');
+        return route.fulfill({contentType:'text/javascript',body:feed});
+      }
+      return route.fulfill({contentType:'text/html',body:'<main id="feed"></main>'});
+    });
+    await page.goto('https://feed-settings.test/');
+    await page.evaluate(()=>{
+      window.ChannelsAPI={feed:{settings:async()=>({settings:{revision:0,company_activity_types:null,department_activity_types:{}},departments:[],activity_options:[{type:'proposal.signed',label:'Proposal signed'}],default_activity_types:[]})}};
+    });
+    await page.addScriptTag({content:`const paneFeed=document.querySelector('#feed');const currentOrgId=()=> 'fixture';${renderer}window.openFeedSettings=renderFeedSettings;`});
+    await page.evaluate(()=>window.openFeedSettings());
+    await page.getByRole('button',{name:'Retry',exact:true}).waitFor();
+    assert.equal(await page.locator('#feed').getAttribute('data-feed-mounted'),null);
+    await page.getByRole('button',{name:'Retry',exact:true}).click();
+    await page.getByRole('heading',{name:'Automatic posts',exact:true}).waitFor();
+    assert.equal(attempts,2);
+    assert.equal(await page.getByRole('button',{name:'Save settings',exact:true}).count(),0);
+    await page.evaluate(()=>window.openFeedSettings());
+    assert.equal(attempts,2,'opening an already mounted Feed does not reload its script');
+  } finally {await browser.close();}
+});
+
 test('feed settings auto-save defaults, queue rapid edits, preserve other audiences on conflict and retry failures', async () => {
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try {

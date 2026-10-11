@@ -13645,12 +13645,31 @@
     async function renderFeedSettings(){
       if (!paneFeed || paneFeed.dataset.feedMounted === '1') return;
       paneFeed.dataset.feedMounted = '1';
-      if (!window.FirstMateFeedSettings?.mount) {
-        paneFeed.textContent = 'Feed settings failed to load.';
+      try {
+        if (!window.FirstMateFeedSettings?.mount) {
+          paneFeed.textContent = 'Loading Feed settings…';
+          if (!window.firstMateFeedSettingsLoading) {
+            window.firstMateFeedSettingsLoading = new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = '/libraries/apps/settings/feed.js?v=20261010-feed-autosave-v1';
+              script.onload = () => window.FirstMateFeedSettings?.mount ? resolve() : reject(new Error('Feed settings component unavailable.'));
+              script.onerror = () => { script.remove(); reject(new Error('Could not load Feed settings.')); };
+              document.head.appendChild(script);
+            }).catch(error => { window.firstMateFeedSettingsLoading = null; throw error; });
+          }
+          await window.firstMateFeedSettingsLoading;
+        }
+        await window.FirstMateFeedSettings.mount(paneFeed, {orgId:currentOrgId()});
+      } catch (error) {
         delete paneFeed.dataset.feedMounted;
-        return;
+        paneFeed.replaceChildren();
+        const message = document.createElement('p');
+        message.textContent = error?.message || 'Could not load Feed settings.';
+        const retry = document.createElement('button');
+        retry.type = 'button'; retry.className = 'cs-btn'; retry.textContent = 'Retry';
+        retry.onclick = () => void renderFeedSettings();
+        paneFeed.append(message, retry);
       }
-      await window.FirstMateFeedSettings.mount(paneFeed, {orgId:currentOrgId()});
     }
 
     function renderChannelsSettings(){
