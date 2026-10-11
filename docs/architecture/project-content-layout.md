@@ -32,23 +32,45 @@ the accepted snapshot rendered by FMDocRenderer; Back restores the tiles. This
 uses neither a modal nor a generic JSON instance viewer. Measurements appear
 directly below the documents, with every published value in compact inline editable rows. Each section
 measures labels and value widths and uses up to three columns when the rail width permits.
-Oversized labels move to full-width rows at the end of a section. Pitch breakdown is a
-Pitch/Squares table. Zero and unavailable measurements are hidden by default; the
+Oversized labels move to full-width rows at the end of a section. Pitch breakdown is a two-row table with one column per pitch (a Pitch row above a Squares row) that scrolls sideways when the rail is narrow; the 3D roof key uses the same layout. Zero and unavailable measurements are hidden by default; the
 Measurements heading includes a Show zero measurements toggle. Editable values accept
 nonnegative decimal text, never exponent notation.
 Pitch and roofing-square explanations are inline control tooltips. Edits use project-local measurement overrides, never write to the published
 source, and have the existing override lifetime. Measurement cards have no hover
 tooltip or separate detail view.
 
-The right side has a thin action header for New scope list, Generate lists
-automatically and minimized-list pills. Ten pixels of padding match its gutter.
+The right side has a thin action header for New resource type, Generate lists
+automatically, minimized resource type pills and the units switch. Ten pixels of padding match its gutter.
 Its three resource panes use the remaining height, scroll independently and narrow
 empty panes when another has content. With no items, all three are equal and
 show Empty List. First Add creates a missing typed list through the existing
 writer and immediately adds an editable row. Later additions reuse that list.
 The Price Book control lives in the Materials pane heading. Each actual list
 has its own header, ordering/scheduling/compensation controls and direct Add.
-Minimizing animates the list closed and exposes a header pill to restore it.
+Line items are single-line rows at every pane width: a thin drag handle, the
+name (truncated when the pane is narrow), the color swatch, a quantity that
+sizes to its digits, the unit as plain text that becomes an input on focus, the
+read-only line total in whole dollars, and an expander. Expanding a row shows
+its variant or pay type, the unit price (shown in whole dollars with
+separators, edited as the stored number) and Remove beneath it. The row's hover
+summary carries the full name, quantities, price and variant. Keep the
+collapsed row to one line; put further per-item fields in the expanded detail.
+Dragging the handle reorders an item or moves it to another list of the same
+resource type; clicking it offers the same move as a menu. Reordering writes
+the list's items as one version.
+A list header is one line with no icon: collapse, name, subtotal (when the pane
+has several lists or the list is collapsed), icon-only Schedule and Order, and
+Delete. A list named after its category shows as Default. Collapsing a list is
+local view state. Minimizing applies to a resource type column and leaves a
+header pill to restore it. The measured/order units switch is in the action
+header and applies to every list.
+A labor list's header carries one assignment control, left of Schedule and
+Delete, showing the assignee or Unassigned. It opens an app-owned popover, not
+native selects: assignable work resources with their kind, member count and
+default pay; project pay for an assigned list, with estimated hours beside it
+only when the resolved pay uses hours; and salary treatment only when the
+assignee's plan includes salary. Labor writers release the saving state before
+re-rendering, then rebuild the open popover.
 Deletion uses the domain archive writer; accepted document material sets cannot
 be deleted through that writer and remain available to minimize.
 

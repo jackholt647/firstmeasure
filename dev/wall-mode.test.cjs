@@ -46,7 +46,7 @@ function fixture(withBase=false,editors={}){
         activeGeometry:{points,connections:[{start:points[0],end:points[1],type:'unknown'}],manualFaces:[{points}]},
         imageWidth:10,imageHeight:10,mapCenterLat:0,mapCenterLng:0,dsmMin:0,viewRotation:0,currentZoom:1,
         selectedPoints:new Set(),selectedLines:new Set(),tempPoint:null,layerData:{},isMeasurementMode:false,
-        addEventListener:(name,fn)=>listeners['window:'+name]=fn,currentProjectId:'fixture',getMetersPerPx:()=>1,WallGeometry:G,WallChimneyCleanup:require('../public/measure/internal/editor_scripts/wall_chimney_cleanup.js'),WallRakeCleanup:require('../public/measure/internal/editor_scripts/wall_rake_cleanup.js'),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallGaps:require('../public/measure/internal/editor_scripts/wall_gaps.js'),GroundGeometry:require('../public/measure/internal/editor_scripts/ground_geometry.js')};
+        addEventListener:(name,fn)=>listeners['window:'+name]=fn,currentProjectId:'fixture',getMetersPerPx:()=>1,ExteriorModel:require('../public/measure/internal/editor_scripts/exterior_model.js'),WallGeometry:G,WallChimneyCleanup:require('../public/measure/internal/editor_scripts/wall_chimney_cleanup.js'),WallRakeCleanup:require('../public/measure/internal/editor_scripts/wall_rake_cleanup.js'),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallGaps:require('../public/measure/internal/editor_scripts/wall_gaps.js'),GroundGeometry:require('../public/measure/internal/editor_scripts/ground_geometry.js')};
     if(withBase)ctx.BaseGeometry=require('../public/measure/internal/editor_scripts/base_geometry.js'); ctx.window=ctx;ctx.exitMeasurementMode=()=>{ctx.isMeasurementMode=false;elements.get('measurement-panel')?.remove();};
     ctx.EditorHistory=require('../public/measure/internal/editor_scripts/editor_history.js');
     Object.assign(ctx,editors);vm.createContext(ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/ground_editor.js'),'utf8'),ctx);vm.runInContext(fs.readFileSync(require.resolve('../public/measure/internal/editor_scripts/wall_mode.js'),'utf8'),ctx);
@@ -547,7 +547,7 @@ test('From Roof Auto and 24 inches match; every preset regenerates walls and bas
 
 test('project finish palette counts visible finishes, resolves defaults, and omits sticker type colors',()=>{
  let materials,host;
- const {ctx,soffits}=fixture(true,{WallFeatures:{mountUI(a,b,c,m){materials=m;}},ExteriorModel:{collect:state=>state.wallEdits.$surfaces||[]},ExteriorFinishes:{resolve:(face,defaults)=>({color:face.finishColor||defaults.color})},createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false};}});
+ const {ctx,soffits}=fixture(true,{WallFeatures:{mountUI(a,b,c,m){materials=m;}},ExteriorModel:{collect:state=>state.wallEdits?.$surfaces||[]},ExteriorFinishes:{resolve:(face,defaults)=>({color:face.finishColor||defaults.color})},createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false};}});
  ctx.WallMode.setEnabled(true);soffits[1].onclick();host.state().finishDefaults={color:'#112233',trimColor:'#abcdef'};
  host.state().wallEdits={$surfaces:[{finishColor:'#778899'},{finishColor:'#778899'},{finishColor:'#778899'},{},{finishColor:'#ABCDEF'},{feature:{type:'window'},finishColor:'#ff0000'}]};
  assert.deepEqual(Array.from(materials.projectColors()),['#778899','#112233','#abcdef']);assert.equal(materials.projectId(),'fixture');
@@ -861,4 +861,13 @@ test('selection menu routes roof, wall and plane context without mutating editor
  f.ctx.WallMode.setEnabled(true);host.setLayer('walls');const actions=f.ctx.WallMode.selectionActions();assert.ok(actions.some(a=>a.label==='Extrude'));assert.ok(actions.some(a=>a.label==='Fillet'));assert.ok(actions.some(a=>a.label==='Trim'));
  context={mode:'plane',points:3};assert.ok(f.ctx.WallMode.selectionActions().some(a=>a.label==='Subtract region'));assert.ok(!f.ctx.WallMode.selectionActions().some(a=>a.label==='Extrude'));
  context.busy=true;assert.equal(f.ctx.WallMode.selectionActions().length,0);
+});
+
+test('open-edge diagnostics consume current edited faces and invalidate after a face deletion',()=>{
+ let host;const calls=[],D=require('../public/measure/internal/editor_scripts/wall_gaps.js');
+ const f=fixture(true,{WallGaps:{...D,detect(){throw Error('Diagnostic used stale generated strips');},detectFaces(faces,ground){calls.push(JSON.parse(JSON.stringify(faces)));return D.detectFaces(faces,ground);}},createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false};}});
+ f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();assert.ok(host.state());
+ const state=host.state();state.wallEdits||={};state.wallEdits.$surfaces=[{id:'edited-chimney',chimney:{id:'test'},points:[{x:2,y:2,z:0},{x:3,y:2,z:0},{x:3,y:2,z:5},{x:2,y:2,z:5}]}];
+ f.elements.get('wall-centers-toggle').onclick();assert.ok(calls.at(-1).some(f=>f.id==='edited-chimney'));
+ state.wallEdits.$surfaces[0].deleted=true;f.elements.get('wall-centers-toggle').onclick();assert.ok(!calls.at(-1).some(f=>f.id==='edited-chimney'));
 });

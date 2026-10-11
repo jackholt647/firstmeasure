@@ -53,6 +53,30 @@
             return z!==null&&(Math.abs(g.bottom.z-z)<=tolerance||Math.abs(g.top.z-z)<=tolerance);
         });
     }
+    // Diagnostics must inspect the same replacement faces as the renderer.
+    // Slice vertical polygons (including concave outlines and holes) into strips
+    // for the existing interval detector; these strips never enter model state.
+    function detectFaces(faces,ground=0,tolerance=.02){
+        const walls=[];
+        for(const face of faces){
+            if(face.deleted||face.opening||face.feature||face.constructionOnly||face.points.length<3)continue;
+            const origin=face.points[0],end=face.points.reduce((a,b)=>dist(origin,a)>dist(origin,b)?a:b),length=dist(origin,end);
+            if(length<EPS)continue;
+            const u={x:(end.x-origin.x)/length,y:(end.y-origin.y)/length},rings=[face.points,...(face.holes||[])];
+            if(rings.flat().some(p=>Math.abs((p.x-origin.x)*u.y-(p.y-origin.y)*u.x)>1e-5))continue;
+            const local=rings.map(r=>r.map(p=>({x:(p.x-origin.x)*u.x+(p.y-origin.y)*u.y,z:p.z})));
+            const cuts=[...new Set(local.flat().map(p=>p.x))].sort((a,b)=>a-b),edges=local.flatMap(r=>r.map((a,i)=>[a,r[(i+1)%r.length]]));
+            const height=([a,b],x)=>a.z+(b.z-a.z)*(x-a.x)/(b.x-a.x),world=(x,z)=>({x:origin.x+u.x*x,y:origin.y+u.y*x,z});
+            for(let i=1;i<cuts.length;i++){
+                const a=cuts[i-1],b=cuts[i];if(b-a<EPS)continue;const mid=(a+b)/2;
+                const crossings=edges.filter(([p,q])=>Math.min(p.x,q.x)<mid&&Math.max(p.x,q.x)>mid).sort((p,q)=>height(p,mid)-height(q,mid));
+                for(let j=1;j<crossings.length;j+=2){const low=crossings[j-1],high=crossings[j];if(height(high,mid)-height(low,mid)<EPS)continue;
+                    walls.push({id:face.id,bottom:[world(a,height(low,a)),world(b,height(low,b))],top:[world(a,height(high,a)),world(b,height(high,b))]});
+                }
+            }
+        }
+        return detect(walls,ground,tolerance);
+    }
     function graph(walls,gaps,snap){
         const nodes=[],segments=[],edges=[];
         const node=p=>{let i=nodes.findIndex(q=>dist(p,q)<=snap);if(i<0){i=nodes.length;nodes.push({x:p.x,y:p.y});}return i;};
@@ -184,5 +208,5 @@
         }
         return {walls:result,added,paths,before,gaps,sliversRemoved:cleaned.removed};
     }
-    const api={detect,repair,cleanSlivers};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallGaps=api;
+    const api={detect,detectFaces,repair,cleanSlivers};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallGaps=api;
 })(typeof window!=='undefined'?window:globalThis);
