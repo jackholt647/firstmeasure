@@ -1,0 +1,13 @@
+# Project resource rows on one line — October 11, 2026
+
+Follow-up to the [October 10 density change](development-project-list-density-20261010.md), whose narrow-pane rows still took two lines.
+
+Every line item in the Materials, Labor, Equipment and custom resource panes is now a single 24px row at any pane width: drag handle, name, optional variant or pay-type selector (its arrow only under 360px), color swatch, quantity sized to its digits (three by default, growing while typing), unit as plain text that becomes an input on focus, unit price (four characters by default), and Remove. Panes of 480px or more add a read-only line total. A narrow pane truncates the name; the row's hover summary gives the full name, quantity, unit, price, total and variant. The column header strip is gone because quantity and unit no longer sit in fixed columns.
+
+Dragging the handle reorders an item within its list or moves it beside an item, or onto the header, of another list of the same resource type. Clicking the handle still opens the move-to-list menu, which is the keyboard and touch path. A reorder writes the list's items as one `revision` version; a move writes the target's items as one `supplement` version and then removes the item from the source, undoing the target write if the removal fails.
+
+List headers are one line without the repeated category icon: collapse, name, subtotal, icon-only Schedule and Order, Delete. Lists named after their category display as Default, and lists created by the first Add are titled Default. Collapsing a list is local view state. Minimize moved from lists to resource type columns, restored from a header pill. The measured/order units switch moved to the action header and applies to every list.
+
+Validation: `node --test tests/project-scope-work-browser.test.mjs` (11 passing), covering one-line rows with all controls inside the row at 233px and 500px+ columns, the hover summary, and the reorder, cross-list, cross-type and failed-write paths of the drop writer. Real drag and drop, the handle menu and input growth were exercised in headless Chrome against the rendered panes. The hosted modal was not inspected in a signed-in browser session.
+
+Development activation only: release `062ca96ff81278cfa8ebecfd1bbe026b22616d7e` over audited `5759f2eecff3fe9bd08c1b17ce05516bd84a489c` baselines on compatibility, web and pool, as immutable hardlink overlays of two owned files merged onto each role's live content. The worker serves no library files and stays on its baseline. Each role passed stage, activate and verify. Rollback: repoint `/opt/firstmeasure/current` to the retained baseline release on each role and restart its development service.

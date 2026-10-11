@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 Project resource rows: [one-line rows, drag ordering and collapsible lists](deploy/digitalocean/development-project-list-rows-20261011.md) records the row contract, list header changes, checks and verified development rollout.
+
 October 10 Project resource lists: [dense line-item rows](deploy/digitalocean/development-project-list-density-20261010.md) records the layout tiers, checks and verified development rollout.
 
 October 10 Priority field owners: [shared contact, user and resource priorities](deploy/digitalocean/development-priority-owners-20261010.md) records the owner architecture, verified development rollout and rollback baselines.
