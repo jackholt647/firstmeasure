@@ -87,3 +87,22 @@ test('sliver cleanup preserves real returns, height transitions, and ambiguous j
 test('saved roof corners with centimeter top-height mismatch collapse without leaving a narrow face',()=>{
  for(const walls of require('./fixtures/sliver-corners.json')){const result=D.cleanSlivers(walls,.2);assert.deepEqual(result.removed,['sliver']);assert.equal(result.walls.length,2);const [a,b]=result.walls;assert.ok(a.bottom.some((p,i)=>b.bottom.some((q,j)=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<1e-8&&Math.abs(a.top[i].z-b.top[j].z)<1e-8)));}
 });
+
+const faceOf=w=>({id:w.id,points:[...w.bottom,...w.top.slice().reverse()]});
+test('edited chimney faces replace obsolete generated strips in open-edge diagnostics',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),raw=[wall('left',[0,0],[1,0],0,4),wall('right',[1,0],[1,1],0,4),wall('back',[1,1],[0,1],0,4),wall('front',[0,1],[0,0],0,4)];
+ const faces=raw.map(faceOf),edits={$drafts:{replaced:{members:raw.map(w=>w.id),faces:[]}},$surfaces:faces.map(f=>({...f,chimney:{id:'chimney'},points:f.points.map(p=>({...p,x:p.x+2,z:p.z+1}))}))},state={wallEdits:edits};
+ raw.pop();for(const w of raw)for(const p of w.bottom)p.z=1;
+ const before=JSON.stringify(state);assert.equal(D.detect(raw,1).length,2,'old generated strips falsely report two open boundaries');assert.equal(D.detectFaces(M.collect(state,raw),1).length,0);
+ edits.$surfaces[0].deleted=true;const gaps=D.detectFaces(M.collect(state,raw),1);assert.equal(gaps.length,2);assert.ok(gaps.every(g=>g.bottom.x>=2&&g.bottom.z===1));edits.$surfaces[0].deleted=false;
+ delete edits.$surfaces[0].deleted;assert.equal(JSON.stringify(state),before);
+});
+test('face diagnostics preserve partial-height gaps and do not count duplicate planes as closure',()=>{
+ const a=wall('a',[0,0],[4,0],0,6),b=wall('b',[4,0],[4,4],3,6),faces=[a,b].map(faceOf);
+ const gaps=D.detectFaces(faces);assert.ok(gaps.some(g=>g.bottom.x===4&&g.bottom.y===0&&g.bottom.z===0&&g.top.z===3));assert.equal(D.detectFaces([faceOf(a),faceOf(a)]).length,2);
+});
+test('concave and holed faces retain real ground-level openings without internal slice warnings',()=>{
+ const shape={id:'notch',points:[p(0,0,0),p(1,0,0),p(1,0,2),p(2,0,2),p(2,0,0),p(3,0,0),p(3,0,4),p(0,0,4)]};
+ const gaps=D.detectFaces([shape]);assert.deepEqual(gaps.map(g=>[g.bottom.x,g.top.z]),[[0,4],[1,2],[2,2],[3,4]]);
+ const holed={id:'hole',points:faceOf(wall('w',[0,0],[3,0],0,4)).points,holes:[[p(1,0,1),p(2,0,1),p(2,0,3),p(1,0,3)]]};assert.equal(D.detectFaces([holed]).length,2);
+});
