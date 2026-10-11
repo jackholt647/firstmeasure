@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 GIF picker: [Hide creator profile overlays](deploy/digitalocean/development-gif-overlay-20261011.md) records the shared picker setting, hover/selection verification and development rollout.
+
 October 10 GIF loading: [Scrollbar resize loop fix](deploy/digitalocean/development-gif-loading-fix-20261010.md) records the reproduction, timeout recovery, regression checks and verified development rollout.
 
 October 10 Priority field owners: [shared contact, user and resource priorities](deploy/digitalocean/development-priority-owners-20261010.md) records the owner architecture, verified development rollout and rollback baselines.
