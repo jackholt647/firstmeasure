@@ -10,6 +10,7 @@
   .fm-project-summary-identity{min-width:0}.fm-project-summary-name{display:block;font-size:16px;line-height:1.25;color:#101828;overflow-wrap:anywhere}.fm-project-summary-address{display:block;margin-top:7px;color:#667085;line-height:1.4;overflow-wrap:anywhere}
   .fm-project-summary-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}.fm-project-summary-meta[hidden]{display:none}.fm-project-summary-meta>div{min-width:0;padding:9px;background:#f7f9fc;border:1px solid #edf0f4;border-radius:9px}.fm-project-summary-meta small,.fm-project-summary-contact small{display:block;color:#667085;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}.fm-project-summary-meta strong{display:block;margin-top:4px;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
   .fm-project-summary-contact{padding:12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff}.fm-project-summary-contact-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.fm-project-summary-contact-identity{min-width:0}.fm-project-summary-contact strong{display:block;font-size:14px;overflow-wrap:anywhere}.fm-project-summary-contact small+strong{margin-top:4px}.fm-project-summary-contact-detail{display:block;margin-top:3px;color:#667085;font-size:12px;overflow-wrap:anywhere}.fm-project-summary-actions{display:flex;gap:6px;flex:none}.fm-project-summary.fm-typed-widget .fm-project-summary-actions a{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid #d0d5dd;border-radius:7px;color:#344054;text-decoration:none}.fm-project-summary-actions svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.fm-project-summary-actions a:hover{background:#f2f4f7}.fm-project-summary-actions a:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
+  .fm-project-summary-contact-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.fm-project-summary-contact-tag{padding:2px 7px;border-radius:999px;background:#eef4ff;color:#344b8e;font-size:11px;font-weight:600;overflow-wrap:anywhere}.fm-project-summary-contact-info{margin-top:9px}.fm-project-summary-contact-priority{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid #eaecf0}.fm-project-summary-contact-priority>div{min-width:0;padding:8px;background:#f7f9fc;border:1px solid #edf0f4;border-radius:9px}.fm-project-summary-contact-priority strong{margin-top:4px;font-size:12px;line-height:1.35}
   .fm-project-summary-footer{display:flex;justify-content:flex-end;border-top:1px solid #eaecf0;padding-top:12px}.fm-project-summary.fm-typed-widget .fm-project-summary-open{background:var(--primary,#175cd3);color:#fff;border-color:var(--primary,#175cd3);font-weight:700}.fm-project-summary.fm-typed-widget .fm-project-summary-open:hover{filter:brightness(.92);background:var(--primary,#175cd3)}
   @media(max-width:390px){.fm-project-summary-head.has-cover{grid-template-columns:96px minmax(0,1fr)}.fm-project-summary-cover{width:96px;height:96px}}
  `;document.head.append(style);}
@@ -62,8 +63,11 @@
   const contactIdentity=element('div');contactIdentity.className='fm-project-summary-contact-identity';contactHead.append(contactIdentity);
   if(Number(data.project_contact_count)>1)contactIdentity.append(element('small','Primary contact'));
   contactIdentity.append(element('strong',data.primary_contact_visible===false?'Contact details unavailable':data.primary_contact_name||'No contact'));
-  if(data.primary_contact_phone){const line=element('span',data.primary_contact_phone);line.className='fm-project-summary-contact-detail';contact.append(line);}
-  if(data.primary_contact_email){const line=element('span',data.primary_contact_email);line.className='fm-project-summary-contact-detail';contact.append(line);}
+  if(Array.isArray(data.primary_contact_tags)&&data.primary_contact_tags.length){const tags=element('div');tags.className='fm-project-summary-contact-tags';for(const tag of data.primary_contact_tags){if(typeof tag!=='string'||!tag.trim())continue;const chip=element('span',tag);chip.className='fm-project-summary-contact-tag';tags.append(chip);}if(tags.childElementCount)contactIdentity.append(tags);}
+  const contactInfo=element('div');contactInfo.className='fm-project-summary-contact-info';
+  if(data.primary_contact_phone){const line=element('span',data.primary_contact_phone);line.className='fm-project-summary-contact-detail';contactInfo.append(line);}
+  if(data.primary_contact_email){const line=element('span',data.primary_contact_email);line.className='fm-project-summary-contact-detail';contactInfo.append(line);}
+  if(contactInfo.childElementCount)contact.append(contactInfo);
   const actions=element('div');actions.className='fm-project-summary-actions';
   const phone=String(data.primary_contact_phone||'').trim(),dial=phone.replace(/[^+0-9]/g,''),email=String(data.primary_contact_email||'').trim();
   const icons={Call:'M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.09 5.18 2 2 0 0 1 5.08 3h3a2 2 0 0 1 2 1.72c.12.96.34 1.91.66 2.83a2 2 0 0 1-.45 2.11L9.1 10.91a16 16 0 0 0 4 4l1.25-1.19a2 2 0 0 1 2.11-.45c.92.32 1.87.54 2.83.66A2 2 0 0 1 22 16.92Z',Text:'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z',Email:'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm18 2-10 7L2 6'};
@@ -71,12 +75,19 @@
   if(/^[+0-9() .-]{3,32}$/.test(phone)&&dial.length>=3){action('Call','tel:'+dial);action('Text','sms:'+dial);}
   if(/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email))action('Email','mailto:'+encodeURIComponent(email));
   if(actions.childElementCount)contactHead.append(actions);
+  const contactPriority=element('div');contactPriority.className='fm-project-summary-contact-priority';
   const footer=element('div');footer.className='fm-project-summary-footer';const open=element('button','Open project');open.type='button';open.className='fm-project-summary-open';open.disabled=!projectId;open.onclick=()=>{const project={id:projectId,title:data.title||data.name||'',address:data.address||''};if(global.Portal?.modules?.request?.openProject)global.Portal.modules.request.openProject(project,{tab:'map'});else global.FirstMateProjectWindows?.open?.(project,{tab:'map'});};footer.append(open);card.append(footer);
+  const addPriorityItems=(container,items,fields)=>{for(const item of items){if(item.result?.status!=='ready'||item.result.value==null||item.result.value==='')continue;const value=fields.format(item);if(!value)continue;const cell=element('div');cell.append(element('small',item.label),element('strong',value));container.append(cell);}};
   if(projectId&&target.organizationId){try{
    if(!global.FirstMatePriorityFields)await load('../priority-fields/priority-fields.js');
    const fields=global.FirstMatePriorityFields,items=await fields.resolve(target.organizationId,projectId);
-   for(const item of items){if(item.result?.status!=='ready'||item.result.value==null||item.result.value==='')continue;const value=fields.format(item);if(!value)continue;const cell=element('div');cell.append(element('small',item.label),element('strong',value));metadata.append(cell);}metadata.hidden=!metadata.childElementCount;
+   addPriorityItems(metadata,items,fields);metadata.hidden=!metadata.childElementCount;
   }catch{metadata.hidden=true;}}
+  if(projectId&&target.organizationId&&data.primary_contact_visible!==false&&data.primary_contact_id){try{
+   if(!global.FirstMatePriorityFields)await load('../priority-fields/priority-fields.js');
+   const fields=global.FirstMatePriorityFields,items=await fields.resolve(target.organizationId,String(data.primary_contact_id),{entity:'contact',projectId});
+   addPriorityItems(contactPriority,items,fields);if(contactPriority.childElementCount)contact.append(contactPriority);
+  }catch{}}
   return {destroy(){root.replaceChildren();}};
  }
  for(const kind of ['project','contact','document'])W.attachRenderer(kind+'.summary','1',(root,{data,config,reference,context})=>{
@@ -105,10 +116,10 @@
   body.addEventListener('input',report);body.addEventListener('change',report);confirm.onclick=()=>{try{notifySelection({value:read()},{confirmed:true});}catch(e){error.textContent=e.message;}};report();return {destroy(){body.removeEventListener('input',report);body.removeEventListener('change',report);root.replaceChildren();}};
  };for(const id of ['field.input','field.input.contact','field.input.assignment'])W.attachRenderer(id,'1',fieldRenderer);
  W.attachRenderer('emoji.picker','1',async(root,{config,notifySelection})=>{
-  if(!global.FirstMatePickerWidgets)await load('pickers.js?v=20261010-loading-fix');const card=shell(root,config.prompt||'Choose an emoji'),body=element('div');card.append(body);const picker=global.FirstMatePickerWidgets.mountEmojiPicker(body,emoji=>notifySelection({value:emoji},{confirmed:true,label:emoji}));return {destroy(){picker.destroy();root.replaceChildren();}};
+  if(!global.FirstMatePickerWidgets)await load('pickers.js?v=20261011-no-overlay');const card=shell(root,config.prompt||'Choose an emoji'),body=element('div');card.append(body);const picker=global.FirstMatePickerWidgets.mountEmojiPicker(body,emoji=>notifySelection({value:emoji},{confirmed:true,label:emoji}));return {destroy(){picker.destroy();root.replaceChildren();}};
  });
  W.attachRenderer('gif.picker','1',async(root,{config,reference,context,notifySelection})=>{
-  if(!global.FirstMatePickerWidgets)await load('pickers.js?v=20261010-loading-fix');const card=shell(root,config.prompt||'Choose a GIF');const picker=global.FirstMatePickerWidgets.createGifPickerButton({orgId:(reference.target||context.target).organizationId,onSend:item=>{const url=item.url||item.src;if(url&&url.length<=512)notifySelection({value:url},{confirmed:true,label:'GIF'});}});card.append(picker);return {destroy(){picker.destroy();root.replaceChildren();}};
+  if(!global.FirstMatePickerWidgets)await load('pickers.js?v=20261011-no-overlay');const card=shell(root,config.prompt||'Choose a GIF');const picker=global.FirstMatePickerWidgets.createGifPickerButton({orgId:(reference.target||context.target).organizationId,onSend:item=>{const url=item.url||item.src;if(url&&url.length<=512)notifySelection({value:url},{confirmed:true,label:'GIF'});}});card.append(picker);return {destroy(){picker.destroy();root.replaceChildren();}};
  });
  // Any object producer can opt in with type + target attributes. Hosts do not switch on object kind.
  let hover,owner,handle,generation=0,closeTimer;

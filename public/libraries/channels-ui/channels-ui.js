@@ -288,7 +288,7 @@
   let pickerWidgetsLoading;
   function loadPickerWidgets(){
     if(root.FirstMatePickerWidgets)return Promise.resolve(root.FirstMatePickerWidgets);
-    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261010-loading-fix').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
+    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261011-no-overlay').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
     return pickerWidgetsLoading;
   }
   // Compatibility for Feed callers; rendering and state stay in Platform Widgets.
@@ -706,7 +706,8 @@
           });
         } catch (error) { options.onError?.(error); }
       };
-      (options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar')))?.append(button);
+      const toolbar=options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar'));
+      toolbar?.insertBefore(button,toolbar.querySelector('.fm-ch-table-controls'));
       return button;
     }
 
@@ -761,9 +762,23 @@
             // removeFormat otherwise only changes the next typed character.
             if (selection.isCollapsed) { const range = document.createRange(); range.selectNodeContents(editor); selection.removeAllRanges(); selection.addRange(range); }
             document.execCommand('removeFormat'); document.execCommand('unlink');
-            if (document.queryCommandState('insertUnorderedList')) document.execCommand('insertUnorderedList');
-            if (document.queryCommandState('insertOrderedList')) document.execCommand('insertOrderedList');
             document.execCommand('formatBlock', false, 'div');
+            const range=selection.getRangeAt(0);
+            const listItems=new Set([...editor.querySelectorAll('li')].filter(item=>range.intersectsNode(item)));
+            // Mixed selections make queryCommandState report false. Unwrap
+            // selected list items explicitly, retaining unselected list runs.
+            for(const list of [...editor.querySelectorAll('ul,ol')].reverse()){
+              if(![...list.children].some(item=>listItems.has(item)))continue;
+              const fragment=document.createDocumentFragment();let retained=null;
+              for(const item of [...list.children]){
+                if(listItems.has(item)){
+                  const paragraph=el('div');paragraph.append(...item.childNodes);fragment.append(paragraph);retained=null;
+                }else{
+                  if(!retained){retained=list.cloneNode(false);fragment.append(retained);}retained.append(item);
+                }
+              }
+              list.replaceWith(fragment);
+            }
           } else document.execCommand(command, false, value);
           editor.saveSelection(); editor.dispatchEvent(new Event('input', {bubbles:true}));
         }
@@ -775,11 +790,16 @@
     editor.addEventListener('click', event => { selectedCell = event.target.closest('td,th'); tableControls.hidden = !selectedCell; });
     editor.addEventListener('keyup', () => { selectedCell = root.getSelection()?.anchorNode?.parentElement?.closest('td,th'); tableControls.hidden = !selectedCell || !editor.contains(selectedCell); });
     tableControls.hidden = true;
+    const insert=el('button','','Insert ▾');insert.type='button';insert.setAttribute('aria-label','Insert');insert.setAttribute('aria-haspopup','menu');
+    insert.onmousedown=event=>event.preventDefault();
+    tableControls.append(insert);
+    const insertActions=[];
     for (const [label, operation] of [['Row above', 'row-before'], ['Row below', 'row-after'], ['Column left', 'col-before'], ['Column right', 'col-after'], ['Delete row', 'delete-row'], ['Delete column', 'delete-col'], ['Delete table', 'delete-table']]) {
       const control = el('button', '', esc(label)); control.type = 'button'; control.title = label;
       control.onmousedown = event => event.preventDefault();
       control.onclick = () => {
         if (!selectedCell || !editor.contains(selectedCell)) return;
+        closePopover();
         const table = selectedCell.closest('table'), row = selectedCell.parentElement, column = selectedCell.cellIndex;
         if (operation === 'delete-table') table.remove();
         else if (operation === 'delete-row') row.remove();
@@ -798,8 +818,10 @@
         tableControls.hidden = true; selectedCell = null;
         editor.dispatchEvent(new Event('input', {bubbles:true}));
       };
-      tableControls.append(control);
+      if(operation.startsWith('row') || operation.startsWith('col'))insertActions.push(control);
+      else tableControls.append(control);
     }
+    insert.onclick=()=>{if(selectedCell && editor.contains(selectedCell))showPopover(insert,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of insertActions){action.setAttribute('role','menuitem');menu.append(action);}pop.append(menu);});};
     bar.append(tableControls);
     return bar;
   }
@@ -1031,7 +1053,7 @@
 .fm-ch-modal.fm-ch-table-modal{width:calc(100vw - 24px);max-width:none;height:calc(100dvh - 24px);max-height:none;display:flex;flex-direction:column}
 .fm-ch-table-modal .fm-ch-modal-body{flex:1;min-height:0;overflow:auto}.fm-ch-table-modal .fm-ch-rich-editor{max-height:none;min-height:100%;overflow:visible}
 .fm-ch-table-view table{border-collapse:collapse;min-width:100%;table-layout:fixed}.fm-ch-table-view td,.fm-ch-table-view th{border:1px solid var(--ch-border);padding:8px;min-width:80px;overflow-wrap:anywhere;vertical-align:top}
-.fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
+.fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border,#e4e7ec);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
 .fm-ch-rich-editor th,.fm-ch-msg-body th{background:var(--ch-hover);font-weight:700}
 .fm-ch-rich-editor blockquote,.fm-ch-msg-body blockquote{border-left:3px solid #98a2b3;margin:6px 0;padding:4px 12px;color:var(--ch-muted)}
 .fm-ch-rich-editor pre,.fm-ch-msg-body pre{padding:10px;background:#f2f4f7;border-radius:6px;white-space:pre-wrap}
@@ -6094,6 +6116,6 @@
     return title;
   }
 
-  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},mentionButton:mountMentionButton,renderBody};
+  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},mentionButton:mountMentionButton,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();

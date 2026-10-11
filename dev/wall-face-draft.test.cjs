@@ -2990,3 +2990,47 @@ test('selection action context exposes multiple wall lines without modifying sel
  f.editor.restoreSelection({lineSelection:[{id:'one',pair},{id:'two',pair:pair2}]});const before=JSON.stringify(f.editor.selectionSnapshot());
  const ctx=f.editor.actionContext();assert.equal(ctx.lines,2);assert.equal(ctx.canExtrude,true);assert.equal(ctx.transform,true);assert.equal(JSON.stringify(f.editor.selectionSnapshot()),before);
 });
+function planeLineFixture(points,options={}){
+ const f=fixture({globals:{...renderGlobals(),isFreeMove:true},...options});
+ f.editor.togglePlane({points:[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}]});planeSelection(f,points);f.editor.key({key:'n'});return f;
+}
+test('plane N accepts shared typed feet and places the preview with Enter',()=>{
+ const start={x:0,y:0,z:0},f=planeLineFixture([start]);f.listeners.pointermove(f.e(2,2));
+ const root={document:{getElementById:()=>null}};root.window=root;vm.runInNewContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_distance_input.js','utf8'),root);
+ assert.equal(root.ExteriorDistanceInput.key({key:'1',preventDefault(){},stopImmediatePropagation(){}},f.editor.distanceInput()),true);
+ assert.ok(Math.abs(f.editor.distanceInput().amount-.3048)<1e-9);assert.equal(f.history.length,0);
+ f.editor.key({key:'Enter'});const end=f.editor.pointSelection()[0];assert.ok(Math.abs(Math.hypot(end.x,end.z)-.3048)<1e-8);assert.ok(Math.abs(end.x-end.z)<1e-8);assert.equal(f.history.length,1);assert.equal(f.editor.distanceInput(),null);
+});
+test('typed plane length switches to the nearest raw-cursor anchor and keeps both connections',()=>{
+ const starts=[{x:0,y:0,z:0},{x:4,y:0,z:0}],markers=[],f=planeLineFixture(starts,{lengthMarker:(g,v,e)=>markers.push(e)});
+ f.listeners.pointermove(f.e(1,1));const owner=f.editor.distanceInput();owner.set(.3048);
+ f.editor.draw3D({add(){}},p=>p);let driven=markers.find(e=>e.selected&&Math.abs(e.length-.3048)<1e-8);assert.ok(driven);assert.equal(driven.a.x,0);
+ markers.length=0;f.listeners.pointermove(f.e(3,1));assert.equal(f.editor.distanceInput().token,owner.token);f.editor.draw3D({add(){}},p=>p);driven=markers.find(e=>e.selected&&Math.abs(e.length-.3048)<1e-8);assert.ok(driven);assert.equal(driven.a.x,4);
+ const preview={...driven.b};f.editor.planeDown(f.e(3,1));const end=f.editor.pointSelection()[0];assert.ok(Math.hypot(end.x-preview.x,end.y-preview.y,end.z-preview.z)<1e-8);assert.ok(Math.hypot(end.x,end.z)>3);assert.equal(f.history.length,1);
+ const edges=f.state.wallEdits.$loose.edges;
+ for(const start of starts)assert.ok(edges.some(pair=>pair.some(p=>Math.hypot(p.x-start.x,p.y-start.y,p.z-start.z)<1e-6)&&pair.some(p=>Math.hypot(p.x-end.x,p.y-end.y,p.z-end.z)<1e-6)));
+});
+test('plane N shows every live line length without requiring a typed distance',()=>{
+ const markers=[],f=planeLineFixture([{x:0,y:0,z:0},{x:4,y:0,z:0}],{lengthMarker:(g,v,e)=>markers.push(e)});f.listeners.pointermove(f.e(1,1));f.editor.draw3D({add(){}},p=>p);
+ assert.ok(markers.some(e=>Math.abs(e.length-Math.sqrt(2))<1e-8));assert.ok(markers.some(e=>Math.abs(e.length-Math.sqrt(10))<1e-8));
+ f.editor.key({key:'Escape'});assert.equal(f.history.length,0);assert.equal(f.editor.distanceInput(),null);f.editor.key({key:'n'});assert.notEqual(f.editor.distanceInput().token,null);assert.equal(f.editor.distanceInput().token.numeric,null);
+});
+test('typed plane radius overrides nearby snap points and remains finite at its anchor',()=>{
+ const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{isFreeMove:false}});f.listeners.pointermove(f.e(0,0));f.editor.distanceInput().set(.3048);f.editor.planeDown(f.e(0,0));const end=f.editor.pointSelection()[0];assert.ok(Number.isFinite(end.x)&&Number.isFinite(end.z));assert.ok(Math.abs(Math.hypot(end.x,end.z)-.3048)<1e-8);
+});
+
+test('typed plane length is a world distance on a tilted plane and connects three anchors',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y)=>({x,y,z:2+.3*x+.4*y}),face={id:'tilted',points:[p(0,0),p(4,0),p(4,4),p(0,4)]},starts=[p(0,0),p(4,0),p(4,4)],markers=[];
+ const f=fixture({state:{wallEdits:{$surfaces:[face]}},walls:[],selected:null,globals:{...renderGlobals(),isFreeMove:true},lengthMarker:(g,v,e)=>markers.push(e),projectPoint:(d,e)=>K.local(d.frame,p(e.clientX/100,e.clientY/100))});
+ f.editor.togglePlane(face);planeSelection(f,starts);f.editor.key({key:'n'});f.listeners.pointermove(f.e(3,3));f.editor.distanceInput().set(.6096);f.editor.draw3D({add(){}},p=>p);
+ const driver=markers.find(e=>e.selected);assert.ok(driver);assert.equal(driver.a.x,4);assert.equal(driver.a.y,4);assert.ok(Math.abs(driver.length-.6096)<1e-8);
+ f.editor.planeDown(f.e(3,3));const end=f.editor.pointSelection()[0];assert.ok(Math.abs(end.z-(2+.3*end.x+.4*end.y))<1e-8);assert.ok(Math.hypot(end.x-driver.b.x,end.y-driver.b.y,end.z-driver.b.z)<1e-8);assert.equal(f.history.length,1);assert.equal(f.state.wallEdits.$loose.edges.length,3);
+});
+test('clearing a typed plane length restores free aiming without committing',()=>{
+ const f=planeLineFixture([{x:0,y:0,z:0}]);f.listeners.pointermove(f.e(2,2));const root={document:{getElementById:()=>null}};root.window=root;vm.runInNewContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_distance_input.js','utf8'),root);
+ const key=k=>root.ExteriorDistanceInput.key({key:k,preventDefault(){},stopImmediatePropagation(){}},f.editor.distanceInput());key('1');key('Escape');assert.equal(f.editor.distanceInput().token.numeric,null);assert.equal(f.history.length,0);f.editor.key({key:'Enter'});const end=f.editor.pointSelection()[0];assert.equal(end.x,2);assert.equal(end.z,2);
+});
+
+test('plane N Enter commits the shown endpoint with native inherited pointer properties',()=>{
+ const f=planeLineFixture([{x:0,y:0,z:0}]),event=Object.create(f.e(2,2));f.listeners.pointermove(event);f.editor.distanceInput().set(.3048);f.editor.key({key:'Enter'});const end=f.editor.pointSelection()[0];assert.ok(Math.abs(Math.hypot(end.x,end.z)-.3048)<1e-8);assert.equal(f.history.length,1);
+});
