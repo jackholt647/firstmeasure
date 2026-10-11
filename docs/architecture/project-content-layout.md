@@ -64,6 +64,13 @@ Delete. A list named after its category shows as Default. Collapsing a list is
 local view state. Minimizing applies to a resource type column and leaves a
 header pill to restore it. The measured/order units switch is in the action
 header and applies to every list.
+A labor list's header carries one assignment control, left of Schedule and
+Delete, showing the assignee or Unassigned. It opens an app-owned popover, not
+native selects: assignable work resources with their kind, member count and
+default pay; project pay for an assigned list, with estimated hours beside it
+only when the resolved pay uses hours; and salary treatment only when the
+assignee's plan includes salary. Labor writers release the saving state before
+re-rendering, then rebuild the open popover.
 Deletion uses the domain archive writer; accepted document material sets cannot
 be deleted through that writer and remain available to minimize.
 

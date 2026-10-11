@@ -78,6 +78,7 @@
     expandedItemIds: new Set(),
     minimizedTypes: new Set(),
     dragItem: null,
+    laborMenu: null,
     leftSections: { lists: true, measurements: true, custom_fields: true, notes: true },
     noteVisibility: ['office', 'crew', 'sales'],
     pendingAudioNote: null,
@@ -612,7 +613,7 @@
       .sw-empty{font-size:12px;line-height:1.6;color:#667085}.sw-measure{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e0e8ed;padding:9px 0;font-size:12px}.sw-measure strong{white-space:nowrap}.sw-measure small{font-weight:400;color:#52647e}
       .sw-hover{display:none;position:absolute;left:0;right:0;top:calc(100% - 4px);z-index:15;padding:14px;border:1px solid #b4c8df;border-radius:8px;background:white;box-shadow:0 6px 20px #183a5d33;font-size:12px;line-height:1.5;color:#263349;pointer-events:none}.sw-hover>span,.sw-hover>strong{display:block;margin-bottom:5px}.sw-tile:hover .sw-hover,.sw-tile:focus-visible .sw-hover{display:block}
 
-      .sw-measure-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.sw-measure-heading h3{margin:0!important}.sw-measure-heading label{display:flex;align-items:center;gap:4px;font-size:10px;color:#667085;white-space:nowrap}.sw-measure-heading input{margin:0;accent-color:var(--primary,#34866d)}.sw-pitch-scroll{overflow-x:auto;scrollbar-width:thin}.sw-pitch-table{border-collapse:collapse;font-size:11px}.sw-pitch-table th{font-weight:400;text-align:right;padding:2px 4px;color:#52647e;white-space:nowrap}.sw-pitch-table th[scope=row]{position:sticky;left:0;text-align:left;padding-left:0;font-size:10px;font-weight:600;color:#667085;background:linear-gradient(90deg,#f6fbf8 80%,transparent)}.sw-pitch-table tr:first-child th{border-bottom:1px solid #dce9e2}.sw-pitch-table td{text-align:right;padding:2px 1px}.sw-pitch-table input{font:inherit;font-variant-numeric:tabular-nums;width:46px;text-align:right;padding:2px 4px;box-sizing:border-box;appearance:textfield;border:1px solid transparent;background:#fff8;border-radius:3px}.sw-pitch-table input::-webkit-inner-spin-button{-webkit-appearance:none}.sw-pitch-table input:hover{border-color:#cbd8d1}.sw-pitch-table input:focus{outline:2px solid var(--primary,#d93025)}.sw-home .sw-measure-group{margin:0 0 8px}.sw-home .sw-measure-group:last-child{margin-bottom:0}.sw-measure-group h4{font-size:10px;font-weight:600;margin:0 0 4px;color:#667085;letter-spacing:.02em}.sw-measurements{padding:8px 10px;border:1px solid #bddbcc;border-top:2px solid #34866d;border-radius:8px;background:linear-gradient(140deg,#fff,#edf8f4)}.sw-measurements+.sw-measurements{margin-top:8px}.sw-measure-grid{display:grid;grid-template-columns:repeat(var(--sw-measure-columns,2),minmax(0,1fr));gap:3px 12px}.sw-measure-field{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:#52647e;min-height:25px}.sw-measure-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sw-measure-field>span:last-child{display:flex;align-items:center;gap:4px;flex:none}.sw-measure-field.is-wide{grid-column:1/-1}.sw-measure-field input{width:var(--sw-value-width,36px);min-width:0;border:1px solid transparent;background:#fff8;border-radius:3px;padding:3px 4px;box-sizing:border-box;font:inherit;font-variant-numeric:tabular-nums;color:#243956;text-align:right;appearance:textfield}.sw-measure-field input::-webkit-inner-spin-button,.sw-measure-field input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.sw-measure-field input:hover{border-color:#cbd8d1}.sw-measure-field input:focus{outline:2px solid var(--primary,#d93025);background:#fff}.sw-measure-field input::placeholder{color:#98a2b3}.sw-measure-field small{white-space:nowrap;font-size:10px;min-width:12px}.sw-home section[aria-label="Measurements"]>h3{margin-bottom:8px}
+      .sw-measure-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.sw-measure-heading h3{margin:0!important}.sw-measure-heading label{display:flex;align-items:center;gap:4px;font-size:10px;color:#667085;white-space:nowrap}.sw-measure-heading input{margin:0;accent-color:var(--primary,#34866d)}.sw-pitch-scroll{overflow-x:auto;scrollbar-width:thin}.sw-pitch-table{width:100%;border-collapse:collapse;font-size:11px}.sw-pitch-table th{font-weight:400;text-align:right;padding:4px 6px;color:#52647e;white-space:nowrap}.sw-pitch-table th[scope=row]{position:sticky;left:0;text-align:left;padding-left:0;font-size:10px;font-weight:600;color:#667085;background:linear-gradient(90deg,#f6fbf8 80%,transparent)}.sw-pitch-table tr:first-child th{border-bottom:1px solid #dce9e2}.sw-pitch-table th[scope=row]{width:1%;padding-right:10px}.sw-pitch-table td{text-align:right;padding:4px 2px}.sw-pitch-table input{font:inherit;font-variant-numeric:tabular-nums;width:100%;min-width:42px;text-align:right;padding:2px 4px;box-sizing:border-box;appearance:textfield;border:1px solid transparent;background:#fff8;border-radius:3px}.sw-pitch-table input::-webkit-inner-spin-button{-webkit-appearance:none}.sw-pitch-table input:hover{border-color:#cbd8d1}.sw-pitch-table input:focus{outline:2px solid var(--primary,#d93025)}.sw-home .sw-measure-group{margin:0 0 8px}.sw-home .sw-measure-group:last-child{margin-bottom:0}.sw-measure-group h4{font-size:10px;font-weight:600;margin:0 0 4px;color:#667085;letter-spacing:.02em}.sw-measurements{padding:8px 10px;border:1px solid #bddbcc;border-top:2px solid #34866d;border-radius:8px;background:linear-gradient(140deg,#fff,#edf8f4)}.sw-measurements+.sw-measurements{margin-top:8px}.sw-measure-grid{display:grid;grid-template-columns:repeat(var(--sw-measure-columns,2),minmax(0,1fr));gap:3px 12px}.sw-measure-field{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:#52647e;min-height:25px}.sw-measure-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sw-measure-field>span:last-child{display:flex;align-items:center;gap:4px;flex:none}.sw-measure-field.is-wide{grid-column:1/-1}.sw-measure-field input{width:var(--sw-value-width,36px);min-width:0;border:1px solid transparent;background:#fff8;border-radius:3px;padding:3px 4px;box-sizing:border-box;font:inherit;font-variant-numeric:tabular-nums;color:#243956;text-align:right;appearance:textfield}.sw-measure-field input::-webkit-inner-spin-button,.sw-measure-field input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.sw-measure-field input:hover{border-color:#cbd8d1}.sw-measure-field input:focus{outline:2px solid var(--primary,#d93025);background:#fff}.sw-measure-field input::placeholder{color:#98a2b3}.sw-measure-field small{white-space:nowrap;font-size:10px;min-width:12px}.sw-home section[aria-label="Measurements"]>h3{margin-bottom:8px}
       .mt-workspace-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:0 0 auto}.mt-workspace-header button,.mt-list-head button{border:1px solid #d0d5dd;border-radius:6px;background:#fff;padding:6px 9px;font-size:11px;color:#475467;cursor:pointer}.mt-collapsed-pills{display:flex;flex-wrap:wrap;gap:6px;flex:1}.mt-collapsed-pills button{border-radius:20px;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}.mt-list-pane{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows .22s ease,opacity .22s ease;flex-shrink:0}.mt-list-pane.is-collapsing{grid-template-rows:0fr;opacity:0}.mt-list-pane-inner{min-height:0;overflow:hidden}.mt-list-head{display:flex;align-items:center;gap:5px;padding:8px 2px}.mt-list-head strong{flex:1;font-size:12px;overflow-wrap:anywhere}.mt-list-head button{padding:4px 6px}.mt-list-pane .mt-list-secondary{margin-bottom:8px}.mt-list-pane .mt-section{min-width:350px}.mt-list-add-item{margin:8px 0}.mt-resource-scroll>.mt-list-pane{min-width:0}@media(prefers-reduced-motion:reduce){.mt-list-pane{transition:none}}
       .sw-back{border:1px solid #cbd5e1;background:#fff;border-radius:7px;padding:8px 12px;cursor:pointer;margin-bottom:20px;color:#263349}.sw-detail h2{font-size:22px;line-height:1.3;margin:8px 0 16px;overflow-wrap:anywhere}.sw-detail header>small{color:#52739a}.sw-detail header p{font-size:12px;color:#667085}
       .sw-table-wrap{overflow:auto}.sw-detail table{border-collapse:collapse;width:100%;font-size:12px;background:#fff}.sw-detail th{text-align:left;color:#667085;background:#eff3f8;font-size:11px}.sw-detail td,.sw-detail th{padding:10px;border-bottom:1px solid #e4e9ef;vertical-align:top}.sw-detail td small,.sw-source-id{display:block;font-size:10px;color:#667085;margin-top:4px;overflow-wrap:anywhere}.sw-document-stage{width:100%;min-height:120px;overflow:hidden;background:white}.sw-list-tools{margin-top:24px;font-size:12px}.sw-list-tools>summary{cursor:pointer;padding:10px 0;color:#52647e}
@@ -722,12 +723,26 @@
       .mt-list-tools{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:3px 0 1px}
       .mt-resource-column .mt-list-tools .mt-list-secondary{flex:0 1 auto;flex-wrap:wrap;gap:4px;min-height:0;margin:0;padding:0;border:0;background:transparent}
       .mt-resource-column .mt-list-tools .mt-list-secondary button{display:inline-flex;align-items:center;gap:4px;height:22px;min-height:22px;padding:0 7px;border-color:#e4e7ec;border-radius:4px;font-size:10px;font-weight:600}
-      .mt-resource-column .mt-list-tools .mt-labor-controls{flex:1 1 100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:3px 4px}
-      .mt-resource-column .mt-labor-controls label{height:22px;gap:4px;padding-left:5px;border-color:#e4e7ec;border-radius:4px}
-      .mt-resource-column .mt-labor-controls label span{width:auto;font-size:9px;font-weight:500;text-transform:none}
-      .mt-resource-column .mt-labor-controls select,.mt-resource-column .mt-labor-controls input{height:20px;font-size:10px;font-weight:500}
-      .mt-resource-column .mt-labor-actions{grid-column:1/-1;grid-row:auto;flex-direction:row;flex-wrap:wrap}
-      .mt-resource-column .mt-labor-actions button{flex:none}
+      .mt-resource-column .mt-list-head button.mt-labor-assign{flex:0 1 auto;width:auto;min-width:0;max-width:55%;gap:4px;padding:0 5px;border:1px solid #d0d5dd;background:#fff;color:#344054;font-size:10px;font-weight:600}
+      .mt-resource-column .mt-list-head button.mt-labor-assign.is-empty{border-style:dashed;color:#667085;font-weight:500}
+      .mt-labor-assign span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-labor-assign i{font-size:7px;color:#98a2b3}
+      .mt-labor-portal{position:fixed;z-index:2147482601;box-sizing:border-box;width:300px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:8px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;box-shadow:0 16px 38px rgba(15,23,42,.2);color:#344054;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+      .mt-labor-menu-title{padding:6px 4px 4px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
+      .mt-labor-options{display:flex;flex-direction:column;gap:1px;max-height:220px;overflow:auto}
+      .mt-labor-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:#fff;text-align:left;color:inherit;cursor:pointer}
+      .mt-labor-option:hover{background:#f2f4f7}.mt-labor-option.active{background:rgba(var(--primary-rgb,217,48,37),.07)}
+      .mt-labor-option span{min-width:0}.mt-labor-option strong,.mt-labor-option small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mt-labor-option strong{font-size:12px;font-weight:600;color:#101828}.mt-labor-option small{margin-top:1px;font-size:10px;color:#667085}
+      .mt-labor-option i{color:var(--primary-readable,var(--primary,#d93025));font-size:10px}
+      .mt-labor-pay{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+      .mt-labor-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 4px}
+      .mt-labor-chips button{height:24px;padding:0 8px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#475467;font-size:10px;font-weight:500;cursor:pointer}
+      .mt-labor-chips button:hover{border-color:#98a2b3}
+      .mt-labor-chips button.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025));font-weight:600}
+      .mt-labor-hours{flex:none;display:flex;align-items:center;gap:4px;font-size:10px;color:#667085;white-space:nowrap}
+      .mt-labor-hours input{width:46px;height:24px;box-sizing:border-box;padding:0 5px;border:1px solid #d0d5dd;border-radius:6px;font:inherit;font-size:11px;text-align:right;color:#101828}
+      .mt-labor-regenerate{display:flex;align-items:center;gap:6px;width:100%;margin-top:8px;padding:7px 8px;border:0;border-top:1px solid #eaecf0;border-radius:0 0 6px 6px;background:#fff;color:#475467;font-size:11px;cursor:pointer}
+      .mt-labor-regenerate:hover{background:#f2f4f7}
       .mt-resource-column .mt-section-label{padding:4px 0 1px 11px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
       .mt-resource-column .mt-table,.mt-resource-column .mt-table tbody{display:block;width:100%}
       .mt-resource-column .mt-table colgroup,.mt-resource-column .mt-table thead{display:none}
@@ -2142,7 +2157,9 @@
     } finally {
       if (projectOperationIsCurrent(operation)) {
         state.saving = false;
+        render({ preserveScroll: true });
         renderLeft();
+        syncLaborMenu();
       }
     }
   }
@@ -2168,7 +2185,9 @@
     } finally {
       if (projectOperationIsCurrent(operation)) {
         state.saving = false;
+        render({ preserveScroll: true });
         renderLeft();
+        syncLaborMenu();
       }
     }
   }
@@ -2199,7 +2218,9 @@
     } finally {
       if (projectOperationIsCurrent(operation)) {
         state.saving = false;
+        render({ preserveScroll: true });
         renderLeft();
+        syncLaborMenu();
       }
     }
   }
@@ -3649,8 +3670,8 @@
           const sections=materialSectionDefinitions().filter(section=>(section.resource_type||'material')===type&&listRows.some(item=>lineSectionKey(item)===section.key));
           // A list named after its category is the default list; the column heading already carries that name and icon.
           const title=list.metadata?.placeholder_title||[category.name,terms.plural].some(label=>cleanText(label).toLowerCase()===cleanText(list.title).toLowerCase())?'':cleanText(list.title);
-          const tools=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:type==='labor'?renderLaborListControls(list):'';
-          const actions=list.metadata?.calculus_pending||type==='labor'?'':renderListActionControls(list,type,materialListOrdered(list));
+          const tools=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:'';
+          const actions=list.metadata?.calculus_pending?'':`${type==='labor'?renderLaborListControls(list):''}${renderListActionControls(list,type,materialListOrdered(list))}`;
           return `<article class="mt-list-pane${collapsed?' is-collapsed':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="Default" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${actions}<button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(title||'Default')}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; collapse to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
         }).join('')||'<div class="mt-empty">Empty List</div>'}</div>
         ${lists.length?'':`<button type="button" class="mt-resource-add" data-mt-add-section="${type==='material'?'accessories':type}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}
@@ -4866,28 +4887,112 @@
     return `<div class="mt-list-secondary">${schedule ? `<button type="button" data-mt-list-schedule="${escapeHtml(id)}" title="Schedule" aria-label="Schedule" ${state.schedulingListId ? 'disabled' : ''}><i class="fas fa-calendar-day"></i></button>` : ''}${type === 'material' ? `<button type="button" class="${ordered ? 'is-done' : ''}" data-mt-list-order="${escapeHtml(id)}" title="${ordered ? 'Ordered' : 'Order'}" aria-label="${ordered ? 'Ordered' : 'Order'}"><i class="fas ${ordered ? 'fa-circle-check' : 'fa-cart-shopping'}"></i></button>` : ''}</div>`;
   }
 
-  function renderLaborListControls(list){
-    const id = cleanText(list.id);
+  function laborPayLabel(mode){
+    return ({ hourly:'Hourly', piece_rate:'Piece rate', hybrid:'Hourly + piece', salary:'Salary', none:'No pay' })[mode] || 'No pay';
+  }
+
+  // One reading of a labor list's assignment and pay, shared by its header control and settings popover.
+  function laborSettings(list){
+    const id = cleanText(list?.id);
     const resourceId = cleanText(assignmentWorkResourceRef(list)?.id);
+    const resources = workResourcesForScopeList(list);
+    const resource = workResourceById(resourceId) || resources.find((entry) => cleanText(entry.id) === resourceId) || null;
     const mode = cleanText(list?.compensation?.mode || list?.compensation?.default_mode || 'crew_default');
-    const estimatedHours = Math.max(0, number(list?.compensation?.estimated_hours, 0));
+    const defaultMode = workResourceCompensationMode(resource);
+    const resolvedMode = mode === 'crew_default' ? cleanText(list?.compensation?.resolved_mode || defaultMode) : mode;
     const salaryMode = cleanText(list?.compensation?.salary_expense_mode || (list?.compensation?.include_salary_as_hourly ? 'hourly' : 'ignore')) || 'ignore';
-    const availableResources = workResourcesForScopeList(list);
-    const selectedResource = workResourceById(resourceId);
-    const resolvedMode = mode === 'crew_default'
-      ? cleanText(list?.compensation?.resolved_mode || workResourceCompensationMode(selectedResource))
-      : mode;
-    const usesHours = ['hourly', 'hybrid'].includes(resolvedMode) || (resolvedMode === 'salary' && salaryMode === 'hourly');
-    const canRegenerate = list?.metadata?.generated_from_scope === true && !!cleanText(list.scope_piece_id);
-    const regenerating = state.regeneratingLaborListId === id;
-    if (selectedResource && !availableResources.some((resource) => cleanText(resource.id) === resourceId)) availableResources.push(selectedResource);
-    return `<div class="mt-list-secondary mt-labor-controls">
-      <label title="${(globalThis.PlatformLanguage?.htmlText("materials","m_af5a4817bd5b60","Assigned work resource") ?? "Assigned work resource")}"><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_2f9d72baaebef0","Assigned") ?? "Assigned")}</span><select aria-label="${String(escapeHtml(workResourceLabel()))}" data-mt-labor-crew="${String(escapeHtml(id))}" ${String(state.saving ? 'disabled' : '')}><option value="">${(globalThis.PlatformLanguage?.htmlText("materials","m_8a993ed9b573b4","Unassigned") ?? "Unassigned")}</option>${String(availableResources.map((resource) => `<option value="${escapeHtml(resource.id)}" ${cleanText(resource.id) === resourceId ? 'selected' : ''}>${escapeHtml(resource.name || resource.label || resource.id)}</option>`).join(''))}</select></label>
-      <label title="${(globalThis.PlatformLanguage?.htmlText("materials","m_ea57418325cafc","Project pay") ?? "Project pay")}"><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_f4f42f8c853a8d","Pay") ?? "Pay")}</span><select aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_ea57418325cafc","Project pay") ?? "Project pay")}" data-mt-labor-pay="${String(escapeHtml(id))}" ${String(state.saving ? 'disabled' : '')}><option value="crew_default" ${String(mode === 'crew_default' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("materials","m_01fe62d31733b2","Resource default") ?? "Resource default")}</option><option value="hourly" ${String(mode === 'hourly' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("materials","m_6a122e6ae08ae2","Hourly") ?? "Hourly")}</option><option value="piece_rate" ${String(mode === 'piece_rate' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("materials","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</option><option value="hybrid" ${String(mode === 'hybrid' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("materials","m_2ba7610473702e","Hourly + piece") ?? "Hourly + piece")}</option><option value="none" ${String(mode === 'none' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("materials","m_15c0c3889ab7d1","No project pay") ?? "No project pay")}</option></select></label>
-      ${String(usesHours ? `<label title="${(globalThis.PlatformLanguage?.htmlText("materials","m_1cb199acd2ef5f","Estimated project hours per person") ?? "Estimated project hours per person")}"><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_5cb10fcf024aeb","Hours") ?? "Hours")}</span><input aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_32485d4a3101c8","Estimated hours per person") ?? "Estimated hours per person")}" data-mt-labor-hours="${escapeHtml(id)}" type="number" min="0" step="0.25" value="${escapeHtml(estimatedHours || '')}" placeholder="0" ${state.saving ? 'disabled' : ''}></label>` : '')}
-      <label title="${(globalThis.PlatformLanguage?.htmlText("materials","m_fc17203896ecce","How salary compensation should be represented in this project expense") ?? "How salary compensation should be represented in this project expense")}"><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_40c128013ab7d0","Salary") ?? "Salary")}</span><select aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d880e01e767290","Salary expense treatment") ?? "Salary expense treatment")}" data-mt-labor-salary="${String(escapeHtml(id))}" ${String(state.saving ? 'disabled' : '')}><option value="ignore" ${String(salaryMode === 'ignore' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("materials","m_b26fb21a853ebc","Ignore") ?? "Ignore")}</option><option value="hourly" ${String(salaryMode === 'hourly' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("materials","m_5b8c03e32d38d3","Convert to hourly") ?? "Convert to hourly")}</option></select></label>
-      ${String((resourceScheduleEnabled(list) || canRegenerate) ? `<span class="mt-labor-actions">${canRegenerate ? `<button type="button" data-mt-regenerate-labor="${escapeHtml(id)}" ${state.saving || regenerating ? 'disabled' : ''}><i class="fas ${regenerating ? 'fa-rotate mt-spin' : 'fa-arrows-rotate'}"></i> ${regenerating ? 'Regenerating' : 'Regenerate labor'}</button>` : ''}${resourceScheduleEnabled(list) ? `<button type="button" data-mt-list-schedule="${escapeHtml(id)}" ${state.schedulingListId ? 'disabled' : ''}><i class="fas fa-calendar-day"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_80ce49ac8b6049"," Schedule") ?? " Schedule")}</button>` : ''}</span>` : '')}
-    </div>`;
+    const plans = [resource?.compensation_plan, ...(Array.isArray(resource?.members) ? resource.members.map((member) => member?.compensation_plan) : [])].filter(Boolean);
+    const hasSalary = plans.some((plan) => plan.default_salary === true || ['salary', 'hybrid'].includes(cleanText(plan.type)));
+    return {
+      id, resourceId, resources, resource, mode, defaultMode, resolvedMode, salaryMode, hasSalary,
+      usesHours: !!resourceId && (['hourly', 'hybrid'].includes(resolvedMode) || (hasSalary && salaryMode === 'hourly')),
+      estimatedHours: Math.max(0, number(list?.compensation?.estimated_hours, 0)),
+      canRegenerate: list?.metadata?.generated_from_scope === true && !!cleanText(list?.scope_piece_id)
+    };
+  }
+
+  function renderLaborListControls(list){
+    const settings = laborSettings(list);
+    const name = cleanText(settings.resource?.name || assignmentWorkResourceRef(list)?.name);
+    return `<button type="button" class="mt-labor-assign${name ? '' : ' is-empty'}" data-mt-labor-menu="${escapeHtml(settings.id)}" aria-haspopup="dialog" aria-expanded="${state.laborMenu?.listId === settings.id ? 'true' : 'false'}" title="${escapeHtml(name ? `${name} · ${laborPayLabel(settings.resolvedMode)}` : 'Assign this work and set its pay')}"><span>${escapeHtml(name || 'Unassigned')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>`;
+  }
+
+  function renderLaborMenu(list){
+    const settings = laborSettings(list);
+    const chip = (attribute, value, label, active, hint = '') => `<button type="button" class="${active ? 'active' : ''}" ${attribute}="${escapeHtml(value)}" aria-pressed="${active}" ${hint ? `title="${escapeHtml(hint)}"` : ''}>${escapeHtml(label)}</button>`;
+    const option = (resource) => {
+      const id = cleanText(resource?.id);
+      const members = Array.isArray(resource?.members) ? resource.members.length : 0;
+      const detail = resource ? [workforceLabel(cleanText(resource.resource_kind) || 'resource_group'), members ? `${members} ${members === 1 ? 'member' : 'members'}` : '', `${laborPayLabel(workResourceCompensationMode(resource))} by default`].filter(Boolean).join(' · ') : 'No labor expense is estimated';
+      return `<button type="button" class="mt-labor-option${id === settings.resourceId ? ' active' : ''}" data-mt-labor-assign="${escapeHtml(id)}" role="menuitemradio" aria-checked="${id === settings.resourceId}"><span><strong>${escapeHtml(resource ? resource.name || resource.label || id : 'Unassigned')}</strong><small>${escapeHtml(detail)}</small></span>${id === settings.resourceId ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}</button>`;
+    };
+    return `
+      <div class="mt-labor-menu-title">Assigned to</div>
+      <div class="mt-labor-options" role="menu">${option(null)}${settings.resources.map(option).join('')}</div>
+      ${settings.resourceId ? `
+      <div class="mt-labor-menu-title">Project pay</div>
+      <div class="mt-labor-pay"><div class="mt-labor-chips">${chip('data-mt-labor-pay-mode', 'crew_default', `Default (${laborPayLabel(settings.defaultMode)})`, settings.mode === 'crew_default', `Use ${settings.resource?.name || 'the assignee'}'s own pay plan`)}${['hourly', 'piece_rate', 'hybrid', 'none'].map((mode) => chip('data-mt-labor-pay-mode', mode, laborPayLabel(mode), settings.mode === mode)).join('')}</div>${settings.usesHours ? `<label class="mt-labor-hours" title="Estimated project hours per person"><input type="number" min="0" step="0.25" value="${escapeHtml(settings.estimatedHours || '')}" placeholder="0" aria-label="Estimated hours per person" data-mt-labor-hours-input><span>hr each</span></label>` : ''}</div>
+      ${settings.hasSalary ? `<div class="mt-labor-menu-title">Salaried members</div><div class="mt-labor-chips">${chip('data-mt-labor-salary-mode', 'ignore', 'Leave out', settings.salaryMode !== 'hourly', 'Salary is not counted as a cost of this project')}${chip('data-mt-labor-salary-mode', 'hourly', 'Count as hourly', settings.salaryMode === 'hourly', 'Convert salary to an hourly cost for the estimated hours')}</div>` : ''}` : ''}
+      ${settings.canRegenerate ? `<button type="button" class="mt-labor-regenerate" data-mt-labor-regenerate><i class="fas fa-arrows-rotate" aria-hidden="true"></i> Regenerate labor from scope</button>` : ''}
+    `;
+  }
+
+  function laborMenuDismiss(event){
+    if (event.type === 'keydown' ? event.key === 'Escape' : !event.target?.closest?.('[data-mt-labor-portal],[data-mt-labor-menu]')) closeLaborMenu();
+  }
+
+  function closeLaborMenu(){
+    state.laborMenu = null;
+    document.querySelectorAll?.('[data-mt-labor-portal]')?.forEach((node) => node.remove());
+    document.removeEventListener?.('pointerdown', laborMenuDismiss, true);
+    document.removeEventListener?.('keydown', laborMenuDismiss, true);
+    materialRoot()?.querySelectorAll?.('[data-mt-labor-menu][aria-expanded="true"]')?.forEach((button) => button.setAttribute('aria-expanded', 'false'));
+  }
+
+  // Rebuilds the open popover from current state; called after every write because the grid re-renders under it.
+  function syncLaborMenu(){
+    const listId = state.laborMenu?.listId;
+    if (!listId) return;
+    const list = materialListById(listId);
+    const trigger = Array.from(materialRoot()?.querySelectorAll?.('[data-mt-labor-menu]') || []).find((button) => button.dataset.mtLaborMenu === listId);
+    document.querySelectorAll?.('[data-mt-labor-portal]')?.forEach((node) => node.remove());
+    if (!list || !trigger) { closeLaborMenu(); return; }
+    const portal = document.createElement('div');
+    portal.className = 'mt-labor-portal';
+    portal.dataset.mtLaborPortal = '';
+    portal.setAttribute('role', 'dialog');
+    portal.setAttribute('aria-label', 'Assignment and pay');
+    portal.innerHTML = renderLaborMenu(list);
+    colorPortalHost(state.panelRoot).appendChild(portal);
+    const rect = trigger.getBoundingClientRect();
+    const width = portal.offsetWidth || 300;
+    const height = portal.offsetHeight || 240;
+    portal.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))}px`;
+    portal.style.top = `${rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 4 : Math.max(8, rect.top - height - 4)}px`;
+    trigger.setAttribute('aria-expanded', 'true');
+    portal.querySelectorAll('[data-mt-labor-assign]').forEach((button) => {
+      button.addEventListener('click', () => { if (button.dataset.mtLaborAssign !== laborSettings(materialListById(listId)).resourceId) assignWorkResource(listId, button.dataset.mtLaborAssign); });
+    });
+    portal.querySelectorAll('[data-mt-labor-pay-mode]').forEach((button) => {
+      button.addEventListener('click', () => setLaborCompensationMode(listId, button.dataset.mtLaborPayMode));
+    });
+    portal.querySelectorAll('[data-mt-labor-salary-mode]').forEach((button) => {
+      button.addEventListener('click', () => setLaborExpenseSettings(listId, { salary_expense_mode: button.dataset.mtLaborSalaryMode === 'hourly' ? 'hourly' : 'ignore', include_salary_as_hourly: button.dataset.mtLaborSalaryMode === 'hourly' }));
+    });
+    portal.querySelector('[data-mt-labor-hours-input]')?.addEventListener('change', (event) => setLaborExpenseSettings(listId, { estimated_hours: Math.max(0, number(event.target.value, 0)) }));
+    portal.querySelector('[data-mt-labor-regenerate]')?.addEventListener('click', () => { closeLaborMenu(); regenerateLaborListFromScope(listId); });
+  }
+
+  function toggleLaborMenu(listId){
+    const open = state.laborMenu?.listId === listId;
+    closeLaborMenu();
+    if (open) return;
+    closeListMenu();
+    closeColorMenu();
+    state.laborMenu = { listId };
+    document.addEventListener('pointerdown', laborMenuDismiss, true);
+    document.addEventListener('keydown', laborMenuDismiss, true);
+    syncLaborMenu();
   }
 
   function scopeButton(value, label, icon){
@@ -5120,6 +5225,12 @@
         syncOrderDialog(true);
       });
     });
+    root.querySelectorAll('[data-mt-labor-menu]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleLaborMenu(button.dataset.mtLaborMenu);
+      });
+    });
     root.querySelectorAll('[data-mt-labor-crew]').forEach((select) => {
       select.addEventListener('click', (event) => event.stopPropagation());
       select.addEventListener('change', (event) => assignWorkResource(select.dataset.mtLaborCrew, event.target.value));
@@ -5231,7 +5342,7 @@
       state.resourceTypes = [];
       state.activeListId = '';
       state.activeList = null;
-      state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set();
+      state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set(); closeLaborMenu();
       state.orders = [];
       state.versions = [];
       state.deliveriesByOrderId = {};
@@ -5313,7 +5424,7 @@
     state.resourceTypes = [];
     state.activeListId = '';
     state.activeList = null;
-    state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set();
+    state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set(); closeLaborMenu();
     state.leftSections = { lists: true, measurements: true, custom_fields: true, notes: true };
     state.noteVisibility = ['office', 'crew', 'sales'];
     state.noteVisibilityOpen = false;

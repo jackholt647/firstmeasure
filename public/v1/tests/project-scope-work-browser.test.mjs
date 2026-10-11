@@ -227,3 +227,25 @@ test('dropping an item reorders its list or moves it beside the anchor in anothe
  ctx=make();await ctx.dropItem('2','a','c');assert.equal(ctx.calls.length,0);assert.deepEqual(ids(ctx,'a'),['1','2','3']);
  ctx=make();ctx.fail=true;await ctx.dropItem('3','a','a','1',false);assert.deepEqual(ids(ctx,'a'),['1','2','3']);assert.equal(ctx.state.saving,false);
 });
+
+test('labor pay writers re-render only after saving is released, so controls are not left disabled',async()=>{
+ for(const name of ['assignWorkResource','setLaborCompensationMode','setLaborExpenseSettings'])for(const fail of [false,true]){
+  const list={id:'labor',title:'Roof labor',compensation:{}},renders=[];
+  const ctx={state:{saving:false},cleanText:value=>String(value??''),materialListById:()=>list,captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,renderLeft(){},workResourceById:()=>null,assignmentWorkResourceRef:()=>null,workResourceCompensationMode:()=>'hourly',workResourceLabel:()=>'Team',patchScopeResourceList:async()=>{if(fail)throw Error('denied');return list;},loadExpenseProjection:async()=>{},render:()=>renders.push(ctx.state.saving),syncLaborMenu(){},showToast(){},syncScopeListCard(){}};
+  vm.createContext(ctx);vm.runInContext(fn(name),ctx);await ctx[name]('labor',name==='setLaborExpenseSettings'?{estimated_hours:8}:'hourly');
+  assert.equal(ctx.state.saving,false,name);assert.equal(renders.at(-1),false,name+' final render');
+ }
+});
+
+test('the labor popover shows pay only when assigned, hours only for hourly work and salary only for salaried assignees',()=>{
+ const crews=[{id:'hourly',name:'Crew A',resource_kind:'resource_group',members:[{},{}],compensation_plan:{type:'hourly'}},{id:'piece',name:'Sub B',resource_kind:'organization_connection',compensation_plan:{type:'piece_rate'}},{id:'salary',name:'Staff C',resource_kind:'resource_group',compensation_plan:{type:'salary'}}];
+ const ctx={state:{laborMenu:null},cleanText:value=>String(value??''),escapeHtml:value=>String(value??''),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,workResourcesForScopeList:()=>crews,workResourceById:id=>crews.find(crew=>crew.id===id)||null,workforceLabel:kind=>kind==='organization_connection'?'Partner':'Team',workResourceCompensationMode:resource=>resource?.compensation_plan?.type||'none'};
+ vm.createContext(ctx);for(const name of ['laborPayLabel','laborSettings','renderLaborListControls','renderLaborMenu'])vm.runInContext(fn(name),ctx);
+ const menu=list=>ctx.renderLaborMenu({id:'labor',...list});
+ let html=menu({});assert.match(html,/Crew A/);assert.match(html,/Team · 2 members · Hourly by default/);assert.match(html,/Partner · Piece rate by default/);assert.doesNotMatch(html,/data-mt-labor-pay-mode|data-mt-labor-hours-input|data-mt-labor-salary-mode/);assert.match(ctx.renderLaborListControls({id:'labor'}),/Unassigned/);
+ html=menu({assigned:'hourly'});assert.match(html,/Default \(Hourly\)/);assert.match(html,/data-mt-labor-hours-input/);assert.doesNotMatch(html,/data-mt-labor-salary-mode/);assert.match(ctx.renderLaborListControls({id:'labor',assigned:'hourly'}),/<span>Crew A<\/span>/);
+ html=menu({assigned:'piece'});assert.match(html,/Default \(Piece rate\)/);assert.doesNotMatch(html,/data-mt-labor-hours-input|data-mt-labor-salary-mode/);
+ html=menu({assigned:'piece',compensation:{mode:'hourly'}});assert.match(html,/data-mt-labor-hours-input/);
+ html=menu({assigned:'salary'});assert.match(html,/data-mt-labor-salary-mode="hourly"/);assert.doesNotMatch(html,/data-mt-labor-hours-input/);
+ html=menu({assigned:'salary',compensation:{salary_expense_mode:'hourly',estimated_hours:12}});assert.match(html,/data-mt-labor-hours-input/);assert.match(html,/value="12"/);
+});
