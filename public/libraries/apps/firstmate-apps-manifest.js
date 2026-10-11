@@ -41,7 +41,7 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
     versionedBundle('photos/feed.js', '20261010-feed-editor-layout-v21'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261010-feed-editor-layout-v21'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261011-table-selection-v22'),
     versionedBundle('../project-notes/project-notes.js', '20261002-overview-workflow-v1'),
     versionedBundle('../project-trays/project-trays.js', '20261003-activity-filters-v1')
   ];
@@ -109,7 +109,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
       access: managementAccess,
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('../channels-ui/channels-ui.js', '20261010-feed-editor-layout-v21'), versionedBundle('photos/feed.js', '20261010-feed-editor-layout-v21')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('../channels-ui/channels-ui.js', '20261011-table-selection-v22'), versionedBundle('photos/feed.js', '20261010-feed-editor-layout-v21')]
     },
     {
       id: 'portal.receipts',
@@ -549,7 +549,7 @@
         ...widgetBundles, bookingBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261010-feed-editor-layout-v21'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261010-feed-editor-layout-v21'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261011-table-selection-v22'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]
