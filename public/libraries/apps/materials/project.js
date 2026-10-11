@@ -3701,7 +3701,9 @@
     const variantName = cleanText(item.product_selection?.variant_name || item.pricebook_snapshot?.variant?.name);
     // Rows are one line; the hover summary carries whatever the pane is too narrow to show.
     const summary = [name, `${quantity || 0}${unit ? ` ${unit}` : ''}${Number.isFinite(unitPrice) ? ` × ${money(unitPrice)}` : ''}${Number.isFinite(lineTotal) ? ` = ${money(lineTotal)}` : ''}`, [variantName !== name ? variantName : '', secondary !== variantName ? secondary : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
-    const fit = (value, minimum) => `style="width:calc(${Math.max(minimum, String(value ?? '').length)}ch + 8px)" data-mt-fit="${minimum}"`;
+    const fit = (value, minimum) => `style="width:calc(${Math.max(minimum, String(value ?? '').length)}ch + 10px)" data-mt-fit="${minimum}"`;
+    // Whole dollars with separators; cents only survive on small fractional prices, where rounding would misstate them.
+    const priceText = Number.isFinite(unitPrice) ? unitPrice.toLocaleString('en-US', unitPrice < 100 && !Number.isInteger(unitPrice) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 }) : '';
     const orderTooltip = orderInfo ? `Measured: ${quantity} ${cleanText(item.unit || 'ea')}${orderInfo.covered_quantity !== quantity ? ` · ${orderInfo.order_quantity} ${orderInfo.order_unit} covers ${orderInfo.covered_quantity} ${cleanText(item.unit || 'ea')}` : ''}${orderInfo.packaging?.description ? ` · ${orderInfo.packaging.description}` : ''}` : '';
     return `
       <tr class="mt-list-row" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(summary)}">
@@ -3714,7 +3716,7 @@
         <td class="mt-c-unit"><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_unit)}</strong>${orderInfo.packaging?.description ? `<span>${escapeHtml(orderInfo.packaging.description)}</span>` : ''}</div></td>` : `
         <td class="mt-c-qty"><input class="mt-input mt-cell-input mt-number" aria-label="Quantity" placeholder="0" ${fit(quantity || '', 3)} data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' && !item.metadata?.calculus_line_id ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
         <td class="mt-c-unit"><input class="mt-input mt-cell-input" aria-label="Unit" placeholder="unit" ${fit(unit, 2)} data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
-        <td class="mt-c-price"><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0.00" ${fit(item.projected_unit_price ?? '', 4)} data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" type="number" min="0" step="0.01" value="${String(escapeHtml(item.projected_unit_price ?? ''))}" ${String(state.saving ? 'disabled' : '')}></td>
+        <td class="mt-c-price"><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0" ${fit(priceText, 6)} data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" data-mt-raw="${String(escapeHtml(item.projected_unit_price ?? ''))}" type="text" inputmode="decimal" value="${escapeHtml(priceText)}" ${String(state.saving ? 'disabled' : '')}></td>
         <td class="mt-c-total">${Number.isFinite(lineTotal) ? escapeHtml(money(lineTotal)) : ''}</td>
         <td class="mt-c-rm"><button type="button" class="mt-icon-btn" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-xmark"></i></button></td>
       </tr>
@@ -4461,9 +4463,13 @@
       });
     });
     root.querySelectorAll('[data-mt-fit]').forEach((input) => {
-      input.addEventListener('input', () => {
-        input.style.width = `calc(${Math.max(Number(input.dataset.mtFit), input.value.length)}ch + 8px)`;
-      });
+      const fit = () => { input.style.width = `calc(${Math.max(Number(input.dataset.mtFit), input.value.length)}ch + 10px)`; };
+      input.addEventListener('input', fit);
+      if (input.dataset.mtRaw == null) return;
+      // The price shows rounded with separators and is edited as the stored number.
+      const shown = input.value;
+      input.addEventListener('focus', () => { input.value = input.dataset.mtRaw; fit(); input.select(); });
+      input.addEventListener('blur', () => { if (input.value === input.dataset.mtRaw) { input.value = shown; fit(); } });
     });
     root.querySelectorAll('[data-mt-item-name],[data-mt-item-qty],[data-mt-item-unit],[data-mt-item-price]').forEach((input) => {
       input.addEventListener('change', () => {
@@ -4472,7 +4478,7 @@
         if (input.dataset.mtItemName) patch.name = input.value;
         if (input.dataset.mtItemQty) patch.quantity = input.value;
         if (input.dataset.mtItemUnit) patch.unit = input.value;
-        if (input.dataset.mtItemPrice) patch.projected_unit_price = input.value;
+        if (input.dataset.mtItemPrice) patch.projected_unit_price = input.value.replace(/[^0-9.]/g, '');
         updateItem(itemId, patch, input.dataset.mtListId);
       });
     });
