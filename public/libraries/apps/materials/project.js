@@ -75,6 +75,7 @@
     activeList: null,
     visibleListIds: new Set(),
     collapsedListIds: new Set(),
+    expandedItemIds: new Set(),
     minimizedTypes: new Set(),
     dragItem: null,
     leftSections: { lists: true, measurements: true, custom_fields: true, notes: true },
@@ -730,7 +731,7 @@
       .mt-resource-column .mt-section-label{padding:4px 0 1px 11px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
       .mt-resource-column .mt-table,.mt-resource-column .mt-table tbody{display:block;width:100%}
       .mt-resource-column .mt-table colgroup,.mt-resource-column .mt-table thead{display:none}
-      .mt-resource-column .mt-table tr.mt-list-row{box-sizing:border-box;display:flex;align-items:center;gap:2px;height:24px;border-bottom:1px solid #f0f2f5;background:none}
+      .mt-resource-column .mt-table tr.mt-list-row{box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:0 2px;min-height:24px;border-bottom:1px solid #f0f2f5;background:none}
       .mt-resource-column .mt-table tr.mt-list-row:hover,.mt-resource-column .mt-table tr.mt-list-row:focus-within{background:#f9fafb}
       .mt-resource-column .mt-table tr.mt-list-row.is-dragging{opacity:.4}
       .mt-resource-column .mt-table tr.mt-list-row.drop-before{box-shadow:inset 0 2px 0 var(--primary,#d93025)}
@@ -748,12 +749,12 @@
       .mt-resource-column input.mt-number::-webkit-inner-spin-button,.mt-resource-column input.mt-number::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
       .mt-resource-column .mt-c-qty .mt-cell-input,.mt-resource-column .mt-c-price .mt-cell-input{background:#f2f4f7}
       .mt-resource-column .mt-c-unit .mt-cell-input{padding:0 1px;color:#667085}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price{display:flex;align-items:center;gap:1px}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-price::before{content:'$';font-size:10px;color:#98a2b3}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta{flex:0 0 14px;overflow:hidden}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta:empty{display:none}
-      .mt-resource-column .mt-c-meta>span{display:none}
-      .mt-resource-column .mt-c-meta select{display:block;width:14px;min-width:0;max-width:100%;height:20px;min-height:20px;padding:0;border:0;border-radius:3px;background:transparent;color:#667085;font-size:10px;font-weight:500;text-overflow:ellipsis;cursor:pointer}
+      .mt-resource-column .mt-c-price{display:flex;align-items:center;gap:2px;font-size:10px;color:#667085}
+      .mt-resource-column .mt-c-price>span::after{content:' $';color:#98a2b3}
+      .mt-resource-column .mt-c-meta{display:flex;align-items:center;gap:5px;min-width:0;max-width:100%}
+      .mt-resource-column .mt-c-meta:empty{display:none}
+      .mt-resource-column .mt-c-meta>span{overflow:hidden;text-overflow:ellipsis;font-size:10px;color:#98a2b3}
+      .mt-resource-column .mt-c-meta select{display:block;width:auto;min-width:0;max-width:100%;height:20px;min-height:20px;padding:0;border:0;border-radius:3px;background:transparent;color:#667085;font-size:10px;font-weight:500;text-overflow:ellipsis;cursor:pointer}
       .mt-resource-column .mt-table tr.mt-list-row td.mt-c-color{display:flex}
       .mt-resource-column .mt-table tr.mt-list-row td.mt-c-color:has(>.mt-small){display:none}
       .mt-resource-column .mt-color-swatch{width:12px;height:12px;border-radius:3px}
@@ -761,20 +762,17 @@
       .mt-resource-column .mt-order-qty-cell strong{font-size:11px;font-weight:500}
       .mt-resource-column .mt-c-unit .mt-order-qty-cell strong{color:#667085}
       .mt-resource-column .mt-order-qty-cell span{display:none}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total{display:none;width:62px;overflow:hidden;text-align:right;text-overflow:ellipsis;font-variant-numeric:tabular-nums;color:#344054}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button{width:14px;min-width:14px;height:20px;min-height:20px;border:0;border-radius:3px;background:transparent;box-shadow:none;color:#c0c5cf;font-size:10px}
-      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button:hover:not(:disabled),.mt-resource-column .mt-table tr.mt-list-row td.mt-c-rm button:focus-visible{color:#d92d20;background:#fef3f2}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total{min-width:7ch;padding:0 1px 0 3px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:#101828}
+      .mt-expand{display:flex;align-items:center;justify-content:center;width:14px;height:20px;padding:0;border:0;border-radius:3px;background:transparent;color:#98a2b3;font-size:8px;cursor:pointer}
+      .mt-expand:hover,.mt-expand:focus-visible{background:#e4e7ec;color:#344054}
+      .mt-list-row.is-expanded .mt-expand i{transform:rotate(180deg)}
+      .mt-resource-column .mt-table tr.mt-list-row td.mt-c-detail{display:none;flex:0 0 100%;box-sizing:border-box;align-items:center;flex-wrap:wrap;gap:2px 8px;padding:0 2px 3px 11px}
+      .mt-resource-column .mt-table tr.mt-list-row.is-expanded td.mt-c-detail{display:flex}
+      .mt-row-remove{display:inline-flex;align-items:center;gap:4px;height:20px;margin-left:auto;padding:0 6px;border:0;border-radius:3px;background:transparent;color:#667085;font-size:10px;cursor:pointer}
+      .mt-row-remove:hover:not(:disabled),.mt-row-remove:focus-visible{color:#d92d20;background:#fef3f2}
       .mt-resource-column .mt-list-add-item{display:block;width:100%;margin:1px 0 0;padding:3px 4px 3px 11px;border:0;border-radius:4px;background:transparent;color:#667085;font-size:11px;text-align:left}
       .mt-resource-column .mt-list-add-item:hover:not(:disabled){background:#f2f4f7;color:var(--primary-readable,var(--primary,#d93025))}
       .mt-resource-column .mt-empty{padding:8px 2px;font-size:11px;font-weight:500}
-      @container resource-column (min-width:360px){
-        .mt-resource-column .mt-table tr.mt-list-row td.mt-c-meta{flex:0 1 auto;max-width:34%}
-        .mt-resource-column .mt-c-meta select{width:auto}
-        .mt-resource-column .mt-c-meta>span{display:block;overflow:hidden;text-overflow:ellipsis;font-size:10px;color:#98a2b3}
-      }
-      @container resource-column (min-width:480px){
-        .mt-resource-column .mt-table tr.mt-list-row td.mt-c-total{display:block}
-      }
       .mt-column-total{flex:none;padding:5px 9px;border-top:1px solid #e4e7ec;display:flex;justify-content:space-between;gap:5px;color:#475467;font-size:11px;background:#f9fafb}
       .mt-icon-dialog{border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054}.mt-icon-dialog::backdrop{background:rgba(15,23,42,.4)}
       .mt-project-notes{display:flex;flex-direction:column;gap:7px}.mt-note-compose{position:relative;display:flex;flex-direction:column;gap:6px}.mt-note-compose textarea{width:100%;min-height:68px;box-sizing:border-box;resize:vertical;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:8px;font:inherit;font-size:11px;line-height:1.4;color:#344054}.mt-note-compose-foot{display:flex;align-items:center;justify-content:space-between;gap:6px}.mt-note-visibility{width:28px;height:28px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#667085;cursor:pointer}.mt-note-save{border:0;border-radius:7px;background:#111827;color:#fff;height:28px;padding:0 9px;font-size:9px;font-weight:1000;cursor:pointer}.mt-note-visibility-pop{position:absolute;right:0;top:72px;z-index:2147483000;width:max-content;min-width:170px;min-height:34px;padding:5px;display:grid;grid-auto-rows:minmax(30px,auto);gap:2px;overflow:visible;border:1px solid rgba(15,23,42,.12);border-radius:9px;background:#fff;color:#344054;box-shadow:0 12px 32px rgba(15,23,42,.18)}.mt-note-visibility-pop[hidden]{display:none!important}.mt-note-visibility-pop button{width:100%;min-height:30px;border:0;border-radius:6px;background:#fff;padding:7px;display:flex;align-items:center;gap:7px;text-align:left;white-space:nowrap;font-size:10px;font-weight:900;color:#344054;cursor:pointer}.mt-note-visibility-pop button:hover{background:#f2f4f7}.mt-note-list{display:flex;flex-direction:column;gap:6px}.mt-note-card{border:1px solid rgba(15,23,42,.08);border-radius:8px;background:#fff;padding:7px;display:flex;flex-direction:column;gap:5px}.mt-note-card p{margin:0;white-space:pre-wrap;font-size:10px;line-height:1.4;color:#344054}.mt-note-meta{display:flex;align-items:center;justify-content:space-between;gap:5px;color:#667085;font-size:8px;font-weight:850}.mt-note-meta>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt-note-actions{display:flex}.mt-note-actions button{width:20px;height:20px;border:0;background:transparent;color:#98a2b3;padding:0;cursor:pointer}.mt-note-empty{padding:8px;text-align:center;color:#98a2b3;font-size:9px;font-weight:850}
@@ -3706,19 +3704,20 @@
     const priceText = Number.isFinite(unitPrice) ? unitPrice.toLocaleString('en-US', unitPrice < 100 && !Number.isInteger(unitPrice) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 }) : '';
     const orderTooltip = orderInfo ? `Measured: ${quantity} ${cleanText(item.unit || 'ea')}${orderInfo.covered_quantity !== quantity ? ` · ${orderInfo.order_quantity} ${orderInfo.order_unit} covers ${orderInfo.covered_quantity} ${cleanText(item.unit || 'ea')}` : ''}${orderInfo.packaging?.description ? ` · ${orderInfo.packaging.description}` : ''}` : '';
     return `
-      <tr class="mt-list-row" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(summary)}">
+      <tr class="mt-list-row${state.expandedItemIds?.has(cleanText(item.id)) ? ' is-expanded' : ''}" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(summary)}">
         <td class="mt-c-drag"><span class="mt-drag" role="button" tabindex="0" draggable="true" data-mt-list-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="Drag to reorder or move to another list. Click to choose a list." aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("materials","m_790adaaf81ef83",`Change list for ${v8}`,{v8}) ?? `Change list for ${v8}`)(escapeHtml(name))}" aria-expanded="${String(state.listMenu?.itemId === item.id ? 'true' : 'false')}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></span></td>
         <td class="mt-c-name"><input class="mt-input mt-cell-input mt-line-name" data-mt-item-name="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" value="${String(escapeHtml(name))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_7bd2b28790fb35","Item name") ?? "Item name")}" ${String(state.saving ? 'disabled' : '')}></td>
-        <td class="mt-c-meta">${labor ? `<select class="mt-input mt-cell-input" data-mt-item-pay-type="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d9b2666bd68237","Pay type") ?? "Pay type")}" ${state.saving ? 'disabled' : ''}><option value="piece_rate" ${payType === 'piece_rate' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</option><option value="hourly" ${payType === 'hourly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_6a122e6ae08ae2","Hourly") ?? "Hourly")}</option><option value="salary" ${payType === 'salary' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_40c128013ab7d0","Salary") ?? "Salary")}</option></select>` : meta}</td>
         ${String(material ? `<td class="mt-c-color">${renderColorControl(item)}</td>` : '')}
         ${String(orderInfo ? `
         <td class="mt-c-qty"><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_quantity)}</strong><span>${escapeHtml(`${quantity} ${cleanText(item.unit || 'ea')}`)}</span></div></td>
         <td class="mt-c-unit"><div class="mt-order-qty-cell" data-fm-tooltip="${escapeHtml(orderTooltip)}"><strong>${escapeHtml(orderInfo.order_unit)}</strong>${orderInfo.packaging?.description ? `<span>${escapeHtml(orderInfo.packaging.description)}</span>` : ''}</div></td>` : `
         <td class="mt-c-qty"><input class="mt-input mt-cell-input mt-number" aria-label="Quantity" placeholder="0" ${fit(quantity || '', 3)} data-mt-item-qty="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" type="number" min="0" step="${type === 'material' && !item.metadata?.calculus_line_id ? '1' : '0.01'}" value="${escapeHtml(quantity || '')}" ${state.saving ? 'disabled' : ''}></td>
         <td class="mt-c-unit"><input class="mt-input mt-cell-input" aria-label="Unit" placeholder="unit" ${fit(unit, 2)} data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
-        <td class="mt-c-price"><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0" ${fit(priceText, 6)} data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" data-mt-raw="${String(escapeHtml(item.projected_unit_price ?? ''))}" type="text" inputmode="decimal" value="${escapeHtml(priceText)}" ${String(state.saving ? 'disabled' : '')}></td>
-        <td class="mt-c-total">${Number.isFinite(lineTotal) ? escapeHtml(money(lineTotal)) : ''}</td>
-        <td class="mt-c-rm"><button type="button" class="mt-icon-btn" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-xmark"></i></button></td>
+        <td class="mt-c-total">${Number.isFinite(lineTotal) ? `$${Math.round(lineTotal).toLocaleString('en-US')}` : ''}</td>
+        <td class="mt-c-expand"><button type="button" class="mt-expand" data-mt-expand-item="${escapeHtml(item.id)}" aria-expanded="${state.expandedItemIds?.has(cleanText(item.id)) ? 'true' : 'false'}" title="${labor ? 'Rate' : 'Unit price'} and remove" aria-label="Show ${labor ? 'rate' : 'unit price'} and remove for ${escapeHtml(name)}"><i class="fas fa-chevron-down" aria-hidden="true"></i></button></td>
+        <td class="mt-c-detail"><span class="mt-c-meta">${labor ? `<select class="mt-input mt-cell-input" data-mt-item-pay-type="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d9b2666bd68237","Pay type") ?? "Pay type")}" ${state.saving ? 'disabled' : ''}><option value="piece_rate" ${payType === 'piece_rate' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</option><option value="hourly" ${payType === 'hourly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_6a122e6ae08ae2","Hourly") ?? "Hourly")}</option><option value="salary" ${payType === 'salary' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_40c128013ab7d0","Salary") ?? "Salary")}</option></select>` : meta}</span>
+          <label class="mt-c-price"><span>${labor ? 'Rate' : 'Unit price'}</span><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0" ${fit(priceText, 6)} data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" data-mt-raw="${String(escapeHtml(item.projected_unit_price ?? ''))}" type="text" inputmode="decimal" value="${escapeHtml(priceText)}" ${String(state.saving ? 'disabled' : '')}></label>
+          <button type="button" class="mt-row-remove" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-trash" aria-hidden="true"></i> Remove</button></td>
       </tr>
     `;
   }
@@ -4460,6 +4459,16 @@
         state.dragItem = null;
         clearDropMarkers();
         dropItem(drag.itemId, drag.listId, row.dataset.mtListId, row.dataset.mtItemRow, after);
+      });
+    });
+    root.querySelectorAll('[data-mt-expand-item]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const id = cleanText(button.dataset.mtExpandItem);
+        const open = !state.expandedItemIds.has(id);
+        if (open) state.expandedItemIds.add(id);
+        else state.expandedItemIds.delete(id);
+        button.closest('[data-mt-item-row]')?.classList.toggle('is-expanded', open);
+        button.setAttribute('aria-expanded', String(open));
       });
     });
     root.querySelectorAll('[data-mt-fit]').forEach((input) => {
@@ -5222,7 +5231,7 @@
       state.resourceTypes = [];
       state.activeListId = '';
       state.activeList = null;
-      state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.minimizedTypes = new Set();
+      state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set();
       state.orders = [];
       state.versions = [];
       state.deliveriesByOrderId = {};
@@ -5304,7 +5313,7 @@
     state.resourceTypes = [];
     state.activeListId = '';
     state.activeList = null;
-    state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.minimizedTypes = new Set();
+    state.visibleListIds = new Set(); state.collapsedListIds = new Set(); state.expandedItemIds = new Set(); state.minimizedTypes = new Set();
     state.leftSections = { lists: true, measurements: true, custom_fields: true, notes: true };
     state.noteVisibility = ['office', 'crew', 'sales'];
     state.noteVisibilityOpen = false;

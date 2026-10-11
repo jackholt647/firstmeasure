@@ -49,12 +49,13 @@ writer and immediately adds an editable row. Later additions reuse that list.
 The Price Book control lives in the Materials pane heading. Each actual list
 has its own header, ordering/scheduling/compensation controls and direct Add.
 Line items are single-line rows at every pane width: a thin drag handle, the
-name (truncated when the pane is narrow), an optional variant or pay-type
-selector that shrinks to its arrow under 360px, the color swatch, a quantity
-that sizes to its digits, the unit as plain text that becomes an input on
-focus, the unit price, and Remove. Panes of 480px or more add a read-only line
-total. The row's hover summary carries the full name, quantities and variant.
-Do not add second lines or stacked labelled fields to a row.
+name (truncated when the pane is narrow), the color swatch, a quantity that
+sizes to its digits, the unit as plain text that becomes an input on focus, the
+read-only line total in whole dollars, and an expander. Expanding a row shows
+its variant or pay type, the unit price (shown in whole dollars with
+separators, edited as the stored number) and Remove beneath it. The row's hover
+summary carries the full name, quantities, price and variant. Keep the
+collapsed row to one line; put further per-item fields in the expanded detail.
 Dragging the handle reorders an item or moves it to another list of the same
 resource type; clicking it offers the same move as a menu. Reordering writes
 the list's items as one version.
