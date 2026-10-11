@@ -11,3 +11,11 @@ List headers are one line without the repeated category icon: collapse, name, su
 Validation: `node --test tests/project-scope-work-browser.test.mjs` (11 passing), covering one-line rows with all controls inside the row at 233px and 500px+ columns, the hover summary, and the reorder, cross-list, cross-type and failed-write paths of the drop writer. Real drag and drop, the handle menu and input growth were exercised in headless Chrome against the rendered panes. The hosted modal was not inspected in a signed-in browser session.
 
 Development activation only: release `062ca96ff81278cfa8ebecfd1bbe026b22616d7e` over audited `5759f2eecff3fe9bd08c1b17ce05516bd84a489c` baselines on compatibility, web and pool, as immutable hardlink overlays of two owned files merged onto each role's live content. The worker serves no library files and stays on its baseline. Each role passed stage, activate and verify. Rollback: repoint `/opt/firstmeasure/current` to the retained baseline release on each role and restart its development service.
+
+## Follow-ups the same day
+
+Release `75eef23291bac8bf850b67ec4d861d085c2aa3b7` widened the unit price to six characters and showed it in whole dollars with separators (edited as the stored number on focus), after four-digit prices were clipped. A concurrent rollout from another checkout activated over it mid-verify; its release kept this content.
+
+Release `7cd0e1268caee2b35f6b70698d9fbfe76950cee2` then changed what a collapsed row shows: quantity, unit and the read-only line total in whole dollars at every pane width, with an expander. Expanding a row shows its variant or pay type, the unit price and Remove beneath it, so the inline price, the inline remove button and the arrow-only selectors are gone. The bundle version is `20261011-row-totals`.
+
+Validation: `node --test tests/project-scope-work-browser.test.mjs` (11 passing), including that price and Remove are hidden until a row is expanded and that the expanded detail stays inside a 233px pane. Activated on compatibility, web and pool over audited `b045f1906810b0395ba0c0cd98088938593a5ebb` baselines, staged in the standard release directories; each role passed stage, activate and verify. The hosted modal was not inspected in a signed-in browser session.
