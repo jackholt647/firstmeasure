@@ -14,8 +14,17 @@ width by default; Materials, Labor and Equipment occupy the remaining two thirds
 An app-owned draggable, keyboard accessible divider remembers the proportion
 locally. Mobile stacks the rail and resource content. There is no shared rail API.
 
-The rail has three compact icon tabs along its bottom: Measurements, Documents
-and Photos. Measurements is the default and is the 3D roof viewer with its key
+The rail has four compact icon tabs along its bottom: Measurements, Documents,
+Photos and Schedule. Schedule is the scheduling widget: the project's own
+schedule panel (`project-schedule/panel.js`) borrowed through `mountWidget` and
+handed back with `releaseWidget`. There is one schedule panel and one set of
+schedule state per window, so the widget and the Schedule tab are the same code
+and never show at once. The widget has no title and no Appointment action,
+offers Calendar and Timeline but not Routing, and uses a three-day short range
+that is its default. In both forms the top bar ends with Today and its arrows
+on the far right, with the views to their left, then view-specific controls,
+then Appointment; do not put a control that changes with the view to the right
+of one that does not. Measurements is the default and is the 3D roof viewer with its key
 (line types, pitches and summary); the rail has no separate list of every
 published measurement, and one must not be added back.
 Documents mirrors Photos with a document viewer in place of the image viewer:

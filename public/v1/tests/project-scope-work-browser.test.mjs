@@ -148,7 +148,7 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
     assert.ok(await page.getByText('No document selected',{exact:true}).isVisible());assert.ok(await page.getByText('No documents yet',{exact:true}).isVisible());const emptyViewer=await page.locator('.sw-doc-viewer').boundingBox(),emptyStrip=await page.locator('.sw-doc-strip').boundingBox();assert.ok(emptyViewer.height>emptyStrip.height*3&&emptyStrip.y>=emptyViewer.y+emptyViewer.height-1);
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1750}}));
     assert.deepEqual(await page.evaluate(()=>widgetMounts),['reports.roof','reports.roof','reports.roof']);
-    assert.equal(await page.getByRole('tab').count(),3);assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['Measurements','Documents','Photos']);
+    assert.equal(await page.getByRole('tab').count(),4);assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['Measurements','Documents','Photos','Schedule']);
     const widths=()=>page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width));
     let w=await widths();assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),3);
     await page.evaluate(()=>{state.lists=[{id:'m',title:'Materials',resource_type:'material'},{id:'l',title:'Labor',resource_type:'labor'}];state.visibleListIds=new Set(['m','l']);items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});

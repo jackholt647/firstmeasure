@@ -270,7 +270,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261012-suppliers'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'), versionedBundle('materials/project.js', '20261012-order-layout')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261012-suppliers'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'), versionedBundle('materials/project.js', '20261012-schedule-view')]
     },
     {
       id: 'project.money',
@@ -336,7 +336,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20261002-dropdown-polish-v1')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261012-schedule-widget')]
     },
     {
       id: 'project.comms',

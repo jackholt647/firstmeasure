@@ -514,6 +514,7 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   // shared transport. Other workflows still exercise their onboarding stages.
   if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
     await (await import('./roofing-documents.js')).seedInstantRoofingDocuments(String(organization.id), ctx);
+    await (await import('../materials/roofing-library.js')).seedInstantRoofingLibrary(String(organization.id), ctx);
     try {
       await completeDevelopmentOnboarding(ctx);
     } catch (error) {

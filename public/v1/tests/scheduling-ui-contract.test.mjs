@@ -215,9 +215,11 @@ test('scheduling calendars expose a routed four-day view between day and week', 
   assert.match(schedulingSource, /\['4day',window\.Portal\?\.terminology\?\.get\?\.\('scheduling\.four_day_view', '4 Day'\)/);
   assert.match(schedulingSource, /const dayCount = viewMode === '4day' \? 4 : 7;/);
   assert.match(schedulingSource, /viewMode === '4day' \? delta \* 4 : delta/);
-  assert.match(projectScheduleSource, /const calendarModes = \[\['day', terminology\('scheduling\.day_view', 'Day'\)\], \['4day', terminology\('scheduling\.four_day_view', '4 Day'\)\]/);
-  assert.match(projectScheduleSource, /shortRangeDayCount: mobileLayout \? 3 : 4/);
-  assert.match(projectScheduleSource, /scheduleViewMode === '4day' \? 4 : 1/);
+  // The widget form of the project schedule is thin, so its short range is three days.
+  assert.match(projectScheduleSource, /const calendarModes = \[\['day', terminology\('scheduling\.day_view', 'Day'\)\], \['4day', scheduleIsWidget\(\) \? '3 Day' : terminology\('scheduling\.four_day_view', '4 Day'\)\]/);
+  assert.match(projectScheduleSource, /const scheduleShortRangeDays = \(\) => \(scheduleIsWidget\(\) \? 3 : 4\);/);
+  assert.match(projectScheduleSource, /shortRangeDayCount: mobileLayout \? 3 : scheduleShortRangeDays\(\)/);
+  assert.match(projectScheduleSource, /scheduleViewMode === '4day' \? scheduleShortRangeDays\(\) : 1/);
   assert.match(appsManifestSource, /values:\['day','4day','week','month','appointment_schedule','gantt'\]/);
 });
 

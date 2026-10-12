@@ -152,6 +152,11 @@
       .r-schedule-panel.work-mode .r-schedule-calendar.work-calendar{container-type:inline-size}
       @container (max-width:980px){.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-time-grid,.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-all-day-grid{min-width:100%!important;grid-template-columns:56px repeat(var(--prs-days,7),minmax(0,1fr))}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head,.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-all-day-cell,.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-slot{min-width:0}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head-desktop{display:none}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head-mobile{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;line-height:1.05}.r-schedule-panel .prs-wrap:not(.mobile-layout) .prs-day-head-mobile strong{font-size:12px}}.r-schedule-panel .r-schedule-calendar input,.r-schedule-panel .r-schedule-calendar textarea{-webkit-user-select:text;user-select:text}
       .r-schedule-view-switch{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+      .r-schedule-new-appointment{height:38px;padding:0 12px;border:0;border-radius:12px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}.r-schedule-new-appointment:hover{filter:brightness(.95)}.r-schedule-new-appointment i{margin-right:4px;font-size:10px}
+      .r-schedule-panel.widget{height:100%;min-height:0;padding:0;gap:0;background:#fff}.r-schedule-panel.widget .r-schedule-head{flex-wrap:wrap;align-items:center;row-gap:6px;margin:0;padding:6px 8px;border-bottom:1px solid rgba(15,23,42,.08)}
+      .r-schedule-panel.widget .r-schedule-head>div:first-child{flex:1 1 auto;min-width:0}.r-schedule-panel.widget .r-schedule-range-label{margin:0;font-size:12px;font-weight:700;color:#344054;white-space:nowrap}
+      .r-schedule-panel.widget .r-schedule-view-switch{gap:4px}.r-schedule-panel.widget .r-schedule-view-group{padding:2px;border-radius:9px}.r-schedule-panel.widget .r-schedule-view-label{display:none}
+      .r-schedule-panel.widget .r-schedule-view-btn{padding:0 7px;height:26px;font-size:11px}.r-schedule-panel.widget .r-schedule-anchor-nav{min-width:24px;height:26px;padding:0 6px}
       .r-schedule-view-group{display:inline-flex;align-items:center;gap:3px;border:1px solid rgba(15,23,42,.10);background:#fff;border-radius:12px;padding:3px}
       .r-schedule-view-group.scheduling{border-color:rgba(var(--primary-rgb,217,48,37),.18);background:rgba(var(--primary-rgb,217,48,37),.04)}
       .r-schedule-view-group.surface{background:#f8fafc}
@@ -288,6 +293,52 @@
       style.textContent = css;
       document.head.appendChild(style);
     }
+  }
+
+  // The scheduling widget is this same panel moved into a narrow host (the Project tab's rail). There is one panel
+  // element and one set of schedule state, so the widget borrows the panel and hands it back when it is released.
+  let scheduleWidgetHost = null;
+  let scheduleWidgetSaved = null;
+  let scheduleWidgetViewChosen = false;
+  const scheduleIsWidget = () => !!scheduleWidgetHost;
+  // The short range between Day and Week: three days where space is thin, four otherwise.
+  const scheduleShortRangeDays = () => (scheduleIsWidget() ? 3 : 4);
+  const pushScheduleRoute = (...args) => { if (scheduleIsWidget()) scheduleWidgetViewChosen = true; else window.Portal?.navigation?.push?.(...args); };
+  function mountWidget(host, context = null){
+    if (!host) return api;
+    injectProjectScheduleCss();
+    if (context && !state.context) { state.context = context; state.host = hostFor(context); state.model = modelFromContext(context); }
+    if (scheduleWidgetHost !== host) {
+      releaseWidget();
+      const panel = document.getElementById('rSchedulePanel');
+      scheduleWidgetSaved = { panel, home: panel?.parentNode || null, panelRoot: state.panelRoot, viewMode: scheduleViewMode, mounted: state.mounted };
+      const node = panel || Object.assign(document.createElement('div'), { className: 'r-schedule-panel', id: 'rSchedulePanel' });
+      host.replaceChildren(node);
+      scheduleWidgetHost = host;
+      state.panelRoot = node;
+      state.mounted = true;
+      if (!scheduleWidgetViewChosen || scheduleIsSchedulingView()) scheduleViewMode = '4day';
+    }
+    state.active = true;
+    installHostGlobals();
+    renderSchedulePanel();
+    if (Date.now() - scheduleLastServerRefreshAt > 15000) refreshProjectFromServer({ render:true });
+    return api;
+  }
+  function releaseWidget(host = null){
+    if (!scheduleWidgetHost || (host && host !== scheduleWidgetHost)) return;
+    const saved = scheduleWidgetSaved, node = state.panelRoot;
+    closeWorkAssignmentMenu();
+    closeScheduleEventPopover();
+    scheduleWidgetHost = null;
+    scheduleWidgetSaved = null;
+    node?.classList?.remove('widget');
+    if (node) node.innerHTML = '';
+    if (saved?.panel && saved.home) saved.home.appendChild(node); else node?.remove?.();
+    state.panelRoot = saved?.panel ? saved.panelRoot : null;
+    state.mounted = !!saved?.mounted;
+    state.active = false;
+    if (saved && !['4day'].includes(saved.viewMode)) scheduleViewMode = scheduleViewMode === '4day' ? saved.viewMode : scheduleViewMode;
   }
 
   function resolveRoot(context = {}){
@@ -2814,7 +2865,7 @@
     if (scheduleViewMode === 'month') return anchor.toLocaleDateString([], { month:'long', year:'numeric' });
     if (scheduleViewMode === 'day' || scheduleViewMode === 'scheduling-day') return anchor.toLocaleDateString([], { weekday:'short', month:'short', day:'numeric', year:'numeric' });
     const start = scheduleViewMode === '4day' ? scheduleAddDays(anchor, 0) : scheduleStartOfWeek(anchor);
-    const end = scheduleAddDays(start, scheduleViewMode === '4day' ? 3 : 6);
+    const end = scheduleAddDays(start, scheduleViewMode === '4day' ? scheduleShortRangeDays() - 1 : 6);
     return `${start.toLocaleDateString([], short)} – ${end.toLocaleDateString([], { ...short, year:'numeric' })}`;
   }
 
@@ -2966,7 +3017,7 @@
 
   function scheduleViewSwitchHtml(){
     const terminology = (key, fallback) => window.Portal?.terminology?.get?.(key, fallback) || fallback;
-    const calendarModes = [['day', terminology('scheduling.day_view', 'Day')], ['4day', terminology('scheduling.four_day_view', '4 Day')], ['week', terminology('scheduling.week_view', 'Week')], ['month', terminology('scheduling.month_view', 'Month')]];
+    const calendarModes = [['day', terminology('scheduling.day_view', 'Day')], ['4day', scheduleIsWidget() ? '3 Day' : terminology('scheduling.four_day_view', '4 Day')], ['week', terminology('scheduling.week_view', 'Week')], ['month', terminology('scheduling.month_view', 'Month')]];
     const schedulingModes = [['scheduling-week', 'Daily'], ['scheduling-day', 'Hourly']];
     const isScheduling = scheduleIsSchedulingView();
     const isGantt = scheduleViewMode === 'gantt';
@@ -2978,11 +3029,11 @@
     const button = ([id, label]) => `<button type="button" class="r-schedule-view-btn ${scheduleViewMode === id || (id === 'scheduling-week' && scheduleViewMode === 'scheduling') ? 'active' : ''}" data-schedule-view="${id}">${escapeHtml(label)}</button>`;
     const modes = isScheduling ? schedulingModes : calendarModes;
     return `<div class="r-schedule-view-switch">
-      ${canEditSchedule()?'<button type="button" data-project-new-appointment style="background:#d93025;color:white;border:0;border-radius:7px;padding:10px 14px;font:inherit;font-weight:700;cursor:pointer">+ Appointment</button>':''}
-      <span class="r-schedule-view-group surface">${String(surfaceButton('calendar', escapeHtml(terminology('scheduling.calendar_view', 'Calendar'))))}${String(projectRoutingViewEnabled() ? surfaceButton('scheduling', escapeHtml(routingLabel)) : '')}${String(projectGanttViewEnabled() ? surfaceButton('gantt', escapeHtml(ganttLabel)) : '')}</span>
-      <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
+      ${canEditSchedule() && !scheduleIsWidget() ? '<button type="button" class="r-schedule-new-appointment" data-project-new-appointment><i class="fas fa-plus" aria-hidden="true"></i> Appointment</button>' : ''}
       ${String(isScheduling && !isGantt ? `<span class="r-schedule-view-group target"><span class="r-schedule-view-label">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}</span>${targetButton('production', escapeHtml(terminology('scheduling.production_view', 'Production')))}${targetButton('sales', escapeHtml(terminology('scheduling.sales_view', 'Sales')))}</span>` : '')}
       ${String(isGantt ? (!canEditSchedule() ? '' : `<span class="r-schedule-view-group"><button type="button" class="r-schedule-view-btn" data-gantt-add-group><i class="fas fa-layer-group"></i> Add section</button></span>`) : `<span class="r-schedule-view-group ${isScheduling ? 'scheduling' : ''}"><span class="r-schedule-view-label">${isScheduling ? escapeHtml(routingLabel) : 'Calendar'}</span>${modes.map(button).join('')}</span>`)}
+      <span class="r-schedule-view-group surface">${String(surfaceButton('calendar', escapeHtml(terminology('scheduling.calendar_view', 'Calendar'))))}${String(projectRoutingViewEnabled() && !scheduleIsWidget() ? surfaceButton('scheduling', escapeHtml(routingLabel)) : '')}${String(projectGanttViewEnabled() ? surfaceButton('gantt', escapeHtml(ganttLabel)) : '')}</span>
+      <span class="r-schedule-view-group navigation"><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_bb31fd73cbfe3b","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><button type="button" class="r-schedule-anchor-nav today" data-schedule-anchor-nav="0">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_23929ba4ba84dd","Today") ?? "Today")}</button><button type="button" class="r-schedule-anchor-nav" data-schedule-anchor-nav="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}" title="${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_5e03a7c216f500","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></span>
     </div>`;
   }
 
@@ -3013,7 +3064,7 @@
           ? new Date()
           : (scheduleViewMode === 'month'
             ? scheduleMonthShift(scheduleAnchorDate, delta)
-            : scheduleAddDays(scheduleAnchorDate, delta * (['week', 'scheduling-week', 'gantt'].includes(scheduleViewMode) ? 7 : (scheduleViewMode === '4day' ? 4 : 1))));
+            : scheduleAddDays(scheduleAnchorDate, delta * (['week', 'scheduling-week', 'gantt'].includes(scheduleViewMode) ? 7 : (scheduleViewMode === '4day' ? scheduleShortRangeDays() : 1))));
         setScheduleAnchorDate(next);
       });
     });
@@ -3032,7 +3083,7 @@
           scheduleSelectedEventId = '';
           scheduleAssignmentEventId = '';
         }
-        window.Portal?.navigation?.push?.({ projectScheduleTarget:scheduleSchedulingTarget, projectScheduleView:scheduleViewMode }, { source:'project-schedule-target', ownedKeys:['projectScheduleTarget','projectScheduleView'] });
+        pushScheduleRoute({ projectScheduleTarget:scheduleSchedulingTarget, projectScheduleView:scheduleViewMode }, { source:'project-schedule-target', ownedKeys:['projectScheduleTarget','projectScheduleView'] });
         renderSchedulePanel();
       });
     });
@@ -3061,7 +3112,7 @@
           workScheduleModeActive = false;
           activeWorkScheduleDraftId = '';
         }
-        window.Portal?.navigation?.push?.({ projectScheduleView:scheduleViewMode, projectScheduleTarget:scheduleSchedulingTarget }, { source:'project-schedule-surface', ownedKeys:['projectScheduleView'] });
+        pushScheduleRoute({ projectScheduleView:scheduleViewMode, projectScheduleTarget:scheduleSchedulingTarget }, { source:'project-schedule-surface', ownedKeys:['projectScheduleView'] });
         renderSchedulePanel();
       });
     });
@@ -3080,7 +3131,7 @@
           scheduleSelectedEventId = '';
           scheduleAssignmentEventId = '';
         }
-        window.Portal?.navigation?.push?.({ projectScheduleView:scheduleViewMode }, { source:'project-schedule-view', ownedKeys:['projectScheduleView'] });
+        pushScheduleRoute({ projectScheduleView:scheduleViewMode }, { source:'project-schedule-view', ownedKeys:['projectScheduleView'] });
         renderSchedulePanel();
       });
     });
@@ -3128,7 +3179,7 @@
     if (!Number.isFinite(next.getTime())) return;
     next.setHours(0, 0, 0, 0);
     scheduleAnchorDate = next;
-    if (syncRoute && !window.Portal?.navigation?.applying) {
+    if (syncRoute && !scheduleIsWidget() && !window.Portal?.navigation?.applying) {
       window.Portal?.navigation?.replace?.({ projectScheduleDate:scheduleLocalDate(next) }, { source:'project-schedule-date', ownedKeys:['projectScheduleDate'] });
     }
     renderSchedulePanel();
@@ -3173,7 +3224,7 @@
       showToolbar: false,
       readOnly: true,
       mobileLayout,
-      shortRangeDayCount: mobileLayout ? 3 : 4,
+      shortRangeDayCount: mobileLayout ? 3 : scheduleShortRangeDays(),
       touchHoldToPlace: mobileLayout,
       touchHoldDelayMs: 360,
       slotMinutes: Number(eventType.slot_minutes || config?.availability?.sales_appointment_slot_minutes || 30),
@@ -3966,7 +4017,7 @@
     const anchor = new Date(scheduleAnchorDate);
     if (scheduleViewMode === 'month') return date.getFullYear() === anchor.getFullYear() && date.getMonth() === anchor.getMonth();
     if (scheduleViewMode === 'day' || scheduleViewMode === 'scheduling-day') return scheduleLocalDate(date) === scheduleLocalDate(anchor);
-    const days = scheduleViewMode === '4day' ? 4 : 7;
+    const days = scheduleViewMode === '4day' ? scheduleShortRangeDays() : 7;
     const start = scheduleViewMode === '4day' ? scheduleAddDays(anchor, 0) : scheduleStartOfWeek(anchor);
     const end = scheduleAddDays(start, days);
     return date >= start && date < end;
@@ -4046,10 +4097,11 @@
 
   function setScheduleWorkspaceChrome(active){
     const overlay=state.context?.overlayRoot || state.context?.roots?.overlay || document.getElementById('rOverlay');
-    overlay?.classList.toggle('schedule-workspace',active);
+    overlay?.classList.toggle('schedule-workspace',active && !scheduleIsWidget());
   }
 
   function clearScheduleLeft(){
+    if (scheduleIsWidget()) return;
     const list = state.sidebarRoot?.querySelector?.('#psSidebarList');
     list?.querySelector?.('.r-schedule-left-shell')?.remove();
     const tab = String(state.host?.getActivePreviewTab?.() || state.context?.activeTab || '');
@@ -4996,7 +5048,7 @@
     showToast(renamed && !changes.length ? 'Section renamed' : 'Section updated', parts.join(' '), !failed);
   }
   function renderScheduleLeft(){
-    if(!state.sidebarRoot)return;
+    if(!state.sidebarRoot || scheduleIsWidget())return;
     state.sidebarRoot.replaceChildren();
     state.sidebarRoot.classList.remove('visible');
     state.sidebarRoot.style.display='none';
@@ -5215,7 +5267,7 @@
       showModeSwitch: false,
       showToolbar: false,
       mobileLayout,
-      shortRangeDayCount: mobileLayout ? 3 : 4,
+      shortRangeDayCount: mobileLayout ? 3 : scheduleShortRangeDays(),
       touchHoldToPlace: mobileLayout,
       touchHoldDelayMs: 360,
       date: scheduleAnchorDate,
@@ -5312,7 +5364,7 @@
     const Scheduling = window.PlatformScheduling;
     const anchor = new Date(scheduleAnchorDate);
     const rangeStart = mode === 'week' ? scheduleStartOfWeek(anchor) : scheduleAddDays(anchor, 0);
-    const rangeEnd = scheduleAddDays(rangeStart, mode === 'week' ? 7 : (mode === '4day' ? (window.matchMedia?.('(max-width:720px)').matches ? 3 : 4) : 1));
+    const rangeEnd = scheduleAddDays(rangeStart, mode === 'week' ? 7 : (mode === '4day' ? (window.matchMedia?.('(max-width:720px)').matches ? 3 : scheduleShortRangeDays()) : 1));
     const minutes = events.filter((event) => {
       const allDay = typeof Scheduling?.eventIsAllDay === 'function' ? Scheduling.eventIsAllDay(event) : event.all_day !== false && event.schedule_granularity !== 'time';
       if (allDay) return false;
@@ -5459,14 +5511,12 @@
     const isScheduling = scheduleIsSchedulingView();
     panel.classList.toggle('scheduling-mode', isScheduling);
     panel.classList.toggle('r-schedule-view-only', !canEditSchedule());
-    const sub = isScheduling
-      ? `Assign production by ${workResourceLabel()} and date.`
-      : (canEditSchedule() && scheduleViewMode !== 'gantt' ? 'Project calendar views show scheduled production and appointments. Click an empty day or time to add work.' : 'Project calendar views show scheduled production and appointments.');
+    const widget = scheduleIsWidget();
+    panel.classList.toggle('widget', widget);
     panel.innerHTML = `
       <div class="r-schedule-head">
         <div>
-          <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}${String(scheduleRangeLabel() ? `<span class="r-schedule-range-label">${escapeHtml(scheduleRangeLabel())}</span>` : '')}</h2>
-          <div class="r-schedule-sub" title="${escapeHtml(sub)}">${String(escapeHtml(sub))}</div>
+          ${widget ? `<span class="r-schedule-range-label">${escapeHtml(scheduleRangeLabel())}</span>` : `<h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}${String(scheduleRangeLabel() ? `<span class="r-schedule-range-label">${escapeHtml(scheduleRangeLabel())}</span>` : '')}</h2>`}
         </div>
         <div class="r-schedule-head-actions">${String(scheduleViewSwitchHtml())}</div>
       </div>
@@ -5591,12 +5641,12 @@
       ? (scheduleModeActive
           ? (existingEvent ? 'Move or assign this project appointment.' : 'Click a calendar slot to place a new sales appointment.')
           : 'Select an appointment to move it, or use New to add another sales appointment.')
-      : 'Project-only calendar views show events for this project.';
+      : '';
     panel.innerHTML = `
       <div class="r-schedule-head">
         <div>
           <h2 class="r-schedule-title">${(globalThis.PlatformLanguage?.htmlText("project-schedule","m_fc05a804bd034c","Schedule") ?? "Schedule")}${String(scheduleRangeLabel() ? `<span class="r-schedule-range-label">${escapeHtml(scheduleRangeLabel())}</span>` : '')}</h2>
-          <div class="r-schedule-sub" title="${escapeHtml(scheduleSub)}">${String(escapeHtml(scheduleSub))}</div>
+          ${scheduleSub ? `<div class="r-schedule-sub" title="${escapeHtml(scheduleSub)}">${String(escapeHtml(scheduleSub))}</div>` : ''}
         </div>
         <div class="r-schedule-head-actions">${String(scheduleViewSwitchHtml())}</div>
       </div>
@@ -7173,6 +7223,11 @@
 
   function mount(context = {}){
     injectProjectScheduleCss();
+    // While the widget has the panel, a background remount only refreshes context; activating the tab takes the panel back.
+    if (scheduleIsWidget()) {
+      if (!contextScheduleActive(context)) { state.context = context; state.host = hostFor(context); state.model = modelFromContext(context); return api; }
+      releaseWidget();
+    }
     state.context = context;
     state.host = hostFor(context);
     state.model = modelFromContext(context);
@@ -7211,6 +7266,7 @@
   }
 
   function deactivate(context = {}){
+    if (scheduleIsWidget()) return;
     if (context && Object.keys(context).length) {
       state.context = { ...(state.context || {}), ...context };
       state.host = hostFor(state.context);
@@ -7220,6 +7276,7 @@
   }
 
   function setActive(active){
+    if (scheduleIsWidget()) { if (!active) return; releaseWidget(); }
     state.active = !!active;
     setScheduleWorkspaceChrome(state.active);
     if (state.active) {
@@ -7233,6 +7290,8 @@
   }
 
   function reset(){
+    releaseWidget();
+    scheduleWidgetViewChosen = false;
     closeWorkAssignmentMenu();
     closeScheduleEventPopover();
     closeScheduleDialog();
@@ -7378,6 +7437,8 @@
 
   const api = {
     mount,
+    mountWidget,
+    releaseWidget,
     activate,
     deactivate,
     setActive,

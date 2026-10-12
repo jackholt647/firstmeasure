@@ -5,7 +5,7 @@
   let materialsAPI;
   let scopeWorkspace;
   let refreshTimer;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261012-documents-viewer', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261012-schedule-view', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005-quantities', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
@@ -1005,7 +1005,7 @@
       .mt-delivery-row{display:flex;align-items:center;gap:6px;height:24px;padding:0 2px 0 11px;border-bottom:1px solid #f0f2f5;font-size:11px;color:#475467}.mt-delivery-row i.fa-truck{font-size:10px;color:#98a2b3}.mt-delivery-row span{flex:1;min-width:0;font-style:italic}.mt-delivery-row strong{font-weight:600;font-variant-numeric:tabular-nums;color:#101828}.mt-delivery-row.off strong,.mt-delivery-row.off span{color:#98a2b3}
       .mt-delivery-row button{border:0;background:transparent;padding:0 2px;font-size:15px;color:var(--primary,#d93025);cursor:pointer}.mt-delivery-row.off button{color:#98a2b3}
       .mt-source-sub{display:flex;align-items:center;gap:6px;padding:2px 8px 6px 20px;font-size:11px;color:#475467;cursor:pointer}.mt-source-sub input{margin:0}
-      .mt-workspace-actions button.mt-order-all{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);font-weight:700}.mt-workspace-actions button.mt-order-all:hover:not(:disabled){background:var(--primary-dark,var(--primary,#d93025))}.mt-workspace-actions button.mt-order-all:disabled{opacity:.5;cursor:not-allowed}
+      .mt-workspace-actions button.mt-header-action{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);font-weight:700}.mt-workspace-actions button.mt-header-action:hover:not(:disabled){background:var(--primary-dark,var(--primary,#d93025))}.mt-workspace-actions button.mt-header-action:disabled{opacity:.5;cursor:not-allowed}
       .mt-workspace-actions button[data-mt-autofill-toggle][aria-pressed=true]{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
       .mt-resource-column .mt-list-head button[data-mt-open-pricebook][aria-pressed=true]{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
       .mt-autofill{position:fixed;z-index:2147482660;box-sizing:border-box;max-height:264px;overflow:auto;padding:4px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;box-shadow:0 14px 34px rgba(15,23,42,.18);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -5351,7 +5351,7 @@
       label.hidden = true;
     }
     disposeScopeWidgets();
-    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{widgetContext:scopeWidgetContext(),measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
+    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
     else target.textContent='Loading published scope data…';
     scopeWorkspace?.installDivider(state.sidebarRoot);
     timingMark('renderLeft:end', { active: state.active }, timingStart);

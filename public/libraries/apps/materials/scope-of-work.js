@@ -93,17 +93,17 @@ async function renderer() {
   })().catch(error=>{rendererReady=null;throw error;});
   await rendererReady;
 }
-const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-signature','Documents'],['aerial','fa-images','Photos']];
+const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-signature','Documents'],['aerial','fa-images','Photos'],['schedule','fa-calendar-days','Schedule']];
 export function mountSidebar(root,documents,error,contextKey,options={}) {
   let state=sidebars.get(root);
   if(!state || state.contextKey!==contextKey){
     disposeSidebar(root);
     state={contextKey,selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
-    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${VIEWS.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div><div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${VIEWS.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
-      tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();tabs[event.key==='Home'?0:event.key==='End'?2:(index+(event.key==='ArrowRight'?1:2))%3].click();}};
+      tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();tabs[event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length].click();}};
     });
     root.querySelectorAll('[data-scope-panel]').forEach(panel=>panel.setAttribute('role','tabpanel'));
     state.measurementViewers=new Set();
@@ -119,6 +119,10 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
       }else if(window.FirstMateWidgets)state.widgets[key]=window.FirstMateWidgets.mount(stage,{id:'reports.roof',version:'1',config:{}},{...options.widgetContext,getMeasurements:()=>Object.assign({},...(state.documents||[]).filter(d=>d.source==='measurement').map(d=>d.value?.measurements||{}),Object.fromEntries(Object.entries(state.options.measurementOverrides||{}).map(([key,value])=>[key,{value}]))),onMeasurementChange:(key,value)=>state.editMeasurement?.(key,value),subscribeMeasurements:listener=>{state.measurementViewers.add(listener);return ()=>state.measurementViewers.delete(listener);},read:options.widgetContext?.read||((source,target)=>window.PlatformAPI.publication.read(target.organizationId,{...source,target}))});
       else stage.textContent='The report viewer could not load.';
     }
+    // Schedule is the project's own schedule panel in its widget form. There is one panel, so it is borrowed while
+    // this view is showing and handed back when the view, the tab or the window goes away.
+    const scheduleStage=root.querySelector('[data-scope-panel="schedule"]');
+    state.widgets.schedule={setVisible(value){const app=window.Portal?.ProjectScheduleApp;if(!app?.mountWidget){if(value)scheduleStage.innerHTML='<div class="sw-doc-empty" role="status"><i class="fas fa-calendar-days" aria-hidden="true"></i><strong>Schedule unavailable</strong><span>The schedule could not load here.</span></div>';return;}if(value)app.mountWidget(scheduleStage,state.options?.scheduleContext||null);else app.releaseWidget(scheduleStage);},destroy(){window.Portal?.ProjectScheduleApp?.releaseWidget?.(scheduleStage);}};
     showViews(root,state);
   }
   state.options=options;
