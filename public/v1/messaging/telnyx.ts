@@ -92,7 +92,7 @@ export class TelnyxClient {
     const url = `${this.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${this.apiKey}`);
-    headers.set("Accept", "application/json");
+    headers.set("Accept", format === "pdf" ? "application/pdf" : "application/json");
     if (init.body != null && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
     }

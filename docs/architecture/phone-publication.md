@@ -197,7 +197,7 @@ claim unrelated pending events. Production's platform-worker path is unchanged.
 `reputation_onboarding` publishes business name, enrollment status and signing/disable
 timestamps. `reputation_remediation` publishes request status, numbers, purpose and
 per-number review outcomes. Both require communications management and exclude
-EIN, contact details, signatures, documents and carrier IDs. These are pure reads.
+EIN, contact details, signatures, documents and carrier account bindings. These are pure reads.
 Two added typed triggers, `phone.reputation.onboarding_updated` and
 `phone.reputation.remediation_updated`, use the existing atomic phone outbox.
 Their payloads contain status and changed-field names, never authorization content.
