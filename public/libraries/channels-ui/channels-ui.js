@@ -841,7 +841,7 @@
     }
     // Table operations share one compact menu instead of creating a second row.
     const tableActions=[...insertActions,...tableControls.querySelectorAll('button')].filter(action=>action!==insert);
-    const tableMenu=el('button','','Table options');tableMenu.type='button';tableMenu.title='Table options';tableMenu.setAttribute('aria-label','Table options');tableMenu.setAttribute('aria-haspopup','menu');
+    const tableMenu=el('button','','<i class="fas fa-table" aria-hidden="true"></i>');tableMenu.type='button';tableMenu.title='Table options';tableMenu.setAttribute('aria-label','Table options');tableMenu.setAttribute('aria-haspopup','menu');
     tableMenu.onmousedown=event=>{editor.saveSelection();event.preventDefault();};
     tableMenu.onclick=()=>showPopover(tableMenu,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of tableActions){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
     tableControls.replaceChildren(tableMenu);bar.append(tableControls);
@@ -1300,7 +1300,7 @@
     const originals=el('span');originals.hidden=true;originals.append(...actions);
     const button=el('button','fm-ch-icon-btn fm-ch-more-actions','<i class="fas fa-ellipsis" aria-hidden="true"></i>');button.type='button';button.title='More options';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','menu');
     button.onclick=()=>showPopover(button,pop=>{pop.style.minWidth='0';const menu=el('div','fm-ch-recording-menu');menu.setAttribute('role','menu');for(const action of actions){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
-    mount.append(originals,button);return button;
+    mount.append(originals);mount.insertBefore(button,mount.querySelector(':scope > button[type=submit]'));return button;
   }
 
   // --- popover / modal plumbing -------------------------------------------------

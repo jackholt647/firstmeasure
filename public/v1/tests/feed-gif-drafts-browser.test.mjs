@@ -40,6 +40,7 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   await post.getByRole('button',{name:'Comments',exact:true}).click();
   const choose=async trigger=>{await trigger.click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'Choose test GIF'}).click();};
   assert.ok(await post.locator('[data-comment-editor]').evaluate(n=>n.getBoundingClientRect().height<=28));assert.equal(await post.locator('.fm-ch-formatbar').evaluate(n=>getComputedStyle(n).borderBottomWidth),'0px');
+  assert.equal(await post.locator('.pf-comment-tools').evaluate(n=>{const more=n.querySelector('.fm-ch-more-actions').getBoundingClientRect(),send=n.querySelector('[type=submit]').getBoundingClientRect();return more.right<=send.left;}),true,'More stays with the tools before Send');
   await post.locator('[data-comment-editor]').fill('Caption');await choose(post.locator('[data-comment-gif]'));
   assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('[data-comment-editor]').evaluate(n=>n.value),'Caption');
   await post.getByRole('button',{name:'Remove GIF'}).click();assert.equal(await post.locator('.pf-composer-gif').count(),0);
