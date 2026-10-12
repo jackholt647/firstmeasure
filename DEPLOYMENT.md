@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 SMS registration: [Texting policies and review workflow](deploy/digitalocean/development-sms-policies-20261012.md) records the screenshot evidence changes, shorter review checklist, focused validation, and verified development rollout.
+
 October 11 SMS registration final review: [Simplified fields and submission verification](deploy/digitalocean/development-sms-final-review-20261011.md) records the copy cleanup, removed final checkbox, focused tests, and verified development rollout.
 
 October 9 project primary images: [Satellite default and selected covers](deploy/digitalocean/development-project-primary-20261009.md) records the unified primary-image displays and verified development rollout.
