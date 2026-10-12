@@ -265,3 +265,11 @@ test('support bounds do not relocate an existing below-base footprint to make it
  assert.equal(W.boundedTranslation(points,regions,{x:-.0254,y:0},{requireOrigin:true}),null);
  assert.ok(W.boundedTranslation(points,regions,{x:0,y:0}).y>0,'new placement can still find a fitting location');
 });
+
+test('world extrusion axes are viable, ordered and nonduplicated',()=>{
+ const face={points:[p(0,0,0),p(2,0,.4),p(2,1,.4),p(0,1,0)]};
+ assert.deepEqual(G.extrusionDirections(face).map(o=>o.label),['Face normal','World Z','World X']);
+ const horizontal={points:[p(0,0,0),p(2,0,0),p(2,1,0),p(0,1,0)]};assert.equal(G.extrusionDirections(horizontal).length,1);
+ assert.throws(()=>G.extrude(face,1,{direction:{x:0,y:1,z:0}}),/zero thickness/);
+ const result=G.extrude(face,2,{direction:{x:0,y:0,z:1}});assert.equal(result.cap.points[1].x,2);assert.equal(result.cap.points[1].z,2.4);assert.equal(result.sides.length,4);
+});
