@@ -1455,6 +1455,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   if (message.author_id !== ctx.userId) throw forbidden("not_message_author", "Only the author can edit a message.");
   if (message.deleted_at) throw badRequest("message_deleted", "Removed messages cannot be edited. Restore it first.");
 
+  if(input.audience_refs===undefined && Array.isArray(message.metadata.note_audience_refs) && message.metadata.note_audience_refs.length && (input.department_ids!==undefined || input.include_crew!==undefined))throw badRequest('note_audience_refresh','Refresh Notes before changing an advanced audience.');
   const audienceChanged=input.department_ids !== undefined || input.include_crew !== undefined || input.audience_refs !== undefined;
   const departmentVisibility=projectNoteDepartmentVisibility(ctx,channel.type,message.metadata.project_note === true && !message.parent_id,audienceChanged ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,audienceChanged ? input.include_crew ?? message.metadata.note_audience_crew === true : undefined,audienceChanged ? input.audience_refs ?? [] : undefined);
   const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
@@ -1490,6 +1491,7 @@ export async function updateMessageVisibility(ctx: PlatformAuthContext, messageI
   if(channel.type !== 'project' || message.metadata.project_note !== true || message.parent_id)throw badRequest('note_audience_only','Only project notes have this visibility control.');
   if(message.author_id !== ctx.userId)throw forbidden('not_message_author','Only the author can change note visibility.');
   if(message.deleted_at)throw badRequest('message_deleted','Unarchive the note before changing its visibility.');
+  if(input.audience_refs===undefined && Array.isArray(message.metadata.note_audience_refs) && message.metadata.note_audience_refs.length && (input.department_ids!==undefined || input.include_crew!==undefined))throw badRequest('note_audience_refresh','Refresh Notes before changing an advanced audience.');
   const changed=input.department_ids !== undefined || input.include_crew !== undefined || input.audience_refs !== undefined;
   const visibility=projectNoteDepartmentVisibility(ctx,channel.type,true,changed ? input.department_ids ?? asStringArray(message.metadata.department_ids) : undefined,changed ? input.include_crew ?? message.metadata.note_audience_crew === true : undefined,changed ? input.audience_refs ?? [] : undefined);
   const updated=await updateMessageVisibilityRecord(ctx.orgId,message.id,{audience:input.audience,departmentVisibility:visibility});
