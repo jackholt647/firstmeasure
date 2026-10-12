@@ -272,6 +272,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
   const described = { if: 'count(params.content_blocks) > 0' };
   const details = detailed ? [
     Object.assign(flowText([{ text: 'About this project' }], { style_ref: 'h2' }), { bind: described }),
+    Object.assign(flowSpacer(8), { bind: described }),
     Object.assign(contentBlocksRepeater('{{params.content_blocks}}'), { bind: described }),
     Object.assign(FMDocModel.createNode('page_break', { frame: { x: 0, y: 0, w: 0, h: 0, z: 0, layout: 'flow' } }) as JsonObject, { anchor: 'flow', bind: described })
   ] : [];
@@ -331,7 +332,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 13;
+export const INSTANT_ROOFING_PACK = 14;
 
 /** Roof measurements the proposals price from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [

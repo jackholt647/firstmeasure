@@ -3034,3 +3034,10 @@ test('clearing a typed plane length restores free aiming without committing',()=
 test('plane N Enter commits the shown endpoint with native inherited pointer properties',()=>{
  const f=planeLineFixture([{x:0,y:0,z:0}]),event=Object.create(f.e(2,2));f.listeners.pointermove(event);f.editor.distanceInput().set(.3048);f.editor.key({key:'Enter'});const end=f.editor.pointSelection()[0];assert.ok(Math.abs(Math.hypot(end.x,end.z)-.3048)<1e-8);assert.equal(f.history.length,1);
 });
+
+test('typed plane lengths still snap bearing and F disables the bearing without changing length',()=>{
+ for(const free of [false,true]){const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.listeners.pointermove(f.e(2,.04));f.editor.distanceInput().set(.3048);if(free){f.editor.key({key:'f'});f.listeners.pointermove(f.e(2,.04));}f.editor.planeDown(f.e(2,.04));const p=f.editor.pointSelection()[0];assert.ok(Math.abs(Math.hypot(p.x,p.z)-.3048)<1e-8);if(free)assert.ok(p.z>.001);else assert.ok(Math.abs(p.z)<1e-8);assert.equal(f.history.length,1);}
+});
+test('plane Q near the starting row keeps a four-sided preview and commits that rectangle',()=>{
+ const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.editor.key({key:'q'});f.listeners.pointermove(f.e(3,.1));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const preview=objects.filter(o=>o.material?.color==='#FFD700'&&o.geometry?.points?.length===2).flatMap(o=>o.geometry.points);assert.ok(preview.some(p=>p.z>.05),'preview has nonzero height');assert.ok(preview.some(p=>p.x>2.9));f.editor.planeDown(f.e(3,.1));f.editor.planeDown(f.e(3,.1));assert.equal(f.history.length,1,f.message());assert.ok(f.state.wallEdits.$loose.edges.some(pair=>pair.some(p=>p.z>.05)));
+});

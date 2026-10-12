@@ -979,23 +979,39 @@ function draftSnap(raw,nodes,edges,anchors,screen,radius=20,options={}){
  for(let i=0;i<near.length;i++)for(let j=i+1;j<near.length;j++){const a=near[i].g,b=near[j].g,u={x:a.p2.x-a.p1.x,y:a.p2.y-a.p1.y},v={x:b.p2.x-b.p1.x,y:b.p2.y-b.p1.y},den=u.x*v.y-u.y*v.x;if(Math.abs(den)<1e-8)continue;const t=((b.p1.x-a.p1.x)*v.y-(b.p1.y-a.p1.y)*v.x)/den,p={x:a.p1.x+t*u.x,y:a.p1.y+t*u.y,z:0},d=distance(p);if(d<radius)hits.push({point:p,guides:[a,b],d,kind:'Guide intersection'});}
  if(hits.length)return hits.sort((a,b)=>a.d-b.d)[0];const single=near.find(c=>c.d<radius);return single?{point:single.p,guides:[single.g],kind:'Guide'}:{point:raw,guides:[],kind:null};
 }
+// A locked radius still permits bearing snaps. Measure the angular correction
+// at the raw cursor's distance so small preset lengths do not capture every angle.
+function radialDraftSnap(raw,anchor,length,nodes,edges,screen,radius=20){
+ const dx=raw.x-anchor.x,dy=raw.y-anchor.y,aim=Math.hypot(dx,dy),at=u=>({x:anchor.x+u.x*length,y:anchor.y+u.y*length,z:0});
+ if(aim<1e-9)return {point:at({x:1,y:0}),guides:[],kind:null};
+ const direction={x:dx/aim,y:dy/aim},dirs=[];
+ for(let i=0;i<8;i++)dirs.push({x:Math.cos(i*Math.PI/4),y:Math.sin(i*Math.PI/4)});
+ for(const edge of edges){if(edge.curveId)continue;const [a,b]=edge,x=b.x-a.x,y=b.y-a.y,l=Math.hypot(x,y);if(l<1e-9)continue;for(let i=0;i<8;i++){const angle=i*Math.PI/4;dirs.push({x:(x*Math.cos(angle)-y*Math.sin(angle))/l,y:(x*Math.sin(angle)+y*Math.cos(angle))/l});}}
+ for(const p of nodes){const x=p.x-anchor.x,y=p.y-anchor.y,l=Math.hypot(x,y);if(l>1e-9)dirs.push({x:x/l,y:y/l});}
+ const cursor=screen(raw);let best=null;
+ for(const u of dirs){if(u.x*direction.x+u.y*direction.y<Math.cos(Math.PI/18))continue;const q=screen({x:anchor.x+u.x*aim,y:anchor.y+u.y*aim,z:0}),d=Math.hypot(q.x-cursor.x,q.y-cursor.y);if(d<radius&&(!best||d<best.d))best={u,d};}
+ const point=at(best?.u||direction);return {point,guides:best?[{p1:anchor,p2:point}]:[],kind:best?'Direction':null};
+}
 // Solve snaps through the quadrilateral construction, so fixed corners and the
 // rectangle/circle constraint stay intact while a derived corner finds a guide.
 function quadDraftSnap(raw,corners,nodes,edges,anchors,screen,radius=20,options={}){
+ const valid=p=>{const ps=corners(p);return ps.length===4&&ps.every((q,i)=>Number.isFinite(q.x)&&Number.isFinite(q.y)&&Math.hypot(q.x-ps[(i+1)%4].x,q.y-ps[(i+1)%4].y)>K.CONTACT)&&Math.abs(ps.reduce((sum,a,i)=>{const b=ps[(i+1)%ps.length];return sum+a.x*b.y-a.y*b.x;},0))>1e-8;};
  const initial=corners(raw),origin=screen(raw);let best=null;
  for(let i=0;i<initial.length;i++){
   const hit=draftSnap(initial[i],nodes,edges,anchors,screen,radius,options);if(!hit.kind)continue;
   const guides=hit.guides.length?hit.guides:[{p1:hit.point,p2:{x:hit.point.x+1,y:hit.point.y}},{p1:hit.point,p2:{x:hit.point.x,y:hit.point.y+1}}];
   const equations=guides.map(g=>{const dx=g.p2.x-g.p1.x,dy=g.p2.y-g.p1.y,len=Math.hypot(dx,dy);return p=>{const q=corners(p)[i];return ((q.x-g.p1.x)*dy-(q.y-g.p1.y)*dx)/len;};});
   let p={...raw},movable=false;for(let iteration=0;iteration<20;iteration++)for(const fn of equations){const f=fn(p),h=1e-5,gx=(fn({...p,x:p.x+h})-f)/h,gy=(fn({...p,y:p.y+h})-f)/h,l2=gx*gx+gy*gy;if(l2<1e-10)continue;movable=true;p.x-=f*gx/l2;p.y-=f*gy/l2;}
-  if(!movable||equations.some(fn=>Math.abs(fn(p))>1e-5))continue;const q=screen(p),distance=Math.hypot(q.x-origin.x,q.y-origin.y);
+  if(!movable||!valid(p)||equations.some(fn=>Math.abs(fn(p))>1e-5))continue;const q=screen(p),distance=Math.hypot(q.x-origin.x,q.y-origin.y);
   // Ignore alignments inherent in the rectangle itself; they must not mask a
   // nearby opposite-corner constraint that actually changes its construction.
   if(distance<1e-5||distance>radius||!Number.isFinite(distance))continue;
   const priority=['Point','Midpoint'].includes(hit.kind)?0:hit.kind==='Guide intersection'?1:2;
   if(!best||priority<best.priority||priority===best.priority&&distance<best.distance)best={point:p,guides,kind:'Quadrilateral '+hit.kind.toLowerCase(),distance,priority};
  }
- return best;
+ if(best)return best;
+ const fallback=draftSnap(raw,nodes,edges,anchors,screen,radius,options);
+ return valid(fallback.point)?fallback:{point:raw,guides:[],kind:null};
 }
 // Face visibility is independent of its retained boundary wire.
 const vertexKey=p=>[p.x,p.y,p.z].map(v=>Number(v).toFixed(6)).join(',');
@@ -1217,5 +1233,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,quadDraftSnap,normal,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

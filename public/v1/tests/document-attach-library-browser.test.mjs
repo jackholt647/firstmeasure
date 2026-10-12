@@ -46,7 +46,7 @@ test('the line item attach popover shows the media library inside itself and sav
   await page.locator('.fmdw-attach-pop.library .fm-widget button:not([disabled])',{hasText:/select/i}).last().click();
   await page.waitForSelector('.fmdw-attach-pop:not(.library) .fmdw-attach-thumb img');
   await page.click('[data-fmdw-attach-save]');
-  assert.deepEqual(await page.evaluate(()=>saved),[{media:[{media_id:'m1',variant:'display'}],video:null,display:'inline'}]);
+  assert.deepEqual(await page.evaluate(()=>saved),[{media:[{media_id:'m1'}],video:null,display:'inline'}]);
   assert.equal(await page.locator('.fmdw-attach-pop').count(),0);
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}

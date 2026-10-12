@@ -53,7 +53,7 @@ import {
  * "Roofing proposal intake". Presets upgrade by preset_revision, copying the
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
-export const DOCUMENT_PRESET_REVISION = 33;
+export const DOCUMENT_PRESET_REVISION = 34;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [
@@ -170,7 +170,8 @@ function orgLogoNode(frame: Frame) {
 // the browser default when the family is unavailable — the "terms page not
 // Montserrat" class of bug).
 const DISPLAY_FONT_STACK = '"Montserrat", "Trebuchet MS", "Helvetica Neue", Helvetica, Arial, sans-serif';
-const BODY_FONT_STACK = '"Inter", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif';
+// Body text is set in the company font too unless the organization chose another.
+const BODY_FONT_STACK = '"Montserrat", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif';
 
 function baseTokens(primaryFallback: string, accentFallback: string) {
   return {
@@ -436,7 +437,7 @@ export function mediaTextRowComponent(): JsonObject {
   return {
     media_text_row: {
       params: { block: { type: "object" } },
-      root: componentRow(mediaTextRowChildren(false), { gap: 16 }),
+      root: componentRow(mediaTextRowChildren(false), { gap: 20, align: "center" }),
       // deepMerge replaces arrays wholesale, so each variant carries its FULL
       // children set; media_left is the root layout (empty patch).
       variants: {
@@ -451,8 +452,8 @@ export function mediaTextRowComponent(): JsonObject {
 /** Named styles the content-blocks and adjustment rows reference. */
 export function contentBlockStyles(): JsonObject {
   return {
-    cb_title: { family: "var(--fm-display-font)", size_pt: 12, weight: 800, color: "var(--fm-text)" },
-    cb_body: { family: "var(--fm-body-font)", size_pt: 9.5, weight: 400, color: "var(--fm-color-muted)" },
+    cb_title: { family: "var(--fm-display-font)", size_pt: 12.5, weight: 800, color: "var(--fm-text)", space_after_pt: 5 },
+    cb_body: { family: "var(--fm-body-font)", size_pt: 10, weight: 400, color: "var(--fm-color-muted)", line_height: 1.5 },
     li_badge: { family: "var(--fm-body-font)", size_pt: 7.5, weight: 800, color: "#047857", transform: "uppercase" }
   };
 }
@@ -466,7 +467,7 @@ export function contentBlocksRepeater(source: string): JsonObject {
     source,
     component: "media_text_row",
     as: "block",
-    layout: { direction: "column", columns: 1, gap_pt: 16 },
+    layout: { direction: "column", columns: 1, gap_pt: 22 },
     variant_by_index: ["media_left", "media_right"],
     break_rules: { repeat_header: false, min_rows_per_segment: 1, keep_with_next: [] },
     empty_text: "No project details added yet."
