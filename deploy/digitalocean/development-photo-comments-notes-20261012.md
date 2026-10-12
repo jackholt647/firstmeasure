@@ -288,3 +288,20 @@ The patch was applied to each role's current immutable `e2bc4b4b-sms-multi-numbe
 | web | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` | `/opt/firstmeasure/releases/e2bc4b4b-sms-multi-number` |
 | pool | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` | `/opt/firstmeasure/releases/e2bc4b4b-sms-multi-number` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` | `/mnt/firstmeasure_dev_releases/releases/e2bc4b4b-sms-multi-number` |
+
+
+## Link addresses, icon overflow and Posts comment background
+
+October 12, 2026. Verified frontend source `174fc71b96773fe8807991b201ef0f98c5d83f43` accepts bare web addresses such as `hey.com`, adding HTTPS before insertion. Explicit HTTP/HTTPS, protocol-relative addresses, ports, paths, queries and fragments remain supported. Empty display text defaults to the entered address; explicit labels and link editing remain intact. Invalid addresses and unsupported protocols are rejected before any editor content changes. The address field uses text input with URL keyboard mode so bare addresses are not subject to native URL-input validity rules.
+
+Formatting overflow now shows the original toolbar icons in a compact icon menu with accessible labels and hover tooltips. Insert Table has the same shared SVG grid icon in the toolbar and overflow; the existing Table options icon and its structural menu remain intact. Selection and popup positioning are retained when a proxy icon opens the table-size picker or link dialog. Recording More options continues to show its existing audio/video/screen icons. The shared tooltip uses the browser's top layer and remains visible above native menus and modal dialogs; dismissal, moved/hidden anchors, stopped events and keyboard behavior are retained. Posts comment/reply composers now use a white background.
+
+All 15 browser checks passed locally and against the served development assets (`DEV_ASSETS=1`, `TOOLTIP_ASSET_ORIGIN=https://dev.1m8.ai`). They cover bare-address insertion with and without a display label, link editing, invalid-protocol rejection, port/protocol-relative normalization, exact overflow icon parity, hover tooltip visibility, tooltip lifecycle above native popovers and dialogs, table insertion/edit/removal, narrow composers and existing formatting, mention, reply, media and failed-send behavior. Screenshots of the icon menu with a visible tooltip and white Posts composer were reviewed. Changed JavaScript passed syntax checks, and all four public asset hashes and per-role payload hashes matched the verified release. Development readiness, enforced outbound safety and retained runtime `e2bc4b4395b2b8cb6b152ae571604acf9028d79b` were confirmed.
+
+The frontend was staged from each role's current immutable release. The compatibility role's tooltip file was an exact match for older source `735a0655`; its missing canonical tooltip lifecycle fix from `d6715469` was reviewed and patched along with this feature. No unrelated live changes were replaced. Activation reloaded PHP-FPM only; the backend runtime, workers, database and production were unchanged. Receipts are under ignored `output/composer-link-icons-deploy`.
+
+| Role | Activated frontend path | Rollback frontend path |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/174fc71b96773fe8807991b201ef0f98c5d83f43-composer-link-icons` | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` |
+| pool | `/opt/firstmeasure/releases/174fc71b96773fe8807991b201ef0f98c5d83f43-composer-link-icons` | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/174fc71b96773fe8807991b201ef0f98c5d83f43-composer-link-icons` | `/mnt/firstmeasure_dev_releases/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` |
