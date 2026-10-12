@@ -121,18 +121,19 @@ export async function processVoiceEvent(body:Json){
     const p=await participantForLeg(call.organization_id,call.id,await s.legByControl(controlId));
     if(p)await observeParticipant(call,p,await s.legByControl(controlId),type);
     if(type==='call.hangup'||type==='conference.participant.left'){
-      if(p)await updateParticipant(call.organization_id,call.id,p.id,{state:p.state==='connected'?'left':p.state==='connecting'?'failed':'no_answer',ended_at:at});
+      if(p)await updateParticipant(call.organization_id,call.id,p.id,{state:['connected','held','holding','resuming'].includes(text(p.state))?'left':p.state==='connecting'?'failed':'no_answer',ended_at:at});
       if(type==='conference.participant.left')await providerCommand(call,controlId,'hangup',{},`left-participant:${controlId}`);
+      if(call.metadata.host_left_at){const remaining=(await s.legs(call.organization_id,call.id)).filter(l=>l.state!=='ended'&&l.role!=='departed_host');if(remaining.length<2)await endCall(call,'CONFERENCE_FINISHED',at);}
       return;
     }
     if(['call.initiated','call.answered'].includes(type)&&(!p||!participantActive(p))){await providerCommand(call,controlId,'hangup',{},`removed-participant:${controlId}`);return;}
     if(type==='call.answered'&&p){
-      if(p.state!=='connected')await updateParticipant(call.organization_id,call.id,p.id,{state:'connecting',error:''});
+      if(!['connected','held','holding','resuming'].includes(text(p.state)))await updateParticipant(call.organization_id,call.id,p.id,{state:'connecting',error:''});
       await providerCommand(call,controlId,'conference_join',{},`join-participant:${controlId}`);return;
     }
     if(type==='conference.participant.joined'&&p){
       if(!participantActive(p))await providerCommand(call,controlId,'hangup',{},`removed-participant:${controlId}`);
-      else await updateParticipant(call.organization_id,call.id,p.id,{state:'connected',joined_at:p.joined_at||at,error:''});
+      else if(!['held','holding','resuming'].includes(text(p.state)))await updateParticipant(call.organization_id,call.id,p.id,{state:'connected',joined_at:p.joined_at||at,error:''});
       return;
     }
   }
@@ -169,6 +170,8 @@ export async function processVoiceEvent(body:Json){
     (await providerCommand(call,controlId,"record_start",{format:"mp3",channels:"single",play_beep:true,timeout_secs:5,max_length:180,transcription:(await voiceSettings(call.organization_id)).voicemail_transcription_enabled},"voicemail-record"));
   }
   if(type==="call.hangup"){
+    if(role==='departed_host')return;
+    if(call.metadata.host_left_at){const remaining=(await s.legs(call.organization_id,call.id)).filter(l=>l.state!=='ended'&&l.role!=='departed_host');if(remaining.length<2)await endCall(call,'CONFERENCE_FINISHED',at);return;}
     if(role==='forwarded'&&!call.connected_at){
       (await s.patchCall(call.organization_id,call.id,{state:'queued',metadata:{...call.metadata,force_voicemail:true}}));return;
     }
@@ -247,13 +250,19 @@ async function executeProvider(job:Json,payload:Json){
     const command=action.slice(11);const control=text(payload.control_id);
     const participant=await participantForLeg(orgId,callId,await s.legByControl(control));
     if(command==='join'&&participant&&!participantActive(participant))return {canceled:true};
+    if(payload.individual_hold&&(!participant||participant.state!==(command==='hold'?'holding':'resuming')))return {canceled:true};
+    if(payload.individual_customer&&call.metadata.customer_hold_state!==(command==='hold'?'holding':'resuming'))return {canceled:true};
     result=await voiceClient().conference(conferenceId,command,command==="join"?{call_control_id:control,beep_enabled:participant?'on_enter':'never',end_conference_on_exit:false,hold:!!participant&&call.state==='held',command_id:commandId}:{call_control_ids:[control],command_id:commandId});
     call=(await s.readCall(orgId,callId));
     const leg=(await s.legByControl(control));
     if(command==="join"&&leg?.role==="customer"){
       (await s.patchCall(orgId,callId,{state:"connected",connected_at:call.connected_at||s.now()}));(await s.appendEvent(orgId,callId,"communication.call.connected",{},`${callId}:connected`));
     }
-    if((command==="hold"||command==="unhold")&&leg?.role==='customer')(await s.patchCall(orgId,callId,{state:command==="hold"?"held":"connected"}));
+    if((command==="hold"||command==="unhold")&&leg?.role==='customer'){
+      if(payload.individual_customer)await s.patchCall(orgId,callId,{metadata:{...call.metadata,customer_hold_state:command==='hold'?'held':'connected'}});
+      else await s.patchCall(orgId,callId,{state:command==="hold"?"held":"connected"});
+    }
+    if(payload.individual_hold&&participant)await updateParticipant(orgId,callId,participant.id,{state:command==='hold'?'held':'connected',error:''});
     if(command==='join'&&participant){
       const current=await updateParticipant(orgId,callId,participant.id,{state:'connected',joined_at:participant.joined_at||s.now(),error:''});
       if(!participantActive(current)||s.terminal.has(call.state)||call.metadata.canceled_at)await providerCommand(call,control,'hangup',{},`canceled-participant-join:${commandId}`);
@@ -290,8 +299,10 @@ export async function processOneJob(workerId:string,lane:'all'|'voice'|'backgrou
     const retry=!ambiguous&&!(error instanceof PlatformError)&&job.kind!=="provider"&&job.attempts<8;
     (await s.finishJob(text(job.id),workerId,ambiguous?"uncertain":retry?"pending":"failed",{},job.kind==='provider'?(ambiguous?'Provider response is uncertain; reconcile before retrying.':error instanceof PlatformError?error.message:'Provider rejected this operation.'):error instanceof Error?error.message:"Call processing failed",Math.min(300_000,1000*2**job.attempts)));
     if(job.kind==="provider"&&callId){let call=(await s.readCall(orgId,callId));
+      if(payload.individual_customer){await s.patchCall(orgId,callId,{metadata:{...call.metadata,customer_hold_state:ambiguous?'uncertain':payload.path==='conference_hold'?'connected':'held'}});return true;}
       const participant=payload.participant_id?await s.resource(orgId,'conference_participant',text(payload.participant_id)):await participantForLeg(orgId,callId,await s.legByControl(text(payload.control_id)));
       if(participant){
+        if(payload.individual_hold){await updateParticipant(orgId,callId,participant.id,{state:ambiguous?'uncertain':payload.path==='conference_hold'?'connected':'held',error:ambiguous?'Hold status is unknown. Check call status before retrying.':'Could not change hold. Try again.'});return true;}
         await updateParticipant(orgId,callId,participant.id,{state:ambiguous?'uncertain':'failed',error:ambiguous?'Connection status is unknown. Check call status before trying again.':error instanceof PlatformError?error.message:'Could not connect this person.'});
         if(!ambiguous&&payload.control_id&&payload.path!=='hangup')await providerCommand(call,text(payload.control_id),'hangup',{},`failed-participant:${job.id}`);
         return true;

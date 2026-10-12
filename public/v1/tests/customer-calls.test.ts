@@ -108,6 +108,50 @@ test('teammate invitations reserve availability and allow only their own guest c
     assert.ok(!f.submissions.some(s=>s.path.includes(`${f.call.id}-host/actions/hangup`)));
   }finally{f.close();}
 });
+
+test('conference hosts can hold one person, reinvite removed guests, or leave the other people connected',async()=>{
+  const f=await conferenceFixture();try{
+    await assert.rejects(()=>f.action('leave_conference'),/two other connected/);
+    await f.action('add_participant',{target_phone:'+12065550102',target_name:'Guest'});await f.pump();
+    const control=f.submissions.find(s=>s.path==='/calls')!.body.command_id;
+    const leg=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant')!;
+    await f.event('call.answered',String(leg.control_id));await f.pump();
+    const p=(await f.detail()).participants[0];
+    assert.ok(f.submissions.some(s=>s.path.endsWith('/actions/join')&&s.body.beep_enabled==='on_enter'));
+    await f.action('hold_participant',{participant_id:'customer'});await f.pump();assert.equal((await f.detail()).call.metadata.customer_hold_state,'held');assert.equal((await f.detail()).call.state,'connected');
+    await f.action('resume_participant',{participant_id:'customer'});await f.pump();assert.equal((await f.detail()).call.metadata.customer_hold_state,'connected');
+    await f.action('hold_participant',{participant_id:p.id});await f.pump();
+    assert.equal((await f.detail()).participants[0].state,'held');assert.equal((await f.detail()).call.state,'connected');
+    await f.action('hold');await f.pump();await f.action('resume');await f.pump();
+    assert.equal((await f.detail()).participants[0].state,'held');
+    await f.action('resume_participant',{participant_id:p.id});await f.pump();assert.equal((await f.detail()).participants[0].state,'connected');
+    await f.action('remove_participant',{participant_id:p.id});await f.pump();await f.event('call.hangup',String(leg.control_id));
+    await f.action('add_participant',{target_phone:'+12065550102',target_name:'Guest'});await f.pump();
+    const replacement=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant'&&l.state!=='ended')!;
+    await f.event('call.answered',String(replacement.control_id));await f.pump();
+    await f.action('leave_conference',{},'host-leave-once');await f.action('leave_conference',{},'host-leave-once');await f.pump();
+    await f.event('call.hangup',`${f.call.id}-host`);assert.equal((await f.detail()).call.state,'connected');
+    assert.equal((await store.listCalls(f.orgId,{active:true,owner_user_id:f.call.owner_user_id})).calls.some(c=>c.id===f.call.id),false);
+    assert.ok(!f.submissions.some(s=>s.path.includes(`${f.call.id}-customer/actions/hangup`)));
+    await f.event('call.hangup',String(replacement.control_id));await f.pump();assert.equal((await f.detail()).call.state,'ended');
+  }finally{f.close();}
+});
+
+test('conference publications expose typed participants and enforce receipts, effects and tenant access',async()=>{
+  const f=await conferenceFixture();try{
+    const {backgroundAuthContext}=await import('../platform/auth.js'),{initializePublication}=await import('../platform/publication/bootstrap.js');initializePublication();
+    const {readPublishedData}=await import('../platform/publication/providers.js'),{invokeAction}=await import('../platform/publication/actions.js');
+    const auth=await backgroundAuthContext(f.orgId,f.call.owner_user_id),ctx={auth,organizationId:f.orgId,executionKind:'api',mode:'command'} as any,target={scope:'organization',organizationId:f.orgId,id:f.call.id} as any;
+    const ref={action:'customer-calls.conference.add',target},input={target_phone:'+12065550102',target_name:'Published guest'};
+    await assert.rejects(()=>invokeAction({...ctx,mode:'evaluate'},ref,input,{idempotencyKey:'published-add'}));
+    await invokeAction(ctx,ref,input,{idempotencyKey:'published-add'});await invokeAction(ctx,ref,input,{idempotencyKey:'published-add'});
+    assert.equal((await f.detail()).participants.length,1);
+    const result=await readPublishedData({...ctx,mode:'evaluate'},{provider:'customer-call-conference',export:'participants',target});assert.equal(result.status,'ready');if(result.status==='ready'){assert.equal((result.value as any).participants[0].name,'Published guest');assert.equal((result.value as any).participants[0].control_id,undefined);}
+    const other=await owner(),otherAuth=await backgroundAuthContext(other.orgId,(await other.c.request('POST',`/v1/comms/organizations/${other.orgId}/calls`,{operation_id:'publication-other-owner',customer_number:'+12065550106'})).call.owner_user_id);
+    const denied=await readPublishedData({...ctx,auth:otherAuth,organizationId:other.orgId},{provider:'customer-call-conference',export:'participants',target});assert.notEqual(denied.status,'ready');
+    await assert.rejects(()=>invokeAction({...ctx,auth:otherAuth,organizationId:other.orgId},ref,input,{idempotencyKey:'published-add'}));
+  }finally{f.close();}
+});
 test('canceled conference invitations never dial and late answers cannot rejoin',async()=>{
   const f=await conferenceFixture();try{
     await f.action('add_participant',{target_phone:'+12065550104'});const p=(await f.detail()).participants[0];

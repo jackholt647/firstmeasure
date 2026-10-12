@@ -4,7 +4,7 @@ import * as s from './storage.js';
 import { object, text, type CustomerCall, type Json } from './storage.js';
 
 export const conferenceLimit = 6;
-export const participantActive = (p: Json) => ['ringing','connecting','connected','uncertain','leaving'].includes(text(p.state));
+export const participantActive = (p: Json) => ['ringing','connecting','connected','held','holding','resuming','uncertain','leaving'].includes(text(p.state));
 export async function participants(orgId: string, callId: string) {
   const rows=await s.database().prepare("SELECT id FROM customer_voice_resources WHERE organization_id=? AND kind='conference_participant' AND json_extract(data_json,'$.call_id')=?", "SELECT id FROM customer_voice_resources WHERE organization_id=? AND kind='conference_participant' AND data_json::jsonb->>'call_id'=?").all(orgId,callId);
   return Promise.all(rows.map(async row => (await s.resource(orgId,'conference_participant',text(object(row).id)))!));
@@ -95,6 +95,38 @@ export async function removeParticipant(call: CustomerCall, id: string, operatio
 }
 export async function finishParticipants(call: CustomerCall) {
   for (const p of await participants(call.organization_id,call.id)) if (participantActive(p)) await updateParticipant(call.organization_id,call.id,p.id,{state:'left',ended_at:s.now()});
+}
+export async function holdParticipant(call: CustomerCall, id: string, hold: boolean, operationId: string) {
+  if(id==='customer'){
+    if(call.state!=='connected'||!text(call.metadata.conference_id)||!(await participants(call.organization_id,call.id)).some(p=>['connected','held'].includes(text(p.state))))throw conflict('conference_not_ready','Connect at least one other person before using individual hold.');
+    const current=text(call.metadata.customer_hold_state)||'connected';if(current!==(hold?'connected':'held'))throw conflict('participant_hold_not_ready','Wait for the current hold operation to finish.');
+    const leg=(await s.legs(call.organization_id,call.id)).find(l=>l.role==='customer'&&l.state!=='ended');if(!leg?.control_id)throw conflict('participant_leg_missing','This person is no longer connected.');
+    await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,customer_hold_state:hold?'holding':'resuming'}});
+    await s.enqueue(call.organization_id,call.id,'provider',{path:hold?'conference_hold':'conference_unhold',control_id:leg.control_id,payload:{},individual_customer:true},`${operationId}:customer-hold`);return;
+  }
+  const p=(await participants(call.organization_id,call.id)).find(p=>p.id===id);
+  if(!p)throw notFound('participant_not_found','This participant is unavailable.');
+  if(!['connected','held'].includes(call.state)||!text(call.metadata.conference_id))throw conflict('conference_not_ready','Connect the call first.');
+  if(call.state==='held')throw conflict('conference_on_hold','Resume the conference before changing an individual hold.');
+  if(p.state!==(hold?'connected':'held'))throw conflict('participant_hold_not_ready','Wait for this person to connect or their current operation to finish.');
+  const leg=(await s.legs(call.organization_id,call.id)).find(l=>l.state!=='ended'&&object(l.data).participant_id===id);
+  if(!leg?.control_id)throw conflict('participant_leg_missing','This person is no longer connected.');
+  await updateParticipant(call.organization_id,call.id,id,{state:hold?'holding':'resuming',error:''});
+  await s.enqueue(call.organization_id,call.id,'provider',{path:hold?'conference_hold':'conference_unhold',control_id:leg.control_id,payload:{},individual_hold:true,participant_id:id},`${operationId}:hold`);
+}
+export async function leaveHostedConference(call: CustomerCall, actorId: string, operationId: string) {
+  if(actorId!==call.owner_user_id)throw conflict('conference_host_required','Only the call host can leave this conference running.');
+  if(call.metadata.host_left_at)return call;
+  if(call.state!=='connected'||!text(call.metadata.conference_id)||['dialing','consulting'].includes(text(object(call.metadata.transfer).state)))throw conflict('conference_not_ready','Resume the call and finish any transfer before leaving.');
+  const legs=await s.legs(call.organization_id,call.id),agent=legs.find(l=>l.role==='agent'&&l.state!=='ended');
+  const guests=(await participants(call.organization_id,call.id)).filter(p=>p.state==='connected');
+  if(!agent||!guests.length||text(call.metadata.customer_hold_state)&&call.metadata.customer_hold_state!=='connected'||!legs.some(l=>l.role==='customer'&&l.state!=='ended'))throw conflict('conference_people_required','At least two other connected people are needed to leave the conference running. Resume held people before leaving.');
+  const updated=await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,host_left_at:s.now(),host_left_user_id:actorId}});
+  await s.database().prepare("UPDATE customer_call_legs SET role='departed_host' WHERE organization_id=? AND call_id=? AND id=?").run(call.organization_id,call.id,text(agent.id));
+  await s.enqueue(call.organization_id,call.id,'provider',{path:'hangup',control_id:agent.control_id,payload:{}},`${operationId}:host-leave`);
+  await s.releaseClaims(call.organization_id,call.id);
+  await s.appendEvent(call.organization_id,call.id,'communication.call.host_left',{actor_user_id:actorId},operationId);
+  return updated;
 }
 export function publicParticipants(items: Json[]) {
   return items.map(p => ({id:p.id,user_id:p.user_id,name:p.name,phone:p.phone,state:p.state,invited_at:p.invited_at,joined_at:p.joined_at,ended_at:p.ended_at,error:p.error}));

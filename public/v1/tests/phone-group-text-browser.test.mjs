@@ -16,6 +16,7 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
   const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
   try{
     const page=await browser.newPage({viewport:{width:1360,height:900}}),errors=[],requests=[];
+    page.setDefaultTimeout(6000);
     const now='2026-10-09T20:00:00Z',group={id:'group-one',local_number:'+12065550199',participants:contacts.slice(0,3).map(c=>({address:c.phone,name:c.name,contact_id:c.id})),updated_at:now,last_message_at:now};
     let messages=[{id:'incoming-one',direction:'inbound',sender:contacts[1].phone,text:'Photo from Avery',created_at:now,attachments:[{url:'https://group.test/photo.png',content_type:'image/png'},{url:'javascript:alert(1)',content_type:'image/png'}]},
       {id:'sent-one',direction:'outbound',text:'Hello everyone',status:'captured',created_at:'2026-10-09T19:59:00Z',image_media_id:'image-one',deliveries:contacts.slice(0,3).map(c=>({recipient:c.phone,status:'captured'}))}];
@@ -25,10 +26,10 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
       const req=route.request(),url=new URL(req.url()),path=url.pathname;
       if(path.endsWith('.js')||path.endsWith('.css')){
         const relative=path.replace(/^\/libraries\//,'');
-        try{return await route.fulfill({body:await readFile(new URL(relative,libraries),'utf8'),contentType:path.endsWith('.css')?'text/css':'text/javascript'});}catch{return route.fulfill({status:404,body:''});}
+        try{return await route.fulfill({body:await readFile(new URL(relative,libraries),'utf8'),contentType:path.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8'});}catch{return route.fulfill({status:404,body:''});}
       }
       if(path==='/photo.png'||path.startsWith('/media/'))return route.fulfill({contentType:'image/png',body:image});
-      if(!path.startsWith('/v1/'))return route.fulfill({contentType:'text/html',body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}button,input,textarea{font-family:inherit}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="mainPanels"></div></main>'});
+      if(!path.startsWith('/v1/'))return route.fulfill({contentType:'text/html; charset=utf-8',body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}button,input,textarea{font-family:inherit}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="mainPanels"></div></main>'});
       const body=req.postData()?JSON.parse(req.postData()):undefined;requests.push({path,method:req.method(),body,csrf:req.headers()['x-platform-csrf']});
       let result={ok:true};
       if(path.endsWith('/inbox'))result.conversations=url.searchParams.get('channel')==='call'?[]:[{id:'private-one',channel:'sms',contact_name:'Private Jane',contact_address:contacts[0].phone,updated_at:'2026-10-09T19:00:00Z',last_message:{text:'Private hello'}},...(privateSent?[{id:'private-two',channel:'sms',contact_name:'Avery Demo',contact_address:contacts[1].phone,last_message:{text:privateSent.text},updated_at:'2026-10-11T21:00:00Z'}]:[])];
@@ -63,7 +64,7 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
       Portal.CustomerPhone={status:{branch_id:'default',numbers:[{phone_number:'+12065550199',label:'Company main',status:'active'},{phone_number:'+12065550200',label:'Assigned line',status:'active'}],sms_numbers:[{phone_number:'+12065550199'},{phone_number:'+12065550200'}],default_number:'+12065550199'},state:{},open:async()=>true};
       window.PlatformAPI={media:{fileUrl:(_org,id)=>`https://group.test/media/${id}`,upload:async()=>{window.uploadCount=(window.uploadCount||0)+1;return {media:{id:'image-two'}};}}};
     });
-    for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','comms-api/comms-api.js','apps/comms/communications-ui.js','channels-ui/channels-ui.js','apps/comms/phone-tray.js','apps/comms/phone-modal.js'])await page.addScriptTag({content:await readFile(new URL(file,libraries),'utf8')});
+    for(const file of ['window-manager/window-manager.js','window-manager/window-shell.js','comms-api/comms-api.js','apps/comms/communications-ui.js','apps/comms/phone-tray.js','apps/comms/phone-modal.js'])await page.addScriptTag({content:await readFile(new URL(file,libraries),'utf8')});
     await page.addStyleTag({content:await readFile(new URL('apps/comms/communications.css',libraries),'utf8')});
     await page.evaluate(()=>{const panel=document.createElement('div');panel.className='fmcp';document.body.append(panel);const win=Portal.PhoneTray.attach(panel,{panel:()=>panel,minimized(){},action(){}});win.setVisible(true);});
     if(surface==='modal')await page.evaluate(()=>Portal.PhoneModal.open('text'));else await page.evaluate(()=>Portal.PhoneTray.selectTab('text'));
@@ -77,8 +78,11 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
     await root.locator('.fm-text-members summary').click();assert.match(await root.locator('.fm-text-members').textContent(),/Erik Sample/);
     await root.getByText('Delivery (3)',{exact:true}).click();assert.match(await root.locator('.fm-text-deliveries').textContent(),/Jane Test: Captured/);
     await root.getByRole('button',{name:'Load older messages'}).click();await root.getByText('Older message',{exact:true}).waitFor();assert.equal(oldPages,1);
-    await root.getByRole('textbox',{name:'Text message'}).fill('Group reply');
-    failNext=true;await root.getByRole('button',{name:'Send text'}).click();await root.getByRole('alert').filter({hasText:'Temporary connection error'}).waitFor();
+    await root.getByRole('button',{name:'Insert emoji'}).click();await page.getByRole('searchbox',{name:'Search emoji'}).waitFor();
+    const emoji=page.locator('.fm-ch-emoji-grid button').first(),value=await emoji.textContent();await emoji.click();assert.equal(await root.getByRole('textbox',{name:'Text message'}).inputValue(),value);
+    await root.getByRole('button',{name:'Insert emoji'}).click();await page.getByRole('searchbox',{name:'Search emoji'}).waitFor();await root.locator('.fm-text-body').first().click();assert.equal(await page.locator('.fm-ch-emoji-popover').count(),0);
+    const input=root.getByRole('textbox',{name:'Text message'});await input.fill('Group reply');await input.press('Shift+Enter');assert.equal(await input.inputValue(),'Group reply\n');await input.fill('Group reply');
+    failNext=true;await input.press('Enter');await root.getByRole('alert').filter({hasText:'Temporary connection error'}).waitFor();
     const failed=requests.filter(r=>r.method==='POST'&&r.path.endsWith('/group-one/messages')).at(-1);
     await root.getByRole('button',{name:'Send text'}).click();await root.locator('.fm-text-body').filter({hasText:'Group reply'}).waitFor();
     assert.equal(requests.filter(r=>r.method==='POST'&&r.path.endsWith('/group-one/messages')).at(-1).body.idempotency_key,failed.body.idempotency_key);
@@ -90,6 +94,11 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
     if(surface==='tray')await root.getByRole('button',{name:'Back to conversations'}).click();
     await root.getByRole('button',{name:'Load more conversations'}).click();assert.equal(groupPages,1);
     await root.getByRole('button',{name:'New text',exact:true}).click();
+    await root.getByRole('searchbox',{name:'Find a contact to text'}).fill('206-555-0188');await root.getByRole('button',{name:'Add (206) 555-0188'}).click();assert.match(await root.locator('[data-recipient-count]').textContent(),/1\/8/);await root.getByRole('button',{name:'Remove (206) 555-0188'}).click();
+    await root.locator('[data-text-contact]').first().waitFor();
+    await page.setViewportSize({width:390,height:844});
+    const footer=await root.locator('.fm-text-recipient-footer').boundingBox();assert.ok(footer.y+footer.height<=844,JSON.stringify(footer));
+    if(process.env.PHONE_GROUP_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_GROUP_SCREENSHOTS+`/${surface}-recipients-mobile.png`});await page.setViewportSize({width:1360,height:900});
     for(const name of ['Jane Test','Avery Demo','Erik Sample'])await root.locator('[data-text-contact]').filter({hasText:name}).click();
     await root.getByRole('searchbox',{name:'Find a contact to text'}).fill('Jane');
     await root.locator('[data-text-contact]').filter({hasText:'Jane duplicate'}).waitFor();assert.equal(await root.locator('[data-text-contact]').filter({hasText:'Jane duplicate'}).getAttribute('aria-pressed'),'true');

@@ -254,6 +254,10 @@ test('phone stays docked, floats above minimized windows, retains ended calls an
     assert.equal(await page.evaluate(()=>lastImageUpload.name),'photo.jpg');
     await page.locator('[data-tray-tab=call]').click();
     assert.equal(await page.locator('.fm-phone-readiness').count(),0);
+    await page.locator('[data-tray-tab=voicemail]').click();await page.locator('[data-vm-index]').first().click();
+    await page.getByRole('combobox',{name:'Playback speed'}).selectOption('2');assert.equal(await page.locator('.fm-voice-player audio').evaluate(audio=>audio.playbackRate),2);
+    assert.match(await page.getByRole('link',{name:'Download voicemail'}).getAttribute('href'),/artifacts\/artifact-one\/media$/);
+    assert.equal(await page.getByRole('button',{name:'Call back',exact:true}).textContent(),'');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

@@ -160,6 +160,7 @@ export async function listCalls(orgId: string, filter: Json = {}) {
   for(const [key,operator] of [["created_after",">="],["created_before","<"]] as const){const value=text(filter[key]);if(value&&Number.isFinite(Date.parse(value))){clauses.push(`created_at${operator}?`);values.push(new Date(value).toISOString());}}
   if(text(filter.branch_id)){clauses.push("branch_id=?");values.push(text(filter.branch_id));}
   if(filter.active===true)clauses.push("state NOT IN ('ended','canceled','failed','busy','no_answer','rejected') AND mode<>'external'");
+  if(filter.active===true&&text(filter.owner_user_id)){clauses.push("metadata_json NOT LIKE ? ESCAPE '\\'");values.push(`%"host_left_user_id":"${text(filter.owner_user_id).replace(/[\\%_]/g,"\\$&")}"%`);}
   if(text(filter.query)){clauses.push("(customer_name LIKE ? ESCAPE '\\' OR customer_number LIKE ? ESCAPE '\\' OR notes LIKE ? ESCAPE '\\')");const q=`%${text(filter.query).replace(/[\\%_]/g,"\\$&")}%`;values.push(q,q,q);}
   const count=Number(object((await database().prepare(`SELECT count(*) AS total FROM customer_calls WHERE ${clauses.join(" AND ")}`).get(...values))).total);
   if(text(filter.before||filter.cursor)){const cursor=parse(Buffer.from(text(filter.before||filter.cursor),"base64url").toString());if(text(cursor.at)&&text(cursor.id)){clauses.push("(created_at<? OR (created_at=? AND id<?))");values.push(text(cursor.at),text(cursor.at),text(cursor.id));}}

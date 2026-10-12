@@ -32,6 +32,8 @@ test('active calls invite teammates and contacts, show participants, and give gu
           window.actions.push(body);
           if(body.action==='add_participant')window.participants.push({id:`p${window.participants.length}`,name:body.target_name||'Jordan Teammate',phone:body.target_phone||'',user_id:body.target_user_id||'',state:'ringing'});
           if(body.action==='remove_participant')window.participants.find(p=>p.id===body.participant_id).state='removed';
+          if(body.action==='hold_participant')window.participants.find(p=>p.id===body.participant_id).state='held';
+          if(body.action==='resume_participant')window.participants.find(p=>p.id===body.participant_id).state='connected';
           if(body.action==='hangup'&&window.__APP.userId!=='host')window.participants.find(p=>p.user_id===window.__APP.userId).state='left';
           return {call:structuredClone(window.call),participants:structuredClone(window.participants)};
         }
@@ -59,9 +61,15 @@ test('active calls invite teammates and contacts, show participants, and give gu
     assert.equal(await page.evaluate(()=>window.actions.at(-1).target_phone),'+12065550102');
     await page.evaluate(()=>{window.participants.forEach(p=>p.state='connected');});
     await page.getByRole('region',{name:'Call participants'}).getByText('On call',{exact:true}).last().waitFor();
+    await page.getByRole('button',{name:'Hold Morgan External',exact:true}).click();await page.getByText('On hold',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Resume Morgan External',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'End for everyone',exact:true}).count(),1);
+    assert.equal(await page.getByRole('button',{name:'Leave call',exact:true}).count(),1);
     if(process.env.PHONE_CONFERENCE_SCREENSHOTS)await page.screenshot({path:process.env.PHONE_CONFERENCE_SCREENSHOTS+'/conference-desktop.png'});
     await page.getByRole('button',{name:'Remove Morgan External from call'}).click();
     await page.getByText('Removed',{exact:true}).waitFor();
+    assert.equal(await page.getByText('Prior participants (1)',{exact:true}).count(),1);
+    await page.getByRole('button',{name:'Add Morgan External again',exact:true}).click();assert.equal(await page.evaluate(()=>window.actions.at(-1).action),'add_participant');
     assert.equal(await page.evaluate(()=>window.call.state),'connected');
     await page.setViewportSize({width:390,height:844});
     await page.evaluate(()=>{Portal.CustomerPhone.state.status.development={enabled:true,destination:'+14259700671',destinations:['+14259700671','+12068590917','+15099600721']};});

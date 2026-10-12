@@ -17,6 +17,7 @@ import { registerCollaborationPublication } from "../../collaboration/publicatio
 import { registerFormsPublication } from "../../forms/publication.js";
 import { registerLeadPublication } from "../../leads/publication.js";
 import { registerGroupMmsPublication } from "../../messaging/publication.js";
+import { registerConferencePublication } from '../../comms/calls/conference-publication.js';
 
 let initialized = false;
 /** All execution hosts use this same catalog. No browser can register server handlers. */
@@ -31,6 +32,7 @@ export function initializePublication() {
   registerFormsPublication();
   registerLeadPublication();
   registerGroupMmsPublication();
+  registerConferencePublication();
   registerDomainActions();
   registerPayrollPublication();
   registerTodoPublication();

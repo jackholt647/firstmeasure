@@ -10,7 +10,7 @@ import { voiceSettings, diagnosticVerdict, validateVoiceSettings, updateVoiceSet
 import { requireCallAccess, manageCalls } from "./service.js";
 import * as s from "./storage.js";
 import { text, object, type Json, type CustomerCall } from "./storage.js";
-import { activeConferenceForUser, inviteParticipant, participants, participantActive, publicParticipants, removeParticipant } from './conference.js';
+import { activeConferenceForUser, inviteParticipant, participants, participantActive, publicParticipants, removeParticipant, holdParticipant, leaveHostedConference } from './conference.js';
 
 export async function voiceStatus(ctx:PlatformAuthContext){
   const settings=(await voiceSettings(ctx.orgId));const endpoint=(await s.resource(ctx.orgId,"endpoint",ctx.userId));
@@ -182,7 +182,7 @@ export async function startDiagnostic(ctx:PlatformAuthContext,deviceId:string){
 export async function providerCommand(call:CustomerCall,controlId:string,action:string,payload:Json={},key:string=randomUUID()){
   return (await s.enqueue(call.organization_id,call.id,"provider",{path:action,control_id:controlId,payload},`${call.id}:${key}`));
 }
-export const callActionSchema=z.object({operation_id:z.string().min(8).max(180),action:z.enum(["hangup","hold","resume","dtmf","consent","record_start","record_stop","record_pause","record_resume","transfer","transfer_cancel","transfer_complete","accept","decline","add_participant","remove_participant"]),
+export const callActionSchema=z.object({operation_id:z.string().min(8).max(180),action:z.enum(["hangup","hold","resume","dtmf","consent","record_start","record_stop","record_pause","record_resume","transfer","transfer_cancel","transfer_complete","accept","decline","add_participant","remove_participant","hold_participant","resume_participant","leave_conference"]),
   digits:z.string().regex(/^[0-9*#wW]{1,32}$/).optional(),consent:z.enum(["granted","refused","withdrawn"]).optional(),target_user_id:z.string().max(180).optional(),target_phone:z.string().max(40).optional(),target_name:z.string().max(250).optional(),participant_id:z.string().max(180).optional(),transfer_mode:z.enum(["warm","cold"]).default("warm")});
 export async function callAction(ctx:PlatformAuthContext,callId:string,input:unknown){
   const body=callActionSchema.parse(input);const call=requireCallAccess(ctx,(await s.readCall(ctx.orgId,callId)));
@@ -225,11 +225,16 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
       if(!callLegs.length)updated=(await s.patchCall(ctx.orgId,call.id,{state:"canceled",ended_at:s.now(),wrap_up_state:"needs_wrap_up"}));
     }else if(body.action==="accept")(await send(agent,"answer"));
     else if(body.action==="hold"||body.action==="resume"){
-      await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action);
-      for(const leg of callLegs.filter(l=>l.role==='participant'&&l.state==='answered'))await send(leg,body.action==="hold"?"conference_hold":"conference_unhold",{},`${body.action}:${leg.id}`);
+      const people=await participants(ctx.orgId,callId);
+      if(['holding','resuming'].includes(text(call.metadata.customer_hold_state))||people.some(p=>['holding','resuming'].includes(text(p.state))))throw conflict('participant_hold_pending','Wait for the individual hold operation to finish.');
+      if(call.metadata.customer_hold_state!=='held')await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action);
+      else updated=await s.patchCall(ctx.orgId,call.id,{state:body.action==='hold'?'held':'connected'});
+      for(const leg of callLegs.filter(l=>l.role==='participant'&&l.state==='answered'&&!people.some(p=>p.id===object(l.data).participant_id&&p.state==='held')))await send(leg,body.action==="hold"?"conference_hold":"conference_unhold",{},`${body.action}:${leg.id}`);
     }
     else if(body.action==='add_participant')await inviteParticipant(requireCallAccess(ctx,await s.readCall(ctx.orgId,callId),true),ctx.userId,body,op.id);
     else if(body.action==='remove_participant')await removeParticipant(call,text(body.participant_id),op.id);
+    else if(body.action==='hold_participant'||body.action==='resume_participant')await holdParticipant(call,text(body.participant_id),body.action==='hold_participant',op.id);
+    else if(body.action==='leave_conference')updated=await leaveHostedConference(call,ctx.userId,op.id);
     else if(body.action==="dtmf"){if(!body.digits)throw badRequest("digits_required","Enter keypad digits.");(await send(customer,"send_dtmf",{digits:body.digits}));}
     else if(body.action==="consent"){
       if(!body.consent)throw badRequest("consent_required","Record whether the caller agreed to recording.");

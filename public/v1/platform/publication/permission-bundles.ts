@@ -8,6 +8,7 @@
  * member reading that channel), not unrestricted access.
  */
 const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
+  make_calls:{actions:['customer-calls.conference.add','customer-calls.conference.remove','customer-calls.conference.hold','customer-calls.conference.resume','customer-calls.conference.leave','customer-calls.conference.end']},
   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
   manage_external_sharing:{actions:["collaboration.share.revoke"]},
   view_projects: { actions: ["work.todos.list", "work.todos.read", "work.todos.history", "work.configuration.read", "projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-organization.contract", "custom-fields-organization.values", "projects.record", "work.records", "todos.items", "organization.profile", "referrals.eligibility"] },
@@ -38,7 +39,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   manage_canvassing: { actions: ["canvassing.pin.save"] },
   view_media: { actions: ["media.item.read"], data: ["media.metadata"] },
   manage_media: { actions: ["media.item.rename"] },
-  view_comms: { actions: ["comms.project.feed"], data: ["comms.records", "comms-sms-groups.conversations", "comms-sms-groups.messages"] },
+  view_comms: { actions: ["comms.project.feed"], data: ["comms.records", "comms-sms-groups.conversations", "comms-sms-groups.messages", "customer-call-conference.participants"] },
   send_communications: { actions: ["comms.project.sendSms", "comms.project.sendEmail", "comms.smsGroup.create", "comms.smsGroup.send", "comms.smsGroup.replyPrivately"] },
   view_live_chat: { actions: ["chat.inbox"], data: ["chat.records"] },
   send_live_chat: { actions: ["chat.conversation.claim", "chat.conversation.release", "chat.conversation.send"] },

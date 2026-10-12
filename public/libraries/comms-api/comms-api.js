@@ -111,6 +111,7 @@
       send(orgId, projectId, body){ return request(projectPath(orgId, projectId, '/email/send'), { method:'POST', body:object(body) }); }
     },
     sms:{
+      createPrivate(orgId, participant){return request(`organizations/${enc(orgId)}/conversations`,{apiBase:messagingBase(),method:'POST',body:{channel_strategy:'sms',subject:`Text with ${participant.name||participant.address}`,participants:[participant]}});},
       groups:{
         list(orgId, params){ return groupRequest(orgId, '', { params }); },
         get(orgId, id){ return groupRequest(orgId, `/${enc(id)}`); },
