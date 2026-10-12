@@ -32,3 +32,28 @@ against its live baseline, and checks exact committed content. It preserves the
 concurrent phone release and unrelated workspace changes. Evidence and per-role
 rollback paths are in ignored `output/editor-selection-20261011/`. Production is
 outside this rollout.
+
+## Validation and release
+
+Release: `7c40900917d67d4b41c235cc037beda9a3f25aed`.
+Activated and verified on web, worker, compatibility and web-pool roles.
+Each role passed committed-asset hash checks and development readiness.
+
+The exact candidate passed 644 engine checks and five browser/resource checks.
+
+Public verification fetched all six assets from dev.1m8.ai and matched their
+SHA-256 hashes to the committed release. Public readiness reported this release,
+development data, and enforced outbound isolation.
+
+Rollback baselines (atomic current-link replacement, role service restart and
+PHP-FPM reload on PHP-serving roles):
+
+- web: `/opt/firstmeasure/releases/phone-ca303672e994c86e43bcd1726b2317a5e12d4373-web`
+- worker: `/opt/firstmeasure/releases/phone-ca303672e994c86e43bcd1726b2317a5e12d4373-worker`
+- legacy: `/mnt/firstmeasure_dev_releases/releases/phone-ca303672e994c86e43bcd1726b2317a5e12d4373-compat`
+- pool: `/opt/firstmeasure/releases/phone-ca303672e994c86e43bcd1726b2317a5e12d4373-pool`
+
+The baseline directory suffixes differ from their runtime release identity,
+`ca303672e994c86e43bcd1726b2317a5e12d4373`. Verify against release.env.
+Compatibility releases now use the existing mounted `/opt/firstmeasure/releases`
+path; staging was adjusted to remain on that filesystem without changing mounts.

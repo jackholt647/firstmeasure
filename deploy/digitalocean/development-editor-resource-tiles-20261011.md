@@ -18,7 +18,10 @@ group persistence, overlays, uploads, frame jumps, markup and history routing.
 Markup width assertions now verify screen-pixel widths independently of changes
 to the fitted image scale when opening or closing the wider pane.
 
-Development rollout evidence is in ignored `output/editor-resource-tiles-20261011/`.
-The release overlays only the three owned editor assets onto freshly audited
-role baselines, preserving all unrelated live content. Production is unchanged.
-Rollback uses each recorded `previous_path` and the existing role service.
+The layout evidence is in ignored `output/editor-resource-tiles-20261011/`.
+The pending deployment was combined with the wall-selection fixes in
+`7c40900917d67d4b41c235cc037beda9a3f25aed`; see
+[the selection release record](development-editor-selection-20261011.md).
+Its six-asset overlay includes these three assets and preserves the audited
+live baselines. Deployment evidence and rollback paths are in ignored
+`output/editor-selection-20261011/`. Production is unchanged.
