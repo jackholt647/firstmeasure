@@ -32,14 +32,14 @@ test('native lifecycle actions filter correctly, emphasize only verbs and open s
     {id:'email',type:'communication.received',created_at:at,payload:{channel:'email',sender_address:'taylor@example.test'}},
     {id:'unsafe',type:'task.completed',actor_user_id:'crew',created_at:at,payload:{title:'<img src=x onerror="window.bad=true">'}}
    ]};}},userActivity:{listForProject:async()=>({events:[{id:'audit',type:'work.node.completed',data:{occurred_at:at,metadata:{backed_work_event_id:'task'},actor_user_id:'crew'}}]})},publication:{resolveWidget:async(_org,input)=>{resolved.push(input);return {status:'ready',widget:{id:'user.summary',version:'1'}};},read:async()=>({status:'ready',value:{id:'crew',name:'Casey Nguyen',email:'casey@example.test',title:'Crew lead'}})}};
-   window.ChannelsAPI={channels:{list:async(_oid,params)=>{if(params.initialize!==false)throw Error('Must not initialize channels');return {channels:[{id:'channel',project_id:'one',separate_notes:false}]};}},messages:{list:async()=>({channel:{separate_notes:false},messages:[{id:'note1',text:'Weather confirmed',created_at:at,author:{id:'crew',name:'Casey Nguyen'},metadata:{project_note:true}},{id:'note2',text:'Homeowner update',created_at:at,author:{id:'crew',name:'Casey Nguyen'}},...extraNotes]})}};
+   window.ChannelsAPI={channels:{list:async(_oid,params)=>{if(params.initialize!==false)throw Error('Must not initialize channels');return {channels:[{id:'channel',project_id:'one',separate_notes:false}]};}},messages:{list:async()=>({channel:{separate_notes:false},messages:[{id:'note1',text:'Weather confirmed',created_at:at,author:{id:'crew',name:'Casey Nguyen'},metadata:{project_note:true}},{id:'note2',text:'Homeowner update: '+('The crew confirmed installation access and reviewed the roof warranty. ').repeat(4)+'Final warranty details: retain invoice for annual inspection.',created_at:at,author:{id:'crew',name:'Casey Nguyen'}},...extraNotes]})}};
   });
   for(const file of ['project-trays/project-trays.js','platform-widgets/runtime.js'])await page.addScriptTag({url:'/libraries/'+file});
   await page.evaluate(async()=>{await FirstMateWidgets.ready;window.trays=FirstMateProjectTrays.mount(document.querySelector('#shell'),{project:{id:'one',contacts:[{name:'Taylor Chen',email:'taylor@example.test'}]}});});
   await page.getByRole('tab',{name:'Activity',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('.fm-project-activity article').length===10);
   const task=page.locator('article').filter({hasText:'Tighten downspout strap'}),automatic=page.locator('article').filter({hasText:'Started Roof inspection and estimate'});
-  assert.equal(await task.locator('strong').innerText(),'Completed');assert.equal(await task.locator('p').innerText(),'Completed Tighten downspout strap');
+  assert.equal(await task.locator('strong').innerText(),'Completed Tighten downspout strap');assert.equal(await task.locator('p').innerText(),'Completed Tighten downspout strap');
   assert.equal(await task.locator('p').evaluate(el=>getComputedStyle(el).fontWeight),'400');
   assert.equal(await task.locator('strong').evaluate(el=>getComputedStyle(el).fontWeight),'700');
   assert.equal(await automatic.getAttribute('data-fm-summary-type'),null);
@@ -60,6 +60,8 @@ test('native lifecycle actions filter correctly, emphasize only verbs and open s
   const searchBox=await page.getByRole('searchbox',{name:'Search activity',exact:true}).boundingBox(),filterBox=await page.getByRole('button',{name:/^Filter activity:/}).boundingBox();assert.ok(filterBox.x>searchBox.x+searchBox.width);assert.ok(Math.abs(filterBox.y-searchBox.y)<2,'search and filter share one row');
   assert.equal(await page.locator('article').filter({hasText:'Received email from Taylor Chen'}).locator('strong').innerText(),'Received email');
   assert.equal(await page.locator('article').filter({hasText:'Uploaded 8 images'}).count(),1);assert.equal(await page.locator('article').filter({hasText:'Uploaded 5 documents'}).count(),1);
+  assert.equal(await page.locator('article').filter({hasText:'Uploaded 8 images'}).locator('strong').innerText(),'Uploaded 8 images');
+  assert.equal(await page.locator('article').filter({hasText:'Uploaded 5 documents'}).locator('strong').innerText(),'Uploaded 5 documents');
   assert.equal(await page.locator('article').filter({hasText:'internal-image'}).count(),0);
   const filter=page.getByRole('button',{name:/^Filter activity:/}),menu=page.getByRole('dialog',{name:'Activity filters'});
   await filter.click();await menu.getByRole('button',{name:'Only To-dos',exact:true}).click();assert.equal(await page.locator('article').count(),2);
@@ -69,6 +71,16 @@ test('native lifecycle actions filter correctly, emphasize only verbs and open s
   await menu.getByRole('button',{name:'Only Documents & signatures',exact:true}).click();assert.equal(await page.locator('article').count(),1);assert.match(await page.locator('article').innerText(),/Uploaded 5 documents/);
   await menu.getByRole('button',{name:'Only Files & photos',exact:true}).click();assert.equal(await page.locator('article').count(),1);assert.match(await page.locator('article').allInnerTexts().then(v=>v.join(' ')),/Uploaded 8 images/);
   await menu.getByRole('button',{name:'Only Notes',exact:true}).click();assert.equal(await page.locator('article').count(),2);assert.match(await page.locator('article').allInnerTexts().then(v=>v.join(' ')),/Weather confirmed/);
+  await page.keyboard.press('Escape');
+  const longNote=page.locator('article').filter({hasText:'Homeowner update'});
+  assert.equal(await longNote.locator('strong').innerText(),'Added a project note');assert.equal(await longNote.locator('.fm-activity-note').evaluate(el=>getComputedStyle(el).fontWeight),'400');
+  assert.equal(await longNote.getByText('Final warranty details: retain invoice for annual inspection.',{exact:false}).count(),0);
+  const more=longNote.getByRole('link',{name:'See more',exact:true});assert.equal(await more.getAttribute('aria-expanded'),'false');assert.equal(await more.evaluate(el=>el.tagName),'A');
+  await more.click();assert.match(await longNote.locator('.fm-activity-note').innerText(),/Final warranty details: retain invoice for annual inspection\./);
+  await page.evaluate(()=>{window.previousCalls=activityCalls;activityResync();});await page.waitForFunction(()=>activityCalls>previousCalls&&document.querySelector('.fm-project-activity').getAttribute('aria-busy')==='false');
+  assert.equal(await longNote.getByRole('link',{name:'See less',exact:true}).getAttribute('aria-expanded'),'true','expanded note survives automatic refresh');
+  await longNote.getByRole('link',{name:'See less',exact:true}).press('Enter');assert.equal(await longNote.getByRole('link',{name:'See more',exact:true}).getAttribute('aria-expanded'),'false');
+  await filter.click();
   await page.evaluate(()=>{extraNotes.push({id:'new-note',text:'Warranty delivered',created_at:'2026-10-12T04:02:00Z',author:{id:'crew',name:'Casey Nguyen'}});activityEvent({topic:'channels.message.created',payload:{project_id:'one'}});});
   await page.waitForFunction(()=>document.querySelectorAll('.fm-project-activity article').length===3);assert.equal(await menu.locator('.fm-activity-filter-option').filter({has:page.getByRole('checkbox',{name:'Notes',exact:true})}).locator('.fm-activity-filter-total').innerText(),'3');
   await menu.getByRole('button',{name:'All activity',exact:true}).click();await page.keyboard.press('Escape');

@@ -44,8 +44,8 @@
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261011-enter-send'),
     versionedBundle('../project-notes/project-notes.js', '20261002-overview-workflow-v1'),
-    versionedBundle('../project-trays/activity-presenter.js', '20261012-activity-compact-v2'),
-    versionedBundle('../project-trays/project-trays.js', '20261012-activity-name-hover-v3')
+    versionedBundle('../project-trays/activity-presenter.js', '20261012-activity-labels-v4'),
+    versionedBundle('../project-trays/project-trays.js', '20261012-activity-labels-v4')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20260803-field-flows-v10'),

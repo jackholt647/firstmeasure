@@ -102,7 +102,7 @@
       subject=t.endsWith('received')&&first(person?.name,sender)?'from '+first(person?.name,sender):'';
       detail=first(p.subject,obj(get(c,'messages',p.message_id).content).subject);
     }else if(/^call\./.test(t)){action=(t.endsWith('completed')?'Completed':t.endsWith('started')?'Started':t.endsWith('missed')?'Missed':'Updated')+' call';const person=(c.project?.contacts||[]).find(x=>p.phone&&clean(x.phone).replace(/\D/g,'')===clean(p.phone).replace(/\D/g,''));subject=first(p.customer_name,person?.name,p.phone)?'with '+first(p.customer_name,person?.name,p.phone):'';}
-    else if(/^project\.note\./.test(t)){action=({created:'Added',edited:'Edited',deleted:'Archived',restored:'Restored',pinned:'Pinned',unpinned:'Unpinned',shared:'Shared'})[t.split('.').pop()]||'Updated';subject='a project note';detail=clean(p.note_text).replace(/\s+/g,' ').slice(0,140);}
+    else if(/^project\.note\./.test(t)){action=(({created:'Added',edited:'Edited',deleted:'Archived',restored:'Restored',pinned:'Pinned',unpinned:'Unpinned',shared:'Shared'})[t.split('.').pop()]||'Updated')+' a project note';detail=first(p.note_text,get(c,'noteMessages',first(p.message_id,target(e).message_id)).text);}
     else if(/^project\./.test(t)){action=t.endsWith('created')?'Created':t.endsWith('completed')?'Completed':'Updated';subject=label||'project';}
     else if(/^(task|todo|action[._]item)[._]/.test(t)){action=t.endsWith('completed')?'Completed':t.endsWith('created')?'Added':'Updated';subject=label||'to-do';}
     else if(/^(report|measurement)[._]/.test(t)){action=t.endsWith('created')||t.endsWith('completed')?'Completed':t.endsWith('ordered')?'Ordered':'Updated';subject=label||'measurement report';}
@@ -114,7 +114,7 @@
     }
     // Existing audit-only records may carry the precise task name in their
     // readable summary, without a node reference. Never replace it with a noun.
-    if(!label&&first(d.summary,p.summary)){
+    if(!label&&first(d.summary,p.summary)&&!/^project\.note\./.test(t)){
       const summary=first(d.summary,p.summary),match=summary.match(/^(Completed|Started|Finished|Uploaded|Sent|Viewed|Signed|Received|Recorded|Created|Added|Updated|Removed|Applied|Scheduled|Rescheduled|Canceled|Approved|Paused)\s+(.+)$/i);
       if(match){action=match[1];subject=match[2];detail='';}else{action='';subject=summary;detail='';}
     }
@@ -125,7 +125,12 @@
     const uploaded=e._upload_kind||uploadKind(e,c);
     if(uploaded){action='Uploaded';const count=e._upload_count||1;subject=count===1?(uploaded==='image'?'an image':'a '+uploaded):count+' '+uploaded+'s';detail='';}
     const text=[action,subject,detail?'— '+detail:''].filter(Boolean).join(' ');
-    return {action,subject,detail,text,actor:a,category:category(e,c),timestamp:stamp(e)};
+    // A communication's participant is context; the complete action and
+    // channel form its event label. Other resource/event names belong to the
+    // full label. Note bodies and supplementary amounts stay outside it.
+    const participant=/^(communication|email|sms|call)\./.test(t);
+    const headline=[action,participant?'':subject].filter(Boolean).join(' '),suffix=participant?subject:'';
+    return {action,subject,detail,text,headline,suffix,actor:a,category:category(e,c),timestamp:stamp(e)};
   }
   function groupUploads(rows,c){
     const groups=[],out=[];

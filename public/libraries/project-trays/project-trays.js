@@ -5,7 +5,7 @@
   if (root.FirstMateProjectTrays) return;
   const clean = value => String(value ?? '').trim();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const activityScriptUrl=new URL('activity-presenter.js?v=20261012-activity-compact-v2',document.currentScript?.src || location.href).href;
+  const activityScriptUrl=new URL('activity-presenter.js?v=20261012-activity-labels-v4',document.currentScript?.src || location.href).href;
   let activityPromise;
   function activityPresenter(){
     if(root.FirstMateActivity)return Promise.resolve(root.FirstMateActivity);
@@ -95,6 +95,7 @@
     let events=[],before='',loading=false,dead=false,visible=true,loaded=false,lastMarkup='',updateTimer=0,refreshQueued=false;
     let presenter,activityContext;
     const selectedTypes=new Set();
+    const expandedNotes=new Set(),notePrefix='fm-activity-note-'+Math.random().toString(36).slice(2)+'-';
     const style=document.createElement('style');
     style.textContent=`
       .fm-activity-widget{position:relative;height:100%;min-height:0;display:flex;flex-direction:column;font-size:11px;color:#202124;background:#fff}
@@ -116,6 +117,7 @@
       .fm-activity-icon{position:relative;z-index:0;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#f2f4f7;color:#667085;font-size:10px}
       .fm-project-activity p{margin:0;line-height:1.55;overflow-wrap:anywhere;font-size:11px}.fm-activity-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:4px;font-size:10px;color:#98a2b3}.fm-activity-meta time{font-size:10px;color:#667085}
       .fm-project-activity p strong{font-weight:700}.fm-activity-actor{font:inherit;color:inherit;border:0;background:none;padding:0;text-align:left;cursor:pointer}.fm-activity-actor:hover,.fm-activity-actor:focus-visible{color:var(--primary,#175cd3);text-decoration:underline}
+      .fm-project-activity .fm-activity-note{margin-top:4px;font-weight:400;white-space:pre-wrap}.fm-activity-note-more{display:inline;color:var(--primary,#175cd3);font:inherit;font-size:10px;text-decoration:underline;cursor:pointer}.fm-activity-note-more:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
       .fm-activity-empty{text-align:center;padding:38px 14px;color:#667085;line-height:1.6}.fm-activity-empty i{display:block;font-size:20px;color:#98a2b3;margin-bottom:12px}.fm-activity-empty strong{display:block;font-size:12px;color:#344054;margin-bottom:4px}
       .fm-activity-error{flex:none;margin:8px 12px 0;border-radius:6px;padding:8px;color:#b42318;background:#fff4f2;line-height:1.5}.fm-activity-error[hidden]{display:none}
       .fm-activity-more{width:100%;font:inherit;font-size:11px;color:#475467;border:1px solid #e4e7ec;background:#fff;padding:8px;border-radius:6px;margin-top:10px;cursor:pointer}.fm-activity-widget button:disabled{opacity:.45;cursor:wait}
@@ -201,9 +203,12 @@
         const date=new Date(at),valid=!!at,day=valid?dayLabel(date):'Earlier activity',heading=day!==group?`<h3 class="fm-activity-day">${esc(day)}</h3>`:'';group=day;
         const [label,icon]=categories[category(event)],name=actor(event),summary=format(event),user=presentation?.actor;
         const preview=user?.id?` data-fm-summary-type="summary.user" data-fm-summary-target="${esc(JSON.stringify({scope:'organization',organizationId:oid,id:user.id}))}"`:'';
-        const description=presentation?.action?`<strong>${esc(presentation.action)}</strong> ${esc(presentation.subject)}${presentation.detail?` — ${esc(presentation.detail)}`:''}`:esc(summary);
+        const isNote=presentation?.category==='notes',key=event._source+':'+event.id;
+        const description=`<strong>${esc(presentation?.headline||summary)}</strong>${presentation?.suffix?` ${esc(presentation.suffix)}`:''}${presentation?.detail&&!isNote?` — ${esc(presentation.detail)}`:''}`;
+        const noteText=isNote?presentation.detail:'',characters=Array.from(noteText),long=characters.length>140,expanded=expandedNotes.has(key),noteId=notePrefix+encodeURIComponent(key);
+        const noteHtml=noteText?`<p class="fm-activity-note" id="${esc(noteId)}">${esc(long&&!expanded?characters.slice(0,140).join('').trimEnd()+'…':noteText)}</p>${long?`<a class="fm-activity-note-more" href="#${esc(noteId)}" data-activity-note="${esc(key)}" aria-expanded="${expanded}" aria-controls="${esc(noteId)}">${expanded?'See less':'See more'}</a>`:''}`:'';
         const actorHtml=user?.id?`<button type="button" class="fm-activity-actor"${preview} aria-label="Preview ${esc(name||'team member')}">${esc(name||'Team member')}</button>`:name?`<span>${esc(name)}</span>`:'';
-        return `${heading}<article><span class="fm-activity-icon"><i class="fas ${icon}" aria-hidden="true"></i></span><div><p>${description}</p><div class="fm-activity-meta">${actorHtml?`${actorHtml}<span aria-hidden="true">·</span>`:''}<span>${label}</span>${valid?`<span aria-hidden="true">·</span><time datetime="${date.toISOString()}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</time>`:''}</div></div></article>`;
+        return `${heading}<article><span class="fm-activity-icon"><i class="fas ${icon}" aria-hidden="true"></i></span><div><p>${description}</p>${noteHtml}<div class="fm-activity-meta">${actorHtml?`${actorHtml}<span aria-hidden="true">·</span>`:''}<span>${label}</span>${valid?`<span aria-hidden="true">·</span><time datetime="${date.toISOString()}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</time>`:''}</div></div></article>`;
       }).join('') || `<div class="fm-activity-empty"><i class="fas ${loaded?'fa-clock-rotate-left':'fa-spinner'}" aria-hidden="true"></i><strong>${loaded?(query||selectedTypes.size?'No matching activity':'No activity yet'):'Loading activity…'}</strong>${loaded?(query||selectedTypes.size?'Try another search or activity type.':'Project updates will appear here as work progresses.'):''}</div>`;
       if(markup!==lastMarkup){log.innerHTML=markup;lastMarkup=markup;}
       if(before){let more=log.querySelector('.fm-activity-more');if(!more){more=document.createElement('button');more.type='button';more.className='fm-activity-more';more.textContent='Load older activity';more.onclick=()=>refresh(true);log.append(more);}more.disabled=loading;}else log.querySelector('.fm-activity-more')?.remove();
@@ -228,6 +233,11 @@
       finally{loading=false;if(!dead){log.setAttribute('aria-busy','false');render();if(refreshQueued){refreshQueued=false;scheduleUpdate();}}}
     }
     search.oninput=()=>{log.scrollTop=0;render();};
+    log.addEventListener('click',event=>{
+      const link=event.target.closest?.('a[data-activity-note]');if(!link)return;event.preventDefault();
+      const key=link.dataset.activityNote;if(expandedNotes.has(key))expandedNotes.delete(key);else expandedNotes.add(key);
+      render();Array.from(log.querySelectorAll('a[data-activity-note]')).find(a=>a.dataset.activityNote===key)?.focus({preventScroll:true});
+    });
     function scheduleUpdate(){if(!visible||dead)return;clearTimeout(updateTimer);updateTimer=setTimeout(()=>{if(!dead&&visible)void refresh();},250);}
     const onChange=event=>{if(!event?.detail?.projectId||event.detail.projectId===pid)scheduleUpdate();};
     root.addEventListener('fm:project-notes:refreshed',onChange);root.addEventListener('fm:projects:refresh',onChange);

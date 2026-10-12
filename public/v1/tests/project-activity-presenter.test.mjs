@@ -41,7 +41,17 @@ test('communications emphasize channel and resolve the project contact',()=>{
  const catalog=activity.context();catalog.project={contacts:[{id:'taylor',name:'Taylor Chen',email:'taylor@example.test'}]};
  const entry=activity.describe({type:'communication.received',payload:{channel:'email',sender_address:'taylor@example.test'}},catalog);
  assert.equal(entry.action,'Received email');assert.equal(entry.subject,'from Taylor Chen');assert.equal(entry.text,'Received email from Taylor Chen');
+ assert.equal(entry.headline,'Received email');assert.equal(entry.suffix,'from Taylor Chen');
  assert.equal(activity.describe({type:'sms.sent',payload:{summary:'Sent text message to Taylor Chen'}},catalog).action,'Sent text message');
+});
+test('complete event labels are distinct from full note bodies and supplementary details',()=>{
+ const noteText='Full note content '.repeat(40)+'Keep the entire final sentence.';
+ const note=activity.describe({type:'project.note.created',payload:{note_text:noteText}},c);
+ assert.equal(note.headline,'Added a project note');assert.equal(note.detail,noteText);assert.ok(note.detail.length>140);
+ assert.equal(activity.describe({type:'media.uploaded',payload:{content_type:'application/pdf'}},c).headline,'Uploaded a document');
+ assert.equal(activity.describe({type:'work.node.completed',node_id:'todo'},c).headline,'Completed Tighten downspout strap');
+ assert.equal(activity.describe({type:'project.event.started',payload:{event:{title:'Roof inspection'}}},c).headline,'Started Roof inspection');
+ const expense=activity.describe({type:'expense.recorded',payload:{title:'Decking allowance',projected_cents:65000}},c);assert.equal(expense.headline,'Budgeted Decking allowance');assert.equal(expense.detail,'$650.00');
 });
 test('notes follow authorized note roots with messaging separation disabled and never ensure a channel',async()=>{
  const catalog=activity.context();let reads=0;
