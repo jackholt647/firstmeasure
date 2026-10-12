@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Project resource types: [removal, resizable columns and action header](deploy/digitalocean/development-project-categories-20261012.md) records the new archive writer, its limits, checks and verified development rollout.
+
 October 11 Project resource rows: [one-line rows, drag ordering and collapsible lists](deploy/digitalocean/development-project-list-rows-20261011.md) records the row contract, list header changes, checks and verified development rollout.
 
 October 10 Project resource lists: [dense line-item rows](deploy/digitalocean/development-project-list-density-20261010.md) records the layout tiers, checks and verified development rollout.
