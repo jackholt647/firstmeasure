@@ -8,6 +8,7 @@ const {chromium}=createRequire(import.meta.url)('playwright-core');
 const publicRoot=fileURLToPath(new URL('../../',import.meta.url));
 test('photo viewer mounts Notes controls, keeps per-photo drafts, scopes posts and closes cleanly',async()=>{
  const server=createServer(async(req,res)=>{
+  if(req.url.startsWith('/libraries/gif-picker/giphy-sdk.js')){res.setHeader('Content-Type','text/javascript; charset=utf-8');res.end(`export class GiphyFetch{async trending(){return {data:[{id:'layer-gif'}]};}search(){return this.trending();}}export function renderGrid(options,host){const b=document.createElement('button');b.textContent='Choose layer GIF';b.onclick=e=>options.onGifClick({id:'layer-gif',title:'Layer GIF',images:{fixed_width:{url:'https://media.giphy.com/media/test/giphy.gif',width:'200',height:'160'}}},e);host.append(b);return()=>host.replaceChildren();}`);return;}
   if(req.url.startsWith('/libraries/')){try{res.setHeader('Content-Type','text/javascript; charset=utf-8');const name=new URL(req.url,'http://fixture').pathname;const data=process.env.DEV_ASSETS?await (async()=>{const response=await fetch('https://dev.1m8.ai'+name+'?photo-check='+Date.now());assert.ok(response.ok);return Buffer.from(await response.arrayBuffer());})():await readFile(publicRoot+name);res.end(data);}catch{res.writeHead(404);res.end();}return;}
   if(req.url.startsWith('/v1/')){res.setHeader('Content-Type','application/json');res.end('{}');return;}
   res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"></head><body style="margin:0;font-family:Arial;--primary:#175cd3"></body></html>');
@@ -37,6 +38,23 @@ test('photo viewer mounts Notes controls, keeps per-photo drafts, scopes posts a
   await page.evaluate(()=>window.failPost=true);await editor.fill('Keep on failure');await editor.press('Enter');await page.getByRole('alert').filter({hasText:'Save failed'}).waitFor();assert.equal(await editor.evaluate(node=>node.value),'Keep on failure');await page.evaluate(()=>window.failPost=false);
   await page.evaluate(()=>viewer.show(1));assert.equal(await editor.evaluate(node=>node.value),'Draft B');assert.equal(await page.locator('.pn-card').count(),0);await editor.press('Enter');await page.waitForFunction(()=>posted.length===2);assert.equal(await page.evaluate(()=>posted[1].channel),'photo-b');
   await page.evaluate(()=>viewer.show(0));assert.equal(await editor.evaluate(node=>node.value),'Keep on failure');
+  await page.evaluate(()=>{delete window.FirstMatePickerWidgets;ChannelsAPI.gifs={config:async()=>({enabled:true,sdk_key:'fixture'})};});
+  await page.addScriptTag({url:'/libraries/platform-widgets/pickers.js'});
+  async function chooseGif(trigger){
+   await trigger.click();const pop=page.getByRole('dialog',{name:'Choose a GIF',exact:true}),choose=pop.getByRole('button',{name:'Choose layer GIF'});await choose.waitFor();
+   assert.equal(await choose.evaluate(node=>{const r=node.getBoundingClientRect();return node.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));}),true,'GIF picker must be clickable above the photo modal');
+   await choose.click();await pop.waitFor({state:'detached'});
+  }
+  const mainGif=page.locator('.pn-composer').getByRole('button',{name:'Attach a GIF',exact:true});
+  await chooseGif(mainGif);await page.locator('.pn-composer').getByRole('button',{name:'Remove GIF',exact:true}).click();
+  // A browser top-layer photo modal cannot be overtaken by CSS z-index alone.
+  await page.evaluate(()=>{viewer.el.popover='manual';viewer.el.style.margin='0';viewer.el.showPopover();});
+  await chooseGif(mainGif);assert.equal(await page.locator('.pn-composer .fm-ch-gif-draft').count(),1);await page.locator('.pn-composer').getByRole('button',{name:'Remove GIF',exact:true}).click();
+  await page.locator('.pn-card [data-act=replies]').click();const reply=page.locator('.pn-reply-compose');await chooseGif(reply.getByRole('button',{name:'Attach a GIF',exact:true}));assert.equal(await reply.locator('.fm-ch-gif-draft').count(),1);await reply.getByRole('button',{name:'Close reply composer',exact:true}).click();
+  await mainGif.click();await page.getByRole('dialog',{name:'Choose a GIF',exact:true}).waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Choose a GIF',exact:true}).waitFor({state:'detached'});assert.equal(await page.locator('.fm-photo-modal').count(),1);
+  await page.evaluate(()=>{viewer.el.hidePopover();window.pickerDialog=document.createElement('dialog');document.body.append(pickerDialog);pickerDialog.append(viewer.el);pickerDialog.showModal();});
+  await chooseGif(mainGif);await page.locator('.pn-composer').getByRole('button',{name:'Remove GIF',exact:true}).click();
+  await page.evaluate(()=>{pickerDialog.close();document.body.append(viewer.el);pickerDialog.remove();});
   await page.setViewportSize({width:650,height:750});assert.equal(await page.locator('[data-photo-comments]').evaluate(host=>host.scrollWidth<=host.clientWidth+2),true);
   await mkdir(publicRoot+'../output/photo-comments',{recursive:true});await page.screenshot({path:publicRoot+'../output/photo-comments/viewer.png'});
   await page.evaluate(()=>viewer.close());assert.equal(await page.locator('.fm-photo-modal').count(),0);assert.deepEqual(errors,[]);

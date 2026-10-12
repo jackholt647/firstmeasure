@@ -43,7 +43,10 @@
     const pop=el('div','fm-picker fm-picker-popover');pop.setAttribute('role','dialog');pop.setAttribute('aria-label',label);
     anchor.setAttribute('aria-haspopup','dialog');anchor.setAttribute('aria-expanded','true');
     let layer=1601;for(let node=anchor;node;node=node.parentElement){const z=Number.parseInt(getComputedStyle(node).zIndex,10);if(Number.isFinite(z))layer=Math.max(layer,z+20);}pop.style.zIndex=String(Math.min(2147483647,layer));
-    document.body.append(pop);
+    (anchor.closest('dialog[open]') || document.body).append(pop);
+    // Native popovers paint above browser top-layer modals and escape clipping.
+    // Keep the measured z-index fallback for browsers without the Popover API.
+    if(typeof pop.showPopover==='function'){pop.popover='manual';pop.style.margin='0';pop.style.inset='auto';pop.showPopover();}
     let cleanup,disposed=false;
     const close=(restore=false)=>{
       if(disposed)return;disposed=true;if(active?.pop===pop)active=null;
