@@ -84,3 +84,12 @@ test('soffit contacts use depth testing and a one-pixel bias only in solid modes
  const group=new THREE.Group();ctx.wallSoffitLine(group,p=>new THREE.Vector3(p.x,p.y,p.z),[{x:0,y:0,z:0},{x:1,y:0,z:0}]);
  for(const mode of ['opaque','textured','translucent']){ctx.exteriorSurfaceDisplay(group,mode);const line=group.children[0];assert.equal(line.material.depthTest,mode!=='translucent');assert.equal(line.material.userData.wallLineDepthBias.pixels.value,mode==='translucent'?0:6);assert.equal(line.material.depthWrite,false);assert.equal(line.material.transparent,true);assert.equal(line.material.color.getHex(),0xef633c);assert.equal(line.renderOrder,999.5);assert.equal(line.visible,true);}
 });
+
+test('hidden faces and hidden ancestors cannot intercept fallback surface picking',()=>{
+ const ctx={};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/wall_editor.js','utf8'),ctx);
+ const visible={distance:5,object:{userData:{}}};
+ for(const object of [{visible:false},{parent:{visible:false}},{material:{visible:false}},{material:[{visible:false}]}]){
+  const hidden={distance:1,object:{...object,userData:{exteriorFeature:true}}};assert.equal(ctx.wallPreferredSurfaceHit([hidden,visible]),visible);assert.equal(ctx.wallPreferredSurfaceHit([hidden]),null);
+ }
+ const hidden={distance:1,face:{materialIndex:0},object:{material:[{visible:false},{visible:true}],userData:{}}};assert.equal(ctx.wallPreferredSurfaceHit([hidden,visible]),visible);
+});

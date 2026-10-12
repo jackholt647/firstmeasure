@@ -90,7 +90,7 @@ function createExtrusion(input){
  let previousAmount=null,previous=null;
  return {face:copy(face),topology,preview(amount,{fit=null}={}){
   if(!Number.isFinite(amount))throw Error('Enter a finite extrusion distance.');if(!fit&&amount===previousAmount&&previous)return copy(previous);
-  let shape=W.extrude(face,amount,{facets:true,supports:start.supports||scene});conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof);
+  let shape=W.extrude(face,amount,{facets:true,direction:start.direction,supports:start.supports||scene});conformBase(face,shape.cap,shape.sides,start.base);shape.sides=planarExtrusionReturns(shape.sides);const fitMoves=fit?fit(shape.cap,shape.sides):null;const base=start.base?B.extrudeWall(start.base,face,shape.cap):null;shape=W.roofExtrusion(face,amount,shape,start.roof,{direction:start.direction});
   const trim=extrusionTrim(scene,[face],[shape.cap],start.keepTrimStatic),trimmed=W.trimExtrusion(shape.sides,scene.filter(f=>!trim.ids.has(f.id)));trimmed.replacements.push(...trim.replacements);trimmed.sides=K.compactSurfaces(trimmed.sides);K.attachBoundaryCurves(trimmed.replacements.flatMap(r=>r.pieces),[shape.cap,...trimmed.sides]);
   const result=validateResult({cap:shape.cap,sides:trimmed.sides,replacements:trimmed.replacements,base,amount,fitMoves});
   if(!fit){previousAmount=amount;previous=copy(result);}return result;

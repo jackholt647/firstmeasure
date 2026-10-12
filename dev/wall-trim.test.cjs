@@ -152,3 +152,15 @@ test('new trim leaves an existing saved strip unchanged and stops flush against 
 test('trim on a different wall plane does not block the selected run',()=>{
  const obstacle={id:'rear',trim:true,points:[p(1.9,1,1),p(2.4,1,1),p(2.4,2,1),p(1.9,2,1)]},pair=[p(2,0),p(2,3)],result=T.partition([face,obstacle],[pair],0,.2,[pair]);assert.ok(Math.abs(result.replacements.flatMap(r=>r.pieces).filter(f=>f.trim).reduce((s,f)=>s+area(f),0)-.6)<1e-6);
 });
+
+test('both door jambs create inward trim on the first attempt for notches and holes',()=>{
+ for(const hole of [false,true])for(const reverse of [false,true]){
+  const opening=[p(1,0),p(2,0),p(2,2),p(1,2)],wall={...face,points:hole?face.points:[p(0,0),p(1,0),p(1,2),p(2,2),p(2,0),p(4,0),p(4,3),p(0,3)],holes:hole?[opening]:[]};
+  if(reverse){wall.points=wall.points.slice().reverse();wall.holes=wall.holes.map(r=>r.slice().reverse());}
+  const pairs=[[p(1,0),p(1,2)],[p(2,0),p(2,2)]];
+  for(const selected of [[pairs[0]],[pairs[1]],pairs]){
+   const pieces=T.partition([wall],selected,0,.1524,[]).replacements.flatMap(r=>r.pieces),trim=pieces.filter(f=>f.trim);
+   assert.equal(trim.length,selected.length,'each selected jamb gets a strip immediately');assert.ok(Math.abs(trim.reduce((s,f)=>s+area(f),0)-selected.length*2*.1524)<1e-6);
+  }
+ }
+});

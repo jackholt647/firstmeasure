@@ -104,8 +104,11 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
   // divider must not turn the two coplanar wall regions into a corner.
   for(const owner of owners){
    const sheet=owners.filter(o=>Math.abs(dot(owner.frame.n,o.frame.n))>=.99999);
-   const sides=sheet.flatMap(o=>o.coordinates.map(p=>p.y));
-   owner.perimeter=!sides.some(y=>y>K.CONTACT)||!sides.some(y=>y<-K.CONTACT);
+   // Test material alongside the finite run, including holes and notches.
+   // Distant vertices across an opening do not make its jamb an interior divider.
+   const present=(lo,hi)=>sheet.some(o=>K.intersection([o.local],[o.box(lo,hi,0,o.length)]).some(f=>K.area(f)>1e-10));
+   const positive=present(0,.0001),negative=present(-.0001,0);
+   owner.perimeter=!positive||!negative;owner.positive=positive;
   }
   const corner=owners.some(o=>o.perimeter&&owners.some(b=>b!==o&&b.perimeter&&Math.abs(dot(o.frame.n,b.frame.n))<.99999));cornerPairs.push(corner);
   for(const owner of owners){
@@ -114,7 +117,7 @@ function partition(faces,pairs,variant=0,width=.1524,segments=boundaries(faces),
    let lo=variant===1?-width:variant===2?-width/2:0,hi=variant===1?0:variant===2?width/2:width;
    // Perimeter edges have only an inward side; corners get a full strip on each wall.
    if(owner.perimeter){
-    const positive=coordinates.reduce((s,p)=>s+p.y,0)>=0;lo=positive?0:-width;hi=positive?width:0;
+    const positive=owner.positive;lo=positive?0:-width;hi=positive?width:0;
    }
    const cut=box(lo,hi,0,runLength),obstacles=onPlane(frame),contacts=K.intersection([cut],obstacles).filter(f=>K.area(f)>1e-10);
    // Stop the entire strip at an existing trim boundary, including opening
