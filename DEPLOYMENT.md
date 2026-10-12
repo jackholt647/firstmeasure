@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 Feed Settings: [Search, categories and descriptions](deploy/digitalocean/development-feed-settings-ui-20261011.md) records the Settings UI update, browser/visual checks and development rollout.
+
 October 11 Feed: [Terminology and workflow context](deploy/digitalocean/development-feed-terminology-flexibility-20261011.md) records the focused activity/catalog update, checks, development rollout and scope limits.
 
 October 10 Feed: [Permissions and auto-save](deploy/digitalocean/development-feed-permissions-autosave-20261010.md) records the settings redesign, verified three-app-role development rollout, and October 11 correction that the report worker is not a Feed deployment dependency.
