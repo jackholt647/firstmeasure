@@ -1,5 +1,5 @@
 import { notifySmsCampaignApproved } from "./approval_notifications.js";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest, type RequestOptions as HttpsRequestOptions } from "node:https";
 import type { ClientRequest, IncomingMessage } from "node:http";
@@ -9,6 +9,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { ZodError, z } from "zod";
 
 import "./instructions.js";
+import { storeMediaUpload, readMediaMetadata, readMediaFile } from "../platform/storage.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, conflict, forbidden, notFound, PlatformError } from "../platform/errors.js";
@@ -141,7 +142,7 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "numberPool", "directLending", "ageGated", "termsAndConditions", "termsAndConditionsLink", "privacyPolicyLink",
   "autoRenewal", "enabledFeatures", "featuresConfirmed", "consentAcknowledged", "standardizationVersion",
   "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode", "optInMethod", "optInLocationUrl",
-  "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed"
+  "optInMethods", "keywordLocationUrl", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed"
 ] as const;
 
 function editableBrand(value: unknown) {
@@ -630,11 +631,17 @@ function smsNoThirdPartyMarketingSharing(value: unknown) {
     || /\b(?:mobile|phone|SMS|opt[ -]?in)\b[^.]{0,160}\b(?:will|is|are)\s+not\s+(?:be\s+)?(?:sold\s+or\s+)?shared\b[^.]{0,160}\bthird[ -]?part/i.test(disclosure);
 }
 
+function campaignOptInMethods(campaign: JsonObject) {
+  const values = Array.isArray(campaign.optInMethods) ? campaign.optInMethods : [campaign.optInMethod];
+  return [...new Set(values.map(cleanText).filter(Boolean))];
+}
+
 function campaignMessageFlow(campaign: JsonObject) {
-  if (cleanText(campaign.usecase).toUpperCase() !== "LOW_VOLUME") return cleanText(campaign.messageFlow);
+  if (!["LOW_VOLUME", "SOLE_PROPRIETOR"].includes(cleanText(campaign.usecase).toUpperCase())) return cleanText(campaign.messageFlow);
   return [
     cleanText(campaign.messageFlow),
-    `Opt-in method: ${cleanText(campaign.optInMethod).replace(/_/g, " ")}.`,
+    `Opt-in methods: ${campaignOptInMethods(campaign).map(method => method.replace(/_/g, " ")).join(", ")}.`,
+    cleanText(campaign.keywordLocationUrl) ? `Keyword advertisement: ${cleanText(campaign.keywordLocationUrl)}.` : "",
     cleanText(campaign.optInLocationUrl) ? `Opt-in location: ${cleanText(campaign.optInLocationUrl)}.` : "",
     cleanText(campaign.optInEvidenceUrl) ? `Public opt-in evidence: ${cleanText(campaign.optInEvidenceUrl)}.` : "",
     `Exact recipient-facing SMS consent language: ${cleanText(campaign.optInDisclosure)}`,
@@ -653,16 +660,15 @@ function validateCampaignDraft(campaignInput: JsonObject) {
   if (["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase) && enabledFeatures.length === 0) missing.push("enabledFeatures");
   if (enabledFeatures.includes("customer_growth") && !["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "MARKETING", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
   if (enabledFeatures.includes("operations") && !["AGENTS_FRANCHISES", "MIXED", "LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase)) missing.push("usecaseFeatureMismatch");
-  if (usecase === "LOW_VOLUME") {
+  if (["LOW_VOLUME", "SOLE_PROPRIETOR"].includes(usecase)) {
+    const methods = campaignOptInMethods(campaignInput);
     const subUsecases = campaignSubUsecases(campaignInput);
-    if (subUsecases.length < 2) missing.push("lowVolumeSubUsecases");
+    if (usecase === "LOW_VOLUME" && subUsecases.length < 2) missing.push("lowVolumeSubUsecases");
     if (cleanText(campaignInput.description).length < 40 || cleanText(campaignInput.description).length > 4096) missing.push("descriptionLength");
     if (cleanText(campaignInput.messageFlow).length < 40) missing.push("messageFlowLength");
-    if (campaignInput.policyContentConfirmed !== true) missing.push("policyContentConfirmed");
-    if (!["WEBSITE_FORM", "PAPER_FORM", "VERBAL", "KEYWORD"].includes(cleanText(campaignInput.optInMethod))) missing.push("optInMethod");
-    if (cleanText(campaignInput.optInMethod) === "WEBSITE_FORM" && campaignInput.websiteFormConfirmed !== true) missing.push("websiteFormConfirmed");
-    if (cleanText(campaignInput.optInMethod) === "WEBSITE_FORM" && !validPublicHttpsUrl(campaignInput.optInLocationUrl)) missing.push("optInLocationUrl");
-    if (cleanText(campaignInput.optInMethod) === "KEYWORD" && !validPublicHttpsUrl(campaignInput.optInLocationUrl) && !validPublicHttpsUrl(campaignInput.optInEvidenceUrl)) missing.push("optInLocationUrl");
+    if (!methods.length || methods.some(method => !["WEBSITE_FORM", "PAPER_FORM", "VERBAL", "KEYWORD"].includes(method))) missing.push("optInMethod");
+    if (methods.includes("WEBSITE_FORM") && !validPublicHttpsUrl(campaignInput.optInLocationUrl)) missing.push("optInLocationUrl");
+    if (methods.includes("KEYWORD") && !validPublicHttpsUrl(campaignInput.keywordLocationUrl || (!methods.includes("WEBSITE_FORM") ? campaignInput.optInLocationUrl : "")) && !validPublicHttpsUrl(campaignInput.optInEvidenceUrl)) missing.push("optInLocationUrl");
     if (cleanText(campaignInput.optInEvidenceUrl) && !validPublicHttpsUrl(campaignInput.optInEvidenceUrl)) missing.push("optInEvidenceUrl");
     const disclosure = cleanText(campaignInput.optInDisclosure);
     if (!/\b(?:SMS|text messages?|texts?)\b/i.test(disclosure) || !/\bSTOP\b/i.test(disclosure) || !/\bHELP\b/i.test(disclosure)
@@ -683,7 +689,6 @@ function validateCampaignDraft(campaignInput: JsonObject) {
     missing.push("embeddedLinkSample");
   }
   if (LIVE_MODE() && campaignInput.consentAcknowledged !== true) missing.push("consentAcknowledged");
-  if (LIVE_MODE() && campaignInput.messageFlowConfirmed !== true) missing.push("messageFlowConfirmed");
   if (campaignInput.featuresConfirmed !== true) missing.push("featuresConfirmed");
   if (campaignInput.termsAndConditions !== true) missing.push("termsAndConditions");
   if (campaignInput.subscriberOptout !== true) missing.push("subscriberOptout");
@@ -1307,7 +1312,7 @@ function availableNumberView(entry: unknown) {
   return {
     phone_number: phoneNumber,
     display_number: phoneNumber,
-    locality: cleanText(regions.find((item) => cleanText(item.region_type) === "locality")?.region_name),
+    locality: cleanText(number.locality || number.city || regions.find((item) => ["locality", "city", "rate_center"].includes(cleanText(item.region_type).toLowerCase()))?.region_name),
     region: cleanText(regions.find((item) => ["administrative_area", "state"].includes(cleanText(item.region_type)))?.region_name || "US"),
     country_code: "US",
     features,
@@ -1620,6 +1625,40 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     };
   });
 
+  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/evidence", { bodyLimit: 8 * 1024 * 1024 }, async (request) => {
+    const orgId = param(request.params, "orgId");
+    await requireSmsSettingsAccess(request, orgId, true);
+    const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
+    if (cleanText(asObject(profile.provider_refs).telnyx_campaign_id)) throw conflict("registration_submitted", "Evidence cannot be changed after campaign submission.");
+    const body = z.object({ file_name: z.string().min(1).max(200), data: z.string().max(7 * 1024 * 1024) }).parse(request.body);
+    const bytes = Buffer.from(body.data, "base64");
+    if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw badRequest("evidence_size", "Choose a file up to 5 MB.");
+    const contentType = bytes.subarray(0,5).toString() === "%PDF-" ? "application/pdf"
+      : bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "image/png"
+      : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? "image/jpeg" : "";
+    if (!contentType) throw badRequest("evidence_type", "Upload a PDF, PNG, or JPEG. Export Word documents as PDF.");
+    const token = randomBytes(32).toString("hex");
+    const media = await storeMediaUpload(orgId, { ownerType: "sms_registration", ownerId: profile.id, slot: "consent_evidence",
+      fileName: body.file_name, contentType, bytes, thumbnails: {enabled:false}, compression: {enabled:false},
+      metadata: { source: "sms_consent_evidence", access_hash: createHash("sha256").update(token).digest("hex") } });
+    const url = `${env.publicBaseUrl}/v1/messaging/sms/evidence/${encodeURIComponent(orgId)}/${encodeURIComponent(cleanText(media.id))}/${token}`;
+    return { ok: true, url, file_name: body.file_name };
+  });
+
+  // A scoped bearer link deliberately shares only the evidence explicitly uploaded
+  // for carrier review. Normal organization media remains authenticated.
+  app.get("/sms/evidence/:orgId/:mediaId/:token", async (request, reply) => {
+    const orgId = param(request.params,"orgId"), mediaId = param(request.params,"mediaId"), token = param(request.params,"token");
+    if (!/^[a-f0-9]{64}$/.test(token)) throw notFound("evidence_not_found", "Evidence not found.");
+    const metadata = asObject(await readMediaMetadata(orgId, mediaId));
+    if (asObject(metadata.owner).type !== "sms_registration" || asObject(metadata.metadata).source !== "sms_consent_evidence"
+      || asObject(metadata.metadata).access_hash !== createHash("sha256").update(token).digest("hex")) throw notFound("evidence_not_found", "Evidence not found.");
+    const file = await readMediaFile(orgId, mediaId);
+    reply.header("X-Content-Type-Options","nosniff").header("Content-Security-Policy","sandbox").header("X-Robots-Tag","noindex, nofollow");
+    reply.header("Content-Disposition", `inline; filename="sms-consent-evidence.${file.contentType === "application/pdf" ? "pdf" : file.contentType === "image/png" ? "png" : "jpg"}"`);
+    return reply.type(file.contentType).send(file.bytes);
+  });
+
   app.get("/sms/10dlc/options", async () => ({
     ok: true,
     brand_entity_types: BRAND_ENTITY_TYPES,
@@ -1726,9 +1765,13 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }
     const existingRefs = asObject(initialProfile.provider_refs);
     const existingNumber = normalizePhone(asObject(initialProfile.campaign).selectedNumber);
+    const replacingNumber = LIVE_MODE() && !!cleanText(existingRefs.telnyx_number_order_id) && existingNumber !== selectedNumber;
     if (LIVE_MODE() && cleanText(existingRefs.telnyx_number_order_id)) {
-      if (existingNumber !== selectedNumber) throw conflict("number_already_ordered", "This SMS registration already has a number order. Refresh its status before selecting another number.");
-      return { ok: true, mock: false, profile: publicSmsComplianceProfile(initialProfile), idempotent_replay: true };
+      if (existingNumber === selectedNumber) return { ok: true, mock: false, profile: publicSmsComplianceProfile(initialProfile), idempotent_replay: true };
+      if (body.replace_number !== true) throw conflict("number_already_ordered", "Confirm that you want to purchase another number. Your previous number remains in your account.");
+      if (cleanText(existingRefs.telnyx_campaign_id) || cleanText(initialProfile.phone_number_status) !== "success") {
+        throw conflict("number_change_unavailable", "Numbers can be changed after the current order completes and before campaign submission.");
+      }
     }
     let profile = initialProfile;
     const campaignForSelection = (inventory: ReturnType<typeof availableNumberView> | null, acceptBodyMetadata: boolean) => {
@@ -1777,7 +1820,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const operation = (await beginProviderOperation({
       organization_id: orgId,
       compliance_profile_id: profile.id,
-      operation_type: "number_order",
+      operation_type: replacingNumber ? `number_replacement:${cleanText(existingRefs.telnyx_number_order_id)}` : "number_order",
       request_hash: payloadHash({ selectedNumber, messagingProfileId: provisioned.messagingProfileId })
     }));
     if (operation.state === "conflict") {
@@ -1785,7 +1828,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }
     if (operation.state === "pending") throw conflict("provider_operation_in_progress", "The number order is already in progress.");
     const operationId = cleanText(asObject(operation.operation).id);
-    const customerReference = `${profile.external_organization_id}:${profile.id}`.slice(0, 64);
+    const customerReference = replacingNumber ? `sms-${createHash("sha256").update(`${profile.id}:${selectedNumber}`).digest("hex").slice(0,48)}` : `${profile.external_organization_id}:${profile.id}`.slice(0, 64);
     let response: unknown;
     let knownOrderId = "";
     let nextCampaign = campaignForSelection(null, false);
@@ -1836,8 +1879,10 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
           type: "number_order_requested", provider: "telnyx", phone_number: selectedNumber,
           costs: { monthly: nextCampaign.selectedNumberMonthlyCost, setup: nextCampaign.selectedNumberSetupCost, currency: nextCampaign.selectedNumberCurrency }
         }, {
-          campaign: nextCampaign,
-          phone_number_status: "ordering",
+          // Keep the currently owned number authoritative until a replacement
+          // order is confirmed. Retries must reconcile the replacement operation.
+          campaign: replacingNumber ? profile.campaign : nextCampaign,
+          phone_number_status: replacingNumber ? profile.phone_number_status : "ordering",
           validation: profileValidation({ ...profile, campaign: nextCampaign })
         });
       } catch (error) {
@@ -1877,7 +1922,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     }, {
       campaign: nextCampaign,
       phone_number_status: orderStatus,
-      provider_refs: { telnyx_number_order_id: orderId, telnyx_phone_number: selectedNumber },
+      provider_refs: { telnyx_number_order_id: orderId, telnyx_phone_number: selectedNumber, ...(replacingNumber ? { previous_number_orders: [...(Array.isArray(existingRefs.previous_number_orders) ? existingRefs.previous_number_orders : []), { phone_number: existingNumber, order_id: existingRefs.telnyx_number_order_id }] } : {}) },
       validation: profileValidation({ ...profile, campaign: nextCampaign })
     });
     (await createUsageEvent({

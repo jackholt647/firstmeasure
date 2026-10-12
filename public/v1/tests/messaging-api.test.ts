@@ -924,6 +924,11 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
   assert.match(lowVolumeDryRun.payload.messageFlow, /marketing texts from FirstMate Test/);
   assert.match(lowVolumeDryRun.payload.messageFlow, /sms-consent-screenshot/);
 
+  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{optInMethods:["WEBSITE_FORM","PAPER_FORM","VERBAL","KEYWORD"],keywordLocationUrl:"https://example.test/keyword",policyContentConfirmed:false,websiteFormConfirmed:false,messageFlowConfirmed:false}});
+  const multi = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/submit-campaign`,{dry_run:true});
+  assert.match(multi.payload.messageFlow,/WEBSITE FORM, PAPER FORM, VERBAL, KEYWORD/);
+  assert.ok(multi.payload.messageFlow.includes("https://example.test/keyword"));
+  assert.match(multi.payload.messageFlow,/sms-consent-screenshot/);
   const status = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/status`);
   assert.equal(status.status, "draft");
   assert.equal(status.validation.ready_for_brand_submission, true);
@@ -1154,6 +1159,7 @@ test("ambiguous live number orders reconcile before availability and never purch
     brand: {}, campaign: {}
   });
   const selectedNumber = "+12065550199";
+  const replacementNumber = "+12065550197";
   const messagingProfileId = "40000000-0000-0000-0000-000000000199";
   const orderId = "number-order-reconciled-199";
   let inventoryCalls = 0;
@@ -1173,12 +1179,12 @@ test("ambiguous live number orders reconcile before availability and never purch
         assert.equal(search.searchParams.get("filter[features]"), "sms,mms");
         assert.equal(search.searchParams.get("filter[starts_with]"), null);
         response.end(JSON.stringify({
-          data: inventoryCalls === 1 ? [{
-            phone_number: selectedNumber,
+          data: [{
+            phone_number: inventoryCalls === 1 ? selectedNumber : replacementNumber,
             features: [{ name: "sms" }, { name: "mms" }],
             region_information: [{ region_type: "locality", region_name: "Seattle" }],
             cost_information: { monthly_cost: "1.00", upfront_cost: "0.50", currency: "USD" }
-          }] : []
+          }]
         }));
         return;
       }
@@ -1203,7 +1209,7 @@ test("ambiguous live number orders reconcile before availability and never purch
       if (request.method === "GET" && url.startsWith("/number_orders?")) {
         numberOrderLists += 1;
         response.end(JSON.stringify({
-          data: [{ id: orderId, status: "success", phone_numbers: [{ phone_number: selectedNumber }] }]
+          data: [{ id: numberOrderPosts > 1 ? "replacement-order" : orderId, status: "success", phone_numbers: [{ phone_number: numberOrderPosts > 1 ? replacementNumber : selectedNumber }] }]
         }));
         return;
       }
@@ -1253,6 +1259,19 @@ test("ambiguous live number orders reconcile before availability and never purch
     assert.equal(inventoryCalls, 1, "reconciliation must not query availability after the number was purchased");
     assert.equal(numberOrderPosts, 1, "reconciliation must not issue a second number-order POST");
     assert.equal(numberOrderLists, 1);
+    const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/select-number`;
+    assert.equal((await client.raw("POST",endpoint,{phone_number:replacementNumber})).statusCode,409);
+    assert.equal((await client.raw("POST",endpoint,{phone_number:replacementNumber,replace_number:true})).statusCode,503);
+    const during = await client.request("GET",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`);
+    assert.equal(during.profile.campaign.selectedNumber,selectedNumber,"ambiguous replacement keeps current owned number authoritative");
+    const replacement = await client.request("POST",endpoint,{phone_number:replacementNumber,replace_number:true});
+    assert.equal(replacement.profile.campaign.selectedNumber,replacementNumber);
+    assert.equal(replacement.profile.provider_refs.telnyx_number_order_id,"replacement-order");
+    assert.equal(replacement.profile.provider_refs.previous_number_orders[0].phone_number,selectedNumber);
+    assert.equal(numberOrderPosts,2,"replacement retries must not purchase twice");
+    await client.request("POST",endpoint,{phone_number:replacementNumber,replace_number:true});
+    assert.equal(numberOrderPosts,2);
+
   } finally {
     (env as any).communicationsDeliveryMode = previous.mode;
     (env as any).telnyxApiKey = previous.key;
@@ -2403,4 +2422,24 @@ test("sole proprietor identity omits stale company fields and retains the addres
   await client.request("PATCH",endpoint,{brand:{...created.profile.brand,entityType:"PRIVATE_PROFIT",ein:"123456789012"}});
   const invalid = await client.raw("POST",`${endpoint}/submit-brand`,{dry_run:true});
   assert.equal(invalid.statusCode,400);assert.match(invalid.body,/einFormat/);
+});
+
+
+test("SMS evidence uploads produce scoped public review links and reject unauthorized/unsafe files", async () => {
+  const client=createSessionClient();const {orgId}=await register(client,true);
+  const created=await client.request("POST",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles`,{brand:{},campaign:{}});
+  const endpoint=`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/evidence`;
+  const bytes=Buffer.from("%PDF-1.4\n% example blank consent form\n%%EOF");
+  const payload={file_name:"consent.pdf",data:bytes.toString("base64")};
+  assert.equal((await app.inject({method:"POST",url:endpoint,payload})).statusCode,401);
+  const other=createSessionClient();await register(other,true);
+  assert.notEqual((await other.raw("POST",endpoint,payload)).statusCode,200);
+  assert.equal((await client.raw("POST",endpoint,{file_name:"bad.html",data:Buffer.from("<script>alert(1)</script>").toString("base64")})).statusCode,400);
+  const uploaded=await client.request("POST",endpoint,payload);
+  const url=new URL(uploaded.url);
+  const publicFile=await app.inject({method:"GET",url:url.pathname});
+  assert.equal(publicFile.statusCode,200,publicFile.body);assert.deepEqual(publicFile.rawPayload,bytes);
+  assert.ok(String(publicFile.headers["content-type"]).includes("application/pdf"));
+  assert.equal(publicFile.headers["x-content-type-options"],"nosniff");
+  assert.equal((await app.inject({method:"GET",url:url.pathname.replace(/[^/]+$/, "0".repeat(64))})).statusCode,404);
 });

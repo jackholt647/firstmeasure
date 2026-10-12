@@ -58,16 +58,16 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     assert.equal(await page.evaluate(()=>window.resume({})), 'business');
     assert.equal(await page.evaluate(()=>window.resume({...window.saved,provider_refs:{},brand_status:'draft',campaign:{...window.saved.campaign,optInDisclosure:''}})), 'consent');
     await page.evaluate(()=>window.start());
-    await page.getByRole('button',{name:'4. Customer consent'}).click();
+    await page.getByRole('button',{name:'3. Messages & consent'}).click();
     const disclosure=page.locator('[data-sms-field="campaign.optInDisclosure"]');
     assert.equal(await disclosure.isEnabled(),true);
     await disclosure.fill('Incomplete consent');
     await page.locator('#smsNext').click();
     await page.locator('[data-sms-step-errors]').getByRole('button',{name:/Consent script: name FirstMate/}).waitFor();
     await disclosure.fill(fixture.campaign.optInDisclosure);
-    await page.locator('[data-sms-field="campaign.optInMethod"]').selectOption('WEBSITE_FORM');
+    await page.locator('[data-sms-method="WEBSITE_FORM"]').check();
     await page.locator('[data-sms-field="campaign.optInLocationUrl"]').waitFor();
-    await page.locator('[data-sms-field="campaign.optInMethod"]').selectOption('VERBAL');
+    await page.locator('[data-sms-method="WEBSITE_FORM"]').uncheck();
     assert.equal(await page.locator('[data-sms-field="campaign.optInLocationUrl"]').count(),0);
     assert.equal(await disclosure.inputValue(),fixture.campaign.optInDisclosure);
     await page.locator('#smsNext').click();
@@ -75,7 +75,7 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/messages-desktop.png'});
     await page.getByRole('button',{name:'1. Business'}).click();
     assert.equal(await page.locator('[data-sms-field="brand.companyName"]').isDisabled(),true);
-    await page.getByRole('button',{name:'7. Review & submit'}).click();
+    await page.getByRole('button',{name:'6. Review & submit'}).click();
     await page.locator('#smsContinueSetup').evaluate(el=>{el.click();el.click();});
     await page.locator('.sms-api-error').waitFor();
     assert.match(await page.locator('.sms-api-error').innerText(),/Privacy policy must be publicly accessible/);
@@ -91,7 +91,7 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     assert.ok(pane.height>300 && pane.width<=390,JSON.stringify(pane));
     assert.equal(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-mobile.png'});
-    await page.getByRole('button',{name:'7. Review & submit'}).click();
+    await page.getByRole('button',{name:'6. Review & submit'}).click();
     await page.evaluate(()=>window.failSubmit=false);
     await page.locator('#smsContinueSetup').click();
     await page.getByText('Your campaign is under review',{exact:true}).waitFor();
@@ -243,14 +243,22 @@ test('business identity switches paths, formats EIN and website, and preserves u
       const normalizeOrganizationBusinessAddress=v=>v||{};const organizationBusinessAddressFromState=()=>({});const formatOrganizationBusinessAddress=()=>'';
       const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const formatPhoneUS=v=>v;const readSettingsRoute=()=>({});const writeSettingsRoute=()=>{};const showToast=()=>{};const renderSmsSettings=()=>{};
-      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{}})};
-      const messagingRequest=async(path,options={})=>{if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};return {profile:structuredClone(window.saved)};};
+      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{},campaign:{...fixture.campaign,selectedNumber:''}})};
+      window.requests=[];
+      const messagingRequest=async(path,options={})=>{
+        window.requests.push({path,...options});
+        if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};
+        if(path.includes('/available-numbers'))return {numbers:[{phone_number:'+12065550101',locality:'Seattle',region:'WA',monthly_cost:'1.00'},{phone_number:'+12065550102',locality:'Seattle',region:'WA',monthly_cost:'1.00'}]};
+        if(path.endsWith('/select-number'))window.saved={...window.saved,campaign:{...window.saved.campaign,selectedNumber:options.body.phone_number}};
+        if(path.endsWith('/evidence'))return {url:'https://example.com/evidence.pdf'};
+        return {profile:structuredClone(window.saved)};
+      };
       ${helpers}
       ${wizard}
       window.start=()=>openSmsWizard(window.saved,{initialStep:'business'});
       window.usecase=brand=>smsGeneratedCampaign(mergeSmsProfile({brand})).usecase;
       window.fieldState=smsFieldLiveState;
-      window.einValid=smsValidEin;
+      window.einValid=smsValidEin; window.defaultFeatures=()=>smsSelectedFeatures(mergeSmsProfile({}));
     `});
     await page.evaluate(()=>window.start());
     assert.equal(await page.locator('[data-sms-field]').first().getAttribute('data-sms-field'),'brand.entityType');
@@ -287,6 +295,37 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
     if(process.env.SMS_SCREENSHOTS) {await mkdir(process.env.SMS_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/identity-mobile.png'});}
+    assert.equal(await page.evaluate(()=>window.defaultFeatures().length),3);
+    await page.getByRole('button',{name:'3. Messages & consent'}).click();
+    await page.locator('[data-sms-method="WEBSITE_FORM"]').check();
+    assert.equal(await page.locator('[data-sms-method="VERBAL"]').isChecked(),true);
+    await page.locator('[data-sms-method="KEYWORD"]').check();
+    const signup=page.locator('[data-sms-field="campaign.optInLocationUrl"]');await signup.fill('example.com/signup');await signup.blur();assert.equal(await signup.inputValue(),'https://example.com/signup');
+    assert.equal(await page.locator('[data-sms-field="campaign.websiteFormConfirmed"]').count(),0);
+    assert.equal(await page.locator('[data-sms-field="campaign.policyContentConfirmed"]').count(),0);
+    await page.getByText('Open example privacy policy — SMS section',{exact:true}).click();
+    assert.equal(await page.getByText(/collects your mobile number and SMS consent record/).count(),1);
+    await page.getByText('Supporting evidence',{exact:true}).click();
+    await page.locator('[data-sms-evidence-upload]').setInputFiles({name:'example.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')});
+    await page.waitForFunction(()=>window.saved.campaign.optInEvidenceUrl==='https://example.com/evidence.pdf');
+    assert.equal(await page.locator('[data-fm-note]').isVisible(),false);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-mobile.png'});
+    await page.setViewportSize({width:1280,height:960});
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-desktop.png'});
+    await page.getByRole('button',{name:'5. Number'}).click();
+    await page.locator('#sms-number-search').fill('206');
+    await page.locator('[data-sms-choose-number="+12065550101"]').waitFor();
+    assert.match(await page.locator('.sms-number-grid').innerText(),/Seattle, WA/);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/numbers-new.png'});
+    assert.doesNotMatch(await page.locator('.sms-number-grid').innerText(),/SMS|MMS|\$|month/);
+    await page.locator('[data-sms-choose-number="+12065550101"]').click();
+    await page.getByRole('button',{name:'Choose a different number'}).click();
+    await page.locator('[data-sms-choose-number="+12065550102"]').click();
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path.endsWith('/select-number')).length),0);
+    page.on('dialog',dialog=>dialog.accept());
+    await page.locator('#smsNext').click();
+    await page.waitForFunction(()=>window.saved.campaign.selectedNumber==='+12065550102');
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path.endsWith('/select-number')).length),1);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });
