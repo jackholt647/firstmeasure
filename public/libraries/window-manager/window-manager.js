@@ -2,6 +2,118 @@
 (function(root){
   'use strict';
   if (root.FirstMateWindows) return;
+  // One backdrop policy for windows, managed modals and native dialogs. Each
+  // document draws only its foremost backdrop; iframe owners keep the page's
+  // backdrop while the child document blurs its own workspace.
+  function createBackdrops(){
+    const candidates = new Set();
+    const selector = '[data-fm-window-backdrop],[data-fm-modal-id],dialog,[class*="overlay"],[class*="backdrop"],[class*="modal"]';
+    const preference = root.matchMedia('(prefers-reduced-transparency: reduce)');
+    let scheduled = false, graphics = null, override = 'auto', serial = 0;
+    const nativeOrder = new WeakMap();
+    try { override = root.localStorage.getItem('fm-backdrop-effect') || 'auto'; } catch (_) {}
+    const style = document.createElement('style'); style.id = 'fm-backdrop-styles';
+    style.textContent = `
+[data-fm-backdrop]{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+[data-fm-backdrop="active"],dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+html[data-fm-backdrop-effect="blur"] [data-fm-backdrop="active"],html[data-fm-backdrop-effect="blur"] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.10)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
+dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+@media(prefers-reduced-transparency:reduce){html[data-fm-backdrop-effect] [data-fm-backdrop="active"],html[data-fm-backdrop-effect] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
+`;
+    document.head.append(style);
+    function effect(){
+      if (preference.matches || override === 'dim') return 'dim';
+      if (!root.CSS?.supports?.('backdrop-filter','blur(8px)') && !root.CSS?.supports?.('-webkit-backdrop-filter','blur(8px)')) return 'dim';
+      if (override === 'blur') return 'blur';
+      // CSS support alone says nothing about graphics performance. Refuse
+      // known software renderers and major caveats, and immediately free the
+      // probe. This is a conservative hint, not a CSS GPU capability API.
+      if (graphics === null) {
+        graphics = false;
+        try {
+          const canvas = document.createElement('canvas');
+          const gl = canvas.getContext('webgl', {failIfMajorPerformanceCaveat:true});
+          if (gl) {
+            const info = gl.getExtension('WEBGL_debug_renderer_info');
+            const renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+            graphics = !/swiftshader|llvmpipe|software|softpipe/i.test(renderer);
+            gl.getExtension('WEBGL_lose_context')?.loseContext();
+          }
+        } catch (_) {}
+      }
+      return graphics ? 'blur' : 'dim';
+    }
+    function collect(node){
+      if (!(node instanceof root.Element)) return;
+      if (node.matches(selector)) candidates.add(node);
+      node.querySelectorAll(selector).forEach(el => candidates.add(el));
+    }
+    function refresh(){
+      scheduled = false;
+      const overlays = [], dialogs = [];
+      for (const el of candidates) {
+        if (!el.isConnected) { candidates.delete(el); continue; }
+        if (el.localName === 'dialog') {
+          if (el.matches(':modal')) {
+            if (!nativeOrder.has(el)) nativeOrder.set(el, ++serial);
+            dialogs.push(el);
+          } else { nativeOrder.delete(el); el.removeAttribute('data-fm-native-backdrop'); }
+          continue;
+        }
+        // Remove our styling before measuring the app's original semantics.
+        // Only translucent viewport overlays qualify; menus, cards and sheets
+        // that do not cover the document retain their own visual treatment.
+        el.removeAttribute('data-fm-backdrop');
+        if (el.dataset.fmWindowBackdrop === 'off') continue;
+        const css = root.getComputedStyle(el), box = el.getBoundingClientRect();
+        const visible = css.display !== 'none' && css.visibility !== 'hidden' && !el.hidden && box.width > 0 && box.height > 0;
+        const alpha = css.backgroundColor.match(/rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)/);
+        const translucent = alpha && Number(alpha[1]) > 0 && Number(alpha[1]) < 1;
+        const filtered = css.backdropFilter && css.backdropFilter !== 'none';
+        const covers = box.width >= root.innerWidth * .85 && box.height >= root.innerHeight * .85;
+        const managed = el.hasAttribute('data-fm-modal-id') || el.dataset.fmWindowBackdrop === 'modal';
+        if (visible && covers && ['fixed','absolute'].includes(css.position) && (managed || (css.pointerEvents !== 'none' && (translucent || filtered)))) {
+          overlays.push({el,z:Number(css.zIndex) || 0});
+        }
+      }
+      overlays.sort((a,b) => a.z-b.z || (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+      const foremost = dialogs.length ? null : overlays.at(-1)?.el;
+      overlays.forEach(({el}) => el.dataset.fmBackdrop = el === foremost ? 'active' : 'inactive');
+      dialogs.sort((a,b) => nativeOrder.get(a)-nativeOrder.get(b));
+      dialogs.forEach(el => el.dataset.fmNativeBackdrop = el === dialogs.at(-1) ? 'active' : 'inactive');
+      if (overlays.length || dialogs.length) document.documentElement.dataset.fmBackdropEffect = effect();
+    }
+    function schedule(){ if (!scheduled) { scheduled = true; root.requestAnimationFrame(refresh); } }
+    const observer = new MutationObserver(records => {
+      let changed = false;
+      for (const record of records) {
+        if (record.type === 'childList') { record.addedNodes.forEach(collect); changed = true; }
+        else {
+          if(record.attributeName === 'open' && record.target.localName === 'dialog') {
+            if(record.target.matches(':modal'))nativeOrder.set(record.target,++serial);
+            else nativeOrder.delete(record.target);
+          }
+          collect(record.target); changed = true;
+        }
+      }
+      if (changed) schedule();
+    });
+    function start(){ collect(document.body); observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','open','data-fm-modal-id','data-fm-window-backdrop']}); schedule(); }
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded',start,{once:true});
+    root.addEventListener('fm:modal-stack:changed',schedule);
+    root.addEventListener('resize',schedule);
+    preference.addEventListener('change',schedule);
+    root.addEventListener('storage',event => { if (event.key === 'fm-backdrop-effect') { override = event.newValue || 'auto'; schedule(); } });
+    return {refresh:schedule, setEffect(value){
+      if (!['auto','blur','dim'].includes(value)) throw new Error('Unknown backdrop effect');
+      override = value;
+      try { root.localStorage.setItem('fm-backdrop-effect',value); } catch (_) {}
+      // Same-origin embedded workspaces use the same preference immediately.
+      document.querySelectorAll('iframe').forEach(frame => { try { frame.contentWindow.FirstMateWindows?.backdrops?.setEffect(value); } catch (_) {} });
+      schedule();
+    }};
+  }
+  const backdrops = createBackdrops();
   const windows = new Set();
   const hosts = new Map();
   const modes = ['full', 'floating', 'docked', 'minimized', 'modal', 'fullscreen'];
@@ -22,6 +134,7 @@
 @keyframes fm-preview-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.fm-window,.fm-window-preview{transition:none!important;animation:none!important}}
 .fm-window[hidden]{display:none!important}.fm-window[data-window=full],.fm-window[data-window=fullscreen],.fm-window[data-window=docked]{border-radius:0;box-shadow:none}.fm-window[data-window=docked]{overflow:visible}
+.fm-window-backdrop{position:fixed;inset:0;background:rgba(11,16,24,.58)}.fm-window-backdrop[hidden]{display:none!important}
 .fm-window-header{display:flex;flex:none;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border-bottom:1px solid #e4e7ec;white-space:nowrap;touch-action:none;user-select:none;cursor:default}
 .fm-window-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:700;white-space:nowrap}
 .fm-window-title:after{content:'';display:inline-block;width:5px;height:5px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(45deg);margin-left:6px;vertical-align:3px;opacity:.55;flex:0 0 auto}
@@ -160,7 +273,9 @@
   }
   function restack(){
     [...windows].sort((a,b)=>(a.stackOrder||0)-(b.stackOrder||0)).forEach((win,index)=>{
-      (win.stackElement || win.element).style.zIndex=String((['modal','fullscreen'].includes(win.mode) ? 2147483100 : win.mode === 'docked' ? 80 : win.mode === 'minimized' ? 1200 : 500)+index);
+      const z=(['modal','fullscreen'].includes(win.mode) ? 2147483100 : win.mode === 'docked' ? 80 : win.mode === 'minimized' ? 1200 : 500)+index*2;
+      (win.stackElement || win.element).style.zIndex=String(z);
+      if(win.ownedBackdrop)win.ownedBackdrop.style.zIndex=String(z-1);
     });
   }
   function attach(options){
@@ -190,6 +305,16 @@
       topInset:() => Math.max(0,Number(options.topInset?.(win.host) || 0)),
       rect:{left:Math.max(0,host.clientWidth-(options.width || 640)-24),top:72,width:options.width || 640,height:options.height || 520}
     };
+    if (!win.stackElement) {
+      win.ownedBackdrop=document.createElement('div');win.ownedBackdrop.className='fm-window-backdrop';
+      win.ownedBackdrop.setAttribute('aria-hidden','true');host.append(win.ownedBackdrop);
+    }
+    function syncBackdrop(){
+      const modal=win.visible && ['modal','fullscreen'].includes(win.mode);
+      const target=win.ownedBackdrop || win.stackElement;
+      if(target && target.dataset.fmWindowBackdrop !== (modal?'modal':'off'))target.dataset.fmWindowBackdrop=modal?'modal':'off';
+      if(win.ownedBackdrop)win.ownedBackdrop.hidden=!modal;
+    }
     function fitFloatingSize(){
       const width=win.host.clientWidth,height=Math.max(0,win.host.clientHeight-win.topInset());
       win.rect.width=Math.min(width,Math.max(Math.min(win.minWidth,width),Math.min(win.rect.width,width*.72)));
@@ -215,6 +340,7 @@
     }
     const name = options.label || (options.name === 'project' ? (globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project") : options.name) || (globalThis.PlatformLanguage?.text("window-manager","window","window") ?? "window");
     function chrome(){
+      syncBackdrop();
       element.style.position = win.viewportCoordinates || ['modal','fullscreen'].includes(win.mode) ? 'fixed' : 'absolute';
       element.dataset.window = win.mode; element.dataset.pinned=String(win.pinned);
       if (win.mode !== 'docked') element.querySelectorAll('.is-dock-divider').forEach(grip=>grip.classList.remove('is-dock-divider'));
@@ -302,7 +428,7 @@
         // Re-evaluate the viewport when a closed mobile tray reopens on desktop.
         setMode(initialPlacement.mode);
       }
-      layout(win.host);if(value)focus();
+      syncBackdrop();layout(win.host);if(value)focus();
     }
     async function requestClose(){ if (buttons.close.disabled) return; buttons.close.disabled=true; try { if (options.onClose) await options.onClose(); else setVisible(false); } finally { buttons.close.disabled=false; } }
     function dock(side='right'){if(!placements.includes(side))return;win.dockSide=side;element.dataset.dock=side;setMode('docked');}
@@ -436,10 +562,10 @@
       restore,
       get state(){return {mode:win.mode,dockSide:win.dockSide,pinned:win.pinned,visible:win.visible};},
       setVisible,
-      rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);layout(old);releaseHost(old);layout(nextHost);},
+      rehost(nextHost,contentTarget){if(nextHost===win.host)return;const old=win.host;registerHost(nextHost);win.host=nextHost;win.contentTarget=contentTarget;nextHost.append(element);if(win.ownedBackdrop)nextHost.append(win.ownedBackdrop);layout(old);releaseHost(old);layout(nextHost);},
       refresh(){layout(win.host);},
-      destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);element.remove();layout(win.host);releaseHost(win.host);}
+      destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);win.ownedBackdrop?.remove();win.stackElement?.removeAttribute('data-fm-window-backdrop');element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
-  root.FirstMateWindows={attach, ensureStyles:styles};
+  root.FirstMateWindows={attach, ensureStyles:styles, backdrops};
 })(window);

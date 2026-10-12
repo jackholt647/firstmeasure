@@ -73,6 +73,31 @@ the current placement until the tray is closed.
 An omitted `onClose` hides the window. Applications can await asynchronous cleanup
 inside `onClose`; the X is disabled until it settles.
 
+## Modal backdrops
+
+The window library owns one backdrop policy across modal windows, `Portal.modals`
+overlays, legacy translucent viewport overlays and native `dialog.showModal()`.
+Windows without an application-owned `stackElement` receive a backdrop from the
+manager. Floating, docked, maximized-in-workspace, minimized and hidden windows
+release it. Apps retain content and dismissal ownership.
+
+Only the foremost viewport overlay in each document draws a backdrop. Opening a
+native dialog clears lower overlays and styles its `::backdrop`; closing it
+restores the previous overlay. Small menus/popovers are excluded. Same-origin
+iframe workspaces retain the owner's page blur and draw the same effect over
+their own content when a child modal opens, keeping the child sharp.
+
+Blur is 8px with a light tint. Dim-only is the fallback for unsupported CSS,
+reduced-transparency preferences, refused major-caveat-free WebGL contexts or
+known software renderers. WebGL is a conservative performance hint, not proof
+of CSS acceleration. The probe runs once on first use and releases its context.
+`FirstMateWindows.backdrops.setEffect('auto' | 'blur' | 'dim')` provides a persisted
+browser override and updates embedded workspaces. Explicit blur still respects
+CSS support and reduced transparency. There is no per-project visual policy.
+
+Run `node --test tests/modal-backdrops-browser.test.mjs
+tests/window-manager-browser.test.mjs` from `public/v1`.
+
 Multiple docks share a width budget that leaves page content available. The
 manager restores the content target's original inline width and margin when no
 docks remain, and observes host resizing (including a locked sidebar changing
