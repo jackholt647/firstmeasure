@@ -79,6 +79,10 @@
     minimizedTypes: new Set(),
     dragItem: null,
     laborMenu: null,
+    pricebookAutofill: null,
+    pricebookListId: '',
+    autofill: null,
+    orderLeftWidth: null,
     columnWeights: null,
     leftSections: { lists: true, measurements: true, custom_fields: true, notes: true },
     noteVisibility: ['office', 'crew', 'sales'],
@@ -118,7 +122,6 @@
     unitsMode: 'measured',
     orderProvider: 'manual',
     orderSelectedListIds: new Set(),
-    orderExpandedListIds: new Set(),
     orderTimingChoice: '',
     orderScheduleDrafts: {},
     orderDatesConfirmed: false,
@@ -495,6 +498,42 @@
     const selected = materialOrderLists().filter((list) => state.orderSelectedListIds.has(cleanText(list.id)));
     return selected.length ? selected : (state.activeList && resourceType(state.activeList) === 'material' ? [state.activeList] : []);
   }
+  const ORDER_TIME_PRESETS = ['First thing in the morning', 'Morning (8am - 12pm)', 'Midday (11am - 1pm)', 'Afternoon (12pm - 4pm)', 'End of day', 'Any time'];
+  // "9", "9am", "9:30 pm" or "14:00" as HH:MM; anything else is a delivery window described in words.
+  function orderTimeClock(value){
+    const match = cleanText(value).toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+    if (!match) return '';
+    let hour = Number(match[1]);
+    const minute = Number(match[2] || 0);
+    if (match[3] === 'pm' && hour < 12) hour += 12;
+    if (match[3] === 'am' && hour === 12) hour = 0;
+    return hour < 24 && minute < 60 ? `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` : '';
+  }
+  // The selected list whose delivery this list has been grouped with, while that list still has a date of its own.
+  function orderGroupTarget(list){
+    const targetId = cleanText(scheduleDraftForList(list).group_with);
+    const target = targetId && targetId !== cleanText(list?.id) ? materialListById(targetId) : null;
+    const draft = target ? scheduleDraftForList(target) : null;
+    return target && state.orderSelectedListIds.has(targetId) && cleanText(draft.date) && !cleanText(draft.group_with) ? target : null;
+  }
+  function orderSchedule(list){
+    return scheduleDraftForList(orderGroupTarget(list) || list);
+  }
+  // Deliveries as the supplier sees them: grouped lists share one entry; lists that merely have the same date stay separate.
+  function orderDeliveryGroups(lists = selectedOrderLists()){
+    const groups = [];
+    lists.forEach((list) => {
+      const lead = orderGroupTarget(list) || list;
+      let group = groups.find((entry) => entry.id === cleanText(lead.id));
+      if (!group) groups.push(group = { id: cleanText(lead.id), lists: [], schedule: scheduleDraftForList(lead) });
+      group.lists.push(list);
+    });
+    return groups;
+  }
+  function orderGroupTitle(group){
+    const names = group.lists.map((list) => cleanText(list.title) || 'Materials');
+    return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+  }
   function scheduleDraftForList(list){
     const id = cleanText(list?.id);
     return state.orderScheduleDrafts[id] || { date: '', time: '' };
@@ -506,7 +545,7 @@
     const parts = eventDateParts(event);
     state.orderScheduleDrafts[id] = {
       date: parts.date,
-      time: event?.all_day === false && parts.time && parts.time !== '00:00' ? parts.time : '',
+      time: event?.all_day === false && parts.time && parts.time !== '00:00' ? new Date(parts.iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
       start: cleanText(event?.start_at || event?.start),
       end: cleanText(event?.end_at || event?.end),
       all_day: event?.all_day !== false,
@@ -518,7 +557,6 @@
     let preferred = lists.find((list) => cleanText(list.id) === cleanText(preferredListId)) || lists[0] || null;
     if (options.preferUnordered && materialListOrdered(preferred)) preferred = lists.find((list) => !materialListOrdered(list)) || preferred;
     state.orderSelectedListIds = new Set(preferred ? [cleanText(preferred.id)] : []);
-    state.orderExpandedListIds = new Set(lists.length === 1 && preferred ? [cleanText(preferred.id)] : []);
     state.orderTimingChoice = '';
     state.orderScheduleDrafts = {};
     lists.forEach(seedOrderSchedule);
@@ -552,9 +590,7 @@
     return !!lists.length && lists.every((list) => cleanText(scheduleDraftForList(list).date));
   }
   function orderScheduleComplete(){
-    if (state.orderTimingChoice === 'without_dates') return true;
-    if (state.orderTimingChoice !== 'scheduled') return false;
-    return orderScheduleDatesComplete() && state.orderDatesConfirmed;
+    return true;
   }
   function projectFromContext(context = {}){
     return context.project || context.activeProject || context.projectModel?.state?.activeBaseProject || state.project || null;
@@ -807,8 +843,8 @@
       .mt-order-head{min-height:0;padding:14px 18px}.mt-order-head h2{margin:0;font-size:20px;font-weight:700;color:#101828}
       .mt-order-layout{grid-template-rows:minmax(0,1fr)}
       .mt-order-details .mt-form-grid{flex:none}.mt-order-details .mt-form-grid label>span{display:block;margin-bottom:3px}
-      .mt-order-tiles{flex:1 1 0;min-height:64px;display:flex;align-items:flex-start;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
-      .mt-order-tile{flex:1 1 0;min-width:132px;max-height:100%;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e4e7ec;border-radius:10px;background:#fff}
+      .mt-order-tiles{flex:1 1 0;min-height:64px;display:flex;align-items:stretch;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+      .mt-order-tile{flex:1 1 0;min-width:176px;max-height:100%;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e4e7ec;border-radius:10px;background:#fff}
       .mt-order-tile.selected{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--primary,#d93025) 14%,transparent)}
       .mt-order-tile header{flex:none;display:flex;align-items:center;gap:4px;padding:4px 4px 4px 0}
       .mt-order-tile-select{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:8px;padding:7px 4px 7px 9px;border:0;background:transparent;color:#344054;text-align:left;cursor:pointer}
@@ -816,14 +852,29 @@
       .mt-order-tile .mt-order-list-check{flex:none}.mt-order-tile.selected .mt-order-list-check{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:#fff}
       .mt-order-tile-count{flex:none;font-size:11px;font-variant-numeric:tabular-nums;color:#667085}
       .mt-order-tile-expand{flex:none;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:#667085;font-size:10px;cursor:pointer}.mt-order-tile-expand:hover{background:#f2f4f7;color:#344054}
-      .mt-order-tile-items{flex:1 1 auto;min-height:0;overflow-y:auto;scrollbar-width:thin;margin:0;padding:2px 9px 6px;list-style:none;border-top:1px solid #f0f2f5}
+      .mt-order-tile-items{flex:1 1 0;min-height:0;overflow-y:auto;scrollbar-width:thin;margin:0;padding:2px 9px 6px;list-style:none;border-top:1px solid #f0f2f5}
       .mt-order-tile-items li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #f6f7f9;font-size:11px;color:#344054}.mt-order-tile-items li:last-child{border-bottom:0}
       .mt-order-tile-items span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-order-tile-items em{flex:none;font-style:normal;color:#667085;font-variant-numeric:tabular-nums}
-      .mt-order-submit{flex:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.mt-order-submit .mt-btn{min-height:40px;white-space:nowrap}
+      .mt-order-tile{position:relative}.mt-order-tile.has-more>.mt-order-tile-items::after{content:'\\2026';position:sticky;display:flex;left:0;right:0;bottom:0;margin-top:-22px;height:22px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:1px;border-radius:0 0 9px 9px;background:linear-gradient(rgba(255,255,255,0),#fff 62%);color:#667085;font-size:15px;font-weight:700;letter-spacing:1px;pointer-events:none}
+      .mt-order-tile>footer{flex:none;display:flex;flex-direction:column;gap:5px;min-height:88px;box-sizing:border-box;padding:7px 9px 8px;border-top:1px solid #eaecf0;background:#f8fafc;border-radius:0 0 9px 9px}
+      .mt-order-tile-total{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px;color:#667085}.mt-order-tile-total strong{font-size:13px;color:#101828;font-variant-numeric:tabular-nums}
+      .mt-order-tile-when{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:4px}.mt-order-tile-when input{min-width:0;height:26px;box-sizing:border-box;padding:0 5px;border:1px solid #d0d5dd;border-radius:6px;background:#fff;color:#101828;font:inherit;font-size:11px}.mt-order-tile-when input:disabled{background:#f2f4f7;color:#98a2b3}
+      .mt-order-tile-groups{display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:10px;color:#667085}
+      .mt-order-tile-group{max-width:100%;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font-size:10px;font-weight:600;cursor:pointer}.mt-order-tile-group span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-order-tile-group:hover{border-color:#98a2b3}.mt-order-tile-group.active{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
+      .mt-order-right{min-width:0;min-height:0;display:flex;flex-direction:column;gap:10px}.mt-order-right>.mt-email-preview{flex:1 1 0}.mt-order-send{flex:none;display:flex;justify-content:flex-end}.mt-order-send .mt-btn{min-height:40px;padding:0 22px}
       .mt-order-calendar-panel{grid-template-rows:auto auto minmax(0,1fr)}.mt-order-calendar-panel>.mt-order-target-options{margin:0;padding:8px 14px;border-bottom:1px solid #eaecf0}
       .mt-order-target strong{font-size:11px}.mt-order-target small{font-size:10px}
       @media (min-width:901px){.mt-order-details{overflow:hidden;padding-right:0}.mt-order-content.manual.calendar-mode .mt-order-details{padding-bottom:14px}}
-      @media (max-width:900px){.mt-order-tiles{flex:none;max-height:260px}}
+      @media (max-width:900px){.mt-order-tiles{flex:none;max-height:260px}.mt-order-divider{display:none}}
+      @media (min-width:901px){.mt-order-content.manual,.mt-order-content.manual.calendar-mode{grid-template-columns:var(--order-left,330px) 14px minmax(0,1fr);gap:0}}
+      .mt-order-divider{position:relative;align-self:stretch;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none}.mt-order-divider::after{content:'';position:absolute;top:6px;bottom:6px;left:6px;width:2px;border-radius:2px;background:#e4e7ec;transition:background .12s}.mt-order-divider:hover::after,.mt-order-divider:focus-visible::after,.mt-order-divider.is-dragging::after{background:var(--primary,#d93025)}.mt-order-divider:focus-visible{outline:none}
+      .mt-workspace-actions button.mt-order-all{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);font-weight:700}.mt-workspace-actions button.mt-order-all:hover:not(:disabled){background:var(--primary-dark,var(--primary,#d93025))}.mt-workspace-actions button.mt-order-all:disabled{opacity:.5;cursor:not-allowed}
+      .mt-workspace-actions button[data-mt-autofill-toggle][aria-pressed=true]{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
+      .mt-resource-column .mt-list-head button[data-mt-open-pricebook][aria-pressed=true]{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+      .mt-autofill{position:fixed;z-index:2147482660;box-sizing:border-box;max-height:264px;overflow:auto;padding:4px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;box-shadow:0 14px 34px rgba(15,23,42,.18);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+      .mt-autofill button{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;padding:6px 8px;border:0;border-radius:5px;background:#fff;color:#101828;text-align:left;cursor:pointer}
+      .mt-autofill button:hover,.mt-autofill button[aria-selected=true]{background:rgba(var(--primary-rgb,217,48,37),.09)}
+      .mt-autofill strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}.mt-autofill span{flex:none;font-size:10px;color:#667085;white-space:nowrap}
     `;
   }
 
@@ -3031,6 +3082,89 @@
     }
   }
 
+  function autofillEnabled(){
+    if (state.pricebookAutofill == null) {
+      let saved = null;
+      try { saved = rootWindow.localStorage?.getItem?.('fm_scope_pricebook_autofill'); } catch (_) {}
+      state.pricebookAutofill = saved !== 'off';
+    }
+    return state.pricebookAutofill;
+  }
+
+  function autofillMatches(query){
+    const tokens = cleanText(query).toLowerCase().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return [];
+    return state.pricebookItems.filter((item) => {
+      const text = `${item.name || ''} ${item.variantName || ''} ${item.category || ''}`.toLowerCase();
+      return tokens.every((token) => text.includes(token));
+    }).slice(0, 8);
+  }
+
+  function closeAutofill(){
+    document.querySelectorAll?.('[data-mt-autofill]')?.forEach((node) => node.remove());
+    state.autofill = null;
+  }
+
+  // Suggests price book items under the name being typed; nothing is preselected, so Enter keeps the typed text unless an arrow key chose one.
+  function showAutofill(input){
+    closeAutofill();
+    if (!autofillEnabled() || !input?.isConnected) return;
+    const matches = autofillMatches(input.value);
+    if (!matches.length) return;
+    const portal = document.createElement('div');
+    portal.className = 'mt-autofill';
+    portal.dataset.mtAutofill = '';
+    portal.setAttribute('role', 'listbox');
+    portal.innerHTML = matches.map((item, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" data-mt-autofill-item="${index}"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml([item.category, `${money(item.unitPrice || 0)} per ${item.unit || 'ea'}`].filter(Boolean).join(' · '))}</span></button>`).join('');
+    colorPortalHost(state.panelRoot).appendChild(portal);
+    const rect = input.getBoundingClientRect();
+    const width = Math.max(280, rect.width);
+    const height = portal.offsetHeight;
+    portal.style.width = `${width}px`;
+    portal.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.left))}px`;
+    portal.style.top = `${rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 2 : Math.max(8, rect.top - height - 2)}px`;
+    state.autofill = { input, matches, index: -1, portal };
+    portal.querySelectorAll('[data-mt-autofill-item]').forEach((button) => {
+      button.addEventListener('mousedown', (event) => event.preventDefault());
+      button.addEventListener('click', () => commitItemName(input, matches[Number(button.dataset.mtAutofillItem)], false));
+    });
+  }
+
+  function moveAutofill(step){
+    const autofill = state.autofill;
+    if (!autofill) return;
+    const next = autofill.index + step;
+    autofill.index = next >= autofill.matches.length ? -1 : next < -1 ? autofill.matches.length - 1 : next;
+    autofill.portal.querySelectorAll('[data-mt-autofill-item]').forEach((button, index) => {
+      button.setAttribute('aria-selected', String(index === autofill.index));
+      if (index === autofill.index) button.scrollIntoView?.({ block: 'nearest' });
+    });
+  }
+
+  // Commits a name cell: a chosen price book item replaces the line, typed text renames it, and Enter on a list's last row starts the next row.
+  async function commitItemName(input, catalogItem, addNext){
+    const itemId = input.dataset.mtItemName;
+    const listId = input.dataset.mtListId;
+    const list = materialListById(listId);
+    const current = listItems(list).find((item) => cleanText(item.id) === cleanText(itemId));
+    closeAutofill();
+    if (!current || state.saving) return;
+    const last = cleanText(listItems(list).at(-1)?.id) === cleanText(itemId);
+    const renamed = cleanText(input.value) !== cleanText(materialPrimaryName(current));
+    if (catalogItem) {
+      input.dataset.mtCommitted = '1';
+      const quantity = integerQuantity(current.quantity, 0);
+      const next = lineFromPricebookItem(catalogItem, quantity > 0 ? { quantity } : {});
+      await updateItem(itemId, { ...next, id: itemId, structure_id: current.structure_id || next.structure_id }, listId);
+      syncMaterialsGrid();
+    } else if (renamed) {
+      input.dataset.mtCommitted = '1';
+      await updateItem(itemId, { name: input.value }, listId);
+    }
+    if (addNext && last && (catalogItem || renamed)) await addItem(null, resourceType(list) === 'material' ? 'accessories' : resourceType(list), listId);
+    else if (catalogItem) findByData(materialRoot(), '[data-mt-item-qty]', 'mtItemQty', itemId)?.focus?.();
+  }
+
   async function updateItemVariant(itemId, variantItemId, listId = state.activeListId){
     const targetList = materialListById(listId) || state.activeList;
     const current = listItems(targetList).find((item) => item.id === itemId);
@@ -3309,16 +3443,18 @@
   async function createOrderFromForm(form){
     const lists = selectedOrderLists().filter((list) => !materialListOrdered(list));
     if (!lists.length) return;
-    if (!orderScheduleComplete()) {
-      if (!state.orderTimingChoice) state.orderTimingChoice = 'scheduled';
-      state.orderCalendarOpen = state.orderTimingChoice === 'scheduled';
-      if (state.orderCalendarOpen) state.orderDatesConfirmed = false;
-      syncOrderDialog(true);
-      showToast((globalThis.PlatformLanguage?.text("materials","m_42d03dc71187fa","Delivery timing required") ?? "Delivery timing required"), (globalThis.PlatformLanguage?.text("materials","m_ce56d1a26a85bf","Schedule the selected deliveries or choose Order without dates.") ?? "Schedule the selected deliveries or choose Order without dates."), false);
-      return;
-    }
     captureOrderDraft(form.closest('[data-mt-order-dialog]'));
     const data = new FormData(form);
+    const supplierEmail = cleanText(data.get('vendor_email'));
+    if (!supplierEmail) {
+      showToast('Supplier email needed', 'Enter the supplier email address to send this order.', false);
+      form.querySelector('[name="vendor_email"]')?.focus?.();
+      return false;
+    }
+    if (!window.CommsAPI?.email?.send) {
+      showToast('Email is unavailable here', 'Copy the email and send it from your own mail, then try again later.', false);
+      return false;
+    }
     const quotedAmount = number(data.get('quoted_price'), NaN);
     const paidAmount = number(data.get('paid_price'), NaN);
     const baseTitle = cleanText(data.get('title')) || (lists.length === 1 ? cleanText(lists[0].title) : 'Material order');
@@ -3326,19 +3462,34 @@
     setWorkspaceSaving(true);
     materialRoot()?.querySelectorAll?.('[data-mt-order-dialog] button,[data-mt-order-dialog] input')?.forEach((control) => { control.disabled = true; });
     try {
+      const emailed = selectedOrderLists();
+      await window.CommsAPI.email.send(orgId(), projectId(), { to: supplierEmail, subject: orderRequestSubject(emailed), text: orderRequestText(emailed), html: orderRequestHtml(emailed), idempotency_key: uid('material_order_email') });
+    } catch (error) {
+      // Nothing is recorded when the supplier was not emailed; the dialog stays open with what was entered.
+      state.saving = false;
+      setWorkspaceSaving(false);
+      state.orderDraftFresh = true;
+      syncOrderDialog(true);
+      showToast('Could not send the email', error?.message || 'Please try again.', false);
+      return false;
+    }
+    try {
       for (const originalList of lists) {
         let list = materialListById(originalList.id) || originalList;
         let scheduledEvent = null;
         let scheduledWindow = {};
-        if (state.orderTimingChoice === 'scheduled') {
-          const scheduled = await persistInlineDeliverySchedule(list, scheduleDraftForList(list));
+        const when = orderSchedule(list);
+        const clock = orderTimeClock(when.time);
+        if (cleanText(when.date)) {
+          const scheduled = await persistInlineDeliverySchedule(list, { date: cleanText(when.date), time: clock, all_day: !clock });
           list = scheduled.list || list;
           scheduledEvent = scheduled.event;
           scheduledWindow = {
-            date: cleanText(scheduleDraftForList(list).date),
-            start_date: cleanText(scheduleDraftForList(list).date),
-            time: cleanText(scheduleDraftForList(list).time),
-            start_time: cleanText(scheduleDraftForList(list).time),
+            date: cleanText(when.date),
+            start_date: cleanText(when.date),
+            time: clock,
+            start_time: clock,
+            time_label: cleanText(when.time),
             start_at: scheduled.start.toISOString(),
             end_at: scheduled.end.toISOString(),
             precision: scheduled.allDay ? 'day' : 'datetime',
@@ -3351,7 +3502,7 @@
           vendor: { name: cleanText(data.get('vendor')), email: cleanText(data.get('vendor_email')) },
           scheduled_window: scheduledWindow,
           schedule_event_id: cleanText(scheduledEvent?.id),
-          delivery_status: state.orderTimingChoice === 'scheduled' ? 'scheduled' : 'unscheduled',
+          delivery_status: cleanText(when.date) ? 'scheduled' : 'unscheduled',
           quoted_price: Number.isFinite(quotedAmount) ? { amount: quotedAmount, currency: 'USD' } : undefined,
           paid_price: Number.isFinite(paidAmount) ? { amount: paidAmount, currency: 'USD' } : undefined,
           metadata: {
@@ -3382,7 +3533,7 @@
       }
       showToast(
         lists.length === 1 ? 'Order recorded' : `${lists.length} orders recorded`,
-        state.orderTimingChoice === 'scheduled' ? 'The selected material lists are tied to their delivery schedule.' : 'The selected material lists were ordered without delivery dates.',
+        `The request was emailed to ${supplierEmail}.`,
         true
       );
       await loadActiveListDetails();
@@ -3475,6 +3626,7 @@
 
   function ensureStyles(){
     columnWeights();
+    autofillEnabled();
     if (stylesInjected) return;
     injectCSS('materials-tab', css());
     window.PlatformUI?.initTooltips?.();
@@ -3647,13 +3799,15 @@
   function bindResourceActions(root){
     if(!root)return;
     root.querySelectorAll('[data-mt-new-category]').forEach(button=>button.onclick=addResourceCategory);
+    root.querySelectorAll('[data-mt-autofill-toggle]').forEach(button=>button.onclick=()=>{state.pricebookAutofill=!autofillEnabled();try{rootWindow.localStorage?.setItem?.('fm_scope_pricebook_autofill',state.pricebookAutofill?'on':'off');}catch(_){}closeAutofill();syncResourceHeader();});
     root.querySelectorAll('[data-mt-units-toggle]').forEach(button=>button.onclick=()=>{state.unitsMode=state.unitsMode==='order'?'measured':'order';render({preserveScroll:true});});
     root.querySelectorAll('[data-mt-minimize-type],[data-mt-restore-type]').forEach(button=>button.onclick=()=>{const minimizing=!!button.dataset.mtMinimizeType,type=button.dataset.mtMinimizeType||button.dataset.mtRestoreType,source=minimizing?button.closest('.mt-resource-column'):button,from=source.getBoundingClientRect(),clone=minimizing?source.cloneNode(true):null;if(minimizing)state.minimizedTypes.add(type);else state.minimizedTypes.delete(type);syncMaterialsGrid();animateMinimize(type,from,minimizing,clone);});
     root.querySelectorAll('[data-mt-delete-type]').forEach(button=>button.onclick=()=>removeResourceCategory(button.dataset.mtDeleteType));
     root.querySelectorAll('[data-mt-new-category-list]').forEach(button=>button.onclick=()=>createInlineList(button.dataset.mtNewCategoryList));
     root.querySelectorAll('[data-mt-category-icon]').forEach(button=>button.onclick=()=>editResourceAppearance(button.dataset.mtCategoryIcon));
     root.querySelectorAll('[data-mt-category-name]').forEach(input=>{input.oninput=()=>{const category=resourceCategories().find(row=>row.id===input.dataset.mtCategoryName);if(category)category.name=input.value;};input.onchange=()=>{const category=resourceCategories().find(row=>row.id===input.dataset.mtCategoryName);if(category){category.name=input.value.trim();saveResourceCategory(category);}};});
-    root.querySelectorAll('[data-mt-list-name]').forEach(input=>{input.onchange=async()=>{const id=input.dataset.mtListName,operation=captureProjectOperation(id);try{await patchScopeResourceList(id,{title:input.value.trim(),metadata:{...materialListById(id)?.metadata,placeholder_title:false}},operation);if(projectOperationIsCurrent(operation))syncMaterialsGrid();}catch(error){if(projectOperationIsCurrent(operation)){syncMaterialsGrid();showToast('Could not rename list',error.message,false);}}};});
+    root.querySelectorAll('[data-mt-list-name]').forEach(input=>{input.onchange=async()=>{const id=input.dataset.mtListName,operation=captureProjectOperation(id);try{await patchScopeResourceList(id,{title:input.value.trim(),metadata:{...materialListById(id)?.metadata,placeholder_title:false}},operation);if(projectOperationIsCurrent(operation))syncMaterialsGrid();}catch(error){if(projectOperationIsCurrent(operation)){syncMaterialsGrid();showToast('Could not rename list',error.message,false);}}};
+      input.onkeydown=async event=>{if(event.key!=='Enter')return;event.preventDefault();const id=input.dataset.mtListName,type=resourceType(materialListById(id));if(input.value!==input.defaultValue)await input.onchange();addItem(null,type==='material'?'accessories':type,id);};});
     root.querySelectorAll('[data-mt-restore-list],[data-mt-collapse-list],[data-mt-delete-list]').forEach(button=>{
       button.onclick=async()=>{
         const id=button.dataset.mtRestoreList||button.dataset.mtCollapseList||button.dataset.mtDeleteList;
@@ -3675,7 +3829,7 @@
   }
   function renderResourceHeader(){
     const order=state.unitsMode==='order';
-    return `<header class="mt-workspace-header"><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><button type="button" data-mt-generate-materials data-fm-tooltip="Generate lists automatically from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i> Regenerate</button><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Showing order units (bundles, boxes). Switch to measured units.':'Showing measured units. Switch to order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i> ${order?'Order':'Measured'}</button></div></header>`;
+    return `<header class="mt-workspace-header"><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-autofill-toggle aria-pressed="${state.pricebookAutofill!==false}" data-fm-tooltip="${state.pricebookAutofill!==false?'Price book autofill is on: typing a material name suggests price book items. Arrow keys choose one, Enter confirms and starts the next row.':'Price book autofill is off.'}" aria-label="Price book autofill"><i class="fas fa-book-open"></i> Autofill</button><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><button type="button" data-mt-generate-materials data-fm-tooltip="Generate lists automatically from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i> Regenerate</button><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Showing order units (bundles, boxes). Switch to measured units.':'Showing measured units. Switch to order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i> ${order?'Order':'Measured'}</button><button type="button" class="mt-order-all" data-mt-order-all data-fm-tooltip="Order every material list together in one supplier email" aria-label="Order materials for every material list" ${state.lists.some(list=>resourceType(list)==='material'&&listItems(list).length)?'':'disabled'}><i class="fas fa-cart-shopping"></i> Order Materials</button></div></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
@@ -3734,7 +3888,7 @@
       const listTotal=list=>type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected;
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-add-section="${type==='material'?'accessories':escapeHtml(type)}" title="Add item" aria-label="Add ${escapeHtml(terms.singular.toLowerCase())}"><i class="fas fa-plus"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${type==='material'?'<button type="button" data-mt-open-pricebook title="Price Book" aria-label="Price Book"><i class="fas fa-book"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
+        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button><button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
         <div class="mt-resource-scroll">${lists.map(list=>{
           const id=cleanText(list.id),listRows=rows.filter(item=>item.__material_list_id===id),collapsed=!!state.collapsedListIds?.has(id);
           const sections=materialSectionDefinitions().filter(section=>(section.resource_type||'material')===type&&listRows.some(item=>lineSectionKey(item)===section.key));
@@ -3742,7 +3896,7 @@
           const title=list.metadata?.placeholder_title||[category.name,terms.plural].some(label=>cleanText(label).toLowerCase()===cleanText(list.title).toLowerCase())?'':cleanText(list.title);
           const tools=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:'';
           const actions=list.metadata?.calculus_pending?'':`${type==='labor'?renderLaborListControls(list):''}${renderListActionControls(list,type,materialListOrdered(list))}`;
-          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="Default" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${actions}<button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(title||'Default')}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; collapse to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
+          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="Default" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${type==='material'?`<button type="button" data-mt-open-pricebook data-mt-list-id="${escapeHtml(id)}" aria-pressed="${state.pricebookOpen&&cleanText(state.pricebookListId)===id}" title="Add to this list from the price book" aria-label="Add to ${escapeHtml(title||'Default')} from the price book"><i class="fas fa-book"></i></button>`:''}${actions}<button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(title||'Default')}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; collapse to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
         }).join('')||'<div class="mt-empty">Empty List</div>'}</div>
         ${lists.length?'':`<button type="button" class="mt-resource-add" data-mt-add-section="${type==='material'?'accessories':type}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}
         <footer class="mt-column-total"><span>Total</span><strong>${money(lists.reduce((sum,list)=>sum+listTotal(list),0))}</strong></footer>
@@ -4067,6 +4221,15 @@
     return true;
   }
 
+  // Marks tiles whose item list is cut off, until it has been scrolled to its end.
+  function markOrderTileOverflow(dialog){
+    dialog?.querySelectorAll?.('.mt-order-tile-items')?.forEach((items) => {
+      const mark = () => items.closest('.mt-order-tile')?.classList.toggle('has-more', items.scrollTop + items.clientHeight < items.scrollHeight - 2);
+      items.onscroll = mark;
+      mark();
+    });
+  }
+
   function syncOrderDialog(open = false){
     const root = materialRoot();
     const existing = root?.querySelector?.('[data-mt-order-dialog]');
@@ -4085,6 +4248,7 @@
     else root.appendChild(next);
     bindMain(next);
     if (shouldOpen) next.showModal?.();
+    markOrderTileOverflow(next);
     if (state.orderCalendarOpen && state.orderTimingChoice === 'scheduled') renderOrderDeliveryCalendar(next);
     return true;
   }
@@ -4176,7 +4340,7 @@
     return `
       <div class="mt-pricebook-panel" data-mt-pricebook-panel>
         <div class="mt-pricebook-head">
-          <strong><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_cf3630161575f6"," Price Book") ?? " Price Book")}</strong>
+          <strong><i class="fas fa-book"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_cf3630161575f6"," Price Book") ?? " Price Book")}${escapeHtml(` · ${cleanText(materialListById(state.pricebookListId)?.title) || 'Default'}`)}</strong>
           <div class="mt-actions">
             <button type="button" class="mt-icon-btn" data-mt-expand-pricebook title="${(globalThis.PlatformLanguage?.htmlText("materials","m_df1458500a02a8","Open full price book") ?? "Open full price book")}"><i class="fas fa-up-right-and-down-left-from-center"></i></button>
             <button type="button" class="mt-icon-btn" data-mt-close-pricebook title="${(globalThis.PlatformLanguage?.htmlText("materials","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button>
@@ -4291,66 +4455,55 @@
 
   function scheduleDraftLabel(draft = {}){
     const start = dateFromOrderSchedule(draft);
-    if (!start) return 'Delivery date not scheduled';
-    const dateLabel = start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    const timeLabel = cleanText(draft.time) ? start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-    return `${dateLabel}${timeLabel ? ` at ${timeLabel}` : ' · all day'}`;
+    if (!start) return 'No delivery date';
+    return `${start.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${cleanText(draft.time) ? `, ${cleanText(draft.time)}` : ''}`;
   }
 
   function orderDeliveryLabel(list){
-    const draft = scheduleDraftForList(list);
-    if (cleanText(draft.date)) return scheduleDraftLabel(draft);
-    if (state.orderTimingChoice === 'without_dates') return 'No date included in this order';
-    if (state.orderTimingChoice === 'scheduled') return scheduleDraftLabel(draft);
-    return deliveryRequestLabel(linkedScheduleEvent(list));
+    return scheduleDraftLabel(orderSchedule(list));
   }
 
   function orderRequestSubject(lists = selectedOrderLists()){
     const address = cleanText(state.project?.address || state.project?.title || projectId());
-    const dates = state.orderTimingChoice === 'scheduled'
-      ? [...new Set(lists.map((list) => cleanText(scheduleDraftForList(list).date)).filter(Boolean))]
-      : [];
-    return `Material delivery request - ${address}${dates.length === 1 ? ` - ${dates[0]}` : ''}`;
+    const dates = [...new Set(lists.map((list) => cleanText(orderSchedule(list).date)))];
+    return `Material delivery request - ${address}${dates.length === 1 && dates[0] ? ` - ${dates[0]}` : ''}`;
   }
 
-  function orderDeliveryInstruction(list){
-    const title = cleanText(list?.title || (globalThis.PlatformLanguage?.text("materials","m_7b257a79bb0ec3","materials") ?? "materials"));
-    if (state.orderTimingChoice === 'without_dates') {
-      return `I need the ${title} materials included in this order. The delivery date and time are not included in this request, so please contact me to arrange or confirm them.`;
-    }
-    const draft = scheduleDraftForList(list);
-    const start = dateFromOrderSchedule(draft);
-    if (!start) return `I need the ${title} delivery, but its date and time still need to be scheduled.`;
+  function orderDeliveryInstruction(group){
+    const title = orderGroupTitle(group);
+    const start = dateFromOrderSchedule(group.schedule);
+    const time = cleanText(group.schedule.time);
+    if (!start) return `I need the ${title} materials included in this order. The delivery date and time are not set, so please contact me to arrange them.`;
     const dateLabel = start.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-    if (cleanText(draft.time)) {
-      const timeLabel = start.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
-      return `I need the ${title} delivery on ${dateLabel} at ${timeLabel}.`;
-    }
-    return `I need the ${title} delivery on ${dateLabel}. The delivery time is flexible, but please confirm it with me.`;
+    if (!time) return `I need the ${title} delivery on ${dateLabel}. The delivery time is flexible, but please confirm it with me.`;
+    return `I need the ${title} delivery on ${dateLabel}${orderTimeClock(time) ? ` at ${time}` : `, ${time}`}.`;
   }
 
   function orderRequestText(lists = selectedOrderLists()){
     const address = cleanText(state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("materials","m_e79a19a31a91af","the project site") ?? "the project site"));
-    const instructions = lists.map((list) => `- ${orderDeliveryInstruction(list)}`).join('\n');
-    const sections = lists.map((list) => {
-      const table = orderRequestRows(list).map((row) => `${row.name}\t${row.detail || '—'}\t${row.quantity}\t${row.unit}`).join('\n');
-      return `${cleanText(list.title || (globalThis.PlatformLanguage?.text("materials","m_691187e28aba8e","Materials") ?? "Materials"))}\n${orderDeliveryInstruction(list)}\n\nMaterial\tDetails\tQuantity\tUnit\n${table}`;
+    const groups = orderDeliveryGroups(lists);
+    const instructions = groups.map((group) => `- ${orderDeliveryInstruction(group)}`).join('\n');
+    const sections = groups.map((group) => {
+      const table = group.lists.flatMap((list) => orderRequestRows(list)).map((row) => `${row.name}\t${row.detail || '—'}\t${row.quantity}\t${row.unit}`).join('\n');
+      return `${orderGroupTitle(group)}\n${orderDeliveryInstruction(group)}\n\nMaterial\tDetails\tQuantity\tUnit\n${table}`;
     }).join('\n\n');
     return `${orderRequestSubject(lists)}\n\nHello,\n\nPlease place the following material order for delivery to ${address}.\n\nDelivery instructions:\n${instructions}\n\n${sections}\n\nPlease confirm product availability, quantities, variant and color details, and each requested delivery appointment before processing the order.\n\nThank you.`;
   }
 
   function orderRequestHtml(lists = selectedOrderLists()){
     const address = cleanText(state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("materials","m_e79a19a31a91af","the project site") ?? "the project site"));
-    const instructions = `<ul>${lists.map((list) => `<li>${escapeHtml(orderDeliveryInstruction(list))}</li>`).join('')}</ul>`;
+    const groups = orderDeliveryGroups(lists);
+    const instructions = `<ul>${groups.map((group) => `<li>${escapeHtml(orderDeliveryInstruction(group))}</li>`).join('')}</ul>`;
     const cell = 'border:1px solid #999;padding:6px;text-align:left';
-    const sections = lists.map((list) => `<p><strong>${String(escapeHtml(list.title || (globalThis.PlatformLanguage?.text("materials","m_691187e28aba8e","Materials") ?? "Materials")))}</strong><br><em>${String(escapeHtml(orderDeliveryInstruction(list)))}</em></p><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_613d6b4084975e","Material") ?? "Material")}</th><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_b3ecc234f63212","Details") ?? "Details")}</th><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_9c689ddee2f502","Quantity") ?? "Quantity")}</th><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_4b91b73dae1ff3","Unit") ?? "Unit")}</th></tr></thead><tbody>${String(orderRequestRows(list).map((row) => `<tr><td style="${cell}">${escapeHtml(row.name)}</td><td style="${cell}">${row.details.map((entry) => `<strong>${escapeHtml(entry.label)}:</strong> ${escapeHtml(entry.value)}`).join('<br>') || '&mdash;'}</td><td style="${cell}">${escapeHtml(row.quantity)}</td><td style="${cell}">${escapeHtml(row.unit)}</td></tr>`).join(''))}</tbody></table>`).join('<br>');
+    const sections = groups.map((group) => `<p><strong>${escapeHtml(orderGroupTitle(group))}</strong><br><em>${escapeHtml(orderDeliveryInstruction(group))}</em></p><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_613d6b4084975e","Material") ?? "Material")}</th><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_b3ecc234f63212","Details") ?? "Details")}</th><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_9c689ddee2f502","Quantity") ?? "Quantity")}</th><th style="${String(cell)}">${(globalThis.PlatformLanguage?.htmlText("materials","m_4b91b73dae1ff3","Unit") ?? "Unit")}</th></tr></thead><tbody>${group.lists.flatMap((list) => orderRequestRows(list)).map((row) => `<tr><td style="${cell}">${escapeHtml(row.name)}</td><td style="${cell}">${row.details.map((entry) => `<strong>${escapeHtml(entry.label)}:</strong> ${escapeHtml(entry.value)}`).join('<br>') || '&mdash;'}</td><td style="${cell}">${escapeHtml(row.quantity)}</td><td style="${cell}">${escapeHtml(row.unit)}</td></tr>`).join('')}</tbody></table>`).join('<br>');
     return `<p><strong>${String(escapeHtml(orderRequestSubject(lists)))}</strong></p><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_2634bd92bed7f7","Hello,") ?? "Hello,")}</p><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_2dc5eebd0941a4","Please place the following material order for delivery to ") ?? "Please place the following material order for delivery to ")}<strong>${String(escapeHtml(address))}</strong>.</p><p><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_0e22a1d03e954f","Delivery instructions") ?? "Delivery instructions")}</strong></p>${String(instructions)}${String(sections)}<p>${(globalThis.PlatformLanguage?.htmlText("materials","m_09326393374cc9","Please confirm product availability, quantities, variant and color details, and each requested delivery appointment before processing the order.") ?? "Please confirm product availability, quantities, variant and color details, and each requested delivery appointment before processing the order.")}</p><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_e495d4a9827c67","Thank you.") ?? "Thank you.")}</p>`;
   }
 
   function orderRequestPreviewHtml(lists = selectedOrderLists()){
     const address = cleanText(state.project?.address || state.project?.title || (globalThis.PlatformLanguage?.text("materials","m_e79a19a31a91af","the project site") ?? "the project site"));
-    const instructions = lists.map((list) => `<li>${escapeHtml(orderDeliveryInstruction(list))}</li>`).join('');
-    const sections = lists.map((list) => `<section class="mt-request-group"><p><strong>${String(escapeHtml(list.title || (globalThis.PlatformLanguage?.text("materials","m_691187e28aba8e","Materials") ?? "Materials")))}</strong> <em>${((v1) => globalThis.PlatformLanguage?.htmlText("materials","m_da1df6b7a47ee1",`(${v1} items)`,{v1}) ?? `(${v1} items)`)(escapeHtml(orderRequestRows(list).length))}</em><br><em>${String(escapeHtml(orderDeliveryInstruction(list)))}</em></p><table class="mt-order-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_613d6b4084975e","Material") ?? "Material")}</th><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_b3ecc234f63212","Details") ?? "Details")}</th><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_1a29aea570fbc4","Qty") ?? "Qty")}</th><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_4b91b73dae1ff3","Unit") ?? "Unit")}</th></tr></thead><tbody>${String(orderRequestRows(list).map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${orderRequestDetailsHtml(row)}</td><td>${escapeHtml(row.quantity)}</td><td>${escapeHtml(row.unit)}</td></tr>`).join(''))}</tbody></table></section>`).join('');
+    const groups = orderDeliveryGroups(lists);
+    const instructions = groups.map((group) => `<li>${escapeHtml(orderDeliveryInstruction(group))}</li>`).join('');
+    const sections = groups.map((group) => { const rows = group.lists.flatMap((list) => orderRequestRows(list)); return `<section class="mt-request-group"><p><strong>${escapeHtml(orderGroupTitle(group))}</strong> <em>${((v1) => globalThis.PlatformLanguage?.htmlText("materials","m_da1df6b7a47ee1",`(${v1} items)`,{v1}) ?? `(${v1} items)`)(escapeHtml(rows.length))}</em><br><em>${escapeHtml(orderDeliveryInstruction(group))}</em></p><table class="mt-order-table"><thead><tr><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_613d6b4084975e","Material") ?? "Material")}</th><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_b3ecc234f63212","Details") ?? "Details")}</th><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_1a29aea570fbc4","Qty") ?? "Qty")}</th><th>${(globalThis.PlatformLanguage?.htmlText("materials","m_4b91b73dae1ff3","Unit") ?? "Unit")}</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${orderRequestDetailsHtml(row)}</td><td>${escapeHtml(row.quantity)}</td><td>${escapeHtml(row.unit)}</td></tr>`).join('')}</tbody></table></section>`; }).join('');
     return `<p>${(globalThis.PlatformLanguage?.htmlText("materials","m_2634bd92bed7f7","Hello,") ?? "Hello,")}</p><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_2dc5eebd0941a4","Please place the following material order for delivery to ") ?? "Please place the following material order for delivery to ")}<strong>${String(escapeHtml(address))}</strong>.</p><p><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_0e22a1d03e954f","Delivery instructions") ?? "Delivery instructions")}</strong></p><ul class="mt-email-instruction-list">${String(instructions)}</ul>${String(sections)}<p>${(globalThis.PlatformLanguage?.htmlText("materials","m_09326393374cc9","Please confirm product availability, quantities, variant and color details, and each requested delivery appointment before processing the order.") ?? "Please confirm product availability, quantities, variant and color details, and each requested delivery appointment before processing the order.")}</p><p>${(globalThis.PlatformLanguage?.htmlText("materials","m_e495d4a9827c67","Thank you.") ?? "Thank you.")}</p>`;
   }
 
@@ -4399,35 +4552,21 @@
     }
   }
 
-  // One tile per material list: its header selects it for the order, and it expands to its items.
+  // One full-height tile per material list: its header selects it, its items scroll, and its footer holds the total and its delivery.
   function renderOrderListPicker(allLists, selectedLists){
     return `<section class="mt-order-tiles" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_3422a94241c9cd","Material lists to order") ?? "Material lists to order")}">${allLists.map((list, index) => {
       const id = cleanText(list.id);
       const selected = state.orderSelectedListIds.has(id);
-      const expanded = state.orderExpandedListIds.has(id);
       const ordered = materialListOrdered(list);
       const items = listItems(list);
       const name = cleanText(list.title) || 'Materials';
-      return `<article class="mt-order-tile${selected ? ' selected' : ''}${expanded ? ' expanded' : ''}" style="--list-color:${escapeHtml(materialListColor(list, Math.max(index, state.lists.indexOf(list))))}"><header><button type="button" class="mt-order-tile-select" data-mt-order-list-toggle="${escapeHtml(id)}" aria-pressed="${selected}" title="${escapeHtml(`${selected ? 'Included in this order' : 'Not in this order'} · ${ordered ? 'already ordered' : orderDeliveryLabel(list)}`)}"><span class="mt-order-list-check"><i class="fas fa-check" aria-hidden="true"></i></span><strong>${escapeHtml(name)}</strong></button><span class="mt-order-tile-count" title="${escapeHtml(`${items.length} item${items.length === 1 ? '' : 's'}`)}">${ordered ? '<i class="fas fa-lock" aria-hidden="true"></i> ' : ''}${escapeHtml(items.length)}</span><button type="button" class="mt-order-tile-expand" data-mt-order-list-expand="${escapeHtml(id)}" aria-expanded="${expanded}" title="${expanded ? 'Hide items' : 'Show items'}" aria-label="${expanded ? 'Hide' : 'Show'} items in ${escapeHtml(name)}"><i class="fas fa-chevron-${expanded ? 'up' : 'down'}" aria-hidden="true"></i></button></header>${expanded ? `<ul class="mt-order-tile-items">${items.map((item) => `<li><span>${escapeHtml(materialPrimaryName(item))}</span><em>${escapeHtml(`${number(item.quantity, 0)} ${cleanText(item.unit)}`.trim())}</em></li>`).join('') || '<li><span>No items</span></li>'}</ul>` : ''}</article>`;
+      const draft = scheduleDraftForList(list);
+      const target = selected ? orderGroupTarget(list) : null;
+      const shown = target ? scheduleDraftForList(target) : draft;
+      const candidates = selected && !target && !cleanText(draft.date) ? selectedLists.filter((other) => other !== list && cleanText(scheduleDraftForList(other).date) && !cleanText(scheduleDraftForList(other).group_with)) : [];
+      const delivery = !selected ? '' : `<div class="mt-order-tile-when${target ? ' grouped' : ''}"><input type="date" data-mt-order-date="${escapeHtml(id)}" value="${escapeHtml(cleanText(shown.date))}" aria-label="Delivery date for ${escapeHtml(name)}" title="Delivery date" ${target ? 'disabled' : ''}><input type="text" list="mt-order-time-presets" data-mt-order-time="${escapeHtml(id)}" value="${escapeHtml(cleanText(shown.time))}" placeholder="Time" aria-label="Delivery time for ${escapeHtml(name)}" title="A time, or a window such as Morning. This text goes into the supplier email as written." ${target ? 'disabled' : ''}></div>${target ? `<button type="button" class="mt-order-tile-group active" data-mt-order-ungroup="${escapeHtml(id)}" title="Give this list its own delivery date again"><span>Grouped with ${escapeHtml(cleanText(target.title) || 'Materials')}</span><i class="fas fa-xmark" aria-hidden="true"></i></button>` : candidates.length ? `<div class="mt-order-tile-groups"><span>Group with</span>${candidates.map((other) => `<button type="button" class="mt-order-tile-group" data-mt-order-group="${escapeHtml(id)}" data-mt-order-group-target="${escapeHtml(other.id)}" title="${escapeHtml(`Deliver with ${cleanText(other.title) || 'Materials'}: ${scheduleDraftLabel(scheduleDraftForList(other))}`)}">${escapeHtml(cleanText(other.title) || 'Materials')}</button>`).join('')}</div>` : ''}`;
+      return `<article class="mt-order-tile${selected ? ' selected' : ''}" style="--list-color:${escapeHtml(materialListColor(list, Math.max(index, state.lists.indexOf(list))))}"><header><button type="button" class="mt-order-tile-select" data-mt-order-list-toggle="${escapeHtml(id)}" aria-pressed="${selected}" title="${selected ? 'Included in this order' : 'Not in this order'}${ordered ? ' · already ordered' : ''}"><span class="mt-order-list-check"><i class="fas fa-check" aria-hidden="true"></i></span><strong>${escapeHtml(name)}</strong></button><span class="mt-order-tile-count" title="${escapeHtml(`${items.length} item${items.length === 1 ? '' : 's'}`)}">${ordered ? '<i class="fas fa-lock" aria-hidden="true"></i> ' : ''}${escapeHtml(items.length)}</span></header><ul class="mt-order-tile-items">${items.map((item) => `<li><span>${escapeHtml(materialPrimaryName(item))}</span><em>${escapeHtml(`${number(item.quantity, 0)} ${cleanText(item.unit)}`.trim())}</em></li>`).join('') || '<li><span>No items</span></li>'}</ul><footer><div class="mt-order-tile-total"><span>Total</span><strong>${money(listTotals(list).projected)}</strong></div>${delivery}</footer></article>`;
     }).join('')}</section>`;
-  }
-
-  // While dates are being placed on the calendar, choose which list's delivery the next click places.
-  function renderOrderScheduleTargets(selectedLists){
-    if (selectedLists.length < 2) return '';
-    const focusId = cleanText(orderScheduleFocusList()?.id);
-    return `<div class="mt-order-target-options" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_27872ce794104c","Delivery being edited") ?? "Delivery being edited")}">${selectedLists.map((list, index) => {
-      const id = cleanText(list.id);
-      return `<button type="button" class="mt-order-target ${focusId === id ? 'active' : ''}" data-mt-order-schedule-focus="${escapeHtml(id)}" aria-pressed="${focusId === id}"><span class="mt-request-list-dot" style="--list-color:${escapeHtml(materialListColor(list, Math.max(index, state.lists.indexOf(list))))}"></span><span><strong>${escapeHtml(cleanText(list.title) || 'Materials')}</strong><small>${escapeHtml(orderDeliveryLabel(list))}</small></span></button>`;
-    }).join('')}</div>`;
-  }
-
-  // The two ways to place the order; they are the dialog's submit controls.
-  function renderOrderTimingControls(selectedLists, canOrder, blockedReason){
-    const scheduledCount = selectedLists.filter((list) => cleanText(scheduleDraftForList(list).date)).length;
-    const scheduleHint = blockedReason || (scheduledCount === selectedLists.length && selectedLists.length ? 'Review the scheduled delivery dates on the project calendar, then place the order.' : 'Pick delivery dates on the project calendar, then place the order.');
-    const reserveHint = blockedReason || 'Place the order now and arrange delivery dates with the supplier later. Dates are left out of the supplier email.';
-    return `<div class="mt-order-submit"><button type="button" class="mt-btn primary" data-mt-order-open-calendar aria-pressed="${state.orderCalendarOpen && state.orderTimingChoice === 'scheduled'}" title="${escapeHtml(scheduleHint)}" ${canOrder ? '' : 'disabled'}><i class="fas fa-calendar-check" aria-hidden="true"></i> Schedule Deliveries</button><button type="button" class="mt-btn" data-mt-order-reserve title="${escapeHtml(reserveHint)}" ${canOrder ? '' : 'disabled'}><i class="fas fa-box-archive" aria-hidden="true"></i> Reserve Without Dates</button></div>`;
   }
 
   function renderOrderDialog(){
@@ -4440,14 +4579,12 @@
     const provider = orderSources.some((source) => source.id === state.orderProvider) ? state.orderProvider : defaultOrderSourceId(primaryList);
     const activeSource = orderSources.find((source) => source.id === provider) || orderSources[0];
     const manualProvider = activeSource?.kind === 'manual' && activeSource?.status === 'active';
-    const calendarOpen = state.orderCalendarOpen && state.orderTimingChoice === 'scheduled';
     const blockedReason = !pendingLists.length ? 'Every selected list has already been ordered.' : !rows.length ? 'The selected lists have no items to order.' : '';
-    const detailsPanel = `<div class="mt-order-details"><div class="mt-form-grid"><label class="wide"><span class="mt-small">Order Title</span><input class="mt-input" name="title" value="${String(escapeHtml(state.orderDraft.title || (lists.length === 1 ? lists[0]?.title : 'Combined material order') || 'Material order'))}"></label><label><span class="mt-small">Supplier Name</span><input class="mt-input" name="vendor" value="${String(escapeHtml(state.orderDraft.vendor))}"></label><label><span class="mt-small">Email</span><input class="mt-input" type="email" name="vendor_email" value="${String(escapeHtml(state.orderDraft.vendor_email))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("materials","m_6718ec5ad32aa0","orders@supplier.com") ?? "orders@supplier.com")}"></label><label><span class="mt-small">Quoted Total</span><input class="mt-input" type="number" min="0" step="0.01" name="quoted_price" value="${String(escapeHtml(state.orderDraft.quoted_price))}"></label><label><span class="mt-small">Paid Total</span><input class="mt-input" type="number" min="0" step="0.01" name="paid_price" value="${String(escapeHtml(state.orderDraft.paid_price))}"></label></div>${renderOrderListPicker(allLists, lists)}${renderOrderTimingControls(lists, !blockedReason, blockedReason)}</div>`;
+    const detailsPanel = `<div class="mt-order-details"><div class="mt-form-grid"><label class="wide"><span class="mt-small">Order Title</span><input class="mt-input" name="title" value="${String(escapeHtml(state.orderDraft.title || (lists.length === 1 ? lists[0]?.title : 'Combined material order') || 'Material order'))}"></label><label><span class="mt-small">Supplier Name</span><input class="mt-input" name="vendor" value="${String(escapeHtml(state.orderDraft.vendor))}"></label><label><span class="mt-small">Email</span><input class="mt-input" type="email" name="vendor_email" value="${String(escapeHtml(state.orderDraft.vendor_email))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("materials","m_6718ec5ad32aa0","orders@supplier.com") ?? "orders@supplier.com")}"></label><label><span class="mt-small">Quoted Total</span><input class="mt-input" type="number" min="0" step="0.01" name="quoted_price" value="${String(escapeHtml(state.orderDraft.quoted_price))}"></label><label><span class="mt-small">Paid Total</span><input class="mt-input" type="number" min="0" step="0.01" name="paid_price" value="${String(escapeHtml(state.orderDraft.paid_price))}"></label></div>${renderOrderListPicker(allLists, lists)}<datalist id="mt-order-time-presets">${ORDER_TIME_PRESETS.map((preset) => `<option value="${escapeHtml(preset)}"></option>`).join('')}</datalist></div>`;
     const emailPanel = `<div class="mt-email-preview"><div class="mt-email-preview-head"><strong><i class="fas fa-envelope"></i> ${String(escapeHtml(orderRequestSubject(lists)))}</strong><button type="button" class="mt-email-copy" data-mt-copy-order><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_f1733e455032ff"," Copy email & table") ?? " Copy email & table")}</button></div><div class="mt-email-body">${String(orderRequestPreviewHtml(lists))}</div></div>`;
-    const focusList = orderScheduleFocusList();
-    const datesReady = orderScheduleDatesComplete();
-    const calendarPanel = `<section class="mt-order-calendar-panel"><div class="mt-order-calendar-head"><div><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("materials","m_20094abf6017fb",`${v0} delivery`,{v0}) ?? `${v0} delivery`)(escapeHtml(focusList?.title || 'Material'))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("materials","m_2cb817ed73e87b","Existing project events are shown for context. Click or drag on the calendar to place this delivery.") ?? "Existing project events are shown for context. Click or drag on the calendar to place this delivery.")}</small></div><div class="mt-order-calendar-actions"><button type="button" data-mt-order-review-email title="Go back to the supplier email without ordering"><i class="fas fa-envelope"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_3b770970fb24ef"," Review email") ?? " Review email")}</button><button type="button" class="primary" data-mt-order-confirm-dates title="${datesReady ? 'Place the order with these delivery dates' : 'Place every selected delivery on the calendar first'}" ${String(datesReady ? '' : 'disabled')}><i class="fas fa-check"></i> Place Order</button></div></div>${renderOrderScheduleTargets(lists)}<div class="mt-order-calendar" data-mt-order-calendar></div></section>`;
-    const detailsContent = `<div class="mt-order-content manual ${calendarOpen ? 'calendar-mode' : ''}">${detailsPanel}${calendarOpen ? calendarPanel : emailPanel}</div>`;
+    const sendBar = `<div class="mt-order-send"><button type="submit" class="mt-btn primary" data-mt-order-send title="${escapeHtml(blockedReason || 'Email this request to the supplier and record the order.')}" ${blockedReason ? 'disabled' : ''}><i class="fas fa-paper-plane" aria-hidden="true"></i> Send Email</button></div>`;
+    const leftWidth = state.orderLeftWidth ? `${state.orderLeftWidth}px` : `min(64%, ${340 + Math.max(0, allLists.length - 1) * 190}px)`;
+    const detailsContent = `<div class="mt-order-content manual" style="--order-left:${leftWidth}">${detailsPanel}<button type="button" class="mt-order-divider" role="separator" aria-orientation="vertical" aria-label="Resize the order details and the preview" title="Drag to resize. Double-click to reset."></button><div class="mt-order-right">${emailPanel}${sendBar}</div></div>`;
     const unavailableContent = (source) => `<div class="mt-order-content"><div class="mt-order-coming"><div><i class="fas ${escapeHtml(orderSourceIcon(source))}"></i><strong>${escapeHtml(source?.name || 'Supplier integration')}</strong><span>${source?.status === 'disabled' ? 'This order source is not available for the selected lists.' : 'Direct supplier ordering is coming soon.'}</span></div></div></div>`;
     return `<dialog class="mt-modal" data-mt-order-dialog><div class="mt-modal-backdrop-hit" data-mt-close-order-backdrop aria-hidden="true"></div><form method="dialog" data-mt-order-form class="mt-modal-shell mt-order-modal"><div class="mt-modal-head mt-order-head"><h2>Order Materials</h2><button type="button" class="mt-modal-close" data-mt-close-order aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div><div class="mt-order-layout">${String(manualProvider ? detailsContent : unavailableContent(activeSource))}</div></form></dialog>`;
   }
@@ -4529,6 +4666,22 @@
         dropItem(drag.itemId, drag.listId, row.dataset.mtListId, row.dataset.mtItemRow, after);
       });
     });
+    root.querySelectorAll('[data-mt-item-name]').forEach((input) => {
+      const material = resourceType(materialListById(input.dataset.mtListId)) === 'material';
+      if (material) {
+        input.setAttribute('autocomplete', 'off');
+        input.addEventListener('input', () => showAutofill(input));
+        input.addEventListener('blur', () => setTimeout(() => { if (state.autofill?.input === input) closeAutofill(); }, 120));
+      }
+      input.addEventListener('keydown', (event) => {
+        const open = state.autofill?.input === input ? state.autofill : null;
+        if (open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) { event.preventDefault(); moveAutofill(event.key === 'ArrowDown' ? 1 : -1); return; }
+        if (open && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAutofill(); return; }
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        commitItemName(input, open && open.index >= 0 ? open.matches[open.index] : null, true);
+      });
+    });
     root.querySelectorAll('[data-mt-expand-item]').forEach((button) => {
       button.addEventListener('click', () => {
         const id = cleanText(button.dataset.mtExpandItem);
@@ -4550,6 +4703,7 @@
     });
     root.querySelectorAll('[data-mt-item-name],[data-mt-item-qty],[data-mt-item-unit],[data-mt-item-price]').forEach((input) => {
       input.addEventListener('change', () => {
+        if (input.dataset.mtCommitted) return;
         const itemId = input.dataset.mtItemName || input.dataset.mtItemQty || input.dataset.mtItemUnit || input.dataset.mtItemPrice;
         const patch = {};
         if (input.dataset.mtItemName) patch.name = input.value;
@@ -4566,6 +4720,15 @@
       button.addEventListener('click', () => addItem(null, button.dataset.mtAddSection, button.dataset.mtListId));
     });
     bindColumnDividers(root);
+    root.querySelectorAll('[data-mt-open-pricebook]').forEach((button) => button.addEventListener('click', () => {
+      const listId = cleanText(button.dataset.mtListId || state.activeListId);
+      const list = materialListById(listId);
+      state.pricebookOpen = !(state.pricebookOpen && cleanText(state.pricebookListId) === listId);
+      state.pricebookListId = listId;
+      if (list && resourceType(list) === 'material') { state.activeListId = listId; state.activeList = list; }
+      syncPricebookPanel();
+      materialRoot()?.querySelectorAll?.('[data-mt-open-pricebook][data-mt-list-id]')?.forEach((other) => other.setAttribute('aria-pressed', String(state.pricebookOpen && other.dataset.mtListId === listId)));
+    }));
     root.querySelectorAll('[data-mt-pane-list]').forEach((pane) => {
       pane.addEventListener('dragover', (event) => {
         if (!dragAccepts(pane.dataset.mtPaneList)) return;
@@ -4594,10 +4757,6 @@
     }));
     bindSectionContent(root);
 
-    root.querySelector('[data-mt-open-pricebook]')?.addEventListener('click', () => {
-      state.pricebookOpen = !state.pricebookOpen;
-      syncPricebookPanel();
-    });
     root.querySelector('[data-mt-close-pricebook]')?.addEventListener('click', () => {
       state.pricebookOpen = false;
       syncPricebookPanel();
@@ -4607,7 +4766,7 @@
       syncPricebookPanel();
     });
     root.querySelectorAll('[data-mt-add-pricebook]').forEach((button) => {
-      button.addEventListener('click', () => addItem(state.pricebookItems.find((item) => item.id === button.dataset.mtAddPricebook)));
+      button.addEventListener('click', () => addItem(state.pricebookItems.find((item) => item.id === button.dataset.mtAddPricebook), '', state.pricebookListId));
     });
     root.querySelector('[data-mt-expand-pricebook]')?.addEventListener('click', (event) => {
       const pb = pricebook();
@@ -4668,19 +4827,19 @@
       state.orderDraftFresh = true;
       syncOrderDialog(true);
     }));
-    root.querySelectorAll('[data-mt-order-list-expand]').forEach((button) => button.addEventListener('click', () => {
-      const id = button.dataset.mtOrderListExpand;
-      captureOrderDraft(button.closest('[data-mt-order-dialog]'));
-      if (state.orderExpandedListIds.has(id)) state.orderExpandedListIds.delete(id);
-      else state.orderExpandedListIds.add(id);
+    const setOrderDelivery = (control, patch, focusNext = '') => {
+      const dialog = control.closest('[data-mt-order-dialog]');
+      const id = cleanText(control.dataset.mtOrderDate || control.dataset.mtOrderTime || control.dataset.mtOrderGroup || control.dataset.mtOrderUngroup);
+      captureOrderDraft(dialog);
+      state.orderScheduleDrafts[id] = { ...scheduleDraftForList(materialListById(id)), ...patch, dirty: true };
       state.orderDraftFresh = true;
       syncOrderDialog(true);
-    }));
-    root.querySelectorAll('[data-mt-order-reserve]').forEach((button) => button.addEventListener('click', () => {
-      state.orderTimingChoice = 'without_dates';
-      state.orderCalendarOpen = false;
-      button.closest('[data-mt-order-form]')?.requestSubmit?.();
-    }));
+      if (focusNext) Array.from(materialRoot()?.querySelectorAll?.(focusNext) || []).find((node) => (node.dataset.mtOrderDate || node.dataset.mtOrderTime) === id)?.focus?.();
+    };
+    root.querySelectorAll('[data-mt-order-date]').forEach((input) => input.addEventListener('change', () => setOrderDelivery(input, { date: input.value, group_with: '' }, '[data-mt-order-time]')));
+    root.querySelectorAll('[data-mt-order-time]').forEach((input) => input.addEventListener('change', () => setOrderDelivery(input, { time: input.value.trim(), group_with: '' })));
+    root.querySelectorAll('[data-mt-order-group]').forEach((button) => button.addEventListener('click', () => setOrderDelivery(button, { group_with: cleanText(button.dataset.mtOrderGroupTarget) })));
+    root.querySelectorAll('[data-mt-order-ungroup]').forEach((button) => button.addEventListener('click', () => setOrderDelivery(button, { group_with: '' }, '[data-mt-order-date]')));
     root.querySelectorAll('[data-mt-order-timing]').forEach((button) => button.addEventListener('click', () => {
       const scheduled = button.dataset.mtOrderTiming !== 'without_dates';
       state.orderTimingChoice = scheduled ? 'scheduled' : 'without_dates';
@@ -4731,10 +4890,35 @@
       state.orderDatesConfirmed = true;
       button.closest('[data-mt-order-form]')?.requestSubmit?.();
     }));
+    root.querySelectorAll('.mt-order-divider').forEach((divider) => {
+      const content = divider.parentElement;
+      const left = divider.previousElementSibling;
+      const apply = (width, commit) => {
+        const next = Math.round(Math.max(280, Math.min(content.getBoundingClientRect().width - 380, width)));
+        content.style.setProperty('--order-left', `${next}px`);
+        if (commit) { state.orderLeftWidth = next; markOrderTileOverflow(content); rootWindow.dispatchEvent(new Event('resize')); }
+      };
+      divider.onpointerdown = (event) => {
+        if (event.button) return;
+        event.preventDefault();
+        const origin = event.clientX;
+        const start = left.getBoundingClientRect().width;
+        divider.setPointerCapture?.(event.pointerId);
+        divider.classList.add('is-dragging');
+        divider.onpointermove = (move) => apply(start + move.clientX - origin, false);
+        divider.onpointerup = divider.onpointercancel = (up) => { apply(start + up.clientX - origin, true); divider.classList.remove('is-dragging'); divider.onpointermove = divider.onpointerup = divider.onpointercancel = null; };
+      };
+      divider.onkeydown = (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        apply(left.getBoundingClientRect().width + (event.key === 'ArrowLeft' ? -24 : 24), true);
+      };
+      divider.ondblclick = () => { state.orderLeftWidth = null; captureOrderDraft(divider.closest('[data-mt-order-dialog]')); state.orderDraftFresh = true; syncOrderDialog(true); };
+    });
     root.querySelector('[data-mt-copy-order]')?.addEventListener('click', copyOrderRequest);
     root.querySelector('[data-mt-order-form]')?.addEventListener('submit', async (event) => {
       event.preventDefault();
-      await createOrderFromForm(event.currentTarget);
+      if (await createOrderFromForm(event.currentTarget) === false) return;
       state.panelRoot?.querySelector?.('[data-mt-order-dialog]')?.close?.();
     });
     root.querySelectorAll('[data-mt-close-new-list]').forEach((button) => button.addEventListener('click', () => root.querySelector('[data-mt-new-list-dialog]')?.close?.()));
@@ -5277,6 +5461,20 @@
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         scheduleMaterialList(button.dataset.mtListSchedule);
+      });
+    });
+    root.querySelectorAll('[data-mt-order-all]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const lists = state.lists.filter((list) => resourceType(list) === 'material' && listItems(list).length);
+        const pending = lists.filter((list) => !materialListOrdered(list));
+        const chosen = pending.length ? pending : lists;
+        if (!chosen.length) return;
+        await selectMaterialList(chosen[0].id);
+        initializeOrderComposer(chosen[0].id);
+        // Every material list that still needs ordering starts selected; the tiles can still leave one out.
+        state.orderSelectedListIds = new Set(chosen.map((list) => cleanText(list.id)));
+        if (chosen.length > 1) state.orderDraft.title = (globalThis.PlatformLanguage?.text("materials","m_8b217b055a433f","Combined material order") ?? "Combined material order");
+        syncOrderDialog(true);
       });
     });
     root.querySelectorAll('[data-mt-list-order]').forEach((button) => {

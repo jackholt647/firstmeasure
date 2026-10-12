@@ -233,3 +233,31 @@ test('dragging a column divider trades width between its two neighbours, startin
  ctx.resizeColumns(divider,-10000,true);assert.ok(left.props['--column-weight']>0&&right.props['--column-weight']>left.props['--column-weight']);assert.equal(Math.round((left.props['--column-weight']+right.props['--column-weight'])*1000),2000);
  ctx.state.columnWeights={material:0,labor:0};ctx.resizeColumns(divider,0,true);assert.equal(left.props['--column-weight'],1);
 });
+
+test('committing a name renames or swaps in a price book item, and Enter on the last row starts the next one',async()=>{
+ const make=()=>{const list={id:'list',resource_type:'material',current_items:[{id:'first',name:'Drip edge',quantity:4},{id:'last',name:'New material',quantity:0}]},calls=[];
+  const ctx={state:{saving:false,autofill:null},calls,list,cleanText:value=>String(value??'').trim(),materialListById:()=>list,listItems:value=>value.current_items,materialPrimaryName:item=>item.name,integerQuantity:value=>Math.round(Number(value)||0),resourceType:value=>value.resource_type,document:{querySelectorAll:()=>[]},materialRoot:()=>null,findByData:()=>null,syncMaterialsGrid(){calls.push(['grid']);},
+   lineFromPricebookItem:(item,overrides)=>({name:item.name,pricebook_ref:{item_id:item.id},quantity:overrides.quantity??12,section:'shingles'}),updateItem:async(id,patch,listId)=>{calls.push(['update',id,patch.name,patch.pricebook_ref?.item_id||null,patch.quantity??null,listId]);},addItem:async(item,section,listId)=>{calls.push(['add',item,section,listId]);}};
+  vm.createContext(ctx);for(const name of ['closeAutofill','commitItemName'])vm.runInContext(fn(name),ctx);return ctx;};
+ const input=(id,value)=>({value,dataset:{mtItemName:id,mtListId:'list'}});const plain=ctx=>JSON.parse(JSON.stringify(ctx.calls));
+ let ctx=make(),field=input('last','Ridge vent');await ctx.commitItemName(field,null,true);assert.deepEqual(plain(ctx),[['update','last','Ridge vent',null,null,'list'],['add',null,'accessories','list']]);assert.equal(field.dataset.mtCommitted,'1');
+ ctx=make();await ctx.commitItemName(input('last','timber'),{id:'p1',name:'Timberline HDZ'},true);assert.deepEqual(plain(ctx),[['update','last','Timberline HDZ','p1',12,'list'],['grid'],['add',null,'accessories','list']]);
+ ctx=make();await ctx.commitItemName(input('first','Drip edge white'),{id:'p1',name:'Timberline HDZ'},true);assert.deepEqual(plain(ctx),[['update','first','Timberline HDZ','p1',4,'list'],['grid']],'a middle row keeps its quantity and does not start a new row');
+ ctx=make();await ctx.commitItemName(input('last','New material'),null,true);assert.deepEqual(plain(ctx),[],'an untouched row does nothing');
+ ctx=make();await ctx.commitItemName(input('last','Ridge vent'),null,false);assert.deepEqual(plain(ctx),[['update','last','Ridge vent',null,null,'list']]);
+ ctx=make();ctx.state.saving=true;await ctx.commitItemName(input('last','Ridge vent'),null,true);assert.deepEqual(plain(ctx),[]);
+});
+
+test('order deliveries group only when asked, and the supplier email describes each delivery once',()=>{
+ const lists=[{id:'a',title:'Dry-in'},{id:'b',title:'Shingles'},{id:'c',title:'Trim'}];
+ const ctx={state:{orderSelectedListIds:new Set(['a','b','c']),orderScheduleDrafts:{a:{date:'2026-10-20',time:'Morning (8am - 12pm)'},b:{date:'2026-10-20',time:'Morning (8am - 12pm)'},c:{date:'',time:''}},project:{address:'12 Oak St'}},cleanText:value=>String(value??'').trim(),materialListById:id=>lists.find(list=>list.id===id),selectedOrderLists:()=>lists,projectId:()=>'project',orderRequestRows:list=>[{name:list.title+' item',detail:'',details:[],quantity:2,unit:'ea'}]};
+ vm.createContext(ctx);const source=fn('orderTimeClock')+fn('orderGroupTarget')+fn('orderSchedule')+fn('orderDeliveryGroups')+fn('orderGroupTitle')+fn('scheduleDraftForList')+fn('dateFromOrderSchedule')+fn('orderRequestSubject')+fn('orderDeliveryInstruction')+fn('orderRequestText');vm.runInContext(source,ctx);
+ assert.deepEqual(['9','9am','9:30 pm','14:00','12am','Morning','25:00'].map(value=>ctx.orderTimeClock(value)),['09:00','09:00','21:30','14:00','00:00','','']);
+ const titles=()=>JSON.parse(JSON.stringify(ctx.orderDeliveryGroups().map(group=>group.lists.map(list=>list.title))));
+ assert.deepEqual(titles(),[['Dry-in'],['Shingles'],['Trim']],'the same date and time does not group lists by itself');
+ ctx.state.orderScheduleDrafts.c={date:'',time:'',group_with:'a'};assert.deepEqual(titles(),[['Dry-in','Trim'],['Shingles']]);assert.equal(ctx.orderSchedule(lists[2]).date,'2026-10-20');
+ const text=ctx.orderRequestText();assert.match(text,/I need the Dry-in and Trim delivery on .*2026, Morning \(8am - 12pm\)\./);assert.equal(text.match(/Material\tDetails\tQuantity\tUnit/g).length,2);assert.match(text,/Dry-in item\t—\t2\tea\nTrim item/);assert.match(text,/^Material delivery request - 12 Oak St - 2026-10-20/);
+ ctx.state.orderScheduleDrafts.a={date:'2026-10-20',time:'9:30 am'};assert.match(ctx.orderDeliveryInstruction(ctx.orderDeliveryGroups()[0]),/ at 9:30 am\.$/);
+ ctx.state.orderScheduleDrafts.a={date:'',time:''};assert.deepEqual(titles(),[['Dry-in'],['Shingles'],['Trim']],'a group dissolves when its lead loses its date');assert.match(ctx.orderDeliveryInstruction(ctx.orderDeliveryGroups()[2]),/please contact me to arrange them/);
+ ctx.state.orderSelectedListIds=new Set(['b','c']);ctx.state.orderScheduleDrafts.c={group_with:'b'};ctx.state.orderScheduleDrafts.b={date:'2026-10-21',time:'',group_with:'c'};assert.equal(ctx.orderGroupTarget(lists[2]),null,'a list that is itself grouped cannot lead a group');
+});
