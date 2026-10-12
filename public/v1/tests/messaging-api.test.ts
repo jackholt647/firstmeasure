@@ -910,7 +910,7 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
       optInMethod: "WEBSITE_FORM",
       optInLocationUrl: "https://example.test/book",
       optInEvidenceUrl: "https://example.test/sms-consent-screenshot",
-      optInDisclosure: "Receive customer care, appointment notices, and marketing texts from FirstMate Test. Message frequency varies. Message & data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase. We will not share mobile information with third parties for marketing.",
+      optInDisclosure: "Receive customer care, appointment notices, and marketing texts from FirstMate Test. Message frequency varies. Message & data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase. Mobile information will not be shared with third parties for marketing.",
       policyContentConfirmed: true,
       websiteFormConfirmed: true,
       sample3: "FirstMate Test: Our fall roof inspection offer is available this week. Reply STOP to opt out."

@@ -606,6 +606,12 @@ function validPublicHttpsUrl(value: unknown) {
   }
 }
 
+function smsNoThirdPartyMarketingSharing(value: unknown) {
+  const disclosure = cleanText(value);
+  return /\bnot\s+(?:sell\s+or\s+)?share\b[^.]{0,160}\b(?:mobile|phone|SMS|opt[ -]?in)\b[^.]{0,160}\bthird[ -]?part/i.test(disclosure)
+    || /\b(?:mobile|phone|SMS|opt[ -]?in)\b[^.]{0,160}\b(?:will|is|are)\s+not\s+(?:be\s+)?(?:sold\s+or\s+)?shared\b[^.]{0,160}\bthird[ -]?part/i.test(disclosure);
+}
+
 function campaignMessageFlow(campaign: JsonObject) {
   if (cleanText(campaign.usecase).toUpperCase() !== "LOW_VOLUME") return cleanText(campaign.messageFlow);
   return [
@@ -644,7 +650,7 @@ function validateCampaignDraft(campaignInput: JsonObject) {
     if (!/\b(?:SMS|text messages?|texts?)\b/i.test(disclosure) || !/\bSTOP\b/i.test(disclosure) || !/\bHELP\b/i.test(disclosure)
       || !/\b(?:frequency|freq|messages? per|messages? may vary)\b/i.test(disclosure)
       || !/\b(?:message|msg)\b.*\bdata rates\b/i.test(disclosure)
-      || !/not\s+(?:sell\s+or\s+)?share.*(?:mobile|phone|SMS|opt.in).*third.part/i.test(disclosure)) missing.push("optInDisclosure");
+      || !smsNoThirdPartyMarketingSharing(disclosure)) missing.push("optInDisclosure");
     if (enabledFeatures.includes("customer_growth") && (!/marketing|promotional/i.test(cleanText(campaignInput.description))
       || !/marketing|promotional/i.test(cleanText(campaignInput.messageFlow))
       || !/marketing|promotional/i.test(disclosure)
