@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Activity labels: [Complete bold event labels, name-only previews and expandable notes](deploy/digitalocean/development-project-activity-labels-20261012.md) records the consistent emphasis, See more links, checks and development rollout.
+
 October 12 Project Notes: [Direct audience changes, field crew and readable archives](deploy/digitalocean/development-project-note-audiences-20261012.md) records the tighter cards, summary hover verification, access checks and staged development rollout.
 
 October 11 Channels: [Enter sends and Shift+Enter adds a new line](deploy/digitalocean/development-channels-enter-send-20261011.md) records the composer shortcuts, browser verification and development rollout.
