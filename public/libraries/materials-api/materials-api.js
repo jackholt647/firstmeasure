@@ -150,7 +150,10 @@
     }
   };
 
-  const api = { configure, baseUrl, url, request, projects, resourceTypes, lists, orders, deliveries };
+  const supplierPath=(orgId,id='')=>`/organizations/${enc(orgId)}/suppliers${id?`/${enc(id)}`:''}`;
+  const suppliers={list:orgId=>request(supplierPath(orgId)),create:(orgId,input)=>request(supplierPath(orgId),{method:'POST',body:input}),save:(orgId,id,input)=>request(supplierPath(orgId,id),{method:'PATCH',body:input}),archive:(orgId,id,input={})=>request(supplierPath(orgId,id),{method:'DELETE',body:input}),
+    createLocation:(orgId,id,input)=>request(`${supplierPath(orgId,id)}/locations`,{method:'POST',body:input}),saveLocation:(orgId,id,locationId,input)=>request(`${supplierPath(orgId,id)}/locations/${enc(locationId)}`,{method:'PATCH',body:input}),archiveLocation:(orgId,id,locationId,input={})=>request(`${supplierPath(orgId,id)}/locations/${enc(locationId)}`,{method:'DELETE',body:input})};
+  const api = { configure, baseUrl, url, request, projects, resourceTypes, suppliers, lists, orders, deliveries };
   configure({ baseUrl: APP.materialsApiBase || '' });
   root.MaterialsAPI = api;
 })();

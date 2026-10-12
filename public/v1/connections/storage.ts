@@ -158,8 +158,15 @@ export async function listOrganizationConnections(orgIdValue: string, options: J
       WHERE cap.organization_id=c.organization_id AND cap.connection_id=c.id AND cap.scope_id=?)`);
     params.push(cleanId(scopeId, "scope_id"));
   }
-  return (await Promise.all((await getWorkforceDatabase().prepare(`SELECT c.* FROM organization_connections c
+  const connections = (await Promise.all((await getWorkforceDatabase().prepare(`SELECT c.* FROM organization_connections c
     WHERE ${conditions.join(" AND ")} ORDER BY c.name ASC`).all(...params)).map(connectionRowView)));
+  // Suppliers share this table but are managed with the price book. Workforce readers see a connection only
+  // when it has some non-supplier relationship; `relationship_scope: "suppliers"` selects the supplier side.
+  const supplierRoles = ["material_supplier", "equipment_rental"];
+  const roles = (connection: JsonObject) => asArray(connection.relationship_type_ids).map((role) => cleanText(role));
+  if (cleanText(options.relationship_scope) === "suppliers") return connections.filter((connection) => roles(connection).some((role) => supplierRoles.includes(role)));
+  if (cleanText(options.relationship_scope) === "all") return connections;
+  return connections.filter((connection) => !roles(connection).length || roles(connection).some((role) => !supplierRoles.includes(role)));
 }
 
 async function replaceBranches(db: SqlStore, orgId: string, connectionId: string, branchIds: string[]) {

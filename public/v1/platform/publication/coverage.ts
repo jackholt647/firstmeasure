@@ -11,7 +11,7 @@ export const applicationPublication = {
   docs: { providers: ["documents"], domains: ["documents"] },
   documents: { providers: ["documents", "document-modules"], domains: ["documents"] },
   "web-editor": { providers: ["websites"], domains: ["websites"] },
-  materials: { providers: ["material-resource-types", "materials", "materials-calculus", "materials-inputs", "project-widgets"], domains: ["materials"] },
+  materials: { providers: ["material-resource-types", "suppliers", "materials", "materials-calculus", "materials-inputs", "project-widgets"], domains: ["materials"] },
   money: { providers: ["payments"], domains: ["payments"] },
   "project-request": { providers: ["projects"], domains: ["projects"] },
   "firstmeasure/order": { providers: ["firstmeasure"], domains: ["firstmeasure"] },
@@ -43,6 +43,6 @@ export const applicationPublication = {
   onboarding: { providers: ["organization"], domains: [], note: "Uses organization profile; account and credential setup retains its dedicated flow." },
   "promo-inject": { providers: [], domains: [], note: "Presentation injection; owns no project data or business actions." },
   referrals: { providers: ["referrals", "customers"], domains: ["referrals"], note: "Eligibility and explicit referral initialization action; referral setup is not a side effect of a data read." },
-  pricebook: { providers: ["pricebook"], domains: ["pricebook"] },
+  pricebook: { providers: ["pricebook", "suppliers"], domains: ["pricebook", "materials"] },
   tutorial: { providers: [], domains: [], note: "Presentation shell; owns no project data or business actions." }
 } as const;
