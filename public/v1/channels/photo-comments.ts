@@ -29,7 +29,9 @@ export async function ensurePhotoDiscussion(ctx:PlatformAuthContext,mediaId:stri
   const layer=await readMediaMarkupLayer(ctx.orgId,mediaId,'photo_comments').catch((error:unknown)=>{if(object(error).statusCode===404)return null;throw error;});
   const legacy=object(layer?.data).comments;
   const directory=await userDirectory(ctx.orgId);
-  await store.getChannelsDatabase().transaction(async()=>{
+  await store.getChannelsDatabase().transaction(async db=>{
+   // Serialize imports across processes before re-reading the completed marker.
+   await db.prepare("UPDATE channels SET updated_at=updated_at WHERE organization_id=? AND id=?").run(ctx.orgId,channel!.id);
    const fresh=(await store.readChannelRecord(ctx.orgId,channel!.id))!;
    if(fresh.settings.photo_comments_imported===true)return;
    for(const [index,value] of (Array.isArray(legacy)?legacy:[]).entries()){
