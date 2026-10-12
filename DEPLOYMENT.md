@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 phone second pass: [Texting, voicemail, and conference controls](deploy/digitalocean/development-phone-second-pass-20261011.md) records shared composer/recipient improvements, synthetic conversations, individual conference controls, recording findings, verification, and the development-only rollout.
+
 October 11 oversized incoming MMS: [Read-only groups and explicit private replies](deploy/digitalocean/development-oversized-mms-20261011.md) records complete incoming membership/media, safe private replies, typed publications, verification and development rollout continuity.
 
 October 9 phone group texting: [Tray and modal group MMS](deploy/digitalocean/development-phone-group-text-20261009.md) records multi-contact selection, image/group replies, focused verification and the development-only frontend rollout.
