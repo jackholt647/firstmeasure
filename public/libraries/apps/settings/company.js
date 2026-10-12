@@ -6268,7 +6268,7 @@
         suppliersPane.textContent = 'Loading suppliers…';
         const base = document.querySelector('script[src*="apps/settings/company.js"]')?.src || `${location.origin}/libraries/apps/settings/company.js`;
         const script = document.createElement('script');
-        script.src = new URL('./suppliers.js?v=20261012-suppliers', base).href;
+        script.src = new URL('./suppliers.js?v=20261012-logos', base).href;
         script.onload = start;
         script.onerror = () => { suppliersRequested = false; suppliersPane.textContent = 'The supplier editor could not load.'; };
         document.head.append(script);

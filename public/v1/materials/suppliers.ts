@@ -14,6 +14,8 @@ export const SUPPLIER_LOCATION_COLLECTION = 'material_supplier_locations';
 const id = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/);
 const cents = z.number().int().min(0).max(1_000_000_000);
 const email = z.string().trim().max(320).email().or(z.literal(''));
+// A small image kept with the supplier: an https address, or an inline PNG, JPEG or WebP the editor has already scaled down.
+const logo = z.string().trim().max(120_000).regex(/^(https:\/\/[^\s"'<>]+|data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+)$/, 'A logo is an https address or a small PNG, JPEG or WebP image.').or(z.literal(''));
 const deliveryFeeSchema = z.object({ amount_cents: cents, free_above_cents: cents.nullable().optional() }).strict();
 // price_cents null or absent means the supplier carries the item at a price we do not know.
 const offeringSchema = z.object({ item_id: id, sku: z.string().trim().max(120).optional(), price_cents: cents.nullable().optional() }).strict();
@@ -27,6 +29,7 @@ export const supplierInputSchema = z.object({
   id: id.optional(),
   name: z.string().trim().min(1).max(200),
   roles: z.array(z.enum(SUPPLIER_ROLES)).min(1).max(SUPPLIER_ROLES.length).optional(),
+  logo: logo.optional(),
   order_email: email.optional(),
   phone: z.string().trim().max(80).optional(),
   address: z.string().trim().max(500).optional(),
@@ -52,7 +55,7 @@ export type SupplierOffering = { item_id: string; sku: string; price_cents: numb
 export type SupplierOverride = { item_id: string; carried?: boolean; sku?: string; price_cents?: number | null };
 export type DeliveryFee = { amount_cents: number; free_above_cents: number | null };
 export type SupplierLocation = { id: string; supplier_id: string; name: string; order_email: string; phone: string; address: string; delivery_fee: DeliveryFee | null; overrides: SupplierOverride[]; revision: number };
-export type Supplier = { id: string; name: string; roles: string[]; order_email: string; phone: string; address: string; delivery_fee: DeliveryFee | null; offerings: SupplierOffering[]; locations: SupplierLocation[]; revision: number; connection_revision: number };
+export type Supplier = { id: string; name: string; roles: string[]; logo: string; order_email: string; phone: string; address: string; delivery_fee: DeliveryFee | null; offerings: SupplierOffering[]; locations: SupplierLocation[]; revision: number; connection_revision: number };
 
 const text = (value: unknown) => String(value ?? '').trim();
 const feeOf = (value: unknown): DeliveryFee | null => {
@@ -131,7 +134,7 @@ export async function listSuppliers(orgId: string): Promise<Supplier[]> {
     return {
       id: connectionId, name: text(connection.name),
       roles: (connection.relationship_type_ids as unknown[]).map(String).filter((role) => (SUPPLIER_ROLES as readonly string[]).includes(role)),
-      order_email: text(data.order_email), phone: text(data.phone), address: text(data.address),
+      logo: text(data.logo), order_email: text(data.order_email), phone: text(data.phone), address: text(data.address),
       delivery_fee: feeOf(data.delivery_fee),
       offerings: (Array.isArray(data.offerings) ? data.offerings as JsonObject[] : []).map((row) => ({ item_id: text(row.item_id), sku: text(row.sku), price_cents: priceOf(row.price_cents) })),
       locations: activeLocations.filter((location) => location.supplier_id === connectionId).sort((a, b) => a.name.localeCompare(b.name)),
@@ -165,6 +168,7 @@ export async function saveSupplier(orgId: string, input: unknown, auth: Platform
   await upsertDocument(orgId, SUPPLIER_COLLECTION, {
     id: supplierId, ...(existing ? { expected_revision: parsed.expected_revision ?? existing.revision } : {}),
     data: {
+      logo: has('logo') ? parsed.logo : existing?.logo || '',
       order_email: has('order_email') ? parsed.order_email : existing?.order_email || '',
       phone: has('phone') ? parsed.phone : existing?.phone || '',
       address: has('address') ? parsed.address : existing?.address || '',

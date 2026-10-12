@@ -20,6 +20,10 @@
       .sup-list button{display:block;width:100%;padding:8px 10px;border:0;border-radius:7px;background:transparent;text-align:left;color:#344054;cursor:pointer}
       .sup-list button:hover{background:#f2f4f7}.sup-list button.active{background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}
       .sup-list button strong{display:block;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sup-list button small{display:block;margin-top:1px;font-size:10px;color:#667085}
+      .sup-list button[data-sup-select]{display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:8px;align-items:center}.sup-list button[data-sup-select] .sup-mark{grid-row:1 / span 2}
+      .sup-mark{width:28px;height:28px;border-radius:6px;border:1px solid #e4e7ec;background:#fff;object-fit:contain;display:grid;place-items:center;font-size:12px;font-weight:700;color:#667085;box-sizing:border-box}
+      .sup-logo{flex:none;position:relative;width:40px;height:40px;border:1px dashed #d0d5dd;border-radius:8px;background:#f9fafb;display:grid;place-items:center;color:#98a2b3;cursor:pointer;overflow:hidden}.sup-logo.has{border-style:solid;background:#fff}.sup-logo:hover{border-color:#98a2b3}
+      .sup-logo img{width:100%;height:100%;object-fit:contain}.sup-logo input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
       .sup-list .sup-new{border:1px dashed #d0d5dd;margin-bottom:4px;font-weight:600;text-align:center}
       .sup-main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden;padding:12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff}
       .sup-empty{margin:auto;text-align:center;color:#667085}
@@ -60,7 +64,7 @@
     const items = () => (Array.isArray(options.pricebook?.getState?.().items) ? options.pricebook.getState().items : []);
 
     const draftFrom = (supplier) => ({
-      id: supplier.id || '', revision: supplier.revision || 0, name: supplier.name || '', order_email: supplier.order_email || '', phone: supplier.phone || '', address: supplier.address || '',
+      id: supplier.id || '', revision: supplier.revision || 0, name: supplier.name || '', logo: supplier.logo || '', order_email: supplier.order_email || '', phone: supplier.phone || '', address: supplier.address || '',
       fee: dollars(supplier.delivery_fee?.amount_cents), freeAbove: dollars(supplier.delivery_fee?.free_above_cents),
       offerings: new Map((supplier.offerings || []).map((row) => [row.item_id, { sku: row.sku || '', price_cents: row.price_cents ?? null }])),
       locations: (supplier.locations || []).map((location) => ({
@@ -69,6 +73,7 @@
         overrides: new Map((location.overrides || []).map((row) => [row.item_id, { ...row }]))
       }))
     });
+    const logoMark = (supplier) => supplier.logo ? `<img class="sup-mark" src="${esc(supplier.logo)}" alt="">` : `<span class="sup-mark">${esc(text(supplier.name).slice(0, 1).toUpperCase() || '?')}</span>`;
     const currentLocation = () => state.draft?.locations.find((location) => location.id === state.locationId) || null;
     const offer = (itemId) => {
       const base = state.draft.offerings.get(itemId) || null, location = currentLocation(), override = location?.overrides.get(itemId) || null;
@@ -96,7 +101,7 @@
       if (!text(draft.name)) { toast('Name needed', 'Give the supplier a name.', false); return; }
       state.saving = true; render();
       try {
-        const body = { name: text(draft.name), order_email: text(draft.order_email), phone: text(draft.phone), address: text(draft.address), delivery_fee: feeInput(draft), offerings: [...draft.offerings].map(([item_id, row]) => ({ item_id, sku: text(row.sku), price_cents: row.price_cents ?? null })) };
+        const body = { name: text(draft.name), logo: text(draft.logo), order_email: text(draft.order_email), phone: text(draft.phone), address: text(draft.address), delivery_fee: feeInput(draft), offerings: [...draft.offerings].map(([item_id, row]) => ({ item_id, sku: text(row.sku), price_cents: row.price_cents ?? null })) };
         const saved = draft.id ? (await api().save(orgId(), draft.id, { ...body, expected_revision: draft.revision })).supplier : (await api().create(orgId(), body)).supplier;
         for (const location of draft.locations.filter((entry) => entry.dirty || !entry.id || String(entry.id).startsWith('new:'))) {
           const input = { name: text(location.name) || 'Location', order_email: text(location.order_email), phone: text(location.phone), address: text(location.address), delivery_fee: feeInput(location), overrides: [...location.overrides.values()] };
@@ -156,11 +161,11 @@
 
     function render(){
       const draft = state.draft, location = currentLocation();
-      const list = `<aside class="sup-list"><button type="button" class="sup-new" data-sup-new><i class="fas fa-plus"></i> Add supplier</button>${state.suppliers.map((row) => `<button type="button" class="${row.id === state.selectedId ? 'active' : ''}" data-sup-select="${esc(row.id)}"><strong>${esc(row.name)}</strong><small>${row.offerings.length} item${row.offerings.length === 1 ? '' : 's'}${row.locations.length ? ` · ${row.locations.length} location${row.locations.length === 1 ? '' : 's'}` : ''}</small></button>`).join('')}${draft && !draft.id ? '<button type="button" class="active"><strong>New supplier</strong><small>Not saved yet</small></button>' : ''}</aside>`;
+      const list = `<aside class="sup-list"><button type="button" class="sup-new" data-sup-new><i class="fas fa-plus"></i> Add supplier</button>${state.suppliers.map((row) => `<button type="button" class="${row.id === state.selectedId ? 'active' : ''}" data-sup-select="${esc(row.id)}">${logoMark(row)}<strong>${esc(row.name)}</strong><small>${row.offerings.length} item${row.offerings.length === 1 ? '' : 's'}${row.locations.length ? ` · ${row.locations.length} location${row.locations.length === 1 ? '' : 's'}` : ''}</small></button>`).join('')}${draft && !draft.id ? '<button type="button" class="active"><strong>New supplier</strong><small>Not saved yet</small></button>' : ''}</aside>`;
       if (state.loading || state.error || !draft) { host.innerHTML = `<div class="sup-wrap">${list}<section class="sup-main"><div class="sup-empty">${state.loading ? 'Loading suppliers…' : esc(state.error) || 'Add the companies you buy from. Each one lists which price book items it carries, at what price, and what it charges for delivery.'}</div></section></div>`; return; }
       const target = location || draft;
       host.innerHTML = `<div class="sup-wrap">${list}<section class="sup-main">
-        <div class="sup-head"><input data-sup-field="name" data-sup-owner="supplier" value="${esc(draft.name)}" placeholder="Supplier name" aria-label="Supplier name"><button type="button" class="sup-btn primary" data-sup-save ${state.dirty && !state.saving ? '' : 'disabled'}>${state.saving ? 'Saving…' : 'Save'}</button>${draft.id ? '<button type="button" class="sup-btn" data-sup-delete title="Remove this supplier"><i class="fas fa-trash"></i></button>' : ''}</div>
+        <div class="sup-head"><label class="sup-logo${draft.logo ? ' has' : ''}" title="${draft.logo ? 'Change the logo' : 'Add a logo'}">${draft.logo ? `<img src="${esc(draft.logo)}" alt="">` : '<i class="fas fa-image" aria-hidden="true"></i>'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-sup-logo aria-label="Supplier logo"></label>${draft.logo ? '<button type="button" class="sup-link" data-sup-logo-clear>Remove logo</button>' : ''}<input data-sup-field="name" data-sup-owner="supplier" value="${esc(draft.name)}" placeholder="Supplier name" aria-label="Supplier name"><button type="button" class="sup-btn primary" data-sup-save ${state.dirty && !state.saving ? '' : 'disabled'}>${state.saving ? 'Saving…' : 'Save'}</button>${draft.id ? '<button type="button" class="sup-btn" data-sup-delete title="Remove this supplier"><i class="fas fa-trash"></i></button>' : ''}</div>
         <div class="sup-locs">${draft.locations.length ? `<button type="button" class="sup-chip${location ? '' : ' active'}" data-sup-location="">All locations</button>${draft.locations.map((entry) => `<button type="button" class="sup-chip${entry.id === state.locationId ? ' active' : ''}" data-sup-location="${esc(entry.id)}">${esc(entry.name || 'Location')}<small>${entry.overrides.size + (text(entry.fee) ? 1 : 0) ? `${entry.overrides.size + (text(entry.fee) ? 1 : 0)} different` : 'same as supplier'}</small></button>`).join('')}<button type="button" class="sup-link" data-sup-add-location>Add location</button>` : `<span class="sup-note">One location.</span><button type="button" class="sup-link" data-sup-add-location>Add another location</button>`}</div>
         <div class="sup-fields">${location ? `<label>Location name<input data-sup-field="name" value="${esc(location.name)}"></label>` : ''}<label>Order email<input data-sup-field="order_email" value="${esc(target.order_email)}" placeholder="${esc(location ? draft.order_email || 'orders@supplier.com' : 'orders@supplier.com')}"></label><label>Phone<input data-sup-field="phone" value="${esc(target.phone)}" placeholder="${esc(location ? draft.phone : '')}"></label><label>Address<input data-sup-field="address" value="${esc(target.address)}"></label><label>Delivery fee ($)<input data-sup-field="fee" inputmode="decimal" value="${esc(target.fee)}" placeholder="${esc(location ? (text(draft.fee) ? `${draft.fee} (supplier)` : 'None') : 'None')}"></label><label>Free delivery above ($)<input data-sup-field="freeAbove" inputmode="decimal" value="${esc(target.freeAbove)}" placeholder="${esc(location && text(draft.freeAbove) ? `${draft.freeAbove} (supplier)` : 'Never')}"></label>${location ? '<label>&nbsp;<button type="button" class="sup-btn" data-sup-remove-location>Remove location</button></label>' : ''}</div>
         <div class="sup-tools"><input data-sup-search value="${esc(state.search)}" placeholder="Search price book items" aria-label="Search price book items"><button type="button" class="sup-btn" data-sup-lowest title="Set each item's base cost in the price book to its lowest supplier price">Set base costs to lowest price</button></div>
@@ -176,6 +181,7 @@
       if ('supNew' in data) { if (!confirmLeave()) return; state.selectedId = ''; state.locationId = ''; state.draft = draftFrom({}); state.dirty = true; render(); host.querySelector('[data-sup-field="name"]')?.focus(); }
       else if (data.supSelect) { if (!confirmLeave()) return; state.selectedId = data.supSelect; state.locationId = ''; state.draft = draftFrom(state.suppliers.find((row) => row.id === data.supSelect)); state.dirty = false; render(); }
       else if ('supSave' in data) save();
+      else if ('supLogoClear' in data) { draft.logo = ''; state.dirty = true; render(); }
       else if ('supDelete' in data) { if (!root.confirm(`Remove ${draft.name}? Its catalogue and locations are removed with it.`)) return; try { await api().archive(orgId(), draft.id); state.selectedId = ''; state.dirty = false; toast('Supplier removed', draft.name, true); await load(); } catch (error) { toast('Could not remove supplier', error?.message || 'Please try again.', false); } }
       else if ('supLocation' in data) { state.locationId = data.supLocation; render(); }
       else if ('supAddLocation' in data) { const id = `new:${Date.now()}`; draft.locations.push({ id, revision: 0, name: draft.locations.length ? `Location ${draft.locations.length + 1}` : 'Second location', order_email: '', phone: '', address: '', fee: '', freeAbove: '', dirty: true, overrides: new Map() }); state.locationId = id; state.dirty = true; render(); host.querySelector('.sup-fields [data-sup-field="name"]')?.select(); }
@@ -187,6 +193,22 @@
         markDirty(); render();
       } else if ('supReset' in data && location) { location.overrides.delete(button.closest('[data-sup-item]').dataset.supItem); markDirty(); render(); }
     });
+    // Logos are stored with the supplier, so they are scaled to fit a 128px box before saving.
+    function readLogo(file){
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file), image = new Image();
+        image.onload = () => {
+          URL.revokeObjectURL(url);
+          const scale = Math.min(1, 128 / Math.max(image.naturalWidth || 128, image.naturalHeight || 128));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((image.naturalWidth || 128) * scale)); canvas.height = Math.max(1, Math.round((image.naturalHeight || 128) * scale));
+          canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That file could not be read as an image.')); };
+        image.src = url;
+      });
+    }
     function setCarried(itemId, carry){
       const location = currentLocation(), draft = state.draft;
       if (!location) { if (carry) { if (!draft.offerings.has(itemId)) draft.offerings.set(itemId, { sku: '', price_cents: null }); } else draft.offerings.delete(itemId); return; }
@@ -196,6 +218,11 @@
     }
     host.addEventListener('change', (event) => {
       const input = event.target;
+      if (input.matches('[data-sup-logo]')) {
+        const file = input.files?.[0]; if (!file) return;
+        readLogo(file).then((logo) => { state.draft.logo = logo; state.dirty = true; render(); }).catch((error) => toast('Could not use that logo', error?.message || 'Try a PNG or JPEG.', false));
+        return;
+      }
       if (input.matches('[data-sup-carried]')) { setCarried(input.closest('[data-sup-item]').dataset.supItem, input.checked); markDirty(); render(); }
     });
     host.addEventListener('input', (event) => {

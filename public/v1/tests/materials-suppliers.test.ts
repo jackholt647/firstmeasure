@@ -23,7 +23,11 @@ test('suppliers are connections with their own catalogue; locations inherit and 
   await assert.rejects(()=>suppliers.saveSupplier('org_suppliers',{name:'ABC Supply',unknown:true},auth));
 
   const abc=await suppliers.saveSupplier('org_suppliers',{name:'ABC Supply',order_email:'orders@abc.test',delivery_fee:{amount_cents:7500,free_above_cents:500000},offerings:[{item_id:'shingle',sku:'ABC-HDZ',price_cents:3850},{item_id:'underlayment',sku:'ABC-UL'},{item_id:'nails',price_cents:4200}]},auth);
-  assert.deepEqual(abc.roles,['material_supplier']);assert.equal(abc.offerings.length,3);assert.equal(abc.offerings[1]?.price_cents,null,'an item can be carried at an unknown price');assert.deepEqual(abc.locations,[]);
+  assert.deepEqual(abc.roles,['material_supplier']);assert.equal(abc.logo,'');
+  const png='data:image/png;base64,iVBORw0KGgo=';const marked=await suppliers.saveSupplier('org_suppliers',{name:'Logo Yard',logo:png,offerings:[{item_id:'shingle'}]},auth);assert.equal(marked.logo,png);
+  assert.equal((await suppliers.saveSupplier('org_suppliers',{id:marked.id,name:marked.name},auth)).logo,png,'an omitted logo is kept');
+  await assert.rejects(()=>suppliers.saveSupplier('org_suppliers',{id:marked.id,name:marked.name,logo:'javascript:alert(1)'},auth));await assert.rejects(()=>suppliers.saveSupplier('org_suppliers',{id:marked.id,name:marked.name,logo:'data:image/svg+xml;base64,PHN2Zz4='},auth),'inline SVG is refused');await suppliers.archiveSupplier('org_suppliers',{id:marked.id},auth);
+assert.equal(abc.offerings.length,3);assert.equal(abc.offerings[1]?.price_cents,null,'an item can be carried at an unknown price');assert.deepEqual(abc.locations,[]);
 
   // A supplier is stored as a connection but does not appear among workforce connections.
   const sub=await connections.createOrganizationConnection('org_suppliers',{name:'Roofing Sub'});
