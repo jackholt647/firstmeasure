@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Phone marketing: [Website call tracking and SMS broadcast infrastructure](deploy/digitalocean/development-phone-marketing-20261012.md) records setup screens, shared data/actions/events, additive PostgreSQL schema, tests and verified development rollout.
+
 October 11 Project Notes: [Composer parity and note cards](deploy/digitalocean/development-project-notes-composer-20261011.md) records the browser changes, development publication and validation.
 
 October 11 Feed settings: [Automatic-post description](deploy/digitalocean/development-feed-settings-copy-20261011.md) records the exact copy replacement and verified development rollout.
