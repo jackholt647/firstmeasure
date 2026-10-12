@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,mkdir} from 'node:fs/promises';
+import {join} from 'node:path';
 import {chromium} from 'playwright-core';
 
 test('native lifecycle actions filter correctly, emphasize only verbs and open shared user previews',async()=>{
@@ -10,7 +11,10 @@ test('native lifecycle actions filter correctly, emphasize only verbs and open s
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://widgets.test/**',async route=>{
    const path=new URL(route.request().url()).pathname;
-   if(path.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript',body:await readFile(new URL('../../'+path.slice(1),import.meta.url))});
+   if(path.startsWith('/libraries/')){
+    const hosted=process.env.FM_ACTIVITY_WIDGET_FIXTURES&&/^\/libraries\/platform-widgets\/(runtime|grouped-widgets)\.js$/.test(path);
+    return route.fulfill({contentType:'application/javascript',body:await readFile(hosted?join(process.env.FM_ACTIVITY_WIDGET_FIXTURES,path.split('/').pop()):new URL('../../'+path.slice(1),import.meta.url))});
+   }
    return route.fulfill({contentType:'text/html',body:'<meta charset="utf-8"><style>body{font-family:Arial;margin:30px}#shell{height:650px;width:550px;display:flex;flex-direction:column;border:1px solid #eee}.r-preview{flex:1;min-height:0}</style><section id="shell"><header class="r-modal-header"></header><main class="r-preview"></main></section>'});
   });
   await page.goto('http://widgets.test/');
