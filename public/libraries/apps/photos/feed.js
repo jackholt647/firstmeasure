@@ -1561,6 +1561,7 @@
     if (!id && !firstText(resolved.address, resolved.customer_name, resolved.primary_contact_name)) return;
     await window.Portal?.modules?.request?.openProject?.(resolved, {
       tab: options.tab || 'photos',
+      ...(options.photo ? { photo:options.photo } : {}),
       routePatch: options.fromFeedViewer ? { photo:null, photoScope:null } : null
     });
   }
@@ -2641,11 +2642,24 @@
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : state.loaded && !state.loading && !state.documentsLoading && entries.length ? '<div class="pf-feed-end" data-feed-end role="status">You’ve reached the end of the available activity.</div>' : ''}
       </div>`;
   }
-  function openFeedViewerAt(index, options = {}){
+  async function openFeedViewerAt(index, options = {}){
     const items = filteredItems();
     const safeIndex = Math.max(0, Math.min(Number(index || 0), Math.max(0, items.length - 1)));
     const item = items[safeIndex];
     if (!item) return null;
+    if (projectRouteId(item.project)) {
+      state.openingProjectFromFeedViewer = true;
+      try {
+        state.activeFeedViewer?.close?.();
+        await openProject(item.project, { tab:'photos', photo:mediaRouteId(item.photo), fromFeedViewer:true });
+      } catch (error) {
+        console.warn('Could not open photo project', error);
+        showToast?.((globalThis.PlatformLanguage?.text("photos","m_6c0b3254cc1aac","Project unavailable") ?? "Project unavailable"), error?.message || 'Could not open this project.', false);
+      } finally {
+        state.openingProjectFromFeedViewer = false;
+      }
+      return null;
+    }
     if (!options.fromRoute) updatePhotoRoute(item, 'feed', { history:'push', source:'photo-open' });
     if (state.activeFeedViewer) {
       state.closingFeedViewerFromRoute = true;
