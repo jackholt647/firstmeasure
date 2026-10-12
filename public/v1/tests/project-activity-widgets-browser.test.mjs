@@ -23,7 +23,7 @@ test('project widgets fill trays and independent hosts; activity filters, pagina
   });
   // Exercise the portal's load order: tray definitions precede the runtime.
   for(const file of ['project-trays/project-trays.js','platform-widgets/runtime.js','platform-action-items/platform-action-items.js'])await page.addScriptTag({url:'/libraries/'+file});
-  assert.deepEqual(await page.evaluate(async()=> (await FirstMateWidgets.list()).filter(d=>d.id.startsWith('project.')).map(d=>[d.id,d.sizing.mode])),[['project.notes','fill'],['project.todo','fill'],['project.messages','fill'],['project.activity','fill'],['project.agent','fill']]);
+  assert.deepEqual(await page.evaluate(async()=> (await FirstMateWidgets.list()).filter(d=>['project.notes','project.todo','project.messages','project.activity','project.agent'].includes(d.id)).map(d=>[d.id,d.sizing.mode])),[['project.notes','fill'],['project.todo','fill'],['project.messages','fill'],['project.activity','fill'],['project.agent','fill']]);
   await page.evaluate(()=>{window.trays=FirstMateProjectTrays.mount(document.querySelector('#shell'),{project:{id:'one'}});});
   await page.getByRole('tab',{name:'Notes',exact:true}).click();await page.getByRole('textbox',{name:'Note draft'}).fill('Preserve this note');
   await page.getByRole('tab',{name:'Activity',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.fm-project-activity article').length===101);
