@@ -30,3 +30,18 @@ No real test notification or registration was sent.
 Deploy as guarded per-host overlays of current source and compiled modules;
 web and worker baselines differ and must be merged independently. Preserve all
 unrelated assets and production services.
+
+## Activation verified
+
+Release `844411bf3658f722cd3d145d13bc717fec16375e` is active on development
+web, web pool, compatibility and worker. HTTP hosts pass readiness; the worker
+is active without error-priority startup logs. The public topbar asset matches
+the staged hash. The merged live web source also passes TypeScript checking.
+
+Authenticated read-only setup requests for Cedar Puffin's owner return HTTP 200,
+`registration_live: true`, and configured Telnyx. The org has no registration
+profiles yet. Its notification app was disabled; selectively enabled
+`apps.notifications` using the capability service. Notification preferences now
+return both in-app and email approval delivery enabled. Background notification
+processing and platform account-email configuration are present. Temporary
+verification sessions were deleted after each check. Production was unchanged.
