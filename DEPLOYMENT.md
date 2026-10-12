@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 GIF drafts: [Attach before sending in Channels and Feed](deploy/digitalocean/development-gif-drafts-20261011.md) records staging, removable previews, failure retention and the verified dev rollout.
+
 October 11 Project preview: [Cover fallback and internal contact actions](deploy/digitalocean/development-project-preview-cover-actions-20261011.md) records the verified development rollout, tests, exact-project data observation and rollback paths.
 
 October 11 Phone Settings: [Voicemail drop, dialing pools and reputation monitoring](deploy/digitalocean/development-phone-extensions-20261011.md) records the original staging and checks; the [October 12 activation and publication record](deploy/digitalocean/development-phone-publication-20261012.md) records the resolved access blocker, coordinated dev rollout and live trigger verification.
