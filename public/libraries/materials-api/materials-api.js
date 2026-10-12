@@ -106,7 +106,7 @@
     return `/organizations/${enc(orgId)}/material-orders/${enc(orderId)}${suffix}`;
   }
 
-  const resourceTypes={list:orgId=>request(`/organizations/${enc(orgId)}/resource-types`),create:(orgId,input)=>request(`/organizations/${enc(orgId)}/resource-types`,{method:'POST',body:input}),patch:(orgId,id,input)=>request(`/organizations/${enc(orgId)}/resource-types/${enc(id)}`,{method:'PATCH',body:input})};
+  const resourceTypes={list:orgId=>request(`/organizations/${enc(orgId)}/resource-types`),create:(orgId,input)=>request(`/organizations/${enc(orgId)}/resource-types`,{method:'POST',body:input}),patch:(orgId,id,input)=>request(`/organizations/${enc(orgId)}/resource-types/${enc(id)}`,{method:'PATCH',body:input}),archive:(orgId,id,input={})=>request(`/organizations/${enc(orgId)}/resource-types/${enc(id)}`,{method:'DELETE',body:input})};
   const projects = {
     list(orgId, projectId){
       return request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/material-lists`);

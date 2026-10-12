@@ -1,4 +1,4 @@
-import {listResourceTypes,saveResourceType} from './resource-types.js';
+import {listResourceTypes,saveResourceType,archiveResourceType} from './resource-types.js';
 import type { FastifyPluginAsync } from "fastify";
 import { registerCalculusApi } from "./calculus-api.js";
 import { ZodError } from "zod";
@@ -93,6 +93,7 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
   app.get('/organizations/:orgId/resource-types',async request=>{const orgId=getParam(request.params,'orgId');await requirePlatformAuth(request,{orgId,permission:'view_projects'});return {ok:true,resource_types:await listResourceTypes(orgId)};});
   app.post('/organizations/:orgId/resource-types',async(request,reply)=>{const orgId=getParam(request.params,'orgId'),ctx=await requirePlatformAuth(request,{orgId,csrf:true,permission:'manage_projects'});const resource_type=await saveResourceType(orgId,request.body,ctx,true);reply.code(201);return {ok:true,resource_type};});
   app.patch('/organizations/:orgId/resource-types/:typeId',async request=>{const orgId=getParam(request.params,'orgId'),ctx=await requirePlatformAuth(request,{orgId,csrf:true,permission:'manage_projects'});return {ok:true,resource_type:await saveResourceType(orgId,{...(request.body as Record<string,unknown>),id:getParam(request.params,'typeId')},ctx)};});
+  app.delete('/organizations/:orgId/resource-types/:typeId',async request=>{const orgId=getParam(request.params,'orgId'),ctx=await requirePlatformAuth(request,{orgId,csrf:true,permission:'manage_projects'});return {ok:true,resource_type:await archiveResourceType(orgId,{...((request.body??{}) as Record<string,unknown>),id:getParam(request.params,'typeId')},ctx)};});
   app.get("/organizations/:orgId/projects/:projectId/material-lists", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "view_projects" });
