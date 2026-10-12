@@ -11229,11 +11229,16 @@ async function sendProjectThumbnail(projectId: string, query: Record<string, unk
     "rgb.tif"
   ].filter(Boolean)));
 
+  let availableSources: Set<string> | null = null;
   for (const source of sources) {
     const cachedPath = thumbnailCachePath(projectId, source, width, format);
     const cached = await readCachedThumbnail(cachedPath, reply);
     if (cached) return cached;
 
+    // Missing-image cards must not fan out into ten speculative Spaces GETs.
+    // List once after the fast cache path, then only read sources that exist.
+    availableSources ??= new Set((await listProjectFiles(projectId)).map((file) => file.name));
+    if (!availableSources.has(source)) continue;
     const artifact = await readProjectArtifactFile(projectId, source).catch(() => null);
     if (!artifact) continue;
 
