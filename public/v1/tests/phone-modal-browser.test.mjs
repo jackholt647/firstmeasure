@@ -79,6 +79,8 @@ test('phone modal combines call, text, voicemail, and searchable history',async(
     await page.getByText('Please call about the roof estimate.',{exact:true}).last().waitFor();
     await modal.getByRole('combobox',{name:'Playback speed'}).selectOption('1.5');assert.equal(await modal.locator('.fm-voice-player audio').evaluate(audio=>audio.playbackRate),1.5);
     assert.match(await modal.getByRole('link',{name:'Download voicemail'}).getAttribute('href'),/artifacts\/audio-jane\/media$/);
+    await page.route('**/artifacts/audio-jane/media',route=>route.fulfill({contentType:'audio/wav',body:Buffer.from('RIFF synthetic voicemail WAV')}));
+    const downloadPromise=page.waitForEvent('download');await modal.getByRole('link',{name:'Download voicemail'}).click();assert.equal((await downloadPromise).suggestedFilename(),'voicemail.wav');
     assert.equal(await modal.getByRole('button',{name:'Call back',exact:true}).textContent(),'');
     await modal.locator('[data-voicemail-archive]').click();
     await modal.locator('[data-voicemail-filter]').selectOption('archived');
