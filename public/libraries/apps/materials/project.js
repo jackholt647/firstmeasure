@@ -3673,7 +3673,8 @@
   // Two adjacent columns trade width; their combined share of the row is unchanged.
   function resizeColumns(divider,delta,commit=false){
     const left=divider.previousElementSibling,right=divider.nextElementSibling;if(!left?.dataset?.resourceType||!right?.dataset?.resourceType)return;
-    const weights=columnWeights(),start=divider.__start||(divider.__start={left:left.getBoundingClientRect().width,right:right.getBoundingClientRect().width,total:number(weights[left.dataset.resourceType],1)+number(weights[right.dataset.resourceType],1)});
+    const weights=columnWeights(),weightOf=column=>Number(weights[column.dataset.resourceType])>0?Number(weights[column.dataset.resourceType]):1,start=divider.__start||(divider.__start={left:left.getBoundingClientRect().width,right:right.getBoundingClientRect().width,total:weightOf(left)+weightOf(right)});
+    if(!(start.left+start.right>0))return;
     const span=start.left+start.right,minimum=Math.min(140,span/2),width=Math.max(minimum,Math.min(span-minimum,start.left+delta));
     weights[left.dataset.resourceType]=start.total*width/span;weights[right.dataset.resourceType]=start.total*(span-width)/span;
     left.style.setProperty('--column-weight',weights[left.dataset.resourceType]);right.style.setProperty('--column-weight',weights[right.dataset.resourceType]);
@@ -3710,7 +3711,7 @@
       const terms = resourceTerms(type, state.lists.find((list) => resourceType(list) === type));
       const lists=state.lists.filter(list=>resourceType(list)===type&&state.visibleListIds.has(cleanText(list.id)));
       const listTotal=list=>type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected;
-      const weight=number(state.columnWeights?.[type],0);
+      const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
         <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-add-section="${type==='material'?'accessories':escapeHtml(type)}" title="Add item" aria-label="Add ${escapeHtml(terms.singular.toLowerCase())}"><i class="fas fa-plus"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${type==='material'?'<button type="button" data-mt-open-pricebook title="Price Book" aria-label="Price Book"><i class="fas fa-book"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
         <div class="mt-resource-scroll">${lists.map(list=>{
