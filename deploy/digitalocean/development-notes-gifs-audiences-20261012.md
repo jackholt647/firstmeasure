@@ -139,3 +139,33 @@ Previous frontend releases are the corresponding `8a1250d7334bf6ff0e28569ef78ec3
 paths above. Baselines, owned patches, role manifests, scripts and verification
 receipts are retained under ignored output/notes-picker-layer-deploy and in the
 immutable release. Production was not changed.
+
+## Author checkbox and composer gap follow-up
+
+Feature c5d3806a, integrated frontend source `d13364c03372d403d92fc603df335a8f2a776195`. Authors start checked;
+Only actions are removed. Empty selection shows no notes. Select All checks all
+authors, including those hidden by search. All-selection includes new authors on
+refresh. Filters stays the toolbar label for every selection. Checkbox focus is
+retained on repaint; subsets retain authorized paging and archive behavior.
+
+The transparent composer surround now matches the history background (#fafbfc).
+A 24-pixel gap lets the viewport extend 20 pixels below the composer form's top.
+The final eight pixels fade, starting halfway through the gap and finishing four
+pixels before the editor border. Bottom padding leaves the final note readable
+at the end of scrolling.
+
+Notes browser checks passed locally and with dev-hosted assets: checked defaults,
+subsets, zero selection, Select All while searching, fixed label, matching
+background and fade geometry. All development roles passed source hashes,
+readiness, retained runtime identity and enforced outbound safety. Public Notes
+and manifest hashes match reviewed payloads. No backend, data or worker change.
+
+Current frontend paths:
+
+- Web/pool: `/opt/firstmeasure/releases/d13364c03372d403d92fc603df335a8f2a776195-notes-author-selection`.
+- Compatibility: `/mnt/firstmeasure_dev_releases/releases/d13364c03372d403d92fc603df335a8f2a776195-notes-author-selection`.
+
+Each role preserves the concurrent editor baseline and backend runtime `7b30efb54dc6502d54780601029120b8c979d7e5`.
+Prior paths use that ID in the same release directories. Baselines, owned patches,
+scripts and receipts are retained under ignored output/notes-author-selection-deploy
+and in the immutable releases. Production was not changed.
