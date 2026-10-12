@@ -213,3 +213,34 @@ production changes were made. Evidence is under ignored output/gif-widget-deploy
 | web | `/opt/firstmeasure/releases/861c324ff095ec7a32c6d62d2f68ce402b059557-gif-widget` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
 | pool | `/opt/firstmeasure/releases/861c324ff095ec7a32c6d62d2f68ce402b059557-gif-widget` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/861c324ff095ec7a32c6d62d2f68ce402b059557-gif-widget` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+
+
+## Compact composers and explicit Channels mentions
+
+October 12, 2026. Source feature `d0e4f744` was merged with the current canonical reply-participant work. Backend/composer release `e5fb6ee59b88b6af468181450d4e019a4dc419b6` adds compact composers and explicit mention handling. Frontend follow-up `171e9fedfba57c1e64146456ee0326f92e32a74b` keeps More before Send and uses an icon for table operations in narrow toolbars.
+
+Notes, photo comments and their replies, Channels/DMs/threads, and Posts comments/replies now start with one text line and grow with content. Formatting has no bottom divider and stays in one row, with trailing commands under See more formatting. The final commands are Table, Quote, Code block. Tagging is in the bottom action row. Existing audio/video/screen recording actions share a compact More options menu, retaining the original handlers and disabled states. New manual posts retain their 300px editor and larger bottom spacing. Posts comments and inline edits use the shared rich editor.
+
+Channels scheduling offers Tomorrow at 9:00 AM and Next Monday at 9:00 AM in browser-local time, with Custom time opening the existing full date/time picker. Upload validation, attachment handling, failure retention and GIF scheduling restrictions are preserved.
+
+Channels highlights and submits recipients only after picker selection (mouse, Enter or Tab). Pending `@`, typed names and typed broadcasts stay plain. Removing a selected name clears its confirmation. Server mention resolution no longer infers `@channel` or `@here` from text. Server-authored `metadata.mention_broadcasts` retains explicit broadcast display across reload and edit; existing message display remains compatible. Existing conversation membership and presence authorization still apply.
+
+Validation:
+
+- All 14 browser checks passed against the published development assets (`DEV_ASSETS=1`), including one-line defaults, text growth, 240/280/360px Notes trays, formatting overflow, code and table operations, recording menus above native photo overlays, bottom tagging, scheduling presets/custom picker/failure retention, explicit mentions, draft/GIF behavior and participant summaries.
+- `npm run check` passed locally; full TypeScript builds passed on all three Linux roles. Only owned compiled Channels service output was replaced.
+- The original local Channels API suite passed all 36 checks. After canonical reconciliation, each Linux role passed all 36 server checks in the 37-check suite. The sole browser fixture could not launch its Windows Chrome path on Linux; that exact fixture passed locally against the merged source. Explicit broadcast/recipient regression was rerun successfully on each staged role.
+- Publication checks were run sequentially after the parallel launcher exhausted host memory. The suite had 80 passes, one reused-database organization collision, and one optional PostgreSQL skip. Both custom-field checks passed on rerun with isolated storage; no publication contract change was required.
+- Published JavaScript hashes, each role's complete owned source and compiled backend hashes, exact runtime identity, development environment, and enforced outbound safety were verified after activation.
+
+Both releases were built from each role's current immutable release. Live Feed scrolling/event-label/eligibility changes and Feed administration authorization were preserved by three-way source reconciliation. No production, database migration, permission grants or worker activation was performed.
+
+Final verified paths:
+
+| Role | Current frontend release | Backend runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/171e9fedfba57c1e64146456ee0326f92e32a74b-compact-composers-ui` | `e5fb6ee59b88b6af468181450d4e019a4dc419b6` |
+| pool | `/opt/firstmeasure/releases/171e9fedfba57c1e64146456ee0326f92e32a74b-compact-composers-ui` | `e5fb6ee59b88b6af468181450d4e019a4dc419b6` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/171e9fedfba57c1e64146456ee0326f92e32a74b-compact-composers-ui` | `e5fb6ee59b88b6af468181450d4e019a4dc419b6` |
+
+Previous runtime release on all roles was `152862f7ee8b4411f8d5cba112143dc0972e4751-reply-participants` (under `/opt/firstmeasure/releases` for web/pool and `/mnt/firstmeasure_dev_releases/releases` for compat). The final frontend-only activation retained runtime `e5fb6ee5`; rollback of that layout follow-up uses the prior `e5fb6ee5-compact-composers` release. Backend rollback requires the development service restart and readiness guard used in the recorded activation.
