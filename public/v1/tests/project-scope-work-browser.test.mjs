@@ -290,3 +290,26 @@ test('suggestions come only from the sources a category has switched on, using r
  assert.deepEqual(labels('tear',{resource_type:'custom'}),['Tear resistant underlayment','Tear-off trailer']);assert.deepEqual(labels('tear',{resource_type:'off'}),[]);
  ctx.state.resourceTypes=[{id:'material'}];assert.deepEqual(labels('tear',{resource_type:'material'}),['Tear resistant underlayment'],'a category without a saved choice uses its default sources');
 });
+
+test('a supplier quote covers carried items, flags unknown prices, applies delivery once and defaults to the cheapest full match',()=>{
+ const line=(id,item,quantity)=>({id,quantity,pricebook_ref:{item_id:item}});
+ const lists=[{id:'a',title:'Dry-in',current_items:[line('a1','shingle',10),line('a2','nails',2)]},{id:'b',title:'Shingles',current_items:[line('b1','shingle',5),{id:'fee',quantity:1,metadata:{delivery_fee:true}}]},{id:'c',title:'Trim',current_items:[line('c1','gutter',3),{id:'custom',quantity:1}]}];
+ const abc={id:'abc',name:'ABC',order_email:'orders@abc.test',delivery_fee:{amount_cents:7500,free_above_cents:60000},offerings:[{item_id:'shingle',sku:'A',price_cents:4000},{item_id:'nails',sku:'',price_cents:4200},{item_id:'gutter',sku:'',price_cents:null}],locations:[{id:'south',name:'South',order_email:'south@abc.test',delivery_fee:null,overrides:[{item_id:'shingle',price_cents:3500},{item_id:'nails',carried:false}]}]};
+ const beacon={id:'beacon',name:'Beacon',order_email:'',delivery_fee:null,offerings:[{item_id:'shingle',sku:'',price_cents:4100},{item_id:'nails',sku:'',price_cents:4000}],locations:[]};
+ const ctx={state:{suppliers:[abc,beacon],orderSelectedListIds:new Set(['a','b','c']),orderScheduleDrafts:{}},cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,listItems:list=>list.current_items,linePricebookItemId:item=>item.pricebook_ref?.item_id||'',materialListById:id=>lists.find(list=>list.id===id),selectedOrderLists:()=>lists.filter(list=>ctx.state.orderSelectedListIds.has(list.id))};
+ vm.createContext(ctx);vm.runInContext(['supplierTargets','supplierOffer','orderableItems','supplierQuote','orderDeliveryLists','bestSupplierTarget','orderSupplierChoice','orderSupplierGroups','orderGroupTarget','scheduleDraftForList'].map(fn).join(''),ctx);
+ const targets=ctx.supplierTargets();assert.deepEqual(JSON.parse(JSON.stringify(targets.map(target=>[target.key,target.email]))),[['abc','orders@abc.test'],['abc/south','south@abc.test'],['beacon','']]);
+ const plain=quote=>({coversAll:quote.coversAll,missing:[...quote.missing],unpriced:[...quote.unpriced],subtotal:quote.subtotal,delivery:quote.delivery,total:quote.total,waived:quote.waived});
+ assert.deepEqual(plain(ctx.supplierQuote(targets[0],[lists[0]])),{coversAll:true,missing:[],unpriced:[],subtotal:48400,delivery:7500,total:55900,waived:false});
+ assert.equal(ctx.supplierQuote(targets[0],[lists[0]],false).total,48400);
+ assert.deepEqual(plain(ctx.supplierQuote(targets[0],[lists[0],lists[1]])),{coversAll:true,missing:[],unpriced:[],subtotal:68400,delivery:0,total:68400,waived:true},'two lists in one delivery pay one fee, waived above the threshold; the fee line itself is not an order item');
+ assert.deepEqual(plain(ctx.supplierQuote(targets[1],[lists[0]])),{coversAll:false,missing:['a2'],unpriced:[],subtotal:35000,delivery:7500,total:42500,waived:false},'a location uses its own price and stock, and its supplier\'s fee');
+ const trim=ctx.supplierQuote(targets[0],[lists[2]]);assert.deepEqual([...trim.missing],['custom'],'a line that is not a price book item cannot be matched');assert.deepEqual([...trim.unpriced],['c1']);assert.equal(trim.total,null);
+ assert.equal(ctx.orderSupplierChoice(lists[0]).target.key,'beacon','Beacon carries everything for less once delivery is counted');
+ assert.equal(ctx.orderSupplierChoice(lists[1]).target.key,'beacon','the South yard price is lower but its delivery fee makes Beacon cheaper overall');assert.equal(ctx.orderSupplierChoice(lists[2]).target,null,'no supplier fully covers a list with unknown or unmatched lines');
+ ctx.state.orderScheduleDrafts.a={supplier_key:'abc',date:'2026-10-20'};ctx.state.orderScheduleDrafts.b={group_with:'a'};
+ assert.equal(ctx.orderSupplierChoice(lists[1]).target.key,'abc','a grouped list is ordered from the list it is grouped with');
+ ctx.state.orderScheduleDrafts.c={supplier_email:'yard@elsewhere.test',supplier_key:''};
+ assert.deepEqual(JSON.parse(JSON.stringify(ctx.orderSupplierGroups().map(group=>[group.key,group.choice.email,group.lists.map(list=>list.id)]))),[['abc','orders@abc.test',['a','b']],['email:yard@elsewhere.test','yard@elsewhere.test',['c']]]);
+ ctx.state.orderScheduleDrafts.a={supplier_key:''};assert.equal(ctx.orderSupplierChoice(lists[0]).target,null,'an explicit empty choice stays empty');
+});

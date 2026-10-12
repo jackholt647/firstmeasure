@@ -84,6 +84,9 @@
     equipmentUnitsLoading: false,
     sourcesMenu: null,
     orderMethod: 'email',
+    suppliers: null,
+    suppliersLoading: false,
+    orderSupplierMenu: null,
     pricebookListId: '',
     autofill: null,
     orderLeftWidth: null,
@@ -502,6 +505,82 @@
     const selected = materialOrderLists().filter((list) => state.orderSelectedListIds.has(cleanText(list.id)));
     return selected.length ? selected : (state.activeList && resourceType(state.activeList) === 'material' ? [state.activeList] : []);
   }
+  function loadSuppliers(force = false){
+    if (state.suppliersLoading || (state.suppliers && !force) || !window.MaterialsAPI?.suppliers?.list || !orgId()) return Promise.resolve(state.suppliers || []);
+    state.suppliersLoading = true;
+    return Promise.resolve(window.MaterialsAPI.suppliers.list(orgId())).then((result) => { state.suppliers = Array.isArray(result?.suppliers) ? result.suppliers : []; }).catch(() => { state.suppliers = state.suppliers || []; }).then(() => { state.suppliersLoading = false; return state.suppliers; });
+  }
+  // Everything an order can go to: each supplier itself (its default catalogue) and each of its locations.
+  function supplierTargets(){
+    return (state.suppliers || []).flatMap((supplier) => [
+      { key: cleanText(supplier.id), supplier, location: null, name: cleanText(supplier.name), email: cleanText(supplier.order_email) },
+      ...(supplier.locations || []).map((location) => ({ key: `${cleanText(supplier.id)}/${cleanText(location.id)}`, supplier, location, name: `${cleanText(supplier.name)} · ${cleanText(location.name)}`, email: cleanText(location.order_email || supplier.order_email) }))
+    ]);
+  }
+  // A location answers from its own differences first, then from its supplier. Mirrors the backend resolution.
+  function supplierOffer(target, itemId){
+    const base = (target.supplier.offerings || []).find((row) => row.item_id === itemId) || null;
+    const override = (target.location?.overrides || []).find((row) => row.item_id === itemId) || null;
+    if (!(override?.carried ?? !!base)) return { carried: false, price_cents: null };
+    return { carried: true, sku: override?.sku !== undefined ? override.sku : base?.sku || '', price_cents: override && Object.prototype.hasOwnProperty.call(override, 'price_cents') ? override.price_cents : base?.price_cents ?? null };
+  }
+  function orderableItems(list){
+    return listItems(list).filter((item) => item.metadata?.delivery_fee !== true);
+  }
+  // Prices lists as one delivery from one supplier or location. A line that is not a price book item cannot be
+  // matched to a catalogue and counts as not carried. Subtotal and total are unknown while any carried line is unpriced.
+  function supplierQuote(target, lists, delivery = true){
+    const missing = new Set(), unpriced = new Set(), prices = new Map();
+    let subtotal = 0;
+    lists.forEach((list) => orderableItems(list).forEach((item) => {
+      const itemId = linePricebookItemId(item);
+      const offer = itemId ? supplierOffer(target, itemId) : { carried: false, price_cents: null };
+      if (!offer.carried) missing.add(item.id);
+      else if (offer.price_cents == null) unpriced.add(item.id);
+      else { prices.set(item.id, offer.price_cents); subtotal += Math.round(offer.price_cents * Math.max(0, number(item.quantity, 0))); }
+    }));
+    const fee = target.location?.delivery_fee || target.supplier.delivery_fee || null;
+    const priced = !unpriced.size;
+    const waived = !!fee && fee.free_above_cents != null && priced && subtotal >= fee.free_above_cents;
+    const deliveryCents = !delivery || !fee || waived ? 0 : number(fee.amount_cents, 0);
+    return { coversAll: !missing.size, missing, unpriced, prices, subtotal: priced ? subtotal : null, fee: fee ? number(fee.amount_cents, 0) : 0, waived, delivery: deliveryCents, total: priced ? subtotal + deliveryCents : null };
+  }
+  // The selected lists riding in the same delivery as this one.
+  function orderDeliveryLists(list){
+    const lead = orderGroupTarget(list) || list;
+    return selectedOrderLists().filter((entry) => (orderGroupTarget(entry) || entry) === lead);
+  }
+  // The cheapest supplier or location that carries everything at known prices, delivery included.
+  function bestSupplierTarget(lists){
+    let best = null;
+    supplierTargets().forEach((target) => {
+      const quote = supplierQuote(target, lists, true);
+      if (quote.coversAll && quote.total != null && (!best || quote.total < best.total)) best = { target, total: quote.total };
+    });
+    return best?.target || null;
+  }
+  // Who a list is ordered from. Grouped lists follow the list they are grouped with; nothing chosen means the cheapest full match.
+  function orderSupplierChoice(list){
+    const lead = orderGroupTarget(list) || list;
+    const draft = scheduleDraftForList(lead);
+    const delivery = draft.delivery !== false;
+    if (cleanText(draft.supplier_email)) return { target: null, email: cleanText(draft.supplier_email), name: cleanText(draft.supplier_email), delivery };
+    const chosen = draft.supplier_key ? supplierTargets().find((target) => target.key === draft.supplier_key) || null : null;
+    const target = chosen || (draft.supplier_key == null ? bestSupplierTarget(orderDeliveryLists(lead)) : null);
+    return { target, email: target?.email || '', name: target?.name || '', delivery };
+  }
+  // One supplier email per recipient.
+  function orderSupplierGroups(lists = selectedOrderLists()){
+    const groups = [];
+    lists.forEach((list) => {
+      const choice = orderSupplierChoice(list);
+      const key = choice.target?.key || `email:${choice.email}`;
+      let group = groups.find((entry) => entry.key === key);
+      if (!group) groups.push(group = { key, choice, lists: [] });
+      group.lists.push(list);
+    });
+    return groups;
+  }
   const ORDER_TIME_PRESETS = ['First thing in the morning', 'Morning (8am - 12pm)', 'Midday (11am - 1pm)', 'Afternoon (12pm - 4pm)', 'End of day', 'Any time'];
   // "9", "9am", "9:30 pm" or "14:00" as HH:MM; anything else is a delivery window described in words.
   function orderTimeClock(value){
@@ -557,6 +636,8 @@
     };
   }
   function initializeOrderComposer(preferredListId = state.activeListId, options = {}){
+    closeOrderSupplierMenu();
+    loadSuppliers(true).then(() => { if (materialRoot()?.querySelector?.('[data-mt-order-dialog]')?.open) { captureOrderDraft(materialRoot().querySelector('[data-mt-order-dialog]')); state.orderDraftFresh = true; syncOrderDialog(true); } });
     const lists = materialOrderLists();
     let preferred = lists.find((list) => cleanText(list.id) === cleanText(preferredListId)) || lists[0] || null;
     if (options.preferUnordered && materialListOrdered(preferred)) preferred = lists.find((list) => !materialListOrdered(list)) || preferred;
@@ -862,11 +943,23 @@
       .mt-order-tile-items li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #f6f7f9;font-size:11px;color:#344054}.mt-order-tile-items li:last-child{border-bottom:0}
       .mt-order-tile-items span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-order-tile-items em{flex:none;font-style:normal;color:#667085;font-variant-numeric:tabular-nums}
       .mt-order-tile{position:relative}.mt-order-tile.has-more>.mt-order-tile-items::after{content:'\\2026';position:sticky;display:flex;left:0;right:0;bottom:0;margin-top:-22px;height:22px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:1px;border-radius:0 0 9px 9px;background:linear-gradient(rgba(255,255,255,0),#fff 62%);color:#667085;font-size:15px;font-weight:700;letter-spacing:1px;pointer-events:none}
-      .mt-order-tile>footer{flex:none;display:flex;flex-direction:column;gap:5px;min-height:88px;box-sizing:border-box;padding:7px 9px 8px;border-top:1px solid #eaecf0;background:#f8fafc;border-radius:0 0 9px 9px}
+      .mt-order-tile>footer{flex:none;display:flex;flex-direction:column;gap:5px;min-height:118px;box-sizing:border-box;padding:7px 9px 8px;border-top:1px solid #eaecf0;background:#f8fafc;border-radius:0 0 9px 9px}
       .mt-order-tile-total{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px;color:#667085}.mt-order-tile-total strong{font-size:13px;color:#101828;font-variant-numeric:tabular-nums}
       .mt-order-tile-when{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:4px}.mt-order-tile-when input{min-width:0;height:26px;box-sizing:border-box;padding:0 5px;border:1px solid #d0d5dd;border-radius:6px;background:#fff;color:#101828;font:inherit;font-size:11px}.mt-order-tile-when input:disabled{background:#f2f4f7;color:#98a2b3}
       .mt-order-tile-groups{display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:10px;color:#667085}
       .mt-order-tile-group{max-width:100%;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font-size:10px;font-weight:600;cursor:pointer}.mt-order-tile-group span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-order-tile-group:hover{border-color:#98a2b3}.mt-order-tile-group.active{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
+      .mt-order-tile-items li.missing{background:#fef3f2;color:#b42318;border-radius:4px;padding-left:4px;padding-right:4px}.mt-order-tile-items li.unknown b{color:#b54708;font-weight:500}
+      .mt-order-tile-items b{flex:none;min-width:58px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:#101828}
+      .mt-order-tile-delivery{display:flex;align-items:center;gap:6px;font-size:11px;color:#475467;cursor:pointer}.mt-order-tile-delivery input{margin:0;accent-color:var(--primary,#d93025)}.mt-order-tile-delivery strong{margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums}
+      .mt-order-tile-supplier{display:flex;align-items:center;gap:6px}.mt-order-tile-supplier button{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:1px solid #d0d5dd;border-radius:6px;background:#fff;color:#101828;font-size:11px;font-weight:600;cursor:pointer}
+      .mt-order-tile-supplier button span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.mt-order-tile-supplier button i{color:#667085;font-size:10px}.mt-order-tile-supplier button:disabled{background:#f2f4f7;color:#98a2b3;cursor:default}
+      .mt-flag-red{color:#d92d20}.mt-flag-yellow{color:#dc9a04}
+      .mt-order-supplier-portal{width:360px}.mt-order-supplier-search{width:100%;box-sizing:border-box;height:30px;padding:0 9px;border:1px solid #d0d5dd;border-radius:7px;font:inherit;font-size:12px}
+      .mt-order-supplier-option{display:flex;align-items:center;gap:6px;padding:7px 2px 5px;font-size:11px;color:#475467;cursor:pointer}.mt-order-supplier-option input{margin:0}
+      .mt-order-supplier-portal .mt-labor-option b{flex:none;font-size:12px;font-variant-numeric:tabular-nums;color:#344054}.mt-order-supplier-portal .mt-labor-option b.lowest{padding:2px 7px;border-radius:999px;background:#ecfdf3;color:#067647}
+      .mt-order-supplier-portal .mt-labor-option.partial small{color:#b42318}.mt-order-supplier-empty{margin:8px 4px;font-size:11px;color:#667085}
+      .mt-order-supplier-other{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #eaecf0}.mt-order-supplier-other input{flex:1;min-width:0;height:28px;padding:0 8px;border:1px solid #d0d5dd;border-radius:6px;font:inherit;font-size:11px}.mt-order-supplier-other button{height:28px;padding:0 10px;border:1px solid #d0d5dd;border-radius:6px;background:#fff;font-size:11px;font-weight:600;cursor:pointer}
+      .mt-email-recipient{display:flex;align-items:baseline;gap:6px;margin:0 0 10px;padding:6px 9px;border-radius:7px;background:#f2f4f7;font-size:11px}.mt-email-recipient span{color:#667085}.mt-email-recipient em{font-style:normal;color:#667085}.mt-email-recipient em.missing{color:#b42318}.mt-email-split{margin:18px 0;border:0;border-top:1px dashed #d0d5dd}
       .mt-order-right{min-width:0;min-height:0;display:flex;flex-direction:column;gap:10px}.mt-order-right>.mt-email-preview{flex:1 1 0}.mt-order-send{flex:none;display:flex;justify-content:flex-end}.mt-order-send .mt-btn{min-height:40px;padding:0 22px}
       .mt-order-calendar-panel{grid-template-rows:auto auto minmax(0,1fr)}.mt-order-calendar-panel>.mt-order-target-options{margin:0;padding:8px 14px;border-bottom:1px solid #eaecf0}
       .mt-order-target strong{font-size:11px}.mt-order-target small{font-size:10px}
@@ -3546,39 +3639,58 @@
   async function createOrderFromForm(form){
     const lists = selectedOrderLists().filter((list) => !materialListOrdered(list));
     if (!lists.length) return;
-    captureOrderDraft(form.closest('[data-mt-order-dialog]'));
-    const data = new FormData(form);
-    const supplierEmail = cleanText(data.get('vendor_email'));
-    if (!supplierEmail) {
-      showToast('Supplier email needed', 'Enter the supplier email address to send this order.', false);
-      form.querySelector('[name="vendor_email"]')?.focus?.();
+    const groups = orderSupplierGroups(selectedOrderLists());
+    const unaddressed = groups.filter((group) => !group.choice.email);
+    if (unaddressed.length) {
+      showToast('Supplier needed', `Choose a supplier with an order email for ${unaddressed.flatMap((group) => group.lists.map((list) => cleanText(list.title) || 'Materials')).join(', ')}.`, false);
       return false;
     }
     if (!window.CommsAPI?.email?.send) {
       showToast('Email is unavailable here', 'Copy the email and send it from your own mail, then try again later.', false);
       return false;
     }
-    const quotedAmount = number(data.get('quoted_price'), NaN);
-    const paidAmount = number(data.get('paid_price'), NaN);
-    const baseTitle = cleanText(data.get('title')) || (lists.length === 1 ? cleanText(lists[0].title) : 'Material order');
     state.saving = true;
     setWorkspaceSaving(true);
     materialRoot()?.querySelectorAll?.('[data-mt-order-dialog] button,[data-mt-order-dialog] input')?.forEach((control) => { control.disabled = true; });
+    const emailed = [];
     try {
-      const emailed = selectedOrderLists();
-      await window.CommsAPI.email.send(orgId(), projectId(), { to: supplierEmail, subject: orderRequestSubject(emailed), text: orderRequestText(emailed), html: orderRequestHtml(emailed), idempotency_key: uid('material_order_email') });
+      for (const group of groups) {
+        await window.CommsAPI.email.send(orgId(), projectId(), { to: group.choice.email, subject: orderRequestSubject(group.lists), text: orderRequestText(group.lists), html: orderRequestHtml(group.lists), idempotency_key: uid('material_order_email') });
+        emailed.push(group.choice.name || group.choice.email);
+      }
     } catch (error) {
-      // Nothing is recorded when the supplier was not emailed; the dialog stays open with what was entered.
+      // Nothing is recorded unless every supplier was emailed; the dialog stays open with what was chosen.
       state.saving = false;
       setWorkspaceSaving(false);
       state.orderDraftFresh = true;
       syncOrderDialog(true);
-      showToast('Could not send the email', error?.message || 'Please try again.', false);
+      showToast('Could not send the email', `${emailed.length ? `Already sent to ${emailed.join(', ')}. ` : ''}${error?.message || 'Please try again.'}`, false);
       return false;
     }
     try {
       for (const originalList of lists) {
         let list = materialListById(originalList.id) || originalList;
+        const choice = orderSupplierChoice(list);
+        const leadsDelivery = !orderGroupTarget(list);
+        let quotedCents = null;
+        if (choice.target) {
+          // What was ordered is the new projection: the supplier's prices replace the estimate, and the delivery fee
+          // is added once per delivery as a line of its own.
+          const quote = supplierQuote(choice.target, [list], false);
+          const deliveryQuote = supplierQuote(choice.target, orderDeliveryLists(list), choice.delivery);
+          const baseItems = listItems(list);
+          const items = orderableItems(list).map((item) => {
+            if (!quote.prices.has(item.id)) return item;
+            const cents = quote.prices.get(item.id);
+            return { ...item, projected_unit_price: cents / 100, projected_total: Math.round(cents * Math.max(0, number(item.quantity, 0))) / 100 };
+          });
+          const fee = leadsDelivery ? deliveryQuote.delivery : 0;
+          if (fee > 0) items.push({ ...blankLine('accessories'), id: uid('delivery'), name: 'Delivery', quantity: 1, unit: 'ea', projected_unit_price: fee / 100, projected_total: fee / 100, metadata: { delivery_fee: true, resource_type: 'material', name_overridden: true, supplier_id: cleanText(choice.target.supplier.id) } });
+          replaceListItems(list.id, items);
+          await persistVersion({ reason: 'revision', items }, { list, baseItems });
+          list = materialListById(list.id) || list;
+          quotedCents = quote.subtotal == null ? null : quote.subtotal + fee;
+        }
         let scheduledEvent = null;
         let scheduledWindow = {};
         const when = orderSchedule(list);
@@ -3600,17 +3712,18 @@
           };
         }
         const payload = {
-          title: lists.length > 1 ? `${baseTitle} - ${cleanText(list.title)}` : baseTitle,
+          title: cleanText(list.title) || 'Material order',
           order_source_id: cleanText(state.orderProvider) || defaultOrderSourceId(list),
-          vendor: { name: cleanText(data.get('vendor')), email: cleanText(data.get('vendor_email')) },
+          vendor: { name: choice.target ? cleanText(choice.target.supplier.name) : choice.email, email: choice.email },
           scheduled_window: scheduledWindow,
           schedule_event_id: cleanText(scheduledEvent?.id),
           delivery_status: cleanText(when.date) ? 'scheduled' : 'unscheduled',
-          quoted_price: Number.isFinite(quotedAmount) ? { amount: quotedAmount, currency: 'USD' } : undefined,
-          paid_price: Number.isFinite(paidAmount) ? { amount: paidAmount, currency: 'USD' } : undefined,
+          quoted_price: quotedCents == null ? undefined : { amount: quotedCents / 100, currency: 'USD' },
           metadata: {
             source: 'materials_tab_manual_order',
             schedule_event_id: cleanText(scheduledEvent?.id),
+            supplier_id: cleanText(choice.target?.supplier.id),
+            supplier_location_id: cleanText(choice.target?.location?.id),
             combined_request: lists.length > 1,
             combined_list_ids: lists.map((entry) => cleanText(entry.id)),
             material_list_color: materialListColor(list, Math.max(0, state.lists.indexOf(list)))
@@ -3634,11 +3747,7 @@
           updateMaterialListState(result.material_list || result.list || list);
         }
       }
-      showToast(
-        lists.length === 1 ? 'Order recorded' : `${lists.length} orders recorded`,
-        `The request was emailed to ${supplierEmail}.`,
-        true
-      );
+      showToast(lists.length === 1 ? 'Order recorded' : `${lists.length} orders recorded`, `Emailed ${emailed.join(', ')}.`, true);
       await loadActiveListDetails();
       window.dispatchEvent(new CustomEvent('fm:calendar:refresh'));
     } catch (error) {
@@ -4507,7 +4616,7 @@
   }
 
   function orderRequestRows(list = state.activeList){
-    return listItems(list).map((item) => {
+    return orderableItems(list).map((item) => {
       const details = [];
       const used = new Set();
       const addDetail = (label, value) => {
@@ -4660,21 +4769,96 @@
     }
   }
 
-  // One full-height tile per material list: its header selects it, its items scroll, and its footer holds the total and its delivery.
+  // One full-height tile per material list: its header selects it, its items scroll, and its footer holds the total,
+  // its delivery and who it is ordered from.
   function renderOrderListPicker(allLists, selectedLists){
     return `<section class="mt-order-tiles" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_3422a94241c9cd","Material lists to order") ?? "Material lists to order")}">${allLists.map((list, index) => {
       const id = cleanText(list.id);
       const selected = state.orderSelectedListIds.has(id);
       const ordered = materialListOrdered(list);
-      const items = listItems(list);
+      const items = orderableItems(list);
       const name = cleanText(list.title) || 'Materials';
       const draft = scheduleDraftForList(list);
-      const target = selected ? orderGroupTarget(list) : null;
-      const shown = target ? scheduleDraftForList(target) : draft;
-      const candidates = selected && !target && !cleanText(draft.date) ? selectedLists.filter((other) => other !== list && cleanText(scheduleDraftForList(other).date) && !cleanText(scheduleDraftForList(other).group_with)) : [];
-      const delivery = !selected ? '' : `<div class="mt-order-tile-when${target ? ' grouped' : ''}"><input type="date" data-mt-order-date="${escapeHtml(id)}" value="${escapeHtml(cleanText(shown.date))}" aria-label="Delivery date for ${escapeHtml(name)}" title="Delivery date" ${target ? 'disabled' : ''}><input type="text" list="mt-order-time-presets" data-mt-order-time="${escapeHtml(id)}" value="${escapeHtml(cleanText(shown.time))}" placeholder="Time" aria-label="Delivery time for ${escapeHtml(name)}" title="A time, or a window such as Morning. This text goes into the supplier email as written." ${target ? 'disabled' : ''}></div>${target ? `<button type="button" class="mt-order-tile-group active" data-mt-order-ungroup="${escapeHtml(id)}" title="Give this list its own delivery date again"><span>Grouped with ${escapeHtml(cleanText(target.title) || 'Materials')}</span><i class="fas fa-xmark" aria-hidden="true"></i></button>` : candidates.length ? `<div class="mt-order-tile-groups"><span>Group with</span>${candidates.map((other) => `<button type="button" class="mt-order-tile-group" data-mt-order-group="${escapeHtml(id)}" data-mt-order-group-target="${escapeHtml(other.id)}" title="${escapeHtml(`Deliver with ${cleanText(other.title) || 'Materials'}: ${scheduleDraftLabel(scheduleDraftForList(other))}`)}">${escapeHtml(cleanText(other.title) || 'Materials')}</button>`).join('')}</div>` : ''}`;
-      return `<article class="mt-order-tile${selected ? ' selected' : ''}" style="--list-color:${escapeHtml(materialListColor(list, Math.max(index, state.lists.indexOf(list))))}"><header><button type="button" class="mt-order-tile-select" data-mt-order-list-toggle="${escapeHtml(id)}" aria-pressed="${selected}" title="${selected ? 'Included in this order' : 'Not in this order'}${ordered ? ' · already ordered' : ''}"><span class="mt-order-list-check"><i class="fas fa-check" aria-hidden="true"></i></span><strong>${escapeHtml(name)}</strong></button><span class="mt-order-tile-count" title="${escapeHtml(`${items.length} item${items.length === 1 ? '' : 's'}`)}">${ordered ? '<i class="fas fa-lock" aria-hidden="true"></i> ' : ''}${escapeHtml(items.length)}</span></header><ul class="mt-order-tile-items">${items.map((item) => `<li><span>${escapeHtml(materialPrimaryName(item))}</span><em>${escapeHtml(`${number(item.quantity, 0)} ${cleanText(item.unit)}`.trim())}</em></li>`).join('') || '<li><span>No items</span></li>'}</ul><footer><div class="mt-order-tile-total"><span>Total</span><strong>${money(listTotals(list).projected)}</strong></div>${delivery}</footer></article>`;
+      const groupLead = selected ? orderGroupTarget(list) : null;
+      const shown = groupLead ? scheduleDraftForList(groupLead) : draft;
+      const candidates = selected && !groupLead && !cleanText(draft.date) ? selectedLists.filter((other) => other !== list && cleanText(scheduleDraftForList(other).date) && !cleanText(scheduleDraftForList(other).group_with)) : [];
+      const choice = selected ? orderSupplierChoice(list) : null;
+      const quote = choice?.target ? supplierQuote(choice.target, [list], false) : null;
+      // The fee is decided on the whole delivery and shown once, on the list the others are grouped with.
+      const deliveryQuote = choice?.target ? supplierQuote(choice.target, orderDeliveryLists(list), choice.delivery) : null;
+      const paysDelivery = !!choice?.target && !groupLead && deliveryQuote.fee > 0;
+      const totalCents = quote ? (quote.subtotal == null ? null : quote.subtotal + (paysDelivery ? deliveryQuote.delivery : 0)) : Math.round(listTotals(list).projected * 100);
+      const rows = items.map((item) => {
+        const missing = !!quote?.missing.has(item.id), unknown = !!quote?.unpriced.has(item.id);
+        const price = !quote ? '' : missing ? '' : unknown ? 'unknown' : money(Math.round(quote.prices.get(item.id) * Math.max(0, number(item.quantity, 0))) / 100);
+        return `<li class="${missing ? 'missing' : unknown ? 'unknown' : ''}" ${missing ? `title="The selected supplier doesn't carry this item."` : unknown ? 'title="We don\'t have this supplier\'s price for this item."' : ''}><span>${escapeHtml(materialPrimaryName(item))}</span><em>${escapeHtml(`${number(item.quantity, 0)} ${cleanText(item.unit)}`.trim())}</em>${quote ? `<b>${escapeHtml(price)}</b>` : ''}</li>`;
+      }).join('') || '<li><span>No items</span></li>';
+      const flags = `${quote && !quote.coversAll ? `<i class="fas fa-triangle-exclamation mt-flag-red" title="The selected supplier doesn't carry every item on this list." aria-label="The selected supplier doesn't carry every item on this list."></i>` : ''}${quote && quote.unpriced.size ? `<i class="fas fa-flag mt-flag-yellow" title="Contains items we don't have supplier pricing for." aria-label="Contains items we don't have supplier pricing for."></i>` : ''}`;
+      const supplier = !selected ? '' : `<div class="mt-order-tile-supplier"><button type="button" data-mt-order-supplier="${escapeHtml(id)}" aria-haspopup="dialog" title="${escapeHtml(groupLead ? `Ordered with ${cleanText(groupLead.title) || 'Materials'}` : 'Choose who to order this list from')}" ${groupLead ? 'disabled' : ''}><i class="fas fa-store" aria-hidden="true"></i><span>${escapeHtml(choice.name || 'Choose supplier')}</span>${groupLead ? '' : '<i class="fas fa-chevron-down" aria-hidden="true"></i>'}</button>${flags}</div>`;
+      const deliveryToggle = paysDelivery ? `<label class="mt-order-tile-delivery" title="${escapeHtml(deliveryQuote.waived ? 'Delivery is free for an order this size.' : 'Include this supplier\'s delivery fee in the total. It is added to the list as its own line when the order is placed.')}"><input type="checkbox" data-mt-order-delivery="${escapeHtml(id)}" ${choice.delivery ? 'checked' : ''}><span>Delivery</span><strong>${deliveryQuote.waived ? 'Free' : choice.delivery ? money(deliveryQuote.delivery / 100) : `${money(deliveryQuote.fee / 100)} off`}</strong></label>` : '';
+      const delivery = !selected ? '' : `<div class="mt-order-tile-when${groupLead ? ' grouped' : ''}"><input type="date" data-mt-order-date="${escapeHtml(id)}" value="${escapeHtml(cleanText(shown.date))}" aria-label="Delivery date for ${escapeHtml(name)}" title="Delivery date" ${groupLead ? 'disabled' : ''}><input type="text" list="mt-order-time-presets" data-mt-order-time="${escapeHtml(id)}" value="${escapeHtml(cleanText(shown.time))}" placeholder="Time" aria-label="Delivery time for ${escapeHtml(name)}" title="A time, or a window such as Morning. This text goes into the supplier email as written." ${groupLead ? 'disabled' : ''}></div>${groupLead ? `<button type="button" class="mt-order-tile-group active" data-mt-order-ungroup="${escapeHtml(id)}" title="Give this list its own delivery and supplier again"><span>Grouped with ${escapeHtml(cleanText(groupLead.title) || 'Materials')}</span><i class="fas fa-xmark" aria-hidden="true"></i></button>` : candidates.length ? `<div class="mt-order-tile-groups"><span>Group with</span>${candidates.map((other) => `<button type="button" class="mt-order-tile-group" data-mt-order-group="${escapeHtml(id)}" data-mt-order-group-target="${escapeHtml(other.id)}" title="${escapeHtml(`Deliver with ${cleanText(other.title) || 'Materials'}, from the same supplier: ${scheduleDraftLabel(scheduleDraftForList(other))}`)}">${escapeHtml(cleanText(other.title) || 'Materials')}</button>`).join('')}</div>` : ''}`;
+      return `<article class="mt-order-tile${selected ? ' selected' : ''}" style="--list-color:${escapeHtml(materialListColor(list, Math.max(index, state.lists.indexOf(list))))}"><header><button type="button" class="mt-order-tile-select" data-mt-order-list-toggle="${escapeHtml(id)}" aria-pressed="${selected}" title="${selected ? 'Included in this order' : 'Not in this order'}${ordered ? ' · already ordered' : ''}"><span class="mt-order-list-check"><i class="fas fa-check" aria-hidden="true"></i></span><strong>${escapeHtml(name)}</strong></button><span class="mt-order-tile-count" title="${escapeHtml(`${items.length} item${items.length === 1 ? '' : 's'}`)}">${ordered ? '<i class="fas fa-lock" aria-hidden="true"></i> ' : ''}${escapeHtml(items.length)}</span></header><ul class="mt-order-tile-items">${rows}</ul><footer>${deliveryToggle}<div class="mt-order-tile-total"><span>Total</span><strong>${totalCents == null ? 'Unknown' : money(totalCents / 100)}</strong></div>${delivery}${supplier}</footer></article>`;
     }).join('')}</section>`;
+  }
+
+  function closeOrderSupplierMenu(){
+    document.querySelectorAll?.('[data-mt-order-supplier-portal]')?.forEach((node) => node.remove());
+    document.removeEventListener?.('pointerdown', orderSupplierMenuDismiss, true);
+    document.removeEventListener?.('keydown', orderSupplierMenuDismiss, true);
+    state.orderSupplierMenu = null;
+  }
+  function orderSupplierMenuDismiss(event){
+    if (event.type === 'keydown') { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeOrderSupplierMenu(); } return; }
+    if (!event.target?.closest?.('[data-mt-order-supplier-portal],[data-mt-order-supplier]')) closeOrderSupplierMenu();
+  }
+  // Searchable supplier and location picker for one delivery, with what each would charge for it.
+  function toggleOrderSupplierMenu(listId, trigger){
+    const open = state.orderSupplierMenu?.listId === listId;
+    closeOrderSupplierMenu();
+    const list = materialListById(listId);
+    const dialog = trigger?.closest?.('[data-mt-order-dialog]');
+    if (open || !list || !dialog) return;
+    const menu = state.orderSupplierMenu = { listId, search: '', showPartial: false };
+    const lists = orderDeliveryLists(list);
+    const apply = (patch) => {
+      captureOrderDraft(dialog);
+      state.orderScheduleDrafts[cleanText(list.id)] = { ...scheduleDraftForList(list), ...patch };
+      state.orderDraftFresh = true;
+      closeOrderSupplierMenu();
+      syncOrderDialog(true);
+    };
+    const portal = document.createElement('div');
+    portal.className = 'mt-labor-portal mt-order-supplier-portal';
+    portal.dataset.mtOrderSupplierPortal = '';
+    portal.setAttribute('role', 'dialog');
+    portal.setAttribute('aria-label', 'Choose a supplier');
+    const current = orderSupplierChoice(list);
+    portal.innerHTML = `<input type="search" class="mt-order-supplier-search" placeholder="Search suppliers and locations" aria-label="Search suppliers and locations"><label class="mt-order-supplier-option"><input type="checkbox" data-supplier-partial> Show suppliers that don't carry every item</label><div class="mt-labor-options" data-supplier-rows></div><div class="mt-order-supplier-other"><input type="email" placeholder="Or send to another email address" aria-label="Another email address" value="${escapeHtml(current.target ? '' : current.email)}"><button type="button" data-supplier-custom>Use</button></div>`;
+    const draw = () => {
+      const needle = menu.search.toLowerCase();
+      const quoted = supplierTargets().filter((target) => !needle || target.name.toLowerCase().includes(needle)).map((target) => ({ target, quote: supplierQuote(target, lists, current.delivery) }));
+      const rank = (entry) => (entry.quote.coversAll ? (entry.quote.total != null ? 0 : 1) : 2);
+      const visible = quoted.filter((entry) => menu.showPartial || entry.quote.coversAll).sort((a, b) => rank(a) - rank(b) || (a.quote.total ?? Infinity) - (b.quote.total ?? Infinity) || a.target.name.localeCompare(b.target.name));
+      const lowest = visible.find((entry) => rank(entry) === 0)?.quote.total;
+      portal.querySelector('[data-supplier-rows]').innerHTML = visible.map(({ target, quote }) => {
+        const note = !quote.coversAll ? `Doesn't carry ${quote.missing.size} item${quote.missing.size === 1 ? '' : 's'}` : quote.unpriced.size ? `${quote.unpriced.size} price${quote.unpriced.size === 1 ? '' : 's'} unknown` : quote.waived ? 'Carries everything · free delivery' : quote.delivery ? `Carries everything · includes ${money(quote.delivery / 100)} delivery` : 'Carries everything';
+        return `<button type="button" class="mt-labor-option${current.target?.key === target.key ? ' active' : ''}${quote.coversAll ? '' : ' partial'}" data-supplier-key="${escapeHtml(target.key)}"><span><strong>${escapeHtml(target.name)}</strong><small>${escapeHtml(note)}</small></span><b class="${quote.total != null && quote.coversAll && quote.total === lowest ? 'lowest' : ''}">${quote.total == null ? 'Unknown' : money(quote.total / 100)}</b></button>`;
+      }).join('') || `<p class="mt-order-supplier-empty">${(state.suppliers || []).length ? (quoted.length ? 'No supplier carries every item on this list. Tick the box above to see the others.' : 'No supplier matches.') : 'No suppliers yet. Add them under Settings, Price Book, Suppliers.'}</p>`;
+      portal.querySelectorAll('[data-supplier-key]').forEach((button) => button.addEventListener('click', () => apply({ supplier_key: button.dataset.supplierKey, supplier_email: '' })));
+    };
+    draw();
+    portal.querySelector('.mt-order-supplier-search').addEventListener('input', (event) => { menu.search = event.target.value; draw(); });
+    portal.querySelector('[data-supplier-partial]').addEventListener('change', (event) => { menu.showPartial = event.target.checked; draw(); });
+    portal.querySelector('[data-supplier-custom]').addEventListener('click', () => { const email = cleanText(portal.querySelector('.mt-order-supplier-other input').value); if (email) apply({ supplier_email: email, supplier_key: '' }); });
+    dialog.appendChild(portal);
+    const rect = trigger.getBoundingClientRect();
+    const width = portal.offsetWidth || 340;
+    const height = portal.offsetHeight || 300;
+    portal.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.left))}px`;
+    portal.style.top = `${rect.top - height - 4 >= 8 ? rect.top - height - 4 : Math.min(window.innerHeight - height - 8, rect.bottom + 4)}px`;
+    document.addEventListener('pointerdown', orderSupplierMenuDismiss, true);
+    document.addEventListener('keydown', orderSupplierMenuDismiss, true);
+    portal.querySelector('.mt-order-supplier-search').focus();
   }
 
   function renderOrderDialog(){
@@ -4687,14 +4871,16 @@
     const provider = orderSources.some((source) => source.id === state.orderProvider) ? state.orderProvider : defaultOrderSourceId(primaryList);
     const activeSource = orderSources.find((source) => source.id === provider) || orderSources[0];
     const manualProvider = activeSource?.kind === 'manual' && activeSource?.status === 'active';
-    const blockedReason = !pendingLists.length ? 'Every selected list has already been ordered.' : !rows.length ? 'The selected lists have no items to order.' : '';
-    const detailsPanel = `<div class="mt-order-details"><div class="mt-form-grid"><label><span class="mt-small">Supplier Name</span><input class="mt-input" name="vendor" value="${String(escapeHtml(state.orderDraft.vendor))}"></label><label><span class="mt-small">Email</span><input class="mt-input" type="email" name="vendor_email" value="${String(escapeHtml(state.orderDraft.vendor_email))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("materials","m_6718ec5ad32aa0","orders@supplier.com") ?? "orders@supplier.com")}"></label><label><span class="mt-small">Quoted Total</span><input class="mt-input" type="number" min="0" step="0.01" name="quoted_price" value="${String(escapeHtml(state.orderDraft.quoted_price))}"></label><label><span class="mt-small">Paid Total</span><input class="mt-input" type="number" min="0" step="0.01" name="paid_price" value="${String(escapeHtml(state.orderDraft.paid_price))}"></label></div>${renderOrderListPicker(allLists, lists)}<datalist id="mt-order-time-presets">${ORDER_TIME_PRESETS.map((preset) => `<option value="${escapeHtml(preset)}"></option>`).join('')}</datalist></div>`;
-    const emailPanel = `<div class="mt-email-preview"><div class="mt-email-preview-head"><strong><i class="fas fa-envelope"></i> ${String(escapeHtml(orderRequestSubject(lists)))}</strong><button type="button" class="mt-email-copy" data-mt-copy-order><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_f1733e455032ff"," Copy email & table") ?? " Copy email & table")}</button></div><div class="mt-email-body">${String(orderRequestPreviewHtml(lists))}</div></div>`;
+    const supplierGroups = orderSupplierGroups(lists);
+    const unaddressed = supplierGroups.filter((group) => !group.choice.email).flatMap((group) => group.lists.map((list) => cleanText(list.title) || 'Materials'));
+    const blockedReason = !pendingLists.length ? 'Every selected list has already been ordered.' : !rows.length ? 'The selected lists have no items to order.' : unaddressed.length ? `Choose a supplier with an order email for ${unaddressed.join(', ')}.` : '';
+    const detailsPanel = `<div class="mt-order-details">${renderOrderListPicker(allLists, lists)}<datalist id="mt-order-time-presets">${ORDER_TIME_PRESETS.map((preset) => `<option value="${escapeHtml(preset)}"></option>`).join('')}</datalist></div>`;
+    const emailPanel = `<div class="mt-email-preview"><div class="mt-email-preview-head"><strong><i class="fas fa-envelope"></i> ${supplierGroups.length === 1 ? escapeHtml(orderRequestSubject(lists)) : `${supplierGroups.length} supplier emails`}</strong><button type="button" class="mt-email-copy" data-mt-copy-order><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_f1733e455032ff"," Copy email & table") ?? " Copy email & table")}</button></div><div class="mt-email-body">${supplierGroups.map((group) => `<div class="mt-email-recipient"><span>To</span><strong>${escapeHtml(group.choice.target ? group.choice.name : group.choice.email || 'No supplier chosen')}</strong>${group.choice.target ? (group.choice.email ? `<em>${escapeHtml(group.choice.email)}</em>` : '<em class="missing">no order email on file</em>') : ''}</div>${orderRequestPreviewHtml(group.lists)}`).join('<hr class="mt-email-split">')}</div></div>`;
     const methods = [['email', 'fa-envelope', 'Order by Email', 'Email the request to the supplier and record the order'], ['agent', 'fa-robot', 'Order with Agent', 'Have an agent place the order. Not built yet.'], ['log', 'fa-clipboard-check', 'Log Order Only', 'Record an order that was placed some other way, without sending an email. Not built yet.']];
     const method = methods.some(([id]) => id === state.orderMethod) ? state.orderMethod : 'email';
     const methodBar = `<div class="mt-order-methods" role="radiogroup" aria-label="How to place this order">${methods.map(([id, icon, label, hint]) => `<button type="button" role="radio" aria-checked="${method === id}" class="${method === id ? 'active' : ''}" data-mt-order-method="${id}" title="${escapeHtml(hint)}"><i class="fas ${icon}" aria-hidden="true"></i> ${label}</button>`).join('')}</div>`;
     const methodPlaceholder = `<div class="mt-order-coming"><div><i class="fas ${method === 'agent' ? 'fa-robot' : 'fa-clipboard-check'}"></i><strong>${method === 'agent' ? 'Order with Agent' : 'Log Order Only'}</strong><span>${method === 'agent' ? 'Placing an order through an agent has not been built yet.' : 'Logging an order without sending an email has not been built yet.'}</span></div></div>`;
-    const sendBar = `<div class="mt-order-send"><button type="submit" class="mt-btn primary" data-mt-order-send title="${escapeHtml(blockedReason || 'Email this request to the supplier and record the order.')}" ${blockedReason ? 'disabled' : ''}><i class="fas fa-paper-plane" aria-hidden="true"></i> Send Email</button></div>`;
+    const sendBar = `<div class="mt-order-send"><button type="submit" class="mt-btn primary" data-mt-order-send title="${escapeHtml(blockedReason || (supplierGroups.length > 1 ? `Email each of the ${supplierGroups.length} suppliers its own request and record the orders.` : 'Email this request to the supplier and record the order.'))}" ${blockedReason ? 'disabled' : ''}><i class="fas fa-paper-plane" aria-hidden="true"></i> Send Email</button></div>`;
     const leftWidth = state.orderLeftWidth ? `${state.orderLeftWidth}px` : `min(64%, ${340 + Math.max(0, allLists.length - 1) * 190}px)`;
     const detailsContent = `<div class="mt-order-content manual" style="--order-left:${leftWidth}">${detailsPanel}<button type="button" class="mt-order-divider" role="separator" aria-orientation="vertical" aria-label="Resize the order details and the preview" title="Drag to resize. Double-click to reset."></button><div class="mt-order-right">${method === 'email' ? `${emailPanel}${sendBar}` : methodPlaceholder}</div></div>`;
     const unavailableContent = (source) => `<div class="mt-order-content"><div class="mt-order-coming"><div><i class="fas ${escapeHtml(orderSourceIcon(source))}"></i><strong>${escapeHtml(source?.name || 'Supplier integration')}</strong><span>${source?.status === 'disabled' ? 'This order source is not available for the selected lists.' : 'Direct supplier ordering is coming soon.'}</span></div></div></div>`;
@@ -4952,7 +5138,7 @@
     }));
     const setOrderDelivery = (control, patch, focusNext = '') => {
       const dialog = control.closest('[data-mt-order-dialog]');
-      const id = cleanText(control.dataset.mtOrderDate || control.dataset.mtOrderTime || control.dataset.mtOrderGroup || control.dataset.mtOrderUngroup);
+      const id = cleanText(control.dataset.mtOrderDate || control.dataset.mtOrderTime || control.dataset.mtOrderGroup || control.dataset.mtOrderUngroup || control.dataset.mtOrderDelivery);
       captureOrderDraft(dialog);
       state.orderScheduleDrafts[id] = { ...scheduleDraftForList(materialListById(id)), ...patch, dirty: true };
       state.orderDraftFresh = true;
@@ -4961,6 +5147,8 @@
     };
     root.querySelectorAll('[data-mt-order-date]').forEach((input) => input.addEventListener('change', () => setOrderDelivery(input, { date: input.value, group_with: '' }, '[data-mt-order-time]')));
     root.querySelectorAll('[data-mt-order-time]').forEach((input) => input.addEventListener('change', () => setOrderDelivery(input, { time: input.value.trim(), group_with: '' })));
+    root.querySelectorAll('[data-mt-order-delivery]').forEach((input) => input.addEventListener('change', () => setOrderDelivery(input, { delivery: input.checked })));
+    root.querySelectorAll('[data-mt-order-supplier]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); toggleOrderSupplierMenu(button.dataset.mtOrderSupplier, button); }));
     root.querySelectorAll('[data-mt-order-group]').forEach((button) => button.addEventListener('click', () => setOrderDelivery(button, { group_with: cleanText(button.dataset.mtOrderGroupTarget) })));
     root.querySelectorAll('[data-mt-order-ungroup]').forEach((button) => button.addEventListener('click', () => setOrderDelivery(button, { group_with: '' }, '[data-mt-order-date]')));
     root.querySelectorAll('[data-mt-order-method]').forEach((button) => button.addEventListener('click', () => {
