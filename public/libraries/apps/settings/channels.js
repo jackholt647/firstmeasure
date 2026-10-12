@@ -159,11 +159,7 @@
                   </select>
                 </div>
                 <div class="chs-pref-row">
-                  <div><label for="chsSendMode">${(globalThis.PlatformLanguage?.htmlText("settings","m_10b3b04881d2ff","Send messages with") ?? "Send messages with")}</label><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_b1f07f61089504","The other key combination inserts a new line.") ?? "The other key combination inserts a new line.")}</small></div>
-                  <select id="chsSendMode">
-                    <option value="enter">${(globalThis.PlatformLanguage?.htmlText("settings","m_92c001f63daac8","Enter") ?? "Enter")}</option>
-                    <option value="modified_enter">${(globalThis.PlatformLanguage?.htmlText("settings","m_a34f170b65e07e","Ctrl/Cmd + Enter") ?? "Ctrl/Cmd + Enter")}</option>
-                  </select>
+                  <div><strong>Message keyboard shortcuts</strong><small>Enter to send. Shift+Enter for a new line.</small></div>
                 </div>
                 <div class="chs-pref-row">
                   <div><label for="chsDnd">${(globalThis.PlatformLanguage?.htmlText("settings","m_be9029a365cbbe","Pause notifications") ?? "Pause notifications")}</label><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_58b5ec56db50e3","Activity remains available for you to review later.") ?? "Activity remains available for you to review later.")}</small></div>
@@ -179,18 +175,16 @@
         </div>`;
 
       const defaultNotifications = pane.querySelector('#chsDefaultNotifications');
-      const sendMode = pane.querySelector('#chsSendMode');
       const dnd = pane.querySelector('#chsDnd');
       const recordHuddles = pane.querySelector('#chsRecordHuddles');
       const recordHuddleVideo = pane.querySelector('#chsRecordHuddleVideo');
       if (defaultNotifications) defaultNotifications.value = preferences.default_notify_level || 'mentions';
-      if (sendMode) sendMode.value = preferences.send_mode || 'enter';
       if (dnd) dnd.checked = Boolean(preferences.dnd?.enabled);
       const savePreferences = async () => {
         try {
           const result = await api.preferences.updateCollaboration(orgId, {
             default_notify_level: defaultNotifications?.value || 'mentions',
-            send_mode: sendMode?.value || 'enter',
+            send_mode: 'enter',
             dnd: { ...(preferences.dnd || {}), enabled: Boolean(dnd?.checked) }
           });
           preferences = result.preferences || preferences;
@@ -199,7 +193,7 @@
           toast(error?.message || 'Channel preferences could not be saved.', (globalThis.PlatformLanguage?.text("settings","m_7e784f9b5540ab","error") ?? "error"));
         }
       };
-      [defaultNotifications, sendMode, dnd].forEach((control) => control?.addEventListener('change', savePreferences));
+      [defaultNotifications, dnd].forEach((control) => control?.addEventListener('change', savePreferences));
       recordHuddles?.addEventListener('change', async () => {
         const enabled = Boolean(recordHuddles.checked);
         recordHuddles.disabled = true;

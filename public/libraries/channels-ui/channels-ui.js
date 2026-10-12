@@ -1037,6 +1037,7 @@
 .fm-ch-composer{border-top:1px solid var(--ch-border);padding:10px 16px 12px}
 .fm-ch-composer-box{border:1px solid var(--ch-border);border-radius:10px;padding:8px 10px 9px;background:#fff}
 .fm-ch-composer-box:focus-within{border-color:var(--ch-accent)}
+.fm-ch-composer-hint{font-size:11px;color:var(--ch-muted);text-align:right;margin-top:4px}
 .fm-ch-composer textarea{width:100%;border:none;outline:none;resize:none;font:inherit;background:transparent;max-height:180px;min-height:22px;color:var(--ch-text)}
 .fm-ch-composer-box .fm-ch-composer-row{display:flex;align-items:center;gap:6px;margin-top:8px;min-height:32px;flex-wrap:wrap}
 .fm-ch-reply-broadcast{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ch-muted);margin-right:auto;cursor:pointer}.fm-ch-reply-broadcast[hidden]{display:none}.fm-ch-reply-broadcast input{width:15px;height:15px;margin:0;accent-color:var(--ch-accent)}.fm-ch-thread-broadcast{display:block;margin:0 0 6px;color:var(--ch-muted);font-size:11px;text-align:left}.fm-ch-thread-broadcast:hover{color:var(--ch-accent);text-decoration:underline}
@@ -4357,6 +4358,23 @@
       return Boolean(document.getElementById('fmMentionMenu')?.classList.contains('visible'));
     }
 
+    function bindEnterToSend(editor, send){
+      // Capture before rich-text list/quote handlers can consume plain Enter.
+      editor.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' || event.shiftKey || event.defaultPrevented
+          || event.isComposing || event.keyCode === 229 || mentionMenuOpen()) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) send();
+      }, {capture: true});
+    }
+
+    function composerHint(){
+      const hint = el('div', 'fm-ch-composer-hint');
+      hint.textContent = globalThis.PlatformLanguage?.text('channels-ui', 'composer_new_line_hint', 'Shift+Enter for a new line') ?? 'Shift+Enter for a new line';
+      return hint;
+    }
+
     function collectMentions(text){
       const confirmed = [...new Map([...(mentionApi?.confirmedMentions?.() || []), ...(textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])].map(user=>[user.id || user.user_id || user.email,user])).values()];
       if (Array.isArray(confirmed) && confirmed.length) {
@@ -4615,7 +4633,7 @@
       sendPair.appendChild(send);
       row.appendChild(sendPair);
       box.appendChild(row);
-      composer.append(editNote, box, dictationMount, audioMount, gifPreview, pendingWrap);
+      composer.append(editNote, box, composerHint(), dictationMount, audioMount, gifPreview, pendingWrap);
       paintGif();
 
       const autosize = () => {
@@ -4755,18 +4773,8 @@
           } catch (error) { showError(error); }
         } }]);
       });
+      bindEnterToSend(composerInput, doSend);
       composerInput.addEventListener('keydown', (event) => {
-        const modifiedSend = state.collaborationPreferences.send_mode === 'modified_enter';
-        const sendKey = event.key === 'Enter'
-          && !event.defaultPrevented
-          && !event.shiftKey
-          && !event.isComposing
-          && !mentionMenuOpen()
-          && (modifiedSend ? (event.ctrlKey || event.metaKey) : !(event.ctrlKey || event.metaKey));
-        if (sendKey) {
-          event.preventDefault();
-          doSend();
-        }
         if (event.key === 'Escape' && state.editingMessageId) cancelEdit();
       });
 
@@ -4935,7 +4943,7 @@
       row.append(broadcastLabel, send);
       if(features.attachments)row.prepend(gifButton);
       box.appendChild(row);
-      node.append(gifPreview, pendingWrap, box);
+      node.append(gifPreview, pendingWrap, box, composerHint());
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
@@ -4985,19 +4993,7 @@
         }
       };
       send.addEventListener('click', doSend);
-      threadInput.addEventListener('keydown', (event) => {
-        const modifiedSend = state.collaborationPreferences.send_mode === 'modified_enter';
-        const sendKey = event.key === 'Enter'
-          && !event.defaultPrevented
-          && !event.shiftKey
-          && !event.isComposing
-          && !mentionMenuOpen()
-          && (modifiedSend ? (event.ctrlKey || event.metaKey) : !(event.ctrlKey || event.metaKey));
-        if (sendKey) {
-          event.preventDefault();
-          doSend();
-        }
-      });
+      bindEnterToSend(threadInput, doSend);
       panel._startEdit = (message) => {
         editingId = message.id;gifButton.disabled=true;gifPreview.hidden=true;
         broadcastLabel.hidden = true;
