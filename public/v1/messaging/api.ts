@@ -693,7 +693,6 @@ function validateCampaignDraft(campaignInput: JsonObject) {
   if (normalizeBoolean(campaignInput.embeddedLink, false) && !nonEmpty(campaignInput.embeddedLinkSample)) {
     missing.push("embeddedLinkSample");
   }
-  if (LIVE_MODE() && campaignInput.consentAcknowledged !== true) missing.push("consentAcknowledged");
   if (campaignInput.termsAndConditions !== true) missing.push("termsAndConditions");
   if (campaignInput.subscriberOptout !== true) missing.push("subscriberOptout");
   if (campaignInput.subscriberHelp !== true) missing.push("subscriberHelp");
@@ -2034,9 +2033,6 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       const saved = await updateSmsComplianceProfile(profile, { validation: profileValidation(profile) });
       return { ok: true, dry_run: true, payload, profile: publicSmsComplianceProfile(saved) };
     }
-    if (!isMock && asObject(profile.campaign).consentAcknowledged !== true) {
-      throw badRequest("registration_attestation_required", "An authorized representative must acknowledge the SMS consent and opt-out requirements before submission.");
-    }
     const submissionContext = brandSubmissionContext(profile, payload);
     const { existingBrandId, operationType } = submissionContext;
     const correctingExistingBrand = submissionContext.correcting;
@@ -2232,9 +2228,6 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     if (!validation.ok) {
       throw badRequest("campaign_profile_incomplete", "The 10DLC campaign profile is missing required fields.", { missing: validation.missing });
     }
-    if (!isMock && asObject(profile.campaign).consentAcknowledged !== true) {
-      throw badRequest("registration_attestation_required", "An authorized representative must acknowledge the SMS consent and opt-out requirements before submission.");
-    }
     if (body.submit !== true || body.dry_run === true) {
       const saved = await updateSmsComplianceProfile(profile, { validation: profileValidation(profile) });
       return { ok: true, dry_run: true, payload, profile: publicSmsComplianceProfile(saved) };
@@ -2307,9 +2300,6 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       const currentCampaign = asObject(profile.campaign);
       if (!brandReadyForCampaignStatus(profile.brand_status)) {
         throw conflict("profile_changed", "The brand is no longer ready for campaign submission. Refresh its provider status before retrying.");
-      }
-      if (currentCampaign.consentAcknowledged !== true) {
-        throw conflict("profile_changed", "The campaign attestation changed during compliance preflight. Review and retry.");
       }
       await verifyPublicPolicyUrl(currentCampaign.privacyPolicyLink, asObject(profile.brand).website, "Privacy policy");
       await verifyPublicPolicyUrl(currentCampaign.termsAndConditionsLink, asObject(profile.brand).website, "Terms and conditions");

@@ -19,7 +19,7 @@ const fixture = {
     sample2:'FirstMate: Your appointment is tomorrow at 10 AM. Reply STOP to opt out.',
     optInDisclosure:'FirstMate sends SMS text messages. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help. SMS opt-in data is not shared with third parties for marketing.',
     messageFlow:'Our staff read the consent script to customers, record their agreement, and retain a record before sending SMS.',
-    privacyPolicyLink:'https://example.com/privacy',termsAndConditionsLink:'https://example.com/terms',policyContentConfirmed:true,messageFlowConfirmed:true,consentAcknowledged:true,selectedNumber:'+12068447657'}
+    privacyPolicyLink:'https://example.com/privacy',termsAndConditionsLink:'https://example.com/terms',policyContentConfirmed:true,messageFlowConfirmed:true,selectedNumber:'+12068447657'}
 };
 
 test('SMS setup: editable campaign after verification, actionable errors, safe submission, and mobile layout', async () => {
@@ -78,6 +78,7 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     await page.getByRole('button',{name:'1. Business'}).click();
     assert.equal(await page.locator('[data-sms-field="brand.companyName"]').isDisabled(),true);
     await page.getByRole('button',{name:'6. Review & submit'}).click();
+    assert.equal(await page.locator('[data-sms-consent-ack]').count(),0);
     await page.locator('#smsContinueSetup').evaluate(el=>{el.click();el.click();});
     await page.locator('.sms-api-error').waitFor();
     assert.match(await page.locator('.sms-api-error').innerText(),/Privacy policy must be publicly accessible/);

@@ -4962,7 +4962,6 @@
         enabledFeatures: null,
         featuresConfirmed: false,
         messageFlowConfirmed: false,
-        consentAcknowledged: false,
         selectedNumber: '',
         selectedNumberDisplay: '',
         selectedNumberAreaCode: ''
@@ -5456,8 +5455,6 @@
           .map((input) => String(input.getAttribute('data-sms-feature') || '').trim())
           .filter(Boolean);
       }
-      const ack = root.querySelector('[data-sms-consent-ack]');
-      if (ack) next.campaign.consentAcknowledged = !!ack.checked;
       const flowAck = root.querySelector('[data-sms-flow-ack]');
       if (flowAck) next.campaign.messageFlowConfirmed = !!flowAck.checked;
       const featureConfirm = root.querySelector('[data-sms-feature-confirm]');
@@ -5602,7 +5599,6 @@
           if (!/marketing|promotional/i.test(disclosure)) missing.push('Consent script: mention marketing or promotional texts');
           if (!/consent is not a condition of purchase|not required (?:to|for) (?:a )?purchase/i.test(disclosure)) missing.push('Consent script: state that consent is not required to purchase');
         }
-        if (campaign.consentAcknowledged !== true) missing.push('Consent acknowledgement');
       }
       return missing;
     }
@@ -5611,7 +5607,6 @@
         'Opt-in flow of at least 40 characters': 'Describe when and how the customer agrees, who records consent, and what confirmation follows (at least 40 characters).',
         'SMS policy confirmation': 'Review the live Privacy Policy and SMS Terms, then check the policy confirmation below.',
         'Opt-in flow confirmation': 'Check the box confirming that the described opt-in flow is accurate.',
-        'Consent acknowledgement': 'Check the final consent acknowledgement below.',
         'Marketing sample message': 'Add a real promotional sample message that matches Marketing.',
         'Public HTTPS SMS Terms URL': 'Enter the public HTTPS page containing the SMS program terms.',
         'Public HTTPS Privacy Policy URL': 'Enter the public HTTPS Privacy Policy page.'
@@ -5624,7 +5619,6 @@
       if (sampleNumber) return { step: 'messages', selector: `[data-sms-field="campaign.sample${sampleNumber}"]` };
       if (/^(Business|Contact|Features|Message types|Number)$/.test(text)) return { step: ({ Business: 'business', Contact: 'contact', Features: 'features', 'Message types': 'features', Number: 'number' })[text] };
       if (/Low Volume|SMS feature|Feature confirmation/.test(text)) return { step: 'features' };
-      if (/Consent acknowledgement/.test(text)) return { step: 'summary', selector: '[data-sms-consent-ack]' };
       if (/Opt-in flow confirmation/.test(text)) return { step: 'consent', selector: '[data-sms-flow-ack]' };
       const fields = [
         [/Campaign description/i, 'description', 'business'],
@@ -5663,7 +5657,7 @@
         consent: ['How do customers say yes?', ''],
         messages: ['Show what customers will receive', ''],
         number: ['Choose your business number', 'This will be your sending number once carrier registration is approved.'],
-        summary: ['Review and Submit', 'Review your details, confirm your consent practices, and submit for carrier registration.']
+        summary: ['Review and Submit', '']
       }[step];
       if (!copy) return '';
       return `<header class="sms-step-heading"><span class="sms-eyebrow">STEP ${smsSteps.findIndex(item => item.id === step) + 1} OF ${smsSteps.length}</span><h2>${copy[0]}</h2>${copy[1] ? `<p>${copy[1]}</p>` : ''}</header>`;
@@ -5894,8 +5888,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         ${smsReviewRows(profile)}
         <div class="sms-review-actions">${!smsHasProviderBrand(profile) ? edit('business', 'Edit business') + edit('contact', 'Edit contact') : '<span class="sms-muted">Submitted business details are locked.</span>'}${edit('consent', 'Edit message types')}${edit('number', 'View number')}</div>
         <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Consent & policies</h3><p>${escapeHtml(smsOptInMethods(campaign).map(method => smsConsentLabels[method]).join(', ') || 'Consent methods not selected')}</p></div>${edit('consent', 'Review consent')}</div><div class="sms-review-links">${[['Privacy policy', campaign.privacyPolicyLink], ['SMS terms', campaign.termsAndConditionsLink]].map(([label, url]) => smsValidHttpsUrl(url) ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>` : `<span>${label} needed</span>`).join('')}</div></section>
-        <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Message examples</h3><p>${[campaign.sample1, campaign.sample2, campaign.sample3, campaign.sample4, campaign.sample5].filter(Boolean).length} examples prepared for carrier review</p></div>${edit('messages', 'Review messages')}</div></section>
-        ${submitted ? '' : `<label class="sms-ack"><input type="checkbox" data-sms-consent-ack ${campaign.consentAcknowledged ? 'checked' : ''}><span>I confirm that the selected message types, consent process, and message examples reflect our actual business, and that we obtain the required customer consent and honor opt-outs.</span></label>`}`;
+        <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Message examples</h3><p>${[campaign.sample1, campaign.sample2, campaign.sample3, campaign.sample4, campaign.sample5].filter(Boolean).length} examples prepared for carrier review</p></div>${edit('messages', 'Review messages')}</div></section>`;
     }
     function smsStepContent(step, profile, options = {}){
       const brand = profile.brand || {};
@@ -5905,11 +5898,11 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         const publicCompany = String(brand.entityType || '').toUpperCase() === 'PUBLIC_PROFIT';
         const websiteNormalized = smsNormalizeWebsite(brand.website);
         return `<div class="sms-form-grid">
-          ${smsField('brand.entityType', 'Business type', brand.entityType, { kind: 'select', values: smsOptions.entityTypes, disabled: locked, wide: true, hint: soleProprietor ? 'For one person operating a business without an EIN. You can apply without forming an LLC. If you have an EIN, choose Private business instead. Your personal mobile number must be verified before campaign submission.' : 'For privately owned LLCs, partnerships, corporations, and individuals with an EIN.' })}
+          ${smsField('brand.entityType', 'Business type', brand.entityType, { kind: 'select', values: smsOptions.entityTypes, disabled: locked, wide: true })}
           ${soleProprietor ? smsField('brand.firstName', 'Legal first name', brand.firstName, { required: true, disabled: locked, autocomplete: 'given-name', hint: 'Your name as it appears on government-issued ID.' }) + smsField('brand.lastName', 'Legal last name', brand.lastName, { required: true, disabled: locked, autocomplete: 'family-name' }) : smsField('brand.companyName', 'Legal company name', brand.companyName, { required: true, disabled: locked, wide: true, hint: 'Match the business name on your IRS EIN record.' })}
           <label class="sms-ack" style="grid-column:1/-1"><input type="checkbox" data-sms-field="brand.sameAsLegalName" ${brand.sameAsLegalName ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>Brand Name / DBA is the same as my legal name</span></label>
-          ${smsField('brand.displayName', 'Brand Name / DBA', brand.sameAsLegalName ? smsLegalName(brand) : brand.displayName, { required: true, disabled: locked || !!brand.sameAsLegalName, wide: true, hint: 'The name your customers recognize. Individuals can use their own name.' })}
-          ${smsField('brand.vertical', 'Industry', brand.vertical, { kind: 'select', values: smsOptions.verticals, disabled: locked, hint: 'Choose the closest match to your main business activity. Professional services covers services such as consulting or accounting; use a more specific category when available.' })}
+          ${smsField('brand.displayName', 'Brand Name / DBA', brand.sameAsLegalName ? smsLegalName(brand) : brand.displayName, { required: true, disabled: locked || !!brand.sameAsLegalName, wide: true })}
+          ${smsField('brand.vertical', 'Industry', brand.vertical, { kind: 'select', values: smsOptions.verticals, disabled: locked })}
           ${!soleProprietor ? smsField('brand.ein', 'EIN', smsFormatEin(brand.ein), { required: true, disabled: locked, inputmode: 'numeric', placeholder: '12-3456789', hint: '9-digit federal tax ID. Do not enter a Social Security number.', error: brand.ein && !smsValidEin(brand.ein) ? smsFieldLiveState('brand.ein', brand.ein).error : '' }) : ''}
           ${publicCompany ? smsField('brand.stockSymbol', 'Stock Symbol', brand.stockSymbol, { required: true, disabled: locked, error: !smsValuePresent(brand.stockSymbol) ? 'Stock symbol is required.' : '' }) : ''}
           ${publicCompany ? smsField('brand.stockExchange', 'Stock Exchange', brand.stockExchange, { kind: 'select', values: smsOptions.stockExchanges, required: true, disabled: locked }) : ''}
@@ -5944,7 +5937,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             hint: '',
             ok: !!phoneNormalized
           })}
-          ${soleProprietor ? smsField('brand.mobilePhone', 'Mobile Phone for Verification', brand.mobilePhone, { required: true, disabled: locked, error: !brand.mobilePhone ? 'A US/Canada mobile phone is required for Telnyx OTP verification.' : !smsNormalizePhone(brand.mobilePhone) ? 'Enter a valid mobile phone.' : '', hint: 'Telnyx will send a one-time verification code to this number.' }) : ''}
+          ${soleProprietor ? smsField('brand.mobilePhone', 'Mobile Phone for Verification', brand.mobilePhone, { required: true, disabled: locked, error: !brand.mobilePhone ? 'A US/Canada mobile phone is required for Telnyx OTP verification.' : !smsNormalizePhone(brand.mobilePhone) ? 'Enter a valid mobile phone.' : '', hint: 'We will send a one-time verification code to this number.' }) : ''}
           ${smsField('brand.street', 'Street Address', brand.street, { wide: true, required: true, disabled: locked, autocomplete: 'off', error: !smsValuePresent(brand.street) ? 'Street address is required.' : '' })}
           ${smsField('brand.address2', 'Apartment, suite, or unit (optional)', brand.address2, { wide: true, disabled: locked, autocomplete: 'address-line2', placeholder: 'Suite 200' })}
           ${smsField('brand.city', 'City', brand.city, { required: true, disabled: locked, error: !smsValuePresent(brand.city) ? 'City is required.' : '' })}
@@ -6525,7 +6518,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         }
       };
       const bindWorkspaceInputs = (container) => {
-        container.querySelectorAll('[data-sms-field], [data-sms-method], [data-sms-feature], [data-sms-feature-confirm], [data-sms-flow-ack], [data-sms-consent-ack]').forEach((input) => {
+        container.querySelectorAll('[data-sms-field], [data-sms-method], [data-sms-feature], [data-sms-feature-confirm], [data-sms-flow-ack]').forEach((input) => {
           input.addEventListener('input', () => {
             if (operationBusy || input.disabled || smsRegistrationLocked(profile)) return;
             const inputFieldName = String(input.getAttribute('data-sms-field') || '');
@@ -6576,7 +6569,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             }
             updateSummaryValidation();
             ctxRef?.touch?.();
-            if (input.hasAttribute('data-sms-method') || fieldName === 'brand.entityType' || fieldName === 'brand.sameAsLegalName' || fieldName === 'campaign.optInMethod' || input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack') || input.hasAttribute('data-sms-consent-ack')) refresh();
+            if (input.hasAttribute('data-sms-method') || fieldName === 'brand.entityType' || fieldName === 'brand.sameAsLegalName' || fieldName === 'campaign.optInMethod' || input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack')) refresh();
           });
         });
       };

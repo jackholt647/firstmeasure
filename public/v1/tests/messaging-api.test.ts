@@ -1022,7 +1022,7 @@ test("a rejected 10DLC brand is corrected with idempotent PUT and no duplicate r
       postalCode: "83702",
       website: "example.test"
     },
-    campaign: { consentAcknowledged: true, standardizationVersion: "firstmate-crm-10dlc-v2" }
+    campaign: { standardizationVersion: "firstmate-crm-10dlc-v2" }
   });
   const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
   const messagingOrganization = await ensureMessagingOrganization(orgId);
@@ -1728,8 +1728,7 @@ test("10DLC campaign submit waits for brand readiness", async () => {
       optoutMessage: "FirstMate: You are unsubscribed and will receive no more messages. Reply START to resubscribe.",
       helpMessage: "FirstMate: Help at support@example.test. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.",
       privacyPolicyLink: "https://example.test/privacy",
-      termsAndConditionsLink: "https://example.test/terms",
-      consentAcknowledged: true
+      termsAndConditionsLink: "https://example.test/terms"
     }
   });
 
