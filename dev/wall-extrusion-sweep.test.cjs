@@ -83,3 +83,9 @@ for(const supports of [undefined,[],[side]])test(`face sweep closes every bounda
   const returns=result.sides;for(const ring of [face.points,...face.holes])for(let i=0;i<ring.length;i++)assert.ok(W.sharedIntervals(ring[i],ring[(i+1)%ring.length],returns).reduce((sum,[a,b])=>sum+b-a,0)>.99999,'each original outer and hole edge has a complete return');
  }
 });
+
+for(const amount of [-.3,.3])test(`oblique edge extrusion keeps its neighbor planar and fills the sweep once (${amount})`,()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),a=p(0,0,2),b=p(4,0,2),top={id:'top',points:[a,b,p(4,3,2),p(0,3,2)]},side={id:'side',points:[b,a,p(0,-.35,0),p(4,-.35,0)]},before=JSON.stringify([top,side]),r=W.slideLines([top,side],[[a,b]],p(0,1,0),amount,{preserveConnections:true});
+ assert.equal(JSON.stringify([top,side]),before,'immutable source');assert.deepEqual(r.faces.find(f=>f.id==='side').points,side.points,'neighbor is not bent');
+ r.faces.forEach(K.validateFace);const horizontal=r.faces.filter(f=>f.points.every(p=>Math.abs(p.z-2)<1e-8));assert.ok(Math.abs(horizontal.reduce((sum,f)=>sum+K.area(f),0)-(12+Math.max(0,-amount)*4))<1e-6,'sweep has no holes or overlapping duplicate area');assert.equal(new Set(r.faces.map(f=>f.id)).size,r.faces.length);
+});
