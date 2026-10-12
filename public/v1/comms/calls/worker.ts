@@ -123,7 +123,7 @@ export async function processVoiceEvent(body:Json){
     if(type==='call.hangup'||type==='conference.participant.left'){
       if(p)await updateParticipant(call.organization_id,call.id,p.id,{state:['connected','held','holding','resuming'].includes(text(p.state))?'left':p.state==='connecting'?'failed':'no_answer',ended_at:at});
       if(type==='conference.participant.left')await providerCommand(call,controlId,'hangup',{},`left-participant:${controlId}`);
-      if(call.metadata.host_left_at){const remaining=(await s.legs(call.organization_id,call.id)).filter(l=>l.state!=='ended'&&l.role!=='departed_host');if(remaining.length<2)await endCall(call,'CONFERENCE_FINISHED',at);}
+      if(call.metadata.host_left_at||call.metadata.customer_removed_at){const remaining=(await s.legs(call.organization_id,call.id)).filter(l=>l.state!=='ended'&&l.role!=='departed_host');if(remaining.length<2)await endCall(call,'CONFERENCE_FINISHED',at);}
       return;
     }
     if(['call.initiated','call.answered'].includes(type)&&(!p||!participantActive(p))){await providerCommand(call,controlId,'hangup',{},`removed-participant:${controlId}`);return;}
@@ -171,7 +171,7 @@ export async function processVoiceEvent(body:Json){
   }
   if(type==="call.hangup"){
     if(role==='departed_host')return;
-    if(call.metadata.host_left_at){const remaining=(await s.legs(call.organization_id,call.id)).filter(l=>l.state!=='ended'&&l.role!=='departed_host');if(remaining.length<2)await endCall(call,'CONFERENCE_FINISHED',at);return;}
+    if(call.metadata.host_left_at||role==='customer'&&call.metadata.customer_removed_at){const remaining=(await s.legs(call.organization_id,call.id)).filter(l=>l.state!=='ended'&&l.role!=='departed_host');if(remaining.length<2)await endCall(call,'CONFERENCE_FINISHED',at);return;}
     if(role==='forwarded'&&!call.connected_at){
       (await s.patchCall(call.organization_id,call.id,{state:'queued',metadata:{...call.metadata,force_voicemail:true}}));return;
     }
@@ -249,6 +249,7 @@ async function executeProvider(job:Json,payload:Json){
     const conferenceId=text(call.metadata.conference_id);if(!conferenceId)throw new Error("The call conference is not ready");
     const command=action.slice(11);const control=text(payload.control_id);
     const participant=await participantForLeg(orgId,callId,await s.legByControl(control));
+    if(command==='join'&&call.metadata.customer_removed_at&&(await s.legByControl(control))?.role==='customer')return {canceled:true};
     if(command==='join'&&participant&&!participantActive(participant))return {canceled:true};
     if(payload.individual_hold&&(!participant||participant.state!==(command==='hold'?'holding':'resuming')))return {canceled:true};
     if(payload.individual_customer&&call.metadata.customer_hold_state!==(command==='hold'?'holding':'resuming'))return {canceled:true};

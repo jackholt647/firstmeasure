@@ -227,12 +227,12 @@ export async function callAction(ctx:PlatformAuthContext,callId:string,input:unk
     else if(body.action==="hold"||body.action==="resume"){
       const people=await participants(ctx.orgId,callId);
       if(['holding','resuming'].includes(text(call.metadata.customer_hold_state))||people.some(p=>['holding','resuming'].includes(text(p.state))))throw conflict('participant_hold_pending','Wait for the individual hold operation to finish.');
-      if(call.metadata.customer_hold_state!=='held')await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action);
+      if(!call.metadata.customer_removed_at&&call.metadata.customer_hold_state!=='held')await send(customer,body.action==="hold"?"conference_hold":"conference_unhold",{},body.action);
       else updated=await s.patchCall(ctx.orgId,call.id,{state:body.action==='hold'?'held':'connected'});
       for(const leg of callLegs.filter(l=>l.role==='participant'&&l.state==='answered'&&!people.some(p=>p.id===object(l.data).participant_id&&p.state==='held')))await send(leg,body.action==="hold"?"conference_hold":"conference_unhold",{},`${body.action}:${leg.id}`);
     }
     else if(body.action==='add_participant')await inviteParticipant(requireCallAccess(ctx,await s.readCall(ctx.orgId,callId),true),ctx.userId,body,op.id);
-    else if(body.action==='remove_participant')await removeParticipant(call,text(body.participant_id),op.id);
+    else if(body.action==='remove_participant'){await removeParticipant(call,text(body.participant_id),op.id);updated=await s.readCall(ctx.orgId,call.id);}
     else if(body.action==='hold_participant'||body.action==='resume_participant')await holdParticipant(call,text(body.participant_id),body.action==='hold_participant',op.id);
     else if(body.action==='leave_conference')updated=await leaveHostedConference(call,ctx.userId,op.id);
     else if(body.action==="dtmf"){if(!body.digits)throw badRequest("digits_required","Enter keypad digits.");(await send(customer,"send_dtmf",{digits:body.digits}));}

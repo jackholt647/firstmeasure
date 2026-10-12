@@ -69,7 +69,8 @@ export async function inviteParticipant(call: CustomerCall, actorId: string, inp
     if (!endpoint || endpoint.registered !== true || endpoint.availability !== 'available' || text(endpoint.branch_id || 'default') !== call.branch_id || text(endpoint.heartbeat_at) < new Date(Date.now()-45000).toISOString() || !text(endpoint.sip_username)) throw conflict('participant_unavailable', 'Choose an available teammate in this branch.');
   } else {
     await validateParticipantNumber(call, phone);
-    if ([call.customer_number, call.business_number].includes(phone) || (await s.resources(call.organization_id,'number')).some(n => n.phone_number === phone)) throw conflict('participant_already_added', 'Choose a different number, or add your teammate by name.');
+    if(phone===call.customer_number&&call.metadata.customer_removed_at&&legs.some(l=>l.role==='customer'&&l.state!=='ended'))throw conflict('participant_leaving','Wait for the removed caller to disconnect before adding them again.');
+    if ((!call.metadata.customer_removed_at&&call.customer_number===phone) || call.business_number===phone || (await s.resources(call.organization_id,'number')).some(n => n.phone_number === phone)) throw conflict('participant_already_added', 'Choose a different number, or add your teammate by name.');
   }
   const app = await s.resource(call.organization_id, 'application');
   if (!app?.provider_id) throw conflict('phone_not_ready', 'The phone connection is unavailable.');
@@ -86,6 +87,14 @@ export async function validateParticipantNumber(call: CustomerCall, phone: strin
   if (await s.resource(call.organization_id,'suppression',phone)) throw conflict('number_suppressed','This contact has requested no phone calls.');
 }
 export async function removeParticipant(call: CustomerCall, id: string, operationId: string, state = 'removed') {
+  if(id==='customer'){
+    if(call.metadata.customer_removed_at)return;
+    if(!(await participants(call.organization_id,call.id)).some(p=>['connected','held'].includes(text(p.state))))throw conflict('conference_people_required','Add another connected person before removing the original caller.');
+    const leg=(await s.legs(call.organization_id,call.id)).find(l=>l.role==='customer'&&l.state!=='ended');if(!leg?.control_id)throw conflict('participant_leg_missing','This person is no longer connected.');
+    await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,customer_removed_at:s.now()}});
+    await s.enqueue(call.organization_id,call.id,'provider',{path:'hangup',control_id:leg.control_id,payload:{}},`${operationId}:customer-remove`);
+    await s.appendEvent(call.organization_id,call.id,'communication.call.participant.removed',{participant_id:'customer',name:call.customer_name,phone:call.customer_number},operationId);return;
+  }
   const p = (await participants(call.organization_id,call.id)).find(p => p.id === id);
   if (!p) throw notFound('participant_not_found','This participant is unavailable.');
   await updateParticipant(call.organization_id,call.id,id,{state,ended_at:s.now()});
@@ -120,7 +129,8 @@ export async function leaveHostedConference(call: CustomerCall, actorId: string,
   if(call.state!=='connected'||!text(call.metadata.conference_id)||['dialing','consulting'].includes(text(object(call.metadata.transfer).state)))throw conflict('conference_not_ready','Resume the call and finish any transfer before leaving.');
   const legs=await s.legs(call.organization_id,call.id),agent=legs.find(l=>l.role==='agent'&&l.state!=='ended');
   const guests=(await participants(call.organization_id,call.id)).filter(p=>p.state==='connected');
-  if(!agent||!guests.length||text(call.metadata.customer_hold_state)&&call.metadata.customer_hold_state!=='connected'||!legs.some(l=>l.role==='customer'&&l.state!=='ended'))throw conflict('conference_people_required','At least two other connected people are needed to leave the conference running. Resume held people before leaving.');
+  const originalConnected=!call.metadata.customer_removed_at&&(!text(call.metadata.customer_hold_state)||call.metadata.customer_hold_state==='connected')&&legs.some(l=>l.role==='customer'&&l.state!=='ended');
+  if(!agent||guests.length+Number(originalConnected)<2)throw conflict('conference_people_required','At least two other connected people are needed to leave the conference running. Resume held people before leaving.');
   const updated=await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,host_left_at:s.now(),host_left_user_id:actorId}});
   await s.database().prepare("UPDATE customer_call_legs SET role='departed_host' WHERE organization_id=? AND call_id=? AND id=?").run(call.organization_id,call.id,text(agent.id));
   await s.enqueue(call.organization_id,call.id,'provider',{path:'hangup',control_id:agent.control_id,payload:{}},`${operationId}:host-leave`);

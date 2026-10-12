@@ -131,6 +131,8 @@ test('conference hosts can hold one person, reinvite removed guests, or leave th
     await f.event('call.answered',String(replacement.control_id));await f.pump();
     await f.action('leave_conference',{},'host-leave-once');await f.action('leave_conference',{},'host-leave-once');await f.pump();
     await f.event('call.hangup',`${f.call.id}-host`);assert.equal((await f.detail()).call.state,'connected');
+    await store.database().prepare('UPDATE customer_calls SET updated_at=? WHERE organization_id=? AND id=?').run('2000-01-01T00:00:00Z',f.orgId,f.call.id);
+    await (await import('../comms/calls/recovery.js')).maintainVoiceSessions();await f.pump();assert.notEqual((await f.detail()).call.metadata.provider_error?.state,'disconnecting');
     assert.equal((await store.listCalls(f.orgId,{active:true,owner_user_id:f.call.owner_user_id})).calls.some(c=>c.id===f.call.id),false);
     assert.ok(!f.submissions.some(s=>s.path.includes(`${f.call.id}-customer/actions/hangup`)));
     await f.event('call.hangup',String(replacement.control_id));await f.pump();assert.equal((await f.detail()).call.state,'ended');
@@ -147,9 +149,24 @@ test('conference publications expose typed participants and enforce receipts, ef
     await invokeAction(ctx,ref,input,{idempotencyKey:'published-add'});await invokeAction(ctx,ref,input,{idempotencyKey:'published-add'});
     assert.equal((await f.detail()).participants.length,1);
     const result=await readPublishedData({...ctx,mode:'evaluate'},{provider:'customer-call-conference',export:'participants',target});assert.equal(result.status,'ready');if(result.status==='ready'){assert.equal((result.value as any).participants[0].name,'Published guest');assert.equal((result.value as any).participants[0].control_id,undefined);}
+    await f.pump();
     const other=await owner(),otherAuth=await backgroundAuthContext(other.orgId,(await other.c.request('POST',`/v1/comms/organizations/${other.orgId}/calls`,{operation_id:'publication-other-owner',customer_number:'+12065550106'})).call.owner_user_id);
     const denied=await readPublishedData({...ctx,auth:otherAuth,organizationId:other.orgId},{provider:'customer-call-conference',export:'participants',target});assert.notEqual(denied.status,'ready');
     await assert.rejects(()=>invokeAction({...ctx,auth:otherAuth,organizationId:other.orgId},ref,input,{idempotencyKey:'published-add'}));
+  }finally{f.close();}
+});
+
+test('removing and reinviting the original caller preserves other participants and allows host departure',async()=>{
+  const f=await conferenceFixture();try{
+    for(const phone of ['+12065550102','+12065550103']){await f.action('add_participant',{target_phone:phone});await f.pump();const leg=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant'&&l.state==='initiated')!;await f.event('call.answered',String(leg.control_id));await f.pump();}
+    await f.action('remove_participant',{participant_id:'customer'});await f.pump();
+    await assert.rejects(()=>f.action('add_participant',{target_phone:f.call.customer_number}),/Wait for the removed/);
+    await f.event('call.hangup',`${f.call.id}-customer`);assert.equal((await f.detail()).call.state,'connected');
+    await f.action('hold');await f.pump();await f.action('resume');await f.pump();assert.equal((await f.detail()).call.state,'connected');
+    await f.action('add_participant',{target_phone:f.call.customer_number});await f.pump();
+    const invited=(await store.legs(f.orgId,f.call.id)).find(l=>l.role==='participant'&&l.state==='initiated')!;await f.event('call.answered',String(invited.control_id));await f.pump();
+    await f.action('leave_conference');await f.pump();await f.event('call.hangup',`${f.call.id}-host`);assert.equal((await f.detail()).call.state,'connected');
+    await f.action('hangup');await f.pump();assert.equal((await f.detail()).call.state,'ending');
   }finally{f.close();}
 });
 test('canceled conference invitations never dial and late answers cannot rejoin',async()=>{

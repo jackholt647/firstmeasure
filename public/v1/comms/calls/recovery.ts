@@ -31,7 +31,7 @@ export async function maintainVoiceSessions(){
     .all(new Date(Date.now()-30000).toISOString()));
   for(const row of rows){const orgId=text(object(row).organization_id),callId=text(object(row).id);let call=(await s.readCall(orgId,callId));
     await reconcileCall(orgId,callId).catch(()=>{});call=(await s.readCall(orgId,callId));if(s.terminal.has(call.state))continue;
-    if(call.owner_user_id){const endpoint=(await s.resource(orgId,'endpoint',call.owner_user_id));const fresh=endpoint&&text(endpoint.heartbeat_at)>new Date(Date.now()-60000).toISOString();
+    if(call.owner_user_id&&!call.metadata.host_left_at){const endpoint=(await s.resource(orgId,'endpoint',call.owner_user_id));const fresh=endpoint&&text(endpoint.heartbeat_at)>new Date(Date.now()-60000).toISOString();
       const session=fresh?await readAuthSession(text(endpoint.session_id)).catch(()=>null):null;
       if(!session){for(const leg of (await s.legs(orgId,callId)).filter(l=>l.state!=='ended'))(await providerCommand(call,text(leg.control_id),'hangup',{},`owner-disconnected:${leg.id}`));
         (await s.patchCall(orgId,callId,{metadata:{...call.metadata,provider_error:{state:'disconnecting',message:'The staff phone disconnected. Ending the call.'}}}));}
