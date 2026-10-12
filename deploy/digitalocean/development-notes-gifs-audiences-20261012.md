@@ -218,3 +218,30 @@ final verification. This frontend-only rollout changes no backend, data or worke
 production was not changed. Role baselines, patches, scripts, receipts and public
 verification are retained under ignored output/notes-reply-states-deploy and in
 the immutable releases.
+
+## Show and Hide reply-count labels
+
+Feature ebd9d375, integrated source 96eea8f0. Collapsed populated threads say
+Show N replies; expanded threads say Hide N replies. One reply uses singular
+reply, and zero active replies retain Reply. The state synchronizer updates text
+and aria-expanded during direct toggles and refreshes. Archived replies remain
+excluded from the existing server count.
+
+The Notes browser check passes locally and with development-hosted assets,
+including singular labels and Show/Hide transitions with aria-expanded. Owned
+Notes hashes and bundle version 20261012-notes-reply-labels-v11 are verified on
+all three roles and publicly. Each role has healthy development readiness,
+enforced outbound safety and a runtime identity matching its current release.env.
+Concurrent editor/window releases are preserved. Web was restaged after its
+activation guard rejected a moved baseline. Subsequent unrelated releases on web
+and pool retained the exact Notes file and bundle; those were verified in place.
+
+| Role | Verified current path | Runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/60ab248273c012aebd6add39ef7389bd76ffe8f2` | `b178dae7c2e35fda5e3c5942828df0eff680fbfe` |
+| pool | `/opt/firstmeasure/releases/b178dae7c2e35fda5e3c5942828df0eff680fbfe` | `b178dae7c2e35fda5e3c5942828df0eff680fbfe` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/96eea8f00c6fc528b97286a54d7f9fc5409e42cb-notes-reply-labels` | `b178dae7c2e35fda5e3c5942828df0eff680fbfe` |
+
+Frontend-only payloads, source patches, snapshots, receipts and current/public
+verification are under ignored output/notes-reply-labels-deploy. No backend,
+data, worker or production changes were made by this rollout.
