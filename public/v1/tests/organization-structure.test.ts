@@ -12,6 +12,9 @@ test('effective departments expand flat groups once, retain independent sources 
   assert.deepEqual(departmentIdsForUser(result,'alice'),['production','sales']);
   assert.deepEqual(departmentIdsForUser(result,'bob'),['production','sales']);
   assert.deepEqual(departmentIdsForUser(result,'inactive'),[]);
+  assert.deepEqual(result.users.find(u=>u.id==='alice')?.resource_group_ids,['dispatch']);
+  assert.deepEqual(result.users.find(u=>u.id==='inactive')?.resource_group_ids,[]);
+  assert.equal(result.groups[0]!.kind_id,'crew');
   assert.equal(result.users.some(u=>u.id==='disabled'),false);
   assert.deepEqual(result.users.find(u=>u.id==='bob')?.division_ids,['branch','office','region']);
   assert.equal(result.users.find(u=>u.id==='alice')?.sources.filter(s=>s.department_id==='sales').length,3);
@@ -39,4 +42,8 @@ test('scheduling uses effective membership and does not count group plus member 
   assert.deepEqual(selectAppointmentResources(individual,catalog.departments,resources,available)?.map(r=>r.id),['alice']);
   const mixed=appointmentConfigurationSchema.parse({requirements:[{department_id:'dispatch',subject_type:'any',count:2}]});
   assert.equal(selectAppointmentResources(mixed,catalog.departments,resources,available),null);
+});
+
+test('active resource groups retain IDs independently of department affiliation',()=>{
+ const catalog=departmentCatalogSchema.parse({groups:[],departments:[]});const structure=buildOrganizationStructure(catalog,[{id:'user'}],[{id:'standalone',name:'Standalone',kind_id:'crew',members:[{user_id:'user'}]}]);assert.deepEqual(structure.users[0]!.resource_group_ids,['standalone']);assert.deepEqual(structure.users[0]!.department_ids,[]);assert.equal(structure.groups[0]!.label,'Standalone');
 });

@@ -46,6 +46,8 @@ export const memberPatchSchema = z.object({
   notify_level: z.enum(["all", "mentions", "muted"]).optional()
 });
 
+const noteAudienceRefSchema=z.object({kind:z.enum(['resource_group','resource_group_kind','user']),id:z.string().trim().min(1).max(200),department_ids:z.array(z.string().trim().min(1)).max(200).optional()});
+
 export const postMessageSchema = z.object({
   text: z.string().max(250_000).default(""),
   content: richContentSchema.optional(),
@@ -57,6 +59,7 @@ export const postMessageSchema = z.object({
   pin: z.boolean().optional(),
   audience: z.array(audienceGroup).default([]),
   department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
+  audience_refs:z.array(noteAudienceRefSchema).max(200).optional(),
   include_crew: z.boolean().optional(),
   tags: z.array(z.string().trim().min(1).max(60)).default([]),
   mention_users: z.array(mentionUserSchema).default([]),
@@ -74,6 +77,7 @@ export const editMessageSchema = z.object({
   content_schema_version: z.number().int().min(1).max(20).optional(),
   audience: z.array(audienceGroup).optional(),
   department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
+  audience_refs:z.array(noteAudienceRefSchema).max(200).optional(),
   include_crew: z.boolean().optional(),
   tags: z.array(z.string().trim().min(1).max(60)).optional(),
   mention_users: z.array(mentionUserSchema).optional()
@@ -82,8 +86,9 @@ export const editMessageSchema = z.object({
 export const messageVisibilitySchema = z.object({
   audience: z.array(audienceGroup).optional(),
   department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
+  audience_refs:z.array(noteAudienceRefSchema).max(200).optional(),
   include_crew: z.boolean().optional()
-}).refine(input => input.audience !== undefined || input.department_ids !== undefined || input.include_crew !== undefined, {message:'Choose a note audience.'});
+}).refine(input => input.audience !== undefined || input.department_ids !== undefined || input.include_crew !== undefined || input.audience_refs !== undefined, {message:'Choose a note audience.'});
 
 export const reactionSchema = z.object({
   emoji: z.string().trim().min(1).max(32),
@@ -218,6 +223,7 @@ export const createActionItemFromMessageSchema = z.object({
 });
 
 export const listMessagesQuerySchema = z.object({
+  author_ids:z.string().max(40000).transform(value=>[...new Set(value.split(',').map(id=>id.trim()).filter(Boolean))]).refine(ids=>ids.length<=200).optional(),
   view: z.enum(["messages", "notes", "all"]).optional(),
   before: z.coerce.number().int().positive().optional(),
   after: z.coerce.number().int().positive().optional(),

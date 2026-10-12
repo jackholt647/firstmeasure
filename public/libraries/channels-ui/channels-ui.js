@@ -279,6 +279,15 @@
     link.append(img);card.append(link,el('figcaption','','Powered by GIPHY'));return card;
   }
 
+    function renderGifDraft(host, gif, onRemove){
+      host.replaceChildren();
+      if(!gif)return;
+      const preview=el('div','fm-ch-gif-draft');preview.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:8px 0';
+      const image=el('img');image.src=gif.url;image.alt=gif.title||'GIF attachment';image.style.cssText='max-width:180px;max-height:120px;border-radius:8px';
+      const remove=el('button','fm-ch-icon-btn','×');remove.type='button';remove.setAttribute('aria-label','Remove GIF');remove.onclick=onRemove;
+      preview.append(image,remove);host.append(preview);
+    }
+
   function mountLinkInput(container, values = {}){
     ensureStyles();container.innerHTML='<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';const text=container.querySelector('[data-link-text]'),url=container.querySelector('[data-url]'),error=container.querySelector('.fm-ch-link-error');text.value=values.text||'';url.value=values.url||'';
     return {read(){let href;try{const parsed=new URL(url.value.trim());if(!['https:','http:'].includes(parsed.protocol))throw Error();href=parsed.href;}catch{error.textContent='Enter a complete http:// or https:// web address.';url.focus();throw Error(error.textContent);}if(!text.value.trim()){error.textContent='Enter the text for your link.';text.focus();throw Error(error.textContent);}error.textContent='';return {url:href,text:text.value.trim()};},destroy(){container.replaceChildren();}};
@@ -4438,14 +4447,6 @@
       return upload;
     }
 
-    function renderGifDraft(host, gif, onRemove){
-      host.replaceChildren();
-      if(!gif)return;
-      const preview=el('div','fm-ch-gif-draft');preview.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:8px 0';
-      const image=el('img');image.src=gif.url;image.alt=gif.title||'GIF attachment';image.style.cssText='max-width:180px;max-height:120px;border-radius:8px';
-      const remove=el('button','fm-ch-icon-btn','×');remove.type='button';remove.setAttribute('aria-label','Remove GIF');remove.onclick=onRemove;
-      preview.append(image,remove);host.append(preview);
-    }
 
     function postingBlocked(){ return state.activeChannel?.can_post === false || (state.activeChannel?.settings?.posting_locked === true && !state.activeChannel?.can_manage); }
 
@@ -6155,6 +6156,6 @@
     return title;
   }
 
-  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
+  const composerWidgets={renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();

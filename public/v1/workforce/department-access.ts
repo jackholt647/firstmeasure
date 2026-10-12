@@ -8,7 +8,8 @@ export type ScopedAccessGrant = ScopedAccessAssignment & { permissions: Record<s
 export type DepartmentResource = { organization_id?: unknown; department_ids?: unknown; department_id?: unknown; division_id?: unknown; branch_id?: unknown; department_access?: unknown };
 export type OrganizationStructureAccess = {
   catalog: { terminology?: {department?: {singular?:string;plural?:string}}; departments: Array<{ id: string; label: string; status?: string; division_id?: string; app_defaults?: Record<string, unknown> }>; divisions?: Array<{ id: string; parent_id?: string; branch_id?: string; status?: string }> };
-  users: Array<{ id: string; department_ids: string[]; division_ids?: string[] }>;
+  users: Array<{ id: string; department_ids: string[]; division_ids?: string[]; resource_group_ids?:string[] }>;
+  groups?:Array<{id:string;label?:string;kind_id?:string;department_ids:string[]}>;
 };
 const ids = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.map(String).map(id => id.trim()).filter(Boolean))] : [];
 const active = (entry: { status?: string }) => entry.status !== 'archived';

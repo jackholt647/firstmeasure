@@ -4,7 +4,7 @@ import {listDocuments} from '../platform/storage.js';
 import {listAssignmentGroups} from './storage.js';
 import {listOrganizationConnections} from '../connections/storage.js';
 
-export type StructureSubject={id:string;status?:string;role_ids?:string[];branch_id?:string;kind_id?:string;members?:Array<{user_id:string;status?:string}>};
+export type StructureSubject={id:string;name?:string;status?:string;role_ids?:string[];branch_id?:string;kind_id?:string;members?:Array<{user_id:string;status?:string}>};
 export type MembershipSource={department_id:string;kind:'direct'|'role'|'group'|'group_kind';id:string};
 export type EffectiveMembership={id:string;department_ids:string[];division_ids:string[];sources:MembershipSource[]};
 const unique=(values:string[])=>[...new Set(values)].sort();
@@ -24,13 +24,13 @@ export function buildOrganizationStructure(catalog:DepartmentCatalog,users:Struc
     ...units.filter(d=>d.subject_keys.includes(key)||(d.branch_id&&d.branch_id===subject.branch_id)).flatMap(d=>divisionAncestors(catalog,d.id)),
     ...departments.filter(d=>departmentIds.includes(d.id)).flatMap(d=>divisionAncestors(catalog,d.division_id))
   ]);
-  const groupMemberships=groups.filter(active).map(g=>{const sources:MembershipSource[]=departments.flatMap(d=>[...(d.subject_keys.includes(`resource_group:${g.id}`)?[{department_id:d.id,kind:'direct' as const,id:g.id}]:[]),...(d.group_kind_ids.includes(g.kind_id||'')?[{department_id:d.id,kind:'group_kind' as const,id:g.kind_id!}]:[])]);const department_ids=unique(sources.map(s=>s.department_id));return {id:g.id,department_ids,division_ids:affiliation(g,`resource_group:${g.id}`,department_ids),sources};});
+  const groupMemberships=groups.filter(active).map(g=>{const sources:MembershipSource[]=departments.flatMap(d=>[...(d.subject_keys.includes(`resource_group:${g.id}`)?[{department_id:d.id,kind:'direct' as const,id:g.id}]:[]),...(d.group_kind_ids.includes(g.kind_id||'')?[{department_id:d.id,kind:'group_kind' as const,id:g.kind_id!}]:[])]);const department_ids=unique(sources.map(s=>s.department_id));return {id:g.id,label:g.name || g.id,kind_id:g.kind_id || '',department_ids,division_ids:affiliation(g,`resource_group:${g.id}`,department_ids),sources};});
   const userMemberships=users.filter(active).map(u=>{
     const memberGroups=groups.filter(g=>active(g)&&g.members?.some(m=>m.user_id===u.id&&(!m.status||m.status==='active')));
     const sources:MembershipSource[]=departments.flatMap(d=>[...(d.subject_keys.includes(`organization_user:${u.id}`)?[{department_id:d.id,kind:'direct' as const,id:u.id}]:[]),...d.role_ids.filter(r=>u.role_ids?.includes(r)).map(id=>({department_id:d.id,kind:'role' as const,id}))]);
     for(const group of memberGroups)for(const department_id of groupMemberships.find(g=>g.id===group.id)?.department_ids||[])sources.push({department_id,kind:'group',id:group.id});
     const department_ids=unique(sources.map(s=>s.department_id));
-    return {id:u.id,department_ids,division_ids:unique([...affiliation(u,`organization_user:${u.id}`,department_ids),...memberGroups.flatMap(g=>groupMemberships.find(m=>m.id===g.id)?.division_ids||[])]),sources};
+    return {id:u.id,resource_group_ids:unique(memberGroups.map(g=>g.id)),department_ids,division_ids:unique([...affiliation(u,`organization_user:${u.id}`,department_ids),...memberGroups.flatMap(g=>groupMemberships.find(m=>m.id===g.id)?.division_ids||[])]),sources};
   });
   const connectionMemberships=connections.filter(active).map(c=>{const department_ids=departments.filter(d=>d.subject_keys.includes(`organization_connection:${c.id}`)).map(d=>d.id);return {id:c.id,department_ids,division_ids:affiliation(c,`organization_connection:${c.id}`,department_ids),sources:department_ids.map(department_id=>({department_id,kind:'direct' as const,id:c.id}))};});
   return {catalog,users:userMemberships,groups:groupMemberships,connections:connectionMemberships,meaningful_department_count:departments.length};

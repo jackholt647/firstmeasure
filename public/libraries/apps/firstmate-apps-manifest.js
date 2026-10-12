@@ -33,7 +33,7 @@
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
-    versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
+    versionedBundle('../channels-api/channels-api.js', '20261012-notes-gifs-audiences-v6'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
@@ -42,8 +42,8 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
     versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-format-active-v2'),
-    versionedBundle('../project-notes/project-notes.js', '20261012-notes-compact-hover-v5'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-notes-gifs-audiences-v6'),
+    versionedBundle('../project-notes/project-notes.js', '20261012-notes-gifs-audiences-v6'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-activity-labels-v4'),
     versionedBundle('../project-trays/project-trays.js', '20261012-activity-labels-v4')
   ];
@@ -544,14 +544,14 @@
       access: { applicationsAny: ['management', 'field'] },
       bundles: [
         versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
-        versionedBundle('../channels-api/channels-api.js', '20260930-feed-posts-v1'),
+        versionedBundle('../channels-api/channels-api.js', '20261012-notes-gifs-audiences-v6'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-format-active-v2'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-notes-gifs-audiences-v6'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]

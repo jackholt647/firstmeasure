@@ -121,6 +121,7 @@
     },
 
     messages: {
+      noteAuthors: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/note-authors`)),
       updateVisibility: (orgId, messageId, input) => request(orgPath(orgId, `/messages/${enc(messageId)}/visibility`), { method:'PATCH', body:input }),
       list: (orgId, channelId, params = {}) => request(orgPath(orgId, `/channels/${enc(channelId)}/messages${queryString(params)}`)),
       post: (orgId, channelId, input) => request(orgPath(orgId, `/channels/${enc(channelId)}/messages`), { method: 'POST', body: input }),

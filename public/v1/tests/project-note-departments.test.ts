@@ -86,3 +86,28 @@ test('note reply counts exclude archives and correct historical counts without a
  await domain.restoreMessage(ctx('sales'),String(a.message!.id));assert.equal((await domain.listThread(ctx('sales'),id,{})).root!.reply_count,2);
  await domain.deleteMessage(ctx('sales'),String(a.message!.id));await domain.deleteMessage(ctx('sales'),String(b.message!.id));assert.equal((await domain.listThread(ctx('sales'),id,{})).root!.reply_count,0);
 });
+
+function advancedCtx(id:string){const viewer=ctx(id);viewer.organizationStructure={...structure,groups:[{id:'install-team',kind_id:'crew',label:'Install Team',department_ids:['dept-crew']}],users:structure.users.map((u:any)=>({...u,resource_group_ids:u.id==='crew' ? ['install-team'] : []}))};return viewer;}
+test('advanced note audiences use typed IDs, current active memberships and inherited reply policy',async()=>{
+ const posted=await domain.postMessage(advancedCtx('sales'),channel.id,{text:'Selected crew and person',project_note:true,department_ids:[],audience_refs:[{kind:'user',id:'sales'},{kind:'resource_group',id:'install-team'}]}).catch(()=>null);
+ assert.equal(posted,null,'A sales-only member cannot select an unrelated crew group');
+ const result=await domain.postMessage(advancedCtx('owner'),channel.id,{text:'Selected crew and person',project_note:true,department_ids:[],audience_refs:[{kind:'user',id:'sales'},{kind:'resource_group',id:'install-team'}]});const id=String(result.message!.id);
+ for(const person of ['owner','sales','crew'])assert.ok((await domain.listMessages(advancedCtx(person),channel.id,{view:'notes'})).messages.some(m=>m.id===id));assert.ok(!(await domain.listMessages(advancedCtx('office'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));await assert.rejects(()=>domain.listThread(advancedCtx('office'),id,{}));
+ const reply=await domain.postMessage(advancedCtx('crew'),channel.id,{text:'Team reply',parent_id:id,metadata:{note_audience_refs:[{kind:'user',id:'office'}],note_audience_owner_id:'office'}});const replyId=String(reply.message!.id);assert.equal((reply.message!.metadata as any).note_audience_owner_id,'owner');assert.deepEqual((reply.message!.metadata as any).note_audience_refs,(result.message!.metadata as any).note_audience_refs);
+ const removed=advancedCtx('crew');removed.organizationStructure!.users.find(u=>u.id==='crew')!.resource_group_ids=[];assert.ok(!(await domain.listMessages(removed,channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ await domain.editMessage(advancedCtx('owner'),id,{text:'Only sales person',department_ids:[],audience_refs:[{kind:'user',id:'sales'}]});assert.deepEqual((await store.readMessageRecord(org,replyId))?.metadata.note_audience_refs,[{kind:'user',id:'sales'}]);await assert.rejects(()=>domain.listThread(advancedCtx('crew'),id,{}));
+ await domain.updateMessageVisibility(advancedCtx('owner'),id,{department_ids:[],audience_refs:[{kind:'resource_group_kind',id:'crew',department_ids:['dept-crew']}]});assert.ok((await domain.listThread(advancedCtx('crew'),id,{})).replies.some(r=>r.id===replyId));assert.ok(!(await domain.listMessages(advancedCtx('sales'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ const before=await store.readMessageRecord(org,id);await domain.updateMessageVisibility(advancedCtx('owner'),id,{department_ids:[],audience_refs:[]});const after=await store.readMessageRecord(org,id);assert.equal(before?.edited_at,after?.edited_at);assert.equal(after?.metadata.department_access,'shared');assert.deepEqual((await store.readMessageRecord(org,replyId))?.metadata.note_audience_refs,[]);
+});
+test('advanced references reject foreign IDs, unbounded types, unavailable departments and metadata injection',async()=>{
+ const {validateNoteAudienceRefs}=await import('../workforce/note-audiences.js');
+ for(const ref of [{kind:'user',id:'missing'},{kind:'user',id:'office'},{kind:'resource_group',id:'foreign'},{kind:'resource_group_kind',id:'crew',department_ids:[]},{kind:'resource_group_kind',id:'crew',department_ids:['dept-crew']}])assert.throws(()=>validateNoteAudienceRefs(advancedCtx('sales'),[ref as any]));
+ const result=await domain.postMessage(ctx('owner'),channel.id,{text:'Ordinary note',project_note:true,department_ids:[],metadata:{note_audience_refs:[{kind:'user',id:'office'}],note_audience_owner_id:'office'}});assert.equal((result.message!.metadata as any).note_audience_owner_id,undefined);assert.equal((result.message!.metadata as any).note_audience_refs,undefined);
+ const {postMessageSchema}=await import('../channels/schemas.js');assert.throws(()=>postMessageSchema.parse({text:'Invalid',audience_refs:[{kind:'role',id:'owner'}]}));
+});
+test('author filters include complete authorized history, exclude private authors and filter before pagination',async()=>{
+ const result=await domain.postMessage(advancedCtx('crew'),channel.id,{text:'Private crew authored',project_note:true,department_ids:[],audience_refs:[{kind:'user',id:'crew'}]});
+ const authors=await domain.listProjectNoteAuthors(advancedCtx('office'),channel.id);assert.ok(!authors.authors.some(a=>a.id==='crew'));
+ const own=await domain.listProjectNoteAuthors(advancedCtx('crew'),channel.id);assert.ok(own.authors.some(a=>a.id==='crew' && a.count>0));
+ const filtered=await domain.listMessages(advancedCtx('crew'),channel.id,{view:'notes',author_ids:['crew'],limit:1});assert.equal(filtered.messages.length,1);assert.equal(filtered.messages[0]!.id,result.message!.id);
+});
