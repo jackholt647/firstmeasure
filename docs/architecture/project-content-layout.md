@@ -39,8 +39,7 @@ Pitch and roofing-square explanations are inline control tooltips. Edits use pro
 source, and have the existing override lifetime. Measurement cards have no hover
 tooltip or separate detail view.
 
-The right side has a thin action header for New resource type, Generate lists
-automatically, minimized resource type pills and the units switch. Ten pixels of padding match its gutter.
+The right side has a thin action header, described below. Ten pixels of padding match its gutter.
 Its three resource panes use the remaining height, scroll independently and narrow
 empty panes when another has content. With no items, all three are equal and
 show Empty List. First Add creates a missing typed list through the existing
@@ -71,6 +70,16 @@ default pay; project pay for an assigned list, with estimated hours beside it
 only when the resolved pay uses hours; and salary treatment only when the
 assignee's plan includes salary. Labor writers release the saving state before
 re-rendering, then rebuild the open popover.
+The action header holds restore tabs for minimized resource type columns on the
+left and three short, tooltipped actions on the right: Category (new resource
+type), Regenerate (generate lists from the scope) and the Measured/Order units
+switch. Minimizing a column animates it into its tab and restoring animates it
+back out. Dividers between columns are draggable and keyboard adjustable; two
+neighbours trade width, the weights are remembered per browser, and
+double-click resets them. A custom resource type can be removed from its
+column heading through the `materials.resource-type.archive` writer, which
+refuses built-in types and any type that still has an unarchived list in any
+project; the record is retired, not deleted, so its id is never reused.
 Deletion uses the domain archive writer; accepted document material sets cannot
 be deleted through that writer and remain available to minimize.
 

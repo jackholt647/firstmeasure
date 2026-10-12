@@ -392,7 +392,13 @@ function boundedTranslation(points,regions,wanted,options={}){
  if(options.axis==='x'){limits.bottom=Math.max(limits.bottom,0);limits.top=Math.min(limits.top,0);}if(options.axis==='y'){limits.left=Math.max(limits.left,0);limits.right=Math.min(limits.right,0);}
  if(limits.left>limits.right+1e-8||limits.bottom>limits.top+1e-8)return null;
  const cross2=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),sorted=points.slice().sort((a,b)=>a.x-b.x||a.y-b.y),half=ps=>{const out=[];for(const p of ps){while(out.length>1&&cross2(out.at(-2),out.at(-1),p)<=1e-10)out.pop();out.push(p);}return out;},hull=[...half(sorted).slice(0,-1),...half(sorted.slice().reverse()).slice(0,-1)];
- const valid=d=>{const ps=points.map(p=>({x:p.x+d.x,y:p.y+d.y,z:0}));if(!ps.every(p=>regions.some(f=>(pointInRing(p,f.points)||f.points.some((a,i)=>pointOnEdge(p,a,f.points[(i+1)%f.points.length])))&&!(f.holes||[]).some(r=>pointInRing(p,r)&&!r.some((a,i)=>pointOnEdge(p,a,r[(i+1)%r.length]))))))return false;return hull.length<3||K.difference({points:hull.map(p=>({x:p.x+d.x,y:p.y+d.y,z:0}))},regions).reduce((s,f)=>s+K.area(f),0)<1e-8;};
+ const contactsValid=d=>points.every(q=>{
+  const p={x:q.x+d.x,y:q.y+d.y,z:0},boundary=r=>r.some((a,i)=>pointOnEdge(p,a,r[(i+1)%r.length]));
+  return regions.some(f=>(pointInRing(p,f.points)||boundary(f.points))&&!(f.holes||[]).some(r=>pointInRing(p,r)&&!boundary(r)));
+ });
+ const valid=d=>contactsValid(d)&&(hull.length<3||K.difference({points:hull.map(p=>({x:p.x+d.x,y:p.y+d.y,z:0}))},regions).reduce((s,f)=>s+K.area(f),0)<1e-8);
+ // Existing geometry may intentionally extend below its support (basement doors).
+ if(options.requireOrigin&&!contactsValid({x:0,y:0}))return null;
  const clamp=d=>({x:Math.max(limits.left,Math.min(limits.right,d.x)),y:Math.max(limits.bottom,Math.min(limits.top,d.y))}),target=clamp(wanted);if(valid(target))return target;
  const ring=regions.length===1&&!(regions[0].holes||[]).length?(signedArea(regions[0].points)<0?regions[0].points.slice().reverse():regions[0].points):null;
  if(ring&&ring.every((p,i)=>cross2(p,ring[(i+1)%ring.length],ring[(i+2)%ring.length])>=-1e-8)){
@@ -534,8 +540,8 @@ function generatedContactRoof(source,roof){
   return face;
  })};
 }
-function roofExtrusion(source,amount,shape,roof){
- const n=normal(source.points);if(!roof?.faces?.length||!n||Math.abs(n.z)>K.CONTACT||Math.abs(amount)<K.CONTACT)return shape;
+function roofExtrusion(source,amount,shape,roof,options={}){
+ const n=extrusionDirection(source,options.direction);if(!roof?.faces?.length||!n||Math.abs(n.z)>K.CONTACT||Math.abs(amount)<K.CONTACT)return shape;
  roof=generatedContactRoof(source,roof);
  const measuredRoof=roof,continuations=roofContactExtensions(source,roof);if(continuations.length)roof={...roof,faces:[...roof.faces,...continuations]};
  // The roof owns its surface. Keep only exposed portions of sweep returns,
@@ -546,7 +552,7 @@ function roofExtrusion(source,amount,shape,roof){
  const direction={x:n.x*Math.sign(amount),y:n.y*Math.sign(amount),z:0},length=Math.abs(amount),frame=K.frame(source);
  const mesh=source.curvedSurface?.logical?K.surfaceMesh(source):null,triangles=mesh?mesh.triangles.map(t=>t.map(i=>mesh.positions[i])):(()=>{const m=K.triangles(source.points.map(p=>K.local(frame,p)),(source.holes||[]).map(r=>r.map(p=>K.local(frame,p))));return m.triangles.map(t=>t.map(i=>K.world(frame,m.points[i])));})();
  const prisms=triangles.map(points=>prismPlanes(points,direction,length));
- const sweepShell=[...K.surfaceFacets(shape.cap),...extrude(source,amount,{facets:true}).sides];
+ const sweepShell=[...K.surfaceFacets(shape.cap),...extrude(source,amount,{facets:true,direction:options.direction}).sides];
  const zMax=Math.max(...source.points.map(p=>p.z),...shape.cap.points.map(p=>p.z))+1,cutters=[];
  for(const roofFace of roof.faces){
   if(roofFace.deleted||!roofFace.points?.every(K.finite3))continue;
@@ -615,13 +621,22 @@ function finishExtrusionSides(face,sides,options){
   side.material=neighbor?.material||'default';side.finishColor=neighbor?.finishColor;
  }
 }
-function extrude(face,amount,options={}){if(face.curvedSurface?.logical)return extrudeCurved(face,amount,options);const n=normal(face.points);if(!n)throw Error('The face has no area.');const moved=p=>({x:p.x+n.x*amount,y:p.y+n.y*amount,z:p.z+n.z*amount}),cap={...face,...K.mapCurveData(face,moved),opening:false,points:face.points.map(moved),retainedPoints:(face.retainedPoints||[]).map(moved),holes:(face.holes||[]).map(h=>h.map(moved))},sides=[];
+function extrusionDirections(face){
+ const n=normal(face.points);if(!n)return [];
+ return [{label:'Face normal',direction:n},...['x','y','z'].filter(axis=>Math.abs(n[axis])>1e-6&&Math.abs(n[axis])<1-1e-8).sort((a,b)=>Math.abs(n[b])-Math.abs(n[a])).map(axis=>({label:'World '+axis.toUpperCase(),direction:{x:0,y:0,z:0,[axis]:Math.sign(n[axis])}}))];
+}
+function extrusionDirection(face,direction){
+ const n=normal(face.points);if(!n)throw Error('The face has no area.');if(!direction)return n;
+ if(![direction.x,direction.y,direction.z].every(Number.isFinite)||Math.hypot(direction.x,direction.y,direction.z)<1e-8)throw Error('Choose a finite extrusion direction.');
+ const length=Math.hypot(direction.x,direction.y,direction.z),d={x:direction.x/length,y:direction.y/length,z:direction.z/length};if(Math.abs(dot(n,d))<=1e-6)throw Error('This direction lies in the face plane and would create zero thickness.');return d;
+}
+function extrude(face,amount,options={}){if(face.curvedSurface?.logical)return extrudeCurved(face,amount,options);const n=extrusionDirection(face,options.direction);const moved=p=>({x:p.x+n.x*amount,y:p.y+n.y*amount,z:p.z+n.z*amount}),cap={...face,...K.mapCurveData(face,moved),opening:false,points:face.points.map(moved),retainedPoints:(face.retainedPoints||[]).map(moved),holes:(face.holes||[]).map(h=>h.map(moved))},sides=[];
  if(Math.abs(amount)>1e-6)for(const [ring,points]of [face.points,...(face.holes||[])].entries())for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length],intervals=options.supports?sharedIntervals(a,b,options.supports):[[0,1]];for(const [part,[lo,hi]]of intervals.entries()){const p=mix3(a,b,lo),q=mix3(a,b,hi);let curvedSurface;for(const curve of face.curves||[]){const samples=K.curveSamples(curve);for(let j=1;j<samples.length;j++)if(pointOnEdge(p,samples[j-1],samples[j])&&pointOnEdge(q,samples[j-1],samples[j])){const start=samples[j-1],end=samples[j],v=sub(end,start),l2=dot(v,v),parameter=p=>start.curveT+(end.curveT-start.curveT)*dot(sub(p,start),v)/l2;curvedSurface={type:'ellipse-extrusion',curve,offset:{x:n.x*amount,y:n.y*amount,z:n.z*amount},range:[parameter(p),parameter(q)]};break;}}sides.push({... (curvedSurface?{curvedSurface}:{}),...((face.material)?{material:face.material}:{}),...(face.finishColor?{finishColor:face.finishColor}:{}),...((face.chimney)?{chimney:{...face.chimney,drivesFootprint:false,derived:true}}:{}),id:face.id+'-side-'+ring+'-'+i+'-'+part,points:[p,q,moved(q),moved(p)],holes:[],opening:false});}}
  delete cap.attachment;finishExtrusionSides(face,sides,options);return {cap,sides:options.facets?sides:K.compactSurfaces(sides)};}
 // Sweep evaluated boundaries, never the chord joining logical control points.
 // Keep the cap exact and use temporary planar patches for neighboring booleans.
 function extrudeCurved(face,amount,options){
- const n=normal(face.points);if(!n)throw Error('The face has no extrusion direction.');
+ const n=extrusionDirection(face,options.direction);
  const offset={x:n.x*amount,y:n.y*amount,z:n.z*amount},moved=p=>({x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z}),cap={...face,...K.mapCurveData(face,moved),points:face.points.map(moved),holes:[],retainedPoints:[],opening:false},sides=[];
  delete cap.attachment;
  const supports=options.supports?.map(K.surfaceOutline);
@@ -1235,5 +1250,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
