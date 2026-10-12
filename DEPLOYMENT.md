@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Feed scrolling: [Retained pagination position and expandable Posts notes](deploy/digitalocean/development-feed-scroll-notes-20261012.md) records the scroll fix, end status, note controls and development verification.
+
 October 11 Feed images: [Missing-thumbnail fallback across list and Posts](deploy/digitalocean/development-feed-photo-fallback-20261011.md) records the small-photo handling, cached fallback fix and development verification.
 
 October 11 table editing: [Retain table controls after insertion](deploy/digitalocean/development-feed-table-selection-20261011.md) records the shared editor fix, regression and development rollout.
