@@ -107,7 +107,7 @@
 /* Compact, light controls match the report/configuration menu. */
 #project-resources .resource-toolbar>button{display:inline-flex;align-items:center;justify-content:center;gap:5px}
 #project-resources svg{flex:none;vertical-align:middle}
-#project-resources .resource-library{width:224px}
+#project-resources .resource-library{width:336px;max-width:85%}
 #project-resources .resource-file-list{padding:6px}
 #project-resources .resource-section{--category:#1a73e8;--category-bg:#edf4ff;margin-bottom:7px;border:1px solid #dfe5ec;border-radius:5px;overflow:hidden;background:#fff}
 #project-resources .resource-section[data-role=qa]{--category:#9a6700;--category-bg:#fff8e6}
@@ -128,6 +128,19 @@
 #project-resources .resource-overlay-shortcut{display:grid;place-items:center;flex:none;width:26px;min-height:26px;height:26px;padding:4px;color:#667085;border:1px solid transparent;border-radius:3px;background:transparent}
 #project-resources .resource-overlay-shortcut:hover{background:#e8f0fe;color:#1967d2}
 #project-resources .resource-overlay-shortcut[aria-pressed=true]{background:#e8f0fe;border-color:#b8cff4;color:#1967d2}
+
+#project-resources .resource-file-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:6px}
+#project-resources .resource-file-grid>.resource-file-card{grid-column:1/-1;min-width:0;border:1px solid #e1e6ed;border-radius:5px;padding:0;overflow:hidden}
+#project-resources .resource-file-grid>.resource-media-tile{grid-column:auto;display:block;background:#f8fafc}
+#project-resources .resource-media-tile .resource-item{height:auto;min-height:126px;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0;border-radius:4px;white-space:normal}
+#project-resources .resource-media-tile .resource-item>span:last-child{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow:hidden;overflow-wrap:anywhere;height:38px;padding:4px 30px 4px 6px;line-height:15px}
+#project-resources .resource-media-tile .resource-thumbnail{display:flex;align-items:center;justify-content:center;position:relative;width:100%;height:92px;flex:none;background:#e8edf3;color:#667085;border-bottom:1px solid #dfe5ec}
+#project-resources .resource-thumbnail img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
+#project-resources .resource-thumbnail>svg{width:32px;height:32px}
+#project-resources .resource-media-kind{position:absolute;bottom:5px;left:6px;font-size:10px}
+#project-resources .resource-media-tile>.resource-overlay-shortcut,#project-resources .resource-media-tile>.resource-frame-shortcut{position:absolute;right:2px;bottom:5px;background:#fffffff2}
+#project-resources .resource-media-tile>.resource-frame-shortcut:has(+.resource-overlay-shortcut){bottom:34px}
+#project-resources .resource-file-grid>.resource-section-empty{grid-column:1/-1}
 
 /* Photo matching controls sit below the orientation gizmo. */
 #three-container .resource-3d-background{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:#111;z-index:0}

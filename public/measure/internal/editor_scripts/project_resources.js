@@ -263,16 +263,23 @@
    const heading=document.createElement('summary');heading.className='resource-section-heading';heading.innerHTML=icon(role);
    const title=document.createElement('span');title.textContent=roleName(role)+(role===currentRole()?' (You)':'');const count=document.createElement('span');count.className='resource-section-count';count.textContent=bucket.length;heading.append(title,count);section.append(heading);list.append(section);
    section.addEventListener('toggle',()=>{if(!section.isConnected)return;collapsedGroups[role]=!section.open;remember();});
-   if(!bucket.length){const empty=document.createElement('div');empty.className='resource-section-empty';empty.textContent='No files yet';section.append(empty);}
+   const grid=document.createElement('div');grid.className='resource-file-grid';section.append(grid);
+   if(!bucket.length){const empty=document.createElement('div');empty.className='resource-section-empty';empty.textContent='No files yet';grid.append(empty);}
    for (const file of bucket) {
     const button = document.createElement('button'); button.className = 'resource-item'; button.classList.toggle('active', current?.name === file.name);
     const name = document.createElement('span'); name.textContent = (file.elevation_view ? ({front:'Front',back:'Back',left:'Left',right:'Right','front-left':'Front Left','front-right':'Front Right','back-left':'Back Left','back-right':'Back Right'}[file.elevation_view]||file.elevation_view)+' · ' : '') + label(file.name); button.append(name);
     button.title = name.textContent+' · '+roleName(role)+(file.uploaded_at ? '\n' + new Date(file.uploaded_at).toLocaleString() : '');
     button.onclick = () => open(file).catch(error => message(error.message, true));
     const card=document.createElement('div');card.className='resource-file-card';card.append(button);
+    const ext=(file.original_name||file.name).split('.').pop().toLowerCase(),photo=!file.notes&&/^(png|jpe?g|gif|webp|avif|bmp)$/.test(ext),video=!file.notes&&/^(mp4|webm|mov)$/.test(ext);
+    if(photo||video){card.classList.add('resource-media-tile');const preview=document.createElement('span');preview.className='resource-thumbnail';preview.setAttribute('aria-hidden','true');
+     if(photo){const img=document.createElement('img');img.alt='';img.loading='lazy';img.decoding='async';img.src=sourceUrl(file);img.onerror=()=>{img.remove();preview.textContent='Image';};preview.append(img);}
+     else {preview.innerHTML=icon('frames');const badge=document.createElement('span');badge.className='resource-media-kind';badge.textContent='Video';preview.append(badge);}
+     button.prepend(preview);
+    }
     const link=frameLink(file);if(link){const jump=document.createElement('button');jump.className='resource-frame-shortcut';jump.innerHTML=icon('frames');jump.title='Video frame · '+timeLabel(link.time)+' · Jump to video';jump.setAttribute('aria-label','Jump to video frame for '+label(file.name));jump.onclick=()=>jumpToFrame(file).catch(error=>message(error.message,true));card.append(jump);}
     if (!file.reference&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.name)) {const overlay=document.createElement('button');overlay.className='resource-overlay-shortcut';overlay.innerHTML=icon('overlay');overlay.title=window.Resource3DOverlay?.imageName===file.name?'Remove from 3D background':'Show behind 3D model';overlay.setAttribute('aria-label',(window.Resource3DOverlay?.imageName===file.name?'Remove ':'Use ')+label(file.name)+(window.Resource3DOverlay?.imageName===file.name?' from 3D background':' as 3D background'));overlay.setAttribute('aria-pressed',String(window.Resource3DOverlay?.imageName===file.name));overlay.onclick=()=>sendBackground(file).catch(error=>message(error.message,true));card.append(overlay);}
-    section.append(card);
+    grid.append(card);
    }
    }
   }
