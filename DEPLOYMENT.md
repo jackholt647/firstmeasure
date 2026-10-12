@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Note sending and active replies: [Enter sends, archive-aware counts and bounded reply lines](deploy/digitalocean/development-note-enter-active-replies-20261012.md) records the keyboard behavior, historical count correction, immediate composer closure, checks and development rollout.
+
 October 12 Notes toolbar and formatting: [Add Reply gating and shared active controls](deploy/digitalocean/development-notes-toolbar-formatting-20261012.md) records Activity toolbar parity, persistent red formatting indicators, browser checks and verified development publication.
 
 October 12 Project Note replies: [Rich composer and compact reply cards](deploy/digitalocean/development-project-note-replies-20261012.md) records Enter-to-send, reply actions, draft preservation, browser checks and verified development publication.
