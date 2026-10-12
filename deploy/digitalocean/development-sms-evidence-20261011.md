@@ -32,3 +32,16 @@ https://support.telnyx.com/en/articles/10684260-10dlc-opt-in-form
 Development rollout uses guarded overlays of each host's live source and retains
 organization-specific registration routing and concurrent releases. No provider
 purchases, submissions, or real messages in tests.
+- START confirmation copy could name the chosen purposes and include the
+  marketing purchase disclaimer, matching Telnyx's template more closely:
+  https://support.telnyx.com/en/articles/10645338-10dlc-keywords-and-confirmation-messages
+
+## Development verified
+
+Release `ad26138a1d89c257f6496537e18d0a28eaf6dba0` activated on web, pool,
+compatibility and worker. Merged server TypeScript checking passed. HTTP roles
+returned ready and worker is active. Public readiness returned ready; the served
+settings asset matches staged SHA-256
+`5f72b0c1a2e7f010c4835d38a393544c04f3573f2fae2322d33e8f9efa578a06`.
+The readiness cache briefly retained a legacy-service restart warning while
+compatibility had already recovered. No production changes were made.
