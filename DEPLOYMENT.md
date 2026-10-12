@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Feed photo navigation: [Open selected photos in the project window](deploy/digitalocean/development-feed-project-photo-20261012.md) records the shared Feed click change, regression coverage and verified development rollout.
+
 October 12 Feed preloading: [Load before the bottom and hide document hydration notice](deploy/digitalocean/development-feed-prefetch-20261012.md) records the continuous scrolling adjustment and development verification.
 
 October 12 Feed scrolling: [Retained pagination position and expandable Posts notes](deploy/digitalocean/development-feed-scroll-notes-20261012.md) records the scroll fix, end status, note controls and development verification.
