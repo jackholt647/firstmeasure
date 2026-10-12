@@ -814,7 +814,7 @@
     extraStyle.textContent+=`.pn-card footer>[data-act=replies],.pn-workspace .pn-reply-add-row button{border:0;background:transparent;padding:0;border-radius:0;font:inherit;font-size:10px;font-weight:400;color:#667085;cursor:pointer;line-height:normal}.pn-card footer>[data-act=replies][hidden],.pn-reply-add-row[hidden]{display:none}`;
     extraStyle.textContent+=`
       .pn-workspace .pn-composer-box{padding:5px 7px 3px}
-      .pn-workspace .pn-editor-mount>.fm-ch-rich-editor,.pn-workspace .pn-editor-mount>textarea{box-sizing:border-box;min-height:24px;padding:2px 0;line-height:20px;font-size:13px;max-height:220px}
+      .pn-workspace .pn-editor-mount>.fm-ch-rich-editor,.pn-workspace .pn-editor-mount>textarea{box-sizing:border-box;min-height:44px;padding:2px 0;line-height:20px;font-size:13px;max-height:220px}
       .pn-workspace .pn-editor-mount>.fm-ch-formatbar{border-bottom:0;padding-bottom:0;margin-bottom:2px;min-height:26px;flex-wrap:nowrap}
       .pn-workspace .pn-compose-actions{margin-top:4px;gap:3px;min-height:26px}
       .pn-workspace .pn-compose-actions>.pn-icon,.pn-workspace .pn-compose-actions>[data-mention-button]{width:26px;height:26px;padding:3px;border:0;background:transparent;cursor:pointer;color:#667085;border-radius:5px}

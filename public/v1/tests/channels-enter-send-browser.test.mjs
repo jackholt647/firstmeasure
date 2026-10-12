@@ -12,7 +12,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
   await mkdir(output,{recursive:true});
   const server=createServer(async(req,res)=>{
   if(req.url.startsWith('/images/giphy/')){res.setHeader('Content-Type','image/png');const pathname=new URL(req.url,'http://fixture').pathname;const data=process.env.DEV_ASSETS?Buffer.from(await (await fetch('https://dev.1m8.ai'+pathname+'?mark-check='+Date.now())).arrayBuffer()):await readFile(publicRoot+pathname);res.end(data);return;}
-    const assets={'/libraries/date-time-picker/date-time-picker.js':'/libraries/date-time-picker/date-time-picker.js','/gifs.js':'/libraries/platform-widgets/gifs.js','/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
+    const assets={'/libraries/platform-widgets/pickers.js':'/libraries/platform-widgets/pickers.js','/libraries/date-time-picker/date-time-picker.js':'/libraries/date-time-picker/date-time-picker.js','/gifs.js':'/libraries/platform-widgets/gifs.js','/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
     const asset=assets[new URL(req.url,'http://fixture').pathname];if(asset){
       res.setHeader('Content-Type','text/javascript; charset=utf-8');
       const data=process.env.DEV_ASSETS?await (async()=>{
@@ -79,7 +79,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     }
     const gifMessage=page.locator('.fm-ch-msg[data-message-id="gif-only"]');await gifMessage.locator('.fm-ch-gif').waitFor();assert.equal(await gifMessage.locator('.fm-ch-msg-body').isHidden(),true);const gifSpacing=await gifMessage.evaluate(node=>{const head=node.querySelector('.fm-ch-msg-head').getBoundingClientRect(),image=node.querySelector('.fm-ch-gif img').getBoundingClientRect(),figure=node.querySelector('.fm-ch-gif');return {before:image.top-head.bottom,bottom:getComputedStyle(figure).marginBottom,caption:getComputedStyle(figure.querySelector('figcaption')).lineHeight,position:getComputedStyle(figure.querySelector('figcaption')).position};});assert.ok(gifSpacing.before<=4,JSON.stringify(gifSpacing));assert.equal(gifSpacing.bottom,'0px');assert.equal(gifSpacing.caption,'12px');assert.equal(gifSpacing.position,'absolute');
     const editor=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();
-    assert.ok(await editor.evaluate(n=>n.getBoundingClientRect().height<=30),'channel composer starts at one line');
+    assert.ok(await editor.evaluate(n=>n.getBoundingClientRect().height>=44 && n.getBoundingClientRect().height<=50),'channel composer starts at two lines');
     assert.equal(await page.locator('.fm-ch-composer .fm-ch-formatbar').first().evaluate(n=>getComputedStyle(n).borderBottomWidth),'0px');
     assert.equal(await page.locator('.fm-ch-formatbar [data-mention-button]').count(),0);
     const schedule=page.locator('.fm-ch-composer').getByRole('button',{name:'Schedule message',exact:true});
@@ -90,6 +90,10 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     }
     await editor.fill('Keep failed schedule draft');await page.evaluate(()=>window.failSchedule=true);await schedule.click();await page.getByRole('menuitem',{name:'Tomorrow at 9:00 AM',exact:true}).click();await page.getByText('Schedule failed',{exact:true}).waitFor();assert.equal(await editor.evaluate(n=>n.value),'Keep failed schedule draft');assert.equal(await page.evaluate(()=>schedules.length),2);await page.keyboard.press('Escape');await page.evaluate(()=>window.failSchedule=false);
     await editor.fill('Use custom picker');await schedule.click();await page.getByRole('menuitem',{name:'Custom time',exact:true}).click();const calendar=page.getByRole('dialog',{name:'Schedule message',exact:true});await calendar.locator('[data-schedule-calendar]').waitFor();assert.ok(await calendar.locator('[data-schedule-calendar]').evaluate(n=>n.children.length>0));await calendar.getByRole('button',{name:'Schedule send',exact:true}).click();await page.waitForFunction(()=>schedules.length===3);await calendar.waitFor({state:'detached'});
+    const mainComposer=page.locator('.fm-ch-composer').first();
+    assert.equal(await mainComposer.getByRole('button',{name:'Send',exact:true}).locator('.fa-paper-plane').count(),1);assert.equal(await mainComposer.getByRole('button',{name:'Send',exact:true}).innerText(),'');assert.equal(await mainComposer.locator('.fm-ch-send-pair').evaluate(n=>getComputedStyle(n).borderLeftWidth),'0px');assert.deepEqual(await mainComposer.locator('.fm-ch-send-pair>button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),['Send','Schedule message']);
+    const emojiToggle=mainComposer.getByRole('button',{name:'Insert emoji',exact:true});await emojiToggle.click();await page.getByRole('dialog',{name:'Choose an emoji'}).waitFor();await emojiToggle.click();assert.equal(await page.getByRole('dialog',{name:'Choose an emoji'}).count(),0);
+    const moreToggle=mainComposer.getByRole('button',{name:'More options',exact:true});await moreToggle.click();await page.locator('.fm-ch-recording-menu').waitFor();assert.ok(await page.locator('.fm-ch-recording-menu button').count()>=2);await moreToggle.click();assert.equal(await page.locator('.fm-ch-recording-menu').count(),0);
     await verifyFormatting(editor);
     assert.equal(await page.locator('.fm-ch-composer-hint').first().innerText(),'Shift+Enter for a new line');
     await editor.fill('First');await editor.press('Shift+Enter');await page.keyboard.type('Second');
@@ -113,7 +117,10 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     await editor.press('Escape');
     await page.evaluate(()=>instance.openThread('root'));
     const reply=page.locator('.fm-ch-panel .fm-ch-composer .fm-ch-rich-editor');
-    await reply.waitFor();await verifyFormatting(reply);await reply.fill('Reply first');await reply.press('Shift+Enter');await page.keyboard.type('Reply second');
+    await reply.waitFor();const replyComposer=page.locator('.fm-ch-panel .fm-ch-composer');assert.equal(await replyComposer.getByRole('button',{name:'Reply',exact:true}).locator('.fa-paper-plane').count(),1);assert.equal(await replyComposer.locator('.fm-ch-composer-row').evaluate(n=>n.querySelector('[data-mention-button]').getBoundingClientRect().right<n.querySelector('.fm-ch-send').getBoundingClientRect().left),true,'reply tagging stays with the left icon group');
+    assert.equal(await replyComposer.locator('.fm-ch-composer-row .fm-ch-reply-broadcast').count(),0);assert.equal(await replyComposer.locator('.fm-ch-composer-box>.fm-ch-reply-broadcast').evaluate(n=>n.getBoundingClientRect().bottom<=n.nextElementSibling.getBoundingClientRect().top),true,'broadcast checkbox sits above the icon row');
+    const replyMore=replyComposer.getByRole('button',{name:'See more formatting'});await replyMore.click();await page.getByRole('menuitem',{name:'Code block',exact:true}).waitFor();assert.equal(await page.locator('.fm-ch-popover').evaluate(n=>n.scrollWidth<=n.clientWidth),true,'reply menu fits without horizontal scroll');assert.equal(await page.getByRole('menuitem',{name:'Code block',exact:true}).evaluate(n=>getComputedStyle(n).color),'rgb(16, 24, 40)');await replyMore.click();assert.equal(await page.locator('.fm-ch-popover').count(),0);
+    await verifyFormatting(reply);await reply.fill('Reply first');await reply.press('Shift+Enter');await page.keyboard.type('Reply second');
     assert.equal(await page.evaluate(()=>sent.length),3);
     await reply.press('Enter');await page.waitForFunction(()=>sent.length===4);
     assert.equal(await page.evaluate(()=>sent[3].parent_id),'root');
@@ -121,6 +128,8 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     await page.evaluate(async()=>{instance.destroy();document.querySelector('#app').replaceChildren();const old=ChannelsAPI.channels.get;ChannelsAPI.channels.get=async()=>{const result=await old();result.channel.type='dm';return result;};window.instance=FirstMateChannels.create(document.querySelector('#app'),fixtureOptions);await instance.setChannel('general');});
     const dm=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();await verifyFormatting(dm);await dm.fill('DM message');await dm.press('Enter');await page.waitForFunction(()=>sent.length===5);
     assert.equal(await page.evaluate(()=>sent[4].text),'DM message');
+    await page.evaluate(async()=>{messages.push({...messages[0],id:'table-size',text:'| Name | Value |\n| --- | --- |\n'+Array.from({length:12},(_,i)=>'| Row '+i+' | '+i+' |').join('\n')});await instance.setChannel('general');});
+    await page.setViewportSize({width:2400,height:1400});await page.locator('[data-message-id=table-size] .fm-ch-table-open').click();const tableModal=page.getByRole('dialog',{name:'Table',exact:true});await tableModal.evaluate(n=>Promise.all(n.getAnimations().map(a=>a.finished)));assert.deepEqual(await tableModal.evaluate(n=>{const r=n.getBoundingClientRect();return {width:r.width,height:r.height};}),{width:1720,height:1180});await page.setViewportSize({width:1100,height:800});const tableSize=await tableModal.evaluate(n=>{const r=n.getBoundingClientRect();return {width:r.width,height:r.height};});assert.ok(Math.abs(tableSize.width-1056)<1 && Math.abs(tableSize.height-736)<1,JSON.stringify(tableSize));await tableModal.getByRole('button',{name:'Close dialog',exact:true}).click();
     assert.deepEqual(errors,[]);
   }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });

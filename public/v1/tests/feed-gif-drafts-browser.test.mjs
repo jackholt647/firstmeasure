@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile,mkdir} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright-core';
 const libraries=new URL('../../libraries/',import.meta.url);
 const sdk=`export class GiphyFetch{async trending(){return {data:[{id:'draft-gif'}]};}search(){return this.trending();}}
@@ -16,7 +17,7 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
    return route.fulfill({contentType:'text/html',body:'<html><body><main id="feed" style="height:900px"></main></body></html>'});
   });
   await page.route('https://media.giphy.com/**',r=>r.fulfill({contentType:'image/gif',body:Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64')}));
-  await page.goto('http://feed.test/');
+  await page.goto('http://feed.test/');await page.addStyleTag({content:'.fas{display:inline-block;width:14px;height:14px}'});
   await page.addScriptTag({url:'/libraries/platform-widgets/gifs.js'});
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org',userId:'sam'};
@@ -39,8 +40,11 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   const post=page.locator('[data-feed-post="manual:root"]');await post.waitFor();assert.equal(await post.locator('.pf-manual-gif .fm-widget-gif').count(),1);assert.equal(await post.locator('.pf-manual-gif figcaption img').getAttribute('alt'),'Powered by GIPHY');
   await post.getByRole('button',{name:'Comments',exact:true}).click();
   const choose=async trigger=>{await trigger.click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'Choose test GIF'}).click();};
-  assert.ok(await post.locator('[data-comment-editor]').evaluate(n=>n.getBoundingClientRect().height<=28));assert.equal(await post.locator('.fm-ch-formatbar').evaluate(n=>getComputedStyle(n).borderBottomWidth),'0px');
-  assert.equal(await post.locator('.pf-comment-tools').evaluate(n=>{const more=n.querySelector('.fm-ch-more-actions').getBoundingClientRect(),send=n.querySelector('[type=submit]').getBoundingClientRect();return more.right<=send.left;}),true,'More stays with the tools before Send');
+  assert.ok(await post.locator('[data-comment-editor]').evaluate(n=>n.getBoundingClientRect().height>=42 && n.getBoundingClientRect().height<=48));assert.equal(await post.locator('.fm-ch-formatbar').evaluate(n=>getComputedStyle(n).borderBottomWidth),'0px');
+  assert.equal(await post.locator('.fm-ch-more-actions').count(),0,'one recording action has no More wrapper');assert.equal(await post.locator('.pf-comment-tools').evaluate(n=>{const audio=n.querySelector('[data-comment-audio]').getBoundingClientRect(),send=n.querySelector('[type=submit]').getBoundingClientRect(),row=n.getBoundingClientRect();return audio.right<send.left && audio.left<row.left+130;}),true,'audio stays with the left-hand tools');
+  const commentButtons=await post.locator('.fm-ch-formatbar>button').evaluateAll(nodes=>nodes.filter(n=>!n.hidden).map(n=>({border:getComputedStyle(n).borderTopWidth,background:getComputedStyle(n).backgroundColor,height:n.getBoundingClientRect().height,color:getComputedStyle(n).color})));assert.ok(commentButtons.every(n=>n.border==='0px' && n.background==='rgba(0, 0, 0, 0)' && n.height>=26 && n.height<=28 && n.color==='rgb(102, 112, 133)'),JSON.stringify(commentButtons));
+  for(let i=0;i<2;i++){const toggle=post.getByRole('button',{name:'Insert emoji',exact:true});await toggle.click();await page.locator('.pf-emoji-widget').waitFor();await toggle.locator('i').click();assert.equal(await page.locator('.pf-emoji-widget').count(),0,'emoji icon and its child toggle the picker closed');}
+  await mkdir(new URL('../../../output/composer-refinements/',import.meta.url),{recursive:true});await post.locator('.pf-comment-input').screenshot({path:fileURLToPath(new URL('../../../output/composer-refinements/feed-comment.png',import.meta.url))});
   await post.locator('[data-comment-editor]').fill('Caption');await choose(post.locator('[data-comment-gif]'));
   assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('[data-comment-editor]').evaluate(n=>n.value),'Caption');
   await post.getByRole('button',{name:'Remove GIF'}).click();assert.equal(await post.locator('.pf-composer-gif').count(),0);
@@ -54,6 +58,9 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===2);assert.equal(await page.evaluate(()=>comments[1].text),'');
   await page.locator('[data-feed-compose-open]').click();
   const postEditor=page.locator('[data-feed-compose] [contenteditable]');
+  assert.equal(await page.locator('.pf-post-formatbar').evaluate(n=>getComputedStyle(n).borderBottomWidth),'1px','manual-post toolbar retains its prior divider and spacing');assert.equal(await page.locator('.pf-post-compose-tools .fm-ch-more-actions').count(),0);
+  assert.equal(await page.locator('.pf-post-compose-tools [data-mention-button]').evaluate(n=>getComputedStyle(n).borderTopWidth),'0px');
+  await page.locator('.pf-compose-message').screenshot({path:fileURLToPath(new URL('../../../output/composer-refinements/manual-post.png',import.meta.url))});
   assert.ok(await postEditor.evaluate(n=>n.getBoundingClientRect().height>=300),'manual posts keep their large editor');
   for(const name of ['Bold','Italic','Strikethrough']){await postEditor.evaluate(n=>{n.value='';n.focus();const r=document.createRange();r.selectNodeContents(n);r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);});const toggle=page.locator('.pf-post-formatbar').getByRole('button',{name,exact:true});await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'true');assert.equal(await toggle.evaluate(n=>getComputedStyle(n).color),'rgb(217, 48, 37)');await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'false');}
 

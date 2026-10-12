@@ -674,6 +674,7 @@
       button.dataset.mentionButton = 'true';
       button.onmousedown = event => { editor.saveSelection?.(); event.preventDefault(); };
       button.onclick = async () => {
+        if(openPopover?._anchor===button){closePopover();return;}
         const isCurrent = options.isCurrent || (() => editor.isConnected);
         const range = root.getSelection()?.rangeCount && editor.contains(root.getSelection().anchorNode) ? root.getSelection().getRangeAt(0).cloneRange() : null;
         const textRange = [editor.selectionStart, editor.selectionEnd];
@@ -701,12 +702,13 @@
                   closePopover();
                 }; results.append(item);
               }
+              if(!results.children.length)results.append(el('div','fm-ch-popover-head','No teammates match.'));
             }; search.oninput = render; render(); search.focus();
           });
         } catch (error) { options.onError?.(error); }
       };
       const toolbar=options.mount || (box.matches('.fm-ch-formatbar') ? box : box.querySelector('.fm-ch-formatbar'));
-      toolbar?.insertBefore(button,toolbar.querySelector('.fm-ch-table-controls'));
+      toolbar?.insertBefore(button,toolbar.querySelector(':scope > .fm-ch-table-controls,:scope > .fm-ch-send-pair,:scope > .fm-ch-send,:scope > button[type=submit]'));
       return button;
     }
 
@@ -1079,7 +1081,7 @@
 .fm-ch-table-picker-cell.active{border-color:var(--ch-accent)!important;background:var(--ch-accent-soft)!important}
 .fm-ch-table-picker-label{text-align:center;font-size:12px;font-weight:700}
 .fm-ch-formatbar{flex-wrap:wrap}.fm-ch-table-controls{display:flex;gap:4px;flex-wrap:wrap;width:100%}.fm-ch-table-controls[hidden]{display:none}.fm-ch-table-controls button{width:auto;padding:3px 6px;font-size:11px}
-.fm-ch-modal.fm-ch-table-modal{width:calc(100vw - 24px);max-width:none;height:calc(100dvh - 24px);max-height:none;display:flex;flex-direction:column}
+.fm-ch-modal.fm-ch-table-modal{width:min(1720px,96vw);max-width:calc(100vw - 24px);height:min(1180px,92dvh);max-height:calc(100dvh - 24px);display:flex;flex-direction:column}
 .fm-ch-table-modal .fm-ch-modal-body{flex:1;min-height:0;overflow:auto}.fm-ch-table-modal .fm-ch-rich-editor{max-height:none;min-height:100%;overflow:visible}
 .fm-ch-table-view table{border-collapse:collapse;min-width:100%;table-layout:fixed}.fm-ch-table-view td,.fm-ch-table-view th{border:1px solid var(--ch-border);padding:8px;min-width:80px;overflow-wrap:anywhere;vertical-align:top}
 .fm-ch-rich-editor td,.fm-ch-rich-editor th,.fm-ch-msg-body td,.fm-ch-msg-body th{border:1px solid var(--ch-border,#e4e7ec);padding:7px;min-width:60px;text-align:left;white-space:pre-wrap}
@@ -1251,12 +1253,13 @@
 `;
     style.textContent+=`
 .fm-ch-formatbar{flex-wrap:nowrap;min-width:0;gap:2px;padding:0;border-bottom:0;margin-bottom:2px;overflow:hidden}
-.fm-ch-formatbar>button{flex:none;height:26px}.fm-ch-formatbar [hidden]{display:none!important}
+.fm-ch-formatbar>button,.fm-ch-formatbar .fm-ch-table-controls button{font:inherit;font-size:13px;cursor:pointer;border:0;background:transparent;color:var(--ch-muted,#667085);border-radius:6px;box-shadow:none;line-height:1;flex:none;height:26px}.fm-ch-formatbar button:hover{background:var(--ch-hover,#f2f4f7);color:var(--ch-accent,var(--primary,#d93025))}.fm-ch-formatbar button:focus-visible{outline:2px solid var(--ch-accent,var(--primary,#d93025));outline-offset:-2px}.fm-ch-formatbar [hidden]{display:none!important}
 .fm-ch-table-controls{width:auto;flex:none;flex-wrap:nowrap}.fm-ch-formatbar .fm-ch-table-controls button{font-size:10px;padding:3px!important}
-.fm-ch-composer-box{padding:5px 7px 3px}.fm-ch-composer-box .fm-ch-rich-editor{box-sizing:border-box;min-height:25px;padding:2px;line-height:21px}
+.fm-ch-composer-box{padding:5px 7px 3px}.fm-ch-composer-box .fm-ch-rich-editor{box-sizing:border-box;min-height:46px;padding:2px;line-height:21px}
 .fm-ch-composer-box .fm-ch-composer-row{margin-top:4px;min-height:26px;gap:4px}
 .fm-ch-composer-row .fm-ch-icon-btn,.fm-ch-composer-row [data-mention-button]{width:26px;height:26px;min-height:0;padding:3px;border:0;background:transparent;color:var(--ch-muted);cursor:pointer;border-radius:5px}
-.fm-ch-composer-row .fm-ch-send{padding:4px 9px;min-height:26px}
+.fm-ch-composer-row .fm-ch-send{display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;padding:3px!important;min-height:26px;border:0;border-radius:6px;background:transparent;color:var(--primary-readable,var(--ch-accent,#d93025));font-size:13px}.fm-ch-composer-row .fm-ch-send:hover:not(:disabled){background:var(--ch-hover,#f2f4f7)}.fm-ch-composer-row .fm-ch-send:disabled{opacity:.4}.fm-ch-send-pair{border-left:0;padding-left:0}.fm-ch-composer-box>.fm-ch-reply-broadcast{margin:5px 0 0;font-size:11px}
+.fm-ch-popover{overflow-x:hidden}.fm-ch-emoji-search{display:block;box-sizing:border-box;min-width:0;height:auto;line-height:1.45;background:#fff;color:var(--ch-text)}.fm-ch-emoji-search::placeholder{color:var(--ch-muted)}.fm-ch-message-menu{min-width:0;width:100%}.fm-ch-message-menu>button{width:100%;height:auto;min-height:32px;color:var(--ch-text);background:transparent;white-space:normal;overflow-wrap:anywhere}
 .fm-ch-recording-menu{display:flex;gap:4px;padding:4px}.fm-ch-recording-menu button{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--ch-text,#475467);cursor:pointer}.fm-ch-recording-menu button:hover{background:var(--ch-hover,#f2f4f7)}
 .fm-ch-schedule-menu{min-width:240px;padding:4px}.fm-ch-schedule-menu header{font-size:12px;color:var(--ch-muted,#667085);padding:7px 10px}.fm-ch-schedule-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px;font:inherit;cursor:pointer;border-radius:5px}.fm-ch-schedule-menu button:hover{background:var(--ch-hover,#f2f4f7)}.fm-ch-schedule-menu hr{border:0;border-top:1px solid var(--ch-border,#e4e7ec);margin:4px 0}
 `;
@@ -1295,8 +1298,11 @@
     new MutationObserver(()=>bar._fitFormatting()).observe(bar.querySelector('.fm-ch-table-controls'),{attributes:true,attributeFilter:['hidden']});
     requestAnimationFrame(bar._fitFormatting);
   }
+  function labelComposerSend(button,label){button.innerHTML='<i class="fas fa-paper-plane" aria-hidden="true"></i>';button.title=label;button.setAttribute('aria-label',label);}
+  function composerSendButton(label){const button=el('button','fm-ch-send');button.type='button';labelComposerSend(button,label);return button;}
   function moreActions(mount,actions){
     actions=actions.filter(Boolean);if(!mount || !actions.length)return null;
+    if(actions.length===1){const action=actions[0];if(action.parentElement!==mount)mount.insertBefore(action,mount.querySelector(':scope > button[type=submit],:scope > .fm-ch-send-pair,:scope > .fm-ch-send'));return null;}
     const originals=el('span');originals.hidden=true;originals.append(...actions);
     const button=el('button','fm-ch-icon-btn fm-ch-more-actions','<i class="fas fa-ellipsis" aria-hidden="true"></i>');button.type='button';button.title='More options';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','menu');
     button.onclick=()=>showPopover(button,pop=>{pop.style.minWidth='0';const menu=el('div','fm-ch-recording-menu');menu.setAttribute('role','menu');for(const action of actions){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
@@ -1316,9 +1322,10 @@
   }
   function popoverEscape(event){if(event.key==='Escape' && openPopover){event.preventDefault();event.stopImmediatePropagation();const anchor=openPopover._anchor;closePopover();anchor?.focus();}}
   function popoverOutside(event){
-    if (openPopover && !openPopover.contains(event.target)) closePopover();
+    if (openPopover && !openPopover.contains(event.target) && !openPopover._anchor?.contains(event.target)) closePopover();
   }
   function showPopover(anchor, build){
+    if(openPopover?._anchor===anchor){closePopover();return null;}
     const rect = anchor._popoverRect || anchor.getBoundingClientRect();
     closePopover();
     const pop = el('div', 'fm-ch-popover');
@@ -4702,11 +4709,11 @@
         schedule.title = (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message");
         schedule.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message"));
       }
-      const send = el('button', 'fm-ch-send', 'Send');
+      const send = composerSendButton('Send');
       send.type = 'button';
       const sendPair = el('div', 'fm-ch-send-pair');
-      if (schedule) sendPair.appendChild(schedule);
       sendPair.appendChild(send);
+      if (schedule) sendPair.appendChild(schedule);
       row.appendChild(sendPair);
       box.appendChild(row);
       composer.append(editNote, box, composerHint(), dictationMount, audioMount, gifPreview, pendingWrap);
@@ -4875,7 +4882,7 @@
         state.editingMessageId = '';
         editNote.style.display = 'none';
         composerInput.value = draftBeforeEdit ?? '';
-        draftBeforeEdit=null;send.textContent='Send';if(schedule)schedule.hidden=false;gifButton.disabled=false;gifPreview.hidden=false;
+        draftBeforeEdit=null;labelComposerSend(send,'Send');if(schedule)schedule.hidden=false;gifButton.disabled=false;gifPreview.hidden=false;
         autosize();
       }
 
@@ -4889,7 +4896,7 @@
         composerInput.value = message.text;
         composerInput.mentionUsers = [...(message.mention_users || []),...(message.metadata?.mention_broadcasts || []).map(name=>({id:'broadcast:'+name,name}))];
         mentionApi?.setSelectedMentions?.(composerInput.mentionUsers);
-        send.textContent='Save changes';if(schedule)schedule.hidden=true;gifButton.disabled=true;gifPreview.hidden=true;
+        labelComposerSend(send,'Save changes');if(schedule)schedule.hidden=true;gifButton.disabled=true;gifPreview.hidden=true;
         composerState.audience = [...(message.audience || [])];
         autosize();
         composerInput.focus();
@@ -5031,13 +5038,13 @@
       box.appendChild(threadInput);
 
       const row = el('div', 'fm-ch-composer-row');
-      const send = el('button', 'fm-ch-send', 'Reply');
+      const send = composerSendButton('Reply');
       send.type = 'button';
       const broadcastLabel = el('label', 'fm-ch-reply-broadcast');
       const broadcast = document.createElement('input');
       broadcast.type = 'checkbox';
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
-      row.append(broadcastLabel, send);
+      box.append(broadcastLabel);row.append(send);
       bindRichMentions(threadInput,box,row);
       if(features.attachments)row.prepend(gifButton);
       box.appendChild(row);

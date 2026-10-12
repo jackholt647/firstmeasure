@@ -78,7 +78,7 @@ test('Channels highlight and send only confirmed mentions across channel, thread
       await input.locator('..').locator('[data-mention-button]').click();
       const toolbar=await page.locator('.fm-ch-popover [data-mention-user]').evaluateAll(nodes=>nodes.map(node=>node.dataset.mentionUser).sort());
       assert.deepEqual(toolbar,typed);assert.ok(!toolbar.includes('outsider'));
-      await page.keyboard.press('Escape');
+      const tagToggle=input.locator('..').locator('[data-mention-button]');await tagToggle.click();assert.equal(await page.locator('.fm-ch-popover').count(),0,'tag icon toggles its menu closed');
     };
     const toolbarSelect=async(input,id)=>{
       await input.fill('');await input.focus();
