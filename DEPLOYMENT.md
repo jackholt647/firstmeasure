@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Activity follow-up: [Compact toolbar, upload batches and visible user and note activity](deploy/digitalocean/development-project-activity-followup-20261012.md) records the corrected Notes population, preview layer, automatic updates and development rollout.
+
 October 12 project Activity: [Readable actions, user previews and corrected filters](deploy/digitalocean/development-project-activity-readable-20261012.md) records the frontend changes, focused verification and development rollout.
 
 October 11 Project Notes refinements: [Inline editing, archives and department audiences](deploy/digitalocean/development-project-notes-refinements-20261011.md) records the updated tray behavior, department enforcement, checks and development rollout.
