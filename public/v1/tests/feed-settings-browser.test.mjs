@@ -70,6 +70,9 @@ test('feed settings auto-save defaults, queue rapid edits, preserve other audien
     await page.addScriptTag({content:await readFile(process.env.FEED_SETTINGS_BROWSER_SCRIPT || new URL('../../libraries/apps/settings/feed.js',import.meta.url),'utf8')});
     await page.evaluate(()=>window.FirstMateFeedSettings.mount(document.querySelector('#settings'),{orgId:'org',api:window.fakeFeed}));
     assert.equal(await page.getByRole('button',{name:/Save settings/i}).count(),0);
+    assert.equal(await page.getByText('All changes saved',{exact:true}).count(),0);
+    assert.match(await page.locator('.cs-feed-heading').textContent(),/Feed permissions are managed in Users/);
+    assert.doesNotMatch(await page.locator('.cs-feed-footer').textContent(),/Feed permissions/);
     for (const type of ['proposal.signed','contract.signed','project.event.completed']) assert.equal(await page.locator(`[data-feed-activity][value="${type}"]`).isChecked(),false);
     await mkdir('output',{recursive:true});
     await page.screenshot({path:'output/feed-settings-desktop.png',fullPage:true});
@@ -80,7 +83,7 @@ test('feed settings auto-save defaults, queue rapid edits, preserve other audien
     await page.locator('[data-feed-board]').selectOption('sales');
     await page.locator('[data-feed-activity][value="project.event.completed"]').locator('xpath=../..').click();
     await page.waitForFunction(()=>window.savedSettings.company_activity_types?.includes('contract.signed') && window.savedSettings.department_activity_types.sales?.includes('project.event.completed'));
-    assert.equal(await page.locator('[data-feed-status]').textContent(),'All changes saved');
+    assert.equal(await page.locator('[data-feed-save-error]').isVisible(),false);
     assert.equal(await page.evaluate(()=>window.calls[1].revision),1,'queued edits use the returned revision');
     await page.evaluate(()=>{window.delay=0;window.conflict=true;});
     await page.locator('[data-feed-activity][value="proposal.signed"]').locator('xpath=../..').click();
