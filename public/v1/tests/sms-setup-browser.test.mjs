@@ -252,7 +252,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
         if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};
         if(path.includes('/available-numbers')){if(window.deferSearch)await new Promise(resolve=>window.releaseSearch=resolve);return {numbers:[{phone_number:'+12065550101',locality:'Seattle',region:'WA',monthly_cost:'1.00'},{phone_number:'+12065550102',locality:'Seattle',region:'WA',monthly_cost:'1.00'}]};}
         if(path.endsWith('/select-number'))window.saved={...window.saved,campaign:{...window.saved.campaign,selectedNumber:options.body.phone_number}};
-        if(path.endsWith('/evidence'))return {url:'https://example.com/evidence.pdf'};
+        if(path.endsWith('/evidence'))return {url:'https://example.com/'+options.body.file_name};
         return {profile:structuredClone(window.saved)};
       };
       ${helpers}
@@ -309,9 +309,19 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.getByText(/collects your mobile number and SMS consent record/).count(),1);
     assert.equal(await page.locator('[data-sms-feature-confirm]').count(),0);
     assert.equal(await page.locator('.sms-feature-icon').count(),0);
-    assert.equal(await page.locator('[data-sms-evidence-upload]').isVisible(),true);
-    await page.locator('[data-sms-evidence-upload]').setInputFiles({name:'example.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')});
-    await page.waitForFunction(()=>window.saved.campaign.optInEvidenceUrl==='https://example.com/evidence.pdf');
+    await page.locator('.sms-evidence').scrollIntoViewIfNeeded();
+    const scrollBefore=await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollTop);
+    assert.ok(scrollBefore>200);
+    await page.locator('[data-sms-evidence-upload]').setInputFiles([{name:'example.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')},{name:'second.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 second')}]);
+    await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===2);
+    await page.waitForFunction(()=>!document.querySelector('[data-sms-add-link]').disabled);
+    assert.ok(Math.abs(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollTop)-scrollBefore)<40);
+    assert.equal(await page.locator('.sms-evidence-list a').count(),2);
+    await page.locator('[data-sms-add-link]').click();await page.locator('#sms-evidence-link').fill('example.com/public-consent');await page.locator('[data-sms-save-link]').click();
+    await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===3);
+    assert.equal(await page.locator('.sms-evidence-list a').nth(2).getAttribute('href'),'https://example.com/public-consent');
+    await page.locator('[data-sms-remove-evidence="0"]').click();
+    await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===2 && window.saved.campaign.optInEvidenceUrl==='https://example.com/second.pdf');
     assert.equal(await page.locator('[data-fm-note]').isVisible(),false);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-mobile.png'});
     await page.setViewportSize({width:1280,height:960});
@@ -326,6 +336,9 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'My actual customer conversation');
     await page.locator('[data-sms-field="campaign.sample1"]').fill('');
     await page.getByRole('button',{name:'5. Number'}).click();
+    await page.locator('#sms-number-search').fill('427');
+    await page.getByText('No numbers found.',{exact:true}).waitFor();
+    assert.ok((await page.locator('#sms-number-search').boundingBox()).width<=180);
     await page.locator('#sms-number-search').fill('206');
     await page.locator('[data-sms-choose-number="+12065550101"]').waitFor();
     assert.match(await page.locator('.sms-number-grid').innerText(),/Seattle, WA/);

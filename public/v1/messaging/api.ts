@@ -142,7 +142,7 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "numberPool", "directLending", "ageGated", "termsAndConditions", "termsAndConditionsLink", "privacyPolicyLink",
   "autoRenewal", "enabledFeatures", "featuresConfirmed", "consentAcknowledged", "standardizationVersion",
   "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode", "optInMethod", "optInLocationUrl",
-  "optInMethods", "keywordLocationUrl", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed"
+  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed"
 ] as const;
 
 function editableBrand(value: unknown) {
@@ -636,6 +636,10 @@ function campaignOptInMethods(campaign: JsonObject) {
   return [...new Set(values.map(cleanText).filter(Boolean))];
 }
 
+function campaignEvidenceUrls(campaign: JsonObject) {
+  return Array.isArray(campaign.optInEvidence) ? campaign.optInEvidence.map(item => cleanText(asObject(item).url)) : cleanText(campaign.optInEvidenceUrl) ? [cleanText(campaign.optInEvidenceUrl)] : [];
+}
+
 function campaignMessageFlow(campaign: JsonObject) {
   if (!["LOW_VOLUME", "SOLE_PROPRIETOR"].includes(cleanText(campaign.usecase).toUpperCase())) return cleanText(campaign.messageFlow);
   return [
@@ -643,7 +647,7 @@ function campaignMessageFlow(campaign: JsonObject) {
     `Opt-in methods: ${campaignOptInMethods(campaign).map(method => method.replace(/_/g, " ")).join(", ")}.`,
     cleanText(campaign.keywordLocationUrl) ? `Keyword advertisement: ${cleanText(campaign.keywordLocationUrl)}.` : "",
     cleanText(campaign.optInLocationUrl) ? `Opt-in location: ${cleanText(campaign.optInLocationUrl)}.` : "",
-    cleanText(campaign.optInEvidenceUrl) ? `Public opt-in evidence: ${cleanText(campaign.optInEvidenceUrl)}.` : "",
+    campaignEvidenceUrls(campaign).length ? `Public opt-in evidence: ${campaignEvidenceUrls(campaign).join(", ")}.` : "",
     `Exact recipient-facing SMS consent language: ${cleanText(campaign.optInDisclosure)}`,
     `Privacy Policy: ${cleanText(campaign.privacyPolicyLink)}. SMS Terms: ${cleanText(campaign.termsAndConditionsLink)}.`
   ].filter(Boolean).join(" ");
@@ -668,8 +672,8 @@ function validateCampaignDraft(campaignInput: JsonObject) {
     if (cleanText(campaignInput.messageFlow).length < 40) missing.push("messageFlowLength");
     if (!methods.length || methods.some(method => !["WEBSITE_FORM", "PAPER_FORM", "VERBAL", "KEYWORD"].includes(method))) missing.push("optInMethod");
     if (methods.includes("WEBSITE_FORM") && !validPublicHttpsUrl(campaignInput.optInLocationUrl)) missing.push("optInLocationUrl");
-    if (methods.includes("KEYWORD") && !validPublicHttpsUrl(campaignInput.keywordLocationUrl || (!methods.includes("WEBSITE_FORM") ? campaignInput.optInLocationUrl : "")) && !validPublicHttpsUrl(campaignInput.optInEvidenceUrl)) missing.push("optInLocationUrl");
-    if (cleanText(campaignInput.optInEvidenceUrl) && !validPublicHttpsUrl(campaignInput.optInEvidenceUrl)) missing.push("optInEvidenceUrl");
+    if (methods.includes("KEYWORD") && !validPublicHttpsUrl(campaignInput.keywordLocationUrl || (!methods.includes("WEBSITE_FORM") ? campaignInput.optInLocationUrl : "")) && !campaignEvidenceUrls(campaignInput).some(validPublicHttpsUrl)) missing.push("optInLocationUrl");
+    if (campaignEvidenceUrls(campaignInput).some(url => !validPublicHttpsUrl(url))) missing.push("optInEvidenceUrl");
     const disclosure = cleanText(campaignInput.optInDisclosure);
     if (!/\b(?:SMS|text messages?|texts?)\b/i.test(disclosure) || !/\bSTOP\b/i.test(disclosure) || !/\bHELP\b/i.test(disclosure)
       || !/\b(?:frequency|freq|messages? per|messages? may vary)\b/i.test(disclosure)
@@ -1746,7 +1750,14 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       throw badRequest("invalid_area_code", "Enter a valid US/Canada three digit area code.");
     }
     if (!LIVE_MODE()) return { ok: true, mock: true, area_code: areaCode, numbers: mockAvailableNumbers(areaCode) };
-    const response = asObject(await createTelnyxClient().searchAvailablePhoneNumbers(areaCode, 20));
+    let response: JsonObject;
+    try { response = asObject(await createTelnyxClient().searchAvailablePhoneNumbers(areaCode, 20)); }
+    catch (error) {
+      if (error instanceof TelnyxError && error.statusCode === 400 && /no numbers found/i.test(`${error.message} ${JSON.stringify(error.details)}`)) {
+        return { ok: true, mock: false, area_code: areaCode, numbers: [] };
+      }
+      throw error;
+    }
     const numbers = (Array.isArray(response.data) ? response.data : [])
       .map(availableNumberView)
       .filter((number) => number.phone_number && number.features.includes("sms"));

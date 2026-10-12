@@ -924,11 +924,12 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
   assert.match(lowVolumeDryRun.payload.messageFlow, /marketing texts from FirstMate Test/);
   assert.match(lowVolumeDryRun.payload.messageFlow, /sms-consent-screenshot/);
 
-  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{optInMethods:["WEBSITE_FORM","PAPER_FORM","VERBAL","KEYWORD"],keywordLocationUrl:"https://example.test/keyword",policyContentConfirmed:false,websiteFormConfirmed:false,messageFlowConfirmed:false}});
+  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{optInMethods:["WEBSITE_FORM","PAPER_FORM","VERBAL","KEYWORD"],keywordLocationUrl:"https://example.test/keyword",optInEvidence:[{url:"https://example.test/sms-consent-screenshot",name:"Screenshot"},{url:"https://example.test/consent.pdf",name:"Consent PDF"}],policyContentConfirmed:false,websiteFormConfirmed:false,messageFlowConfirmed:false}});
   const multi = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/submit-campaign`,{dry_run:true});
   assert.match(multi.payload.messageFlow,/WEBSITE FORM, PAPER FORM, VERBAL, KEYWORD/);
   assert.ok(multi.payload.messageFlow.includes("https://example.test/keyword"));
   assert.match(multi.payload.messageFlow,/sms-consent-screenshot/);
+  assert.ok(multi.payload.messageFlow.includes("https://example.test/consent.pdf"));
   const status = await client.request("GET", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/status`);
   assert.equal(status.status, "draft");
   assert.equal(status.validation.ready_for_brand_submission, true);
@@ -2442,4 +2443,22 @@ test("SMS evidence uploads produce scoped public review links and reject unautho
   assert.ok(String(publicFile.headers["content-type"]).includes("application/pdf"));
   assert.equal(publicFile.headers["x-content-type-options"],"nosniff");
   assert.equal((await app.inject({method:"GET",url:url.pathname.replace(/[^/]+$/, "0".repeat(64))})).statusCode,404);
+});
+
+
+test("number inventory reports no results without exposing provider filter errors", async () => {
+  const client=createSessionClient();const {orgId}=await register(client,true);
+  const created=await client.request("POST",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles`,{brand:{},campaign:{}});
+  const {env}=await import("../src/config/env.js");const previous={mode:env.communicationsDeliveryMode,url:env.telnyxBaseUrl,key:env.telnyxApiKey};
+  let status=400;
+  const server=createServer((_request,response)=>{response.writeHead(status,{"content-type":"application/json"});response.end(JSON.stringify({errors:[{detail:status===400?"No numbers found for the given filters. Please try again with best_effort=true.":"Provider unavailable"}]}));});
+  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
+  try {
+    (env as any).communicationsDeliveryMode="live";(env as any).telnyxApiKey="test-key";(env as any).telnyxBaseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+    const result=await client.request("GET",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/available-numbers?area_code=427`);
+    assert.deepEqual(result.numbers,[]);assert.equal(result.ok,true);
+    status=503;
+    const failure=await client.raw("GET",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/available-numbers?area_code=427`);
+    assert.notEqual(failure.statusCode,200);
+  } finally {(env as any).communicationsDeliveryMode=previous.mode;(env as any).telnyxBaseUrl=previous.url;(env as any).telnyxApiKey=previous.key;await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
