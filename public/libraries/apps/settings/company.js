@@ -2071,6 +2071,7 @@
       .sms-step-errors,.sms-api-error{border:1px solid #fecdca;background:#fff4f2;padding:16px;border-radius:12px;color:#912018;font-size:13px;line-height:1.5}.sms-step-errors:empty{display:none}.sms-step-errors ul{padding-left:20px;margin:8px 0 0}.sms-step-errors button{font:inherit;text-align:left;color:inherit;background:none;border:0;cursor:pointer;text-decoration:underline}.sms-api-error strong{display:block;margin-bottom:5px}.sms-api-error p{margin:0 0 8px}
       [data-fm-wizard="sms-workflow"] .cs-btn{min-height:42px;border-radius:9px;font-size:13px;font-weight:600;padding:10px 16px;cursor:pointer}.sms-summary-checklist{font-weight:400}.sms-summary-checklist ul{gap:8px}.sms-summary-checklist button{color:inherit}.sms-summary-checklist.ready{background:#f6fef9}
       @media(max-width:860px){[data-fm-wizard="sms-workflow"] .fm-wizard-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}[data-fm-wizard="sms-workflow"] .fm-wizard-rail{padding:8px}.sms-step-heading h2{font-size:23px}[data-fm-wizard="sms-workflow"] .fm-wizard-pane{padding:20px 16px}[data-fm-wizard="sms-workflow"] .fm-wizard-step{min-width:145px;padding:8px}[data-fm-wizard="sms-workflow"] .fm-wizard-step-status{display:none}[data-fm-wizard="sms-workflow"] .fm-wizard-rail-foot{display:none}.sms-section,.sms-message-card{padding:17px}.sms-timeline{grid-template-columns:1fr;gap:14px}.sms-section-title{flex-wrap:wrap}[data-fm-wizard="sms-workflow"] .fm-wizard-foot{flex-wrap:wrap;padding:10px 14px}[data-fm-wizard="sms-workflow"] .fm-wizard-foot-note{flex-basis:100%}}
+      .sms-auto-status:empty{display:none}
       .sms-entry{display:grid;gap:26px;max-width:1080px;padding:8px 0 20px;color:#182230;font-weight:400}
       .sms-entry-header{display:flex;gap:20px;justify-content:space-between;align-items:center}.sms-entry-header h2{margin:7px 0 8px;font-size:26px;letter-spacing:-.6px;font-weight:700;line-height:1.25}.sms-entry-header p{margin:0;color:#667085;font-size:14px;line-height:1.5}
       .sms-entry-card{border:1px solid #e4e7ec;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 3px 12px #10182805}.sms-entry-main{display:flex;align-items:flex-start;gap:20px;padding:28px}.sms-entry-icon{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;background:#fff1ee;color:#b63b2e;border-radius:14px;font-size:20px}.sms-entry-copy{flex:1;min-width:0}.sms-entry-copy h3{font-size:23px;line-height:1.3;letter-spacing:-.4px;font-weight:650;margin:0 0 10px}.sms-entry-copy>p{font-size:14px;line-height:1.7;color:#667085;max-width:640px;margin:0}.sms-entry-action{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0;padding:20px 28px;border-top:1px solid #eaecf0}.sms-entry-action>span{font-size:12px;color:#667085}.sms-entry .cs-btn{border-radius:9px;min-height:42px;padding:11px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}.sms-entry .cs-btn:focus-visible{outline:2px solid #344054;outline-offset:3px}
@@ -5789,7 +5790,7 @@
         <div class="sms-submitted-panel ${verified ? 'verified' : 'pending'}">
           <div class="sms-submitted-icon"><i class="fas ${verified ? 'fa-circle-check' : 'fa-clock'}"></i></div>
           <h4>${verified ? 'You’re ready to text' : campaignSubmitted ? 'Your campaign is under review' : brandReady ? 'Your business is verified' : 'Business verification in progress'}</h4>
-          <p>${verified ? 'Your number is activated for the selected SMS message types.' : campaignSubmitted ? 'Your campaign has been submitted to the carriers. Check status here to complete number activation after approval.' : brandReady ? 'Review your campaign details below, then select Submit campaign to start carrier review.' : 'Telnyx is reviewing your business details. You can keep refining your campaign while you wait. Select Refresh Status to check for an update.'}</p>
+          <p>${verified ? 'Your number is activated for the selected SMS message types.' : campaignSubmitted ? 'Your campaign has been submitted to the carriers. While this page is open, approval and number activation update automatically.' : brandReady ? 'Review your campaign details below, then select Submit campaign to start carrier review.' : 'Telnyx is reviewing your business details. Status updates automatically while this page is open. You can keep refining your campaign while you wait.'}</p>
           <div class="sms-submitted-meta">
             ${submittedAt ? `<span><i class="fas fa-calendar-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_9a19fffc189408",` Submitted ${v0}`,{v0}) ?? ` Submitted ${v0}`)(escapeHtml(submittedAt))}</span>` : ''}
             <span><i class="fas ${verified ? 'fa-circle-check' : 'fa-hourglass-half'}"></i> ${escapeHtml(status.label)}</span>
@@ -5867,7 +5868,7 @@
         <div class="sms-review-actions">${!smsHasProviderBrand(profile) ? edit('business', 'Edit business') + edit('contact', 'Edit contact') : '<span class="sms-muted">Submitted business details are locked.</span>'}${edit('features', 'Edit message types')}${edit('number', 'View number')}</div>
         <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Consent & policies</h3><p>${escapeHtml(({ WEBSITE_FORM: 'Website form', VERBAL: 'Verbal agreement', PAPER_FORM: 'Paper form', KEYWORD: 'Text a keyword' })[campaign.optInMethod] || 'Consent method not selected')}</p></div>${edit('consent', 'Review consent')}</div><div class="sms-review-links">${[['Privacy policy', campaign.privacyPolicyLink], ['SMS terms', campaign.termsAndConditionsLink]].map(([label, url]) => smsValidHttpsUrl(url) ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>` : `<span>${label} needed</span>`).join('')}</div></section>
         <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Message examples</h3><p>${[campaign.sample1, campaign.sample2, campaign.sample3, campaign.sample4, campaign.sample5].filter(Boolean).length} examples prepared for carrier review</p></div>${edit('messages', 'Review messages')}</div></section>
-        ${submitted ? '' : `<label class="sms-ack"><input type="checkbox" data-sms-consent-ack ${campaign.consentAcknowledged ? 'checked' : ''}><span>I reviewed this registration and understand the customer consent and STOP opt-out requirements.</span></label><p class="sms-muted">Submitting starts business verification and, when verified, campaign review. If verification is still pending, return here to refresh status and submit the campaign. Your number becomes ready after carrier approval and assignment.</p>`}`;
+        ${submitted ? '' : `<label class="sms-ack"><input type="checkbox" data-sms-consent-ack ${campaign.consentAcknowledged ? 'checked' : ''}><span>I reviewed this registration and understand the customer consent and STOP opt-out requirements.</span></label><p class="sms-muted">Submitting starts business verification and, when verified, campaign review. If verification is still pending, status updates automatically while this page is open. Once verified, review and submit your campaign. Your number becomes ready after carrier approval and assignment.</p>`}`;
     }
     function smsStepContent(step, profile, options = {}){
       const brand = profile.brand || {};
@@ -5958,26 +5959,101 @@
           <div class="sms-entry-action"><button class="cs-btn primary" type="button" id="smsStartSetup">${started ? 'View full application' : 'Start registration'} <i class="fas fa-arrow-right" aria-hidden="true"></i></button></div>
           </div>
         </div>
+        <p class="sms-muted sms-auto-status" data-sms-auto-status role="status"></p>
         ${profiles.length > 1 ? `<details class="sms-entry-other"><summary>Other registrations (${profiles.length - 1})</summary>${profiles.slice(1).map(item=>`<div><span>${escapeHtml(item.brand?.displayName || item.brand?.companyName || 'Business registration')}</span><button class="cs-btn" type="button" data-open-sms-profile="${escapeHtml(item.id || '')}">View registration</button></div>`).join('')}</details>` : ''}
       </section>`;
     }
+    const smsStatusInFlight = new Map();
+    function smsProviderStatusPending(profile){
+      if (!profile?.id || smsProfileIsMock(profile) || smsRegistrationVerified(profile)) return false;
+      const statuses = [profile.status, profile.brand_status, profile.campaign_status, profile.phone_number_status].join(' ').toLowerCase();
+      if (/deactivat|fail|reject|unverified|suspend|expire|cancel/.test(statuses)) return false;
+      return smsHasProviderCampaign(profile) || (smsHasProviderBrand(profile) && !smsBrandReadyForCampaign(profile))
+        || (!!profile.provider_refs?.telnyx_number_order_id && !['success', 'draft', ''].includes(String(profile.phone_number_status || '').toLowerCase()));
+    }
+    async function smsFetchRegistrationStatus(orgId, profile, canRefresh = () => true){
+      const key = `${orgId}:${profile.id}`;
+      if (smsStatusInFlight.has(key)) return smsStatusInFlight.get(key);
+      const request = (async () => {
+        const path = `/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}`;
+        const saved = await messagingRequest(path);
+        const current = saved.profile || profile;
+        if (!smsProviderStatusPending(current) || !canRefresh()) return current;
+        const refreshed = await messagingRequest(`${path}/refresh-status`, { method:'POST', body:{} });
+        return refreshed.profile || current;
+      })();
+      smsStatusInFlight.set(key, request);
+      try { return await request; } finally { smsStatusInFlight.delete(key); }
+    }
+    function smsStatusFingerprint(profile){
+      return JSON.stringify([profile?.status, profile?.brand_status, profile?.campaign_status, profile?.phone_number_status, profile?.phone_number_campaign_status, profile?.provider_refs, profile?.autoresponse_state]);
+    }
+    function smsWatchRegistrationStatus({ root, getProfile, onProfile, onError, enabled = () => true, intervalMs = 30000 }){
+      const orgId = currentOrgId();
+      let stopped = false, running = false, timer = null, lastCheck = 0, failures = 0;
+      const visible = () => root.isConnected && document.visibilityState !== 'hidden' && navigator.onLine !== false && root.getClientRects().length > 0 && enabled();
+      const schedule = () => { if (!stopped) timer = setTimeout(check, Math.min(intervalMs * (2 ** failures), 120000)); };
+      const stop = () => {
+        stopped = true; clearTimeout(timer);
+        document.removeEventListener('visibilitychange', wake);
+        window.removeEventListener('focus', wake); window.removeEventListener('online', wake);
+      };
+      const check = async () => {
+        clearTimeout(timer);
+        if (stopped) return;
+        if (!root.isConnected) { stop(); return; }
+        if (running) return;
+        const profile = getProfile();
+        if (!visible() || !profile?.id || smsProfileIsMock(profile)) { schedule(); return; }
+        running = true; lastCheck = Date.now();
+        try {
+          const latest = await smsFetchRegistrationStatus(orgId, profile, () => !stopped && visible() && getProfile() === profile);
+          failures = 0;
+          if (!stopped && visible() && getProfile() === profile) { onProfile(latest); onError?.(''); }
+        } catch (error) {
+          failures = Math.min(failures + 1, 3);
+          if (!stopped && visible()) onError?.('Couldn’t check the latest status. Retrying automatically.');
+        } finally { running = false; schedule(); }
+      };
+      const wake = () => { if (!root.isConnected) stop(); else if (Date.now() - lastCheck >= 5000) void check(); };
+      document.addEventListener('visibilitychange', wake);
+      window.addEventListener('focus', wake); window.addEventListener('online', wake);
+      timer = setTimeout(check, 0);
+      return stop;
+    }
+    let smsHomeStatusStop = null;
     async function renderSmsSettings(){
       if (!paneSms) return;
+      smsHomeStatusStop?.();
+      smsHomeStatusStop = null;
       const orgId = currentOrgId();
       paneSms.innerHTML = `<div class="cs-section"><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3><p class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_a0a4311c5f28de","Loading SMS setup...") ?? "Loading SMS setup...")}</p></div>`;
       try {
         if (await window.FirstMatePlatformBilling?.setup(paneSms, {orgId,canView:canPlatformBilling,capabilityKeys:['comms.sms','apps.messaging','platform.sms_settings'],onReady:renderSmsSettings})) return;
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
-        const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
-        const profile = profiles[0] || smsPrefillProfile({}, setup);
-        paneSms.innerHTML = smsRegistrationHome(profile, profiles, setup);
-        void window.Portal?.PhoneTray?.developmentSetup(paneSms);
-        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsHasProviderBrand(profile) || smsHasProviderCampaign(profile) ? 'summary' : smsResumeStep(profile) }));
-        paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
-          button.addEventListener('click', () => {
-            const selected = profiles.find((item) => item.id === button.getAttribute('data-open-sms-profile')) || profile;
-            openSmsWizard(selected, { initialStep: smsHasProviderBrand(selected) || smsHasProviderCampaign(selected) ? 'summary' : smsResumeStep(selected) });
+        let profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
+        let profile = profiles[0] || smsPrefillProfile({}, setup);
+        const paint = () => {
+          paneSms.innerHTML = smsRegistrationHome(profile, profiles, setup);
+          void window.Portal?.PhoneTray?.developmentSetup(paneSms);
+          paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsHasProviderBrand(profile) || smsHasProviderCampaign(profile) ? 'summary' : smsResumeStep(profile) }));
+          paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
+            button.addEventListener('click', () => {
+              const selected = profiles.find((item) => item.id === button.getAttribute('data-open-sms-profile')) || profile;
+              openSmsWizard(selected, { initialStep: smsHasProviderBrand(selected) || smsHasProviderCampaign(selected) ? 'summary' : smsResumeStep(selected) });
+            });
           });
+        };
+        paint();
+        smsHomeStatusStop = smsWatchRegistrationStatus({ root:paneSms, getProfile:() => profile,
+          enabled:() => !document.querySelector('[data-fm-wizard="sms-workflow"]'),
+          onProfile:latest => {
+            if (smsStatusFingerprint(latest) === smsStatusFingerprint(profile)) return;
+            profile = smsPrefillProfile(latest, setup);
+            profiles = profiles.map(item => item.id === profile.id ? profile : item);
+            paint();
+          },
+          onError:message => { const note = paneSms.querySelector('[data-sms-auto-status]'); if (note) note.textContent = message; }
         });
         const route = readSettingsRoute();
         if (route.workflow === '10dlc' && activeTab === 'sms' && !document.querySelector('[data-fm-wizard="sms-workflow"]')) {
@@ -6003,6 +6079,8 @@
       let refocusNumberSearch = false;
       let ctxRef = null;
       let wizard = null;
+      let stopStatusUpdates = null;
+      let automaticStatusError = '';
       let operationBusy = false;
       let operationMessage = '';
       let submissionError = '';
@@ -6125,7 +6203,7 @@
           }
           if (!smsBrandReadyForCampaign(profile)) {
             await ctxRef?.goTo?.('summary');
-            setStatus('Business registration submitted. Refresh status after Telnyx completes brand verification.');
+            setStatus('Business registration submitted. Status updates automatically while this page is open.');
             showToast((globalThis.PlatformLanguage?.text("settings","m_91a13ab3e08701","Business registration submitted") ?? "Business registration submitted"), (globalThis.PlatformLanguage?.text("settings","m_feb1139893877a","Campaign submission will become available after brand verification.") ?? "Campaign submission will become available after brand verification."), true);
             return;
           }
@@ -6139,7 +6217,7 @@
           profile = mergeSmsProfile(campaign.profile || profile);
           await ctxRef?.goTo?.('summary');
           setStatus('SMS registration submitted.');
-          showToast((globalThis.PlatformLanguage?.text("settings","m_2f88ed2671fbaf","SMS registration submitted") ?? "SMS registration submitted"), (globalThis.PlatformLanguage?.text("settings","m_e50f4af5088c2e","Return to this setup and click Refresh Status after carrier approval to finish number assignment.") ?? "Return to this setup and click Refresh Status after carrier approval to finish number assignment."), true);
+          showToast((globalThis.PlatformLanguage?.text("settings","m_2f88ed2671fbaf","SMS registration submitted") ?? "SMS registration submitted"), (globalThis.PlatformLanguage?.text("settings","sms_registration_auto_status","Status and number activation update automatically while this setup is open.") ?? "Status and number activation update automatically while this setup is open."), true);
         } catch (error) {
           const message = error?.message || 'Submission failed.';
           submissionError = message;
@@ -6438,6 +6516,7 @@
         const stepIssues = attemptedSteps.has(stepId) ? smsStepIssues(stepId, profile) : [];
         container.innerHTML = `<div class="sms-workspace">${stepId === 'summary' && smsHasProviderBrand(profile) ? '' : smsStepHeading(stepId)}
           ${submissionError ? `<div class="sms-api-error" role="alert"><strong>We couldn’t complete that step</strong><p>${escapeHtml(submissionError)}</p>${/privacy|polic|terms|consent|opt.in/i.test(submissionError) ? '<button class="sms-text-button" type="button" data-sms-fix-step="consent">Review consent & policy links →</button>' : '<span>Your saved details are still here. Review the message and try again.</span>'}</div>` : ''}
+          <p class="sms-muted sms-auto-status" data-sms-auto-status role="status">${escapeHtml(automaticStatusError)}</p>
           <div class="sms-step-errors" data-sms-step-errors role="alert">${stepIssues.length ? `<strong>Finish these details to continue</strong><ul>${smsIssueLinks(stepIssues)}</ul>` : ''}</div>
           ${smsStepContent(stepId, profile, { numberSearch })}</div>`;
         container.onclick = async (event) => {
@@ -6573,11 +6652,26 @@
         writeRoute: (patch, routeOptions) => writeSettingsRoute({ sub: 'sms', ...patch }, routeOptions),
         routeMatch: (route) => String(route?.tab || '') === 'company_settings' && String(route?.sub || '') === 'sms',
         onClose: () => {
+          stopStatusUpdates?.();
           if (numberSearchTimer) {
             clearTimeout(numberSearchTimer);
             numberSearchTimer = null;
           }
           renderSmsSettings();
+        }
+      });
+      stopStatusUpdates = smsWatchRegistrationStatus({ root:wizard.el, getProfile:() => profile,
+        enabled:() => !operationBusy && !developmentStatus?.onboarded,
+        onProfile:latest => {
+          if (smsStatusFingerprint(latest) === smsStatusFingerprint(profile)) return;
+          // Provider checks must never replace answers the user is editing.
+          profile = mergeSmsProfile({ ...latest, brand:profile.brand, campaign:profile.campaign });
+          if (ctxRef?.stepId === 'summary') refresh();
+        },
+        onError:message => {
+          automaticStatusError = message;
+          const note = rootEl()?.querySelector('[data-sms-auto-status]');
+          if (note) note.textContent = message;
         }
       });
     }

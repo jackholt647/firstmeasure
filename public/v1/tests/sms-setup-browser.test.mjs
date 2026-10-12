@@ -123,7 +123,7 @@ test('registration landing page has one primary action, truthful states, and res
       const formatPhoneUS=v=>v.replace(/(\\d{3})(\\d{3})(\\d{4})/,'($1) $2-$3');
       const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       window.setup={profiles:[],telnyx:{configured:true,registration_live:true}};
-      const messagingRequest=async()=>window.setup;
+      const messagingRequest=async path=>path.endsWith('/sms/setup') ? window.setup : {profile:window.latestProfile || window.setup.profiles[0]};
       const openSmsWizard=(profile,options)=>window.opened={profile,options};
       ${helpers}
       ${registration}
@@ -144,6 +144,11 @@ test('registration landing page has one primary action, truthful states, and res
     const campaign={...fixture,campaign_status:'pending',provider_refs:{...fixture.provider_refs,telnyx_campaign_id:'campaign'}};
     await page.evaluate(profile=>{window.setup.profiles=[profile];return window.renderEntry();},campaign);
     await page.getByRole('heading',{name:'Your campaign is under review'}).waitFor();
+    await page.clock.install();
+    await page.evaluate(profile=>{window.latestProfile={...profile,campaign_status:'mno_provisioned',status:'active',provider_refs:{...profile.provider_refs,telnyx_messaging_profile_id:'msg'},autoresponse_state:{status:'configured',desired_hash:'same',applied_hash:'same',messaging_profile_id:'msg'}};},campaign);
+    await page.clock.runFor(30001);
+    await page.getByRole('heading',{name:'Your business texting is ready'}).waitFor();
+    await page.evaluate(profile=>{window.latestProfile=null;window.setup.profiles=[profile];return window.renderEntry();},campaign);
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/entry-mobile.png',fullPage:true});
@@ -163,5 +168,65 @@ test('registration landing page has one primary action, truthful states, and res
     assert.equal(await page.getByText('Your progress saves automatically.',{exact:true}).count(),0);
     if(process.env.SMS_SCREENSHOTS){await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/phone-registration-mobile.png',fullPage:true});await page.setViewportSize({width:1280,height:900});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/phone-registration-desktop.png',fullPage:true});}
     assert.deepEqual(errors,[]);
+  } finally {await browser.close();}
+});
+
+
+test('automatic registration checks poll the provider, pause when hidden, back off, and discard stale results', async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page=await browser.newPage();await page.setContent('<div id="watch">Status</div>');
+    await page.clock.install({time:new Date('2026-10-12T00:00:00Z')});
+    await page.addScriptTag({content:`
+      const currentOrgId=()=> 'fixture';
+      window.current=${JSON.stringify({...fixture,phone_number_status:'success',campaign_status:'pending',provider_refs:{...fixture.provider_refs,telnyx_campaign_id:'campaign'}})};
+      window.remote=structuredClone(window.current);window.requests=[];window.applied=0;window.fail=false;window.error='';
+      const messagingRequest=async(path,options={})=>{
+        window.requests.push({path,method:options.method||'GET'});
+        if(window.fail)throw Error('Temporary provider outage');
+        if(window.defer)await new Promise(resolve=>window.releaseRequest=resolve);
+        return {profile:structuredClone(window.remote)};
+      };
+      ${helpers}
+      window.begin=()=>smsWatchRegistrationStatus({root:document.querySelector('#watch'),getProfile:()=>window.current,
+        onProfile:profile=>{window.current=profile;window.applied++;document.querySelector('#watch').textContent=profile.campaign_status;},onError:message=>window.error=message});
+      window.stop=window.begin();
+    `});
+    await page.clock.runFor(1);
+    await page.waitForFunction(()=>window.requests.length===2 && window.applied===1);
+    assert.equal(await page.evaluate(()=>window.requests[1].method),'POST');
+    await page.clock.runFor(30000);
+    await page.waitForFunction(()=>window.requests.length===4);
+    await page.evaluate(()=>Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'}));
+    await page.clock.runFor(60000);
+    assert.equal(await page.evaluate(()=>window.requests.length),4);
+    await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('focus'));});
+    await page.waitForFunction(()=>window.requests.length===6);
+    await page.evaluate(()=>window.fail=true);
+    await page.clock.runFor(30000);
+    await page.waitForFunction(()=>window.error.includes('Retrying automatically'));
+    const failedCount=await page.evaluate(()=>window.requests.length);
+    await page.clock.runFor(30000);
+    assert.equal(await page.evaluate(()=>window.requests.length),failedCount);
+    await page.evaluate(()=>window.fail=false);
+    await page.clock.runFor(30000);
+    await page.waitForFunction(()=>window.error==='');
+    await page.evaluate(()=>{window.defer=true;window.before=window.applied;});
+    await page.clock.runFor(30000);
+    await page.waitForFunction(()=>typeof window.releaseRequest==='function');
+    await page.evaluate(()=>{window.current={...window.current,campaign:{...window.current.campaign,description:'New unsaved answer'}};window.defer=false;window.releaseRequest();});
+    await page.clock.runFor(1);
+    assert.equal(await page.evaluate(()=>window.applied),await page.evaluate(()=>window.before));
+    assert.equal(await page.evaluate(()=>window.current.campaign.description),'New unsaved answer');
+    await page.evaluate(()=>{window.remote={...window.remote,status:'active',campaign_status:'mno_provisioned',provider_refs:{...window.remote.provider_refs,telnyx_messaging_profile_id:'msg'},autoresponse_state:{status:'configured',messaging_profile_id:'msg',desired_hash:'same',applied_hash:'same'}};});
+    await page.clock.runFor(30000);
+    await page.waitForFunction(()=>window.current.status==='active');
+    const posts=await page.evaluate(()=>window.requests.filter(r=>r.method==='POST').length);
+    await page.clock.runFor(30000);
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.method==='POST').length),posts);
+    await page.evaluate(()=>document.querySelector('#watch').remove());
+    const finalCount=await page.evaluate(()=>window.requests.length);
+    await page.clock.runFor(60000);
+    assert.equal(await page.evaluate(()=>window.requests.length),finalCount);
   } finally {await browser.close();}
 });
