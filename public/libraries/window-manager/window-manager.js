@@ -16,7 +16,7 @@
     style.textContent = `
 [data-fm-backdrop]{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 [data-fm-backdrop="active"],dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-html[data-fm-backdrop-effect="blur"] [data-fm-backdrop="active"],html[data-fm-backdrop-effect="blur"] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.10)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
+html[data-fm-backdrop-effect="blur"] [data-fm-backdrop="active"],html[data-fm-backdrop-effect="blur"] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:blur(8px)!important;-webkit-backdrop-filter:blur(8px)!important}
 dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 @media(prefers-reduced-transparency:reduce){html[data-fm-backdrop-effect] [data-fm-backdrop="active"],html[data-fm-backdrop-effect] dialog[data-fm-native-backdrop="active"]::backdrop{background:rgba(11,16,24,.58)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}}
 `;
@@ -114,6 +114,113 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
     }};
   }
   const backdrops = createBackdrops();
+  function createOpeningLifecycle(){
+    const owners = new WeakMap(), pending = new Set();
+    let serial = 0;
+    const observer = new MutationObserver(() => {
+      for(const entry of pending)if(!entry.target.isConnected || entry.target.closest('dialog')?.open===false)entry.cancel();
+    });
+    function ensureStyles(){
+      if(document.getElementById('fm-opening-styles'))return;
+      const style=document.createElement('style');style.id='fm-opening-styles';
+      style.textContent=`
+.fm-opening-status{min-height:160px;display:flex;align-items:center;justify-content:center;gap:12px;padding:24px;box-sizing:border-box;color:#475467;font:inherit;font-size:14px;font-weight:500;line-height:1.5}
+.fm-opening-spinner{width:20px;height:20px;flex:none;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:fm-opening-spin .8s linear infinite}
+.fm-opening-status button{border:1px solid #d0d5dd;border-radius:8px;padding:8px 12px;background:#fff;color:#344054;cursor:pointer}
+.fm-opening-dialog{padding:0;border:0;border-radius:14px;width:min(680px,calc(100vw - 32px));max-height:calc(100dvh - 32px);background:#fff;color:#101828;box-shadow:0 24px 80px #10182850}
+.fm-opening-dialog[open]{animation:fm-opening-enter .18s ease-out}
+.fm-opening-dialog>header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid #e4e7ec}
+.fm-opening-dialog>header h2{margin:0;font:inherit;font-size:18px;font-weight:600;line-height:1.4}.fm-opening-dialog>header button{border:0;border-radius:8px;padding:8px 12px;background:#f2f4f7;color:inherit;cursor:pointer}
+.fm-opening-dialog-body{min-height:180px;padding:20px}
+@keyframes fm-opening-spin{to{transform:rotate(360deg)}}@keyframes fm-opening-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.fm-opening-dialog[open],.fm-opening-spinner{animation:none}}
+`;
+      document.head.append(style);
+    }
+    function afterPaint(){return new Promise(resolve=>{
+      let fallback,frame;
+      const finish=()=>{root.clearTimeout(fallback);root.cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',visibility);resolve();};
+      const visibility=()=>{if(document.hidden && !fallback)fallback=root.setTimeout(finish,100);else if(!document.hidden){root.clearTimeout(fallback);fallback=null;}};
+      document.addEventListener('visibilitychange',visibility);visibility();
+      frame=root.requestAnimationFrame(()=>root.setTimeout(finish,0));
+    });}
+    function wait(work,signal){
+      if(signal.aborted){Promise.resolve(work).catch(()=>{});return Promise.reject(new DOMException('Cancelled','AbortError'));}
+      return new Promise((resolve,reject)=>{
+        const abort=()=>reject(new DOMException('Cancelled','AbortError'));
+        signal.addEventListener('abort',abort,{once:true});
+        Promise.resolve(work).then(value=>{signal.removeEventListener('abort',abort);resolve(value);},error=>{signal.removeEventListener('abort',abort);reject(error);});
+      });
+    }
+    function begin(target,{label='Loading…'}={}){
+      if(!target?.isConnected)throw new Error('Opening requires a connected target');
+      ensureStyles();owners.get(target)?.cancel();
+      const abort=new AbortController(), previousBusy=target.getAttribute('aria-busy');
+      const status=document.createElement('div');status.className='fm-opening-status';status.setAttribute('role','status');
+      const spinner=document.createElement('span');spinner.className='fm-opening-spinner';spinner.setAttribute('aria-hidden','true');
+      const text=document.createElement('span');text.textContent=label;status.append(spinner,text);target.append(status);target.setAttribute('aria-busy','true');
+      let settled=false;
+      const handle={target,signal:abort.signal,painted:afterPaint(),
+        isCurrent:()=>!settled && !abort.signal.aborted && target.isConnected && target.closest('dialog')?.open!==false && owners.get(target)===handle,
+        complete(){finish(true);},
+        cancel(){abort.abort();finish(true);},
+        fail({label='Could not load. Please try again.',retry}={}){
+          if(!handle.isCurrent())return;
+          finish(false);status.replaceChildren();status.setAttribute('role','alert');
+          if(!status.isConnected)target.append(status);
+          const message=document.createElement('span');message.textContent=label;status.append(message);
+          if(retry){const button=document.createElement('button');button.type='button';button.textContent='Retry';button.onclick=retry;status.append(button);}
+        }
+      };
+      function finish(remove){
+        if(settled)return;settled=true;pending.delete(handle);
+        if(owners.get(target)===handle){owners.delete(target);if(previousBusy===null)target.removeAttribute('aria-busy');else target.setAttribute('aria-busy',previousBusy);}
+        if(remove)status.remove();
+        if(!pending.size)observer.disconnect();
+      }
+      // A new request replaces only the library's old status, never app content.
+      target.querySelectorAll(':scope > .fm-opening-status').forEach(node=>{if(node!==status)node.remove();});
+      owners.set(target,handle);pending.add(handle);observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open']});
+      return handle;
+    }
+    function run(target,options={}){
+      const handle=begin(target,options);
+      handle.ready=(async()=>{
+        try{
+          await wait(handle.painted,handle.signal);
+          if(!handle.isCurrent())return {status:'cancelled'};
+          const value=await wait(options.load?.({signal:handle.signal,isCurrent:handle.isCurrent}),handle.signal);
+          if(!handle.isCurrent())return {status:'cancelled'};
+          await wait(options.render?.(value,{target,signal:handle.signal,isCurrent:handle.isCurrent}),handle.signal);
+          if(!handle.isCurrent())return {status:'cancelled'};
+          handle.complete();return {status:'ready',value};
+        }catch(error){
+          if(!handle.isCurrent())return {status:'cancelled'};
+          handle.fail({label:options.errorLabel,retry:()=>run(target,options)});
+          return {status:'error',error};
+        }
+      })();
+      return handle;
+    }
+    function openModal(options={}){
+      ensureStyles();
+      const dialog=document.createElement('dialog');dialog.className='fm-opening-dialog';
+      const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');
+      title.id=`fm-opening-title-${++serial}`;title.textContent=options.title || 'Loading…';dialog.setAttribute('aria-labelledby',title.id);
+      close.type='button';close.textContent='Close';header.append(title,close);
+      const body=document.createElement('div');body.className='fm-opening-dialog-body';dialog.append(header,body);document.body.append(dialog);
+      let operation,modalHandle,closed=false;
+      const cleanup=()=>{if(closed)return;closed=true;operation?.cancel();modalHandle?.unregister();dialog.remove();options.onClose?.();};
+      close.onclick=()=>{dialog.close();cleanup();};dialog.addEventListener('close',cleanup,{once:true});
+      dialog.addEventListener('cancel',event=>{if(options.closeOnEscape===false)event.preventDefault();});
+      dialog.showModal();operation=run(body,options);
+      modalHandle=root.Portal?.modals?.register?.(dialog,{id:`opening-modal-${serial}`,closeOnEscape:options.closeOnEscape!==false,closeOnBackdrop:false,onClose:()=>{dialog.close();cleanup();}});
+      // Render/animation happen now; load starts only after a paint opportunity.
+      return {...operation,dialog,body,close(){dialog.close();cleanup();}};
+    }
+    return {begin,run,openModal,afterPaint,wait};
+  }
+  const opening = createOpeningLifecycle();
   const windows = new Set();
   const hosts = new Map();
   const modes = ['full', 'floating', 'docked', 'minimized', 'modal', 'fullscreen'];
@@ -567,5 +674,5 @@ dialog[data-fm-native-backdrop="inactive"]::backdrop{background:transparent!impo
       destroy(){win.animation?.cancel();if(headerDocument!==document){headerDocument.removeEventListener('keydown',keydown);headerDocument.removeEventListener('pointerdown',dismissMenuOnPointer);headerDocument.defaultView?.removeEventListener('keydown',dismissMenuOnKey,true);}window.removeEventListener('resize',refreshViewport);endGesture?.();closeMenu();windows.delete(win);controls.remove();grips.forEach(grip=>grip.remove());header.removeEventListener('pointerdown',drag);header.removeEventListener('contextmenu',showMenu);header.removeEventListener('click',titleClick);element.removeEventListener('keydown',keydown);element.removeEventListener('pointerdown',focus);win.ownedBackdrop?.remove();win.stackElement?.removeAttribute('data-fm-window-backdrop');element.remove();layout(win.host);releaseHost(win.host);}
     };
   }
-  root.FirstMateWindows={attach, ensureStyles:styles, backdrops};
+  root.FirstMateWindows={attach, ensureStyles:styles, backdrops, opening};
 })(window);

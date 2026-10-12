@@ -9,6 +9,7 @@
   const extensions = new Map();
   const stores = new Map();
   const mounted = new WeakMap();
+  const mounting = new WeakMap();
   const loadedBundles = new Set();
   let instanceCounter = 0;
 
@@ -887,8 +888,21 @@
     if (previous?.destroy) {
       try { previous.destroy(); } catch (error) { console.warn('Embeddable app destroy failed', error); }
     }
+    mounting.get(rootEl)?.cancel();
+    const opening=root.FirstMateWindows?.opening;
+    const connectedAtStart=!!rootEl.isConnected;
+    const loading=connectedAtStart?opening?.begin(rootEl):null;
+    const abort=new AbortController();
+    const request={cancel(){abort.abort();loading?.cancel();}};
+    mounting.set(rootEl,request);
+    const isCurrent=()=>!abort.signal.aborted && (!connectedAtStart || rootEl.isConnected) && mounting.get(rootEl)===request;
+    try {
+    if(loading)await opening.wait(loading.painted,loading.signal);
+    if(!isCurrent())return null;
     const manifest = manifests.get(id);
-    const app = await ensureAppReady(id) || apps.get(id);
+    const ready=ensureAppReady(id);
+    const app = await (loading?opening.wait(ready,loading.signal):ready) || apps.get(id);
+    if(!isCurrent())return null;
     if (!app) {
       rootEl.innerHTML = `<div class="fm-app-unavailable">${((v0) => globalThis.PlatformLanguage?.htmlText("app-runtime","m_51b27800c625b8",`App "${v0}" is unavailable.`,{v0}) ?? `App "${v0}" is unavailable.`)(escapeHtml(id))}</div>`;
       const missing = { appId: id, destroy(){ rootEl.innerHTML = ''; } };
@@ -896,6 +910,8 @@
       return missing;
     }
     const context = createContext({ ...options, appId: id, roots: { ...roots, ...(options.roots || {}) } }, app, roots);
+    context.signal=loading?.signal || abort.signal;
+    context.isCurrent=isCurrent;
     const policy = evaluateDefinition(app, context);
     context.params = mergeObjects(context.params, policy.params);
     context.layout = mergeObjects(context.layout, policy.layout);
@@ -920,9 +936,10 @@
       dispatch('fm:embeddable-apps:app-denied', { appId: id, context, reasons: policy.reasons });
       return denied;
     }
-    const handle = (typeof app.mount === 'function'
+    const handle = await (typeof app.mount === 'function'
       ? app.mount(context)
       : (typeof app.render === 'function' ? app.render(context) : null)) || {};
+    if(!isCurrent()){handle.destroy?.();return null;}
     const destroySource = typeof handle.destroy === 'function'
       ? handle.destroy
       : (typeof handle.unmount === 'function' ? handle.unmount : noop);
@@ -949,6 +966,8 @@
       update: updateSource.bind(handle),
       beforeLeave: beforeLeaveSource.bind(handle),
       destroy(){
+        request.cancel();
+        if(mounting.get(rootEl)===request)mounting.delete(rootEl);
         try { destroy(); }
         finally {
           if (mounted.get(rootEl) === wrapped) mounted.delete(rootEl);
@@ -959,11 +978,20 @@
     mounted.set(rootEl, wrapped);
     dispatch('fm:embeddable-apps:app-mounted', { appId: id, context });
     return wrapped;
+    }catch(error){
+      if(!isCurrent())return null;
+      loading?.fail({retry:()=>{void mount(target,appId,options).catch(noop);}});
+      throw error;
+    }finally{
+      loading?.complete();
+      if(mounting.get(rootEl)===request && !mounted.has(rootEl))mounting.delete(rootEl);
+    }
   }
 
   function unmount(target){
     const roots = normalizeRoots(target);
     const rootEl = roots.main || target;
+    if(rootEl){mounting.get(rootEl)?.cancel();mounting.delete(rootEl);}
     const handle = rootEl ? mounted.get(rootEl) : null;
     if (handle?.destroy) handle.destroy();
   }

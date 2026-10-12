@@ -87,7 +87,7 @@ restores the previous overlay. Small menus/popovers are excluded. Same-origin
 iframe workspaces retain the owner's page blur and draw the same effect over
 their own content when a child modal opens, keeping the child sharp.
 
-Blur is 8px with a light tint. Dim-only is the fallback for unsupported CSS,
+Blur is 8px with the same 58% dark tint as dim-only. Dim-only is the fallback for unsupported CSS,
 reduced-transparency preferences, refused major-caveat-free WebGL contexts or
 known software renderers. WebGL is a conservative performance hint, not proof
 of CSS acceleration. The probe runs once on first use and releases its context.
@@ -97,6 +97,41 @@ CSS support and reduced transparency. There is no per-project visual policy.
 
 Run `node --test tests/modal-backdrops-browser.test.mjs
 tests/window-manager-browser.test.mjs` from `public/v1`.
+
+## Opening before loading
+
+`FirstMateWindows.opening` owns the shared loading lifecycle. The embeddable app
+runtime uses it by default before loading bundles, dependencies and mounting an
+app. A visible document gets a real paint opportunity before work starts; hidden
+documents complete that yield in the background. Existing caller-level waits
+before requesting a modal/tab transition still need to be migrated separately.
+
+```js
+const operation = FirstMateWindows.opening.openModal({
+  title: 'Example',
+  load: ({signal}) => fetchExample({signal}),
+  render: (data, {target, isCurrent}) => {
+    if (isCurrent()) target.replaceChildren(renderExample(data));
+  }
+});
+const result = await operation.ready; // status: ready | cancelled | error
+```
+
+`openModal` immediately shows an animated native dialog with a Close control and
+loading status. It joins `Portal.modals` when available so Escape dismisses the
+child rather than its parent. `run(target, options)` applies the same load/render
+contract to an existing connected panel. Both offer Retry on error, restore
+`aria-busy`, and discard cancelled or superseded results. `begin(target)` supplies
+`painted`, `signal`, `isCurrent`, `complete`, `cancel` and `fail` for integrations
+that own their own render lifecycle. `afterPaint` is shared across these consumers.
+`wait(work, signal)` cancels a consumer's wait without stopping shared downloads.
+
+Async app renderers receive `context.signal` and `context.isCurrent` and must
+check them before their own delayed DOM writes. Aborted mounting cannot publish
+a late app handle; successful handles retain their context until destruction.
+These lifecycle fields grant no additional access. Reduced motion disables the
+opening and spinner animations. Run `tests/opening-lifecycle-browser.test.mjs`
+alongside the window and backdrop browser regressions.
 
 Multiple docks share a width budget that leaves page content available. The
 manager restores the content target's original inline width and margin when no
