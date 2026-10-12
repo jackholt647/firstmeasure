@@ -5,6 +5,16 @@
   if (root.FirstMateProjectTrays) return;
   const clean = value => String(value ?? '').trim();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const activityScriptUrl=new URL('activity-presenter.js?v=20261012-activity-readable-v1',document.currentScript?.src || location.href).href;
+  let activityPromise;
+  function activityPresenter(){
+    if(root.FirstMateActivity)return Promise.resolve(root.FirstMateActivity);
+    return activityPromise ||= new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src=activityScriptUrl;
+      script.onload=()=>{if(root.FirstMateActivity)resolve(root.FirstMateActivity);else{activityPromise=null;script.remove();reject(Error('Activity descriptions are unavailable.'));}};
+      script.onerror=()=>{activityPromise=null;script.remove();reject(Error('Activity descriptions could not be loaded.'));};document.head.append(script);
+    });
+  }
   const registry = new Map([
     ['notes',{id:'notes',label:'Notes',icon:'fa-note-sticky',capability:'channels.project_notes'}],
     ['todo',{id:'todo',label:'To Do',icon:'fa-list-check'}],
@@ -74,15 +84,16 @@
         query:{includeFuture:true,includeAll:true}});
     }
     if (key==='agent') return root.PlatformAssistant.mountProject(node,{orgId:oid,projectId:pid,...options.agentOptions});
-    if (key==='activity') return mountActivity(node,oid,pid);
+    if (key==='activity') return mountActivity(node,oid,pid,getProject);
     if (key==='messages') {
       const data=await root.ChannelsAPI.channels.ensureProject(oid,pid);
       return root.FirstMateChannels.create(node,{orgId:oid,context:{channelId:data.channel.id},mode:'embedded',features:{resources:false}});
     }
     return definition.mount?.(node,{getProject,projectId:pid,orgId:oid});
   }
-  function mountActivity(node,oid,pid) {
+  function mountActivity(node,oid,pid,getProject=()=>({id:pid})) {
     let events=[],before='',loading=false,dead=false,visible=true,loaded=false;
+    let presenter,activityContext;
     const selectedTypes=new Set();
     const style=document.createElement('style');
     style.textContent=`
@@ -105,6 +116,7 @@
       .fm-project-activity article:not(:last-child):before{content:'';position:absolute;left:11px;top:34px;bottom:-10px;width:1px;background:#e9ecf1}
       .fm-activity-icon{position:relative;z-index:0;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#f2f4f7;color:#667085;font-size:10px}
       .fm-project-activity p{margin:0;line-height:1.55;overflow-wrap:anywhere;font-size:11px}.fm-activity-meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:4px;font-size:10px;color:#98a2b3}.fm-activity-meta time{font-size:10px;color:#667085}
+      .fm-project-activity p strong{font-weight:700}.fm-activity-actor{font:inherit;color:inherit;border:0;background:none;padding:0;text-align:left;cursor:pointer}.fm-activity-actor:hover,.fm-activity-actor:focus-visible{color:var(--primary,#175cd3);text-decoration:underline}
       .fm-activity-empty{text-align:center;padding:38px 14px;color:#667085;line-height:1.6}.fm-activity-empty i{display:block;font-size:20px;color:#98a2b3;margin-bottom:12px}.fm-activity-empty strong{display:block;font-size:12px;color:#344054;margin-bottom:4px}
       .fm-activity-error{flex:none;margin:8px 12px 0;border-radius:6px;padding:8px;color:#b42318;background:#fff4f2;line-height:1.5}.fm-activity-error[hidden]{display:none}
       .fm-activity-more{width:100%;font:inherit;font-size:11px;color:#475467;border:1px solid #e4e7ec;background:#fff;padding:8px;border-radius:6px;margin-top:10px;cursor:pointer}.fm-activity-widget button:disabled{opacity:.45;cursor:wait}
@@ -117,6 +129,7 @@
     const kind=event=>clean(event.type || event.data?.type);
     const categories={project:['Project changes','fa-pen'],tasks:['To-dos','fa-check'],notes:['Notes','fa-note-sticky'],schedule:['Scheduling','fa-calendar'],reports:['Reports & measurements','fa-ruler-combined'],files:['Files & photos','fa-image'],documents:['Documents & signatures','fa-file-signature'],scope:['Scope & materials','fa-layer-group'],payments:['Payments & billing','fa-credit-card'],contacts:['Contacts & people','fa-user-group'],communications:['Calls & communications','fa-phone'],workflow:['Workflow & stages','fa-diagram-project'],field:['Field work & checklists','fa-clipboard-check']};
     const category=event=>{
+      if(presenter)return presenter.describe(event,activityContext).category;
       const type=kind(event).toLowerCase();
       if(/note/.test(type))return 'notes';
       if(/action[._]item|task|todo/.test(type))return 'tasks';
@@ -166,13 +179,14 @@
     const menuResize=new ResizeObserver(positionMenu);menuResize.observe(shell);
     const timestamp=event=>Date.parse(event.created_at || event.data?.created_at) || 0;
     const format=event=>{
+      if(presenter)return presenter.describe(event,activityContext).text;
       const data=event.data || event,payload=event.payload || {};
       const verbs={created:'added a note',edited:'edited a note',deleted:'removed a note',restored:'restored a note',pinned:'pinned a note',unpinned:'unpinned a note',shared:'shared a note'};
       if(kind(event).startsWith('project.note.'))return `${payload.actor_name || 'A teammate'} ${verbs[kind(event).split('.').pop()] || 'updated a note'}`;
       const text=clean(data.summary || data.description || data.title || payload.summary || payload.description) || kind(event).replace(/[._]/g,' ') || 'Project updated';
       return text.charAt(0).toUpperCase()+text.slice(1);
     };
-    const actor=event=>clean(event.payload?.actor_name || event.data?.actor_name || event.actor_name || event.actor?.name);
+    const actor=event=>presenter?presenter.describe(event,activityContext).actor.name:clean(event.payload?.actor_name || event.data?.actor_name || event.actor_name || event.actor?.name);
     function dayLabel(date){const today=new Date(),yesterday=new Date();yesterday.setDate(today.getDate()-1);return date.toDateString()===today.toDateString()?'Today':date.toDateString()===yesterday.toDateString()?'Yesterday':date.toLocaleDateString([], {month:'short',day:'numeric',year:date.getFullYear()===today.getFullYear()?undefined:'numeric'});}
     function render(){
       if(dead)return;
@@ -184,9 +198,13 @@
       count.textContent=loaded?rows.length+' event'+(rows.length===1?'':'s'): 'Loading…';
       let group='';
       log.innerHTML=rows.map(event=>{
-        const date=new Date(timestamp(event)),valid=!!timestamp(event),day=valid?dayLabel(date):'Earlier activity',heading=day!==group?`<h3 class="fm-activity-day">${esc(day)}</h3>`:'';group=day;
-        const [label,icon]=categories[category(event)],name=actor(event),summary=format(event);
-        return `${heading}<article><span class="fm-activity-icon"><i class="fas ${icon}" aria-hidden="true"></i></span><div><p>${esc(summary)}</p><div class="fm-activity-meta">${name&&!summary.includes(name)?`<span>${esc(name)}</span><span aria-hidden="true">·</span>`:''}<span>${label}</span>${valid?`<span aria-hidden="true">·</span><time datetime="${date.toISOString()}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</time>`:''}</div></div></article>`;
+        const presentation=presenter?.describe(event,activityContext),at=presentation?Date.parse(presentation.timestamp)||0:timestamp(event);
+        const date=new Date(at),valid=!!at,day=valid?dayLabel(date):'Earlier activity',heading=day!==group?`<h3 class="fm-activity-day">${esc(day)}</h3>`:'';group=day;
+        const [label,icon]=categories[category(event)],name=actor(event),summary=format(event),user=presentation?.actor;
+        const preview=user?.id?` data-fm-summary-type="summary.user" data-fm-summary-target="${esc(JSON.stringify({scope:'organization',organizationId:oid,id:user.id}))}"`:'';
+        const description=presentation?.action?`<strong>${esc(presentation.action)}</strong> ${esc(presentation.subject)}${presentation.detail?` — ${esc(presentation.detail)}`:''}`:esc(summary);
+        const actorHtml=user?.id?`<button type="button" class="fm-activity-actor" aria-label="Preview ${esc(name||'team member')}">${esc(name||'Team member')}</button>`:name?`<span>${esc(name)}</span>`:'';
+        return `${heading}<article${preview}><span class="fm-activity-icon"><i class="fas ${icon}" aria-hidden="true"></i></span><div><p>${description}</p><div class="fm-activity-meta">${actorHtml?`${actorHtml}<span aria-hidden="true">·</span>`:''}<span>${label}</span>${valid?`<span aria-hidden="true">·</span><time datetime="${date.toISOString()}" title="${esc(date.toLocaleString())}">${esc(date.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</time>`:''}</div></div></article>`;
       }).join('') || `<div class="fm-activity-empty"><i class="fas ${loaded?'fa-clock-rotate-left':'fa-spinner'}" aria-hidden="true"></i><strong>${loaded?(query||selectedTypes.size?'No matching activity':'No activity yet'):'Loading activity…'}</strong>${loaded?(query||selectedTypes.size?'Try another search or activity type.':'Project updates will appear here as work progresses.'):''}</div>`;
       if(before){const more=document.createElement('button');more.type='button';more.className='fm-activity-more';more.textContent='Load older activity';more.disabled=loading;more.onclick=()=>refresh(true);log.append(more);}
       log.scrollTop=top;
@@ -195,11 +213,15 @@
       if(loading||dead)return;loading=true;refreshButton.disabled=true;log.setAttribute('aria-busy','true');failure.hidden=true;
       shell.querySelector('.fm-activity-more')?.setAttribute('disabled','');
       try{
+        presenter=await activityPresenter();activityContext ||= presenter.context();
         const [work,audit]=await Promise.all([root.PlatformAPI.work.activity(oid,{projectId:pid,limit:100,before:older?before:''}),older?{events:[]}:root.PlatformAPI.userActivity.listForProject(oid,pid,{limit:200})]);
         if(dead)return;
         // Keep previously loaded pages on polling; source namespaces prevent ID collisions.
         const next=[...(work.events||[]).map(e=>({...e,_source:'work'})),...(audit.events||[]).map(e=>({...e,_source:'audit'}))];
-        events=[...new Map([...events,...next].map(e=>[e._source+':'+(e.id||[e.type,e.created_at,format(e)].join('|')),e])).values()].sort((a,b)=>timestamp(b)-timestamp(a));
+        const merged=[...new Map([...events,...next].map(e=>[e._source+':'+(e.id||[e.type,e.created_at,format(e)].join('|')),e])).values()];
+        await presenter.hydrate(activityContext,merged,{platform:root.PlatformAPI,documents:root.DocumentsAPI,materials:root.MaterialsAPI,communications:root.CommunicationsAPI},oid,pid,getProject());
+        if(dead)return;
+        events=presenter.merge(merged);
         if(older||!loaded)before=work.events?.length===100?work.next_before || '':'';
         loaded=true;
       }catch(error){if(!dead){failure.textContent=(loaded?'Could not refresh activity. ':'Could not load activity. ')+(error.message || 'Try again.')+' Use Refresh to retry.';failure.hidden=false;}}
