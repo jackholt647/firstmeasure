@@ -164,11 +164,11 @@ import {
   upsertDocument
 } from "./storage.js";
 import { badRequest, conflict, forbidden, notFound } from "./errors.js";
-import { attachRealtimeConnection, pollRealtimeEvents } from "./realtime.js";
+import { attachRealtimeConnection, pollRealtimeEvents, realtimeWatchList, registerRealtimeChannelKind, resolveRealtimeChannels } from "./realtime.js";
 import { organizationUserProfileFields, organizationUserProfileView } from "./user_profile.js";
 import { runTerminologyAgent } from "./terminology_agent.js";
 import { activeResourceGroupIdsForUser, assignedProjectIdsForUser } from "../workforce/assignment_scope.js";
-import { attachPresence, closePresenceStreams, recordPresenceActivity } from "./presence.js";
+import { attachPresence, closePresenceStreams, openPresence, recordPresenceActivity } from "./presence.js";
 import { assignmentPolicyForEventType } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
 import { checklistAudioProcessor, reconcileChecklistAudioOperations } from "../audio-structure/checklist.js";
@@ -2579,16 +2579,53 @@ app.get("/auth/google/config", async () => ({
   // EventSource cannot send custom headers, so this GET authenticates via the
   // session cookie only (no CSRF; the endpoint only reads).
 
+  /** Who may be present in a scope: anyone signed in for "online"; a project's viewers must be able to open it. */
+  const authorizePresenceScope = async (request: FastifyRequest, orgId: string, scopeId: string) => {
+    const ctx = await requirePlatformAuth(request, { orgId, application: scopeId === "online" ? false : ["management", "field"] });
+    if (scopeId !== "online") {
+      if (!scopeId.startsWith("project:")) throw badRequest("invalid_presence_scope", "Unknown presence scope.");
+      const projectId = scopeId.slice(8);
+      await readDocument(orgId, "projects", projectId);
+      if (asObject(ctx.applicationAccess.management).enabled !== true && !(await assignedProjectIdsForUser(orgId, ctx.userId)).has(projectId)) {
+        throw forbidden("project_access_denied", "This project is not assigned to you.");
+      }
+    }
+    return ctx;
+  };
+  // `watch=presence:<scope>` on the platform stream: the same presence, without a connection of its own.
+  registerRealtimeChannelKind("presence", async (request, { orgId, id, query }) => {
+    const authorize = () => authorizePresenceScope(request, orgId, id);
+    const ctx = await authorize();
+    const age = Number(query.activity_age_ms);
+    return (send, ended) => openPresence({ orgId, scope: id, userId: ctx.userId, name: String(ctx.user.name || ctx.identity.name || "Teammate"), authorize,
+      ...(Number.isFinite(age) && age >= 0 ? { activityAgeMs: Math.min(604800000, age) } : {}) },
+      (event, data) => { if (event !== "heartbeat") send(event, data); }, () => ended("presence_ended"));
+  });
+
   app.get("/organizations/:orgId/events/stream", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    const ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
+    const watch = realtimeWatchList(query.watch);
+    // Platform events belong to the management and field apps. Someone with
+    // neither may still hold the stream for the channels they are allowed
+    // (their own online presence); they are simply sent no platform events.
+    let events = true;
+    let ctx: Awaited<ReturnType<typeof requirePlatformAuth>>;
+    try { ctx = await requirePlatformAuth(request, { orgId, application: ["management", "field"] }); }
+    catch (error) {
+      if (!watch.length) throw error;
+      ctx = await requirePlatformAuth(request, { orgId, application: false });
+      events = false;
+    }
     const lastEventId = Number(request.headers["last-event-id"] ?? query.after ?? 0);
+    const channels = await resolveRealtimeChannels(request, orgId, watch, query);
     // Hand the socket over to the realtime hub; Fastify must not touch it again.
     (await attachRealtimeConnection(request, reply, {
       orgId,
       userId: ctx.userId,
-      after: Number.isFinite(lastEventId) && lastEventId > 0 ? Math.floor(lastEventId) : 0
+      after: Number.isFinite(lastEventId) && lastEventId > 0 ? Math.floor(lastEventId) : 0,
+      channels,
+      events
     }));
   });
 
@@ -2601,18 +2638,7 @@ app.get("/auth/google/config", async () => ({
   app.get("/organizations/:orgId/presence/:scopeId", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const scopeId = getParam(request.params, "scopeId");
-    const authorize = async () => {
-      const ctx = await requirePlatformAuth(request, { orgId, application: scopeId === "online" ? false : ["management", "field"] });
-      if (scopeId !== "online") {
-        if (!scopeId.startsWith("project:")) throw badRequest("invalid_presence_scope", "Unknown presence scope.");
-        const projectId = scopeId.slice(8);
-        await readDocument(orgId, "projects", projectId);
-        if (asObject(ctx.applicationAccess.management).enabled !== true && !(await assignedProjectIdsForUser(orgId, ctx.userId)).has(projectId)) {
-          throw forbidden("project_access_denied", "This project is not assigned to you.");
-        }
-      }
-      return ctx;
-    };
+    const authorize = () => authorizePresenceScope(request, orgId, scopeId);
     const ctx = await authorize();
     await attachPresence(request, reply, { orgId, scope: scopeId, userId: ctx.userId,
       activityAgeMs: z.object({ activity_age_ms: z.coerce.number().min(0).max(604800000).optional() }).parse(request.query || {}).activity_age_ms,

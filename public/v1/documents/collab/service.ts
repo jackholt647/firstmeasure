@@ -18,7 +18,7 @@ export type AppendCollabCommandsResult =
 
 type Connection = {
   id: number; orgId: string; docId: string; actor: CollabActor; revision: number; roster: string;
-  write: (chunk: string) => void; close: () => void;
+  write: (event: string, payload: unknown) => void; ping: () => void; close: () => void;
 };
 const connections = new Map<number, Connection>();
 const ownerId = `collab_${process.pid}_${randomUUID()}`;
@@ -149,7 +149,7 @@ async function pollConnections() {
     .all(...watched.flatMap(scope => [scope.orgId, scope.docId, scope.revision]));
   for (const row of entries) for (const connection of connections.values()) {
     if (connection.orgId !== row.organization_id || connection.docId !== row.doc_id || connection.revision >= Number(row.revision)) continue;
-    connection.write(encode("commands", { revision: Number(row.revision), actor: parse(row.actor_json, { id: row.actor_id }), commands: parse(row.commands_json, []) }));
+    connection.write("commands", { revision: Number(row.revision), actor: parse(row.actor_json, { id: row.actor_id }), commands: parse(row.commands_json, []) });
     connection.revision = Number(row.revision);
   }
   const presences = await db.prepare(`WITH watched(organization_id,doc_id) AS (VALUES ${watched.map(() => "(?,?)").join(",")})
@@ -159,11 +159,11 @@ async function pollConnections() {
     const presence = presenceView(presences.filter(row => row.organization_id === scope.orgId && row.doc_id === scope.docId));
     const signature = JSON.stringify(presence);
     for (const connection of connections.values()) if (connection.orgId === scope.orgId && connection.docId === scope.docId && connection.roster !== signature) {
-      connection.write(encode("presence", { presence })); connection.roster = signature;
+      connection.write("presence", { presence }); connection.roster = signature;
     }
   }
   if (Date.now() - lastHeartbeat >= 15_000) {
-    for (const connection of connections.values()) connection.write(": ping\n\n");
+    for (const connection of connections.values()) connection.ping();
     await pruneStaleCollabPresence(); lastHeartbeat = Date.now();
   }
 }
@@ -179,25 +179,24 @@ function ensurePolling() {
   }, 1000);
   timer.unref();
 }
-export async function attachCollabStream(request: FastifyRequest, reply: FastifyReply, options: { orgId: string; docId: string; actor: CollabActor }) {
+/**
+ * One collaborator on one document for as long as the returned stop is not
+ * called: their presence, the hello with the current revision, then command
+ * batches and roster changes as they are committed. It runs on whatever
+ * carries `send` — the `collab:` channel of the platform stream for the
+ * portal, the legacy single-purpose stream for older clients.
+ */
+export async function openCollab(options: { orgId: string; docId: string; actor: CollabActor },
+  send: (event: "hello" | "commands" | "presence" | "ping", payload: unknown) => void, ended: () => void = () => {}) {
   const { orgId, docId, actor } = options;
   await touchPresence(orgId, docId, actor);
   const hello = await collabHello(orgId, docId);
-  const origin = String(request.headers.origin ?? "");
-  const corsHeaders: Record<string, string> = origin && env.corsOrigins.includes(origin)
-    ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", Vary: "Origin" } : {};
-  reply.hijack();
-  reply.raw.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", ...corsHeaders });
-  request.raw.socket.setTimeout(0); request.raw.socket.setNoDelay(true);
   let closed = false;
   const connection: Connection = {
     id: ++connectionCounter, orgId, docId, actor, revision: hello.revision, roster: JSON.stringify(hello.presence),
-    write(chunk) {
-      if (closed) return;
-      if (reply.raw.writableLength > 1024 * 1024) { connection.close(); return; }
-      try { reply.raw.write(chunk); } catch { connection.close(); }
-    },
-    async close() {
+    write(event, payload) { if (!closed) send(event as "commands" | "presence", payload); },
+    ping() { if (!closed) send("ping", null); },
+    close() {
       if (closed) return;
       closed = true; connections.delete(connection.id);
       if (![...connections.values()].some(other => other.orgId === orgId && other.docId === docId && other.actor.id === actor.id)) {
@@ -205,14 +204,36 @@ export async function attachCollabStream(request: FastifyRequest, reply: Fastify
         void getDocumentsCollabDatabase().prepare(`DELETE FROM document_collab_presence WHERE organization_id=? AND doc_id=? AND actor_id=? AND owner_id=?`)
           .run(orgId, docId, actor.id, ownerId).catch(() => undefined);
       }
-      try { reply.raw.end(); } catch { /* closed socket */ }
+      ended();
     }
   };
   connections.set(connection.id, connection);
-  connection.write("retry: 3000\n\n" + encode("hello", hello));
-  reply.raw.on("close", () => connection.close());
+  send("hello", hello);
   ensurePolling();
-  return connection;
+  return () => connection.close();
+}
+
+/** The single-purpose collaboration stream. The portal uses the platform stream's `collab:` channel instead. */
+export async function attachCollabStream(request: FastifyRequest, reply: FastifyReply, options: { orgId: string; docId: string; actor: CollabActor }) {
+  // Frames wait until the response has started, so a failure before then is an ordinary API error.
+  const pending: string[] = [];
+  let write = (frame: string) => { pending.push(frame); };
+  let finished = false;
+  const stop = await openCollab(options, (event, payload) => write(event === "ping" ? ": ping\n\n" : encode(event, payload)), () => { finished = true; try { reply.raw.end(); } catch { /* closed socket */ } });
+  const origin = String(request.headers.origin ?? "");
+  const corsHeaders: Record<string, string> = origin && env.corsOrigins.includes(origin)
+    ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", Vary: "Origin" } : {};
+  reply.hijack();
+  reply.raw.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", ...corsHeaders });
+  request.raw.socket.setTimeout(0); request.raw.socket.setNoDelay(true);
+  reply.raw.on("close", stop);
+  write = frame => {
+    if (reply.raw.writableLength > 1024 * 1024) { stop(); return; }
+    try { reply.raw.write(frame); } catch { stop(); }
+  };
+  reply.raw.write("retry: 3000\n\n");
+  for (const frame of pending.splice(0)) write(frame);
+  if (finished) { try { reply.raw.end(); } catch { /* closed socket */ } }
 }
 export function collabDiagnostics() {
   const scopes = new Map<string, { organization_id: string; doc_id: string; revision: number; presence: number; connections: number }>();

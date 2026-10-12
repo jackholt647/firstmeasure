@@ -5,9 +5,11 @@ import { badRequest } from "../../platform/errors.js";
 import { requirePlatformAuth, type PlatformAuthContext } from "../../platform/auth.js";
 import { DOCUMENT_CAPABILITIES } from "../capability_policy.js";
 import { readDocumentInstance } from "../storage.js";
+import { registerRealtimeChannelKind } from "../../platform/realtime.js";
 import {
   appendCollabCommands,
   attachCollabStream,
+  openCollab,
   updateCollabPresence,
   type CollabActor,
   type JsonObject
@@ -113,6 +115,15 @@ export function registerCollabRoutes(app: FastifyInstance, deps: CollabRouteDeps
     await readDocument(ctx.orgId, documentId);
     return { ctx, documentId };
   }
+
+  // `watch=collab:<documentId>` on the platform stream: the same collaboration, without a connection of its own.
+  registerRealtimeChannelKind("collab", async (request, { orgId, id }) => {
+    const ctx = await requireAuth(request, { permission: "view_projects", capability: DOCUMENT_CAPABILITIES.app });
+    if (ctx.orgId !== orgId) throw badRequest("collab_organization", "The document belongs to another organization.");
+    await readDocument(ctx.orgId, id);
+    return (send, ended) => openCollab({ orgId: ctx.orgId, docId: id, actor: actorFromContext(ctx) },
+      (event, payload) => { if (event !== "ping") send(event, payload); }, () => ended("collab_ended"));
+  });
 
   app.get("/:documentId/collab/stream", async (request, reply) => {
     const { ctx, documentId } = await authorize(request);

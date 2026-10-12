@@ -109,6 +109,19 @@ save affects new instances only; reaching running ones is the explicit push in
 `scopes/instances.ts`. Dry run is for agents and tests and is not a product UI
 feature. Run `tests/automation-contracts.test.ts` for changes to these contracts.
 
+## Realtime: one stream per page
+
+Read [realtime](docs/architecture/realtime.md) before adding anything that
+pushes from the server to a page. A page holds one long-lived connection, the
+platform event stream. Publish facts with `publishRealtimeEvent`; carry live
+per-page state (presence, collaboration) as a channel registered with
+`registerRealtimeChannelKind` and watched with `PlatformRealtime.watchChannel`.
+Never create an `EventSource`, `WebSocket` or streaming `fetch` in browser
+code, and never add another `text/event-stream` endpoint: browsers allow six
+connections per site across all tabs, and each extra stream silently starves
+ordinary requests. Run `tests/realtime-single-stream.test.ts` and
+`tests/view-presence-client.test.mjs` for changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. Overview owns the project-details column inside its tab content. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

@@ -3695,7 +3695,7 @@
           // Phase-1 realtime collaboration (presence + serialized command log).
           collab: state.doc?.id && window.DocumentsAPI?.collab ? {
             actor: objectValue(window.Portal?.util?.currentActor?.()),
-            connect: (handlers) => window.DocumentsAPI.collab.connect(state.doc.id, handlers)
+            connect: (handlers) => window.DocumentsAPI.collab.connect(state.doc.id, handlers, orgId())
           } : null,
           documentActions: {
             new: () => { closeDocScreen(); openCreateModal({}); },

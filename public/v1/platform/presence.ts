@@ -34,9 +34,16 @@ export async function recordPresenceActivity(orgId: string, userId: string, sess
     .run(Date.now(), sessionId, sessionId, orgId, userId, Date.now());
   return result.changes > 0;
 }
-export async function attachPresence(request: FastifyRequest, reply: FastifyReply, input: {
+export type PresenceInput = {
   orgId: string; scope: string; userId: string; name: string; activityAgeMs?: number; authorize: () => Promise<unknown>;
-}) {
+};
+/**
+ * One viewer's presence for as long as the returned stop is not called: the
+ * session row, its refresh, and the roster sent whenever it changes. It runs
+ * on whatever carries `send` — a channel of the platform stream for the
+ * portal, the legacy single-purpose stream for older clients.
+ */
+export async function openPresence(input: PresenceInput, send: (event: "session" | "presence" | "heartbeat", data: unknown) => void, ended: () => void = () => {}) {
   const db = database();
   const session = randomUUID();
   await db.prepare("DELETE FROM platform_view_presence WHERE expires_at<=?").run(Date.now());
@@ -44,27 +51,20 @@ export async function attachPresence(request: FastifyRequest, reply: FastifyRepl
   await db.prepare("INSERT INTO platform_view_presence(session_id,organization_id,scope,user_id,name,expires_at) VALUES(?,?,?,?,?,?)")
     .run(session, input.orgId, input.scope, input.userId, input.name, Date.now() + TTL);
   if (input.scope === "online") await db.prepare("INSERT INTO platform_presence_activity(session_id,last_active_at) VALUES(?,?)").run(session, Date.now() - (input.activityAgeMs || 0));
-  const origin = String(request.headers.origin || "");
-  reply.hijack();
-  reply.raw.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", Connection: "keep-alive",
-    ...(origin && env.corsOrigins.includes(origin) ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", Vary: "Origin" } : {}) });
-  request.raw.socket.setTimeout(0);
-  request.raw.socket.setNoDelay(true);
-  if (input.scope === "online") reply.raw.write(`event: session\ndata: ${JSON.stringify({session_id:session})}\n\n`);
   let closed = false, signature = "", refreshed = Date.now();
   let timer: NodeJS.Timeout | undefined;
-  const close = () => {
+  const stop = () => {
     if (closed) return;
     closed = true;
-    streams.delete(close);
+    streams.delete(shut);
     clearTimeout(timer);
     void db.prepare("DELETE FROM platform_view_presence WHERE session_id=?").run(session).catch(() => {});
     void db.prepare("DELETE FROM platform_presence_activity WHERE session_id=?").run(session).catch(() => {});
-    reply.raw.end();
   };
-  streams.add(close);
-  reply.raw.on("close", close);
-  if (reply.raw.destroyed || request.raw.aborted) { close(); return; }
+  // Shutting every presence down (process exit, tests) also tells its carrier.
+  const shut = () => { if (!closed) { stop(); ended(); } };
+  streams.add(shut);
+  if (input.scope === "online") send("session", { session_id: session });
   const tick = async () => {
     try {
       if (closed) return;
@@ -73,15 +73,37 @@ export async function attachPresence(request: FastifyRequest, reply: FastifyRepl
         if (closed) return;
         await db.prepare("UPDATE platform_view_presence SET expires_at=? WHERE session_id=?").run(Date.now() + TTL, session);
         refreshed = Date.now();
-        reply.raw.write(": heartbeat\n\n");
+        send("heartbeat", null);
       }
-      const next = JSON.stringify(await presenceRoster(input.orgId, input.scope));
+      const roster = await presenceRoster(input.orgId, input.scope);
+      const next = JSON.stringify(roster);
       if (!closed && next !== signature) {
         signature = next;
-        reply.raw.write(`event: presence\ndata: ${next}\n\n`);
+        send("presence", roster);
       }
-    } catch { close(); }
+    } catch { if (!closed) { stop(); ended(); } }
     if (!closed) { timer = setTimeout(tick, 750); timer.unref(); }
   };
   await tick();
+  return stop;
+}
+
+/** The single-purpose presence stream. The portal uses the platform stream's `presence:` channel instead. */
+export async function attachPresence(request: FastifyRequest, reply: FastifyReply, input: PresenceInput) {
+  // Frames wait until the response has started, so a failure before then is an ordinary API error.
+  const pending: string[] = [];
+  let write = (frame: string) => { pending.push(frame); };
+  let finished = false;
+  const stop = await openPresence(input, (event, data) => write(event === "heartbeat" ? ": heartbeat\n\n" : `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`), () => { finished = true; try { reply.raw.end(); } catch { /* closed */ } });
+  const origin = String(request.headers.origin || "");
+  reply.hijack();
+  reply.raw.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", Connection: "keep-alive",
+    ...(origin && env.corsOrigins.includes(origin) ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", Vary: "Origin" } : {}) });
+  request.raw.socket.setTimeout(0);
+  request.raw.socket.setNoDelay(true);
+  const close = () => { stop(); try { reply.raw.end(); } catch { /* closed */ } };
+  reply.raw.on("close", close);
+  write = frame => { try { reply.raw.write(frame); } catch { close(); } };
+  for (const frame of pending.splice(0)) write(frame);
+  if (finished || reply.raw.destroyed || request.raw.aborted) close();
 }

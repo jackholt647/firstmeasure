@@ -15,6 +15,13 @@ import { env } from "../src/config/env.js";
  * Events are org-scoped and optionally targeted to a set of user ids so
  * private-channel/DM traffic is filtered server-side before it ever reaches a
  * connection.
+ *
+ * This is the ONE long-lived connection a browser page holds to the platform.
+ * Anything else that needs to push to a page (who is viewing, live document
+ * editing, ...) rides on it as a channel: a kind registered here with
+ * registerRealtimeChannelKind and asked for by the page with `watch=<kind>:<id>`
+ * on the stream URL. Do not add another streaming endpoint for browsers; see
+ * docs/architecture/realtime.md.
  */
 
 export type RealtimeEvent = {
@@ -38,9 +45,57 @@ type Connection = {
   id: number;
   orgId: string;
   userId: string;
+  /** false for a connection that carries channels only (a user without an app that receives platform events). */
+  events: boolean;
   write: (chunk: string) => void;
   close: () => void;
 };
+
+/** Sends one frame of a channel to the page: an event name and its data. */
+export type RealtimeChannelSend = (event: string, data: unknown) => void;
+/**
+ * Starts a channel on a connection that is already authorized for it and
+ * returns how to stop it. `ended` tells the page the channel stopped on its
+ * own (its data source failed, access was withdrawn) so it can ask again.
+ */
+export type RealtimeChannelOpen = (send: RealtimeChannelSend, ended: (code?: string) => void) => Promise<() => void> | (() => void);
+/** Authorizes one `watch` entry for this request and returns how to open it. Throws to refuse. */
+export type RealtimeChannelKind = (request: FastifyRequest, input: { orgId: string; id: string; query: Record<string, unknown> }) => Promise<RealtimeChannelOpen>;
+export type ResolvedRealtimeChannel = { name: string; open?: RealtimeChannelOpen; error?: string };
+
+export const MAX_REALTIME_CHANNELS = 12;
+const channelKinds = new Map<string, RealtimeChannelKind>();
+
+/** Registers what `watch=<kind>:<id>` means on the platform stream. One owner per kind. */
+export function registerRealtimeChannelKind(kind: string, factory: RealtimeChannelKind) {
+  channelKinds.set(kind, factory);
+}
+
+/** `watch` as it arrives on the query string: repeated, or comma separated. */
+export function realtimeWatchList(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+  return [...new Set(raw.flatMap(entry => String(entry).split(",")).map(entry => entry.trim()).filter(Boolean))].slice(0, MAX_REALTIME_CHANNELS);
+}
+
+/**
+ * Authorizes each watched channel before the response starts. One that is
+ * refused or unknown is reported to the page on the stream as its own error;
+ * the connection and its other channels carry on.
+ */
+export async function resolveRealtimeChannels(request: FastifyRequest, orgId: string, names: string[], query: Record<string, unknown>): Promise<ResolvedRealtimeChannel[]> {
+  return Promise.all(names.map(async name => {
+    const at = name.indexOf(":");
+    const kind = at < 0 ? name : name.slice(0, at);
+    const factory = channelKinds.get(kind);
+    if (!factory) return { name, error: "unknown_channel" };
+    try { return { name, open: await factory(request, { orgId, id: at < 0 ? "" : name.slice(at + 1), query }) }; }
+    catch (error) { return { name, error: String((error as { code?: unknown })?.code || "channel_refused") }; }
+  }));
+}
+
+function encodeChannel(name: string, event: string, data: unknown) {
+  return `event: channel\ndata: ${JSON.stringify({ channel: name, event, data: data ?? null })}\n\n`;
+}
 
 const RING_BUFFER_SIZE = 1000;
 const HEARTBEAT_MS = 25_000;
@@ -68,6 +123,9 @@ function orgStream(orgId: string): OrgStream {
 
 function eventVisibleTo(event: RealtimeEvent, userId: string) {
   return event.user_ids === null || event.user_ids.includes(userId);
+}
+function delivers(connection: Connection, event: RealtimeEvent) {
+  return connection.events && eventVisibleTo(event, connection.userId);
 }
 
 function encodeSse(event: RealtimeEvent) {
@@ -112,7 +170,7 @@ export async function publishRealtimeEvent(input: PublishInput) {
   stream.buffer.push(event);
   if (stream.buffer.length > RING_BUFFER_SIZE) stream.buffer.splice(0, stream.buffer.length - RING_BUFFER_SIZE);
   for (const connection of stream.connections.values()) {
-    if (eventVisibleTo(event, connection.userId)) connection.write(encodeSse(event));
+    if (delivers(connection, event)) connection.write(encodeSse(event));
   }
   return event;
 }
@@ -137,13 +195,14 @@ export async function pollRealtimeEvents(orgId: string, userId: string, after: n
 export async function attachRealtimeConnection(
   request: FastifyRequest,
   reply: FastifyReply,
-  options: { orgId: string; userId: string; after: number }
+  options: { orgId: string; userId: string; after: number; channels?: ResolvedRealtimeChannel[]; events?: boolean }
 ) {
   const { orgId, userId, after } = options;
+  const events = options.events !== false;
   // Fetch before sending headers so database failures remain normal API errors.
-  const catchUp = await pollRealtimeEvents(orgId, userId, after);
+  const catchUp = events ? await pollRealtimeEvents(orgId, userId, after) : { events: [] as RealtimeEvent[], next: orgStream(orgId).seq, resync: false };
   const stream = orgStream(orgId);
-  if (!stream.connections.size) stream.seq = catchUp.next;
+  if (events && ![...stream.connections.values()].some(connection => connection.events)) stream.seq = catchUp.next;
 
   // The response is hijacked from Fastify, which means the CORS plugin's
   // headers never reach it — restate them here or cross-origin dev setups
@@ -167,11 +226,17 @@ export async function attachRealtimeConnection(
   reply.raw.write(`retry: 3000\n\n`);
 
   connectionCounter += 1;
+  let closed = false;
+  const stops: Array<() => void> = [];
   const connection: Connection = {
     id: connectionCounter,
     orgId,
     userId,
+    events,
     write: (chunk) => {
+      if (closed) return;
+      // A page that stopped reading must not grow this process without bound.
+      if (reply.raw.writableLength > 4 * 1024 * 1024) { connection.close(); return; }
       try {
         reply.raw.write(chunk);
       } catch {
@@ -179,7 +244,10 @@ export async function attachRealtimeConnection(
       }
     },
     close: () => {
+      if (closed) return;
+      closed = true;
       stream.connections.delete(connection.id);
+      for (const stop of stops.splice(0)) { try { stop(); } catch { /* a channel's own cleanup */ } }
       try {
         reply.raw.end();
       } catch {
@@ -200,10 +268,22 @@ export async function attachRealtimeConnection(
   }
 
   // A shared poll may have completed while the initial replay query was pending.
-  for (const event of stream.buffer) {
+  if (events) for (const event of stream.buffer) {
     if (event.seq > catchUp.next && eventVisibleTo(event, userId)) connection.write(encodeSse(event));
   }
   request.raw.on("close", () => connection.close());
+  // Channels start once the page is listening. Each is independent: one that
+  // cannot start says so on the stream and the others carry on.
+  for (const channel of options.channels || []) {
+    const send: RealtimeChannelSend = (event, data) => connection.write(encodeChannel(channel.name, event, data));
+    if (!channel.open) { send("error", { code: channel.error || "channel_refused" }); continue; }
+    try {
+      const stop = await channel.open(send, code => send("error", { code: code || "channel_ended" }));
+      if (closed) stop(); else stops.push(stop);
+    } catch (error) {
+      send("error", { code: String((error as { code?: unknown })?.code || "channel_failed") });
+    }
+  }
   return connection;
 }
 
@@ -237,7 +317,7 @@ function ensureReplicaPoller() {
 
 export async function syncReplicaRealtime() {
   if (replicaPollRunning) return;
-  const cursors = [...streams.entries()].filter(([, stream]) => stream.connections.size)
+  const cursors = [...streams.entries()].filter(([, stream]) => [...stream.connections.values()].some(connection => connection.events))
     .map(([organization_id, stream]) => ({ organization_id, after: stream.seq }));
   if (!cursors.length) {
     if (replicaPollTimer) clearInterval(replicaPollTimer);
@@ -250,11 +330,11 @@ export async function syncReplicaRealtime() {
       const stream = streams.get(page.organization_id);
       if (!stream) continue;
       if (page.resync) {
-        for (const connection of stream.connections.values()) connection.write(`id: ${page.next}\nevent: platform\ndata: ${JSON.stringify({ topic: "sys.resync", payload: {}, ts: new Date().toISOString() })}\n\n`);
+        for (const connection of stream.connections.values()) if (connection.events) connection.write(`id: ${page.next}\nevent: platform\ndata: ${JSON.stringify({ topic: "sys.resync", payload: {}, ts: new Date().toISOString() })}\n\n`);
       } else {
         for (const event of page.events) {
           if (event.seq <= stream.seq) continue;
-          for (const connection of stream.connections.values()) if (eventVisibleTo(event, connection.userId)) connection.write(encodeSse(event));
+          for (const connection of stream.connections.values()) if (delivers(connection, event)) connection.write(encodeSse(event));
         }
       }
       stream.seq = page.next;

@@ -211,19 +211,37 @@
     diff(documentId, a, b){ return request(`/${enc(documentId)}/checkpoints/${enc(a)}/diff/${enc(b)}`); }
   };
 
-  // Phase-1 realtime collaboration: SSE stream + serialized command log.
+  // Realtime collaboration: the serialized command log, with the live side
+  // (hello, other people's commands, the roster) arriving on the platform
+  // stream's "collab:<documentId>" channel. No connection of its own.
   // send() resolves the 409 stale envelope ({ok:false, stale, revision,
   // missed}) instead of throwing so callers can replay and retry.
   const collab = {
-    connect(documentId, handlers = {}){
-      const source = new EventSource(url(`/${enc(documentId)}/collab/stream`), { withCredentials: true });
-      const parse = (raw) => { try { return JSON.parse(raw); } catch (e) { return null; } };
-      source.addEventListener('hello', (ev) => handlers.onHello?.(parse(ev.data)));
-      source.addEventListener('presence', (ev) => handlers.onPresence?.(parse(ev.data)));
-      source.addEventListener('commands', (ev) => handlers.onCommands?.(parse(ev.data)));
-      source.onerror = () => handlers.onError?.();
+    connect(documentId, handlers = {}, orgId = ''){
+      const realtime = window.PlatformRealtime;
+      const org = cleanText(orgId || APP.userOrgId || APP.orgId);
+      // The stream is replaced when what the page watches changes, and both
+      // connections deliver for a moment: a batch is handed on once, and a
+      // repeated hello only when it shows something was missed.
+      let greeted = false;
+      let seen = 0;
+      const stop = realtime?.watchChannel && org ? realtime.watchChannel(org, `collab:${documentId}`, {
+        onEvent(event, data){
+          const revision = Number(data?.revision || 0);
+          if (event === 'hello') {
+            if (greeted && revision <= seen) return;
+            greeted = true; seen = Math.max(seen, revision);
+            handlers.onHello?.(data);
+          } else if (event === 'commands') {
+            if (revision && revision <= seen) return;
+            if (revision) seen = revision;
+            handlers.onCommands?.(data);
+          } else if (event === 'presence') handlers.onPresence?.(data);
+        },
+        onDown(){ handlers.onError?.(); }
+      }) : (setTimeout(() => handlers.onError?.(), 0), () => {});
       return {
-        close(){ source.close(); },
+        close(){ stop(); },
         send(base_revision, commands, actor_cursor){
           return request(`/${enc(documentId)}/collab/commands`, { method: 'POST', body: { base_revision, commands, ...(actor_cursor ? { actor_cursor } : {}) } })
             .catch((error) => { if (error?.status === 409 && error.data?.stale) return error.data; throw error; });
