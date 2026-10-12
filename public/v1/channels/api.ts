@@ -95,7 +95,8 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const ctx = await auth(request, orgId);
     const users = await service.listDirectoryUsers(ctx);
     const structure=await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(ctx.orgId);
-    return { ok: true, users, count: users.length,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})) };
+    const selection=(await import('../workforce/department-access.js')).relevantDepartmentContext(ctx);
+    return { ok: true, users, count: users.length,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})),selectable_department_ids:selection.department_ids,note_department_visibility:true };
   });
 
   app.get("/organizations/:orgId/channels", async (request) => {

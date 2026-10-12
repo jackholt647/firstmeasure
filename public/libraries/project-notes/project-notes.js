@@ -108,7 +108,7 @@
       text: clean(note.text || note.body || note.note),
       created_at: clean(note.created_at) || new Date(0).toISOString(),
       updated_at: clean(note.updated_at || note.created_at) || new Date(0).toISOString(),
-      created_by: { id:clean(createdBy.id || note.created_by_id), name:clean(createdBy.name || note.created_by_name || 'Unknown'), email:clean(createdBy.email || note.created_by_email).toLowerCase() },
+      created_by: { id:clean(createdBy.id || note.created_by_id), name:clean(createdBy.name || note.created_by_name || 'Unknown'), email:clean(createdBy.email || note.created_by_email).toLowerCase(), avatar:clean(createdBy.avatar || createdBy.avatar_url || createdBy.photo_url) },
       tagged_people: taggedPeople,
       mention_users: mentionUsers,
       attachments: Array.isArray(note.attachments) ? note.attachments : [],
@@ -134,7 +134,7 @@
       text: message.text,
       created_at: message.created_at,
       updated_at: message.edited_at || message.created_at,
-      created_by: { id: message.author?.id, name: message.author?.name, email: message.author?.email },
+      created_by: { ...message.author },
       mention_users: message.mention_users || [],
       type_tags: message.tags || [],
       visibility: audience.length ? audience : GROUPS,
@@ -549,7 +549,9 @@
 
   let openHistoryPop = null;
   const translationInFlight = new Map();
+  let historyPopGeneration = 0;
   function closeHistoryPop(){
+    historyPopGeneration++;
     openHistoryPop?.remove();
     openHistoryPop = null;
     document.removeEventListener('mousedown', historyPopOutside, true);
@@ -560,14 +562,16 @@
 
   async function showHistoryPopover(anchor, noteId){
     closeHistoryPop();
+    const generation=historyPopGeneration;
     const data = await revisions(noteId).catch(() => null);
-    if (!data) return;
+    if (!data || generation!==historyPopGeneration || !anchor.isConnected) return;
     const pop = document.createElement('div');
-    pop.className = 'pn-history-pop';
+    pop.className = 'pn-history-pop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','Edit history');
     pop.innerHTML = `
-      <div class="pn-history-pop-head">${(globalThis.PlatformLanguage?.htmlText("project-notes","m_c3e32bdc4e8fce","Edit history") ?? "Edit history")}</div>
+      <div class="pn-history-pop-head">${(globalThis.PlatformLanguage?.htmlText("project-notes","m_c3e32bdc4e8fce","Edit history") ?? "Edit history")}<button type="button" class="pn-history-close" aria-label="Close edit history"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>
       <div class="pn-history-item current"><div class="when">${((v0) => globalThis.PlatformLanguage?.htmlText("project-notes","m_a61a3f449dcac0",`Current · ${v0}`,{v0}) ?? `Current · ${v0}`)(escapeHtml(fmtWhen(data.current?.edited_at || data.current?.created_at)))}</div><div class="text">${String(escapeHtml(data.current?.text || ''))}</div></div>
       ${String((data.revisions || []).map((revision) => `<div class="pn-history-item"><div class="when">${escapeHtml(revision.edited_by_user?.name || 'Unknown')} · ${escapeHtml(fmtWhen(revision.edited_at))}</div><div class="text">${escapeHtml(revision.text)}</div></div>`).join(''))}`;
+    pop.querySelector('.pn-history-close').onclick=closeHistoryPop;
     document.body.appendChild(pop);
     const rect = anchor.getBoundingClientRect();
     const popRect = pop.getBoundingClientRect();
@@ -777,193 +781,171 @@
       `;
       document.head.append(style);
     }
-    let disposed = false, busy = false, prepared = [], editId = '', query = '', showRemoved = false;
-    const expanded = new Set();
-    const voiceIcon = mode => `<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:18px;height:18px;background:currentColor;mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;mask-mode:alpha"></span>`;
-    container.innerHTML = `<section class="pn-workspace"><div class="pn-tools"><input type="search" aria-label="Search project notes" placeholder="Search notes"><label><input type="checkbox" data-removed> Removed</label></div><div class="pn-pinned" aria-label="Pinned notes"></div><div class="pn-history" role="log" aria-label="Project notes history"></div><div class="pn-status" role="status"></div><form class="pn-composer"><div class="pn-composer-head"><span class="pn-composer-heading">ADD NOTE</span><div class="pn-visibility"><span>Who can see it?</span><label class="pn-visibility-choice"><strong data-visibility-label>Everybody</strong><i class="fas fa-eye" aria-hidden="true"></i><select aria-label="Note visibility"><option value="all">Everybody</option><option value="office">Office</option><option value="crew">Crew</option><option value="sales">Sales</option></select></label></div></div><button type="button" class="pn-cancel-edit" hidden>Cancel editing</button><div class="pn-composer-box"><div class="pn-editor-mount"></div><div class="pn-uploads"></div><div class="pn-compose-actions"><button type="button" class="pn-icon" data-emoji title="Insert emoji" aria-label="Insert emoji" aria-expanded="false"><i class="fas fa-face-smile"></i></button><button type="button" class="pn-icon" data-attach title="Attach a file" aria-label="Attach a file"><i class="fas fa-paperclip"></i></button><input type="file" hidden multiple><button type="button" class="pn-icon" data-dictate title="Dictate message" aria-label="Dictate message" aria-pressed="false">${voiceIcon('dictation')}</button><button type="button" class="pn-icon" data-audio title="Record an audio note" aria-label="Record an audio note" aria-pressed="false">${voiceIcon('record')}</button><div class="pn-add"><button type="submit" title="Add note" aria-label="Add note"><i class="fas fa-paper-plane" aria-hidden="true"></i></button><button type="button" data-pin-send title="Add pinned note" aria-label="Add pinned note"><i class="fas fa-thumbtack"></i></button></div></div><div class="pn-emoji-pop" hidden></div></div></form></section>`;
-    const history = container.querySelector('.pn-history'), pinned = container.querySelector('.pn-pinned');
-    const status = container.querySelector('.pn-status'), form = container.querySelector('form'), uploadBox = container.querySelector('.pn-uploads');
-    const widgets = window.FirstMateChannels?.composerWidgets;
-    const placeholder = 'Add an internal note… Use @name or @email to tag someone.';
-    const text = widgets?.createEditor ? widgets.createEditor(placeholder) : document.createElement('textarea');
-    text.setAttribute('aria-label', 'New project note'); text.placeholder = placeholder;
-    const editorMount = form.querySelector('.pn-editor-mount');
-    if (widgets?.formatBar) editorMount.append(widgets.formatBar(text, ['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Quote']));
-    editorMount.append(text);
-    const mentions = window.FirstMateTags?.attachMentionTextarea?.(text, {orgId:orgId(),source:'project_notes'});
-    const sendButton = form.querySelector('[type=submit]');
-    const resetSendButton = () => {sendButton.innerHTML = '<i class="fas fa-paper-plane" aria-hidden="true"></i>';sendButton.setAttribute('aria-label','Add note');sendButton.title='Add note';form.querySelector('.pn-cancel-edit').hidden = true;};
-    const emojiButton = form.querySelector('[data-emoji]'), emojiPop = form.querySelector('.pn-emoji-pop');
-    let emojiPicker = null;
-    const closeEmoji = () => {emojiPicker?.destroy?.();emojiPicker=null;emojiPop.hidden=true;emojiButton.setAttribute('aria-expanded','false');};
-    emojiButton.onclick = () => {
-      if (!emojiPop.hidden) {closeEmoji();return;}
-      emojiPop.hidden=false;emojiButton.setAttribute('aria-expanded','true');
-      emojiPicker=window.FirstMateChannels?.mountEmojiPicker?.(emojiPop, emoji => {text.insertText ? text.insertText(emoji) : text.setRangeText(emoji,text.selectionStart,text.selectionEnd,'end');text.dispatchEvent(new Event('input',{bubbles:true}));closeEmoji();text.focus();});
-      emojiPicker?.focus?.();
-    };
-    form.querySelector('[data-attach]').onclick = () => form.querySelector('[type=file]').click();
-    const syncVisibility=()=>{form.querySelector('[data-visibility-label]').textContent=form.querySelector('select').selectedOptions[0]?.textContent || 'Everybody';};
-    form.querySelector('select').addEventListener('change',syncVisibility);
-    const esc = escapeHtml;
-    const say = value => { if (!disposed) status.textContent = value; };
-    function card(note) {
-      const deleted = !!note.deleted_at;
-      const shared = note.metadata?.note_shared;
-      const actions = deleted ? (note.can_restore ? '<button data-act="restore">Restore</button>' : '') :
-        `<button data-act="pin">${note.pinned_at ? 'Unpin' : 'Pin'}</button>${entry.separate && note.metadata?.project_note && !shared ? '<button data-act="share">Share to channel</button>' : ''}${note.can_edit ? '<button data-act="edit">Edit</button>' : ''}<button data-act="history">Edit history</button><button data-act="copy">Copy text</button><button data-act="save">Save message</button>${note.can_delete ? '<button data-act="delete">Delete</button>' : ''}`;
-      return `<article class="pn-card${deleted ? ' pn-removed' : ''}" data-project-note-id="${esc(note.id)}"><header><div class="pn-avatar" aria-hidden="true">${esc((note.created_by?.name || 'Teammate').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase())}</div><div class="pn-author"><span>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}</time></div>${note.pinned_at ? '<i class="fas fa-thumbtack" title="Pinned"></i>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header>${deleted ? '<p>Note removed</p>' : `<div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"><p>${esc(note.text)}</p>${mediaAttachmentsHtml(note)}</div><button class="pn-more" data-act="expand" hidden>${expanded.has(note.id) ? 'Show less' : 'Show more'}</button><footer>${esc(visibilityLabel(note.visibility))}${note.edited_at ? ' · Edited' : ''}${shared ? ' · Shared to channel' : ''}<button data-act="replies">${note.reply_count ? `${Number(note.reply_count)} ${Number(note.reply_count) === 1 ? 'reply' : 'replies'}` : 'Reply'}</button></footer>`}</article>`;
+    container.replaceChildren();
+    const extraStyle=document.createElement('style');
+    extraStyle.textContent=`
+      .pn-tools{flex-wrap:wrap;padding:7px 12px;gap:5px}.pn-heading{font-size:11px;font-weight:600;color:#667085;margin-right:auto}.pn-tools button{border:0;background:transparent;cursor:pointer;font:inherit;font-size:10px;padding:6px;color:#667085}.pn-tools button:hover{background:#f2f4f7}.pn-tools [data-search-toggle]{width:28px;height:28px;padding:0;font-size:12px}.pn-search-row{display:flex;gap:4px;width:100%}.pn-search-row[hidden]{display:none}.pn-search-row input{flex:1}.pn-search-row button{font-size:13px}
+      .pn-card .pn-avatar{border:0;padding:0;overflow:hidden;cursor:pointer;width:30px;height:30px;border-radius:50%;background:var(--primary-light,#eef2ff);color:var(--primary,#175cd3)}.pn-avatar img{width:100%;height:100%;object-fit:cover}.pn-pin-toggle{border:0!important;background:transparent!important;color:#b54708!important;cursor:pointer;padding:4px!important}.pn-card-content[hidden],.pn-card footer[hidden],.pn-inline-edit[hidden]{display:none}
+      .pn-visibility-choice{max-width:100%;min-width:0}.pn-composer-head{flex-wrap:wrap}.pn-visibility-button{display:inline-flex;align-items:center;gap:5px;border:0!important;background:transparent!important;font:inherit;font-size:11px!important;cursor:pointer;min-width:0;max-width:190px;padding:4px!important}.pn-visibility-button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pn-audience{position:relative;min-width:0}.pn-audience-menu{position:absolute;bottom:100%;right:0;z-index:100;width:220px;max-width:calc(100vw - 36px);max-height:230px;overflow:auto;padding:7px;background:white;border:1px solid #e4e7ec;border-radius:9px;box-shadow:0 8px 24px #10182820}.pn-audience-menu[hidden]{display:none}.pn-audience-menu label{display:flex;gap:8px;align-items:center;white-space:normal;padding:7px;font-size:12px;cursor:pointer;border-radius:5px}.pn-audience-menu label:hover{background:#f2f4f7}.pn-audience-menu input{accent-color:var(--primary,#175cd3)}.pn-audience-menu p{font-size:11px;color:#667085;margin:4px 7px}.pn-audience-current{font-size:10px!important;border-bottom:1px solid #f2f4f7;padding-bottom:7px}
+      .pn-inline-edit{margin-top:12px}.pn-inline-edit .pn-composer-box{padding:7px 8px}.pn-inline-edit .fm-ch-rich-editor{min-height:72px}.pn-inline-edit-head{font-size:10px;font-weight:600;color:#667085;margin-bottom:7px}.pn-inline-edit-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap;margin-top:8px}.pn-inline-edit-actions .pn-audience{margin-right:auto}.pn-inline-edit-actions>button{font:inherit;font-size:11px;cursor:pointer}.pn-inline-edit-actions [type=submit]{background:var(--primary,#175cd3);color:var(--on-primary,#fff);border-color:var(--primary,#175cd3)}.pn-card:has(.pn-inline-edit) .pn-menu{display:none}.pn-inline-error,.pn-error{color:#b42318;font-size:11px;padding:6px 0}.pn-error{padding:7px 14px}.pn-error[hidden],.pn-inline-error[hidden]{display:none}.pn-history-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.pn-history-close{display:grid;place-items:center;width:24px;height:24px;border:0;background:transparent;color:#667085;border-radius:5px;cursor:pointer}.pn-history-close:hover{background:#f2f4f7}.pn-card .pn-menu>div{width:170px}.pn-card footer>span{min-width:0;overflow-wrap:anywhere}
+    `;
+    container.append(extraStyle);
+    let disposed=false,busy=false,prepared=[],query='',showArchived=false,editSession=null;
+    const lifetime=new AbortController(),captureAbort=new AbortController(),expanded=new Set();
+    const voiceIcon=mode=>`<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:18px;height:18px;background:currentColor;mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;mask-mode:alpha"></span>`;
+    container.insertAdjacentHTML('beforeend',`<section class="pn-workspace"><div class="pn-tools"><span class="pn-heading">Notes</span><button type="button" data-search-toggle title="Search notes" aria-label="Search notes" aria-expanded="false"><i class="fas fa-magnifying-glass" aria-hidden="true"></i></button><button type="button" data-archived aria-pressed="false">Show Archived</button><div class="pn-search-row" hidden><input type="search" aria-label="Search project notes" placeholder="Search notes"><button type="button" data-search-close aria-label="Close search"><i class="fas fa-xmark" aria-hidden="true"></i></button></div></div><div class="pn-pinned" aria-label="Pinned notes"></div><div class="pn-history" role="log" aria-label="Project notes history"></div><div class="pn-error" role="alert" hidden></div><form class="pn-composer"><div class="pn-composer-head"><span class="pn-composer-heading">ADD NOTE</span><div class="pn-audience"></div></div><div class="pn-composer-box"><div class="pn-editor-mount"></div><div class="pn-uploads"></div><div class="pn-compose-actions"><button type="button" class="pn-icon" data-emoji title="Insert emoji" aria-label="Insert emoji" aria-expanded="false"><i class="fas fa-face-smile"></i></button><button type="button" class="pn-icon" data-attach title="Attach a file" aria-label="Attach a file"><i class="fas fa-paperclip"></i></button><input type="file" hidden multiple><button type="button" class="pn-icon" data-dictate title="Dictate message" aria-label="Dictate message" aria-pressed="false">${voiceIcon('dictation')}</button><button type="button" class="pn-icon" data-audio title="Record an audio note" aria-label="Record an audio note" aria-pressed="false">${voiceIcon('record')}</button><div class="pn-add"><button type="submit" title="Add note" aria-label="Add note"><i class="fas fa-paper-plane" aria-hidden="true"></i></button><button type="button" data-pin-send title="Add pinned note" aria-label="Add pinned note"><i class="fas fa-thumbtack"></i></button></div></div><div class="pn-emoji-pop" hidden></div></div></form></section>`);
+    const history=container.querySelector('.pn-history'),pinned=container.querySelector('.pn-pinned'),form=container.querySelector('.pn-composer'),uploadBox=container.querySelector('.pn-uploads'),errorBox=container.querySelector('.pn-error');
+    const widgets=window.FirstMateChannels?.composerWidgets,esc=escapeHtml;
+    let directory={departments:[],users:[],selectable_department_ids:[],note_department_visibility:false};
+    const directoryReady=channels()?.directory?.list?.(orgId()).then(data=>{directory=data;return data;}).catch(()=>null) || Promise.resolve(null);
+    function say(value=''){if (!disposed){errorBox.textContent=value;errorBox.hidden=!value;}}
+    function createEditor(mount,placeholder){
+      const editor=widgets?.createEditor ? widgets.createEditor(placeholder) : document.createElement('textarea');
+      editor.setAttribute('aria-label',placeholder);editor.placeholder=placeholder;
+      if(widgets?.formatBar)mount.append(widgets.formatBar(editor,['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Quote']));
+      mount.append(editor);return editor;
     }
-    function render() {
-      if (disposed) return;
-      const scroll = history.scrollTop;
-      const rows = entry.notes.filter(note => (!entry.separate || note.metadata?.project_note === true) && (showRemoved || !note.deleted_at) && (!query || `${note.text} ${note.created_by?.name}`.toLowerCase().includes(query)));
-      const pins = rows.filter(note => note.pinned_at && !note.deleted_at);
-      const rest = rows.filter(note => !note.pinned_at || note.deleted_at).sort((a,b) => Number(b.seq) - Number(a.seq));
-      pinned.hidden = !pins.length;
-      pinned.innerHTML = pins.length ? `<h4>Pinned notes</h4>${pins.map(card).join('')}` : '';
-      history.innerHTML = rest.map(card).join('') || `<p class="pn-empty">${query ? 'No notes match your search.' : 'No notes yet. Add the first update below.'}</p>`;
-      if (entry.historyBefore) history.insertAdjacentHTML('beforeend', '<button type="button" data-load-more>Load older notes</button>');
-      for (const note of rows) {
-        const target = container.querySelector(`[data-pn-content="${CSS.escape(note.id)}"]`);
-        if (!target) continue;
-        if (window.FirstMateChannels?.renderMessageContent) target.replaceChildren(window.FirstMateChannels.renderMessageContent(note,{orgId:orgId()}));
-        else target.innerHTML = (widgets?.renderBody?.({...note, text:note.translation?.text || note.text}) || `<p>${escapeHtml(note.text)}</p>`) + audioPlayerHtml(note) + mediaAttachmentsHtml(note);
+    function noteAudienceLabel(note){
+      if(note.metadata?.department_access==='restricted'){
+        const labels=(note.metadata.department_ids || []).map(id=>directory.departments?.find(d=>d.id===id)?.label || 'Department');
+        return labels.length===1 ? labels[0]+' only' : labels.join(' and ');
       }
-      container.querySelectorAll('.pn-card').forEach(card => {const content=card.querySelector('.pn-card-content'),more=card.querySelector('.pn-more');if (content && more) more.hidden = !content.classList.contains('expanded') && content.scrollHeight <= content.clientHeight;});
-      window.FirstMateAudioNotes?.hydrate?.(container);
-      history.scrollTop = scroll;
+      const labels=(note.visibility || GROUPS).map(id=>id[0].toUpperCase()+id.slice(1));
+      return labels.length===GROUPS.length ? 'Everybody' : labels.length===1 ? labels[0]+' only' : labels.join(' and ');
     }
-    async function refresh() { adoptProject(); if (entry.projectId) await refreshEntry(entry); render(); }
-    const ready = refresh().catch(error => say(error.message));
-    const notified = event => { if (event.detail?.projectId === entry.projectId && !disposed) render(); };
-    window.addEventListener('fm:project-notes:refreshed', notified);
-    container.querySelector('[type=search]').oninput = event => {query = event.target.value.toLowerCase(); render();};
-    container.querySelector('[data-removed]').onchange = event => {showRemoved = event.target.checked; render();};
-    async function submit(pin = false) {
-      if (busy || disposed || capturing || uploading) return;
-      const body = clean(text.value);
-      if (!body && !prepared.length) return;
-      busy = true; text.contentEditable = 'false'; closeEmoji(); form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = true); say('Saving note…');
-      try {
-        await ensureSavedProject();
-        await ensureChannel(entry);
-        const group = form.querySelector('select').value;
-        const visibility = group === 'all' ? [] : [group];
-        if (editId) {
-          await channels().messages.edit(orgId(), editId, {text:body, audience:visibility, mention_users:mentions?.selectedMentions?.() || []});
-        } else {
-          const metadata = Object.assign({}, ...prepared.map(item => item.kind === "audio" ? {audio_note:item.metadata} : item.metadata || {}));
-          await channels().messages.post(orgId(), entry.channelId, {text:body || prepared.map(item => item.text || '').filter(Boolean).join('\n'), project_note:true, pin,
-            mention_users:mentions?.selectedMentions?.() || [], client_msg_id:form.dataset.operationId || (form.dataset.operationId = id()), audience:visibility,
-            attachment_ids:prepared.map(item => item.attachment?.id).filter(Boolean), metadata});
-        }
-        if (disposed) return;
-        text.value = ''; prepared = []; editId = ''; delete form.dataset.operationId; uploadBox.replaceChildren();
-        resetSendButton(); mentions?.setSelectedMentions?.([]); form.querySelector('[data-pin-send]').hidden = false;
-        await refresh(); announce(entry.projectId); say('');
-      } catch (error) { say(error.message || 'Could not save the note. Your draft has been kept.'); }
-      finally { busy = false; if (!disposed) {text.contentEditable = 'true';form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = false);syncSendState();} }
+    function audienceChooser(host,note=null){
+      let ids=note?.metadata?.department_access==='restricted' ? [...(note.metadata.department_ids || [])] : [],legacy=note && note.visibility.length<GROUPS.length ? [...note.visibility] : [],changed=false,loaded=false;
+      host.innerHTML='<button type="button" class="pn-visibility-button" aria-label="Choose note visibility" aria-expanded="false" disabled><i class="fas fa-eye" aria-hidden="true"></i><span>Visibility</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="pn-audience-menu" hidden></div>';
+      const button=host.querySelector('button'),menu=host.querySelector('.pn-audience-menu');
+      function draw(){
+        const departmentMode=directory.note_department_visibility===true;
+        const options=departmentMode ? (directory.departments || []).filter(d=>(directory.selectable_department_ids || []).includes(d.id)) : GROUPS.map(id=>({id,label:id[0].toUpperCase()+id.slice(1)}));
+        const selected=departmentMode ? ids : legacy;
+        const label=!changed && note ? noteAudienceLabel(note) : selected.length ? selected.map(id=>options.find(d=>d.id===id)?.label || 'Department').join(' and ') : 'Everybody';
+        button.querySelector('span').textContent=label;button.title=label;
+        menu.innerHTML=`${legacy.length && departmentMode && !changed ? `<p class="pn-audience-current">Current: ${esc(noteAudienceLabel(note))}. Select departments to update.</p>` : ''}<label><input type="checkbox" data-audience-all ${!selected.length && !(legacy.length && departmentMode && !changed) ? 'checked' : ''}>Everybody</label>${options.map(d=>`<label><input type="checkbox" value="${esc(d.id)}" ${selected.includes(d.id) ? 'checked' : ''}>${esc(d.label)}</label>`).join('')}${!options.length ? '<p>No selectable departments.</p>' : ''}`;
+      }
+      button.onclick=()=>{menu.hidden=!menu.hidden;button.setAttribute('aria-expanded',String(!menu.hidden));};
+      menu.setAttribute('role','group');menu.setAttribute('aria-label','Note visibility');
+      menu.onchange=event=>{
+        const input=event.target;if(!input.matches('input'))return;
+        const departmentMode=directory.note_department_visibility===true;
+        let selected=departmentMode ? ids : legacy;
+        if(input.hasAttribute('data-audience-all'))selected=[];
+        else selected=input.checked ? unique([...selected,input.value]) : selected.filter(id=>id!==input.value);
+        if(departmentMode){ids=selected;legacy=[];}else legacy=selected;
+        changed=true;draw();
+        const active=input.hasAttribute('data-audience-all') ? menu.querySelector('[data-audience-all]') : menu.querySelector(`input[value="${CSS.escape(input.value)}"]`);active?.focus();
+      };
+      directoryReady.then(data=>{if(disposed || !host.isConnected)return;if(!data){button.querySelector('span').textContent='Visibility unavailable';return;}loaded=true;button.disabled=false;draw();});
+      return {payload(){if(!loaded)throw Error('Visibility is still loading. Try again.');return directory.note_department_visibility && (!note || changed) ? {audience:[],department_ids:ids} : {audience:legacy};},close(){menu.hidden=true;button.setAttribute('aria-expanded','false');}};
     }
-    form.onsubmit = event => {event.preventDefault(); void submit();};
-    form.querySelector('[data-pin-send]').onclick = () => submit(true);
-    text.oninput = () => { delete form.dataset.operationId; syncSendState(); };
-    form.querySelector('[type=file]').onchange = async event => {
-      uploading++; syncSendState(); say('Preparing files…');
-      try {
-        await ensureSavedProject();
-        for (const file of event.target.files) {
-          const result = await prepareUpload(project, file);
-          if (disposed) return;
-          prepared.push(result); const node = document.createElement('div'); uploadBox.append(node);
-          mountPreparedUpload(node, result, () => {prepared = prepared.filter(item => item !== result); node.remove(); delete form.dataset.operationId;syncSendState();});
-        }
-        delete form.dataset.operationId; say('');
-      } catch (error) {say(error.message);}
-      finally {uploading--;syncSendState();}
-      event.target.value = '';
+    const text=createEditor(form.querySelector('.pn-editor-mount'),'Add an internal note… Use @name or @email to tag someone.');text.setAttribute('aria-label','New project note');
+    const mentions=window.FirstMateTags?.attachMentionTextarea?.(text,{orgId:orgId(),source:'project_notes'}),audience=audienceChooser(form.querySelector('.pn-audience'));
+    const sendButton=form.querySelector('[type=submit]'),dictateButton=form.querySelector('[data-dictate]'),audioButton=form.querySelector('[data-audio]');
+    let capturing=false,captureMode='',recorderControl=null,uploading=0,emojiPicker=null;
+    const emojiButton=form.querySelector('[data-emoji]'),emojiPop=form.querySelector('.pn-emoji-pop');
+    const closeEmoji=()=>{emojiPicker?.destroy?.();emojiPicker=null;emojiPop.hidden=true;emojiButton.setAttribute('aria-expanded','false');};
+    emojiButton.onclick=()=>{
+      if(!emojiPop.hidden){closeEmoji();return;}emojiPop.hidden=false;emojiButton.setAttribute('aria-expanded','true');
+      emojiPicker=window.FirstMateChannels?.mountEmojiPicker?.(emojiPop,emoji=>{text.insertText ? text.insertText(emoji) : text.setRangeText(emoji,text.selectionStart,text.selectionEnd,'end');text.dispatchEvent(new Event('input',{bubbles:true}));closeEmoji();text.focus();});emojiPicker?.focus?.();
     };
-    const captureAbort = new AbortController();
-    let capturing = false, captureMode = '', recorderControl = null, uploading = 0;
-    const dictateButton = form.querySelector('[data-dictate]'), audioButton = form.querySelector('[data-audio]');
-    function syncSendState() {
-      sendButton.disabled = busy || capturing || uploading > 0 || (!clean(text.value) && !prepared.length);
-      form.querySelector('[data-pin-send]').disabled = sendButton.disabled;
-      if (!capturing) {dictateButton.disabled = busy; audioButton.disabled = busy || !!editId || prepared.some(item=>item.kind === 'audio');}
-      form.querySelector('[data-attach]').disabled = busy || !!editId;
+    form.querySelector('[data-attach]').onclick=()=>form.querySelector('[type=file]').click();
+    function syncSendState(){sendButton.disabled=busy || capturing || uploading>0 || (!clean(text.value) && !prepared.length);form.querySelector('[data-pin-send]').disabled=sendButton.disabled;if(!capturing){dictateButton.disabled=busy;audioButton.disabled=busy || prepared.some(item=>item.kind==='audio');}form.querySelector('[data-attach]').disabled=busy;}
+    function avatarHtml(note){
+      const user=note.created_by || {},photo=user.avatar || directory.users?.find(item=>item.id===user.id)?.avatar,initials=(user.name || 'Teammate').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
+      const summary=user.id && !user.id.startsWith('agent_') ? ` data-fm-summary-type="summary.user" data-fm-summary-target="${esc(JSON.stringify({scope:'organization',organizationId:orgId(),id:user.id}))}"` : '';
+      return `<button type="button" class="pn-avatar" aria-label="Preview ${esc(user.name || 'team member')}"${summary}>${photo && /^(https?:|\/)/.test(photo) ? `<img src="${esc(photo)}" alt="" loading="lazy">` : esc(initials)}</button>`;
     }
-    async function capture(mode) {
-      if (capturing) {if (captureMode === mode) recorderControl?.stop();return;}
-      if (busy || disposed) return;
-      capturing = true; captureMode = mode; syncSendState();
-      dictateButton.disabled = audioButton.disabled = true;
-      const button = mode === 'dictation' ? dictateButton : audioButton;
-      const node = document.createElement('div'); uploadBox.append(node);
-      let result;
-      try {
-        await ensureSavedProject();
-        if (disposed) return;
-        result = await prepareAudioInline(project, node, {mode,signal:captureAbort.signal,onRecordingState(control) {
-          recorderControl = control;
-          if (disposed) {control?.cancel?.();return;}
-          button.disabled = !control;button.classList.toggle('voice-active',!!control);button.setAttribute('aria-pressed',String(!!control));
-          button.setAttribute('aria-label',control ? (mode === 'dictation' ? 'Finish dictation' : 'Finish recording') : button.title);
-        },onRemove() {prepared = prepared.filter(item => item !== result);node.remove();delete form.dataset.operationId;syncSendState();}});
-        if (disposed) return;
-        if (mode === 'dictation') {text.value = [text.value,result.text].filter(Boolean).join(' ');node.remove();text.dispatchEvent(new Event('input',{bubbles:true}));text.focus();}
-        else {result.kind = 'audio';prepared.push(result);delete form.dataset.operationId;}
-      } catch (error) {node.remove();if (!/cancelled/i.test(error.message || '')) say(error.message);}
-      finally {capturing=false;recorderControl=null;if (!disposed) {dictateButton.disabled=audioButton.disabled=busy;button.classList.remove('voice-active');button.setAttribute('aria-pressed','false');button.setAttribute('aria-label',button.title);syncSendState();}}
+    function card(note){
+      const deleted=!!note.deleted_at,shared=note.metadata?.note_shared;
+      const actions=deleted ? (note.can_restore ? '<button type="button" data-act="restore">Unarchive Note</button>' : '') : `<button type="button" data-act="pin">${note.pinned_at ? 'Unpin Note' : 'Pin Note'}</button>${entry.separate && note.metadata?.project_note && !shared ? '<button type="button" data-act="share">Share to channel</button>' : ''}${note.can_edit ? '<button type="button" data-act="edit">Edit Note</button>' : ''}<button type="button" data-act="history">Edit history</button><button type="button" data-act="copy">Copy text</button>${note.can_delete ? '<button type="button" data-act="delete">Archive Note</button>' : ''}`;
+      return `<article class="pn-card${deleted ? ' pn-removed' : ''}" data-project-note-id="${esc(note.id)}"><header>${avatarHtml(note)}<div class="pn-author"><span>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}</time></div>${note.pinned_at && !deleted ? '<button type="button" class="pn-pin-toggle" data-act="pin" title="Unpin Note" aria-label="Unpin Note"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header>${deleted ? '<p>Archived note</p>' : `<div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"></div><button type="button" class="pn-more" data-act="expand" hidden>${expanded.has(note.id) ? 'Show less' : 'Show more'}</button><footer><span>${esc(noteAudienceLabel(note))}${note.edited_at ? ' · Edited' : ''}${shared ? ' · Shared to channel' : ''}</span><button type="button" data-act="replies">${note.reply_count ? `${Number(note.reply_count)} ${Number(note.reply_count)===1 ? 'reply' : 'replies'}` : 'Reply'}</button></footer>`}</article>`;
     }
-    dictateButton.onclick = () => capture('dictation');
-    audioButton.onclick = () => capture('record');
-    syncSendState();
-    container.onclick = async event => {
-      const older = event.target.closest('[data-load-more]');
-      const button = event.target.closest('[data-act]');
-      if (!button && !older) return;
-      if (button) event.preventDefault();
-      try {
-        if (older) {
-          older.disabled = true;
-          const data = await channels().messages.list(orgId(), entry.channelId, {view:entry.separate ? 'notes' : 'all', before:entry.historyBefore, limit:100});
-          entry.notes = [...new Map([...entry.notes,...data.messages.map(noteFromMessage)].map(note => [note.id,note])).values()];
-          entry.historyBefore = data.messages.length === 100 ? data.messages[0].seq : 0; render(); return;
-        }
-        const cardNode = button.closest('[data-project-note-id]');
-        const note = entry.notes.find(item => item.id === cardNode.dataset.projectNoteId);
-        if (!note) return;
-        const action = button.dataset.act;
-        if (action === 'expand') {expanded.has(note.id) ? expanded.delete(note.id) : expanded.add(note.id); render(); return;}
-        if (action === 'edit') {
-          editId = note.id; text.value = note.text; form.querySelector('select').value = note.visibility.length === GROUPS.length ? 'all' : note.visibility[0];
-          mentions?.setSelectedMentions?.(note.mention_users || []);syncVisibility();syncSendState();form.querySelector('.pn-cancel-edit').hidden = false;sendButton.setAttribute('aria-label','Save note');sendButton.title='Save note';sendButton.textContent = 'Save'; form.querySelector('[data-pin-send]').hidden = true; text.focus();
-          say('Editing note. Escape cancels.'); return;
-        }
-        if (action === 'copy') {await navigator.clipboard.writeText(note.text); say('Copied.'); return;}
-        if (action === 'history') {await showHistoryPopover(button, note.id); return;}
-        if (action === 'replies') {if (cardNode.querySelector('.pn-replies-wrap')) cardNode.querySelector('.pn-replies-wrap').remove(); else await renderRepliesInto(cardNode, project, note.id, {focus:true}); return;}
-        button.disabled = true;
-        if (action === 'pin') await channels().messages[note.pinned_at ? 'unpin' : 'pin'](orgId(),note.id);
-        if (action === 'share') await channels().messages.shareNote(orgId(),note.id);
-        if (action === 'delete') await channels().messages.remove(orgId(),note.id);
-        if (action === 'restore') await channels().messages.restore(orgId(),note.id);
-        if (action === 'save') {await channels().saved.add(orgId(),note.id); say('Saved to your messages.'); return;}
-        await refresh(); announce(entry.projectId); say('');
-      } catch (error) {say(error.message); if (button?.isConnected) button.disabled = false;}
+    function render(){
+      if(disposed)return;const scroll=history.scrollTop,editingNode=editSession?.node;
+      const rows=entry.notes.filter(note=>(!entry.separate || note.metadata?.project_note===true) && (showArchived || !note.deleted_at) && (!query || `${note.text} ${note.created_by?.name}`.toLowerCase().includes(query)));
+      const pins=rows.filter(note=>note.pinned_at && !note.deleted_at),rest=rows.filter(note=>!note.pinned_at || note.deleted_at).sort((a,b)=>Number(b.seq)-Number(a.seq));
+      pinned.hidden=!pins.length;pinned.innerHTML=pins.length ? `<h4>Pinned notes</h4>${pins.map(card).join('')}` : '';history.innerHTML=rest.map(card).join('') || `<p class="pn-empty">${query ? 'No notes match your search.' : 'No notes yet. Add the first update below.'}</p>`;
+      if(entry.historyBefore)history.insertAdjacentHTML('beforeend','<button type="button" data-load-more>Load older notes</button>');
+      for(const note of rows){const target=container.querySelector(`[data-pn-content="${CSS.escape(note.id)}"]`);if(!target)continue;target.innerHTML=(widgets?.renderBody?.({...note,text:note.translation?.text || note.text}) || `<p>${esc(note.text)}</p>`)+audioPlayerHtml(note)+mediaAttachmentsHtml(note);}
+      if(editingNode){const replacement=container.querySelector(`[data-project-note-id="${CSS.escape(editSession.id)}"]`);if(replacement)replacement.replaceWith(editingNode);else history.prepend(editingNode);}
+      container.querySelectorAll('.pn-card').forEach(node=>{const content=node.querySelector('.pn-card-content'),more=node.querySelector('.pn-more');if(content && more)more.hidden=content.hidden || (!content.classList.contains('expanded') && content.scrollHeight<=content.clientHeight);});
+      window.FirstMateAudioNotes?.hydrate?.(container);history.scrollTop=scroll;
+    }
+    async function refresh(){adoptProject();if(entry.projectId)await refreshEntry(entry);render();}
+    const ready=Promise.all([refresh(),directoryReady]).then(()=>render()).catch(error=>say(error.message));
+    const notified=event=>{if(event.detail?.projectId===entry.projectId && !disposed)render();};window.addEventListener('fm:project-notes:refreshed',notified);
+    const searchRow=container.querySelector('.pn-search-row'),searchInput=searchRow.querySelector('input'),searchToggle=container.querySelector('[data-search-toggle]');
+    function closeSearch(){searchRow.hidden=true;searchToggle.setAttribute('aria-expanded','false');query='';searchInput.value='';render();searchToggle.focus();}
+    searchToggle.onclick=()=>{if(!searchRow.hidden){closeSearch();return;}searchRow.hidden=false;searchToggle.setAttribute('aria-expanded','true');searchInput.focus();};container.querySelector('[data-search-close]').onclick=closeSearch;
+    searchInput.oninput=event=>{query=event.target.value.toLowerCase();render();};searchInput.onkeydown=event=>{if(event.key==='Escape'){event.stopPropagation();closeSearch();}};
+    container.querySelector('[data-archived]').onclick=event=>{showArchived=!showArchived;event.currentTarget.textContent=showArchived ? 'Hide Archived' : 'Show Archived';event.currentTarget.setAttribute('aria-pressed',String(showArchived));render();};
+    async function submit(pin=false){
+      if(busy || disposed || capturing || uploading)return;const body=clean(text.value);if(!body && !prepared.length)return;
+      busy=true;text.contentEditable='false';closeEmoji();audience.close();form.querySelectorAll('button,input,textarea').forEach(node=>node.disabled=true);say();
+      try{await ensureSavedProject();await ensureChannel(entry);const visibility=audience.payload(),metadata=Object.assign({},...prepared.map(item=>item.kind==='audio' ? {audio_note:item.metadata} : item.metadata || {}));
+        await channels().messages.post(orgId(),entry.channelId,{text:body || prepared.map(item=>item.text || '').filter(Boolean).join('\n'),project_note:true,pin,...visibility,mention_users:mentions?.selectedMentions?.() || [],client_msg_id:form.dataset.operationId || (form.dataset.operationId=id()),attachment_ids:prepared.map(item=>item.attachment?.id).filter(Boolean),metadata});
+        if(disposed)return;text.value='';prepared=[];delete form.dataset.operationId;uploadBox.replaceChildren();mentions?.setSelectedMentions?.([]);await refresh();announce(entry.projectId);
+      }catch(error){say(error.message || 'Could not save the note. Your draft has been kept.');}
+      finally{busy=false;if(!disposed){text.contentEditable='true';form.querySelectorAll('button,input,textarea').forEach(node=>node.disabled=false);syncSendState();}}
+    }
+    form.onsubmit=event=>{event.preventDefault();void submit();};form.querySelector('[data-pin-send]').onclick=()=>submit(true);text.oninput=()=>{delete form.dataset.operationId;syncSendState();};
+    form.querySelector('[type=file]').onchange=async event=>{
+      uploading++;syncSendState();say();try{await ensureSavedProject();for(const file of event.target.files){const result=await prepareUpload(project,file);if(disposed)return;prepared.push(result);const node=document.createElement('div');uploadBox.append(node);mountPreparedUpload(node,result,()=>{prepared=prepared.filter(item=>item!==result);node.remove();delete form.dataset.operationId;syncSendState();});}delete form.dataset.operationId;}
+      catch(error){say(error.message);}finally{uploading--;syncSendState();event.target.value='';}
     };
-    container.addEventListener('click', event => {
-      const button = event.target.closest('[data-pn-reply-send]');
-      if (button) void sendReply(button.closest('.pn-replies-wrap').querySelector('input'), project, button.dataset.pnReplySend);
-    });
-    function cancelEdit() {editId='';text.value='';resetSendButton();mentions?.setSelectedMentions?.([]);form.querySelector('[data-pin-send]').hidden=false;delete form.dataset.operationId;syncSendState();say('');}
-    form.querySelector('.pn-cancel-edit').onclick = cancelEdit;
-    text.onkeydown = event => {
-      if (event.key === 'Escape' && !emojiPop.hidden) {event.stopPropagation();closeEmoji();return;}
-      if (event.key === 'Escape' && editId) {event.stopPropagation();cancelEdit();}
-      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {event.preventDefault();void submit();}
+    async function capture(mode){
+      if(capturing){if(captureMode===mode)recorderControl?.stop();return;}if(busy || disposed)return;capturing=true;captureMode=mode;syncSendState();dictateButton.disabled=audioButton.disabled=true;const button=mode==='dictation' ? dictateButton : audioButton,node=document.createElement('div');uploadBox.append(node);let result;
+      try{await ensureSavedProject();if(disposed)return;result=await prepareAudioInline(project,node,{mode,signal:captureAbort.signal,onRecordingState(control){recorderControl=control;if(disposed)return;button.disabled=!control;button.classList.toggle('voice-active',!!control);button.setAttribute('aria-pressed',String(!!control));button.setAttribute('aria-label',control ? mode==='dictation' ? 'Finish dictation' : 'Finish recording' : button.title);},onRemove(){prepared=prepared.filter(item=>item!==result);node.remove();delete form.dataset.operationId;syncSendState();}});
+        if(disposed)return;if(mode==='dictation'){text.value=[text.value,result.text].filter(Boolean).join(' ');node.remove();text.dispatchEvent(new Event('input',{bubbles:true}));text.focus();}else{result.kind='audio';prepared.push(result);delete form.dataset.operationId;}
+      }catch(error){node.remove();if(!/cancelled/i.test(error.message || ''))say(error.message);}finally{capturing=false;recorderControl=null;if(!disposed){button.classList.remove('voice-active');button.setAttribute('aria-pressed','false');button.setAttribute('aria-label',button.title);syncSendState();}}
+    }
+    dictateButton.onclick=()=>capture('dictation');audioButton.onclick=()=>capture('record');syncSendState();
+    function endEdit(){if(!editSession)return;editSession.mentions?.destroy?.();editSession=null;render();}
+    function startEdit(note,node){
+      if(editSession?.id===note.id){editSession.text.focus();return;}if(editSession){editSession.text.focus();return;}
+      node.querySelector('.pn-card-content').hidden=true;node.querySelector('footer').hidden=true;node.querySelector('.pn-more').hidden=true;
+      const editForm=document.createElement('form');editForm.className='pn-inline-edit';editForm.innerHTML='<div class="pn-inline-edit-head">EDIT NOTE</div><div class="pn-composer-box"><div class="pn-editor-mount"></div></div><div class="pn-inline-error" role="alert" hidden></div><div class="pn-inline-edit-actions"><div class="pn-audience"></div><button type="button" data-cancel-edit>Cancel</button><button type="submit">Save changes</button></div>';node.append(editForm);
+      const editor=createEditor(editForm.querySelector('.pn-editor-mount'),'Edit note');editor.value=note.text;
+      const editMentions=window.FirstMateTags?.attachMentionTextarea?.(editor,{orgId:orgId(),source:'project_notes'});editMentions?.setSelectedMentions?.(note.mention_users || []);
+      const chooser=audienceChooser(editForm.querySelector('.pn-audience'),note),error=editForm.querySelector('.pn-inline-error'),save=editForm.querySelector('[type=submit]');
+      const session={id:note.id,node,text:editor,mentions:editMentions,busy:false};editSession=session;editor.focus();
+      editor.oninput=()=>save.disabled=!clean(editor.value);editor.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!session.busy)endEdit();}if(event.key==='Enter' && (event.ctrlKey || event.metaKey)){event.preventDefault();editForm.requestSubmit();}};
+      editForm.querySelector('[data-cancel-edit]').onclick=()=>{if(!session.busy)endEdit();};
+      editForm.onsubmit=async event=>{event.preventDefault();if(session.busy || !clean(editor.value))return;session.busy=true;editForm.querySelectorAll('button,input').forEach(node=>node.disabled=true);chooser.close();editor.contentEditable='false';editForm.querySelector('[data-cancel-edit]').disabled=true;error.hidden=true;
+        try{await channels().messages.edit(orgId(),note.id,{text:clean(editor.value),...chooser.payload(),mention_users:editMentions?.selectedMentions?.() || []});if(disposed)return;endEdit();await refresh();announce(entry.projectId);}
+        catch(cause){error.textContent=cause.message || 'Could not save your changes.';error.hidden=false;}
+        finally{session.busy=false;if(editSession===session){editForm.querySelectorAll('button,input').forEach(node=>node.disabled=false);editor.contentEditable='true';}}
+      };
+    }
+    container.onclick=async event=>{
+      const older=event.target.closest('[data-load-more]'),button=event.target.closest('[data-act]');if(!button && !older)return;if(button)event.preventDefault();
+      try{if(older){older.disabled=true;const data=await channels().messages.list(orgId(),entry.channelId,{view:entry.separate ? 'notes' : 'all',before:entry.historyBefore,limit:100});entry.notes=[...new Map([...entry.notes,...data.messages.map(noteFromMessage)].map(note=>[note.id,note])).values()];entry.historyBefore=data.messages.length===100 ? data.messages[0].seq : 0;render();return;}
+        const node=button.closest('[data-project-note-id]'),note=entry.notes.find(item=>item.id===node.dataset.projectNoteId);if(!note)return;const action=button.dataset.act,anchor=node.querySelector('.pn-menu summary');say();node.querySelector('.pn-menu').open=false;
+        if(action==='expand'){expanded.has(note.id) ? expanded.delete(note.id) : expanded.add(note.id);render();return;}
+        if(action==='edit'){startEdit(note,node);return;}
+        if(action==='copy'){await navigator.clipboard.writeText(note.text);return;}
+        if(action==='history'){await showHistoryPopover(anchor,note.id);return;}
+        if(action==='replies'){if(node.querySelector('.pn-replies-wrap'))node.querySelector('.pn-replies-wrap').remove();else await renderRepliesInto(node,project,note.id,{focus:true});return;}
+        button.disabled=true;
+        if(action==='pin')await channels().messages[note.pinned_at ? 'unpin' : 'pin'](orgId(),note.id);
+        if(action==='share')await channels().messages.shareNote(orgId(),note.id);
+        if(action==='delete')await channels().messages.remove(orgId(),note.id);
+        if(action==='restore')await channels().messages.restore(orgId(),note.id);
+        await refresh();announce(entry.projectId);
+      }catch(error){say(error.message);if(button?.isConnected)button.disabled=false;}
     };
-    return {ready, refresh, destroy() {disposed = true; captureAbort.abort();closeEmoji();mentions?.destroy?.();window.removeEventListener('fm:project-notes:refreshed',notified); container.querySelector('.fm-an-inline-remove')?.click(); container.replaceChildren();}};
+    container.addEventListener('click',event=>{const button=event.target.closest('[data-pn-reply-send]');if(button)void sendReply(button.closest('.pn-replies-wrap').querySelector('input'),project,button.dataset.pnReplySend);},{signal:lifetime.signal});
+    document.addEventListener('pointerdown',event=>{
+      container.querySelectorAll('.pn-menu[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;});
+      container.querySelectorAll('.pn-audience').forEach(host=>{if(!host.contains(event.target)){host.querySelector('.pn-audience-menu').hidden=true;host.querySelector('button').setAttribute('aria-expanded','false');}});
+      if(!form.querySelector('.pn-composer-box').contains(event.target))closeEmoji();
+    },{capture:true,signal:lifetime.signal});
+    text.onkeydown=event=>{if(event.key==='Escape' && !emojiPop.hidden){event.stopPropagation();closeEmoji();}if(event.key==='Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing){event.preventDefault();void submit();}};
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){container.querySelectorAll('.pn-menu[open]').forEach(menu=>menu.open=false);container.querySelectorAll('.pn-audience').forEach(host=>{host.querySelector('.pn-audience-menu').hidden=true;host.querySelector('button').setAttribute('aria-expanded','false');});closeHistoryPop();}},{signal:lifetime.signal});
+    return {ready,refresh,destroy(){disposed=true;lifetime.abort();captureAbort.abort();closeEmoji();closeHistoryPop();mentions?.destroy?.();editSession?.mentions?.destroy?.();window.removeEventListener('fm:project-notes:refreshed',notified);container.querySelector('.fm-an-inline-remove')?.click();container.replaceChildren();}};
+
   }
 
   window.Portal.ProjectNotes = {

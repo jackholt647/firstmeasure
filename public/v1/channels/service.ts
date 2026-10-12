@@ -169,6 +169,16 @@ function messageVisibleTo(message: MessageRow, ctx: PlatformAuthContext, groups:
   return message.audience.some((group) => groups.includes(group));
 }
 
+/** A project note's explicit department audience reuses the resource access boundary. */
+export function projectNoteDepartmentVisibility(ctx: PlatformAuthContext, channelType: string, isRootNote: boolean, departmentIds?: string[]): JsonObject | undefined {
+  if (departmentIds === undefined) return undefined;
+  if (channelType !== 'project' || !isRootNote) throw badRequest('note_audience_only', 'Department visibility is available for project notes.');
+  const selected = [...new Set(departmentIds.map(cleanText).filter(Boolean))];
+  const allowed = relevantDepartmentContext(ctx).department_ids;
+  if (selected.some(id => !allowed.includes(id))) throw forbidden('department_denied', 'Choose active departments available to you.');
+  return {department_ids:selected, department_access:selected.length ? 'restricted' : 'shared'};
+}
+
 // --- user directory -----------------------------------------------------------
 
 import {departmentMemberIds,departmentChannelMembers,effectiveChannelMembers} from './department-channels.js';
@@ -570,7 +580,7 @@ export async function realtimeChannelTargets(orgId: string, channelId: string): 
 }
 
 function messageIsAudienceRestricted(message: MessageRow) {
-  return message.audience.length > 0 && message.audience.length < AUDIENCE_GROUPS.length;
+  return message.metadata.department_access === 'restricted' || (message.audience.length > 0 && message.audience.length < AUDIENCE_GROUPS.length);
 }
 
 async function publishMessageEvent(topic: string, channel: ChannelRow, message: MessageRow, hydrated: JsonObject | null | undefined) {
@@ -1116,6 +1126,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   parent_id?: string;
   reply_broadcast?: boolean;
   audience?: string[];
+  department_ids?: string[];
   tags?: string[];
   mention_users?: JsonObject[];
   attachment_ids?: string[];
@@ -1139,13 +1150,16 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
 
   let parentId: string | null = null;
   let parentNote = false;
+  let parentDepartmentVisibility: JsonObject | undefined;
   if (input.parent_id) {
     const parent = (await readMessageRecord(ctx.orgId, input.parent_id));
     if (!parent || parent.channel_id !== channelId || parent.deleted_at || !messageVisibleTo(parent, ctx, viewerAudienceGroups(ctx))) throw badRequest("invalid_parent", "The thread parent does not exist in this channel.");
     // Replies attach to the thread root, never nest.
     parentId = parent.parent_id ?? parent.id;
     const root = parent.parent_id ? await readMessageRecord(ctx.orgId, parent.parent_id) : parent;
+    if (!root || root.deleted_at || !messageVisibleTo(root, ctx, viewerAudienceGroups(ctx))) throw badRequest("invalid_parent", "The thread root is not available to you.");
     parentNote = root?.metadata.project_note === true;
+    if (parentNote && root) parentDepartmentVisibility = {department_ids:root.metadata.department_ids || [],department_access:root.metadata.department_access || 'shared'};
   }
 
   // Forward attribution is a server-authored snapshot of a message the sender
@@ -1154,6 +1168,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   const allowedDepartments=relevantDepartmentContext(ctx).department_ids;
   if(Array.isArray(metadata.department_ids)&&metadata.department_ids.some(id=>!allowedDepartments.includes(String(id))))throw forbidden('department_denied','Choose a department available to you.');
   if(!Array.isArray(metadata.department_ids))metadata.department_ids=ctx.organizationStructure?.users.find(u=>u.id===ctx.userId)?.department_ids||[];
+  Object.assign(metadata, projectNoteDepartmentVisibility(ctx, channel.type, input.project_note === true && !parentId, input.department_ids), parentDepartmentVisibility);
   delete metadata.feed_post;
   delete metadata.feed_comment;
   delete metadata.feed_source;
@@ -1400,6 +1415,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   content?: JsonObject;
   content_schema_version?: number;
   audience?: string[];
+  department_ids?: string[];
   tags?: string[];
   mention_users?: JsonObject[];
 }) {
@@ -1410,6 +1426,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   if (message.author_id !== ctx.userId) throw forbidden("not_message_author", "Only the author can edit a message.");
   if (message.deleted_at) throw badRequest("message_deleted", "Removed messages cannot be edited. Restore it first.");
 
+  const departmentVisibility=projectNoteDepartmentVisibility(ctx,channel.type,message.metadata.project_note === true && !message.parent_id,input.department_ids);
   const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const previousMentions = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
   const detectedLanguage = detectMessageLanguage(input.text);
@@ -1422,6 +1439,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
     language_confidence: detectedLanguage.confidence,
     audience: channel.type === "project" ? input.audience : undefined,
     tags: input.tags,
+    ...(departmentVisibility ? {metadata:{...message.metadata,...departmentVisibility}} : {}),
     mention_users: input.mention_users,
     edited_by: ctx.userId
   }));

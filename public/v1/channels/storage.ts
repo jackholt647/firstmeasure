@@ -945,6 +945,7 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
   mention_users?: JsonObject[];
   audience?: string[];
   tags?: string[];
+  metadata?: JsonObject;
   edited_by: string;
 }) {
   return (await getChannelsDatabase().transaction(async () => {
@@ -968,7 +969,7 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
 
     const mentionUsers = input.mention_users !== undefined ? input.mention_users : message.mention_users;
     (await db.prepare(`
-      UPDATE messages SET text = ?, content_json = ?, content_schema_version = ?, language_code = ?, language_confidence = ?, mention_users_json = ?, audience_json = ?, tags_json = ?, edited_at = ?
+      UPDATE messages SET text = ?, content_json = ?, content_schema_version = ?, language_code = ?, language_confidence = ?, mention_users_json = ?, audience_json = ?, tags_json = ?, metadata_json = ?, edited_at = ?
       WHERE id = ?
     `).run(
       input.text,
@@ -979,9 +980,19 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
       JSON.stringify(mentionUsers ?? []),
       JSON.stringify(input.audience !== undefined ? asStringArray(input.audience) : message.audience),
       JSON.stringify(input.tags !== undefined ? asStringArray(input.tags) : message.tags),
+      JSON.stringify(input.metadata !== undefined ? input.metadata : message.metadata),
       now,
       message.id
     ));
+
+    // A note thread follows its root's audience, including already-written replies.
+    if (input.metadata && !message.parent_id && message.metadata.project_note === true) {
+      const replies = await db.prepare('SELECT id, metadata_json FROM messages WHERE organization_id = ? AND parent_id = ?').all(orgId,message.id) as JsonObject[];
+      for (const reply of replies) {
+        const metadata={...(parseJson(reply.metadata_json,{}) as JsonObject),department_ids:input.metadata.department_ids || [],department_access:input.metadata.department_access || 'shared'};
+        await db.prepare('UPDATE messages SET metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(metadata),orgId,String(reply.id));
+      }
+    }
 
     const mentionIds = [...new Set((mentionUsers ?? []).map((user) => cleanText((user as JsonObject).id || (user as JsonObject).user_id)).filter(Boolean))];
     for (const userId of mentionIds) {

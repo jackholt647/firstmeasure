@@ -56,6 +56,7 @@ export const postMessageSchema = z.object({
   project_note: z.boolean().optional(),
   pin: z.boolean().optional(),
   audience: z.array(audienceGroup).default([]),
+  department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
   tags: z.array(z.string().trim().min(1).max(60)).default([]),
   mention_users: z.array(mentionUserSchema).default([]),
   attachment_ids: z.array(z.string().trim().min(1)).default([]),
@@ -71,6 +72,7 @@ export const editMessageSchema = z.object({
   content: richContentSchema.optional(),
   content_schema_version: z.number().int().min(1).max(20).optional(),
   audience: z.array(audienceGroup).optional(),
+  department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
   tags: z.array(z.string().trim().min(1).max(60)).optional(),
   mention_users: z.array(mentionUserSchema).optional()
 });
