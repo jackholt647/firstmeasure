@@ -164,7 +164,7 @@ export function viewerAudienceGroups(ctx: PlatformAuthContext): string[] {
 }
 
 function messageVisibleTo(message: MessageRow, ctx: PlatformAuthContext, groups: string[]) {
-  const crewNote = message.metadata.project_note === true && message.metadata.note_audience_crew === true && groups.includes('crew');
+  const crewNote = message.metadata.project_note === true && message.metadata.note_audience_crew === true && ctx.applicationAccess.field?.enabled === true;
   if(!crewNote && !canAccessDepartmentResource(ctx,message.metadata))return false;
   if (message.metadata.feed_post === true || message.metadata.feed_comment === true) return feedMessageGranted(ctx, message);
   if (!message.audience.length) return true;

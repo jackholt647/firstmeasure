@@ -51,6 +51,7 @@ test('crew is a field-user audience independent of department membership, combin
  assert.ok(!(await domain.listMessages(ctx('office'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
  const reply=await domain.postMessage(crewCtx,channel.id,{text:'Field reply',parent_id:id});assert.equal((reply.message!.metadata as any).note_audience_crew,true);
  await domain.updateMessageVisibility(ctx('owner'),id,{department_ids:[],include_crew:true,audience:[]});
+ const roleNameOnly=ctx('office');roleNameOnly.role='production_manager';assert.ok(!(await domain.listMessages(roleNameOnly,channel.id,{view:'notes'})).messages.some(m=>m.id===id),'A role-name match does not grant the field-user audience');
  assert.ok(!(await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
  assert.ok((await domain.listMessages(crewCtx,channel.id,{view:'notes'})).messages.some(m=>m.id===id));
 });
