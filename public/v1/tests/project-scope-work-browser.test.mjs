@@ -118,7 +118,7 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.materialListById=id=>state.lists.find(list=>list.id===id);
       window.resourceTerms=type=>({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type],singular:type});
       window.escapeHtml=value=>String(value);
-      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
+      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
       window.materialSectionDefinitions=()=>['material','labor','equipment'].map(type=>({key:type,resource_type:type}));
       window.lineSectionKey=item=>item.section;
       window.renderMaterialSection=(section,rows)=>`<section class="mt-section">${rows.map(row=>`<div style="height:30px">${row.name}</div>`).join('')}</section>`;
@@ -278,16 +278,17 @@ test('saves for one list run in order on the latest revision while what is on sc
 
 test('suggestions come only from the sources a category has switched on, using real crew, price book and equipment data',()=>{
  const crew={id:'crew',name:'Crew A',compensation_plan:{hourly_rate_cents:4200,piece_rates:[{id:'tear',label:'Tear off',unit:'sq',rate_cents:6500}]},members:[{compensation_plan:{piece_rates:[{id:'tear',label:'Tear off',unit:'sq',rate_cents:6500},{id:'ridge',label:'Ridge install',unit:'ft',rate_cents:300}]}}]};
- const ctx={state:{pricebookItems:[{id:'p1',name:'Tear resistant underlayment',category:'Underlayment',unitPrice:95,unit:'roll'}],equipmentUnits:[{id:'u1',name:'Tear-off trailer',status:'available',rates:{daily_cents:35000}},{id:'u2',name:'Lift',rates:{}}],resourceTypes:[{id:'material',line_item_sources:['pricebook']},{id:'labor',line_item_sources:['piece_rate','hourly_labor']},{id:'equipment',line_item_sources:['equipment']},{id:'custom',line_item_sources:['pricebook','equipment']},{id:'off',line_item_sources:[]}]},
+ const ctx={state:{pricebookItems:[{id:'p1',name:'Tear resistant underlayment',category:'Underlayment',code:'UL-1',unitPrice:95,unit:'roll'},{id:'p2',name:'Tear off estimate allowance',category:'Estimating',unitPrice:10,unit:'sq'}],equipmentUnits:[{id:'u1',name:'Tear-off trailer',status:'available',rates:{daily_cents:35000}},{id:'u2',name:'Lift',rates:{}}],resourceTypes:[{id:'material',line_item_sources:['pricebook']},{id:'labor',line_item_sources:['piece_rate','hourly_labor']},{id:'equipment',line_item_sources:['equipment']},{id:'custom',line_item_sources:['pricebook','equipment']},{id:'off',line_item_sources:[]}]},
   cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,money:value=>'$'+Number(value).toFixed(2),resourceCategories:()=>ctx.state.resourceTypes,resourceType:list=>list.resource_type,laborSettings:list=>({resource:list.assigned?crew:null}),loadEquipmentUnits(){}};
- vm.createContext(ctx);vm.runInContext(fn('categorySources')+fn('autofillMatches'),ctx);
+ vm.createContext(ctx);vm.runInContext(fn('categorySources')+fn('categorySkuOnly')+fn('autofillMatches'),ctx);
  const labels=(query,list)=>JSON.parse(JSON.stringify(ctx.autofillMatches(query,list).map(entry=>entry.label)));
  assert.deepEqual(labels('tear',{resource_type:'material'}),['Tear resistant underlayment']);
  assert.deepEqual(labels('tear',{resource_type:'labor',assigned:true}),['Tear off'],'a piece rate shared by the crew and a member appears once');assert.deepEqual(labels('ridge',{resource_type:'labor',assigned:true}),['Ridge install']);
  assert.deepEqual(labels('tear',{resource_type:'labor'}),[],'an unassigned labor list has no labor suggestions');
  const hourly=ctx.autofillMatches('hour',{resource_type:'labor',assigned:true})[0];assert.equal(hourly.label,'Hourly labor');assert.equal(hourly.patch.projected_unit_price,42);assert.equal(hourly.patch.metadata.compensation_kind,'hourly');
  const trailer=ctx.autofillMatches('trailer',{resource_type:'equipment'})[0];assert.equal(trailer.patch.projected_unit_price,350);assert.equal(trailer.patch.unit,'day');assert.equal(ctx.autofillMatches('lift',{resource_type:'equipment'})[0].patch.projected_unit_price,undefined);
- assert.deepEqual(labels('tear',{resource_type:'custom'}),['Tear resistant underlayment','Tear-off trailer']);assert.deepEqual(labels('tear',{resource_type:'off'}),[]);
+ assert.deepEqual(labels('tear',{resource_type:'custom'}),['Tear resistant underlayment','Tear off estimate allowance','Tear-off trailer'],'only Materials limits the price book to items with a SKU by default');
+ ctx.state.resourceTypes.find(row=>row.id==='material').pricebook_sku_only=false;assert.deepEqual(labels('tear',{resource_type:'material'}),['Tear resistant underlayment','Tear off estimate allowance']);ctx.state.resourceTypes.find(row=>row.id==='custom').pricebook_sku_only=true;assert.deepEqual(labels('tear',{resource_type:'custom'}),['Tear resistant underlayment','Tear-off trailer']);assert.deepEqual(labels('tear',{resource_type:'off'}),[]);
  ctx.state.resourceTypes=[{id:'material'}];assert.deepEqual(labels('tear',{resource_type:'material'}),['Tear resistant underlayment'],'a category without a saved choice uses its default sources');
 });
 
@@ -312,4 +313,22 @@ test('a supplier quote covers carried items, flags unknown prices, applies deliv
  ctx.state.orderScheduleDrafts.c={supplier_email:'yard@elsewhere.test',supplier_key:''};
  assert.deepEqual(JSON.parse(JSON.stringify(ctx.orderSupplierGroups().map(group=>[group.key,group.choice.email,group.lists.map(list=>list.id)]))),[['abc','orders@abc.test',['a','b']],['email:yard@elsewhere.test','yard@elsewhere.test',['c']]]);
  ctx.state.orderScheduleDrafts.a={supplier_key:''};assert.equal(ctx.orderSupplierChoice(lists[0]).target,null,'an explicit empty choice stays empty');
+});
+
+test('projected delivery is derived from supplier fees, can be switched off per list and stops once a list is ordered',()=>{
+ const line=(id,item)=>({id,quantity:10,projected_total:100,pricebook_ref:{item_id:item}});
+ const abc={id:'abc',name:'ABC',delivery_fee:{amount_cents:7500,free_above_cents:null},offerings:[{item_id:'shingle',sku:'',price_cents:4000},{item_id:'nails',sku:'',price_cents:null}],locations:[]};
+ const beacon={id:'beacon',name:'Beacon',delivery_fee:{amount_cents:5000,free_above_cents:null},offerings:[{item_id:'shingle',sku:'',price_cents:4500}],locations:[]};
+ const ctx={state:{suppliers:[abc,beacon]},ordered:false,cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,listItems:list=>list.current_items,linePricebookItemId:item=>item.pricebook_ref?.item_id||'',resourceType:list=>list.resource_type,materialListOrdered:()=>ctx.ordered,expenseTargetForList:list=>list.target||null,listTotals:list=>({projected:list.current_items.reduce((sum,item)=>sum+(item.projected_total||0),0)})};
+ vm.createContext(ctx);vm.runInContext(['supplierTargets','supplierOffer','orderableItems','supplierQuote','bestSupplierTarget','projectedDelivery','listProjected'].map(fn).join(''),ctx);
+ const plain=value=>JSON.parse(JSON.stringify(value));
+ const list={id:'a',resource_type:'material',current_items:[line('a1','shingle')]};
+ assert.deepEqual(plain(ctx.projectedDelivery(list)),{available:true,enabled:true,amount:75,estimate:75},'ABC is cheaper overall, so its fee is the estimate');assert.equal(ctx.listProjected(list),175);
+ list.metadata={projected_delivery_disabled:true};assert.deepEqual(plain(ctx.projectedDelivery(list)),{available:true,enabled:false,amount:0,estimate:75});assert.equal(ctx.listProjected(list),100);list.metadata={};
+ const unknown={id:'b',resource_type:'material',current_items:[line('b1','shingle'),line('b2','nails')]};assert.equal(ctx.projectedDelivery(unknown).amount,50,'with no full match, the lowest fee among suppliers carrying something');
+ ctx.ordered=true;assert.equal(ctx.projectedDelivery(list).available,false);ctx.ordered=false;
+ assert.equal(ctx.projectedDelivery({id:'c',resource_type:'material',current_items:[line('c1','shingle'),{id:'fee',metadata:{delivery_fee:true}}]}).available,false,'a real delivery line replaces the estimate');
+ assert.equal(ctx.projectedDelivery({id:'d',resource_type:'material',current_items:[]}).available,false);assert.equal(ctx.projectedDelivery({id:'e',resource_type:'equipment',current_items:[line('e1','shingle')]}).available,false);
+ assert.equal(ctx.listProjected({id:'l',resource_type:'labor',target:{projected_cents:123400},current_items:[]}),1234);
+ ctx.state.suppliers=[];assert.equal(ctx.projectedDelivery(list).available,false);
 });

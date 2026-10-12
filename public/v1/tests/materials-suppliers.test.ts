@@ -23,7 +23,7 @@ test('suppliers are connections with their own catalogue; locations inherit and 
   await assert.rejects(()=>suppliers.saveSupplier('org_suppliers',{name:'ABC Supply',unknown:true},auth));
 
   const abc=await suppliers.saveSupplier('org_suppliers',{name:'ABC Supply',order_email:'orders@abc.test',delivery_fee:{amount_cents:7500,free_above_cents:500000},offerings:[{item_id:'shingle',sku:'ABC-HDZ',price_cents:3850},{item_id:'underlayment',sku:'ABC-UL'},{item_id:'nails',price_cents:4200}]},auth);
-  assert.deepEqual(abc.roles,['material_supplier']);assert.equal(abc.offerings.length,3);assert.equal(abc.offerings[1].price_cents,null,'an item can be carried at an unknown price');assert.deepEqual(abc.locations,[]);
+  assert.deepEqual(abc.roles,['material_supplier']);assert.equal(abc.offerings.length,3);assert.equal(abc.offerings[1]?.price_cents,null,'an item can be carried at an unknown price');assert.deepEqual(abc.locations,[]);
 
   // A supplier is stored as a connection but does not appear among workforce connections.
   const sub=await connections.createOrganizationConnection('org_suppliers',{name:'Roofing Sub'});
@@ -72,7 +72,7 @@ test('suppliers are connections with their own catalogue; locations inherit and 
   const cleared=await suppliers.saveSupplierLocation('org_suppliers',{id:south.id,supplier_id:abc.id,name:'South yard',delivery_fee:null,overrides:[],expected_revision:south.revision},auth);
   assert.equal(cleared.delivery_fee,null);assert.deepEqual(cleared.overrides,[]);
   await suppliers.archiveSupplierLocation('org_suppliers',{id:north.id},auth);
-  assert.deepEqual((await suppliers.listSuppliers('org_suppliers'))[0].locations.map(row=>row.name),['South yard']);
+  assert.deepEqual((await suppliers.listSuppliers('org_suppliers'))[0]?.locations.map(row=>row.name),['South yard']);
   await assert.rejects(()=>suppliers.archiveSupplierLocation('org_suppliers',{id:north.id},auth),/unavailable/);
 
   // A company that is both a subcontractor and a supplier keeps its work relationship when the supplier side is removed.

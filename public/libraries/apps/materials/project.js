@@ -85,6 +85,7 @@
     sourcesMenu: null,
     orderMethod: 'email',
     suppliers: null,
+    headerActions: null,
     suppliersLoading: false,
     orderSupplierMenu: null,
     pricebookListId: '',
@@ -581,6 +582,29 @@
     });
     return groups;
   }
+  // Delivery for a material list that has not been ordered yet, so rough costing includes it: the fee of the supplier
+  // the order would default to, or failing that the lowest fee among suppliers carrying something on the list.
+  // It is derived, never stored as a line; placing the order replaces it with the supplier's real fee.
+  function projectedDelivery(list){
+    const none = { available: false, enabled: false, amount: 0 };
+    if (!list || resourceType(list) !== 'material' || materialListOrdered(list) || !(state.suppliers || []).length) return none;
+    const items = listItems(list);
+    if (!items.length || items.some((item) => item.metadata?.delivery_fee === true)) return none;
+    const best = bestSupplierTarget([list]);
+    let cents = best ? supplierQuote(best, [list], true).delivery : 0;
+    if (!best) supplierTargets().forEach((target) => {
+      const quote = supplierQuote(target, [list], true);
+      if (quote.missing.size < items.length && quote.fee > 0 && (!cents || quote.fee < cents)) cents = quote.fee;
+    });
+    if (!cents) return none;
+    const enabled = list.metadata?.projected_delivery_disabled !== true;
+    return { available: true, enabled, amount: enabled ? cents / 100 : 0, estimate: cents / 100 };
+  }
+  // What a list is expected to cost: labor from the pay projection, everything else from its lines plus projected delivery.
+  function listProjected(list){
+    const labor = resourceType(list) === 'labor' ? expenseTargetForList(list) : null;
+    return labor ? number(labor.projected_cents, 0) / 100 : listTotals(list).projected + projectedDelivery(list).amount;
+  }
   const ORDER_TIME_PRESETS = ['First thing in the morning', 'Morning (8am - 12pm)', 'Midday (11am - 1pm)', 'Afternoon (12pm - 4pm)', 'End of day', 'Any time'];
   // "9", "9am", "9:30 pm" or "14:00" as HH:MM; anything else is a delivery window described in words.
   function orderTimeClock(value){
@@ -967,6 +991,14 @@
       @media (max-width:900px){.mt-order-tiles{flex:none;max-height:260px}.mt-order-divider{display:none}}
       @media (min-width:901px){.mt-order-content.manual,.mt-order-content.manual.calendar-mode{grid-template-columns:var(--order-left,330px) 14px minmax(0,1fr);gap:0}}
       .mt-order-divider{position:relative;align-self:stretch;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none}.mt-order-divider::after{content:'';position:absolute;top:6px;bottom:6px;left:6px;width:2px;border-radius:2px;background:#e4e7ec;transition:background .12s}.mt-order-divider:hover::after,.mt-order-divider:focus-visible::after,.mt-order-divider.is-dragging::after{background:var(--primary,#d93025)}.mt-order-divider:focus-visible{outline:none}
+      .mt-projected-total{flex:none;display:flex;flex-direction:column;justify-content:center;gap:1px;padding-right:10px;margin-right:2px;border-right:1px solid #e4e7ec;line-height:1.1}.mt-projected-total span{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}.mt-projected-total strong{font-size:14px;font-variant-numeric:tabular-nums;color:#101828}
+      .mt-header-action{overflow:hidden;max-width:220px}.mt-header-action.is-entering{animation:mt-action-in .3s cubic-bezier(.2,.7,.3,1) both}.mt-header-action.is-leaving{pointer-events:none;animation:mt-action-out .28s cubic-bezier(.5,0,.8,.4) both}
+      @keyframes mt-action-in{from{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}to{opacity:1;max-width:220px;transform:none}}
+      @keyframes mt-action-out{from{opacity:1;max-width:220px;transform:none}to{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}}
+      @media(prefers-reduced-motion:reduce){.mt-header-action.is-entering,.mt-header-action.is-leaving{animation:none}.mt-header-action.is-leaving{display:none}}
+      .mt-delivery-row{display:flex;align-items:center;gap:6px;height:24px;padding:0 2px 0 11px;border-bottom:1px solid #f0f2f5;font-size:11px;color:#475467}.mt-delivery-row i.fa-truck{font-size:10px;color:#98a2b3}.mt-delivery-row span{flex:1;min-width:0;font-style:italic}.mt-delivery-row strong{font-weight:600;font-variant-numeric:tabular-nums;color:#101828}.mt-delivery-row.off strong,.mt-delivery-row.off span{color:#98a2b3}
+      .mt-delivery-row button{border:0;background:transparent;padding:0 2px;font-size:15px;color:var(--primary,#d93025);cursor:pointer}.mt-delivery-row.off button{color:#98a2b3}
+      .mt-source-sub{display:flex;align-items:center;gap:6px;padding:2px 8px 6px 20px;font-size:11px;color:#475467;cursor:pointer}.mt-source-sub input{margin:0}
       .mt-workspace-actions button.mt-order-all{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);font-weight:700}.mt-workspace-actions button.mt-order-all:hover:not(:disabled){background:var(--primary-dark,var(--primary,#d93025))}.mt-workspace-actions button.mt-order-all:disabled{opacity:.5;cursor:not-allowed}
       .mt-workspace-actions button[data-mt-autofill-toggle][aria-pressed=true]{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
       .mt-resource-column .mt-list-head button[data-mt-open-pricebook][aria-pressed=true]{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
@@ -3205,6 +3237,10 @@
     const category = resourceCategories().find((row) => row.id === type);
     return Array.isArray(category?.line_item_sources) ? category.line_item_sources : (({ material: ['pricebook'], labor: ['piece_rate', 'hourly_labor'], equipment: ['equipment'] })[type] || []);
   }
+  function categorySkuOnly(type){
+    const category = resourceCategories().find((row) => row.id === type);
+    return typeof category?.pricebook_sku_only === 'boolean' ? category.pricebook_sku_only : type === 'material';
+  }
   function loadEquipmentUnits(){
     if (state.equipmentUnits || state.equipmentUnitsLoading || !window.EquipmentAPI?.units || !orgId()) return;
     state.equipmentUnitsLoading = true;
@@ -3217,7 +3253,9 @@
     const sources = categorySources(resourceType(list));
     const matches = (text) => tokens.every((token) => cleanText(text).toLowerCase().includes(token));
     const entries = [];
+    const skuOnly = categorySkuOnly(resourceType(list));
     if (sources.includes('pricebook')) state.pricebookItems.forEach((item) => {
+      if (skuOnly && !cleanText(item.code)) return;
       if (matches(`${item.name || ''} ${item.variantName || ''} ${item.category || ''}`)) entries.push({ label: item.name, detail: [item.category, `${money(item.unitPrice || 0)} per ${item.unit || 'ea'}`].filter(Boolean).join(' · '), catalogItem: item });
     });
     const resource = sources.includes('piece_rate') || sources.includes('hourly_labor') ? laborSettings(list).resource : null;
@@ -3270,7 +3308,8 @@
     portal.setAttribute('aria-label', 'Line item sources');
     const draw = () => {
       const enabled = categorySources(type);
-      portal.innerHTML = `<div class="mt-labor-menu-title">Line Item Sources</div><div class="mt-labor-options">${LINE_ITEM_SOURCE_DEFS.map((source) => `<button type="button" class="mt-labor-option${enabled.includes(source.id) ? ' active' : ''}" role="menuitemcheckbox" aria-checked="${enabled.includes(source.id)}" data-mt-source="${source.id}"><span><strong>${escapeHtml(source.label)}</strong><small>${escapeHtml(source.detail)}</small></span>${enabled.includes(source.id) ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}</button>`).join('')}</div>`;
+      portal.innerHTML = `<div class="mt-labor-menu-title">Line Item Sources</div><div class="mt-labor-options">${LINE_ITEM_SOURCE_DEFS.map((source) => `<button type="button" class="mt-labor-option${enabled.includes(source.id) ? ' active' : ''}" role="menuitemcheckbox" aria-checked="${enabled.includes(source.id)}" data-mt-source="${source.id}"><span><strong>${escapeHtml(source.label)}</strong><small>${escapeHtml(source.detail)}</small></span>${enabled.includes(source.id) ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}</button>${source.id === 'pricebook' && enabled.includes('pricebook') ? `<label class="mt-source-sub" title="Leave out price book items kept only for estimating, which have no SKU to order."><input type="checkbox" data-mt-source-sku ${categorySkuOnly(type) ? 'checked' : ''}> Only items with a SKU</label>` : ''}`).join('')}</div>`;
+      portal.querySelector('[data-mt-source-sku]')?.addEventListener('change', (event) => { category.pricebook_sku_only = event.target.checked; if (!Array.isArray(category.line_item_sources)) category.line_item_sources = categorySources(type); saveResourceCategory(category); });
       portal.querySelectorAll('[data-mt-source]').forEach((button) => button.addEventListener('click', () => {
         const current = categorySources(type);
         category.line_item_sources = LINE_ITEM_SOURCE_DEFS.map((source) => source.id).filter((id) => (id === button.dataset.mtSource ? !current.includes(id) : current.includes(id)));
@@ -3838,6 +3877,7 @@
 
   function ensureStyles(){
     columnWeights();
+    if (!state.suppliers && !state.suppliersLoading) loadSuppliers().then(() => { if (!workspaceIsEditing()) syncMaterialsGrid(); });
     autofillEnabled();
     loadEquipmentUnits();
     if (stylesInjected) return;
@@ -3984,7 +4024,7 @@
   const resourceWriteQueue=new Map();
   function saveResourceCategory(category,create=false){
     const operation=captureProjectOperation(),previous=resourceWriteQueue.get(category.id)||Promise.resolve();
-    const next=previous.catch(()=>{}).then(async()=>{const input={id:category.id,name:category.name||'',icon:category.icon,color:category.color,...(Array.isArray(category.line_item_sources)?{line_item_sources:category.line_item_sources}:{}),...(!create?{expected_revision:category.revision||0}:{})};const result=await window.MaterialsAPI.resourceTypes[create?'create':'patch'](operation.orgId,...(create?[input]:[category.id,input]));if(projectOperationIsCurrent(operation)){category.revision=result.resource_type.revision;category.__saved={name:input.name,icon:input.icon,color:input.color};if(!workspaceIsEditing())syncMaterialsGrid();}return result;});
+    const next=previous.catch(()=>{}).then(async()=>{const input={id:category.id,name:category.name||'',icon:category.icon,color:category.color,...(Array.isArray(category.line_item_sources)?{line_item_sources:category.line_item_sources}:{}),...(typeof category.pricebook_sku_only==='boolean'?{pricebook_sku_only:category.pricebook_sku_only}:{}),...(!create?{expected_revision:category.revision||0}:{})};const result=await window.MaterialsAPI.resourceTypes[create?'create':'patch'](operation.orgId,...(create?[input]:[category.id,input]));if(projectOperationIsCurrent(operation)){category.revision=result.resource_type.revision;category.__saved={name:input.name,icon:input.icon,color:input.color};if(!workspaceIsEditing())syncMaterialsGrid();}return result;});
     resourceWriteQueue.set(category.id,next);next.catch(error=>{if(projectOperationIsCurrent(operation)){if(create)state.resourceTypes=state.resourceTypes.filter(row=>row!==category);else if(resourceWriteQueue.get(category.id)===next&&category.__saved)Object.assign(category,category.__saved);syncMaterialsGrid();showToast('Could not save resource type',error.message,false);}});return next;
   }
   function addResourceCategory(){
@@ -4043,7 +4083,14 @@
   }
   function renderResourceHeader(){
     const order=state.unitsMode==='order';
-    return `<header class="mt-workspace-header"><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-autofill-toggle aria-pressed="${state.pricebookAutofill!==false}" data-fm-tooltip="${state.pricebookAutofill!==false?'Autofill is on: typing an item name suggests entries from the sources chosen for its category (the gear on each column). Arrow keys choose one, Tab takes it and moves to the count, Enter takes it and starts the next row.':'Autofill is off.'}" aria-label="Line item autofill"><i class="fas fa-book-open"></i> Autofill</button><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><button type="button" data-mt-generate-materials data-fm-tooltip="Generate lists automatically from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i> Regenerate</button><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Showing order units (bundles, boxes). Switch to measured units.':'Showing measured units. Switch to order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i> ${order?'Order':'Measured'}</button><button type="button" class="mt-order-all" data-mt-order-all data-fm-tooltip="Order every material list together in one supplier email" aria-label="Order materials for every material list" ${state.lists.some(list=>resourceType(list)==='material'&&listItems(list).length)?'':'disabled'}><i class="fas fa-cart-shopping"></i> Order Materials</button></div></header>`;
+    // An action exists only while its category has items. It slides in when the first item arrives and out when the last goes.
+    const has=type=>state.lists.some(list=>resourceType(list)===type&&listItems(list).length);
+    const want={material:has('material'),labor:has('labor'),equipment:has('equipment')},shown=state.headerActions||want;
+    const action=(key,attributes,icon,label)=>want[key]||shown[key]?`<button type="button" class="mt-header-action${key==='material'?' mt-order-all':''}${want[key]?(shown[key]?'':' is-entering'):' is-leaving'}" ${attributes}><i class="fas ${icon}"></i> ${label}</button>`:'';
+    const leaving=Object.keys(want).some(key=>shown[key]&&!want[key]);
+    state.headerActions=want;
+    if(leaving)setTimeout(()=>syncResourceHeader(),300);
+    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(state.lists.reduce((sum,list)=>sum+listProjected(list),0))}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-autofill-toggle aria-pressed="${state.pricebookAutofill!==false}" data-fm-tooltip="${state.pricebookAutofill!==false?'Autofill is on: typing an item name suggests entries from the sources chosen for its category (the gear on each column). Arrow keys choose one, Tab takes it and moves to the count, Enter takes it and starts the next row.':'Autofill is off.'}" aria-label="Line item autofill"><i class="fas fa-book-open"></i> Autofill</button><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><button type="button" data-mt-generate-materials data-fm-tooltip="Generate lists automatically from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i> Regenerate</button><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Showing order units (bundles, boxes). Switch to measured units.':'Showing measured units. Switch to order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i> ${order?'Order':'Measured'}</button>${action('labor','data-mt-work-order data-fm-tooltip="Generate a work order for the labor on this project" aria-label="Generate work order"','fa-clipboard-list','Work Order')}${action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve the equipment on this project" aria-label="Reserve equipment"','fa-truck-pickup','Reserve Equipment')}${action('material','data-mt-order-all data-fm-tooltip="Order every material list, each from its own supplier" aria-label="Order materials for every material list"','fa-cart-shopping','Order Materials')}</div></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
@@ -4099,7 +4146,7 @@
       const category=resourceCategories().find(row=>row.id===type);
       const terms = resourceTerms(type, state.lists.find((list) => resourceType(list) === type));
       const lists=state.lists.filter(list=>resourceType(list)===type&&state.visibleListIds.has(cleanText(list.id)));
-      const listTotal=list=>type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected;
+      const listTotal=list=>listProjected(list);
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
         <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button><button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
@@ -4110,7 +4157,9 @@
           const title=list.metadata?.placeholder_title||[category.name,terms.plural].some(label=>cleanText(label).toLowerCase()===cleanText(list.title).toLowerCase())?'':cleanText(list.title);
           const tools=list.metadata?.calculus_pending?`<div class="mt-list-secondary"><button type="button" data-mt-generate="${escapeHtml(id)}">Generate materials</button></div>`:'';
           const actions=list.metadata?.calculus_pending?'':`${type==='labor'?renderLaborListControls(list):''}${renderListActionControls(list,type,materialListOrdered(list))}`;
-          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="Default" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${type==='material'?`<button type="button" data-mt-open-pricebook data-mt-list-id="${escapeHtml(id)}" aria-pressed="${state.pricebookOpen&&cleanText(state.pricebookListId)===id}" title="Add to this list from the price book" aria-label="Add to ${escapeHtml(title||'Default')} from the price book"><i class="fas fa-book"></i></button>`:''}${actions}<button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(title||'Default')}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; collapse to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
+          const estimate=projectedDelivery(list);
+          const deliveryRow=estimate.available?`<div class="mt-delivery-row${estimate.enabled?'':' off'}" title="An estimate from your suppliers' delivery fees. It is replaced by the real fee when the order is placed."><i class="fas fa-truck" aria-hidden="true"></i><span>Projected delivery</span><strong>${estimate.enabled?`$${Math.round(estimate.amount).toLocaleString('en-US')}`:'Off'}</strong><button type="button" data-mt-delivery-toggle="${escapeHtml(id)}" aria-pressed="${estimate.enabled}" title="${estimate.enabled?'Leave delivery out of the projection':`Include projected delivery (${money(estimate.estimate)})`}" aria-label="Projected delivery"><i class="fas fa-toggle-${estimate.enabled?'on':'off'}" aria-hidden="true"></i></button></div>`:'';
+          return `<article class="mt-list-pane${collapsed?' is-collapsed':''}" data-mt-pane-list="${escapeHtml(id)}"><div class="mt-list-pane-inner"><header class="mt-list-head"><button type="button" data-mt-collapse-list="${escapeHtml(id)}" aria-expanded="${!collapsed}" aria-label="${collapsed?'Expand':'Collapse'} ${escapeHtml(title||'Default')}" title="${collapsed?'Expand':'Collapse'} list"><i class="fas fa-chevron-${collapsed?'right':'down'}"></i></button><input data-mt-list-name="${escapeHtml(id)}" value="${escapeHtml(title)}" placeholder="Default" aria-label="List name">${lists.length>1||collapsed?`<span class="mt-list-total" data-mt-list-total="${escapeHtml(id)}" title="List total">${money(listTotal(list))}</span>`:''}${type==='material'?`<button type="button" data-mt-open-pricebook data-mt-list-id="${escapeHtml(id)}" aria-pressed="${state.pricebookOpen&&cleanText(state.pricebookListId)===id}" title="Add to this list from the price book" aria-label="Add to ${escapeHtml(title||'Default')} from the price book"><i class="fas fa-book"></i></button>`:''}${actions}<button type="button" data-mt-delete-list="${escapeHtml(id)}" aria-label="Delete ${escapeHtml(title||'Default')}" title="${list.metadata?.calculus?'Accepted material artifacts are retained; collapse to hide this list':'Delete list'}" ${list.metadata?.calculus?'disabled':''}><i class="fas fa-trash"></i></button></header>${collapsed?'':`${tools?`<div class="mt-list-tools">${tools}</div>`:''}${sections.map(section=>renderMaterialSection(section,listRows.filter(item=>lineSectionKey(item)===section.key),id,sections.length>1)).join('')||'<div class="mt-empty">Empty List</div>'}${deliveryRow}<button type="button" class="mt-resource-add mt-list-add-item" data-mt-add-section="${type==='material'?'accessories':type}" data-mt-list-id="${escapeHtml(id)}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}</div></article>`;
         }).join('')||'<div class="mt-empty">Empty List</div>'}</div>
         ${lists.length?'':`<button type="button" class="mt-resource-add" data-mt-add-section="${type==='material'?'accessories':type}">+ Add ${escapeHtml(terms.singular.toLowerCase())}</button>`}
         <footer class="mt-column-total"><span>Total</span><strong>${money(lists.reduce((sum,list)=>sum+listTotal(list),0))}</strong></footer>
@@ -4324,8 +4373,9 @@
 
   function syncFooterTotals(){
     const root = materialRoot();
-    root?.querySelectorAll?.('.mt-resource-column').forEach(column=>{const type=column.dataset.resourceType,total=column.querySelector('.mt-column-total strong');if(total)total.textContent=money(state.lists.filter(list=>resourceType(list)===type&&state.visibleListIds.has(cleanText(list.id))).reduce((sum,list)=>sum+(type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected),0));});
-    root?.querySelectorAll?.('[data-mt-list-total]').forEach(node=>{const list=materialListById(node.dataset.mtListTotal);if(list)node.textContent=money(resourceType(list)==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected);});
+    root?.querySelectorAll?.('.mt-resource-column').forEach(column=>{const type=column.dataset.resourceType,total=column.querySelector('.mt-column-total strong');if(total)total.textContent=money(state.lists.filter(list=>resourceType(list)===type&&state.visibleListIds.has(cleanText(list.id))).reduce((sum,list)=>sum+listProjected(list),0));});
+    const projected=root?.querySelector?.('[data-mt-projected-total]');if(projected)projected.textContent=money(state.lists.reduce((sum,list)=>sum+listProjected(list),0));
+    root?.querySelectorAll?.('[data-mt-list-total]').forEach(node=>{const list=materialListById(node.dataset.mtListTotal);if(list)node.textContent=money(listProjected(list));});
     const values = root?.querySelectorAll?.('.mt-footer .mt-stat strong');
     if (!values || values.length < 3) return;
     const totals = visibleListTotals();
@@ -5029,6 +5079,17 @@
       button.addEventListener('click', () => addItem(null, button.dataset.mtAddSection, button.dataset.mtListId));
     });
     bindColumnDividers(root);
+    root.querySelectorAll('[data-mt-delivery-toggle]').forEach((button) => button.addEventListener('click', async () => {
+      const list = materialListById(button.dataset.mtDeliveryToggle);
+      if (!list) return;
+      const operation = captureProjectOperation(list.id);
+      try {
+        await patchScopeResourceList(list.id, { metadata: { ...(list.metadata || {}), projected_delivery_disabled: list.metadata?.projected_delivery_disabled !== true } }, operation);
+        if (projectOperationIsCurrent(operation)) syncMaterialsGrid();
+      } catch (error) {
+        if (projectOperationIsCurrent(operation)) showToast('Could not update projected delivery', error?.message || 'Please try again.', false);
+      }
+    }));
     root.querySelectorAll('[data-mt-open-pricebook]').forEach((button) => button.addEventListener('click', () => {
       const listId = cleanText(button.dataset.mtListId || state.activeListId);
       const list = materialListById(listId);
@@ -5780,6 +5841,8 @@
         scheduleMaterialList(button.dataset.mtListSchedule);
       });
     });
+    root.querySelectorAll('[data-mt-work-order]').forEach((button) => button.addEventListener('click', () => showToast('Work orders are not built yet', 'Generating a work order from this project\'s labor is the next piece of this workflow.', false)));
+    root.querySelectorAll('[data-mt-reserve-equipment]').forEach((button) => button.addEventListener('click', () => showToast('Equipment reservations are not built yet', 'Reserving this project\'s equipment is the next piece of this workflow.', false)));
     root.querySelectorAll('[data-mt-order-all]').forEach((button) => {
       button.addEventListener('click', async () => {
         const lists = state.lists.filter((list) => resourceType(list) === 'material' && listItems(list).length);
