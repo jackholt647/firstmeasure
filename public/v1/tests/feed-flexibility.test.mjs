@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
-const source=await readFile(new URL('../../libraries/apps/photos/feed.js',import.meta.url),'utf8');
+const source=await readFile(process.env.FEED_PRESENTATION_SCRIPT || new URL('../../libraries/apps/photos/feed.js',import.meta.url),'utf8');
 const block=(name,next)=>source.slice(source.indexOf(`  function ${name}(`),source.indexOf(next,source.indexOf(`  function ${name}(`)));
 const clean=value=>String(value ?? '').trim();
 const first=(...values)=>values.map(clean).find(Boolean)||'';
