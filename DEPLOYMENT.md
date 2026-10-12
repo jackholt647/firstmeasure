@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 oversized incoming MMS: [Read-only groups and explicit private replies](deploy/digitalocean/development-oversized-mms-20261011.md) records complete incoming membership/media, safe private replies, typed publications, verification and development rollout continuity.
+
 October 9 phone group texting: [Tray and modal group MMS](deploy/digitalocean/development-phone-group-text-20261009.md) records multi-contact selection, image/group replies, focused verification and the development-only frontend rollout.
 
 October 9 group MMS: [Telnyx backend and publication contracts](deploy/digitalocean/development-group-mms-20261009.md) records explicit group threads, images, delivery safety, typed data/actions, development rollout continuity and remaining live-delivery requirements.
