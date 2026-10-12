@@ -42,6 +42,7 @@
     styles();if(active?.anchor===anchor){active.close();return null;}closeFor();
     const pop=el('div','fm-picker fm-picker-popover');pop.setAttribute('role','dialog');pop.setAttribute('aria-label',label);
     anchor.setAttribute('aria-haspopup','dialog');anchor.setAttribute('aria-expanded','true');
+    let layer=1601;for(let node=anchor;node;node=node.parentElement){const z=Number.parseInt(getComputedStyle(node).zIndex,10);if(Number.isFinite(z))layer=Math.max(layer,z+20);}pop.style.zIndex=String(Math.min(2147483647,layer));
     document.body.append(pop);
     let cleanup,disposed=false;
     const close=(restore=false)=>{
