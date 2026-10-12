@@ -801,6 +801,7 @@
         if (!selectedCell || !editor.contains(selectedCell)) return;
         closePopover();
         const table = selectedCell.closest('table'), row = selectedCell.parentElement, column = selectedCell.cellIndex;
+        let nextCell = selectedCell;
         if (operation === 'delete-table') table.remove();
         else if (operation === 'delete-row') row.remove();
         else if (operation === 'delete-col') { for (const r of table.rows) r.cells[column]?.remove(); table.querySelectorAll('col')[column]?.remove(); }
@@ -808,14 +809,22 @@
           const added = el('tr');
           for (const cell of row.cells) { const item = el('td', '', '<br>'); item.style.width = cell.style.width; added.append(item); }
           row.insertAdjacentElement(operation === 'row-before' ? 'beforebegin' : 'afterend', added);
+          nextCell = added.cells[column] || added.cells[0];
         } else {
-          for (const r of table.rows) { const cell = el(r.cells[column]?.tagName.toLowerCase() || 'td', '', '<br>'); r.cells[column]?.insertAdjacentElement(operation === 'col-before' ? 'beforebegin' : 'afterend', cell); }
+          for (const r of table.rows) { const cell = el(r.cells[column]?.tagName.toLowerCase() || 'td', '', '<br>'); r.cells[column]?.insertAdjacentElement(operation === 'col-before' ? 'beforebegin' : 'afterend', cell); if(r === row)nextCell = cell; }
           // A structural change resets widths so every column remains reachable.
           table.querySelector('colgroup')?.remove(); table.style.width = '';
           table.querySelectorAll('td,th').forEach(cell => cell.style.width = '');
         }
         if (!table.rows.length || !table.rows[0].cells.length) table.remove();
-        tableControls.hidden = true; selectedCell = null;
+        selectedCell = nextCell && editor.contains(nextCell) ? nextCell : null;
+        tableControls.hidden = !selectedCell;
+        if(selectedCell){
+          editor.focus();
+          const range=document.createRange();range.selectNodeContents(selectedCell);range.collapse(true);
+          const selection=root.getSelection();selection.removeAllRanges();selection.addRange(range);
+          editor.saveSelection();
+        }
         editor.dispatchEvent(new Event('input', {bubbles:true}));
       };
       if(operation.startsWith('row') || operation.startsWith('col'))insertActions.push(control);
