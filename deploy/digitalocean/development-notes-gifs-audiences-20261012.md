@@ -183,3 +183,38 @@ Current role paths are the appropriate releases directory followed by
 `201300a314eb37bbade99bae98d587aef3ecd52d-notes-height`. The previous role paths use baseline
 `8bba9383f94c208c57c5f164eb1e75b566001aa3`. Frontend-only artifacts and receipts are retained
 under ignored output/notes-height-deploy; no backend/data/worker or production change.
+
+## Reply-control state follow-up
+
+Frontend feature 77a0c374 puts Close in the reply composer's top-right corner with
+space beside formatting controls. Empty-thread Reply hides while composing;
+closing restores that single link, detaches the empty panel and preserves the
+draft. There is no secondary Add Reply. Threads with active replies retain their
+count link and show Add Reply only when expanded without an open composer. Both
+reply links share font, color, border and padding.
+
+One state synchronizer now controls the parent link, form and add row across
+open/close, refresh, archive and send. A delayed load cannot reopen a composer
+that was closed. Reopening consults the latest parent count while fetching replies.
+Successful sends still close the composer.
+
+Notes browser checks pass locally and with dev-hosted assets: delayed empty-thread
+close/reopen, retained drafts, existing-reply controls, matching link styles,
+top-right close geometry, narrow widths and prior composer/archive workflows.
+All three roles passed owned hashes, retained runtime identity, readiness and
+development outbound safety at activation. Public Notes hash and its bundle
+version were subsequently verified, with healthy development readiness.
+
+| Role | Activated frontend release | Retained runtime at activation |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/77a0c374ca292ec1db2b74090750df15162f42da-notes-reply-states` | `060ea41ebb1d4db0a1d1ab55b37adf4f06b8817f` |
+| pool | `/opt/firstmeasure/releases/77a0c374ca292ec1db2b74090750df15162f42da-notes-reply-states` | `8869cfae0a7385c937096562fb291afec0a868f5` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/77a0c374ca292ec1db2b74090750df15162f42da-notes-reply-states-r2` | `060ea41ebb1d4db0a1d1ab55b37adf4f06b8817f` |
+
+Compatibility was restaged after a concurrent editor update changed its current
+path; the original candidate was not activated. No unrelated changes were
+replaced. A transient public 503 during concurrent development work cleared before
+final verification. This frontend-only rollout changes no backend, data or worker;
+production was not changed. Role baselines, patches, scripts, receipts and public
+verification are retained under ignored output/notes-reply-states-deploy and in
+the immutable releases.
