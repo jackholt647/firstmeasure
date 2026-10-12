@@ -27,6 +27,7 @@ import {
   findMessageByClientId,
   getChannelsDatabase,
   listAttachmentsForMessages,
+  listActiveReplyCounts,
   listChannelAttachmentResources,
   listChannelMembers,
   listChannelRecords,
@@ -621,8 +622,10 @@ export async function hydrateMessages(ctx: PlatformAuthContext, channel: Channel
   const manage = await channelAdminAllowed(ctx, channel);
   const preferences = await viewerTranslationPreferences(ctx);
   const translations = (await listMessageTranslations(ids, preferences.language));
+  const noteReplyCounts=await listActiveReplyCounts(ctx.orgId,channel.type==='project' ? messages.filter(message=>!message.parent_id && message.metadata.project_note===true).map(message=>message.id) : []);
   return Promise.all(messages.map(async message => {
     const hydrated = hydrateMessage(ctx, message, { directory, reactions, attachments, saved, manage, preferences, translations, archivedNoteReadable:channel.type === 'project' && message.metadata.project_note === true && messageVisibleTo(message,ctx,viewerAudienceGroups(ctx)) });
+    if(channel.type==='project' && !message.parent_id && message.metadata.project_note===true)hydrated.reply_count=noteReplyCounts.get(message.id) || 0;
     if(message.metadata.collaboration_actor){
       const {participantView,verifiedMessageContributor}=await import("../collaboration/service.js");
       const contributor=await verifiedMessageContributor(message);

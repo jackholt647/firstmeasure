@@ -1114,6 +1114,13 @@ export async function softDeleteMessageRecord(orgId: string, messageId: string, 
   }));
 }
 
+/** Read current counts, including for older roots whose stored count includes archives. */
+export async function listActiveReplyCounts(orgId:string,rootIds:string[]):Promise<Map<string,number>> {
+  if(!rootIds.length)return new Map();
+  const rows=await getChannelsDatabase().prepare(`SELECT parent_id, COUNT(*) AS total FROM messages WHERE organization_id = ? AND parent_id IN (${rootIds.map(()=>'?').join(',')}) AND deleted_at IS NULL GROUP BY parent_id`).all(orgId,...rootIds) as JsonObject[];
+  return new Map(rows.map(row=>[String(row.parent_id),Number(row.total)]));
+}
+
 export async function restoreMessageRecord(orgId: string, messageId: string) {
   return (await getChannelsDatabase().transaction(async () => {
   const db = getChannelsDatabase();

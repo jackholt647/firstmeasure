@@ -43,7 +43,7 @@
     versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
     versionedBundle('../markup/firstmate-markup.js', '20260929-shared-files-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-format-active-v2'),
-    versionedBundle('../project-notes/project-notes.js', '20261012-notes-toolbar-format-v2'),
+    versionedBundle('../project-notes/project-notes.js', '20261012-notes-enter-count-v3'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-activity-labels-v4'),
     versionedBundle('../project-trays/project-trays.js', '20261012-activity-labels-v4')
   ];

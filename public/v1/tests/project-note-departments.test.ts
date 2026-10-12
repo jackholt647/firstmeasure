@@ -75,3 +75,13 @@ test('authorized readers can see archived note text; ordinary deleted messages r
  assert.equal((await domain.hydrateMessages(ctx('owner'),channel,[(await store.readMessageRecord(org,plainId))!]))[0]?.text,'');
  await assert.rejects(()=>domain.updateMessageVisibility(ctx('owner'),id,{department_ids:[]}));
 });
+
+test('note reply counts exclude archives and correct historical counts without a migration',async()=>{
+ const posted=await domain.postMessage(ctx('owner'),channel.id,{text:'Count replies',project_note:true,department_ids:['dept-sales']});const id=String(posted.message!.id);
+ const a=await domain.postMessage(ctx('sales'),channel.id,{text:'First',parent_id:id}),b=await domain.postMessage(ctx('sales'),channel.id,{text:'Second',parent_id:id});
+ assert.equal((await domain.listThread(ctx('sales'),id,{})).root!.reply_count,2);
+ await domain.deleteMessage(ctx('sales'),String(a.message!.id));await store.getChannelsDatabase().prepare('UPDATE messages SET reply_count = 999 WHERE organization_id = ? AND id = ?').run(org,id);
+ assert.equal((await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.find(m=>m.id===id)?.reply_count,1);assert.equal((await domain.listThread(ctx('sales'),id,{})).root!.reply_count,1);
+ await domain.restoreMessage(ctx('sales'),String(a.message!.id));assert.equal((await domain.listThread(ctx('sales'),id,{})).root!.reply_count,2);
+ await domain.deleteMessage(ctx('sales'),String(a.message!.id));await domain.deleteMessage(ctx('sales'),String(b.message!.id));assert.equal((await domain.listThread(ctx('sales'),id,{})).root!.reply_count,0);
+});
