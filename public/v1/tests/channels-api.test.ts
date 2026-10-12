@@ -135,6 +135,39 @@ async function createOrgUser(
   return { userId, client, email };
 }
 
+test("reply summaries show the latest four distinct visible active participants without opening the thread", async () => {
+  const {client: owner, orgId, suffix} = await registerOwner();
+  const viewer = await createOrgUser(owner, orgId, suffix, 'Summary Viewer');
+  const base = `/v1/channels/organizations/${orgId}`;
+  const channel = (await owner.request('POST', `${base}/channels`, {name:'reply-summary',type:'public'})).channel;
+  await viewer.client.request('POST', `${base}/channels/${channel.id}/join`);
+  const root = (await owner.request('POST', `${base}/channels/${channel.id}/messages`, {text:'Thread root'})).message;
+  const {createMessageRecord,softDeleteMessageRecord,restoreMessageRecord} = await import('../channels/storage.js');
+  const replies = [];
+  for (const [index,author] of ['a','b','c','d','e','b'].entries()) {
+    replies.push(await createMessageRecord({organization_id:orgId,channel_id:channel.id,parent_id:root.id,author_id:author,text:'Reply',created_at:`2026-10-12T12:0${index}:00.000Z`,metadata:{legacy_photo_author:{id:author,name:author.toUpperCase(),avatar:`/avatars/${author}.png`}}}));
+  }
+  await createMessageRecord({organization_id:orgId,channel_id:channel.id,parent_id:root.id,author_id:'hidden',text:'Private',audience:['crew'],created_at:'2026-10-12T12:09:00.000Z'});
+  const read = async () => (await viewer.client.request('GET',`${base}/channels/${channel.id}/messages`)).messages.find((message:Json)=>message.id===root.id);
+  let summary = await read();
+  assert.equal(summary.reply_count,6);
+  assert.equal(summary.last_reply_at,replies[5]!.created_at);
+  assert.deepEqual(summary.reply_participants.map((person:Json)=>person.id),['b','e','d','c']);
+  assert.equal(summary.reply_participants[0].avatar,'/avatars/b.png');
+  await softDeleteMessageRecord(orgId,replies[5]!.id,viewer.userId);
+  summary = await read();
+  assert.equal(summary.reply_count,5);
+  assert.equal(summary.last_reply_at,replies[4]!.created_at);
+  assert.deepEqual(summary.reply_participants.map((person:Json)=>person.id),['e','d','c','b']);
+  await restoreMessageRecord(orgId,replies[5]!.id);
+  assert.equal((await read()).reply_participants[0].id,'b');
+  for (const reply of replies) await softDeleteMessageRecord(orgId,reply.id,viewer.userId);
+  summary = await read();
+  assert.equal(summary.reply_count,0);
+  assert.equal(summary.last_reply_at,null);
+  assert.deepEqual(summary.reply_participants,[]);
+});
+
 test("public discovery, private invitations, channel managers and deletion recovery are scoped", async () => {
   const {client:owner,orgId,suffix,userId:ownerId}=await registerOwner();
   const member=await createOrgUser(owner,orgId,suffix,"Regular Member");

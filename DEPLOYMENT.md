@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 reply participants: [Channels and Feed photos](deploy/digitalocean/development-reply-participants-20261012.md) records recent participant summaries, visibility-aware counts, tests and the verified development rollout.
+
 October 12 Photo comments: [Project Notes parity](deploy/digitalocean/development-photo-comments-notes-20261012.md) records the shared photo workspace, media-scoped authorization, retained historical comments, checks and verified development rollout.
 
 October 12 Notes author selections: [Checked defaults and composer fade](deploy/digitalocean/development-notes-gifs-audiences-20261012.md#author-checkbox-and-composer-gap-follow-up) records checkbox-only filters, Select All, a fixed Filters label and verified development publication.

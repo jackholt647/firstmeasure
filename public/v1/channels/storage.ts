@@ -1114,6 +1114,17 @@ export async function softDeleteMessageRecord(orgId: string, messageId: string, 
   }));
 }
 
+/** Identity and visibility records for active replies across a page of roots. */
+export async function listReplySummaryRecords(orgId: string, channelId: string, rootIds: string[]): Promise<MessageRow[]> {
+  if (!rootIds.length) return [];
+  // Load only identity and visibility fields, never reply bodies or attachments.
+  const rows = await getChannelsDatabase().prepare(`SELECT id, organization_id, channel_id, parent_id, author_id, created_at, seq,
+    audience_json, mention_users_json, metadata_json FROM messages
+    WHERE organization_id = ? AND channel_id = ? AND parent_id IN (${rootIds.map(() => '?').join(',')})
+      AND deleted_at IS NULL ORDER BY created_at DESC, seq DESC`).all(orgId, channelId, ...rootIds) as JsonObject[];
+  return rows.map(messageFromRow);
+}
+
 /** Read current counts, including for older roots whose stored count includes archives. */
 export async function listActiveReplyCounts(orgId:string,rootIds:string[]):Promise<Map<string,number>> {
   if(!rootIds.length)return new Map();
