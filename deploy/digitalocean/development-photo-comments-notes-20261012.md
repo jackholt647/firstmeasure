@@ -1,0 +1,70 @@
+# Photo comments using Project Notes — October 12, 2026
+
+Feature commits d599eb7a, bc3f98b1 and 9055e5a8. Deployed source/runtime
+`9055e5a86dc81c17263b93d54ef81f306790324d` on development only.
+
+The shared media viewer mounts the existing Project Notes workspace for each saved
+photo/media item. Comments now have the same rich formatting, Enter sending and
+Shift+Enter newline, mentions/user previews, GIFs, files, dictation/audio, audience
+choices, author/search/archive filters, pinned cards, edit history, archive/restore
+and rich threaded replies. Photo navigation retains each mounted workspace and its
+draft; switching closes its floating pickers. Closing the viewer destroys all
+mounted workspaces. New comment activity continues through the existing photo
+activity reporter. Existing Project Notes behavior is unchanged.
+
+The adapter reuses the Notes message services in a dedicated project-type channel
+with no project_id, a unique organization-scoped photo discussion key and a
+server-owned photo_media_id setting. Ordinary project channels and their Notes
+stores remain separate. Photo discussions are excluded from the Channels list.
+Every direct channel/message/upload operation rechecks media read/write and
+receipt/department access; settings cannot be used to change the media boundary.
+Realtime announces stubs so media-restricted text is only returned by authorized
+reads. Reply audience inheritance, active counts and editing/authorship rules
+remain owned by the Notes service.
+
+The first authorized open imports the existing photo_comments layer once under a
+channel-row transaction lock. Authors and timestamps are retained, unknown authors
+receive a stable historical identity, and old mentions are not resent. The original
+markup list remains intact. No schema migration or bulk customer-data rewrite was
+run. New comments are stored in Channels, not the old markup list.
+
+## Validation
+
+- Local TypeScript check passed.
+- Thirteen photo/Notes authorization and behavior tests passed; all three final
+  Linux stages compiled TypeScript and passed the three photo adapter tests.
+- Both photo integration and full Notes composer browser checks passed locally
+  and again using development-hosted assets. They use fixture APIs and do not
+  post customer comments. Narrow photo layouts were inspected.
+- Publication suite: 81 passed, one skipped, zero failed. The initial concurrent
+  run exhausted local memory; the complete sequential run passed.
+- Focused existing navigation checks passed photo handoff, markup resize and
+  thumbnail preservation. The pre-existing customer-sharing source assertion
+  still fails on unchanged photos/project.js; it expects an unlocalized literal.
+
+## Development rollout
+
+Each immutable candidate clones its own current role baseline, applies only the
+reviewed patch, retains unrelated deployed source and manifest entries, compiles
+backend modules into a separate build directory and installs only the three
+changed compiled modules. No worker, infrastructure or production changes were
+made. Activation guards the prior current path and runtime, verifies hashes,
+atomically switches the release and restarts only the development web/legacy
+service with PHP-FPM reload. Failures restore the prior path while the candidate
+is still current.
+
+All three roles passed source/compiled hashes, exact release identity, readiness,
+development environment and enforced outbound-safety checks. Public dev assets
+and readiness matched the release. Evidence, role-specific payloads and receipts
+are retained under ignored output/photo-comments-deploy.
+
+| Role | Activated release | Previous release |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/9055e5a86dc81c17263b93d54ef81f306790324d-photo-comments` | `/opt/firstmeasure/releases/bb108b6258a926e5534ea9f01576413bae898d22` |
+| pool | `/opt/firstmeasure/releases/9055e5a86dc81c17263b93d54ef81f306790324d-photo-comments` | `/opt/firstmeasure/releases/bb108b6258a926e5534ea9f01576413bae898d22` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/9055e5a86dc81c17263b93d54ef81f306790324d-photo-comments` | `/mnt/firstmeasure_dev_releases/releases/bb108b6258a926e5534ea9f01576413bae898d22` |
+
+Rollback must preserve intervening work and all discussion records. The older
+viewer reads only the legacy markup list and cannot display comments written to
+Channels after this rollout; prefer a forward repair over reverting the storage
+interface. Do not delete imported messages or completed-import markers.
