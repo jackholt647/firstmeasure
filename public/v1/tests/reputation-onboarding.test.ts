@@ -91,3 +91,10 @@ test('development prohibits carrier onboarding and no subscription or billing re
 test('disabling monitoring retains telephone service and requires a new authorization',async()=>{
  await p.disableReputation(auth(),'disable-request-1');assert.ok((await p.account('rep-org'))?.disabled_at);assert.equal((await p.account('rep-org'))?.loa_version,'');assert.equal((await s.resource('rep-org','number','+12025550100'))?.status,'active');
 });
+
+test('authorization PDF transport negotiates binary content and rejects an unexpected response',async()=>{
+ const {TelnyxClient}=await import('../messaging/telnyx.js');let valid=true;
+ const client=new TelnyxClient({apiKey:'test',fetchImpl:async(_url,init)=>{assert.equal(new Headers(init?.headers).get('Accept'),'application/pdf');return new Response(valid?'%PDF-1.7 authorization':'{}',{headers:{'Content-Type':valid?'application/pdf':'application/json'}});}});
+ const pdf=await client.request('/fixture/loa',{method:'POST',body:'{}'},'pdf');assert.ok(Buffer.isBuffer(pdf));assert.match(pdf.toString(),/^%PDF/);
+ valid=false;await assert.rejects(client.request('/fixture/loa',{method:'POST',body:'{}'},'pdf'),/Expected an authorization PDF/);
+});
