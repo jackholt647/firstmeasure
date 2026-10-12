@@ -1841,6 +1841,8 @@
     const list = materialListById(listId);
     if (!list) return null;
     const next = { ...list, current_items: Array.isArray(items) ? items : [] };
+    const writes = listWrites.get(cleanText(listId));
+    if (writes?.pending > 0) writes.items = next.current_items;
     updateMaterialListState(next);
     return next;
   }
@@ -1962,7 +1964,7 @@
   }
 
   function workspaceIsEditing(){
-    return state.saving || state.creatingList || state.loading || state.panelRoot?.querySelector('dialog[open]')
+    return state.saving || state.creatingList || state.loading || listWritesPending() || state.panelRoot?.querySelector('dialog[open]')
       || ([state.panelRoot, state.sidebarRoot].some((root) => root?.contains(document.activeElement))
         && document.activeElement?.matches('input,textarea,select,[contenteditable="true"]'));
   }
@@ -2470,7 +2472,32 @@
     }
   }
 
+  const listWrites = new Map();
+  function listWritesPending(){
+    return [...listWrites.values()].some((entry) => entry.pending > 0);
+  }
+  // Saves for one list are queued so each uses the revision the previous one returned. Edits are already on screen,
+  // so while later saves are still queued the on-screen items are put back over each server copy.
   async function persistVersion(payload, options = {}){
+    const requested = options.list || state.activeList;
+    if (!requested) return null;
+    const id = cleanText(requested.id);
+    const entry = listWrites.get(id) || { chain: Promise.resolve(), pending: 0, items: null };
+    listWrites.set(id, entry);
+    entry.pending += 1;
+    entry.items = listItems(materialListById(id) || requested);
+    const run = entry.chain.catch(() => {}).then(() => persistVersionNow(payload, { ...options, list: materialListById(id) || requested }));
+    entry.chain = run;
+    try {
+      return await run;
+    } finally {
+      entry.pending -= 1;
+      if (entry.pending > 0 && entry.items && materialListById(id)) replaceListItems(id, entry.items);
+      if (entry.pending <= 0) entry.items = null;
+    }
+  }
+
+  async function persistVersionNow(payload, options = {}){
     const timingStart = performance.now();
     const targetList = options.list || state.activeList;
     timingMark('persistVersion:start', { reason: payload?.reason || '', local: !apiReady() || !!targetList?.local });
@@ -2564,37 +2591,22 @@
       ? lineFromPricebookItem(item, { section: resolvedSection })
       : { ...blankLine(resolvedSection), id: uid(`${type}_item`), name: `New ${terms.singular.toLowerCase()}`, unit: type === 'labor' ? 'hour' : 'ea', metadata: { resource_type: type, ...(type === 'labor' ? { compensation_kind:'hourly' } : {}) } };
     const baseItems = listItems(targetList);
-    state.saving = true;
     replaceListItems(targetList.id, [...baseItems, line]);
     state.activeListId = cleanText(targetList.id);
     state.activeList = materialListById(targetList.id);
     state.visibleListIds.add(cleanText(targetList.id));
-    setWorkspaceSaving(true);
-    syncMaterialSection(resolvedSection);
-    try {
-      await persistVersion({ reason: 'supplement', add_items: [line] }, { baseItems, list: targetList });
-      showToast(((v0) => globalThis.PlatformLanguage?.text("materials","m_a19c8c64e9f329",`${v0} added`,{v0}) ?? `${v0} added`)(terms.singular), line.name, true);
-    } catch (error) {
-      replaceListItems(targetList.id, baseItems);
-      syncMaterialSection(resolvedSection);
-      showToast(((v0) => globalThis.PlatformLanguage?.text("materials","m_6b20ad5f8a56d9",`Could not add ${v0}`,{v0}) ?? `Could not add ${v0}`)(terms.singular.toLowerCase()), error?.message || 'Please try again.', false);
-    } finally {
-      state.saving = false;
-      if (type === 'labor') {
-        await loadExpenseProjection();
-        render();
-        renderLeft();
-      }
-      setWorkspaceSaving(false);
-      syncTopBar();
+    syncMaterialsGrid();
+    const nameInput = findByData(materialRoot(), '[data-mt-item-name]', 'mtItemName', line.id);
+    nameInput?.focus();
+    nameInput?.select();
+    // The row is usable at once; the save happens behind it and only speaks up if it fails.
+    persistVersion({ reason: 'supplement', add_items: [line] }, { baseItems, list: targetList }).then(() => (type === 'labor' ? loadExpenseProjection().then(() => syncFooterTotals()) : null)).catch((error) => {
+      const latest = materialListById(targetList.id);
+      if (latest) replaceListItems(latest.id, listItems(latest).filter((entry) => entry.id !== line.id));
       syncMaterialsGrid();
-      renderLeft();
-      syncFooterTotals();
-      const nameInput = findByData(materialRoot(), '[data-mt-item-name]', 'mtItemName', line.id);
-      nameInput?.focus();
-      nameInput?.select();
-      timingMark('addItem:end', { items: listItems().length }, timingStart);
-    }
+      showToast(((v0) => globalThis.PlatformLanguage?.text("materials","m_6b20ad5f8a56d9",`Could not add ${v0}`,{v0}) ?? `Could not add ${v0}`)(terms.singular.toLowerCase()), error?.message || 'Please try again.', false);
+    });
+    timingMark('addItem:end', { items: listItems().length }, timingStart);
   }
 
   function markGenerateButtonLoading(button){
@@ -2968,27 +2980,19 @@
       projected_unit_price: Number.isFinite(unitPrice) ? unitPrice : undefined,
       projected_total: Number.isFinite(unitPrice) ? Math.round(quantity * unitPrice * 100) / 100 : current.projected_total
     };
-    state.saving = true;
     replaceListItems(targetList.id, baseItems.map((item) => item.id === itemId ? { ...item, ...nextPatch } : item));
-    setWorkspaceSaving(true);
-    const immediateRowSync = !!(nextPatch.selected_options || nextPatch.product_selection || nextPatch.pricebook_ref || nextPatch.pricebook_snapshot || nextPatch.item_type_id || nextPatch.variant_id);
-    if (immediateRowSync) syncLineRow(itemId, targetList.id);
-    let updateFailed = false;
+    syncLineRow(itemId, targetList.id);
+    syncFooterTotals();
     try {
       await persistVersion({ reason: 'revision', update_items: [nextPatch] }, { list: targetList, baseItems });
+      if (laborItem) { await loadExpenseProjection(); syncFooterTotals(); }
     } catch (error) {
-      updateFailed = true;
-      replaceListItems(targetList.id, baseItems);
-      showToast((globalThis.PlatformLanguage?.text("materials","m_9747f0d8655351","Could not update material") ?? "Could not update material"), error?.message || 'Please try again.', false);
-    } finally {
-      state.saving = false;
-      if (laborItem) {
-        await loadExpenseProjection();
-        render();
-        renderLeft();
-      } else if (!immediateRowSync || updateFailed) syncLineRow(itemId, targetList.id);
-      setWorkspaceSaving(false);
+      // Only this item goes back to what it was; anything typed since stays.
+      const latest = materialListById(targetList.id);
+      if (latest) replaceListItems(latest.id, listItems(latest).map((item) => item.id === itemId ? current : item));
+      syncLineRow(itemId, targetList.id);
       syncFooterTotals();
+      showToast((globalThis.PlatformLanguage?.text("materials","m_9747f0d8655351","Could not update material") ?? "Could not update material"), error?.message || 'Please try again.', false);
     }
   }
 
@@ -3142,27 +3146,30 @@
   }
 
   // Commits a name cell: a chosen price book item replaces the line, typed text renames it, and Enter on a list's last row starts the next row.
-  async function commitItemName(input, catalogItem, addNext){
+  function commitItemName(input, catalogItem, addNext){
     const itemId = input.dataset.mtItemName;
     const listId = input.dataset.mtListId;
     const list = materialListById(listId);
     const current = listItems(list).find((item) => cleanText(item.id) === cleanText(itemId));
     closeAutofill();
-    if (!current || state.saving) return;
+    if (!current) return;
     const last = cleanText(listItems(list).at(-1)?.id) === cleanText(itemId);
     const renamed = cleanText(input.value) !== cleanText(materialPrimaryName(current));
     if (catalogItem) {
       input.dataset.mtCommitted = '1';
       const quantity = integerQuantity(current.quantity, 0);
       const next = lineFromPricebookItem(catalogItem, quantity > 0 ? { quantity } : {});
-      await updateItem(itemId, { ...next, id: itemId, structure_id: current.structure_id || next.structure_id }, listId);
+      updateItem(itemId, { ...next, id: itemId, structure_id: current.structure_id || next.structure_id }, listId);
       syncMaterialsGrid();
     } else if (renamed) {
       input.dataset.mtCommitted = '1';
-      await updateItem(itemId, { name: input.value }, listId);
+      updateItem(itemId, { name: input.value }, listId);
     }
-    if (addNext && last && (catalogItem || renamed)) await addItem(null, resourceType(list) === 'material' ? 'accessories' : resourceType(list), listId);
-    else if (catalogItem) findByData(materialRoot(), '[data-mt-item-qty]', 'mtItemQty', itemId)?.focus?.();
+    if (addNext && last && (catalogItem || renamed)) { addItem(null, resourceType(list) === 'material' ? 'accessories' : resourceType(list), listId); return; }
+    if (!catalogItem) return;
+    const count = findByData(materialRoot(), '[data-mt-item-qty]', 'mtItemQty', itemId);
+    count?.focus?.();
+    count?.select?.();
   }
 
   async function updateItemVariant(itemId, variantItemId, listId = state.activeListId){
@@ -3992,7 +3999,7 @@
     const selectedMeta = values.find((value) => cleanText(value.value) === selected) || values[0];
     const rich = richColorPicker(item);
     return `
-      <button type="button" class="mt-color-trigger${String(rich ? ' rich' : '')}" data-mt-color-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(item.__material_list_id || state.activeListId))}" data-fm-tooltip="${String(escapeHtml(selectedMeta?.label || selected))}" title="${String(escapeHtml(selectedMeta?.label || selected))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d453ffba808085","Choose color") ?? "Choose color")}" aria-expanded="${String(state.colorMenu?.itemId === item.id ? 'true' : 'false')}" ${String(state.saving ? 'disabled' : '')}>
+      <button type="button" tabindex="-1" class="mt-color-trigger${String(rich ? ' rich' : '')}" data-mt-color-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(item.__material_list_id || state.activeListId))}" data-fm-tooltip="${String(escapeHtml(selectedMeta?.label || selected))}" title="${String(escapeHtml(selectedMeta?.label || selected))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d453ffba808085","Choose color") ?? "Choose color")}" aria-expanded="${String(state.colorMenu?.itemId === item.id ? 'true' : 'false')}" ${String(state.saving ? 'disabled' : '')}>
         <span class="mt-color-current"><span class="mt-color-swatch" style="${String(escapeHtml(optionValueBackground(selectedMeta)))}"></span>${String(selectedMeta?.label ? `<em>${escapeHtml(selectedMeta.label)}</em>` : '')}</span>
       </button>
     `;
@@ -4169,8 +4176,11 @@
     holder.innerHTML = renderLineRow(item);
     const next = holder.firstElementChild;
     if (!next) return false;
+    const active = existing.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = active ? ['mtItemName', 'mtItemQty', 'mtItemUnit', 'mtItemPrice'].find((key) => active.dataset?.[key]) : '';
     existing.replaceWith(next);
     bindLineControls(next);
+    if (focusKey) Array.from(next.querySelectorAll('input')).find((input) => input.dataset[focusKey])?.focus?.();
     timingMark('syncLineRow', { itemId, listId });
     return true;
   }
@@ -4677,6 +4687,8 @@
         const open = state.autofill?.input === input ? state.autofill : null;
         if (open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) { event.preventDefault(); moveAutofill(event.key === 'ArrowDown' ? 1 : -1); return; }
         if (open && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAutofill(); return; }
+        // Tab with a suggestion chosen takes it and moves on to the count instead of starting a new line.
+        if (open && open.index >= 0 && event.key === 'Tab' && !event.shiftKey) { event.preventDefault(); commitItemName(input, open.matches[open.index], false); return; }
         if (event.key !== 'Enter') return;
         event.preventDefault();
         commitItemName(input, open && open.index >= 0 ? open.matches[open.index] : null, true);
@@ -4702,6 +4714,15 @@
       input.addEventListener('blur', () => { if (input.value === input.dataset.mtRaw) { input.value = shown; fit(); } });
     });
     root.querySelectorAll('[data-mt-item-name],[data-mt-item-qty],[data-mt-item-unit],[data-mt-item-price]').forEach((input) => {
+      if (!input.dataset.mtItemName) input.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        const itemId = input.dataset.mtItemQty || input.dataset.mtItemUnit || input.dataset.mtItemPrice;
+        const list = materialListById(input.dataset.mtListId);
+        const last = cleanText(listItems(list).at(-1)?.id) === cleanText(itemId);
+        input.blur();
+        if (last && list) addItem(null, resourceType(list) === 'material' ? 'accessories' : resourceType(list), list.id);
+      });
       input.addEventListener('change', () => {
         if (input.dataset.mtCommitted) return;
         const itemId = input.dataset.mtItemName || input.dataset.mtItemQty || input.dataset.mtItemUnit || input.dataset.mtItemPrice;

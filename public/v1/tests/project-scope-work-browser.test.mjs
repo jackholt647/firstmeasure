@@ -245,7 +245,7 @@ test('committing a name renames or swaps in a price book item, and Enter on the 
  ctx=make();await ctx.commitItemName(input('first','Drip edge white'),{id:'p1',name:'Timberline HDZ'},true);assert.deepEqual(plain(ctx),[['update','first','Timberline HDZ','p1',4,'list'],['grid']],'a middle row keeps its quantity and does not start a new row');
  ctx=make();await ctx.commitItemName(input('last','New material'),null,true);assert.deepEqual(plain(ctx),[],'an untouched row does nothing');
  ctx=make();await ctx.commitItemName(input('last','Ridge vent'),null,false);assert.deepEqual(plain(ctx),[['update','last','Ridge vent',null,null,'list']]);
- ctx=make();ctx.state.saving=true;await ctx.commitItemName(input('last','Ridge vent'),null,true);assert.deepEqual(plain(ctx),[]);
+
 });
 
 test('order deliveries group only when asked, and the supplier email describes each delivery once',()=>{
@@ -260,4 +260,17 @@ test('order deliveries group only when asked, and the supplier email describes e
  ctx.state.orderScheduleDrafts.a={date:'2026-10-20',time:'9:30 am'};assert.match(ctx.orderDeliveryInstruction(ctx.orderDeliveryGroups()[0]),/ at 9:30 am\.$/);
  ctx.state.orderScheduleDrafts.a={date:'',time:''};assert.deepEqual(titles(),[['Dry-in'],['Shingles'],['Trim']],'a group dissolves when its lead loses its date');assert.match(ctx.orderDeliveryInstruction(ctx.orderDeliveryGroups()[2]),/please contact me to arrange them/);
  ctx.state.orderSelectedListIds=new Set(['b','c']);ctx.state.orderScheduleDrafts.c={group_with:'b'};ctx.state.orderScheduleDrafts.b={date:'2026-10-21',time:'',group_with:'c'};assert.equal(ctx.orderGroupTarget(lists[2]),null,'a list that is itself grouped cannot lead a group');
+});
+
+test('saves for one list run in order on the latest revision while what is on screen is kept',async()=>{
+ const list={id:'list',revision:1,current_items:[{id:'a'}]},sent=[],release=[];
+ const ctx={state:{activeList:list,lists:[list]},cleanText:value=>String(value??'').trim(),materialListById:()=>ctx.state.lists[0],listItems:value=>value?.current_items||[],
+  updateMaterialListState:next=>{ctx.state.lists=[{...ctx.state.lists[0],...next}];return ctx.state.lists[0];},
+  persistVersionNow:(payload,options)=>new Promise(resolve=>{sent.push([payload.tag,options.list.revision]);release.push(()=>{ctx.updateMaterialListState({id:'list',revision:options.list.revision+1,current_items:payload.server});resolve('ok');});})};
+ vm.createContext(ctx);vm.runInContext('const listWrites=new Map();'+fn('listWritesPending')+fn('persistVersion')+fn('replaceListItems'),ctx);
+ ctx.replaceListItems('list',[{id:'a'},{id:'b'}]);const first=ctx.persistVersion({tag:'add b',server:[{id:'a'},{id:'b'}]},{list});
+ ctx.replaceListItems('list',[{id:'a'},{id:'b'},{id:'c'}]);const second=ctx.persistVersion({tag:'add c',server:[{id:'a'},{id:'b'},{id:'c'}]},{list});
+ await Promise.resolve();await Promise.resolve();assert.deepEqual(sent,[['add b',1]],'the second save waits for the first');assert.equal(ctx.listWritesPending(),true);
+ release[0]();await first;assert.deepEqual(ctx.state.lists[0].current_items.map(item=>item.id),['a','b','c'],'the row added while saving is still there');assert.equal(ctx.state.lists[0].revision,2);
+ await Promise.resolve();await Promise.resolve();assert.deepEqual(sent,[['add b',1],['add c',2]]);release[1]();await second;assert.equal(ctx.state.lists[0].revision,3);assert.equal(ctx.listWritesPending(),false);
 });
