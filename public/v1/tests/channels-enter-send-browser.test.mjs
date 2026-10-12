@@ -99,6 +99,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     const dm=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();await dm.fill('DM message');await dm.press('Enter');await page.waitForFunction(()=>sent.length===5);
     assert.equal(await page.evaluate(()=>sent[4].text),'DM message');
     assert.deepEqual(errors,[]);
-  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+  }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
+
 

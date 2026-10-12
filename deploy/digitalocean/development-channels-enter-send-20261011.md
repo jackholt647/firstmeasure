@@ -18,3 +18,5 @@ Previous releases:
 - Compatibility: `/mnt/firstmeasure_dev_releases/releases-phone-second-pass/0200f8b0-sms-copy`
 
 Rollback: verify no intervening release, restore each previous `current` symlink atomically, restart only its development web/legacy service and PHP-FPM, and recheck readiness and the asset. Production activation requires separate user authorization.
+
+Activation completed on all three development frontend roles. Each role passed exact-release readiness and development isolation checks. Public Channels UI and Settings bytes match the tested assets. Both the focused keyboard browser test and the existing mention regression passed against the hosted assets after the rollout completed.
