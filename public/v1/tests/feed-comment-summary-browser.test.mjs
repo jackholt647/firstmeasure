@@ -33,7 +33,7 @@ test('feed posts show up to four recent comment photos without a timestamp',asyn
   await post.waitFor();
   assert.equal(await post.locator('.pf-comment-people').count(),0);
   await post.getByRole('button',{name:'Comments',exact:true}).click();
-  await post.locator('textarea').fill('Looks great');
+  await post.locator('[data-comment-editor]').fill('Looks great');
   await post.getByRole('button',{name:'Post comment',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.pf-comment-people'));
   const summary=post.locator('.pf-post-stats [data-post-comments]');
