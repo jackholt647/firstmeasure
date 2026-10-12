@@ -101,5 +101,3 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     assert.deepEqual(errors,[]);
   }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
-
-
