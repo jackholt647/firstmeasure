@@ -3027,10 +3027,12 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
               await finishProviderOperation(cleanText(asObject(op.operation).id), { status: "succeeded", provider_id: campaignId,
                 response: providerData(binding) });
             }
+            const bindingStatus = cleanText(providerData(binding).status || providerData(binding).assignmentStatus).toLowerCase();
+            const carrierAssigned = ["assigned", "success", "active", "added"].includes(bindingStatus);
             const ownership = await claimPhoneNumberOwnership({ phone_number: number, organization_id: orgId,
               compliance_profile_id: saved.id, messaging_profile_id: messagingProfileId,
-              provider_phone_number_id: cleanText(owned.id), status: "active" });
-            assignmentStatus = ownership.claimed ? "assigned" : "ownership_conflict";
+              provider_phone_number_id: cleanText(owned.id), status: carrierAssigned ? "active" : "ordered" });
+            assignmentStatus = ownership.claimed ? (carrierAssigned ? "assigned" : bindingStatus || "pending") : "ownership_conflict";
           }
         }
         if (["failure", "failed", "cancelled", "deleted"].includes(status)) {
