@@ -5268,13 +5268,16 @@
     }
     function smsRegistrationSubmittedAt(profile){
       const events = Array.isArray(profile?.events) ? profile.events : [];
-      const submitted = events.find((event) => ['brand_submitted', 'campaign_submitted'].includes(String(event?.type || '')));
+      const eventType = smsHasProviderCampaign(profile) ? 'campaign_submitted' : 'brand_submitted';
+      const submitted = events.slice().reverse().find((event) => String(event?.type || '') === eventType);
       return smsFormatDateTime(submitted?.at || profile?.updated_at || profile?.created_at);
     }
     function smsCustomerRegistrationStatus(profile){
       if (!profile?.id) return { label: (globalThis.PlatformLanguage?.text("settings","m_8e0889858c888d","Not started") ?? "Not started"), tone: '', message: (globalThis.PlatformLanguage?.text("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.") };
       if (smsRegistrationVerified(profile)) return { label: (globalThis.PlatformLanguage?.text("settings","m_f64a3a7ba06127","Verified") ?? "Verified"), tone: 'ok', message: (globalThis.PlatformLanguage?.text("settings","m_20d655ea01d16d","SMS registration is verified.") ?? "SMS registration is verified.") };
-      if (smsRegistrationSubmitted(profile)) return { label: (globalThis.PlatformLanguage?.text("settings","m_e2b803de55a93e","Submitted") ?? "Submitted"), tone: 'ok', message: (globalThis.PlatformLanguage?.text("settings","m_e01d90d1662eae","Registration is submitted and under review.") ?? "Registration is submitted and under review.") };
+      if (smsRegistrationSubmitted(profile)) return smsHasProviderCampaign(profile)
+        ? { label: 'Campaign submitted', tone: 'ok', message: 'The SMS campaign is submitted for carrier review.' }
+        : { label: smsBrandReadyForCampaign(profile) ? 'Business verified' : 'Business submitted', tone: 'ok', message: smsBrandReadyForCampaign(profile) ? 'Continue setup to submit the SMS campaign.' : 'The business registration is awaiting Telnyx verification.' };
       return { label: (globalThis.PlatformLanguage?.text("settings","m_9ce407c87de615","Draft") ?? "Draft"), tone: '', message: (globalThis.PlatformLanguage?.text("settings","m_93c8e169e0fb0e","Registration is drafted but not submitted.") ?? "Registration is drafted but not submitted.") };
     }
     function smsRegistrationLocked(profile){
@@ -5531,7 +5534,7 @@
         return {
           cls: 'done',
           icon: verified ? 'fa-check' : 'fa-clock',
-          label: verified ? 'Verified' : 'Submitted'
+          label: verified ? 'Verified' : smsHasProviderCampaign(profile) ? 'Campaign submitted' : smsBrandReadyForCampaign(profile) ? 'Business verified' : 'Business submitted'
         };
       }
       const issues = smsStepIssues(step.id, profile);
@@ -5666,12 +5669,14 @@
     function smsSubmissionBanner(profile){
       const status = smsCustomerRegistrationStatus(profile);
       const verified = smsRegistrationVerified(profile);
+      const campaignSubmitted = smsHasProviderCampaign(profile);
+      const brandReady = smsBrandReadyForCampaign(profile);
       const submittedAt = smsRegistrationSubmittedAt(profile);
       return `
         <div class="sms-submitted-panel ${verified ? 'verified' : 'pending'}">
           <div class="sms-submitted-icon"><i class="fas ${verified ? 'fa-circle-check' : 'fa-clock'}"></i></div>
-          <h4>${verified ? 'SMS registration verified' : 'SMS registration submitted'}</h4>
-          <p>${verified ? 'This company is verified for the selected FirstMate SMS features. Customer messaging can be enabled for this registration.' : 'Telnyx and the carriers are reviewing this registration. Return here and click Refresh Status to finish number assignment after approval. Most reviews complete within a few business days, though carrier provisioning can occasionally take up to 7 business days.'}</p>
+          <h4>${verified ? 'SMS registration verified' : campaignSubmitted ? 'SMS campaign submitted' : brandReady ? 'Business verified — campaign not submitted' : 'Business registration submitted'}</h4>
+          <p>${verified ? 'This company is verified for the selected FirstMate SMS features. Customer messaging can be enabled for this registration.' : campaignSubmitted ? 'The SMS campaign is under carrier review. Return here and click Refresh Status to finish number assignment after approval.' : brandReady ? 'Telnyx has verified the business. Click Continue Setup to submit the SMS campaign for carrier review.' : 'Telnyx is reviewing the business registration. Click Refresh Status after verification, then Continue Setup to submit the SMS campaign.'}</p>
           <div class="sms-submitted-meta">
             ${submittedAt ? `<span><i class="fas fa-calendar-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_9a19fffc189408",` Submitted ${v0}`,{v0}) ?? ` Submitted ${v0}`)(escapeHtml(submittedAt))}</span>` : ''}
             <span><i class="fas ${verified ? 'fa-circle-check' : 'fa-hourglass-half'}"></i> ${escapeHtml(status.label)}</span>
