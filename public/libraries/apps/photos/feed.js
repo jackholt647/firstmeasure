@@ -2636,7 +2636,6 @@
       </div>` : ''}
       <div class="pf-scroll" data-feed-scroll data-feed-view="${escapeHtml(feedScrollViewKey())}">
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
-        ${state.documentsLoading ? `<div class="pf-feed-notice"><i class="fas fa-circle-notch fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_c134b013b4dd64"," Adding project documents…") ?? " Adding project documents…")}</div>` : ''}
         ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
         ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${state.density==='list' && state.listOrganize==='project' ? feedProjectGroupsHtml(list) : list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : state.loaded && !state.loading && !state.documentsLoading && entries.length ? '<div class="pf-feed-end" data-feed-end role="status">You’ve reached the end of the available activity.</div>' : ''}
@@ -3234,7 +3233,7 @@
           state.visible += PAGE_SIZE;
           renderDynamic();
         }
-      }, { root: rootEl.querySelector('[data-feed-scroll]'), threshold: 0.1 });
+      }, { root: rootEl.querySelector('[data-feed-scroll]'), rootMargin:`0px 0px ${Math.max(400,Math.min(900,rootEl.querySelector('[data-feed-scroll]')?.clientHeight || 600))}px 0px`, threshold: 0.1 });
       state.observer.observe(sentinel);
     }
   }

@@ -519,11 +519,14 @@ test('list paging preserves reading position and Posts notes expand',async()=>{
    window.Portal={cfg:{userOrgId:'org',userId:'sam'},util:{escapeHtml,injectCSS:(_id,css)=>{const style=document.createElement('style');style.textContent=css;document.head.append(style);}},ui:{showToast:()=>{}},apps:{registerPortalApp:app=>window.feedApp=app},appFlags:{has:()=>true,load:async()=>{}},navigation:{read:()=>({}),replace:()=>{}},routeState:{get:()=>({})}};
    const projects=[{id:'project',data:{id:'project',title:'Reading position test',photos:[],documents:[]}}];
    const events=Array.from({length:80},(_,index)=>({id:'paging'+index,type:'project.created',project_id:'project',actor_user_id:'sam',created_at:new Date(now-index*3600000).toISOString(),payload:{title:'Activity '+index}}));
-   window.PlatformAPI={projects:{list:async()=>({documents:projects})},users:{list:async()=>({documents:[{id:'sam',data:{name:'Sam Rivera'}}]})},projectDocuments:{list:async()=>({documents:[]})}};
+   window.PlatformAPI={projects:{list:async()=>({documents:projects})},users:{list:async()=>({documents:[{id:'sam',data:{name:'Sam Rivera'}}]})},projectDocuments:{list:()=>new Promise(resolve=>{window.releaseDocuments=()=>resolve({documents:[]});})}};
    window.ChannelsAPI={feed:{catalog:async()=>({projects,events,media:[],users:[{id:'sam',name:'Sam Rivera'}],views:['list','posts'],can_comment:false,can_react:false,can_post:false,manual_posts:[],departments:[],user_departments:{}}),authorize:async(_org,refs)=>({sources:refs.map(ref=>({ref,key:ref.id,author:'sam'}))})},channels:{list:async()=>({channels:[{id:'project-channel',type:'project',project_id:'project'}]})},messages:{list:async()=>({messages:[{id:'long-note',text:'The crew reviewed the entire site and checked access with the homeowner. '.repeat(25),created_at:new Date(now+120000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera'}},{id:'short-note',text:'Done.',created_at:new Date(now+60000).toISOString(),metadata:{project_note:true},author:{id:'sam',name:'Sam Rivera'}}]})}};
   });
   for(const file of ['channels-ui/channels-ui.js','apps/photos/feed.js'])await page.addScriptTag({content:await readFile(file==='apps/photos/feed.js'&&process.env.FEED_BROWSER_SCRIPT?process.env.FEED_BROWSER_SCRIPT:new URL(`../../libraries/${file}`,import.meta.url),'utf8')});
   await page.evaluate(()=>window.feedApp.mount(document.querySelector('#feed')));
+  await page.waitForFunction(()=>window.releaseDocuments);
+  assert.equal(await page.locator('.pf-feed-notice').count(),0,'document hydration does not show a loading banner');
+  await page.evaluate(()=>window.releaseDocuments());
   await page.waitForFunction(()=>document.querySelectorAll('.pf-feed-list-row').length>=14);
   const longNote=page.locator('.pf-feed-list-row').filter({hasText:'The crew reviewed'});
   await longNote.getByRole('button',{name:'Expand note'}).click();
@@ -535,7 +538,8 @@ test('list paging preserves reading position and Posts notes expand',async()=>{
   await page.getByRole('button',{name:'Close',exact:true}).click();
   for(let pageNumber=0;pageNumber<8 && await page.locator('.pf-feed-list-row').count()<82;pageNumber++){
    const count=await page.locator('.pf-feed-list-row').count();
-   const top=await page.locator('[data-feed-scroll]').evaluate(scroll=>{window.savedScroll=scroll;scroll.scrollTop=scroll.scrollHeight-scroll.clientHeight;return scroll.scrollTop;});
+   const top=await page.locator('[data-feed-scroll]').evaluate(scroll=>{window.savedScroll=scroll;scroll.scrollTop=scroll.scrollHeight-scroll.clientHeight-220;window.remainingBeforeLoad=scroll.scrollHeight-scroll.clientHeight-scroll.scrollTop;return scroll.scrollTop;});
+   assert.ok(await page.evaluate(()=>window.remainingBeforeLoad)>=200,'the next page starts loading before reaching the bottom');
    await page.waitForFunction(count=>document.querySelectorAll('.pf-feed-list-row').length>count,count);
    assert.equal(await page.locator('[data-feed-scroll]').evaluate(scroll=>scroll===window.savedScroll),true,'pagination keeps the scrolling element');
    assert.ok(await page.locator('[data-feed-scroll]').evaluate(scroll=>scroll.scrollTop)>=top-2,'loading more activity does not jump upward');
