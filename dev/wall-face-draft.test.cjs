@@ -3114,3 +3114,10 @@ for(const amount of [1,-1])test(`face E cycles world directions without committi
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before,'cancel restores pre-extrusion geometry');
  f.editor.extrudeFace({face,event:f.e(0,0)});f.editor.distanceInput().set(amount);f.editor.key({key:'e'});const preview=JSON.stringify(f.state.wallEdits);f.editor.down(f.e(0,0));assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.state.wallEdits),preview,'placement uses exact world-axis preview');
 });
+
+test('E on a selected floating face creates full side walls while M translates it',()=>{
+ const p=(x,y)=>({x,y,z:2+.2*x}),face={id:'floating',points:[p(0,0),p(2,0),p(2,1),p(0,1)]},W=require('../public/measure/internal/editor_scripts/wall_solid_geometry');
+ for(const key of ['e','m']){const state={wallEdits:{$surfaces:[structuredClone(face)]}},f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}});f.editor.restoreSelection({selectedSolid:face.id});f.listeners.pointermove(f.e(0,2));f.editor.key({key});f.editor.distanceInput().set(1);
+  const sides=state.wallEdits.$surfaces.filter(f=>f.id!==face.id&&!f.deleted);if(key==='e'){for(let i=0;i<4;i++)assert.ok(W.sharedIntervals(face.points[i],face.points[(i+1)%4],sides).length,'selected solid E must return along every edge');const preview=JSON.stringify(state.wallEdits);f.editor.down(f.e(0,2));assert.equal(JSON.stringify(state.wallEdits),preview);assert.equal(f.history.length,1);}else assert.equal(sides.length,0,'detached M remains a translation');
+ }
+});
