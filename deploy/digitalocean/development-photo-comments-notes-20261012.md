@@ -266,3 +266,25 @@ The release was patched onto the current `3fde051b-sms-final-ui` release on each
 | web | `/opt/firstmeasure/releases/cb52c2acf5e71fb9b03a8529ced15c5fbac736b7-composer-refinements` | `/opt/firstmeasure/releases/3fde051b-sms-final-ui` |
 | pool | `/opt/firstmeasure/releases/cb52c2acf5e71fb9b03a8529ced15c5fbac736b7-composer-refinements` | `/opt/firstmeasure/releases/3fde051b-sms-final-ui` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/cb52c2acf5e71fb9b03a8529ced15c5fbac736b7-composer-refinements` | `/mnt/firstmeasure_dev_releases/releases/3fde051b-sms-final-ui` |
+
+
+## Composer media, menus and formatting regression pass
+
+October 12, 2026. Verified frontend source `7d3a51e380ef518d6f5aef67cff7b57704255c75` addresses the remaining composer regressions:
+
+- Formatting overflow uses stable accessible labels instead of the native `title` attribute. PlatformUI adopts native titles into its tooltip metadata, which previously emptied the menu. The browser fixtures now load the real tooltip library, assert title adoption, and require visible menu text.
+- The Link control is a chain icon with its accessible name preserved. Quote toggles off through native outdent, including quotes with multiple paragraphs. Code block toggles back to plain text. The pass covers formatting on/off, multi-line blocks, Undo, link insertion/editing, clear formatting and table operations.
+- Red rich-editor mention highlighting is enabled for Notes and photo comments, including replies and inline editing, while retaining Posts/Feed and Channels highlighting. Channels still highlights and submits only confirmed picker selections; bare `@`, unselected names and broadcasts stay plain. The unrelated document-editor contract is preserved.
+- Uploaded image drafts in Notes, photo comments and Channels use shared 84px square thumbnails with preview/removal controls and no visible filename. File, audio and video draft behavior remains available. Channels previews sit inside the composer above its bottom tools.
+- The shared PlatformWidgets GIF draft uses a small dark circular remove control with a white SVG X over the image. The approved 35px Powered by GIPHY attribution remains inside the bottom-right corner.
+- Channels Send and Schedule are filled adjoining buttons, with Send larger and Schedule on its right. Replies have emoji, GIF, upload, dictation, mentions and the available audio/video/screen recording actions. Recording options retain the single-action/direct-icon rule. Reply audio and uploaded files retain their local attachment IDs and metadata across a failed send.
+
+All 14 browser checks passed against the published development assets (`DEV_ASSETS=1`). Local checks passed as well; the final Notes fixture rerun corrected screenshot scoping and used deterministic media pixels. Screenshots were reviewed for red mentions, thumbnail uploads, the GIF remove overlay, attribution and bottom controls. Every changed JavaScript file passed syntax checks. All six public asset hashes and every role's owned source hashes matched the staged payload. Development readiness, enforced outbound safety and the exact retained backend runtime were verified.
+
+The patch was applied to each role's current immutable `e2bc4b4b-sms-multi-number` release, preserving concurrent SMS and other live work. This was a frontend-only activation with PHP-FPM reload. The retained backend runtime is `e2bc4b4395b2b8cb6b152ae571604acf9028d79b`. No backend restart, worker activation, database or production change was made. Detailed receipts are under ignored `output/composer-media-fixes-deploy`.
+
+| Role | Activated frontend path | Rollback frontend path |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` | `/opt/firstmeasure/releases/e2bc4b4b-sms-multi-number` |
+| pool | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` | `/opt/firstmeasure/releases/e2bc4b4b-sms-multi-number` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` | `/mnt/firstmeasure_dev_releases/releases/e2bc4b4b-sms-multi-number` |
