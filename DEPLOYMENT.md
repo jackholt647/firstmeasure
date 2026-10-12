@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Notes toolbar and formatting: [Add Reply gating and shared active controls](deploy/digitalocean/development-notes-toolbar-formatting-20261012.md) records Activity toolbar parity, persistent red formatting indicators, browser checks and verified development publication.
+
 October 12 Project Note replies: [Rich composer and compact reply cards](deploy/digitalocean/development-project-note-replies-20261012.md) records Enter-to-send, reply actions, draft preservation, browser checks and verified development publication.
 
 October 12 Activity labels: [Complete bold event labels, name-only previews and expandable notes](deploy/digitalocean/development-project-activity-labels-20261012.md) records the consistent emphasis, See more links, checks and development rollout.
