@@ -1,0 +1,103 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile, mkdir} from 'node:fs/promises';
+import {chromium} from 'playwright-core';
+
+// Exercise the real settings renderers and shared shell without placing paid
+// orders or sending a carrier registration from the development account.
+const source = await readFile(process.env.SMS_COMPANY_SOURCE || new URL('../../libraries/apps/settings/company.js', import.meta.url), 'utf8');
+const helpers = source.slice(source.indexOf('    const smsDefaults ='), source.indexOf('    async function renderSmsSettings()'));
+const wizard = source.slice(source.indexOf('    function openSmsWizard('), source.indexOf('    function renderPricebook()'));
+const styles = source.slice(source.indexOf('      .sms-card{'), source.indexOf('      .li-subtabs{'));
+const shell = await readFile(new URL('../../libraries/setup-wizard/setup-wizard.js', import.meta.url), 'utf8');
+const fixture = {
+  id:'fixture', status:'draft', brand_status:'verified',
+  provider_refs:{telnyx_brand_id:'brand-fixture',telnyx_number_order_id:'order-fixture'},
+  brand:{displayName:'FirstMate',companyName:'First Mate LLC',ein:'123456789',website:'https://example.com',email:'support@example.com',phone:'+12065515546',street:'707 South Grady Way',city:'Renton',state:'WA',postalCode:'98057'},
+  campaign:{enabledFeatures:['crm_conversations','operations'],featuresConfirmed:true,optInMethod:'VERBAL',
+    optInDisclosure:'FirstMate sends SMS text messages. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help. SMS opt-in data is not shared with third parties for marketing.',
+    messageFlow:'Our staff read the consent script to customers, record their agreement, and retain a record before sending SMS.',
+    privacyPolicyLink:'https://example.com/privacy',termsAndConditionsLink:'https://example.com/terms',policyContentConfirmed:true,messageFlowConfirmed:true,consentAcknowledged:true,selectedNumber:'+12068447657'}
+};
+
+test('SMS setup: editable campaign after verification, actionable errors, safe submission, and mobile layout', async () => {
+  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:1280,height:960}});
+    const errors=[]; page.on('pageerror', e=>errors.push(e.message));
+    await page.setContent('<style>body{font-family:Arial;margin:0;--primary:#e32b20}*{box-sizing:border-box}.cs-btn{border:1px solid #d0d5dd;background:white;color:#182230}.cs-btn.primary{background:#e32b20;color:white;border-color:#e32b20}.cs-btn:disabled{opacity:.5}</style>');
+    await page.addScriptTag({content:shell});
+    await page.addStyleTag({content:styles});
+    await page.addScriptTag({content:`
+      let smsRegistrationLiveMode=true; const state={}; const currentOrgId=()=> 'fixture-org';
+      const normalizeOrganizationBusinessAddress=(v)=>v||{};
+      const organizationBusinessAddressFromState=()=>({});
+      const formatOrganizationBusinessAddress=()=>'';
+      const formatPhoneUS=v=>v.replace(/(\\d{3})(\\d{3})(\\d{4})/,'($1) $2-$3');
+      const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const readSettingsRoute=()=>({}); const writeSettingsRoute=()=>{};
+      const showToast=()=>{}; const renderSmsSettings=()=>{};
+      window.requests=[]; window.failSubmit=true; window.saved=${JSON.stringify(fixture)};
+      const messagingRequest=async(path,options={})=>{
+        window.requests.push({path,...options});
+        if(options.method==='PATCH') window.saved={...window.saved,...structuredClone(options.body)};
+        if(path.endsWith('/submit-campaign')) {
+          await new Promise(r=>setTimeout(r,200));
+          if(window.failSubmit) throw Error('Privacy policy must be publicly accessible before campaign submission.');
+          window.saved={...window.saved,status:'submitted',campaign_status:'pending',provider_refs:{...window.saved.provider_refs,telnyx_campaign_id:'campaign-fixture'}};
+        }
+        return {profile:structuredClone(window.saved)};
+      };
+      ${helpers}
+      ${wizard}
+      window.start=(profile=window.saved,initialStep='summary')=>openSmsWizard(profile,{initialStep});
+      window.issues=p=>smsStepIssues('summary',smsPrefillProfile(p));
+      window.resume=p=>smsResumeStep(smsPrefillProfile(p));
+    `});
+    assert.deepEqual(await page.evaluate(()=>window.issues(window.saved)),[]);
+    assert.equal(await page.evaluate(()=>window.resume({})), 'business');
+    assert.equal(await page.evaluate(()=>window.resume({...window.saved,provider_refs:{},brand_status:'draft',campaign:{...window.saved.campaign,optInDisclosure:''}})), 'consent');
+    await page.evaluate(()=>window.start());
+    await page.getByRole('button',{name:'4. Customer consent'}).click();
+    const disclosure=page.locator('[data-sms-field="campaign.optInDisclosure"]');
+    assert.equal(await disclosure.isEnabled(),true);
+    await disclosure.fill('Incomplete consent');
+    await page.locator('#smsNext').click();
+    await page.locator('[data-sms-step-errors]').getByRole('button',{name:/Consent script: name FirstMate/}).waitFor();
+    await disclosure.fill(fixture.campaign.optInDisclosure);
+    await page.locator('[data-sms-field="campaign.optInMethod"]').selectOption('WEBSITE_FORM');
+    await page.locator('[data-sms-field="campaign.optInLocationUrl"]').waitFor();
+    await page.locator('[data-sms-field="campaign.optInMethod"]').selectOption('VERBAL');
+    assert.equal(await page.locator('[data-sms-field="campaign.optInLocationUrl"]').count(),0);
+    assert.equal(await disclosure.inputValue(),fixture.campaign.optInDisclosure);
+    await page.locator('#smsNext').click();
+    await page.locator('[data-sms-field="campaign.sample1"]').waitFor();
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/messages-desktop.png'});
+    await page.getByRole('button',{name:'1. Business'}).click();
+    assert.equal(await page.locator('[data-sms-field="brand.companyName"]').isDisabled(),true);
+    await page.getByRole('button',{name:'7. Review & submit'}).click();
+    await page.locator('#smsContinueSetup').evaluate(el=>{el.click();el.click();});
+    await page.locator('.sms-api-error').waitFor();
+    assert.match(await page.locator('.sms-api-error').innerText(),/Privacy policy must be publicly accessible/);
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path.endsWith('/submit-campaign')).length),1);
+    assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.method==='PATCH').every(r=>!('brand' in r.body))),true);
+    await page.locator('.sms-api-error button').click();
+    await disclosure.waitFor();
+    assert.equal(await disclosure.inputValue(),fixture.campaign.optInDisclosure);
+    if(process.env.SMS_SCREENSHOTS){await mkdir(process.env.SMS_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-desktop.png'});}
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    const pane=await page.locator('.fm-wizard-pane').boundingBox();
+    assert.ok(pane.height>300 && pane.width<=390,JSON.stringify(pane));
+    assert.equal(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-mobile.png'});
+    await page.getByRole('button',{name:'7. Review & submit'}).click();
+    await page.evaluate(()=>window.failSubmit=false);
+    await page.locator('#smsContinueSetup').click();
+    await page.getByText('Your campaign is under review',{exact:true}).waitFor();
+    assert.equal(await page.locator('#smsContinueSetup').count(),0);
+    if(process.env.SMS_SCREENSHOTS){await page.setViewportSize({width:1280,height:960});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/review-desktop.png'});}
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+

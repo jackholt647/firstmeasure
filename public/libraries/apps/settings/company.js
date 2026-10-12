@@ -2035,6 +2035,42 @@
       .sms-submitted-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}.sms-submitted-meta span{display:inline-flex;align-items:center;gap:7px;border:1px solid #bbf7d0;background:#fff;color:#166534;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:1000}
       .sms-review{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sms-review-card{border:1px solid #eaecf0;border-radius:12px;background:#fff;padding:12px;display:grid;gap:7px}.sms-review-card strong{font-size:13px;font-weight:1000;color:#101828}.sms-review-card span{font-size:12px;font-weight:800;color:#667085;overflow-wrap:anywhere}
       @media(max-width:860px){.sms-hero{grid-template-columns:1fr}.sms-form-grid,.sms-review,.sms-final-grid,.sms-final-summary-grid,.sms-number-search-row{grid-template-columns:1fr}}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-body{grid-template-columns:218px minmax(0,1fr)}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-pane{padding:28px;background:#f7f8fa;scroll-behavior:smooth}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-head{border-bottom:1px solid #e4e7ec}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-rail{background:#fff;padding:18px 12px;min-width:0}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-step{padding:12px 10px;box-shadow:none}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-step.active{background:#fff4f2;border-color:#f6d0c9;opacity:1}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-step strong{font-weight:650}
+      [data-fm-wizard="sms-workflow"] .fm-wizard-step-status{font-weight:400}
+      [data-fm-wizard="sms-workflow"] .sms-workspace{gap:22px;max-width:880px;margin:auto;padding-bottom:10px;font-weight:400}
+      .sms-step-heading{display:grid;gap:9px}.sms-step-heading h2{font-size:26px;letter-spacing:-.65px;line-height:1.2;margin:0;color:#101828;font-weight:700}.sms-step-heading p{max-width:660px;margin:0;color:#667085;font-size:14px;line-height:1.55}
+      .sms-eyebrow{font-size:10px;letter-spacing:1.2px;color:#8a4b40;font-weight:700}
+      .sms-section,.sms-message-card{border:1px solid #e4e7ec;border-radius:14px;background:white;padding:22px;display:grid;gap:20px;min-width:0}
+      .sms-section-title{display:flex;gap:12px;align-items:center}.sms-section-title>div{flex:1}.sms-section-title h3{margin:0;color:#182230;font-size:16px;font-weight:650}.sms-section-title p{margin:4px 0 0;color:#667085;font-size:12px;line-height:1.5;font-weight:400}
+      .sms-section-number{background:#f2f4f7;border-radius:9px;padding:9px;color:#667085;font-size:11px;font-weight:700}
+      [data-fm-wizard="sms-workflow"] .sms-form-grid{gap:20px}
+      [data-fm-wizard="sms-workflow"] .sms-field{align-content:start;gap:7px;min-width:0}
+      [data-fm-wizard="sms-workflow"] .sms-field label{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0}
+      [data-fm-wizard="sms-workflow"] .sms-field input,[data-fm-wizard="sms-workflow"] .sms-field select,[data-fm-wizard="sms-workflow"] .sms-field textarea{font-size:14px;font-weight:400;line-height:1.5;min-height:44px;border-radius:8px}
+      [data-fm-wizard="sms-workflow"] .sms-field textarea{min-height:116px}
+      [data-fm-wizard="sms-workflow"] .sms-field-msg{font-size:12px;font-weight:400;line-height:1.5}.sms-field-msg:empty{display:none}
+      .sms-required{color:#a33b2d}.sms-counter{font-size:11px;color:#667085;text-align:right}
+      [data-fm-wizard="sms-workflow"] .sms-ack{background:white;font-weight:400;font-size:13px;line-height:1.55;border-color:#e4e7ec;border-radius:10px;padding:14px}
+      .sms-details{border:1px solid #e4e7ec;border-radius:12px;padding:16px 20px;background:white}.sms-details summary{cursor:pointer;color:#344054;font-size:13px;font-weight:600}.sms-details summary span{font-weight:400;color:#667085;margin-left:8px}.sms-details[open]>summary{margin-bottom:18px}.sms-details p{font-size:13px;line-height:1.5;color:#667085}
+      .sms-message-grid{display:grid;gap:16px}.sms-message-card{gap:12px}.sms-auto-reply{padding:12px 0;border-top:1px solid #eaecf0;font-size:12px}.sms-auto-reply p{margin:6px 0 0}
+      .sms-inline-note{display:flex;gap:10px;font-size:13px;line-height:1.5;color:#667085}.sms-inline-note i{margin-top:3px}
+      .sms-muted{color:#667085;font-size:12px;line-height:1.6;font-weight:400;margin:0}
+      .sms-text-button,.sms-summary-checklist button{border:0;background:none;padding:0;color:#9a3528;font:inherit;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}.sms-text-button{font-size:12px;font-weight:600}
+      .sms-review-actions,.sms-review-links{display:flex;flex-wrap:wrap;gap:14px}.sms-review-links a{font-size:13px;color:#344054}.sms-review-section{padding:18px 20px}
+      [data-fm-wizard="sms-workflow"] .sms-final-panel{padding:18px;border-color:#e4e7ec;gap:13px}.sms-final-panel .sms-final-row strong{font-weight:500}.sms-final-panel .sms-final-row span{font-weight:600;color:#667085}
+      [data-fm-wizard="sms-workflow"] .sms-feature-tile{box-shadow:none;min-height:180px}.sms-feature-copy span{font-weight:400;line-height:1.6}.sms-feature-copy strong{font-weight:650}
+      .sms-timeline{margin:0;padding:18px 20px;background:white;border:1px solid #e4e7ec;border-radius:12px;list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+      .sms-timeline li{display:flex;gap:9px;align-items:flex-start;font-size:12px;color:#667085}.sms-timeline li strong{display:block;color:#344054;font-weight:600}.sms-timeline li div>span{display:block;margin-top:5px;font-size:11px;line-height:1.4}.sms-timeline-dot{width:24px;height:24px;flex:0 0 24px;border:1px solid #d0d5dd;border-radius:50%;display:grid;place-items:center;font-size:10px}.sms-timeline .done .sms-timeline-dot{background:#ecfdf3;color:#067647;border-color:#abefc6}.sms-timeline .pending .sms-timeline-dot{background:#fffaeb;color:#b54708;border-color:#fedf89}
+      [data-fm-wizard="sms-workflow"] .sms-submitted-panel{max-width:none;box-shadow:none;padding:20px;border-radius:12px}.sms-submitted-panel.pending{background:#fffaeb!important;border-color:#fedf89!important}.sms-submitted-panel.pending .sms-submitted-meta span{border-color:#fedf89;color:#93370d}.sms-submitted-panel.pending .sms-submitted-icon{color:#b54708;box-shadow:none;width:36px;height:36px;font-size:18px}.sms-submitted-panel h4{font-size:20px;font-weight:650}.sms-submitted-panel p{font-weight:400}
+      .sms-step-errors,.sms-api-error{border:1px solid #fecdca;background:#fff4f2;padding:16px;border-radius:12px;color:#912018;font-size:13px;line-height:1.5}.sms-step-errors:empty{display:none}.sms-step-errors ul{padding-left:20px;margin:8px 0 0}.sms-step-errors button{font:inherit;text-align:left;color:inherit;background:none;border:0;cursor:pointer;text-decoration:underline}.sms-api-error strong{display:block;margin-bottom:5px}.sms-api-error p{margin:0 0 8px}
+      [data-fm-wizard="sms-workflow"] .cs-btn{min-height:42px;border-radius:9px;font-size:13px;font-weight:600;padding:10px 16px;cursor:pointer}.sms-summary-checklist{font-weight:400}.sms-summary-checklist ul{gap:8px}.sms-summary-checklist button{color:inherit}.sms-summary-checklist.ready{background:#f6fef9}
+      @media(max-width:860px){[data-fm-wizard="sms-workflow"] .fm-wizard-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}[data-fm-wizard="sms-workflow"] .fm-wizard-rail{padding:8px}.sms-step-heading h2{font-size:23px}[data-fm-wizard="sms-workflow"] .fm-wizard-pane{padding:20px 16px}[data-fm-wizard="sms-workflow"] .fm-wizard-step{min-width:145px;padding:8px}[data-fm-wizard="sms-workflow"] .fm-wizard-step-status{display:none}[data-fm-wizard="sms-workflow"] .fm-wizard-rail-foot{display:none}.sms-section,.sms-message-card{padding:17px}.sms-timeline{grid-template-columns:1fr;gap:14px}.sms-section-title{flex-wrap:wrap}[data-fm-wizard="sms-workflow"] .fm-wizard-foot{flex-wrap:wrap;padding:10px 14px}[data-fm-wizard="sms-workflow"] .fm-wizard-foot-note{flex-basis:100%}}
       .li-subtabs{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 14px}
       .li-subtab{border:1px solid #d8dde6;background:#fff;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:1000;cursor:pointer;color:#344054}
       .li-subtab.active{background:#111827;border-color:#111827;color:#fff}
@@ -4945,9 +4981,11 @@
     const smsSteps = [
       { id: 'business', label: (globalThis.PlatformLanguage?.text("settings","m_8807b60e199434","Business") ?? "Business"), note: 'Legal identity' },
       { id: 'contact', label: (globalThis.PlatformLanguage?.text("settings","m_46c8aea84388c3","Contact") ?? "Contact"), note: 'Support and address' },
-      { id: 'features', label: (globalThis.PlatformLanguage?.text("settings","m_09017e02e6df1d","Features") ?? "Features"), note: 'CRM messaging' },
+      { id: 'features', label: 'Message types', note: 'What you will send' },
+      { id: 'consent', label: 'Customer consent', note: 'Permission and policies' },
+      { id: 'messages', label: 'Message examples', note: 'What customers receive' },
       { id: 'number', label: (globalThis.PlatformLanguage?.text("settings","m_3e7027aa9d65ed","Number") ?? "Number"), note: 'Sending line' },
-      { id: 'summary', label: (globalThis.PlatformLanguage?.text("settings","m_9b03ccb29ba168","Summary") ?? "Summary"), note: 'Review and submit' }
+      { id: 'summary', label: 'Review & submit', note: 'Final check and status' }
     ];
     function mergeSmsProfile(profile = {}){
       const campaign = { ...smsDefaults.campaign, ...(profile.campaign || {}) };
@@ -5254,6 +5292,10 @@
       const status = String(profile?.status || '').trim().toLowerCase();
       return status === 'active' && smsCampaignReady(profile);
     }
+    function smsResumeStep(profile){
+      if (smsRegistrationSubmitted(profile)) return 'summary';
+      return smsSteps.find(item => smsStepIssues(item.id, profile).length)?.id || 'summary';
+    }
     function smsVisibleSteps(profile){
       return smsSteps;
     }
@@ -5284,26 +5326,30 @@
       const statuses = [profile?.status, profile?.brand_status, profile?.campaign_status, profile?.phone_number_status].map((value) => String(value || '').toLowerCase());
       if (statuses.some((value) => /suspend/.test(value))) return true;
       if (statuses.some((value) => /fail|reject|unverified|expired|cancel/.test(value))) return false;
-      return smsRegistrationSubmitted(profile);
+      return smsHasProviderCampaign(profile);
     }
     function smsOptionHtml(values, selected){
-      return values.map((value) => `<option value="${escapeHtml(value)}" ${String(selected || '') === value ? 'selected' : ''}>${escapeHtml(value.replace(/_/g, ' '))}</option>`).join('');
+      const labels = { '': 'Choose an option', WEBSITE_FORM: 'Website form', PAPER_FORM: 'Paper form', VERBAL: 'Verbal agreement', KEYWORD: 'Text a keyword', PRIVATE_PROFIT: 'Private company', PUBLIC_PROFIT: 'Publicly traded company', NON_PROFIT: 'Nonprofit', GOVERNMENT: 'Government', SOLE_PROPRIETOR: 'Sole proprietor' };
+      return values.map((value) => `<option value="${escapeHtml(value)}" ${String(selected || '') === value ? 'selected' : ''}>${escapeHtml(labels[value] || value.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()))}</option>`).join('');
     }
     function smsField(name, label, value, options = {}){
+      if (!smsValuePresent(value)) options = { ...options, error: '' };
       const wide = options.wide ? ' wide' : '';
       const invalid = options.error ? ' invalid' : '';
       const type = options.type || 'text';
-      const attrs = `${options.required ? ' required' : ''}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ''}${options.autocomplete ? ` autocomplete="${escapeHtml(options.autocomplete)}"` : ''}${options.disabled ? ' disabled' : ''}`;
+      const id = `sms-${name.replace(/\./g, '-')}`;
+      const labelHtml = `<label for="${id}">${escapeHtml(label)}${options.required ? '<span class="sms-required" aria-hidden="true"> *</span>' : ''}</label>`;
+      const attrs = ` id="${id}" aria-describedby="${id}-help"${options.error ? ' aria-invalid="true"' : ''}${options.required ? ' required' : ''}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ''}${options.autocomplete ? ` autocomplete="${escapeHtml(options.autocomplete)}"` : ''}${options.disabled ? ' disabled' : ''}`;
       const help = options.error || options.hint || '';
       const helpClass = options.error ? 'warn' : options.ok ? 'ok' : '';
-      const helpHtml = help ? `<div class="sms-field-msg ${helpClass}">${escapeHtml(help)}</div>` : '';
+      const helpHtml = `<div id="${id}-help" class="sms-field-msg ${helpClass}">${escapeHtml(help)}</div>`;
       if (options.kind === 'select') {
-        return `<div class="sms-field${wide}${invalid}"><label>${escapeHtml(label)}</label><select data-sms-field="${escapeHtml(name)}"${options.disabled ? ' disabled' : ''}>${smsOptionHtml(options.values || [], value)}</select>${helpHtml}</div>`;
+        return `<div class="sms-field${wide}${invalid}">${labelHtml}<select data-sms-field="${escapeHtml(name)}"${attrs}>${smsOptionHtml(options.values || [], value)}</select>${helpHtml}</div>`;
       }
       if (options.kind === 'textarea') {
-        return `<div class="sms-field${wide}${invalid}"><label>${escapeHtml(label)}</label><textarea data-sms-field="${escapeHtml(name)}"${attrs}>${escapeHtml(value || '')}</textarea>${helpHtml}</div>`;
+        return `<div class="sms-field${wide}${invalid}">${labelHtml}<textarea data-sms-field="${escapeHtml(name)}"${attrs}>${escapeHtml(value || '')}</textarea>${/^campaign.sample/.test(name) ? `<span class="sms-counter" data-sms-counter="${escapeHtml(name)}">${String(value || '').length} / 255 characters</span>` : ''}${helpHtml}</div>`;
       }
-      return `<div class="sms-field${wide}${invalid}"><label>${escapeHtml(label)}</label><input type="${escapeHtml(type)}" data-sms-field="${escapeHtml(name)}" value="${escapeHtml(value || '')}"${attrs}>${helpHtml}</div>`;
+      return `<div class="sms-field${wide}${invalid}">${labelHtml}<input type="${escapeHtml(type)}" data-sms-field="${escapeHtml(name)}" value="${escapeHtml(value || '')}"${attrs}>${helpHtml}</div>`;
     }
     function smsFieldLiveState(name, value){
       const raw = String(value || '').trim();
@@ -5335,7 +5381,7 @@
         if (!smsValidAreaCode(digits.slice(0, 3))) return { error: 'Enter a valid area code.' };
         return { ok: true };
       }
-      return { error: '' };
+      return null;
     }
     function smsRefreshInputValidity(input){
       if (!input) return;
@@ -5344,6 +5390,7 @@
       const field = input.closest('.sms-field');
       if (!field) return;
       const state = smsFieldLiveState(name, input.value);
+      if (!state) return;
       let msg = field.querySelector('.sms-field-msg');
       if (!msg && (state.error || state.hint)) {
         msg = document.createElement('div');
@@ -5420,6 +5467,7 @@
         || /\b(?:mobile|phone|SMS|opt[ -]?in)\b[^.]{0,160}\b(?:will|is|are)\s+not\s+(?:be\s+)?(?:sold\s+or\s+)?shared\b[^.]{0,160}\bthird[ -]?part/i.test(disclosure);
     }
     function smsStepIssues(step, profile){
+      if (step === 'consent' || step === 'messages') return smsStepIssues('summary', profile).filter(issue => smsIssueTarget(issue).step === step);
       const brand = profile.brand || {};
       const campaign = profile.campaign || {};
       const missing = [];
@@ -5459,7 +5507,7 @@
       } else if (step === 'number') {
         if (!smsNormalizePhone(campaign.selectedNumber)) missing.push('Selected phone number');
       } else if (step === 'summary' || step === 'finalize') {
-        smsSteps.filter((item) => item.id !== 'summary').forEach((item) => {
+        smsSteps.filter((item) => ['business', 'contact', 'features', 'number'].includes(item.id)).forEach((item) => {
           if (smsStepIssues(item.id, profile).length) missing.push(item.label);
         });
         requireFields(smsGeneratedCampaign(profile), [
@@ -5477,7 +5525,13 @@
         ]);
         if (String(campaign.description || '').trim().length < 40) missing.push('Campaign description of at least 40 characters');
         if (String(campaign.messageFlow || '').trim().length < 40) missing.push('Opt-in flow of at least 40 characters');
-        if (['sample1', 'sample2', 'sample3', 'sample4', 'sample5'].some((key) => String(campaign[key] || '').length > 255)) missing.push('Sample messages under 256 characters');
+        ['sample1', 'sample2', 'sample3', 'sample4', 'sample5'].forEach((key, i) => {
+          const sample = String(campaign[key] || '');
+          const name = String(brand.displayName || brand.companyName || '').trim();
+          if (sample.length > 255) missing.push(`Sample message ${i + 1}: keep it under 256 characters`);
+          if (sample && !/\bSTOP\b/i.test(sample)) missing.push(`Sample message ${i + 1}: include STOP to opt out`);
+          if (sample && name && !sample.toLowerCase().includes(name.toLowerCase())) missing.push(`Sample message ${i + 1}: name ${name}`);
+        });
         if (!['WEBSITE_FORM', 'PAPER_FORM', 'VERBAL', 'KEYWORD'].includes(campaign.optInMethod)) missing.push('Valid opt-in method');
         if (campaign.optInMethod === 'WEBSITE_FORM' && !smsValidHttpsUrl(campaign.optInLocationUrl)) missing.push('Public HTTPS opt-in form URL');
         if (campaign.optInMethod === 'KEYWORD' && !smsValidHttpsUrl(campaign.optInLocationUrl) && !smsValidHttpsUrl(campaign.optInEvidenceUrl)) missing.push('Public keyword advertisement or screenshot URL');
@@ -5521,11 +5575,59 @@
       };
       return guidance[issue] || issue;
     }
+    function smsIssueTarget(issue){
+      const text = String(issue);
+      const sampleNumber = text.match(/^Sample message ([1-5])/i)?.[1];
+      if (sampleNumber) return { step: 'messages', selector: `[data-sms-field="campaign.sample${sampleNumber}"]` };
+      if (/^(Business|Contact|Features|Message types|Number)$/.test(text)) return { step: ({ Business: 'business', Contact: 'contact', Features: 'features', 'Message types': 'features', Number: 'number' })[text] };
+      if (/Low Volume|SMS feature|Feature confirmation/.test(text)) return { step: 'features' };
+      if (/Consent acknowledgement/.test(text)) return { step: 'summary', selector: '[data-sms-consent-ack]' };
+      if (/Opt-in flow confirmation/.test(text)) return { step: 'consent', selector: '[data-sms-flow-ack]' };
+      const fields = [
+        [/Campaign description/i, 'description', 'messages'],
+        [/Marketing sample/i, 'sample3', 'messages'],
+        [/Sample (?:SMS )?message 1/i, 'sample1', 'messages'],
+        [/Sample (?:SMS )?message 2/i, 'sample2', 'messages'],
+        [/Sample|Opt-in message|Opt-out message|Help message/i, 'sample1', 'messages'],
+        [/Consent script|Exact SMS consent/i, 'optInDisclosure', 'consent'],
+        [/Opt-in \/ message flow|Opt-in flow/i, 'messageFlow', 'consent'],
+        [/Opt-in method/i, 'optInMethod', 'consent'],
+        [/opt-in form|keyword advertisement/i, 'optInLocationUrl', 'consent'],
+        [/evidence/i, 'optInEvidenceUrl', 'consent'],
+        [/Privacy/i, 'privacyPolicyLink', 'consent'],
+        [/Terms/i, 'termsAndConditionsLink', 'consent'],
+        [/policy confirmation/i, 'policyContentConfirmed', 'consent'],
+        [/Website SMS opt-in/i, 'websiteFormConfirmed', 'consent']
+      ];
+      const brandFields = { 'Display name': 'displayName', 'Legal company name': 'companyName', EIN: 'ein', 'Stock symbol': 'stockSymbol', 'Stock exchange': 'stockExchange', 'Valid website': 'website', 'Street address': 'street', City: 'city', State: 'state', 'Postal code': 'postalCode', 'Valid support email': 'email', 'Valid business contact email': 'businessContactEmail', 'Valid business phone': 'phone', 'First name': 'firstName', 'Last name': 'lastName', 'Valid mobile phone for OTP': 'mobilePhone' };
+      if (brandFields[text]) return { step: ['displayName', 'companyName', 'ein', 'stockSymbol', 'stockExchange', 'website'].includes(brandFields[text]) ? 'business' : 'contact', selector: `[data-sms-field="brand.${brandFields[text]}"]` };
+      if (/Selected phone number/.test(text)) return { step: 'number', selector: '[data-sms-field="campaign.selectedNumberAreaCode"]' };
+      const match = fields.find(([pattern]) => pattern.test(text));
+      return match ? { step: match[2], selector: `[data-sms-field="campaign.${match[1]}"]` } : { step: 'summary' };
+    }
+    function smsIssueLinks(issues){
+      return [...new Set(issues)].map(issue => {
+        const target = smsIssueTarget(issue);
+        return `<li><button type="button" data-sms-fix-step="${target.step}" data-sms-fix-selector="${escapeHtml(target.selector || '')}">${escapeHtml(smsSummaryIssueText(issue))}<span aria-hidden="true"> →</span></button></li>`;
+      }).join('');
+    }
+    function smsStepHeading(step){
+      const copy = {
+        business: ['Tell us about your business', 'Use the legal details on your tax records. Carriers use these to verify your identity.'],
+        contact: ['Who should we contact?', 'Add your business address and a contact who can answer questions about this registration.'],
+        features: ['What will you text customers?', 'Choose the types of messages you actually send. We register these together as Low Volume Mixed.'],
+        consent: ['How do customers say yes?', 'Describe your actual consent process and link to the policies customers can read.'],
+        messages: ['Show what customers will receive', 'Review the suggested examples and edit them to match the messages your business sends.'],
+        number: ['Choose your business number', 'This will be your sending number once carrier registration is approved.'],
+        summary: ['One last look', 'Review your details, confirm your consent practices, and submit for carrier registration.']
+      }[step];
+      if (!copy) return '';
+      return `<header class="sms-step-heading"><span class="sms-eyebrow">STEP ${smsSteps.findIndex(item => item.id === step) + 1} OF ${smsSteps.length}</span><h2>${copy[0]}</h2><p>${copy[1]}</p></header>`;
+    }
     function smsSummaryChecklistHtml(profile){
       const issues = smsStepIssues('summary', profile);
-      const display = [...new Set(issues.map(smsSummaryIssueText))];
       return issues.length
-        ? `<strong>${issues.length} item${issues.length === 1 ? '' : 's'} to finish before submission</strong><ul>${display.map((issue) => `<li>${escapeHtml(issue)}</li>`).join('')}</ul>`
+        ? `<strong>${issues.length} detail${issues.length === 1 ? '' : 's'} to finish</strong><span>Select an item to go straight to it.</span><ul>${smsIssueLinks(issues)}</ul>`
         : '<strong>Ready to submit</strong>All required registration details are complete.';
     }
     function smsStepStatus(step, index, activeIndex, profile){
@@ -5634,17 +5736,20 @@
       const query = String(numberSearch.query || numberSearch.areaCode || campaign.selectedNumberSearch || campaign.selectedNumberAreaCode || '').replace(/\D/g, '').slice(0, 6);
       const areaCode = query.slice(0, 3);
       const selected = String(campaign.selectedNumber || '');
+      if (selected && profile.provider_refs?.telnyx_number_order_id && !/fail|cancel/i.test(profile.phone_number_status || '')) {
+        return `<section class="sms-section"><div class="sms-section-title"><span class="sms-section-number"><i class="fas fa-phone" aria-hidden="true"></i></span><div><h3>${escapeHtml(smsFormatSelectedNumber(profile))}</h3><p>${profile.phone_number_status === 'success' ? 'Your business number is reserved' : 'Your number order is being processed'}</p></div><span class="sms-badge ok">Selected</span></div><p class="sms-muted">This number is saved to your registration. Sending will become available after carrier approval and number activation.</p></section>`;
+      }
       const results = Array.isArray(numberSearch.results) ? numberSearch.results : [];
       const selectedHtml = selected ? `<div class="sms-compliance-note"><i class="fas fa-circle-check"></i><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_424c47b13269a3","Selected sending number: ") ?? "Selected sending number: ")}<strong>${String(escapeHtml(smsFormatSelectedNumber(profile)))}</strong>.</span></div>` : '';
       const resultsHtml = results.length ? `<div class="sms-number-grid">${results.map((number) => {
         const value = String(number.phone_number || number.phoneNumber || '');
-        const display = String(number.display_number || number.displayNumber || value);
+        const display = smsFormatE164ForDisplay(value) || String(number.display_number || number.displayNumber || value);
         const location = [number.locality, number.region].filter(Boolean).join(', ') || 'US local number';
-        const features = Array.isArray(number.features) ? number.features.join(' / ').toUpperCase() : 'SMS / MMS';
+        const features = 'SMS · MMS';
         const monthly = String(number.monthly_cost || number.monthlyCost || '');
         const setup = String(number.setup_cost || number.setupCost || '');
         const currency = String(number.currency || 'USD');
-        const costLabel = monthly ? `${currency} $${monthly}/month${setup && Number(setup) ? ` + $${setup} setup` : ''}` : '';
+        const costLabel = monthly ? `${currency} $${Number(monthly).toFixed(2)}/month${setup && Number(setup) ? ` + $${Number(setup).toFixed(2)} setup` : ''}` : '';
         return `<button class="sms-number-option ${value === selected ? 'selected' : ''}" type="button" data-sms-choose-number="${escapeHtml(value)}" data-sms-number-display="${escapeHtml(display)}" data-sms-number-locality="${escapeHtml(number.locality || '')}" data-sms-number-region="${escapeHtml(number.region || '')}" data-sms-number-monthly="${escapeHtml(monthly)}" data-sms-number-setup="${escapeHtml(setup)}" data-sms-number-currency="${escapeHtml(currency)}" ${locked ? 'disabled' : ''}>
           <strong>${escapeHtml(display)}</strong>
           <span>${escapeHtml(location)}</span>
@@ -5675,8 +5780,8 @@
       return `
         <div class="sms-submitted-panel ${verified ? 'verified' : 'pending'}">
           <div class="sms-submitted-icon"><i class="fas ${verified ? 'fa-circle-check' : 'fa-clock'}"></i></div>
-          <h4>${verified ? 'SMS registration verified' : campaignSubmitted ? 'SMS campaign submitted' : brandReady ? 'Business verified — campaign not submitted' : 'Business registration submitted'}</h4>
-          <p>${verified ? 'This company is verified for the selected FirstMate SMS features. Customer messaging can be enabled for this registration.' : campaignSubmitted ? 'The SMS campaign is under carrier review. Return here and click Refresh Status to finish number assignment after approval.' : brandReady ? 'Telnyx has verified the business. Click Continue Setup to submit the SMS campaign for carrier review.' : 'Telnyx is reviewing the business registration. Click Refresh Status after verification, then Continue Setup to submit the SMS campaign.'}</p>
+          <h4>${verified ? 'You’re ready to text' : campaignSubmitted ? 'Your campaign is under review' : brandReady ? 'Your business is verified' : 'Business verification in progress'}</h4>
+          <p>${verified ? 'Your number is activated for the selected SMS message types.' : campaignSubmitted ? 'Your campaign has been submitted to the carriers. Check status here to complete number activation after approval.' : brandReady ? 'Review your campaign details below, then select Submit campaign to start carrier review.' : 'Telnyx is reviewing your business details. You can keep refining your campaign while you wait. Select Refresh Status to check for an update.'}</p>
           <div class="sms-submitted-meta">
             ${submittedAt ? `<span><i class="fas fa-calendar-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_9a19fffc189408",` Submitted ${v0}`,{v0}) ?? ` Submitted ${v0}`)(escapeHtml(submittedAt))}</span>` : ''}
             <span><i class="fas ${verified ? 'fa-circle-check' : 'fa-hourglass-half'}"></i> ${escapeHtml(status.label)}</span>
@@ -5697,54 +5802,68 @@
         ${String(requested ? `<div class="sms-form-grid"><div class="sms-field"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_d0d19cbf76feca","Verification Code") ?? "Verification Code")}</label><input id="smsOtpPin" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_cda0acf85ca254","Enter code") ?? "Enter code")}"></div></div><button class="cs-btn primary" type="button" id="smsVerifyOtp"><i class="fas fa-shield-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2335584aef9f38"," Verify Code") ?? " Verify Code")}</button>` : '')}
       </div>`;
     }
+    function smsConsentContent(profile){
+      const c = profile.campaign || {};
+      const website = c.optInMethod === 'WEBSITE_FORM';
+      const keyword = c.optInMethod === 'KEYWORD';
+      const instructions = {
+        WEBSITE_FORM: 'Link directly to the form. Its SMS checkbox should be optional, unchecked by default, and separate from other consent.',
+        PAPER_FORM: 'Describe where the form is signed and how you keep the signed consent record. A public screenshot helps reviewers.',
+        VERBAL: 'Include the exact script staff read and how the customer’s agreement is recorded. For marketing, describe your actual YES confirmation step.',
+        KEYWORD: 'Show where customers see the keyword, sending number, and consent disclosures before they text you.'
+      }[c.optInMethod] || 'Choose the consent method your business uses today.';
+      return `<section class="sms-section"><div class="sms-section-title"><span class="sms-section-number">01</span><div><h3>Permission to text</h3><p>Use your real process, in your own words.</p></div></div><div class="sms-form-grid">
+        ${smsField('campaign.optInMethod', 'How customers agree', c.optInMethod, { kind: 'select', values: ['', 'WEBSITE_FORM', 'PAPER_FORM', 'VERBAL', 'KEYWORD'], required: true, wide: true, hint: instructions })}
+        ${website || keyword ? smsField('campaign.optInLocationUrl', website ? 'Link to your SMS sign-up form' : 'Link to the keyword advertisement', c.optInLocationUrl, { type: 'url', wide: true, required: website, placeholder: 'https://yourbusiness.com/signup', hint: 'This page must be publicly accessible.' }) : ''}
+        ${smsField('campaign.optInDisclosure', c.optInMethod === 'VERBAL' ? 'Exact script you read to customers' : 'Exact consent wording customers see', c.optInDisclosure, { kind: 'textarea', wide: true, required: true, hint: 'Include your business name, SMS message types, frequency, rates, STOP, HELP, and no third-party sharing of mobile opt-in data for marketing. For marketing, also state that consent is not required to purchase.' })}
+        ${smsField('campaign.messageFlow', 'Describe the consent process', c.messageFlow, { kind: 'textarea', wide: true, required: true, hint: 'Explain where and when customers agree, how you record that agreement, and what happens next. Mention marketing if selected. Minimum 40 characters.' })}
+        </div><details class="sms-details" ${c.optInEvidenceUrl || keyword ? 'open' : ''}><summary>Supporting evidence <span>Recommended</span></summary><div class="sms-form-grid">
+        ${smsField('campaign.optInEvidenceUrl', 'Public link to a screenshot or signed form example', c.optInEvidenceUrl, { type: 'url', wide: true, hint: 'Helpful for paper forms, verbal scripts, popups, or forms behind a login. Remove personal customer information.' })}
+        </div></details>
+        ${website ? `<label class="sms-ack"><input type="checkbox" data-sms-field="campaign.websiteFormConfirmed" ${c.websiteFormConfirmed ? 'checked' : ''}><span>My form has a separate, optional SMS checkbox, unchecked by default, with the business name, message types, and policy links. It records consent when submitted.</span></label>` : ''}
+        <label class="sms-ack"><input type="checkbox" data-sms-flow-ack ${c.messageFlowConfirmed ? 'checked' : ''}><span>This is the process our business actually uses, and we retain supporting consent records.</span></label></section>
+        <section class="sms-section"><div class="sms-section-title"><span class="sms-section-number">02</span><div><h3>Public policies</h3><p>Customers and carrier reviewers must be able to open these links.</p></div></div><div class="sms-form-grid">
+        ${smsField('campaign.privacyPolicyLink', 'Privacy policy', c.privacyPolicyLink, { type: 'url', required: true, placeholder: 'https://yourbusiness.com/privacy' })}
+        ${smsField('campaign.termsAndConditionsLink', 'SMS terms', c.termsAndConditionsLink, { type: 'url', required: true, placeholder: 'https://yourbusiness.com/terms' })}
+        </div><label class="sms-ack"><input type="checkbox" data-sms-field="campaign.policyContentConfirmed" ${c.policyContentConfirmed ? 'checked' : ''}><span>I reviewed these public pages. They describe the SMS program, STOP and HELP, rates and frequency, and confirm that SMS opt-in data is not sold or shared for unrelated marketing.</span></label></section>`;
+    }
+    function smsMessagesContent(profile){
+      const c = profile.campaign || {};
+      const marketing = smsSelectedFeatures(profile).includes('customer_growth');
+      const sample = (n, title, required) => `<div class="sms-message-card"><span class="sms-eyebrow">EXAMPLE ${n}</span>${smsField('campaign.sample' + n, title, c['sample' + n], { kind: 'textarea', wide: true, required, hint: 'Use your business name and include STOP to opt out. Maximum 255 characters.' })}</div>`;
+      return `<section class="sms-section">${smsField('campaign.description', 'What is this SMS program for?', c.description, { kind: 'textarea', wide: true, required: true, hint: 'Name your business and every selected message type. Include marketing or promotional texts when Customer Growth is selected. Minimum 40 characters.' })}</section>
+        <div class="sms-inline-note"><i class="fas fa-pen" aria-hidden="true"></i><span>These examples are a starting point. Edit them to reflect real messages from your business before submitting.</span></div>
+        <div class="sms-message-grid">${sample(1, 'Customer conversation', true)}${sample(2, 'Update or reminder', true)}${marketing ? sample(3, 'Marketing or promotional offer', true) : ''}</div>
+        <details class="sms-details" ${!marketing && c.sample3 || c.sample4 || c.sample5 ? 'open' : ''}><summary>More examples <span>Optional</span></summary><div class="sms-message-grid">${!marketing ? sample(3, 'Additional example', false) : ''}${sample(4, 'Additional example', false)}${sample(5, 'Additional example', false)}</div></details>
+        <details class="sms-details"><summary>Automatic START, STOP and HELP replies</summary><p>FirstMate configures these replies for your business.</p>${['optinMessage', 'optoutMessage', 'helpMessage'].map((key, i) => `<div class="sms-auto-reply"><strong>${['START', 'STOP', 'HELP'][i]}</strong><p>${escapeHtml(smsGeneratedCampaign(profile)[key])}</p></div>`).join('')}</details>`;
+    }
+    function smsRegistrationTimeline(profile){
+      const brand = smsBrandReadyForCampaign(profile);
+      const campaign = smsHasProviderCampaign(profile);
+      const active = smsRegistrationVerified(profile);
+      const states = [
+        ['Business verification', brand ? 'Verified by Telnyx' : smsHasProviderBrand(profile) ? 'Verification in progress' : 'Starts when you submit', brand, !brand && smsHasProviderBrand(profile)],
+        ['Campaign review', active ? 'Approved by carriers' : campaign ? 'Submitted for carrier review' : brand ? 'Ready to submit' : 'After business verification', active, !active && campaign],
+        ['Number activation', active ? 'Ready to send' : 'After carrier approval', active, false]
+      ];
+      return `<ol class="sms-timeline">${states.map(([title, note, done, pending], i) => `<li class="${done ? 'done' : pending ? 'pending' : ''}"><span class="sms-timeline-dot">${done ? '<i class="fas fa-check" aria-hidden="true"></i>' : i + 1}</span><div><strong>${title}</strong><span>${note}</span></div></li>`).join('')}</ol>`;
+    }
     function smsSummaryContent(profile){
-      smsLogEventsToConsole(profile);
-      if (smsRegistrationSubmitted(profile)) {
-        return `${smsSubmissionBanner(profile)}${smsSoleProprietorOtpPanel(profile)}${smsReviewRows(profile)}`;
-      }
-      const summaryIssues = smsStepIssues('summary', profile);
-      const fieldWarnings = (prefix) => summaryIssues.filter((issue) => issue.startsWith(prefix)).join(' ');
-      return `
-        <div class="sms-consent-box">
-          <h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf2e7d56f0565","Review and confirm") ?? "Review and confirm")}</h4>
-          <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_7208bb798610d6","Confirm the business, contact, and SMS feature details before submitting this registration.") ?? "Confirm the business, contact, and SMS feature details before submitting this registration.")}</p>
-        </div>
-        <div class="sms-summary-checklist ${smsStepIssues('summary', profile).length ? '' : 'ready'}" data-sms-summary-checklist aria-live="polite">${smsSummaryChecklistHtml(profile)}</div>
-        ${String(smsReviewRows(profile))}
-        <div class="sms-consent-box"><h4>Campaign details for carrier review</h4><p>Use the business's real, live consent process and actual messages. Telnyx compares these answers with the public website and may reject a registration that uses generic or inaccurate examples.</p></div>
-        <div class="sms-form-grid">
-          ${String(smsField('campaign.description', 'Campaign Description', profile.campaign?.description, { kind: 'textarea', wide: true, required: true, error: fieldWarnings('Campaign description:'), hint: 'Name the business and every selected messaging purpose. Include marketing or promotional texts when Customer Growth is selected.' }))}
-          ${String(smsField('campaign.optInMethod', 'How recipients agree to SMS', profile.campaign?.optInMethod, { kind: 'select', values: ['', 'WEBSITE_FORM', 'PAPER_FORM', 'VERBAL', 'KEYWORD'], required: true }))}
-          ${String(smsField('campaign.optInLocationUrl', 'Public opt-in page or keyword location URL', profile.campaign?.optInLocationUrl, { type: 'url', wide: true, hint: 'Required for website forms. Link directly to the working form, not just the home page.' }))}
-          ${String(smsField('campaign.optInEvidenceUrl', 'Public screenshot of opt-in (recommended)', profile.campaign?.optInEvidenceUrl, { type: 'url', wide: true, hint: 'Especially helpful for popups, paper forms, or a form behind a login.' }))}
-          ${String(smsField('campaign.optInDisclosure', 'Exact SMS consent language or verbal script', profile.campaign?.optInDisclosure, { kind: 'textarea', wide: true, required: true, error: fieldWarnings('Consent script:'), hint: 'Copy the wording recipients actually see or hear. Include business and SMS message types, frequency, rates, STOP, HELP, and no third-party sharing of mobile opt-in data for marketing. If Customer Growth is selected, name marketing texts and say consent is not a condition of purchase. For verbal marketing, explain the YES confirmation step if that is your real process.' }))}
-          ${String(smsField('campaign.messageFlow', 'Actual Recipient Opt-in Flow', smsGeneratedCampaign(profile).messageFlow, { kind: 'textarea', wide: true, required: true, error: fieldWarnings('Opt-in flow:'), hint: 'Describe only consent paths this business actually operates; carrier reviewers compare this to production behavior.' }))}
-          ${String(smsField('campaign.privacyPolicyLink', 'Public Privacy Policy URL', profile.campaign?.privacyPolicyLink, { type: 'url', wide: true, required: true }))}
-          ${String(smsField('campaign.termsAndConditionsLink', 'Public SMS Terms URL', profile.campaign?.termsAndConditionsLink, { type: 'url', wide: true, required: true }))}
-          ${String(smsField('campaign.sample1', 'Sample SMS 1', profile.campaign?.sample1, { kind: 'textarea', wide: true, required: true }))}
-          ${String(smsField('campaign.sample2', 'Sample SMS 2', profile.campaign?.sample2, { kind: 'textarea', wide: true, required: true }))}
-          ${String(smsField('campaign.sample3', 'Sample SMS 3 (required for Customer Growth)', profile.campaign?.sample3, { kind: 'textarea', wide: true }))}
-          ${String(smsField('campaign.sample4', 'Sample SMS 4 (optional)', profile.campaign?.sample4, { kind: 'textarea', wide: true }))}
-          ${String(smsField('campaign.sample5', 'Sample SMS 5 (optional)', profile.campaign?.sample5, { kind: 'textarea', wide: true }))}
-        </div>
-        <label class="sms-ack"><input type="checkbox" data-sms-field="campaign.policyContentConfirmed" ${profile.campaign?.policyContentConfirmed === true ? 'checked' : ''}><span>I checked the live Privacy Policy and SMS Terms. They describe this program, STOP and HELP, rates and frequency, and state that SMS opt-in data is not sold or shared for unrelated marketing.</span></label>
-        <label class="sms-ack"><input type="checkbox" data-sms-field="campaign.websiteFormConfirmed" ${profile.campaign?.websiteFormConfirmed === true ? 'checked' : ''}><span>If I use a website form, its SMS checkbox is optional, unchecked by default, separate from other consent, clearly names the business and message types, links to these policies, and records consent when submitted.</span></label>
-        <div class="sms-compliance-note">
-          <i class="fas fa-circle-info"></i>
-          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_82efa0807f285b","Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.") ?? "Only send SMS to recipients who have agreed to receive texts from this business. Every message will support standard STOP opt-out and HELP assistance language.")}</span>
-        </div>
-        <label class="sms-ack">
-          <input type="checkbox" data-sms-flow-ack ${String(profile.campaign?.messageFlowConfirmed === true ? 'checked' : '')}>
-          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c6116a3e198a44","I confirm this opt-in flow is accurate for this business and that supporting consent evidence will be retained in FirstMate.") ?? "I confirm this opt-in flow is accurate for this business and that supporting consent evidence will be retained in FirstMate.")}</span>
-        </label>
-        <label class="sms-ack">
-          <input type="checkbox" data-sms-consent-ack ${String(profile.campaign?.consentAcknowledged === true ? 'checked' : '')}>
-          <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5b07467b863325","I reviewed the business, contact, and SMS feature details, and I understand the consent and STOP opt-out requirements.") ?? "I reviewed the business, contact, and SMS feature details, and I understand the consent and STOP opt-out requirements.")}</span>
-        </label>`;
+      const submitted = smsHasProviderCampaign(profile) && smsRegistrationLocked(profile);
+      const campaign = profile.campaign || {};
+      const edit = (step, label) => submitted ? '' : `<button type="button" class="sms-text-button" data-sms-fix-step="${step}">${label}<span aria-hidden="true"> →</span></button>`;
+      return `${smsHasProviderBrand(profile) ? smsSubmissionBanner(profile) + smsSoleProprietorOtpPanel(profile) : ''}
+        ${smsRegistrationTimeline(profile)}
+        ${submitted ? '' : `<div class="sms-summary-checklist ${smsStepIssues('summary', profile).length ? '' : 'ready'}" data-sms-summary-checklist aria-live="polite">${smsSummaryChecklistHtml(profile)}</div>`}
+        ${smsReviewRows(profile)}
+        <div class="sms-review-actions">${!smsHasProviderBrand(profile) ? edit('business', 'Edit business') + edit('contact', 'Edit contact') : '<span class="sms-muted">Submitted business details are locked.</span>'}${edit('features', 'Edit message types')}${edit('number', 'View number')}</div>
+        <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Consent & policies</h3><p>${escapeHtml(({ WEBSITE_FORM: 'Website form', VERBAL: 'Verbal agreement', PAPER_FORM: 'Paper form', KEYWORD: 'Text a keyword' })[campaign.optInMethod] || 'Consent method not selected')}</p></div>${edit('consent', 'Review consent')}</div><div class="sms-review-links">${[['Privacy policy', campaign.privacyPolicyLink], ['SMS terms', campaign.termsAndConditionsLink]].map(([label, url]) => smsValidHttpsUrl(url) ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>` : `<span>${label} needed</span>`).join('')}</div></section>
+        <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Message examples</h3><p>${[campaign.sample1, campaign.sample2, campaign.sample3, campaign.sample4, campaign.sample5].filter(Boolean).length} examples prepared for carrier review</p></div>${edit('messages', 'Review messages')}</div></section>
+        ${submitted ? '' : `<label class="sms-ack"><input type="checkbox" data-sms-consent-ack ${campaign.consentAcknowledged ? 'checked' : ''}><span>I reviewed this registration and understand the customer consent and STOP opt-out requirements.</span></label><p class="sms-muted">Submitting starts business verification and, when verified, campaign review. If verification is still pending, return here to refresh status and submit the campaign. Your number becomes ready after carrier approval and assignment.</p>`}`;
     }
     function smsStepContent(step, profile, options = {}){
       const brand = profile.brand || {};
-      const locked = smsRegistrationLocked(profile);
+      const locked = smsRegistrationLocked(profile) || smsHasProviderBrand(profile);
       if (step === 'business') {
         const soleProprietor = String(brand.entityType || '').toUpperCase() === 'SOLE_PROPRIETOR';
         const publicCompany = String(brand.entityType || '').toUpperCase() === 'PUBLIC_PROFIT';
@@ -5795,6 +5914,8 @@
       if (step === 'features') {
         return `<div class="sms-consent-box"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_d91c5ee1137f8e","Choose SMS features") ?? "Choose SMS features")}</h4><p>Low Volume Mixed registration needs at least two messaging purposes. Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has separate, explicit marketing consent and intends to send promotional content.</p></div>${String(smsFeatureTiles(profile))}`;
       }
+      if (step === 'consent') return smsConsentContent(profile);
+      if (step === 'messages') return smsMessagesContent(profile);
       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
       return smsSummaryContent(profile);
     }
@@ -5832,16 +5953,16 @@
             </div>
           </div>`;
         void window.Portal?.PhoneTray?.developmentSetup(paneSms);
-        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsRegistrationSubmitted(profile) ? 'summary' : 'business' }));
+        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsResumeStep(profile) }));
         paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
           button.addEventListener('click', () => {
             const selected = profiles.find((item) => item.id === button.getAttribute('data-open-sms-profile')) || profile;
-            openSmsWizard(selected, { initialStep: smsRegistrationSubmitted(selected) ? 'summary' : 'business' });
+            openSmsWizard(selected, { initialStep: smsResumeStep(selected) });
           });
         });
         const route = readSettingsRoute();
         if (route.workflow === '10dlc' && activeTab === 'sms' && !document.querySelector('[data-fm-wizard="sms-workflow"]')) {
-          openSmsWizard(profile, { initialStep: route.workflowStep || (smsRegistrationSubmitted(profile) ? 'summary' : 'business') });
+          openSmsWizard(profile, { initialStep: route.workflowStep || smsResumeStep(profile) });
         }
       } catch (error) {
         paneSms.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
@@ -5862,6 +5983,10 @@
       let refocusNumberSearch = false;
       let ctxRef = null;
       let wizard = null;
+      let operationBusy = false;
+      let operationMessage = '';
+      let submissionError = '';
+      const attemptedSteps = new Set();
       const rootEl = () => wizard?.el || ctxRef?.root || null;
       const refresh = () => ctxRef?.refresh?.();
       const setStatus = (text) => ctxRef?.setStatus?.(text);
@@ -5870,12 +5995,12 @@
         const source = rootEl();
         profile = prepareSmsProfileForSave(source ? smsCollect(source, profile) : mergeSmsProfile(profile));
         try {
-          const payload = { brand: profile.brand, campaign: profile.campaign };
+          const savingProfile = profile;
+          const payload = { ...(smsHasProviderBrand(profile) ? {} : { brand: profile.brand }), campaign: profile.campaign };
           const result = profile.id
             ? await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}`, { method: 'PATCH', body: payload })
             : await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles`, { method: 'POST', body: payload });
-          profile = mergeSmsProfile(result.profile || profile);
-          showToast((globalThis.PlatformLanguage?.text("settings","m_856238147053ec","Autosaved") ?? "Autosaved"), (globalThis.PlatformLanguage?.text("settings","m_82d31fdfc37b77","SMS registration draft saved.") ?? "SMS registration draft saved."), true);
+          profile = mergeSmsProfile({ ...(result.profile || profile), ...(profile !== savingProfile ? { brand: profile.brand, campaign: profile.campaign } : {}) });
         } catch (error) {
           showToast((globalThis.PlatformLanguage?.text("settings","m_348d6bcfc41fb7","SMS setup save failed") ?? "SMS setup save failed"), error?.message || 'Could not save draft.', false);
           throw error;
@@ -5891,6 +6016,7 @@
         return (await ctxRef.flushAutosave()) === true;
       };
       const markCurrentStepInvalid = (message = '') => {
+        attemptedSteps.add(ctxRef?.stepId);
         const stepButton = rootEl()?.querySelector(`[data-fm-step="${ctxRef?.stepId || ''}"]`);
         const workspace = rootEl()?.querySelector('.sms-workspace');
         [stepButton, workspace].forEach((el) => {
@@ -5901,15 +6027,24 @@
         });
         if (message) {
           setStatus(message);
-          showToast((globalThis.PlatformLanguage?.text("settings","m_ae559ed49f99f8","Registration incomplete") ?? "Registration incomplete"), message, false);
         }
       };
       const updateSummaryValidation = () => {
         const checklist = rootEl()?.querySelector('[data-sms-summary-checklist]');
-        if (!checklist) return;
         const issues = smsStepIssues('summary', profile);
-        checklist.classList.toggle('ready', issues.length === 0);
-        checklist.innerHTML = smsSummaryChecklistHtml(profile);
+        if (checklist) {
+          checklist.classList.toggle('ready', issues.length === 0);
+          checklist.innerHTML = smsSummaryChecklistHtml(profile);
+        }
+        rootEl()?.querySelectorAll('[data-sms-counter]').forEach(counter => {
+          const name = counter.dataset.smsCounter;
+          counter.textContent = `${String(profile.campaign?.[name.split('.')[1]] || '').length} / 255 characters`;
+        });
+        const stepErrors = rootEl()?.querySelector('[data-sms-step-errors]');
+        if (stepErrors && attemptedSteps.has(ctxRef?.stepId)) {
+          const currentIssues = smsStepIssues(ctxRef.stepId, profile);
+          stepErrors.innerHTML = currentIssues.length ? `<strong>Finish these details to continue</strong><ul>${smsIssueLinks(currentIssues)}</ul>` : '';
+        }
         for (const [name, prefix] of [['campaign.description', 'Campaign description:'], ['campaign.messageFlow', 'Opt-in flow:'], ['campaign.optInDisclosure', 'Consent script:']]) {
           const input = rootEl()?.querySelector(`[data-sms-field="${name}"]`);
           const field = input?.closest('.sms-field');
@@ -5920,7 +6055,8 @@
             message.className = 'sms-field-msg';
             field.appendChild(message);
           }
-          const warnings = issues.filter((issue) => issue.startsWith(prefix));
+          const warnings = attemptedSteps.has(ctxRef?.stepId) ? issues.filter((issue) => issue.startsWith(prefix)) : [];
+          if (!attemptedSteps.has(ctxRef?.stepId)) continue;
           message.textContent = warnings.join(' ');
           message.classList.toggle('warn', warnings.length > 0);
           field.classList.toggle('invalid', warnings.length > 0);
@@ -5928,26 +6064,33 @@
         }
         const submit = rootEl()?.querySelector('#smsSubmitMock');
         if (submit) {
-          submit.disabled = issues.length > 0 || smsRegistrationLocked(profile);
-          submit.title = issues.length ? `Finish: ${issues.join(', ')}` : '';
+          submit.disabled = operationBusy || smsRegistrationLocked(profile);
+          submit.title = '';
         }
         const note = rootEl()?.querySelector('[data-fm-note]');
-        if (note) note.textContent = issues.length ? `${issues.length} item${issues.length === 1 ? '' : 's'} to finish before submitting.` : 'All required registration details are complete.';
+        if (note && ctxRef?.stepId === 'summary') note.textContent = operationBusy ? operationMessage || 'Saving…' : smsHasProviderCampaign(profile) ? smsCustomerRegistrationStatus(profile).label : issues.length ? `${issues.length} details to finish — see the checklist above.` : 'Ready for submission.';
       };
       const submitMock = async (submitOptions = {}) => {
+        if (operationBusy) return;
+        operationBusy = true;
+        submissionError = '';
         if (!(await flushDraft())) {
+          operationBusy = false;
           refresh();
           return;
         }
         const finalIssues = smsStepIssues('summary', profile);
         if (finalIssues.length) {
+          operationBusy = false;
+          attemptedSteps.add('summary');
           const message = `Please finish: ${finalIssues.slice(0, 3).join(', ')}${finalIssues.length > 3 ? '...' : ''}`;
           setStatus(message);
           showToast((globalThis.PlatformLanguage?.text("settings","m_ae559ed49f99f8","Registration incomplete") ?? "Registration incomplete"), message, false);
           refresh();
           return;
         }
-        setStatus('Submitting business registration...');
+        operationMessage = smsHasProviderBrand(profile) ? 'Checking registration…' : 'Submitting business…';
+        setStatus(operationMessage);
         refresh();
         try {
           if (!smsHasProviderBrand(profile) || /failed|rejected|unverified/.test(String(profile?.brand_status || '').toLowerCase())) {
@@ -5967,6 +6110,7 @@
             return;
           }
           setStatus('Submitting SMS campaign...');
+          operationMessage = 'Submitting campaign…';
           refresh();
           const campaign = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}/submit-campaign`, {
             method: 'POST',
@@ -5978,6 +6122,7 @@
           showToast((globalThis.PlatformLanguage?.text("settings","m_2f88ed2671fbaf","SMS registration submitted") ?? "SMS registration submitted"), (globalThis.PlatformLanguage?.text("settings","m_e50f4af5088c2e","Return to this setup and click Refresh Status after carrier approval to finish number assignment.") ?? "Return to this setup and click Refresh Status after carrier approval to finish number assignment."), true);
         } catch (error) {
           const message = error?.message || 'Submission failed.';
+          submissionError = message;
           setStatus(message);
           showToast((globalThis.PlatformLanguage?.text("settings","m_7ad47f94a88151","Submission failed") ?? "Submission failed"), message, false);
           try {
@@ -5985,6 +6130,7 @@
             profile = mergeSmsProfile(refreshed.profile || profile);
           } catch(e) {}
         } finally {
+          operationBusy = false;
           refresh();
         }
       };
@@ -6053,7 +6199,7 @@
         }, 320);
       };
       const chooseSmsNumber = async (button) => {
-        if (!button || smsRegistrationLocked(profile)) return;
+        if (!button || operationBusy || smsRegistrationLocked(profile)) return;
         const phoneNumber = String(button.getAttribute('data-sms-choose-number') || '');
         const displayNumber = String(button.getAttribute('data-sms-number-display') || phoneNumber);
         const locality = String(button.getAttribute('data-sms-number-locality') || '');
@@ -6061,11 +6207,15 @@
         const monthlyCost = String(button.getAttribute('data-sms-number-monthly') || '');
         const setupCost = String(button.getAttribute('data-sms-number-setup') || '');
         const currency = String(button.getAttribute('data-sms-number-currency') || 'USD');
-        const costText = monthlyCost ? ` The Telnyx cost is ${currency} $${monthlyCost}/month${setupCost && Number(setupCost) ? ` plus $${setupCost} setup` : ''}.` : '';
+        const costText = monthlyCost ? ` The Telnyx cost is ${currency} $${Number(monthlyCost).toFixed(2)}/month${setupCost && Number(setupCost) ? ` plus $${Number(setupCost).toFixed(2)} setup` : ''}.` : '';
         if (!window.confirm(((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_eb0df045d7ae73",`Purchase ${v0} for this organization?${v1} This cannot be undone from this screen.`,{v0,v1}) ?? `Purchase ${v0} for this organization?${v1} This cannot be undone from this screen.`)(displayNumber,costText))) return;
+        operationBusy = true;
+        operationMessage = 'Reserving number…';
+        submissionError = '';
         setStatus('Purchasing selected number...');
         refresh();
         if (!(await flushDraft())) {
+          operationBusy = false;
           refresh();
           return;
         }
@@ -6091,23 +6241,34 @@
           refresh();
         } catch (error) {
           setStatus(error?.message || 'Could not save selected number.');
+          submissionError = error?.message || 'Could not reserve this number. Search again and choose another.';
           showToast((globalThis.PlatformLanguage?.text("settings","m_9246d1d96d3c1c","Number save failed") ?? "Number save failed"), error?.message || 'Could not save selected number.', false);
+          refresh();
+        } finally {
+          operationBusy = false;
           refresh();
         }
       };
       const refreshProviderStatus = async () => {
+        if (operationBusy) return;
+        operationBusy = true;
+        operationMessage = 'Checking status…';
+        submissionError = '';
+        if (!(await flushDraft())) { operationBusy = false; refresh(); return; }
         setStatus('Refreshing Telnyx status...');
         refresh();
         try {
           const refreshed = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}/refresh-status`, { method: 'POST', body: {} });
           profile = mergeSmsProfile(refreshed.profile || profile);
-          const message = profile.status === 'active' ? 'SMS is active.' : 'Provider status refreshed.';
+          const message = profile.status === 'active' ? 'Your number is ready to send.' : smsBrandReadyForCampaign(profile) && !smsHasProviderCampaign(profile) ? 'Business verified. Submit your campaign to start carrier review.' : 'Status checked. Review the progress below.';
           setStatus(message);
           showToast((globalThis.PlatformLanguage?.text("settings","m_cf6debae01e48e","SMS status refreshed") ?? "SMS status refreshed"), message, true);
         } catch (error) {
+          submissionError = error?.message || 'Could not check registration status. Try again.';
           setStatus(error?.message || 'Could not refresh SMS status.');
           showToast((globalThis.PlatformLanguage?.text("settings","m_79a4923321ea11","Status refresh failed") ?? "Status refresh failed"), error?.message || 'Could not refresh SMS status.', false);
         }
+        operationBusy = false;
         refresh();
       };
       const appealCampaign = async () => {
@@ -6189,7 +6350,7 @@
         refresh();
       };
       const initSmsAddressAutocomplete = async () => {
-        if (smsRegistrationLocked(profile)) return;
+        if (smsRegistrationLocked(profile) || smsHasProviderBrand(profile)) return;
         const overlayEl = rootEl();
         const input = overlayEl?.querySelector('[data-sms-field="brand.street"]');
         if (!input) return;
@@ -6220,7 +6381,7 @@
       const bindWorkspaceInputs = (container) => {
         container.querySelectorAll('[data-sms-field], [data-sms-feature], [data-sms-feature-confirm], [data-sms-flow-ack], [data-sms-consent-ack]').forEach((input) => {
           input.addEventListener('input', () => {
-            if (smsRegistrationLocked(profile)) return;
+            if (operationBusy || input.disabled || smsRegistrationLocked(profile)) return;
             const inputFieldName = String(input.getAttribute('data-sms-field') || '');
             if (inputFieldName === 'brand.phone') {
               const formatted = smsFormatPhoneInput(input.value);
@@ -6235,7 +6396,7 @@
             ctxRef?.touch?.();
           });
           input.addEventListener('change', () => {
-            if (smsRegistrationLocked(profile)) return;
+            if (operationBusy || input.disabled || smsRegistrationLocked(profile)) return;
             if (input.hasAttribute('data-sms-feature')) {
               const confirm = rootEl()?.querySelector('[data-sms-feature-confirm]');
               if (confirm) confirm.checked = false;
@@ -6247,14 +6408,29 @@
             profile = smsCollect(rootEl(), profile);
             updateSummaryValidation();
             ctxRef?.touch?.();
-            if (input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack') || input.hasAttribute('data-sms-consent-ack')) refresh();
+            if (fieldName === 'campaign.optInMethod' || input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack') || input.hasAttribute('data-sms-consent-ack')) refresh();
           });
         });
       };
       const renderStepBody = (container, shellCtx, stepId) => {
         ctxRef = shellCtx;
         if(developmentStatus?.onboarded){container.innerHTML=`<div class="sms-workspace"><h3>Fully onboarded for development</h3><p>Brand registration: mock approved</p><p>10DLC campaign: mock approved</p><p>Call center: test transport connected</p><p>All test calls route to ${escapeHtml(developmentStatus.destination)}. These are simulated registrations, not carrier approvals.</p></div>`;return;}
-        container.innerHTML = `<div class="sms-workspace">${smsStepContent(stepId, profile, { numberSearch })}</div>`;
+        const stepIssues = attemptedSteps.has(stepId) ? smsStepIssues(stepId, profile) : [];
+        container.innerHTML = `<div class="sms-workspace">${stepId === 'summary' && smsHasProviderBrand(profile) ? '' : smsStepHeading(stepId)}
+          ${submissionError ? `<div class="sms-api-error" role="alert"><strong>We couldn’t complete that step</strong><p>${escapeHtml(submissionError)}</p>${/privacy|polic|terms|consent|opt.in/i.test(submissionError) ? '<button class="sms-text-button" type="button" data-sms-fix-step="consent">Review consent & policy links →</button>' : '<span>Your saved details are still here. Review the message and try again.</span>'}</div>` : ''}
+          <div class="sms-step-errors" data-sms-step-errors role="alert">${stepIssues.length ? `<strong>Finish these details to continue</strong><ul>${smsIssueLinks(stepIssues)}</ul>` : ''}</div>
+          ${smsStepContent(stepId, profile, { numberSearch })}</div>`;
+        container.onclick = async (event) => {
+          const button = event.target.closest('[data-sms-fix-step]');
+          if (!button || operationBusy) return;
+          await shellCtx.goTo(button.dataset.smsFixStep);
+          const selector = button.dataset.smsFixSelector;
+          const input = selector ? rootEl()?.querySelector(selector) : rootEl()?.querySelector('.sms-field input:not(:disabled), .sms-field select:not(:disabled), .sms-field textarea:not(:disabled)');
+          input?.closest('details')?.setAttribute('open', '');
+          input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          input?.focus({ preventScroll: true });
+        };
+        if (smsRegistrationLocked(profile) || operationBusy) container.querySelectorAll('input, select, textarea, button').forEach(input => { input.disabled = true; });
         void window.Portal?.PhoneTray?.developmentSetup(container,status=>{if(!developmentStatus?.onboarded){developmentStatus=status;refresh();}});
         container.querySelectorAll('[data-sms-choose-number]').forEach((button) => {
           button.addEventListener('click', () => chooseSmsNumber(button));
@@ -6263,6 +6439,12 @@
         container.querySelector('#smsRefreshOtp')?.addEventListener('click', refreshSoleProprietorOtp);
         container.querySelector('#smsVerifyOtp')?.addEventListener('click', verifySoleProprietorOtp);
         bindWorkspaceInputs(container);
+        requestAnimationFrame(() => {
+          const active = rootEl()?.querySelector('.fm-wizard-step.active');
+          const rail = active?.parentElement;
+          if (rail && rail.scrollWidth > rail.clientWidth) rail.scrollLeft = active.offsetLeft - rail.offsetLeft - (rail.clientWidth - active.offsetWidth) / 2;
+        });
+        updateSummaryValidation();
         initSmsAddressAutocomplete();
         if (refocusNumberSearch) {
           refocusNumberSearch = false;
@@ -6297,6 +6479,16 @@
             : `<button class="cs-btn" type="button" id="smsPrev" ${String(index <= 0 ? 'disabled' : '')}><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_206d31a7c795c4"," Back") ?? " Back")}</button>
                   ${String(index < steps.length - 1 ? `<button class="cs-btn primary" type="button" id="smsNext">${(globalThis.PlatformLanguage?.htmlText("settings","m_dc6a60d7bb3581","Next ") ?? "Next ")}<i class="fas fa-arrow-right"></i></button>` : `<button class="cs-btn primary" type="button" id="smsSubmitMock" ${stepIssues.length || locked ? 'disabled' : ''} title="${stepIssues.length ? escapeHtml(`Finish: ${stepIssues.join(', ')}`) : ''}"><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a50e2076d26969"," Submit Registration") ?? " Submit Registration")}</button>`)}`;
         container.innerHTML = footerActions;
+        if (operationBusy) {
+          container.innerHTML = `<button class="cs-btn" type="button" disabled aria-live="polite"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> ${escapeHtml(operationMessage || 'Saving…')}</button>`;
+          return;
+        }
+        const submitButton = container.querySelector('#smsSubmitMock');
+        if (submitButton) { submitButton.disabled = locked; submitButton.title = ''; }
+        const continueButton = container.querySelector('#smsContinueSetup');
+        if (continueButton) continueButton.innerHTML = '<i class="fas fa-paper-plane" aria-hidden="true"></i> Submit campaign';
+        const nextButton = container.querySelector('#smsNext');
+        if (nextButton) nextButton.innerHTML = `Continue to ${escapeHtml(steps[index + 1]?.label || 'review')} <i class="fas fa-arrow-right" aria-hidden="true"></i>`;
         if (stepId === 'summary' && stepIssues.length && !smsRegistrationSubmitted(profile)) {
           const note = shellCtx.root.querySelector('[data-fm-note]');
           if (note) note.textContent = `Finish before submitting: ${stepIssues.slice(0, 3).join(', ')}${stepIssues.length > 3 ? '...' : ''}`;
@@ -6307,6 +6499,7 @@
           if (issues.length) {
             markCurrentStepInvalid(`Finish this step: ${issues.slice(0, 3).join(', ')}${issues.length > 3 ? '...' : ''}`);
             refresh();
+            rootEl()?.querySelector('[data-sms-step-errors]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
             return;
           }
           const nextId = steps[Math.min(steps.length - 1, index + 1)]?.id;
@@ -6318,6 +6511,7 @@
             event.preventDefault();
             markCurrentStepInvalid(`Finish before submitting: ${issues.slice(0, 3).join(', ')}${issues.length > 3 ? '...' : ''}`);
             refresh();
+            rootEl()?.querySelector('[data-sms-summary-checklist]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
             return;
           }
           submitMock();
@@ -6336,12 +6530,15 @@
       wizard = window.FirstMateSetupWizard.open({
         id: 'sms-workflow',
         workflowKey: '10dlc',
-        title: (globalThis.PlatformLanguage?.text("settings","m_aeccf7b990e6c6","10DLC Setup") ?? "10DLC Setup"),
-        subtitle: (globalThis.PlatformLanguage?.text("settings","m_b05796fe4d1d96","SMS registration workflow") ?? "SMS registration workflow"),
+        title: 'Set up business texting',
+        subtitle: '10DLC registration · Low Volume Mixed',
         icon: 'fa-message',
-        initialStepId: requestedStep,
+        initialStepId: requestedStep || smsResumeStep(profile),
         statusNote: 'Draft autosaves as you move through the workflow.',
         locked: () => developmentStatus?.onboarded || smsRegistrationLocked(profile),
+        stepNavigable: () => !operationBusy,
+        canClose: () => !operationBusy,
+        railNote: '<strong>Your progress is saved</strong><br>Return any time to finish registration. Required fields are marked with an asterisk.',
         autosave: { debounceMs: 900, save: () => persistDraft() },
         steps: (shellCtx) => {
           ctxRef = shellCtx;
