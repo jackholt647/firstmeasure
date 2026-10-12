@@ -50,10 +50,11 @@ test('feed settings auto-save defaults, queue rapid edits, preserve other audien
     await page.evaluate(()=>{
       window.savedSettings={company_activity_types:null,department_activity_types:{},revision:0};
       window.calls=[]; window.delay=0; window.fail=false; window.conflict=false;
-      const types=['proposal.signed','contract.signed','project.event.completed','media.uploaded','media.shared','note.created','project.created','project.event_scheduled','crew.clock.in','crew.checklist.completed','payment.received','invoice.sent','communication.received','document.sent'];
-      const labels={'proposal.signed':'Proposal signed','contract.signed':'Contract signed','project.event.completed':'Job completed'};
+      const types=['work.plan.started','work.plan.completed','work.node.completed','proposal.signed','contract.signed','project.event.completed','media.uploaded','media.shared','note.created','project.created','project.event_scheduled','crew.clock.in','crew.checklist.completed','payment.received','invoice.sent','communication.received','document.sent'];
+      const labels={'proposal.signed':'Proposal signed','contract.signed':'Contract signed','project.event.completed':'Scheduled event completed','work.plan.started':'Scope started','work.plan.completed':'Scope completed','work.node.completed':'Task or stage completed'};
+      const descriptions={'work.plan.started':'A scope instance started.','work.plan.completed':'A scope instance finished — every stage reached a terminal state.','work.node.completed':'A work item was completed.','project.event.completed':"A scheduled project event's window ended.",'document.sent':'A document was sent to the customer.'};
       window.fakeFeed={
-        settings:async()=>({settings:structuredClone(window.savedSettings),departments:[{id:'sales',label:'Sales'},{id:'roofing',label:'Roofing'}],activity_options:types.map(type=>({type,label:labels[type] || type.replaceAll('.',' ')})),default_activity_types:['media.uploaded','note.created','project.created','project.event_scheduled','crew.checklist.completed','payment.received']}),
+        settings:async()=>({settings:structuredClone(window.savedSettings),departments:[{id:'sales',label:'Sales'},{id:'roofing',label:'Roofing'}],activity_options:types.map(type=>({type,label:labels[type] || type.replace(/[._]/g,' ').replace(/^./,char=>char.toUpperCase()),description:descriptions[type] || ''})),default_activity_types:['media.uploaded','note.created','project.created','project.event_scheduled','crew.checklist.completed','payment.received']}),
         saveSettings:async(_org,input)=>{
           window.calls.push(structuredClone(input));
           if(window.delay)await new Promise(resolve=>setTimeout(resolve,window.delay));
@@ -69,7 +70,7 @@ test('feed settings auto-save defaults, queue rapid edits, preserve other audien
     await page.addScriptTag({content:await readFile(process.env.FEED_SETTINGS_BROWSER_SCRIPT || new URL('../../libraries/apps/settings/feed.js',import.meta.url),'utf8')});
     await page.evaluate(()=>window.FirstMateFeedSettings.mount(document.querySelector('#settings'),{orgId:'org',api:window.fakeFeed}));
     assert.equal(await page.getByRole('button',{name:/Save settings/i}).count(),0);
-    assert.deepEqual(await page.locator('.cs-feed-card').first().locator('[data-feed-activity]').evaluateAll(nodes=>nodes.map(node=>[node.value,node.checked])),[['proposal.signed',false],['contract.signed',false],['project.event.completed',false]]);
+    for (const type of ['proposal.signed','contract.signed','project.event.completed']) assert.equal(await page.locator(`[data-feed-activity][value="${type}"]`).isChecked(),false);
     await mkdir('output',{recursive:true});
     await page.screenshot({path:'output/feed-settings-desktop.png',fullPage:true});
     await page.evaluate(()=>window.delay=650);
@@ -92,6 +93,20 @@ test('feed settings auto-save defaults, queue rapid edits, preserve other audien
     await page.evaluate(()=>window.fail=false);
     await page.getByRole('button',{name:'Retry',exact:true}).click();
     await page.waitForFunction(()=>window.savedSettings.department_activity_types.sales?.includes('contract.signed'));
+    await page.getByRole('button',{name:'Use defaults',exact:true}).click();
+    await page.waitForFunction(()=>!window.savedSettings.department_activity_types.sales.includes('contract.signed'));
+    await page.getByRole('searchbox',{name:'Find activity'}).fill('contract signed');
+    assert.equal(await page.locator('[data-feed-activity]').count(),1);
+    await page.locator('[data-feed-activity][value="contract.signed"]').locator('xpath=../..').click();
+    await page.waitForFunction(()=>window.savedSettings.department_activity_types.sales.includes('contract.signed'));
+    assert.ok(await page.evaluate(()=>window.savedSettings.department_activity_types.sales.includes('media.uploaded')),'filtered edits preserve enabled activity outside the search');
+    await page.getByRole('searchbox',{name:'Find activity'}).fill('no such activity');
+    await page.getByText('No matching activity',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Clear search',exact:true}).click();
+    await page.locator('[data-feed-category="documents"]').click();
+    assert.equal(await page.locator('[data-feed-activity][value="media.uploaded"]').count(),0);
+    assert.ok(await page.locator('[data-feed-activity][value="contract.signed"]').isChecked());
+    await page.locator('[data-feed-category="all"]').click();
     await page.getByRole('button',{name:'Use defaults',exact:true}).click();
     await page.waitForFunction(()=>!window.savedSettings.department_activity_types.sales.includes('contract.signed'));
     await page.setViewportSize({width:390,height:844});

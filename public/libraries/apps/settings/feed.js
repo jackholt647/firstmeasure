@@ -1,19 +1,19 @@
 (() => {
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const milestones = ['proposal.signed', 'contract.signed', 'project.event.completed'];
   const groups = [
-    ['Signatures and scheduling', type => milestones.includes(type)],
-    ['Scope and task activity', type => /^work\./.test(type)],
-    ['Photos and notes', type => /^(media|note)\./.test(type)],
-    ['Projects and work', type => /^(project|crew|material|measurement)\./.test(type)],
-    ['Proposals and documents', type => /^(proposal|document|contract)\./.test(type) && !type.includes('payment')],
-    ['Payments and expenses', type => /^(payment|invoice|expense|receipt)\./.test(type) || type.includes('payment')],
-    ['Communication and other activity', () => true]
+    ['workflow','Scope and tasks','fa-diagram-project',type=>/^work\./.test(type)],
+    ['documents','Documents and signatures','fa-file-lines',type=>/^(proposal|document|contract)\./.test(type)&&!type.includes('payment')],
+    ['scheduling','Scheduling','fa-calendar',type=>/^(project\.event|recurrence\.)/.test(type)],
+    ['files','Photos and notes','fa-images',type=>/^(media|note)\./.test(type)],
+    ['projects','Projects','fa-briefcase',type=>/^project\./.test(type)],
+    ['payments','Payments and expenses','fa-credit-card',type=>/^(payment|invoice|expense|receipt|payroll)\./.test(type)||type.includes('payment')],
+    ['operations','Work and reports','fa-list-check',type=>/^(crew|material|measurement)\./.test(type)],
+    ['other','Communication and other activity','fa-comment',()=>true]
   ];
   const term = (key, fallback) => window.PlatformTerminology?.get?.(key,fallback) || window.Portal?.terminology?.get?.(key,fallback) || fallback;
   const optionLabel = option => option.label.replace(/\b(Proposal|Document|Project|Scope|Stage|Invoice|Receipt|Material)\b/g,word=>term(({Proposal:'proposals.proposal',Document:'documents.document',Project:'projects.project',Scope:'scope.scope',Stage:'projects.stage',Invoice:'money.invoice',Receipt:'receipts.receipt',Material:'materials.material'})[word],word));
   async function mount(host, { orgId, api = window.ChannelsAPI.feed } = {}) {
-    const model = { draft:null, scope:'company', departments:[], options:[], defaults:[], changed:0, saved:0, saving:false, timer:null, error:'', dirty:new Map() };
+    const model = { draft:null, scope:'company', category:'all', query:'', departments:[], options:[], defaults:[], changed:0, saved:0, saving:false, timer:null, error:'', dirty:new Map() };
     host.innerHTML = '<p role="status">Loading Feed settings…</p>';
     const status = () => {
       const target = host.querySelector('[data-feed-status]');
@@ -63,32 +63,58 @@
       model.changed++; model.dirty.set(model.scope, model.changed); model.error = '';
       clearTimeout(model.timer); model.timer = setTimeout(save, 350); status();
     };
-    const render = () => {
+    const render = (focusType = '') => {
+      const previousSearch = host.querySelector('[data-feed-search]');
+      const restoreSearch = previousSearch === document.activeElement;
+      const restoreAudience = host.querySelector('[data-feed-board]') === document.activeElement;
+      const restoreCategory = document.activeElement?.dataset?.feedCategory;
+      const cursor = previousSearch?.selectionStart;
       const remaining = new Set(model.options.map(option => option.type)), enabled = new Set(selected());
-      const cards = groups.map(([label, matches]) => {
+      const query = model.query.trim().toLocaleLowerCase();
+      const categories = groups.map(([id,label,icon,matches]) => {
         const options = model.options.filter(option => remaining.has(option.type) && matches(option.type));
         options.forEach(option => remaining.delete(option.type));
-        if (label === 'Signatures and scheduling') options.sort((a,b) => milestones.indexOf(a.type) - milestones.indexOf(b.type));
+        if (id === 'workflow') label = `${term('scope.scope','Scope')} and tasks`;
+        if (id === 'projects') label = term('projects.projects','Projects');
+        if (id === 'documents') label = `${term('documents.documents','Documents')} and signatures`;
+        return {id,label,icon,options};
+      }).filter(category => category.options.length);
+      const count = options => options.filter(option => enabled.has(option.type)).length;
+      const nav = [{id:'all',label:'All activity',icon:'fa-layer-group',options:model.options},...categories];
+      let visibleCount = 0;
+      const cards = categories.filter(category => model.category === 'all' || category.id === model.category).map(category => {
+        const options = category.options.filter(option => !query || `${optionLabel(option)} ${option.description || ''}`.toLocaleLowerCase().includes(query));
+        visibleCount += options.length;
         if (!options.length) return '';
-        const groupLabel = label === 'Projects and work' ? `${term('projects.projects','Projects')} and work` : label === 'Scope and task activity' ? `${term('scope.scope','Scope')} and task activity` : label;
-        return `<section class="cs-feed-card"><header><h4>${escape(groupLabel)}</h4>${label === 'Signatures and scheduling' ? '<p>Off by default. Scheduled event completion does not mean the scope is complete.</p>' : ''}</header><div class="cs-feed-rows">${options.map(option => `<label class="cs-feed-row" title="${escape(option.description || '')}"><span>${escape(optionLabel(option))}</span><span class="li-switch"><input type="checkbox" data-feed-activity value="${escape(option.type)}" ${enabled.has(option.type) ? 'checked' : ''}><span class="li-slider"></span></span></label>`).join('')}</div></section>`;
+        return `<section class="cs-feed-card"><header><h4><i class="fas ${category.icon}" aria-hidden="true"></i>${escape(category.label)}</h4><span>${count(category.options)} of ${category.options.length} enabled</span></header><div class="cs-feed-rows">${options.map(option => `<label class="cs-feed-row"><span class="cs-feed-row-copy"><strong>${escape(optionLabel(option))}</strong>${option.description ? `<small>${escape(option.description)}</small>` : ''}</span><span class="li-switch"><input type="checkbox" data-feed-activity value="${escape(option.type)}" aria-label="${escape(optionLabel(option))}" ${enabled.has(option.type) ? 'checked' : ''}><span class="li-slider"></span></span></label>`).join('')}</div></section>`;
       }).join('');
       host.innerHTML = `<style>
-        .cs-feed-settings{max-width:1080px;display:grid;gap:16px;color:#344054}.cs-feed-settings h3{font-size:16px;margin:0 0 6px;color:#101828}.cs-feed-settings p{font-size:12px;line-height:1.5;color:#667085;margin:0}.cs-feed-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}.cs-feed-audience{display:grid;gap:6px;font-size:12px;font-weight:700}.cs-feed-audience select{min-width:250px;max-width:100%;padding:9px 12px;border:1px solid #d0d5dd;border-radius:8px;color:#344054;background:#fff;font:inherit}.cs-feed-actions{display:flex;gap:8px;flex-wrap:wrap}.cs-feed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.cs-feed-card{border:1px solid #e4e7ec;border-radius:12px;background:#fff;overflow:hidden}.cs-feed-card:first-child{grid-column:1/-1}.cs-feed-card header{padding:14px 16px;background:#f9fafb;border-bottom:1px solid #e4e7ec}.cs-feed-card h4{margin:0;font-size:13px;color:#101828}.cs-feed-card header p{margin-top:4px}.cs-feed-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;font-size:12px;cursor:pointer}.cs-feed-row+.cs-feed-row{border-top:1px solid #f2f4f7}.cs-feed-row>span:first-child{overflow-wrap:anywhere}.cs-feed-row .li-switch{flex-shrink:0}.cs-feed-status{display:flex;align-items:center;gap:10px;min-height:24px;font-size:12px;color:#667085}.cs-feed-status .error{color:#b42318}.cs-feed-settings [hidden]{display:none!important}.cs-feed-permissions{padding:12px 16px;border:1px solid #e4e7ec;border-radius:10px;background:#f9fafb}@media(max-width:700px){.cs-feed-grid{grid-template-columns:1fr}.cs-feed-card:first-child{grid-column:auto}.cs-feed-toolbar{align-items:stretch}.cs-feed-audience{width:100%}.cs-feed-audience select{min-width:0;width:100%}}
+        .cs-feed-settings{width:100%;min-width:0;display:grid;gap:20px;color:#344054;font-family:inherit;box-sizing:border-box}.cs-feed-settings *{box-sizing:border-box}.cs-feed-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.cs-feed-heading h3{font-size:18px;font-weight:900;margin:0 0 6px;color:#101828}.cs-feed-settings p{font-size:13px;line-height:1.5;color:#667085;margin:0}.cs-feed-status{display:flex;align-items:center;gap:8px;min-height:30px;font-size:12px;color:#667085}.cs-feed-status:before{content:'';width:6px;height:6px;border-radius:50%;background:#12b76a;flex:none}.cs-feed-status:has(.error):before{background:#f04438}.cs-feed-status .error{color:#b42318}.cs-feed-settings [hidden]{display:none!important}.cs-feed-controls{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:16px;border:1px solid #e4e7ec;border-radius:14px;background:#f9fafb}.cs-feed-field{display:grid;gap:6px;min-width:0;font-size:11px;font-weight:800;color:#667085}.cs-feed-field:first-child{flex:0 1 270px}.cs-feed-field.cs-feed-search{flex:1 1 220px}.cs-feed-field input,.cs-feed-field select{width:100%;height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;padding:0 11px;font:inherit;font-size:13px;font-weight:500;color:#101828;outline:none}.cs-feed-field input:focus,.cs-feed-field select:focus{border-color:rgba(var(--primary-rgb,217,48,37),.5);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.1)}.cs-feed-actions{display:flex;gap:6px;flex-wrap:wrap}.cs-feed-actions .cs-btn,.cs-feed-status .cs-btn{min-height:38px;font:inherit;font-size:12px;white-space:nowrap}.cs-feed-body{display:grid;grid-template-columns:210px minmax(0,1fr);gap:22px;align-items:start}.cs-feed-categories{display:grid;gap:4px;position:sticky;top:0;min-width:0}.cs-feed-category{display:flex;align-items:center;gap:10px;width:100%;padding:11px 10px;border:0;border-radius:10px;background:transparent;color:#475467;text-align:left;font:inherit;font-size:12px;font-weight:650;cursor:pointer}.cs-feed-category>i{width:16px;text-align:center;color:#98a2b3;flex:none}.cs-feed-category>span{flex:1;min-width:0;line-height:1.35}.cs-feed-category small{font-size:10px;font-weight:600;color:#667085;white-space:nowrap}.cs-feed-category:hover{background:#f2f4f7}.cs-feed-category[aria-pressed=true]{background:rgba(var(--primary-rgb,217,48,37),.08);color:rgb(var(--primary-rgb,217,48,37))}.cs-feed-category[aria-pressed=true]>i{color:inherit}.cs-feed-category:focus-visible{outline:2px solid rgba(var(--primary-rgb,217,48,37),.5);outline-offset:2px}.cs-feed-grid{display:grid;gap:16px;min-width:0}.cs-feed-card{border:1px solid #e4e7ec;border-radius:14px;background:#fff;overflow:hidden;min-width:0}.cs-feed-card header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #e4e7ec;background:#fcfcfd}.cs-feed-card h4{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:800;color:#101828}.cs-feed-card h4 i{color:#98a2b3}.cs-feed-card header>span{font-size:11px;color:#667085;white-space:nowrap}.cs-feed-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 16px;cursor:pointer}.cs-feed-row:hover{background:#fafbfc}.cs-feed-row+.cs-feed-row{border-top:1px solid #f2f4f7}.cs-feed-row-copy{min-width:0;display:grid;gap:4px;overflow-wrap:anywhere}.cs-feed-row-copy strong{font-size:13px;line-height:1.4;font-weight:650;color:#344054}.cs-feed-row-copy small{font-size:12px;line-height:1.5;color:#667085}.cs-feed-row .li-switch{flex-shrink:0}.cs-feed-row input:focus-visible+.li-slider{outline:2px solid rgba(var(--primary-rgb,217,48,37),.5);outline-offset:3px}.cs-feed-empty{padding:40px 20px;text-align:center;border:1px dashed #d0d5dd;border-radius:14px}.cs-feed-empty strong{display:block;color:#344054;font-size:14px;margin-bottom:6px}.cs-feed-empty button{margin-top:14px}.cs-feed-footer{border-top:1px solid #e4e7ec;padding-top:14px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}.cs-feed-footer p{font-size:12px}.cs-feed-footer strong{font-weight:650;color:#475467}@media(max-width:900px){.cs-feed-body{grid-template-columns:170px minmax(0,1fr);gap:14px}.cs-feed-controls{gap:12px}.cs-feed-actions{width:100%}}@media(max-width:640px){.cs-feed-heading{gap:6px}.cs-feed-body{grid-template-columns:minmax(0,1fr);gap:12px}.cs-feed-categories{position:static;display:flex;overflow-x:auto;padding-bottom:4px;gap:6px}.cs-feed-category{width:auto;flex:none;border:1px solid #e4e7ec;padding:9px 11px}.cs-feed-category>span{white-space:nowrap}.cs-feed-category small{display:none}.cs-feed-category>i{display:none}.cs-feed-controls{padding:12px}.cs-feed-field:first-child,.cs-feed-field.cs-feed-search{flex:1 1 100%}.cs-feed-card header{padding:12px}.cs-feed-card h4{font-size:12px}.cs-feed-row{padding:12px;gap:12px}.cs-feed-row-copy strong{font-size:12px}.cs-feed-row-copy small{font-size:11px}.cs-feed-footer{gap:8px}}
       </style><section class="cs-feed-settings" data-settings-autosave="off">
-        <div><h3>Automatic posts</h3><p>Choose which activities appear in Posts for the company or a department. Changes save automatically. Team posts always appear.</p></div>
-        <div class="cs-feed-toolbar"><label class="cs-feed-audience">Audience<select data-feed-board><option value="company">Everyone in the company</option>${model.departments.map(department => `<option value="${escape(department.id)}">${escape(department.label)}</option>`).join('')}</select></label><div class="cs-feed-actions"><button class="cs-btn" type="button" data-feed-defaults>Use defaults</button><button class="cs-btn" type="button" data-feed-all>Show all</button><button class="cs-btn" type="button" data-feed-none>Hide all</button></div></div>
-        <div class="cs-feed-status"><span role="status" aria-live="polite" data-feed-status></span><button class="cs-btn" type="button" data-feed-retry hidden>Retry</button></div>
-        <div class="cs-feed-grid">${cards}</div>
-        <p class="cs-feed-permissions">Manage Feed, Activity, Posts, and All Departments permissions in Users → Roles &amp; access. Feed content always respects existing project and document access.</p>
+        <div class="cs-feed-heading"><div><h3>Automatic posts</h3><p>Choose which activity appears as posts. Team posts always appear.</p></div><div class="cs-feed-status"><span role="status" aria-live="polite" data-feed-status></span><button class="cs-btn" type="button" data-feed-retry hidden>Retry</button></div></div>
+        <div class="cs-feed-controls"><label class="cs-feed-field">Audience<select data-feed-board><option value="company">Everyone in the company</option>${model.departments.map(department => `<option value="${escape(department.id)}">${escape(department.label)}</option>`).join('')}</select></label><label class="cs-feed-field cs-feed-search">Find activity<input type="search" data-feed-search placeholder="Search activity…" value="${escape(model.query)}" autocomplete="off"></label><div class="cs-feed-actions"><button class="cs-btn" type="button" data-feed-defaults>Use defaults</button><button class="cs-btn" type="button" data-feed-all>Enable all</button><button class="cs-btn" type="button" data-feed-none>Disable all</button></div></div>
+        <div class="cs-feed-body"><nav class="cs-feed-categories" aria-label="Activity categories">${nav.map(category=>`<button class="cs-feed-category" type="button" data-feed-category="${category.id}" aria-pressed="${model.category===category.id}"><i class="fas ${category.icon}" aria-hidden="true"></i><span>${escape(category.label)}</span><small>${count(category.options)}/${category.options.length}</small></button>`).join('')}</nav><div class="cs-feed-grid">${cards || `<div class="cs-feed-empty"><strong>No matching activity</strong><p>Try a different search or category.</p>${query ? '<button class="cs-btn" type="button" data-feed-clear>Clear search</button>' : ''}</div>`}</div></div>
+        <div class="cs-feed-footer"><p><strong>${count(model.options)} of ${model.options.length} enabled</strong>${query ? ` · ${visibleCount} search results` : ''} · Changes save automatically</p><p>Feed permissions are managed in Users → Roles &amp; access.</p></div>
       </section>`;
       host.querySelector('[data-feed-board]').value = model.scope;
       host.querySelector('[data-feed-board]').onchange = event => { model.scope = event.target.value; render(); };
-      host.querySelectorAll('[data-feed-activity]').forEach(input => { input.onchange = () => update([...host.querySelectorAll('[data-feed-activity]:checked')].map(node => node.value)); });
+      host.querySelector('[data-feed-search]').oninput = event => { model.query = event.target.value; render(); };
+      host.querySelectorAll('[data-feed-category]').forEach(button => { button.onclick = () => { model.category = button.dataset.feedCategory; render(); }; });
+      host.querySelector('[data-feed-clear]')?.addEventListener('click', () => { model.query = ''; render(); });
+      host.querySelectorAll('[data-feed-activity]').forEach(input => { input.onchange = () => {
+        const next = new Set(selected());
+        if (input.checked) next.add(input.value); else next.delete(input.value);
+        update([...next]); render(input.value);
+      }; });
       for (const [selector, types] of [['all', model.options.map(option => option.type)], ['none', []], ['defaults', model.defaults]]) host.querySelector(`[data-feed-${selector}]`).onclick = () => { update([...types]); render(); };
       host.querySelector('[data-feed-retry]').onclick = () => void save();
       status();
+      if (restoreSearch) { const input = host.querySelector('[data-feed-search]'); input.focus(); if (cursor !== null) input.setSelectionRange(cursor,cursor); }
+      else if (focusType) [...host.querySelectorAll('[data-feed-activity]')].find(input=>input.value===focusType)?.focus({preventScroll:true});
+      else if (restoreAudience) host.querySelector('[data-feed-board]').focus({preventScroll:true});
+      else if (restoreCategory) [...host.querySelectorAll('[data-feed-category]')].find(button=>button.dataset.feedCategory===restoreCategory)?.focus({preventScroll:true});
     };
+
     try {
       const result = await api.settings(orgId);
       model.draft = structuredClone(result.settings); model.draft.department_activity_types ||= {};

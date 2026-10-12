@@ -13651,7 +13651,7 @@
           if (!window.firstMateFeedSettingsLoading) {
             window.firstMateFeedSettingsLoading = new Promise((resolve, reject) => {
               const script = document.createElement('script');
-              script.src = '/libraries/apps/settings/feed.js?v=20261011-feed-flexibility-v1';
+              script.src = '/libraries/apps/settings/feed.js?v=20261011-feed-settings-ui-v1';
               script.onload = () => window.FirstMateFeedSettings?.mount ? resolve() : reject(new Error('Feed settings component unavailable.'));
               script.onerror = () => { script.remove(); reject(new Error('Could not load Feed settings.')); };
               document.head.appendChild(script);
