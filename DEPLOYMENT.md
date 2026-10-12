@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 Project Notes: [Composer parity and note cards](deploy/digitalocean/development-project-notes-composer-20261011.md) records the browser changes, development publication and validation.
+
 October 11 Feed settings: [Automatic-post description](deploy/digitalocean/development-feed-settings-copy-20261011.md) records the exact copy replacement and verified development rollout.
 
 October 12 Reputation onboarding: [Business signup, authorization and remediation](deploy/digitalocean/development-reputation-onboarding-20261012.md) records the guided flow without billing, publication contracts, tests and development rollout.

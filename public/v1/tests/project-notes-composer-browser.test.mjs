@@ -9,7 +9,7 @@ const publicRoot=fileURLToPath(new URL('../../',import.meta.url));
 test('project notes share channel formatting and controls, preserve drafts, and fit narrow trays',async()=>{
  const server=createServer(async(req,res)=>{
   if(req.url.startsWith('/v1/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({departments:[],channels:[]}));return;}
-  if(req.url.startsWith('/libraries/')) {try {res.setHeader('Content-Type',req.url.endsWith('.svg')?'image/svg+xml':'text/javascript; charset=utf-8');res.end(await readFile(publicRoot+req.url));}catch {res.writeHead(404);res.end();}return;}
+  if(req.url.startsWith('/libraries/')) {try {res.setHeader('Content-Type',req.url.endsWith('.svg')?'image/svg+xml':'text/javascript; charset=utf-8');const data=process.env.DEV_ASSETS ? await (async()=>{const r=await fetch('https://dev.1m8.ai'+req.url+'?notes-tray='+Date.now());assert.ok(r.ok);return Buffer.from(await r.arrayBuffer());})() : await readFile(publicRoot+req.url);res.end(data);}catch {res.writeHead(404);res.end();}return;}
   res.setHeader('Content-Type','text/html; charset=utf-8');res.end('<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"></head><body style="margin:0;font-family:Arial;--primary:#175cd3"><div id="notes" style="width:360px;height:760px;margin:20px;border:1px solid #e4e7ec"></div></body></html>');
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
