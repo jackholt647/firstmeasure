@@ -68,3 +68,33 @@ Rollback must preserve intervening work and all discussion records. The older
 viewer reads only the legacy markup list and cannot display comments written to
 Channels after this rollout; prefer a forward repair over reverting the storage
 interface. Do not delete imported messages or completed-import markers.
+
+## GIF picker above photo modals
+
+Frontend feature d03517c5 corrects the shared picker's layering. An ancestor-based
+z-index alone cannot overtake a browser top-layer modal. Supported browsers now
+show the picker as a manual native popover, retaining its anchor positioning,
+Escape/outside dismissal and cleanup. Pickers opened inside native dialogs remain
+children of that dialog so its inertness rules do not block interaction. Older
+browsers retain the measured z-index fallback. Picker, Channels and widget-loader
+cache versions are refreshed.
+
+The photo regression previously stubbed the picker. It now loads the real picker
+and checks clickable GIF selection in ordinary and top-layer photo modals, reply
+composers and a native dialog. It confirms staged attachment, Escape preserving
+the photo viewer and close cleanup. Both photo and full Notes browser checks passed
+locally and using dev-hosted assets. Seven shared GIF/Feed tests passed locally.
+The GIPHY provider and delivery endpoints are fixtures; no customer comments were
+sent.
+
+All three role-specific immutable frontend stages preserve their live baselines,
+backend runtime and unrelated manifest entries. Activation reloads PHP-FPM only.
+Source hashes, retained runtime identity, readiness, development isolation and
+outbound safety passed on every role. Public hashes for all five frontend files
+matched the reviewed payload. Evidence is in ignored output/photo-picker-deploy.
+
+| Role | Activated frontend path | Retained runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/d03517c586b851b4727295275f55ca0893a9cfb8-photo-picker` | `b1f079ed3899d318ff135c6b20f5943b01d4b1f1` |
+| pool | `/opt/firstmeasure/releases/d03517c586b851b4727295275f55ca0893a9cfb8-photo-picker` | `b1f079ed3899d318ff135c6b20f5943b01d4b1f1` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/d03517c586b851b4727295275f55ca0893a9cfb8-photo-picker` | `b1f079ed3899d318ff135c6b20f5943b01d4b1f1` |
