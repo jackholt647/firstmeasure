@@ -17,7 +17,7 @@ test('project widgets fill trays and independent hosts; activity filters, pagina
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org'};window.Portal={can:key=>key!=='channels.separate_project_notes'};window.calls=[];window.fail=false;
    const now=new Date();const time=n=>new Date(+now-n*60000).toISOString();
-   window.PlatformAPI={work:{activity:async(_org,q)=>{calls.push(q);if(fail)throw Error('Connection interrupted');return q.before?{events:[{id:'old',type:'report.created',payload:{summary:'Roof report completed'},created_at:'2025-01-01T12:00:00Z'}]}:{events:Array.from({length:100},(_,i)=>({id:'w'+i,type:i%2?'task.completed':'project.updated',payload:{summary:i%2?'Completed site inspection':'Updated project details',actor_name:'Alex Morgan'},created_at:time(i)})),next_before:'page2'};}},userActivity:{listForProject:async()=>({events:[{id:'w0',type:'file.uploaded',data:{summary:'Added roof reference photos'},created_at:time(1)},{id:'hidden',type:'channels.message.created',created_at:time(2)}]})}};
+   window.PlatformAPI={work:{activity:async(_org,q)=>{calls.push(q);if(fail)throw Error('Connection interrupted');return q.before?{events:[{id:'old',type:'report.created',payload:{summary:'Roof report completed'},created_at:'2025-01-01T12:00:00Z'}]}:{events:Array.from({length:100},(_,i)=>({id:'w'+i,type:i%2?'task.completed':'project.updated',payload:{summary:i%2?'Completed site inspection':'Updated project details',actor_name:'Alex Morgan'},created_at:time(i)})),next_before:'page2'};}},userActivity:{listForProject:async()=>({events:[{id:'w0',type:'file.uploaded',payload:{content_type:'image/jpeg'},data:{summary:'Added roof reference photos'},created_at:time(1)},{id:'hidden',type:'channels.message.created',created_at:time(2)}]})}};
    window.Portal.ProjectNotes={mount:node=>{node.innerHTML='<textarea aria-label="Note draft"></textarea>';return {destroy(){node.replaceChildren();}};}};
    window.PlatformAssistant={mountProject:node=>{const el=document.createElement('div');el.textContent='Project agent';node.append(el);return {moveTo:parent=>parent.append(el),setCompact(){},destroy(){el.remove();}};}};
   });
@@ -29,7 +29,7 @@ test('project widgets fill trays and independent hosts; activity filters, pagina
   await page.getByRole('tab',{name:'Activity',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.fm-project-activity article').length===101);
   assert.equal(await page.locator('.fm-project-tray-panel[aria-label=Activity]').getAttribute('data-sizing'),'fill');
   assert.equal(await page.locator('.fm-project-activity p').first().evaluate(el=>getComputedStyle(el).fontSize),'11px');
-  await page.getByRole('searchbox',{name:'Search activity'}).fill('reference');assert.equal(await page.locator('.fm-project-activity article').count(),1);
+  await page.getByRole('searchbox',{name:'Search activity'}).fill('image');assert.equal(await page.locator('.fm-project-activity article').count(),1);
   await page.getByRole('searchbox').fill('');
   const filter=page.locator('#shell').getByRole('button',{name:/^Filter activity:/}),menu=page.locator('#shell').getByRole('dialog',{name:'Activity filters'});
   await filter.click();await menu.getByRole('checkbox',{name:'To-dos',exact:true}).check();assert.equal(await page.locator('.fm-project-activity article').count(),50);
@@ -44,9 +44,9 @@ test('project widgets fill trays and independent hosts; activity filters, pagina
   await page.getByRole('tab',{name:'Notes',exact:true}).click();await page.getByRole('tab',{name:'Activity',exact:true}).click();await filter.press('ArrowDown');assert.equal(await menu.getByRole('searchbox').evaluate(el=>el===document.activeElement),true);assert.equal(await menu.getByRole('checkbox',{name:'To-dos',exact:true}).isChecked(),true);
   await menu.getByRole('button',{name:'All activity',exact:true}).click();await page.keyboard.press('Escape');
   await page.getByRole('button',{name:'Load older activity'}).click();await page.getByText('Roof report completed',{exact:true}).waitFor();
-  await page.getByRole('button',{name:'Refresh activity'}).click();await page.waitForFunction(()=>!document.querySelector('.fm-activity-refresh').disabled);assert.equal(await page.getByText('Roof report completed',{exact:true}).count(),1);
-  await page.evaluate(()=>window.fail=true);await page.getByRole('button',{name:'Refresh activity'}).click();await page.getByRole('alert').waitFor();assert.equal(await page.locator('.fm-project-activity article').count(),102);
-  await page.evaluate(()=>window.fail=false);await page.getByRole('button',{name:'Refresh activity'}).click();await page.waitForFunction(()=>document.querySelector('[role=alert]').hidden);
+  await page.evaluate(()=>{window.callCount=calls.length;dispatchEvent(new CustomEvent('fm:projects:refresh'));});await page.waitForFunction(()=>calls.length>callCount&&document.querySelector('[role="log"]').getAttribute('aria-busy')==='false');assert.equal(await page.getByText('Roof report completed',{exact:true}).count(),1);
+  await page.evaluate(()=>{window.fail=true;dispatchEvent(new CustomEvent('fm:projects:refresh'));});await page.getByRole('alert').waitFor();assert.equal(await page.locator('.fm-project-activity article').count(),102);
+  await page.evaluate(()=>{window.fail=false;dispatchEvent(new CustomEvent('fm:projects:refresh'));});await page.waitForFunction(()=>document.querySelector('[role=alert]').hidden);
   await page.evaluate(async()=>{window.other=FirstMateWidgets.mount(document.querySelector('#other'),{id:'project.activity',version:'1',target:{organizationId:'org',projectId:'two'}},{surface:'dashboard'});await other.ready;});
   await page.waitForFunction(()=>calls.some(c=>c.projectId==='two'));
   assert.ok(await page.locator('#other').evaluate(el=>el.scrollHeight<=el.clientHeight+1));

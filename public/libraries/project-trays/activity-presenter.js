@@ -9,6 +9,12 @@
   const get=(catalog,kind,id)=>obj(catalog?.[kind]?.get?.(clean(id)));
   const node=(e,c)=>get(c,'nodes',first(e.node_id,payload(e).node_id,target(e).node_id));
   const plan=(e,c)=>get(c,'plans',first(e.plan_id,payload(e).plan_id,target(e).plan_id,node(e,c).plan_id));
+  const uploadKind=(e,c)=>{
+    const t=type(e),p=payload(e),m=get(c,'media',first(p.media_id,target(e).media_id));
+    if(!/^(media|file|photo|attachment|receipt)\.uploaded$|^document\.(uploaded|ingested)$/.test(t))return '';
+    const mime=first(p.content_type,p.mime_type,m.content_type,m.mime_type),file=first(m.file_name,p.file_name);
+    return t.startsWith('photo.')||mime.startsWith('image/')||/\.(png|jpe?g|webp|gif|heic|avif)$/i.test(file)?'image':/^(document|receipt)\./.test(t)||obj(m.owner).slot==='documents'||mime==='application/pdf'||/\.(pdf|docx?|xlsx?|pptx?|odt|txt)$/i.test(file)?'document':'file';
+  };
   const isTask=(e,c)=>{
     const n=node(e,c),p=plan(e,c),m=obj(n.metadata);
     return n.actionable===true||n.show_in_todo_list===true||['manual','follow_up'].includes(m.kind)||['manual_todo','follow_up'].includes(p.source_type)||/^task[._]|^todo[._]|action[._]item/.test(type(e));
@@ -26,7 +32,7 @@
     if(/^(report|measurement)[._]/.test(t))return 'reports';
     if(/^(document|proposal|signature|contract)[._]/.test(t))return 'documents';
     if(/^(scope|material|material_list|material_order|material_delivery)[._]/.test(t))return 'scope';
-    if(/^(media|file|photo|upload|attachment)[._]/.test(t))return obj(m.owner).slot==='documents'?'documents':'files';
+    if(/^(media|file|photo|upload|attachment)[._]/.test(t)){const uploaded=uploadKind(e,c);return uploaded?uploaded==='document'?'documents':'files':obj(m.owner).slot==='documents'?'documents':'files';}
     if(/^(contact|customer|user|member|assignee|assignment|collaborator)[._]/.test(t))return 'contacts';
     if(/^(call|communication|email|sms|comment|mention|huddle)[._]/.test(t))return 'communications';
     if(/^work[._]|^stage[._]|status/.test(t))return 'workflow';
@@ -89,11 +95,14 @@
       action=t.includes('delivery.completed')||t.endsWith('delivered')?'Received':t.includes('order')&&t.endsWith('created')?'Ordered':t.endsWith('created')?'Created':t.includes('schedule')?'Scheduled':'Updated';subject=label||(/delivery/.test(t)?'material delivery':/order/.test(t)?'materials':'material list');
     }else if(/^communication\.|^email\.|^sms\./.test(t)){
       action=t.endsWith('received')?'Received':t.endsWith('failed')?'Failed to send':t.endsWith('sent')?'Sent':'Updated';
-      const person=(c.project?.contacts||[]).find(x=>x.id===p.contact_id||x.email===p.sender_address);
-      subject=(p.channel==='sms'?'text message':p.channel||'message')+(t.endsWith('received')&&first(person?.name,p.sender_address)?' from '+first(person?.name,p.sender_address):'');
+      const message=get(c,'messages',p.message_id),sender=first(p.sender_address,obj(message.sender).address);
+      const person=(c.project?.contacts||[]).find(x=>(p.contact_id&&first(x.id,x.contact_id)===p.contact_id)||(sender&&clean(x.email).toLowerCase()===sender.toLowerCase()));
+      const channel=first(p.channel,message.channel,t.startsWith('email.')?'email':t.startsWith('sms.')?'sms':'message');
+      action+=' '+(channel==='sms'?'text message':channel);
+      subject=t.endsWith('received')&&first(person?.name,sender)?'from '+first(person?.name,sender):'';
       detail=first(p.subject,obj(get(c,'messages',p.message_id).content).subject);
-    }else if(/^call\./.test(t)){action=t.endsWith('completed')?'Completed':t.endsWith('started')?'Started':t.endsWith('missed')?'Missed':'Updated';const person=(c.project?.contacts||[]).find(x=>p.phone&&clean(x.phone).replace(/\D/g,'')===clean(p.phone).replace(/\D/g,''));subject='call'+(first(p.customer_name,person?.name,p.phone)?' with '+first(p.customer_name,person?.name,p.phone):'');}
-    else if(/^project\.note\./.test(t)){action=({created:'Added',edited:'Edited',deleted:'Removed',restored:'Restored',pinned:'Pinned',unpinned:'Unpinned',shared:'Shared'})[t.split('.').pop()]||'Updated';subject='project note';}
+    }else if(/^call\./.test(t)){action=(t.endsWith('completed')?'Completed':t.endsWith('started')?'Started':t.endsWith('missed')?'Missed':'Updated')+' call';const person=(c.project?.contacts||[]).find(x=>p.phone&&clean(x.phone).replace(/\D/g,'')===clean(p.phone).replace(/\D/g,''));subject=first(p.customer_name,person?.name,p.phone)?'with '+first(p.customer_name,person?.name,p.phone):'';}
+    else if(/^project\.note\./.test(t)){action=({created:'Added',edited:'Edited',deleted:'Archived',restored:'Restored',pinned:'Pinned',unpinned:'Unpinned',shared:'Shared'})[t.split('.').pop()]||'Updated';subject='a project note';detail=clean(p.note_text).replace(/\s+/g,' ').slice(0,140);}
     else if(/^project\./.test(t)){action=t.endsWith('created')?'Created':t.endsWith('completed')?'Completed':'Updated';subject=label||'project';}
     else if(/^(task|todo|action[._]item)[._]/.test(t)){action=t.endsWith('completed')?'Completed':t.endsWith('created')?'Added':'Updated';subject=label||'to-do';}
     else if(/^(report|measurement)[._]/.test(t)){action=t.endsWith('created')||t.endsWith('completed')?'Completed':t.endsWith('ordered')?'Ordered':'Updated';subject=label||'measurement report';}
@@ -109,8 +118,37 @@
       const summary=first(d.summary,p.summary),match=summary.match(/^(Completed|Started|Finished|Uploaded|Sent|Viewed|Signed|Received|Recorded|Created|Added|Updated|Removed|Applied|Scheduled|Rescheduled|Canceled|Approved|Paused)\s+(.+)$/i);
       if(match){action=match[1];subject=match[2];detail='';}else{action='';subject=summary;detail='';}
     }
+    if(/^(communication|email|sms|call)\./.test(t)){
+      const channel=subject.match(/^(email|text message|sms|phone call|call)\b\s*(.*)$/i);
+      if(channel){action+=' '+channel[1];subject=channel[2];}
+    }
+    const uploaded=e._upload_kind||uploadKind(e,c);
+    if(uploaded){action='Uploaded';const count=e._upload_count||1;subject=count===1?(uploaded==='image'?'an image':'a '+uploaded):count+' '+uploaded+'s';detail='';}
     const text=[action,subject,detail?'— '+detail:''].filter(Boolean).join(' ');
     return {action,subject,detail,text,actor:a,category:category(e,c),timestamp:stamp(e)};
+  }
+  function groupUploads(rows,c){
+    const groups=[],out=[];
+    for(const e of rows){
+      const kind=uploadKind(e,c),a=actor(e,c),at=Date.parse(stamp(e)),key=a.id&&kind?[a.id,kind,category(e,c)].join(':'):'';
+      const group=key&&Number.isFinite(at)?groups.find(g=>g.key===key&&Math.abs(g.at-at)<=3*60000):null;
+      if(group){const resource=first(payload(e).media_id,target(e).media_id,payload(e).document_id,e.id);if(!group.ids.has(resource)){group.ids.add(resource);group.row._upload_count++;}}
+      else if(key&&Number.isFinite(at)){const row={...e,_upload_kind:kind,_upload_count:1};groups.push({key,at,row,ids:new Set([first(payload(e).media_id,target(e).media_id,payload(e).document_id,e.id)])});out.push(row);}
+      else out.push(e);
+    }
+    return out;
+  }
+  function withNotes(rows,c){
+    // Notes and Messages share a thread when separation is off. Use exactly
+    // the authorized roots shown by Notes, instead of treating its switch as
+    // permission to hide every note from the project timeline.
+    const result=[...rows],created=new Set(rows.filter(e=>type(e)==='project.note.created').map(e=>first(payload(e).message_id,target(e).message_id)));
+    for(const message of c.noteMessages.values()){
+      if(message.kind==='system'||message.parent_id||message.deleted_at||(!clean(message.text)&&!message.attachments?.length))continue;
+      if(created.has(message.id))continue;
+      result.push({id:'note-created:'+message.id,_source:'notes',type:'project.note.created',created_at:message.created_at,actor_user_id:message.author?.id,payload:{message_id:message.id,actor_name:message.author?.name,note_text:message.text}});
+    }
+    return result.sort((a,b)=>Date.parse(stamp(b))-Date.parse(stamp(a)));
   }
   function merge(rows){
     const works=rows.filter(e=>e._source==='work'),audits=rows.filter(e=>e._source==='audit'),byId=new Map(works.map(e=>[clean(e.id),e])),used=new Set();
@@ -123,11 +161,22 @@
     }
     return [...byId.values(),...audits.filter(a=>{const d=data(a),t=target(a);if(byId.has(first(obj(d.metadata).backed_work_event_id,t.work_event_id)))return false;return !works.some(w=>used.has(w.id)&&type(w)===type(a)&&Math.abs(Date.parse(stamp(w))-Date.parse(stamp(a)))<=1500&&refKeys.some(k=>first(w[k],payload(w)[k])&&first(w[k],payload(w)[k])===first(t[k],d[k],payload(a)[k])));})].sort((a,b)=>Date.parse(stamp(b))-Date.parse(stamp(a)));
   }
-  function context(){return {project:{},users:new Map(),nodes:new Map(),plans:new Map(),media:new Map(),documents:new Map(),orders:new Map(),deliveries:new Map(),materialLists:new Map(),messages:new Map()};}
+  function context(){return {project:{},users:new Map(),nodes:new Map(),plans:new Map(),media:new Map(),documents:new Map(),orders:new Map(),deliveries:new Map(),materialLists:new Map(),messages:new Map(),noteMessages:new Map()};}
   async function hydrate(c,events,api,oid,pid,project={}){
     c.project=project;
     const read=async(call)=>{let timer;try{return await Promise.race([Promise.resolve().then(call),new Promise(resolve=>{timer=setTimeout(()=>resolve(null),5000);})]);}catch{return null;}finally{clearTimeout(timer);}};
     const jobs=[];
+    if(!project.contacts&&api.platform?.projects?.get)jobs.push(read(()=>api.platform.projects.get(oid,pid)).then(r=>{const v=r?.document?.data||r?.project||r?.document;if(v)c.project={...v,...project,contacts:project.contacts||v.contacts};}));
+    const cachedNotes=api.projectNotes?.visible?.(project)||[];
+    if(cachedNotes.length)c.noteMessages=new Map(cachedNotes.map(n=>[n.id,{...n,author:n.created_by}]));
+    else if(api.channels?.channels?.list&&api.channels?.messages?.list)jobs.push(read(async()=>{
+      const listed=await api.channels.channels.list(oid,{initialize:false}),channel=listed?.channels?.find(x=>x.project_id===pid);
+      if(!channel){c.noteMessages.clear();return;}
+      const [r,pins]=await Promise.all([api.channels.messages.list(oid,channel.id,{limit:200,view:channel.separate_notes?'notes':'all'}),api.channels.pins?.list?read(()=>api.channels.pins.list(oid,channel.id,{view:'all'})):null]);
+      const separate=r?.channel?.separate_notes??channel.separate_notes;
+      const messages=[...new Map([...(r?.messages||[]),...(pins?.messages||[])].map(m=>[m.id,m])).values()].filter(m=>!separate||m.metadata?.project_note===true);
+      c.noteMessages=new Map(messages.map(m=>[m.id,m]));
+    }));
     if(api.platform?.users?.list)jobs.push(read(()=>api.platform.users.list(oid)).then(r=>(r?.users||r?.documents||[]).forEach(u=>{const v=u.data?{...u.data,id:u.id}:u;c.users.set(v.id,v);})));
     if(api.platform?.media?.list)jobs.push(read(()=>api.platform.media.list(oid,{projectId:pid})).then(r=>(r?.media||[]).forEach(m=>c.media.set(m.id,m))));
     if(api.documents?.documents?.listForProject)jobs.push(read(()=>api.documents.documents.listForProject(oid,pid)).then(r=>(r?.documents||[]).forEach(d=>c.documents.set(d.id,d))));
@@ -146,5 +195,5 @@
     for(const m of project.photos||[])if(!c.media.has(first(m.media_id,m.id)))c.media.set(first(m.media_id,m.id),m);
     return c;
   }
-  root.FirstMateActivity={categories,context,hydrate,describe,merge,type,timestamp:stamp};
+  root.FirstMateActivity={categories,context,hydrate,describe,merge,groupUploads,withNotes,type,timestamp:stamp};
 })(typeof window==='undefined'?globalThis:window);
