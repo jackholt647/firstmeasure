@@ -1,7 +1,8 @@
 # Phone settings extensions — October 11, 2026
 
-Development activation remains blocked. No current symlink, service, or production
-configuration was changed by this task.
+The development access blocker is resolved. The coordinated release, including
+the publication audit, is now covered by the [October 12 activation record](development-phone-publication-20261012.md).
+The staging and access observations below are historical; production was not changed.
 
 Source: feature `fc3e01cd`, termination/reporting follow-up `5ead8527`, pushed to
 `codex/consolidated-firstmeasure-20260923` and `codex/phone-settings-20261010`.
