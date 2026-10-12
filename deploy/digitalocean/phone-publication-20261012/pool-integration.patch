@@ -771,7 +771,7 @@
        for(let n=0;n<10&&!stopped;n++)if(!await processOneJob(workerId,'voice'))break;
        if(!background)background=(async()=>{for(let n=0;n<5&&!stopped;n++)if(!await processOneJob(`${workerId}:background`,'background'))break;})()
          .catch(()=>app.log.error('Customer call background processing failed')).finally(()=>{background=null;});
-+      if(!publication)publication=(async()=>{for(let n=0;n<20&&!stopped;n++)if(!await processOneJob(`${workerId}:events`,'events'))break;})()
++      if(!publication)publication=(async()=>{for(let n=0;n<20&&!stopped;n++)if(!await processOneJob(`${workerId}:events`,'events'))break;if(!stopped&&env.dataEnvironment==='development'&&process.env.CUSTOMER_CALL_WORKER_OWNER==='1'&&!platformBackgroundAllowed())await (await import('../phone/events.js')).drainPhoneEvents();})()
 +        .catch(()=>app.log.error('Phone event publication failed')).finally(()=>{publication=null;});
        if(!maintenance&&Date.now()-lastRetention>60000){
 -        lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();})()
@@ -985,8 +985,8 @@
 +}
 --- a/public/v1/comms/phone/events.ts
 +++ b/public/v1/comms/phone/events.ts
-@@ -0,0 +1,9 @@
-+import {phoneEventEnvelope} from './event-contracts.js';
+@@ -0,0 +1,15 @@
++import {phoneEventEnvelope,phoneEventNames} from './event-contracts.js';
 +/** Called only by the durable customer-call worker. Stable event keys survive a
 + * crash after Work commits but before the call job acknowledges delivery. */
 +export async function publishPhoneEvent(organizationId:string,eventId:string,input:unknown){
@@ -994,6 +994,12 @@
 + const {emitWorkEvent}=await import('../../work/engine.js');
 + return emitWorkEvent({organization_id:organizationId,branch_id:event.payload.branch_id,project_id:event.payload.project_id,type:event.type,payload:event.payload,
 + context:{phone_resource_id:event.payload.resource_id,department_ids:event.payload.department_ids},idempotency_key:`phone:${eventId}`},{process:'background'});
++}
++
++/** Development already delegates calls to the compatibility owner. Process only
++ * these phone events there; never activate unrelated general Work backlogs. */
++export async function drainPhoneEvents(){
++ return (await import('../../work/engine.js')).drainWorkEvents(20,phoneEventNames);
 +}
 --- a/public/v1/comms/phone/greetings.ts
 +++ b/public/v1/comms/phone/greetings.ts
@@ -2011,6 +2017,25 @@
      if(!allowed.has(action))throw badRequest("invalid_voice_command","Unsupported voice action.");
      if(action==="transfer"){payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);}
      return this.data(`/calls/${encodeURIComponent(controlId)}/actions/${action}`,"POST",payload);
+--- a/public/v1/work/engine.ts
++++ b/public/v1/work/engine.ts
+@@ -274,13 +274,13 @@
+ // A drain requested while one runs (an event emitted after that pass last
+ // looked at the queue) runs again right after it instead of waiting a tick.
+ let drainRequested = false;
+-export async function drainWorkEvents(limit = 100) {
+-  if (draining) { drainRequested = true; return 0; }
++export async function drainWorkEvents(limit = 100, eventTypes?: readonly string[]) {
++  if (draining) { if(!eventTypes)drainRequested = true; return 0; }
+   draining = true;
+   let processed = 0;
+   try {
+     while (processed < limit) {
+-      const event = await claimNextEvent(workerId);
++      const event = await claimNextEvent(workerId,5,eventTypes);
+       if (!event) break;
+       let leaseLost = false;
+       const heartbeat = setInterval(() => {
 --- a/public/v1/work/events.ts
 +++ b/public/v1/work/events.ts
 @@ -1,3 +1,4 @@
@@ -2024,3 +2049,25 @@
  ]);
 +
 +registerWorkEvents(phoneEventDefinitions);
+--- a/public/v1/work/storage.ts
++++ b/public/v1/work/storage.ts
+@@ -638,7 +638,8 @@
+   }));
+ }
+ 
+-export async function claimNextEvent(workerId: string, maxAttempts = 5) {
++export async function claimNextEvent(workerId: string, maxAttempts = 5, eventTypes?: readonly string[]) {
++  if(eventTypes && !eventTypes.length)return null;
+   const db = getWorkDatabase();
+   const now = nowIso();
+   const leaseUntil = new Date(Date.now() + 90_000).toISOString();
+@@ -646,7 +647,8 @@
+   return await db.transaction(async () => {
+     const row = (await db.prepare(`SELECT * FROM work_events WHERE attempts < ? AND available_at <= ? AND
+       (status = 'pending' OR status = 'failed' OR (status = 'processing' AND lease_until < ?))
+-      ORDER BY created_at ASC LIMIT 1`).get(maxAttempts, now, now));
++      ${eventTypes ? `AND type IN (${eventTypes.map(()=>'?').join(',')})` : ''}
++      ORDER BY created_at ASC LIMIT 1`).get(maxAttempts, now, now,...(eventTypes||[])));
+     if (!row) {
+       return null;
+     }

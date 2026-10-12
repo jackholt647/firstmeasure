@@ -638,7 +638,8 @@ export async function saveCronState(orgId: string, branchId: string, ruleId: str
   }));
 }
 
-export async function claimNextEvent(workerId: string, maxAttempts = 5) {
+export async function claimNextEvent(workerId: string, maxAttempts = 5, eventTypes?: readonly string[]) {
+  if(eventTypes && !eventTypes.length)return null;
   const db = getWorkDatabase();
   const now = nowIso();
   const leaseUntil = new Date(Date.now() + 90_000).toISOString();
@@ -646,7 +647,8 @@ export async function claimNextEvent(workerId: string, maxAttempts = 5) {
   return await db.transaction(async () => {
     const row = (await db.prepare(`SELECT * FROM work_events WHERE attempts < ? AND available_at <= ? AND
       (status = 'pending' OR status = 'failed' OR (status = 'processing' AND lease_until < ?))
-      ORDER BY created_at ASC LIMIT 1`).get(maxAttempts, now, now));
+      ${eventTypes ? `AND type IN (${eventTypes.map(()=>'?').join(',')})` : ''}
+      ORDER BY created_at ASC LIMIT 1`).get(maxAttempts, now, now,...(eventTypes||[])));
     if (!row) {
       return null;
     }

@@ -183,3 +183,10 @@ passed with one database-specific skip; 123 focused regression tests passed; all
 13 embedded PostgreSQL checks passed (including the SQLite-skipped case and all
 11 phone publication tests). The publication run used an isolated outer storage
 root to avoid a pre-existing custom-fields fixture's early environment import.
+
+Development deployment discovery: the compatibility process is the existing phone
+worker owner (`CUSTOMER_CALL_WORKER_OWNER=1`); there is no standalone platform
+worker in this topology. That owner now drains only the 18 registered phone Work
+event types after publishing its outbox. The shared Work engine still supplies
+leases, retries and action execution. It does not enable general schedulers or
+claim unrelated pending events. Production's platform-worker path is unchanged.

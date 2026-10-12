@@ -146,3 +146,13 @@ test('publication jobs cannot block the voice lane and transient delivery failur
  const retried=await store.claimJob('delivery-retry','events','call');assert.equal(retried?.id,jobId);assert.equal(retried?.attempts,2);
  await store.finishJob(jobId,'delivery-retry','completed');
 });
+
+test('development phone event drain executes phone events and leaves unrelated automation backlogs alone',async()=>{
+ const work=await import('../work/storage.js');
+ const unrelated=await work.createEventRecord({organization_id:orgId,type:'project.created',idempotency_key:'unrelated-pending',payload:{}});
+ const phone=await work.createEventRecord({organization_id:orgId,type:'phone.personal.updated',idempotency_key:'phone-pending',payload:{resource_id:'manager'}});
+ const {drainPhoneEvents}=await import('../comms/phone/events.js');
+ assert.ok(await drainPhoneEvents()>0);
+ assert.equal((await work.readEventRecord(orgId,String(phone.event!.id)))?.status,'completed');
+ assert.equal((await work.readEventRecord(orgId,String(unrelated.event!.id)))?.status,'pending');
+});

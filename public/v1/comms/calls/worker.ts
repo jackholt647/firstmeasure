@@ -362,7 +362,7 @@ export function startCallWorker(app:FastifyInstance){
       for(let n=0;n<10&&!stopped;n++)if(!await processOneJob(workerId,'voice'))break;
       if(!background)background=(async()=>{for(let n=0;n<5&&!stopped;n++)if(!await processOneJob(`${workerId}:background`,'background'))break;})()
         .catch(()=>app.log.error('Customer call background processing failed')).finally(()=>{background=null;});
-      if(!publication)publication=(async()=>{for(let n=0;n<20&&!stopped;n++)if(!await processOneJob(`${workerId}:events`,'events'))break;})()
+      if(!publication)publication=(async()=>{for(let n=0;n<20&&!stopped;n++)if(!await processOneJob(`${workerId}:events`,'events'))break;if(!stopped&&env.dataEnvironment==='development'&&process.env.CUSTOMER_CALL_WORKER_OWNER==='1'&&!platformBackgroundAllowed())await (await import('../phone/events.js')).drainPhoneEvents();})()
         .catch(()=>app.log.error('Phone event publication failed')).finally(()=>{publication=null;});
       if(!maintenance&&Date.now()-lastRetention>60000){
         lastRetention=Date.now();maintenance=(async()=>{await maintainSupervisionSessions();await maintainVoiceSessions();await expireArtifacts();await maintainReputation();})()
