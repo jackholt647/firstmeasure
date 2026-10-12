@@ -12,13 +12,13 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
   await mkdir(output,{recursive:true});
   const server=createServer(async(req,res)=>{
   if(req.url.startsWith('/images/giphy/')){res.setHeader('Content-Type','image/png');const pathname=new URL(req.url,'http://fixture').pathname;const data=process.env.DEV_ASSETS?Buffer.from(await (await fetch('https://dev.1m8.ai'+pathname+'?mark-check='+Date.now())).arrayBuffer()):await readFile(publicRoot+pathname);res.end(data);return;}
-    const assets={'/gifs.js':'/libraries/platform-widgets/gifs.js','/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
-    if(assets[req.url]){
+    const assets={'/libraries/date-time-picker/date-time-picker.js':'/libraries/date-time-picker/date-time-picker.js','/gifs.js':'/libraries/platform-widgets/gifs.js','/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
+    const asset=assets[new URL(req.url,'http://fixture').pathname];if(asset){
       res.setHeader('Content-Type','text/javascript; charset=utf-8');
       const data=process.env.DEV_ASSETS?await (async()=>{
-        const response=await fetch('https://dev.1m8.ai'+assets[req.url]+'?mentions='+Date.now());
+        const response=await fetch('https://dev.1m8.ai'+asset+'?mentions='+Date.now());
         assert.ok(response.ok);return Buffer.from(await response.arrayBuffer());
-      })():await readFile(path.join(publicRoot,assets[req.url]));
+      })():await readFile(path.join(publicRoot,asset));
       res.end(data);return;
     }
     res.setHeader('Content-Type','text/html; charset=utf-8');
@@ -27,7 +27,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const origin=`http://127.0.0.1:${server.address().port}`;
   const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe'});
-  const page=await browser.newPage({viewport:{width:1380,height:850}});page.setDefaultTimeout(12000);
+  const page=await browser.newPage({viewport:{width:1380,height:850},timezoneId:'America/Los_Angeles'});page.setDefaultTimeout(12000);
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   try{
     await page.goto(origin);
@@ -47,7 +47,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
         directory:{list:async()=>({users:[me,member,second,outsider]})},
         preferences:{collaboration:async()=>({preferences:{send_mode:'modified_enter'}})},
         readState:{markRead:async()=>({})},drafts:{get:async()=>({}),save:async()=>({}),remove:async()=>({})},
-        scheduled:{list:async()=>({scheduled_messages:[]})},threads:{markRead:async()=>({})},
+        scheduled:{list:async()=>({scheduled_messages:[]}),create:async(_org,payload)=>{if(window.failSchedule)throw Error('Schedule failed');(window.schedules ||= []).push(copy(payload));return {};}},threads:{markRead:async()=>({})},
         messages:{
           list:async()=>({channel,messages:copy(messages.filter(message=>!message.parent_id))}),
           thread:async(_org,id)=>({root:copy(messages.find(message=>message.id===id)),replies:copy(messages.filter(message=>message.parent_id===id))}),
@@ -79,6 +79,17 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     }
     const gifMessage=page.locator('.fm-ch-msg[data-message-id="gif-only"]');await gifMessage.locator('.fm-ch-gif').waitFor();assert.equal(await gifMessage.locator('.fm-ch-msg-body').isHidden(),true);const gifSpacing=await gifMessage.evaluate(node=>{const head=node.querySelector('.fm-ch-msg-head').getBoundingClientRect(),image=node.querySelector('.fm-ch-gif img').getBoundingClientRect(),figure=node.querySelector('.fm-ch-gif');return {before:image.top-head.bottom,bottom:getComputedStyle(figure).marginBottom,caption:getComputedStyle(figure.querySelector('figcaption')).lineHeight,position:getComputedStyle(figure.querySelector('figcaption')).position};});assert.ok(gifSpacing.before<=4,JSON.stringify(gifSpacing));assert.equal(gifSpacing.bottom,'0px');assert.equal(gifSpacing.caption,'12px');assert.equal(gifSpacing.position,'absolute');
     const editor=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();
+    assert.ok(await editor.evaluate(n=>n.getBoundingClientRect().height<=30),'channel composer starts at one line');
+    assert.equal(await page.locator('.fm-ch-composer .fm-ch-formatbar').first().evaluate(n=>getComputedStyle(n).borderBottomWidth),'0px');
+    assert.equal(await page.locator('.fm-ch-formatbar [data-mention-button]').count(),0);
+    const schedule=page.locator('.fm-ch-composer').getByRole('button',{name:'Schedule message',exact:true});
+    for(const [label,monday] of [['Tomorrow at 9:00 AM',false],['Next Monday at 9:00 AM',true]]){
+      await editor.fill(label);const expected=await page.evaluate(monday=>{const date=new Date();date.setDate(date.getDate()+(monday?((1-date.getDay()+7)%7 || 7):1));date.setHours(9,0,0,0);return {iso:date.toISOString(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone};},monday);
+      await schedule.click();await page.getByRole('menuitem',{name:label,exact:true}).click();await page.waitForFunction(()=>document.querySelector('.fm-ch-composer .fm-ch-rich-editor').value==='');
+      assert.deepEqual(await page.evaluate(()=>({iso:schedules.at(-1).scheduled_at,timezone:schedules.at(-1).timezone})),expected);
+    }
+    await editor.fill('Keep failed schedule draft');await page.evaluate(()=>window.failSchedule=true);await schedule.click();await page.getByRole('menuitem',{name:'Tomorrow at 9:00 AM',exact:true}).click();await page.getByText('Schedule failed',{exact:true}).waitFor();assert.equal(await editor.evaluate(n=>n.value),'Keep failed schedule draft');assert.equal(await page.evaluate(()=>schedules.length),2);await page.keyboard.press('Escape');await page.evaluate(()=>window.failSchedule=false);
+    await editor.fill('Use custom picker');await schedule.click();await page.getByRole('menuitem',{name:'Custom time',exact:true}).click();const calendar=page.getByRole('dialog',{name:'Schedule message',exact:true});await calendar.locator('[data-schedule-calendar]').waitFor();assert.ok(await calendar.locator('[data-schedule-calendar]').evaluate(n=>n.children.length>0));await calendar.getByRole('button',{name:'Schedule send',exact:true}).click();await page.waitForFunction(()=>schedules.length===3);await calendar.waitFor({state:'detached'});
     await verifyFormatting(editor);
     assert.equal(await page.locator('.fm-ch-composer-hint').first().innerText(),'Shift+Enter for a new line');
     await editor.fill('First');await editor.press('Shift+Enter');await page.keyboard.type('Second');

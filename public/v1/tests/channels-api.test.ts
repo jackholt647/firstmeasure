@@ -1122,14 +1122,21 @@ test("broadcast and channel-name mentions expand current membership and here use
   const outsider=await createOrgUser(owner,orgId,suffix,"Mention Outsider");
   const {channel}=await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"private",name:"Gutters",member_user_ids:[livia.userId,offline.userId]});
   const route=`/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`;
-  const all=await owner.request("POST",route,{text:"@channel hello"});
+  const plain=await owner.request("POST",route,{text:"@ @channel @here hello",mention_users:[]});
+  assert.deepEqual(plain.message.mention_users,[]);
+  assert.deepEqual(plain.message.metadata.mention_broadcasts,[]);
+  const all=await owner.request("POST",route,{text:"@channel hello",mention_users:[{id:"broadcast:channel",name:"channel"}]});
+  assert.deepEqual(all.message.metadata.mention_broadcasts,["channel"]);
   assert.deepEqual(new Set(all.message.mention_users.map((person:Json)=>person.id)),new Set([userId,livia.userId,offline.userId]));
+  const untagged=await owner.request("PATCH",`/v1/channels/organizations/${orgId}/messages/${all.message.id}`,{text:"@channel now ordinary text",mention_users:[]});
+  assert.deepEqual(untagged.message.mention_users,[]);assert.deepEqual(untagged.message.metadata.mention_broadcasts,[]);
   const {EventEmitter}=await import("node:events");
   const {attachPresence}=await import("../platform/presence.js");
   const raw=new EventEmitter() as any; raw.writeHead=()=>{};raw.write=()=>{};raw.end=()=>{};
   await attachPresence({headers:{},raw:{socket:{setTimeout(){},setNoDelay(){}}}} as any,{raw,hijack(){}} as any,{orgId,scope:"online",userId:livia.userId,name:"Livia",authorize:async()=>{}});
   try {
-    const here=await owner.request("POST",route,{text:"@here hello"});
+    const here=await owner.request("POST",route,{text:"@here hello",mention_users:[{id:"broadcast:here",name:"here"}]});
+    assert.deepEqual(here.message.metadata.mention_broadcasts,["here"]);
     assert.deepEqual(here.message.mention_users.map((person:Json)=>person.id),[livia.userId]);
   } finally {raw.emit("close");}
   for (const target of [channel, (await owner.request("POST",`/v1/channels/organizations/${orgId}/channels`,{type:"dm",member_user_ids:[livia.userId]})).channel]) {

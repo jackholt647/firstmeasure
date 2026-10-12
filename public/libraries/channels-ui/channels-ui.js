@@ -209,7 +209,8 @@
       else blocks.push(`<div>${inline(line) || '<br>'}</div>`);
     }
     let html = blocks.join('');
-    const labels = [...new Set(['channel','here',...(message.mention_users || []).map(user=>cleanText(user.name)).filter(Boolean)])].sort((a,b)=>b.length-a.length);
+    const broadcastLabels=Array.isArray(message.metadata?.mention_broadcasts) ? message.metadata.mention_broadcasts.filter(name=>['channel','here'].includes(name)) : ((message.mention_users || []).length ? ['channel','here'] : []);
+    const labels = [...new Set([...broadcastLabels,...(message.mention_users || []).map(user=>cleanText(user.name)).filter(Boolean)])].sort((a,b)=>b.length-a.length);
     const mentionedUsers = new Map();
     for (const user of message.mention_users || []) {
       const name = cleanText(user.name).toLowerCase(), id = user.id || user.user_id;
@@ -218,6 +219,7 @@
       else if (!mentionedUsers.has(name)) mentionedUsers.set(name, id);
     }
     const escaped = labels.map(label=>label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+    if(!escaped.length)return html;
     const expression = new RegExp(`(^|[\\s([{])(@(?:${escaped.join('|')}))(?=$|[\\s.,!?;:)\\]}])`, 'gi');
     const container = document.createElement('div'); container.innerHTML = html;
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -715,7 +717,7 @@
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_f4dce57ac0bb0e","Message formatting") ?? "Message formatting"));
-    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre'], ['Link', 'Link', 'link'], ['Table', 'Table', 'table'], ['Clear formatting', 'Tx', 'removeFormat']];
+    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Link', 'Link', 'link'], ['Clear formatting', 'Tx', 'removeFormat'], ['Table', 'Table', 'table'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre']];
     const toggles=[];
     function updateFormatting(){const selection=root.getSelection(),inside=!!selection?.anchorNode && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode);if(!inside && editor.firstChild)return;for(const {button,command,value} of toggles){const active=inside && (command==='formatBlock' ? String(document.queryCommandValue(command)).toLowerCase()===value : document.queryCommandState(command));button.setAttribute('aria-pressed',String(!!active));}}
     formattingUpdates.set(editor,updateFormatting);
@@ -837,8 +839,13 @@
       if(operation.startsWith('row') || operation.startsWith('col'))insertActions.push(control);
       else tableControls.append(control);
     }
-    insert.onclick=()=>{if(selectedCell && editor.contains(selectedCell))showPopover(insert,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of insertActions){action.setAttribute('role','menuitem');menu.append(action);}pop.append(menu);});};
-    bar.append(tableControls);
+    // Table operations share one compact menu instead of creating a second row.
+    const tableActions=[...insertActions,...tableControls.querySelectorAll('button')].filter(action=>action!==insert);
+    const tableMenu=el('button','','Table options');tableMenu.type='button';tableMenu.title='Table options';tableMenu.setAttribute('aria-label','Table options');tableMenu.setAttribute('aria-haspopup','menu');
+    tableMenu.onmousedown=event=>{editor.saveSelection();event.preventDefault();};
+    tableMenu.onclick=()=>showPopover(tableMenu,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of tableActions){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
+    tableControls.replaceChildren(tableMenu);bar.append(tableControls);
+    responsiveFormatBar(bar,editor);
     return bar;
   }
 
@@ -1238,7 +1245,58 @@
 .fm-ch-huddle-artifact{border:1px solid var(--ch-border);border-radius:12px;overflow:hidden;padding:10px;display:grid;gap:8px;min-width:0}
 .fm-ch-huddle-artifact video,.fm-ch-huddle-artifact audio{width:100%;max-height:180px}
 `;
+    style.textContent+=`
+.fm-ch-formatbar{flex-wrap:nowrap;min-width:0;gap:2px;padding:0;border-bottom:0;margin-bottom:2px;overflow:hidden}
+.fm-ch-formatbar>button{flex:none;height:26px}.fm-ch-formatbar [hidden]{display:none!important}
+.fm-ch-table-controls{width:auto;flex:none;flex-wrap:nowrap}.fm-ch-formatbar .fm-ch-table-controls button{font-size:10px;padding:3px!important}
+.fm-ch-composer-box{padding:5px 7px 3px}.fm-ch-composer-box .fm-ch-rich-editor{box-sizing:border-box;min-height:25px;padding:2px;line-height:21px}
+.fm-ch-composer-box .fm-ch-composer-row{margin-top:4px;min-height:26px;gap:4px}
+.fm-ch-composer-row .fm-ch-icon-btn,.fm-ch-composer-row [data-mention-button]{width:26px;height:26px;min-height:0;padding:3px;border:0;background:transparent;color:var(--ch-muted);cursor:pointer;border-radius:5px}
+.fm-ch-composer-row .fm-ch-send{padding:4px 9px;min-height:26px}
+.fm-ch-recording-menu{display:flex;gap:4px;padding:4px}.fm-ch-recording-menu button{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--ch-text,#475467);cursor:pointer}.fm-ch-recording-menu button:hover{background:var(--ch-hover,#f2f4f7)}
+.fm-ch-schedule-menu{min-width:240px;padding:4px}.fm-ch-schedule-menu header{font-size:12px;color:var(--ch-muted,#667085);padding:7px 10px}.fm-ch-schedule-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px;font:inherit;cursor:pointer;border-radius:5px}.fm-ch-schedule-menu button:hover{background:var(--ch-hover,#f2f4f7)}.fm-ch-schedule-menu hr{border:0;border-top:1px solid var(--ch-border,#e4e7ec);margin:4px 0}
+`;
     document.head.appendChild(style);
+  }
+
+  function actionProxy(action){
+    const proxy=el('button');proxy.type='button';
+    const sync=()=>{proxy.innerHTML=action.innerHTML;proxy.title=action.title;proxy.setAttribute('aria-label',action.getAttribute('aria-label') || action.title || action.textContent);proxy.disabled=action.disabled;if(action.hasAttribute('aria-pressed'))proxy.setAttribute('aria-pressed',action.getAttribute('aria-pressed'));};
+    sync();proxy.onmousedown=event=>event.preventDefault();
+    proxy.onclick=()=>{if(action.disabled)return;const anchor=proxy.getBoundingClientRect();const selection=getSelection();const range=selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;closePopover();if(range){selection.removeAllRanges();selection.addRange(range);}action._popoverRect=anchor;try{action.click();}finally{delete action._popoverRect;}};
+    return proxy;
+  }
+  const formatBars=new Set();
+  const formatResize=new ResizeObserver(entries=>{for(const entry of entries)entry.target._fitFormatting?.();});
+  new MutationObserver(()=>{for(const bar of formatBars){if(bar.isConnected)bar._wasConnected=true;else if(bar._wasConnected){formatResize.unobserve(bar);formatBars.delete(bar);}}}).observe(document.documentElement,{childList:true,subtree:true});
+  function responsiveFormatBar(bar,editor){
+    const commands=[...bar.children].filter(node=>node.tagName==='BUTTON');
+    const more=el('button','fm-ch-format-more','⋯');more.type='button';more.title='See more formatting';more.setAttribute('aria-label',more.title);more.setAttribute('aria-haspopup','menu');
+    more.onmousedown=event=>{editor.saveSelection();event.preventDefault();};
+    more.onclick=()=>showPopover(more,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of commands.filter(button=>button.hidden)){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');proxy.innerHTML=action.title;menu.append(proxy);}pop.append(menu);});
+    bar.append(more);
+    bar._fitFormatting=()=>{
+      if(!bar.isConnected || !bar.clientWidth)return;
+      for(const button of commands)button.hidden=false;more.hidden=false;
+      const gap=parseFloat(getComputedStyle(bar).gap)||2;
+      const controls=bar.querySelector('.fm-ch-table-controls');
+      const available=bar.clientWidth-(controls?.hidden ? 0 : (controls?.getBoundingClientRect().width || 0)+gap);
+      const widths=commands.map(button=>button.getBoundingClientRect().width+gap);
+      const total=widths.reduce((a,b)=>a+b,0);
+      if(total-gap<=available){more.hidden=true;return;}
+      let used=more.getBoundingClientRect().width+gap,overflow=false;
+      commands.forEach((button,index)=>{if(overflow || used+widths[index]>available){button.hidden=true;overflow=true;}else used+=widths[index];});
+    };
+    formatBars.add(bar);formatResize.observe(bar);
+    new MutationObserver(()=>bar._fitFormatting()).observe(bar.querySelector('.fm-ch-table-controls'),{attributes:true,attributeFilter:['hidden']});
+    requestAnimationFrame(bar._fitFormatting);
+  }
+  function moreActions(mount,actions){
+    actions=actions.filter(Boolean);if(!mount || !actions.length)return null;
+    const originals=el('span');originals.hidden=true;originals.append(...actions);
+    const button=el('button','fm-ch-icon-btn fm-ch-more-actions','<i class="fas fa-ellipsis" aria-hidden="true"></i>');button.type='button';button.title='More options';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','menu');
+    button.onclick=()=>showPopover(button,pop=>{pop.style.minWidth='0';const menu=el('div','fm-ch-recording-menu');menu.setAttribute('role','menu');for(const action of actions){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');menu.append(proxy);}pop.append(menu);});
+    mount.append(originals,button);return button;
   }
 
   // --- popover / modal plumbing -------------------------------------------------
@@ -1246,27 +1304,36 @@
   let openPopover = null;
   function closePopover(){
     if (openPopover) {
-      openPopover.remove();
+      openPopover._anchor?.setAttribute('aria-expanded','false');openPopover.remove();
       openPopover = null;
       document.removeEventListener('mousedown', popoverOutside, true);
+      document.removeEventListener('keydown',popoverEscape,true);
     }
   }
+  function popoverEscape(event){if(event.key==='Escape' && openPopover){event.preventDefault();event.stopImmediatePropagation();const anchor=openPopover._anchor;closePopover();anchor?.focus();}}
   function popoverOutside(event){
     if (openPopover && !openPopover.contains(event.target)) closePopover();
   }
   function showPopover(anchor, build){
+    const rect = anchor._popoverRect || anchor.getBoundingClientRect();
     closePopover();
     const pop = el('div', 'fm-ch-popover');
     build(pop);
-    document.body.appendChild(pop);
-    const rect = anchor.getBoundingClientRect();
+    (anchor.closest('dialog[open]') || document.body).appendChild(pop);
+    pop.style.margin='0';pop.style.inset='auto';
+    if(pop.showPopover){pop.setAttribute('popover','manual');pop.showPopover();}
+    else {let layer=1601;for(let node=anchor;node;node=node.parentElement){const z=parseInt(getComputedStyle(node).zIndex,10);if(Number.isFinite(z))layer=Math.max(layer,z+20);}pop.style.zIndex=Math.min(layer,2147483647);}
     const popRect = pop.getBoundingClientRect();
     let top = rect.bottom + 6;
     if (top + popRect.height > window.innerHeight - 8) top = Math.max(8, rect.top - popRect.height - 6);
     let left = Math.min(rect.left, window.innerWidth - popRect.width - 8);
     pop.style.top = `${Math.max(8, top)}px`;
     pop.style.left = `${Math.max(8, left)}px`;
-    openPopover = pop;
+    openPopover = pop;pop._anchor=anchor;anchor.setAttribute('aria-expanded','true');
+    const items=()=>[...pop.querySelectorAll('[role=menuitem]')].filter(item=>!item.disabled);
+    pop.addEventListener('keydown',event=>{if(!['ArrowDown','ArrowUp','ArrowRight','ArrowLeft','Home','End'].includes(event.key))return;const nodes=items();if(!nodes.length)return;event.preventDefault();const index=nodes.indexOf(document.activeElement),next=event.key==='Home' ? 0 : event.key==='End' ? nodes.length-1 : (index+(event.key==='ArrowUp' || event.key==='ArrowLeft' ? -1 : 1)+nodes.length)%nodes.length;nodes[next].focus();});
+    items()[0]?.focus();
+    document.addEventListener('keydown',popoverEscape,true);
     setTimeout(() => document.addEventListener('mousedown', popoverOutside, true), 0);
     return pop;
   }
@@ -1317,7 +1384,8 @@
       foot.appendChild(node);
     }
     onClose = buildBody(body, close);
-    document.body.appendChild(backdrop);
+    (previousFocus?.closest('dialog[open]') || document.body).appendChild(backdrop);
+    if(backdrop.showPopover){backdrop.setAttribute('popover','manual');Object.assign(backdrop.style,{margin:'0',border:'0',width:'100%',height:'100%',boxSizing:'border-box'});backdrop.showPopover();}
     closeBtn.focus();
     return { close, body };
   }
@@ -4383,7 +4451,7 @@
     }
 
     function collectMentions(text){
-      const confirmed = [...new Map([...(mentionApi?.confirmedMentions?.() || []), ...(textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])].map(user=>[user.id || user.user_id || user.email,user])).values()];
+      const confirmed = [...new Map((mentionApi ? mentionApi.confirmedMentions() : (textarea?.mentionUsers?.filter(user => text.includes(`@${user.name}`)) || [])).map(user=>[user.id || user.user_id || user.email,user])).values()];
       if (Array.isArray(confirmed) && confirmed.length) {
         return confirmed.map((user) => ({
           id: cleanText(user.id || user.user_id),
@@ -4399,9 +4467,9 @@
       return (state.activeChannel?.members || []).map(user => user.id || user.user_id);
     }
 
-    function bindRichMentions(editor, box){
+    function bindRichMentions(editor, box, row){
       const channelId = state.activeChannel?.id;
-      mountMentionButton(editor, box, {
+      mountMentionButton(editor, box, {mount:row,
         isCurrent:()=>editor.isConnected && state.activeChannel?.id === channelId,
         candidates:async()=>[
           {id:'broadcast:channel',name:'channel',email:'Everyone in this conversation'},
@@ -4456,9 +4524,10 @@
       const composerInput=textarea;
       if (features.richMessages) box.appendChild(messageFormatBar(composerInput));
       box.appendChild(composerInput);
-      bindRichMentions(composerInput, box);
+
 
       const row = el('div', 'fm-ch-composer-row');
+      const recordingActions=[];
       const pendingWrap = el('div', 'fm-ch-pending-files');
       const channelId=state.activeChannelId, gifPreview=el('div');
       let schedule;
@@ -4597,7 +4666,7 @@
             dictateBtn.disabled = false;
           }
         });
-        row.append(dictateBtn, audioBtn);
+        row.append(dictateBtn);recordingActions.push(audioBtn);
       }
 
       if (features.clips && features.attachments && root.MediaRecorder && navigator.mediaDevices) {
@@ -4617,9 +4686,11 @@
         screenClip.title = (globalThis.PlatformLanguage?.text("channels-ui","m_be0922566fcacc","Record screen clip") ?? "Record screen clip");
         screenClip.setAttribute('aria-label', screenClip.title);
         screenClip.addEventListener('click', () => prepareScreenClip(addClipAttachment));
-        row.append(videoClip, screenClip);
+        videoClip.type=screenClip.type='button';videoClip.setAttribute('aria-label',videoClip.title);
+        recordingActions.push(videoClip,screenClip);
       }
 
+      bindRichMentions(composerInput,box,row);moreActions(row,recordingActions);
       schedule = features.richMessages ? el('button', 'fm-ch-icon-btn', '<i class="fas fa-clock"></i>') : null;
       if (schedule) {
         schedule.title = (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message");
@@ -4720,7 +4791,7 @@
           }
           stopTyping(); if(!wasEditing)composerInput.value = '';
           autosize();
-          mentionApi?.setSelectedMentions?.([]);
+          composerInput.mentionUsers=[];mentionApi?.setSelectedMentions?.([]);
         } catch (error) {
           showError(error);
         } finally {
@@ -4729,11 +4800,41 @@
         }
       };
       send.addEventListener('click', doSend);
-      schedule?.addEventListener('click', async () => {
-        if(gifDrafts.has(channelId))return;
-        if (composerInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
-        const text = composerInput.value.trim();
-        if (!text && !state.pendingAttachments.length) return;
+      schedule?.addEventListener('click', () => {
+        if(schedule.disabled || gifDrafts.has(channelId))return;
+        const validateDraft=()=>{if(composerInput.uploadingFiles)throw new Error('Wait for attachments to finish uploading.');if(gifDrafts.has(channelId))throw new Error('GIF messages cannot be scheduled.');return composerInput.value.trim();};
+        try{if(!validateDraft() && !state.pendingAttachments.length)return;}catch(error){showError(error);return;}
+        let scheduling=false;
+        const saveSchedule=async(date,close)=>{
+          if(scheduling)return;
+          scheduling=true;schedule.disabled=true;send.disabled=true;
+          try {
+            const text=validateDraft();
+            if(!text && !state.pendingAttachments.length)throw new Error('Write a message or add an attachment.');
+            if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) throw new Error('Choose a future date and time.');
+            const scheduledResult = await api.scheduled.create(orgId, {
+              channel_id:channelId,
+              text,
+              content:{ type:'doc', blocks:[{ type:'paragraph', text }] },
+              attachment_ids:state.pendingAttachments.map((attachment) => attachment.id),
+              scheduled_at:date.toISOString(),
+              timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone || 'UTC',
+              client_operation_id:`schedule_${Date.now().toString(36)}`
+            });
+            if(state.destroyed || state.activeChannelId!==channelId || !composerInput.isConnected){close();return;}
+            if (scheduledResult.scheduled_message) { state.scheduledMessages.push(scheduledResult.scheduled_message); renderMessages(); }
+            composerInput.value = '';autosize();
+            state.pendingAttachments = [];
+            pendingWrap.innerHTML = '';
+            api.drafts?.remove?.(orgId, draftKey).catch(() => {});
+            close();
+            await refreshScheduledMessages();
+            root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("channels-ui","m_adcf3157ee531f","Message scheduled") ?? "Message scheduled"), ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_030b85747ce9b2",`It will send ${v0}.`,{v0}) ?? `It will send ${v0}.`)(date.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())), true);
+          } catch (error) { showError(error); }
+          finally{scheduling=false;schedule.disabled=gifDrafts.has(channelId);send.disabled=false;}
+
+        };
+        const customTime=async()=>{
         if (!root.FirstMateDateTimePicker?.mount) {
           try { await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/date-time-picker/date-time-picker.js?v=20260929-inline';script.onload=resolve;script.onerror=reject;document.head.append(script);}); }
           catch (_) { showError(new Error('The scheduling calendar could not load. Please try again.')); return; }
@@ -4748,29 +4849,15 @@
           body.querySelector('input').min=new Date(earliest.getTime()-earliest.getTimezoneOffset()*60_000).toISOString().slice(0,16);
           inlinePicker=root.FirstMateDateTimePicker.mount(body.querySelector('[data-schedule-calendar]'),body.querySelector('input'));
           return ()=>inlinePicker?.destroy();
-        }, [{ label:'Schedule send', primary:true, onClick:async (close, body) => {
-          try {
-            const date = new Date(inlinePicker?.readValue() || '');
-            if (!Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) throw new Error('Choose a future date and time.');
-            const scheduledResult = await api.scheduled.create(orgId, {
-              channel_id:state.activeChannelId,
-              text,
-              content:{ type:'doc', blocks:[{ type:'paragraph', text }] },
-              attachment_ids:state.pendingAttachments.map((attachment) => attachment.id),
-              scheduled_at:date.toISOString(),
-              timezone:Intl.DateTimeFormat(globalThis.PlatformLanguage?.formatLocale?.()).resolvedOptions().timeZone || 'UTC',
-              client_operation_id:`schedule_${Date.now().toString(36)}`
-            });
-            if (scheduledResult.scheduled_message) { state.scheduledMessages.push(scheduledResult.scheduled_message); renderMessages(); }
-            composerInput.value = '';
-            state.pendingAttachments = [];
-            pendingWrap.innerHTML = '';
-            api.drafts?.remove?.(orgId, draftKey).catch(() => {});
-            close();
-            await refreshScheduledMessages();
-            root.Portal?.ui?.showToast?.((globalThis.PlatformLanguage?.text("channels-ui","m_adcf3157ee531f","Message scheduled") ?? "Message scheduled"), ((v0) => globalThis.PlatformLanguage?.text("channels-ui","m_030b85747ce9b2",`It will send ${v0}.`,{v0}) ?? `It will send ${v0}.`)(date.toLocaleString(globalThis.PlatformLanguage?.formatLocale?.())), true);
-          } catch (error) { showError(error); }
-        } }]);
+        }, [{label:'Schedule send',primary:true,onClick:(close)=>saveSchedule(new Date(inlinePicker?.readValue() || ''),close)}]);
+        };
+        showPopover(schedule,pop=>{
+          const menu=el('div','fm-ch-schedule-menu');menu.setAttribute('role','menu');menu.append(el('header','','Schedule message'));
+          for(const [label,days] of [['Tomorrow at 9:00 AM',1],['Next Monday at 9:00 AM',null]]){
+            const button=el('button','',label);button.type='button';button.setAttribute('role','menuitem');button.onclick=async()=>{if(scheduling)return;const date=new Date();date.setDate(date.getDate()+(days ?? ((1-date.getDay()+7)%7 || 7)));date.setHours(9,0,0,0);button.disabled=true;await saveSchedule(date,closePopover);if(button.isConnected)button.disabled=false;};menu.append(button);
+          }
+          menu.append(el('hr'));const custom=el('button','','Custom time');custom.type='button';custom.setAttribute('role','menuitem');custom.onclick=()=>{closePopover();customTime();};menu.append(custom);pop.append(menu);
+        });
       });
       bindEnterToSend(composerInput, doSend);
       composerInput.addEventListener('keydown', (event) => {
@@ -4794,7 +4881,7 @@
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6a6c0d2dcfcb47","Editing message") ?? "Editing message")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', cancelEdit);
         composerInput.value = message.text;
-        composerInput.mentionUsers = [...(message.mention_users || [])];
+        composerInput.mentionUsers = [...(message.mention_users || []),...(message.metadata?.mention_broadcasts || []).map(name=>({id:'broadcast:'+name,name}))];
         mentionApi?.setSelectedMentions?.(composerInput.mentionUsers);
         send.textContent='Save changes';if(schedule)schedule.hidden=true;gifButton.disabled=true;gifPreview.hidden=true;
         composerState.audience = [...(message.audience || [])];
@@ -4931,7 +5018,7 @@
       composerFileUploads(threadInput, pendingWrap, attachment => threadFiles.push(attachment), id => { const i = threadFiles.findIndex(item => item.id === id); if (i >= 0) threadFiles.splice(i, 1); });
       if (features.richMessages) box.appendChild(messageFormatBar(threadInput));
       box.appendChild(threadInput);
-      bindRichMentions(threadInput, box);
+
       const row = el('div', 'fm-ch-composer-row');
       const send = el('button', 'fm-ch-send', 'Reply');
       send.type = 'button';
@@ -4940,6 +5027,7 @@
       broadcast.type = 'checkbox';
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
       row.append(broadcastLabel, send);
+      bindRichMentions(threadInput,box,row);
       if(features.attachments)row.prepend(gifButton);
       box.appendChild(row);
       node.append(gifPreview, pendingWrap, box, composerHint());
@@ -4961,7 +5049,7 @@
         if (!text && !threadFiles.length && (editingId || !threadGif)) return;
         send.disabled = true;
         try {
-          const mentions = [...new Map([...(threadMentionApi?.confirmedMentions?.() || []), ...threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))].map(user=>[user.id || user.user_id || user.email,user])).values()];
+          const mentions = [...new Map((threadMentionApi ? threadMentionApi.confirmedMentions() : threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))).map(user=>[user.id || user.user_id || user.email,user])).values()];
           if (editingId) {
             const data = await api.messages.edit(orgId, editingId, { text, mention_users: mentions });
             replaceMessage(data.message);
@@ -4984,7 +5072,7 @@
             await refreshActiveMessages();
           }
           stopTyping(); threadInput.value = '';
-          threadMentionApi?.setSelectedMentions?.([]);
+          threadInput.mentionUsers=[];threadMentionApi?.setSelectedMentions?.([]);
         } catch (error) {
           showError(error);
         } finally {
@@ -5005,7 +5093,7 @@
           threadInput.value = '';
         });
         threadInput.value = message.text;
-        threadInput.mentionUsers = [...(message.mention_users || [])];
+        threadInput.mentionUsers = [...(message.mention_users || []),...(message.metadata?.mention_broadcasts || []).map(name=>({id:'broadcast:'+name,name}))];
         threadMentionApi?.setSelectedMentions?.(threadInput.mentionUsers);
         threadInput.focus();
       };
@@ -6144,6 +6232,6 @@
     return title;
   }
 
-  const composerWidgets={renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
+  const composerWidgets={renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,moreActions,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();

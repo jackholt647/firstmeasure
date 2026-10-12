@@ -39,12 +39,13 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   const post=page.locator('[data-feed-post="manual:root"]');await post.waitFor();assert.equal(await post.locator('.pf-manual-gif .fm-widget-gif').count(),1);assert.equal(await post.locator('.pf-manual-gif figcaption img').getAttribute('alt'),'Powered by GIPHY');
   await post.getByRole('button',{name:'Comments',exact:true}).click();
   const choose=async trigger=>{await trigger.click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'Choose test GIF'}).click();};
-  await post.locator('textarea').fill('Caption');await choose(post.locator('[data-comment-gif]'));
-  assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('textarea').inputValue(),'Caption');
+  assert.ok(await post.locator('[data-comment-editor]').evaluate(n=>n.getBoundingClientRect().height<=28));assert.equal(await post.locator('.fm-ch-formatbar').evaluate(n=>getComputedStyle(n).borderBottomWidth),'0px');
+  await post.locator('[data-comment-editor]').fill('Caption');await choose(post.locator('[data-comment-gif]'));
+  assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('[data-comment-editor]').evaluate(n=>n.value),'Caption');
   await post.getByRole('button',{name:'Remove GIF'}).click();assert.equal(await post.locator('.pf-composer-gif').count(),0);
   await choose(post.locator('[data-comment-gif]'));await page.evaluate(()=>window.failComment=true);
   await post.getByRole('button',{name:'Post comment'}).click();await post.locator('.pf-composer-gif>.fm-widget-gif>a>img').waitFor();
-  assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('textarea').inputValue(),'Caption');
+  assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('[data-comment-editor]').evaluate(n=>n.value),'Caption');
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===1);
   assert.equal(await page.evaluate(()=>comments[0].metadata.giphy.id),'draft-gif');assert.equal(await page.evaluate(()=>comments[0].text),'Caption');assert.equal(await post.locator('.pf-comment .fm-widget-gif figcaption img').count(),1);
   assert.equal(await post.locator('.pf-composer-gif').count(),0);
@@ -52,6 +53,7 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===2);assert.equal(await page.evaluate(()=>comments[1].text),'');
   await page.locator('[data-feed-compose-open]').click();
   const postEditor=page.locator('[data-feed-compose] [contenteditable]');
+  assert.ok(await postEditor.evaluate(n=>n.getBoundingClientRect().height>=300),'manual posts keep their large editor');
   for(const name of ['Bold','Italic','Strikethrough']){await postEditor.evaluate(n=>{n.value='';n.focus();const r=document.createRange();r.selectNodeContents(n);r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);});const toggle=page.locator('.pf-post-formatbar').getByRole('button',{name,exact:true});await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'true');assert.equal(await toggle.evaluate(n=>getComputedStyle(n).color),'rgb(217, 48, 37)');await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'false');}
 
   await choose(page.locator('[data-feed-compose-gif]'));assert.equal(await page.evaluate(()=>posts.length),0);

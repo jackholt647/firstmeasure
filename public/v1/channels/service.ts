@@ -1244,6 +1244,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   }
   const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const detectedLanguage = detectMessageLanguage(input.text);
+  metadata.mention_broadcasts = selectedBroadcastMentions(input.mention_users || []);
   input.mention_users = await resolveMentionUsers(ctx, input.mention_users, channelId, input.text);
   const message = await getChannelsDatabase().transaction(async () => {
     const existing = clientMsgId ? await findMessageByClientId(channelId, ctx.userId, clientMsgId) : null;
@@ -1466,6 +1467,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   const channelTags = (input.mention_users || []).filter(user => cleanText(user.id).startsWith("channel:"));
   const previousMentions = new Set(message.mention_users.map((user) => cleanText(user.id || user.user_id)).filter(Boolean));
   const detectedLanguage = detectMessageLanguage(input.text);
+  const mentionBroadcasts=input.mention_users !== undefined ? selectedBroadcastMentions(input.mention_users) : message.metadata.mention_broadcasts;
   input.mention_users = await resolveMentionUsers(ctx, input.mention_users || message.mention_users, channel.id, input.text);
   const updated = (await editMessageRecord(ctx.orgId, message, {
     text: input.text,
@@ -1475,7 +1477,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
     language_confidence: detectedLanguage.confidence,
     audience: channel.type === "project" ? input.audience : undefined,
     tags: input.tags,
-    ...(departmentVisibility ? {metadata:{...message.metadata,...departmentVisibility}} : {}),
+    metadata:{...message.metadata,...departmentVisibility,...(mentionBroadcasts !== undefined ? {mention_broadcasts:mentionBroadcasts} : {})},
     mention_users: input.mention_users,
     edited_by: ctx.userId
   }));
@@ -2588,14 +2590,15 @@ export async function searchMessages(ctx: PlatformAuthContext, query: string, op
 
 // Expand group mentions at send time so membership and online status are fresh.
 // Outside Channels callers can select channel:<id>; never trust client member lists.
+function selectedBroadcastMentions(mentions:JsonObject[]){
+  return [...new Set(mentions.map(user=>cleanText(user.id || user.user_id)).filter(id=>id==='broadcast:channel' || id==='broadcast:here').map(id=>id.slice(10)))];
+}
+
 export async function resolveMentionUsers(ctx: PlatformAuthContext, mentions: JsonObject[] = [], channelId?: string, text = "") {
   const selected = [...mentions];
   const conversation = channelId ? (await requireChannelAccess(ctx, channelId)).channel : null;
   const restricted = conversation && conversation.type !== "project";
   const members = restricted ? new Set((await effectiveChannelMembers(conversation!)).map(member => member.user_id)) : null;
-  if (channelId) for (const name of ["channel", "here"]) {
-    if (new RegExp(`(^|\\s)@${name}(?=$|[\\s.,!?;:])`, "i").test(text)) selected.push({id:`broadcast:${name}`});
-  }
   const targets = new Map<string, JsonObject>();
   const directory = await userDirectory(ctx.orgId);
   for (const mention of selected) {

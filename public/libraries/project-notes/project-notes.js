@@ -812,6 +812,17 @@
 `;
     extraStyle.textContent+=`.pn-workspace{background:#fafbfc}.pn-workspace .pn-history{position:relative;z-index:0;margin-bottom:-20px;padding-bottom:28px;mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent 100%)}.pn-workspace .pn-composer{position:relative;z-index:1;padding-top:24px;background:transparent}`;
     extraStyle.textContent+=`.pn-card footer>[data-act=replies],.pn-workspace .pn-reply-add-row button{border:0;background:transparent;padding:0;border-radius:0;font:inherit;font-size:10px;font-weight:400;color:#667085;cursor:pointer;line-height:normal}.pn-card footer>[data-act=replies][hidden],.pn-reply-add-row[hidden]{display:none}`;
+    extraStyle.textContent+=`
+      .pn-workspace .pn-composer-box{padding:5px 7px 3px}
+      .pn-workspace .pn-editor-mount>.fm-ch-rich-editor,.pn-workspace .pn-editor-mount>textarea{box-sizing:border-box;min-height:24px;padding:2px 0;line-height:20px;font-size:13px;max-height:220px}
+      .pn-workspace .pn-editor-mount>.fm-ch-formatbar{border-bottom:0;padding-bottom:0;margin-bottom:2px;min-height:26px;flex-wrap:nowrap}
+      .pn-workspace .pn-compose-actions{margin-top:4px;gap:3px;min-height:26px}
+      .pn-workspace .pn-compose-actions>.pn-icon,.pn-workspace .pn-compose-actions>[data-mention-button]{width:26px;height:26px;padding:3px;border:0;background:transparent;cursor:pointer;color:#667085;border-radius:5px}
+      .pn-workspace .pn-inline-edit-actions{margin-top:4px}.pn-workspace .pn-add button{height:26px;min-height:0;padding:3px 7px}
+      .pn-workspace .pn-main-audience{float:none;position:absolute;right:7px;top:5px;max-width:105px;margin:0}
+      .pn-workspace .pn-composer .pn-editor-mount>.fm-ch-formatbar{margin-right:110px}
+      .pn-workspace .pn-compose-actions>[hidden]{display:none!important}
+    `;
     container.append(extraStyle);
     let disposed=false,busy=false,prepared=[],query='',showArchived=false,editSession=null,gifDraft=null;
     const lifetime=new AbortController(),captureAbort=new AbortController(),expanded=new Set(),replyThreads=new Map();
@@ -829,8 +840,11 @@
     function createEditor(mount,placeholder){
       const editor=widgets?.createEditor ? widgets.createEditor(placeholder) : document.createElement('textarea');
       editor.setAttribute('aria-label',placeholder);editor.placeholder=placeholder;
-      if(widgets?.formatBar)mount.append(widgets.formatBar(editor,['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Quote']));
-      mount.append(editor);return editor;
+      if(widgets?.formatBar)mount.append(widgets.formatBar(editor));
+      mount.append(editor);
+      const owner=mount.closest('form'),actions=owner?.querySelector('.pn-compose-actions');
+      if(actions){const mention=widgets?.mentionButton?.(editor,owner,{mount:actions,onError:cause=>say(cause.message)});if(mention)actions.querySelector('.pn-add')?.before(mention);const more=widgets?.moreActions?.(actions,[owner.querySelector('[data-audio]')]);if(more){more.classList.add('pn-icon');actions.querySelector('.pn-add')?.before(more);}}
+      return editor;
     }
     const selectedAuthors=new Set();let projectAuthors=null,filteredBefore=0,authorRequest=0,allAuthorsSelected=true;
     const audienceClosers=new WeakMap(),audienceMenus=new WeakMap(),audienceHandles=new Set();
@@ -898,6 +912,7 @@
     }
     const text=createEditor(form.querySelector('.pn-editor-mount'),commentMode ? 'Leave a comment.' : 'Add an internal note.');text.setAttribute('aria-label',copy('New project note'));
     const mentions=window.FirstMateTags?.attachMentionTextarea?.(text,{orgId:orgId(),source:'project_notes'}),audience=audienceChooser(form.querySelector('.pn-audience'));
+    text._mentionApi=mentions;
     const sendButton=form.querySelector('[type=submit]'),dictateButton=form.querySelector('[data-dictate]'),audioButton=form.querySelector('[data-audio]');
     let capturing=false,captureMode='',recorderControl=null,uploading=0,emojiPicker=null;
     const emojiButton=form.querySelector('[data-emoji]'),emojiPop=form.querySelector('.pn-emoji-pop');
@@ -1034,6 +1049,7 @@
     function mountReplyComposer(thread){
       const replyForm=thread.form,editor=createEditor(replyForm.querySelector('.pn-editor-mount'),'Write a reply…'),uploads=replyForm.querySelector('.pn-uploads'),error=replyForm.querySelector('.pn-reply-error'),send=replyForm.querySelector('[type=submit]'),files=replyForm.querySelector('[type=file]'),attach=replyForm.querySelector('[data-attach]'),dictate=replyForm.querySelector('[data-dictate]'),audio=replyForm.querySelector('[data-audio]'),emoji=replyForm.querySelector('[data-emoji]'),pop=replyForm.querySelector('.pn-emoji-pop');
       const tags=window.FirstMateTags?.attachMentionTextarea?.(editor,{orgId:orgId(),source:'project_notes'}),abort=new AbortController();
+      editor._mentionApi=tags;
       let replyGif=null;
       let pending=[],saving=false,uploading=0,recording=false,mode='',control=null,picker=null,destroyed=false,operationId='';
       const alive=()=>!disposed && !destroyed;

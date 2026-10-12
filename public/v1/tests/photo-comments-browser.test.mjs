@@ -32,8 +32,8 @@ test('photo viewer mounts Notes controls, keeps per-photo drafts, scopes posts a
   await page.evaluate(()=>viewer.commentWorkspaces.get('a').handle.ready);
   const editor=page.getByRole('textbox',{name:'New photo comment',exact:true});
   assert.equal(await page.locator('[data-photo-comment-input]').count(),0);
-  assert.deepEqual(await page.locator('.pn-composer .fm-ch-formatbar > button').evaluateAll(nodes=>nodes.map(node=>node.title)),['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Quote']);
-  assert.deepEqual(await page.locator('.pn-compose-actions > button').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('aria-label'))),['Insert emoji','Attach a GIF','Attach a file','Dictate message','Record an audio comment']);
+  assert.deepEqual(await page.locator('.pn-composer .fm-ch-formatbar > button').evaluateAll(nodes=>nodes.map(node=>node.title)),['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Link','Clear formatting','Table','Quote','Code block','See more formatting']);
+  assert.deepEqual(await page.locator('.pn-compose-actions > button').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('aria-label'))),['Insert emoji','Attach a GIF','Attach a file','Dictate message','Mention a teammate','More options']);
   await editor.fill('Draft A');await page.evaluate(()=>viewer.show(1));await page.evaluate(()=>viewer.commentWorkspaces.get('b').handle.ready);assert.equal(await editor.evaluate(node=>node.value),'');await editor.fill('Draft B');await page.evaluate(()=>viewer.show(0));assert.equal(await editor.evaluate(node=>node.value),'Draft A');
   await editor.fill('First comment');await editor.press('Shift+Enter');await editor.press('A');assert.equal(await page.evaluate(()=>posted.length),0);await editor.press('Enter');await page.waitForFunction(()=>posted.length===1);assert.equal(await page.evaluate(()=>posted[0].channel),'photo-a');assert.equal(await editor.evaluate(node=>node.value),'');assert.equal(await page.locator('.pn-card').count(),1);
   await page.evaluate(()=>window.failPost=true);await editor.fill('Keep on failure');await editor.press('Enter');await page.getByRole('alert').filter({hasText:'Save failed'}).waitFor();assert.equal(await editor.evaluate(node=>node.value),'Keep on failure');await page.evaluate(()=>window.failPost=false);
@@ -65,5 +65,5 @@ test('photo viewer mounts Notes controls, keeps per-photo drafts, scopes posts a
   await page.setViewportSize({width:650,height:750});assert.equal(await page.locator('[data-photo-comments]').evaluate(host=>host.scrollWidth<=host.clientWidth+2),true);
   await mkdir(publicRoot+'../output/photo-comments',{recursive:true});await page.screenshot({path:publicRoot+'../output/photo-comments/viewer.png'});
   await page.evaluate(()=>viewer.close());assert.equal(await page.locator('.fm-photo-modal').count(),0);assert.deepEqual(errors,[]);
- }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+ }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
