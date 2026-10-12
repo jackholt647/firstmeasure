@@ -41,9 +41,9 @@
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
-    versionedBundle('photos/feed.js', '20261012-shared-gif-v8'),
+    versionedBundle('photos/feed.js', '20261012-reply-participants-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-gif-v8'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-reply-participants-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261012-shared-gif-v8'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-activity-labels-v4'),
     versionedBundle('../project-trays/project-trays.js', '20261012-activity-labels-v4')
@@ -112,7 +112,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
       access: managementAccess,
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20261012-shared-gif-v8')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('photos/feed.js', '20261012-reply-participants-v1')]
     },
     {
       id: 'portal.receipts',
@@ -124,7 +124,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
       access: managementAccess,
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20261012-shared-gif-v8'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260714-receipt-browser'), versionedBundle('photos/feed.js', '20261012-reply-participants-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -200,7 +200,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20261012-shared-gif-v8'),
+        versionedBundle('photos/feed.js', '20261012-reply-participants-v1'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -229,7 +229,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
-        versionedBundle('photos/feed.js', '20261012-shared-gif-v8'),
+        versionedBundle('photos/feed.js', '20261012-reply-participants-v1'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -285,7 +285,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261012-shared-gif-v8'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261012-reply-participants-v1'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.request',
@@ -550,9 +550,9 @@
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
-        versionedBundle('photos/feed.js', '20261012-shared-gif-v8'),
+        versionedBundle('photos/feed.js', '20261012-reply-participants-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-gif-v8'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-reply-participants-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261012-shared-gif-v8'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
