@@ -1,3 +1,4 @@
+import { notifySmsCampaignApproved } from "./approval_notifications.js";
 import { createPublicKey, randomUUID, verify } from "node:crypto";
 
 import { env } from "../src/config/env.js";
@@ -655,7 +656,8 @@ export async function processTenDlcEvent(eventId: string, eventType: string, occ
     return {
       event: {
         type: "provider_webhook_received", provider: "telnyx", provider_event_id: eventId,
-        provider_event_type: eventType, provider_state_key: stateKey, occurred_at: occurredAt, payload
+        provider_event_type: eventType, provider_state_key: stateKey, occurred_at: occurredAt, payload,
+        approval_notification_campaign_id: cleanText(patch.campaign_status || current.campaign_status) === "mno_provisioned" ? cleanText(current.provider_refs.telnyx_campaign_id) : ""
       },
       patch,
       result: {
@@ -698,6 +700,7 @@ export async function processTenDlcEvent(eventId: string, eventType: string, occ
       }
     }));
   }
+  await notifySmsCampaignApproved(saved);
   if (mutation.result.active) await setDefaultSmsComplianceProfile(saved);
   return mutation;
 }

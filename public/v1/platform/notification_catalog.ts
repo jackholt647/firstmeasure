@@ -62,6 +62,9 @@ export function scopeNotificationDefinitions(branch:string,template:string,defin
 export async function notificationSourceCatalog(orgId:string,branch='default',auth?:PlatformAuthContext):Promise<NotificationGroup[]> {
  const groups:NotificationGroup[]=[];
  if(!await isAppFlagEnabled(orgId,'apps','notifications'))return groups;
+ if(await isAppFlagEnabled(orgId,'platform','sms_settings') && (!auth || hasPermission(auth,'manage_company_settings')))groups.push({id:'sms_registration',label:'SMS registration',kind:'app',definitions:[{
+  key:'sms_registration.approved',label:'SMS registration approved',description:'Carrier approval of your business SMS campaign.',category:'system',tab:'general',permission:'manage_company_settings',defaults:{in_app:true,push:false},methods:['in_app','email']
+ }]});
  if(await isAppFlagEnabled(orgId,'apps','channels'))groups.push({id:'channels.replies',label:'Channels',kind:'app',definitions:[channelReplyNotification]});
  if(await isAppFlagEnabled(orgId,'apps','firstmeasure'))groups.push({id:'measurements',label:'Measurements',kind:'app',definitions:[
   ['report_delivered','Report delivered','Your report is ready to view and download.'],['report_revised','Corrected report delivered','A corrected report is ready.'],['report_canceled','Order canceled','An order was canceled.'],['report_rejected','Order rejected','An order could not be accepted.'],['report_status','Order progress','An order moved to the next stage.']

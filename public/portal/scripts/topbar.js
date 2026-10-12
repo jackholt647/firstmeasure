@@ -908,10 +908,16 @@
     }
   }
 
+  function openSmsRegistrationNotification(item){
+    if (item?.frontend_action?.kind !== 'open_sms_registration' || !window.Portal?.navigation?.navigate) return false;
+    window.Portal.navigation.navigate({tab:'company_settings',sub:'sms',workflow:'10dlc',workflow_step:'summary'}, {source:'notification-sms-registration'});
+    return true;
+  }
+
   async function openNotificationItem(item){
     if (!item) return;
     window.PlatformNotifications?.markSeen(orgId(), item.id, notificationLoadOptions({ reload:true })).catch(() => null);
-    if (openAssistantNotification(item) || openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
+    if (openSmsRegistrationNotification(item) || openAssistantNotification(item) || openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
       closeNotificationMenus();
     } else if (notificationOpensProject(item) || isLeadNotification(item)) {
       await openNotificationProject(item);

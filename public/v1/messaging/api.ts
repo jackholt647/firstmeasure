@@ -1,3 +1,4 @@
+import { notifySmsCampaignApproved } from "./approval_notifications.js";
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest, type RequestOptions as HttpsRequestOptions } from "node:https";
@@ -2770,6 +2771,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       return {
         event: {
           type: "provider_status_refreshed",
+          approval_notification_campaign_id: campaignStatus === "mno_provisioned" ? campaignId : "",
           provider: "telnyx",
           brand: brandResponse ? brand : null,
           campaign: campaignResponse ? campaign : null,
@@ -2813,6 +2815,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         metadata: { number_order_id: numberOrderId, compliance_profile_id: profile.id, provider_price_source: "availability_inventory" }
       }));
     }
+    await notifySmsCampaignApproved(saved);
     if (active) await setDefaultSmsComplianceProfile(saved);
     await ensureDefaultSenderIdentities(orgId);
     return { ok: true, brand: brandResponse, campaign: campaignResponse, number_order: numberOrderResponse, number_campaign: assignmentResponse, profile: publicSmsComplianceProfile(saved) };
