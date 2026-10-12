@@ -134,23 +134,23 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.FirstMateWidgets={mount(root,ref,context){window.roofContext=context;widgetMounts.push(ref.id);root.innerHTML='<div>Cached '+ref.id+'</div>';return {setVisible(){},destroy(){widgetDestroyed++;}};}};
       helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project');
     });
-    const tile=page.locator('[data-scope-document="contract"]');
-    await tile.hover();assert.ok(await tile.getByRole('tooltip').isVisible());
-    await page.locator('[data-scope-document="contract"]').click();
+    assert.equal(await page.getByRole('tab',{name:'Measurements',exact:true}).getAttribute('aria-selected'),'true');assert.ok(await page.getByText('Cached reports.roof').isVisible());
+    await page.getByRole('tab',{name:'Documents',exact:true}).click();
+    const tile=page.locator('[data-scope-document="contract"]');assert.equal(await tile.getAttribute('aria-pressed'),'true');
     await page.getByText('Rendered accepted roof contract').waitFor();
     assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>renderedSnapshot.id),'captured-definition');assert.deepEqual(await page.evaluate(()=>renderedContext),{params:{contract_value:12345},outputs:{signed:true}});
-    assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());
-    await page.getByRole('button',{name:'Back',exact:false}).click();assert.ok(await tile.isVisible());
+    assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());assert.equal(await page.getByRole('button',{name:'Back',exact:false}).count(),0);
+    await page.getByRole('tab',{name:'Measurements',exact:true}).click();assert.equal(await page.locator('[data-scope-measure="roofArea"]').isVisible(),false);await page.getByText('All measurements',{exact:true}).click();
     assert.equal(await page.locator('[data-scope-document="report"]').count(),0);
     assert.equal(await page.locator('[data-scope-measure="roofArea"]').inputValue(),'1400');
     assert.equal(await page.locator('.sw-measurements [role=tooltip]').count(),0);
-    for(let i=0;i<3;i++){await page.getByRole('tab',{name:'3D Roof',exact:true}).click();await page.getByRole('tab',{name:'Photos',exact:true}).click();await page.getByRole('tab',{name:'Scope of Work',exact:true}).click();}
+    for(let i=0;i<3;i++){await page.getByRole('tab',{name:'Documents',exact:true}).click();await page.getByRole('tab',{name:'Photos',exact:true}).click();await page.getByRole('tab',{name:'Measurements',exact:true}).click();}
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1500},onMeasurementChange:(key,value)=>window.edited={key,value}}));
     assert.equal(await page.locator('[data-scope-measure="roofArea"]').inputValue(),'1500');
     await page.locator('[data-scope-measure="roofArea"]').fill('1600');await page.locator('[data-scope-measure="roofArea"]').press('Tab');
     assert.deepEqual(await page.evaluate(()=>edited),{key:'roofArea',value:1600});await page.evaluate(()=>roofContext.onMeasurementChange('roofArea',1750));assert.equal(await page.locator('[data-scope-measure=roofArea]').inputValue(),'1750');assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1750);
     assert.deepEqual(await page.evaluate(()=>widgetMounts),['reports.roof']);assert.equal(await page.evaluate(()=>widgetDestroyed),0);
-    assert.equal(await page.getByRole('tab').count(),3);assert.ok(await page.getByRole('tab',{name:'Scope of Work'}).isVisible());
+    assert.equal(await page.getByRole('tab').count(),3);assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['Measurements','Documents','Photos']);
     const widths=()=>page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width));
     let w=await widths();assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),3);
     await page.evaluate(()=>{state.lists=[{id:'m',title:'Materials',resource_type:'material'},{id:'l',title:'Labor',resource_type:'labor'}];state.visibleListIds=new Set(['m','l']);items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});
@@ -182,7 +182,7 @@ test('real report values have rounded editable quantities, full edge coverage an
  assert.equal(await page.locator('.sw-measure-grid').nth(2).evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),3);
  const field=page.locator('[data-scope-measure="roofSquares"]').locator('..').locator('..');const name=await field.locator('.sw-measure-name').boundingBox(),value=await field.locator('input').boundingBox();assert.ok(Math.abs((name.y+name.height/2)-(value.y+value.height/2))<2);
  assert.equal(await page.locator('.sw-measure-note').count(),0);assert.match(await field.getAttribute('title'),/100 square feet/);assert.ok((await page.locator('.sw-measurements').boundingBox()).height<420);
- await page.evaluate(values=>{const rail=document.querySelector('aside');rail.style.height='650px';rail.style.display='flex';rail.style.flexDirection='column';scopeModule.mountSidebar(rail,[{id:'report',source:'measurement',value:{measurements:values}}],'','density-resize',{onMeasurementChange:(key,value)=>window.changedMeasurement={key,value}});rail.querySelector('[data-show-zero]').click();rail.style.width='310px';},values);await page.waitForFunction(()=>getComputedStyle(document.querySelectorAll('.sw-measure-grid')[1]).gridTemplateColumns.split(' ').length===2);assert.equal(await page.locator('.sw-measure-grid').nth(1).evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2);
+ await page.evaluate(values=>{const rail=document.querySelector('aside');rail.style.height='650px';rail.style.display='flex';rail.style.flexDirection='column';scopeModule.mountSidebar(rail,[{id:'report',source:'measurement',value:{measurements:values}}],'','density-resize',{onMeasurementChange:(key,value)=>window.changedMeasurement={key,value}});rail.querySelector('.sw-all-measures').open=true;rail.querySelector('[data-show-zero]').click();rail.style.width='310px';},values);await page.waitForFunction(()=>getComputedStyle(document.querySelectorAll('.sw-measure-grid')[1]).gridTemplateColumns.split(' ').length===2);assert.equal(await page.locator('.sw-measure-grid').nth(1).evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2);
  const narrow=page.locator('.sw-measure-grid').nth(2);assert.equal(await narrow.evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2);assert.ok(await narrow.locator('.is-wide').count()>0);assert.ok(await narrow.locator('label').last().evaluate(e=>e.classList.contains('is-wide')));const wide=await narrow.locator('.is-wide').first().boundingBox(),gridBox=await narrow.boundingBox();assert.ok(Math.abs(wide.width-gridBox.width)<1);assert.ok((await page.getByLabel('Hips',{exact:true}).boundingBox()).width<50);
  const head=page.locator('[data-scope-measure="headWallLf"]');await head.fill('e-3');assert.equal(await head.inputValue(),'');await head.fill('0.003');await head.press('Tab');assert.equal(await head.inputValue(),'0');assert.deepEqual(await page.evaluate(()=>changedMeasurement),{key:'headWallLf',value:0.003});
  await page.locator('[data-show-zero]').uncheck();assert.equal(await page.locator('[data-scope-measure="parapetLf"]').count(),0);await page.locator('[data-show-zero]').check();assert.equal(await page.locator('[data-scope-measure="parapetLf"]').count(),1);
