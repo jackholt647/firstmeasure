@@ -286,3 +286,21 @@ test('directional cap projects analytic curved boundaries and their connecting s
  const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),q=(x,y)=>({x,y,z:0}),c={...K.splineThrough([q(1,3),q(3,3)],[q(2,4)],{x:0,y:0,z:1}),id:'arch'},flat=K.archFaces([{id:'opening',points:[q(1,1),q(3,1),q(3,3),q(1,3)],holes:[]}],c).faces[0],map=p=>({...p,z:.2*p.x}),face={...flat,...K.mapCurveData(flat,map),points:flat.points.map(map)},r=G.extrude(face,.3,{direction:{x:0,y:0,z:1}});
  assert.ok(r.cap.curves.flatMap(c=>K.curveSamples(c)).every(p=>Math.abs(p.z-.9)<1e-6));const curved=r.sides.filter(f=>f.curvedSurface);assert.ok(curved.length);for(const f of curved){assert.equal(f.curvedSurface.type,'conic-ruled');assert.ok(K.curveSamples(f.curvedSurface.finish).every(p=>Math.abs(p.z-.9)<1e-6));K.validateFace(f);}
 });
+
+test('new surface boundaries reclaim deleted coordinates without resurrecting old wire',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,1),b=p(2,0,1),c=p(2,2,1),d=p(0,2,1),stray=p(5,0,1),old={id:'old',deleted:true,points:[a,c,stray]},face={id:'new',points:[a,b,c,d]},before={$surfaces:[old],$loose:{points:[a,stray],edges:[[a,stray]]},$removedSurfacePoints:[G.vertexKey(a),G.vertexKey(c)],$removedSurfaceEdges:[G.edgeKey(a,c)]},candidate=structuredClone(before);candidate.$surfaces.push(face);const snapshot=JSON.stringify(candidate),next=M.prepareEdits({},candidate,before),wire=G.surfaceWire(next);
+ assert.equal(JSON.stringify(candidate),snapshot,'prepare remains immutable');for(const q of face.points)assert.ok(wire.nodes.some(n=>n.id===G.vertexKey(q)));for(let i=0;i<4;i++)assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[i],face.points[(i+1)%4])));
+ assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,c)),'old diagonal stays deleted');assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,stray)),'old loose connection stays deleted');assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(c,stray)),'deleted source cannot regain a side');assert.deepEqual(G.surfaceWire(JSON.parse(JSON.stringify(next))),wire,'reload retains scoped exclusions');assert.deepEqual(M.prepareEdits({},next,next),next,'repeated validation is stable');
+});
+test('new surface reclaims only its part of a previously deleted edge',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(4,0,0),before={$surfaces:[{id:'old',deleted:true,points:[a,b,p(4,0,2),p(0,0,2)]}],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before),face={id:'new',points:[p(1,0,0),p(3,0,0),p(3,1,0),p(1,1,0)]};candidate.$surfaces.push(face);const next=M.prepareEdits({},candidate,before),wire=G.surfaceWire(next);
+ assert.deepEqual(new Set(next.$removedSurfaceEdges),new Set([G.edgeKey(a,p(1,0,0)),G.edgeKey(p(3,0,0),b)]));assert.ok(wire.edges.some(e=>e.id===G.edgeKey(face.points[0],face.points[1])));assert.ok(!wire.edges.some(e=>e.id===G.edgeKey(a,b)));
+});
+test('new loose connections survive revival while a new deletion remains authoritative',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(0,0,0),b=p(2,0,0),before={$loose:{points:[],edges:[]},$removedSurfacePoints:[G.vertexKey(a)],$removedSurfaceEdges:[G.edgeKey(a,b)]},candidate=structuredClone(before);candidate.$loose={points:[a,b],edges:[[a,b]]};const next=M.prepareEdits({},candidate,before);assert.equal(G.surfaceWire(next).edges.length,1);assert.equal(G.surfaceWire(next).nodes.length,2);
+ const deleted=structuredClone(next);deleted.$removedSurfaceEdges=[G.edgeKey(a,b)];assert.equal(G.surfaceWire(M.prepareEdits({},deleted,next)).edges.length,0,'same-transaction deletion is not undone');
+});
+
+test('wire revival leaves unrelated sub-micron loose geometry and its exclusions unchanged',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),a=p(10,10,0),b=p(10.0000001,10,0),q=p(0,0,0),before={$loose:{points:[{...a,anchorId:'keep'}],edges:[[a,b]]},$removedSurfacePoints:[G.vertexKey(a),G.vertexKey(q)]},candidate=structuredClone(before);candidate.$surfaces=[{id:'new',points:[q,p(2,0,0),p(0,2,0)]}];const next=M.prepareEdits({},candidate,before);assert.ok(next.$removedSurfacePoints.includes(G.vertexKey(a)));assert.deepEqual(next.$loose,before.$loose);
+});

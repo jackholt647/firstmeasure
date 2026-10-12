@@ -271,7 +271,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261012-type-archive'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261012-tab-colors')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261012-type-archive'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), versionedBundle('materials/project.js', '20261012-order-dialog')]
     },
     {
       id: 'project.money',
