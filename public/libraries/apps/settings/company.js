@@ -5936,19 +5936,14 @@
       let view = { tone:'neutral', badge: started ? 'Draft saved' : 'Not started', title: started ? 'Let’s finish your registration' : 'Get your business ready to text', detail: started ? 'Pick up where you left off. We’ll guide you through the remaining details before you submit.' : 'Register your business and texting number with the carriers to send SMS to your customers.', action: started ? 'Continue registration' : 'Start registration', icon:'fa-message' };
       if (hasBrand) view = { tone:'pending', badge:'Business verification', title:'Your business is being verified', detail:'Your business details have been submitted. Open registration to check for updates and continue when verification is complete.', action:'View registration', icon:'fa-clock' };
       if (hasBrand && smsBrandReadyForCampaign(profile)) view = { tone:'neutral', badge:'Business verified', title:'Your campaign is the next step', detail:'Your business is verified. Review your consent process and message examples, then submit the campaign for carrier review.', action:'Review & submit campaign', icon:'fa-arrow-right' };
-      if (hasCampaign) view = { tone:'pending', badge:'Carrier review', title:'Your campaign is under review', detail:'Your campaign has been submitted. Open registration and refresh its status to check approval and finish number activation.', action:'View registration status', icon:'fa-clock' };
-      if (hasCampaign && String(profile.campaign_status || '').toLowerCase() === 'mno_provisioned') view = { tone:'pending', badge:'Number activation', title:'Finish activating your texting number', detail:'Carrier review is complete. Open registration and refresh its status to finish number assignment and messaging setup.', action:'Continue activation', icon:'fa-phone' };
+      if (hasCampaign) view = { tone:'pending', badge:'Carrier review', title:'Your campaign is under review', detail:'Your campaign has been submitted.', action:'View registration status', icon:'fa-clock' };
+      if (hasCampaign && String(profile.campaign_status || '').toLowerCase() === 'mno_provisioned') view = { tone:'pending', badge:'Number activation', title:'Finish activating your texting number', detail:'Carrier review is complete. Your number is awaiting activation.', action:'Continue activation', icon:'fa-phone' };
       if (active) view = { tone:'ready', badge:'Ready to text', title:'Your business texting is ready', detail:'Your registration is approved and your number is active. You can review the registered business and messaging details here.', action:'View registration', icon:'fa-circle-check' };
       if (needsAttention) view = { tone:'attention', badge:'Action needed', title:'Your registration needs attention', detail:'Open registration to review the latest carrier response and the available next steps.', action:'Review registration', icon:'fa-circle-exclamation' };
       if (mock) view = { tone:'neutral', badge:'Development setup', title:'This is a test registration', detail:'This setup is for development testing. It does not represent carrier approval for live customer messages.', action:'View test registration', icon:'fa-flask' };
       const complete = smsSteps.filter(step => step.id !== 'summary' && !smsStepIssues(step.id, profile).length).length;
       const business = profile.brand?.companyName || profile.brand?.displayName || setup.organization?.name || 'Add your business details';
       const number = smsFormatSelectedNumber(profile) || 'Choose during setup';
-      const steps = [
-        ['1', 'Business details', 'Legal name, tax ID, and business contact.'],
-        ['2', 'Consent & messages', 'How customers opt in, policy links, and real message examples.'],
-        ['3', 'Number & review', 'Choose your number, review the details, and submit.']
-      ];
       return `<section class="sms-entry" aria-labelledby="sms-entry-title">
         <header class="sms-entry-header"><div><h2 id="sms-entry-title">SMS registration</h2><p>U.S. mobile carriers require 10DLC registration to verify businesses sending text messages through software using local phone numbers.</p></div></header>
         <div class="sms-entry-card ${view.tone}">
@@ -5958,11 +5953,9 @@
           </div></div>
           ${hasBrand && !needsAttention && !mock ? `<div class="sms-entry-tracking"><h3>Registration progress</h3>${smsRegistrationTimeline(profile, true)}</div>` : ''}
           ${started ? `<dl class="sms-entry-facts"><div><dt>Business</dt><dd>${escapeHtml(business)}</dd></div><div><dt>Texting number</dt><dd>${escapeHtml(number)}</dd></div><div><dt>Message types</dt><dd>${escapeHtml(smsFeatureOptions.filter(option=>smsSelectedFeatures(profile).includes(option.id)).map(option=>option.label).join(' · ') || 'Choose during setup')}</dd></div></dl>` : ''}
-          <div class="sms-entry-action"><button class="cs-btn primary" type="button" id="smsStartSetup">${started ? 'View full application' : 'Start registration'} <i class="fas fa-arrow-right" aria-hidden="true"></i></button>${!hasCampaign && !needsAttention && !mock ? '<span>Your progress saves automatically.</span>' : ''}</div>
+          <div class="sms-entry-action"><button class="cs-btn primary" type="button" id="smsStartSetup">${started ? 'View full application' : 'Start registration'} <i class="fas fa-arrow-right" aria-hidden="true"></i></button></div>
         </div>
-        ${!hasBrand && !mock ? `<section class="sms-entry-prep"><h3>${started ? 'Your path to business texting' : 'What you’ll need'}</h3><div class="sms-entry-prep-grid">${steps.map(([n,title,description])=>`<div><span>${n}</span><div><h4>${title}</h4><p>${description}</p></div></div>`).join('')}</div></section>` : ''}
         ${profiles.length > 1 ? `<details class="sms-entry-other"><summary>Other registrations (${profiles.length - 1})</summary>${profiles.slice(1).map(item=>`<div><span>${escapeHtml(item.brand?.displayName || item.brand?.companyName || 'Business registration')}</span><button class="cs-btn" type="button" data-open-sms-profile="${escapeHtml(item.id || '')}">View registration</button></div>`).join('')}</details>` : ''}
-        ${!hasCampaign && !mock ? '<p class="sms-entry-footnote"><i class="fas fa-circle-info" aria-hidden="true"></i> Number purchases and registration have provider fees. Sending starts after carrier approval and number activation.</p>' : ''}
       </section>`;
     }
     async function renderSmsSettings(){
