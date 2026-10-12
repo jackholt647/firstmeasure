@@ -81,7 +81,8 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   await page.getByRole('button',{name:'Filter',exact:true}).click();
   await page.getByRole('button',{name:'Close',exact:true}).click();
   const batchRow=page.locator('.pf-feed-list-row').first();
-  assert.equal(await page.locator('.pf-feed-list-row').count(),16);
+  assert.equal(await page.locator('.pf-feed-list-row').count(),17);
+  assert.match(await page.locator('#feed').textContent(),/Scope started/);
   assert.equal(await page.locator('.pf-day').first().locator('.pf-feed-grid>.pf-feed-list-row').count()>1,true);
   assert.equal(await page.locator('.pf-day').first().locator('.pf-feed-grid').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(255, 255, 255)');
   assert.equal(await page.locator('.pf-day').first().locator('.pf-feed-list-row').nth(1).evaluate(e=>getComputedStyle(e).borderTopWidth),'1px');
@@ -152,9 +153,9 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.equal(await documentRow.locator('[data-feed-summary-request]').count(),0);
   await documentRow.locator('.pf-feed-list-document-thumb').click();
   await page.waitForFunction(()=>window.lastOpenedProject?.options.tab==='docs');
-  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'scheduled a sales appointment'}).textContent(),/Roof inspection and estimate/);
-  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'started a sales appointment'}).textContent(),/Roof inspection and estimate/);
-  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'completed a sales appointment'}).textContent(),/Roof inspection and estimate/);
+  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'scheduled an event'}).textContent(),/Roof inspection and estimate/);
+  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'started an event'}).textContent(),/Roof inspection and estimate/);
+  assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'completed an event'}).textContent(),/Roof inspection and estimate/);
   assert.equal(await page.getByText('scheduled event',{exact:false}).count(),0);
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'Pending Deposit'}).textContent(),/moved the project to Pending Deposit/);
   assert.match(await page.locator('.pf-feed-list-row').filter({hasText:'sent a proposal'}).textContent(),/sent a proposal to the customer/);

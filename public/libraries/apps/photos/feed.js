@@ -8,6 +8,21 @@
   const APP = window.Portal.cfg || window.__APP || {};
   const TAB_ID = 'photos_feed';
   const PROJECT_CONFIG_MODULE_ID = 'project_configuration';
+  const feedTerm = (key, fallback) => window.PlatformTerminology?.get?.(key,fallback) || window.Portal?.terminology?.get?.(key,fallback) || fallback;
+  function feedFilterLabel(item, group){
+    if (group === 'activity') {
+      if (item.id === 'documents') return feedTerm('documents.documents','Documents');
+      if (item.id === 'project') return `${feedTerm('projects.projects','Projects')} & ${feedTerm('scope.scope','Scope')}`;
+      if (item.id === 'field') return feedTerm('crew.assigned_work','Field work');
+    }
+    if (group === 'documents') {
+      if (item.id === 'receipt') return feedTerm('receipts.receipts','Receipts');
+      if (item.id === 'invoice') return feedTerm('money.invoices','Invoices');
+      if (item.id === 'proposal_report') return `${feedTerm('proposals.proposals','Proposals')} & reports`;
+      if (item.id === 'contract') return feedTerm('documents.documents','Documents');
+    }
+    return item.label;
+  }
   const PAGE_SIZE = 14;
   const DEFAULT_MEDIA_FILTERS = ['photo', 'video'];
   const DEFAULT_ACTIVITY_FILTERS = ['payments', 'documents', 'engagement', 'calls', 'messages', 'uploads', 'project', 'scheduling', 'field'];
@@ -359,6 +374,9 @@
     return objectValue(event.context);
   }
   function feedActivityCategory(event = {}){
+    const group = event.feed_presentation?.group;
+    const categories = {payments:'payments',expenses:'payments',payroll:'payments',signatures:'engagement',documents:'documents',files:'uploads',messages:'messages',feedback:'messages',scheduling:'scheduling',scopes:'project',tasks:'project',materials:'field',field_work:'field',measurements:'field'};
+    if (group && categories[group]) return categories[group];
     const type = cleanText(event.type).toLowerCase();
     if (/^(payment|invoice|expense|payroll)\./.test(type)) return 'payments';
     if (/^(media\.uploaded|receipt\.uploaded|document\.ingested)/.test(type)) return 'uploads';
@@ -389,7 +407,7 @@
     const context = activityContext(event);
     const actorId = firstText(event.actor_user_id, context.actor_user_id, payload.actor_user_id);
     const user = state.users.find((entry) => [entry.id, entry.user_id, entry.email].map(cleanText).includes(actorId));
-    return firstText(user?.name, user?.display_name, payload.actor_name, context.actor_name, context.actor_email, user?.email, 'Someone');
+    return firstText(user?.name, user?.display_name, payload.actor_name, context.actor_name, context.actor_email, user?.email, actorId && actorId !== 'system' ? 'A team member' : 'System');
   }
   function activityObjectLabel(event = {}){
     const payload = activityPayload(event);
@@ -400,17 +418,27 @@
     const actor = feedActor(event);
     const object = activityObjectLabel(event);
     const type = cleanText(event.type);
-    const documentType = cleanText(activityPayload(event).document_type).replace(/_/g, ' ');
+    const noun = (key, fallback) => window.PlatformTerminology?.get?.(key, fallback) || window.Portal?.terminology?.get?.(key, fallback) || fallback;
+    const payloadType = cleanText(activityPayload(event).document_type);
+    const documentType = firstText(activityPayload(event).document_type_label, payloadType === 'proposal' ? noun('proposals.proposal','proposal') : payloadType ? noun('documents.document','document') : '');
+    const presentation = event.feed_presentation || {};
+    const scope = firstText(presentation.scope_title, activityPayload(event).scope_title, noun('scope.scope','Scope'));
+    const task = firstText(presentation.node_title, activityPayload(event).node_title, activityPayload(event).title, 'work item');
+    if (type === 'work.plan.started') return `${scope} started`;
+    if (type === 'work.plan.completed') return `${scope} completed`;
+    if (type === 'work.node.completed') return `${actor} completed ${task}${presentation.scope_title ? ` · ${scope}` : ''}`;
+    if (type === 'document.signed') return `${actor} had ${documentType || noun('documents.document','document')} signed${object ? `: ${object}` : ''}`;
     if (type === 'project.event.started' || type === 'project.event.completed') {
       const payload = activityPayload(event);
-      const eventType = firstText(payload.event_type_default_id, payload.event_kind, payload.event?.event_type_default_id, payload.event?.kind).replace(/_/g, ' ');
+      if (type === 'project.event.completed' && payload.event?.completed_emitted_at && !firstText(event.actor_user_id,activityContext(event).actor_user_id)) return `Scheduled event ended${object ? `: ${object}` : ''}`;
+      const eventType = firstText(payload.event_type_label,payload.event?.type_label);
       const verb = type === 'project.event.started' ? 'started' : 'completed';
       const eventLabel = eventType === 'project work' ? eventType : eventType && eventType !== 'custom' ? `${/^[aeiou]/i.test(eventType) ? 'an' : 'a'} ${eventType}` : 'an event';
       return `${actor} ${verb} ${eventLabel}${object ? `: ${object}` : ''}`;
     }
     if (type === 'work.plan.stage_manually_set') {
       const stage = firstText(activityPayload(event).to_stage_title, activityPayload(event).stage_title);
-      return `${actor} moved the project to ${stage || 'a new stage'}`;
+      return `${actor} moved the ${noun('projects.project','project')} to ${stage || noun('projects.stage','Stage')}${presentation.scope_title ? ` · ${scope}` : ''}`;
     }
     if (documentType && type === 'document.sent') return `${actor} sent a ${documentType} to the customer${object ? `: ${object}` : ''}`;
     if (documentType && type === 'document.viewed') return `${actor} had a ${documentType} viewed by the customer${object ? `: ${object}` : ''}`;
@@ -445,7 +473,7 @@
       'media.shared':'shared media with the customer',
       'project.created':'created a project',
       'project.contact.attached':'attached a contact',
-      'project.event_scheduled':`scheduled a ${cleanText(activityPayload(event).event_type_default_id || activityPayload(event).event_kind || activityPayload(event).event?.event_type_default_id).replace(/_/g, ' ') || 'project event'}`,
+      'project.event_scheduled':'scheduled an event',
       'material.delivery.completed':'completed a material delivery',
       'material.order.placed':'placed a material order',
       'crew.clock.in':'clocked in',
@@ -456,8 +484,11 @@
       'note.created':'added a note',
       'portal.visited':'had the customer open their portal',
       'feedback.request.sent':'sent a feedback request'
-    })[type] || cleanText(type).replace(/[._]+/g, ' ');
-    return `${actor} ${action}${object ? `: ${object}` : ''}`;
+    })[type];
+    if (!action) return `${presentation.description || 'Activity recorded'}${object ? `: ${object}` : ''}`;
+    const names = {project:['projects.project','project'],proposal:['proposals.proposal','proposal'],document:['documents.document','document'],contract:['documents.document','document'],customer:['contacts.customer','customer'],invoice:['money.invoice','invoice'],receipt:['receipts.receipt','receipt'],material:['materials.material','material']};
+    const wording = action.replace(/\b(project|proposal|document|contract|customer|invoice|receipt|material)\b/g, word => noun(...names[word]));
+    return `${actor} ${wording}${object ? `: ${object}` : ''}`;
   }
   function isPhotoTrashed(photo = {}){
     const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
@@ -1187,7 +1218,14 @@
     const type=automaticPostType(entry),settings=state.postSettings || {};
     const allowed=(scope)=>{
       const selected=scope === 'company' ? settings.company_activity_types : objectValue(settings.department_activity_types)[scope];
-      return Array.isArray(selected) ? selected.includes(type) : DEFAULT_POST_ACTIVITY_TYPES.has(type);
+      if (!Array.isArray(selected)) return DEFAULT_POST_ACTIVITY_TYPES.has(type);
+      if (selected.includes(type)) return true;
+      // Legacy signature preferences select canonical document events by classification.
+      if (type !== 'document.signed') return false;
+      const payload = activityPayload(entry.event || entry.pairedEvent || {});
+      const kinds = [payload.document_type,...(Array.isArray(payload.document_tags) ? payload.document_tags : [])].map(cleanText);
+      if (payload.document_source === 'proposals') kinds.push('proposal');
+      return kinds.some(kind => ['proposal','contract'].includes(kind) && selected.includes(`${kind}.signed`));
     };
     if (state.feedScope === 'company') return allowed('company');
     if (state.feedScope === 'mine') return feedEntryDepartments(entry).some(id=>state.memberDepartmentIds.includes(id) && allowed(id));
@@ -1227,7 +1265,6 @@
         };
       });
     const activityEntries = state.activity
-      .filter((event) => cleanText(event.type) !== 'work.plan.started')
       .filter((event) => !(cleanText(event.type) === 'note.created' && activityPayload(event).synthetic && !activityPayload(event).message_id))
       .filter((event) => !(cleanText(event.type) === 'document.signed' && activityPayload(event).synthetic && !firstText(activityPayload(event).document_id, activityPayload(event).id)))
       .filter((event) => state.visibleActivity.has(feedActivityCategory(event)))
@@ -2688,7 +2725,7 @@
           <button type="button" data-feed-filter-group="${String(escapeHtml(group))}" data-filter-group-action="${String(allSelected ? 'none' : 'all')}">${String(allSelected ? 'Hide all' : 'Show all')}</button>
         </div>
         <div class="pf-shown-options">
-          ${String(items.map((item) => `<button type="button" class="${selected.has(item.id) ? 'active' : ''}" data-feed-filter-group="${escapeHtml(group)}" data-feed-filter-id="${escapeHtml(item.id)}" aria-pressed="${selected.has(item.id) ? 'true' : 'false'}"><span class="pf-shown-check"><i class="fas fa-check"></i></span><i class="fas ${escapeHtml(item.icon)}"></i><span>${escapeHtml(item.label)}</span></button>`).join(''))}
+          ${String(items.map((item) => `<button type="button" class="${selected.has(item.id) ? 'active' : ''}" data-feed-filter-group="${escapeHtml(group)}" data-feed-filter-id="${escapeHtml(item.id)}" aria-pressed="${selected.has(item.id) ? 'true' : 'false'}"><span class="pf-shown-check"><i class="fas fa-check"></i></span><i class="fas ${escapeHtml(item.icon)}"></i><span>${escapeHtml(feedFilterLabel(item,group))}</span></button>`).join(''))}
         </div>
       </section>`;
   }
@@ -2697,7 +2734,7 @@
     return `
       <div class="pf-shown-menu" data-feed-shown-menu>
         <div class="pf-shown-head"><div><strong>Filters</strong></div><button type="button" data-feed-shown-close aria-label="Close"><i class="fas fa-xmark"></i></button></div>
-        <div class="pf-shown-options pf-activity-options">${ACTIVITY_FILTERS.map(item=>`<button type="button" class="${state.visibleActivity.has(item.id)?'active':''}" data-feed-filter-group="activity" data-feed-filter-id="${escapeHtml(item.id)}" aria-pressed="${state.visibleActivity.has(item.id)}"><span class="pf-shown-check"><i class="fas fa-check"></i></span><i class="fas ${escapeHtml(item.icon)}"></i><span>${escapeHtml(item.label)}</span></button>`).join('')}</div>
+        <div class="pf-shown-options pf-activity-options">${ACTIVITY_FILTERS.map(item=>`<button type="button" class="${state.visibleActivity.has(item.id)?'active':''}" data-feed-filter-group="activity" data-feed-filter-id="${escapeHtml(item.id)}" aria-pressed="${state.visibleActivity.has(item.id)}"><span class="pf-shown-check"><i class="fas fa-check"></i></span><i class="fas ${escapeHtml(item.icon)}"></i><span>${escapeHtml(feedFilterLabel(item,'activity'))}</span></button>`).join('')}</div>
       </div>`;
   }
   function feedScopeControlHtml(){
@@ -4132,6 +4169,9 @@
   window.addEventListener('firstmate:feed-settings-saved', event => {
     if (String(event.detail?.orgId) !== String(orgId())) return;
     state.postSettings = objectValue(event.detail.settings);
+    if (state.root?.isConnected && state.loaded) render();
+  });
+  window.addEventListener('fm:terminology:updated', () => {
     if (state.root?.isConnected && state.loaded) render();
   });
 })();

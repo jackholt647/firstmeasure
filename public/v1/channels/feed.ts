@@ -12,7 +12,8 @@ import * as channels from "./service.js";
 import { postMessageSchema, reactionSchema, editMessageSchema, giphyMessageSchema } from "./schemas.js";
 import {canAccessDepartmentResource,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
 import { canManageFeed, canViewAllFeedDepartments, canViewFeedActivity, feedDepartmentContext, matchesFeedDepartment } from "./feed-permissions.js";
-import { defaultFeedPostActivityTypes, allowedFeedDepartments, feedActivityOptions, feedGroupDirectory, readFeedPostSettings, requireFeedDepartment, saveFeedPostSettings } from "./feed-groups.js";
+import { defaultFeedPostActivityTypes, allowedFeedDepartments, configuredFeedActivityOptions, feedGroupDirectory, readFeedPostSettings, requireFeedDepartment, saveFeedPostSettings } from "./feed-groups.js";
+import { feedEventPresentation } from "./feed-presentation.js";
 
 type Obj = Record<string, any>;
 const obj = (v: unknown): Obj => v && typeof v === "object" && !Array.isArray(v) ? v : {};
@@ -212,7 +213,7 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const media=allMedia.filter(m=>{const d=obj(m),o=obj(d.owner);return hasResourcePermission(ctx,"view_media",{...d,...obj(d.metadata)}) && canReadReceiptMedia(m,ctx) && projectIds.has(str(obj(d.metadata).project_id || (o.type==="project"?o.id:"")));});
     const permittedEvents:Obj[]=[],permittedMedia:Obj[]=[];
     for(const item of media){try{const d=obj(item),o=obj(d.owner);const source=await resolveFeedSource(ctx,{kind:'media',id:str(d.id),project_id:str(obj(d.metadata).project_id||(o.type==='project'?o.id:''))});if(relevant(source))permittedMedia.push({...d,department_ids:source.department_ids});}catch{}}
-    for (const event of events) {try {const source=await resolveFeedSource(ctx,{kind:"activity",id:str(event.id),project_id:str(event.project_id)});if(relevant(source))permittedEvents.push({...event,department_ids:source.department_ids});}catch{}}
+    for (const event of events) {try {const source=await resolveFeedSource(ctx,{kind:"activity",id:str(event.id),project_id:str(event.project_id)});if(relevant(source))permittedEvents.push({...event,department_ids:source.department_ids,feed_presentation:await feedEventPresentation(ctx,event)});}catch{}}
     const memberDepartments=allowedFeedDepartments(groups,ctx.userId);
     const visibleDepartmentIds=canViewAllFeedDepartments(ctx) ? groups.departments.map(department=>department.id) : memberDepartments;
     const channel=await store.findChannelByDmKey(ctx.orgId,"company-feed");
@@ -221,13 +222,14 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const manualPosts=channel ? await channels.hydrateMessages(ctx,channel,manualRecords) : [];
     const visibleDepartments=groups.departments.filter(department=>visibleDepartmentIds.includes(department.id));
     const visibleSettings={...settings,department_activity_types:Object.fromEntries(visibleDepartmentIds.map(id=>[id,settings.department_activity_types[id] ?? null]))};
-    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:feedDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed"),can_post:feedPermission(ctx,"comment_feed"),manual_posts:manualPosts,departments:visibleDepartments,user_departments:groups.user_departments,member_department_ids:memberDepartments,post_settings:visibleSettings,activity_options:feedActivityOptions(permittedEvents.map(event=>str(event.type))),can_manage_post_settings:canManageFeed(ctx),can_manage_feed:canManageFeed(ctx),can_view_all_departments:canViewAllFeedDepartments(ctx),post_departments:groups.departments.filter(department=>memberDepartments.includes(department.id)),default_activity_types:defaultFeedPostActivityTypes};
+    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:feedDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed"),can_post:feedPermission(ctx,"comment_feed"),manual_posts:manualPosts,departments:visibleDepartments,user_departments:groups.user_departments,member_department_ids:memberDepartments,post_settings:visibleSettings,activity_options:await configuredFeedActivityOptions(ctx,permittedEvents.map(event=>str(event.type)),[...(settings.company_activity_types || []),...Object.values(visibleSettings.department_activity_types).flatMap(types=>types || [])]),can_manage_post_settings:canManageFeed(ctx),can_manage_feed:canManageFeed(ctx),can_view_all_departments:canViewAllFeedDepartments(ctx),post_departments:groups.departments.filter(department=>memberDepartments.includes(department.id)),default_activity_types:defaultFeedPostActivityTypes};
   });
   app.get(prefix+"/settings",async request=>{
     const ctx=await auth(request);
     if(!canManageFeed(ctx))throw forbidden("feed_settings_denied","Feed manager permission is required.");
     const events=await listEventRecords(ctx.orgId,{visibility:"activity",limit:500});
-    return {ok:true,settings:await readFeedPostSettings(ctx.orgId),departments:(await feedGroupDirectory(ctx.orgId)).departments,activity_options:feedActivityOptions(events.map(event=>str(event.type))),default_activity_types:defaultFeedPostActivityTypes};
+    const settings=await readFeedPostSettings(ctx.orgId);
+    return {ok:true,settings,departments:(await feedGroupDirectory(ctx.orgId)).departments,activity_options:await configuredFeedActivityOptions(ctx,events.map(event=>str(event.type)),[...(settings.company_activity_types || []),...Object.values(settings.department_activity_types).flat()]),default_activity_types:defaultFeedPostActivityTypes};
   });
   app.put(prefix+"/settings",async request=>{
     const ctx=await auth(request,true);

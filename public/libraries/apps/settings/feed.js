@@ -2,13 +2,16 @@
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const milestones = ['proposal.signed', 'contract.signed', 'project.event.completed'];
   const groups = [
-    ['Common milestones', type => milestones.includes(type)],
+    ['Signatures and scheduling', type => milestones.includes(type)],
+    ['Scope and task activity', type => /^work\./.test(type)],
     ['Photos and notes', type => /^(media|note)\./.test(type)],
-    ['Projects and jobs', type => /^(project|crew|material|work|measurement)\./.test(type)],
+    ['Projects and work', type => /^(project|crew|material|measurement)\./.test(type)],
     ['Proposals and documents', type => /^(proposal|document|contract)\./.test(type) && !type.includes('payment')],
     ['Payments and expenses', type => /^(payment|invoice|expense|receipt)\./.test(type) || type.includes('payment')],
     ['Communication and other activity', () => true]
   ];
+  const term = (key, fallback) => window.PlatformTerminology?.get?.(key,fallback) || window.Portal?.terminology?.get?.(key,fallback) || fallback;
+  const optionLabel = option => option.label.replace(/\b(Proposal|Document|Project|Scope|Stage|Invoice|Receipt|Material)\b/g,word=>term(({Proposal:'proposals.proposal',Document:'documents.document',Project:'projects.project',Scope:'scope.scope',Stage:'projects.stage',Invoice:'money.invoice',Receipt:'receipts.receipt',Material:'materials.material'})[word],word));
   async function mount(host, { orgId, api = window.ChannelsAPI.feed } = {}) {
     const model = { draft:null, scope:'company', departments:[], options:[], defaults:[], changed:0, saved:0, saving:false, timer:null, error:'', dirty:new Map() };
     host.innerHTML = '<p role="status">Loading Feed settings…</p>';
@@ -65,9 +68,10 @@
       const cards = groups.map(([label, matches]) => {
         const options = model.options.filter(option => remaining.has(option.type) && matches(option.type));
         options.forEach(option => remaining.delete(option.type));
-        if (label === 'Common milestones') options.sort((a,b) => milestones.indexOf(a.type) - milestones.indexOf(b.type));
+        if (label === 'Signatures and scheduling') options.sort((a,b) => milestones.indexOf(a.type) - milestones.indexOf(b.type));
         if (!options.length) return '';
-        return `<section class="cs-feed-card"><header><h4>${label}</h4>${label === 'Common milestones' ? '<p>Off by default. Turn on the milestones you want to share as posts.</p>' : ''}</header><div class="cs-feed-rows">${options.map(option => `<label class="cs-feed-row"><span>${escape(option.label)}</span><span class="li-switch"><input type="checkbox" data-feed-activity value="${escape(option.type)}" ${enabled.has(option.type) ? 'checked' : ''}><span class="li-slider"></span></span></label>`).join('')}</div></section>`;
+        const groupLabel = label === 'Projects and work' ? `${term('projects.projects','Projects')} and work` : label === 'Scope and task activity' ? `${term('scope.scope','Scope')} and task activity` : label;
+        return `<section class="cs-feed-card"><header><h4>${escape(groupLabel)}</h4>${label === 'Signatures and scheduling' ? '<p>Off by default. Scheduled event completion does not mean the scope is complete.</p>' : ''}</header><div class="cs-feed-rows">${options.map(option => `<label class="cs-feed-row" title="${escape(option.description || '')}"><span>${escape(optionLabel(option))}</span><span class="li-switch"><input type="checkbox" data-feed-activity value="${escape(option.type)}" ${enabled.has(option.type) ? 'checked' : ''}><span class="li-slider"></span></span></label>`).join('')}</div></section>`;
       }).join('');
       host.innerHTML = `<style>
         .cs-feed-settings{max-width:1080px;display:grid;gap:16px;color:#344054}.cs-feed-settings h3{font-size:16px;margin:0 0 6px;color:#101828}.cs-feed-settings p{font-size:12px;line-height:1.5;color:#667085;margin:0}.cs-feed-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}.cs-feed-audience{display:grid;gap:6px;font-size:12px;font-weight:700}.cs-feed-audience select{min-width:250px;max-width:100%;padding:9px 12px;border:1px solid #d0d5dd;border-radius:8px;color:#344054;background:#fff;font:inherit}.cs-feed-actions{display:flex;gap:8px;flex-wrap:wrap}.cs-feed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.cs-feed-card{border:1px solid #e4e7ec;border-radius:12px;background:#fff;overflow:hidden}.cs-feed-card:first-child{grid-column:1/-1}.cs-feed-card header{padding:14px 16px;background:#f9fafb;border-bottom:1px solid #e4e7ec}.cs-feed-card h4{margin:0;font-size:13px;color:#101828}.cs-feed-card header p{margin-top:4px}.cs-feed-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;font-size:12px;cursor:pointer}.cs-feed-row+.cs-feed-row{border-top:1px solid #f2f4f7}.cs-feed-row>span:first-child{overflow-wrap:anywhere}.cs-feed-row .li-switch{flex-shrink:0}.cs-feed-status{display:flex;align-items:center;gap:10px;min-height:24px;font-size:12px;color:#667085}.cs-feed-status .error{color:#b42318}.cs-feed-settings [hidden]{display:none!important}.cs-feed-permissions{padding:12px 16px;border:1px solid #e4e7ec;border-radius:10px;background:#f9fafb}@media(max-width:700px){.cs-feed-grid{grid-template-columns:1fr}.cs-feed-card:first-child{grid-column:auto}.cs-feed-toolbar{align-items:stretch}.cs-feed-audience{width:100%}.cs-feed-audience select{min-width:0;width:100%}}
@@ -91,6 +95,7 @@
       model.departments = result.departments || []; model.options = result.activity_options || []; model.defaults = result.default_activity_types || ['media.uploaded','note.created','project.created','project.event_scheduled','crew.checklist.completed','payment.received'];
       render();
     } catch (error) { host.textContent = error?.message || 'Could not load Feed settings.'; }
+    window.addEventListener('fm:terminology:updated', () => { if (host.isConnected && model.draft) render(); });
     return { flush:save };
   }
   window.FirstMateFeedSettings = { mount };
