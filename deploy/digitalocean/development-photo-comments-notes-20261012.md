@@ -156,3 +156,25 @@ reloaded. Evidence is under ignored output/gif-mark-deploy.
 | web | `/opt/firstmeasure/releases/c0ac0dccf39f71743d098e43fa33aa4bc554a41c-gif-mark` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
 | pool | `/opt/firstmeasure/releases/c0ac0dccf39f71743d098e43fa33aa4bc554a41c-gif-mark` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/c0ac0dccf39f71743d098e43fa33aa4bc554a41c-gif-mark` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+
+## Half-size attribution graphic
+
+At the user's explicit request, frontend c4a7bcdf reduces the supplied mark from
+70px to 35px wide, maintaining its aspect ratio, and halves the backing padding
+and radius. The original PNG and bottom-right position remain unchanged. This
+applies through the shared renderer to photo comments, Notes and Channels.
+No claim of a GIPHY-approved numerical minimum is made; the user requested this
+size after the published conspicuous-attribution rule was explained.
+
+Local and dev-hosted photo browser checks pass, including exact 35px image width,
+image decoding, overlay position and existing composer/picker behavior. Every
+role and the public assets passed hashes, retained runtime identity, readiness,
+development isolation and outbound safety. Frontend-only activation reloaded
+PHP-FPM; backend, worker and production were unchanged. Evidence is under ignored
+output/gif-half-deploy.
+
+| Role | Activated frontend path | Retained runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/c4a7bcdf3b593908bd830be9bf27fdc075bf4508-gif-half` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+| pool | `/opt/firstmeasure/releases/c4a7bcdf3b593908bd830be9bf27fdc075bf4508-gif-half` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/c4a7bcdf3b593908bd830be9bf27fdc075bf4508-gif-half` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
