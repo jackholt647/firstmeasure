@@ -57,6 +57,7 @@ export const postMessageSchema = z.object({
   pin: z.boolean().optional(),
   audience: z.array(audienceGroup).default([]),
   department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
+  include_crew: z.boolean().optional(),
   tags: z.array(z.string().trim().min(1).max(60)).default([]),
   mention_users: z.array(mentionUserSchema).default([]),
   attachment_ids: z.array(z.string().trim().min(1)).default([]),
@@ -73,9 +74,16 @@ export const editMessageSchema = z.object({
   content_schema_version: z.number().int().min(1).max(20).optional(),
   audience: z.array(audienceGroup).optional(),
   department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
+  include_crew: z.boolean().optional(),
   tags: z.array(z.string().trim().min(1).max(60)).optional(),
   mention_users: z.array(mentionUserSchema).optional()
 });
+
+export const messageVisibilitySchema = z.object({
+  audience: z.array(audienceGroup).optional(),
+  department_ids: z.array(z.string().trim().min(1)).max(200).optional(),
+  include_crew: z.boolean().optional()
+}).refine(input => input.audience !== undefined || input.department_ids !== undefined || input.include_crew !== undefined, {message:'Choose a note audience.'});
 
 export const reactionSchema = z.object({
   emoji: z.string().trim().min(1).max(32),

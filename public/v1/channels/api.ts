@@ -15,6 +15,7 @@ import {
   createHuddleSchema,
   draftSchema,
   editMessageSchema,
+  messageVisibilitySchema,
   folderSchema,
   huddleRecordingSchema,
   huddleMediaStateSchema,
@@ -96,7 +97,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const users = await service.listDirectoryUsers(ctx);
     const structure=await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(ctx.orgId);
     const selection=(await import('../workforce/department-access.js')).relevantDepartmentContext(ctx);
-    return { ok: true, users, count: users.length,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})),selectable_department_ids:selection.department_ids,note_department_visibility:true };
+    return { ok: true, users, count: users.length,departments:structure.catalog.departments.filter(d=>d.status==='active').map(d=>({id:d.id,label:d.label})),selectable_department_ids:selection.department_ids,note_department_visibility:true,note_crew_visibility:true };
   });
 
   app.get("/organizations/:orgId/channels", async (request) => {
@@ -258,6 +259,12 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const ctx = await auth(request, orgId, { csrf: true });
     const translation = await service.translateMessage(ctx, getParam(request.params, "messageId"));
     return { ok: true, translation };
+  });
+
+  app.patch('/organizations/:orgId/messages/:messageId/visibility',async request=>{
+    const orgId=getParam(request.params,'orgId'),ctx=await auth(request,orgId,{csrf:true});
+    const message=await service.updateMessageVisibility(ctx,getParam(request.params,'messageId'),messageVisibilitySchema.parse(request.body ?? {}));
+    return {ok:true,message};
   });
 
   app.patch("/organizations/:orgId/messages/:messageId", async (request) => {

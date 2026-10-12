@@ -19,7 +19,7 @@ before(async()=>{
 after(async()=>{await store.closeChannelsDatabase();await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
 function ctx(id:string){return {orgId:org,userId:id,branchId:'default',identity:{preferences:{}},organization:{},role:id==='owner'?'owner':'member',user:{},permissions:{view_projects:true,send_channel_messages:true,...(id==='owner'?{manage_company_settings:true}:{})},organizationStructure:structure,scopedAccessGrants:[],applicationAccess:{management:{enabled:true,permissions:{}},field:{enabled:false,permissions:{}}}} as unknown as PlatformAuthContext;}
 test('note department selections reject unknown, foreign, unavailable and non-note targets',()=>{
- assert.deepEqual(domain.projectNoteDepartmentVisibility(ctx('owner'),'project',true,['dept-crew','dept-sales','dept-sales']),{department_ids:['dept-crew','dept-sales'],department_access:'restricted'});
+ assert.deepEqual(domain.projectNoteDepartmentVisibility(ctx('owner'),'project',true,['dept-crew','dept-sales','dept-sales']),{department_ids:['dept-crew','dept-sales'],note_audience_crew:false,department_access:'restricted'});
  for(const id of ['dept-office','other-org','missing'])assert.throws(()=>domain.projectNoteDepartmentVisibility(ctx('sales'),'project',true,[id]));
  assert.throws(()=>domain.projectNoteDepartmentVisibility(ctx('owner'),'public',true,['dept-sales']));assert.throws(()=>domain.projectNoteDepartmentVisibility(ctx('owner'),'project',false,['dept-sales']));
  assert.equal(domain.projectNoteDepartmentVisibility(ctx('owner'),'project',true,undefined),undefined);
@@ -42,3 +42,36 @@ test('text-only edits preserve legacy audiences and department metadata; non-aut
  const saved=await store.readMessageRecord(org,id);assert.deepEqual(saved?.audience,['crew']);assert.deepEqual(saved?.metadata.department_ids,['dept-crew']);assert.equal(saved?.metadata.department_access,'restricted');
 });
 
+
+test('crew is a field-user audience independent of department membership, combined by union',async()=>{
+ const crewCtx=ctx('office');crewCtx.applicationAccess.field!.enabled=true;
+ const posted=await domain.postMessage(ctx('owner'),channel.id,{text:'Sales or field crew',project_note:true,department_ids:['dept-sales'],include_crew:true});const id=String(posted.message!.id);
+ assert.ok((await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ assert.ok((await domain.listMessages(crewCtx,channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ assert.ok(!(await domain.listMessages(ctx('office'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ const reply=await domain.postMessage(crewCtx,channel.id,{text:'Field reply',parent_id:id});assert.equal((reply.message!.metadata as any).note_audience_crew,true);
+ await domain.updateMessageVisibility(ctx('owner'),id,{department_ids:[],include_crew:true,audience:[]});
+ assert.ok(!(await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ assert.ok((await domain.listMessages(crewCtx,channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+});
+test('visibility-only updates preserve the latest text, edit timestamp and text revision history',async()=>{
+ const posted=await domain.postMessage(ctx('owner'),channel.id,{text:'Original',project_note:true,department_ids:[]});const id=String(posted.message!.id);
+ await domain.updateMessageVisibility(ctx('owner'),id,{department_ids:['dept-sales'],include_crew:false,audience:[]});
+ assert.equal((await store.readMessageRecord(org,id))?.edited_at,null);assert.equal((await store.listMessageRevisions(id)).length,0);
+ await domain.editMessage(ctx('owner'),id,{text:'Changed on another screen'});const before=(await store.readMessageRecord(org,id))!;
+ await domain.updateMessageVisibility(ctx('owner'),id,{department_ids:['dept-crew'],include_crew:false,audience:[]});const after=(await store.readMessageRecord(org,id))!;
+ assert.equal(after.text,before.text);assert.equal(after.edited_at,before.edited_at);assert.equal((await store.listMessageRevisions(id)).length,1);
+ await assert.rejects(()=>domain.updateMessageVisibility(ctx('crew'),id,{department_ids:[]}));
+ const reply=await domain.postMessage(ctx('crew'),channel.id,{text:'Legacy reply',parent_id:id});await store.getChannelsDatabase().prepare('UPDATE messages SET audience_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(['crew']),org,String(reply.message!.id));
+ await domain.updateMessageVisibility(ctx('owner'),id,{department_ids:['dept-sales'],include_crew:false,audience:[]});assert.deepEqual((await store.readMessageRecord(org,String(reply.message!.id)))?.audience,[]);assert.equal((await domain.listThread(ctx('sales'),id,{})).replies.length,1);
+});
+test('authorized readers can see archived note text; ordinary deleted messages remain tombstones',async()=>{
+ const posted=await domain.postMessage(ctx('owner'),channel.id,{text:'Retained archive text',project_note:true,department_ids:['dept-sales']});const id=String(posted.message!.id);
+ await domain.deleteMessage(ctx('owner'),id);
+ const readable=(await domain.listMessages(ctx('sales'),channel.id,{view:'notes'})).messages.find(m=>m.id===id)!;assert.equal(readable.text,'Retained archive text');assert.equal((readable.metadata as any).project_note,true);assert.ok(readable.deleted_at);
+ assert.ok(!(await domain.listMessages(ctx('office'),channel.id,{view:'notes'})).messages.some(m=>m.id===id));
+ const row=(await store.readMessageRecord(org,id))!;assert.equal((await domain.hydrateMessages(ctx('office'),channel,[row]))[0]?.text,'');
+ const ordinary=await domain.postMessage(ctx('owner'),channel.id,{text:'Deleted channel message'});const plainId=String(ordinary.message!.id);await domain.deleteMessage(ctx('owner'),plainId);
+ assert.equal((await domain.hydrateMessages(ctx('owner'),channel,[(await store.readMessageRecord(org,plainId))!]))[0]?.text,'');
+ await assert.rejects(()=>domain.updateMessageVisibility(ctx('owner'),id,{department_ids:[]}));
+});

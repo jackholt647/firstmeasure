@@ -785,6 +785,7 @@
     const extraStyle=document.createElement('style');
     extraStyle.textContent=`
       .pn-tools{flex-wrap:wrap;padding:7px 12px;gap:5px}.pn-heading{font-size:11px;font-weight:600;color:#667085;margin-right:auto}.pn-tools button{border:0;background:transparent;cursor:pointer;font:inherit;font-size:10px;padding:6px;color:#667085}.pn-tools button:hover{background:#f2f4f7}.pn-tools [data-search-toggle]{width:28px;height:28px;padding:0;font-size:12px}.pn-search-row{display:flex;gap:4px;width:100%}.pn-search-row[hidden]{display:none}.pn-search-row input{flex:1}.pn-search-row button{font-size:13px}
+      .pn-history{padding:10px 12px}.pn-card{padding:10px 11px;margin-bottom:8px;border-radius:10px}.pn-card-content{margin-top:6px}.pn-card-content p{margin:4px 0}.pn-card footer{border:0;padding-top:0;margin-top:7px;align-items:flex-end;gap:6px;font-size:10px}.pn-card footer .pn-audience{margin-right:auto;min-width:0}.pn-card footer .pn-visibility-button{margin-left:0!important;padding:0!important;color:#667085;font-size:10px!important;max-width:180px}.pn-card footer .pn-audience-chevron{display:none}.pn-card footer .pn-visibility-button:disabled{opacity:1;cursor:default}.pn-card footer>[data-act=replies]{padding:0;margin-left:auto;border-radius:0;font-size:10px;color:#667085}.pn-card .pn-more{display:inline-block;border:0;border-radius:0;background:none;padding:0;margin-top:5px;color:var(--primary,#175cd3);font:inherit;font-size:11px;font-weight:700;cursor:pointer}.pn-card .pn-more[hidden]{display:none}.pn-card .pn-more:hover{background:none;text-decoration:underline}.pn-edited-label{color:#98a2b3;font-size:9px}.pn-archived .pn-card-content{color:#667085}.pn-audience-menu button{border:1px solid #e4e7ec;border-radius:5px;padding:5px 8px;background:white;color:#344054}.pn-audience-menu button:disabled{opacity:.45;cursor:default}.pn-audience-menu button:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}.pn-audience-apply-row{display:flex;justify-content:flex-end;gap:6px;margin:5px}.pn-audience-apply-row button{font:inherit;font-size:11px;cursor:pointer}.pn-audience-apply-row [data-audience-apply]{background:var(--primary,#175cd3);border-color:var(--primary,#175cd3);color:var(--on-primary,#fff)}.pn-audience-error{font-size:11px;color:#b42318;padding:5px}.pn-audience-group-label{margin:6px 7px 2px;color:#98a2b3;font-size:10px;text-transform:uppercase}
       .pn-card .pn-avatar{border:0;padding:0;overflow:hidden;cursor:pointer;width:30px;height:30px;border-radius:50%;background:var(--primary-light,#eef2ff);color:var(--primary,#175cd3)}.pn-avatar img{width:100%;height:100%;object-fit:cover}.pn-pin-toggle{border:0!important;background:transparent!important;color:#b54708!important;cursor:pointer;padding:4px!important}.pn-card-content[hidden],.pn-card footer[hidden],.pn-inline-edit[hidden]{display:none}
       .pn-visibility-choice{max-width:100%;min-width:0}.pn-composer-head{flex-wrap:wrap}.pn-visibility-button{display:inline-flex;align-items:center;gap:5px;border:0!important;background:transparent!important;font:inherit;font-size:11px!important;cursor:pointer;min-width:0;max-width:190px;padding:4px!important}.pn-visibility-button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pn-audience{position:relative;min-width:0}.pn-audience-menu{position:absolute;bottom:100%;right:0;z-index:100;width:220px;max-width:calc(100vw - 36px);max-height:230px;overflow:auto;padding:7px;background:white;border:1px solid #e4e7ec;border-radius:9px;box-shadow:0 8px 24px #10182820}.pn-audience-menu[hidden]{display:none}.pn-audience-menu label{display:flex;gap:8px;align-items:center;white-space:normal;padding:7px;font-size:12px;cursor:pointer;border-radius:5px}.pn-audience-menu label:hover{background:#f2f4f7}.pn-audience-menu input{accent-color:var(--primary,#175cd3)}.pn-audience-menu p{font-size:11px;color:#667085;margin:4px 7px}.pn-audience-current{font-size:10px!important;border-bottom:1px solid #f2f4f7;padding-bottom:7px}
       .pn-inline-edit{margin-top:12px}.pn-inline-edit .pn-composer-box{padding:7px 8px}.pn-inline-edit .fm-ch-rich-editor{min-height:72px}.pn-inline-edit-head{font-size:10px;font-weight:600;color:#667085;margin-bottom:7px}.pn-inline-edit-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap;margin-top:8px}.pn-inline-edit-actions .pn-audience{margin-right:auto}.pn-inline-edit-actions>button{font:inherit;font-size:11px;cursor:pointer}.pn-inline-edit-actions [type=submit]{background:var(--primary,#175cd3);color:var(--on-primary,#fff);border-color:var(--primary,#175cd3)}.pn-card:has(.pn-inline-edit) .pn-menu{display:none}.pn-inline-error,.pn-error{color:#b42318;font-size:11px;padding:6px 0}.pn-error{padding:7px 14px}.pn-error[hidden],.pn-inline-error[hidden]{display:none}.pn-history-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.pn-history-close{display:grid;place-items:center;width:24px;height:24px;border:0;background:transparent;color:#667085;border-radius:5px;cursor:pointer}.pn-history-close:hover{background:#f2f4f7}.pn-card .pn-menu>div{width:170px}.pn-card footer>span{min-width:0;overflow-wrap:anywhere}
@@ -805,40 +806,58 @@
       if(widgets?.formatBar)mount.append(widgets.formatBar(editor,['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Quote']));
       mount.append(editor);return editor;
     }
+    const audienceClosers=new WeakMap(),audienceMenus=new WeakMap(),audienceHandles=new Set();
     function noteAudienceLabel(note){
       if(note.metadata?.department_access==='restricted'){
         const labels=(note.metadata.department_ids || []).map(id=>directory.departments?.find(d=>d.id===id)?.label || 'Department');
-        return labels.length===1 ? labels[0]+' only' : labels.join(' and ');
+        if(note.metadata.note_audience_crew === true)labels.push('Field crew');
+        return labels.length===1 ? labels[0]+' only' : labels.join(' and ') || 'Selected audience';
       }
       const labels=(note.visibility || GROUPS).map(id=>id[0].toUpperCase()+id.slice(1));
       return labels.length===GROUPS.length ? 'Everybody' : labels.length===1 ? labels[0]+' only' : labels.join(' and ');
     }
-    function audienceChooser(host,note=null){
-      let ids=note?.metadata?.department_access==='restricted' ? [...(note.metadata.department_ids || [])] : [],legacy=note && note.visibility.length<GROUPS.length ? [...note.visibility] : [],changed=false,loaded=false;
-      host.innerHTML='<button type="button" class="pn-visibility-button" aria-label="Choose note visibility" aria-expanded="false" disabled><i class="fas fa-eye" aria-hidden="true"></i><span>Visibility</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="pn-audience-menu" hidden></div>';
+    function audienceChooser(host,note=null,options={}){
+      const originalIds=note?.metadata?.department_access==='restricted' ? [...(note.metadata.department_ids || [])] : [],originalCrew=note?.metadata?.note_audience_crew===true,originalLegacy=note && note.visibility.length<GROUPS.length ? [...note.visibility] : [];
+      let ids=[...originalIds],crew=originalCrew,legacy=[...originalLegacy],changed=false,loaded=false,saving=false;
+      host.innerHTML='<button type="button" class="pn-visibility-button" aria-label="Choose note visibility" aria-expanded="false" disabled><i class="fas fa-eye" aria-hidden="true"></i><span>Visibility</span><i class="fas fa-chevron-down pn-audience-chevron" aria-hidden="true"></i></button><div class="pn-audience-menu" hidden></div>';
       const button=host.querySelector('button'),menu=host.querySelector('.pn-audience-menu');
       function draw(){
         const departmentMode=directory.note_department_visibility===true;
-        const options=departmentMode ? (directory.departments || []).filter(d=>(directory.selectable_department_ids || []).includes(d.id)) : GROUPS.map(id=>({id,label:id[0].toUpperCase()+id.slice(1)}));
-        const selected=departmentMode ? ids : legacy;
-        const label=!changed && note ? noteAudienceLabel(note) : selected.length ? selected.map(id=>options.find(d=>d.id===id)?.label || 'Department').join(' and ') : 'Everybody';
+        const rows=departmentMode ? (directory.departments || []).filter(d=>(directory.selectable_department_ids || []).includes(d.id)) : GROUPS.map(id=>({id,label:id[0].toUpperCase()+id.slice(1)}));
+        const selected=departmentMode ? ids : legacy,labels=selected.map(id=>rows.find(d=>d.id===id)?.label || 'Department');if(departmentMode && crew)labels.push('Field crew');
+        const label=!changed && note ? noteAudienceLabel(note) : labels.join(' and ') || 'Everybody';
         button.querySelector('span').textContent=label;button.title=label;
-        menu.innerHTML=`${legacy.length && departmentMode && !changed ? `<p class="pn-audience-current">Current: ${esc(noteAudienceLabel(note))}. Select departments to update.</p>` : ''}<label><input type="checkbox" data-audience-all ${!selected.length && !(legacy.length && departmentMode && !changed) ? 'checked' : ''}>Everybody</label>${options.map(d=>`<label><input type="checkbox" value="${esc(d.id)}" ${selected.includes(d.id) ? 'checked' : ''}>${esc(d.label)}</label>`).join('')}${!options.length ? '<p>No selectable departments.</p>' : ''}`;
+        menu.innerHTML=`${legacy.length && departmentMode && !changed ? `<p class="pn-audience-current">Current: ${esc(noteAudienceLabel(note))}. Select an audience to update.</p>` : ''}<label><input type="checkbox" data-audience-all ${!selected.length && !crew && !(legacy.length && departmentMode && !changed) ? 'checked' : ''}>Everybody</label>${rows.map(d=>`<label><input type="checkbox" value="${esc(d.id)}" ${selected.includes(d.id) ? 'checked' : ''}>${esc(d.label)}</label>`).join('')}${departmentMode && directory.note_crew_visibility === true ? `<div class="pn-audience-group-label">User group</div><label><input type="checkbox" data-audience-crew ${crew ? 'checked' : ''}>Crew (field users)</label>` : ''}${options.onApply ? '<div class="pn-audience-error" role="alert" hidden></div><div class="pn-audience-apply-row"><button type="button" data-audience-cancel>Cancel</button><button type="button" data-audience-apply>Apply</button></div>' : ''}`;
+        if(options.onApply)menu.querySelector('[data-audience-apply]').disabled=!changed || saving;
+        if(saving)menu.querySelectorAll('button,input').forEach(node=>node.disabled=true);
       }
-      button.onclick=()=>{menu.hidden=!menu.hidden;button.setAttribute('aria-expanded',String(!menu.hidden));};
+      function close(){if(options.onApply && !saving){ids=[...originalIds];crew=originalCrew;legacy=[...originalLegacy];changed=false;draw();}menu.hidden=true;button.setAttribute('aria-expanded','false');host.append(menu);menu.style.cssText='';}
+      function payload(){if(!loaded)throw Error('Visibility is still loading. Try again.');return directory.note_department_visibility && (!note || changed) ? {audience:[],department_ids:ids,...(directory.note_crew_visibility === true ? {include_crew:crew} : {})} : {audience:legacy};}
+      function position(){const rect=button.getBoundingClientRect(),height=menu.offsetHeight,width=menu.offsetWidth;let layer=100000;for(let node=host;node;node=node.parentElement){const z=Number.parseInt(getComputedStyle(node).zIndex,10);if(Number.isFinite(z))layer=Math.max(layer,z+20);}menu.style.zIndex=String(Math.min(2147483647,layer));menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-width-8))+'px';const top=rect.top-height-7>=8 ? rect.top-height-7 : rect.bottom+7;menu.style.top=Math.max(8,Math.min(top,window.innerHeight-height-8))+'px';}
+      const handle={host,menu,destroy(){menu.remove();audienceHandles.delete(handle);}};audienceHandles.add(handle);
+      audienceClosers.set(host,close);audienceMenus.set(host,menu);
+      button.onclick=()=>{if(!menu.hidden){close();return;}document.body.append(menu);menu.hidden=false;menu.style.position='fixed';menu.style.bottom='auto';menu.style.right='auto';button.setAttribute('aria-expanded','true');position();};
       menu.setAttribute('role','group');menu.setAttribute('aria-label','Note visibility');
       menu.onchange=event=>{
         const input=event.target;if(!input.matches('input'))return;
-        const departmentMode=directory.note_department_visibility===true;
-        let selected=departmentMode ? ids : legacy;
-        if(input.hasAttribute('data-audience-all'))selected=[];
+        const departmentMode=directory.note_department_visibility===true;let selected=departmentMode ? ids : legacy;
+        if(input.hasAttribute('data-audience-all')){selected=[];crew=false;}
+        else if(input.hasAttribute('data-audience-crew'))crew=input.checked;
         else selected=input.checked ? unique([...selected,input.value]) : selected.filter(id=>id!==input.value);
         if(departmentMode){ids=selected;legacy=[];}else legacy=selected;
         changed=true;draw();
-        const active=input.hasAttribute('data-audience-all') ? menu.querySelector('[data-audience-all]') : menu.querySelector(`input[value="${CSS.escape(input.value)}"]`);active?.focus();
+        const active=input.hasAttribute('data-audience-all') ? menu.querySelector('[data-audience-all]') : input.hasAttribute('data-audience-crew') ? menu.querySelector('[data-audience-crew]') : menu.querySelector(`input[value="${CSS.escape(input.value)}"]`);active?.focus();
       };
-      directoryReady.then(data=>{if(disposed || !host.isConnected)return;if(!data){button.querySelector('span').textContent='Visibility unavailable';return;}loaded=true;button.disabled=false;draw();});
-      return {payload(){if(!loaded)throw Error('Visibility is still loading. Try again.');return directory.note_department_visibility && (!note || changed) ? {audience:[],department_ids:ids} : {audience:legacy};},close(){menu.hidden=true;button.setAttribute('aria-expanded','false');}};
+      menu.onclick=async event=>{
+        if(event.target.closest('[data-audience-cancel]')){close();return;}
+        if(!event.target.closest('[data-audience-apply]') || !options.onApply || saving || !changed)return;
+        const selected=payload();saving=true;draw();
+        try{await options.onApply(selected);menu.hidden=true;button.setAttribute('aria-expanded','false');}
+        catch(error){saving=false;draw();const message=menu.querySelector('.pn-audience-error');message.textContent=error.message || 'Could not update visibility.';message.hidden=false;}
+        finally{saving=false;}
+      };
+      directoryReady.then(data=>{if(disposed || !host.isConnected)return;if(!data){button.querySelector('span').textContent='Visibility unavailable';return;}loaded=true;button.disabled=!!options.readOnly;draw();});
+      return {payload,close};
     }
     const text=createEditor(form.querySelector('.pn-editor-mount'),'Add an internal note… Use @name or @email to tag someone.');text.setAttribute('aria-label','New project note');
     const mentions=window.FirstMateTags?.attachMentionTextarea?.(text,{orgId:orgId(),source:'project_notes'}),audience=audienceChooser(form.querySelector('.pn-audience'));
@@ -858,12 +877,14 @@
       return `<button type="button" class="pn-avatar" aria-label="Preview ${esc(user.name || 'team member')}"${summary}>${photo && /^(https?:|\/)/.test(photo) ? `<img src="${esc(photo)}" alt="" loading="lazy">` : esc(initials)}</button>`;
     }
     function card(note){
-      const deleted=!!note.deleted_at,shared=note.metadata?.note_shared;
-      const actions=deleted ? (note.can_restore ? '<button type="button" data-act="restore">Unarchive Note</button>' : '') : `<button type="button" data-act="pin">${note.pinned_at ? 'Unpin Note' : 'Pin Note'}</button>${entry.separate && note.metadata?.project_note && !shared ? '<button type="button" data-act="share">Share to channel</button>' : ''}${note.can_edit ? '<button type="button" data-act="edit">Edit Note</button>' : ''}<button type="button" data-act="history">Edit history</button><button type="button" data-act="copy">Copy text</button>${note.can_delete ? '<button type="button" data-act="delete">Archive Note</button>' : ''}`;
-      return `<article class="pn-card${deleted ? ' pn-removed' : ''}" data-project-note-id="${esc(note.id)}"><header>${avatarHtml(note)}<div class="pn-author"><span>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}</time></div>${note.pinned_at && !deleted ? '<button type="button" class="pn-pin-toggle" data-act="pin" title="Unpin Note" aria-label="Unpin Note"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header>${deleted ? '<p>Archived note</p>' : `<div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"></div><button type="button" class="pn-more" data-act="expand" hidden>${expanded.has(note.id) ? 'Show less' : 'Show more'}</button><footer><span>${esc(noteAudienceLabel(note))}${note.edited_at ? ' · Edited' : ''}${shared ? ' · Shared to channel' : ''}</span><button type="button" data-act="replies">${note.reply_count ? `${Number(note.reply_count)} ${Number(note.reply_count)===1 ? 'reply' : 'replies'}` : 'Reply'}</button></footer>`}</article>`;
+      const archived=!!note.deleted_at,shared=note.metadata?.note_shared;
+      const historyAction=note.edited_at ? '<button type="button" data-act="history">View Edit History</button>' : '';
+      const actions=archived ? `${note.can_restore ? '<button type="button" data-act="restore">Unarchive Note</button>' : ''}${historyAction}<button type="button" data-act="copy">Copy text</button>` : `<button type="button" data-act="pin">${note.pinned_at ? 'Unpin Note' : 'Pin Note'}</button>${entry.separate && note.metadata?.project_note && !shared ? '<button type="button" data-act="share">Share to channel</button>' : ''}${note.can_edit ? '<button type="button" data-act="edit">Edit Note</button>' : ''}${historyAction}<button type="button" data-act="copy">Copy text</button>${note.can_delete ? '<button type="button" data-act="delete">Archive Note</button>' : ''}`;
+      return `<article class="pn-card${archived ? ' pn-archived' : ''}" data-project-note-id="${esc(note.id)}"><header>${avatarHtml(note)}<div class="pn-author"><span>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}${archived ? ' · Archived' : ''}</time></div>${note.pinned_at && !archived ? '<button type="button" class="pn-pin-toggle" data-act="pin" title="Unpin Note" aria-label="Unpin Note"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header><div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"></div><button type="button" class="pn-more" data-act="expand" aria-expanded="${expanded.has(note.id)}" hidden><span>${expanded.has(note.id) ? 'Show less' : 'Show more'}</span></button><footer><div class="pn-audience" data-note-audience="${esc(note.id)}"></div>${note.edited_at ? '<span class="pn-edited-label">Edited</span>' : ''}${shared ? '<span>Shared</span>' : ''}${!archived ? `<button type="button" data-act="replies">${note.reply_count ? `${Number(note.reply_count)} ${Number(note.reply_count)===1 ? 'reply' : 'replies'}` : 'Reply'}</button>` : ''}</footer></article>`;
     }
     function render(){
       if(disposed)return;const scroll=history.scrollTop,editingNode=editSession?.node;
+      for(const handle of [...audienceHandles])if(handle.host.hasAttribute('data-note-audience') && !editingNode?.contains(handle.host))handle.destroy();
       const rows=entry.notes.filter(note=>(!entry.separate || note.metadata?.project_note===true) && (showArchived || !note.deleted_at) && (!query || `${note.text} ${note.created_by?.name}`.toLowerCase().includes(query)));
       const pins=rows.filter(note=>note.pinned_at && !note.deleted_at),rest=rows.filter(note=>!note.pinned_at || note.deleted_at).sort((a,b)=>Number(b.seq)-Number(a.seq));
       pinned.hidden=!pins.length;pinned.innerHTML=pins.length ? `<h4>Pinned notes</h4>${pins.map(card).join('')}` : '';history.innerHTML=rest.map(card).join('') || `<p class="pn-empty">${query ? 'No notes match your search.' : 'No notes yet. Add the first update below.'}</p>`;
@@ -871,6 +892,7 @@
       for(const note of rows){const target=container.querySelector(`[data-pn-content="${CSS.escape(note.id)}"]`);if(!target)continue;target.innerHTML=(widgets?.renderBody?.({...note,text:note.translation?.text || note.text}) || `<p>${esc(note.text)}</p>`)+audioPlayerHtml(note)+mediaAttachmentsHtml(note);}
       if(editingNode){const replacement=container.querySelector(`[data-project-note-id="${CSS.escape(editSession.id)}"]`);if(replacement)replacement.replaceWith(editingNode);else history.prepend(editingNode);}
       container.querySelectorAll('.pn-card').forEach(node=>{const content=node.querySelector('.pn-card-content'),more=node.querySelector('.pn-more');if(content && more)more.hidden=content.hidden || (!content.classList.contains('expanded') && content.scrollHeight<=content.clientHeight);});
+      for(const note of rows){const host=container.querySelector(`[data-note-audience="${CSS.escape(note.id)}"]`);if(!host || editSession?.id===note.id)continue;audienceChooser(host,note,{readOnly:!note.can_edit || !!note.deleted_at,onApply:async selected=>{await channels().messages.updateVisibility(orgId(),note.id,selected);if(disposed)return;await refresh();announce(entry.projectId);}});}
       window.FirstMateAudioNotes?.hydrate?.(container);history.scrollTop=scroll;
     }
     async function refresh(){adoptProject();if(entry.projectId)await refreshEntry(entry);render();}
@@ -939,12 +961,12 @@
     container.addEventListener('click',event=>{const button=event.target.closest('[data-pn-reply-send]');if(button)void sendReply(button.closest('.pn-replies-wrap').querySelector('input'),project,button.dataset.pnReplySend);},{signal:lifetime.signal});
     document.addEventListener('pointerdown',event=>{
       container.querySelectorAll('.pn-menu[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;});
-      container.querySelectorAll('.pn-audience').forEach(host=>{if(!host.contains(event.target)){host.querySelector('.pn-audience-menu').hidden=true;host.querySelector('button').setAttribute('aria-expanded','false');}});
+      container.querySelectorAll('.pn-audience').forEach(host=>{if(!host.contains(event.target) && !audienceMenus.get(host)?.contains(event.target))audienceClosers.get(host)?.();});
       if(!form.querySelector('.pn-composer-box').contains(event.target))closeEmoji();
     },{capture:true,signal:lifetime.signal});
     text.onkeydown=event=>{if(event.key==='Escape' && !emojiPop.hidden){event.stopPropagation();closeEmoji();}if(event.key==='Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing){event.preventDefault();void submit();}};
-    document.addEventListener('keydown',event=>{if(event.key==='Escape'){container.querySelectorAll('.pn-menu[open]').forEach(menu=>menu.open=false);container.querySelectorAll('.pn-audience').forEach(host=>{host.querySelector('.pn-audience-menu').hidden=true;host.querySelector('button').setAttribute('aria-expanded','false');});closeHistoryPop();}},{signal:lifetime.signal});
-    return {ready,refresh,destroy(){disposed=true;lifetime.abort();captureAbort.abort();closeEmoji();closeHistoryPop();mentions?.destroy?.();editSession?.mentions?.destroy?.();window.removeEventListener('fm:project-notes:refreshed',notified);container.querySelector('.fm-an-inline-remove')?.click();container.replaceChildren();}};
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){container.querySelectorAll('.pn-menu[open]').forEach(menu=>menu.open=false);container.querySelectorAll('.pn-audience').forEach(host=>audienceClosers.get(host)?.());closeHistoryPop();}},{signal:lifetime.signal});
+    return {ready,refresh,destroy(){disposed=true;for(const handle of [...audienceHandles])handle.destroy();lifetime.abort();captureAbort.abort();closeEmoji();closeHistoryPop();mentions?.destroy?.();editSession?.mentions?.destroy?.();window.removeEventListener('fm:project-notes:refreshed',notified);container.querySelector('.fm-an-inline-remove')?.click();container.replaceChildren();}};
 
   }
 

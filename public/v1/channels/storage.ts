@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { openSqlStore, ensureSqlColumn, type SqlStore } from "../platform/sql_store.js";
 
-import { notFound } from "../platform/errors.js";
+import { badRequest, notFound } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
 
 export type JsonObject = Record<string, unknown>;
@@ -989,7 +989,7 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
     if (input.metadata && !message.parent_id && message.metadata.project_note === true) {
       const replies = await db.prepare('SELECT id, metadata_json FROM messages WHERE organization_id = ? AND parent_id = ?').all(orgId,message.id) as JsonObject[];
       for (const reply of replies) {
-        const metadata={...(parseJson(reply.metadata_json,{}) as JsonObject),department_ids:input.metadata.department_ids || [],department_access:input.metadata.department_access || 'shared'};
+        const metadata={...(parseJson(reply.metadata_json,{}) as JsonObject),department_ids:input.metadata.department_ids || [],department_access:input.metadata.department_access || 'shared',note_audience_crew:input.metadata.note_audience_crew === true};
         await db.prepare('UPDATE messages SET metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(metadata),orgId,String(reply.id));
       }
     }
@@ -1010,6 +1010,25 @@ export async function editMessageRecord(orgId: string, message: MessageRow, inpu
   return (await readMessageRecord(orgId, message.id))!;
 
   }));
+}
+
+export async function updateMessageVisibilityRecord(orgId:string,messageId:string,input:{audience?:string[];departmentVisibility?:JsonObject}) {
+  return getChannelsDatabase().transaction(async()=>{
+    const db=getChannelsDatabase(),message=await readMessageRecord(orgId,messageId);
+    if(!message)throw notFound('message_not_found','This note does not exist.');
+    if(message.deleted_at)throw badRequest('message_deleted','Unarchive the note before changing visibility.');
+    const metadata={...message.metadata,...input.departmentVisibility};
+    await db.prepare('UPDATE messages SET audience_json = ?, metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(input.audience ?? message.audience),JSON.stringify(metadata),orgId,message.id);
+    if(input.departmentVisibility || input.audience !== undefined){
+      const replies=await db.prepare('SELECT id, metadata_json FROM messages WHERE organization_id = ? AND parent_id = ?').all(orgId,message.id) as JsonObject[];
+      for(const reply of replies){
+        const data={...(parseJson(reply.metadata_json,{}) as JsonObject),...input.departmentVisibility};
+        if(input.audience !== undefined)await db.prepare('UPDATE messages SET metadata_json = ?, audience_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(data),JSON.stringify(input.audience),orgId,String(reply.id));
+        else await db.prepare('UPDATE messages SET metadata_json = ? WHERE organization_id = ? AND id = ?').run(JSON.stringify(data),orgId,String(reply.id));
+      }
+    }
+    return (await readMessageRecord(orgId,message.id))!;
+  });
 }
 
 function translationFromRow(row: JsonObject): MessageTranslationRow {
