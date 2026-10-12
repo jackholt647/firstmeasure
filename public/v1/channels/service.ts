@@ -298,7 +298,9 @@ export async function requireChannelAccess(ctx: PlatformAuthContext, channelId: 
   const departmentMembers=await departmentChannelMembers(channel);
   if(departmentMembers&&!departmentMembers.includes(ctx.userId))throw forbidden('channel_forbidden','You are not a member of this department channel.');
   if (channel.type === "feed" && !hasFeedGrant(ctx)) throw notFound("channel_not_found", "This channel does not exist.");
-  if (requiresChannelMembership(channel)) {
+  if (channel.settings.photo_media_id) {
+    await (await import("./photo-comments.js")).authorizePhotoDiscussion(ctx,cleanText(channel.settings.photo_media_id),!!(options.write || options.post));
+  } else if (requiresChannelMembership(channel)) {
     // Ordinary channels are member-only, including for organization admins.
     if (!membership && !departmentMembers?.includes(ctx.userId)) throw forbidden("channel_forbidden", "You are not a member of this channel.");
   } else if (channel.type === "project") {
@@ -598,7 +600,7 @@ async function publishMessageEvent(topic: string, channel: ChannelRow, message: 
   if (channel.type === "feed") return; // Feed clients poll only the authorized post; no organization-wide body broadcast.
   // Audience-restricted messages are announced as stubs so the body never
   // reaches a connection the read API would have filtered; clients refetch.
-  const payload: JsonObject = messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
+  const payload: JsonObject = channel.settings.photo_media_id || messageIsAudienceRestricted(message) || message.deleted_at || !hydrated
     ? { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message_id: message.id, seq: message.seq, parent_id: message.parent_id, stub: true }
     : { channel_id: channel.id, channel_type: channel.type, project_id: channel.project_id, message: hydrated, seq: message.seq, parent_id: message.parent_id };
   (await publishRealtimeEvent({ organization_id: channel.organization_id, topic, user_ids: (await realtimeTargets(channel)), payload }));
@@ -663,7 +665,7 @@ function hydrateMessage(
     translations: Map<string, MessageTranslationRow>;
   }
 ): JsonObject {
-  const author = helpers.directory.get(message.author_id) ?? { id: message.author_id, name: "Unknown", email: "", avatar: "" };
+  const author = helpers.directory.get(message.author_id) ?? (cleanText(asObject(message.metadata.legacy_photo_author).id) === message.author_id ? asObject(message.metadata.legacy_photo_author) : { id: message.author_id, name: "Unknown", email: "", avatar: "" });
   const isAuthor = message.author_id === ctx.userId;
   const deleted = Boolean(message.deleted_at);
   const canModerate = isAuthor || helpers.manage;
@@ -759,7 +761,7 @@ async function channelView(ctx: PlatformAuthContext, channel: ChannelRow, extras
     display_name: displayName || channel.name,
     topic: channel.topic,
     project_id: channel.project_id,
-    separate_notes: channel.type === "project" && await separateProjectNotes(ctx),
+    separate_notes: channel.type === "project" && !channel.settings.photo_media_id && await separateProjectNotes(ctx),
     archived_at: channel.archived_at,
     message_seq: channel.message_seq,
     last_message_at: channel.last_message_at,
@@ -788,6 +790,7 @@ export async function listChannelsForUser(ctx: PlatformAuthContext, options: { i
   for(const channel of all){const members=await departmentChannelMembers(channel);if(members){if(members.includes(ctx.userId))membershipIds.add(channel.id);else membershipIds.delete(channel.id);}}
   const canSeeProjects = canAccessProjectChannels(ctx);
   const visible = all.filter((channel) => {
+    if (channel.settings.photo_media_id) return false;
     if (requiresChannelMembership(channel)) return membershipIds.has(channel.id);
     if (channel.type === "project") return membershipIds.has(channel.id) && canSeeProjects && channel.last_message_at;
     return true;
@@ -1004,6 +1007,7 @@ export async function getChannel(ctx: PlatformAuthContext, channelId: string) {
 
 export async function updateChannel(ctx: PlatformAuthContext, channelId: string, patch: { name?: string; topic?: string; settings?: JsonObject }) {
   const { channel } = await requireChannelAccess(ctx, channelId);
+  if (channel.settings.photo_media_id || patch.settings && (Object.hasOwn(patch.settings,"photo_media_id") || Object.hasOwn(patch.settings,"photo_comments_imported"))) throw badRequest("photo_discussion_owned", "Photo discussions are managed with their media.");
   if (!(await channelAdminAllowed(ctx, channel))) throw forbidden("permission_denied", "Only channel admins can update this channel.");
   if (channel.type === "dm" || channel.type === "group_dm") throw badRequest("dm_not_editable", "Direct messages cannot be renamed.");
   if(patch.settings&&Object.hasOwn(patch.settings,'department_id')&&patch.settings.department_id!==channel.settings.department_id)throw badRequest('department_channel_owned','Department channels are managed in department settings.');
@@ -1204,6 +1208,7 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
     metadata.feed_comment = true;
   }
   if (metadata.giphy) metadata.giphy = giphyMessageSchema.parse(metadata.giphy);
+  delete metadata.legacy_photo_author;
   delete metadata.project_note;
   delete metadata.note_shared;
   if (input.project_note && (channel.type !== "project" || parentId)) throw badRequest("invalid_project_note", "Notes must be added directly to a project channel.");
@@ -1677,7 +1682,7 @@ export async function shareProjectNote(ctx: PlatformAuthContext, messageId: stri
     }
     const actor = cleanText(ctx.identity.name) || "A teammate";
     const posted = await postMessage(ctx, channel.id, {
-      text:`${actor} shared a note`, client_msg_id:`note-share:${messageId}`, audience:note.audience,
+      text:`${actor} shared ${channel.settings.photo_media_id ? 'a comment' : 'a note'}`, ...(channel.settings.photo_media_id ? {project_note:true} : {}), client_msg_id:`note-share:${messageId}`, audience:note.audience,
       forwarded_message_id:messageId, forward_include_attachments:true
     });
     const shared = {message_id:posted.message!.id, user_id:ctx.userId, at:nowIso()};

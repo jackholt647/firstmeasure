@@ -123,6 +123,11 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     return { ok: true, channel };
   });
 
+  app.post("/organizations/:orgId/channels/photo/:mediaId", async request => {
+    const ctx=await auth(request,getParam(request.params,"orgId"),{csrf:true});
+    return {ok:true,channel:await (await import('./photo-comments.js')).ensurePhotoDiscussion(ctx,getParam(request.params,"mediaId"))};
+  });
+
   app.post("/organizations/:orgId/channels/project/:projectId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await auth(request, orgId, { csrf: true });

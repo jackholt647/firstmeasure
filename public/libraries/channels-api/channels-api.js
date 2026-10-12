@@ -114,6 +114,7 @@
       update: (orgId, channelId, patch) => request(orgPath(orgId, `/channels/${enc(channelId)}`), { method: 'PATCH', body: patch }),
       archive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/archive`), { method: 'POST' }),
       unarchive: (orgId, channelId) => request(orgPath(orgId, `/channels/${enc(channelId)}/unarchive`), { method: 'POST' }),
+      ensurePhoto: (orgId, mediaId) => request(orgPath(orgId, `/channels/photo/${enc(mediaId)}`), { method: 'POST' }),
       ensureProject: (orgId, projectId) => request(orgPath(orgId, `/channels/project/${enc(projectId)}`), { method: 'POST' }),
       addMembers: (orgId, channelId, userIds) => request(orgPath(orgId, `/channels/${enc(channelId)}/members`), { method: 'POST', body: { user_ids: userIds } }),
       removeMember: (orgId, channelId, userId) => request(orgPath(orgId, `/channels/${enc(channelId)}/members/${enc(userId)}`), { method: 'DELETE' }),
