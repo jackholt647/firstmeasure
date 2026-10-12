@@ -32,6 +32,7 @@ async function setup(browser,{realSdk=false}={}){
     window.requests=[];window.sent=[];window.gridDisposals=0;window.sendErrors=[];
     window.ChannelsAPI={gifs:{config:async()=>({enabled:true,sdk_key:'test'})}};
   });
+  await page.addScriptTag({url:'/libraries/platform-widgets/gifs.js'});
   await page.addScriptTag({url:'/libraries/channels-ui/channels-ui.js'});
   await page.evaluate(()=>{
     window.trigger=FirstMateChannels.createGifPickerButton({orgId:'test',onError:error=>sendErrors.push(error.message),onSend:async(item,operationId)=>{sent.push({item,operationId});if(window.delaySend)await new Promise(resolve=>window.finishSend=resolve);}});
@@ -180,17 +181,17 @@ test('emoji widget works without Channels and shares its picker with the channel
     await page.evaluate(()=>window.failSend=true);
     await composer.getByRole('button',{name:'Send',exact:true}).click();
     assert.equal(await page.evaluate(()=>posts.length),0);
-    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),1);
+    assert.equal(await composer.locator('.fm-ch-gif-draft>.fm-widget-gif>a>img').count(),1);
     await composer.getByRole('button',{name:'Send',exact:true}).click();
     await page.waitForFunction(()=>posts.length===1);
     assert.equal(await page.evaluate(()=>posts[0].metadata.giphy.id),'trending');
     assert.equal(await page.evaluate(()=>posts[0].text),'');
-    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),0);
+    assert.equal(await composer.locator('.fm-ch-gif-draft>.fm-widget-gif>a>img').count(),0);
     await composer.getByRole('button',{name:'Attach a GIF'}).click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'trending',exact:true}).click();
     await page.evaluate(()=>instance.setChannel('other'));
-    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),0);
+    assert.equal(await composer.locator('.fm-ch-gif-draft>.fm-widget-gif>a>img').count(),0);
     await page.evaluate(()=>instance.setChannel('general'));
-    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),1);
+    assert.equal(await composer.locator('.fm-ch-gif-draft>.fm-widget-gif>a>img').count(),1);
     await composer.locator('[contenteditable=true]').fill('With a caption');
     await composer.getByRole('button',{name:'Send',exact:true}).click();
     await page.waitForFunction(()=>posts.length===2);

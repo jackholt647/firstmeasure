@@ -25,3 +25,25 @@ when the user submits the composer.
 
 Run `node --test tests/gif-picker-browser.test.mjs` from `public/v1`. Set
 `DEV_ASSETS=1` to repeat against hosted dev assets with isolated fixture data.
+
+
+## GIF display and attribution
+
+Load `gifs.js` before rendering any GIFs. The portal shell, app bundles and widget
+runtime include it. `FirstMateGifWidgets` has no Channels, Notes, Feed, API or
+message-delivery dependency. It owns media URL validation, GIF cards, the supplied
+35px attribution overlay, styling and removable draft previews.
+
+- `createCard(gif)` returns a figure or null for an unsupported URL.
+- `renderCard(gif)` returns the same component as escaped HTML.
+- `createDraft(gif, onRemove)` / `renderDraft(host, gif, onRemove)` own draft UI.
+- `renderDraftHtml(gif)` provides a draft whose `[data-gif-remove]` button the host
+  can bind after inserting HTML.
+- `mount(host, {gif, draft, onRemove})` returns `update(gif)` and `destroy()`.
+
+GIF data is `{id, url, title, width, height}`. Hosts own sending, draft state and
+placement; they must not reimplement the GIF image or attribution. Notes, photo
+comments, Channels and Feed call this component. Existing Channels composer
+helpers delegate to it as compatibility adapters. The `fm-ch-gif` and
+`fm-ch-gif-draft` aliases preserve existing layout hooks; owned component styles
+use `fm-widget-gif` and `fm-widget-gif-draft`.

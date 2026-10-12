@@ -12,7 +12,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
   await mkdir(output,{recursive:true});
   const server=createServer(async(req,res)=>{
   if(req.url.startsWith('/images/giphy/')){res.setHeader('Content-Type','image/png');const pathname=new URL(req.url,'http://fixture').pathname;const data=process.env.DEV_ASSETS?Buffer.from(await (await fetch('https://dev.1m8.ai'+pathname+'?mark-check='+Date.now())).arrayBuffer()):await readFile(publicRoot+pathname);res.end(data);return;}
-    const assets={'/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
+    const assets={'/gifs.js':'/libraries/platform-widgets/gifs.js','/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
     if(assets[req.url]){
       res.setHeader('Content-Type','text/javascript; charset=utf-8');
       const data=process.env.DEV_ASSETS?await (async()=>{
@@ -65,7 +65,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
       };
       window.fixtureOptions={orgId:'mention-fixture',currentUser:me,realtime:false,mode:'full',features:{attention:false,resources:false,workflows:false,ai:false,typing:false,audioNotes:false,channelCreate:false,channelSettings:false,recording:false}};
     });
-    await page.addScriptTag({url:origin+'/tags.js'});await page.addScriptTag({url:origin+'/ui.js'});
+    await page.addScriptTag({url:origin+'/gifs.js'});await page.addScriptTag({url:origin+'/tags.js'});await page.addScriptTag({url:origin+'/ui.js'});
     await page.evaluate(async()=>{window.instance=FirstMateChannels.create(document.querySelector('#app'),fixtureOptions);await instance.setChannel('general');});
 
     async function verifyFormatting(editor){

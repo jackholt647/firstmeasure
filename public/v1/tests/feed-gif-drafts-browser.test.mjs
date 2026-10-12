@@ -17,11 +17,12 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   });
   await page.route('https://media.giphy.com/**',r=>r.fulfill({contentType:'image/gif',body:Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64')}));
   await page.goto('http://feed.test/');
+  await page.addScriptTag({url:'/libraries/platform-widgets/gifs.js'});
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org',userId:'sam'};
    const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
    window.Portal={cfg:__APP,util:{escapeHtml,injectCSS:(id,css)=>{const s=document.createElement('style');s.textContent=css;document.head.append(s);}},ui:{showToast(){}},apps:{registerPortalApp:app=>window.feedApp=app},tabs:{renderTabs(){}},appFlags:{has:()=>true,load:async()=>{}},navigation:{read:()=>({}),replace(){}},routeState:{get:()=>({})}};
-   window.rootMessage={id:'root',text:'Original post',created_at:new Date().toISOString(),metadata:{feed_post:true},reply_count:0,reactions:[],author:{id:'sam',name:'Sam'}};
+   window.rootMessage={id:'root',text:'Original post',created_at:new Date().toISOString(),metadata:{feed_post:true,giphy:{id:'fixture',url:'https://media.giphy.com/media/test/giphy.gif',width:200,height:160}},reply_count:0,reactions:[],author:{id:'sam',name:'Sam'}};
    window.comments=[];window.posts=[];window.replies=[];
    const thread=()=>({root:rootMessage,replies});
    window.PlatformAPI={users:{list:async()=>({documents:[]})},projects:{list:async()=>({documents:[]})}};
@@ -35,17 +36,17 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   for(const path of ['channels-ui/channels-ui.js','apps/photos/feed.js'])await page.addScriptTag({url:'/libraries/'+path});
   await page.waitForFunction(()=>window.feedApp);await page.evaluate(()=>feedApp.mount(document.querySelector('#feed')));
   await page.getByRole('button',{name:'Posts',exact:true}).click();
-  const post=page.locator('[data-feed-post="manual:root"]');await post.waitFor();
+  const post=page.locator('[data-feed-post="manual:root"]');await post.waitFor();assert.equal(await post.locator('.pf-manual-gif .fm-widget-gif').count(),1);assert.equal(await post.locator('.pf-manual-gif figcaption img').getAttribute('alt'),'Powered by GIPHY');
   await post.getByRole('button',{name:'Comments',exact:true}).click();
   const choose=async trigger=>{await trigger.click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'Choose test GIF'}).click();};
   await post.locator('textarea').fill('Caption');await choose(post.locator('[data-comment-gif]'));
   assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('textarea').inputValue(),'Caption');
   await post.getByRole('button',{name:'Remove GIF'}).click();assert.equal(await post.locator('.pf-composer-gif').count(),0);
   await choose(post.locator('[data-comment-gif]'));await page.evaluate(()=>window.failComment=true);
-  await post.getByRole('button',{name:'Post comment'}).click();await post.locator('.pf-composer-gif img').waitFor();
+  await post.getByRole('button',{name:'Post comment'}).click();await post.locator('.pf-composer-gif>.fm-widget-gif>a>img').waitFor();
   assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('textarea').inputValue(),'Caption');
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===1);
-  assert.equal(await page.evaluate(()=>comments[0].metadata.giphy.id),'draft-gif');assert.equal(await page.evaluate(()=>comments[0].text),'Caption');
+  assert.equal(await page.evaluate(()=>comments[0].metadata.giphy.id),'draft-gif');assert.equal(await page.evaluate(()=>comments[0].text),'Caption');assert.equal(await post.locator('.pf-comment .fm-widget-gif figcaption img').count(),1);
   assert.equal(await post.locator('.pf-composer-gif').count(),0);
   await choose(post.locator('[data-comment-gif]'));assert.equal(await page.evaluate(()=>comments.length),1);
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===2);assert.equal(await page.evaluate(()=>comments[1].text),'');

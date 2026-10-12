@@ -272,23 +272,9 @@
     return tableMarkup(rows.map(row => Array.from({length:columns}, (_, i) => row[i] || '')));
   }
 
-  function gifMessageCard(gif){
-    if (!gif || !/^https:\/\/media\d*\.giphy\.com\/media\//i.test(gif.url || '')) return null;
-    const card=el('figure','fm-ch-gif');
-    const link=el('a');link.href=`https://giphy.com/gifs/${encodeURIComponent(gif.id)}`;link.target='_blank';link.rel='noopener noreferrer';
-    const img=el('img');img.src=gif.url;img.alt=gif.title || 'GIF';img.loading='lazy';img.width=gif.width || 240;img.height=gif.height || 180;
-    const caption=el('figcaption'),mark=el('img');mark.src='/images/giphy/powered-by-giphy.png?v=20261012';mark.alt='Powered by GIPHY';mark.width=100;mark.height=36;caption.append(mark);
-    link.append(img);card.append(link,caption);return card;
-  }
-
-    function renderGifDraft(host, gif, onRemove){
-      host.replaceChildren();
-      if(!gif)return;
-      const preview=el('div','fm-ch-gif-draft');preview.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:4px 0';
-      const image=el('img');image.src=gif.url;image.alt=gif.title||'GIF attachment';image.style.cssText='max-width:180px;max-height:120px;border-radius:8px';
-      const remove=el('button','fm-ch-icon-btn','×');remove.type='button';remove.setAttribute('aria-label','Remove GIF');remove.onclick=onRemove;
-      preview.append(image,remove);host.append(preview);
-    }
+  // Compatibility adapters: GIF DOM, styles and attribution belong to Platform Widgets.
+  function gifMessageCard(gif){return root.FirstMateGifWidgets?.createCard(gif) || null;}
+  function renderGifDraft(host,gif,onRemove){return root.FirstMateGifWidgets?.renderDraft(host,gif,onRemove);}
 
   function mountLinkInput(container, values = {}){
     ensureStyles();container.innerHTML='<div class="fm-ch-link-form"><label>Link text<input type="text" data-link-text placeholder="Text people will see"></label><label>Web address<input type="url" data-url placeholder="https://example.com" inputmode="url"></label><p class="fm-ch-link-error" role="alert"></p></div>';const text=container.querySelector('[data-link-text]'),url=container.querySelector('[data-url]'),error=container.querySelector('.fm-ch-link-error');text.value=values.text||'';url.value=values.url||'';
@@ -1033,7 +1019,7 @@
 .fm-ch-msg:hover .fm-ch-quick-like,.fm-ch-msg:focus-within .fm-ch-quick-like{opacity:.65}
 .fm-ch-quick-like:hover,.fm-ch-quick-like:focus-visible{opacity:1!important}
 .fm-ch-msg-body>.fm-ch-msg-edited{margin-left:6px}
-.fm-ch-gif{position:relative;margin:4px 0 0;width:max-content;max-width:min(320px,100%)}.fm-ch-gif>a{display:block}.fm-ch-gif img{display:block;max-width:100%;height:auto;border-radius:10px}.fm-ch-gif figcaption{position:absolute;right:3px;bottom:3px;max-width:calc(100% - 6px);box-sizing:border-box;padding:1px 1.5px;border-radius:1.5px;background:rgba(0,0,0,.65);color:#fff;font-size:9px;font-weight:500;line-height:12px;text-align:right;margin:0;pointer-events:none}.fm-ch-gif figcaption img{display:block;width:35px;max-width:100%;height:auto;border-radius:0}
+
 .fm-ch-member-row[hidden]{display:none}
 @media(hover:none){.fm-ch-quick-like{opacity:.65}}
 .fm-ch-reaction{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--ch-border);background:#fff;border-radius:999px;padding:1px 8px;font-size:12px}
