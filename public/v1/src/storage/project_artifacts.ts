@@ -14,6 +14,7 @@ export type ProjectArtifactEntry = {
   name: string;
   size: number;
   updated_at: string;
+  etag?: string;
 };
 
 export type ProjectArtifactInventoryEntry = ProjectArtifactEntry & {
@@ -285,12 +286,12 @@ function objectUploadRetryDelayMs(attempt: number) {
   return exponential + Math.floor(Math.random() * Math.max(1, Math.floor(exponential / 4)));
 }
 
-export async function getProjectArtifact(projectId: string, fileName: string) {
+async function getProjectArtifactVersion(projectId: string, fileName: string) {
   const key = projectArtifactKey(projectId, fileName);
   try {
     const response = await client().send(new GetObjectCommand({ Bucket: env.spacesBucket, Key: key }));
     if (!response.Body) return null;
-    return Buffer.from(await response.Body.transformToByteArray());
+    return { content: Buffer.from(await response.Body.transformToByteArray()), etag: response.ETag || "" };
   } catch (error) {
     if (isMissingObjectError(error)) {
       const logicalKey = logicalProjectArtifactKey(projectId, fileName);
@@ -301,13 +302,63 @@ export async function getProjectArtifact(projectId: string, fileName: string) {
           Key: `${fallbackProjectPrefix(projectId)}${safeObjectPath(fileName)}`
         }));
         if (!response.Body) return null;
-        return Buffer.from(await response.Body.transformToByteArray());
+        return { content: Buffer.from(await response.Body.transformToByteArray()), etag: response.ETag || "" };
       } catch (fallbackError) {
         if (isMissingObjectError(fallbackError)) return null;
         throw fallbackError;
       }
     }
     throw error;
+  }
+}
+
+export async function getProjectArtifact(projectId: string, fileName: string) {
+  return (await getProjectArtifactVersion(projectId, fileName))?.content ?? null;
+}
+
+// Only used after a fresh LIST has supplied the current object version. Never
+// reuse a body on age alone, and never cache errors or mutable parsed objects.
+const detailJsonCache = new Map<string, { etag: string; content: Buffer }>();
+const detailJsonPending = new Map<string, Promise<Buffer | null>>();
+const DETAIL_JSON_CACHE_BYTES = 128 * 1024 * 1024;
+const DETAIL_JSON_CACHE_ENTRIES = 12000;
+let detailJsonCacheBytes = 0;
+
+export async function readListedProjectJson(projectId: string, fileName: string, etag?: string) {
+  const key = projectArtifactKey(projectId, fileName);
+  const cached = detailJsonCache.get(key);
+  if (etag && cached?.etag === etag) {
+    detailJsonCache.delete(key); detailJsonCache.set(key, cached);
+    return JSON.parse(cached.content.toString("utf8"));
+  }
+  const pendingKey = `${key}\0${etag || ""}`;
+  let pending = detailJsonPending.get(pendingKey);
+  if (!pending) {
+    pending = (async () => {
+      const result = await getProjectArtifactVersion(projectId, fileName);
+      if (!result) return null;
+      // Confirm it is JSON before retaining it. Cache under the GET's actual
+      // ETag, not the listing's: a writer may change it between LIST and GET.
+      JSON.parse(result.content.toString("utf8"));
+      if (result.etag && result.content.length <= DETAIL_JSON_CACHE_BYTES / 4) {
+        const old = detailJsonCache.get(key);
+        if (old) { detailJsonCacheBytes -= old.content.length; detailJsonCache.delete(key); }
+        detailJsonCache.set(key, result); detailJsonCacheBytes += result.content.length;
+        while (detailJsonCacheBytes > DETAIL_JSON_CACHE_BYTES || detailJsonCache.size > DETAIL_JSON_CACHE_ENTRIES) {
+          const oldestKey = detailJsonCache.keys().next().value!;
+          detailJsonCacheBytes -= detailJsonCache.get(oldestKey)!.content.length;
+          detailJsonCache.delete(oldestKey);
+        }
+      }
+      return result.content;
+    })();
+    detailJsonPending.set(pendingKey, pending);
+  }
+  try {
+    const content = await pending;
+    return content ? JSON.parse(content.toString("utf8")) : null;
+  } finally {
+    if (detailJsonPending.get(pendingKey) === pending) detailJsonPending.delete(pendingKey);
   }
 }
 
@@ -360,7 +411,7 @@ export async function deleteProjectArtifact(projectId: string, fileName: string)
   await writeTombstone(logicalProjectArtifactKey(projectId, fileName));
 }
 
-export async function listProjectArtifacts(projectId: string): Promise<ProjectArtifactEntry[]> {
+export async function listProjectArtifacts(projectId: string, includeEtags = false): Promise<ProjectArtifactEntry[]> {
   const listAtPrefix = async (prefix: string) => {
     const files: ProjectArtifactEntry[] = [];
     let continuationToken: string | undefined;
@@ -377,7 +428,8 @@ export async function listProjectArtifacts(projectId: string): Promise<ProjectAr
         files.push({
           name,
           size: Number(object.Size ?? 0),
-          updated_at: object.LastModified?.toISOString() ?? new Date(0).toISOString()
+          updated_at: object.LastModified?.toISOString() ?? new Date(0).toISOString(),
+          ...(includeEtags ? { etag: object.ETag || "" } : {})
         });
       }
       continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;

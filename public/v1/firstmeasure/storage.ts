@@ -9,6 +9,7 @@ import {
   getProjectArtifact,
   isSpacesArtifactStorageEnabled,
   listProjectArtifacts,
+  readListedProjectJson,
   projectArtifactReference,
   putProjectArtifact
 } from "../src/storage/project_artifacts.js";
@@ -536,12 +537,23 @@ export async function getProjectDetail(projectId: string) {
   // The full response already needs a fresh listing. Use that same snapshot to
   // avoid three speculative GETs for optional JSON files that do not exist.
   // Keep real bodies for editors, and never turn a failed listing into emptiness.
-  const files = await listProjectFiles(projectId);
+  const listed = isSpacesArtifactStorageEnabled()
+    ? await listProjectArtifacts(projectId, true)
+    : await listProjectFiles(projectId);
+  const files = listed.map(({ name, size, updated_at }) => ({ name, size, updated_at }));
   const names = new Set(files.map((file) => file.name));
+  const readListed = async (name: string, localRead: () => Promise<unknown>) => {
+    if (!names.has(name)) return null;
+    if (!isSpacesArtifactStorageEnabled()) return localRead();
+    const entry = listed.find((file) => file.name === name);
+    try {
+      return await readListedProjectJson(projectId, name, entry && "etag" in entry ? String(entry.etag) : undefined);
+    } catch { return null; } // Preserve the optional-JSON reader's existing error behavior.
+  };
   const [appMetadata, pdfState, brandingDefaults] = await Promise.all([
-    names.has(FIRSTMEASURE_FILE_NAMES.appMetadata) ? readAppMetadata(projectId) : null,
-    names.has(FIRSTMEASURE_FILE_NAMES.pdfState) ? readPdfState(projectId) : null,
-    names.has(FIRSTMEASURE_FILE_NAMES.brandingDefaults) ? readBrandingDefaults(projectId) : null
+    readListed(FIRSTMEASURE_FILE_NAMES.appMetadata, () => readAppMetadata(projectId)),
+    readListed(FIRSTMEASURE_FILE_NAMES.pdfState, () => readPdfState(projectId)),
+    readListed(FIRSTMEASURE_FILE_NAMES.brandingDefaults, () => readBrandingDefaults(projectId))
   ]);
 
   return {
