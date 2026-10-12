@@ -888,7 +888,7 @@
       return `<article class="pn-card${archived ? ' pn-archived' : ''}" data-project-note-id="${esc(note.id)}"><header>${avatarHtml(note)}<div class="pn-author"><span>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}${archived ? ' · Archived' : ''}</time></div>${note.pinned_at && !archived ? '<button type="button" class="pn-pin-toggle" data-act="pin" title="Unpin Note" aria-label="Unpin Note"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header><div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"></div><button type="button" class="pn-more" data-act="expand" aria-expanded="${expanded.has(note.id)}" hidden><span>${expanded.has(note.id) ? 'Show less' : 'Show more'}</span></button><footer><div class="pn-audience" data-note-audience="${esc(note.id)}"></div>${note.edited_at ? '<span class="pn-edited-label">Edited</span>' : ''}${shared ? '<span>Shared</span>' : ''}${!archived ? `<button type="button" data-act="replies">${note.reply_count ? `${Number(note.reply_count)} ${Number(note.reply_count)===1 ? 'reply' : 'replies'}` : 'Reply'}</button>` : ''}</footer></article>`;
     }
     function render(){
-      if(disposed)return;const scroll=history.scrollTop,editingNode=editSession?.node;
+      if(disposed)return;const scroll=history.scrollTop,editingNode=editSession?.node,restoreReplyFocus=captureReplyFocus();
       for(const handle of [...audienceHandles])if(handle.host.hasAttribute('data-note-audience') && !editingNode?.contains(handle.host))handle.destroy();
       const rows=entry.notes.filter(note=>(!entry.separate || note.metadata?.project_note===true) && (showArchived || !note.deleted_at) && (!query || `${note.text} ${note.created_by?.name}`.toLowerCase().includes(query)));
       const pins=rows.filter(note=>note.pinned_at && !note.deleted_at),rest=rows.filter(note=>!note.pinned_at || note.deleted_at).sort((a,b)=>Number(b.seq)-Number(a.seq));
@@ -899,7 +899,7 @@
       for(const thread of replyThreads.values()){const root=container.querySelector(`.pn-card[data-project-note-id="${CSS.escape(thread.id)}"]`);if(root && thread.open){root.append(thread.node);thread.form.hidden=!!entry.notes.find(note=>note.id===thread.id)?.deleted_at;void loadReplyThread(thread);}}
       container.querySelectorAll('.pn-card').forEach(node=>{const content=node.querySelector('.pn-card-content'),more=node.querySelector('.pn-more');if(content && more)more.hidden=content.hidden || (!content.classList.contains('expanded') && content.scrollHeight<=content.clientHeight);});
       for(const note of rows){const host=container.querySelector(`[data-note-audience="${CSS.escape(note.id)}"]`);if(!host || editSession?.id===note.id)continue;audienceChooser(host,note,{readOnly:!note.can_edit || !!note.deleted_at,onApply:async selected=>{await channels().messages.updateVisibility(orgId(),note.id,selected);if(disposed)return;await refresh();announce(entry.projectId);}});}
-      window.FirstMateAudioNotes?.hydrate?.(container);history.scrollTop=scroll;
+      window.FirstMateAudioNotes?.hydrate?.(container);history.scrollTop=scroll;restoreReplyFocus();
     }
     async function refresh(){adoptProject();if(entry.projectId)await refreshEntry(entry);render();}
     const ready=Promise.all([refresh(),directoryReady]).then(()=>render()).catch(error=>say(error.message));
@@ -930,15 +930,20 @@
       }catch(error){node.remove();if(!/cancelled/i.test(error.message || ''))say(error.message);}finally{capturing=false;recorderControl=null;if(!disposed){button.classList.remove('voice-active');button.setAttribute('aria-pressed','false');button.setAttribute('aria-label',button.title);syncSendState();}}
     }
     dictateButton.onclick=()=>capture('dictation');audioButton.onclick=()=>capture('record');syncSendState();
+    function captureReplyFocus(){
+      const element=document.activeElement;if(!container.contains(element) || !element.closest('.pn-replies-wrap') || !element.matches('[contenteditable],textarea'))return ()=>{};
+      const selection=getSelection(),anchor=selection?.anchorNode,anchorOffset=selection?.anchorOffset,focus=selection?.focusNode,focusOffset=selection?.focusOffset;
+      return ()=>{if(!element.isConnected)return;element.focus({preventScroll:true});if(anchor?.isConnected && focus?.isConnected && element.contains(anchor) && element.contains(focus))getSelection().setBaseAndExtent(anchor,anchorOffset,focus,focusOffset);};
+    }
     function replyHtml(note){
       const archived=!!note.deleted_at,actions=archived ? `${note.can_restore ? '<button type="button" data-act="restore">Unarchive Reply</button>' : ''}` : `${note.can_edit ? '<button type="button" data-act="edit">Edit Reply</button>' : ''}${note.can_delete ? '<button type="button" data-act="delete">Archive Reply</button>' : ''}`;
       return `<article class="pn-reply-card${archived ? ' pn-archived' : ''}" data-project-note-id="${esc(note.id)}"><header>${avatarHtml(note)}<div class="pn-author"><span>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}${archived ? ' · Archived' : ''}</time></div><details class="pn-menu"><summary aria-label="Reply options"><i class="fas fa-ellipsis"></i></summary><div>${actions}<button type="button" data-act="copy">Copy text</button>${note.edited_at ? '<button type="button" data-act="history">View Edit History</button>' : ''}</div></details></header><div class="pn-card-content">${widgets?.renderBody?.({...note,text:note.translation?.text || note.text}) || `<p>${esc(note.text)}</p>`}${audioPlayerHtml(note)}${mediaAttachmentsHtml(note)}</div><footer>${note.edited_at ? '<span class="pn-edited-label">Edited</span>' : ''}</footer></article>`;
     }
     function paintReplyThread(thread){
-      const editing=editSession?.node,keep=editing && thread.items.some(item=>item.id===editSession.id);
+      const restoreFocus=captureReplyFocus(),editing=editSession?.node,keep=editing && thread.items.some(item=>item.id===editSession.id);
       thread.list.innerHTML=thread.items.filter(item=>showArchived || !item.deleted_at).map(replyHtml).join('');
       if(keep){const replacement=thread.list.querySelector(`[data-project-note-id="${CSS.escape(editSession.id)}"]`);if(replacement)replacement.replaceWith(editing);}
-      window.FirstMateAudioNotes?.hydrate?.(thread.list);
+      window.FirstMateAudioNotes?.hydrate?.(thread.list);restoreFocus();
     }
     async function loadReplyThread(thread){
       if(thread.loading)return thread.loading;
