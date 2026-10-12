@@ -130,3 +130,29 @@ ignored output/gif-spacing-deploy.
 | web | `/opt/firstmeasure/releases/14db37dcfb340615a9f6c585048554b59d4ad54d-gif-spacing` | `cfab7338fc60bd1275ab24f915160135b6c8140b` |
 | pool | `/opt/firstmeasure/releases/14db37dcfb340615a9f6c585048554b59d4ad54d-gif-spacing` | `cfab7338fc60bd1275ab24f915160135b6c8140b` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/14db37dcfb340615a9f6c585048554b59d4ad54d-gif-spacing` | `cfab7338fc60bd1275ab24f915160135b6c8140b` |
+
+## Supplied GIPHY attribution graphic
+
+Frontend feature c0ac0dcc replaces the text caption with the user-supplied
+100×36 transparent white Powered by GIPHY graphic. The original PNG is preserved
+at public/images/giphy/powered-by-giphy.png and displayed 70px wide, with its
+aspect ratio intact, in the existing bottom-right overlay. A small dark backing
+keeps the supplied white lettering readable. The mark does not add a caption row
+or intercept clicks. Photo comments, Notes, Channels and their replies share the
+renderer; source and loader cache versions are refreshed.
+
+All three browser regressions passed locally and using dev-hosted assets. The
+photo test decodes the actual PNG, checks its 70px rendered width and confirms
+that it stays inside the GIF's bottom-right corner. Narrow-width rendering was
+visually inspected. Test APIs are fixtures and do not send customer messages.
+
+Every frontend-only role passed staging syntax/hashes, retained backend identity,
+readiness, development isolation and outbound safety. Public hashes of the PNG,
+Channels renderer and app manifest match the reviewed payload. Only PHP-FPM was
+reloaded. Evidence is under ignored output/gif-mark-deploy.
+
+| Role | Activated frontend path | Retained runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/c0ac0dccf39f71743d098e43fa33aa4bc554a41c-gif-mark` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+| pool | `/opt/firstmeasure/releases/c0ac0dccf39f71743d098e43fa33aa4bc554a41c-gif-mark` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/c0ac0dccf39f71743d098e43fa33aa4bc554a41c-gif-mark` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
