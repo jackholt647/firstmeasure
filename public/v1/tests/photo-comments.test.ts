@@ -59,4 +59,3 @@ test('media permissions are rechecked for existing discussions and cannot be swa
  await assert.rejects(()=>domain.updateChannel({...ctx('owner'),permissions:{...ctx('owner').permissions,manage_channels:true}},channel.id,{settings:{photo_media_id:'photo-a'}}));
  await media('receipt',{source:'expense_receipt_upload',uploaded_by_user_id:'sales'});const receipt=await photos.ensurePhotoDiscussion(ctx('sales'),'receipt');await assert.rejects(()=>domain.postMessage(ctx('office'),String(receipt.id),{text:'Cannot edit another person receipt',project_note:true}));
 });
-

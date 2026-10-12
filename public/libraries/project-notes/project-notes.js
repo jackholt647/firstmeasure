@@ -973,7 +973,8 @@
       if(busy || disposed || capturing || uploading)return;const body=clean(text.value);if(!body && !prepared.length && !gifDraft)return;
       busy=true;text.contentEditable='false';closeEmoji();window.FirstMatePickerWidgets?.closeFor?.(gifButton);audience.close();form.querySelectorAll('button,input,textarea').forEach(node=>node.disabled=true);say();
       try{await ensureSavedProject();await ensureChannel(entry);const visibility=audience.payload(),metadata=Object.assign({},...prepared.map(item=>item.kind==='audio' ? {audio_note:item.metadata} : item.metadata || {}),gifDraft ? {giphy:gifDraft} : {});
-        await channels().messages.post(orgId(),entry.channelId,{text:body || prepared.map(item=>item.text || '').filter(Boolean).join('\n'),project_note:true,pin,...visibility,mention_users:mentions?.selectedMentions?.() || [],client_msg_id:form.dataset.operationId || (form.dataset.operationId=id()),attachment_ids:prepared.map(item=>item.attachment?.id).filter(Boolean),metadata});
+        const posted=await channels().messages.post(orgId(),entry.channelId,{text:body || prepared.map(item=>item.text || '').filter(Boolean).join('\n'),project_note:true,pin,...visibility,mention_users:mentions?.selectedMentions?.() || [],client_msg_id:form.dataset.operationId || (form.dataset.operationId=id()),attachment_ids:prepared.map(item=>item.attachment?.id).filter(Boolean),metadata});
+        try{options.onPosted?.(posted.message);}catch{}
         if(disposed)return;text.value='';prepared=[];gifDraft=null;paintGif();delete form.dataset.operationId;uploadBox.replaceChildren();mentions?.setSelectedMentions?.([]);await refresh();announce(entry.projectId);
       }catch(error){say(error.message || 'Could not save the note. Your draft has been kept.');}
       finally{busy=false;if(!disposed){text.contentEditable='true';form.querySelectorAll('button,input,textarea').forEach(node=>node.disabled=false);syncSendState();}}

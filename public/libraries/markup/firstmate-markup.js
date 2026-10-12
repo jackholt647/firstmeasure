@@ -2020,7 +2020,11 @@
       if(!workspace){
         const node=document.createElement('div');node.style.cssText='display:flex;flex:1;min-height:0;width:100%';
         host.append(node);
-        const handle=notes.mount(node,{project:{id:'photo:'+mediaId,commentMediaId:mediaId},kind:'photo-comments'});
+        const handle=notes.mount(node,{project:{id:'photo:'+mediaId,commentMediaId:mediaId},kind:'photo-comments',onPosted:message=>{
+          const project=photo.__project || this.project || {};
+          root.Portal?.PhotoFeed?.trackActivity?.({type:'photo_commented',summary:'Commented on media',actor_name:userName(),actor_email:userEmail(),target:{media_id:mediaId,photo_id:photoId(photo),project_id:this.currentProjectId(project),project_title:project.title || project.address || '',project_address:project.address || ''},metadata:{comment_id:message?.id || '',mention_count:message?.mention_users?.length || 0}},{source:'photo_comments'});
+          this.onChange?.({photo,comment:message});
+        }});
         workspace={node,handle};this.commentWorkspaces.set(mediaId,workspace);
       }else{host.append(workspace.node);workspace.handle.refresh().catch(()=>{});}
     }
