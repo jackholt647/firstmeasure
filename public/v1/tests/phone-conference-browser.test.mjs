@@ -92,5 +92,8 @@ test('active calls invite teammates and contacts, show participants, and give gu
     await page.getByRole('button',{name:'Leave call',exact:true}).click();
     await page.waitForFunction(()=>Portal.CustomerPhone.currentCall===null);
     assert.equal(await page.evaluate(()=>window.call.state),'connected');assert.deepEqual(errors,[]);
+    await page.evaluate(()=>{window.__APP.userId='host';window.call.state='ended';window.call.wrap_up_state='saved';window.call.metadata.host_left_user_id='host';});
+    await page.evaluate(()=>Portal.CustomerPhone.open({call_id:'conference'}));await page.waitForTimeout(2300);
+    assert.equal(await page.evaluate(()=>Portal.CustomerPhone.state.call?.id),'conference','The former host must still be able to review the ended call.');
   }finally{await browser.close();}
 });

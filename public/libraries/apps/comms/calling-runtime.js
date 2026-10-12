@@ -196,7 +196,7 @@
     const result=await request(`calls/${encodeURIComponent(id)}`);if(state.call?.id!==id)return;
     if(result.call.owner_user_id===ui.user()&&!terminal.has(result.call.state)&&(!state.lastLease||Date.now()-state.lastLease>30000)){await request(`calls/${encodeURIComponent(id)}/lease`,{});state.lastLease=Date.now();}
     const prior=state.call,priorParticipants=JSON.stringify(state.detail?.participants),wasGuest=!!ourParticipant();state.call=result.call;state.detail=result;
-    if(wasGuest&&!ourParticipant()||state.call.metadata?.host_left_user_id===ui.user()){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};render();changed();return;}
+    if(wasGuest&&!ourParticipant()||state.call.metadata?.host_left_user_id===ui.user()&&!terminal.has(state.call.state)){state.call=null;state.detail=null;state.notes='';state.answers={};state.dirty=false;state.prepared={};render();changed();return;}
     if(!state.dirty){state.notes=state.call.notes||'';state.answers=state.call.metadata?.script_answers||{};}
     // Preserve the user's caret and unsaved form values; redraw only a call-state transition.
     if(prior.state!==state.call.state||prior.wrap_up_state!==state.call.wrap_up_state||JSON.stringify(prior.metadata?.capture)!==JSON.stringify(state.call.metadata?.capture)||JSON.stringify(prior.metadata?.transfer)!==JSON.stringify(state.call.metadata?.transfer)||JSON.stringify(prior.metadata?.customer_hold_state)!==JSON.stringify(state.call.metadata?.customer_hold_state)||priorParticipants!==JSON.stringify(state.detail?.participants))render();
