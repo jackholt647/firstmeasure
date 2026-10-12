@@ -2,6 +2,8 @@
 
 October 12 project Activity: [Readable actions, user previews and corrected filters](deploy/digitalocean/development-project-activity-readable-20261012.md) records the frontend changes, focused verification and development rollout.
 
+October 11 Project Notes refinements: [Inline editing, archives and department audiences](deploy/digitalocean/development-project-notes-refinements-20261011.md) records the updated tray behavior, department enforcement, checks and development rollout.
+
 October 12 Phone marketing: [Website call tracking and SMS broadcast infrastructure](deploy/digitalocean/development-phone-marketing-20261012.md) records setup screens, shared data/actions/events, additive PostgreSQL schema, tests and verified development rollout.
 
 October 11 Project Notes: [Composer parity and note cards](deploy/digitalocean/development-project-notes-composer-20261011.md) records the browser changes, development publication and validation.
