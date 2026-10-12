@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Project Note replies: [Rich composer and compact reply cards](deploy/digitalocean/development-project-note-replies-20261012.md) records Enter-to-send, reply actions, draft preservation, browser checks and verified development publication.
+
 October 12 Activity labels: [Complete bold event labels, name-only previews and expandable notes](deploy/digitalocean/development-project-activity-labels-20261012.md) records the consistent emphasis, See more links, checks and development rollout.
 
 October 12 Project Notes: [Direct audience changes, field crew and readable archives](deploy/digitalocean/development-project-note-audiences-20261012.md) records the tighter cards, summary hover verification, access checks and staged development rollout.
