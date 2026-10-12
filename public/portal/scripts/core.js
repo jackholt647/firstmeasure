@@ -1033,11 +1033,11 @@
   async function projectPageFromCandidates(projects = [], fields = {}, options = {}) {
     const page = paginateProjects(projects, fields);
     if (options.hydrateDetails === false) return page;
-    page.projects = await Promise.all(page.projects.map(hydratePlatformProjectFromFirstMeasure));
+    page.projects = await Promise.all(page.projects.map((project) => hydratePlatformProjectFromFirstMeasure(project, { summaryOnly: true })));
     return page;
   }
 
-  async function hydratePlatformProjectFromFirstMeasure(project = {}){
+  async function hydratePlatformProjectFromFirstMeasure(project = {}, options = {}){
     const measurementId = cleanMeasurementText(
       project?.measurement_project?.id,
       project?.measurement?.id,
@@ -1059,15 +1059,16 @@
     );
     if (!measurementId || measurementId === cleanText(project.platform_project_id)) return project;
     try {
-      const data = await fmJson(`projects/${encodeURIComponent(measurementId)}`);
+      const data = await fmJson(`projects/${encodeURIComponent(measurementId)}${options.summaryOnly ? "?view=portal-card" : ""}`);
       const fmProject = data?.project && typeof data.project === 'object' ? data.project : {};
       const manifest = fmProject?.manifest && typeof fmProject.manifest === 'object' ? fmProject.manifest : {};
       const files = Array.isArray(fmProject.files) ? fmProject.files : [];
+      const summaryOnly = fmProject.summary_only === true;
       const names = new Set(files.map((file) => String(file?.name || '')));
       const releaseHeld = reportReleaseHoldIsActive(manifest, fmProject, project);
       const isComplete = !releaseHeld && isFirstMeasureCompleteStatus(fmProject.status, manifest.status, project.status);
-      const hasReportPdf = isComplete && (names.has('Report.pdf') || names.has('report.pdf'));
-      const hasSummaryPdf = isComplete && names.has('Summary.pdf');
+      const hasReportPdf = isComplete && (summaryOnly ? fmProject.artifact_flags?.has_report_pdf === true : (names.has('Report.pdf') || names.has('report.pdf')));
+      const hasSummaryPdf = isComplete && (summaryOnly ? fmProject.artifact_flags?.has_summary_pdf === true : names.has('Summary.pdf'));
       const firstMeasureRejection = firstMeasureRejectionMetadata({ ...fmProject, ...manifest }, project);
       const measurementRejection = firstMeasureRejectionMetadata({ ...fmProject, ...manifest }, project.measurement || {});
       const measurementProjectRejection = firstMeasureRejectionMetadata({ ...fmProject, ...manifest }, project.measurement_project || {});
@@ -1138,8 +1139,9 @@
         has_report: !!(isComplete && (project.has_report || hasReportPdf)),
         report_url: isComplete ? (project.report_url || project.pdf_url || (hasReportPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Report.pdf`) : null)) : null,
         summary_url: isComplete ? (project.summary_url || (hasSummaryPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Summary.pdf`) : null)) : null,
-        xml_url: project.xml_url || (names.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/model_data.xml`) : null),
-        _detailHydrated: true,
+        xml_url: project.xml_url || ((summaryOnly ? fmProject.artifact_flags?.has_model_data === true : names.has('model_data.xml')) ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/model_data.xml`) : null),
+        _summaryHydrated: summaryOnly,
+        _detailHydrated: !summaryOnly,
       });
     } catch (error) {
       return project;

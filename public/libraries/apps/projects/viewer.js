@@ -4404,7 +4404,7 @@
     };
   }
   function needsDisplayHydration(p){
-    if (!p || p._detailHydrated || !p.id) return false;
+    if (!p || p._summaryHydrated || p._detailHydrated || !p.id) return false;
     const resident = resolveResidentFields(p);
     return !resident.name;
   }
@@ -5199,7 +5199,7 @@
     const s = statusBadgeClasses(p);
     const isProcessing = projectStatusGroup(p) === 'processing';
     const thumbnailCandidates = Array.isArray(p.thumbnail_candidates) ? p.thumbnail_candidates : preferredThumbnailUrls(p);
-    const shouldProbeThumbnail = isProcessing && !p._detailHydrated && thumbnailCandidates.length === 0;
+    const shouldProbeThumbnail = isProcessing && !p._summaryHydrated && !p._detailHydrated && thumbnailCandidates.length === 0;
     const hasThumbnail = thumbnailCandidates.length > 0 && !shouldProbeThumbnail;
     const placeholderThumb = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     const thumbSrc = hasThumbnail ? thumbnailCandidates[0] : placeholderThumb;
@@ -6845,7 +6845,7 @@
     document.getElementById('vmUpgradeDialog')?.addEventListener('click', (event) => event.stopPropagation());
     setView(viewMode); syncSortDropdown();
     fetchProjects(true);
-    pollTimer = setInterval(()=>{ fetchProjects(false); }, 60000);
+    pollTimer = setInterval(()=>{ fetchProjects(false); }, 120000);
   }
 
   window.Portal.instantReports = {

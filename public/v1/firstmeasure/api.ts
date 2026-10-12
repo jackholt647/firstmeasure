@@ -1171,6 +1171,24 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   app.get("/projects/:id", async (request) => {
     const projectId = getProjectId(request.params);
+    // Portal cards need current database metadata, not artifact bodies or a Spaces listing.
+    // Keep the default detail response intact for existing tabs and project editors.
+    if (asRecord(request.query).view === "portal-card") {
+      const manifest = await readManifest(projectId);
+      const legacy = buildLegacyManifest(manifest);
+      return {
+        ok: true,
+        project: {
+          manifest,
+          artifact_flags: {
+            has_report_pdf: Boolean(legacy.has_report_pdf),
+            has_summary_pdf: Boolean(legacy.has_summary_pdf),
+            has_model_data: Boolean(asRecord(manifest.artifacts).has_model_data)
+          },
+          summary_only: true
+        }
+      };
+    }
     const project = await getProjectDetail(projectId);
     const manifest = buildLegacyManifest(project.manifest);
     if (projectIncludesWeatherReport(manifest) && projectWeatherReportMayGenerate(manifest)) {
