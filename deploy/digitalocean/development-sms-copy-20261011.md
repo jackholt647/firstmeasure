@@ -17,3 +17,12 @@ sidebar empty status, updated policy labels, START content/length and submitted
 copy preservation. Focused API workflow verifies second marketing sample required
 and successful provider payload. Development-only guarded per-host overlays.
 No provider submissions, purchases or real messages in tests.
+
+## Development verification
+
+Activated `0200f8b07c24bd5c46ec6b9643923864e8933708` on all four dev roles;
+HTTP readiness passed and worker is active. Concurrent Activity rollout changed
+web's release afterward; its SMS frontend/API hashes exactly match this payload.
+Public readiness is healthy and the public settings asset matches SHA-256
+`051d8759a16ad1becfe3e87cdeb776249aff5f2cb5b39d49ef196364019181fe`.
+All four browser tests pass against merged live source. No production changes.
