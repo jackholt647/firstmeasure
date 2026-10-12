@@ -256,7 +256,8 @@ export type PolicyUrlResolvedAddress = {
 };
 
 type PolicyUrlResolver = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
-type PolicyUrlRequester = (url: URL, pinnedAddress: PolicyUrlResolvedAddress) => Promise<number>;
+type PolicyUrlResponse = { status: number; location?: string };
+type PolicyUrlRequester = (url: URL, pinnedAddress: PolicyUrlResolvedAddress) => Promise<number | PolicyUrlResponse>;
 type HttpsRequestImplementation = (options: HttpsRequestOptions, callback: (response: IncomingMessage) => void) => ClientRequest;
 
 export type PolicyUrlVerificationDependencies = {
@@ -276,7 +277,7 @@ export function requestPinnedPolicyUrl(
   pinnedAddress: PolicyUrlResolvedAddress,
   requestImpl: HttpsRequestImplementation = httpsRequest as HttpsRequestImplementation
 ) {
-  return new Promise<number>((resolve, reject) => {
+  return new Promise<PolicyUrlResponse>((resolve, reject) => {
     const pinnedLookup = (hostname: string, options: unknown, callbackValue?: unknown) => {
       const callback = (typeof options === "function" ? options : callbackValue) as (...args: unknown[]) => void;
       const lookupOptions = typeof options === "object" && options != null ? options as { all?: boolean } : {};
@@ -312,8 +313,7 @@ export function requestPinnedPolicyUrl(
           "User-Agent": "FirstMate-10DLC-Policy-Validator/1.0"
         }
       }, (response) => {
-        const statusCode = Number(response.statusCode || 0);
-        resolve(statusCode);
+        resolve({ status: Number(response.statusCode || 0), location: String(response.headers?.location || "") });
         response.destroy();
       });
     } catch (error) {
@@ -352,10 +352,25 @@ export async function verifyPublicPolicyUrl(
     }
     const pinnedAddress = addresses[0] as PolicyUrlResolvedAddress;
     const requester = dependencies.request || requestPinnedPolicyUrl;
-    const status = await requester(url, pinnedAddress);
-    if (status < 200 || status >= 300) {
-      throw badRequest("policy_url_unreachable", `${label} must be publicly accessible before campaign submission.`, { status });
+    let currentUrl = url;
+    const visited = new Set<string>();
+    for (let redirects = 0; redirects <= 3; redirects += 1) {
+      if (visited.has(currentUrl.href)) throw badRequest("policy_url_unreachable", `${label} redirects in a loop.`);
+      visited.add(currentUrl.href);
+      const result = await requester(currentUrl, pinnedAddress);
+      const response = typeof result === "number" ? { status: result, location: "" } : result;
+      if (response.status >= 200 && response.status < 300) return;
+      if ([301, 302, 303, 307, 308].includes(response.status) && response.location) {
+        const nextUrl = new URL(response.location, currentUrl);
+        if (nextUrl.origin !== url.origin || nextUrl.username || nextUrl.password) {
+          throw badRequest("policy_url_invalid", `${label} redirects outside the registered business website.`);
+        }
+        currentUrl = nextUrl;
+        continue;
+      }
+      throw badRequest("policy_url_unreachable", `${label} must be publicly accessible before campaign submission.`, { status: response.status });
     }
+    throw badRequest("policy_url_unreachable", `${label} redirects too many times.`);
   } catch (error) {
     if (error instanceof PlatformError) throw error;
     throw badRequest("policy_url_unreachable", `${label} could not be verified as publicly accessible.`);

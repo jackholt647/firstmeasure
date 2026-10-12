@@ -75,7 +75,42 @@ test("policy URL verification pins one validated address and rejects mixed priva
   assert.equal(mixedRequestCalled, false);
 });
 
-test("policy URL verification rejects redirects, credentials, and non-HTTPS business sites", async () => {
+test("policy URL verification follows only same-origin HTTPS redirects", async () => {
+  const { verifyPublicPolicyUrl } = await policyModule;
+  const requested: string[] = [];
+  const resolve = async () => [{ address: "8.8.8.8", family: 4 }];
+  await verifyPublicPolicyUrl("https://policy.example/privacy", "https://policy.example", "Privacy policy", {
+    resolve,
+    request: async (url) => {
+      requested.push(url.href);
+      return url.pathname === "/privacy"
+        ? { status: 301, location: "/privacy/" }
+        : { status: 200 };
+    }
+  });
+  assert.deepEqual(requested, ["https://policy.example/privacy", "https://policy.example/privacy/"]);
+
+  for (const location of ["https://other.example/privacy/", "http://policy.example/privacy/", "https://user:secret@policy.example/privacy/"]) {
+    let calls = 0;
+    await assert.rejects(
+      () => verifyPublicPolicyUrl("https://policy.example/privacy", "https://policy.example", "Privacy policy", {
+        resolve,
+        request: async () => { calls += 1; return { status: 301, location }; }
+      }),
+      (error: any) => error?.code === "policy_url_invalid"
+    );
+    assert.equal(calls, 1);
+  }
+  await assert.rejects(
+    () => verifyPublicPolicyUrl("https://policy.example/privacy", "https://policy.example", "Privacy policy", {
+      resolve,
+      request: async (url) => ({ status: 301, location: url.pathname === "/privacy" ? "/privacy/" : "/privacy" })
+    }),
+    (error: any) => error?.code === "policy_url_unreachable"
+  );
+});
+
+test("policy URL verification rejects missing redirect locations, credentials, and non-HTTPS business sites", async () => {
   const { verifyPublicPolicyUrl } = await policyModule;
   const publicResolver = async () => [{ address: "8.8.8.8", family: 4 }];
 
@@ -126,7 +161,7 @@ test("pinned HTTPS requests retain hostname verification, SNI, Host, and a one-a
     { address: "8.8.8.8", family: 4 },
     fakeRequest
   );
-  assert.equal(status, 206);
+  assert.deepEqual(status, { status: 206, location: "" });
   assert.equal(options.protocol, "https:");
   assert.equal(options.hostname, "policy.example");
   assert.equal(options.port, 8443);
