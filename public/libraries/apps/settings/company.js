@@ -2071,6 +2071,13 @@
       .sms-step-errors,.sms-api-error{border:1px solid #fecdca;background:#fff4f2;padding:16px;border-radius:12px;color:#912018;font-size:13px;line-height:1.5}.sms-step-errors:empty{display:none}.sms-step-errors ul{padding-left:20px;margin:8px 0 0}.sms-step-errors button{font:inherit;text-align:left;color:inherit;background:none;border:0;cursor:pointer;text-decoration:underline}.sms-api-error strong{display:block;margin-bottom:5px}.sms-api-error p{margin:0 0 8px}
       [data-fm-wizard="sms-workflow"] .cs-btn{min-height:42px;border-radius:9px;font-size:13px;font-weight:600;padding:10px 16px;cursor:pointer}.sms-summary-checklist{font-weight:400}.sms-summary-checklist ul{gap:8px}.sms-summary-checklist button{color:inherit}.sms-summary-checklist.ready{background:#f6fef9}
       @media(max-width:860px){[data-fm-wizard="sms-workflow"] .fm-wizard-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}[data-fm-wizard="sms-workflow"] .fm-wizard-rail{padding:8px}.sms-step-heading h2{font-size:23px}[data-fm-wizard="sms-workflow"] .fm-wizard-pane{padding:20px 16px}[data-fm-wizard="sms-workflow"] .fm-wizard-step{min-width:145px;padding:8px}[data-fm-wizard="sms-workflow"] .fm-wizard-step-status{display:none}[data-fm-wizard="sms-workflow"] .fm-wizard-rail-foot{display:none}.sms-section,.sms-message-card{padding:17px}.sms-timeline{grid-template-columns:1fr;gap:14px}.sms-section-title{flex-wrap:wrap}[data-fm-wizard="sms-workflow"] .fm-wizard-foot{flex-wrap:wrap;padding:10px 14px}[data-fm-wizard="sms-workflow"] .fm-wizard-foot-note{flex-basis:100%}}
+      .sms-entry{display:grid;gap:26px;max-width:1080px;padding:8px 0 20px;color:#182230;font-weight:400}
+      .sms-entry-header{display:flex;gap:20px;justify-content:space-between;align-items:center}.sms-entry-eyebrow{font-size:10px;letter-spacing:1.4px;font-weight:700;color:#8a4b40}.sms-entry-header h2{margin:7px 0 8px;font-size:26px;letter-spacing:-.6px;font-weight:700;line-height:1.25}.sms-entry-header p{margin:0;color:#667085;font-size:14px;line-height:1.5}.sms-entry-plan{border:1px solid #e4e7ec;border-radius:999px;padding:7px 11px;font-size:11px;color:#475467;white-space:nowrap;background:#f9fafb}
+      .sms-entry-card{border:1px solid #e4e7ec;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 3px 12px #10182805}.sms-entry-main{display:flex;align-items:flex-start;gap:20px;padding:28px}.sms-entry-icon{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;background:#fff1ee;color:#b63b2e;border-radius:14px;font-size:20px}.sms-entry-copy{flex:1;min-width:0}.sms-entry-badge{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:#475467}.sms-entry-badge:before{content:'';height:6px;width:6px;border-radius:50%;background:#98a2b3}.sms-entry-copy h3{font-size:23px;line-height:1.3;letter-spacing:-.4px;font-weight:650;margin:10px 0}.sms-entry-copy>p{font-size:14px;line-height:1.7;color:#667085;max-width:640px;margin:0}.sms-entry-action{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:23px}.sms-entry-action>span{font-size:12px;color:#667085}.sms-entry .cs-btn{border-radius:9px;min-height:42px;padding:11px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}.sms-entry .cs-btn:focus-visible{outline:2px solid #344054;outline-offset:3px}
+      .sms-entry-card.pending .sms-entry-icon{background:#fffaeb;color:#b54708}.sms-entry-card.pending .sms-entry-badge{color:#93370d}.sms-entry-card.pending .sms-entry-badge:before{background:#f79009}.sms-entry-card.ready .sms-entry-icon{background:#ecfdf3;color:#067647}.sms-entry-card.ready .sms-entry-badge{color:#067647}.sms-entry-card.ready .sms-entry-badge:before{background:#12b76a}.sms-entry-card.attention .sms-entry-icon{background:#fef3f2;color:#b42318}.sms-entry-card.attention .sms-entry-badge{color:#b42318}.sms-entry-card.attention .sms-entry-badge:before{background:#f04438}
+      .sms-entry-facts{display:grid;grid-template-columns:1fr 1fr 1.5fr;margin:0;padding:20px 28px;gap:24px;background:#fafbfc;border-top:1px solid #eaecf0}.sms-entry-facts dt{font-size:11px;color:#667085;margin-bottom:7px}.sms-entry-facts dd{font-size:13px;line-height:1.6;font-weight:500;margin:0;overflow-wrap:anywhere}.sms-entry-progress{display:flex;align-items:center;gap:12px;margin-top:18px;font-size:11px;color:#667085}.sms-entry-progress progress{appearance:none;width:140px;height:5px;border:0;border-radius:9px;overflow:hidden;background:#eaecf0}.sms-entry-progress progress::-webkit-progress-bar{background:#eaecf0}.sms-entry-progress progress::-webkit-progress-value{background:#c85d4d;border-radius:9px}.sms-entry-progress progress::-moz-progress-bar{background:#c85d4d}
+      .sms-entry-tracking>h3,.sms-entry-prep>h3{font-size:14px;font-weight:600;margin:0 0 14px}.sms-entry .sms-timeline{padding:20px;box-shadow:none}.sms-entry-prep-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}.sms-entry-prep-grid>div{display:flex;gap:12px}.sms-entry-prep-grid>div>span{flex:0 0 26px;height:26px;display:grid;place-items:center;background:#f2f4f7;border-radius:50%;font-size:11px;color:#667085}.sms-entry-prep h4{font-size:13px;font-weight:600;margin:3px 0 6px}.sms-entry-prep p{font-size:12px;line-height:1.6;color:#667085;margin:0}.sms-entry-footnote{display:flex;align-items:baseline;gap:8px;margin:0;padding-top:18px;border-top:1px solid #eaecf0;color:#667085;font-size:11px;line-height:1.6}.sms-entry-other{font-size:13px;border-top:1px solid #eaecf0;padding-top:16px}.sms-entry-other summary{cursor:pointer;color:#475467}.sms-entry-other>div{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:14px}
+      @media(max-width:700px){.sms-entry{gap:22px}.sms-entry-header{align-items:flex-start;flex-direction:column;gap:12px}.sms-entry-header h2{font-size:24px}.sms-entry-main{padding:20px;gap:14px}.sms-entry-icon{width:36px;height:36px;flex-basis:36px;font-size:16px;border-radius:10px}.sms-entry-copy h3{font-size:20px}.sms-entry-facts{grid-template-columns:1fr;padding:20px;gap:16px}.sms-entry-prep-grid{grid-template-columns:1fr;gap:18px}.sms-entry .sms-timeline{grid-template-columns:1fr}.sms-entry-action{gap:12px}.sms-entry-action .cs-btn{width:100%}.sms-entry-progress{flex-wrap:wrap}}
       .li-subtabs{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 14px}
       .li-subtab{border:1px solid #d8dde6;background:#fff;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:1000;cursor:pointer;color:#344054}
       .li-subtab.active{background:#111827;border-color:#111827;color:#fff}
@@ -5919,6 +5926,44 @@
       if (step === 'number') return smsNumberSelection(profile, options.numberSearch || {});
       return smsSummaryContent(profile);
     }
+    function smsRegistrationHome(profile, profiles = [], setup = {}){
+      const started = !!profile.id;
+      const mock = smsProfileIsMock(profile) || (profile.events || []).some(event => event.mock === true && ['brand_submitted','campaign_submitted'].includes(event.type));
+      const needsAttention = [profile.status, profile.brand_status, profile.campaign_status, profile.phone_number_status].some(value => /fail|reject|unverified|suspend|expire|cancel/i.test(String(value || '')));
+      const active = smsRegistrationVerified(profile);
+      const hasCampaign = smsHasProviderCampaign(profile);
+      const hasBrand = smsHasProviderBrand(profile);
+      let view = { tone:'neutral', badge: started ? 'Draft saved' : 'Not started', title: started ? 'Let’s finish your registration' : 'Get your business ready to text', detail: started ? 'Pick up where you left off. We’ll guide you through the remaining details before you submit.' : 'Register your business and texting number with the carriers to send SMS to your customers.', action: started ? 'Continue registration' : 'Start registration', icon:'fa-message' };
+      if (hasBrand) view = { tone:'pending', badge:'Business verification', title:'Your business is being verified', detail:'Your business details have been submitted. Open registration to check for updates and continue when verification is complete.', action:'View registration', icon:'fa-clock' };
+      if (hasBrand && smsBrandReadyForCampaign(profile)) view = { tone:'neutral', badge:'Business verified', title:'Your campaign is the next step', detail:'Your business is verified. Review your consent process and message examples, then submit the campaign for carrier review.', action:'Review & submit campaign', icon:'fa-arrow-right' };
+      if (hasCampaign) view = { tone:'pending', badge:'Carrier review', title:'Your campaign is under review', detail:'Your campaign has been submitted. Open registration and refresh its status to check approval and finish number activation.', action:'View registration status', icon:'fa-clock' };
+      if (hasCampaign && String(profile.campaign_status || '').toLowerCase() === 'mno_provisioned') view = { tone:'pending', badge:'Number activation', title:'Finish activating your texting number', detail:'Carrier review is complete. Open registration and refresh its status to finish number assignment and messaging setup.', action:'Continue activation', icon:'fa-phone' };
+      if (active) view = { tone:'ready', badge:'Ready to text', title:'Your business texting is ready', detail:'Your registration is approved and your number is active. You can review the registered business and messaging details here.', action:'View registration', icon:'fa-circle-check' };
+      if (needsAttention) view = { tone:'attention', badge:'Action needed', title:'Your registration needs attention', detail:'Open registration to review the latest carrier response and the available next steps.', action:'Review registration', icon:'fa-circle-exclamation' };
+      if (mock) view = { tone:'neutral', badge:'Development setup', title:'This is a test registration', detail:'This setup is for development testing. It does not represent carrier approval for live customer messages.', action:'View test registration', icon:'fa-flask' };
+      const complete = smsSteps.filter(step => step.id !== 'summary' && !smsStepIssues(step.id, profile).length).length;
+      const business = profile.brand?.companyName || profile.brand?.displayName || setup.organization?.name || 'Add your business details';
+      const number = smsFormatSelectedNumber(profile) || 'Choose during setup';
+      const steps = [
+        ['1', 'Business details', 'Legal name, tax ID, and business contact.'],
+        ['2', 'Consent & messages', 'How customers opt in, policy links, and real message examples.'],
+        ['3', 'Number & review', 'Choose your number, review the details, and submit.']
+      ];
+      return `<section class="sms-entry" aria-labelledby="sms-entry-title">
+        <header class="sms-entry-header"><div><span class="sms-entry-eyebrow">BUSINESS TEXTING</span><h2 id="sms-entry-title">10DLC registration</h2><p>Manage the carrier registration for your business SMS.</p></div><span class="sms-entry-plan">Low Volume Mixed</span></header>
+        <div class="sms-entry-card ${view.tone}">
+          <div class="sms-entry-main"><span class="sms-entry-icon" aria-hidden="true"><i class="fas ${view.icon}"></i></span><div class="sms-entry-copy"><span class="sms-entry-badge">${escapeHtml(view.badge)}</span><h3>${escapeHtml(view.title)}</h3><p>${escapeHtml(view.detail)}</p>
+            ${started && !hasBrand && !needsAttention && !mock ? `<div class="sms-entry-progress"><progress value="${complete}" max="6" aria-label="Registration sections completed"></progress><span>${complete} of 6 sections complete</span></div>` : ''}
+            <div class="sms-entry-action"><button class="cs-btn primary" type="button" id="smsStartSetup">${escapeHtml(view.action)} <i class="fas fa-arrow-right" aria-hidden="true"></i></button>${!hasCampaign && !needsAttention && !mock ? '<span>Your progress saves automatically.</span>' : ''}</div>
+          </div></div>
+          ${started ? `<dl class="sms-entry-facts"><div><dt>Business</dt><dd>${escapeHtml(business)}</dd></div><div><dt>Texting number</dt><dd>${escapeHtml(number)}</dd></div><div><dt>Message types</dt><dd>${escapeHtml(smsFeatureOptions.filter(option=>smsSelectedFeatures(profile).includes(option.id)).map(option=>option.label).join(' · ') || 'Choose during setup')}</dd></div></dl>` : ''}
+        </div>
+        ${hasBrand && !needsAttention && !mock ? `<div class="sms-entry-tracking"><h3>Registration progress</h3>${smsRegistrationTimeline(profile)}</div>` : ''}
+        ${!hasBrand && !mock ? `<section class="sms-entry-prep"><h3>${started ? 'Your path to business texting' : 'What you’ll need'}</h3><div class="sms-entry-prep-grid">${steps.map(([n,title,description])=>`<div><span>${n}</span><div><h4>${title}</h4><p>${description}</p></div></div>`).join('')}</div></section>` : ''}
+        ${profiles.length > 1 ? `<details class="sms-entry-other"><summary>Other registrations (${profiles.length - 1})</summary>${profiles.slice(1).map(item=>`<div><span>${escapeHtml(item.brand?.displayName || item.brand?.companyName || 'Business registration')}</span><button class="cs-btn" type="button" data-open-sms-profile="${escapeHtml(item.id || '')}">View registration</button></div>`).join('')}</details>` : ''}
+        ${!hasCampaign && !mock ? '<p class="sms-entry-footnote"><i class="fas fa-circle-info" aria-hidden="true"></i> Number purchases and registration have provider fees. Sending starts after carrier approval and number activation.</p>' : ''}
+      </section>`;
+    }
     async function renderSmsSettings(){
       if (!paneSms) return;
       const orgId = currentOrgId();
@@ -5928,36 +5973,13 @@
         const setup = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/setup`);
         const profiles = Array.isArray(setup.profiles) ? setup.profiles.map((item) => smsPrefillProfile(item, setup)) : [];
         const profile = profiles[0] || smsPrefillProfile({}, setup);
-        const registrationStatus = smsCustomerRegistrationStatus(profile);
-        paneSms.innerHTML = `
-          <div class="sms-card">
-            <div class="sms-hero">
-              <div>
-                <h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbd66bd6a20757","SMS Settings") ?? "SMS Settings")}</h3>
-                <p>${(globalThis.PlatformLanguage?.htmlText("settings","m_1ee85ae452b937","Set up standardized FirstMate SMS registration before sending customer texts.") ?? "Set up standardized FirstMate SMS registration before sending customer texts.")}</p>
-              </div>
-              <button class="cs-btn primary" type="button" id="smsStartSetup"><i class="fas fa-up-right-from-square"></i> ${String(profiles.length ? 'Open Registration' : 'Set Up SMS Registration')}</button>
-            </div>
-            <div class="sms-status-grid">
-              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4b7e9fa1e2965f","Telnyx") ?? "Telnyx")}</span><strong>${String(setup.telnyx?.configured ? 'Configured' : 'Missing API key')}</strong></div>
-              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_465d37244ded67","Messaging Profile") ?? "Messaging Profile")}</span><strong>${String(profile?.provider_refs?.telnyx_messaging_profile_id ? (String(profile?.autoresponse_state?.status || '').toLowerCase() === 'configured' ? 'Ready · STOP/START/HELP' : 'Created · keyword responses pending') : 'Created during number setup')}</strong></div>
-              <div class="sms-status-tile"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_14bce882a85510","Registration") ?? "Registration")}</span><strong>${String(escapeHtml(registrationStatus.label))}</strong></div>
-            </div>
-            <div class="sms-profile-list">
-              ${String(profiles.length ? profiles.map((item) => `
-                <div class="sms-profile-row">
-                  <div><strong>${escapeHtml(item.brand?.displayName || item.brand?.companyName || 'SMS Registration')}</strong><span>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_90f42b1bb46b45",`${v1} SMS features selected ${v2}`,{v1,v2}) ?? `${v1} SMS features selected ${v2}`)(escapeHtml(smsSelectedFeatures(item).length),smsStatusBadge(smsCustomerRegistrationStatus(item).label, smsCustomerRegistrationStatus(item).tone))}</span></div>
-                  <button class="cs-btn" type="button" data-open-sms-profile="${escapeHtml(item.id || '')}"><i class="fas ${smsRegistrationLocked(item) ? 'fa-eye' : 'fa-pen'}"></i> ${smsRegistrationLocked(item) ? 'View' : 'Open'}</button>
-                </div>
-              `).join('') : `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_95c7c3b0210dc4","No SMS registration has been created yet.") ?? "No SMS registration has been created yet.")}</div>`)}
-            </div>
-          </div>`;
+        paneSms.innerHTML = smsRegistrationHome(profile, profiles, setup);
         void window.Portal?.PhoneTray?.developmentSetup(paneSms);
-        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsResumeStep(profile) }));
+        paneSms.querySelector('#smsStartSetup')?.addEventListener('click', () => openSmsWizard(profile, { initialStep: smsHasProviderBrand(profile) || smsHasProviderCampaign(profile) ? 'summary' : smsResumeStep(profile) }));
         paneSms.querySelectorAll('[data-open-sms-profile]').forEach((button) => {
           button.addEventListener('click', () => {
             const selected = profiles.find((item) => item.id === button.getAttribute('data-open-sms-profile')) || profile;
-            openSmsWizard(selected, { initialStep: smsResumeStep(selected) });
+            openSmsWizard(selected, { initialStep: smsHasProviderBrand(selected) || smsHasProviderCampaign(selected) ? 'summary' : smsResumeStep(selected) });
           });
         });
         const route = readSettingsRoute();
@@ -5965,7 +5987,8 @@
           openSmsWizard(profile, { initialStep: route.workflowStep || smsResumeStep(profile) });
         }
       } catch (error) {
-        paneSms.innerHTML = `<div class="cs-note">${escapeHtml(error?.message || 'Could not load SMS settings.')}</div>`;
+        paneSms.innerHTML = `<section class="sms-entry"><header class="sms-entry-header"><h2>10DLC registration</h2></header><div class="sms-entry-card attention"><div class="sms-entry-main"><div class="sms-entry-copy" role="alert"><h3>Registration couldn’t load</h3><p>${escapeHtml(error?.message || 'Please try again to load your saved registration.')}</p><div class="sms-entry-action"><button class="cs-btn" type="button" data-sms-retry>Try again</button></div></div></div></div></section>`;
+        paneSms.querySelector('[data-sms-retry]')?.addEventListener('click', renderSmsSettings);
       }
     }
     function openSmsWizard(initialProfile, options = {}){

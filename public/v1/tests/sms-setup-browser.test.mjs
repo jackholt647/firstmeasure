@@ -101,3 +101,54 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
   } finally { await browser.close(); }
 });
 
+
+
+test('registration landing page has one primary action, truthful states, and responsive layout', async () => {
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page=await browser.newPage({viewport:{width:1150,height:850}});
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.setContent('<style>body{font-family:Arial;margin:0;padding:32px;background:#fff;color:#182230}*{box-sizing:border-box}.cs-btn{border:1px solid #d0d5dd;background:white;color:#182230}.cs-btn.primary{background:#e32b20;border-color:#e32b20;color:white}@media(max-width:700px){body{padding:16px}}</style><main id="entry"></main>');
+    await page.addStyleTag({content:styles});
+    const registration=source.includes('    async function renderSmsRegistration(')
+      ? source.slice(source.indexOf('    async function renderSmsRegistration('),source.indexOf('    function openSmsWizard(')).replace('renderSmsRegistration','renderEntry')
+      : source.slice(source.indexOf('    async function renderSmsSettings('),source.indexOf('    function openSmsWizard(')).replaceAll('renderSmsSettings','renderEntry');
+    await page.addScriptTag({content:`
+      const paneSms=document.querySelector('#entry');const activeTab='sms';const state={};const canPlatformBilling=false;
+      let smsRegistrationLiveMode=true;
+      const currentOrgId=()=> 'fixture';const readSettingsRoute=()=>({});
+      const normalizeOrganizationBusinessAddress=v=>v||{};const organizationBusinessAddressFromState=()=>({});const formatOrganizationBusinessAddress=()=>'';
+      const formatPhoneUS=v=>v.replace(/(\\d{3})(\\d{3})(\\d{4})/,'($1) $2-$3');
+      const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      window.setup={profiles:[],telnyx:{configured:true,registration_live:true}};
+      const messagingRequest=async()=>window.setup;
+      const openSmsWizard=(profile,options)=>window.opened={profile,options};
+      ${helpers}
+      ${registration}
+      window.renderEntry=renderEntry;
+    `});
+    await page.evaluate(()=>window.renderEntry());
+    await page.getByRole('button',{name:'Start registration'}).click();
+    assert.equal(await page.evaluate(()=>window.opened.options.initialStep),'business');
+    assert.equal(await page.getByText('What you’ll need',{exact:true}).count(),1);
+    assert.equal(await page.locator('[data-open-sms-profile]').count(),0);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/entry-new.png'});
+    await page.evaluate(profile=>{window.setup.profiles=[profile];return window.renderEntry();},fixture);
+    await page.getByRole('button',{name:'Review & submit campaign'}).click();
+    assert.equal(await page.evaluate(()=>window.opened.options.initialStep),'summary');
+    assert.match(await page.locator('.sms-entry-facts').innerText(),/First Mate LLC/);
+    assert.equal(await page.getByText('Messaging Profile',{exact:true}).count(),0);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/entry-business-verified.png'});
+    const campaign={...fixture,campaign_status:'pending',provider_refs:{...fixture.provider_refs,telnyx_campaign_id:'campaign'}};
+    await page.evaluate(profile=>{window.setup.profiles=[profile];return window.renderEntry();},campaign);
+    await page.getByRole('heading',{name:'Your campaign is under review'}).waitFor();
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/entry-mobile.png',fullPage:true});
+    await page.evaluate(profile=>{window.setup.profiles=[{...profile,campaign_status:'mno_rejected'}];return window.renderEntry();},campaign);
+    await page.getByRole('heading',{name:'Your registration needs attention'}).waitFor();
+    await page.evaluate(profile=>{window.setup.profiles=[{...profile,campaign_status:'mno_provisioned',status:'active',provider_refs:{...profile.provider_refs,telnyx_messaging_profile_id:'msg'},autoresponse_state:{status:'configured',desired_hash:'same',applied_hash:'same',messaging_profile_id:'msg'}}];return window.renderEntry();},campaign);
+    await page.getByRole('heading',{name:'Your business texting is ready'}).waitFor();
+    assert.deepEqual(errors,[]);
+  } finally {await browser.close();}
+});
