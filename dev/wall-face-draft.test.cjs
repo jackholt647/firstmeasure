@@ -3055,3 +3055,49 @@ test('plane-created connection stays deleted in 3D after its noded pieces are re
  const reloaded=fixture({state:JSON.parse(JSON.stringify(state)),walls:[],selected:null,globals:renderGlobals()}),after=[];reloaded.editor.draw3D({add:o=>after.push(o)},p=>p);
  assert.ok(!after.filter(o=>o.geometry?.points?.length===2).some(o=>W.sharedIntervals(...o.geometry.points,[{points:[a,b]}]).length),'reload must not resurrect the connection');
 });
+
+function basementFixture(){
+ const state=structuredClone(require('./fixtures/basement-door-trim-selection.json')),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ const f=fixture({state,walls:[],selected:null,screen:p=>({x:(.796291095*p.x+.604913624*p.y)*100,y:-p.z*100})});
+ const faces=()=>M.collect(state).filter(f=>f.feature?.type==='door'||f.trim),initial=faces();
+ return {f,W,faces,initial};
+}
+for(const selection of ['faces','points','single trim'])test('basement door '+selection+' nudge follows exact screen-left displacement and keeps boundaries attached',()=>{
+ const {f,W,faces,initial}=basementFixture(),chosen=selection==='single trim'?initial.filter(f=>f.trim).slice(0,1):initial;
+ const refs=chosen.map(f=>f.draft?{draft:f.draftKey,face:f.regionId}:{solid:f.id});
+ if(selection==='points'){
+  const key='solid:plane-face-1',d=f.state.wallEdits.$drafts[key],door=d.faces.find(f=>f.feature?.type==='door');
+  f.editor.restoreSelection({activeDraftKey:key,draftSelection:{[key]:door.points.map(p=>p.nodeId)},picked:door.points.map(p=>p.nodeId),solidPoints:chosen.filter(f=>f.trim).flatMap(f=>f.points.map(W.vertexKey))});
+ }else f.editor.restoreSelection({faceSelection:refs,selectedSolid:refs.at(-1).solid,selectedRegion:refs.at(-1).solid?null:refs.at(-1)});
+ const original=JSON.stringify(f.state.wallEdits),key='solid:plane-face-1',draft=f.state.wallEdits.$drafts[key];
+ const sharedNodes=draft.sketch.nodes.map(n=>({id:n.id,p:W.fromFrame(draft.frame,n)})).filter(n=>chosen.some(f=>f.points.some(p=>Math.hypot(p.x-n.p.x,p.y-n.p.y,p.z-n.p.z)<1e-5)));
+ assert.ok(sharedNodes.length,'fixture includes the attached draft boundary nodes');
+ for(let i=1;i<=2;i++){
+  f.editor.key({key:'ArrowLeft'});assert.equal(f.history.length,i,f.message());
+  const afterDraft=f.state.wallEdits.$drafts[key];for(const {id,p}of sharedNodes){const n=afterDraft.sketch.nodes.find(n=>n.id===id);assert.ok(n);const q=W.fromFrame(afterDraft.frame,n);assert.ok(Math.abs(q.z-p.z)<1e-6);assert.ok(Math.abs(q.x-p.x+i*.0254*.796291095)<1e-6,'sketch boundary follows the face');assert.ok(Math.abs(q.y-p.y+i*.0254*.604913624)<1e-6);}
+  for(const before of chosen){const after=faces().find(f=>before.feature?f.feature?.type==='door':f.id===before.id);assert.ok(after,before.id);
+   for(let j=0;j<before.points.length;j++){const a=before.points[j],b=after.points[j];assert.ok(Math.abs(b.z-a.z)<1e-6,'horizontal nudge must not lift the door');assert.ok(Math.abs(b.x-a.x+i*.0254*.796291095)<1e-6,'all selected faces move left together');assert.ok(Math.abs(b.y-a.y+i*.0254*.604913624)<1e-6);}
+  }
+  if(selection!=='points')assert.equal(f.editor.selectionSnapshot().faceSelection.length,chosen.length,'keep every face selected');
+ }
+ assert.equal(JSON.stringify(f.history[0]),original,'one undo snapshot restores all geometry');
+});
+test('plain empty-space click clears standalone face and point selections; modifier misses preserve them',()=>{
+ const p=(x,z)=>({x,y:0,z}),state={wallEdits:{$surfaces:[{id:'face',points:[p(0,0),p(2,0),p(2,3),p(0,3)]}]}};
+ for(const selected of [{selectedSolid:'face',faceSelection:[{solid:'face'}]},{solidPoints:['0,0,0']}])for(const shift of [false,true]){
+  const f=fixture({state:structuredClone(state),walls:[],selected:null});f.editor.restoreSelection(selected);const before=JSON.stringify(f.editor.selectionSnapshot()),e=f.e(20,20,shift);f.editor.down(e);f.listeners.pointerup(e);const after=f.editor.selectionSnapshot();
+  if(shift)assert.equal(JSON.stringify(after),before);else {assert.equal(after.selectedSolid,null);assert.equal(after.solidPoints.length,0);assert.equal(after.faceSelection.length,0);}
+ }
+});
+
+test('a rejected face nudge preserves geometry, selection and undo history atomically',()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),p=(x,z)=>({x,y:0,z}),state={wallEdits:{$surfaces:[{id:'trim',trim:true,points:[p(0,0),p(1,0),p(1,2),p(0,2)]}]}};
+ const f=fixture({state,walls:[],selected:null,globals:{ExteriorModel:{...M,validateEdits(){throw Error('Rejected test geometry');}}}});
+ f.editor.restoreSelection({selectedSolid:'trim',faceSelection:[{solid:'trim'}]});const before=JSON.stringify(state.wallEdits),selection=JSON.stringify(f.editor.selectionSnapshot());
+ f.editor.key({key:'ArrowLeft'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(JSON.stringify(f.editor.selectionSnapshot()),selection);assert.equal(f.history.length,0);assert.equal(f.editor.busy(),false);
+});
+test('T creates both selected door jamb strips in one preview and one commit',()=>{
+ const p=(x,z)=>({x,y:0,z}),pairs=[[p(1,0),p(1,2)],[p(2,0),p(2,2)]],state={wallEdits:{$surfaces:[{id:'wall',points:[p(0,0),p(1,0),p(1,2),p(2,2),p(2,0),p(4,0),p(4,3),p(0,3)]}]}};
+ const f=fixture({state,walls:[],selected:null});f.editor.restoreSelection({lineSelection:pairs.map((pair,i)=>({id:'jamb-'+i,pair}))});const before=JSON.stringify(state.wallEdits);
+ f.editor.key({key:'t'});assert.equal(state.wallEdits.$surfaces.filter(f=>f.trim).length,2,f.message());assert.equal(f.history.length,0);f.editor.key({key:'Enter'});assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+});

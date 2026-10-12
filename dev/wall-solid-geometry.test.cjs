@@ -259,3 +259,9 @@ for(const reversed of [false,true])test(`loose wire respects noded deletion inte
  assert.deepEqual(wire.edges.map(e=>e.id),[G.edgeKey(m,b)],'only the undeleted portion remains');
  assert.equal(wire.nodes.length,3,'endpoint and intersection nodes survive');
 });
+
+test('support bounds do not relocate an existing below-base footprint to make it fit',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),points=[{x:1,y:-1},{x:2,y:-1},{x:2,y:1},{x:1,y:1}],regions=[{points:[{x:0,y:0},{x:4,y:0},{x:4,y:4},{x:0,y:4}]}];
+ assert.equal(W.boundedTranslation(points,regions,{x:-.0254,y:0},{requireOrigin:true}),null);
+ assert.ok(W.boundedTranslation(points,regions,{x:0,y:0}).y>0,'new placement can still find a fitting location');
+});

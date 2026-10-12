@@ -454,7 +454,8 @@ window.wallGeometryBatch=function(group){
 // Mounted stickers and their hosts can be exactly coplanar. Prefer a sticker
 // only within floating-point depth tolerance; nearer geometry still occludes it.
 window.wallPreferredSurfaceHit=function(hits){
- const sorted=[...hits].sort((a,b)=>a.distance-b.distance),front=sorted[0];if(!front)return null;
+ const visible=hit=>{for(let o=hit.object;o;o=o.parent)if(o.visible===false)return false;const material=hit.object.material;return Array.isArray(material)?(hit.face?.materialIndex!=null?material[hit.face.materialIndex]?.visible!==false:material.some(m=>m.visible!==false)):material?.visible!==false;};
+ const sorted=hits.filter(visible).sort((a,b)=>a.distance-b.distance),front=sorted[0];if(!front)return null;
  const epsilon=Math.max(1,front.point?.length?.()||0,front.distance||0)*1e-6;
  return sorted.find(h=>h.object.userData?.exteriorFeature&&Math.abs(h.distance-front.distance)<=epsilon)||front;
 };

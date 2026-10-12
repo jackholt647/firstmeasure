@@ -392,7 +392,13 @@ function boundedTranslation(points,regions,wanted,options={}){
  if(options.axis==='x'){limits.bottom=Math.max(limits.bottom,0);limits.top=Math.min(limits.top,0);}if(options.axis==='y'){limits.left=Math.max(limits.left,0);limits.right=Math.min(limits.right,0);}
  if(limits.left>limits.right+1e-8||limits.bottom>limits.top+1e-8)return null;
  const cross2=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),sorted=points.slice().sort((a,b)=>a.x-b.x||a.y-b.y),half=ps=>{const out=[];for(const p of ps){while(out.length>1&&cross2(out.at(-2),out.at(-1),p)<=1e-10)out.pop();out.push(p);}return out;},hull=[...half(sorted).slice(0,-1),...half(sorted.slice().reverse()).slice(0,-1)];
- const valid=d=>{const ps=points.map(p=>({x:p.x+d.x,y:p.y+d.y,z:0}));if(!ps.every(p=>regions.some(f=>(pointInRing(p,f.points)||f.points.some((a,i)=>pointOnEdge(p,a,f.points[(i+1)%f.points.length])))&&!(f.holes||[]).some(r=>pointInRing(p,r)&&!r.some((a,i)=>pointOnEdge(p,a,r[(i+1)%r.length]))))))return false;return hull.length<3||K.difference({points:hull.map(p=>({x:p.x+d.x,y:p.y+d.y,z:0}))},regions).reduce((s,f)=>s+K.area(f),0)<1e-8;};
+ const contactsValid=d=>points.every(q=>{
+  const p={x:q.x+d.x,y:q.y+d.y,z:0},boundary=r=>r.some((a,i)=>pointOnEdge(p,a,r[(i+1)%r.length]));
+  return regions.some(f=>(pointInRing(p,f.points)||boundary(f.points))&&!(f.holes||[]).some(r=>pointInRing(p,r)&&!boundary(r)));
+ });
+ const valid=d=>contactsValid(d)&&(hull.length<3||K.difference({points:hull.map(p=>({x:p.x+d.x,y:p.y+d.y,z:0}))},regions).reduce((s,f)=>s+K.area(f),0)<1e-8);
+ // Existing geometry may intentionally extend below its support (basement doors).
+ if(options.requireOrigin&&!contactsValid({x:0,y:0}))return null;
  const clamp=d=>({x:Math.max(limits.left,Math.min(limits.right,d.x)),y:Math.max(limits.bottom,Math.min(limits.top,d.y))}),target=clamp(wanted);if(valid(target))return target;
  const ring=regions.length===1&&!(regions[0].holes||[]).length?(signedArea(regions[0].points)<0?regions[0].points.slice().reverse():regions[0].points):null;
  if(ring&&ring.every((p,i)=>cross2(p,ring[(i+1)%ring.length],ring[(i+2)%ring.length])>=-1e-8)){

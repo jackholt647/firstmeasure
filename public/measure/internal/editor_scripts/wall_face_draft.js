@@ -732,10 +732,11 @@ function perf_snap(d,e,raw=null){
   if(t.kind==='chamfer'){selectedSolid=t.additions?.[0]?.id||null;lineSelection=[];picked=[];pickedLines=[];solidPoints=[];solidEdges=[];}
   tool=null;clearGuides();host.redraw();return true;
  }
- function geometrySelectionPoints(external){
+ function geometrySelectionPoints(external,includeFaces=true){
   if(external)return [...new Map([...(external.points||[]),...(external.edges||[]).flat()].map(p=>[W.vertexKey(p),p])).values()];
   if(workingPlane)return workingPlane.selection.slice();
-  const d=current(),graph=wire(),points=selectedWorldPoints().concat(lineSelection.flatMap(l=>(l.pairs||[l.pair]).flat()));const sticker=featureSelection();if(selectedStickers().length>1||sticker?.solid?.feature||sticker?.f?.feature&&!sticker.d.faces.some(f=>f!==sticker.f&&!f.solidId&&!f.boundaryHole&&!deleted(sticker.d,f)))points.push(...selectedStickerPoints());const curved=solids().find(f=>f.id===selectedSolid&&f.curvedSurface?.logical);if(curved)points.push(...curved.points);
+  const faces=includeFaces?selectedFaces():[],facePoints=faces.length>1||faces.some(({f})=>f.trim)?faces.flatMap(({d,f})=>[...f.points,...(f.holes||[]).flat(),...(f.retainedPoints||[])].map(p=>d?world(d,p):p)):[];
+  const d=current(),graph=wire(),points=facePoints.concat(selectedWorldPoints()).concat(lineSelection.flatMap(l=>(l.pairs||[l.pair]).flat()));const sticker=featureSelection();if(selectedStickers().length>1||sticker?.solid?.feature||sticker?.f?.feature&&!sticker.d.faces.some(f=>f!==sticker.f&&!f.solidId&&!f.boundaryHole&&!deleted(sticker.d,f)))points.push(...selectedStickerPoints());const curved=solids().find(f=>f.id===selectedSolid&&f.curvedSurface?.logical);if(curved)points.push(...curved.points);
   for(const edge of graph.edges)if(solidEdges.includes(edge.id))points.push(...[edge.a,edge.b].map(id=>graph.nodes.find(n=>n.id===id)));
   if(d)for(const edge of d.sketch.edges)if(pickedLines.includes(edge.id)){points.push(...[edge.a,edge.b].map(id=>world(d,d.sketch.nodes.find(n=>n.id===id))));const c=d.sketch.curves?.find(c=>c.id===edge.curveId);if(c?.type==='spline')points.push(...c.controls.map(p=>world(d,p)));}
   return [...new Map(points.filter(Boolean).map(p=>[W.vertexKey(p),p])).values()];
@@ -821,16 +822,17 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
   }
   if(t.editMode==='f')change.flip=t.flipAxis;
   let preview;if(t.editMode==='y'){let factor=Math.exp((e.clientX-t.startEvent.clientX-(e.clientY-t.startEvent.clientY))/160);factor=Math.max(.01,Math.min(100,factor));if(!(typeof isFreeMove!=='undefined'&&isFreeMove)){let targets=t.snapTargets,screen=p=>host.screen(p,'3d');if(t.kind==='paste'&&t.anchor){const src=t.stage.mounts[t.mount].frame,dst=workingPlane?planeClipboardFrame(t.anchor.location):W.clipboardFrame(t.anchor.location,t.anchor.normal),toSource=p=>window.ExteriorGeometry.world(src,window.ExteriorGeometry.local(dst,p)),toWorld=p=>window.ExteriorGeometry.world(dst,window.ExteriorGeometry.local(src,p)),scene=sceneLines();targets={points:scene.points.map(toSource),edges:[...scene.lines.values()].map(r=>r.map(toSource))};screen=p=>host.screen(toWorld(p),'3d');}if(targets)factor=W.snapGeometryScale(t.stage,t.mount,factor,t.resizeAxis||'all',targets.points,targets.edges,screen);}t.scaleFactor=factor;preview=W.geometryScale(t.stage,t.mount,factor,t.resizeAxis||'all');}else preview=W.transformGeometry(t.stage,t.mount,change);if(t.kind==='geometryTransform'&&t.editMode==='m'&&!normalMove&&t.numeric==null&&!translation&&!(typeof isFreeMove!=='undefined'&&isFreeMove))preview=W.snapGeometryOnPlane(preview,t.mount,[...t.snapTargets.points,...(t.stickerMove?W.stickerAlignmentTargets(t.scene,t.stage.mounts[t.mount].frame,t.original.points):[])],t.snapTargets.edges,p=>host.screen(p,'3d'),10,t.stickerMove?window.ExteriorGeometry.world(t.inputFrame,q):null,workingPlane?.tolerance);
-  if(t.kind==='geometryTransform'&&t.editMode==='m'&&!normalMove&&!workingPlane){
+  if(t.kind==='geometryTransform'&&t.editMode==='m'&&!normalMove&&!workingPlane&&!translation){
    if(t.stickerMove&&t.moveAxis&&!translation){const frame=t.stage.mounts[t.mount].frame,K=window.ExteriorGeometry,a=K.local(frame,t.stage.points[0]),b=K.local(frame,preview.points[0]);preview=W.transformGeometry(t.stage,t.mount,{delta:constrainStickerMove(t,{x:b.x-a.x,y:b.y-a.y})});}
    const frame=t.stage.mounts[t.mount].frame,K=window.ExteriorGeometry,contacts=t.stage.points.map(p=>K.local(frame,p)).filter(p=>Math.abs(p.z)<K.CONTACT),selected=p=>t.original.points.some(q=>distance3(p,q)<K.CONTACT),regions=t.scene.filter(f=>!f.points.every(selected)&&f.points.every(p=>Math.abs(K.local(frame,p).z)<K.CONTACT)).map(f=>({points:f.points.map(p=>K.local(frame,p)),holes:(f.holes||[]).filter(r=>!r.every(selected)).map(r=>r.map(p=>K.local(frame,p)))}));
-   if(contacts.length&&regions.length){const a=K.local(frame,t.stage.points[0]),z=K.local(frame,preview.points[0]),fit=W.boundedTranslation(contacts,regions,{x:z.x-a.x,y:z.y-a.y});if(fit)preview=W.transformGeometry(t.stage,t.mount,{delta:fit});}
+   if(contacts.length&&regions.length){const a=K.local(frame,t.stage.points[0]),z=K.local(frame,preview.points[0]),fit=W.boundedTranslation(contacts,regions,{x:z.x-a.x,y:z.y-a.y},{requireOrigin:true});if(fit)preview=W.transformGeometry(t.stage,t.mount,{delta:fit});}
   }
   if(t.kind==='paste'){t.clip=preview;previewPaste(e);return;}
   const previous=host.state().wallEdits;
   const build=candidate=>{if(t.curveOwner)return applyCurveGeometry(t,candidate);const edits=copy(t.prepared),result=W.transformSelection(t.scene,t.original,candidate,{keepTrimStatic:host.state()?.keepTrimStatic===true});applyLineResult(t,result,edits);window.ExteriorModel.validateEdits(edits,t.before);return edits;};
   try{let edits;try{edits=build(preview);}catch(error){
-   if(t.editMode!=='m'||normalMove)throw error;
+   // Keyboard translations are exact: never replace a rejected nudge with another axis.
+   if(t.editMode!=='m'||normalMove||translation)throw error;
    const K=window.ExteriorGeometry,frame=t.stage.mounts[t.mount].frame,a=K.local(frame,t.stage.points[0]),b=K.local(frame,preview.points[0]);
    const fit=W.validTranslation({x:b.x-a.x,y:b.y-a.y},delta=>{try{build(W.transformGeometry(t.stage,t.mount,{delta}));return true;}catch{return false;}});
    if(!fit)throw error;preview=W.transformGeometry(t.stage,t.mount,{delta:fit});edits=build(preview);
@@ -868,7 +870,7 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
  }
  function clipboardCommand(kind,external){
   if(kind==='copy'){
-   if(tool&&!finishToolForSwitch())return true;const selected=external?geometrySelectionPoints(external):(workingPlane?workingPlane.selection:[...geometrySelectionPoints(),...selectedStickerPoints()]),before=copy(host.state().wallEdits||{});
+   if(tool&&!finishToolForSwitch())return true;const selected=external?geometrySelectionPoints(external):(workingPlane?workingPlane.selection:[...geometrySelectionPoints(undefined,false),...selectedStickerPoints()]),before=copy(host.state().wallEdits||{});
    try{const scene=moveScene().filter(f=>!f.snapOnly),base=host.state().wallEdits.$base||host.state().base;if(base)scene.push(...base.faces.map(f=>({...f,id:'base:'+f.id})));// A selected sticker owns its face, not every wall patch sharing its corners.
    const chosen=external||workingPlane?[]:selectedFaces(),stickerFaces=chosen.length&&chosen.every(({f})=>f.feature)?chosen.map(({d,f})=>d?engineFace(d,f):f):null;
    window.exteriorGeometryClipboard=stickerFaces?W.copyGeometry(stickerFaces,selectedStickerPoints()):W.copyGeometry(scene,selected,[...sceneLines().lines.values()]);const c=window.exteriorGeometryClipboard;if(workingPlane)orientPlaneClipboard(c);const curves=selected.length>1?curveGeometrySelection(selected):null;if(curves&&!c.faces.length){const edges=c.edges.filter(pair=>!curves.clip.curves.some(curve=>{const ps=window.ExteriorGeometry.curveSamples(curve);return ps.slice(1).some((p,i)=>pair.every(q=>onSegment(q,ps[i],p)));}));Object.assign(c,copy(curves.clip),{edges});if(workingPlane)orientPlaneClipboard(c);}host.message('Copied '+c.points.length+' points, '+c.edges.length+' lines and '+c.faces.length+' faces.');}catch(e){host.message(e.message);}finally{host.state().wallEdits=before;host.redraw();}return true;
@@ -1559,7 +1561,7 @@ function perf_moveScene(){
  function downUnsafe(e,skipSolid=false){
   if(workingPlane)return planeDown(e);
   flushPreview();
-  if(!viewOf(e)||e.button!==0)return false;if(tool?.kind==='arch')return placeArch(e);if(tool?.kind==='divide'){previewDivision(e);return finishDivision();}if(tool?.kind==='multiExtrude')return finishMultiExtrusion();if(tool?.kind==='trim'){finishTrim();return true;}if(tool?.kind==='curveMove'){if(tool.changed)host.commit(tool.before);tool=null;host.redraw();return true;}if(tool?.kind==='curve')return placeCurve(e);if(tool?.kind==='geometryTransform')return placeGeometry();if(tool?.kind==='paste')return placePaste(e);if(tool?.kind==='chamfer'){if(tool.valid){if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;selectedSolid=tool.additions?.[0]?.id||null;lineSelection=[];picked=[];solidPoints=[];solidEdges=[];pickedLines=[];tool=null;host.redraw();}return true;}if(tool?.kind==='material')return paintMaterial(e);if(tool?.kind==='entityExtrude'){placeEntity(e);return true;}if(tool?.kind==='axisCut'&&!finishAxisCut())return true;if(tool?.kind==='step'){if(tool.valid){host.commit(tool.before);tool=null;stepStatus('Stepped line placed.');host.redraw();}return true;}if(tool?.kind==='feature')return placeFeature(e);if(tool?.kind==='lineMove'){if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;tool=null;host.redraw();return true;}if(tool?.kind==='extrude'){if(tool.moveMode)previewFaceSlide(e);if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;if(tool.belowBase)selectedSolid=null;tool=null;clearGuides();host.redraw();return true;}if(skipSolid&&!tool&&viewOf(e)==='3d'&&pickLine3D(e))return true;if(!skipSolid&&!tool&&pickSolid(e))return true;let d=current();if(!d){const w=selected();if(!w){beginBox(e,null);return true;}d=ensure(w);}
+  if(!viewOf(e)||e.button!==0)return false;if(tool?.kind==='arch')return placeArch(e);if(tool?.kind==='divide'){previewDivision(e);return finishDivision();}if(tool?.kind==='multiExtrude')return finishMultiExtrusion();if(tool?.kind==='trim'){finishTrim();return true;}if(tool?.kind==='curveMove'){if(tool.changed)host.commit(tool.before);tool=null;host.redraw();return true;}if(tool?.kind==='curve')return placeCurve(e);if(tool?.kind==='geometryTransform')return placeGeometry();if(tool?.kind==='paste')return placePaste(e);if(tool?.kind==='chamfer'){if(tool.valid){if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;selectedSolid=tool.additions?.[0]?.id||null;lineSelection=[];picked=[];solidPoints=[];solidEdges=[];pickedLines=[];tool=null;host.redraw();}return true;}if(tool?.kind==='material')return paintMaterial(e);if(tool?.kind==='entityExtrude'){placeEntity(e);return true;}if(tool?.kind==='axisCut'&&!finishAxisCut())return true;if(tool?.kind==='step'){if(tool.valid){host.commit(tool.before);tool=null;stepStatus('Stepped line placed.');host.redraw();}return true;}if(tool?.kind==='feature')return placeFeature(e);if(tool?.kind==='lineMove'){if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;tool=null;host.redraw();return true;}if(tool?.kind==='extrude'){if(tool.moveMode)previewFaceSlide(e);if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;if(tool.belowBase)selectedSolid=null;tool=null;clearGuides();host.redraw();return true;}if(skipSolid&&!tool&&viewOf(e)==='3d'&&pickLine3D(e))return true;if(!skipSolid&&!tool&&pickSolid(e))return true;let d=current();if(!d){const w=selected();if(!w){beginBox(e,null);box.click=()=>{if(e.shiftKey||e.ctrlKey||e.metaKey)return;selectFaceRef(null,e);draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];selectedBasePoints=[];host.select(null);host.redraw();};return true;}d=ensure(w);}
   if(tool?.kind==='quad'){const p=snap(d,e);if(!p)return true;if(picked.length===1&&!tool.diagonal){tool.diagonal=p;tool.cornerClick={x:e.clientX,y:e.clientY};return true;}let corners=quadPoints(d,p);if(picked.length===1&&tool.cornerClick&&Math.hypot(e.clientX-tool.cornerClick.x,e.clientY-tool.cornerClick.y)<4){const opposite=tool.diagonal;tool.diagonal=null;corners=quadPoints(d,opposite);}quadFinish={x:e.clientX,y:e.clientY,time:Date.now()};const t=tool,priorPicked=picked.slice(),ok=transaction(()=>{B.validate({points:corners});const ids=corners.map(p=>add(d,p));S.connect(d,[...ids,ids[0]]);picked=[];},t.before);if(ok){tool=null;clearGuides();}else{picked=priorPicked;tool=t;tool.diagonal=null;tool.cornerClick=null;}host.redraw();return true;}
   if(tool){if(['move','scale','rotate'].includes(tool.kind)){host.commit(tool.before);tool=null;clearGuides();host.redraw();return true;}
    const p=snap(d,e);if(p){const placed=transaction(()=>{const next=add(d,p);for(const from of picked)if(from!==next)S.connect(d,[from,next]);picked=[next];},tool.before);if(placed){tool=null;clearGuides();}host.redraw();}return true;
@@ -1916,6 +1918,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
  }
 
  function nudgeGeometry(dx,dy){
+  const refs=copy(selectedFaceRefs());
   if(!geometryCommand('m')||tool?.kind!=='geometryTransform')return false;
   const t=tool,frame=t.clip.mounts[t.mount].frame,plane=workingPlane?.frame;
   // A construction frame can begin on any edge (or diagonal). Reorient movement
@@ -1926,7 +1929,13 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
   const dot=axis=>delta.x*axis.x+delta.y*axis.y+delta.z*axis.z;
   previewGeometry(mouse||{clientX:0,clientY:0,buttons:0},false,{x:dot(frame.u),y:dot(frame.v)});
   if(t.invalid){host.state().wallEdits=t.before;tool=null;host.redraw();return true;}
-  return placeGeometry();
+  placeGeometry();
+  if(refs.length){
+   // Draft regions become stored surfaces during a shared geometry transform.
+   faceSelection=refs.map(ref=>ref.solid?ref:all()[ref.draft]?.faces.find(f=>f.id===ref.face)?.solidId?{solid:all()[ref.draft].faces.find(f=>f.id===ref.face).solidId}:ref);
+   const last=faceSelection.at(-1);selectedSolid=last?.solid||null;selectedRegion=last&&!last.solid?last:null;solidPoints=[];picked=[];draftSelection={};host.redraw();
+  }
+  return true;
  }
  function finishTrim(){if(tool?.kind!=='trim'||!tool.valid)return false;host.commit(tool.before);tool=null;lineSelection=[];pickedLines=[];solidEdges=[];picked=[];solidPoints=[];host.message('Trim placed.');host.redraw();return true;}
  function previewTrim(){const t=tool;host.state().wallEdits=copy(t.prepared);try{
@@ -1983,7 +1992,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
    busy:!!tool||!!box||!!plane?.rotation||!!plane?.action||!!plane?.drawing};
  }
  function selectedTrimPairs(){
-  const d=current(),graph=wire(),nodesById=new Map(graph.nodes.map(n=>[n.id,n])),byId=id=>nodesById.get(id),pairs=[...lineSelection.map(l=>l.pair),...solidEdges.map(id=>graph.edges.find(e=>e.id===id)).filter(Boolean).map(e=>[byId(e.a),byId(e.b)]),...(d?pickedLines.map(id=>d.sketch.edges.find(e=>e.id===id)).filter(e=>e&&!e.curveId).map(e=>[world(d,d.sketch.nodes.find(n=>n.id===e.a)),world(d,d.sketch.nodes.find(n=>n.id===e.b))]):[])];return pairs;
+  const d=current(),graph=wire(),nodesById=new Map(graph.nodes.map(n=>[n.id,n])),byId=id=>nodesById.get(id),pairs=[...lineSelection.flatMap(l=>l.pairs||[l.pair]),...solidEdges.map(id=>graph.edges.find(e=>e.id===id)).filter(Boolean).map(e=>[byId(e.a),byId(e.b)]),...(d?pickedLines.map(id=>d.sketch.edges.find(e=>e.id===id)).filter(e=>e&&!e.curveId).map(e=>[world(d,d.sketch.nodes.find(n=>n.id===e.a)),world(d,d.sketch.nodes.find(n=>n.id===e.b))]):[])];return pairs;
  }
  function trimMaterials(){return [...new Set(window.ExteriorModel.collect(host.state(),walls()).filter(f=>!f.deleted&&!f.feature).map(f=>window.WallTrim.materialKey(f,host.state()?.finishDefaults)))].sort();}
  function selectTrimEdges(kind,materials){
