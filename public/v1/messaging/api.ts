@@ -689,7 +689,6 @@ function validateCampaignDraft(campaignInput: JsonObject) {
     missing.push("embeddedLinkSample");
   }
   if (LIVE_MODE() && campaignInput.consentAcknowledged !== true) missing.push("consentAcknowledged");
-  if (campaignInput.featuresConfirmed !== true) missing.push("featuresConfirmed");
   if (campaignInput.termsAndConditions !== true) missing.push("termsAndConditions");
   if (campaignInput.subscriberOptout !== true) missing.push("subscriberOptout");
   if (campaignInput.subscriberHelp !== true) missing.push("subscriberHelp");

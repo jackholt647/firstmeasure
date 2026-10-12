@@ -866,7 +866,7 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
       subscriberOptin: true,
       subscriberOptout: true,
       subscriberHelp: true,
-      featuresConfirmed: true,
+      featuresConfirmed: false,
       enabledFeatures: ["crm_conversations"],
       optoutKeywords: "STOP",
       helpKeywords: "HELP",

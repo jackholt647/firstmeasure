@@ -14,7 +14,9 @@ const fixture = {
   id:'fixture', status:'draft', brand_status:'verified',
   provider_refs:{telnyx_brand_id:'brand-fixture',telnyx_number_order_id:'order-fixture'},
   brand:{displayName:'FirstMate',companyName:'First Mate LLC',ein:'123456789',website:'https://example.com',email:'support@example.com',phone:'+12065515546',street:'707 South Grady Way',city:'Renton',state:'WA',postalCode:'98057'},
-  campaign:{enabledFeatures:['crm_conversations','operations'],featuresConfirmed:true,optInMethod:'VERBAL',
+  campaign:{enabledFeatures:['crm_conversations','operations'],featuresConfirmed:false,optInMethod:'VERBAL',
+    sample1:'FirstMate: Thanks for contacting us. How can we help? Reply STOP to opt out.',
+    sample2:'FirstMate: Your appointment is tomorrow at 10 AM. Reply STOP to opt out.',
     optInDisclosure:'FirstMate sends SMS text messages. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help. SMS opt-in data is not shared with third parties for marketing.',
     messageFlow:'Our staff read the consent script to customers, record their agreement, and retain a record before sending SMS.',
     privacyPolicyLink:'https://example.com/privacy',termsAndConditionsLink:'https://example.com/terms',policyContentConfirmed:true,messageFlowConfirmed:true,consentAcknowledged:true,selectedNumber:'+12068447657'}
@@ -243,12 +245,12 @@ test('business identity switches paths, formats EIN and website, and preserves u
       const normalizeOrganizationBusinessAddress=v=>v||{};const organizationBusinessAddressFromState=()=>({});const formatOrganizationBusinessAddress=()=>'';
       const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const formatPhoneUS=v=>v;const readSettingsRoute=()=>({});const writeSettingsRoute=()=>{};const showToast=()=>{};const renderSmsSettings=()=>{};
-      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{},campaign:{...fixture.campaign,selectedNumber:''}})};
+      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{},campaign:{...fixture.campaign,selectedNumber:'',sample1:'',sample2:''}})};
       window.requests=[];
       const messagingRequest=async(path,options={})=>{
         window.requests.push({path,...options});
         if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};
-        if(path.includes('/available-numbers'))return {numbers:[{phone_number:'+12065550101',locality:'Seattle',region:'WA',monthly_cost:'1.00'},{phone_number:'+12065550102',locality:'Seattle',region:'WA',monthly_cost:'1.00'}]};
+        if(path.includes('/available-numbers')){if(window.deferSearch)await new Promise(resolve=>window.releaseSearch=resolve);return {numbers:[{phone_number:'+12065550101',locality:'Seattle',region:'WA',monthly_cost:'1.00'},{phone_number:'+12065550102',locality:'Seattle',region:'WA',monthly_cost:'1.00'}]};}
         if(path.endsWith('/select-number'))window.saved={...window.saved,campaign:{...window.saved.campaign,selectedNumber:options.body.phone_number}};
         if(path.endsWith('/evidence'))return {url:'https://example.com/evidence.pdf'};
         return {profile:structuredClone(window.saved)};
@@ -305,13 +307,24 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.locator('[data-sms-field="campaign.policyContentConfirmed"]').count(),0);
     await page.getByText('Open example privacy policy — SMS section',{exact:true}).click();
     assert.equal(await page.getByText(/collects your mobile number and SMS consent record/).count(),1);
-    await page.getByText('Supporting evidence',{exact:true}).click();
+    assert.equal(await page.locator('[data-sms-feature-confirm]').count(),0);
+    assert.equal(await page.locator('.sms-feature-icon').count(),0);
+    assert.equal(await page.locator('[data-sms-evidence-upload]').isVisible(),true);
     await page.locator('[data-sms-evidence-upload]').setInputFiles({name:'example.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')});
     await page.waitForFunction(()=>window.saved.campaign.optInEvidenceUrl==='https://example.com/evidence.pdf');
     assert.equal(await page.locator('[data-fm-note]').isVisible(),false);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-mobile.png'});
     await page.setViewportSize({width:1280,height:960});
-    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-desktop.png'});
+    if(process.env.SMS_SCREENSHOTS){await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-desktop.png'});await page.locator('.sms-evidence').scrollIntoViewIfNeeded();await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/evidence-desktop.png'});}
+    await page.getByRole('button',{name:'4. Message examples'}).click();
+    assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'');
+    await page.getByText('See an example message',{exact:true}).first().click();
+    assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'');
+    await page.locator('[data-sms-field="campaign.sample1"]').fill('My actual customer conversation');
+    await page.getByRole('button',{name:'3. Messages & consent'}).click();
+    await page.getByRole('button',{name:'4. Message examples'}).click();
+    assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'My actual customer conversation');
+    await page.locator('[data-sms-field="campaign.sample1"]').fill('');
     await page.getByRole('button',{name:'5. Number'}).click();
     await page.locator('#sms-number-search').fill('206');
     await page.locator('[data-sms-choose-number="+12065550101"]').waitFor();
@@ -320,6 +333,18 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.doesNotMatch(await page.locator('.sms-number-grid').innerText(),/SMS|MMS|\$|month/);
     await page.locator('[data-sms-choose-number="+12065550101"]').click();
     await page.getByRole('button',{name:'Choose a different number'}).click();
+    const search=page.locator('#sms-number-search');
+    await search.fill('06'); await page.waitForTimeout(450);
+    assert.equal(await search.isVisible(),true);assert.equal(await search.inputValue(),'06');
+    await search.fill(''); await page.waitForTimeout(450);
+    assert.equal(await search.isVisible(),true);assert.equal(await search.inputValue(),'');
+    await page.evaluate(()=>window.deferSearch=true);
+    await search.fill('425');await page.waitForFunction(()=>!!window.releaseSearch);
+    await search.fill('2');await page.evaluate(()=>{window.deferSearch=false;window.releaseSearch();});
+    await page.waitForTimeout(450);assert.equal(await search.inputValue(),'2');assert.equal(await search.isVisible(),true);
+    await search.fill('206');await page.locator('[data-sms-choose-number="+12065550102"]').waitFor();
+    assert.equal(await search.isVisible(),true);
+    assert.equal(await page.getByText('Your choice',{exact:true}).count(),0);
     await page.locator('[data-sms-choose-number="+12065550102"]').click();
     assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path.endsWith('/select-number')).length),0);
     page.on('dialog',dialog=>dialog.accept());
