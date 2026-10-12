@@ -557,7 +557,7 @@ test('provider resource reconciliation searches later inventory pages',async()=>
 test('canceling a transfer before provider submission cannot ring the teammate or rejoin a late leg',async()=>{
   const {TelnyxVoiceClient,setVoiceClientFactoryForTests}=await import('../telephony/telnyx.js');const submissions:string[]=[];
   class Provider extends TelnyxVoiceClient{override async request(path:string){submissions.push(path);return {data:{result:'ok'}};}}
-  const {callAction}=await import('../comms/calls/voice.js');const orgId='cancel-consult-org',ctx={orgId,userId:'owner',branchId:'default',permissions:{make_calls:true}} as any;
+  const {callAction}=await import('../comms/calls/voice.js');const orgId='cancel-consult-org',ctx={orgId,userId:'owner',branchId:'default',permissions:{view_comms:true,make_calls:true}} as any;
   const call=(await store.insertCall({id:'cancel-consult-call',organization_id:orgId,branch_id:'default',owner_user_id:'owner',mode:'browser',direction:'outbound',state:'connected',connected_at:store.now(),metadata:{conference_id:'cancel-conference'}}));
   (await store.saveResource(orgId,'settings','default',{enabled:true}));(await store.saveResource(orgId,'application','default',{},'cancel-app'));
   (await store.saveResource(orgId,'endpoint','consultant',{user_id:'consultant',registered:true,availability:'available',branch_id:'default',heartbeat_at:store.now(),sip_username:'consultant'}));
@@ -579,7 +579,7 @@ test('canceling a transfer before provider submission cannot ring the teammate o
 test('withdrawing consent before a queued start prevents the provider recording request',async()=>{
   const {TelnyxVoiceClient,setVoiceClientFactoryForTests}=await import('../telephony/telnyx.js');const submissions:string[]=[];
   class Provider extends TelnyxVoiceClient{override async request(path:string){submissions.push(path);return {data:{result:'ok'}};}}
-  const {callAction}=await import('../comms/calls/voice.js'),orgId='withdraw-recording-org',ctx={orgId,userId:'owner',branchId:'default'} as any;
+  const {callAction}=await import('../comms/calls/voice.js'),orgId='withdraw-recording-org',ctx={orgId,userId:'owner',branchId:'default',permissions:{view_comms:true,make_calls:true,record_calls:true}} as any;
   const call=(await store.insertCall({id:'withdraw-recording-call',organization_id:orgId,branch_id:'default',owner_user_id:'owner',mode:'browser',direction:'outbound',state:'connected',metadata:{consent:{state:'granted'}}}));
   (await store.saveLeg(orgId,call.id,'customer',{call_control_id:'withdraw-customer',state:'answered'}));
   (await store.saveResource(orgId,'settings','default',{recording_enabled:true,recording_policy_confirmed:true}));

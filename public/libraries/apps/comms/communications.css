@@ -160,6 +160,8 @@
 .fmcp-person-actions{display:flex;gap:3px;flex:none}.fmcp-person-actions button{width:28px;height:28px;padding:0!important;border:0!important;background:transparent!important}
 .fmcp-participant>span{min-width:0;overflow-wrap:anywhere}.fmcp-participant>small{white-space:nowrap}.fmcp-participant.on-hold{background:var(--soft,#f3f4f6)}
 .fmcp-prior{margin-top:10px;border-top:1px solid var(--line,#dce1e8);padding-top:8px}.fmcp-prior>summary{font-size:11px;color:var(--muted,#687080);cursor:pointer;margin-bottom:5px}
+.fm-phone-tray .fmcp[data-conference=true] .fm-phone-pad{display:none}
+.fm-phone-tray .fmcp[data-conference=true] .fmcp-controls [data-phone=keypad]{display:inline-flex}
 .fmpm-recipient-picker{display:flex;flex-direction:column;min-height:0;padding:0 12px;height:100%;overflow:auto}.fmpm-recipient-picker .fm-phone-search{display:flex;gap:8px;align-items:center;margin:6px 0}.fmpm-recipient-picker input{width:100%;min-width:0;padding:9px;border:1px solid var(--line,#dce1e8);border-radius:6px;font:inherit}.fmpm-recipient-picker .fm-text-recipient-footer{flex-shrink:0}
 .fm-text-unread{border-radius:8px;padding:2px 5px;background:var(--primary,#d33b44);color:#fff;font-size:11px}
 .fmpm-window [data-more-groups],.fm-phone-tray [data-more-groups]{display:block;width:100%;border:0;border-top:1px solid var(--line,#dce1e8);background:transparent;color:var(--muted,#687080);font:inherit;font-size:12px;padding:10px;cursor:pointer}

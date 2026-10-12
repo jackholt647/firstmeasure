@@ -129,6 +129,7 @@ export async function leaveHostedConference(call: CustomerCall, actorId: string,
   if(call.state!=='connected'||!text(call.metadata.conference_id)||['dialing','consulting'].includes(text(object(call.metadata.transfer).state)))throw conflict('conference_not_ready','Resume the call and finish any transfer before leaving.');
   const legs=await s.legs(call.organization_id,call.id),agent=legs.find(l=>l.role==='agent'&&l.state!=='ended');
   const guests=(await participants(call.organization_id,call.id)).filter(p=>p.state==='connected');
+  if((await participants(call.organization_id,call.id)).some(p=>['held','holding','resuming'].includes(text(p.state)))||!call.metadata.customer_removed_at&&['held','holding','resuming'].includes(text(call.metadata.customer_hold_state)))throw conflict('conference_on_hold','Resume held people before leaving the conference.');
   const originalConnected=!call.metadata.customer_removed_at&&(!text(call.metadata.customer_hold_state)||call.metadata.customer_hold_state==='connected')&&legs.some(l=>l.role==='customer'&&l.state!=='ended');
   if(!agent||guests.length+Number(originalConnected)<2)throw conflict('conference_people_required','At least two other connected people are needed to leave the conference running. Resume held people before leaving.');
   const updated=await s.patchCall(call.organization_id,call.id,{metadata:{...call.metadata,host_left_at:s.now(),host_left_user_id:actorId}});

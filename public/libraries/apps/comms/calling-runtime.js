@@ -329,7 +329,7 @@
       else if(name==='remove-person')await action('remove_participant',{participant_id:button.dataset.participant});
       else if(name==='hold-person'||name==='resume-person')await action(name==='hold-person'?'hold_participant':'resume_participant',{participant_id:button.dataset.participant});
       else if(name==='reinvite-person'){const p=button.dataset.participant==='customer'?{phone:state.call.customer_number,name:state.call.customer_name}:state.detail?.participants?.find(p=>p.id===button.dataset.participant);if(p)await action('add_participant',p.user_id?{target_user_id:p.user_id}:{target_phone:p.phone,target_name:p.name});}
-      else if(name==='leave-conference'){await action('leave_conference');const sdk=state.sdkCall;state.call=null;state.detail=null;state.notes='';state.answers={};state.prepared={};state.dirty=false;await sdk?.hangup();changed();}
+      else if(name==='leave-conference'){if(state.dirty)await saveNotes();await action('leave_conference');const sdk=state.sdkCall;state.call=null;state.detail=null;state.notes='';state.answers={};state.prepared={};state.dirty=false;await sdk?.hangup();changed();}
       else if(name==='link')await linkProject();else if(name==='keypad')keypad();else if(name==='transfer')await transfer();else if(name==='record')await record();
       else if(name==='artifacts')await artifacts();
       else if(name==='delete-artifact')removeArtifact(button.dataset.artifact);

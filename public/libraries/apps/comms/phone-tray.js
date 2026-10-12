@@ -192,6 +192,7 @@
   function update(state){
     if(!shell)return;
     const c=state.call,ended=c&&['ended','failed','canceled','no_answer','busy','rejected'].includes(c.state);
+    const conferenceActive=!!c&&!ended&&state.detail?.participants?.some(p=>['connected','held','holding','resuming'].includes(p.state));state.panel.dataset.conference=String(!!conferenceActive);
     if(state.status?.development?.enabled&&!state.panel.querySelector('[data-dev-destination]')){const note=document.createElement('p');note.dataset.devDestination='';note.className='fmcm-help';note.innerHTML=icon('flask')+'<span>Test mode · Approved phones ring directly; others route to '+esc(formatPhone(state.status.development.destination))+'</span>';state.panel.querySelector('.fmcp-body')?.append(note);}
     if(!c){const body=state.panel.querySelector('.fmcp-body');if(body){audioTools(body);let recent=body.querySelector('[data-phone-recent]');if(!recent){recent=document.createElement('section');recent.className='fm-phone-recent';recent.dataset.phoneRecent='';recent.innerHTML=`<div class="fm-phone-recent-head"><strong>Recent calls</strong></div><div data-recent-items role="status"></div>`;body.append(recent);void loadMiniHistory(recent);}else if(recentCallId!==state.lastCallId){void loadMiniHistory(recent);}watchRecent(recent);recentCallId=state.lastCallId||'';}}
     title.innerHTML=icon('phone');title.setAttribute('aria-label',ended&&c.wrap_up_state!=='saved'&&state.status?.settings?.require_disposition?'Phone, call outcome ready':c?`Phone, ${ui.label(c.state)}`:'Phone');
