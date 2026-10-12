@@ -37,8 +37,9 @@
   }
   return result;
  }
- const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'House'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
- function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):null}));}
+ const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'Video'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
+ const isVideoFile=file=>!file.notes&&/\.(mp4|webm|mov)(?:[?#].*)?$/i.test(file.original_name||file.name||file.src||'');
+ function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):files.find(isVideoFile)||null}));}
  if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
@@ -60,7 +61,8 @@
   panel.innerHTML = `
    <div class="resource-toolbar" role="toolbar" aria-label="Resource viewer">
     <button data-action="files" aria-expanded="true" aria-controls="resource-library" title="Project files">${icon('files')} <span class="resource-action-label">Files</span><span class="resource-count"></span></button>
-    <button data-action="upload" aria-label="Add files" title="Add files">${icon('upload')}</button>
+    <button data-action="upload" aria-label="Add files" title="Add files">${icon('upload')} <span class="resource-action-label">Upload</span></button>
+    <button data-action="coreViews" class="resource-core-button" aria-pressed="false">&#9638; <span class="resource-action-label">Core Views</span></button>
     <span class="resource-filename">Project resources</span>
     <button data-action="overlay" disabled title="Use this still image behind the 3D model" aria-label="Use image as 3D background">${icon('overlay')}<span>Overlay</span></button>
     <button data-action="markup" aria-expanded="false" aria-controls="resource-inspector" title="Open markup tools">${icon('markup')} <span class="resource-action-label">Markup</span></button>
@@ -74,8 +76,7 @@
    <div class="resource-more" hidden><button data-action="download">Download original</button><button data-action="refresh">Refresh project files</button></div>
    <div class="resource-body">
     <aside id="resource-library" class="resource-library" aria-label="Project files">
-     <div class="resource-tray-heading"><strong>Project files <small>INTERNAL</small></strong><button data-action="files" aria-label="Close files">×</button></div>
-     <button data-action="coreViews" class="resource-core-button" aria-pressed="false">&#9638; Core views</button><div class="resource-file-list"></div>
+     <div class="resource-file-list"></div>
     </aside>
     <main class="resource-content">
      <div class="resource-stage" tabindex="0" aria-label="Media viewer. Wheel to zoom, drag to pan, double-click to fit.">
@@ -145,7 +146,7 @@
   const label = name => files.find(file => file.name === name)?.original_name || name.replace(/^internal-resource-(?:v2-)?/, '').slice(37);
   const sourceUrl = file => file.src || url(project,file.name);
   const viewKey = id => 'firstmeasure:resources:view:'+id;
-  let restoring=false,collapsedGroups={},coreActive=false;
+  let restoring=false,collapsedGroups={},coreActive=false,coreVideo=null,coreVideoName=null;
   function savedView(id){try{return JSON.parse(localStorage.getItem(viewKey(id)))||{};}catch{return {};}}
   function remember(){if(!project||restoring)return;try{localStorage.setItem(viewKey(project),JSON.stringify({active,coreActive,name:current?.name,collapsedGroups,filesOpen,inspector,expanded:panel.classList.contains('expanded'),time:media?.currentTime||0,scale,ox,oy,stageWidth:stage.clientWidth,stageHeight:stage.clientHeight}));}catch{}}
   async function restoreView(saved=savedView(project)){restoring=true;try{const file=files.find(f=>f.name===saved.name);if(file&&!saved.coreActive)await open(file,{time:saved.time});else await showCoreViews();filesOpen=saved.filesOpen!==false;inspector=['notes','markup','favorites'].includes(saved.inspector)?saved.inspector:'';panel.classList.toggle('expanded',!!saved.expanded);updateDrawers();if(file&&image&&saved.scale>0&&saved.stageWidth===stage.clientWidth&&saved.stageHeight===stage.clientHeight){scale=saved.scale;ox=saved.ox;oy=saved.oy;draw();}}finally{restoring=false;}}
@@ -217,6 +218,8 @@
    stage.style.cursor = next === 'pan' ? 'grab' : 'crosshair'; controls(); draw();
   }
   function reset() {
+   if(coreVideo){coreVideo.pause();coreVideo.removeAttribute('src');coreVideo.load();coreVideo=null;}coreVideoName=null;$('.resource-core-grid').replaceChildren();
+
    coreActive=false;$('.resource-core-grid').hidden=true;$('[data-action="coreViews"]').setAttribute('aria-pressed','false');
    favoriteDraft = null; $('.resource-favorite-entry').hidden = true;
    scrub = null; cancelAnimationFrame(seekFrame); seekFrame = 0;
@@ -242,7 +245,17 @@
    const grid=$('.resource-core-grid');grid.replaceChildren();
    for(const {slot,title,file}of coreViews(files)){
     const cell=document.createElement(slot?'button':'div');cell.className='resource-core-cell';
-    if(!slot){cell.classList.add('resource-core-house');cell.innerHTML='<svg viewBox="0 0 120 110" role="img" aria-label="House viewed from above; front entrance at bottom"><rect x="20" y="12" width="80" height="76" rx="5" fill="#7194a6"/><path d="M20 12L60 40L100 12M20 88L60 62L100 88M60 40V62" fill="none" stroke="#d8e8f0" stroke-width="3"/><rect x="49" y="82" width="22" height="14" rx="2" fill="#1e5269"/><path d="M60 100v8m-5-5l5 5 5-5" stroke="#1e5269" stroke-width="2" fill="none"/></svg><span>Front entrance &#8595;</span>';}
+    if(!slot){
+     cell.classList.add('resource-core-video');const videos=files.filter(isVideoFile),chosen=videos.find(f=>f.name===coreVideoName)||file;
+     if(chosen){
+      if(!coreVideo||coreVideoName!==chosen.name){coreVideo?.pause();coreVideo=document.createElement('video');coreVideo.controls=true;coreVideo.playsInline=true;coreVideo.preload='metadata';coreVideo.src=sourceUrl(chosen);coreVideoName=chosen.name;}
+      coreVideo.setAttribute('aria-label','Walkthrough video');cell.append(coreVideo);
+      const footer=document.createElement('div');footer.className='resource-core-video-actions';
+      if(videos.length>1){const select=document.createElement('select');select.setAttribute('aria-label','Core view video');for(const video of videos){const option=document.createElement('option');option.value=video.name;option.textContent=label(video.name);option.selected=video.name===chosen.name;select.append(option);}select.onchange=()=>{coreVideo?.pause();coreVideo=null;coreVideoName=select.value;renderCoreViews();};footer.append(select);}
+      const expand=document.createElement('button');expand.type='button';expand.textContent='Open video';expand.onclick=()=>open(chosen,{time:coreVideo?.currentTime||0}).catch(error=>message(error.message,true));footer.append(expand);cell.append(footer);
+     }else {const missing=document.createElement('span');missing.className='resource-core-missing';missing.textContent='No video';cell.append(missing);}
+     for(const event of ['pointerdown','mousedown','dblclick','wheel'])cell.addEventListener(event,e=>e.stopPropagation());
+    }
     else {cell.type='button';cell.setAttribute('aria-label',file?'Open '+title+' view':title+' - no photo');
      if(file){const img=document.createElement('img');img.src=sourceUrl(file);img.alt=title;img.loading='lazy';cell.append(img);cell.onclick=()=>open(file).catch(error=>message(error.message,true));}
      else {cell.disabled=true;const missing=document.createElement('span');missing.className='resource-core-missing';missing.textContent='No photo';cell.append(missing);}
@@ -252,16 +265,16 @@
   }
   async function showCoreViews(){
    if(busy)return;if(dirty)await save();epoch++;reset();inspector='';updateDrawers();coreActive=true;empty.hidden=true;
-   $('.resource-core-grid').hidden=false;$('[data-action="coreViews"]').setAttribute('aria-pressed','true');$('.resource-filename').textContent='Core views';renderList();remember();
+   $('.resource-core-grid').hidden=false;$('[data-action="coreViews"]').setAttribute('aria-pressed','true');$('.resource-filename').textContent='';renderList();remember();
   }
   function renderList() {
    if(coreActive)renderCoreViews();
    list.replaceChildren(); const resources = files.filter(file => file.reference||file.name.startsWith(prefix)).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
    $('.resource-count').textContent = resources.length || '';
-   for(const role of ['qa','tech','customer']){
-   const bucket=resources.filter(f=>(f.role||'tech')===role),section=document.createElement('details');section.className='resource-section';section.dataset.role=role;section.open=collapsedGroups[role]===undefined?bucket.length>0:!collapsedGroups[role];
-   const heading=document.createElement('summary');heading.className='resource-section-heading';heading.innerHTML=icon(role);
-   const title=document.createElement('span');title.textContent=roleName(role)+(role===currentRole()?' (You)':'');const count=document.createElement('span');count.className='resource-section-count';count.textContent=bucket.length;heading.append(title,count);section.append(heading);list.append(section);
+   for(const role of [...(resources.some(isVideoFile)?['videos']:[]),'qa','tech','customer']){
+   const bucket=resources.filter(f=>role==='videos'?isVideoFile(f):!isVideoFile(f)&&(f.role||'tech')===role),section=document.createElement('details');section.className='resource-section';section.dataset.role=role;section.open=collapsedGroups[role]===undefined?bucket.length>0:!collapsedGroups[role];
+   const heading=document.createElement('summary');heading.className='resource-section-heading';heading.innerHTML=icon(role==='videos'?'frames':role);
+   const title=document.createElement('span');title.textContent=role==='videos'?'Videos':roleName(role)+(role===currentRole()?' (You)':'');const count=document.createElement('span');count.className='resource-section-count';count.textContent=bucket.length;heading.append(title,count);section.append(heading);list.append(section);
    section.addEventListener('toggle',()=>{if(!section.isConnected)return;collapsedGroups[role]=!section.open;remember();});
    const grid=document.createElement('div');grid.className='resource-file-grid';section.append(grid);
    if(!bucket.length){const empty=document.createElement('div');empty.className='resource-section-empty';empty.textContent='No files yet';grid.append(empty);}
@@ -663,7 +676,7 @@
    if (active) {
     previous.call(this, 'resources'); host.querySelectorAll('#google-map-container,#google-js-map').forEach(element => element.style.display = 'none');
     tabs.querySelectorAll('.map-tab').forEach(element => element.classList.toggle('active', element === tab)); syncProject().catch(error => message(error.message, true)); resize();
-   } else { panel.classList.remove('expanded'); media?.pause(); previous.call(this, layer); }
+   } else { panel.classList.remove('expanded'); media?.pause(); coreVideo?.pause(); previous.call(this, layer); }
   };
   tab.onclick = () => window.switchMapLayer('resources'); new ResizeObserver(resize).observe(stage);
   let restoreProject='';setInterval(() => {const id=String(window.currentProjectId||'');if(id&&restoreProject!==id){restoreProject=id;if(savedView(id).active)window.switchMapLayer('resources');}if(active)syncProject().catch(error=>message(error.message,true));remember();},700);
