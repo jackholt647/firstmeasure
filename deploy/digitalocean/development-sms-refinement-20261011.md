@@ -25,3 +25,14 @@ Provider reference:
 https://support-v2.telnyx.com/en/articles/6339152-how-to-create-a-10dlc-campaign
 
 Deployment: guarded per-host overlays preserving concurrent dev changes.
+
+## Development verification
+
+Activated `aff4d7de8fa25cd0e7085b0ff6bc607a96301451` on web, pool,
+compatibility and worker; each HTTP role returned ready and worker was active.
+A concurrent download release then restarted services, temporarily returning
+public 503s. Verified that its web source retains exactly the SMS frontend/API
+payload hashes. Public readiness subsequently returned ready and the public
+company.js hash matches this rollout: `78eae25103db1d219e0f8145c4cbd9a7b95266512dce607c37383b491b166e31`.
+Concurrent restarts can still produce transient legacy-service warnings. No
+production activation or real number purchase was performed.
