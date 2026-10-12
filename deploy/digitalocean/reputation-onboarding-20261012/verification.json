@@ -1,0 +1,83 @@
+{
+  "roles": [
+    {
+      "role": "web",
+      "service": "active",
+      "release": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+      "phone_source": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+      "path": "/opt/firstmeasure/releases/phone-8a4e2ed40cf27601ed0bf62fa582f01a18f7087c-web",
+      "baseline": "/opt/firstmeasure/releases-gif-drafts-1791774124/d31cfa48b3afa20a2a5165315093abffad506ab3",
+      "source_files": 11,
+      "phone_worker_owner": "0",
+      "readiness": "ready",
+      "outbound_safety": true
+    },
+    {
+      "role": "pool",
+      "service": "active",
+      "release": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+      "phone_source": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+      "path": "/opt/firstmeasure/releases/phone-8a4e2ed40cf27601ed0bf62fa582f01a18f7087c-pool",
+      "baseline": "/opt/firstmeasure/releases-gif-drafts-1791774200/d31cfa48b3afa20a2a5165315093abffad506ab3",
+      "source_files": 11,
+      "phone_worker_owner": "0",
+      "readiness": "ready",
+      "outbound_safety": true
+    },
+    {
+      "role": "compat",
+      "service": "active",
+      "release": "d31cfa48b3afa20a2a5165315093abffad506ab3",
+      "phone_source": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+      "path": "/mnt/firstmeasure_dev_releases/releases-gif-drafts-1791774385/d31cfa48b3afa20a2a5165315093abffad506ab3",
+      "baseline": "/mnt/firstmeasure_dev_releases/releases/phone-4e396d15bdd418c1fd2fecfdcc0197482be59545-compat",
+      "source_files": 11,
+      "phone_worker_owner": "1",
+      "readiness": "ready",
+      "outbound_safety": true
+    },
+    {
+      "role": "worker",
+      "service": "active",
+      "release": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+      "phone_source": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+      "path": "/opt/firstmeasure/releases/phone-8a4e2ed40cf27601ed0bf62fa582f01a18f7087c-worker",
+      "baseline": "/opt/firstmeasure/releases/phone-4e396d15bdd418c1fd2fecfdcc0197482be59545-worker",
+      "source_files": 9,
+      "phone_worker_owner": "0"
+    }
+  ],
+  "public": {
+    "health": [
+      {
+        "ok": true,
+        "state": "ready",
+        "release_id": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+        "data_environment": "development"
+      },
+      {
+        "ok": true,
+        "state": "ready",
+        "release_id": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+        "data_environment": "development"
+      },
+      {
+        "ok": true,
+        "state": "ready",
+        "release_id": "8a4e2ed40cf27601ed0bf62fa582f01a18f7087c",
+        "data_environment": "development"
+      }
+    ],
+    "assets": {
+      "public/libraries/apps/settings/phone.js": "323190719beee2acbdae6fa72ce13c23246daf36a485daf5c8f0e81fe3686cea",
+      "public/libraries/apps/firstmate-apps-manifest.js": "07c68bf437d4bda611664b4f2de5e83e79ec4d268d03b2f24f959e8e7a8e48ca"
+    }
+  },
+  "onboarding_probe": {
+    "draft_saved": true,
+    "outbox": "completed",
+    "trigger": "completed",
+    "temporary_data_removed": true,
+    "carrier_calls": 0
+  }
+}

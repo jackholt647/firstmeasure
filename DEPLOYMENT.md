@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Reputation onboarding: [Business signup, authorization and remediation](deploy/digitalocean/development-reputation-onboarding-20261012.md) records the guided flow without billing, publication contracts, tests and development rollout.
+
 October 11 Project preview: [Cover fallback and internal contact actions](deploy/digitalocean/development-project-preview-cover-actions-20261011.md) records the verified development rollout, tests, exact-project data observation and rollback paths.
 
 October 11 Phone Settings: [Voicemail drop, dialing pools and reputation monitoring](deploy/digitalocean/development-phone-extensions-20261011.md) records the original staging and checks; the [October 12 activation and publication record](deploy/digitalocean/development-phone-publication-20261012.md) records the resolved access blocker, coordinated dev rollout and live trigger verification.

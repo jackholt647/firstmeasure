@@ -1,0 +1,446 @@
+--- a/public/v1/comms/phone/api.ts
++++ b/public/v1/comms/phone/api.ts
+@@ -1,3 +1,4 @@
++import {saveBusiness,registerBusiness,renderAuthorization,submitAuthorization,correctBusiness,remediation,carrierTerms,disableReputation,resolveAttempt} from './reputation-product.js';
+ import { reputationWorkspace, changeReputation } from './reputation.js';
+ import type { FastifyInstance, FastifyRequest } from 'fastify';
+ import { z } from 'zod';
+@@ -17,6 +18,17 @@
+ const param=(r:FastifyRequest,k:string)=>s.text(s.object(r.params)[k]);
+ async function auth(r:FastifyRequest,write=false){const ctx=await requirePlatformAuth(r,{orgId:param(r,'orgId'),csrf:write,capability:'apps.comms'});if(!canUseScopedPermission(ctx,'make_calls|send_comms|send_communications|view_comms|manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You do not have access to phone settings.');return ctx;}
+ export function registerPhoneSettingsApi(app:FastifyInstance){
++  app.post(`${base}/reputation/resolve`,async r=>({ok:true,...await resolveAttempt(await auth(r,true),r.body)}));
++  app.put(`${base}/reputation/business`,async r=>({ok:true,account:await saveBusiness(await auth(r,true),r.body)}));
++  app.post(`${base}/reputation/register`,async r=>({ok:true,...await registerBusiness(await auth(r,true),r.body)}));
++  app.post(`${base}/reputation/business/correct`,async r=>({ok:true,...await correctBusiness(await auth(r,true),r.body)}));
++  app.post(`${base}/reputation/authorization/render`,{bodyLimit:2*1024*1024},async(r,reply)=>{const pdf=await renderAuthorization(await auth(r,true),r.body||{});return reply.header('Cache-Control','private, no-store').send({ok:true,file:pdf.file.toString('base64'),version:pdf.version});});
++  app.post(`${base}/reputation/authorization`,{bodyLimit:12*1024*1024},async r=>({ok:true,...await submitAuthorization(await auth(r,true),r.body)}));
++  app.post(`${base}/reputation/remediation`,async r=>({ok:true,...await remediation(await auth(r,true),r.body)}));
++  app.post(`${base}/reputation/disable`,async r=>{const v=z.object({confirmed:z.literal(true),operation_id:z.string()}).parse(r.body);return {ok:true,...await disableReputation(await auth(r,true),v.operation_id)};});
++  app.get(`${base}/reputation/carrier-terms`,async r=>({ok:true,status:await carrierTerms(await auth(r))}));
++  app.post(`${base}/reputation/carrier-terms`,async r=>{z.object({confirmed:z.literal(true)}).parse(r.body);return {ok:true,status:await carrierTerms(await auth(r,true),true)};});
++
+   app.get(`${base}/reputation`,async r=>({ok:true,...await reputationWorkspace(await auth(r))}));
+   app.post(`${base}/reputation`,async r=>({ok:true,...await changeReputation(await auth(r,true),r.body)}));
+   app.post(`${base}/greetings`,{bodyLimit:6*1024*1024},async r=>({ok:true,greeting:await saveGreeting(await auth(r,true),r.body)}));
+--- a/public/v1/comms/phone/event-contracts.ts
++++ b/public/v1/comms/phone/event-contracts.ts
+@@ -1,6 +1,8 @@
+ import {z} from 'zod';
+ // Pure contract module: shared by the durable outbox and the automation catalog.
+ const names={
++ 'phone.reputation.onboarding_updated':'Business reputation enrollment or authorization status changed.',
++ 'phone.reputation.remediation_updated':'A spam-label review status or result changed.',
+  'phone.line.updated':'A phone line assignment, routing, messaging or tracking configuration changed.',
+  'phone.group.updated':'A ring or department group changed.',
+  'phone.personal.updated':'A user changed their phone preferences, hours, notifications or dialing settings.',
+@@ -38,6 +40,8 @@
+ const text=(v:unknown)=>String(v??'');
+ const strings=(v:unknown)=>Array.isArray(v)?v.map(text):[];
+ const fields:Record<string,{event:keyof typeof names;keys:string[]}>={
++ phone_reputation_account:{event:'phone.reputation.onboarding_updated',keys:['status','signed_at','disabled_at']},
++ phone_reputation_remediation:{event:'phone.reputation.remediation_updated',keys:['status','results']},
+  phone_line:{event:'phone.line.updated',keys:['label','user_ids','group_id','department_ids','routing','messaging','tracking']},
+  phone_group:{event:'phone.group.updated',keys:['label','user_ids','department_ids','routing','branch_id']},
+  phone_personal:{event:'phone.personal.updated',keys:['schedule','available','notifications','voicemail_greeting','voicemail_media_id','voicemail_drop','power_dial']},
+--- a/public/v1/comms/phone/publication.ts
++++ b/public/v1/comms/phone/publication.ts
+@@ -19,6 +19,8 @@
+ const score=z.object({spam_risk:str.nullable().default(null),spam_category:str.nullable().default(null),connection_score:z.number().nullable().default(null),engagement_score:z.number().nullable().default(null),sentiment_score:z.number().nullable().default(null),maturity_score:z.number().nullable().default(null),last_refreshed_at:str.nullable().default(null)});
+ const cost=z.object({monthly_cost:str.default(''),upfront_cost:str.default(''),currency:str.default('')});
+ const schemas={
++  reputation_onboarding:z.object({...meta,status:str,business_name:str,signed_at:str,disabled_at:str}),
++  reputation_remediation:z.object({...meta,status:str,numbers:z.array(str),call_purpose:str,created_at:str,results:z.record(z.array(str)).nullable()}),
+   personal:personalSchema.extend(meta),
+   line:z.object({...meta,phone_number:str,label:str,status:str,branch_id:str,config:lineSchema.nullable(),sms_status:str}),
+   group:groupSchema.extend({...meta,branch_id:str}),
+@@ -33,8 +35,10 @@
+   billing:z.object({...meta,phone_number:str,label:str,status:str,provider_cost:cost.nullable()})
+ };
+ type Kind=keyof typeof schemas;
+-const resourceKinds:Record<Kind,string>={personal:'phone_personal',line:'number',group:'phone_group',messaging:'phone_messaging',lead:'phone_lead',port:'phone_port',order:'phone_order',reputation:'phone_reputation_number',reputation_settings:'phone_reputation',greeting:'phone_greeting',voicemail:'phone_mailbox',billing:'number'};
++const resourceKinds:Record<Kind,string>={reputation_onboarding:'phone_reputation_account',reputation_remediation:'phone_reputation_remediation',personal:'phone_personal',line:'number',group:'phone_group',messaging:'phone_messaging',lead:'phone_lead',port:'phone_port',order:'phone_order',reputation:'phone_reputation_number',reputation_settings:'phone_reputation',greeting:'phone_greeting',voicemail:'phone_mailbox',billing:'number'};
+ const descriptions:Record<Kind,string>={
++ reputation_onboarding:'Business reputation enrollment progress. No EIN, contacts, signatures, documents, or carrier identifiers.',
++ reputation_remediation:'Spam-label review status and per-number outcomes. Read-only; submission requires human confirmation in Phone Settings.',
+  personal:'Own work hours, availability, voicemail greeting, notifications, outgoing voicemail drop and power dial pool. Own user only; read has no side effects.',
+  line:'Business numbers, assignments, routing, ring groups, department routing, tracking campaigns and SMS status. Manager access to each line; no provider credentials.',
+  group:'Ring and department groups, members, hours and routing. Manager access to each group.',
+@@ -52,7 +56,7 @@
+ function principal(ctx:PublicationContext){if(!ctx.auth||ctx.auth.orgId!==ctx.organizationId)throw forbidden('phone_user_required','Phone publications require an authenticated organization member.');assertPhoneAccess(ctx.auth);return ctx.auth;}
+ function idFor(ctx:PublicationContext,target:TargetRef,kind:Kind){
+  if(kind==='personal'){if(target.id&&target.id!==principal(ctx).userId)throw forbidden('phone_subject_denied','Only your own phone preferences are available.');return principal(ctx).userId;}
+- if(kind==='messaging'||kind==='reputation_settings'){if(target.id&&target.id!=='default')throw badRequest('phone_id_invalid','This setting uses the default record.');return 'default';}
++ if(kind==='messaging'||(kind==='reputation_settings'||kind==='reputation_onboarding')){if(target.id&&target.id!=='default')throw badRequest('phone_id_invalid','This setting uses the default record.');return 'default';}
+  if(!target.id)throw badRequest('phone_id_required','Choose a record ID or list the available records.');return target.id;
+ }
+ async function authorizeRow(ctx:PublicationContext,kind:Kind,id:string){
+@@ -60,7 +64,7 @@
+  if(kind==='personal'){if(id!==auth.userId)throw forbidden('phone_subject_denied','Only your own preferences are available.');return;}
+  if(kind==='voicemail'){await authorizeMailbox(auth,id);return;}
+  const row=await s.resource(ctx.organizationId,resourceKinds[kind],id);
+- if(!row&& !['messaging','reputation_settings'].includes(kind))throw notFound('phone_record_missing','This phone record is unavailable.');
++ if(!row&& !['messaging','reputation_settings','reputation_onboarding'].includes(kind))throw notFound('phone_record_missing','This phone record is unavailable.');
+  if(kind==='greeting'){if(row?.owner_user_id!==auth.userId)throw forbidden('phone_subject_denied','Only your own greetings are available.');return;}
+  if(kind==='billing'){if(!hasPermission(auth,'view_platform_billing|manage_platform_billing|manage_billing'))throw forbidden('phone_billing_denied','You cannot view phone billing.');return;}
+  const resource=kind==='line'||kind==='reputation'?{...await s.resource(ctx.organizationId,'number',id),...await s.resource(ctx.organizationId,'phone_line',id)}:row||{};
+@@ -71,7 +75,7 @@
+ }
+ function policy(kind:Kind,creating=false):AccessPolicy{return {scopes:['organization'],permissions:[],scopedPermissions:true,capabilities:['apps.comms'],systemKinds:[],authorize:async(ctx,target)=>{
+  const auth=principal(ctx);
+- if(kind==='personal'||kind==='messaging'||kind==='reputation_settings')await authorizeRow(ctx,kind,idFor(ctx,target,kind));
++ if(kind==='personal'||kind==='messaging'||(kind==='reputation_settings'||kind==='reputation_onboarding'))await authorizeRow(ctx,kind,idFor(ctx,target,kind));
+  else if(target.id){if(creating&&!await s.resource(ctx.organizationId,resourceKinds[kind],target.id)){assertManage(auth);return;}await authorizeRow(ctx,kind,target.id);}
+  else if(!['greeting','voicemail'].includes(kind)&&kind!=='billing'&&!canUseScopedPermission(auth,'manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You cannot manage phone settings.');
+  else if(kind==='billing'&&!hasPermission(auth,'view_platform_billing|manage_platform_billing|manage_billing'))throw forbidden('phone_billing_denied','You cannot view phone billing.');
+@@ -83,6 +87,8 @@
+  const texts=(keys:string[])=>Object.fromEntries(keys.map(k=>[k,s.text(row[k])]));
+  let value:unknown;
+  switch(kind){
++ case 'reputation_onboarding':value={...base,...texts(['status','signed_at','disabled_at']),business_name:s.text(s.object(row.profile).legal_name)};break;
++ case 'reputation_remediation':value={...base,...texts(['status','call_purpose','created_at']),numbers:s.strings(row.numbers),results:row.results||null};break;
+  case 'personal':case 'group':case 'messaging':value={...row,...base,...(kind==='group'?{branch_id:s.text(row.branch_id)||'default'}:{})};break;
+  case 'line':{const config=await s.resource(ctx.organizationId,'phone_line',id),sms=await s.resource(ctx.organizationId,'phone_sms',id);value={...base,revision:Number(config?.revision)||0,updated_at:s.text(config?.updated_at||row.updated_at),phone_number:id,label:s.text(config?.label||row.label)||id,status:s.text(row.status),branch_id:s.text(row.branch_id)||'default',config:config?lineSchema.parse(config):null,sms_status:s.text(sms?.assignment_status)};break;}
+  case 'lead':value={...base,...texts(['customer_number','project_id','contact_id','status','first_call_id','last_call_id','first_seen','last_seen']),department_ids:s.strings(row.department_ids),first_touch:touch.parse(s.object(row.first_touch)),last_touch:touch.parse(s.object(row.last_touch))};break;
+@@ -100,7 +106,7 @@
+  if(registered)return;registered=true;
+  const exports:Record<string,DataExport>={};
+  for(const kind of Object.keys(schemas) as Kind[]){
+-  const singleton=['personal','messaging','reputation_settings'].includes(kind);
++  const singleton=['personal','messaging','reputation_settings','reputation_onboarding'].includes(kind);
+   exports[kind]={schema:json(schemas[kind]),schemaVersion:'1',description:descriptions[kind],access:policy(kind),
+    read:async(ctx,ref)=>{const id=idFor(ctx,ref.target,kind),value=await projectRow(ctx,kind,id);return {value,revision:contentHash(value),provenance:{viewer:principal(ctx).userId,ids:[id]}};},
+    authorizeSnapshot:async(ctx,_ref,result)=>{if(result.provenance.viewer!==principal(ctx).userId||!Array.isArray(result.provenance.ids))throw forbidden('phone_snapshot_denied','This snapshot cannot be authorized.');for(const id of result.provenance.ids)await authorizeRow(ctx,kind,s.text(id));},
+--- a/public/v1/comms/phone/reputation.ts
++++ b/public/v1/comms/phone/reputation.ts
+@@ -6,20 +6,14 @@
+ import { assertManage } from './service.js';
+ import * as s from '../calls/storage.js';
+ 
+-// Platform operators bind each vetted enterprise to exactly one tenant. Tenant
+-// admins cannot supply an arbitrary enterprise ID from the shared carrier account.
+-function enterprise(org:string){
+-  let map:s.Json={};try{map=s.object(JSON.parse(process.env.TELNYX_REPUTATION_ENTERPRISES||'{}'));}catch{}
+-  const id=s.text(map[org]);
+-  return /^[a-zA-Z0-9-]{1,100}$/.test(id)&&Object.values(map).filter(v=>v===id).length===1?id:'';
+-}
+-function root(org:string){const id=enterprise(org);if(!id)throw conflict('reputation_setup_required','A platform administrator must connect your approved Telnyx Number Reputation enterprise.');return `/enterprises/${encodeURIComponent(id)}/reputation`;}
+-export async function reputationWorkspace(ctx:PlatformAuthContext){assertManage(ctx);return {configured:!!enterprise(ctx.orgId),carrier_writes:carrierWritesAllowed(),settings:await s.resource(ctx.orgId,'phone_reputation')||{},numbers:await s.resources(ctx.orgId,'phone_reputation_number')};}
++import {account,enterpriseId,reputationRoot,productWorkspace,operation,refreshProduct} from './reputation-product.js';
++import {TelnyxError} from '../../messaging/telnyx.js';
++export async function reputationWorkspace(ctx:PlatformAuthContext){assertManage(ctx);return {configured:!!await enterpriseId(ctx.orgId),carrier_writes:carrierWritesAllowed(),settings:await s.resource(ctx.orgId,'phone_reputation')||{},numbers:await s.resources(ctx.orgId,'phone_reputation_number'),...await productWorkspace(ctx)};}
+ 
+ /** List is a cached, non-billable read. Never use single-number GET in polling:
+  * Telnyx can bill that request when no cached score exists. */
+ export async function syncReputation(org:string){
+-  const path=root(org),client=voiceClient(),settings=await client.data(path),records:s.Json[]=[];
++  const path=await reputationRoot(org),client=voiceClient(),settings=await client.data(path),records:s.Json[]=[];
+   for(let page=1;page<=100;page++){
+     const response=s.object(await client.request(`${path}/numbers?page[number]=${page}&page[size]=250`));
+     const rows=Array.isArray(response.data)?response.data.map(s.object):[];records.push(...rows);
+@@ -35,13 +29,14 @@
+     if(data&&data.last_refreshed_at!==s.object(previous?.reputation_data).last_refreshed_at)history.push(data);
+     await s.saveResource(org,'phone_reputation_number',number.id,{phone_number:number.id,monitored:!!provider,reputation_data:data,synced_at:timestamp,history:history.slice(-30)});
+   }
++  const enrollment=await account(org);if(enrollment){const status=settings.status==='approved'&&settings.loa_status==='approved'?'approved':settings.status==='rejected'||settings.loa_status==='rejected'?'rejected':'pending';if(enrollment.status!==status)await s.saveResource(org,'phone_reputation_account','default',{...enrollment,status});}
+   return s.saveResource(org,'phone_reputation','default',{...(await s.resource(org,'phone_reputation')),status:settings.status,loa_status:settings.loa_status,check_frequency:settings.check_frequency,rejection_reasons:settings.rejection_reasons,synced_at:timestamp,last_error:''});
+ }
+ 
+ export async function changeReputation(ctx:PlatformAuthContext,input:unknown){
+-  assertManage(ctx);const v=z.object({action:z.enum(['sync','monitor','remove','refresh','frequency']),phone_number:z.string().max(40).default(''),frequency:z.enum(['business_daily','daily','weekly','biweekly','monthly','never']).optional(),confirmed:z.boolean().default(false)}).parse(input);
+-  const path=root(ctx.orgId);
+-  if(v.action==='sync'){await syncReputation(ctx.orgId);return reputationWorkspace(ctx);}
++  assertManage(ctx);const v=z.object({action:z.enum(['sync','monitor','remove','refresh','frequency']),operation_id:z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/).optional(),phone_number:z.string().max(40).default(''),frequency:z.enum(['business_daily','daily','weekly','biweekly','monthly','never']).optional(),confirmed:z.boolean().default(false)}).parse(input);
++  if(v.action==='sync'){await refreshProduct(ctx.orgId);if(!await enterpriseId(ctx.orgId))return reputationWorkspace(ctx);try{await syncReputation(ctx.orgId);}catch(e){if(!(e instanceof TelnyxError&&e.statusCode===404))throw e;}return reputationWorkspace(ctx);}
++  const path=await reputationRoot(ctx.orgId);
+   if(!carrierWritesAllowed())throw forbidden('reputation_development_read_only','Development cannot enroll numbers or request billed reputation checks.');
+   if(!v.confirmed)throw conflict('reputation_confirmation_required','Confirm the carrier action and applicable Telnyx charges.');
+   if(v.action!=='frequency'){
+@@ -51,31 +46,35 @@
+   const settings=await s.resource(ctx.orgId,'phone_reputation'),client=voiceClient();
+   if(settings?.status!=='approved'||settings.loa_status!=='approved')throw conflict('reputation_approval_pending','Telnyx must approve both your business registration and letter of authorization.');
+   const monitored=(await s.resource(ctx.orgId,'phone_reputation_number',v.phone_number))?.monitored===true;
+-  if(v.action==='monitor'&&!monitored)await client.request(path+'/numbers','POST',{phone_numbers:[v.phone_number]});
+-  if(v.action==='remove'&&monitored)await client.request(path+'/numbers/'+encodeURIComponent(v.phone_number),'DELETE');
+-  if(v.action==='refresh'){
+-    if(!monitored)throw conflict('reputation_not_monitored','Enroll this number before requesting a fresh check.');
+-    const response=await client.data(path+'/numbers/refresh','POST',{phone_numbers:[v.phone_number]});
+-    if(Number(response.total_failed)>0||Number(response.total_successful)!==1)throw conflict('reputation_refresh_failed','The carrier could not refresh this number. Try again later.');
+-  }
+-  if(v.action==='frequency'){
+-    if(!v.frequency)throw conflict('reputation_frequency_required','Choose a monitoring schedule.');
+-    await client.request(path+'/frequency','PATCH',{check_frequency:v.frequency});
+-  }
++  if(!v.operation_id)throw conflict('reputation_operation_required','A unique request ID is required.');
++  if(v.action==='refresh'&&!monitored)throw conflict('reputation_not_monitored','Enroll this number first.');
++  if(v.action==='monitor'&&monitored||v.action==='remove'&&!monitored)return reputationWorkspace(ctx);
++  if(v.action==='frequency'&&!v.frequency)throw conflict('reputation_frequency_required','Choose a monitoring schedule.');
++  await operation(ctx.orgId,v.operation_id,v.action,{phone_number:v.phone_number,frequency:v.frequency},ctx.userId,async()=>{
++    if(v.action==='monitor')await client.request(path+'/numbers','POST',{phone_numbers:[v.phone_number]});
++    if(v.action==='remove')await client.request(path+'/numbers/'+encodeURIComponent(v.phone_number),'DELETE');
++    if(v.action==='frequency')await client.request(path+'/frequency','PATCH',{check_frequency:v.frequency});
++    if(v.action==='refresh'){
++      const result=await client.data(path+'/numbers/refresh','POST',{phone_numbers:[v.phone_number]});
++      if(Number(result.total_failed)>0||Number(result.total_successful)!==1)throw conflict('reputation_refresh_failed','The carrier could not confirm this lookup. Refresh status before retrying.');
++    }
++    return {action:v.action,phone_number:v.phone_number};
++  });
+   await s.appendEvent(ctx.orgId,'','phone.reputation.updated',{action:v.action,phone_number:v.phone_number,frequency:v.frequency,actor_user_id:ctx.userId});
+   await syncReputation(ctx.orgId);return reputationWorkspace(ctx);
+ }
+ 
+ export async function maintainReputation(){
+   let map:s.Json={};try{map=s.object(JSON.parse(process.env.TELNYX_REPUTATION_ENTERPRISES||'{}'));}catch{return;}
+-  for(const org of Object.keys(map)){
+-    if(!enterprise(org))continue;
++  const rows=await s.database().prepare("SELECT organization_id FROM customer_voice_resources WHERE kind='phone_reputation_account'").all();
++  for(const org of new Set([...Object.keys(map),...rows.map(r=>s.text(s.object(r).organization_id))])){
++    if((await account(org))?.disabled_at)continue;
+     const previous=await s.resource(org,'phone_reputation');
+     if(s.text(previous?.next_poll_at)>s.now())continue;
+     // A short lease across web/worker instances prevents duplicate inventory polls.
+     let acquired=false;await s.transaction(async()=>{const latest=await s.resource(org,'phone_reputation');if(s.text(latest?.next_poll_at)>s.now())return;await s.saveResource(org,'phone_reputation','default',{...latest,next_poll_at:new Date(Date.now()+15*60000).toISOString()});acquired=true;});
+     if(!acquired)continue;
+-    try{await syncReputation(org);}catch{const latest=await s.resource(org,'phone_reputation');await s.saveResource(org,'phone_reputation','default',{...latest,last_error:'Carrier monitoring could not be refreshed. Existing scores may be out of date.'});}
++    try{await refreshProduct(org);if(await enterpriseId(org))await syncReputation(org);}catch{const latest=await s.resource(org,'phone_reputation');await s.saveResource(org,'phone_reputation','default',{...latest,last_error:'Carrier monitoring could not be refreshed. Existing scores may be out of date.'});}
+     const latest=await s.resource(org,'phone_reputation');await s.saveResource(org,'phone_reputation','default',{...latest,next_poll_at:new Date(Date.now()+15*60000).toISOString()});
+   }
+ }
+--- a/public/v1/messaging/telnyx.ts
++++ b/public/v1/messaging/telnyx.ts
+@@ -85,14 +85,14 @@
+     return Boolean(this.apiKey);
+   }
+ 
+-  async request(path: string, init: RequestInit = {}) {
++  async request(path: string, init: RequestInit = {}, format: "json" | "pdf" = "json") {
+     if (!this.apiKey) {
+       throw new TelnyxError("TELNYX_API_KEY is not configured.", 500, { code: "missing_telnyx_api_key" });
+     }
+     const url = `${this.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+     const headers = new Headers(init.headers);
+     headers.set("Authorization", `Bearer ${this.apiKey}`);
+-    headers.set("Accept", "application/json");
++    headers.set("Accept", format === "pdf" ? "application/pdf" : "application/json");
+     if (init.body != null && !headers.has("Content-Type")) {
+       headers.set("Content-Type", "application/json");
+     }
+@@ -108,6 +108,12 @@
+         502,
+         { code: timedOut ? "telnyx_timeout" : "telnyx_network_error", message: error instanceof Error ? error.message : String(error), submission_unknown: init.method?.toUpperCase() === "POST" }
+       );
++    }
++    if (response.ok && format === "pdf") {
++      if (!response.headers.get("content-type")?.includes("application/pdf")) throw new TelnyxError("Expected an authorization PDF.",502);
++      const file=Buffer.from(await response.arrayBuffer());
++      if(file.length>10*1024*1024 || file.subarray(0,5).toString()!=="%PDF-")throw new TelnyxError("Invalid authorization PDF.",502);
++      return file;
+     }
+     const text = await response.text();
+     let payload: unknown = null;
+--- a/public/v1/platform/publication/coverage.ts
++++ b/public/v1/platform/publication/coverage.ts
+@@ -33,7 +33,7 @@
+   channels: { providers: ["channels"], domains: ["channels"], note:"Project trays reuse Channels records and its subject authorization; note creation, sharing, pinning, editing, deletion and restoration are published operations. The feature flag changes rendering, not storage." },
+   canvassing: { providers: ["canvassing"], domains: ["canvassing"] },
+   feedback: { providers: ["feedback"], domains: ["feedback"] },
+-  settings: { providers: ["phone-settings", "workforce-departments", "notification-rules", "organization", "scopes", "custom-fields-organization", "custom-fields-user", "custom-fields-branch", "custom-fields-department", "custom-fields-division", "custom-fields-team", "custom-fields-catalog", "forms", "lead-import"], domains: ["custom-fields", "platform-phones", "phone-settings", "workforce", "leads"], note: "Settings owns external connections with dynamic external.<connectionId> providers and versioned connection actions, loaded per organization. Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
++  settings: { providers: ["phone-settings", "workforce-departments", "notification-rules", "organization", "scopes", "custom-fields-organization", "custom-fields-user", "custom-fields-branch", "custom-fields-department", "custom-fields-division", "custom-fields-team", "custom-fields-catalog", "forms", "lead-import"], domains: ["custom-fields", "platform-phones", "phone-settings", "workforce", "leads"], note: "Settings owns external connections with dynamic external.<connectionId> providers and versioned connection actions, loaded per organization. Reputation onboarding status and remediation outcomes are published; carrier registration, signatures and paid commands remain dedicated human-confirmed flows. Settings are selectively published; credentials and platform administration are never generic data exports. Platform Billing owns dedicated authenticated catalog, subscription and invoice flows under /v1/platform-billing; commercial changes are not exposed to tenant modules or agent tools." },
+   crew: { providers: ["work", "todos", "workforce"], domains: ["work", "workforce"] },
+   sales: { providers: ["work", "todos", "workforce"], domains: ["work", "workforce"] },
+   field_visit: { providers: ["work"], domains: ["work"] },
+--- a/public/v1/platform/publication/permission-bundles.ts
++++ b/public/v1/platform/publication/permission-bundles.ts
+@@ -9,7 +9,7 @@
+  */
+ const bundles: Record<string, { actions?: readonly string[]; data?: readonly string[] }> = {
+   use_external_shares:{data:["collaboration.resource","collaboration.resources"],actions:["collaboration.project.update","collaboration.note.create","collaboration.message.post","collaboration.work.update","collaboration.schedule.update"]},
+-  manage_communications: {data:["phone-settings.tracking_report","phone-settings.line","phone-settings.group","phone-settings.messaging","phone-settings.lead","phone-settings.port","phone-settings.order","phone-settings.reputation","phone-settings.reputation_settings"],actions:["phone-settings.line.save","phone-settings.group.save","phone-settings.messaging.save","phone-settings.lead.save","phone-settings.port.draft","platform-phones.project.assignment.set", "platform-phones.contact.assignment.set", "platform-phones.organization.assignment.set", "platform-phones.user.assignment.set", "platform-phones.branch.assignment.set", "platform-phones.department.assignment.set", "platform-phones.division.assignment.set", "platform-phones.team.assignment.set"]},
++  manage_communications: {data:["phone-settings.tracking_report","phone-settings.line","phone-settings.group","phone-settings.messaging","phone-settings.lead","phone-settings.port","phone-settings.order","phone-settings.reputation","phone-settings.reputation_settings","phone-settings.reputation_onboarding","phone-settings.reputation_remediation"],actions:["phone-settings.line.save","phone-settings.group.save","phone-settings.messaging.save","phone-settings.lead.save","phone-settings.port.draft","platform-phones.project.assignment.set", "platform-phones.contact.assignment.set", "platform-phones.organization.assignment.set", "platform-phones.user.assignment.set", "platform-phones.branch.assignment.set", "platform-phones.department.assignment.set", "platform-phones.division.assignment.set", "platform-phones.team.assignment.set"]},
+   manage_external_sharing:{actions:["collaboration.share.revoke"]},
+   view_projects: { actions: ["work.todos.list", "work.todos.read", "work.todos.history", "work.configuration.read", "projects.search", "work.plan.read", "work.project.projection", "customFields.defaults.compute"], data: ["priority-fields.organization-contract", "priority-fields.organization-values", "materials-inputs.measurements", "custom-fields-project.contract", "custom-fields-project.values", "custom-fields-project.phones", "custom-fields-organization.contract", "custom-fields-organization.values", "custom-fields-organization.phones", "projects.record", "priority-fields.contract", "priority-fields.values", "project-summary.details", "widget-objects.assignments", "widget-objects.project", "widget-objects.document", "widget-objects.document-directory", "project-widgets.directory", "work.records", "todos.items", "organization.profile", "referrals.eligibility"] },
+   manage_projects: { data: ["lead-import.deliveries"], actions: ["work.todos.create", "work.todos.patch", "work.todos.transition", "work.followUps.outcome", "leads.import", "materials.calculus.command", "materials.resource-type.create", "materials.resource-type.update", "custom-fields.project.write", "custom-fields.contact.write","projects.lead.create", "work.node.patch", "work.node.transition"] },
+--- a/public/v1/telephony/telnyx.ts
++++ b/public/v1/telephony/telnyx.ts
+@@ -11,6 +11,7 @@
+   async request(path:string, method="GET", body?:Json) {
+     return this.client.request(path,{method,...(body?{body:JSON.stringify(body)}:{})});
+   }
++  async pdf(path:string,body:Json={}) {return this.client.request(path,{method:"POST",body:JSON.stringify(body)},"pdf") as Promise<Buffer>;}
+   async data(path:string,method="GET",body?:Json) { const result=object(await this.request(path,method,body));return object(result.data); }
+   async dial(payload:Json) {payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);return this.data("/calls","POST",payload);}
+   async command(controlId:string,action:string,payload:Json={}) {
+--- a/public/v1/comms/phone/reputation-product.ts
++++ b/public/v1/comms/phone/reputation-product.ts
+@@ -0,0 +1,171 @@
++import {createHash} from 'node:crypto';
++import {z} from 'zod';
++import type {PlatformAuthContext} from '../../platform/auth.js';
++import {canManageTestAppFlags} from '../../platform/app_flags.js';
++import {badRequest,conflict,forbidden} from '../../platform/errors.js';
++import {voiceClient} from '../../telephony/telnyx.js';
++import {TelnyxError} from '../../messaging/telnyx.js';
++import {carrierWritesAllowed} from './porting.js';
++import {assertManage} from './service.js';
++import * as s from '../calls/storage.js';
++
++export const reputationCapability='comms.reputation';
++export const frequencies=['business_daily','daily','weekly','biweekly','monthly','never'] as const;
++export const industries=['accounting','finance','billing','collections','business','charity','nonprofit','communications','telecom','customer service','support','delivery','shipping','logistics','education','financial','banking','government','public','healthcare','health','pharmacy','medical','insurance','legal','law','notifications','scheduling','real estate','property','retail','ecommerce','sales','marketing','software','technology','tech','media','surveys','market research','travel','hospitality','hotel'] as const;
++const text=z.string().trim().min(1).max(255),phone=z.string().regex(/^\+1[2-9]\d{9}$/),revision=z.number().int().nonnegative();
++const contact=z.object({first_name:text,last_name:text,email:z.string().email().max(255),phone_number:z.string().regex(/^\+[1-9]\d{7,14}$/)}).strict();
++const address=z.object({street_address:text,extended_address:z.string().max(255).default(''),city:text,administrative_area:text,postal_code:text,country:z.enum(['US','CA'])}).strict();
++export const businessSchema=z.object({legal_name:text.min(3).max(64),doing_business_as:text,organization_type:z.enum(['commercial','government','non_profit']),organization_legal_type:z.enum(['corporation','llc','partnership','nonprofit','other']),country_code:z.enum(['US','CA']),jurisdiction_of_incorporation:text,website:z.string().url().refine(v=>/^https?:\/\//.test(v)),industry:z.enum(industries),number_of_employees:z.enum(['1-10','11-50','51-200','201-500','501-2000','2001-10000','10001+']),organization_contact:contact.extend({job_title:text}),billing_contact:contact,organization_physical_address:address,billing_address:address}).strict();
++const hash=(v:unknown)=>createHash('sha256').update(typeof v==='string'?v:JSON.stringify(v)).digest('hex');
++export const account=(org:string)=>s.resource(org,'phone_reputation_account');
++export async function enterpriseId(org:string){
++ const own=await account(org);if(own?.enterprise_id)return s.text(own.enterprise_id);
++ let map:s.Json={};try{map=s.object(JSON.parse(process.env.TELNYX_REPUTATION_ENTERPRISES||'{}'));}catch{}
++ const id=s.text(map[org]);if(id&&(!/^[a-zA-Z0-9-]{1,100}$/.test(id)||Object.values(map).filter(v=>v===id).length!==1))throw conflict('reputation_enterprise_conflict','The business registration mapping needs operator review.');return id;
++}
++export async function reputationRoot(org:string){const id=await enterpriseId(org);if(!id)throw conflict('reputation_setup_required','Complete your business registration first.');return `/enterprises/${encodeURIComponent(id)}/reputation`;}
++function carrier(){if(!carrierWritesAllowed())throw forbidden('reputation_development_read_only','Carrier enrollment and paid checks are disabled in development. You can prepare business details here.');}
++export function onboardingPermission(ctx:PlatformAuthContext){assertManage(ctx);}
++export async function saveBusiness(ctx:PlatformAuthContext,input:unknown){
++ assertManage(ctx);const v=z.object({revision,profile:businessSchema}).strict().parse(input);const old=await account(ctx.orgId);
++ if(old?.enterprise_id||old?.busy)throw conflict('reputation_business_locked','The registered business is locked. Use Correct business details to resubmit it.');
++ return s.saveResource(ctx.orgId,'phone_reputation_account','default',{...old,profile:v.profile,status:'draft'},'',v.revision);
++}
++/** Persist intent before carrier writes. A lost response is never blindly retried.
++ * One company operation at a time also protects paid enrollment and cancellation. */
++export async function operation(org:string,key:string,action:string,input:unknown,actor:string,run:()=>Promise<s.Json>,quantity=1){
++ z.string().regex(/^[a-zA-Z0-9_-]{8,100}$/).parse(key);const digest=hash({action,input});let replay:s.Json|null=null;
++ await s.transaction(async()=>{
++  const old=await s.resource(org,'phone_reputation_operation',key);
++  if(old){if(old.digest!==digest)throw conflict('reputation_operation_conflict','This request was already used for a different change.');if(old.state==='completed'){replay=s.object(old.result);return;}throw conflict('reputation_operation_pending','Refresh to reconcile the earlier carrier request before trying again.');}
++  const a=await account(org);if(a?.busy)throw conflict('reputation_operation_pending','Another reputation request is being processed. Refresh its status first.');
++  await s.saveResource(org,'phone_reputation_operation',key,{action,digest,request:input,state:'running',actor,started_at:s.now(),quantity});
++  await s.saveResource(org,'phone_reputation_account','default',{...a,busy:key});
++ });
++ if(replay)return replay;
++ try{
++  const result=await run();
++  await s.transaction(async()=>{const op=(await s.resource(org,'phone_reputation_operation',key))!;await s.saveResource(org,'phone_reputation_operation',key,{...op,state:'completed',result,completed_at:s.now()});const a=await account(org);await s.saveResource(org,'phone_reputation_account','default',{...a,busy:''});});
++  return result;
++ }catch(e){
++  // A rejection before any known provider effect can be retried with a new request. Network/5xx and local commit failures remain uncertain.
++  const op=(await s.resource(org,'phone_reputation_operation',key))!;
++  const rejected=!op.provider_effect&&e instanceof TelnyxError&&e.statusCode>=400&&e.statusCode<500;
++  await s.saveResource(org,'phone_reputation_operation',key,{...op,state:rejected?'rejected':'uncertain'});
++  if(rejected){const a=await account(org);await s.saveResource(org,'phone_reputation_account','default',{...a,busy:''});}
++  throw e;
++ }
++}
++export async function productWorkspace(ctx:PlatformAuthContext){
++ assertManage(ctx);const a=await account(ctx.orgId);
++ return {account:a?{revision:a.revision,profile:a.profile||null,status:a.status||'draft',busy:!!a.busy,loa_version:a.loa_version||'',signed_at:a.signed_at||'',signer_name:a.signer_name||'',schedule:a.schedule||'never',next_check_at:a.next_check_at||'',last_error:a.last_error||'',disabled_at:a.disabled_at||''}:null,
++  operator:canManageTestAppFlags(ctx),industries,
++  remediation:(await s.resources(ctx.orgId,'phone_reputation_remediation')).map(r=>({id:r.id,status:r.status,numbers:r.numbers,call_purpose:r.call_purpose,created_at:r.created_at,results:r.results||null})),
++  operations:(await s.resources(ctx.orgId,'phone_reputation_operation')).filter(r=>['uncertain','running','rejected'].includes(s.text(r.state))).map(r=>({id:r.id,action:r.action,state:r.state,started_at:r.started_at}))};
++}
++export async function carrierTerms(ctx:PlatformAuthContext,accept=false){
++ if(!canManageTestAppFlags(ctx))throw forbidden('reputation_operator_required','Only the platform operator can accept carrier account terms.');carrier();
++ if(accept)await voiceClient().request('/terms_of_service/number_reputation/agree','POST');
++ return voiceClient().request('/terms_of_service/status?product_type=number_reputation');
++}
++export async function registerBusiness(ctx:PlatformAuthContext,input:unknown){
++ onboardingPermission(ctx);carrier();const v=z.object({operation_id:text,revision,fein:z.string().regex(/^\d{2}-?\d{7}$/)}).strict().parse(input);
++ const a=await account(ctx.orgId);if(await enterpriseId(ctx.orgId))throw conflict('reputation_already_registered','This company is already registered.');if(!a?.profile||a.revision!==v.revision)throw conflict('settings_revision_conflict','Save and refresh your business details first.');
++ const profile=businessSchema.parse(a.profile),reference=`FirstMate-reputation-${hash(ctx.orgId).slice(0,32)}`;
++ // Registration is free. The EIN is sent directly and never persisted in local state or receipts.
++ return operation(ctx.orgId,v.operation_id,'register',{profile,revision:v.revision,fein_hash:hash(v.fein)},ctx.userId,async()=>{
++  const value=await voiceClient().data('/enterprises','POST',{...profile,fein:v.fein,customer_reference:reference});if(!value.id)throw Error('Carrier registration needs reconciliation.');
++  await bindEnterprise(ctx.orgId,s.text(value.id),reference);return {registered:true};
++ });
++}
++async function bindEnterprise(org:string,id:string,reference:string){
++ let map:s.Json={};try{map=s.object(JSON.parse(process.env.TELNYX_REPUTATION_ENTERPRISES||'{}'));}catch{}
++ if(Object.entries(map).some(([key,value])=>key!==org&&value===id))throw conflict('reputation_enterprise_owned');
++ await s.transaction(async()=>{const owner=await s.resourceByProvider('phone_reputation_account',id);if(owner&&owner.organization_id!==org)throw conflict('reputation_enterprise_owned','This business registration is linked to another company.');const a=await account(org);await s.saveResource(org,'phone_reputation_account','default',{...a,enterprise_id:id,customer_reference:reference,status:'registered'},id);});
++}
++export async function renderAuthorization(ctx:PlatformAuthContext,input:unknown={}){
++ assertManage(ctx);carrier();const a0=await account(ctx.orgId);if(a0?.busy)throw conflict('reputation_operation_pending');
++ const v=z.object({loa_version:z.string().optional(),signer_name:z.string().min(1).max(255).optional(),signature:z.string().max(1500000).optional()}).strict().parse(input);
++ if(v.signature&&(!v.signer_name||!a0?.loa_version||v.loa_version!==a0.loa_version))throw conflict('reputation_loa_stale','Review the current authorization before signing.');
++ if(v.signature){const png=Buffer.from(v.signature,'base64');if(png.length>1000000||!png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))throw badRequest('reputation_signature_invalid','Draw your signature in the signature box.');}
++ const root=await reputationRoot(ctx.orgId),file=await voiceClient().pdf(root+'/loa',v.signature?{signature:{image_base64:v.signature,signer_name:v.signer_name}}:{});
++ const version=v.signature?s.text(a0?.loa_version):hash(file.toString('base64'));const a=await account(ctx.orgId);if(a?.busy||a?.revision!==a0?.revision)throw conflict('reputation_loa_stale','Business details changed. Review the current authorization again.');await s.saveResource(ctx.orgId,'phone_reputation_account','default',{...a,loa_version:version,loa_rendered_at:s.now()},'',a?.revision||0);return {file,version};
++}
++export async function submitAuthorization(ctx:PlatformAuthContext,input:unknown){
++ onboardingPermission(ctx);carrier();
++ const v=z.object({operation_id:text,loa_version:text,signer_name:text,authorized:z.literal(true),terms_accepted:z.literal(true),file:z.string().min(8).max(11200000)}).strict().parse(input);
++ const a=await account(ctx.orgId);if(!a?.loa_version||a.loa_version!==v.loa_version)throw conflict('reputation_loa_stale','Download and review the current authorization before signing.');
++ const file=Buffer.from(v.file,'base64');if(file.length>8*1024*1024||file.subarray(0,5).toString()!=='%PDF-')throw badRequest('reputation_loa_invalid','Upload the signed authorization as a PDF up to 8 MB.');
++ const root=await reputationRoot(ctx.orgId);const current=await voiceClient().data(root).catch(e=>{if(e instanceof TelnyxError&&e.statusCode===404)return null;throw e;});
++ if(current?.loa_status==='approved')throw conflict('reputation_loa_locked','Your authorization is already approved.');
++ return operation(ctx.orgId,v.operation_id,'authorize',{loa_version:v.loa_version,signer_name:v.signer_name,file_hash:hash(v.file)},ctx.userId,async()=>{
++  const document=await voiceClient().data('/documents','POST',{file:v.file,filename:'reputation-authorization.pdf',customer_reference:`FirstMate-reputation-${hash(ctx.orgId).slice(0,32)}`});if(!document.id)throw Error('Authorization upload needs review.');
++  await s.saveResource(ctx.orgId,'phone_reputation_account','default',{...await account(ctx.orgId),loa_document_id:document.id,signed_at:s.now(),signer_name:v.signer_name,signed_by:ctx.userId,signed_hash:hash(v.file),accepted_terms:'https://telnyx.com/terms/reputation-services'});
++  await voiceClient().request(current?root+'/loa':root,current?'PATCH':'POST',{loa_document_id:document.id,...(!current?{check_frequency:'never'}:{})});
++  await s.saveResource(ctx.orgId,'phone_reputation_account','default',{...await account(ctx.orgId),status:'pending',disabled_at:''});return {submitted:true};
++ });
++}
++export async function correctBusiness(ctx:PlatformAuthContext,input:unknown){
++ onboardingPermission(ctx);carrier();const v=z.object({operation_id:text,profile:businessSchema,fein:z.string().regex(/^\d{2}-?\d{7}$/),confirmed:z.literal(true)}).strict().parse(input);const id=await enterpriseId(ctx.orgId);if(!id)throw conflict('reputation_setup_required');
++ const settings=await voiceClient().data(await reputationRoot(ctx.orgId));if(settings.status!=='rejected')throw conflict('reputation_business_locked','Corrections are available when business vetting is rejected.');
++ return operation(ctx.orgId,v.operation_id,'correct',{profile:v.profile,fein_hash:hash(v.fein)},ctx.userId,async()=>{
++  await voiceClient().request(await reputationRoot(ctx.orgId),'DELETE');
++  const attempt=(await s.resource(ctx.orgId,'phone_reputation_operation',v.operation_id))!;await s.saveResource(ctx.orgId,'phone_reputation_operation',v.operation_id,{...attempt,provider_effect:true});
++  await voiceClient().request(`/enterprises/${encodeURIComponent(id)}`,'PUT',{...v.profile,fein:v.fein,customer_reference:(await account(ctx.orgId))?.customer_reference});
++  await s.saveResource(ctx.orgId,'phone_reputation','default',{status:'',loa_status:'',check_frequency:'never'});
++  await s.saveResource(ctx.orgId,'phone_reputation_account','default',{...await account(ctx.orgId),profile:v.profile,loa_version:'',signed_at:'',status:'registered'});return {corrected:true};
++ });
++}
++export async function remediation(ctx:PlatformAuthContext,input:unknown){
++ onboardingPermission(ctx);carrier();
++ const v=z.object({operation_id:text,phone_numbers:z.array(phone).min(1).max(100),call_purpose:z.string().trim().min(1).max(2000),contact_email:z.string().email().optional(),confirmed:z.literal(true)}).strict().parse(input);
++ const numbers=[...new Set(v.phone_numbers)];for(const n of numbers){const owned=await s.resource(ctx.orgId,'number',n),monitored=await s.resource(ctx.orgId,'phone_reputation_number',n);if(owned?.status!=='active'||!monitored?.monitored)throw forbidden('reputation_number_missing','Select active monitored numbers belonging to this company.');assertManage(ctx,owned);}
++ const root=await reputationRoot(ctx.orgId),settings=await voiceClient().data(root);if(settings.status!=='approved'||settings.loa_status!=='approved')throw conflict('reputation_approval_pending');
++ return operation(ctx.orgId,v.operation_id,'remediate',{numbers,call_purpose:v.call_purpose,contact_email:v.contact_email},ctx.userId,async()=>{
++  const r=await voiceClient().data(root+'/remediation','POST',{phone_numbers:numbers,call_purpose:v.call_purpose,...(v.contact_email?{contact_email:v.contact_email}:{})});if(!r.id)throw Error('Remediation submission needs reconciliation.');
++  await s.saveResource(ctx.orgId,'phone_reputation_remediation',s.text(r.id),{status:r.status,numbers,call_purpose:v.call_purpose,created_at:r.created_at||s.now(),results:r.results||null},s.text(r.id));return {id:r.id,status:r.status};
++ },numbers.length);
++}
++export async function refreshProduct(org:string){
++ const a=await account(org);if(!a)return;
++ if(a.busy){const op=await s.resource(org,'phone_reputation_operation',s.text(a.busy));if(op&&Date.now()-Date.parse(s.text(op.started_at))>120000){
++  // Recover deterministic resources. Ambiguous billed lookups/remediation remain operator-visible.
++  let recovered=false;
++  if(op.action==='register'){
++   const reference=`FirstMate-reputation-${hash(org).slice(0,32)}`;const matches=await voiceClient().findNamed('/enterprises','customer_reference',reference);
++   if(matches.length===1){await bindEnterprise(org,s.text(matches[0]!.id),reference);recovered=true;}
++  }else if(['monitor','remove','frequency'].includes(s.text(op.action))){
++   const root=await reputationRoot(org),request=s.object(op.request);
++   if(op.action==='frequency')recovered=(await voiceClient().data(root)).check_frequency===request.frequency;
++   else {const inventory=await voiceClient().list(root+'/numbers?page[size]=250');const exists=inventory.some(n=>n.phone_number===request.phone_number);recovered=op.action==='monitor'?exists:!exists&&inventory.length<250;}
++  }else if(op.action==='authorize'){
++   const settings=await voiceClient().data(await reputationRoot(org));recovered=!!a.loa_document_id&&settings.loa_document_id===a.loa_document_id;
++  }
++  if(recovered){await s.saveResource(org,'phone_reputation_operation',op.id,{...op,state:'completed',result:{reconciled:true},completed_at:s.now()});await s.saveResource(org,'phone_reputation_account','default',{...await account(org),busy:''});}
++ }}
++ const id=await enterpriseId(org);if(!id)return;
++ for(const row of await s.resources(org,'phone_reputation_remediation'))if(['pending','in_progress'].includes(s.text(row.status))){const r=await voiceClient().data(`${await reputationRoot(org)}/remediation/${encodeURIComponent(row.id)}`);await s.saveResource(org,'phone_reputation_remediation',row.id,{...row,status:r.status,results:r.results||null},row.provider_id);}
++
++}
++export async function disableReputation(ctx:PlatformAuthContext,key:string){
++ assertManage(ctx);carrier();const a=await account(ctx.orgId);if(a?.busy)throw conflict('reputation_operation_pending','Wait for the current request to finish.');
++ const root=await reputationRoot(ctx.orgId);
++ return operation(ctx.orgId,key,'disable',{},ctx.userId,async()=>{
++ try{await voiceClient().request(root,'DELETE');}catch(e){if(!(e instanceof TelnyxError&&e.statusCode===404))throw e;}
++ await s.saveResource(ctx.orgId,'phone_reputation_account','default',{...await account(ctx.orgId),disabled_at:s.now(),status:'disabled',schedule:'never',next_check_at:'',loa_version:''});
++ for(const n of await s.resources(ctx.orgId,'phone_reputation_number'))await s.saveResource(ctx.orgId,'phone_reputation_number',n.id,{...n,monitored:false});
++ await s.saveResource(ctx.orgId,'phone_reputation','default',{status:'disabled',loa_status:'',check_frequency:'never'});
++ return {disabled:true};
++ });
++}
++
++/** Operators can release an ambiguous attempt only after checking carrier records.
++ * This never retries a paid provider operation or invents a successful outcome. */
++export async function resolveAttempt(ctx:PlatformAuthContext,input:unknown){
++ if(!canManageTestAppFlags(ctx))throw forbidden('reputation_operator_required');assertManage(ctx);
++ const v=z.object({id:text,evidence:z.string().trim().min(20).max(2000),confirmed:z.literal(true)}).strict().parse(input);
++ return s.transaction(async()=>{const a=await account(ctx.orgId),op=await s.resource(ctx.orgId,'phone_reputation_operation',v.id);
++ if(!op||a?.busy!==v.id||!['uncertain','running'].includes(s.text(op.state))||Date.now()-Date.parse(s.text(op.started_at))<120000)throw conflict('reputation_operation_not_reviewable');
++ await s.saveResource(ctx.orgId,'phone_reputation_operation',v.id,{...op,state:'reviewed',reviewed_by:ctx.userId,reviewed_at:s.now(),evidence:v.evidence});
++ await s.saveResource(ctx.orgId,'phone_reputation_account','default',{...a,busy:''});return {reviewed:true};});
++}
