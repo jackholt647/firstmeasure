@@ -80,7 +80,7 @@
   function openEmojiPicker(anchor,onPick){
     return popover(anchor,'Choose an emoji',(pop,close)=>{const picker=mountEmojiPicker(pop,emoji=>{close(true);onPick(emoji);});picker.focus();return ()=>picker.destroy();});
   }
-  function openGifPicker(anchor,{orgId,onSend,onError=()=>{},getConfig,dialogTitle='Choose a GIF'}={}){
+  function openGifPicker(anchor,{orgId,onSelect,onSend,onError=()=>{},getConfig,dialogTitle='Choose a GIF'}={}){
     return popover(anchor,dialogTitle,(pop,close)=>{
       pop.classList.add('fm-picker-gif');
       const search=el('input','fm-picker-search');search.type='search';search.placeholder='Search GIPHY';search.setAttribute('aria-label',search.placeholder);
@@ -106,9 +106,9 @@
               event?.preventDefault();if(disposed||sending||version!==generation)return;
               const image=gif.images.fixed_width||gif.images.original;if(!/^https:\/\/media\d*\.giphy\.com\/media\//i.test(image?.url||''))return;
               const selected={id:String(gif.id),url:image.url,title:gif.title||'GIF',width:Number(image.width),height:Number(image.height)};
-              clearTimeout(timer);sending=true;grid.inert=true;search.disabled=true;status.textContent='Sending GIF…';
-              try{await onSend(selected,operationId);if(!disposed)close(true);}
-              catch(error){if(!disposed){sending=false;grid.inert=false;search.disabled=false;status.textContent='Could not send this GIF. Try again.';}onError(error);}
+              clearTimeout(timer);sending=true;grid.inert=true;search.disabled=true;status.textContent=onSelect?'Adding GIF…':'Sending GIF…';
+              try{await (onSelect||onSend)(selected,operationId);if(!disposed)close(true);}
+              catch(error){if(!disposed){sending=false;grid.inert=false;search.disabled=false;status.textContent=onSelect?'Could not add this GIF. Try again.':'Could not send this GIF. Try again.';}onError(error);}
             }
           },grid);
         }
@@ -120,7 +120,7 @@
     });
   }
   function createGifPickerButton(options){
-    styles();const button=el('button','fm-picker-trigger');button.append(el('span','','GIF'));button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');button.onclick=()=>openGifPicker(button,options);button.destroy=()=>closeFor(button);return button;
+    styles();const button=el('button','fm-picker-trigger');button.append(el('span','','GIF'));button.type='button';button.title='Attach a GIF';button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');button.onclick=()=>openGifPicker(button,options);button.destroy=()=>closeFor(button);return button;
   }
   root.FirstMatePickerWidgets={mountEmojiPicker,openEmojiPicker,openGifPicker,createGifPickerButton,closeFor};
 })(window);

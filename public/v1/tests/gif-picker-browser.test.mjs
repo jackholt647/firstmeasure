@@ -37,7 +37,7 @@ async function setup(browser,{realSdk=false}={}){
     window.trigger=FirstMateChannels.createGifPickerButton({orgId:'test',onError:error=>sendErrors.push(error.message),onSend:async(item,operationId)=>{sent.push({item,operationId});if(window.delaySend)await new Promise(resolve=>window.finishSend=resolve);}});
     document.querySelector('#host').append(trigger);
   });
-  return {page,errors,trigger:page.getByRole('button',{name:'Send a GIF'}),pop:page.getByRole('dialog',{name:'Choose a GIF'})};
+  return {page,errors,trigger:page.getByRole('button',{name:'Attach a GIF'}),pop:page.getByRole('dialog',{name:'Choose a GIF'})};
 }
 
 test('GIF picker is anchored, searchable, non-modal, and selects only once',async()=>{
@@ -124,7 +124,7 @@ test('widget library uses the bundled GIPHY grid and disposes its open picker',a
       window.selections=[];
       window.widget=await renderers['gif.picker'](document.querySelector('#host'),{config:{},reference:{},context:{target:{organizationId:'test'}},notifySelection:(value,options)=>selections.push({value,options})});
     });
-    await page.getByRole('button',{name:'Send a GIF'}).click();
+    await page.getByRole('button',{name:'Attach a GIF'}).click();
     const tile=pop.locator('.fm-picker-gif-grid img').first();await tile.waitFor();
     // A populated, scrolling grid must remain mounted after ResizeObserver runs.
     const originalTile=await tile.elementHandle();
@@ -137,7 +137,7 @@ test('widget library uses the bundled GIPHY grid and disposes its open picker',a
     await tile.click();await pop.waitFor({state:'detached'});
     assert.equal(await page.evaluate(()=>selections[0].value.value),'https://media.giphy.com/media/test/giphy.gif');
     assert.equal(await page.evaluate(()=>selections[0].options.confirmed),true);
-    await page.getByRole('button',{name:'Send a GIF'}).click();await tile.waitFor();
+    await page.getByRole('button',{name:'Attach a GIF'}).click();await tile.waitFor();
     await page.evaluate(()=>widget.destroy());await pop.waitFor({state:'detached'});
     assert.equal(await page.locator('#host').innerText(),'');assert.equal(await page.evaluate(()=>typeof FirstMateChannels),'undefined');assert.deepEqual(errors,[]);
   }finally{await browser.close();}
@@ -162,7 +162,7 @@ test('emoji widget works without Channels and shares its picker with the channel
       const message={id:'message-1',channel_id:'general',seq:1,text:'Hello',author:member,created_at:new Date().toISOString(),reactions:[]};
       window.__APP={userId:viewer.id,userOrgId:'org'};window.Portal={currentUser:viewer,ui:{showToast(){}},appFlags:{current:()=>true,has:()=>true}};
       window.posts=[];window.reactions=[];
-      Object.assign(ChannelsAPI,{channels:{list:async()=>({channels:[channel]}),get:async()=>({channel})},messages:{list:async()=>({channel,messages:[message]}),get:async()=>({message}),thread:async()=>({root:message,replies:[]}),react:async(org,id,emoji)=>{reactions.push({id,emoji});return {message};},post:async(org,id,input)=>{posts.push(input);return {message:{...message,id:'sent-'+posts.length,seq:posts.length+1,...input}};}},preferences:{collaboration:async()=>({preferences:{send_mode:'enter'}})},readState:{markRead:async()=>({})},drafts:{get:async()=>({}),save:async()=>({}),remove:async()=>({})},scheduled:{list:async()=>({scheduled_messages:[]})}});
+      Object.assign(ChannelsAPI,{channels:{list:async()=>({channels:[channel]}),get:async()=>({channel})},messages:{list:async()=>({channel,messages:[message]}),get:async()=>({message}),thread:async()=>({root:message,replies:[]}),react:async(org,id,emoji)=>{reactions.push({id,emoji});return {message};},post:async(org,id,input)=>{if(window.failSend){window.failSend=false;throw Error('Send failed');}posts.push(input);return {message:{...message,id:'sent-'+posts.length,seq:posts.length+1,...input}};}},threads:{markRead:async()=>({})},preferences:{collaboration:async()=>({preferences:{send_mode:'enter'}})},readState:{markRead:async()=>({})},drafts:{get:async()=>({}),save:async()=>({}),remove:async()=>({})},scheduled:{list:async()=>({scheduled_messages:[]})}});
       window.instance=FirstMateChannels.create(document.querySelector('#host'),{orgId:'org',currentUser:viewer,realtime:false,mode:'full',features:{attention:false,resources:false,workflows:false,ai:false,typing:false,audioNotes:false,channelCreate:false,channelSettings:false,recording:false}});await instance.setChannel('general');
     });
     await page.getByRole('button',{name:'Insert emoji',exact:true}).click();
@@ -170,8 +170,40 @@ test('emoji widget works without Channels and shares its picker with the channel
     assert.ok((await page.locator('[contenteditable=true]').first().innerText()).includes('🎉'));
     const message=page.locator('.fm-ch-msg[data-message-id="message-1"]');await message.hover();await message.locator('[data-act=react]').click();
     await emojiPop.getByRole('button',{name:'🔥',exact:true}).click();assert.deepEqual(await page.evaluate(()=>reactions),[{id:'message-1',emoji:'🔥'}]);
-    await page.getByRole('button',{name:'Send a GIF',exact:true}).click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'trending',exact:true}).click();
+    await page.getByRole('button',{name:'Attach a GIF',exact:true}).click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'trending',exact:true}).click();
+    assert.equal(await page.evaluate(()=>posts.length),0);
+    const composer=page.locator('.fm-ch-composer').filter({has:page.getByRole('button',{name:'Send',exact:true})});
+    await composer.getByRole('button',{name:'Remove GIF'}).click();
+    assert.equal(await composer.locator('.fm-ch-gif-draft').count(),0);
+    await composer.locator('[contenteditable=true]').fill('');
+    await composer.getByRole('button',{name:'Attach a GIF'}).click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'trending',exact:true}).click();
+    await page.evaluate(()=>window.failSend=true);
+    await composer.getByRole('button',{name:'Send',exact:true}).click();
+    assert.equal(await page.evaluate(()=>posts.length),0);
+    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),1);
+    await composer.getByRole('button',{name:'Send',exact:true}).click();
+    await page.waitForFunction(()=>posts.length===1);
     assert.equal(await page.evaluate(()=>posts[0].metadata.giphy.id),'trending');
+    assert.equal(await page.evaluate(()=>posts[0].text),'');
+    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),0);
+    await composer.getByRole('button',{name:'Attach a GIF'}).click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'trending',exact:true}).click();
+    await page.evaluate(()=>instance.setChannel('other'));
+    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),0);
+    await page.evaluate(()=>instance.setChannel('general'));
+    assert.equal(await composer.locator('.fm-ch-gif-draft img').count(),1);
+    await composer.locator('[contenteditable=true]').fill('With a caption');
+    await composer.getByRole('button',{name:'Send',exact:true}).click();
+    await page.waitForFunction(()=>posts.length===2);
+    assert.equal(await page.evaluate(()=>posts[1].text),'With a caption');
+    assert.equal(await page.evaluate(()=>posts[1].metadata.giphy.id),'trending');
+    await page.evaluate(()=>instance.openThread('message-1'));
+    const thread=page.locator('.fm-ch-composer').filter({has:page.getByRole('button',{name:'Reply',exact:true})});
+    await thread.getByRole('button',{name:'Attach a GIF'}).click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'trending',exact:true}).click();
+    assert.equal(await page.evaluate(()=>posts.length),2);
+    await thread.getByRole('button',{name:'Reply',exact:true}).click();
+    await page.waitForFunction(()=>posts.length===3);
+    assert.equal(await page.evaluate(()=>posts[2].metadata.giphy.id),'trending');
+    assert.equal(await page.evaluate(()=>posts[2].parent_id),'message-1');
     await page.evaluate(()=>instance.destroy());assert.equal(await page.locator('.fm-picker-popover').count(),0);assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

@@ -288,7 +288,7 @@
   let pickerWidgetsLoading;
   function loadPickerWidgets(){
     if(root.FirstMatePickerWidgets)return Promise.resolve(root.FirstMatePickerWidgets);
-    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261011-no-overlay').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
+    if(!pickerWidgetsLoading)pickerWidgetsLoading=import('/libraries/platform-widgets/pickers.js?v=20261011-draft-gifs').then(()=>root.FirstMatePickerWidgets).catch(error=>{pickerWidgetsLoading=null;throw error;});
     return pickerWidgetsLoading;
   }
   // Compatibility for Feed callers; rendering and state stay in Platform Widgets.
@@ -300,7 +300,7 @@
   function createGifPickerButton(options){
     ensureStyles();
     const button=el('button','fm-ch-icon-btn','<span style="font-size:10px;font-weight:800;border:1.5px solid currentColor;border-radius:3px;padding:1px">GIF</span>');
-    button.type='button';button.title='Send a GIF';button.setAttribute('aria-label',button.title);
+    button.type='button';button.title='Attach a GIF';button.setAttribute('aria-label',button.title);
     button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded','false');
     let destroyed=false,loading=false;
     button.onclick=async()=>{
@@ -4343,6 +4343,7 @@
 
     // --- composer ------------------------------------------------------------------------
 
+    const gifDrafts = new Map();
     const composerState = {
       audience: [...(defaults.audience || [])],
       tags: [...(defaults.tags || [])]
@@ -4408,12 +4409,13 @@
       return upload;
     }
 
-    function gifPickerButton(parentId = null){
-      const channelId = state.activeChannelId;
-      return createGifPickerButton({ orgId, onError:showError, onSend:async (selected, operationId) => {
-        const result = await api.messages.post(orgId, channelId, { text:'', metadata:{giphy:selected}, ...(parentId ? {parent_id:parentId} : {}), client_msg_id:operationId });
-        if (state.activeChannelId === channelId) applyIncomingMessage('channels.message.created', result.message, {channel_id:channelId});
-      } });
+    function renderGifDraft(host, gif, onRemove){
+      host.replaceChildren();
+      if(!gif)return;
+      const preview=el('div','fm-ch-gif-draft');preview.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:8px 0';
+      const image=el('img');image.src=gif.url;image.alt=gif.title||'GIF attachment';image.style.cssText='max-width:180px;max-height:120px;border-radius:8px';
+      const remove=el('button','fm-ch-icon-btn','×');remove.type='button';remove.setAttribute('aria-label','Remove GIF');remove.onclick=onRemove;
+      preview.append(image,remove);host.append(preview);
     }
 
     function postingBlocked(){ return state.activeChannel?.can_post === false || (state.activeChannel?.settings?.posting_locked === true && !state.activeChannel?.can_manage); }
@@ -4433,12 +4435,18 @@
       const dictationMount = el('div', 'fm-ch-audio-mount');
       textarea = createMessageEditor(cleanText(options.composerPlaceholder)
         || (state.activeChannel.type === 'project' ? 'Add a note…' : `Message ${state.activeChannel.display_name || '#' + state.activeChannel.name}`));
-      if (features.richMessages) box.appendChild(messageFormatBar(textarea));
-      box.appendChild(textarea);
-      bindRichMentions(textarea, box);
+      const composerInput=textarea;
+      if (features.richMessages) box.appendChild(messageFormatBar(composerInput));
+      box.appendChild(composerInput);
+      bindRichMentions(composerInput, box);
 
       const row = el('div', 'fm-ch-composer-row');
       const pendingWrap = el('div', 'fm-ch-pending-files');
+      const channelId=state.activeChannelId, gifPreview=el('div');
+      let schedule;
+      const paintGif=()=>{renderGifDraft(gifPreview,gifDrafts.get(channelId),()=>{if(send.disabled)return;gifDrafts.delete(channelId);paintGif();});if(schedule)schedule.disabled=!!gifDrafts.get(channelId);};
+      const gifButton=createGifPickerButton({orgId,onError:showError,onSelect:selected=>{if(!box.isConnected)return;if(send.disabled)throw Error('Wait for the message to finish sending.');gifDrafts.set(channelId,selected);paintGif();}});
+      paintGif();
 
       // audience chips (project surfaces)
       if (features.audienceSelector && state.activeChannel.type === 'project') {
@@ -4470,11 +4478,11 @@
       const emojiBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-face-smile"></i>');
       emojiBtn.title = (globalThis.PlatformLanguage?.text("channels-ui","m_1832447bbc385c","Insert emoji") ?? "Insert emoji");
       emojiBtn.addEventListener('click', () => openEmojiPicker(emojiBtn, (emoji) => {
-        textarea.insertText(emoji);
-        textarea.focus();
+        composerInput.insertText(emoji);
+        composerInput.focus();
       }));
       row.appendChild(emojiBtn);
-      if(features.attachments)row.append(gifPickerButton());
+      if(features.attachments)row.append(gifButton);
 
       if (features.attachments) {
         const fileBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-paperclip"></i>');
@@ -4484,7 +4492,7 @@
         fileInput.multiple = true;
         fileInput.style.display = 'none';
         fileBtn.addEventListener('click', () => fileInput.click());
-        const upload = composerFileUploads(textarea, pendingWrap,
+        const upload = composerFileUploads(composerInput, pendingWrap,
           attachment => state.pendingAttachments.push(attachment),
           id => { state.pendingAttachments = state.pendingAttachments.filter(item => item.id !== id); });
         fileInput.addEventListener('change', async () => { await upload([...fileInput.files || []]); fileInput.value = ''; });
@@ -4510,7 +4518,7 @@
           button.title=control?(button===dictateBtn?'Finish dictation':'Finish recording'):(button===dictateBtn?'Dictate message':'Record an audio note');
           button.setAttribute('aria-label',button.title);
         };
-        const voiceEditor = textarea;
+        const voiceEditor = composerInput;
         dictateBtn.addEventListener('click', async () => {
           if (capturing) { if(captureMode==='dictation') recorderControl?.stop(); return; }
           captureMode='dictation';
@@ -4519,7 +4527,7 @@
           const channelId = state.activeChannelId;
           try {
             const prepared = await root.FirstMateAudioNotes.prepareInline(orgId, channelId, { mount:dictationMount, mode:'dictation', onRecordingState:recordingState(dictateBtn) });
-            if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
+            if (state.activeChannelId !== channelId || composerInput !== voiceEditor || !voiceEditor.isConnected) return;
             voiceEditor.value = [voiceEditor.value, prepared.text].filter(Boolean).join(' ');
             voiceEditor.dispatchEvent(new Event('input', { bubbles:true }));
             voiceEditor.focus();
@@ -4555,7 +4563,7 @@
               onRecordingState:recordingState(audioBtn),
               onRemove:removeAudio
             });
-            if (state.activeChannelId !== channelId || textarea !== voiceEditor || !voiceEditor.isConnected) return;
+            if (state.activeChannelId !== channelId || composerInput !== voiceEditor || !voiceEditor.isConnected) return;
             attachmentId = prepared.attachment.id;
             state.pendingAudioNote = prepared.metadata;
             state.pendingAttachments.push(prepared.attachment);
@@ -4594,7 +4602,7 @@
         row.append(videoClip, screenClip);
       }
 
-      const schedule = features.richMessages ? el('button', 'fm-ch-icon-btn', '<i class="fas fa-clock"></i>') : null;
+      schedule = features.richMessages ? el('button', 'fm-ch-icon-btn', '<i class="fas fa-clock"></i>') : null;
       if (schedule) {
         schedule.title = (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message");
         schedule.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_dc866baaa05168","Schedule message") ?? "Schedule message"));
@@ -4606,17 +4614,18 @@
       sendPair.appendChild(send);
       row.appendChild(sendPair);
       box.appendChild(row);
-      composer.append(editNote, box, dictationMount, audioMount, pendingWrap);
+      composer.append(editNote, box, dictationMount, audioMount, gifPreview, pendingWrap);
+      paintGif();
 
       const autosize = () => {
-        textarea.style.height = 'auto';
-        textarea.style.height = `${Math.min(180, textarea.scrollHeight)}px`;
+        composerInput.style.height = 'auto';
+        composerInput.style.height = `${Math.min(180, composerInput.scrollHeight)}px`;
       };
-      textarea.addEventListener('input', autosize);
+      composerInput.addEventListener('input', autosize);
       const draftKey = `channel:${state.activeChannelId}`;
       const saveDraft = debounce(() => {
         if (state.editingMessageId) return;
-        const value = textarea.value;
+        const value = composerInput.value;
         if (!value.trim() && !state.pendingAttachments.length) {
           api.drafts?.remove?.(orgId, draftKey).catch(() => {});
           return;
@@ -4628,10 +4637,10 @@
           attachment_ids:state.pendingAttachments.map((attachment) => attachment.id)
         }).catch(() => {});
       }, 450);
-      if (features.richMessages) textarea.addEventListener('input', saveDraft);
+      if (features.richMessages) composerInput.addEventListener('input', saveDraft);
       if (features.richMessages) api.drafts?.get?.(orgId, draftKey).then((data) => {
-        if (!textarea.value && data?.draft?.text && state.activeChannelId === data.draft.channel_id) {
-          textarea.value = data.draft.text;
+        if (!composerInput.value && data?.draft?.text && state.activeChannelId === data.draft.channel_id) {
+          composerInput.value = data.draft.text;
           autosize();
         }
       }).catch(() => {});
@@ -4641,18 +4650,20 @@
       mentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
-          mentionApi = root.FirstMateTags.attachMentionTextarea(textarea, { orgId, source: 'channels', memberIds: conversationMemberIds, onSelect:user=>{if (!textarea.mentionUsers.some(item=>item.id===user.id)) textarea.mentionUsers.push(user);} }) || null;
-          textarea._mentionApi = mentionApi;
+          mentionApi = root.FirstMateTags.attachMentionTextarea(composerInput, { orgId, source: 'channels', memberIds: conversationMemberIds, onSelect:user=>{if (!composerInput.mentionUsers.some(item=>item.id===user.id)) composerInput.mentionUsers.push(user);} }) || null;
+          composerInput._mentionApi = mentionApi;
         }
       } catch (error) {}
 
-      bindTyping(textarea);
+      bindTyping(composerInput);
 
       const doSend = async () => {
+        if(send.disabled)return;
         if (postingBlocked()) return showError(new Error('Only channel managers can post here.'));
-        if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
-        const text = textarea.value.trim();
-        if (!text && !state.pendingAttachments.length) return;
+        if (composerInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
+        const text = composerInput.value.trim();
+        if (!text && !state.pendingAttachments.length && (state.editingMessageId || !gifDrafts.get(channelId))) return;
+        const selectedGif=gifDrafts.get(channelId);
         const wasEditing=Boolean(state.editingMessageId && !state.editingThread);
         send.disabled = true;
         try {
@@ -4666,40 +4677,44 @@
             cancelEdit();
           } else {
             const clientMsgId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-            const data = await api.messages.post(orgId, state.activeChannelId, {
+            const data = await api.messages.post(orgId, channelId, {
               text,
               content:{ type:'doc', blocks:[{ type:'paragraph', text:text || '' }] },
               content_schema_version:1,
               client_msg_id: clientMsgId,
               mention_users: collectMentions(text),
               attachment_ids: state.pendingAttachments.map((attachment) => attachment.id),
-              ...(state.pendingAudioNote ? { metadata:{ audio_note:state.pendingAudioNote } } : {}),
+              metadata:{...(state.pendingAudioNote?{audio_note:state.pendingAudioNote}:{}),...(selectedGif?{giphy:selectedGif}:{})},
               ...(features.audienceSelector && state.activeChannel.type === 'project' ? { audience: composerState.audience } : {}),
               ...(composerState.tags.length ? { tags: composerState.tags } : {})
             });
+            if(gifDrafts.get(channelId)===selectedGif)gifDrafts.delete(channelId);
+            if(!box.isConnected || state.activeChannelId!==channelId){if(features.richMessages)api.drafts?.remove?.(orgId,draftKey).catch(()=>{});return;}
             if (!state.messages.some((item) => item.id === data.message.id)) state.messages.push(data.message);
             state.pendingAttachments = [];
             state.pendingAudioNote = null;
+            paintGif();
             audioMount.innerHTML = '';
             pendingWrap.innerHTML = '';
             if (features.richMessages) api.drafts?.remove?.(orgId, draftKey).catch(() => {});
             renderMessages();
             scheduleMarkRead();
           }
-          stopTyping(); if(!wasEditing)textarea.value = '';
+          stopTyping(); if(!wasEditing)composerInput.value = '';
           autosize();
           mentionApi?.setSelectedMentions?.([]);
         } catch (error) {
           showError(error);
         } finally {
           send.disabled = false;
-          textarea.focus();
+          composerInput.focus();
         }
       };
       send.addEventListener('click', doSend);
       schedule?.addEventListener('click', async () => {
-        if (textarea.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
-        const text = textarea.value.trim();
+        if(gifDrafts.has(channelId))return;
+        if (composerInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
+        const text = composerInput.value.trim();
         if (!text && !state.pendingAttachments.length) return;
         if (!root.FirstMateDateTimePicker?.mount) {
           try { await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/libraries/date-time-picker/date-time-picker.js?v=20260929-inline';script.onload=resolve;script.onerror=reject;document.head.append(script);}); }
@@ -4729,7 +4744,7 @@
               client_operation_id:`schedule_${Date.now().toString(36)}`
             });
             if (scheduledResult.scheduled_message) { state.scheduledMessages.push(scheduledResult.scheduled_message); renderMessages(); }
-            textarea.value = '';
+            composerInput.value = '';
             state.pendingAttachments = [];
             pendingWrap.innerHTML = '';
             api.drafts?.remove?.(orgId, draftKey).catch(() => {});
@@ -4739,7 +4754,7 @@
           } catch (error) { showError(error); }
         } }]);
       });
-      textarea.addEventListener('keydown', (event) => {
+      composerInput.addEventListener('keydown', (event) => {
         const modifiedSend = state.collaborationPreferences.send_mode === 'modified_enter';
         const sendKey = event.key === 'Enter'
           && !event.defaultPrevented
@@ -4758,25 +4773,25 @@
       function cancelEdit(){
         state.editingMessageId = '';
         editNote.style.display = 'none';
-        textarea.value = draftBeforeEdit ?? '';
-        draftBeforeEdit=null;send.textContent='Send';if(schedule)schedule.hidden=false;
+        composerInput.value = draftBeforeEdit ?? '';
+        draftBeforeEdit=null;send.textContent='Send';if(schedule)schedule.hidden=false;gifButton.disabled=false;gifPreview.hidden=false;
         autosize();
       }
 
       composer._startEdit = (message) => {
-        if(!state.editingMessageId)draftBeforeEdit=textarea.value;
+        if(!state.editingMessageId)draftBeforeEdit=composerInput.value;
         state.editingMessageId = message.id;
         state.editingThread = false;
         editNote.style.display = 'flex';
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_6a6c0d2dcfcb47","Editing message") ?? "Editing message")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', cancelEdit);
-        textarea.value = message.text;
-        textarea.mentionUsers = [...(message.mention_users || [])];
-        mentionApi?.setSelectedMentions?.(textarea.mentionUsers);
-        send.textContent='Save changes';if(schedule)schedule.hidden=true;
+        composerInput.value = message.text;
+        composerInput.mentionUsers = [...(message.mention_users || [])];
+        mentionApi?.setSelectedMentions?.(composerInput.mentionUsers);
+        send.textContent='Save changes';if(schedule)schedule.hidden=true;gifButton.disabled=true;gifPreview.hidden=true;
         composerState.audience = [...(message.audience || [])];
         autosize();
-        textarea.focus();
+        composerInput.focus();
       };
     }
 
@@ -4895,10 +4910,15 @@
 
     function buildThreadComposer(node){
       if (postingBlocked()) { node.append(el('div','fm-ch-empty','Only channel managers can reply here. You can still react to messages.')); return; }
+      const channelId=state.activeChannelId, rootId=state.threadRootId;
       const box = el('div', 'fm-ch-composer-box');
       const threadInput = createMessageEditor('Reply…');
       bindTyping(threadInput);
       const threadFiles = [];
+      let threadGif=null;
+      const gifPreview=el('div');
+      const paintGif=()=>renderGifDraft(gifPreview,threadGif,()=>{if(send.disabled)return;threadGif=null;paintGif();});
+      const gifButton=createGifPickerButton({orgId,onError:showError,onSelect:selected=>{if(!node.isConnected)return;if(send.disabled)throw Error('Wait for the reply to finish sending.');threadGif=selected;paintGif();}});
       const pendingWrap = el('div', 'fm-ch-pending-files');
       composerFileUploads(threadInput, pendingWrap, attachment => threadFiles.push(attachment), id => { const i = threadFiles.findIndex(item => item.id === id); if (i >= 0) threadFiles.splice(i, 1); });
       if (features.richMessages) box.appendChild(messageFormatBar(threadInput));
@@ -4912,9 +4932,9 @@
       broadcast.type = 'checkbox';
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
       row.append(broadcastLabel, send);
-      if(features.attachments)row.prepend(gifPickerButton(state.threadRootId));
+      if(features.attachments)row.prepend(gifButton);
       box.appendChild(row);
-      node.append(pendingWrap, box);
+      node.append(gifPreview, pendingWrap, box);
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
@@ -4930,7 +4950,7 @@
         if (send.disabled) return;
         const text = threadInput.value.trim();
         if (threadInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
-        if (!text && !threadFiles.length) return;
+        if (!text && !threadFiles.length && (editingId || !threadGif)) return;
         send.disabled = true;
         try {
           const mentions = [...new Map([...(threadMentionApi?.confirmedMentions?.() || []), ...threadInput.mentionUsers.filter(user => text.includes(`@${user.name}`))].map(user=>[user.id || user.user_id || user.email,user])).values()];
@@ -4939,17 +4959,20 @@
             replaceMessage(data.message);
             editingId = '';
             editNote.style.display = 'none';
-            broadcastLabel.hidden = false;
+            broadcastLabel.hidden = false;gifButton.disabled=false;gifPreview.hidden=false;
           } else {
-            await api.messages.post(orgId, state.activeChannelId, {
+            await api.messages.post(orgId, channelId, {
               text,
-              parent_id: state.threadRootId,
+              parent_id: rootId,
               reply_broadcast: broadcast.checked,
+              ...(threadGif?{metadata:{giphy:threadGif}}:{}),
               attachment_ids: threadFiles.map(file => file.id),
               client_msg_id: `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
               mention_users: mentions
             });
-            await openThread(state.threadRootId, { silent: true, resetComposer: true });
+            threadGif=null;paintGif();threadFiles.length=0;pendingWrap.replaceChildren();threadInput.value='';
+            if(!node.isConnected || state.activeChannelId!==channelId || state.threadRootId!==rootId)return;
+            await openThread(rootId, { silent: true, resetComposer: true });
             await refreshActiveMessages();
           }
           stopTyping(); threadInput.value = '';
@@ -4975,12 +4998,12 @@
         }
       });
       panel._startEdit = (message) => {
-        editingId = message.id;
+        editingId = message.id;gifButton.disabled=true;gifPreview.hidden=true;
         broadcastLabel.hidden = true;
         editNote.style.display = 'flex';
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_34e633033239eb","Editing reply") ?? "Editing reply")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', () => {
-          editingId = '';
+          editingId = '';gifButton.disabled=false;gifPreview.hidden=false;
           broadcastLabel.hidden = false;
           editNote.style.display = 'none';
           threadInput.value = '';
