@@ -76,3 +76,10 @@ test('attached lengths use full 3D distance and ignore unrelated walls',()=>{
  const cap={id:'cap',points:[p(0,1,1),p(4,1,1),p(4,1,4),p(0,1,4)]},returnFace={points:[p(0,0,0),p(0,1,1),p(0,1,4),p(0,0,4)]};
  const result=W.attachedLengths(cap,[cap,returnFace,{points:front.points.map(p=>({...p,x:p.x+100}))}]);assert.equal(result.length,2);assert.ok(result.some(e=>Math.abs(e.length-Math.sqrt(2))<1e-9));
 });
+
+for(const supports of [undefined,[],[side]])test(`face sweep closes every boundary even without neighboring support (${supports?.length??'default'})`,()=>{
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js'),face={...front,holes:[[p(1,0,1),p(2,0,1),p(2,0,2),p(1,0,2)]]};
+ for(const amount of [-1,1]){const result=M.createExtrusion({face,scene:[face],supports}).preview(amount);
+  const returns=result.sides;for(const ring of [face.points,...face.holes])for(let i=0;i<ring.length;i++)assert.ok(W.sharedIntervals(ring[i],ring[(i+1)%ring.length],returns).reduce((sum,[a,b])=>sum+b-a,0)>.99999,'each original outer and hole edge has a complete return');
+ }
+});

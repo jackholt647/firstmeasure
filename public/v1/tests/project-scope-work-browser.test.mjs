@@ -249,3 +249,15 @@ test('the labor popover shows pay only when assigned, hours only for hourly work
  html=menu({assigned:'salary'});assert.match(html,/data-mt-labor-salary-mode="hourly"/);assert.doesNotMatch(html,/data-mt-labor-hours-input/);
  html=menu({assigned:'salary',compensation:{salary_expense_mode:'hourly',estimated_hours:12}});assert.match(html,/data-mt-labor-hours-input/);assert.match(html,/value="12"/);
 });
+
+test('dragging a column divider trades width between its two neighbours, starting from unset weights',()=>{
+ const column=(type,width)=>({dataset:{resourceType:type},props:{},getBoundingClientRect:()=>({width}),style:{setProperty(name,value){this.owner.props[name]=value;}}});
+ const left=column('material',300),right=column('labor',300);left.style.owner=left;right.style.owner=right;
+ const ctx={state:{columnWeights:null},rootWindow:{localStorage:{getItem:()=>null,setItem(key,value){ctx.saved=JSON.parse(value);}}}};
+ vm.createContext(ctx);for(const name of ['number','columnWeights','resizeColumns'])vm.runInContext(fn(name),ctx);
+ const divider={previousElementSibling:left,nextElementSibling:right};
+ ctx.resizeColumns(divider,0);assert.equal(left.props['--column-weight'],1);assert.equal(right.props['--column-weight'],1);
+ ctx.resizeColumns(divider,150,true);assert.equal(left.props['--column-weight'],1.5);assert.equal(right.props['--column-weight'],0.5);assert.deepEqual(ctx.saved,{material:1.5,labor:0.5});
+ ctx.resizeColumns(divider,-10000,true);assert.ok(left.props['--column-weight']>0&&right.props['--column-weight']>left.props['--column-weight']);assert.equal(Math.round((left.props['--column-weight']+right.props['--column-weight'])*1000),2000);
+ ctx.state.columnWeights={material:0,labor:0};ctx.resizeColumns(divider,0,true);assert.equal(left.props['--column-weight'],1);
+});
