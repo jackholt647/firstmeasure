@@ -178,3 +178,38 @@ output/gif-half-deploy.
 | web | `/opt/firstmeasure/releases/c4a7bcdf3b593908bd830be9bf27fdc075bf4508-gif-half` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
 | pool | `/opt/firstmeasure/releases/c4a7bcdf3b593908bd830be9bf27fdc075bf4508-gif-half` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/c4a7bcdf3b593908bd830be9bf27fdc075bf4508-gif-half` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+
+## Shared Platform Widgets GIF component
+
+Frontend 861c324f moves GIF cards, draft previews, attribution DOM and styling into
+public/libraries/platform-widgets/gifs.js. FirstMateGifWidgets provides createCard,
+renderCard, createDraft, renderDraft, renderDraftHtml and mount/update/destroy.
+It has no Channels, Notes, Feed, session or delivery dependency. It owns approved
+media URL validation, DOM escaping, bounded dimensions and the existing supplied
+35px attribution overlay. Hosts own message delivery, draft state and placement.
+
+Notes/photo comments now call the widget directly; Channels compatibility helpers
+delegate to it. Feed manual posts, comment/reply bodies and both draft composers
+use the same component, removing their duplicate image rendering. Existing legacy
+CSS class aliases and Feed remove-button hooks are retained. The portal loads the
+component before consumers, including outside expanded-assets mode. Common app
+bundles, standalone Feed/Receipts bundles and the widget runtime also load it.
+The widget README documents the reusable interface.
+
+Eleven browser tests passed using dev-hosted assets, covering standalone rendering
+without Channels/API, media URL rejection, escaping, update/destroy, exact 35px
+attribution, posted Feed GIFs, draft removal, failed-send retention, Notes and
+photo composers, Channels sending and the shared pickers. Corresponding local
+checks passed; fixtures do not send customer messages. Staged JavaScript and PHP
+syntax checks passed. All roles and public static assets passed hashes, retained
+runtime identity, readiness, development isolation and outbound safety.
+
+Immutable frontend stages preserve each live baseline and unrelated manifest
+entries. Only PHP-FPM was reloaded. No backend, worker, data, permissions or
+production changes were made. Evidence is under ignored output/gif-widget-deploy.
+
+| Role | Activated frontend path | Retained runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/861c324ff095ec7a32c6d62d2f68ce402b059557-gif-widget` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+| pool | `/opt/firstmeasure/releases/861c324ff095ec7a32c6d62d2f68ce402b059557-gif-widget` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/861c324ff095ec7a32c6d62d2f68ce402b059557-gif-widget` | `eca7774aa21513a9138891f11a2aafc8bd5512cc` |
