@@ -241,10 +241,11 @@ test('committing a name renames or swaps in a price book item, and Enter on the 
   vm.createContext(ctx);for(const name of ['closeAutofill','commitItemName'])vm.runInContext(fn(name),ctx);return ctx;};
  const input=(id,value)=>({value,dataset:{mtItemName:id,mtListId:'list'}});const plain=ctx=>JSON.parse(JSON.stringify(ctx.calls));
  let ctx=make(),field=input('last','Ridge vent');await ctx.commitItemName(field,null,true);assert.deepEqual(plain(ctx),[['update','last','Ridge vent',null,null,'list'],['add',null,'accessories','list']]);assert.equal(field.dataset.mtCommitted,'1');
- ctx=make();await ctx.commitItemName(input('last','timber'),{id:'p1',name:'Timberline HDZ'},true);assert.deepEqual(plain(ctx),[['update','last','Timberline HDZ','p1',12,'list'],['grid'],['add',null,'accessories','list']]);
- ctx=make();await ctx.commitItemName(input('first','Drip edge white'),{id:'p1',name:'Timberline HDZ'},true);assert.deepEqual(plain(ctx),[['update','first','Timberline HDZ','p1',4,'list'],['grid']],'a middle row keeps its quantity and does not start a new row');
+ ctx=make();await ctx.commitItemName(input('last','timber'),{catalogItem:{id:'p1',name:'Timberline HDZ'}},true);assert.deepEqual(plain(ctx),[['update','last','Timberline HDZ','p1',12,'list'],['grid'],['add',null,'accessories','list']]);
+ ctx=make();await ctx.commitItemName(input('first','Drip edge white'),{catalogItem:{id:'p1',name:'Timberline HDZ'}},true);assert.deepEqual(plain(ctx),[['update','first','Timberline HDZ','p1',4,'list'],['grid']],'a middle row keeps its quantity and does not start a new row');
  ctx=make();await ctx.commitItemName(input('last','New material'),null,true);assert.deepEqual(plain(ctx),[],'an untouched row does nothing');
  ctx=make();await ctx.commitItemName(input('last','Ridge vent'),null,false);assert.deepEqual(plain(ctx),[['update','last','Ridge vent',null,null,'list']]);
+ ctx=make();await ctx.commitItemName(input('last','tear'),{patch:{name:'Tear off',unit:'sq',projected_unit_price:65}},true);assert.deepEqual(plain(ctx),[['update','last','Tear off',null,null,'list'],['add',null,'accessories','list']],'a suggestion from another source fills the row and starts the next');
 
 });
 
@@ -273,4 +274,19 @@ test('saves for one list run in order on the latest revision while what is on sc
  await Promise.resolve();await Promise.resolve();assert.deepEqual(sent,[['add b',1]],'the second save waits for the first');assert.equal(ctx.listWritesPending(),true);
  release[0]();await first;assert.deepEqual(ctx.state.lists[0].current_items.map(item=>item.id),['a','b','c'],'the row added while saving is still there');assert.equal(ctx.state.lists[0].revision,2);
  await Promise.resolve();await Promise.resolve();assert.deepEqual(sent,[['add b',1],['add c',2]]);release[1]();await second;assert.equal(ctx.state.lists[0].revision,3);assert.equal(ctx.listWritesPending(),false);
+});
+
+test('suggestions come only from the sources a category has switched on, using real crew, price book and equipment data',()=>{
+ const crew={id:'crew',name:'Crew A',compensation_plan:{hourly_rate_cents:4200,piece_rates:[{id:'tear',label:'Tear off',unit:'sq',rate_cents:6500}]},members:[{compensation_plan:{piece_rates:[{id:'tear',label:'Tear off',unit:'sq',rate_cents:6500},{id:'ridge',label:'Ridge install',unit:'ft',rate_cents:300}]}}]};
+ const ctx={state:{pricebookItems:[{id:'p1',name:'Tear resistant underlayment',category:'Underlayment',unitPrice:95,unit:'roll'}],equipmentUnits:[{id:'u1',name:'Tear-off trailer',status:'available',rates:{daily_cents:35000}},{id:'u2',name:'Lift',rates:{}}],resourceTypes:[{id:'material',line_item_sources:['pricebook']},{id:'labor',line_item_sources:['piece_rate','hourly_labor']},{id:'equipment',line_item_sources:['equipment']},{id:'custom',line_item_sources:['pricebook','equipment']},{id:'off',line_item_sources:[]}]},
+  cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,money:value=>'$'+Number(value).toFixed(2),resourceCategories:()=>ctx.state.resourceTypes,resourceType:list=>list.resource_type,laborSettings:list=>({resource:list.assigned?crew:null}),loadEquipmentUnits(){}};
+ vm.createContext(ctx);vm.runInContext(fn('categorySources')+fn('autofillMatches'),ctx);
+ const labels=(query,list)=>JSON.parse(JSON.stringify(ctx.autofillMatches(query,list).map(entry=>entry.label)));
+ assert.deepEqual(labels('tear',{resource_type:'material'}),['Tear resistant underlayment']);
+ assert.deepEqual(labels('tear',{resource_type:'labor',assigned:true}),['Tear off'],'a piece rate shared by the crew and a member appears once');assert.deepEqual(labels('ridge',{resource_type:'labor',assigned:true}),['Ridge install']);
+ assert.deepEqual(labels('tear',{resource_type:'labor'}),[],'an unassigned labor list has no labor suggestions');
+ const hourly=ctx.autofillMatches('hour',{resource_type:'labor',assigned:true})[0];assert.equal(hourly.label,'Hourly labor');assert.equal(hourly.patch.projected_unit_price,42);assert.equal(hourly.patch.metadata.compensation_kind,'hourly');
+ const trailer=ctx.autofillMatches('trailer',{resource_type:'equipment'})[0];assert.equal(trailer.patch.projected_unit_price,350);assert.equal(trailer.patch.unit,'day');assert.equal(ctx.autofillMatches('lift',{resource_type:'equipment'})[0].patch.projected_unit_price,undefined);
+ assert.deepEqual(labels('tear',{resource_type:'custom'}),['Tear resistant underlayment','Tear-off trailer']);assert.deepEqual(labels('tear',{resource_type:'off'}),[]);
+ ctx.state.resourceTypes=[{id:'material'}];assert.deepEqual(labels('tear',{resource_type:'material'}),['Tear resistant underlayment'],'a category without a saved choice uses its default sources');
 });

@@ -80,6 +80,10 @@
     dragItem: null,
     laborMenu: null,
     pricebookAutofill: null,
+    equipmentUnits: null,
+    equipmentUnitsLoading: false,
+    sourcesMenu: null,
+    orderMethod: 'email',
     pricebookListId: '',
     autofill: null,
     orderLeftWidth: null,
@@ -841,7 +845,9 @@
       @media (max-width:900px){.mt-order-content.manual{overflow:auto;display:flex}.mt-order-details{overflow:visible}.mt-email-preview,.mt-order-calendar-panel{min-height:430px;flex:0 0 auto}.mt-order-list-options{grid-auto-columns:minmax(150px,220px)}}
       @media (max-width:620px){.mt-order-delivery-choice .mt-order-timing-choices{grid-template-columns:1fr}.mt-order-list-options{grid-auto-columns:minmax(145px,76vw)}.mt-order-calendar-head{align-items:flex-start}.mt-order-calendar-head small{white-space:normal}.mt-order-calendar-head button span{display:none}}
       .mt-order-head{min-height:0;padding:14px 18px}.mt-order-head h2{margin:0;font-size:20px;font-weight:700;color:#101828}
-      .mt-order-layout{grid-template-rows:minmax(0,1fr)}
+      .mt-order-layout{grid-template-rows:minmax(0,1fr)}.mt-order-modal{grid-template-rows:auto auto minmax(0,1fr)}
+      .mt-order-methods{display:flex;gap:6px;padding:10px 18px;border-bottom:1px solid #eaecf0;background:#f8fafc}.mt-order-methods button{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;font-size:12px;font-weight:600;cursor:pointer}.mt-order-methods button:hover{border-color:#98a2b3}.mt-order-methods button.active{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025));box-shadow:inset 0 0 0 1px var(--primary,#d93025)}
+      .mt-order-right>.mt-order-coming{flex:1;min-height:0;border:1px dashed #d0d5dd;border-radius:11px}
       .mt-order-details .mt-form-grid{flex:none}.mt-order-details .mt-form-grid label>span{display:block;margin-bottom:3px}
       .mt-order-tiles{flex:1 1 0;min-height:64px;display:flex;align-items:stretch;gap:8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
       .mt-order-tile{flex:1 1 0;min-width:176px;max-height:100%;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e4e7ec;border-radius:10px;background:#fff}
@@ -2974,7 +2980,7 @@
     const nextPatch = {
       ...patch,
       id: itemId,
-      ...(patch.name != null ? { metadata: { ...(current.metadata || {}), name_overridden: true } } : {}),
+      ...(patch.name != null || patch.metadata ? { metadata: { ...(current.metadata || {}), ...(patch.metadata || {}), ...(patch.name != null ? { name_overridden: true } : {}) } } : {}),
       quantity,
       ...(discreteMaterial ? orderFieldsForLine({ ...current, ...patch }, quantity) : {}),
       projected_unit_price: Number.isFinite(unitPrice) ? unitPrice : undefined,
@@ -3095,13 +3101,99 @@
     return state.pricebookAutofill;
   }
 
-  function autofillMatches(query){
+  // Where a category's line item suggestions come from. Each entry reads data another app already owns; none is a fixed list.
+  const LINE_ITEM_SOURCE_DEFS = [
+    { id: 'pricebook', label: 'Price Book', detail: 'Items and variants from the price book' },
+    { id: 'piece_rate', label: 'Piece Rate Items', detail: "Piece rates on the pay plan of the crew assigned to the list" },
+    { id: 'hourly_labor', label: 'Hourly Labor', detail: "The hourly rate on the assigned crew's pay plan" },
+    { id: 'equipment', label: 'Equipment', detail: 'Units and their daily rates from the Equipment app' }
+  ];
+  function categorySources(type){
+    const category = resourceCategories().find((row) => row.id === type);
+    return Array.isArray(category?.line_item_sources) ? category.line_item_sources : (({ material: ['pricebook'], labor: ['piece_rate', 'hourly_labor'], equipment: ['equipment'] })[type] || []);
+  }
+  function loadEquipmentUnits(){
+    if (state.equipmentUnits || state.equipmentUnitsLoading || !window.EquipmentAPI?.units || !orgId()) return;
+    state.equipmentUnitsLoading = true;
+    Promise.resolve(window.EquipmentAPI.units(orgId())).then((result) => { state.equipmentUnits = (Array.isArray(result?.units) ? result.units : []).filter((unit) => cleanText(unit.status) !== 'archived'); }).catch(() => { state.equipmentUnits = []; }).finally(() => { state.equipmentUnitsLoading = false; });
+  }
+  // Suggestions for one list from the sources its category has switched on.
+  function autofillMatches(query, list){
     const tokens = cleanText(query).toLowerCase().split(/\s+/).filter(Boolean);
-    if (!tokens.length) return [];
-    return state.pricebookItems.filter((item) => {
-      const text = `${item.name || ''} ${item.variantName || ''} ${item.category || ''}`.toLowerCase();
-      return tokens.every((token) => text.includes(token));
-    }).slice(0, 8);
+    if (!tokens.length || !list) return [];
+    const sources = categorySources(resourceType(list));
+    const matches = (text) => tokens.every((token) => cleanText(text).toLowerCase().includes(token));
+    const entries = [];
+    if (sources.includes('pricebook')) state.pricebookItems.forEach((item) => {
+      if (matches(`${item.name || ''} ${item.variantName || ''} ${item.category || ''}`)) entries.push({ label: item.name, detail: [item.category, `${money(item.unitPrice || 0)} per ${item.unit || 'ea'}`].filter(Boolean).join(' · '), catalogItem: item });
+    });
+    const resource = sources.includes('piece_rate') || sources.includes('hourly_labor') ? laborSettings(list).resource : null;
+    const plans = [resource?.compensation_plan, ...(Array.isArray(resource?.members) ? resource.members.map((member) => member?.compensation_plan) : [])].filter(Boolean);
+    if (sources.includes('piece_rate')) {
+      const seen = new Set();
+      plans.flatMap((plan) => Array.isArray(plan.piece_rates) ? plan.piece_rates : []).forEach((rate) => {
+        const key = cleanText(rate.id || rate.label);
+        if (!key || seen.has(key) || !matches(rate.label)) return;
+        seen.add(key);
+        entries.push({ label: cleanText(rate.label), detail: `Piece rate · ${money(number(rate.rate_cents, 0) / 100)} per ${cleanText(rate.unit) || 'unit'}`, patch: { name: cleanText(rate.label), unit: cleanText(rate.unit) || 'unit', projected_unit_price: number(rate.rate_cents, 0) / 100, metadata: { compensation_kind: 'piece_rate', piece_rate_id: cleanText(rate.id) } } });
+      });
+    }
+    if (sources.includes('hourly_labor')) {
+      const hourly = plans.find((plan) => number(plan.hourly_rate_cents, 0) > 0);
+      if (hourly && matches('Hourly labor hours')) entries.push({ label: 'Hourly labor', detail: `${cleanText(resource?.name) || 'Assigned crew'} · ${money(number(hourly.hourly_rate_cents, 0) / 100)} per hour`, patch: { name: 'Hourly labor', unit: 'hour', projected_unit_price: number(hourly.hourly_rate_cents, 0) / 100, metadata: { compensation_kind: 'hourly' } } });
+    }
+    if (sources.includes('equipment')) {
+      loadEquipmentUnits();
+      (state.equipmentUnits || []).forEach((unit) => {
+        const name = cleanText(unit.name || unit.label);
+        if (!name || !matches(name)) return;
+        const daily = number(unit.rates?.daily_cents, 0);
+        entries.push({ label: name, detail: daily > 0 ? `Equipment · ${money(daily / 100)} per day` : 'Equipment', patch: { name, unit: 'day', ...(daily > 0 ? { projected_unit_price: daily / 100 } : {}), metadata: { equipment_unit_id: cleanText(unit.id) } } });
+      });
+    }
+    return entries.slice(0, 8);
+  }
+
+  function closeSourcesMenu(){
+    document.querySelectorAll?.('[data-mt-sources-portal]')?.forEach((node) => node.remove());
+    document.removeEventListener?.('pointerdown', sourcesMenuDismiss, true);
+    document.removeEventListener?.('keydown', sourcesMenuDismiss, true);
+    state.sourcesMenu = null;
+  }
+  function sourcesMenuDismiss(event){
+    if (event.type === 'keydown' ? event.key === 'Escape' : !event.target?.closest?.('[data-mt-sources-portal],[data-mt-category-sources]')) closeSourcesMenu();
+  }
+  // The per-category choice of which sources feed its suggestions; saved on the resource type for the whole company.
+  function toggleSourcesMenu(type, trigger){
+    const open = state.sourcesMenu === type;
+    closeSourcesMenu();
+    const category = resourceCategories().find((row) => row.id === type);
+    if (open || !category || !trigger?.getBoundingClientRect) return;
+    state.sourcesMenu = type;
+    const portal = document.createElement('div');
+    portal.className = 'mt-labor-portal';
+    portal.dataset.mtSourcesPortal = '';
+    portal.setAttribute('role', 'dialog');
+    portal.setAttribute('aria-label', 'Line item sources');
+    const draw = () => {
+      const enabled = categorySources(type);
+      portal.innerHTML = `<div class="mt-labor-menu-title">Line Item Sources</div><div class="mt-labor-options">${LINE_ITEM_SOURCE_DEFS.map((source) => `<button type="button" class="mt-labor-option${enabled.includes(source.id) ? ' active' : ''}" role="menuitemcheckbox" aria-checked="${enabled.includes(source.id)}" data-mt-source="${source.id}"><span><strong>${escapeHtml(source.label)}</strong><small>${escapeHtml(source.detail)}</small></span>${enabled.includes(source.id) ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}</button>`).join('')}</div>`;
+      portal.querySelectorAll('[data-mt-source]').forEach((button) => button.addEventListener('click', () => {
+        const current = categorySources(type);
+        category.line_item_sources = LINE_ITEM_SOURCE_DEFS.map((source) => source.id).filter((id) => (id === button.dataset.mtSource ? !current.includes(id) : current.includes(id)));
+        saveResourceCategory(category);
+        draw();
+      }));
+    };
+    draw();
+    colorPortalHost(state.panelRoot).appendChild(portal);
+    const rect = trigger.getBoundingClientRect();
+    const width = portal.offsetWidth || 300;
+    const height = portal.offsetHeight || 220;
+    portal.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))}px`;
+    portal.style.top = `${rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 4 : Math.max(8, rect.top - height - 4)}px`;
+    document.addEventListener('pointerdown', sourcesMenuDismiss, true);
+    document.addEventListener('keydown', sourcesMenuDismiss, true);
   }
 
   function closeAutofill(){
@@ -3113,13 +3205,13 @@
   function showAutofill(input){
     closeAutofill();
     if (!autofillEnabled() || !input?.isConnected) return;
-    const matches = autofillMatches(input.value);
+    const matches = autofillMatches(input.value, materialListById(input.dataset.mtListId));
     if (!matches.length) return;
     const portal = document.createElement('div');
     portal.className = 'mt-autofill';
     portal.dataset.mtAutofill = '';
     portal.setAttribute('role', 'listbox');
-    portal.innerHTML = matches.map((item, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" data-mt-autofill-item="${index}"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml([item.category, `${money(item.unitPrice || 0)} per ${item.unit || 'ea'}`].filter(Boolean).join(' · '))}</span></button>`).join('');
+    portal.innerHTML = matches.map((item, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" data-mt-autofill-item="${index}"><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.detail)}</span></button>`).join('');
     colorPortalHost(state.panelRoot).appendChild(portal);
     const rect = input.getBoundingClientRect();
     const width = Math.max(280, rect.width);
@@ -3146,7 +3238,8 @@
   }
 
   // Commits a name cell: a chosen price book item replaces the line, typed text renames it, and Enter on a list's last row starts the next row.
-  function commitItemName(input, catalogItem, addNext){
+  function commitItemName(input, suggestion, addNext){
+    const catalogItem = suggestion?.catalogItem || null;
     const itemId = input.dataset.mtItemName;
     const listId = input.dataset.mtListId;
     const list = materialListById(listId);
@@ -3161,12 +3254,15 @@
       const next = lineFromPricebookItem(catalogItem, quantity > 0 ? { quantity } : {});
       updateItem(itemId, { ...next, id: itemId, structure_id: current.structure_id || next.structure_id }, listId);
       syncMaterialsGrid();
+    } else if (suggestion?.patch) {
+      input.dataset.mtCommitted = '1';
+      updateItem(itemId, suggestion.patch, listId);
     } else if (renamed) {
       input.dataset.mtCommitted = '1';
       updateItem(itemId, { name: input.value }, listId);
     }
-    if (addNext && last && (catalogItem || renamed)) { addItem(null, resourceType(list) === 'material' ? 'accessories' : resourceType(list), listId); return; }
-    if (!catalogItem) return;
+    if (addNext && last && (suggestion || renamed)) { addItem(null, resourceType(list) === 'material' ? 'accessories' : resourceType(list), listId); return; }
+    if (!suggestion) return;
     const count = findByData(materialRoot(), '[data-mt-item-qty]', 'mtItemQty', itemId);
     count?.focus?.();
     count?.select?.();
@@ -3634,6 +3730,7 @@
   function ensureStyles(){
     columnWeights();
     autofillEnabled();
+    loadEquipmentUnits();
     if (stylesInjected) return;
     injectCSS('materials-tab', css());
     window.PlatformUI?.initTooltips?.();
@@ -3778,7 +3875,7 @@
   const resourceWriteQueue=new Map();
   function saveResourceCategory(category,create=false){
     const operation=captureProjectOperation(),previous=resourceWriteQueue.get(category.id)||Promise.resolve();
-    const next=previous.catch(()=>{}).then(async()=>{const input={id:category.id,name:category.name||'',icon:category.icon,color:category.color,...(!create?{expected_revision:category.revision||0}:{})};const result=await window.MaterialsAPI.resourceTypes[create?'create':'patch'](operation.orgId,...(create?[input]:[category.id,input]));if(projectOperationIsCurrent(operation)){category.revision=result.resource_type.revision;category.__saved={name:input.name,icon:input.icon,color:input.color};if(!workspaceIsEditing())syncMaterialsGrid();}return result;});
+    const next=previous.catch(()=>{}).then(async()=>{const input={id:category.id,name:category.name||'',icon:category.icon,color:category.color,...(Array.isArray(category.line_item_sources)?{line_item_sources:category.line_item_sources}:{}),...(!create?{expected_revision:category.revision||0}:{})};const result=await window.MaterialsAPI.resourceTypes[create?'create':'patch'](operation.orgId,...(create?[input]:[category.id,input]));if(projectOperationIsCurrent(operation)){category.revision=result.resource_type.revision;category.__saved={name:input.name,icon:input.icon,color:input.color};if(!workspaceIsEditing())syncMaterialsGrid();}return result;});
     resourceWriteQueue.set(category.id,next);next.catch(error=>{if(projectOperationIsCurrent(operation)){if(create)state.resourceTypes=state.resourceTypes.filter(row=>row!==category);else if(resourceWriteQueue.get(category.id)===next&&category.__saved)Object.assign(category,category.__saved);syncMaterialsGrid();showToast('Could not save resource type',error.message,false);}});return next;
   }
   function addResourceCategory(){
@@ -3809,6 +3906,7 @@
     root.querySelectorAll('[data-mt-autofill-toggle]').forEach(button=>button.onclick=()=>{state.pricebookAutofill=!autofillEnabled();try{rootWindow.localStorage?.setItem?.('fm_scope_pricebook_autofill',state.pricebookAutofill?'on':'off');}catch(_){}closeAutofill();syncResourceHeader();});
     root.querySelectorAll('[data-mt-units-toggle]').forEach(button=>button.onclick=()=>{state.unitsMode=state.unitsMode==='order'?'measured':'order';render({preserveScroll:true});});
     root.querySelectorAll('[data-mt-minimize-type],[data-mt-restore-type]').forEach(button=>button.onclick=()=>{const minimizing=!!button.dataset.mtMinimizeType,type=button.dataset.mtMinimizeType||button.dataset.mtRestoreType,source=minimizing?button.closest('.mt-resource-column'):button,from=source.getBoundingClientRect(),clone=minimizing?source.cloneNode(true):null;if(minimizing)state.minimizedTypes.add(type);else state.minimizedTypes.delete(type);syncMaterialsGrid();animateMinimize(type,from,minimizing,clone);});
+    root.querySelectorAll('[data-mt-category-sources]').forEach(button=>button.onclick=()=>toggleSourcesMenu(button.dataset.mtCategorySources,button));
     root.querySelectorAll('[data-mt-delete-type]').forEach(button=>button.onclick=()=>removeResourceCategory(button.dataset.mtDeleteType));
     root.querySelectorAll('[data-mt-new-category-list]').forEach(button=>button.onclick=()=>createInlineList(button.dataset.mtNewCategoryList));
     root.querySelectorAll('[data-mt-category-icon]').forEach(button=>button.onclick=()=>editResourceAppearance(button.dataset.mtCategoryIcon));
@@ -3836,7 +3934,7 @@
   }
   function renderResourceHeader(){
     const order=state.unitsMode==='order';
-    return `<header class="mt-workspace-header"><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-autofill-toggle aria-pressed="${state.pricebookAutofill!==false}" data-fm-tooltip="${state.pricebookAutofill!==false?'Price book autofill is on: typing a material name suggests price book items. Arrow keys choose one, Enter confirms and starts the next row.':'Price book autofill is off.'}" aria-label="Price book autofill"><i class="fas fa-book-open"></i> Autofill</button><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><button type="button" data-mt-generate-materials data-fm-tooltip="Generate lists automatically from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i> Regenerate</button><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Showing order units (bundles, boxes). Switch to measured units.':'Showing measured units. Switch to order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i> ${order?'Order':'Measured'}</button><button type="button" class="mt-order-all" data-mt-order-all data-fm-tooltip="Order every material list together in one supplier email" aria-label="Order materials for every material list" ${state.lists.some(list=>resourceType(list)==='material'&&listItems(list).length)?'':'disabled'}><i class="fas fa-cart-shopping"></i> Order Materials</button></div></header>`;
+    return `<header class="mt-workspace-header"><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-autofill-toggle aria-pressed="${state.pricebookAutofill!==false}" data-fm-tooltip="${state.pricebookAutofill!==false?'Autofill is on: typing an item name suggests entries from the sources chosen for its category (the gear on each column). Arrow keys choose one, Tab takes it and moves to the count, Enter takes it and starts the next row.':'Autofill is off.'}" aria-label="Line item autofill"><i class="fas fa-book-open"></i> Autofill</button><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><button type="button" data-mt-generate-materials data-fm-tooltip="Generate lists automatically from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i> Regenerate</button><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Showing order units (bundles, boxes). Switch to measured units.':'Showing measured units. Switch to order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i> ${order?'Order':'Measured'}</button><button type="button" class="mt-order-all" data-mt-order-all data-fm-tooltip="Order every material list together in one supplier email" aria-label="Order materials for every material list" ${state.lists.some(list=>resourceType(list)==='material'&&listItems(list).length)?'':'disabled'}><i class="fas fa-cart-shopping"></i> Order Materials</button></div></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
@@ -3895,7 +3993,7 @@
       const listTotal=list=>type==='labor'&&expenseTargetForList(list)?number(expenseTargetForList(list).projected_cents,0)/100:listTotals(list).projected;
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button><button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
+        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button><input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name"><span class="mt-category-tools"><button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="Add list" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button><button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
         <div class="mt-resource-scroll">${lists.map(list=>{
           const id=cleanText(list.id),listRows=rows.filter(item=>item.__material_list_id===id),collapsed=!!state.collapsedListIds?.has(id);
           const sections=materialSectionDefinitions().filter(section=>(section.resource_type||'material')===type&&listRows.some(item=>lineSectionKey(item)===section.key));
@@ -4590,13 +4688,17 @@
     const activeSource = orderSources.find((source) => source.id === provider) || orderSources[0];
     const manualProvider = activeSource?.kind === 'manual' && activeSource?.status === 'active';
     const blockedReason = !pendingLists.length ? 'Every selected list has already been ordered.' : !rows.length ? 'The selected lists have no items to order.' : '';
-    const detailsPanel = `<div class="mt-order-details"><div class="mt-form-grid"><label class="wide"><span class="mt-small">Order Title</span><input class="mt-input" name="title" value="${String(escapeHtml(state.orderDraft.title || (lists.length === 1 ? lists[0]?.title : 'Combined material order') || 'Material order'))}"></label><label><span class="mt-small">Supplier Name</span><input class="mt-input" name="vendor" value="${String(escapeHtml(state.orderDraft.vendor))}"></label><label><span class="mt-small">Email</span><input class="mt-input" type="email" name="vendor_email" value="${String(escapeHtml(state.orderDraft.vendor_email))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("materials","m_6718ec5ad32aa0","orders@supplier.com") ?? "orders@supplier.com")}"></label><label><span class="mt-small">Quoted Total</span><input class="mt-input" type="number" min="0" step="0.01" name="quoted_price" value="${String(escapeHtml(state.orderDraft.quoted_price))}"></label><label><span class="mt-small">Paid Total</span><input class="mt-input" type="number" min="0" step="0.01" name="paid_price" value="${String(escapeHtml(state.orderDraft.paid_price))}"></label></div>${renderOrderListPicker(allLists, lists)}<datalist id="mt-order-time-presets">${ORDER_TIME_PRESETS.map((preset) => `<option value="${escapeHtml(preset)}"></option>`).join('')}</datalist></div>`;
+    const detailsPanel = `<div class="mt-order-details"><div class="mt-form-grid"><label><span class="mt-small">Supplier Name</span><input class="mt-input" name="vendor" value="${String(escapeHtml(state.orderDraft.vendor))}"></label><label><span class="mt-small">Email</span><input class="mt-input" type="email" name="vendor_email" value="${String(escapeHtml(state.orderDraft.vendor_email))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("materials","m_6718ec5ad32aa0","orders@supplier.com") ?? "orders@supplier.com")}"></label><label><span class="mt-small">Quoted Total</span><input class="mt-input" type="number" min="0" step="0.01" name="quoted_price" value="${String(escapeHtml(state.orderDraft.quoted_price))}"></label><label><span class="mt-small">Paid Total</span><input class="mt-input" type="number" min="0" step="0.01" name="paid_price" value="${String(escapeHtml(state.orderDraft.paid_price))}"></label></div>${renderOrderListPicker(allLists, lists)}<datalist id="mt-order-time-presets">${ORDER_TIME_PRESETS.map((preset) => `<option value="${escapeHtml(preset)}"></option>`).join('')}</datalist></div>`;
     const emailPanel = `<div class="mt-email-preview"><div class="mt-email-preview-head"><strong><i class="fas fa-envelope"></i> ${String(escapeHtml(orderRequestSubject(lists)))}</strong><button type="button" class="mt-email-copy" data-mt-copy-order><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("materials","m_f1733e455032ff"," Copy email & table") ?? " Copy email & table")}</button></div><div class="mt-email-body">${String(orderRequestPreviewHtml(lists))}</div></div>`;
+    const methods = [['email', 'fa-envelope', 'Order by Email', 'Email the request to the supplier and record the order'], ['agent', 'fa-robot', 'Order with Agent', 'Have an agent place the order. Not built yet.'], ['log', 'fa-clipboard-check', 'Log Order Only', 'Record an order that was placed some other way, without sending an email. Not built yet.']];
+    const method = methods.some(([id]) => id === state.orderMethod) ? state.orderMethod : 'email';
+    const methodBar = `<div class="mt-order-methods" role="radiogroup" aria-label="How to place this order">${methods.map(([id, icon, label, hint]) => `<button type="button" role="radio" aria-checked="${method === id}" class="${method === id ? 'active' : ''}" data-mt-order-method="${id}" title="${escapeHtml(hint)}"><i class="fas ${icon}" aria-hidden="true"></i> ${label}</button>`).join('')}</div>`;
+    const methodPlaceholder = `<div class="mt-order-coming"><div><i class="fas ${method === 'agent' ? 'fa-robot' : 'fa-clipboard-check'}"></i><strong>${method === 'agent' ? 'Order with Agent' : 'Log Order Only'}</strong><span>${method === 'agent' ? 'Placing an order through an agent has not been built yet.' : 'Logging an order without sending an email has not been built yet.'}</span></div></div>`;
     const sendBar = `<div class="mt-order-send"><button type="submit" class="mt-btn primary" data-mt-order-send title="${escapeHtml(blockedReason || 'Email this request to the supplier and record the order.')}" ${blockedReason ? 'disabled' : ''}><i class="fas fa-paper-plane" aria-hidden="true"></i> Send Email</button></div>`;
     const leftWidth = state.orderLeftWidth ? `${state.orderLeftWidth}px` : `min(64%, ${340 + Math.max(0, allLists.length - 1) * 190}px)`;
-    const detailsContent = `<div class="mt-order-content manual" style="--order-left:${leftWidth}">${detailsPanel}<button type="button" class="mt-order-divider" role="separator" aria-orientation="vertical" aria-label="Resize the order details and the preview" title="Drag to resize. Double-click to reset."></button><div class="mt-order-right">${emailPanel}${sendBar}</div></div>`;
+    const detailsContent = `<div class="mt-order-content manual" style="--order-left:${leftWidth}">${detailsPanel}<button type="button" class="mt-order-divider" role="separator" aria-orientation="vertical" aria-label="Resize the order details and the preview" title="Drag to resize. Double-click to reset."></button><div class="mt-order-right">${method === 'email' ? `${emailPanel}${sendBar}` : methodPlaceholder}</div></div>`;
     const unavailableContent = (source) => `<div class="mt-order-content"><div class="mt-order-coming"><div><i class="fas ${escapeHtml(orderSourceIcon(source))}"></i><strong>${escapeHtml(source?.name || 'Supplier integration')}</strong><span>${source?.status === 'disabled' ? 'This order source is not available for the selected lists.' : 'Direct supplier ordering is coming soon.'}</span></div></div></div>`;
-    return `<dialog class="mt-modal" data-mt-order-dialog><div class="mt-modal-backdrop-hit" data-mt-close-order-backdrop aria-hidden="true"></div><form method="dialog" data-mt-order-form class="mt-modal-shell mt-order-modal"><div class="mt-modal-head mt-order-head"><h2>Order Materials</h2><button type="button" class="mt-modal-close" data-mt-close-order aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div><div class="mt-order-layout">${String(manualProvider ? detailsContent : unavailableContent(activeSource))}</div></form></dialog>`;
+    return `<dialog class="mt-modal" data-mt-order-dialog><div class="mt-modal-backdrop-hit" data-mt-close-order-backdrop aria-hidden="true"></div><form method="dialog" data-mt-order-form class="mt-modal-shell mt-order-modal"><div class="mt-modal-head mt-order-head"><h2>Order Materials</h2><button type="button" class="mt-modal-close" data-mt-close-order aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_3742924668fb10","Close") ?? "Close")}"><i class="fas fa-xmark"></i></button></div>${methodBar}<div class="mt-order-layout">${String(manualProvider ? detailsContent : unavailableContent(activeSource))}</div></form></dialog>`;
   }
 
   function renderNewListDialog(){
@@ -4677,7 +4779,7 @@
       });
     });
     root.querySelectorAll('[data-mt-item-name]').forEach((input) => {
-      const material = resourceType(materialListById(input.dataset.mtListId)) === 'material';
+      const material = categorySources(resourceType(materialListById(input.dataset.mtListId))).length > 0;
       if (material) {
         input.setAttribute('autocomplete', 'off');
         input.addEventListener('input', () => showAutofill(input));
@@ -4861,6 +4963,12 @@
     root.querySelectorAll('[data-mt-order-time]').forEach((input) => input.addEventListener('change', () => setOrderDelivery(input, { time: input.value.trim(), group_with: '' })));
     root.querySelectorAll('[data-mt-order-group]').forEach((button) => button.addEventListener('click', () => setOrderDelivery(button, { group_with: cleanText(button.dataset.mtOrderGroupTarget) })));
     root.querySelectorAll('[data-mt-order-ungroup]').forEach((button) => button.addEventListener('click', () => setOrderDelivery(button, { group_with: '' }, '[data-mt-order-date]')));
+    root.querySelectorAll('[data-mt-order-method]').forEach((button) => button.addEventListener('click', () => {
+      captureOrderDraft(button.closest('[data-mt-order-dialog]'));
+      state.orderMethod = button.dataset.mtOrderMethod;
+      state.orderDraftFresh = true;
+      syncOrderDialog(true);
+    }));
     root.querySelectorAll('[data-mt-order-timing]').forEach((button) => button.addEventListener('click', () => {
       const scheduled = button.dataset.mtOrderTiming !== 'without_dates';
       state.orderTimingChoice = scheduled ? 'scheduled' : 'without_dates';

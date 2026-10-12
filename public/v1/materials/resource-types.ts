@@ -5,9 +5,12 @@ import { forbidden, badRequest, conflict } from '../platform/errors.js';
 import { listDocuments, upsertDocument, type JsonObject } from '../platform/storage.js';
 export const RESOURCE_TYPE_COLLECTION='material_resource_types';
 export const resourceTypeIdSchema=z.string().trim().regex(/^[a-z][a-z0-9_-]{0,79}$/);
-export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),expected_revision:z.number().int().nonnegative().optional()}).strict();
+export const LINE_ITEM_SOURCES=['pricebook','piece_rate','hourly_labor','equipment'] as const;
+// Sources a type suggests line items from until someone chooses otherwise.
+const DEFAULT_LINE_ITEM_SOURCES:Record<string,string[]>={material:['pricebook'],labor:['piece_rate','hourly_labor'],equipment:['equipment']};
+export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),line_item_sources:z.array(z.enum(LINE_ITEM_SOURCES)).max(LINE_ITEM_SOURCES.length).optional(),expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const resourceTypeArchiveSchema=z.object({id:resourceTypeIdSchema,expected_revision:z.number().int().nonnegative().optional()}).strict();
-export const defaultResourceTypes=[{id:'material',name:'Materials',icon:'fa-boxes-stacked',color:'#d93025',revision:0},{id:'labor',name:'Labor',icon:'fa-helmet-safety',color:'#2563eb',revision:0},{id:'equipment',name:'Equipment',icon:'fa-truck-pickup',color:'#0f766e',revision:0}];
+export const defaultResourceTypes=[{id:'material',name:'Materials',icon:'fa-boxes-stacked',color:'#d93025',line_item_sources:['pricebook'],revision:0},{id:'labor',name:'Labor',icon:'fa-helmet-safety',color:'#2563eb',line_item_sources:['piece_rate','hourly_labor'],revision:0},{id:'equipment',name:'Equipment',icon:'fa-truck-pickup',color:'#0f766e',line_item_sources:['equipment'],revision:0}];
 export async function listResourceTypes(orgId:string){
  if(!await isAppFlagEnabled(orgId,'platform','materials'))throw forbidden('app_flag_disabled','Materials are not enabled for this organization.');
  const documents=(await listDocuments(orgId,RESOURCE_TYPE_COLLECTION)).filter(doc=>!doc.data.archived_at),rows=documents.map(doc=>resourceTypeRow({...doc.data,id:doc.id,revision:doc.revision}));
@@ -31,4 +34,4 @@ export async function archiveResourceType(orgId:string,input:unknown,auth:Platfo
  const doc=await upsertDocument(orgId,RESOURCE_TYPE_COLLECTION,{id,expected_revision:expected_revision??current.revision,data:{name:current.name,icon:current.icon,color:current.color,archived_at:new Date().toISOString(),archived_by_user_id:auth.userId,updated_by_user_id:auth.userId},metadata:{kind:'material_resource_type'}},{replace:true});
  return {id:doc.id,archived:true,revision:Number(doc.revision||0)};
 }
-export function resourceTypeRow(input:JsonObject){return {id:String(input.id),name:String(input.name||''),icon:String(input.icon||'fa-layer-group'),color:String(input.color||'#64748b'),revision:Number(input.revision||0)};}
+export function resourceTypeRow(input:JsonObject){const known=LINE_ITEM_SOURCES as readonly string[],sources=Array.isArray(input.line_item_sources)?[...new Set(input.line_item_sources.map(String).filter(source=>known.includes(source)))]:[...(DEFAULT_LINE_ITEM_SOURCES[String(input.id)]||[])];return {id:String(input.id),name:String(input.name||''),icon:String(input.icon||'fa-layer-group'),color:String(input.color||'#64748b'),line_item_sources:sources,revision:Number(input.revision||0)};}
