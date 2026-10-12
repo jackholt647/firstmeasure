@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Project Notes: [Direct audience changes, field crew and readable archives](deploy/digitalocean/development-project-note-audiences-20261012.md) records the tighter cards, summary hover verification, access checks and staged development rollout.
+
 October 11 Channels: [Enter sends and Shift+Enter adds a new line](deploy/digitalocean/development-channels-enter-send-20261011.md) records the composer shortcuts, browser verification and development rollout.
 
 October 12 Activity follow-up: [Compact toolbar, upload batches and visible user and note activity](deploy/digitalocean/development-project-activity-followup-20261012.md) records the corrected Notes population, preview layer, automatic updates and development rollout.
