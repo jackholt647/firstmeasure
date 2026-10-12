@@ -1993,6 +1993,8 @@
             url: window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), photo.media_id, 320) || ''
           })),
           url: (mediaId) => window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), mediaId, 320) || '',
+          // The picture itself, for the live preview of the document.
+          fileUrl: (mediaId, variant) => window.PlatformAPI?.media?.fileUrl?.(orgId(), mediaId, variant || 'original') || '',
           // The shared media library (Portal.PhotoFeed picker), the same one
           // the document editor opens.
           pick: () => mediaBridge().pick(),
@@ -2685,7 +2687,10 @@
       // left on; the editor is "Edit manually" on the last step. A locked
       // document has nothing left to step through.
       const stepsFirst = () => !!state.docWorkflow && options.manual !== true && !isReadOnlyStatus(state.doc?.status);
-      state.docView = stepsFirst() ? 'workflow' : 'editor';
+      // The record usually says whether it has steps, so the right surface
+      // shows at once instead of after the workflow has been fetched.
+      const expectsSteps = !!firstText(objectValue(state.doc.workflow_ref).workflow_id) && options.manual !== true && !isReadOnlyStatus(state.doc?.status);
+      state.docView = stepsFirst() || expectsSteps ? 'workflow' : 'editor';
       state.canPresent = false;
       state.presentOptions = null;
       state.resolved = null;
@@ -2707,10 +2712,15 @@
       // (silent — reveals the [Workflow | Editor] toggle when found).
       if (!state.docWorkflow) {
         const opened = state.doc.id;
+        const waiting = root.querySelector('[data-fmdx-wfrun-main]');
+        if (waiting && state.docView === 'workflow') waiting.innerHTML = '<div class="fmdx-state" style="margin:48px auto"><div class="fmdx-spinner"></div><strong>Opening\u2026</strong></div>';
+        ensureWorkflowRuntime(); // fetched alongside the workflow, not after it
         await loadDocWorkflow();
         if (state.destroyed || state.view !== 'editor' || state.doc?.id !== opened) return;
-        if (stepsFirst()) {
-          state.docView = 'workflow';
+        const next = stepsFirst() ? 'workflow' : 'editor';
+        if (next !== state.docView) {
+          state.docView = next;
+          if (waiting) waiting.innerHTML = '';
           updateModeToggle();
           syncDocViewVisibility();
         }
@@ -4514,17 +4524,81 @@
       // Writes go one at a time, each on the revision the one before returned.
       let writes = Promise.resolve();
       const close = () => { try { player?.destroy(); } catch (e) {} overlay.remove(); };
-      const finish = async () => {
-        try {
-          await writes.catch(() => {});
-          await request(`/presentations/${encodeURIComponent(current.id)}/contract`, 'POST', { expectedRevision: current.revision, documentId });
-        } catch (error) { showToast('Present', errorMessage(error, 'The estimate could not be updated from the presentation.'), false); return; }
+      // Everything from here happens in front of the customer, so it stays in
+      // the presentation: nothing of the app shows until the device is handed back.
+      const company = firstText(objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding).name, window.__APP?.orgName, window.Portal?.cfg?.orgName, 'our team');
+      const reopen = async () => {
         close();
         try {
           const response = await api().documents.get(orgId(), documentId);
           await openDocScreen(objectValue(response.document || response.doc || response));
-          openSendModal(state.doc);
-        } catch (error) { showToast('Present', errorMessage(error, 'The estimate was updated; reopen it to send.'), false); }
+        } catch (error) { /* the list still shows it */ }
+      };
+      // A full-screen presentation shows only its own element: sheets go inside it.
+      const stage = () => (document.fullscreenElement && overlay.contains(document.fullscreenElement) ? document.fullscreenElement : overlay);
+      const sheetOf = (html) => {
+        overlay.querySelector('[data-present-sheet]')?.remove();
+        const sheet = document.createElement('div');
+        sheet.dataset.presentSheet = '';
+        sheet.style.cssText = 'position:absolute;inset:0;z-index:2147483600;background:#0b0d12;color:#fff;display:grid;place-items:center;padding:24px;font-family:var(--fm-body-font,Montserrat),Segoe UI,Arial,sans-serif';
+        sheet.innerHTML = html;
+        stage().appendChild(sheet);
+        return sheet;
+      };
+      /** Where the presentation is left: a thank-you the customer can hold, and a quiet way out for whoever takes it back. */
+      const rest = (headline, detail) => {
+        const sheet = sheetOf(`
+          <div style="max-width:560px;text-align:center">
+            <div style="width:76px;height:76px;border-radius:50%;background:var(--fm-primary,#d93025);display:grid;place-items:center;margin:0 auto 26px;font-size:34px;font-weight:800">✓</div>
+            <h1 style="margin:0 0 12px;font-size:34px;font-weight:800;line-height:1.15">${esc(headline)}</h1>
+            <p style="margin:0 0 30px;font-size:17px;line-height:1.5;color:#c9ced8">${esc(detail)}</p>
+            <p style="margin:0;font-size:14px;color:#8b93a3">You can hand this back to ${esc(company)} now.</p>
+          </div>
+          <button type="button" data-present-finish title="Close the presentation" style="position:absolute;right:16px;bottom:14px;border:0;background:none;color:#5b6272;font:600 12px/1 inherit;padding:10px;cursor:pointer">Finish</button>`);
+        Object.entries(presentationColors(current)).forEach(([name, value]) => sheet.style.setProperty(name, value));
+        sheet.querySelector('[data-present-finish]').addEventListener('click', reopen);
+      };
+      /** "Send me the estimate": ask only where to send it, send it, and say so. */
+      const finish = () => {
+        const contact = objectValue(projectContacts().find((entry) => entry.primary) || projectContacts()[0]);
+        const field = 'width:100%;box-sizing:border-box;border:1px solid #2c3342;border-radius:12px;background:#141821;color:#fff;font:600 16px/1.2 inherit;padding:14px 16px;margin-top:6px';
+        const sheet = sheetOf(`
+          <form data-present-send style="width:min(460px,100%)">
+            <h1 style="margin:0 0 8px;font-size:28px;font-weight:800">Where should we send it?</h1>
+            <p style="margin:0 0 22px;font-size:15px;line-height:1.5;color:#c9ced8">We\u2019ll email your estimate with everything you chose today, so you can read it and approve it when you\u2019re ready.</p>
+            <label style="display:block;font-size:12px;font-weight:700;color:#8b93a3;margin-bottom:14px">Name<input data-present-name autocomplete="name" value="${esc(firstText(contact.name))}" style="${field}"></label>
+            <label style="display:block;font-size:12px;font-weight:700;color:#8b93a3">Email<input data-present-email type="email" inputmode="email" autocomplete="email" value="${esc(firstText(contact.email))}" style="${field}"></label>
+            <p data-present-error role="alert" style="min-height:18px;margin:10px 0 0;font-size:13px;font-weight:700;color:#ff8a80"></p>
+            <div style="display:flex;gap:10px;margin-top:10px">
+              <button type="button" data-present-back style="flex:none;border:1px solid #2c3342;border-radius:12px;background:none;color:#c9ced8;font:700 15px/1 inherit;padding:15px 20px;cursor:pointer">Back</button>
+              <button type="submit" data-present-go style="flex:1;border:0;border-radius:12px;background:var(--fm-primary,#d93025);color:#fff;font:800 15px/1 inherit;padding:15px 20px;cursor:pointer">Send my estimate</button>
+            </div>
+          </form>`);
+        Object.entries(presentationColors(current)).forEach(([name, value]) => sheet.style.setProperty(name, value));
+        const error = sheet.querySelector('[data-present-error]');
+        const go = sheet.querySelector('[data-present-go]');
+        sheet.querySelector('[data-present-back]').addEventListener('click', () => sheet.remove());
+        sheet.querySelector('[data-present-send]').addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const name = cleanText(sheet.querySelector('[data-present-name]').value);
+          const email = cleanText(sheet.querySelector('[data-present-email]').value);
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { error.textContent = 'Enter the email address to send it to.'; sheet.querySelector('[data-present-email]').focus(); return; }
+          error.textContent = '';
+          go.disabled = true;
+          go.textContent = 'Sending\u2026';
+          try {
+            await writes.catch(() => {});
+            await request(`/presentations/${encodeURIComponent(current.id)}/contract/send`, 'POST', { expectedRevision: current.revision, documentId, recipients: [{ signer_id: 'customer', role: 'customer', name: name || email, email }] });
+          } catch (failure) {
+            go.disabled = false;
+            go.textContent = 'Send my estimate';
+            error.textContent = 'That didn\u2019t go through. Please try again, or ask us to send it for you.';
+            console.warn('Presentation send failed', failure);
+            return;
+          }
+          rest(name ? `Thank you, ${name.split(/\s+/)[0]}.` : 'Thank you.', `Your estimate is on its way to ${email}.`);
+        });
+        setTimeout(() => { try { sheet.querySelector(firstText(contact.email) ? '[data-present-go]' : '[data-present-email]').focus(); } catch (e) {} }, 50);
       };
       /**
        * Accept & sign: issue the agreement from what was chosen and open its
@@ -4542,20 +4616,13 @@
         } catch (error) { signing = false; showToast('Present', errorMessage(error, 'The agreement could not be prepared for signing.'), false); return; }
         const signer = objectValue(arrayValue(objectValue(sent.signTarget).signers).map(objectValue)[0]);
         const url = firstText(signer.portalUrl, objectValue(sent.signing).portalUrl, sent.portalUrl);
-        const reopen = async () => {
-          close();
-          try {
-            const response = await api().documents.get(orgId(), documentId);
-            await openDocScreen(objectValue(response.document || response.doc || response));
-          } catch (error) { /* the list still shows it */ }
-        };
-        if (!url) { showToast('Present', 'The agreement was sent for signature.', true); reopen(); return; }
+        if (!url) { rest('Thank you.', 'Your agreement is on its way to you to sign.'); return; }
         const sheet = document.createElement('div');
-        sheet.style.cssText = 'position:absolute;inset:0;z-index:40;background:#0b0d12;display:flex;flex-direction:column';
+        sheet.style.cssText = 'position:absolute;inset:0;z-index:2147483600;background:#0b0d12;display:flex;flex-direction:column';
         sheet.innerHTML = `<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;color:#e7eaf0;font:600 13px/1.2 inherit"><span><i class="fas fa-signature" style="margin-right:8px"></i>Sign the agreement</span><button type="button" data-sign-done style="border:0;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font:700 12px/1 inherit;padding:10px 16px;cursor:pointer">Done</button></div><iframe title="Sign the agreement" style="flex:1;border:0;background:#fff;width:100%"></iframe>`;
         sheet.querySelector('iframe').src = url;
-        sheet.querySelector('[data-sign-done]').addEventListener('click', reopen);
-        overlay.appendChild(sheet);
+        sheet.querySelector('[data-sign-done]').addEventListener('click', () => { sheet.remove(); rest('Thank you.', 'A copy of your agreement is on its way to your email.'); });
+        stage().appendChild(sheet);
       };
       player = window.FMDocPresent.mount(overlay, {
         document: current.layout,
@@ -4713,6 +4780,7 @@
     // ---------------------------------------------------------------- boot
     loadCatalog();
     loadDocs();
+    ensureWorkflowRuntime(); // warm, so the first document opens without waiting on it
     const onWindowResize = () => { if (state.view === 'editor' && !state.destroyed) syncTrayOffset(); };
     window.addEventListener('resize', onWindowResize);
 

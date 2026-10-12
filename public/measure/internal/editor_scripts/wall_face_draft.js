@@ -144,7 +144,14 @@ window.createWallFaceDraft=function(host){
   clearGuides();
   const d={frame:workingPlane.frame},p=rayPoint(d,e);if(!p)return null;
   const K=window.ExteriorGeometry,scene=planeScene(),local=p=>K.local(d.frame,p);
-  const constrained=planeLinePoint(p);if(workingPlane.drawing&&workingPlane.drawInput?.numeric!=null)return constrained;
+  const constrained=planeLinePoint(p);if(workingPlane.drawing&&workingPlane.drawInput?.numeric!=null){
+   if(!constrained||(typeof isFreeMove!=='undefined'&&isFreeMove))return constrained;
+   const anchor=local(workingPlane.drawInput.anchor),length=Math.hypot(constrained.x-anchor.x,constrained.y-anchor.y);
+   // Retain the last aim direction when the pointer sits exactly on its anchor.
+   const raw=Math.hypot(p.x-anchor.x,p.y-anchor.y)<1e-9?constrained:p;
+   const result=W.radialDraftSnap(raw,anchor,length,scene.points.map(local),scene.lines.map(pair=>pair.map(local)),q=>host.screen(K.world(d.frame,q),viewOf(e)),typeof snapRadius!=='undefined'?snapRadius:20);
+   snapGuides=result.guides;showGuides(d,e);return result.point;
+  }
   if(typeof isFreeMove!=='undefined'&&isFreeMove)return p;
   const result=(workingPlane.action?.kind==='quad'&&W.quadDraftSnap(p,q=>planeQuad(q),scene.points.map(local),scene.lines.map(pair=>pair.map(local)),workingPlane.selection.map(local),q=>host.screen(K.world(d.frame,q),viewOf(e)),typeof snapRadius!=='undefined'?snapRadius:20,{lineCenters:host.state()?.lineCenters}))||W.draftSnap(p,scene.points.map(local),scene.lines.map(pair=>pair.map(local)),workingPlane.selection.map(local),q=>host.screen(K.world(d.frame,q),viewOf(e)),typeof snapRadius!=='undefined'?snapRadius:20,{lineCenters:host.state()?.lineCenters});
   snapGuides=result.guides;showGuides(d,e);

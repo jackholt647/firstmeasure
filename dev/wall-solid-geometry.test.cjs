@@ -241,3 +241,13 @@ test('edge deletion does not adopt unrelated closed wires or a path on another p
 test('importing a spline bounded face preserves definitions instead of sampled editable edges',()=>{
  const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry'),q=(x,y)=>({x,y,z:0}),c={...K.splineThrough([q(1,3),q(3,3)],[q(2,4)],{x:0,y:0,z:1}),id:'arch'},f=K.archFaces([{id:'opening',points:[q(1,1),q(3,1),q(3,3),q(1,3)],holes:[]}],c).faces[0],d={origin:q(0,0),u:{x:1,y:0},faces:[{id:'wall',points:[q(0,0),q(5,0),q(5,5),q(0,5)]}]};S.ensure(d);G.importDraft(d,[f.points],f.curves);assert.equal(d.sketch.curves.length,1);assert.equal(d.sketch.edges.filter(e=>e.curveId).length,2);assert.equal(d.sketch.curves[0].controls.length,3);assert.ok(d.faces.some(f=>f.curves?.length));assert.ok(d.sketch.nodes.length<12,'render samples must not become persistent anchors');
 });
+
+test('Q snapping cannot collapse a valid rectangle onto its starting row or column',()=>{
+ const a={x:0,y:0,z:0},corners=p=>[a,{x:p.x,y:0,z:0},p,{x:0,y:p.y,z:0}],screen=p=>({x:p.x*100,y:p.y*100});
+ for(const raw of [{x:3,y:.1,z:0},{x:.1,y:3,z:0}]){const hit=G.quadDraftSnap(raw,corners,[a],[],[a],screen,20);assert.ok(Math.abs(hit.point.x*hit.point.y)>.01);assert.equal(hit.guides.length,0);}
+});
+test('locked-radius snapping keeps length for axes, diagonals and rotated edge bearings',()=>{
+ const a={x:0,y:0,z:0},screen=p=>({x:p.x*100,y:p.y*100});
+ for(const angle of [0,Math.PI/4,.3]){const edges=angle===.3?[[a,{x:Math.cos(angle),y:Math.sin(angle),z:0}]]:[],raw={x:3*Math.cos(angle+.025),y:3*Math.sin(angle+.025),z:0},hit=G.radialDraftSnap(raw,a,.3048,[],edges,screen,20);assert.ok(hit.kind);assert.ok(Math.abs(Math.hypot(hit.point.x,hit.point.y)-.3048)<1e-9);assert.ok(Math.abs(Math.atan2(hit.point.y,hit.point.x)-angle)<1e-9);assert.equal(hit.guides.length,1);}
+ const free=G.radialDraftSnap({x:3*Math.cos(.3),y:3*Math.sin(.3),z:0},a,.3048,[],[],screen,20);assert.equal(free.kind,null);
+});
