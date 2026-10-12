@@ -4984,7 +4984,7 @@
     ];
     const smsOptions = {
       entityTypes: ['PRIVATE_PROFIT', 'PUBLIC_PROFIT', 'NON_PROFIT', 'GOVERNMENT', 'SOLE_PROPRIETOR'],
-      verticals: ['CONSTRUCTION', 'TECHNOLOGY', 'REAL_ESTATE', 'RETAIL', 'PROFESSIONAL', 'INSURANCE', 'LEGAL', 'FINANCIAL', 'HEALTHCARE'],
+      verticals: ['AGRICULTURE', 'COMMUNICATION', 'CONSTRUCTION', 'EDUCATION', 'ENERGY', 'ENTERTAINMENT', 'FINANCIAL', 'GAMBLING', 'GOVERNMENT', 'HEALTHCARE', 'HOSPITALITY', 'HUMAN_RESOURCES', 'INSURANCE', 'LEGAL', 'MANUFACTURING', 'NGO', 'POLITICAL', 'POSTAL', 'PROFESSIONAL', 'REAL_ESTATE', 'RETAIL', 'TECHNOLOGY', 'TRANSPORTATION'],
       stockExchanges: ['NASDAQ', 'NYSE', 'AMEX', 'AMX', 'ASX', 'B3', 'BME', 'BSE', 'FRA', 'ICEX', 'JPX', 'JSE', 'KRX', 'LON', 'NSE', 'OMX', 'SEHK', 'SSE', 'STO', 'SWX', 'SZSE', 'TSX', 'TWSE', 'VSE']
     };
     const smsSteps = [
@@ -5074,7 +5074,7 @@
       return /^[2-9]\d{2}$/.test(String(value || '').replace(/\D/g, ''));
     }
     function smsAddressText(brand = {}){
-      return [brand.street, brand.city, brand.state, brand.postalCode].filter(Boolean).join(', ');
+      return [brand.street, brand.address2, brand.city, brand.state, brand.postalCode].filter(Boolean).join(', ');
     }
     function smsEnsureGooglePlaces(){
       if (window.google?.maps?.places?.Autocomplete) return Promise.resolve(window.google.maps);
@@ -5151,6 +5151,7 @@
         brand: {
           ...(profile.brand || {}),
           street: street || profile.brand?.street || '',
+          address2: components.subpremise?.long_name || profile.brand?.address2 || '',
           city: city || profile.brand?.city || '',
           state: state || profile.brand?.state || '',
           postalCode: postalCode || profile.brand?.postalCode || '',
@@ -5211,6 +5212,7 @@
     }
     function prepareSmsProfileForSave(profile){
       const merged = mergeSmsProfile(profile);
+      if (merged.brand.sameAsLegalName) merged.brand.displayName = smsLegalName(merged.brand);
       return {
         ...merged,
         brand: {
@@ -5236,6 +5238,7 @@
       const setupAddress = normalizeOrganizationBusinessAddress(orgContact.business_address || orgContact.businessAddress || orgContact.address);
       const businessAddress = Object.values(setupAddress).some(Boolean) ? setupAddress : organizationBusinessAddressFromState();
       next.brand.street = next.brand.street || businessAddress.address1 || '';
+      next.brand.address2 = next.brand.address2 || businessAddress.address2 || '';
       next.brand.city = next.brand.city || businessAddress.city || '';
       next.brand.state = next.brand.state || businessAddress.state || '';
       next.brand.postalCode = next.brand.postalCode || businessAddress.postal_code || '';
@@ -5338,7 +5341,7 @@
       return smsHasProviderCampaign(profile);
     }
     function smsOptionHtml(values, selected){
-      const labels = { '': 'Choose an option', WEBSITE_FORM: 'Website form', PAPER_FORM: 'Paper form', VERBAL: 'Verbal agreement', KEYWORD: 'Text a keyword', PRIVATE_PROFIT: 'Private company', PUBLIC_PROFIT: 'Publicly traded company', NON_PROFIT: 'Nonprofit', GOVERNMENT: 'Government', SOLE_PROPRIETOR: 'Sole proprietor' };
+      const labels = { '': 'Choose an option', WEBSITE_FORM: 'Website form', PAPER_FORM: 'Paper form', VERBAL: 'Verbal agreement', KEYWORD: 'Text a keyword', PRIVATE_PROFIT: 'Private business', PUBLIC_PROFIT: 'Publicly traded company', NON_PROFIT: 'Nonprofit', GOVERNMENT: 'Government', SOLE_PROPRIETOR: 'Sole proprietor / individual', PROFESSIONAL: 'Professional services', COMMUNICATION: 'Communications', FINANCIAL: 'Financial services', NGO: 'Non-governmental organization', POSTAL: 'Postal and delivery services' };
       return values.map((value) => `<option value="${escapeHtml(value)}" ${String(selected || '') === value ? 'selected' : ''}>${escapeHtml(labels[value] || value.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()))}</option>`).join('');
     }
     function smsField(name, label, value, options = {}){
@@ -5348,7 +5351,7 @@
       const type = options.type || 'text';
       const id = `sms-${name.replace(/\./g, '-')}`;
       const labelHtml = `<label for="${id}">${escapeHtml(label)}${options.required ? '<span class="sms-required" aria-hidden="true"> *</span>' : ''}</label>`;
-      const attrs = ` id="${id}" aria-describedby="${id}-help"${options.error ? ' aria-invalid="true"' : ''}${options.required ? ' required' : ''}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ''}${options.autocomplete ? ` autocomplete="${escapeHtml(options.autocomplete)}"` : ''}${options.disabled ? ' disabled' : ''}`;
+      const attrs = ` id="${id}" aria-describedby="${id}-help"${options.error ? ' aria-invalid="true"' : ''}${options.required ? ' required' : ''}${options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ''}${options.inputmode ? ` inputmode="${escapeHtml(options.inputmode)}"` : ''}${options.autocomplete ? ` autocomplete="${escapeHtml(options.autocomplete)}"` : ''}${options.disabled ? ' disabled' : ''}`;
       const help = options.error || options.hint || '';
       const helpClass = options.error ? 'warn' : options.ok ? 'ok' : '';
       const helpHtml = `<div id="${id}-help" class="sms-field-msg ${helpClass}">${escapeHtml(help)}</div>`;
@@ -5360,16 +5363,32 @@
       }
       return `<div class="sms-field${wide}${invalid}">${labelHtml}<input type="${escapeHtml(type)}" data-sms-field="${escapeHtml(name)}" value="${escapeHtml(value || '')}"${attrs}>${helpHtml}</div>`;
     }
+    function smsLegalName(brand){
+      return brand.entityType === 'SOLE_PROPRIETOR' ? [brand.firstName, brand.lastName].filter(Boolean).join(' ').trim() : String(brand.companyName || '').trim();
+    }
+    function smsFormatEin(value){
+      const raw = String(value || '');
+      if (/^\*{3,}\d{4}$/.test(raw)) return raw;
+      const digits = raw.replace(/\D/g, '');
+      return digits.length > 2 ? digits.slice(0, 2) + '-' + digits.slice(2) : digits;
+    }
+    function smsValidEin(value){
+      return /^(?:\d{2}-?\d{7}|\*{3,}\d{4})$/.test(String(value || '').trim());
+    }
     function smsFieldLiveState(name, value){
       const raw = String(value || '').trim();
-      if (['brand.displayName', 'brand.companyName', 'brand.ein', 'brand.street', 'brand.city', 'brand.state', 'brand.postalCode'].includes(name)) {
+      if (['brand.displayName', 'brand.companyName', 'brand.street', 'brand.city', 'brand.state', 'brand.postalCode'].includes(name)) {
         return { error: raw ? '' : 'This field is required.' };
+      }
+      if (name === 'brand.ein') {
+        const count = raw.replace(/\D/g, '').length;
+        return smsValidEin(raw) ? { ok: true } : { error: count > 9 ? `An EIN has 9 digits. You entered ${count}; remove the extra digits.` : 'Enter your 9-digit EIN, for example 12-3456789.' };
       }
       if (name === 'brand.website') {
         const normalized = smsNormalizeWebsite(raw);
         if (!raw) return { error: 'Website is required.' };
         if (!normalized) return { error: 'Enter a valid website.' };
-        return { hint: normalized !== raw ? `Will submit as ${normalized}` : '', ok: true };
+        return { ok: true };
       }
       if (name === 'brand.email') {
         if (!raw) return { error: 'Support email is required.' };
@@ -5407,6 +5426,7 @@
         field.appendChild(msg);
       }
       field.classList.toggle('invalid', !!state.error);
+      input.setAttribute('aria-invalid', String(!!state.error));
       if (msg) {
         msg.textContent = state.error || state.hint || '';
         msg.classList.toggle('warn', !!state.error);
@@ -5486,9 +5506,12 @@
         });
       };
       if (step === 'business') {
-        requireFields(brand, [['displayName', 'Display name']]);
+        requireFields(brand, [['displayName', 'Brand Name / DBA']]);
         if (String(brand.entityType || '').toUpperCase() !== 'SOLE_PROPRIETOR') {
           requireFields(brand, [['companyName', 'Legal company name'], ['ein', 'EIN']]);
+          if (smsValuePresent(brand.ein) && !smsValidEin(brand.ein)) missing.push('EIN must contain exactly 9 digits');
+        } else {
+          requireFields(brand, [['firstName', 'First name'], ['lastName', 'Last name']]);
         }
         if (String(brand.entityType || '').toUpperCase() === 'PUBLIC_PROFIT') {
           requireFields(brand, [['stockSymbol', 'Stock symbol'], ['stockExchange', 'Stock exchange']]);
@@ -5501,6 +5524,7 @@
           ['state', 'State'],
           ['postalCode', 'Postal code']
         ]);
+        if ([brand.street, brand.address2].filter(Boolean).join(', ').length > 100) missing.push('Street address and unit must fit within 100 characters');
         if (!smsValidEmail(brand.email)) missing.push('Valid support email');
         if (String(brand.entityType || '').toUpperCase() === 'PUBLIC_PROFIT' && !smsValidEmail(brand.businessContactEmail)) missing.push('Valid business contact email');
         if (!smsValidPhone(brand.phone)) missing.push('Valid business phone');
@@ -5608,8 +5632,8 @@
         [/policy confirmation/i, 'policyContentConfirmed', 'consent'],
         [/Website SMS opt-in/i, 'websiteFormConfirmed', 'consent']
       ];
-      const brandFields = { 'Display name': 'displayName', 'Legal company name': 'companyName', EIN: 'ein', 'Stock symbol': 'stockSymbol', 'Stock exchange': 'stockExchange', 'Valid website': 'website', 'Street address': 'street', City: 'city', State: 'state', 'Postal code': 'postalCode', 'Valid support email': 'email', 'Valid business contact email': 'businessContactEmail', 'Valid business phone': 'phone', 'First name': 'firstName', 'Last name': 'lastName', 'Valid mobile phone for OTP': 'mobilePhone' };
-      if (brandFields[text]) return { step: ['displayName', 'companyName', 'ein', 'stockSymbol', 'stockExchange', 'website'].includes(brandFields[text]) ? 'business' : 'contact', selector: `[data-sms-field="brand.${brandFields[text]}"]` };
+      const brandFields = { 'Brand Name / DBA': 'displayName', 'EIN must contain exactly 9 digits': 'ein', 'Legal company name': 'companyName', EIN: 'ein', 'Stock symbol': 'stockSymbol', 'Stock exchange': 'stockExchange', 'Valid website': 'website', 'Street address': 'street', 'Street address and unit must fit within 100 characters': 'address2', City: 'city', State: 'state', 'Postal code': 'postalCode', 'Valid support email': 'email', 'Valid business contact email': 'businessContactEmail', 'Valid business phone': 'phone', 'First name': 'firstName', 'Last name': 'lastName', 'Valid mobile phone for OTP': 'mobilePhone' };
+      if (brandFields[text]) return { step: ['displayName', 'companyName', 'firstName', 'lastName', 'ein', 'stockSymbol', 'stockExchange', 'website'].includes(brandFields[text]) ? 'business' : 'contact', selector: `[data-sms-field="brand.${brandFields[text]}"]` };
       if (/Selected phone number/.test(text)) return { step: 'number', selector: '[data-sms-field="campaign.selectedNumberAreaCode"]' };
       const match = fields.find(([pattern]) => pattern.test(text));
       return match ? { step: match[2], selector: `[data-sms-field="campaign.${match[1]}"]` } : { step: 'summary' };
@@ -5622,9 +5646,9 @@
     }
     function smsStepHeading(step){
       const copy = {
-        business: ['Tell us about your business', 'Use the legal details on your tax records. Carriers use these to verify your identity.'],
+        business: ['Tell us about your business', 'Choose your business type, then enter the legal identity carriers will verify.'],
         contact: ['Who should we contact?', 'Add your business address and a contact who can answer questions about this registration.'],
-        features: ['What will you text customers?', 'Choose the types of messages you actually send. We register these together as Low Volume Mixed.'],
+        features: ['What will you text customers?', 'Choose the types of messages you actually send. Your business type determines the registration path.'],
         consent: ['How do customers say yes?', 'Describe your actual consent process and link to the policies customers can read.'],
         messages: ['Show what customers will receive', 'Review the suggested examples and edit them to match the messages your business sends.'],
         number: ['Choose your business number', 'This will be your sending number once carrier registration is approved.'],
@@ -5685,7 +5709,7 @@
         <div class="sms-final-grid">
           <div class="sms-final-panel">
             <h4><i class="fas fa-building"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e85c828dc8cd78"," Business") ?? " Business")}</h4>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_dc8d40b3a46dad","Legal name") ?? "Legal name")}</span><strong>${String(escapeHtml(brand.companyName || brand.displayName || 'Not set'))}</strong></div>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_dc8d40b3a46dad","Legal name") ?? "Legal name")}</span><strong>${String(escapeHtml(smsLegalName(brand) || brand.displayName || 'Not set'))}</strong></div>
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_0e681dc1798ea4","Website") ?? "Website")}</span><strong>${String(escapeHtml(brand.website || 'Not set'))}</strong></div>
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8d6bf72e0170a0","Business phone") ?? "Business phone")}</span><strong>${String(escapeHtml(businessPhone))}</strong></div>
           </div>
@@ -5693,7 +5717,7 @@
             <h4><i class="fas fa-user-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_120b4ae51d0c1d"," Contact") ?? " Contact")}</h4>
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_8cf345002184e5","Name") ?? "Name")}</span><strong>${String(escapeHtml(contact))}</strong></div>
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_5d2b9327181e33","Email") ?? "Email")}</span><strong>${String(escapeHtml(brand.email || 'Not set'))}</strong></div>
-            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(escapeHtml([brand.street, brand.city, brand.state, brand.postalCode].filter(Boolean).join(', ') || 'Not set'))}</strong></div>
+            <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_53d803cdbe9ab1","Address") ?? "Address")}</span><strong>${String(escapeHtml([brand.street, brand.address2, brand.city, brand.state, brand.postalCode].filter(Boolean).join(', ') || 'Not set'))}</strong></div>
           </div>
         </div>
         <div class="sms-final-summary-grid">
@@ -5786,11 +5810,12 @@
       const campaignSubmitted = smsHasProviderCampaign(profile);
       const brandReady = smsBrandReadyForCampaign(profile);
       const submittedAt = smsRegistrationSubmittedAt(profile);
+      const needsOtp = profile?.brand?.entityType === 'SOLE_PROPRIETOR' && !brandReady && !campaignSubmitted;
       return `
         <div class="sms-submitted-panel ${verified ? 'verified' : 'pending'}">
           <div class="sms-submitted-icon"><i class="fas ${verified ? 'fa-circle-check' : 'fa-clock'}"></i></div>
-          <h4>${verified ? 'You’re ready to text' : campaignSubmitted ? 'Your campaign is under review' : brandReady ? 'Your business is verified' : 'Business verification in progress'}</h4>
-          <p>${verified ? 'Your number is activated for the selected SMS message types.' : campaignSubmitted ? 'Your campaign has been submitted to the carriers. While this page is open, approval and number activation update automatically.' : brandReady ? 'Review your campaign details below, then select Submit campaign to start carrier review.' : 'Telnyx is reviewing your business details. Status updates automatically while this page is open. You can keep refining your campaign while you wait.'}</p>
+          <h4>${verified ? 'You’re ready to text' : campaignSubmitted ? 'Your campaign is under review' : brandReady ? 'Your business is verified' : needsOtp ? 'Verify your mobile number' : 'Business verification in progress'}</h4>
+          <p>${verified ? 'Your number is activated for the selected SMS message types.' : campaignSubmitted ? 'Your campaign has been submitted to the carriers. While this page is open, approval and number activation update automatically.' : brandReady ? 'Review your campaign details below, then select Submit campaign to start carrier review.' : needsOtp ? 'Send a verification code to your personal mobile number and enter it below. After identity verification, submit your campaign for carrier review.' : 'Telnyx is reviewing your business details. Status updates automatically while this page is open. You can keep refining your campaign while you wait.'}</p>
           <div class="sms-submitted-meta">
             ${submittedAt ? `<span><i class="fas fa-calendar-check"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_9a19fffc189408",` Submitted ${v0}`,{v0}) ?? ` Submitted ${v0}`)(escapeHtml(submittedAt))}</span>` : ''}
             <span><i class="fas ${verified ? 'fa-circle-check' : 'fa-hourglass-half'}"></i> ${escapeHtml(status.label)}</span>
@@ -5878,19 +5903,22 @@
         const publicCompany = String(brand.entityType || '').toUpperCase() === 'PUBLIC_PROFIT';
         const websiteNormalized = smsNormalizeWebsite(brand.website);
         return `<div class="sms-form-grid">
-          ${smsField('brand.displayName', 'Display Name', brand.displayName, { required: true, disabled: locked, error: !smsValuePresent(brand.displayName) ? 'Display name is required.' : '' })}
-          ${smsField('brand.companyName', 'Legal Company Name', brand.companyName, { required: !soleProprietor, disabled: locked || soleProprietor, error: !soleProprietor && !smsValuePresent(brand.companyName) ? 'Legal company name is required.' : '' })}
-          ${smsField('brand.entityType', 'Entity Type', brand.entityType, { kind: 'select', values: smsOptions.entityTypes, disabled: locked })}
-          ${smsField('brand.vertical', 'Industry Vertical', brand.vertical, { kind: 'select', values: smsOptions.verticals, disabled: locked })}
-          ${smsField('brand.ein', soleProprietor ? 'EIN (not required)' : 'EIN', brand.ein, { required: !soleProprietor, disabled: locked || soleProprietor, error: !soleProprietor && !smsValuePresent(brand.ein) ? 'EIN is required.' : '' })}
+          ${smsField('brand.entityType', 'Business type', brand.entityType, { kind: 'select', values: smsOptions.entityTypes, disabled: locked, wide: true, hint: soleProprietor ? 'For one person operating a business without an EIN. You can apply without forming an LLC. If you have an EIN, choose Private business instead. Your personal mobile number must be verified before campaign submission.' : 'For privately owned LLCs, partnerships, corporations, and individuals with an EIN.' })}
+          ${soleProprietor ? smsField('brand.firstName', 'Legal first name', brand.firstName, { required: true, disabled: locked, autocomplete: 'given-name', hint: 'Your name as it appears on government-issued ID.' }) + smsField('brand.lastName', 'Legal last name', brand.lastName, { required: true, disabled: locked, autocomplete: 'family-name' }) : smsField('brand.companyName', 'Legal company name', brand.companyName, { required: true, disabled: locked, wide: true, hint: 'Match the business name on your IRS EIN record.' })}
+          <label class="sms-ack" style="grid-column:1/-1"><input type="checkbox" data-sms-field="brand.sameAsLegalName" ${brand.sameAsLegalName ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>Brand Name / DBA is the same as my legal name</span></label>
+          ${smsField('brand.displayName', 'Brand Name / DBA', brand.sameAsLegalName ? smsLegalName(brand) : brand.displayName, { required: true, disabled: locked || !!brand.sameAsLegalName, wide: true, hint: 'The name your customers recognize. Individuals can use their own name.' })}
+          ${smsField('brand.vertical', 'Industry', brand.vertical, { kind: 'select', values: smsOptions.verticals, disabled: locked, hint: 'Choose the closest match to your main business activity. Professional services covers services such as consulting or accounting; use a more specific category when available.' })}
+          ${!soleProprietor ? smsField('brand.ein', 'EIN', smsFormatEin(brand.ein), { required: true, disabled: locked, inputmode: 'numeric', placeholder: '12-3456789', hint: '9-digit federal tax ID. Do not enter a Social Security number.', error: brand.ein && !smsValidEin(brand.ein) ? smsFieldLiveState('brand.ein', brand.ein).error : '' }) : ''}
           ${publicCompany ? smsField('brand.stockSymbol', 'Stock Symbol', brand.stockSymbol, { required: true, disabled: locked, error: !smsValuePresent(brand.stockSymbol) ? 'Stock symbol is required.' : '' }) : ''}
           ${publicCompany ? smsField('brand.stockExchange', 'Stock Exchange', brand.stockExchange, { kind: 'select', values: smsOptions.stockExchanges, required: true, disabled: locked }) : ''}
-          ${smsField('brand.website', 'Website', brand.website, {
+          ${smsField('brand.website', soleProprietor ? 'Business website or professional social profile' : 'Website', brand.website, {
             required: true,
             disabled: locked,
-            placeholder: 'https://example.com',
+            placeholder: 'example.com',
+            inputmode: 'url',
+            autocomplete: 'url',
             error: !brand.website ? 'Website is required.' : brand.website && !websiteNormalized ? 'Enter a valid website.' : '',
-            hint: websiteNormalized && websiteNormalized !== brand.website ? `Will submit as ${websiteNormalized}` : '',
+            hint: '',
             ok: !!websiteNormalized
           })}
         </div>`;
@@ -5902,8 +5930,8 @@
         const phoneDisplay = smsFormatE164ForDisplay(brand.phone);
         const emailValid = smsValidEmail(brand.email);
         return `<div class="sms-form-grid">
-          ${smsField('brand.firstName', 'Contact First Name', brand.firstName, { required: soleProprietor, disabled: locked })}
-          ${smsField('brand.lastName', 'Contact Last Name', brand.lastName, { required: soleProprietor, disabled: locked })}
+          ${!soleProprietor ? smsField('brand.firstName', 'Contact first name', brand.firstName, { disabled: locked }) : ''}
+          ${!soleProprietor ? smsField('brand.lastName', 'Contact last name', brand.lastName, { disabled: locked }) : ''}
           ${smsField('brand.email', 'Support Email', brand.email, { type: 'email', required: true, disabled: locked, error: !brand.email ? 'Support email is required.' : brand.email && !emailValid ? 'Enter a valid support email.' : '', ok: emailValid })}
           ${publicCompany ? smsField('brand.businessContactEmail', 'Business Contact Email', brand.businessContactEmail, { type: 'email', required: true, disabled: locked, error: !smsValidEmail(brand.businessContactEmail) ? 'A valid business contact email is required.' : '' }) : ''}
           ${smsField('brand.phone', 'Business Phone', brand.phone, {
@@ -5915,13 +5943,14 @@
           })}
           ${soleProprietor ? smsField('brand.mobilePhone', 'Mobile Phone for Verification', brand.mobilePhone, { required: true, disabled: locked, error: !brand.mobilePhone ? 'A US/Canada mobile phone is required for Telnyx OTP verification.' : !smsNormalizePhone(brand.mobilePhone) ? 'Enter a valid mobile phone.' : '', hint: 'Telnyx will send a one-time verification code to this number.' }) : ''}
           ${smsField('brand.street', 'Street Address', brand.street, { wide: true, required: true, disabled: locked, autocomplete: 'off', error: !smsValuePresent(brand.street) ? 'Street address is required.' : '' })}
+          ${smsField('brand.address2', 'Apartment, suite, or unit (optional)', brand.address2, { wide: true, disabled: locked, autocomplete: 'address-line2', placeholder: 'Suite 200' })}
           ${smsField('brand.city', 'City', brand.city, { required: true, disabled: locked, error: !smsValuePresent(brand.city) ? 'City is required.' : '' })}
           ${smsField('brand.state', 'State', brand.state, { required: true, disabled: locked, error: !smsValuePresent(brand.state) ? 'State is required.' : '' })}
           ${smsField('brand.postalCode', 'Postal Code', brand.postalCode, { required: true, disabled: locked, error: !smsValuePresent(brand.postalCode) ? 'Postal code is required.' : '' })}
         </div>`;
       }
       if (step === 'features') {
-        return `<div class="sms-consent-box"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_d91c5ee1137f8e","Choose SMS features") ?? "Choose SMS features")}</h4><p>Low Volume Mixed registration needs at least two messaging purposes. Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has separate, explicit marketing consent and intends to send promotional content.</p></div>${String(smsFeatureTiles(profile))}`;
+        return `<div class="sms-consent-box"><h4>${(globalThis.PlatformLanguage?.htmlText("settings","m_d91c5ee1137f8e","Choose SMS features") ?? "Choose SMS features")}</h4><p>${brand.entityType === 'SOLE_PROPRIETOR' ? 'Sole proprietor registration needs at least one messaging purpose.' : 'Low Volume Mixed registration needs at least two messaging purposes.'} Customer conversations and operational updates are enabled by default. Select Customer Growth only when the business has separate, explicit marketing consent and intends to send promotional content.</p></div>${String(smsFeatureTiles(profile))}`;
       }
       if (step === 'consent') return smsConsentContent(profile);
       if (step === 'messages') return smsMessagesContent(profile);
@@ -6464,7 +6493,7 @@
           input.__smsAutocomplete.addListener('place_changed', () => {
             const place = input.__smsAutocomplete.getPlace() || {};
             profile = smsApplyGooglePlace(smsCollect(rootEl(), profile), place);
-            ['street', 'city', 'state', 'postalCode'].forEach((key) => {
+            ['street', 'address2', 'city', 'state', 'postalCode'].forEach((key) => {
               const field = rootEl()?.querySelector(`[data-sms-field="brand.${key}"]`);
               if (field) field.value = profile.brand?.[key] || '';
             });
@@ -6481,6 +6510,12 @@
           input.addEventListener('input', () => {
             if (operationBusy || input.disabled || smsRegistrationLocked(profile)) return;
             const inputFieldName = String(input.getAttribute('data-sms-field') || '');
+            if (inputFieldName === 'brand.ein') {
+              const position = input.selectionStart;
+              const before = input.value;
+              input.value = smsFormatEin(before);
+              if (position != null) { const caret = position + input.value.length - before.length; input.setSelectionRange(caret, caret); }
+            }
             if (inputFieldName === 'brand.phone') {
               const formatted = smsFormatPhoneInput(input.value);
               if (formatted && formatted !== input.value) input.value = formatted;
@@ -6490,7 +6525,19 @@
             }
             smsRefreshInputValidity(input);
             profile = smsCollect(rootEl(), profile);
+            if (profile.brand.sameAsLegalName) {
+              const nameInput = rootEl()?.querySelector('[data-sms-field="brand.displayName"]');
+              if (nameInput) nameInput.value = profile.brand.displayName;
+            }
             updateSummaryValidation();
+            ctxRef?.touch?.();
+          });
+          if (input.dataset.smsField === 'brand.website') input.addEventListener('blur', () => {
+            if (input.disabled || operationBusy) return;
+            const normalized = smsNormalizeWebsite(input.value);
+            if (normalized) input.value = normalized;
+            smsRefreshInputValidity(input);
+            profile = smsCollect(rootEl(), profile);
             ctxRef?.touch?.();
           });
           input.addEventListener('change', () => {
@@ -6500,13 +6547,17 @@
               if (confirm) confirm.checked = false;
             }
             const fieldName = String(input.getAttribute('data-sms-field') || '');
-            if (['brand.street', 'brand.city', 'brand.state', 'brand.postalCode'].includes(fieldName)) {
+            if (['brand.street', 'brand.address2', 'brand.city', 'brand.state', 'brand.postalCode'].includes(fieldName)) {
               profile = prepareSmsProfileForSave({ ...profile, brand: { ...profile.brand, addressAutocompleteSelected: false, formattedAddress: '' } });
             }
             profile = smsCollect(rootEl(), profile);
+            if (profile.brand.sameAsLegalName) {
+              const nameInput = rootEl()?.querySelector('[data-sms-field="brand.displayName"]');
+              if (nameInput) nameInput.value = profile.brand.displayName;
+            }
             updateSummaryValidation();
             ctxRef?.touch?.();
-            if (fieldName === 'campaign.optInMethod' || input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack') || input.hasAttribute('data-sms-consent-ack')) refresh();
+            if (fieldName === 'brand.entityType' || fieldName === 'brand.sameAsLegalName' || fieldName === 'campaign.optInMethod' || input.hasAttribute('data-sms-feature') || input.hasAttribute('data-sms-feature-confirm') || input.hasAttribute('data-sms-flow-ack') || input.hasAttribute('data-sms-consent-ack')) refresh();
           });
         });
       };
@@ -6630,7 +6681,7 @@
         id: 'sms-workflow',
         workflowKey: '10dlc',
         title: 'Set up business texting',
-        subtitle: '10DLC registration · Low Volume Mixed',
+        subtitle: 'SMS registration',
         icon: 'fa-message',
         initialStepId: requestedStep || smsResumeStep(profile),
         statusNote: 'Draft autosaves as you move through the workflow.',

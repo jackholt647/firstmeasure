@@ -2384,3 +2384,23 @@ test("live Telnyx transport requires consent and signed webhooks finalize delive
     await new Promise<void>((resolve, reject) => server?.close((error) => error ? reject(error) : resolve()));
   }
 });
+
+test("sole proprietor identity omits stale company fields and retains the address unit", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
+    brand: {country:"US",entityType:"SOLE_PROPRIETOR",displayName:"Jane Smith",firstName:"Jane",lastName:"Smith",vertical:"PROFESSIONAL",email:"jane@example.test",phone:"2065550100",mobilePhone:"2065550101",street:"100 Main Street",address2:"Suite 200",city:"Seattle",state:"WA",postalCode:"98101",website:"example.test",companyName:"Previous LLC",ein:"123456789",sameAsLegalName:true},campaign:{}
+  });
+  const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}`;
+  const dry = await client.request("POST",`${endpoint}/submit-brand`,{dry_run:true});
+  assert.equal(dry.payload.entityType,"SOLE_PROPRIETOR");
+  assert.equal(dry.payload.firstName,"Jane");
+  assert.equal(dry.payload.mobilePhone,"+12065550101");
+  assert.equal(dry.payload.street,"100 Main Street, Suite 200");
+  assert.equal(dry.payload.companyName,undefined);assert.equal(dry.payload.ein,undefined);
+  const saved = await client.request("GET",endpoint);
+  assert.equal(saved.profile.brand.address2,"Suite 200");assert.equal(saved.profile.brand.sameAsLegalName,true);
+  await client.request("PATCH",endpoint,{brand:{...created.profile.brand,entityType:"PRIVATE_PROFIT",ein:"123456789012"}});
+  const invalid = await client.raw("POST",`${endpoint}/submit-brand`,{dry_run:true});
+  assert.equal(invalid.statusCode,400);assert.match(invalid.body,/einFormat/);
+});

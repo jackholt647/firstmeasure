@@ -131,7 +131,7 @@ function payloadHash(value: unknown) {
 
 const EDITABLE_BRAND_FIELDS = [
   "country", "displayName", "email", "entityType", "vertical", "companyName", "ein", "phone", "mobilePhone",
-  "street", "city", "state", "postalCode", "website", "firstName", "lastName", "businessContactEmail",
+  "street", "address2", "sameAsLegalName", "city", "state", "postalCode", "website", "firstName", "lastName", "businessContactEmail",
   "stockSymbol", "stockExchange", "isReseller", "formattedAddress", "addressAutocompleteSelected", "addressComponents", "lat", "lng"
 ] as const;
 const EDITABLE_CAMPAIGN_FIELDS = [
@@ -569,6 +569,7 @@ function validateBrandDraft(brandInput: JsonObject) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanText(brandInput.email))) missing.push("emailFormat");
   if (!/^[A-Z]{2}$/.test(cleanText(brandInput.country).toUpperCase())) missing.push("countryFormat");
   if (!normalizeEnum(brandInput.vertical, BRAND_VERTICALS, "")) missing.push("vertical");
+  if ([cleanText(brandInput.street), cleanText(brandInput.address2)].filter(Boolean).join(", ").length > 100) missing.push("streetMaxLength");
   for (const [key, max] of [["displayName", 100], ["email", 100], ["companyName", 100], ["firstName", 100], ["lastName", 100], ["street", 100], ["city", 100], ["website", 100]] as const) {
     if (cleanText(brandInput[key]).length > max) missing.push(`${key}MaxLength`);
   }
@@ -588,6 +589,7 @@ function validateBrandDraft(brandInput: JsonObject) {
     }
     if (!normalizePhone(brandInput.phone)) missing.push("phone");
     if (!normalizePhone(brandInput.mobilePhone)) missing.push("mobilePhone");
+    if (!normalizeWebsite(brandInput.website)) missing.push("website");
   }
   if (entityType === "PUBLIC_PROFIT" && !nonEmpty(brandInput.businessContactEmail)) {
     missing.push("businessContactEmail");
@@ -721,7 +723,7 @@ function brandPayload(profile: SmsComplianceProfile) {
     ein: cleanText(brand.ein),
     phone: normalizePhone(brand.phone),
     mobilePhone: normalizePhone(brand.mobilePhone),
-    street: cleanText(brand.street),
+    street: [cleanText(brand.street), cleanText(brand.address2)].filter(Boolean).join(", "),
     city: cleanText(brand.city),
     state: cleanText(brand.state).toUpperCase(),
     postalCode: cleanText(brand.postalCode),
@@ -736,6 +738,14 @@ function brandPayload(profile: SmsComplianceProfile) {
     ...(env.telnyxWebhookFailoverUrl ? { webhookFailoverURL: env.telnyxWebhookFailoverUrl } : {}),
     ...(LIVE_MODE() ? {} : { mock: true })
   };
+  // Drafts may retain company fields when a user changes registration paths.
+  // Sole proprietor identity is verified using the individual's name and mobile.
+  if (payload.entityType === "SOLE_PROPRIETOR") {
+    delete payload.companyName;
+    delete payload.ein;
+    delete payload.stockSymbol;
+    delete payload.stockExchange;
+  }
   for (const key of Object.keys(payload)) {
     if (payload[key] === "" || payload[key] == null) delete payload[key];
   }

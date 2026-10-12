@@ -109,6 +109,7 @@ test('registration landing page has one primary action, truthful states, and res
     const page=await browser.newPage({viewport:{width:1150,height:850}});
     await page.route('https://sms-fixture.test/**',route=>route.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));
     await page.goto('https://sms-fixture.test/');
+    await page.clock.install();
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.setContent('<style>body{font-family:Arial;margin:0;padding:32px;background:#fff;color:#182230}*{box-sizing:border-box}.cs-btn{border:1px solid #d0d5dd;background:white;color:#182230}.cs-btn.primary{background:#e32b20;border-color:#e32b20;color:white}@media(max-width:700px){body{padding:16px}}</style><main id="entry"></main>');
     await page.addStyleTag({content:styles});
@@ -144,7 +145,6 @@ test('registration landing page has one primary action, truthful states, and res
     const campaign={...fixture,campaign_status:'pending',provider_refs:{...fixture.provider_refs,telnyx_campaign_id:'campaign'}};
     await page.evaluate(profile=>{window.setup.profiles=[profile];return window.renderEntry();},campaign);
     await page.getByRole('heading',{name:'Your campaign is under review'}).waitFor();
-    await page.clock.install();
     await page.evaluate(profile=>{window.latestProfile={...profile,campaign_status:'mno_provisioned',status:'active',provider_refs:{...profile.provider_refs,telnyx_messaging_profile_id:'msg'},autoresponse_state:{status:'configured',desired_hash:'same',applied_hash:'same',messaging_profile_id:'msg'}};},campaign);
     await page.clock.runFor(30001);
     await page.getByRole('heading',{name:'Your business texting is ready'}).waitFor();
@@ -229,4 +229,64 @@ test('automatic registration checks poll the provider, pause when hidden, back o
     await page.clock.runFor(60000);
     assert.equal(await page.evaluate(()=>window.requests.length),finalCount);
   } finally {await browser.close();}
+});
+
+test('business identity switches paths, formats EIN and website, and preserves unit and brand choices', async () => {
+  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  try {
+    const page=await browser.newPage({viewport:{width:1100,height:900}});
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.setContent('<style>body{font-family:Arial;margin:0}*{box-sizing:border-box}</style>');
+    await page.addScriptTag({content:shell});await page.addStyleTag({content:styles});
+    await page.addScriptTag({content:`
+      let smsRegistrationLiveMode=true;const state={};const currentOrgId=()=> 'fixture-org';
+      const normalizeOrganizationBusinessAddress=v=>v||{};const organizationBusinessAddressFromState=()=>({});const formatOrganizationBusinessAddress=()=>'';
+      const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const formatPhoneUS=v=>v;const readSettingsRoute=()=>({});const writeSettingsRoute=()=>{};const showToast=()=>{};const renderSmsSettings=()=>{};
+      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{}})};
+      const messagingRequest=async(path,options={})=>{if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};return {profile:structuredClone(window.saved)};};
+      ${helpers}
+      ${wizard}
+      window.start=()=>openSmsWizard(window.saved,{initialStep:'business'});
+      window.usecase=brand=>smsGeneratedCampaign(mergeSmsProfile({brand})).usecase;
+      window.fieldState=smsFieldLiveState;
+      window.einValid=smsValidEin;
+    `});
+    await page.evaluate(()=>window.start());
+    assert.equal(await page.locator('[data-sms-field]').first().getAttribute('data-sms-field'),'brand.entityType');
+    assert.equal(await page.locator('[data-sms-field="brand.vertical"] option').count(),23);
+    assert.equal(await page.locator('[data-sms-field="brand.vertical"] option[value="PROFESSIONAL"]').innerText(),'Professional services');
+    const ein=page.locator('[data-sms-field="brand.ein"]');
+    await ein.fill('123456789012');assert.equal(await ein.inputValue(),'12-3456789012');
+    assert.match(await page.locator('#sms-brand-ein-help').innerText(),/9 digits.*12/);
+    await ein.fill('123456789');assert.equal(await ein.inputValue(),'12-3456789');
+    assert.equal(await ein.getAttribute('aria-invalid'),'false');
+    assert.equal(await page.evaluate(()=>window.einValid('*****6789')),true);
+    const website=page.locator('[data-sms-field="brand.website"]');await website.fill('example.com');await website.blur();
+    assert.equal(await website.inputValue(),'https://example.com');
+    assert.equal(await page.locator('#sms-brand-website-help').innerText(),'');
+    await page.locator('[data-sms-field="brand.sameAsLegalName"]').check();
+    await page.locator('[data-sms-field="brand.companyName"]').fill('Updated Legal LLC');
+    assert.equal(await page.locator('[data-sms-field="brand.displayName"]').inputValue(),'Updated Legal LLC');
+    assert.equal(await page.locator('[data-sms-field="brand.displayName"]').isDisabled(),true);
+    await page.locator('[data-sms-field="brand.entityType"]').selectOption('SOLE_PROPRIETOR');
+    assert.equal(await ein.count(),0);assert.equal(await page.locator('[data-sms-field="brand.companyName"]').count(),0);
+    await page.locator('[data-sms-field="brand.firstName"]').fill('Jane');await page.locator('[data-sms-field="brand.lastName"]').fill('Smith');
+    assert.equal(await page.locator('[data-sms-field="brand.displayName"]').inputValue(),'Jane Smith');
+    assert.equal(await page.evaluate(()=>window.usecase({entityType:'SOLE_PROPRIETOR'})),'SOLE_PROPRIETOR');
+    await page.getByRole('button',{name:'2. Contact'}).click();
+    await page.locator('[data-sms-field="brand.mobilePhone"]').waitFor();
+    await page.locator('[data-sms-field="brand.address2"]').fill('Suite 200');
+    await page.getByRole('button',{name:'1. Business'}).click();
+    assert.equal(await page.evaluate(()=>window.saved.brand.address2),'Suite 200');
+    await page.locator('[data-sms-field="brand.entityType"]').selectOption('PRIVATE_PROFIT');
+    assert.equal(await page.locator('[data-sms-field="brand.companyName"]').inputValue(),'Updated Legal LLC');
+    assert.equal(await ein.inputValue(),'12-3456789');
+    await page.locator('[data-sms-field="brand.sameAsLegalName"]').uncheck();
+    assert.equal(await page.locator('[data-sms-field="brand.displayName"]').isEnabled(),true);
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+    if(process.env.SMS_SCREENSHOTS) {await mkdir(process.env.SMS_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/identity-mobile.png'});}
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
 });
