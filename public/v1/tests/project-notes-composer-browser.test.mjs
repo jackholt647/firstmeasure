@@ -8,6 +8,7 @@ const {chromium}=createRequire(import.meta.url)('playwright-core');
 const publicRoot=fileURLToPath(new URL('../../',import.meta.url));
 test('project notes share channel formatting and controls, preserve drafts, and fit narrow trays',async()=>{
  const server=createServer(async(req,res)=>{
+  if(req.url.startsWith('/images/giphy/')){res.setHeader('Content-Type','image/png');const pathname=new URL(req.url,'http://fixture').pathname;const data=process.env.DEV_ASSETS?Buffer.from(await (await fetch('https://dev.1m8.ai'+pathname+'?mark-check='+Date.now())).arrayBuffer()):await readFile(publicRoot+pathname);res.end(data);return;}
   if(req.url==='/avatar.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="#175cd3"/></svg>');return;}
   if(req.url.startsWith('/libraries/gif-picker/giphy-sdk.js')){res.setHeader('Content-Type','text/javascript');res.end(`export class GiphyFetch{async trending(){return {data:[{id:'layer-gif'}]};}search(){return this.trending();}}export function renderGrid(options,host){const b=document.createElement('button');b.textContent='Choose layer GIF';b.onclick=e=>options.onGifClick({id:'layer-gif',title:'Layer GIF',images:{fixed_width:{url:'https://media.giphy.com/media/test/giphy.gif',width:'200',height:'160'}}},e);host.append(b);return()=>host.replaceChildren();}`);return;}
   if(req.url.startsWith('/v1/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({departments:[],channels:[]}));return;}
