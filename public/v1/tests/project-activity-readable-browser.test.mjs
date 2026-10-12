@@ -43,6 +43,10 @@ test('native lifecycle actions filter correctly, emphasize only verbs and open s
   assert.equal(await task.locator('p').evaluate(el=>getComputedStyle(el).fontWeight),'400');
   assert.equal(await task.locator('strong').evaluate(el=>getComputedStyle(el).fontWeight),'700');
   assert.equal(await automatic.getAttribute('data-fm-summary-type'),null);
+  assert.equal(await task.getAttribute('data-fm-summary-type'),null,'activity rows do not trigger a user preview');
+  assert.equal(await task.getByRole('button',{name:'Preview Casey Nguyen'}).getAttribute('data-fm-summary-type'),'summary.user');
+  await task.locator('p').hover();await page.waitForTimeout(300);assert.equal(await page.locator('[role="tooltip"]').count(),0,'hovering the description does not open a preview');
+  await task.locator('time').hover();await page.waitForTimeout(300);assert.equal(await page.locator('[role="tooltip"]').count(),0,'hovering the time does not open a preview');
   assert.equal(await page.locator('.fm-project-activity img').count(),0);assert.equal(await page.evaluate(()=>window.bad),undefined);
   await task.getByRole('button',{name:'Preview Casey Nguyen'}).hover();await page.locator('[role="tooltip"]').getByText('casey@example.test',{exact:true}).waitFor({timeout:5000});
   assert.equal(await page.locator('[role="tooltip"]').evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.left+20,r.top+30));}),true,'preview must be above the actual project-window layer');
