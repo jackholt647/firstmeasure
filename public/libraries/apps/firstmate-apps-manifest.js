@@ -42,7 +42,7 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
     versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-gif-mark-v6'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-gif-half-v7'),
     versionedBundle('../project-notes/project-notes.js', '20261012-gif-mark-v6'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-activity-labels-v4'),
     versionedBundle('../project-trays/project-trays.js', '20261012-activity-labels-v4')
@@ -551,7 +551,7 @@
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-gif-mark-v6'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-gif-half-v7'),
     versionedBundle('../project-notes/project-notes.js', '20261012-gif-mark-v6'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
