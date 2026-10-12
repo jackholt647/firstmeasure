@@ -36,7 +36,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
       const channel={id:'general',name:'general',type:'public',display_name:'General',members:[me,member,second],settings:{},permissions:{},unread:{},is_member:true,message_seq:1};
       const root={id:'root',channel_id:channel.id,seq:1,text:'Root @J. Lee remains ordinary text',author:me,created_at:new Date().toISOString(),mention_users:[member],can_edit:true,reply_count:0,reactions:[]};
       const special={...root,id:'special',seq:2,text:'@Sam & Sons remains ordinary; @Sam & SonsPlus is not this mention',mention_users:[second]};
-      window.messages=[root,special];window.sent=[];window.edited=[];
+      window.messages=[root,special,{...root,id:'gif-only',seq:3,text:'',mention_users:[],metadata:{giphy:{id:'spacing',url:'https://media.giphy.com/media/spacing/giphy.gif',width:200,height:112}}}];window.sent=[];window.edited=[];
       const copy=value=>structuredClone(value);
       window.__APP={userId:me.id,userOrgId:'mention-fixture',userName:me.name};
       window.Portal={currentUser:me,ui:{showToast(){}},appFlags:{current:()=>true,has:()=>true}};
@@ -76,6 +76,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
       await editor.evaluate(n=>{n.value='';n.focus();const range=document.createRange();range.selectNodeContents(n);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);});const bold=toolbar.getByRole('button',{name:'Bold',exact:true});await editor.press('Control+b');await page.waitForFunction(n=>n.getAttribute('aria-pressed')==='true',await bold.elementHandle());await editor.press('Control+b');await page.waitForFunction(n=>n.getAttribute('aria-pressed')==='false',await bold.elementHandle());
       await editor.evaluate(n=>n.value='');
     }
+    const gifMessage=page.locator('.fm-ch-msg[data-message-id="gif-only"]');await gifMessage.locator('.fm-ch-gif').waitFor();assert.equal(await gifMessage.locator('.fm-ch-msg-body').isHidden(),true);const gifSpacing=await gifMessage.evaluate(node=>{const head=node.querySelector('.fm-ch-msg-head').getBoundingClientRect(),image=node.querySelector('.fm-ch-gif img').getBoundingClientRect(),figure=node.querySelector('.fm-ch-gif');return {before:image.top-head.bottom,bottom:getComputedStyle(figure).marginBottom,caption:getComputedStyle(figure.querySelector('figcaption')).lineHeight};});assert.ok(gifSpacing.before<=4,JSON.stringify(gifSpacing));assert.equal(gifSpacing.bottom,'0px');assert.equal(gifSpacing.caption,'12px');
     const editor=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();
     await verifyFormatting(editor);
     assert.equal(await page.locator('.fm-ch-composer-hint').first().innerText(),'Shift+Enter for a new line');

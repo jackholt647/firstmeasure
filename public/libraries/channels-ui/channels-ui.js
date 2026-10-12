@@ -134,6 +134,7 @@
 
   function renderBody(message, textValue, quoteDepth = 0){
     const source = String(textValue == null ? message.text || '' : textValue);
+    if(!source.trim())return '';
     const inline = (value) => {
       const tokens = [];
       const keep = html => `\u0000${tokens.push(html) - 1}\u0000`;
@@ -282,7 +283,7 @@
     function renderGifDraft(host, gif, onRemove){
       host.replaceChildren();
       if(!gif)return;
-      const preview=el('div','fm-ch-gif-draft');preview.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:8px 0';
+      const preview=el('div','fm-ch-gif-draft');preview.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:4px 0';
       const image=el('img');image.src=gif.url;image.alt=gif.title||'GIF attachment';image.style.cssText='max-width:180px;max-height:120px;border-radius:8px';
       const remove=el('button','fm-ch-icon-btn','×');remove.type='button';remove.setAttribute('aria-label','Remove GIF');remove.onclick=onRemove;
       preview.append(image,remove);host.append(preview);
@@ -1031,7 +1032,7 @@
 .fm-ch-msg:hover .fm-ch-quick-like,.fm-ch-msg:focus-within .fm-ch-quick-like{opacity:.65}
 .fm-ch-quick-like:hover,.fm-ch-quick-like:focus-visible{opacity:1!important}
 .fm-ch-msg-body>.fm-ch-msg-edited{margin-left:6px}
-.fm-ch-gif{margin:8px 0;max-width:320px}.fm-ch-gif img{display:block;max-width:100%;height:auto;border-radius:10px}.fm-ch-gif figcaption{font-size:10px;color:var(--ch-muted);margin-top:4px}
+.fm-ch-gif{margin:4px 0 0;width:max-content;max-width:min(320px,100%)}.fm-ch-gif>a{display:block}.fm-ch-gif img{display:block;max-width:100%;height:auto;border-radius:10px}.fm-ch-gif figcaption{font-size:10px;line-height:12px;color:var(--ch-muted);margin-top:2px}
 .fm-ch-member-row[hidden]{display:none}
 @media(hover:none){.fm-ch-quick-like{opacity:.65}}
 .fm-ch-reaction{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--ch-border);background:#fff;border-radius:999px;padding:1px 8px;font-size:12px}
