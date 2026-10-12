@@ -27,3 +27,11 @@ https://support.telnyx.com/en/articles/13545282-guide-to-sole-proprietor-10dlc-b
 Deployment uses per-host guarded overlays of current source, preserving concurrent
 Phone Settings/live-registration integrations. Worker receives only the backend
 change. No applications, number purchases, or verification texts are sent by tests.
+
+## Development activation verified
+
+Release `cab8e056bad0ad1f18481af9e77375911197eb26` is active on development
+web, pool, compatibility, and worker. All HTTP roles pass readiness and the
+worker is active. The public settings asset matches the staged SHA-256.
+Merged live source passes TypeScript checking and all four browser tests.
+No production changes or provider submissions were made.
