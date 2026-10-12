@@ -97,3 +97,45 @@ Runtime identity: `8a1250d7334bf6ff0e28569ef78ec30b5999fb9f`. Bundle version:
 Notes SHA-256:
 `942eef775d6fb354433c95b0913c4bf6562195b8bc10bd09c3987ce0fc439d0e`.
 
+
+## Picker layer follow-up
+
+Frontend commit `e49449c59441c9fce8e9cd99590e9a4fc7db32ca` fixes the shared picker popover's hardcoded layer
+1601, which was below the project's modal layer. The picker now measures its
+anchor's ancestor layers and opens above them, bounded to the browser's maximum
+layer value. This applies to GIF and shared emoji popovers. Channels and widget
+loaders use a new picker cache version; the runtime's grouped-widget loader and
+Notes/Channels bundle versions are refreshed.
+
+The reply composer removes its REPLY heading and places Close beside Send in
+the bottom action row. Closing still preserves the draft. Author filters use the
+same outlined search wrapper and magnifying glass as the adjacent toolbar search,
+with placeholder Search and accessible label Search note authors. Only remains
+the Activity-style shortcut for selecting one author and clearing the others;
+its tooltip now explains that behavior.
+
+Three browser checks pass locally and again using development-hosted assets.
+The Notes fixture now exercises the real shared picker popover in both main and
+reply composers above layer 2147483100, tests hit targets with elementFromPoint,
+and selects GIFs through the picker UI. Only the GIPHY SDK/config and delivery
+are fixtures. It also verifies the compact reply controls and author search.
+The previous Notes check used a picker stub and could not detect this layer bug.
+Channels Enter/Shift+Enter and Feed GIF drafts still pass. No customer writes
+are made by the checks.
+
+All three roles passed immutable frontend staging, JavaScript syntax, activation,
+source hashes, readiness, exact retained backend identity and enforced development
+outbound safety. Public hashes for all six owned frontend assets match reviewed
+payloads. The frontend rollout reloads PHP only, preserving backend/runtime
+`8a1250d7334bf6ff0e28569ef78ec30b5999fb9f`, compiled modules, data and other deployed changes.
+
+| Role | Current frontend release |
+| --- | --- |
+| Web | `/opt/firstmeasure/releases/e49449c59441c9fce8e9cd99590e9a4fc7db32ca-notes-picker-layer` |
+| Pool | `/opt/firstmeasure/releases/e49449c59441c9fce8e9cd99590e9a4fc7db32ca-notes-picker-layer` |
+| Compatibility | `/mnt/firstmeasure_dev_releases/releases/e49449c59441c9fce8e9cd99590e9a4fc7db32ca-notes-picker-layer` |
+
+Previous frontend releases are the corresponding `8a1250d7334bf6ff0e28569ef78ec30b5999fb9f-notes-gifs-ui`
+paths above. Baselines, owned patches, role manifests, scripts and verification
+receipts are retained under ignored output/notes-picker-layer-deploy and in the
+immutable release. Production was not changed.
