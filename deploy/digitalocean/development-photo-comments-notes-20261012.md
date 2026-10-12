@@ -244,3 +244,25 @@ Final verified paths:
 | compat | `/mnt/firstmeasure_dev_releases/releases/171e9fedfba57c1e64146456ee0326f92e32a74b-compact-composers-ui` | `e5fb6ee59b88b6af468181450d4e019a4dc419b6` |
 
 Previous runtime release on all roles was `152862f7ee8b4411f8d5cba112143dc0972e4751-reply-participants` (under `/opt/firstmeasure/releases` for web/pool and `/mnt/firstmeasure_dev_releases/releases` for compat). The final frontend-only activation retained runtime `e5fb6ee5`; rollback of that layout follow-up uses the prior `e5fb6ee5-compact-composers` release. Backend rollback requires the development service restart and readiness guard used in the recorded activation.
+
+
+## Composer styling, toggles and Channels control follow-up
+
+October 12, 2026. Verified frontend release `cb52c2acf5e71fb9b03a8529ced15c5fbac736b7` addresses the follow-up composer requests:
+
+- Formatting buttons have explicit shared border/background/font/color styling outside the Channels root, fixing Posts comment and edit toolbars. The new manual-post toolbar retains its original divider and padding, and its 300px text editor. Its tagging button uses the existing bottom tool styling.
+- Compact Notes, photo comments, Posts comments and edits, Channels and replies now start at two text lines (44px at 20px line-height; 46px at 21px line-height) and grow with content.
+- A single recording action remains directly in the left icon group. More options is used only for multiple actions. The original action nodes, recording handlers and disabled states remain intact.
+- Tagging, formatting overflow, recording options and scheduling menus toggle closed on a second click of their owning icon. Outside-click handling excludes the trigger and its icon children. Posts emoji pickers also toggle closed on repeated clicks. Menu item and search styling is explicit, with no horizontal overflow and a visible empty-result message.
+- Channels Send and Reply use the paper-airplane button, retaining accessible Send/Reply/Save changes labels. Schedule sits to the right of Send. The schedule divider is removed. Reply tagging stays with the left icon group, while Also send to channel occupies its own row above the icons.
+- Expanded Channels tables use the normal project modal sizing from `window-manager.js`: maximum 1720 by 1180, bounded by 96vw and 92dvh. Table contents scroll inside that modal.
+
+All 14 browser checks passed locally and again against the published development assets, including repeated picker clicks, direct single-action placement, restored toolbar appearance, two-line sizes, visible narrow reply menus, paper-airplane buttons, Send/Schedule order, separate reply checkbox row and table-modal dimensions at 2400x1400 and 1100x800. Posts composer screenshots were reviewed. All changed JavaScript passed syntax checks on each role. Public asset hashes, role source hashes, development readiness and outbound safety were verified.
+
+The release was patched onto the current `3fde051b-sms-final-ui` release on each role, preserving concurrent work and the active backend runtime `3fde05106356a85fe14109c7e24a8e7fec64be1c`. This was a frontend-only activation with PHP-FPM reload; no backend restart, database migration, worker activation or production change.
+
+| Role | Current frontend release | Rollback frontend release |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/cb52c2acf5e71fb9b03a8529ced15c5fbac736b7-composer-refinements` | `/opt/firstmeasure/releases/3fde051b-sms-final-ui` |
+| pool | `/opt/firstmeasure/releases/cb52c2acf5e71fb9b03a8529ced15c5fbac736b7-composer-refinements` | `/opt/firstmeasure/releases/3fde051b-sms-final-ui` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/cb52c2acf5e71fb9b03a8529ced15c5fbac736b7-composer-refinements` | `/mnt/firstmeasure_dev_releases/releases/3fde051b-sms-final-ui` |
