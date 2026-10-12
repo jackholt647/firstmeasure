@@ -16,6 +16,14 @@ One-to-one conversations never absorb group replies. Group context cannot be
 silently replaced with another project, and newly received groups are not
 assigned to a project merely by matching one participant's phone number.
 
+Signed incoming groups are not subject to the outgoing eight-recipient cap.
+Their complete normalized membership, messages and images are retained. The
+group projection reports `read_only` and `reply_block_reason` when membership
+exceeds eight external numbers or another outgoing group constraint fails.
+Generic, dedicated and published group sends enforce this read-only state;
+they never truncate membership to make a reply fit. This preserves messages
+Telnyx actually forwards, without guaranteeing oversized carrier delivery.
+
 ## API
 
 Under `/v1/messaging/organizations/:orgId/sms/groups`:
@@ -32,6 +40,12 @@ Under `/v1/messaging/organizations/:orgId/sms/groups`:
   validated user-owned JPG/PNG/GIF attachment is required. Arbitrary remote
   attachment URLs, audio-note metadata and changing the recipient set are not
   accepted by this endpoint.
+- `POST /:conversationId/private-replies` with `{reply_to_message_id, text?,
+  image_media_id?, purpose?, idempotency_key}` explicitly sends only to that
+  stored incoming message's sender. The source must belong to the authorized
+  group and be inbound SMS/MMS. Recipient and sending line are server-derived.
+  A separate stable private conversation is used; group history is unchanged.
+  Image ownership, consent, registration and delivery safeguards still apply.
 
 The existing generic API still accepts the complete group recipient set and
 configured sender. It applies the same group checks. The dedicated API derives
@@ -54,6 +68,9 @@ Attachments reuse the shared user-owned SMS image upload and preparation flow;
 an unchanged failed send retains its upload and idempotency key on retry.
 Refresh controls reload the conversation explicitly rather than replacing an
 unsent draft in the background. Emoji insertion uses the Channels picker.
+Read-only groups omit the group composer. Each incoming sender has an explicit
+private-reply control; the private composer names the sole recipient before
+sending and opens the resulting one-to-one conversation after success.
 
 Browser verification: `node --test tests/phone-group-text-browser.test.mjs
 tests/phone-tray-browser.test.mjs tests/phone-modal-browser.test.mjs` in
@@ -62,7 +79,9 @@ tests/phone-tray-browser.test.mjs tests/phone-modal-browser.test.mjs` in
 ## Publications
 
 Provider `comms-sms-groups@1` exports `conversations` and `messages`; both are
-typed, paginated and discoverable under Comms. Messages require a
+typed, paginated and discoverable under Comms. Conversation schema version 2
+includes full incoming membership and read-only eligibility without the outgoing
+recipient cap. Messages require a
 `conversation_id` argument. Organization and project targets are supported;
 project reads are restricted to the target project. Data uses `view_comms` and
 fresh organization/branch/project/feature checks, including frozen snapshot
@@ -80,7 +99,12 @@ published. Snapshot provenance retains viewer and conversation identities.
   checked before receipt replay as well as execution. No trusted-system bypass
   is published; API, agent, module and Work callers need a current human context.
 
-Both actions belong to `send_communications`, retain immutable implementation
+- `comms.smsGroup.replyPrivately@1`: external effect, required receipt;
+  `target.id` is the source group. Input identifies an incoming message and
+  text/image/purpose, never a caller-supplied recipient or sending line. It uses
+  the same domain service as HTTP, including current project/resource access.
+
+All three actions belong to `send_communications`, retain immutable implementation
 identity and delegate to the same domain services as HTTP. Shared bootstrap
 registers them for every execution host.
 

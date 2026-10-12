@@ -27,7 +27,7 @@
     if (document.getElementById('fm-communications-css')) return;
     const link = document.createElement('link'); link.id='fm-communications-css'; link.rel='stylesheet';
     const source=new URL(document.currentScript?.src || `${location.origin}/libraries/apps/comms/communications-ui.js`);
-    link.href=new URL('communications.css?v=20261009-group-text-v1',source).href;
+    link.href=new URL('communications.css?v=20261011-readonly-groups-v1',source).href;
     document.head.append(link);
   }
   css();
@@ -71,8 +71,9 @@
   const phoneKey=value=>{const digits=String(value||'').replace(/\D/g,'');return digits.length===10?'1'+digits:digits;};
   const groupThread=thread=>thread?.group_mms===true||thread?.metadata?.sms_group?.mode==='group_mms';
   const members=thread=>thread?.participants||[];
+  const readOnlyGroup=thread=>groupThread(thread)&&(thread.read_only===true||members(thread).length>8);
   const phoneLabel=value=>Portal.PhoneTray?.formatPhone(value)||String(value||'');
-  const threadTitle=thread=>groupThread(thread)?members(thread).map(member=>member.name||phoneLabel(member.address)).join(', '):thread.contact_name||phoneLabel(thread.contact_address)||'Conversation';
+  const threadTitle=thread=>groupThread(thread)?members(thread).slice(0,members(thread).length>8?2:8).map(member=>member.name||phoneLabel(member.address)).join(', ')+(members(thread).length>8?` + ${members(thread).length-2} others`:''):thread.contact_name||phoneLabel(thread.contact_address)||'Conversation';
   async function textInbox(cursor){
     const [privateInbox,groups]=await Promise.all([cursor?Promise.resolve({conversations:[]}):window.CommsAPI.inbox(org(),{channel:'sms',limit:250}),window.CommsAPI.sms.groups.list(org(),{limit:100,...(cursor?{cursor}:{})})]);
     const conversations=new Map((privateInbox.conversations||[]).map(thread=>[thread.id,thread]));
@@ -86,6 +87,7 @@
   }
   function threadLine(thread){return thread.local_number||thread.metadata?.sms_group?.local_number||'';}
   async function textReply(thread,body,number){
+    if(readOnlyGroup(thread))throw new Error('This group is read-only. Choose a private reply to an incoming sender.');
     if(groupThread(thread))return window.CommsAPI.sms.groups.send(org(),thread.id,{text:body.text,idempotency_key:body.idempotency_key,...(body.image?{image_media_id:body.image.media_id}:{})});
     if(!number)throw new Error('Choose a text-ready company line.');
     return window.CommsAPI.reply(org(),thread.id,{...body,business_number:number});
@@ -104,7 +106,20 @@
     const mediaId=message.image_media_id||message.metadata?.sms_image?.media_id;
     const attachments=message.attachments||message.metadata?.media||[];
     const urls=[...(mediaId?[window.PlatformAPI.media.fileUrl(org(),mediaId)]:[]),...attachments.filter(item=>/^image\//i.test(item.content_type||'')).map(item=>item.url)].filter(url=>{try{return ['https:','http:'].includes(new URL(url,location.origin).protocol);}catch{return false;}});
-    return `${groupThread(thread)&&message.direction==='inbound'?`<strong class="fm-text-author">${esc(author?.name||phoneLabel(sender)||'Participant')}</strong>`:''}<span class="fm-text-body">${esc(message.text||'')}</span>${urls.map(url=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer"><img src="${esc(url)}" alt="Attached image" loading="lazy"></a>`).join('')}<small>${esc(date(message.created_at))}${message.direction==='outbound'&&message.status?' · '+esc(label(message.status)):''}</small>${message.deliveries?.length?`<details class="fm-text-deliveries"><summary>Delivery (${message.deliveries.length})</summary>${message.deliveries.map(item=>`<div>${esc(members(thread).find(member=>phoneKey(member.address)===phoneKey(item.recipient))?.name||phoneLabel(item.recipient))}: ${esc(label(item.status))}</div>`).join('')}</details>`:''}`;
+    return `${groupThread(thread)&&message.direction==='inbound'?`<strong class="fm-text-author">${esc(author?.name||phoneLabel(sender)||'Participant')}</strong>`:''}<span class="fm-text-body">${esc(message.text||'')}</span>${urls.map(url=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer"><img src="${esc(url)}" alt="Attached image" loading="lazy"></a>`).join('')}<small>${esc(date(message.created_at))}${message.direction==='outbound'&&message.status?' · '+esc(label(message.status)):''}</small>${message.deliveries?.length?`<details class="fm-text-deliveries"><summary>Delivery (${message.deliveries.length})</summary>${message.deliveries.map(item=>`<div>${esc(members(thread).find(member=>phoneKey(member.address)===phoneKey(item.recipient))?.name||phoneLabel(item.recipient))}: ${esc(label(item.status))}</div>`).join('')}</details>`:''}${readOnlyGroup(thread)&&message.direction==='inbound'&&sender?privateReplyButton(message,thread):''}`;
+  }
+  function privateReplyButton(message,thread){const sender=typeof message.sender==='string'?message.sender:message.sender?.address,name=members(thread).find(member=>phoneKey(member.address)===phoneKey(sender))?.name||phoneLabel(sender);return `<button type="button" class="fm-text-private-button" data-private-reply="${esc(message.id)}" data-private-sender="${esc(sender)}" data-private-name="${esc(name)}" aria-label="Reply privately to ${esc(name)}">${icon('reply')}<span>Reply privately to ${esc(name)}</span></button>`;}
+  function readOnlyMarkup(){return '<div class="fm-text-readonly" role="status">Read-only group</div><div data-readonly-replies></div>';}
+  function bindReadOnlyReplies(root,thread,messages,{isCurrent=()=>root.isConnected,onPrivateConversation}){
+    const footer=root.querySelector('[data-readonly-replies]');if(!footer)return;
+    const latest=[...messages].reverse().find(message=>message.direction==='inbound');
+    const reset=()=>{footer.innerHTML=latest?privateReplyButton(latest,thread):'<p>No incoming sender selected.</p>';};
+    function choose(event){const button=event.target.closest('[data-private-reply]');if(!button||!isCurrent())return;const id=button.dataset.privateReply,name=button.dataset.privateName;
+      footer.innerHTML=`<div class="fm-text-private-head"><span><strong>Private reply to ${esc(name)}</strong><small>${esc(phoneLabel(button.dataset.privateSender))} · Only this person will receive your reply.</small></span><button type="button" data-cancel-private aria-label="Cancel private reply" title="Cancel private reply">${icon('xmark')}</button></div>${Portal.PhoneTray.textComposer()}<p class="fm-phone-error" data-text-error role="alert" hidden></p>`;
+      footer.querySelector('[data-cancel-private]').onclick=reset;const form=footer.querySelector('form');form.querySelector('[data-send-text]').setAttribute('aria-label','Send private reply');form.querySelector('[data-send-text]').title='Send private reply';
+      Portal.PhoneTray.bindTextComposer(form,async body=>{const result=await window.CommsAPI.sms.groups.replyPrivately(org(),thread.id,{reply_to_message_id:id,text:body.text,idempotency_key:body.idempotency_key,...(body.image?{image_media_id:body.image.media_id}:{})});if(isCurrent())await onPrivateConversation({id:result.conversation_id,contact_name:name,contact_address:result.recipient,local_number:result.local_number,project_id:thread.project_id||''});});form.elements.message.focus();
+    }
+    reset();footer.addEventListener('click',choose);root.querySelector('.fm-phone-messages,.fmpm-messages').onclick=choose;
   }
   function memberSummary(thread){return groupThread(thread)?`<details class="fm-text-members"><summary>${members(thread).length} participants</summary>${members(thread).map(member=>`<div><strong>${esc(member.name||phoneLabel(member.address))}</strong>${member.name?` <span>${esc(phoneLabel(member.address))}</span>`:''}</div>`).join('')}</details>`:'';}
   function lineLabel(number){const line=(Portal.CustomerPhone?.status?.numbers||[]).find(item=>phoneKey(item.phone_number)===phoneKey(number));return `Text using ${esc(line?.label||'Phone line')} (${esc(phoneLabel(number).replace(/^\((\d{3})\) /,'$1-'))})`;}
@@ -120,6 +135,6 @@
     async function load(){const id=++searchId,query=input.value;list.textContent='Loading contacts...';try{const result=await request(`voice/contacts?query=${encodeURIComponent(query)}`);if(!isCurrent()||id!==searchId||input.value!==query)return;matches=result.contacts||[];render();}catch(err){if(isCurrent()&&id===searchId)list.textContent=err.message;}}
     input.oninput=()=>{searchId++;clearTimeout(timer);timer=setTimeout(()=>void load(),180);};render();void load();input.focus();
   }
-  Portal.PhoneTexting={isGroup:groupThread,title:threadTitle,line:threadLine,inbox:textInbox,detail:textDetail,reply:textReply,draft:textDraft,messageContent,memberSummary,lineLabel,recipientPicker};
+  Portal.PhoneTexting={isGroup:groupThread,isReadOnly:readOnlyGroup,title:threadTitle,line:threadLine,inbox:textInbox,detail:textDetail,reply:textReply,draft:textDraft,messageContent,memberSummary,lineLabel,recipientPicker,readOnlyMarkup,bindReadOnlyReplies};
   Portal.CommunicationsUI={esc,org,user,request,uid,icon,date,label,notice,dialog,field,area,select,empty,project,navigate,projectField,bindProjectPicker};
 })();

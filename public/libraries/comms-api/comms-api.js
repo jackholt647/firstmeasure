@@ -116,6 +116,7 @@
         get(orgId, id){ return groupRequest(orgId, `/${enc(id)}`); },
         messages(orgId, id, params){ return groupRequest(orgId, `/${enc(id)}/messages`, { params }); },
         send(orgId, id, body){ return groupRequest(orgId, `/${enc(id)}/messages`, { method:'POST', body }); },
+        replyPrivately(orgId, id, body){ return groupRequest(orgId, `/${enc(id)}/private-replies`, { method:'POST', body }); },
         create(orgId, participants, number){
           return request(`organizations/${enc(orgId)}/conversations`, { apiBase:messagingBase(), method:'POST', body:{ sms_mode:'group_mms', channel_strategy:'sms', subject:'Group MMS', participants, sender:{address:number} } });
         }

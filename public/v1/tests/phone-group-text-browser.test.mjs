@@ -19,7 +19,7 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
     const now='2026-10-09T20:00:00Z',group={id:'group-one',local_number:'+12065550199',participants:contacts.slice(0,3).map(c=>({address:c.phone,name:c.name,contact_id:c.id})),updated_at:now,last_message_at:now};
     let messages=[{id:'incoming-one',direction:'inbound',sender:contacts[1].phone,text:'Photo from Avery',created_at:now,attachments:[{url:'https://group.test/photo.png',content_type:'image/png'},{url:'javascript:alert(1)',content_type:'image/png'}]},
       {id:'sent-one',direction:'outbound',text:'Hello everyone',status:'captured',created_at:'2026-10-09T19:59:00Z',image_media_id:'image-one',deliveries:contacts.slice(0,3).map(c=>({recipient:c.phone,status:'captured'}))}];
-    let failNext=false,creations=0,oldPages=0,groupPages=0;
+    let failNext=false,creations=0,oldPages=0,groupPages=0,privateSent=null;
     const image=await readFile(new URL('../../portal/media/sample_diagram_cropped.png',import.meta.url));
     await page.route('https://group.test/**',async route=>{
       const req=route.request(),url=new URL(req.url()),path=url.pathname;
@@ -31,7 +31,7 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
       if(!path.startsWith('/v1/'))return route.fulfill({contentType:'text/html',body:'<style>body{margin:0;font-family:Arial,sans-serif}.main{height:100vh;position:relative}button,input,textarea{font-family:inherit}</style><main class="main"><header id="platformTopbar" style="height:50px"></header><div id="mainPanels"></div></main>'});
       const body=req.postData()?JSON.parse(req.postData()):undefined;requests.push({path,method:req.method(),body,csrf:req.headers()['x-platform-csrf']});
       let result={ok:true};
-      if(path.endsWith('/inbox'))result.conversations=url.searchParams.get('channel')==='call'?[]:[{id:'private-one',channel:'sms',contact_name:'Private Jane',contact_address:contacts[0].phone,updated_at:'2026-10-09T19:00:00Z',last_message:{text:'Private hello'}}];
+      if(path.endsWith('/inbox'))result.conversations=url.searchParams.get('channel')==='call'?[]:[{id:'private-one',channel:'sms',contact_name:'Private Jane',contact_address:contacts[0].phone,updated_at:'2026-10-09T19:00:00Z',last_message:{text:'Private hello'}},...(privateSent?[{id:'private-two',channel:'sms',contact_name:'Avery Demo',contact_address:contacts[1].phone,last_message:{text:privateSent.text},updated_at:'2026-10-11T21:00:00Z'}]:[])];
       else if(path.endsWith('/voice/voicemails'))result.voicemails=[];
       else if(path.endsWith('/voice/contacts'))result.contacts=contacts.filter(c=>!url.searchParams.get('query')||c.name.toLowerCase().includes(url.searchParams.get('query').toLowerCase()));
       else if(path==='/v1/messaging/organizations/org-test/conversations'&&req.method()==='POST'){creations++;assert.equal(body.sms_mode,'group_mms');assert.equal(body.sender.address,'+12065550200');assert.equal(body.participants.length,3);group.participants=body.participants;group.local_number=body.sender.address;result.conversation=group;}
@@ -40,12 +40,18 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
       else if(path.endsWith('/sms/groups/group-one/messages')&&req.method()==='GET'){
         if(url.searchParams.get('cursor')){oldPages++;result.items=[{id:'older',direction:'inbound',sender:contacts[0].phone,text:'Older message',created_at:'2026-10-08T19:00:00Z'}];}
         else {result.items=messages;result.nextCursor='older-next';}
+      }else if(path.endsWith('/sms/groups/group-one/private-replies')&&req.method()==='POST'){
+        assert.equal(body.reply_to_message_id,'incoming-one');assert.equal(body.recipients,undefined);assert.equal(body.business_number,undefined);assert.equal(body.image_media_id,'image-two');
+        if(failNext){failNext=false;return route.fulfill({status:503,json:{ok:false,message:'Temporary private reply error'}});}
+        privateSent=body;result={ok:true,created:true,message_id:'private-message-two',conversation_id:'private-two',recipient:contacts[1].phone,local_number:group.local_number,status:'captured'};
       }else if(path.endsWith('/sms/groups/group-one/messages')&&req.method()==='POST'){
+        assert.notEqual(group.read_only,true,'Read-only groups must never use the group send endpoint');
         if(failNext){failNext=false;return route.fulfill({status:503,json:{ok:false,message:'Temporary connection error'}});}
         assert.ok(body.idempotency_key);assert.equal(body.business_number,undefined);assert.equal(body.recipients,undefined);assert.equal(body.image,undefined);
         messages=[{id:`new-${requests.length}`,direction:'outbound',sender:group.local_number,text:body.text,status:'captured',image_media_id:body.image_media_id,created_at:'2026-10-09T21:00:00Z'},...messages];
         result={ok:true,created:true,message_id:'new',conversation_id:group.id,status:'captured'};
       }else if(path.endsWith('/conversations/private-one'))result.conversation={id:'private-one',messages:[{id:'private-message',channel:'sms',direction:'inbound',text:'Private hello',created_at:now}]};
+      else if(path.endsWith('/conversations/private-two'))result.conversation={id:'private-two',messages:[{id:'private-message-two',channel:'sms',direction:'outbound',text:privateSent.text,created_at:now,metadata:{sms_image:{media_id:privateSent.image_media_id}}}]};
       else if(path.endsWith('/conversations/private-one/reply'))result={ok:true};
       return route.fulfill({json:result});
     });
@@ -106,6 +112,26 @@ for(const surface of ['tray','modal'])test(`${surface} supports true group MMS, 
     const photoRequests=requests.filter(r=>r.body?.image_media_id==='image-two');assert.equal(photoRequests.length,2);assert.equal(photoRequests[0].body.idempotency_key,photoRequests[1].body.idempotency_key);assert.equal(photoRequests[1].body.text,'');
     assert.ok(requests.filter(r=>r.method==='POST').every(r=>r.csrf==='fixture-token'));
     await root.getByRole('button',{name:'Insert emoji',exact:true}).click();await page.getByRole('button',{name:'Insert 👍'}).click();assert.equal(await root.getByRole('textbox',{name:'Text message'}).inputValue(),'👍');
+    group.participants=[...contacts.slice(0,3),...contacts.slice(4)].map(contact=>({address:contact.phone,name:contact.name,contact_id:contact.id}));group.read_only=true;group.reply_block_reason='recipient_limit';
+    await root.getByRole('button',{name:'Refresh conversation'}).click();await root.getByText('Read-only group',{exact:true}).waitFor();
+    assert.equal(await root.getByRole('textbox',{name:'Text message'}).count(),0);assert.equal(await root.getByRole('button',{name:'Send text',exact:true}).count(),0);
+    assert.match(await page.evaluate(async()=>{try{await Portal.PhoneTexting.reply({id:'group-one',group_mms:true,read_only:true},{text:'Forbidden'},'+12065550199');return '';}catch(error){return error.message;}}),/read-only/);
+    await root.locator('.fm-text-members summary').click();assert.match(await root.locator('.fm-text-members').textContent(),/Extra 6/);
+    if(process.env.PHONE_GROUP_SCREENSHOTS)await page.screenshot({path:`${process.env.PHONE_GROUP_SCREENSHOTS}/${surface}-readonly-desktop.png`});
+    await page.setViewportSize({width:390,height:844});await page.waitForFunction(selector=>document.querySelector(selector).getBoundingClientRect().right<=391,surface==='modal'?'.fmpm-window':'.fm-phone-tray');
+    assert.equal(await root.getByRole('textbox',{name:'Text message'}).count(),0);
+    if(process.env.PHONE_GROUP_SCREENSHOTS)await page.screenshot({path:`${process.env.PHONE_GROUP_SCREENSHOTS}/${surface}-readonly-mobile.png`});
+    await page.setViewportSize({width:1360,height:900});
+    await root.getByRole('button',{name:'Reply privately to Avery Demo',exact:true}).last().click();
+    assert.match(await root.locator('.fm-text-private-head').textContent(),/Only this person will receive your reply/);
+    await root.getByRole('textbox',{name:'Text message'}).fill('Only Avery receives this');
+    await root.getByRole('button',{name:'Cancel private reply'}).click();assert.equal(await root.getByRole('textbox',{name:'Text message'}).count(),0);
+    await root.getByRole('button',{name:'Reply privately to Avery Demo',exact:true}).last().click();await root.getByRole('textbox',{name:'Text message'}).fill('Only Avery receives this');
+    await root.locator('.fm-phone-compose input[type=file]').setInputFiles({name:'private-photo.png',mimeType:'image/png',buffer:image});await root.locator('.fm-phone-image-preview:not([hidden])').waitFor();
+    failNext=true;await root.getByRole('button',{name:'Send private reply',exact:true}).click();await root.getByRole('alert').filter({hasText:'Temporary private reply error'}).waitFor();
+    const privateFailed=requests.filter(request=>request.path.endsWith('/private-replies')).at(-1);
+    await root.getByRole('button',{name:'Send private reply',exact:true}).click();await root.locator('.fm-text-body').filter({hasText:'Only Avery receives this'}).waitFor();
+    assert.equal(requests.filter(request=>request.path.endsWith('/private-replies')).at(-1).body.idempotency_key,privateFailed.body.idempotency_key);assert.equal(await page.evaluate(()=>uploadCount),2);
     if(process.env.PHONE_GROUP_SCREENSHOTS){await mkdir(process.env.PHONE_GROUP_SCREENSHOTS,{recursive:true});await page.screenshot({path:`${process.env.PHONE_GROUP_SCREENSHOTS}/${surface}-desktop.png`});}
     await page.setViewportSize({width:390,height:844});
     await page.waitForFunction(selector=>{const rect=document.querySelector(selector).getBoundingClientRect();return rect.x>=0&&rect.right<=391;},surface==='modal'?'.fmpm-window':'.fm-phone-tray');

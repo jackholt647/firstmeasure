@@ -43,7 +43,7 @@ import {
   type SmsComplianceProfile
 } from "./storage.js";
 import { smsAutoresponsesReady } from "./autoresponses.js";
-import { ensureGroupMmsConversation, smsGroup } from "./group_mms.js";
+import { ensureInboundGroupMmsConversation, smsGroup } from "./group_mms.js";
 
 const STOP_KEYWORDS = new Set(["STOP", "STOPALL", "STOP ALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"]);
 const START_KEYWORDS = new Set(["START", "UNSTOP"]);
@@ -174,7 +174,7 @@ async function processInbound(eventId: string, occurredAt: string, payload: Comm
   const cc = Array.isArray(payload.cc) ? payload.cc.map(phone).filter(Boolean) : [];
   const groupMembers = [...new Set([fromAddress, ...cc, ...toValues.map(phone)].filter(address => address !== toAddress))];
   const groupInbound = groupMembers.length > 1;
-  let conversation = groupInbound ? await ensureGroupMmsConversation({ organization_id: organizationId, branch_id: branchId,
+  let conversation = groupInbound ? await ensureInboundGroupMmsConversation({ organization_id: organizationId, branch_id: branchId,
     subject: "Group MMS", metadata: { created_from: "telnyx_webhook" } }, toAddress, groupMembers.map(address => ({ address })))
     : await findSmsConversationRecord(organizationId, fromAddress);
   // Attach the sender to a project/contact when their number is on file, so

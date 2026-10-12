@@ -144,3 +144,9 @@
 .fmpm-window [data-older-messages],.fm-phone-tray [data-older-messages]{flex-shrink:0}
 .fm-phone-thread-head>span{min-width:0;flex:1}.fm-phone-thread-head>span>strong{white-space:normal;overflow-wrap:anywhere}.fm-phone-thread-head [data-text-refresh],.fm-phone-thread-head [data-edit-recipients]{flex:0 0 28px}
 .fmpm-detail-head:has(.fm-text-members){align-items:flex-start;flex-wrap:wrap}.fmpm-detail-head:has(.fm-text-members)>span{min-width:0;flex:1 1 200px}.fmpm-detail-head:has(.fm-text-members)>span>strong{white-space:normal;overflow-wrap:anywhere}.fmpm-detail-head .fm-text-group-line{max-width:100%;padding:0}
+.fm-text-readonly{padding:8px 0;font-size:12px;font-weight:600;color:var(--muted,#687080);border-top:1px solid var(--border,#dce1e8)}
+.fm-text-members[open]{max-height:180px;overflow:auto}
+.fm-text-private-head{display:flex;align-items:flex-start;gap:8px;margin:6px 0 10px}.fm-text-private-head>span{flex:1;min-width:0;overflow-wrap:anywhere}.fm-text-private-head strong{display:block;font-size:12px}.fm-text-private-head small{display:block;font-size:11px;line-height:1.5;color:var(--muted,#687080);margin-top:4px}
+.fm-phone-tray .fm-text-private-button,.fmpm-window .fm-text-private-button{display:inline-flex;gap:6px;align-items:center;font-size:11px;background:transparent;color:var(--primary-readable,var(--primary,#d33b44));border:0;padding:6px 0;min-height:30px;white-space:normal;text-align:left}
+.fm-text-private-head [data-cancel-private]{flex:0 0 28px;padding:4px!important;min-height:28px!important;height:28px}
+.fm-text-private-button{max-width:100%}.fm-text-private-button>span{min-width:0;overflow-wrap:anywhere}

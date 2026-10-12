@@ -34,7 +34,7 @@ import { scheduleSmsDeliveryQueue } from "./delivery_worker.js";
 import { outboundSmsComplianceIssue, smsConsentPurposesAllow } from "./compliance_rules.js";
 import { smsAutoresponsesReady } from "./autoresponses.js";
 import { activeEmailProvider } from "../email/providers.js";
-import { ensureGroupMmsConversation, groupMmsMembers, smsGroup } from "./group_mms.js";
+import { assertGroupSendable, ensureGroupMmsConversation, groupMmsMembers, smsGroup } from "./group_mms.js";
 import { requireGroupAccess } from "./group_access.js";
 import { validateSmsImage } from "../comms/sms-images.js";
 
@@ -368,6 +368,7 @@ export async function sendCommunication(organizationId: string, input: SendCommu
   if (groupMode) {
     if (!ctx?.userId) throw forbidden("group_mms_user_required", "Group MMS requires an authenticated user.");
     await requireGroupAccess(ctx as PlatformAuthContext, organizationId, { branch_id: branchId, context: input.context }, true);
+    if (conversation) assertGroupSendable(conversation);
     if (input.channel !== "sms" || input.sms_mode === "individual") throw badRequest("group_mms_channel_required", "A group thread must use group MMS, not individual messages.");
     const members = groupMmsMembers(cleanText(sender.address), recipients.map(item => item.address));
     if (conversation && (!conversationGroup || conversationGroup.local_number !== sender.address || JSON.stringify(conversationGroup.remote_numbers) !== JSON.stringify(members))) {

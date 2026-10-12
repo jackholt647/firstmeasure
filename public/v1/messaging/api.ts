@@ -29,7 +29,7 @@ import {
   simulateMessageStatus
 } from "./communications_service.js";
 import { renderCommunicationsDeveloperPage } from "./developer_page.js";
-import { createSmsGroup, groupPage, readGroup, groupProjection, sendSmsGroup, sendGroupSchema } from "./group_service.js";
+import { createSmsGroup, groupPage, readGroup, groupProjection, sendSmsGroup, sendGroupSchema, replySmsGroupPrivately, privateReplySchema } from "./group_service.js";
 import { smsGroup } from "./group_mms.js";
 import { requireGroupAccess } from "./group_access.js";
 import {
@@ -1464,6 +1464,16 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const key = z.string().trim().min(1).max(500).parse(body.idempotency_key);
     const { idempotency_key: _key, ...input } = body;
     const result = await sendSmsGroup(ctx, sendGroupSchema.parse({ ...input, conversation_id: param(request.params, "conversationId") }), key);
+    reply.code(result.created ? 202 : 200);
+    return { ok: true, ...result };
+  });
+
+  app.post("/organizations/:orgId/sms/groups/:conversationId/private-replies", async (request, reply) => {
+    const orgId = param(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "send_communications|send_comms|manage_company_settings", capability: "comms.sms" });
+    const { idempotency_key, ...input } = asObject(request.body);
+    const key = z.string().trim().min(1).max(500).parse(idempotency_key);
+    const result = await replySmsGroupPrivately(ctx, param(request.params, "conversationId"), privateReplySchema.parse(input), key);
     reply.code(result.created ? 202 : 200);
     return { ok: true, ...result };
   });

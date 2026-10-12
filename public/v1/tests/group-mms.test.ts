@@ -100,18 +100,79 @@ test("group MMS API and publications retain shared threads, paginate, and reject
   assert.equal((await c.raw("POST", `${c.publication}/actions/invoke`, action)).statusCode, 403);
 });
 
-async function configureLive(orgId: string) {
+async function configureLive(orgId: string, number = local) {
   const storage = await import("../messaging/storage.js"), store = await import("../messaging/communications_storage.js");
   const org = await storage.ensureMessagingOrganization(orgId);
   let profile = await storage.createSmsComplianceProfile(org, { brand: { displayName: "MMS Test" }, campaign: { selectedNumber: local, usecase: "LOW_VOLUME", enabledFeatures: ["operations"], optinKeywords: "START", optinMessage: "MMS Test: subscribed. Message frequency varies. Reply HELP for help or STOP to opt out. Msg & data rates may apply.", optoutKeywords: "STOP", optoutMessage: "MMS Test: unsubscribed. Reply START to resubscribe.", helpKeywords: "HELP", helpMessage: "MMS Test: Help at 206-555-0100. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out." }, provider_refs: { telnyx_messaging_profile_id: `profile-${orgId}`, telnyx_campaign_id: `campaign-${orgId}` } });
-  profile = await storage.updateSmsComplianceProfile(profile, { campaign: { ...profile.campaign, enabledFeatures: ["operations", "crm_conversations"] } });
+  profile = await storage.updateSmsComplianceProfile(profile, { campaign: { ...profile.campaign, selectedNumber: number, enabledFeatures: ["operations", "crm_conversations"] } });
   const plan = (await import("../messaging/autoresponses.js")).smsAutoresponsePlan(profile);
   assert.equal(plan.ok, true, JSON.stringify(plan.issues));
   profile = await storage.updateSmsComplianceProfile(profile, { status: "active", brand_status: "verified", campaign_status: "mno_provisioned", phone_number_status: "success", phone_number_campaign_status: "assigned", phone_number_campaign_id: `campaign-${orgId}`, autoresponse_state: { status: "configured", messaging_profile_id: `profile-${orgId}`, desired_hash: plan.hash, applied_hash: plan.hash, config_ids: { start: "start", stop: "stop", info: "info" } } });
-  await store.claimPhoneNumberOwnership({ phone_number: local, organization_id: orgId, compliance_profile_id: profile.id, messaging_profile_id: `profile-${orgId}`, status: "active" });
+  await store.claimPhoneNumberOwnership({ phone_number: number, organization_id: orgId, compliance_profile_id: profile.id, messaging_profile_id: `profile-${orgId}`, status: "active" });
   for (const phone_number of members) await store.upsertSmsConsent({ organization_id: orgId, phone_number, status: "opted_in", consent_id: `consent-${phone_number}`, source: "web_form", evidence: { purposes: ["customer_care"] } });
   return store;
 }
+
+test("oversized signed incoming groups remain readable and private replies cannot target the group", async () => {
+  const c = await client(), other = await client(), number = "+12065550209", store = await configureLive(c.orgId, number);
+  const { env } = await import("../src/config/env.js"), previous = { ...env };
+  const keys = generateKeyPairSync("ed25519"), phones = Array.from({ length: 10 }, (_, i) => `+120255501${20 + i}`);
+  const hook = async (eventId: string, sender: string, text = "Large group photo") => {
+    const raw = JSON.stringify({ data: { id: eventId, event_type: "message.received", occurred_at: new Date().toISOString(), payload: { id: eventId, direction: "inbound", type: "MMS", messaging_profile_id: `profile-${c.orgId}`, from: { phone_number: sender }, to: [{ phone_number: number }], cc: [...phones.filter(phone => phone !== sender).reverse(), number, number], text, media: [{ url: "https://example.test/large-group.png", content_type: "image/png" }] } } });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const response = await app.inject({ method: "POST", url: "/v1/messaging/webhooks/telnyx", payload: raw, headers: { "content-type": "application/json", "telnyx-timestamp": timestamp, "telnyx-signature-ed25519": sign(null, Buffer.from(`${timestamp}|${raw}`), keys.privateKey).toString("base64") } });
+    assert.equal(response.statusCode, 200, response.body); assert.notEqual(response.json().orphaned, true, response.body);
+    return response.json();
+  };
+  try {
+    Object.assign(env, { communicationsDeliveryMode: "capture", telnyxWebhookPublicKey: keys.publicKey.export({ format: "pem", type: "spki" }).toString() });
+    await hook("oversize-first", phones[0]!);
+    const groups = await c.request("GET", c.prefix), group = groups.items[0];
+    assert.equal(group.participants.length, 10);assert.equal(group.read_only, true);assert.equal(group.reply_block_reason, "recipient_limit");
+    await hook("oversize-second", phones[1]!, "Another participant replies");
+    await hook("oversize-first", phones[0]!);
+    assert.equal((await c.request("GET", c.prefix)).items.length, 1);
+    const history = await c.request("GET", `${c.prefix}/${group.id}/messages`);
+    assert.equal(history.items.length, 2);assert.equal(history.items.find((message: any) => message.text === "Large group photo").attachments[0].url, "https://example.test/large-group.png");
+    const source = history.items.find((message: any) => message.sender === phones[0])!;
+    const blocked = await c.raw("POST", `${c.prefix}/${group.id}/messages`, { text: "Not a group reply", idempotency_key: "blocked-oversize" });
+    assert.equal(blocked.statusCode, 400);assert.equal(blocked.json().error, "group_mms_read_only");
+    const bypass = await c.raw("POST", `/v1/messaging/organizations/${c.orgId}/messages`, { conversation_id: group.id, channel: "sms", recipients: [{ address: phones[0] }], sender: { address: number }, content: { text: "No partial group send" }, idempotency_key: "oversize-partial" });
+    assert.equal(bypass.statusCode, 400);assert.equal(bypass.json().error, "group_mms_read_only");
+    const privateBody = { reply_to_message_id: source.id, text: "Only you receive this", idempotency_key: "private-one" };
+    const endpoint = `${c.prefix}/${group.id}/private-replies`;
+    const privateReply = await c.request("POST", endpoint, privateBody);
+    assert.notEqual(privateReply.conversation_id, group.id);assert.equal(privateReply.recipient, phones[0]);assert.equal(privateReply.local_number, number);
+    assert.equal((await c.request("POST", endpoint, privateBody)).created, false);
+    assert.equal((await c.raw("POST", endpoint, { ...privateBody, text: "Changed" })).statusCode, 409);
+    assert.equal((await c.raw("POST", endpoint, { ...privateBody, reply_to_message_id: history.items.find((message: any) => message.sender === phones[1]).id })).statusCode, 409);
+    const privateMessage = await store.readMessageRecord(c.orgId, privateReply.message_id) as { recipients: { address: string }[]; sender: { address: string }; metadata: { sms_group?: unknown } };
+    assert.equal(privateMessage.recipients.length, 1);assert.equal(privateMessage.recipients[0]!.address, phones[0]);assert.equal(privateMessage.sender.address, number);assert.equal(privateMessage.metadata.sms_group, undefined);
+    assert.equal((await store.listDeliveryRecords(c.orgId, privateReply.message_id)).length, 1);
+    assert.equal((await c.request("GET", `${c.prefix}/${group.id}/messages`)).items.length, 2);
+    assert.equal((await c.raw("POST", endpoint, { ...privateBody, recipient: phones[1] })).statusCode, 400);
+    assert.equal((await c.raw("POST", endpoint, { ...privateBody, reply_to_message_id: privateReply.message_id, idempotency_key: "outbound-source" })).statusCode, 400);
+    assert.equal((await other.raw("POST", `${other.prefix}/${group.id}/private-replies`, privateBody)).statusCode, 404);
+    assert.equal((await c.raw("POST", endpoint, { reply_to_message_id: source.id, image_media_id: "missing", idempotency_key: "foreign-image" })).statusCode, 404);
+    const target = { scope: "organization", organizationId: c.orgId, id: group.id };
+    const data = await c.request("POST", `${c.publication}/data/read`, { provider: "comms-sms-groups", export: "conversations", target, args: {} });
+    assert.equal(data.status, "ready");assert.equal(data.value[0].participants.length, 10);assert.equal(data.value[0].read_only, true);
+    const published = { action: "comms.smsGroup.replyPrivately", target, input: { reply_to_message_id: history.items.find((message: any) => message.sender === phones[1]).id, text: "Private published reply" }, idempotencyKey: "published-private" };
+    const action = await c.request("POST", `${c.publication}/actions/invoke`, published);
+    assert.equal(action.value.recipient, phones[1]);assert.notEqual(action.value.conversation_id, group.id);assert.equal((await c.request("POST", `${c.publication}/actions/invoke`, published)).receipt.replayed, true);
+    const catalog = await c.request("GET", `${c.publication}/catalog?scope=organization`);
+    assert.ok(catalog.actions.some((item: any) => item.id === "comms.smsGroup.replyPrivately" && item.effect === "external" && item.idempotency === "required"));
+    await hook("oversize-stop", phones[0]!, "STOP");assert.equal((await store.readSmsConsent(c.orgId, phones[0]!))!.status, "opted_out");
+    assert.equal((await c.request("GET", `${c.prefix}/${group.id}/messages`)).items.length, 3);
+    const { ensureInboundGroupMmsConversation } = await import("../messaging/group_mms.js"), { groupProjection } = await import("../messaging/group_service.js");
+    const boundary = groupProjection(await ensureInboundGroupMmsConversation({ organization_id: c.orgId }, number, phones.slice(0, 8).map(address => ({ address }))));
+    assert.equal(boundary.participants.length, 8);assert.equal(boundary.read_only, false);
+    assert.equal((await app.inject({ method: "POST", url: endpoint, payload: privateBody })).statusCode, 401);
+    await (await import("../platform/storage.js")).saveGlobal(c.orgId, { data: { app_flags: { comms: { sms: false } } } });
+    assert.equal((await c.raw("POST", endpoint, privateBody)).statusCode, 403);
+    assert.equal((await c.raw("POST", `${c.publication}/actions/invoke`, published)).statusCode, 403);
+  } finally { Object.assign(env, previous); }
+});
 
 test("group MMS sends one provider request, handles early per-recipient webhooks, inbound cc and STOP, and never resends uncertainty", async () => {
   const c = await client(), store = await configureLive(c.orgId);

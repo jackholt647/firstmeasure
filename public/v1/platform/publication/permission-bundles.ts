@@ -39,7 +39,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   view_media: { actions: ["media.item.read"], data: ["media.metadata"] },
   manage_media: { actions: ["media.item.rename"] },
   view_comms: { actions: ["comms.project.feed"], data: ["comms.records", "comms-sms-groups.conversations", "comms-sms-groups.messages"] },
-  send_communications: { actions: ["comms.project.sendSms", "comms.project.sendEmail", "comms.smsGroup.create", "comms.smsGroup.send"] },
+  send_communications: { actions: ["comms.project.sendSms", "comms.project.sendEmail", "comms.smsGroup.create", "comms.smsGroup.send", "comms.smsGroup.replyPrivately"] },
   view_live_chat: { actions: ["chat.inbox"], data: ["chat.records"] },
   send_live_chat: { actions: ["chat.conversation.claim", "chat.conversation.release", "chat.conversation.send"] },
   view_customer_portals: { data: ["customer-portal.record"] },
