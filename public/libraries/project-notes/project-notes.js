@@ -87,7 +87,7 @@
       + '.pn-translate{position:absolute;z-index:7;top:5px;right:5px;width:22px;height:22px;border:0;border-radius:6px;background:rgba(255,255,255,.88);color:#98a2b3;display:grid;place-items:center;cursor:pointer;font-size:9px;box-shadow:0 0 0 1px rgba(15,23,42,.06)}.pn-translate:hover,.pn-translate.on{background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}.pn-translate.loading i{animation:pnTranslateSpin .75s linear infinite}@keyframes pnTranslateSpin{to{transform:rotate(360deg)}}.pn-translated-note{display:block;margin-top:3px;color:#98a2b3;font-size:8.5px;font-weight:750}'
       + '.pn-history-item .text{color:#344054;font-size:11.5px;line-height:1.45;word-break:break-word}'
       + '.pn-media-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,180px));gap:7px;margin-top:8px}.pn-media-item{display:block;overflow:hidden;border:1px solid #e4e7ec;border-radius:9px;background:#f8fafc}.pn-media-item img,.pn-media-item video{display:block;width:100%;max-height:180px;object-fit:cover}.pn-file-item{display:flex;align-items:center;gap:7px;margin-top:8px;padding:8px 10px;border:1px solid #e4e7ec;border-radius:9px;color:#475467;text-decoration:none;font-size:11px;font-weight:750}.pn-file-item:hover{border-color:var(--primary-readable,var(--primary,#d93025));color:var(--primary-readable,var(--primary,#d93025))}'
-      + '.pn-pending-upload{display:flex;align-items:center;gap:8px;margin-top:7px;padding:7px 9px;border:1px solid #e4e7ec;border-radius:9px;background:#f8fafc;color:#475467;font-size:11px;font-weight:750}.pn-pending-upload img,.pn-pending-upload video{width:42px;height:34px;object-fit:cover;border-radius:6px}.pn-pending-upload span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pn-pending-upload button{border:0;background:none;color:#98a2b3;cursor:pointer}';
+      + '.pn-uploads{display:flex;gap:7px;flex-wrap:wrap;overflow:visible}.pn-uploads:empty{display:none}.pn-pending-upload{display:flex;align-items:center;gap:8px;margin-top:7px;padding:7px 9px;border:1px solid #e4e7ec;border-radius:9px;background:#f8fafc;color:#475467;font-size:11px;font-weight:750}.pn-pending-upload img,.pn-pending-upload video{width:42px;height:34px;object-fit:cover;border-radius:6px}.pn-pending-upload span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pn-pending-upload button{border:0;background:none;color:#98a2b3;cursor:pointer}';
     document.head?.appendChild(style);
   };
   const normalize = (note, index = 0) => {
@@ -390,6 +390,10 @@
     }
     const api = channels();
     const url = api?.mediaFileUrl?.(orgId(), prepared.attachment.media_id) || '';
+    if(prepared.kind==='image'){
+      const preview=window.FirstMateChannels?.composerWidgets?.attachmentDraft?.(prepared.attachment,{url,onRemove:()=>{mount.replaceChildren();onRemove?.();}});
+      if(preview){mount.replaceChildren(preview);return preview;}
+    }
     mount.innerHTML = `<div class="pn-pending-upload">${String(prepared.kind === 'image'
       ? `<img src="${escapeHtml(url)}" alt="">`
       : prepared.kind === 'video'
@@ -813,6 +817,7 @@
     extraStyle.textContent+=`.pn-workspace{background:#fafbfc}.pn-workspace .pn-history{position:relative;z-index:0;margin-bottom:-20px;padding-bottom:28px;mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 8px),transparent 100%)}.pn-workspace .pn-composer{position:relative;z-index:1;padding-top:24px;background:transparent}`;
     extraStyle.textContent+=`.pn-card footer>[data-act=replies],.pn-workspace .pn-reply-add-row button{border:0;background:transparent;padding:0;border-radius:0;font:inherit;font-size:10px;font-weight:400;color:#667085;cursor:pointer;line-height:normal}.pn-card footer>[data-act=replies][hidden],.pn-reply-add-row[hidden]{display:none}`;
     extraStyle.textContent+=`
+      .pn-workspace .pn-uploads{display:flex;gap:7px;flex-wrap:wrap;overflow:visible;max-height:none}
       .pn-workspace .pn-composer-box{padding:5px 7px 3px}
       .pn-workspace .pn-editor-mount>.fm-ch-rich-editor,.pn-workspace .pn-editor-mount>textarea{box-sizing:border-box;min-height:44px;padding:2px 0;line-height:20px;font-size:13px;max-height:220px}
       .pn-workspace .pn-editor-mount>.fm-ch-formatbar{border-bottom:0;padding-bottom:0;margin-bottom:2px;min-height:26px;flex-wrap:nowrap}

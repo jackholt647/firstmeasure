@@ -354,7 +354,7 @@
       if(options.source!=='channels')extractMentions(value, candidates()).forEach((user) => labels.add(user.name || user.email || user.id));
       selected.forEach((user) => allowed(user) && labels.add(user.name || user.email || user.id));
       return [...labels];
-    }, options.source === 'channels' || options.source === 'feed');
+    }, ['channels','feed','project_notes','photo_comment'].includes(options.source));
 
     function hide(){
       if (menu._mentionOwner && menu._mentionOwner !== textarea) return;

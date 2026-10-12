@@ -12,7 +12,8 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
   await mkdir(output,{recursive:true});
   const server=createServer(async(req,res)=>{
   if(req.url.startsWith('/images/giphy/')){res.setHeader('Content-Type','image/png');const pathname=new URL(req.url,'http://fixture').pathname;const data=process.env.DEV_ASSETS?Buffer.from(await (await fetch('https://dev.1m8.ai'+pathname+'?mark-check='+Date.now())).arrayBuffer()):await readFile(publicRoot+pathname);res.end(data);return;}
-    const assets={'/libraries/platform-widgets/pickers.js':'/libraries/platform-widgets/pickers.js','/libraries/date-time-picker/date-time-picker.js':'/libraries/date-time-picker/date-time-picker.js','/gifs.js':'/libraries/platform-widgets/gifs.js','/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
+    if(req.url==='/image.svg'){res.setHeader('Content-Type','image/svg+xml');res.end('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="112"><rect width="200" height="112" fill="#526a8d"/></svg>');return;}
+    const assets={'/libraries/platform-ui/platform-ui.js':'/libraries/platform-ui/platform-ui.js','/libraries/platform-widgets/pickers.js':'/libraries/platform-widgets/pickers.js','/libraries/date-time-picker/date-time-picker.js':'/libraries/date-time-picker/date-time-picker.js','/gifs.js':'/libraries/platform-widgets/gifs.js','/ui.js':'/libraries/channels-ui/channels-ui.js','/tags.js':'/libraries/platform-tags/platform-tags.js'};
     const asset=assets[new URL(req.url,'http://fixture').pathname];if(asset){
       res.setHeader('Content-Type','text/javascript; charset=utf-8');
       const data=process.env.DEV_ASSETS?await (async()=>{
@@ -42,7 +43,8 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
       window.__APP={userId:me.id,userOrgId:'mention-fixture',userName:me.name};
       window.Portal={currentUser:me,ui:{showToast(){}},appFlags:{current:()=>true,has:()=>true}};
       Portal.util={injectCSS:(id,css)=>{if(document.getElementById(id))return;const style=document.createElement('style');style.id=id;style.textContent=css;document.head.append(style);}};
-      window.ChannelsAPI={
+      window.FirstMateAudioNotes={prepareInline:async(_org,_channel,options)=>options.mode==='dictation' ? {text:'Dictated reply'} : {attachment:{id:'thread-audio',media_id:'thread-audio',content_type:'audio/webm'},metadata:{duration_seconds:4}}};
+      window.ChannelsAPI={uploads:{send:async(_org,file)=>({attachment:{id:'thread-image',media_id:'thread-image',content_type:file.type,file_name:file.name}})},mediaFileUrl:()=>'/image.svg',
         channels:{list:async()=>({channels:[channel]}),get:async()=>({channel})},
         directory:{list:async()=>({users:[me,member,second,outsider]})},
         preferences:{collaboration:async()=>({preferences:{send_mode:'modified_enter'}})},
@@ -52,7 +54,7 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
           list:async()=>({channel,messages:copy(messages.filter(message=>!message.parent_id))}),
           thread:async(_org,id)=>({root:copy(messages.find(message=>message.id===id)),replies:copy(messages.filter(message=>message.parent_id===id))}),
           post:async(_org,_id,input)=>{
-            sent.push(copy(input));
+            if(window.failReply && input.parent_id)throw Error('Reply failed');sent.push(copy(input));
             const mentions=(input.mention_users||[]).flatMap(user=>user.id.startsWith('broadcast:')?channel.members:[user]);
             const message={...root,...copy(input),id:'sent-'+sent.length,seq:messages.length+1,mention_users:mentions};
             messages.push(message);if(message.parent_id)root.reply_count++;
@@ -63,9 +65,9 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
           }
         }
       };
-      window.fixtureOptions={orgId:'mention-fixture',currentUser:me,realtime:false,mode:'full',features:{attention:false,resources:false,workflows:false,ai:false,typing:false,audioNotes:false,channelCreate:false,channelSettings:false,recording:false}};
+      window.fixtureOptions={orgId:'mention-fixture',currentUser:me,realtime:false,mode:'full',features:{attention:false,resources:false,workflows:false,ai:false,typing:false,audioNotes:true,channelCreate:false,channelSettings:false,recording:false}};
     });
-    await page.addScriptTag({url:origin+'/gifs.js'});await page.addScriptTag({url:origin+'/tags.js'});await page.addScriptTag({url:origin+'/ui.js'});
+    await page.addScriptTag({url:origin+'/libraries/platform-ui/platform-ui.js'});await page.addScriptTag({url:origin+'/gifs.js'});await page.addScriptTag({url:origin+'/tags.js'});await page.addScriptTag({url:origin+'/ui.js'});
     await page.evaluate(async()=>{window.instance=FirstMateChannels.create(document.querySelector('#app'),fixtureOptions);await instance.setChannel('general');});
 
     async function verifyFormatting(editor){
@@ -92,6 +94,8 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     await editor.fill('Use custom picker');await schedule.click();await page.getByRole('menuitem',{name:'Custom time',exact:true}).click();const calendar=page.getByRole('dialog',{name:'Schedule message',exact:true});await calendar.locator('[data-schedule-calendar]').waitFor();assert.ok(await calendar.locator('[data-schedule-calendar]').evaluate(n=>n.children.length>0));await calendar.getByRole('button',{name:'Schedule send',exact:true}).click();await page.waitForFunction(()=>schedules.length===3);await calendar.waitFor({state:'detached'});
     const mainComposer=page.locator('.fm-ch-composer').first();
     assert.equal(await mainComposer.getByRole('button',{name:'Send',exact:true}).locator('.fa-paper-plane').count(),1);assert.equal(await mainComposer.getByRole('button',{name:'Send',exact:true}).innerText(),'');assert.equal(await mainComposer.locator('.fm-ch-send-pair').evaluate(n=>getComputedStyle(n).borderLeftWidth),'0px');assert.deepEqual(await mainComposer.locator('.fm-ch-send-pair>button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),['Send','Schedule message']);
+    assert.equal(await mainComposer.getByRole('button',{name:'Send',exact:true}).evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(23, 76, 228)');assert.equal(await mainComposer.locator('.fm-ch-send-pair').evaluate(n=>n.children[0].getBoundingClientRect().width>n.children[1].getBoundingClientRect().width),true,'filled Send is larger than Schedule');
+    await mainComposer.locator('[type=file]').setInputFiles({name:'main.png',mimeType:'image/png',buffer:Buffer.from('fixture')});const mainImage=mainComposer.locator('.fm-ch-image-draft');await mainImage.locator('img').evaluate(n=>n.decode());assert.equal(await mainImage.innerText(),'');await mainImage.getByRole('button',{name:'Remove attachment'}).click();
     const emojiToggle=mainComposer.getByRole('button',{name:'Insert emoji',exact:true});await emojiToggle.click();await page.getByRole('dialog',{name:'Choose an emoji'}).waitFor();await emojiToggle.click();assert.equal(await page.getByRole('dialog',{name:'Choose an emoji'}).count(),0);
     const moreToggle=mainComposer.getByRole('button',{name:'More options',exact:true});await moreToggle.click();await page.locator('.fm-ch-recording-menu').waitFor();assert.ok(await page.locator('.fm-ch-recording-menu button').count()>=2);await moreToggle.click();assert.equal(await page.locator('.fm-ch-recording-menu').count(),0);
     await verifyFormatting(editor);
@@ -120,10 +124,14 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     await reply.waitFor();const replyComposer=page.locator('.fm-ch-panel .fm-ch-composer');assert.equal(await replyComposer.getByRole('button',{name:'Reply',exact:true}).locator('.fa-paper-plane').count(),1);assert.equal(await replyComposer.locator('.fm-ch-composer-row').evaluate(n=>n.querySelector('[data-mention-button]').getBoundingClientRect().right<n.querySelector('.fm-ch-send').getBoundingClientRect().left),true,'reply tagging stays with the left icon group');
     assert.equal(await replyComposer.locator('.fm-ch-composer-row .fm-ch-reply-broadcast').count(),0);assert.equal(await replyComposer.locator('.fm-ch-composer-box>.fm-ch-reply-broadcast').evaluate(n=>n.getBoundingClientRect().bottom<=n.nextElementSibling.getBoundingClientRect().top),true,'broadcast checkbox sits above the icon row');
     const replyMore=replyComposer.getByRole('button',{name:'See more formatting'});await replyMore.click();await page.getByRole('menuitem',{name:'Code block',exact:true}).waitFor();assert.equal(await page.locator('.fm-ch-popover').evaluate(n=>n.scrollWidth<=n.clientWidth),true,'reply menu fits without horizontal scroll');assert.equal(await page.getByRole('menuitem',{name:'Code block',exact:true}).evaluate(n=>getComputedStyle(n).color),'rgb(16, 24, 40)');await replyMore.click();assert.equal(await page.locator('.fm-ch-popover').count(),0);
+    for(const label of ['Insert emoji','Attach a file','Dictate message','Mention a teammate','More options'])assert.equal(await replyComposer.getByRole('button',{name:label,exact:true}).isVisible(),true);
+    await replyComposer.getByRole('button',{name:'Dictate message'}).click();await page.waitForFunction(()=>document.querySelector('.fm-ch-panel .fm-ch-rich-editor').value==='Dictated reply');await reply.fill('');await replyComposer.getByRole('button',{name:'More options'}).click();assert.deepEqual(await page.locator('.fm-ch-recording-menu [role=menuitem]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),['Record an audio note','Record video clip','Record screen clip']);await page.getByRole('menuitem',{name:'Record an audio note',exact:true}).click();
+    await replyComposer.locator('[type=file]').setInputFiles({name:'reply.png',mimeType:'image/png',buffer:Buffer.from('fixture')});const threadImage=replyComposer.locator('.fm-ch-image-draft');await threadImage.locator('img').evaluate(n=>n.decode());assert.deepEqual(await threadImage.locator('img').evaluate(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})),{width:84,height:84});
     await verifyFormatting(reply);await reply.fill('Reply first');await reply.press('Shift+Enter');await page.keyboard.type('Reply second');
     assert.equal(await page.evaluate(()=>sent.length),3);
+    await page.evaluate(()=>window.failReply=true);await reply.press('Enter');await page.getByText('Reply failed',{exact:true}).waitFor();assert.equal(await threadImage.count(),1,'failed reply retains uploaded thumbnail');assert.equal(await page.evaluate(()=>sent.length),3);await page.evaluate(()=>window.failReply=false);
     await reply.press('Enter');await page.waitForFunction(()=>sent.length===4);
-    assert.equal(await page.evaluate(()=>sent[3].parent_id),'root');
+    assert.equal(await page.evaluate(()=>sent[3].parent_id),'root');assert.deepEqual(await page.evaluate(()=>sent[3].attachment_ids),['thread-audio','thread-image']);assert.equal(await page.evaluate(()=>sent[3].metadata.audio_note.duration_seconds),4);
     assert.match(await page.evaluate(()=>sent[3].text),/Reply first\nReply second/);
     await page.evaluate(async()=>{instance.destroy();document.querySelector('#app').replaceChildren();const old=ChannelsAPI.channels.get;ChannelsAPI.channels.get=async()=>{const result=await old();result.channel.type='dm';return result;};window.instance=FirstMateChannels.create(document.querySelector('#app'),fixtureOptions);await instance.setChannel('general');});
     const dm=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();await verifyFormatting(dm);await dm.fill('DM message');await dm.press('Enter');await page.waitForFunction(()=>sent.length===5);

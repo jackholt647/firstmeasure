@@ -719,9 +719,10 @@
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_f4dce57ac0bb0e","Message formatting") ?? "Message formatting"));
-    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Link', 'Link', 'link'], ['Clear formatting', 'Tx', 'removeFormat'], ['Table', 'Table', 'table'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre']];
+    const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Link', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 .1l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7-.1l-3 3a5 5 0 0 0 7 7l2-2"/></svg>', 'link'], ['Clear formatting', 'Tx', 'removeFormat'], ['Table', 'Table', 'table'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre']];
     const toggles=[];
-    function updateFormatting(){const selection=root.getSelection(),inside=!!selection?.anchorNode && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode);if(!inside && editor.firstChild)return;for(const {button,command,value} of toggles){const active=inside && (command==='formatBlock' ? String(document.queryCommandValue(command)).toLowerCase()===value : document.queryCommandState(command));button.setAttribute('aria-pressed',String(!!active));}}
+    function blockActive(value){const selection=root.getSelection(),node=selection?.anchorNode;const parent=node?.nodeType===1?node:node?.parentElement;if(parent?.closest(value) && editor.contains(parent.closest(value)))return true;if(selection?.rangeCount && !selection.isCollapsed){const range=selection.getRangeAt(0);if([...editor.querySelectorAll(value)].some(block=>range.intersectsNode(block)))return true;}return String(document.queryCommandValue('formatBlock')).toLowerCase().replace(/[<>]/g,'')===value;}
+    function updateFormatting(){const selection=root.getSelection(),inside=!!selection?.anchorNode && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode);if(!inside && editor.firstChild)return;for(const {button,command,value} of toggles){const active=inside && (command==='formatBlock' ? blockActive(value) : document.queryCommandState(command));button.setAttribute('aria-pressed',String(!!active));}}
     formattingUpdates.set(editor,updateFormatting);
     for(const event of ['input','keyup','mouseup','focus','fm:formatting-change'])editor.addEventListener(event,updateFormatting);
     editor.addEventListener('keydown',()=>setTimeout(updateFormatting,0));
@@ -790,7 +791,8 @@
               }
               list.replaceWith(fragment);
             }
-          } else document.execCommand(command, false, value);
+          } else if(command==='formatBlock'){if(blockActive(value) && value==='blockquote')document.execCommand('outdent');else document.execCommand(command,false,blockActive(value)?'div':value);}
+          else document.execCommand(command, false, value);
           editor.saveSelection(); editor.dispatchEvent(new Event('input', {bubbles:true}));
         }
       });
@@ -1258,17 +1260,26 @@
 .fm-ch-composer-box{padding:5px 7px 3px}.fm-ch-composer-box .fm-ch-rich-editor{box-sizing:border-box;min-height:46px;padding:2px;line-height:21px}
 .fm-ch-composer-box .fm-ch-composer-row{margin-top:4px;min-height:26px;gap:4px}
 .fm-ch-composer-row .fm-ch-icon-btn,.fm-ch-composer-row [data-mention-button]{width:26px;height:26px;min-height:0;padding:3px;border:0;background:transparent;color:var(--ch-muted);cursor:pointer;border-radius:5px}
-.fm-ch-composer-row .fm-ch-send{display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;padding:3px!important;min-height:26px;border:0;border-radius:6px;background:transparent;color:var(--primary-readable,var(--ch-accent,#d93025));font-size:13px}.fm-ch-composer-row .fm-ch-send:hover:not(:disabled){background:var(--ch-hover,#f2f4f7)}.fm-ch-composer-row .fm-ch-send:disabled{opacity:.4}.fm-ch-send-pair{border-left:0;padding-left:0}.fm-ch-composer-box>.fm-ch-reply-broadcast{margin:5px 0 0;font-size:11px}
+.fm-ch-composer-row .fm-ch-send{display:inline-flex;align-items:center;justify-content:center;flex:none;width:38px;height:28px;padding:0 10px!important;min-height:28px;border:0;border-radius:6px;background:var(--ch-accent,#d93025);color:var(--on-primary,#fff);font-size:13px}.fm-ch-composer-row .fm-ch-send:hover:not(:disabled){filter:brightness(1.06)}.fm-ch-composer-row .fm-ch-send:disabled{opacity:.4}.fm-ch-send-pair{border-left:0;padding-left:0;gap:0}.fm-ch-send-pair>.fm-ch-send{border-radius:6px 0 0 6px}.fm-ch-send-pair>.fm-ch-icon-btn{width:26px;height:28px;background:var(--ch-accent,#d93025);color:var(--on-primary,#fff);border-left:1px solid #ffffff55;border-radius:0 6px 6px 0}.fm-ch-composer-box>.fm-ch-reply-broadcast{margin:5px 0 0;font-size:11px}
 .fm-ch-popover{overflow-x:hidden}.fm-ch-emoji-search{display:block;box-sizing:border-box;min-width:0;height:auto;line-height:1.45;background:#fff;color:var(--ch-text)}.fm-ch-emoji-search::placeholder{color:var(--ch-muted)}.fm-ch-message-menu{min-width:0;width:100%}.fm-ch-message-menu>button{width:100%;height:auto;min-height:32px;color:var(--ch-text);background:transparent;white-space:normal;overflow-wrap:anywhere}
+.fm-ch-image-draft{position:relative;display:inline-block;flex:none;width:84px;height:84px;margin:7px 6px 3px 0;vertical-align:top}.fm-ch-image-draft>.fm-ch-image-preview{display:block;width:84px;height:84px;padding:0!important;border:0!important;border-radius:8px;overflow:hidden;background:#f2f4f7;cursor:zoom-in}.fm-ch-image-preview img{display:block;width:100%;height:100%;object-fit:cover}.fm-ch-image-draft>.fm-ch-image-remove{position:absolute;right:-5px;top:-5px;display:grid;place-items:center;width:22px;height:22px;padding:0!important;border:0!important;border-radius:50%;background:#344054!important;color:#fff!important;cursor:pointer;z-index:1}.fm-ch-image-remove svg{width:12px;height:12px}.fm-ch-image-view{display:block;max-width:100%;max-height:70vh;margin:auto;object-fit:contain}.fm-ch-pending-files:empty{display:none}
 .fm-ch-recording-menu{display:flex;gap:4px;padding:4px}.fm-ch-recording-menu button{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--ch-text,#475467);cursor:pointer}.fm-ch-recording-menu button:hover{background:var(--ch-hover,#f2f4f7)}
 .fm-ch-schedule-menu{min-width:240px;padding:4px}.fm-ch-schedule-menu header{font-size:12px;color:var(--ch-muted,#667085);padding:7px 10px}.fm-ch-schedule-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:10px;font:inherit;cursor:pointer;border-radius:5px}.fm-ch-schedule-menu button:hover{background:var(--ch-hover,#f2f4f7)}.fm-ch-schedule-menu hr{border:0;border-top:1px solid var(--ch-border,#e4e7ec);margin:4px 0}
 `;
     document.head.appendChild(style);
   }
 
+  function attachmentDraft(attachment,{url,onRemove}={}){
+    if(!url)return null;
+    try{if(!['http:','https:','blob:'].includes(new URL(url,location.href).protocol))return null;}catch{return null;}
+    ensureStyles();const draft=el('div','fm-ch-image-draft'),preview=el('button','fm-ch-image-preview'),image=el('img');
+    preview.type='button';preview.setAttribute('aria-label','Preview image');preview.title=attachment.file_name || 'Image attachment';image.src=url;image.alt='Image attachment';preview.append(image);
+    preview.onclick=()=>showModal('Image',body=>{body.closest('.fm-ch-modal').style.width='min(900px,94vw)';const full=el('img','fm-ch-image-view');full.src=url;full.alt='Image attachment';body.append(full);},[]);
+    const remove=el('button','fm-ch-image-remove','<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>');remove.type='button';remove.setAttribute('aria-label','Remove attachment');remove.onclick=()=>onRemove?.();draft.append(preview,remove);return draft;
+  }
   function actionProxy(action){
     const proxy=el('button');proxy.type='button';
-    const sync=()=>{proxy.innerHTML=action.innerHTML;proxy.title=action.title;proxy.setAttribute('aria-label',action.getAttribute('aria-label') || action.title || action.textContent);proxy.disabled=action.disabled;if(action.hasAttribute('aria-pressed'))proxy.setAttribute('aria-pressed',action.getAttribute('aria-pressed'));};
+    const sync=()=>{proxy.innerHTML=action.innerHTML;const label=action.getAttribute('aria-label') || action.getAttribute('data-fm-native-title') || action.title || action.textContent;proxy.title=label;proxy.setAttribute('aria-label',label);proxy.disabled=action.disabled;if(action.hasAttribute('aria-pressed'))proxy.setAttribute('aria-pressed',action.getAttribute('aria-pressed'));};
     sync();proxy.onmousedown=event=>event.preventDefault();
     proxy.onclick=()=>{if(action.disabled)return;const anchor=proxy.getBoundingClientRect();const selection=getSelection();const range=selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;closePopover();if(range){selection.removeAllRanges();selection.addRange(range);}action._popoverRect=anchor;try{action.click();}finally{delete action._popoverRect;}};
     return proxy;
@@ -1280,7 +1291,7 @@
     const commands=[...bar.children].filter(node=>node.tagName==='BUTTON');
     const more=el('button','fm-ch-format-more','⋯');more.type='button';more.title='See more formatting';more.setAttribute('aria-label',more.title);more.setAttribute('aria-haspopup','menu');
     more.onmousedown=event=>{editor.saveSelection();event.preventDefault();};
-    more.onclick=()=>showPopover(more,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of commands.filter(button=>button.hidden)){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');proxy.innerHTML=action.title;menu.append(proxy);}pop.append(menu);});
+    more.onclick=()=>showPopover(more,pop=>{const menu=el('div','fm-ch-message-menu');menu.setAttribute('role','menu');for(const action of commands.filter(button=>button.hidden)){const proxy=actionProxy(action);proxy.setAttribute('role','menuitem');proxy.textContent=action.getAttribute('aria-label') || action.getAttribute('data-fm-native-title') || action.title || action.textContent;menu.append(proxy);}pop.append(menu);});
     bar.append(more);
     bar._fitFormatting=()=>{
       if(!bar.isConnected || !bar.clientWidth)return;
@@ -4505,8 +4516,11 @@
             const data = await api.uploads.send(orgId, file, channelId);
             if (state.destroyed || state.activeChannelId !== channelId || !editor.isConnected) { chip.remove(); continue; }
             onAdd(data.attachment);
-            chip.innerHTML = `<i class="fas fa-paperclip"></i> ${esc(file.name || data.attachment.file_name || 'Clipboard file')} <button type="button" aria-label="Remove attachment">×</button>`;
-            chip.querySelector('button').onclick = () => { onRemove(data.attachment.id); chip.remove(); editor.dispatchEvent(new Event('input', {bubbles:true})); };
+            const remove=()=>{onRemove(data.attachment.id);(preview || chip).remove();editor.dispatchEvent(new Event('input',{bubbles:true}));};
+            const url=api.mediaFileUrl?.(orgId,data.attachment.media_id) || data.attachment.url || data.attachment.public_url || '';
+            const preview=String(data.attachment.content_type || file.type).startsWith('image/') ? attachmentDraft(data.attachment,{url,onRemove:remove}) : null;
+            if(preview)chip.replaceWith(preview);
+            else {chip.innerHTML = `<i class="fas fa-paperclip"></i> ${esc(file.name || data.attachment.file_name || 'Clipboard file')} <button type="button" aria-label="Remove attachment">×</button>`;chip.querySelector('button').onclick=remove;}
             editor.dispatchEvent(new Event('input', {bubbles:true}));
           } catch (error) { chip.remove(); showError(error); }
           finally { editor.uploadingFiles--; }
@@ -4577,6 +4591,7 @@
 
       const emojiBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-face-smile"></i>');
       emojiBtn.title = (globalThis.PlatformLanguage?.text("channels-ui","m_1832447bbc385c","Insert emoji") ?? "Insert emoji");
+      emojiBtn.setAttribute('aria-label',emojiBtn.title);
       emojiBtn.addEventListener('click', () => openEmojiPicker(emojiBtn, (emoji) => {
         composerInput.insertText(emoji);
         composerInput.focus();
@@ -4587,6 +4602,7 @@
       if (features.attachments) {
         const fileBtn = el('button', 'fm-ch-icon-btn', '<i class="fas fa-paperclip"></i>');
         fileBtn.title = (globalThis.PlatformLanguage?.text("channels-ui","m_281fbe3da74b11","Attach a file") ?? "Attach a file");
+        fileBtn.setAttribute('aria-label',fileBtn.title);
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.multiple = true;
@@ -4715,8 +4731,8 @@
       sendPair.appendChild(send);
       if (schedule) sendPair.appendChild(schedule);
       row.appendChild(sendPair);
-      box.appendChild(row);
-      composer.append(editNote, box, composerHint(), dictationMount, audioMount, gifPreview, pendingWrap);
+      box.append(pendingWrap,gifPreview,row);
+      composer.append(editNote, box, composerHint(), dictationMount, audioMount);
       paintGif();
 
       const autosize = () => {
@@ -5028,12 +5044,15 @@
       const threadInput = createMessageEditor('Reply…');
       bindTyping(threadInput);
       const threadFiles = [];
-      let threadGif=null;
+      let threadGif=null,threadAudioNote=null,threadCapturing=false,threadCaptureMode='',threadControl=null,editingId='';
+      const threadCurrent=()=>node.isConnected && !state.destroyed && state.activeChannelId===channelId && state.threadRootId===rootId;
+      const audioMount=el('div','fm-ch-audio-mount'),dictationMount=el('div','fm-ch-audio-mount');
+      const removeThreadFile=id=>{const index=threadFiles.findIndex(file=>file.id===id);if(index>=0)threadFiles.splice(index,1);};
       const gifPreview=el('div');
       const paintGif=()=>renderGifDraft(gifPreview,threadGif,()=>{if(send.disabled)return;threadGif=null;paintGif();});
       const gifButton=createGifPickerButton({orgId,onError:showError,onSelect:selected=>{if(!node.isConnected)return;if(send.disabled)throw Error('Wait for the reply to finish sending.');threadGif=selected;paintGif();}});
       const pendingWrap = el('div', 'fm-ch-pending-files');
-      composerFileUploads(threadInput, pendingWrap, attachment => threadFiles.push(attachment), id => { const i = threadFiles.findIndex(item => item.id === id); if (i >= 0) threadFiles.splice(i, 1); });
+      const uploadThreadFiles=composerFileUploads(threadInput,pendingWrap,attachment=>threadFiles.push(attachment),removeThreadFile);
       if (features.richMessages) box.appendChild(messageFormatBar(threadInput));
       box.appendChild(threadInput);
 
@@ -5044,11 +5063,35 @@
       const broadcast = document.createElement('input');
       broadcast.type = 'checkbox';
       broadcastLabel.append(broadcast, document.createTextNode('Also send to channel'));
-      box.append(broadcastLabel);row.append(send);
-      bindRichMentions(threadInput,box,row);
-      if(features.attachments)row.prepend(gifButton);
-      box.appendChild(row);
-      node.append(gifPreview, pendingWrap, box, composerHint());
+      box.append(pendingWrap,gifPreview,broadcastLabel);
+      const tool=(label,html)=>{const button=el('button','fm-ch-icon-btn',html);button.type='button';button.title=label;button.setAttribute('aria-label',label);return button;};
+      const emoji=tool('Insert emoji','<i class="fas fa-face-smile" aria-hidden="true"></i>');emoji.onmousedown=()=>threadInput.saveSelection();emoji.onclick=()=>openEmojiPicker(emoji,value=>{threadInput.insertText(value);threadInput.focus();});row.append(emoji);
+      const uploadControls=[],recordingActions=[];
+      if(features.attachments){
+        row.append(gifButton);const attach=tool('Attach a file','<i class="fas fa-paperclip" aria-hidden="true"></i>'),input=el('input');input.type='file';input.multiple=true;input.hidden=true;attach.onclick=()=>input.click();input.onchange=async()=>{await uploadThreadFiles([...input.files || []]);input.value='';};row.append(attach,input);uploadControls.push(attach);
+      }
+      if(features.audioNotes && root.FirstMateAudioNotes?.prepareInline){
+        const icon=mode=>'<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:18px;height:18px;background:currentColor;mask:url(/libraries/voice-icons/'+mode+'.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/'+mode+'.svg) center/contain no-repeat"></span>';
+        const dictate=tool('Dictate message',icon('dictation')),audio=tool('Record an audio note',icon('record'));audio.dataset.voiceMode='record';dictate.dataset.voiceMode='dictation';row.append(dictate);recordingActions.push(audio);uploadControls.push(audio);
+        for(const [mode,button,mount] of [['dictation',dictate,dictationMount],['record',audio,audioMount]])button.onclick=async()=>{
+          if(threadCapturing){if(threadCaptureMode===mode)threadControl?.stop();return;}
+          if(send.disabled || (mode==='record' && (editingId || threadAudioNote)))return;
+          threadCapturing=true;threadCaptureMode=mode;dictate.disabled=audio.disabled=true;let audioId='';
+          try{
+            const prepared=await root.FirstMateAudioNotes.prepareInline(orgId,channelId,{mount,mode,onRecordingState:control=>{if(!threadCurrent()){control?.stop();return;}threadControl=control;button.classList.toggle('voice-active',!!control);button.disabled=!control;button.setAttribute('aria-pressed',String(!!control));button.title=control ? (mode==='record'?'Finish recording':'Finish dictation') : (mode==='record'?'Record an audio note':'Dictate message');button.setAttribute('aria-label',button.title);},onRemove:()=>{removeThreadFile(audioId);threadAudioNote=null;audio.disabled=!!editingId;}});
+            if(!threadCurrent())return;
+            if(mode==='dictation'){threadInput.value=[threadInput.value,prepared.text].filter(Boolean).join(' ');threadInput.dispatchEvent(new Event('input',{bubbles:true}));threadInput.focus();}
+            else{audioId=prepared.attachment.id;threadFiles.push(prepared.attachment);threadAudioNote=prepared.metadata;}
+          }catch(error){if(!String(error?.message || '').toLowerCase().includes('cancelled'))showError(error);}
+          finally{threadCapturing=false;threadControl=null;for(const [b,label] of [[dictate,'Dictate message'],[audio,'Record an audio note']]){b.classList.remove('voice-active');b.setAttribute('aria-pressed','false');b.title=label;b.setAttribute('aria-label',label);}dictate.disabled=false;audio.disabled=!!editingId || !!threadAudioNote;}
+        };
+        const watcher=new MutationObserver(()=>{if(!node.isConnected){threadControl?.stop();watcher.disconnect();}});watcher.observe(container,{childList:true,subtree:true});
+      }
+      if(features.clips && features.attachments && root.MediaRecorder && navigator.mediaDevices){
+        const addClip=attachment=>{if(!threadCurrent())return;threadFiles.push(attachment);const chip=el('span','fm-ch-chip','<i class="fas fa-video" aria-hidden="true"></i> '+esc(attachment.file_name || 'Clip')+' <button type="button" aria-label="Remove attachment">×</button>');chip.querySelector('button').onclick=()=>{removeThreadFile(attachment.id);chip.remove();};pendingWrap.append(chip);};
+        const video=tool('Record video clip','<i class="fas fa-video" aria-hidden="true"></i>'),screen=tool('Record screen clip','<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>');video.onclick=()=>recordClip('camera',addClip).catch(showError);screen.onclick=()=>prepareScreenClip(addClip);recordingActions.push(video,screen);uploadControls.push(video,screen);
+      }
+      bindRichMentions(threadInput,box,row);moreActions(row,recordingActions);row.append(send);box.append(row);node.append(box,composerHint(),dictationMount,audioMount);
       let threadMentionApi = null;
       try {
         if (root.FirstMateTags?.attachMentionTextarea) {
@@ -5059,9 +5102,9 @@
       const editNote = el('div', 'fm-ch-edit-note');
       editNote.style.display = 'none';
       node.prepend(editNote);
-      let editingId = '';
       const doSend = async () => {
         if (send.disabled) return;
+        if(threadCapturing)return showError(new Error('Finish recording before sending your reply.'));
         const text = threadInput.value.trim();
         if (threadInput.uploadingFiles) return showError(new Error('Wait for attachments to finish uploading.'));
         if (!text && !threadFiles.length && (editingId || !threadGif)) return;
@@ -5079,12 +5122,12 @@
               text,
               parent_id: rootId,
               reply_broadcast: broadcast.checked,
-              ...(threadGif?{metadata:{giphy:threadGif}}:{}),
+              metadata:{...(threadGif?{giphy:threadGif}:{}),...(threadAudioNote?{audio_note:threadAudioNote}:{})},
               attachment_ids: threadFiles.map(file => file.id),
               client_msg_id: `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
               mention_users: mentions
             });
-            threadGif=null;paintGif();threadFiles.length=0;pendingWrap.replaceChildren();threadInput.value='';
+            threadGif=null;threadAudioNote=null;audioMount.replaceChildren();paintGif();threadFiles.length=0;pendingWrap.replaceChildren();threadInput.value='';
             if(!node.isConnected || state.activeChannelId!==channelId || state.threadRootId!==rootId)return;
             await openThread(rootId, { silent: true, resetComposer: true });
             await refreshActiveMessages();
@@ -5100,12 +5143,12 @@
       send.addEventListener('click', doSend);
       bindEnterToSend(threadInput, doSend);
       panel._startEdit = (message) => {
-        editingId = message.id;gifButton.disabled=true;gifPreview.hidden=true;
+        editingId = message.id;gifButton.disabled=true;gifPreview.hidden=true;uploadControls.forEach(button=>button.disabled=true);
         broadcastLabel.hidden = true;
         editNote.style.display = 'flex';
         editNote.innerHTML = `<span>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_34e633033239eb","Editing reply") ?? "Editing reply")}</span><button>${(globalThis.PlatformLanguage?.htmlText("channels-ui","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>`;
         editNote.querySelector('button').addEventListener('click', () => {
-          editingId = '';gifButton.disabled=false;gifPreview.hidden=false;
+          editingId = '';gifButton.disabled=false;gifPreview.hidden=false;uploadControls.forEach(button=>button.disabled=button.dataset.voiceMode==='record' && !!threadAudioNote);
           broadcastLabel.hidden = false;
           editNote.style.display = 'none';
           threadInput.value = '';
@@ -6250,6 +6293,6 @@
     return title;
   }
 
-  const composerWidgets={renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,moreActions,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
+  const composerWidgets={renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,moreActions,attachmentDraft,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();

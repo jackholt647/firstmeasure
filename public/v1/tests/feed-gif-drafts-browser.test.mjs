@@ -26,7 +26,7 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
    window.rootMessage={id:'root',text:'Original post',created_at:new Date().toISOString(),metadata:{feed_post:true,giphy:{id:'fixture',url:'https://media.giphy.com/media/test/giphy.gif',width:200,height:160}},reply_count:0,reactions:[],author:{id:'sam',name:'Sam'}};
    window.comments=[];window.posts=[];window.replies=[];
    const thread=()=>({root:rootMessage,replies});
-   window.PlatformAPI={users:{list:async()=>({documents:[]})},projects:{list:async()=>({documents:[]})}};
+   window.PlatformAPI={users:{list:async()=>({documents:[{id:'sam',name:'Sam'}]})},projects:{list:async()=>({documents:[]})}};
    window.ChannelsAPI={gifs:{config:async()=>({enabled:true,sdk_key:'test'})},mediaFileUrl:()=>'',channels:{list:async()=>({channels:[]})},feed:{
     catalog:async()=>({projects:[],media:[],events:[],users:[{id:'sam',name:'Sam'}],views:['list','posts'],can_comment:true,can_react:true,can_post:true,manual_posts:[rootMessage],departments:[],user_departments:{sam:[]},member_department_ids:[]}),
     authorize:async()=>({sources:[]}),lookup:async()=>thread(),resolve:async()=>thread(),thread:async()=>thread(),
@@ -34,7 +34,7 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
     createPost:async(org,body)=>{posts.push(body);return {message:{id:'new-post'}};}
    }};
   });
-  for(const path of ['channels-ui/channels-ui.js','apps/photos/feed.js'])await page.addScriptTag({url:'/libraries/'+path});
+  for(const path of ['channels-ui/channels-ui.js','platform-ui/platform-ui.js','platform-tags/platform-tags.js','apps/photos/feed.js'])await page.addScriptTag({url:'/libraries/'+path});
   await page.waitForFunction(()=>window.feedApp);await page.evaluate(()=>feedApp.mount(document.querySelector('#feed')));
   await page.getByRole('button',{name:'Posts',exact:true}).click();
   const post=page.locator('[data-feed-post="manual:root"]');await post.waitFor();assert.equal(await post.locator('.pf-manual-gif .fm-widget-gif').count(),1);assert.equal(await post.locator('.pf-manual-gif figcaption img').getAttribute('alt'),'Powered by GIPHY');
@@ -45,6 +45,8 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   const commentButtons=await post.locator('.fm-ch-formatbar>button').evaluateAll(nodes=>nodes.filter(n=>!n.hidden).map(n=>({border:getComputedStyle(n).borderTopWidth,background:getComputedStyle(n).backgroundColor,height:n.getBoundingClientRect().height,color:getComputedStyle(n).color})));assert.ok(commentButtons.every(n=>n.border==='0px' && n.background==='rgba(0, 0, 0, 0)' && n.height>=26 && n.height<=28 && n.color==='rgb(102, 112, 133)'),JSON.stringify(commentButtons));
   for(let i=0;i<2;i++){const toggle=post.getByRole('button',{name:'Insert emoji',exact:true});await toggle.click();await page.locator('.pf-emoji-widget').waitFor();await toggle.locator('i').click();assert.equal(await page.locator('.pf-emoji-widget').count(),0,'emoji icon and its child toggle the picker closed');}
   await mkdir(new URL('../../../output/composer-refinements/',import.meta.url),{recursive:true});await post.locator('.pf-comment-input').screenshot({path:fileURLToPath(new URL('../../../output/composer-refinements/feed-comment.png',import.meta.url))});
+  await post.locator('[data-mention-button]').click();await page.locator('[data-mention-user=sam]').click();assert.equal(await post.locator('[data-comment-editor]').evaluate(n=>[...CSS.highlights.get('fm-channel-mentions')].some(r=>n.contains(r.startContainer))),true);
+  assert.equal(await post.locator('[data-comment-editor]').evaluate(n=>getComputedStyle(n,'::highlight(fm-channel-mentions)').color),'rgb(217, 48, 37)');
   await post.locator('[data-comment-editor]').fill('Caption');await choose(post.locator('[data-comment-gif]'));
   assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await post.locator('[data-comment-editor]').evaluate(n=>n.value),'Caption');
   await post.getByRole('button',{name:'Remove GIF'}).click();assert.equal(await post.locator('.pf-composer-gif').count(),0);
@@ -64,6 +66,7 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   assert.ok(await postEditor.evaluate(n=>n.getBoundingClientRect().height>=300),'manual posts keep their large editor');
   for(const name of ['Bold','Italic','Strikethrough']){await postEditor.evaluate(n=>{n.value='';n.focus();const r=document.createRange();r.selectNodeContents(n);r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);});const toggle=page.locator('.pf-post-formatbar').getByRole('button',{name,exact:true});await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'true');assert.equal(await toggle.evaluate(n=>getComputedStyle(n).color),'rgb(217, 48, 37)');await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'false');}
 
+  await page.locator('[data-feed-compose] [data-mention-button]').click();await page.locator('[data-mention-user=sam]').click();assert.equal(await postEditor.evaluate(n=>[...CSS.highlights.get('fm-channel-mentions')].some(r=>n.contains(r.startContainer))),true);await postEditor.fill('');
   await choose(page.locator('[data-feed-compose-gif]'));assert.equal(await page.evaluate(()=>posts.length),0);
   await page.locator('[data-feed-compose-remove-gif]').click();await choose(page.locator('[data-feed-compose-gif]'));
   await page.locator('[data-feed-compose] button[type=submit]').click();await page.waitForFunction(()=>posts.length===1);
