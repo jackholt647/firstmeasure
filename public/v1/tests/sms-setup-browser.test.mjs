@@ -253,7 +253,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
         if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};
         if(path.includes('/available-numbers')){if(window.deferSearch)await new Promise(resolve=>window.releaseSearch=resolve);return {numbers:[{phone_number:'+12065550101',locality:'Seattle',region:'WA',monthly_cost:'1.00'},{phone_number:'+12065550102',locality:'Seattle',region:'WA',monthly_cost:'1.00'}]};}
         if(path.endsWith('/select-number'))window.saved={...window.saved,campaign:{...window.saved.campaign,selectedNumber:options.body.phone_number}};
-        if(path.endsWith('/evidence'))return {url:'https://example.com/'+options.body.file_name};
+        if(path.endsWith('/evidence'))return {url:window.longEvidenceUrl ? 'https://example.com/'+'x'.repeat(2000) : 'https://example.com/'+options.body.file_name};
         return {profile:structuredClone(window.saved)};
       };
       ${helpers}
@@ -266,6 +266,8 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.evaluate(()=>window.start());
     assert.equal(await page.locator('[data-sms-field]').first().getAttribute('data-sms-field'),'brand.entityType');
     assert.equal(await page.locator('[data-sms-field="campaign.description"]').count(),1);
+    assert.equal(await page.locator('[data-sms-field="campaign.description"]').getAttribute('maxlength'),'600');
+    assert.equal(await page.getByText('See an example campaign description',{exact:true}).count(),1);
     const copy=await page.evaluate(()=>window.generated({brand:{displayName:'x'.repeat(75)},campaign:{enabledFeatures:['crm_conversations','operations','customer_growth']}}).optinMessage);
     assert.match(copy,/Subscribed to customer care, updates, marketing texts/);assert.match(copy,/Consent is not a condition of purchase/);assert.ok(copy.length<=255);
     const frozen=await page.evaluate(()=>window.generated({provider_refs:{telnyx_campaign_id:'submitted'},campaign:{optinMessage:'Already registered reply'}}).optinMessage);assert.equal(frozen,'Already registered reply');
@@ -305,10 +307,15 @@ test('business identity switches paths, formats EIN and website, and preserves u
     if(process.env.SMS_SCREENSHOTS) {await mkdir(process.env.SMS_SCREENSHOTS,{recursive:true});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/identity-mobile.png'});}
     assert.equal(await page.evaluate(()=>window.defaultFeatures().length),3);
     await page.getByRole('button',{name:'3. Messages & consent'}).click();
+    assert.equal(await page.getByRole('heading',{name:'Texting Policies'}).count(),1);
+    assert.equal(await page.getByRole('heading',{name:'How will your business use texting?'}).count(),1);
     await page.locator('[data-sms-method="WEBSITE_FORM"]').check();
     assert.equal(await page.locator('[data-sms-method="VERBAL"]').isChecked(),true);
     await page.locator('[data-sms-method="KEYWORD"]').check();
     const signup=page.locator('[data-sms-field="campaign.optInLocationUrl"]');await signup.fill('example.com/signup');await signup.blur();assert.equal(await signup.inputValue(),'https://example.com/signup');
+    assert.equal(await page.getByText('Your signup form should include',{exact:true}).count(),0);
+    assert.equal(await page.locator('[data-sms-field="campaign.optInDisclosure"]').getAttribute('maxlength'),'600');
+    assert.equal(await page.locator('[data-sms-field="campaign.messageFlow"]').getAttribute('maxlength'),'600');
     assert.equal(await page.locator('[data-sms-field="campaign.websiteFormConfirmed"]').count(),0);
     assert.equal(await page.locator('[data-sms-field="campaign.policyContentConfirmed"]').count(),0);
     await page.getByText('See an example privacy policy: SMS section',{exact:true}).click();
@@ -318,16 +325,18 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.locator('.sms-evidence').scrollIntoViewIfNeeded();
     const scrollBefore=await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollTop);
     assert.ok(scrollBefore>200);
-    await page.locator('[data-sms-evidence-upload]').setInputFiles([{name:'example.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 test')},{name:'second.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 second')}]);
+    const screenshot=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlPpN8AAAAASUVORK5CYII=','base64');
+    await page.locator('[data-sms-evidence-upload]').setInputFiles([{name:'example.png',mimeType:'image/png',buffer:screenshot},{name:'second.png',mimeType:'image/png',buffer:screenshot}]);
     await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===2);
-    await page.waitForFunction(()=>!document.querySelector('[data-sms-add-link]').disabled);
+    assert.equal(await page.locator('[data-sms-add-link]').count(),0);
     assert.ok(Math.abs(await page.locator('.fm-wizard-pane').evaluate(el=>el.scrollTop)-scrollBefore)<40);
     assert.equal(await page.locator('.sms-evidence-list a').count(),2);
-    await page.locator('[data-sms-add-link]').click();await page.locator('#sms-evidence-link').fill('example.com/public-consent');await page.locator('[data-sms-save-link]').click();
-    await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===3);
-    assert.equal(await page.locator('.sms-evidence-list a').nth(2).getAttribute('href'),'https://example.com/public-consent');
+    await page.evaluate(()=>window.longEvidenceUrl=true);
+    await page.locator('[data-sms-evidence-upload]').setInputFiles([{name:'third.png',mimeType:'image/png',buffer:screenshot}]);
+    await page.getByText(/No room for another screenshot link/).waitFor();
+    assert.equal(await page.evaluate(()=>window.saved.campaign.optInEvidence.length),2);
     await page.locator('[data-sms-remove-evidence="0"]').click();
-    await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===2 && window.saved.campaign.optInEvidenceUrl==='https://example.com/second.pdf');
+    await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===1 && window.saved.campaign.optInEvidenceUrl==='https://example.com/second.png');
     assert.equal(await page.locator('[data-fm-note]').isVisible(),false);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-mobile.png'});
     await page.setViewportSize({width:1280,height:960});
@@ -358,6 +367,8 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.locator('[data-sms-choose-number="+12065550101"]').click();
     await page.getByRole('button',{name:'Choose a different number'}).click();
     const search=page.locator('#sms-number-search');
+    assert.equal(await search.inputValue(),'');
+    assert.equal(await page.getByText('Enter desired area code',{exact:true}).count(),1);
     await search.fill('06'); await page.waitForTimeout(450);
     assert.equal(await search.isVisible(),true);assert.equal(await search.inputValue(),'06');
     await search.fill(''); await page.waitForTimeout(450);
@@ -375,6 +386,18 @@ test('business identity switches paths, formats EIN and website, and preserves u
     await page.locator('#smsNext').click();
     await page.waitForFunction(()=>window.saved.campaign.selectedNumber==='+12065550102');
     assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path.endsWith('/select-number')).length),1);
+    await page.locator('[data-sms-summary-checklist]').waitFor();
+    assert.equal(await page.locator('.sms-timeline').count(),0);
+    await page.getByRole('button',{name:'3. Messages & consent'}).click();
+    await page.locator('[data-sms-field="campaign.termsAndConditionsLink"]').fill('');
+    await page.getByRole('button',{name:'6. Review & submit'}).click();
+    assert.equal(await page.getByRole('button',{name:'Add SMS terms'}).count(),1);
+    assert.match(await page.locator('[data-sms-summary-checklist]').innerText(),/missing fields/);
+    assert.equal(await page.getByText('Select an item to go straight to it.',{exact:true}).count(),0);
+    assert.equal(await page.locator('.sms-review-section').last().evaluate(el=>el.compareDocumentPosition(document.querySelector('[data-sms-summary-checklist]')) & Node.DOCUMENT_POSITION_FOLLOWING ? true : false),true);
+    if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/summary-missing.png',fullPage:true});
+    await page.getByRole('button',{name:'Add SMS terms'}).click();
+    assert.equal(await page.locator('[data-sms-field="campaign.termsAndConditionsLink"]').isVisible(),true);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

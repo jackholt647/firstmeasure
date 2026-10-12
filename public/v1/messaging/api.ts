@@ -668,13 +668,14 @@ function validateCampaignDraft(campaignInput: JsonObject) {
     const methods = campaignOptInMethods(campaignInput);
     const subUsecases = campaignSubUsecases(campaignInput);
     if (usecase === "LOW_VOLUME" && subUsecases.length < 2) missing.push("lowVolumeSubUsecases");
-    if (cleanText(campaignInput.description).length < 40 || cleanText(campaignInput.description).length > 4096) missing.push("descriptionLength");
-    if (cleanText(campaignInput.messageFlow).length < 40) missing.push("messageFlowLength");
+    if (cleanText(campaignInput.description).length < 40 || cleanText(campaignInput.description).length > 600) missing.push("descriptionLength");
+    if (cleanText(campaignInput.messageFlow).length < 40 || cleanText(campaignInput.messageFlow).length > 600) missing.push("messageFlowLength");
     if (!methods.length || methods.some(method => !["WEBSITE_FORM", "PAPER_FORM", "VERBAL", "KEYWORD"].includes(method))) missing.push("optInMethod");
     if (methods.includes("WEBSITE_FORM") && !validPublicHttpsUrl(campaignInput.optInLocationUrl)) missing.push("optInLocationUrl");
     if (methods.includes("KEYWORD") && !validPublicHttpsUrl(campaignInput.keywordLocationUrl || (!methods.includes("WEBSITE_FORM") ? campaignInput.optInLocationUrl : "")) && !campaignEvidenceUrls(campaignInput).some(validPublicHttpsUrl)) missing.push("optInLocationUrl");
     if (campaignEvidenceUrls(campaignInput).some(url => !validPublicHttpsUrl(url))) missing.push("optInEvidenceUrl");
     const disclosure = cleanText(campaignInput.optInDisclosure);
+    if (disclosure.length > 600) missing.push("optInDisclosureLength");
     if (!/\b(?:SMS|text messages?|texts?)\b/i.test(disclosure) || !/\bSTOP\b/i.test(disclosure) || !/\bHELP\b/i.test(disclosure)
       || !/\b(?:frequency|freq|messages? per|messages? may vary)\b/i.test(disclosure)
       || !/\b(?:message|msg)\b.*\bdata rates\b/i.test(disclosure)
@@ -1636,10 +1637,9 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const body = z.object({ file_name: z.string().min(1).max(200), data: z.string().max(7 * 1024 * 1024) }).parse(request.body);
     const bytes = Buffer.from(body.data, "base64");
     if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw badRequest("evidence_size", "Choose a file up to 5 MB.");
-    const contentType = bytes.subarray(0,5).toString() === "%PDF-" ? "application/pdf"
-      : bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "image/png"
+    const contentType = bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "image/png"
       : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? "image/jpeg" : "";
-    if (!contentType) throw badRequest("evidence_type", "Upload a PDF, PNG, or JPEG. Export Word documents as PDF.");
+    if (!contentType) throw badRequest("evidence_type", "Upload a PNG or JPEG screenshot.");
     const token = randomBytes(32).toString("hex");
     const media = await storeMediaUpload(orgId, { ownerType: "sms_registration", ownerId: profile.id, slot: "consent_evidence",
       fileName: body.file_name, contentType, bytes, thumbnails: {enabled:false}, compression: {enabled:false},

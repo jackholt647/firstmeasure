@@ -918,6 +918,11 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
     }
   });
   assert.equal(lowVolume.profile.validation.campaign.ok, true);
+  const overLimit=await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{description:"marketing "+"x".repeat(600),messageFlow:"marketing "+"x".repeat(600),optInDisclosure:"marketing "+"x".repeat(600)}});
+  assert.ok(overLimit.profile.validation.campaign.missing.includes("descriptionLength"));
+  assert.ok(overLimit.profile.validation.campaign.missing.includes("messageFlowLength"));
+  assert.ok(overLimit.profile.validation.campaign.missing.includes("optInDisclosureLength"));
+  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`, {campaign:{description:lowVolume.profile.campaign.description,messageFlow:lowVolume.profile.campaign.messageFlow,optInDisclosure:lowVolume.profile.campaign.optInDisclosure}});
   const missingMarketing=await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`,{campaign:{sample4:""}});
   assert.ok(missingMarketing.profile.validation.campaign.missing.includes("marketingDescriptionAndSamples"));
   await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`,{campaign:{sample4:lowVolume.profile.campaign.sample4}});
@@ -2433,17 +2438,18 @@ test("SMS evidence uploads produce scoped public review links and reject unautho
   const client=createSessionClient();const {orgId}=await register(client,true);
   const created=await client.request("POST",`/v1/messaging/organizations/${orgId}/sms/compliance-profiles`,{brand:{},campaign:{}});
   const endpoint=`/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/evidence`;
-  const bytes=Buffer.from("%PDF-1.4\n% example blank consent form\n%%EOF");
-  const payload={file_name:"consent.pdf",data:bytes.toString("base64")};
+  const bytes=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlPpN8AAAAASUVORK5CYII=","base64");
+  const payload={file_name:"consent.png",data:bytes.toString("base64")};
   assert.equal((await app.inject({method:"POST",url:endpoint,payload})).statusCode,401);
   const other=createSessionClient();await register(other,true);
   assert.notEqual((await other.raw("POST",endpoint,payload)).statusCode,200);
   assert.equal((await client.raw("POST",endpoint,{file_name:"bad.html",data:Buffer.from("<script>alert(1)</script>").toString("base64")})).statusCode,400);
+  assert.equal((await client.raw("POST",endpoint,{file_name:"consent.pdf",data:Buffer.from("%PDF-1.4\n%%EOF").toString("base64")})).statusCode,400);
   const uploaded=await client.request("POST",endpoint,payload);
   const url=new URL(uploaded.url);
   const publicFile=await app.inject({method:"GET",url:url.pathname});
   assert.equal(publicFile.statusCode,200,publicFile.body);assert.deepEqual(publicFile.rawPayload,bytes);
-  assert.ok(String(publicFile.headers["content-type"]).includes("application/pdf"));
+  assert.ok(String(publicFile.headers["content-type"]).includes("image/png"));
   assert.equal(publicFile.headers["x-content-type-options"],"nosniff");
   assert.equal((await app.inject({method:"GET",url:url.pathname.replace(/[^/]+$/, "0".repeat(64))})).statusCode,404);
 });
