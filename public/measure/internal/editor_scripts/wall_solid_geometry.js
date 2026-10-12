@@ -740,7 +740,7 @@ function slideLines(faces,pairs,direction,amount,options={}){
   const target=options.pointMoves?.find(m=>Math.hypot(...Object.values(sub(bound.point(m.from),p)))<1e-5)?.to;
   moves.push({from:p,to:target||{x:p.x+direction.x*amount,y:p.y+direction.y*amount,z:p.z+direction.z*amount}});
  }
- const matching=p=>moves.find(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-5),affected=[];
+ const matching=p=>moves.find(m=>Math.hypot(...Object.values(sub(m.from,p)))<1e-5),affected=[],returns=[];
  const result=faces.map(f=>{if(f.deleted)return f;
   // Only incident faces can change. Normalizing every other polygon makes a
   // one-point edit pay the triangulation cost of the entire building.
@@ -758,11 +758,28 @@ function slideLines(faces,pairs,direction,amount,options={}){
    // a connecting segment; edges parallel to the motion can shorten normally.
    const keep=(a,b)=>{if(!options.preserveConnections||!!matching(a)===!!matching(b))return false;const u=sub(b,a),move=matching(a)||matching(b),d=sub(move.to,move.from);return Math.hypot(u.y*d.z-u.z*d.y,u.z*d.x-u.x*d.z,u.x*d.y-u.y*d.x)>1e-7;};
    const moved=expanded.flatMap((p,i)=>{const prev=expanded[(i+expanded.length-1)%expanded.length],next=expanded[(i+1)%expanded.length];return [keep(prev,p)?p:translated(p),keep(p,next)?p:translated(p)];});return moved.filter((p,i)=>Math.hypot(...Object.values(sub(p,moved[(i+moved.length-1)%moved.length])))>1e-6);};
+  // An extrusion may leave an adjoining plane. Keep that face intact and
+  // sweep its shared edge separately instead of inserting a bent polygon.
+  const originalFrame=faceFrame(f);
+  if(options.preserveConnections&&originalFrame&&moves.some(m=>rings(f).some(r=>r.some((a,i)=>pointOnEdge(m.from,a,r[(i+1)%r.length])))&&Math.abs(dot(sub(m.to,originalFrame.origin),originalFrame.n))>K.CONTACT)){
+   for(const [index,pair]of pairs.entries())for(const [part,[lo,hi]]of sharedIntervals(...pair,[f]).entries()){
+    const a=mix3(...pair,lo),b=mix3(...pair,hi),ma=mix3(matching(pair[0]).to,matching(pair[1]).to,lo),mb=mix3(matching(pair[0]).to,matching(pair[1]).to,hi);
+    const points=[a,b,mb,ma];if(!normal(points))continue;
+    returns.push({id:f.id+'-edge-return-'+edgeKey(...pair)+'-'+amount+'-'+part,points,holes:[],...(f.material?{material:f.material}:{}),...(f.finishColor?{finishColor:f.finishColor}:{}),...(f.chimney?{chimney:{...f.chimney,drivesFootprint:false,derived:true}}:{})});
+   }
+   return f;
+  }
   const next=K.normalizeFace({...f,...(curveChanges.length?{curves:f.curves.map(c=>curveChanges.find(change=>change.curve===c)?.next||c)}:{}),points:replace(f.points),holes:(f.holes||[]).map(replace),retainedPoints:(f.retainedPoints||[]).map(translated)});
   if(JSON.stringify(next.points)===JSON.stringify(f.points)&&JSON.stringify(next.holes)===JSON.stringify(f.holes||[])&&JSON.stringify(next.retainedPoints)===JSON.stringify(f.retainedPoints||[]))return f;
   const frame=faceFrame(next);if(!frame||rings(next).flat().some(p=>Math.abs(dot(sub(p,frame.origin),frame.n))>1e-5))throw Error('That position would bend an adjoining face out of plane.');
   for(const ring of rings(next))baseGeometry().validate({points:ring.map(p=>inFrame(frame,p))});if(JSON.stringify(next.points)!==JSON.stringify(f.points)||JSON.stringify(next.holes)!==JSON.stringify(f.holes||[]))affected.push(f.id);return next;
- });return {faces:result,moves,affected,pairs:pairs.map(pair=>pair.map(p=>matching(p).to))};
+ });
+ // Keep only uncovered return material; the selected supporting face may
+ // already contain the swept strip. Never subtract it from that face.
+ for(const side of returns){const frame=faceFrame(side),local=f=>({points:f.points.map(p=>inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>inFrame(frame,p)))}),cuts=result.filter(f=>!f.deleted&&coplanarContact(side,f));
+  for(const [i,part]of K.difference(local(side),cuts.map(local)).entries()){const next={...side,id:side.id+'-'+i,points:part.points.map(p=>fromFrame(frame,p)),holes:part.holes.map(r=>r.map(p=>fromFrame(frame,p)))};K.validateFace(next);result.push(next);affected.push(next.id);}
+ }
+ return {faces:result,moves,affected,pairs:pairs.map(pair=>pair.map(p=>matching(p).to))};
 }
 // Carry coplanar finish strips with their support; shared ends on other planes
 // follow the changed edge while their opposite ends stay fixed. Always evaluate
