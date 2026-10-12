@@ -69,6 +69,8 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     await disclosure.fill(fixture.campaign.optInDisclosure);
     await page.locator('[data-sms-method="WEBSITE_FORM"]').check();
     await page.locator('[data-sms-field="campaign.optInLocationUrl"]').waitFor();
+    assert.equal(await page.locator('.sms-signup-card li').count(),6);
+    assert.equal(await page.locator('.sms-signup-card').getByText('Your SMS signup form must include:').count(),1);
     await page.locator('[data-sms-method="WEBSITE_FORM"]').uncheck();
     assert.equal(await page.locator('[data-sms-field="campaign.optInLocationUrl"]').count(),0);
     assert.equal(await disclosure.inputValue(),fixture.campaign.optInDisclosure);
@@ -99,6 +101,7 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     await page.locator('#smsContinueSetup').click();
     await page.getByText('Your campaign is under review',{exact:true}).waitFor();
     assert.equal(await page.locator('#smsContinueSetup').count(),0);
+    assert.equal(await page.locator('.sms-final-features, .sms-review-actions').count(),0);
     if(process.env.SMS_SCREENSHOTS){await page.setViewportSize({width:1280,height:960});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/review-desktop.png'});}
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
@@ -253,6 +256,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
         if(options.method==='PATCH')window.saved={...window.saved,...structuredClone(options.body)};
         if(path.includes('/available-numbers')){if(window.deferSearch)await new Promise(resolve=>window.releaseSearch=resolve);return {numbers:[{phone_number:'+12065550101',locality:'Seattle',region:'WA',monthly_cost:'1.00'},{phone_number:'+12065550102',locality:'Seattle',region:'WA',monthly_cost:'1.00'}]};}
         if(path.endsWith('/select-number'))window.saved={...window.saved,campaign:{...window.saved.campaign,selectedNumber:options.body.phone_number}};
+        if(path.endsWith('/add-number'))window.saved={...window.saved,provider_refs:{...window.saved.provider_refs,additional_numbers:[...(window.saved.provider_refs.additional_numbers||[]),{phone_number:options.body.phone_number,status:'pending',assignment_status:'pending'}]}};
         if(path.endsWith('/evidence'))return {url:window.longEvidenceUrl ? 'https://example.com/'+'x'.repeat(2000) : 'https://example.com/'+options.body.file_name};
         return {profile:structuredClone(window.saved)};
       };
@@ -398,6 +402,19 @@ test('business identity switches paths, formats EIN and website, and preserves u
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/summary-missing.png',fullPage:true});
     await page.getByRole('button',{name:'Add SMS terms'}).click();
     assert.equal(await page.locator('[data-sms-field="campaign.termsAndConditionsLink"]').isVisible(),true);
+    await page.evaluate(()=>{
+      document.querySelector('[data-fm-wizard="sms-workflow"]')?.remove();
+      window.saved={...window.saved,status:'active',campaign_status:'mno_provisioned',phone_number_status:'success',phone_number_campaign_status:'assigned',brand:{...window.saved.brand,entityType:'PRIVATE_PROFIT'},provider_refs:{...window.saved.provider_refs,telnyx_campaign_id:'campaign-fixture',telnyx_messaging_profile_id:'msg-fixture',additional_numbers:[]},autoresponse_state:{status:'configured',desired_hash:'same',applied_hash:'same',messaging_profile_id:'msg-fixture'}};
+      openSmsWizard(window.saved,{initialStep:'number'});
+    });
+    await page.getByRole('button',{name:'Add another number'}).click();
+    await page.locator('#sms-number-search').fill('206');
+    await page.locator('[data-sms-choose-number="+12065550101"]').click();
+    await page.getByRole('button',{name:'Reserve additional number'}).click();
+    await page.waitForFunction(()=>window.requests.some(request=>request.path.endsWith('/add-number')));
+    assert.equal(await page.evaluate(()=>window.saved.campaign.selectedNumber),'+12065550102');
+    assert.equal(await page.evaluate(()=>window.saved.provider_refs.additional_numbers[0].phone_number),'+12065550101');
+    assert.equal(await page.getByText('Activating',{exact:true}).count()>0,true);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

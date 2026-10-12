@@ -207,6 +207,34 @@ export async function ensureDefaultSenderIdentities(organizationId: string, bran
       metadata: { managed_by: "telnyx_setup", compliance_profile_id: sms.complianceProfileId, registration_status: sms.registrationStatus }
     }));
   }
+  // Extra numbers share the approved campaign but are selectable senders only
+  // after Telnyx confirms each individual number assignment.
+  const messagingOrganization = await ensureMessagingOrganization(organizationId);
+  const profiles = await listSmsComplianceProfiles(messagingOrganization.id);
+  const activeAdditionalIds = new Set<string>();
+  for (const profile of profiles) {
+    if (cleanText(profile.status) !== "active" || cleanText(profile.campaign_status) !== "mno_provisioned") continue;
+    const refs = asObject(profile.provider_refs);
+    const numbers = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject) : [];
+    for (const entry of numbers) {
+      const number = normalizePhone(entry.phone_number);
+      if (!number || cleanText(entry.status) !== "success" || cleanText(entry.assignment_status) !== "assigned") continue;
+      const owner = await findPhoneNumberOwner(number);
+      if (cleanText(owner?.organization_id) !== organizationId || cleanText(owner?.compliance_profile_id) !== profile.id || cleanText(owner?.status) !== "active") continue;
+      const identityId = `sms_${createHash("sha256").update(number).digest("hex").slice(0, 16)}${branchSuffix}`;
+      activeAdditionalIds.add(identityId);
+      await upsertSenderIdentity({ id: identityId,
+        organization_id: organizationId, branch_id: branchId, channel: "sms", provider: "telnyx", address: number,
+        provider_profile_id: cleanText(refs.telnyx_messaging_profile_id), status: "active", is_default: false,
+        capabilities: { sms: true, mms: false }, metadata: { managed_by: "telnyx_setup", compliance_profile_id: profile.id,
+          registration_status: "active" } });
+    }
+  }
+  for (const identity of existing) {
+    if (!cleanText(identity.id).startsWith("sms_") || !/_[0-9a-f]{16}(?:_[0-9a-f]{10})?$/.test(cleanText(identity.id))) continue;
+    if (asObject(identity.metadata).managed_by !== "telnyx_setup" || activeAdditionalIds.has(cleanText(identity.id)) || cleanText(identity.status) !== "active") continue;
+    await upsertSenderIdentity({ ...identity, status: "inactive" });
+  }
   const managedEmail = existing.find((identity) => {
     if (identity.channel !== "email" || identity.status !== "active") return false;
     const managedBy = cleanText(asObject(identity.metadata).managed_by);

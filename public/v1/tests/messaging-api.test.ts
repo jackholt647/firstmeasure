@@ -1294,6 +1294,76 @@ test("ambiguous live number orders reconcile before availability and never purch
   }
 });
 
+test("approved businesses can add a second number without replacing or rebuying the first", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  const primary = "+12065550191";
+  const additional = "+12065550192";
+  const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, { brand: {}, campaign: {} });
+  const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
+  const messagingOrganization = await ensureMessagingOrganization(orgId);
+  const internal = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
+  await updateSmsComplianceProfile(internal, {
+    status: "active", campaign_status: "mno_provisioned", phone_number_status: "success", brand_status: "verified",
+    brand: { entityType: "PRIVATE_PROFIT" }, campaign: { selectedNumber: primary },
+    provider_refs: { telnyx_campaign_id: "campaign-extra-number", telnyx_number_order_id: "order-primary",
+      telnyx_messaging_profile_id: "40000000-0000-0000-0000-000000000192" }
+  });
+  let purchaseCalls = 0;
+  let server: Server | null = null;
+  const serverUrl = await new Promise<string>((resolve) => {
+    server = createServer(async (request, response) => {
+      const url = request.url || "";
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      response.setHeader("content-type", "application/json");
+      if (request.method === "GET" && url.startsWith("/available_phone_numbers?")) {
+        response.end(JSON.stringify({ data: [{ phone_number: additional, locality: "Seattle", features: [{ name: "sms" }],
+          cost_information: { monthly_cost: "1.00", upfront_cost: "1.00", currency: "USD" } }] }));
+        return;
+      }
+      if (request.method === "POST" && url === "/number_orders") {
+        purchaseCalls += 1;
+        response.end(JSON.stringify({ data: { id: "order-additional", status: "pending", phone_numbers: [{ phone_number: additional }] } }));
+        return;
+      }
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: "not_found", url }));
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const address = server?.address();
+      assert.ok(address && typeof address === "object");
+      resolve(`http://127.0.0.1:${address.port}`);
+    });
+  });
+  const { env } = await import("../src/config/env.js");
+  const previous = { mode: env.communicationsDeliveryMode, key: env.telnyxApiKey, baseUrl: env.telnyxBaseUrl, publicKey: env.telnyxWebhookPublicKey };
+  try {
+    (env as any).communicationsDeliveryMode = "live";
+    (env as any).telnyxApiKey = "KEY_TEST";
+    (env as any).telnyxBaseUrl = serverUrl;
+    (env as any).telnyxWebhookPublicKey = "test-public-key";
+    const endpoint = `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/add-number`;
+    const first = await client.request("POST", endpoint, { phone_number: additional, monthly_cost: "9999.00" });
+    assert.equal(first.profile.campaign.selectedNumber, primary);
+    assert.equal(first.profile.provider_refs.additional_numbers[0].phone_number, additional);
+    assert.equal(first.profile.provider_refs.additional_numbers[0].monthly_cost, "1.00", "pricing must come from verified inventory");
+    const replay = await client.request("POST", endpoint, { phone_number: additional });
+    assert.equal(replay.idempotent_replay, true);
+    assert.equal(purchaseCalls, 1);
+    const latest = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
+    await updateSmsComplianceProfile(latest, { brand: { entityType: "SOLE_PROPRIETOR" } });
+    assert.equal((await client.raw("POST", endpoint, { phone_number: "+12065550193" })).statusCode, 409);
+    assert.equal(purchaseCalls, 1);
+  } finally {
+    (env as any).communicationsDeliveryMode = previous.mode;
+    (env as any).telnyxApiKey = previous.key;
+    (env as any).telnyxBaseUrl = previous.baseUrl;
+    (env as any).telnyxWebhookPublicKey = previous.publicKey;
+    if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
+  }
+});
+
 test("manual provider refresh cannot overwrite a newer 10DLC webhook state", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client, true);

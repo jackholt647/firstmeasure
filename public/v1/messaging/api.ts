@@ -1967,6 +1967,113 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     return { ok: true, mock: false, ordered: true, profile: publicSmsComplianceProfile(saved) };
   });
 
+  // An approved 10DLC campaign may cover several numbers. Keep the original
+  // selected number authoritative; additional purchases have their own durable
+  // order and assignment state so a retry cannot replace or rebuy it.
+  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/add-number", async (request) => {
+    const orgId = param(request.params, "orgId");
+    await requireSmsSettingsAccess(request, orgId, true);
+    const body = objectBodySchema.parse(request.body ?? {});
+    const { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
+    const phoneNumber = normalizePhone(body.phone_number || body.phoneNumber);
+    if (!phoneNumber) throw badRequest("invalid_phone_number", "Select a valid US/Canada phone number.");
+    if (cleanText(asObject(profile.brand).entityType) === "SOLE_PROPRIETOR") {
+      throw conflict("sole_proprietor_number_limit", "Sole proprietor registrations allow one phone number.");
+    }
+    const refs = asObject(profile.provider_refs);
+    const campaignId = cleanText(refs.telnyx_campaign_id || refs.tcr_campaign_id);
+    const messagingProfileId = cleanText(refs.telnyx_messaging_profile_id);
+    if (!LIVE_MODE() || cleanText(profile.status) !== "active" || cleanText(profile.campaign_status) !== "mno_provisioned" || !campaignId || !messagingProfileId) {
+      throw conflict("campaign_not_active", "Add more numbers after your campaign and first number are active.");
+    }
+    const extra = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject) : [];
+    if (phoneNumber === normalizePhone(asObject(profile.campaign).selectedNumber) || extra.some((item) => normalizePhone(item.phone_number) === phoneNumber)) {
+      return { ok: true, idempotent_replay: true, profile: publicSmsComplianceProfile(profile) };
+    }
+    if (extra.filter((item) => !["failed", "failure", "cancelled", "deleted", "released"].includes(cleanText(item.status))).length >= 48) throw conflict("campaign_number_limit", "This campaign already has the maximum of 49 numbers.");
+    if (extra.some((item) => !["active", "failed", "cancelled"].includes(cleanText(item.status)))) {
+      throw conflict("number_order_in_progress", "Wait for the previous number to finish activating before adding another.");
+    }
+    if (!env.telnyxWebhookPublicKey) throw badRequest("webhook_public_key_missing", "Telnyx webhook verification must be configured before purchasing an organization number.");
+    const client = createTelnyxClient();
+    const operationType = `additional_number_order:${phoneNumber}`;
+    const operation = await beginProviderOperation({
+      organization_id: orgId, compliance_profile_id: profile.id, operation_type: operationType,
+      request_hash: payloadHash({ phoneNumber, messagingProfileId })
+    });
+    if (operation.state === "conflict" || operation.state === "pending") throw conflict("provider_operation_in_progress", "This number order is already in progress.");
+    const operationId = cleanText(asObject(operation.operation).id);
+    const customerReference = `sms-extra-${createHash("sha256").update(`${profile.id}:${phoneNumber}`).digest("hex").slice(0, 48)}`;
+    let orderResponse: unknown;
+    let verifiedInventory: ReturnType<typeof availableNumberView> | null = null;
+    if (operation.state === "outcome_unknown") {
+      const orders = await client.findNumberOrdersByCustomerReference(customerReference);
+      const matches = orders.filter((entry) => Array.isArray(entry.phone_numbers) && entry.phone_numbers.map(asObject).some((item) => normalizePhone(item.phone_number) === phoneNumber));
+      if (matches.length !== 1) throw conflict("provider_operation_outcome_unknown", "The number order cannot yet be verified with Telnyx. Retry shortly; FirstMate will not risk buying it twice.");
+      orderResponse = { data: matches[0] };
+    } else if (operation.state === "succeeded") {
+      const orderId = cleanText(asObject(operation.operation).provider_id);
+      if (!orderId) throw conflict("provider_operation_incomplete", "The number order needs reconciliation.");
+      orderResponse = await client.getNumberOrder(orderId);
+    } else {
+      const inventoryResponse = asObject(await client.searchAvailablePhoneNumbers(phoneNumber.slice(2, 5), 20));
+      const inventory = (Array.isArray(inventoryResponse.data) ? inventoryResponse.data : []).map(availableNumberView)
+        .find((item) => item.phone_number === phoneNumber && item.features.includes("sms"));
+      if (!inventory) {
+        await finishProviderOperation(operationId, { status: "failed", error: { code: "phone_number_unavailable", phone_number: phoneNumber } });
+        throw conflict("phone_number_unavailable", "That number is no longer available. Search again and choose another.");
+      }
+      verifiedInventory = inventory;
+      await updateProviderOperationContext(operationId, { inventory });
+      const ownership = await claimPhoneNumberOwnership({ phone_number: phoneNumber, organization_id: orgId,
+        compliance_profile_id: profile.id, messaging_profile_id: messagingProfileId, status: "pending" });
+      if (!ownership.claimed) {
+        await finishProviderOperation(operationId, { status: "failed", error: { code: "phone_number_owned", phone_number: phoneNumber } });
+        throw conflict("phone_number_owned", "This number belongs to another organization.");
+      }
+      try {
+        orderResponse = await client.createNumberOrder(phoneNumber, messagingProfileId, customerReference);
+      } catch (error) {
+        const unknown = error instanceof TelnyxError && asObject(error.details).submission_unknown === true;
+        await finishProviderOperation(operationId, { status: unknown ? "outcome_unknown" : "failed", error: telnyxErrorDetails(error) });
+        if (!unknown) await releasePhoneNumberOwnership(phoneNumber, orgId);
+        throw error;
+      }
+    }
+    const orderId = providerId(orderResponse, ["id"]);
+    if (!orderId) {
+      await finishProviderOperation(operationId, { status: "outcome_unknown", error: { code: "number_order_id_missing", submission_unknown: true } });
+      throw conflict("provider_operation_outcome_unknown", "Telnyx has not confirmed the number order. Retry shortly.");
+    }
+    const orderData = providerData(orderResponse);
+    const currentRefs = asObject((await profileForRequest(orgId, profile.id)).profile.provider_refs);
+    const currentExtras = Array.isArray(currentRefs.additional_numbers) ? currentRefs.additional_numbers.map(asObject) : [];
+    const existingEntry = currentExtras.find((item) => normalizePhone(item.phone_number) === phoneNumber);
+    const recordedInventory = asObject(providerOperationResponse(operation.operation).inventory);
+    const monthlyCost = verifiedInventory?.monthly_cost || cleanText(recordedInventory.monthly_cost || existingEntry?.monthly_cost);
+    const setupCost = verifiedInventory?.setup_cost || cleanText(recordedInventory.setup_cost || existingEntry?.setup_cost);
+    const currency = verifiedInventory?.currency || cleanText(recordedInventory.currency || existingEntry?.currency || "USD");
+    const nextExtras = [...currentExtras.filter((item) => normalizePhone(item.phone_number) !== phoneNumber), {
+      phone_number: phoneNumber, order_id: orderId, status: cleanText(orderData.status || "pending").toLowerCase(),
+      assignment_status: "pending", locality: verifiedInventory?.locality || cleanText(recordedInventory.locality || existingEntry?.locality), region: verifiedInventory?.region || cleanText(recordedInventory.region || existingEntry?.region),
+      monthly_cost: monthlyCost, setup_cost: setupCost, currency
+    }];
+    const saved = await commitSmsComplianceProviderSuccess(profile, {
+      operation_id: operationId, provider_id: orderId, operation_response: orderData,
+      event: { type: "additional_number_ordered", provider: "telnyx", phone_number: phoneNumber, order_id: orderId },
+      patch: { provider_refs: { additional_numbers: nextExtras } }
+    });
+    await claimPhoneNumberOwnership({ phone_number: phoneNumber, organization_id: orgId,
+      compliance_profile_id: profile.id, messaging_profile_id: messagingProfileId, status: "ordered" });
+    await createUsageEvent({ organization_id: orgId, provider: "telnyx", provider_message_id: orderId,
+      direction: "number_order", segments: 0, amount: setupCost || "0", currency,
+      event_key: `telnyx:number_order:${orderId}`, metadata: { phone_number: phoneNumber, compliance_profile_id: profile.id } });
+    if (monthlyCost) await upsertBillingCommitment({ organization_id: orgId, provider: "telnyx",
+      resource_type: "phone_number", resource_id: phoneNumber, amount: monthlyCost, currency,
+      billing_interval: "month", status: "pending", metadata: { number_order_id: orderId, compliance_profile_id: profile.id, provider_price_source: "availability_inventory" } });
+    return { ok: true, ordered: true, profile: publicSmsComplianceProfile(saved) };
+  });
+
   app.patch("/organizations/:orgId/sms/compliance-profiles/:profileId", async (request) => {
     const orgId = param(request.params, "orgId");
     await requireSmsSettingsAccess(request, orgId, true);
@@ -2850,7 +2957,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     if (mutation.result.conflict) {
       throw conflict("provider_state_changed", "Telnyx state changed while this refresh was running. Refresh again to use the newer carrier event.");
     }
-    const saved = mutation.profile;
+    let saved = mutation.profile;
     const active = mutation.result.active;
     if (/failed|rejected/.test(brandStatus)) {
       (await markProviderOperationFailed(orgId, profile.id, "brand_submission", { provider_status: brandStatus, retry_requires_review: true }));
@@ -2871,6 +2978,76 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         metadata: { number_order_id: numberOrderId, compliance_profile_id: profile.id, provider_price_source: "availability_inventory" }
       }));
     }
+    const additionalNumbers = Array.isArray(asObject(saved.provider_refs).additional_numbers)
+      ? (asObject(saved.provider_refs).additional_numbers as unknown[]).map(asObject) : [];
+    if (additionalNumbers.length) {
+      const updated = [];
+      for (const entry of additionalNumbers) {
+        const number = normalizePhone(entry.phone_number);
+        const orderId = cleanText(entry.order_id);
+        if (!number || !orderId || ["failed", "cancelled"].includes(cleanText(entry.status))) { updated.push(entry); continue; }
+        const order = providerData(await client.getNumberOrder(orderId));
+        const status = cleanText(order.status || entry.status).toLowerCase();
+        let assignmentStatus = cleanText(entry.assignment_status || "pending").toLowerCase();
+        if (status === "success" && campaignId && campaignStatus === "mno_provisioned") {
+          const owned = asObject(await client.findOwnedPhoneNumber(number));
+          if (cleanText(owned.id)) {
+            let binding: unknown;
+            try { binding = await client.getPhoneNumberCampaign(number); }
+            catch (error) { if (!(error instanceof TelnyxError) || error.statusCode !== 404) throw error; binding = null; }
+            const assignedIds = (value: unknown) => {
+              const item = providerData(value);
+              return [item.telnyxCampaignId, item.campaignId].map(cleanText).filter(Boolean);
+            };
+            if (binding && !assignedIds(binding).includes(campaignId)) {
+              throw conflict("campaign_assignment_mismatch", "An additional number is assigned to a different campaign. Contact support before retrying.");
+            }
+            if (!binding) {
+              const type = `phone_campaign_assignment_${payloadHash({ selectedNumber: number, campaignId }).slice(0, 16)}`;
+              let op = await beginProviderOperation({ organization_id: orgId, compliance_profile_id: saved.id,
+                operation_type: type, request_hash: payloadHash({ selectedNumber: number, campaignId }) });
+              if (op.state === "pending" || op.state === "conflict") throw conflict("provider_operation_in_progress", "The additional number is still being assigned.");
+              if (op.state === "succeeded") {
+                await resetProviderOperationForRetry(orgId, saved.id, type, { code: "assignment_drifted" });
+                op = await beginProviderOperation({ organization_id: orgId, compliance_profile_id: saved.id,
+                  operation_type: type, request_hash: payloadHash({ selectedNumber: number, campaignId }) });
+              }
+              let assignError: unknown = null;
+              try { await client.assignPhoneNumberToCampaign(number, campaignId); }
+              catch (error) { assignError = error; }
+              try { binding = await client.getPhoneNumberCampaign(number); }
+              catch (error) { if (!(error instanceof TelnyxError) || error.statusCode !== 404) throw error; binding = null; }
+              if (!binding || !assignedIds(binding).includes(campaignId)) {
+                const unknown = !assignError || (assignError instanceof TelnyxError && asObject(assignError.details).submission_unknown === true);
+                await finishProviderOperation(cleanText(asObject(op.operation).id), { status: unknown ? "outcome_unknown" : "failed",
+                  error: assignError ? telnyxErrorDetails(assignError) : { code: "assignment_not_visible" } });
+                if (assignError && !unknown) throw assignError;
+                throw conflict("provider_operation_outcome_unknown", "Telnyx has not confirmed the additional number assignment. Retry shortly.");
+              }
+              await finishProviderOperation(cleanText(asObject(op.operation).id), { status: "succeeded", provider_id: campaignId,
+                response: providerData(binding) });
+            }
+            const ownership = await claimPhoneNumberOwnership({ phone_number: number, organization_id: orgId,
+              compliance_profile_id: saved.id, messaging_profile_id: messagingProfileId,
+              provider_phone_number_id: cleanText(owned.id), status: "active" });
+            assignmentStatus = ownership.claimed ? "assigned" : "ownership_conflict";
+          }
+        }
+        if (["failure", "failed", "cancelled", "deleted"].includes(status)) {
+          await releasePhoneNumberOwnership(number, orgId, true);
+          await endBillingCommitment("telnyx", "phone_number", number);
+        } else if (assignmentStatus === "assigned" && cleanText(entry.monthly_cost)) {
+          await upsertBillingCommitment({ organization_id: orgId, provider: "telnyx", resource_type: "phone_number",
+            resource_id: number, amount: cleanText(entry.monthly_cost), currency: cleanText(entry.currency || "USD"),
+            billing_interval: "month", status: "active", metadata: { number_order_id: orderId, compliance_profile_id: saved.id, provider_price_source: "availability_inventory" } });
+        }
+        updated.push({ ...entry, status, assignment_status: assignmentStatus });
+      }
+      if (JSON.stringify(updated) !== JSON.stringify(additionalNumbers)) {
+        saved = await appendSmsComplianceEvent(saved, { type: "additional_number_status_refreshed", provider: "telnyx" },
+          { provider_refs: { additional_numbers: updated } });
+      }
+    }
     await notifySmsCampaignApproved(saved);
     if (active) await setDefaultSmsComplianceProfile(saved);
     await ensureDefaultSenderIdentities(orgId);
@@ -2887,15 +3064,20 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     const { profile: current } = await profileForRequest(orgId, param(request.params, "profileId"));
     const refs = asObject(current.provider_refs);
     const phoneNumber = normalizePhone(asObject(current.campaign).selectedNumber);
+    const extraNumbers = Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject).map((item) => normalizePhone(item.phone_number)).filter(Boolean) : [];
     const releaseNumber = body.release_number === true;
     const { resource: voiceResource } = await import("../comms/calls/storage.js");
     const voiceLine = phoneNumber ? (await voiceResource(orgId, "number", phoneNumber)) : null;
     if (releaseNumber && voiceLine && voiceLine.status !== "disconnected") {
       throw conflict("number_used_by_voice", "This number is connected to FirstMate phone. Keep the number when disabling SMS, or disconnect its voice route before releasing it.");
     }
+    if (releaseNumber) for (const number of extraNumbers) {
+      const line = await voiceResource(orgId, "number", number);
+      if (line && line.status !== "disconnected") throw conflict("number_used_by_voice", "An additional number is connected to FirstMate phone. Disconnect its voice route before releasing numbers.");
+    }
     const campaignId = cleanText(refs.telnyx_campaign_id);
     const messagingProfileId = cleanText(refs.telnyx_messaging_profile_id);
-    const requestHash = payloadHash({ phoneNumber, campaignId, messagingProfileId, releaseNumber });
+    const requestHash = payloadHash({ phoneNumber, extraNumbers, campaignId, messagingProfileId, releaseNumber });
     const operation = (await beginProviderOperation({
       organization_id: orgId, compliance_profile_id: current.id,
       operation_type: "service_deactivation", request_hash: requestHash
@@ -2922,6 +3104,7 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     try {
       if (messagingProfileId) await client.updateMessagingProfile(messagingProfileId, { enabled: false });
       if (phoneNumber && campaignId) await ignoreMissing(() => client.deletePhoneNumberCampaign(phoneNumber));
+      if (campaignId) for (const number of extraNumbers) await ignoreMissing(() => client.deletePhoneNumberCampaign(number));
       if (campaignId) await ignoreMissing(() => client.deactivate10DlcCampaign(campaignId));
       if (phoneNumber && releaseNumber) {
         const ownership = (await findPhoneNumberOwner(phoneNumber));
@@ -2940,6 +3123,21 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         (await releasePhoneNumberOwnership(phoneNumber, orgId, true));
         (await endBillingCommitment("telnyx", "phone_number", phoneNumber));
       }
+      if (releaseNumber) for (const number of extraNumbers) {
+        const ownership = await findPhoneNumberOwner(number);
+        let numberId = cleanText(ownership?.provider_phone_number_id);
+        if (numberId) {
+          const ownedResponse = providerData(await client.getPhoneNumber(numberId));
+          if (normalizePhone(ownedResponse.phone_number) !== number) throw new Error("An additional Telnyx number ID does not match its ownership record.");
+        } else {
+          const owned = await client.findOwnedPhoneNumber(number);
+          numberId = cleanText(owned?.id);
+        }
+        if (!numberId && operation.state !== "outcome_unknown") throw new Error("Telnyx did not return an additional owned number; billing remains active pending reconciliation.");
+        if (numberId) await ignoreMissing(() => client.deletePhoneNumber(numberId));
+        await releasePhoneNumberOwnership(number, orgId, true);
+        await endBillingCommitment("telnyx", "phone_number", number);
+      }
       if (campaignId) (await endBillingCommitment("telnyx", "campaign", campaignId));
       (await finishProviderOperation(cleanText(asObject(operation.operation).id), { status: "succeeded", provider_id: campaignId, response: { phone_number_released: Boolean(phoneNumber) && releaseNumber, campaign_deactivated: Boolean(campaignId), messaging_profile_disabled: Boolean(messagingProfileId) } }));
       const saved = await appendSmsComplianceEvent(pending, {
@@ -2948,7 +3146,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
         status: "deactivated", campaign_status: campaignId ? "deactivated" : pending.campaign_status,
         phone_number_status: phoneNumber && releaseNumber ? "released" : pending.phone_number_status,
         phone_number_campaign_status: phoneNumber && campaignId ? "unassigned" : pending.phone_number_campaign_status,
-        phone_number_campaign_id: ""
+        phone_number_campaign_id: "",
+        provider_refs: { additional_numbers: (Array.isArray(refs.additional_numbers) ? refs.additional_numbers.map(asObject) : []).map((item) => ({ ...item, assignment_status: "unassigned", ...(releaseNumber ? { status: "released" } : {}) })) }
       });
       await ensureDefaultSenderIdentities(orgId);
       return { ok: true, profile: publicSmsComplianceProfile(saved) };

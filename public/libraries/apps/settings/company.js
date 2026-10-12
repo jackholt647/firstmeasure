@@ -2019,7 +2019,7 @@
       .sms-summary-checklist.ready{border-color:#abefc6;background:#ecfdf3;color:#067647}
       .sms-summary-checklist strong{display:block;font-size:13px;margin-bottom:5px}.sms-summary-checklist ul{margin:6px 0 0;padding-left:20px;display:grid;gap:5px}
       .sms-final-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-      .sms-final-summary-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:12px}
+      .sms-final-summary-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
       .sms-final-panel{border:1px solid #eaecf0;border-radius:14px;background:#fff;padding:14px;display:grid;gap:10px;align-content:start}
       .sms-final-panel h4{margin:0;font-size:13px;font-weight:1000;color:#101828;display:flex;align-items:center;gap:8px}.sms-final-panel h4 i{color:var(--primary,#d93025)}
       .sms-final-row{display:grid;gap:3px}.sms-final-row span{font-size:10px;text-transform:uppercase;letter-spacing:.28px;font-weight:1000;color:#667085}.sms-final-row strong{font-size:13px;font-weight:900;color:#101828;overflow-wrap:anywhere}
@@ -2067,6 +2067,11 @@
       [data-fm-wizard="sms-workflow"] .sms-final-panel{padding:18px;border-color:#e4e7ec;gap:13px}.sms-final-panel .sms-final-row strong{font-weight:500}.sms-final-panel .sms-final-row span{font-weight:600;color:#667085}
       [data-fm-wizard="sms-workflow"] .sms-feature-tile{box-shadow:none;min-height:180px}.sms-feature-copy span{font-weight:400;line-height:1.6}.sms-feature-copy strong{font-weight:650}
       .sms-consent-content{display:grid;gap:14px}.sms-consent-content .sms-section{padding:16px;gap:12px}.sms-consent-content h3{margin:0;font-size:15px;font-weight:650}.sms-consent-content p{margin:0;font-size:13px;line-height:1.5}.sms-consent-content .sms-consent-box{padding:12px}.sms-consent-content .sms-consent-box h4{margin:0 0 6px}.sms-consent-content .sms-details{padding:12px 14px}.sms-consent-content .sms-details[open]>summary{margin-bottom:10px}
+      .sms-signup-card{display:grid;gap:12px}.sms-signup-card .sms-field{gap:6px}.sms-signup-card ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 22px;margin:0;padding-left:19px;color:#475467;font-size:12px;line-height:1.4}.sms-signup-card>p{margin:0;color:#475467;font-size:12px}
+      .sms-message-card .sms-field-footer{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.sms-message-card .sms-field-footer .sms-field-msg{flex:1}.sms-message-card .sms-field-footer .sms-counter{flex:0 0 auto}.sms-message-card{padding:16px;gap:8px}.sms-message-grid{gap:10px}.sms-message-card .sms-field{gap:6px}.sms-message-card textarea{min-height:92px!important}
+      [data-fm-wizard="sms-workflow"] .sms-workspace:has([data-sms-field="campaign.description"]){gap:12px}[data-fm-wizard="sms-workflow"] .sms-workspace:has([data-sms-field="campaign.description"]) .sms-form-grid{gap:12px 16px}[data-fm-wizard="sms-workflow"] .sms-workspace:has([data-sms-field="campaign.description"]) textarea{min-height:92px}
+      #sms-number-search::placeholder{font-style:italic;color:#98a2b3}
+      @media(max-width:600px){.sms-signup-card ul{grid-template-columns:1fr}.sms-message-card .sms-field-footer{align-items:flex-start}.sms-message-card .sms-field-footer .sms-counter{white-space:nowrap}}
       [data-fm-wizard="sms-workflow"] .sms-consent-content .sms-form-grid{gap:12px}[data-fm-wizard="sms-workflow"] .sms-consent-content .sms-ack{padding:10px}[data-fm-wizard="sms-workflow"] .sms-consent-content .sms-feature-grid{gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}[data-fm-wizard="sms-workflow"] .sms-consent-content .sms-feature-tile{min-height:0;padding:12px;border-radius:9px;gap:0;transform:none}[data-fm-wizard="sms-workflow"] .sms-consent-content .sms-feature-tile input{width:16px;height:16px;right:10px;top:12px}.sms-consent-content .sms-feature-copy strong{font-size:13px;line-height:1.4;padding-right:20px}.sms-consent-content .sms-feature-copy span{font-size:11px;line-height:1.4;margin-top:5px}
       .sms-evidence{border-top:1px solid #eaecf0;padding-top:14px;display:grid;gap:12px}.sms-evidence h3 .sms-muted{margin-left:6px}.sms-evidence-options{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:14px;align-items:start}.sms-evidence-or{align-self:center;font-size:12px;color:#667085}.sms-evidence [data-sms-upload-status]:empty{display:none}[data-fm-wizard="sms-workflow"] .sms-evidence input[type="file"]{padding:8px;font-size:12px;width:100%}.sms-evidence input::file-selector-button{border:0;border-radius:5px;padding:5px 8px;margin-right:8px;background:#f2f4f7;color:#344054;cursor:pointer}
       @media(max-width:600px){[data-fm-wizard="sms-workflow"] .sms-consent-content .sms-feature-grid{grid-template-columns:1fr}.sms-evidence-options{grid-template-columns:minmax(0,1fr)}.sms-evidence-or{justify-self:center}}
@@ -5074,6 +5079,12 @@
       const campaign = profile?.campaign || {};
       return campaign.selectedNumberDisplay || smsFormatE164ForDisplay(campaign.selectedNumber) || campaign.selectedNumber || '';
     }
+    function smsAdditionalNumbers(profile){
+      return Array.isArray(profile?.provider_refs?.additional_numbers) ? profile.provider_refs.additional_numbers : [];
+    }
+    function smsCanAddNumber(profile){
+      return profile?.status === 'active' && profile?.campaign_status === 'mno_provisioned' && profile?.brand?.entityType !== 'SOLE_PROPRIETOR' && smsAdditionalNumbers(profile).filter(number => !['failed','failure','cancelled','deleted','released'].includes(String(number.status || '').toLowerCase())).length < 48 && !smsAdditionalNumbers(profile).some(number => !['success','failed','failure','cancelled','deleted','released'].includes(String(number.status || '').toLowerCase()) || (number.status === 'success' && number.assignment_status !== 'assigned'));
+    }
     function smsValidAreaCode(value){
       return /^[2-9]\d{2}$/.test(String(value || '').replace(/\D/g, ''));
     }
@@ -5364,7 +5375,8 @@
         return `<div class="sms-field${wide}${invalid}">${labelHtml}<select data-sms-field="${escapeHtml(name)}"${attrs}>${smsOptionHtml(options.values || [], value)}</select>${helpHtml}</div>`;
       }
       if (options.kind === 'textarea') {
-        return `<div class="sms-field${wide}${invalid}">${labelHtml}<textarea data-sms-field="${escapeHtml(name)}"${attrs}>${escapeHtml(value || '')}</textarea>${options.maxlength ? `<span class="sms-counter" data-sms-counter="${escapeHtml(name)}" data-sms-max="${Number(options.maxlength)}">${String(value || '').length} / ${Number(options.maxlength)} characters</span>` : ''}${helpHtml}</div>`;
+        const counter = options.maxlength ? `<span class="sms-counter" data-sms-counter="${escapeHtml(name)}" data-sms-max="${Number(options.maxlength)}">${String(value || '').length} / ${Number(options.maxlength)} characters</span>` : '';
+        return `<div class="sms-field${wide}${invalid}">${labelHtml}<textarea data-sms-field="${escapeHtml(name)}"${attrs}>${escapeHtml(value || '')}</textarea>${options.inlineHelp ? `<div class="sms-field-footer">${helpHtml}${counter}</div>` : counter + helpHtml}</div>`;
       }
       return `<div class="sms-field${wide}${invalid}">${labelHtml}<input type="${escapeHtml(type)}" data-sms-field="${escapeHtml(name)}" value="${escapeHtml(value || '')}"${attrs}>${helpHtml}</div>`;
     }
@@ -5753,12 +5765,9 @@
         </div>
         <div class="sms-final-summary-grid">
           <div class="sms-final-panel">
-            <h4><i class="fas fa-message"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_e2fcaae133d2a4"," SMS features") ?? " SMS features")}</h4>
-            <div class="sms-final-features">${String(smsFinalFeaturePills(profile))}</div>
-          </div>
-          <div class="sms-final-panel">
             <h4><i class="fas fa-phone"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_0912bf5a2cd0ef"," Phone number") ?? " Phone number")}</h4>
             <div class="sms-final-row"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_7ed66a4e107033","Phone number") ?? "Phone number")}</span><strong>${String(escapeHtml(smsFormatSelectedNumber(profile) || 'Not set'))}</strong></div>
+            ${smsAdditionalNumbers(profile).map(number => `<div class="sms-final-row"><span>${escapeHtml(number.assignment_status === 'assigned' ? 'Active number' : 'Activating number')}</span><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong></div>`).join('')}
           </div>
         </div>`;
     }
@@ -5791,15 +5800,15 @@
       `;
     }
     function smsNumberSelection(profile, numberSearch = {}){
-      const c = profile.campaign || {}, locked = smsRegistrationLocked(profile), choice = numberSearch.choice;
+      const c = profile.campaign || {}, adding = !!numberSearch.adding && smsCanAddNumber(profile), locked = smsRegistrationLocked(profile) && !adding, choice = numberSearch.choice;
       const selected = choice?.phone_number || c.selectedNumber || '', purchased = !!profile.provider_refs?.telnyx_number_order_id;
       const canChange = !locked && !smsHasProviderCampaign(profile) && (!purchased || profile.phone_number_status === 'success');
       const query = String(numberSearch.query ?? c.selectedNumberAreaCode ?? '').replace(/\D/g,'').slice(0,6);
-      const selectedHtml = selected ? `<section class="sms-section"><div class="sms-section-title"><div><h3>${escapeHtml(smsFormatE164ForDisplay(selected) || selected)}</h3><p>${escapeHtml([choice?.locality || c.selectedNumberLocality, choice?.region || c.selectedNumberRegion].filter(Boolean).join(', '))}</p></div>${canChange ? '<button type="button" class="sms-text-button" data-sms-change-number>Choose a different number</button>' : ''}</div></section>` : '';
-      if (selected && !numberSearch.choosing) return selectedHtml;
+      const selectedHtml = selected ? `<section class="sms-section"><div class="sms-section-title"><div><h3>${escapeHtml(smsFormatE164ForDisplay(c.selectedNumber) || c.selectedNumber)}</h3><p>${escapeHtml([c.selectedNumberLocality, c.selectedNumberRegion].filter(Boolean).join(', '))}</p></div>${canChange ? '<button type="button" class="sms-text-button" data-sms-change-number>Choose a different number</button>' : ''}</div>${smsAdditionalNumbers(profile).map(number => `<div class="sms-final-row"><strong>${escapeHtml(smsFormatE164ForDisplay(number.phone_number) || number.phone_number)}</strong><span>${escapeHtml(number.assignment_status === 'assigned' ? 'Active' : number.status === 'failed' ? 'Order failed' : 'Activating')}</span></div>`).join('')}${smsCanAddNumber(profile) && !adding ? '<button type="button" class="sms-text-button" data-sms-add-number>Add another number</button>' : ''}</section>` : '';
+      if (selected && !numberSearch.choosing && !adding) return selectedHtml;
       const results = numberSearch.results || [];
-      return `${selectedHtml}<div class="sms-number-search"><div class="sms-number-search-row"><div class="sms-field wide"><label for="sms-number-search">Enter desired area code</label><input id="sms-number-search" data-sms-field="campaign.selectedNumberAreaCode" inputmode="numeric" placeholder="206" maxlength="6" value="${escapeHtml(query)}" ${locked?'disabled':''}></div></div>
-        <p class="sms-muted" role="status">${escapeHtml(numberSearch.message || '')}</p><div class="sms-number-grid">${results.map(number=>{const value=number.phone_number;return `<button class="sms-number-option ${value===selected?'selected':''}" type="button" data-sms-choose-number="${escapeHtml(value)}" ${locked?'disabled':''}><strong>${escapeHtml(smsFormatE164ForDisplay(value)||value)}</strong><span>${escapeHtml([number.locality,number.region].filter(Boolean).join(', ') || 'US local number')}</span></button>`;}).join('')}</div></div>`;
+      return `${selectedHtml}<div class="sms-number-search"><div class="sms-number-search-row"><div class="sms-field wide"><label for="sms-number-search">Enter desired area code</label><input id="sms-number-search" data-sms-field="campaign.selectedNumberAreaCode" inputmode="numeric" placeholder="e.g. 206" maxlength="6" value="${escapeHtml(query)}" ${locked?'disabled':''}></div></div>
+        <p class="sms-muted" role="status">${escapeHtml(numberSearch.message || '')}</p><div class="sms-number-grid">${results.filter(number => number.phone_number !== c.selectedNumber && !smsAdditionalNumbers(profile).some(item => item.phone_number === number.phone_number)).map(number=>{const value=number.phone_number;return `<button class="sms-number-option ${value===choice?.phone_number?'selected':''}" type="button" data-sms-choose-number="${escapeHtml(value)}" ${locked?'disabled':''}><strong>${escapeHtml(smsFormatE164ForDisplay(value)||value)}</strong><span>${escapeHtml([number.locality,number.region].filter(Boolean).join(', ') || 'US local number')}</span></button>`;}).join('')}</div>${adding ? `<div class="sms-evidence-actions"><button type="button" class="cs-btn primary" data-sms-reserve-additional ${choice?'':'disabled'}>Reserve additional number</button><button type="button" class="cs-btn" data-sms-cancel-additional>Cancel</button></div>` : ''}</div>`;
     }
     function smsSubmissionBanner(profile){
       const status = smsCustomerRegistrationStatus(profile);
@@ -5861,7 +5870,7 @@
       const link = (key, label, value, required=false) => smsField('campaign.'+key,label,value,{required,wide:true,inputmode:'url',placeholder:'example.com/'+(key.includes('Evidence')?'consent-example.pdf':'signup')});
       return `<div class="sms-consent-content"><section class="sms-section"><h3>How will your business use texting?</h3>${smsFeatureTiles(profile)}</section>
         <section class="sms-section"><h3>How customers agree</h3><p>Select every method your business uses.</p><div class="sms-form-grid">${Object.entries(smsConsentLabels).map(([key,label])=>`<label class="sms-ack"><input type="checkbox" data-sms-method="${key}" ${methods.includes(key)?'checked':''}><span>${label}</span></label>`).join('')}</div>
-        ${website ? `<div class="sms-form-grid">${link('optInLocationUrl','Link to your SMS signup form',c.optInLocationUrl,true)}</div><div class="sms-consent-box"><p>A separate, optional SMS checkbox, unchecked by default; your brand name and message types; message frequency and rates; STOP and HELP instructions; and links to your privacy policy and SMS terms. Marketing consent must be explicit and not required to purchase.</p></div>` : ''}
+        ${website ? `<div class="sms-consent-box sms-signup-card">${link('optInLocationUrl','Link to your SMS signup form',c.optInLocationUrl,true)}<p>Your SMS signup form must include:</p><ul><li>A separate, optional SMS checkbox, unchecked by default</li><li>Your brand name and message types</li><li>Message frequency and rates</li><li>STOP and HELP instructions</li><li>Links to your privacy policy and SMS terms</li><li>Marketing consent must be explicit and not required to purchase</li></ul></div>` : ''}
         <div class="sms-form-grid">${keyword ? link('keywordLocationUrl','Link to the keyword advertisement',c.keywordLocationUrl || (!website ? c.optInLocationUrl : ''),!smsEvidence(c).length) : ''}
         ${smsField('campaign.optInDisclosure','Consent wording customers see or hear',c.optInDisclosure,{kind:'textarea',wide:true,required:true,maxlength:600,placeholder:'Write the exact wording used for each selected method.'})}</div>
         ${smsExample('See example consent wording',disclosure)}
@@ -5888,7 +5897,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         `Hi Jane, ${brand} has a seasonal offer available this week. Contact us for details. Reply STOP to opt out.`,
         `${brand}: Join us at our open house this Saturday to explore our services and meet the team. Reply STOP to opt out.`
       ];
-      const sample = (n, title, required) => `<div class="sms-message-card">${smsField('campaign.sample' + n, title, c['sample' + n], { kind: 'textarea', wide: true, required, maxlength: 255, placeholder: 'Write a message your business would actually send.', hint: 'Use your business name and include STOP to opt out. Maximum 255 characters.' })}${smsExample('See an example message',examples[n-1] || examples[0])}</div>`;
+      const sample = (n, title, required) => `<div class="sms-message-card">${smsField('campaign.sample' + n, title, c['sample' + n], { kind: 'textarea', wide: true, required, maxlength: 255, inlineHelp: true, placeholder: 'Write a message your business would actually send.', hint: 'Use your business name and include STOP to opt out.' })}${smsExample('See an example message',examples[n-1] || examples[0])}</div>`;
       return `        <div class="sms-message-grid">${sample(1, 'Customer conversation', true)}${sample(2, 'Update or reminder', true)}${marketing ? sample(3, 'Marketing message 1', true) + sample(4, 'Marketing message 2', true) : ''}</div>
         <details class="sms-details" ${(!marketing && (c.sample3 || c.sample4)) || c.sample5 ? 'open' : ''}><summary>More messages <span>Optional</span></summary><div class="sms-message-grid">${!marketing ? sample(3, 'Additional message', false) : ''}${!marketing ? sample(4, 'Additional message', false) : ''}${sample(5, 'Additional message', false)}</div></details>
         <details class="sms-details"><summary>Automatic START, STOP and HELP replies</summary><p>These messages are configured automatically.</p>${['optinMessage', 'optoutMessage', 'helpMessage'].map((key, i) => `<div class="sms-auto-reply"><strong>${['START', 'STOP', 'HELP'][i]}</strong><p>${escapeHtml(smsGeneratedCampaign(profile)[key])}</p></div>`).join('')}</details>`;
@@ -5911,7 +5920,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       return `${smsHasProviderBrand(profile) ? smsSubmissionBanner(profile) + smsSoleProprietorOtpPanel(profile) : ''}
         ${smsRegistrationSubmitted(profile) ? smsRegistrationTimeline(profile) : ''}
         ${smsReviewRows(profile)}
-        <div class="sms-review-actions">${!smsHasProviderBrand(profile) ? edit('business', 'Edit business') + edit('contact', 'Edit contact') : '<span class="sms-muted">Submitted business details are locked.</span>'}${edit('consent', 'Edit message types')}${edit('number', 'View number')}</div>
+        ${smsCanAddNumber(profile) ? '<button type="button" class="sms-text-button" data-sms-fix-step="number">Add another number to this campaign</button>' : ''}
         <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Consent & policies</h3><p>${escapeHtml(smsOptInMethods(campaign).map(method => smsConsentLabels[method]).join(', ') || 'Consent methods not selected')}</p></div>${edit('consent', 'Review consent')}</div><div class="sms-review-links">${[['Privacy policy', campaign.privacyPolicyLink, 'privacyPolicyLink'], ['SMS terms', campaign.termsAndConditionsLink, 'termsAndConditionsLink']].map(([label, url, field]) => smsValidHttpsUrl(url) ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${label} <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i></a>` : `<button type="button" class="sms-review-missing" data-sms-fix-step="consent" data-sms-fix-selector='[data-sms-field="campaign.${field}"]'>Add ${label}</button>`).join('')}</div></section>
         <section class="sms-section sms-review-section"><div class="sms-section-title"><div><h3>Message examples</h3><p>${[campaign.sample1, campaign.sample2, campaign.sample3, campaign.sample4, campaign.sample5].filter(Boolean).length} examples prepared for carrier review</p></div>${edit('messages', 'Review messages')}</div></section>
         ${submitted ? '' : `<div class="sms-summary-checklist ${smsStepIssues('summary', profile).length ? '' : 'ready'}" data-sms-summary-checklist aria-live="polite">${smsSummaryChecklistHtml(profile)}</div>`}`;
@@ -6013,7 +6022,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
     }
     const smsStatusInFlight = new Map();
     function smsProviderStatusPending(profile){
-      if (!profile?.id || smsProfileIsMock(profile) || smsRegistrationVerified(profile)) return false;
+      if (!profile?.id || smsProfileIsMock(profile)) return false;
+      if (smsAdditionalNumbers(profile).some(number => !['failed','failure','cancelled','deleted','released'].includes(String(number.status || '').toLowerCase()) && number.assignment_status !== 'assigned')) return true;
+      if (smsRegistrationVerified(profile)) return false;
       const statuses = [profile.status, profile.brand_status, profile.campaign_status, profile.phone_number_status].join(' ').toLowerCase();
       if (/deactivat|fail|reject|unverified|suspend|expire|cancel/.test(statuses)) return false;
       return smsHasProviderCampaign(profile) || (smsHasProviderBrand(profile) && !smsBrandReadyForCampaign(profile))
@@ -6361,7 +6372,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         }, 320);
       };
       const chooseSmsNumber = (button) => {
-        if (!button || operationBusy || smsRegistrationLocked(profile)) return;
+        if (!button || operationBusy || (smsRegistrationLocked(profile) && !numberSearch.adding)) return;
         const choice = numberSearch.results.find(number => number.phone_number === button.dataset.smsChooseNumber);
         if (!choice) return;
         ++numberSearchRevision;
@@ -6372,8 +6383,9 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         const choice = numberSearch.choice; if (!choice) return true;
         const phoneNumber = choice.phone_number, displayNumber = smsFormatE164ForDisplay(phoneNumber) || phoneNumber;
         const locality = choice.locality || '', region = choice.region || '', monthlyCost = choice.monthly_cost || '', setupCost = choice.setup_cost || '', currency = choice.currency || 'USD';
-        const replacing = !!profile.provider_refs?.telnyx_number_order_id;
-        if (!window.confirm(`Reserve ${displayNumber} for this registration?${replacing ? ' This purchases another number. The previous number remains in your account and may continue to incur provider charges.' : ' Provider charges apply when the number is reserved.'}`)) return false;
+        const adding = !!numberSearch.adding && smsCanAddNumber(profile);
+        const replacing = !!profile.provider_refs?.telnyx_number_order_id && !adding;
+        if (!window.confirm(adding ? `Purchase ${displayNumber} as another number on this approved campaign? Provider charges apply to each number.` : `Reserve ${displayNumber} for this registration?${replacing ? ' This purchases another number. The previous number remains in your account and may continue to incur provider charges.' : ' Provider charges apply when the number is reserved.'}`)) return false;
         operationBusy = true;
         operationMessage = 'Reserving number…';
         submissionError = '';
@@ -6385,7 +6397,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           return;
         }
         try {
-          const result = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}/select-number`, {
+          const result = await messagingRequest(`/organizations/${encodeURIComponent(orgId)}/sms/compliance-profiles/${encodeURIComponent(profile.id)}/${adding ? 'add-number' : 'select-number'}`, {
             method: 'POST',
             body: {
               phone_number: phoneNumber,
@@ -6401,7 +6413,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             }
           });
           profile = mergeSmsProfile(result.profile || profile);
-          numberSearch = { ...numberSearch, choice: null, choosing: false, query: profile.campaign?.selectedNumberSearch || numberSearch.query, areaCode: profile.campaign?.selectedNumberAreaCode || numberSearch.areaCode, message: (globalThis.PlatformLanguage?.text("settings","m_fa0a2f29423c02","Selected number saved.") ?? "Selected number saved.") };
+          numberSearch = { ...numberSearch, choice: null, choosing: false, adding: false, query: '', areaCode: '', results: [], message: adding ? 'Additional number ordered. Activation updates automatically.' : (globalThis.PlatformLanguage?.text("settings","m_fa0a2f29423c02","Selected number saved.") ?? "Selected number saved.") };
           setStatus(result.ordered ? 'Number order submitted.' : 'Selected number saved.');
           showToast(result.ordered ? 'Number ordered' : 'Number selected', result.ordered ? `${displayNumber} is being provisioned for SMS.` : `${displayNumber} saved for SMS setup.`, true);
           refresh();
@@ -6548,7 +6560,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       const bindWorkspaceInputs = (container) => {
         container.querySelectorAll('[data-sms-field], [data-sms-method], [data-sms-feature], [data-sms-feature-confirm], [data-sms-flow-ack]').forEach((input) => {
           input.addEventListener('input', () => {
-            if (operationBusy || input.disabled || smsRegistrationLocked(profile)) return;
+            if (operationBusy || input.disabled || (smsRegistrationLocked(profile) && !(numberSearch.adding && input.getAttribute('data-sms-field') === 'campaign.selectedNumberAreaCode'))) return;
             const inputFieldName = String(input.getAttribute('data-sms-field') || '');
             if (inputFieldName === 'brand.ein') {
               const position = input.selectionStart;
@@ -6620,9 +6632,15 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
           input?.focus({ preventScroll: true });
         };
-        if (smsRegistrationLocked(profile) || operationBusy) container.querySelectorAll('input, select, textarea, button').forEach(input => { input.disabled = true; });
+        if (smsRegistrationLocked(profile) || operationBusy) container.querySelectorAll('input, select, textarea, button').forEach(input => {
+          if (!operationBusy && ((stepId === 'summary' && smsCanAddNumber(profile) && input.matches('[data-sms-fix-step="number"]')) || (stepId === 'number' && (input.matches('[data-sms-add-number]') || (numberSearch.adding && input.matches('[data-sms-field="campaign.selectedNumberAreaCode"], [data-sms-choose-number], [data-sms-reserve-additional], [data-sms-cancel-additional]')))))) return;
+          input.disabled = true;
+        });
         void window.Portal?.PhoneTray?.developmentSetup(container,status=>{if(!developmentStatus?.onboarded){developmentStatus=status;refresh();}});
         container.querySelector('[data-sms-change-number]')?.addEventListener('click', () => { numberSearchRevision++; if (numberSearchTimer) clearTimeout(numberSearchTimer); numberSearch = { ...numberSearch, choosing: true, query: '', areaCode: '', results: [], searched: false, message: '' }; profile.campaign = { ...profile.campaign, selectedNumberAreaCode: '', selectedNumberSearch: '' }; refresh(); });
+        container.querySelector('[data-sms-add-number]')?.addEventListener('click', () => { numberSearch = { ...numberSearch, adding: true, choice: null, query: '', areaCode: '', results: [], searched: false, message: '' }; refresh(); });
+        container.querySelector('[data-sms-cancel-additional]')?.addEventListener('click', () => { numberSearch = { ...numberSearch, adding: false, choice: null, query: '', areaCode: '', results: [], searched: false, message: '' }; refresh(); });
+        container.querySelector('[data-sms-reserve-additional]')?.addEventListener('click', () => { void reserveSmsNumber(); });
         container.querySelectorAll('[data-sms-choose-number]').forEach((button) => {
           button.addEventListener('click', () => chooseSmsNumber(button));
         });
@@ -6789,7 +6807,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
           if (smsStatusFingerprint(latest) === smsStatusFingerprint(profile)) return;
           // Provider checks must never replace answers the user is editing.
           profile = mergeSmsProfile({ ...latest, brand:profile.brand, campaign:profile.campaign });
-          if (ctxRef?.stepId === 'summary') refresh();
+          if (ctxRef?.stepId === 'summary' || (ctxRef?.stepId === 'number' && !numberSearch.adding)) refresh();
         },
         onError:message => {
           automaticStatusError = message;
