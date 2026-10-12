@@ -98,3 +98,35 @@ matched the reviewed payload. Evidence is in ignored output/photo-picker-deploy.
 | web | `/opt/firstmeasure/releases/d03517c586b851b4727295275f55ca0893a9cfb8-photo-picker` | `b1f079ed3899d318ff135c6b20f5943b01d4b1f1` |
 | pool | `/opt/firstmeasure/releases/d03517c586b851b4727295275f55ca0893a9cfb8-photo-picker` | `b1f079ed3899d318ff135c6b20f5943b01d4b1f1` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/d03517c586b851b4727295275f55ca0893a9cfb8-photo-picker` | `b1f079ed3899d318ff135c6b20f5943b01d4b1f1` |
+
+## Compact posted GIFs and attribution overlay
+
+Frontend features 21e3da97 and 14db37dc remove the empty rich-text row from
+GIF-only posts and Notes/replies, reduce shared figure and draft spacing, and
+place the attribution inside the GIF's bottom-right corner. The caption uses
+9px white text on a dark backing with a 3px inset, no extra caption row and no
+interference with clicking the GIF. The shared renderer applies to photo comments,
+Project Notes and Channels, including replies. Text accompanying a GIF retains
+its own content and a small separation.
+
+GIPHY requires visible Powered by GIPHY attribution where its API is used:
+https://developers.giphy.com/docs/api/#attribution . The label remains readable;
+no new provider calls or media modifications are introduced.
+
+Photo/Notes/Channels browser regressions pass locally and with dev-hosted assets.
+They verify absence of an empty text row, bounded header/GIF/footer gaps,
+attribution positioned within the image and unchanged sending, drafts and picker
+behavior. The photo layout was visually inspected at narrow width. Tests use
+fixture data and do not post customer messages.
+
+The three frontend-only role stages retain their own live baselines and backend
+runtime. Source syntax, hashes, public asset hashes, readiness, runtime identity
+and development isolation/outbound safety passed. Only PHP-FPM was reloaded;
+backend, worker and production were not changed. Payloads and receipts are under
+ignored output/gif-spacing-deploy.
+
+| Role | Activated frontend path | Retained runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/14db37dcfb340615a9f6c585048554b59d4ad54d-gif-spacing` | `cfab7338fc60bd1275ab24f915160135b6c8140b` |
+| pool | `/opt/firstmeasure/releases/14db37dcfb340615a9f6c585048554b59d4ad54d-gif-spacing` | `cfab7338fc60bd1275ab24f915160135b6c8140b` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/14db37dcfb340615a9f6c585048554b59d4ad54d-gif-spacing` | `cfab7338fc60bd1275ab24f915160135b6c8140b` |
