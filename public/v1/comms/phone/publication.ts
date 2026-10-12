@@ -19,6 +19,8 @@ const touch=z.object({enabled:z.boolean().default(false),number:str.default(''),
 const score=z.object({spam_risk:str.nullable().default(null),spam_category:str.nullable().default(null),connection_score:z.number().nullable().default(null),engagement_score:z.number().nullable().default(null),sentiment_score:z.number().nullable().default(null),maturity_score:z.number().nullable().default(null),last_refreshed_at:str.nullable().default(null)});
 const cost=z.object({monthly_cost:str.default(''),upfront_cost:str.default(''),currency:str.default('')});
 const schemas={
+  reputation_onboarding:z.object({...meta,status:str,business_name:str,signed_at:str,disabled_at:str}),
+  reputation_remediation:z.object({...meta,status:str,numbers:z.array(str),call_purpose:str,created_at:str,results:z.record(z.array(str)).nullable()}),
   personal:personalSchema.extend(meta),
   line:z.object({...meta,phone_number:str,label:str,status:str,branch_id:str,config:lineSchema.nullable(),sms_status:str}),
   group:groupSchema.extend({...meta,branch_id:str}),
@@ -33,8 +35,10 @@ const schemas={
   billing:z.object({...meta,phone_number:str,label:str,status:str,provider_cost:cost.nullable()})
 };
 type Kind=keyof typeof schemas;
-const resourceKinds:Record<Kind,string>={personal:'phone_personal',line:'number',group:'phone_group',messaging:'phone_messaging',lead:'phone_lead',port:'phone_port',order:'phone_order',reputation:'phone_reputation_number',reputation_settings:'phone_reputation',greeting:'phone_greeting',voicemail:'phone_mailbox',billing:'number'};
+const resourceKinds:Record<Kind,string>={reputation_onboarding:'phone_reputation_account',reputation_remediation:'phone_reputation_remediation',personal:'phone_personal',line:'number',group:'phone_group',messaging:'phone_messaging',lead:'phone_lead',port:'phone_port',order:'phone_order',reputation:'phone_reputation_number',reputation_settings:'phone_reputation',greeting:'phone_greeting',voicemail:'phone_mailbox',billing:'number'};
 const descriptions:Record<Kind,string>={
+ reputation_onboarding:'Business reputation enrollment progress. No EIN, contacts, signatures, documents, or carrier identifiers.',
+ reputation_remediation:'Spam-label review status and per-number outcomes. Read-only; submission requires human confirmation in Phone Settings.',
  personal:'Own work hours, availability, voicemail greeting, notifications, outgoing voicemail drop and power dial pool. Own user only; read has no side effects.',
  line:'Business numbers, assignments, routing, ring groups, department routing, tracking campaigns and SMS status. Manager access to each line; no provider credentials.',
  group:'Ring and department groups, members, hours and routing. Manager access to each group.',
@@ -52,7 +56,7 @@ const json=(schema:z.ZodTypeAny)=>zodToJsonSchema(schema,{$refStrategy:'none'}) 
 function principal(ctx:PublicationContext){if(!ctx.auth||ctx.auth.orgId!==ctx.organizationId)throw forbidden('phone_user_required','Phone publications require an authenticated organization member.');assertPhoneAccess(ctx.auth);return ctx.auth;}
 function idFor(ctx:PublicationContext,target:TargetRef,kind:Kind){
  if(kind==='personal'){if(target.id&&target.id!==principal(ctx).userId)throw forbidden('phone_subject_denied','Only your own phone preferences are available.');return principal(ctx).userId;}
- if(kind==='messaging'||kind==='reputation_settings'){if(target.id&&target.id!=='default')throw badRequest('phone_id_invalid','This setting uses the default record.');return 'default';}
+ if(kind==='messaging'||(kind==='reputation_settings'||kind==='reputation_onboarding')){if(target.id&&target.id!=='default')throw badRequest('phone_id_invalid','This setting uses the default record.');return 'default';}
  if(!target.id)throw badRequest('phone_id_required','Choose a record ID or list the available records.');return target.id;
 }
 async function authorizeRow(ctx:PublicationContext,kind:Kind,id:string){
@@ -60,7 +64,7 @@ async function authorizeRow(ctx:PublicationContext,kind:Kind,id:string){
  if(kind==='personal'){if(id!==auth.userId)throw forbidden('phone_subject_denied','Only your own preferences are available.');return;}
  if(kind==='voicemail'){await authorizeMailbox(auth,id);return;}
  const row=await s.resource(ctx.organizationId,resourceKinds[kind],id);
- if(!row&& !['messaging','reputation_settings'].includes(kind))throw notFound('phone_record_missing','This phone record is unavailable.');
+ if(!row&& !['messaging','reputation_settings','reputation_onboarding'].includes(kind))throw notFound('phone_record_missing','This phone record is unavailable.');
  if(kind==='greeting'){if(row?.owner_user_id!==auth.userId)throw forbidden('phone_subject_denied','Only your own greetings are available.');return;}
  if(kind==='billing'){if(!hasPermission(auth,'view_platform_billing|manage_platform_billing|manage_billing'))throw forbidden('phone_billing_denied','You cannot view phone billing.');return;}
  const resource=kind==='line'||kind==='reputation'?{...await s.resource(ctx.organizationId,'number',id),...await s.resource(ctx.organizationId,'phone_line',id)}:row||{};
@@ -71,7 +75,7 @@ async function authorizeRow(ctx:PublicationContext,kind:Kind,id:string){
 }
 function policy(kind:Kind,creating=false):AccessPolicy{return {scopes:['organization'],permissions:[],scopedPermissions:true,capabilities:['apps.comms'],systemKinds:[],authorize:async(ctx,target)=>{
  const auth=principal(ctx);
- if(kind==='personal'||kind==='messaging'||kind==='reputation_settings')await authorizeRow(ctx,kind,idFor(ctx,target,kind));
+ if(kind==='personal'||kind==='messaging'||(kind==='reputation_settings'||kind==='reputation_onboarding'))await authorizeRow(ctx,kind,idFor(ctx,target,kind));
  else if(target.id){if(creating&&!await s.resource(ctx.organizationId,resourceKinds[kind],target.id)){assertManage(auth);return;}await authorizeRow(ctx,kind,target.id);}
  else if(!['greeting','voicemail'].includes(kind)&&kind!=='billing'&&!canUseScopedPermission(auth,'manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You cannot manage phone settings.');
  else if(kind==='billing'&&!hasPermission(auth,'view_platform_billing|manage_platform_billing|manage_billing'))throw forbidden('phone_billing_denied','You cannot view phone billing.');
@@ -83,6 +87,8 @@ async function projectRow(ctx:PublicationContext,kind:Kind,id:string){
  const texts=(keys:string[])=>Object.fromEntries(keys.map(k=>[k,s.text(row[k])]));
  let value:unknown;
  switch(kind){
+ case 'reputation_onboarding':value={...base,...texts(['status','signed_at','disabled_at']),business_name:s.text(s.object(row.profile).legal_name)};break;
+ case 'reputation_remediation':value={...base,...texts(['status','call_purpose','created_at']),numbers:s.strings(row.numbers),results:row.results||null};break;
  case 'personal':case 'group':case 'messaging':value={...row,...base,...(kind==='group'?{branch_id:s.text(row.branch_id)||'default'}:{})};break;
  case 'line':{const config=await s.resource(ctx.organizationId,'phone_line',id),sms=await s.resource(ctx.organizationId,'phone_sms',id);value={...base,revision:Number(config?.revision)||0,updated_at:s.text(config?.updated_at||row.updated_at),phone_number:id,label:s.text(config?.label||row.label)||id,status:s.text(row.status),branch_id:s.text(row.branch_id)||'default',config:config?lineSchema.parse(config):null,sms_status:s.text(sms?.assignment_status)};break;}
  case 'lead':value={...base,...texts(['customer_number','project_id','contact_id','status','first_call_id','last_call_id','first_seen','last_seen']),department_ids:s.strings(row.department_ids),first_touch:touch.parse(s.object(row.first_touch)),last_touch:touch.parse(s.object(row.last_touch))};break;
@@ -100,7 +106,7 @@ export function registerPhonePublication(){
  if(registered)return;registered=true;
  const exports:Record<string,DataExport>={};
  for(const kind of Object.keys(schemas) as Kind[]){
-  const singleton=['personal','messaging','reputation_settings'].includes(kind);
+  const singleton=['personal','messaging','reputation_settings','reputation_onboarding'].includes(kind);
   exports[kind]={schema:json(schemas[kind]),schemaVersion:'1',description:descriptions[kind],access:policy(kind),
    read:async(ctx,ref)=>{const id=idFor(ctx,ref.target,kind),value=await projectRow(ctx,kind,id);return {value,revision:contentHash(value),provenance:{viewer:principal(ctx).userId,ids:[id]}};},
    authorizeSnapshot:async(ctx,_ref,result)=>{if(result.provenance.viewer!==principal(ctx).userId||!Array.isArray(result.provenance.ids))throw forbidden('phone_snapshot_denied','This snapshot cannot be authorized.');for(const id of result.provenance.ids)await authorizeRow(ctx,kind,s.text(id));},

@@ -56,14 +56,13 @@ number ownership are checked again before carrier dispatch. The chosen number
 is retained on the call and stable under request retries. Existing suppression,
 call capacity, device readiness and outcome requirements remain enforced.
 
-Reputation uses Telnyx enterprise-scoped APIs. Platform operators must configure
-`TELNYX_REPUTATION_ENTERPRISES` as a JSON object mapping organization IDs to
-approved Telnyx enterprise IDs in the existing role environment configuration.
-Each enterprise must map to exactly one organization; tenant users cannot select
-arbitrary enterprises from the shared carrier account. Before binding, complete
-Telnyx enterprise registration, account-level terms acceptance, and signed LOA
-approval. Both reputation `status` and `loa_status` must be approved. This carrier
-onboarding is an external prerequisite, not automatically submitted by this UI.
+Reputation uses Telnyx enterprise-scoped APIs. Managers now register their
+business and sign its authorization in Phone Settings (see the onboarding
+section below). Each enterprise belongs to exactly one organization; tenant
+users cannot select arbitrary enterprises from the shared carrier account.
+`TELNYX_REPUTATION_ENTERPRISES` remains a legacy operator mapping fallback.
+Both reputation `status` and `loa_status` must be approved before monitoring.
+Account-level carrier terms remain a separate platform-operator step.
 
 Managers can enroll/remove their active numbers, change the carrier's monitoring
 schedule, sync cached results, and request a confirmed billed refresh. Telnyx
@@ -91,3 +90,48 @@ Provider references checked October 11, 2026:
 See [Phone Settings data, actions and triggers](phone-publication.md) for the typed
 exports, permission-checked domain actions, durable event bridge, dedicated carrier
 flows, tests and coordinated worker rollout dependency.
+
+
+## Reputation onboarding (October 12)
+
+Phone Settings now owns a guided business registration, authorization, approval,
+and number-enrollment flow. Save validated company/contact/address details as a
+local draft; EIN is entered only when registering/correcting and is sent directly
+to Telnyx. Registration creates a tenant-bound Enterprise with a stable customer
+reference. Existing operator enterprise mappings remain supported. Customers
+cannot select or supply arbitrary enterprise/document IDs.
+
+Download and review Telnyx's current LOA PDF, then draw a signature (embedded by
+Telnyx in its PDF) or upload a signed PDF. Submission requires an authorized signer,
+explicit authorization/terms acceptance and confirmation of carrier activation
+fees. Persist only document references, hashes, signer identity and timestamps;
+PDF and signature bytes are transient and are excluded from publications/logs.
+The platform account operator separately accepts account-wide Number Reputation
+terms. Customer acceptance does not authorize changing shared-account terms.
+
+Both enterprise and LOA approval are shown independently with carrier rejection
+reasons. A rejected LOA can be replaced. Correcting rejected business details
+explicitly resets the carrier reputation registration and requires a fresh LOA.
+Carrier activation starts with manual checks; customers may then choose Telnyx's
+refresh cadence, enroll/remove active numbers and request fresh checks. The UI
+supports remediation submission and asynchronously polled per-number outcomes;
+review does not guarantee removal from every carrier's spam list.
+
+Carrier mutations record an operation intent before dispatch. A per-company lock
+prevents concurrent changes, and completed operations reuse their result. Network
+or ambiguous outcomes remain locked instead of blindly repeating paid requests.
+Refresh can reconcile deterministic enterprise/authorization/enrollment state.
+An operator can record the carrier request reference and verified outcome to
+release an unresolved attempt after checking the provider records; this does not
+automatically retry, reverse or fabricate a provider result.
+
+Disabling reputation removes carrier monitoring while retaining ordinary phone
+service. Re-enrollment requires fresh authorization. The existing phone owner
+polls enrollment/review state every 15 minutes and uses the same Work outbox.
+
+Per the revised product scope, this work deliberately adds no checkout, price,
+subscription, customer charge or billing entitlement. Carrier fees still apply
+to explicitly confirmed live Telnyx commands. Development permits local business
+drafts and blocks external registration, PDF signing/submission and paid commands.
+Provider behavior is covered by injected-carrier tests; no real signup, signature
+submission, paid enrollment or remediation is executed during validation.

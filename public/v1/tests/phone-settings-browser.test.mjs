@@ -36,3 +36,36 @@ test('phone settings saves personal, routing, attribution and port drafts with u
  await page.getByRole('button',{name:'My Phone',exact:true}).click();await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));await page.screenshot({path:new URL('../../../output/phone-settings/personal-mobile.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1'),fullPage:true});assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
+
+
+test('reputation onboarding collects details, signs authorization, reports approvals and enrolls without billing',async()=>{
+ const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+ const page=await browser.newPage({viewport:{width:1100,height:950}}),errors=[],writes=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ const state={ok:true,can_manage:true,can_bill:false,carrier_writes:true,user_id:'owner',personal:{},people:[],departments:[],groups:[],lines:[{phone_number:'+12025550100',label:'Main',status:'active',can_manage:true}]};
+ const rep={ok:true,configured:false,carrier_writes:true,account:null,settings:{},numbers:[],industries:['business'],remediation:[],operations:[],operator:false};
+ await page.route('https://onboarding.test/**',async route=>{
+ const req=route.request(),url=new URL(req.url());if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:'<style>body{font-family:Arial;margin:16px}</style><div id="root"></div>'});
+ assert.ok(!/stripe|platform-billing|subscription/.test(url.pathname),'No billing requests');const body=req.postDataJSON();if(body)writes.push({path:url.pathname,body});let result=state;
+ if(url.pathname.endsWith('/phone/reputation'))result=rep;
+ if(url.pathname.endsWith('/reputation/business')){rep.account={profile:body.profile,revision:1,status:'draft'};result={ok:true};}
+ if(url.pathname.endsWith('/reputation/register')){rep.configured=true;rep.account.status='registered';result={ok:true};}
+ if(url.pathname.endsWith('/authorization/render')){rep.account.loa_version='document-version';result={ok:true,file:Buffer.from('%PDF-1.7 fixture').toString('base64'),version:'document-version'};}
+ if(url.pathname.endsWith('/reputation/authorization')){rep.account.signed_at='2026-10-12';rep.account.signer_name=body.signer_name;rep.settings={status:'pending',loa_status:'pending'};result={ok:true};}
+ if(url.pathname.endsWith('/phone/reputation')&&body?.action==='monitor')rep.numbers=[{phone_number:'+12025550100',monitored:true,reputation_data:{spam_risk:'low'}}];
+ if(url.pathname.endsWith('/voice/status'))result={ok:true,settings:{}};
+ await route.fulfill({contentType:'application/json',body:JSON.stringify(result)});
+ });
+ await page.goto('https://onboarding.test');await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/settings/phone.js',import.meta.url),'utf8')});await page.evaluate(()=>FirstMatePhoneSettings.mount(document.querySelector('#root'),{orgId:'fixture',initialTab:'reputation'}));
+ await page.getByLabel('Registered legal business name',{exact:true}).fill('Example LLC');await page.getByLabel('Public business name (DBA)',{exact:true}).fill('Example');await page.getByLabel('State or province of incorporation',{exact:true}).fill('Washington');await page.getByLabel('Business website',{exact:true}).fill('https://example.test');
+ for(const key of ['organization_contact','billing_contact'])for(const [k,v]of Object.entries({first_name:'Jane',last_name:'Example',email:'jane@example.test',phone_number:'+12025550100',...(key==='organization_contact'?{job_title:'Owner'}:{})}))await page.locator(`[name="${key}.${k}"]`).fill(v);
+ for(const key of ['organization_physical_address','billing_address'])for(const [k,v]of Object.entries({street_address:'100 Test St',city:'Seattle',administrative_area:'WA',postal_code:'98101'}))await page.locator(`[name="${key}.${k}"]`).fill(v);
+ await page.getByRole('button',{name:'Save business details',exact:true}).click();await page.getByLabel('Federal EIN (for example, 12-3456789)',{exact:true}).fill('12-3456789');await page.getByRole('button',{name:'Register business with Telnyx',exact:true}).click();
+ await page.getByRole('button',{name:'Download authorization',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[data-form="rep-sign"] button:not([type])').disabled);
+ await page.getByLabel('Authorized signer’s full name',{exact:true}).fill('Jane Example');const canvas=page.locator('[data-signature]');await canvas.scrollIntoViewIfNeeded();const box=await canvas.boundingBox();await page.mouse.move(box.x+20,box.y+40);await page.mouse.down();await page.mouse.move(box.x+100,box.y+65,{steps:8});await page.mouse.up();
+ await page.getByText('I reviewed the authorization and am authorized to sign for this business.',{exact:true}).click();await page.getByText('I accept the Telnyx reputation-service terms and authorize carrier activation and its fees.',{exact:true}).click();await page.getByRole('button',{name:'Submit signed authorization',exact:true}).click();await page.getByText('Business approval: pending · Authorization: pending',{exact:true}).waitFor();
+ const submit=writes.find(x=>x.path.endsWith('/reputation/authorization'));assert.equal(submit.body.signer_name,'Jane Example');assert.equal(submit.body.authorized,true);assert.ok(writes.some(x=>x.path.endsWith('/authorization/render')&&x.body.signature));
+ rep.settings={status:'approved',loa_status:'approved',check_frequency:'never'};await page.getByRole('button',{name:'Sync carrier results',exact:true}).click();await page.getByRole('button',{name:'Enroll number',exact:true}).click();await page.getByText('low',{exact:true}).waitFor();
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));await mkdir(new URL('../../../output/reputation-onboarding/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../../../output/reputation-onboarding/mobile.png',import.meta.url).pathname.replace(/^\/(C:)/,'$1'),fullPage:true});assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});

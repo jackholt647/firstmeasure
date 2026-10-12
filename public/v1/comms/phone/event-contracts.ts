@@ -1,6 +1,8 @@
 import {z} from 'zod';
 // Pure contract module: shared by the durable outbox and the automation catalog.
 const names={
+ 'phone.reputation.onboarding_updated':'Business reputation enrollment or authorization status changed.',
+ 'phone.reputation.remediation_updated':'A spam-label review status or result changed.',
  'phone.line.updated':'A phone line assignment, routing, messaging or tracking configuration changed.',
  'phone.group.updated':'A ring or department group changed.',
  'phone.personal.updated':'A user changed their phone preferences, hours, notifications or dialing settings.',
@@ -38,6 +40,8 @@ const obj=(v:unknown):Json=>v&&typeof v==='object'&&!Array.isArray(v)?v as Json:
 const text=(v:unknown)=>String(v??'');
 const strings=(v:unknown)=>Array.isArray(v)?v.map(text):[];
 const fields:Record<string,{event:keyof typeof names;keys:string[]}>={
+ phone_reputation_account:{event:'phone.reputation.onboarding_updated',keys:['status','signed_at','disabled_at']},
+ phone_reputation_remediation:{event:'phone.reputation.remediation_updated',keys:['status','results']},
  phone_line:{event:'phone.line.updated',keys:['label','user_ids','group_id','department_ids','routing','messaging','tracking']},
  phone_group:{event:'phone.group.updated',keys:['label','user_ids','department_ids','routing','branch_id']},
  phone_personal:{event:'phone.personal.updated',keys:['schedule','available','notifications','voicemail_greeting','voicemail_media_id','voicemail_drop','power_dial']},

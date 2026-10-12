@@ -1,3 +1,4 @@
+import {saveBusiness,registerBusiness,renderAuthorization,submitAuthorization,correctBusiness,remediation,carrierTerms,disableReputation,resolveAttempt} from './reputation-product.js';
 import { reputationWorkspace, changeReputation } from './reputation.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -17,6 +18,17 @@ const base='/organizations/:orgId/phone';
 const param=(r:FastifyRequest,k:string)=>s.text(s.object(r.params)[k]);
 async function auth(r:FastifyRequest,write=false){const ctx=await requirePlatformAuth(r,{orgId:param(r,'orgId'),csrf:write,capability:'apps.comms'});if(!canUseScopedPermission(ctx,'make_calls|send_comms|send_communications|view_comms|manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You do not have access to phone settings.');return ctx;}
 export function registerPhoneSettingsApi(app:FastifyInstance){
+  app.post(`${base}/reputation/resolve`,async r=>({ok:true,...await resolveAttempt(await auth(r,true),r.body)}));
+  app.put(`${base}/reputation/business`,async r=>({ok:true,account:await saveBusiness(await auth(r,true),r.body)}));
+  app.post(`${base}/reputation/register`,async r=>({ok:true,...await registerBusiness(await auth(r,true),r.body)}));
+  app.post(`${base}/reputation/business/correct`,async r=>({ok:true,...await correctBusiness(await auth(r,true),r.body)}));
+  app.post(`${base}/reputation/authorization/render`,{bodyLimit:2*1024*1024},async(r,reply)=>{const pdf=await renderAuthorization(await auth(r,true),r.body||{});return reply.header('Cache-Control','private, no-store').send({ok:true,file:pdf.file.toString('base64'),version:pdf.version});});
+  app.post(`${base}/reputation/authorization`,{bodyLimit:12*1024*1024},async r=>({ok:true,...await submitAuthorization(await auth(r,true),r.body)}));
+  app.post(`${base}/reputation/remediation`,async r=>({ok:true,...await remediation(await auth(r,true),r.body)}));
+  app.post(`${base}/reputation/disable`,async r=>{const v=z.object({confirmed:z.literal(true),operation_id:z.string()}).parse(r.body);return {ok:true,...await disableReputation(await auth(r,true),v.operation_id)};});
+  app.get(`${base}/reputation/carrier-terms`,async r=>({ok:true,status:await carrierTerms(await auth(r))}));
+  app.post(`${base}/reputation/carrier-terms`,async r=>{z.object({confirmed:z.literal(true)}).parse(r.body);return {ok:true,status:await carrierTerms(await auth(r,true),true)};});
+
   app.get(`${base}/reputation`,async r=>({ok:true,...await reputationWorkspace(await auth(r))}));
   app.post(`${base}/reputation`,async r=>({ok:true,...await changeReputation(await auth(r,true),r.body)}));
   app.post(`${base}/greetings`,{bodyLimit:6*1024*1024},async r=>({ok:true,greeting:await saveGreeting(await auth(r,true),r.body)}));

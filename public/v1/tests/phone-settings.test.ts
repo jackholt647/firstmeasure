@@ -216,11 +216,11 @@ test('reputation is tenant-bound, uses cached polling, and requires confirmed ca
  } as any;
  try{
  assert.equal((await c.raw('POST',base,{action:'monitor',phone_number:number})).status,409);
- const result=await c.request('POST',base,{action:'monitor',phone_number:number,confirmed:true});assert.equal(result.numbers.length,1);assert.equal(result.numbers[0].reputation_data.spam_risk,'high');
- await c.request('POST',base,{action:'monitor',phone_number:number,confirmed:true});assert.equal(requests.filter(r=>r.path.endsWith('/numbers')&&r.method==='POST').length,1);
- await c.request('POST',base,{action:'frequency',frequency:'daily',confirmed:true});assert.equal((await store.resource(orgId,'phone_reputation'))?.check_frequency,'daily');
- await c.request('POST',base,{action:'refresh',phone_number:number,confirmed:true});assert.ok(requests.some(r=>r.path.endsWith('/refresh')&&r.method==='POST'));assert.equal(requests.some(r=>r.method==='GET'&&r.path.includes('/numbers/')),false);
- (env as any).dataEnvironment='development';assert.equal((await c.raw('POST',base,{action:'refresh',phone_number:number,confirmed:true})).status,403);
+ const result=await c.request('POST',base,{operation_id:'monitor-test-001',action:'monitor',phone_number:number,confirmed:true});assert.equal(result.numbers.length,1);assert.equal(result.numbers[0].reputation_data.spam_risk,'high');
+ await c.request('POST',base,{operation_id:'monitor-test-001',action:'monitor',phone_number:number,confirmed:true});assert.equal(requests.filter(r=>r.path.endsWith('/numbers')&&r.method==='POST').length,1);
+ await c.request('POST',base,{operation_id:'frequency-test-001',action:'frequency',frequency:'daily',confirmed:true});assert.equal((await store.resource(orgId,'phone_reputation'))?.check_frequency,'daily');
+ await c.request('POST',base,{operation_id:'refresh-test-001',action:'refresh',phone_number:number,confirmed:true});assert.ok(requests.some(r=>r.path.endsWith('/refresh')&&r.method==='POST'));assert.equal(requests.some(r=>r.method==='GET'&&r.path.includes('/numbers/')),false);
+ (env as any).dataEnvironment='development';assert.equal((await c.raw('POST',base,{operation_id:'refresh-test-001',action:'refresh',phone_number:number,confirmed:true})).status,403);
  process.env.TELNYX_REPUTATION_ENTERPRISES=JSON.stringify({[orgId]:'owned-enterprise',another:'owned-enterprise'});assert.equal((await c.raw('POST',base,{action:'sync'})).status,409);
  }finally{TelnyxClient.prototype.request=original;(env as any).dataEnvironment=oldEnv;if(oldMap===undefined)delete process.env.TELNYX_REPUTATION_ENTERPRISES;else process.env.TELNYX_REPUTATION_ENTERPRISES=oldMap;}
 });

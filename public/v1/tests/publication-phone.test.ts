@@ -30,6 +30,8 @@ before(async()=>{
  await store.saveResource(orgId,'phone_greeting','greeting',{owner_user_id:'manager',name:'Hello',content_type:'audio/wav',file:'SECRET-BYTES'});
  await store.saveResource(orgId,'phone_port','port',{phone_number:number,label:'Main',status:'draft',branch_id:'default',end_user:{pin_passcode:'SECRET'},documents:{loa:'SECRET'},customer_reference:'SECRET'},'SECRET');
  await store.saveResource(orgId,'phone_order','order',{phone_number:number,label:'Main',status:'pending',branch_id:'default',customer_reference:'SECRET'});
+ await store.saveResource(orgId,'phone_reputation_account','default',{status:'pending',profile:{legal_name:'Business',fein:'SECRET',organization_contact:{email:'SECRET'}},signed_at:'',disabled_at:'',loa_document_id:'SECRET',signed_hash:'SECRET'});
+ await store.saveResource(orgId,'phone_reputation_remediation','review',{status:'pending',numbers:[number],call_purpose:'Appointment follow-ups',created_at:'2026-10-12T00:00:00Z',results:null},'SECRET');
  await store.saveResource(orgId,'phone_reputation_number',number,{monitored:true,reputation_data:{spam_risk:'high',connection_score:null,private_token:'SECRET'},history:[]});
  await store.insertCall({id:'call',organization_id:orgId,branch_id:'default',project_id:'project-a',contact_id:'contact',owner_user_id:'manager',mode:'browser',direction:'inbound',state:'ended',customer_number:'+12065550222',business_number:number,created_at:'2026-10-01T12:00:00Z',metadata:{attribution:{enabled:true,number,label:'Search ads',source:'Google',medium:'cpc',campaign:'Roofing',ad_id:'ad'},voicemail:{started:true},voicemail_drop:{enabled:true,state:'completed',media_id:'SECRET'},power_dial:true}});
  await store.saveArtifact(orgId,'call','voicemail','audio',{file_path:'SECRET'});
@@ -41,7 +43,7 @@ after(async()=>{
 });
 test('typed phone exports are pure and remove private carrier, audio and billing fields',async()=>{
  const before=[await count('customer_voice_resources'),await count('customer_call_jobs')];
- for(const [kind,id] of [['personal',undefined],['messaging',undefined],['line',number],['port','port'],['order','order'],['reputation',number],['reputation_settings',undefined],['greeting','greeting'],['billing',number],['voicemail','call']] as const){
+ for(const [kind,id] of [['personal',undefined],['messaging',undefined],['line',number],['port','port'],['order','order'],['reputation',number],['reputation_settings',undefined],['reputation_onboarding',undefined],['reputation_remediation','review'],['greeting','greeting'],['billing',number],['voicemail','call']] as const){
   const result=await providers.readPublishedData(ctx(),source(kind,id));assert.equal(result.status,'ready',JSON.stringify(result));if(result.status==='ready')assert.doesNotMatch(JSON.stringify(result.value),/SECRET|provider_id|file_path|pin_passcode/);
  }
  assert.deepEqual([await count('customer_voice_resources'),await count('customer_call_jobs')],before);

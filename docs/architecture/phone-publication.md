@@ -9,7 +9,7 @@ release on development servers; see the [release record](../../deploy/digitaloce
 
 ## Typed data
 
-Provider `phone-settings`, version `1`, owns these 13 exports. All targets use
+Provider `phone-settings`, version `1`, owns these 15 exports. All targets use
 `scope: organization` and the authenticated organization ID. Single-record reads
 use `target.id` as described below. Lists use bound keyset cursors, a default page
 size of 50 and maximum of 200. Singleton settings and the report are read-only
@@ -88,7 +88,7 @@ does not interrupt an already-created call's captured policy.
 
 ## Automation triggers
 
-The central Work event catalog registers 18 triggers. Every payload is validated
+The central Work event catalog registers 20 triggers. Every payload is validated
 against `phoneEventPayload` before queueing and delivery. Events are internal
 `system` events: discoverable to automation authors, hidden from ordinary activity
 feeds and never customer-portal events. Existing missed-call/voicemail notification
@@ -186,7 +186,21 @@ root to avoid a pre-existing custom-fields fixture's early environment import.
 
 Development deployment discovery: the compatibility process is the existing phone
 worker owner (`CUSTOMER_CALL_WORKER_OWNER=1`); there is no standalone platform
-worker in this topology. That owner now drains only the 18 registered phone Work
+worker in this topology. That owner now drains only the 20 registered phone Work
 event types after publishing its outbox. The shared Work engine still supplies
 leases, retries and action execution. It does not enable general schedulers or
 claim unrelated pending events. Production's platform-worker path is unchanged.
+
+
+## Reputation onboarding follow-up (October 12)
+
+`reputation_onboarding` publishes business name, enrollment status and signing/disable
+timestamps. `reputation_remediation` publishes request status, numbers, purpose and
+per-number review outcomes. Both require communications management and exclude
+EIN, contact details, signatures, documents and carrier IDs. These are pure reads.
+Two added typed triggers, `phone.reputation.onboarding_updated` and
+`phone.reputation.remediation_updated`, use the existing atomic phone outbox.
+Their payloads contain status and changed-field names, never authorization content.
+The seven existing actions are unchanged. Registration, signature/authorization
+submission, carrier terms and chargeable commands remain human-confirmed dedicated
+flows. No billing or subscription integration was added.

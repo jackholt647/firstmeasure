@@ -11,6 +11,7 @@ export class TelnyxVoiceClient {
   async request(path:string, method="GET", body?:Json) {
     return this.client.request(path,{method,...(body?{body:JSON.stringify(body)}:{})});
   }
+  async pdf(path:string,body:Json={}) {return this.client.request(path,{method:"POST",body:JSON.stringify(body)},"pdf") as Promise<Buffer>;}
   async data(path:string,method="GET",body?:Json) { const result=object(await this.request(path,method,body));return object(result.data); }
   async dial(payload:Json) {payload={...payload,to:voiceDestination(payload.to)};assertVoiceDestination(payload.to);return this.data("/calls","POST",payload);}
   async command(controlId:string,action:string,payload:Json={}) {
