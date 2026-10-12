@@ -1068,12 +1068,43 @@ function pointRangeIndex(points){
  }};
 }
 
+// Coordinate deletion masks describe old geometry, not a permanent ban on
+// creating geometry at that location. Scope the old masks to deleted sources
+// before admitting newly created boundaries through the shared wire graph.
+function restoreCreatedSurfaceWire(edits,before={}){
+ const oldPoints=new Set(before.$removedSurfacePoints||[]),oldEdges=new Set(before.$removedSurfaceEdges||[]);
+ if(!oldPoints.size&&!oldEdges.size)return;
+ const old=new Map((before.$surfaces||[]).map(f=>[f.id,f])),created=[],points=new Set();
+ for(const f of edits.$surfaces||[]){if(f.deleted||f.drafted||f.replacedBy)continue;const prior=old.get(f.id),live=prior&&!prior.deleted&&!prior.drafted&&!prior.replacedBy?prior:null;
+  if(live&&JSON.stringify(rings(live))===JSON.stringify(rings(f)))continue;const previous=new Set(live?rings(live).flat().map(vertexKey):[]);
+  for(const r of rings(f))for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];if(!previous.has(vertexKey(a)))points.add(vertexKey(a));if(!live||sharedIntervals(a,b,[live]).reduce((n,[lo,hi])=>n+hi-lo,0)<1-1e-7)created.push({points:[a,b]});}
+ }
+ const previousLoosePoints=new Set((before.$loose?.points||[]).map(vertexKey)),previousLooseEdges=(before.$loose?.edges||[]).map(points=>({points})),previousLooseKeys=new Set((before.$loose?.edges||[]).map(pair=>edgeKey(...pair))),newLoosePoints=(edits.$loose?.points||[]).filter(p=>!previousLoosePoints.has(vertexKey(p))),newLooseEdges=(edits.$loose?.edges||[]).filter(pair=>!previousLooseKeys.has(edgeKey(...pair))&&sharedIntervals(...pair,previousLooseEdges).reduce((n,[lo,hi])=>n+hi-lo,0)<1-1e-7);
+ for(const p of newLoosePoints)points.add(vertexKey(p));
+ for(const pair of newLooseEdges){created.push({points:pair});for(const p of pair)points.add(vertexKey(p));}
+ const restoredPoints=new Set([...points].filter(k=>oldPoints.has(k))),restoredEdges=new Map();
+ for(const key of edits.$removedSurfaceEdges||[]){if(!oldEdges.has(key))continue;const pair=key.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};});if(pair.length!==2||pair.some(p=>!K.finite3(p)))continue;
+  const intervals=sharedIntervals(...pair,created);if(!intervals.length)continue;const remaining=[];let lo=0;for(const [start,end]of [...intervals,[1,1]]){if(start-lo>1e-7)remaining.push(edgeKey(mix3(...pair,lo),mix3(...pair,start)));lo=Math.max(lo,end);}restoredEdges.set(key,remaining);
+ }
+ if(!restoredPoints.size&&!restoredEdges.size)return;
+ // Deleted surfaces intentionally retain their other boundary lines. Preserve
+ // their exclusions locally so a new cap cannot resurrect an old diagonal.
+ for(const f of edits.$surfaces||[])if(f.deleted&&!f.drafted&&!f.replacedBy){const mask=f.wireExclusions||{},keys=new Set([...rings(f).flat(),...(f.retainedPoints||[])].map(vertexKey)),ps=[...restoredPoints].filter(k=>keys.has(k)),es=[...restoredEdges.keys()].filter(k=>{const pair=k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};});return sharedIntervals(...pair,[f]).length;});if(ps.length||es.length)f.wireExclusions={points:[...new Set([...(mask.points||[]),...ps])],edges:[...new Set([...(mask.edges||[]),...es])]};}
+ // Materialize surviving loose wire before clearing the historical masks.
+ // Newly added loose geometry is restored separately below.
+ if(edits.$loose){const addedPoints=new Set(newLoosePoints),addedEdges=new Set(newLooseEdges),cuts=[...restoredEdges.keys()].map(k=>({points:k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};})}));
+  edits.$loose={...edits.$loose,points:(edits.$loose.points||[]).filter(p=>addedPoints.has(p)||!restoredPoints.has(vertexKey(p))),edges:(edits.$loose.edges||[]).flatMap(pair=>{if(addedEdges.has(pair))return [pair];if(pair.some(p=>restoredPoints.has(vertexKey(p))))return [];const intervals=sharedIntervals(...pair,cuts);if(!intervals.length)return [pair];const remaining=[];let lo=0;for(const [start,end]of [...intervals,[1,1]]){if(start-lo>1e-7)remaining.push([mix3(...pair,lo),mix3(...pair,start)]);lo=Math.max(lo,end);}return remaining;})};
+ }
+
+ edits.$removedSurfacePoints=(edits.$removedSurfacePoints||[]).filter(k=>!restoredPoints.has(k));
+ edits.$removedSurfaceEdges=(edits.$removedSurfaceEdges||[]).flatMap(k=>restoredEdges.get(k)||[k]);
+}
 function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).filter(f=>f.curvedSurface?.logical&&!f.deleted&&!f.drafted);edits={...edits,$surfaces:(edits.$surfaces||[]).filter(f=>!f.curvedSurface)};const nodes=new Map(),edges=new Map(),removed=new Set(edits.$removedSurfacePoints||[]),removedEdges=new Set(edits.$removedSurfaceEdges||[]);
  const cuts=[...removedEdges].map(key=>({points:key.split('|').map(s=>{const [x,y,z]=s.split(',').map(Number);return {x,y,z};})})).filter(f=>f.points.length===2&&f.points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)));
- for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of (f.retainedPoints||[]).filter(p=>!f.trim||ownsPoint(f,p))){const k=vertexKey(p);if(!removed.has(k))nodes.set(k,{...p,id:k});}
+ for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const p of (f.retainedPoints||[]).filter(p=>!f.trim||ownsPoint(f,p))){const k=vertexKey(p);if(!removed.has(k)&&!f.wireExclusions?.points?.includes(k))nodes.set(k,{...p,id:k});}
  // Surface boundaries and loose connections must use the same interval deletions.
- const addEdge=(a,b)=>{const ka=vertexKey(a),kb=vertexKey(b);if(removed.has(ka)||removed.has(kb))return;const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});let lo=0;for(const [start,end]of [...sharedIntervals(a,b,cuts),[1,1]]){if(start-lo>1e-7){const x=at(lo),y=at(start),kx=vertexKey(x),ky=vertexKey(y),key=edgeKey(x,y);nodes.set(kx,{...x,id:kx});nodes.set(ky,{...y,id:ky});edges.set(key,{id:key,a:kx,b:ky});}lo=Math.max(lo,end);}};
- for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const ring of [f.points,...(f.holes||[])])for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],ka=vertexKey(a);if(!removed.has(ka))nodes.set(ka,{...a,id:ka});addEdge(a,b);}
+ const addEdge=(a,b,mask)=>{const ka=vertexKey(a),kb=vertexKey(b);if(removed.has(ka)||removed.has(kb)||mask?.points?.includes(ka)||mask?.points?.includes(kb))return;const localCuts=(mask?.edges||[]).map(k=>({points:k.split('|').map(k=>{const [x,y,z]=k.split(',').map(Number);return {x,y,z};})}));const at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});let lo=0;for(const [start,end]of [...sharedIntervals(a,b,[...cuts,...localCuts]),[1,1]]){if(start-lo>1e-7){const x=at(lo),y=at(start),kx=vertexKey(x),ky=vertexKey(y),key=edgeKey(x,y);nodes.set(kx,{...x,id:kx});nodes.set(ky,{...y,id:ky});edges.set(key,{id:key,a:kx,b:ky});}lo=Math.max(lo,end);}};
+ for(const f of (edits.$surfaces||[]).filter(f=>!f.drafted&&!f.replacedBy))for(const ring of [f.points,...(f.holes||[])])for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],ka=vertexKey(a);if(!removed.has(ka)&&!f.wireExclusions?.points?.includes(ka))nodes.set(ka,{...a,id:ka});addEdge(a,b,f.wireExclusions);}
  const curvedOwners=new Map();for(const f of edits.$surfaces||[])if(!f.drafted&&f.curvedSurface){const {range,...surface}=f.curvedSurface,key=JSON.stringify(surface)+':'+(f.material||'')+':'+(f.finishColor||'');for(const r of rings(f))for(let i=0;i<r.length;i++){const id=edgeKey(r[i],r[(i+1)%r.length]);if(!curvedOwners.has(id))curvedOwners.set(id,[]);curvedOwners.get(id).push(key);}}
  for(const [id,owners]of curvedOwners)if(owners.length===2&&owners[0]===owners[1])edges.delete(id);
  for(const p of edits.$loose?.points||[]){const k=vertexKey(p);if(!removed.has(k))nodes.set(k,{...p,id:k});}
@@ -1203,7 +1234,7 @@ function mergeAtPoints(scene,points){
 }
 function restoreSurface(edits,pointIds){const wanted=new Set(pointIds),wire=surfaceWire(edits),available=new Set(wire.nodes.map(n=>n.id));if(pointIds.length<3||pointIds.some(id=>!available.has(id)))throw Error('Select at least three existing points.');
  const matches=(edits.$surfaces||[]).filter(f=>f.deleted&&f.points.length===wanted.size&&f.points.every(p=>wanted.has(vertexKey(p)))&&[f.points,...(f.holes||[])].every(r=>r.every((p,i)=>wire.edges.some(e=>e.id===edgeKey(p,r[(i+1)%r.length])))));
- if(!matches.length)throw Error('Select the boundary points of a deleted face with its edges still present.');for(const f of matches)f.deleted=false;return matches[0].id;
+ if(!matches.length)throw Error('Select the boundary points of a deleted face with its edges still present.');for(const f of matches){f.deleted=false;delete f.wireExclusions;}return matches[0].id;
 }
 function faceFrame(face){return K.frame(face);}
 const inFrame=(frame,p)=>({...K.local(frame,p),z:0}),fromFrame=(frame,p)=>K.world(frame,{...p,z:0});
@@ -1276,5 +1307,5 @@ function inwardSign(face,bases){
  for(const distance of [.005,.02,.1]){const a=inside({x:c.x+n.x*distance,y:c.y+n.y*distance}),b=inside({x:c.x-n.x*distance,y:c.y-n.y*distance});if(a!==b)return a?1:-1;}
  return null;
 }
-const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

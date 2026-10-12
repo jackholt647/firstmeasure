@@ -135,7 +135,7 @@ function reconcileChimneys(state,edits){
 }
 // Preview and placement must publish the same normalized candidate. Never mutate
 // the caller while reconciling or validating: failures leave its preview intact.
-function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before);return next;}
+function prepareEdits(state,edits,before={}){const reconciled=reconcileChimneys(state,edits),next=reconciled===edits?copy(edits):reconciled;validateEdits(next,before);W.restoreCreatedSurfaceWire(next,before);return next;}
 function validateEdits(edits,before={}){
  if(edits.$surfaces)edits.$surfaces=K.compactSurfaces(edits.$surfaces);
  if(edits.$loose){if((edits.$loose.points||[]).some(p=>!K.finite3(p))||(edits.$loose.edges||[]).some(pair=>pair.length!==2||pair.some(p=>!K.finite3(p))))throw Error('Copied geometry contains an invalid point or line.');}

@@ -12,6 +12,10 @@ function syncConsumedSketchRegions(d,accept=()=>true){
 window.normalizeWallDraftOwnership=function(edits){
  window.ExteriorModel?.restoreDraftFaceOwnership(edits);
  window.WallSolidGeometry?.adoptMergedFaceSources(edits);
+ // Older extrusions could recreate a live face entirely inside stale point
+ // exclusions. Repair that unambiguous phantom on load as well as on new edits.
+ const W=window.WallSolidGeometry,removed=new Set(edits?.$removedSurfacePoints||[]),hidden=new Set((edits?.$surfaces||[]).filter(f=>!f.deleted&&!f.drafted&&!f.replacedBy&&f.points?.length>=3&&f.points.every(p=>removed.has(W.vertexKey(p)))));
+ if(hidden.size)W.restoreCreatedSurfaceWire(edits,{...edits,$surfaces:edits.$surfaces.filter(f=>!hidden.has(f))});
  const drafts=edits?.$drafts;if(!drafts)return;
  const S=window.BaseSketchGeometry,G=window.WallGeometry;
  // Repair drafts saved by earlier line-move/Resoffit commits on reload too.
