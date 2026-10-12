@@ -6251,11 +6251,28 @@
         <div class="cs-pb-tabs">
           <button type="button" class="cs-pb-tab active" data-pb-view="editor"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2e3cdf6cfab114"," Organization Price Book") ?? " Organization Price Book")}</button>
           <button type="button" class="cs-pb-tab" data-pb-view="generate"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_859223eac49af9"," Generate from proposals") ?? " Generate from proposals")}</button>
+          <button type="button" class="cs-pb-tab" data-pb-view="suppliers"><i class="fas fa-truck-field"></i> Suppliers</button>
           <button type="button" class="cs-pb-tab" data-pb-reset style="margin-left:auto"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7c7b14aaccaafb"," Reset to global") ?? " Reset to global")}</button>
         </div>`);
-      panePricebook.insertAdjacentHTML('beforeend', '<div data-pb-pane="generate" hidden></div>');
+      panePricebook.insertAdjacentHTML('beforeend', '<div data-pb-pane="generate" hidden></div><div data-pb-pane="suppliers" hidden style="flex:1 1 auto;min-height:0"></div>');
       const editorPane = panePricebook.querySelector(':scope > .pb-win');
       const generatorPane = panePricebook.querySelector('[data-pb-pane="generate"]');
+      const suppliersPane = panePricebook.querySelector('[data-pb-pane="suppliers"]');
+      // The supplier editor is its own script, loaded the first time its tab is opened.
+      let suppliersRequested = false;
+      const openSuppliers = () => {
+        if (suppliersRequested) return;
+        suppliersRequested = true;
+        const start = () => window.FirstMateSupplierSettings.mount(suppliersPane, { orgId:() => currentOrgId, pricebook, toast:showToast });
+        if (window.FirstMateSupplierSettings) { start(); return; }
+        suppliersPane.textContent = 'Loading suppliers…';
+        const base = document.querySelector('script[src*="apps/settings/company.js"]')?.src || `${location.origin}/libraries/apps/settings/company.js`;
+        const script = document.createElement('script');
+        script.src = new URL('./suppliers.js?v=20261012-suppliers', base).href;
+        script.onload = start;
+        script.onerror = () => { suppliersRequested = false; suppliersPane.textContent = 'The supplier editor could not load.'; };
+        document.head.append(script);
+      };
       panePricebook.querySelector('[data-pb-reset]')?.addEventListener('click', async (event) => {
         if (!window.confirm((globalThis.PlatformLanguage?.text("settings","m_697dab6fe9bc16","Reset this organization price book to the current global market catalog? All company overrides will be permanently removed.") ?? "Reset this organization price book to the current global market catalog? All company overrides will be permanently removed."))) return;
         const button = event.currentTarget;
@@ -6335,12 +6352,15 @@
         const view = button.dataset.pbView;
         if (!window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'pricebook', settingsView:view, settingsEntity:'' }, { history:'push', source:'pricebook-settings-view' });
         panePricebook.querySelectorAll('[data-pb-view]').forEach((entry) => entry.classList.toggle('active', entry === button));
-        editorPane.hidden = view !== 'editor'; generatorPane.hidden = view !== 'generate';
+        editorPane.hidden = view !== 'editor'; generatorPane.hidden = view !== 'generate'; suppliersPane.hidden = view !== 'suppliers';
+        if (view === 'suppliers') openSuppliers();
       }));
-      const routedView = readSettingsRoute().settingsView === 'generate' ? 'generate' : 'editor';
+      const routedView = ['generate', 'suppliers'].includes(readSettingsRoute().settingsView) ? readSettingsRoute().settingsView : 'editor';
       panePricebook.querySelectorAll('[data-pb-view]').forEach((entry) => entry.classList.toggle('active', entry.dataset.pbView === routedView));
       editorPane.hidden = routedView !== 'editor';
       generatorPane.hidden = routedView !== 'generate';
+      suppliersPane.hidden = routedView !== 'suppliers';
+      if (routedView === 'suppliers') openSuppliers();
     }
     const hostedMoneyLoadingMarkup = (label = 'Money') => {
       const title = `Loading ${String(label || 'Money')}…`;
