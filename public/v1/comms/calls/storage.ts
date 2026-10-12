@@ -1,3 +1,4 @@
+import {initializePhoneMarketingSchema} from '../phone/marketing-storage.js';
 import {resourcePhoneEvent,callPhoneEvent,isPublishedPhoneCallEvent} from '../phone/event-contracts.js';
 import { env } from '../../src/config/env.js';
 import { createHash, randomUUID } from "node:crypto";
@@ -108,6 +109,7 @@ export async function initializeCustomerCallsSchema(db: SqlStore) {
       PRIMARY KEY(organization_id,user_id,kind,source_id)
     );
   `));
+  await initializePhoneMarketingSchema(db);
 }
 
 export async function transaction<T>(fn: (db: SqlStore) => T | Promise<T>): Promise<T> {

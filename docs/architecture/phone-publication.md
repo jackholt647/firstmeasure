@@ -157,7 +157,7 @@ registration stays in its current dedicated compliance flow; line campaign
 assignment status is published. Billing data here is accepted carrier number cost,
 not subscription management, a live quote, reconciliation or a new billing engine.
 
-Attribution is static tracking-number attribution; dynamic number insertion and
+Attribution is static tracking-number attribution; ad-platform conversion uploads and
 browser session identity are not implemented by these contracts. The report uses
 first-touch source for new-lead totals and current qualification state. Existing
 report semantics and source ranges are preserved.
@@ -186,7 +186,7 @@ root to avoid a pre-existing custom-fields fixture's early environment import.
 
 Development deployment discovery: the compatibility process is the existing phone
 worker owner (`CUSTOMER_CALL_WORKER_OWNER=1`); there is no standalone platform
-worker in this topology. That owner now drains only the 20 registered phone Work
+worker in this topology. That owner now drains only the 23 registered phone Work
 event types after publishing its outbox. The shared Work engine still supplies
 leases, retries and action execution. It does not enable general schedulers or
 claim unrelated pending events. Production's platform-worker path is unchanged.
@@ -204,3 +204,14 @@ Their payloads contain status and changed-field names, never authorization conte
 The seven existing actions are unchanged. Registration, signature/authorization
 submission, carrier terms and chargeable commands remain human-confirmed dedicated
 flows. No billing or subscription integration was added.
+
+
+## Marketing infrastructure follow-up
+
+Provider `phone-marketing@1` adds seven typed exports and six domain actions; see
+[phone marketing contracts](phone-marketing.md) for targets, filters, bounded pages,
+preview cursors, permissions and effects. Existing line/lead/call projections now
+carry stable lead-source, marketing-campaign, pool and visitor references. Website
+insertion is implemented; installing the snippet on a website remains an explicit
+host integration step. The three new outbox events bring the phone event catalog
+to 23 types. Static and website attribution share the same call/lead pipeline.

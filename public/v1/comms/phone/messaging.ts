@@ -1,3 +1,4 @@
+import {smsConsentPurposesAllow} from '../../messaging/compliance_rules.js';
 import { TelnyxClient } from '../../messaging/telnyx.js';
 import { ensureMessagingOrganization, listSmsComplianceProfiles } from '../../messaging/storage.js';
 import { findPhoneNumberOwner, readSmsConsent, listSenderIdentities, upsertSenderIdentity } from '../../messaging/communications_storage.js';
@@ -27,8 +28,8 @@ export function nextWindow(schedule:Schedule,at:Date):string|null{
   return null;
 }
 export async function messagePolicy(org:string,number:string):Promise<MessagingPolicy>{const line=await s.resource(org,'phone_line',number);return messagingPolicySchema.parse(line?.messaging||await s.resource(org,'phone_messaging')||{});}
-export async function deliveryEligibility(org:string,message:s.Json,recipient:s.Json,at=new Date()){
-  const number=s.text(s.object(message.sender).address),policy=await messagePolicy(org,number),source=s.object(message.source),manual=source.type==='user';
+async function policyEligibility(org:string,message:s.Json,recipient:s.Json,policy:MessagingPolicy,at=new Date()){
+  const number=s.text(s.object(message.sender).address),source=s.object(message.source),manual=source.type==='user';
   if(source.user_id){const ctx=await backgroundAuthContext(org,s.text(source.user_id)).catch(()=>null);if(!ctx||!await canUseLine(ctx,number))return {action:'cancel',reason:'Sending-line access was revoked.'};}
   if(!policy.enabled||manual&&!policy.apply_manual)return {action:'send'};
   const created=Date.parse(s.text(message.created_at))||at.getTime();
@@ -48,12 +49,19 @@ export async function deliveryEligibility(org:string,message:s.Json,recipient:s.
   if(Date.parse(next)>at.getTime())return {action:'wait',at:next,reason:`Waiting for permitted hours in ${timezone}.`};
   return {action:'send'};
 }
+export async function deliveryEligibility(org:string,message:s.Json,recipient:s.Json,at=new Date()){
+ const {broadcastGate}=await import('./broadcast.js');const gate=await broadcastGate(org,message);if(gate&&'action' in gate)return gate;
+ const number=s.text(s.object(message.sender).address),base=await policyEligibility(org,message,recipient,await messagePolicy(org,number),at);
+ if(base.action!=='send'||!gate)return base;
+ return policyEligibility(org,message,recipient,messagingPolicySchema.parse(gate.policy),at);
+}
 export async function automaticReply(org:string,number:string,customer:string,trigger:'text'|'missed_call',eventId:string,conversationId='',context:s.Json={}){
   const policy=await messagePolicy(org,number),text=trigger==='missed_call'?policy.missed_call_reply:scheduleOpen(policy.schedule)?policy.auto_reply_open:policy.auto_reply_closed;
   if(!text)return false;
-  const consent=await readSmsConsent(org,customer);if(consent?.status!=='opted_in')return false;
+  const consent=await readSmsConsent(org,customer);if(consent?.status!=='opted_in'||!smsConsentPurposesAllow(s.object(consent.evidence).purposes,'customer_care'))return false;
   const sender=(await listSenderIdentities(org,'','sms')).find(i=>i.address===number&&i.status==='active');if(!sender)return false;
+  const eventKey=s.id('reply-event',`${number}:${customer}:${eventId}`);if(await s.resource(org,'phone_auto_reply_event',eventKey))return true;
   const key=s.id('reply',`${number}:${customer}`),claimed=await s.transaction(async()=>{const previous=await s.resource(org,'phone_auto_reply',key);if(previous&&Date.parse(s.text(previous.sent_at))>Date.now()-policy.cooldown_minutes*60000)return false;await s.saveResource(org,'phone_auto_reply',key,{sent_at:s.now(),event_id:eventId});return true;});if(!claimed)return true;
-  try{const {sendCommunication}=await import('../../messaging/communications_service.js');const {sendCommunicationSchema}=await import('../../messaging/schemas.js');await sendCommunication(org,sendCommunicationSchema.parse({channel:'sms',purpose:'customer_care',branch_id:sender.branch_id,sender:{identity_id:sender.id},recipients:[{address:customer}],content:{text},...(conversationId?{conversation_id:conversationId}:{}),context,source:{type:'automation',id:'phone-auto-reply'},idempotency_key:`phone-auto-reply:${eventId}`}));return true;}
+  try{const {sendCommunication}=await import('../../messaging/communications_service.js');const {sendCommunicationSchema}=await import('../../messaging/schemas.js');await sendCommunication(org,sendCommunicationSchema.parse({channel:'sms',purpose:'customer_care',branch_id:sender.branch_id,sender:{identity_id:sender.id},recipients:[{address:customer}],content:{text},...(conversationId?{conversation_id:conversationId}:{}),context,source:{type:'automation',id:'phone-auto-reply'},idempotency_key:`phone-auto-reply:${eventId}`}));await s.saveResource(org,'phone_auto_reply_event',eventKey,{event_id:eventId,queued_at:s.now()});return true;}
   catch(error){await s.saveResource(org,'phone_auto_reply',key,{sent_at:'',event_id:eventId,error:'Reply could not be queued.'});throw error;}
 }

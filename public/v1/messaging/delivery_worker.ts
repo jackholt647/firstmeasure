@@ -188,6 +188,9 @@ async function dispatchClaimedDelivery(delivery: CommunicationsJson) {
     }
   }
 
+  const {reserveSmsPace}=await import('../comms/phone/broadcast.js');
+  const nextSlot=await reserveSmsPace(organizationId,configuration.messagingProfileId,message);
+  if(nextSlot){await updateDeliveryRecord(organizationId,deliveryId,{status:'scheduled',attempts:Math.max(0,Number(delivery.attempts||1)-1),next_attempt_at:nextSlot,lease_owner:'',lease_until:'',error:{code:'sms_throughput_wait',message:'Waiting for the shared carrier sending allowance.'}});await refreshParentMessageStatus(organizationId,messageId);return;}
   const { reserveSms, releaseSms } = await import("../platform-billing/allowances.js");
   if (!await reserveSms(organizationId, deliveryId)) {
     await updateDeliveryRecord(organizationId, deliveryId, {

@@ -1,3 +1,4 @@
+import {registerPhoneMarketingApi} from './marketing-api.js';
 import {saveBusiness,registerBusiness,renderAuthorization,submitAuthorization,correctBusiness,remediation,carrierTerms,disableReputation,resolveAttempt} from './reputation-product.js';
 import { reputationWorkspace, changeReputation } from './reputation.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -18,6 +19,7 @@ const base='/organizations/:orgId/phone';
 const param=(r:FastifyRequest,k:string)=>s.text(s.object(r.params)[k]);
 async function auth(r:FastifyRequest,write=false){const ctx=await requirePlatformAuth(r,{orgId:param(r,'orgId'),csrf:write,capability:'apps.comms'});if(!canUseScopedPermission(ctx,'make_calls|send_comms|send_communications|view_comms|manage_communications|manage_company_settings'))throw forbidden('phone_settings_denied','You do not have access to phone settings.');return ctx;}
 export function registerPhoneSettingsApi(app:FastifyInstance){
+  registerPhoneMarketingApi(app);
   app.post(`${base}/reputation/resolve`,async r=>({ok:true,...await resolveAttempt(await auth(r,true),r.body)}));
   app.put(`${base}/reputation/business`,async r=>({ok:true,account:await saveBusiness(await auth(r,true),r.body)}));
   app.post(`${base}/reputation/register`,async r=>({ok:true,...await registerBusiness(await auth(r,true),r.body)}));

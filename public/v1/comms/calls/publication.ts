@@ -14,7 +14,7 @@ const shape=(properties:Record<string,JsonSchema>,required=Object.keys(propertie
 const array=(items:JsonSchema):JsonSchema=>({type:'array',items});
 const stringFields=['id','branch_id','project_id','contact_id','owner_user_id','mode','direction','state','wrap_up_state','customer_number','business_number','customer_name','entry_id','created_at','updated_at','connected_at','ended_at','notes'];
 const resultFields=['disposition','next_action','due_at','appointment_id','actor_user_id','outcome_id'];
-const attributionFields=['number','label','source','medium','campaign','ad_id','landing_page','captured_at'];
+const attributionFields=['lead_source_id','marketing_campaign_id','pool_id','visit_id','attribution_kind','keyword','referrer_host','number','label','source','medium','campaign','ad_id','landing_page','captured_at'];
 const phoneSchema=shape({power_dial:{type:'boolean'},voicemail_drop:shape({enabled:{type:'boolean'},state:string,completed_at:string}),attribution:shape({enabled:{type:'boolean'},...Object.fromEntries(attributionFields.map(k=>[k,string]))})});
 const callSchema=shape({phone:phoneSchema,
   ...Object.fromEntries(stringFields.map(key=>[key,string])),revision:{type:'integer'},duration_seconds:{type:['number','null']},

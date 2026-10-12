@@ -1,3 +1,4 @@
+import {registerPhoneMarketingPublication} from '../../comms/phone/marketing-publication.js';
 import {registerPhonePublication} from '../../comms/phone/publication.js';
 import {registerResourceTypePublication} from '../../materials/resource-types-publication.js';
 import { registerSupervisionPublication } from '../../comms/calls/supervision-publication.js';
@@ -28,6 +29,7 @@ let initialized = false;
 export function initializePublication() {
   registerCallPublication();
   registerPhonePublication();
+  registerPhoneMarketingPublication();
   registerCallAnalysisPublication();
   registerSupervisionPublication();
   if (initialized) return;

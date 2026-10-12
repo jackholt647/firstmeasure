@@ -14,7 +14,7 @@ Scheduled outbound SMS remains locally queued until due so consent, sender autho
 
 ## Attribution
 
-A dedicated static number identifies an advertising source, medium, campaign, ad ID and landing page. Calls retain an immutable snapshot; first/last lead touches tolerate duplicate/out-of-order processing. Unambiguous existing project matches receive attribution. Reports include calls, unique callers, answered/missed calls, voicemail, talk time and qualified/converted inquiries, with CSV export and manual lead/project association. Conversion counts describe current outcomes for inquiries first seen in the selected interval. This is static-number attribution; dynamic website number substitution, visitor/session matching and ad-platform conversion uploads are separate integrations.
+A dedicated static number identifies an advertising source, medium, campaign, ad ID and landing page. Calls retain an immutable snapshot; first/last lead touches tolerate duplicate/out-of-order processing. Unambiguous existing project matches receive attribution. Reports include calls, unique callers, answered/missed calls, voicemail, talk time and qualified/converted inquiries, with CSV export and manual lead/project association. Conversion counts describe current outcomes for inquiries first seen in the selected interval. Website number insertion and visitor/session matching are now implemented in the [phone marketing infrastructure](phone-marketing.md). Ad-platform conversion uploads remain a separate integration.
 
 ## Carrier operations
 
@@ -135,3 +135,14 @@ to explicitly confirmed live Telnyx commands. Development permits local business
 drafts and blocks external registration, PDF signing/submission and paid commands.
 Provider behavior is covered by injected-carrier tests; no real signup, signature
 submission, paid enrollment or remediation is executed during validation.
+
+
+## Website tracking and broadcast follow-up
+
+[Phone marketing infrastructure](phone-marketing.md) documents stable source links,
+website number pools, the consent-aware website snippet, campaign audiences and
+controls, background delivery, reporting and shared publication contracts. Missed-call
+textbacks now verify customer-care consent purposes and keep a durable event receipt
+in addition to their cooldown. The new marketing setup screens live in Phone Settings;
+other apps consume the same backend data/actions rather than implementing a second
+phone or SMS transport.

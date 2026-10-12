@@ -15,7 +15,7 @@ import {projectContext,requireCallAccess} from '../calls/service.js';
 import * as s from '../calls/storage.js';
 
 const str=z.string(),revision=z.number().int().nonnegative(),meta={id:str,revision,updated_at:str};
-const touch=z.object({enabled:z.boolean().default(false),number:str.default(''),label:str.default(''),source:str.default(''),medium:str.default(''),campaign:str.default(''),ad_id:str.default(''),landing_page:str.default(''),captured_at:str.default('')});
+const touch=z.object({lead_source_id:str.default(''),marketing_campaign_id:str.default(''),pool_id:str.default(''),visit_id:str.default(''),attribution_kind:str.default(''),keyword:str.default(''),referrer_host:str.default(''),enabled:z.boolean().default(false),number:str.default(''),label:str.default(''),source:str.default(''),medium:str.default(''),campaign:str.default(''),ad_id:str.default(''),landing_page:str.default(''),captured_at:str.default('')});
 const score=z.object({spam_risk:str.nullable().default(null),spam_category:str.nullable().default(null),connection_score:z.number().nullable().default(null),engagement_score:z.number().nullable().default(null),sentiment_score:z.number().nullable().default(null),maturity_score:z.number().nullable().default(null),last_refreshed_at:str.nullable().default(null)});
 const cost=z.object({monthly_cost:str.default(''),upfront_cost:str.default(''),currency:str.default('')});
 const schemas={

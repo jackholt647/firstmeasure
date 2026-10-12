@@ -1,3 +1,4 @@
+import {websiteSnapshot,indexTrackingCall,validateSource,reservedPool} from './tracking.js';
 import { ensureMessagingOrganization, listSmsComplianceProfiles } from '../../messaging/storage.js';
 import { type PlatformAuthContext, hasPermission, backgroundAuthContext } from '../../platform/auth.js';
 import { canUseScopedPermission, hasResourcePermission } from '../../workforce/department-access.js';
@@ -63,7 +64,7 @@ async function validateRouting(ctx:PlatformAuthContext,routing:Routing|null,root
 export async function saveLine(ctx:PlatformAuthContext,number:string,input:unknown){
   const line=await s.resource(ctx.orgId,'number',number);if(!line)throw notFound('phone_line_missing','Connect this number first.');
   const previous=await s.resource(ctx.orgId,'phone_line',number);assertManage(ctx,previous||line);
-  const value=lineSchema.parse(input);assertManage(ctx,value);await validateMembers(ctx,value.user_ids,value.department_ids,s.text(line.branch_id||'default'));
+  const value=lineSchema.parse(input);assertManage(ctx,value);await validateSource(ctx.orgId,value.tracking.lead_source_id);if(value.tracking.enabled&&await reservedPool(ctx.orgId,number))throw badRequest('tracking_pool_reserved','This number belongs to a website tracking pool.');await validateMembers(ctx,value.user_ids,value.department_ids,s.text(line.branch_id||'default'));
   if(value.group_id){const group=await s.resource(ctx.orgId,'phone_group',value.group_id);if(!group)throw badRequest('phone_group_missing','Choose an existing group.');if(s.text(group.branch_id||'default')!==s.text(line.branch_id||'default'))throw badRequest('phone_group_branch','Choose a group in this line’s branch.');assertManage(ctx,group);}
   await validateRouting(ctx,value.routing,number);
   const result=await s.saveResource(ctx.orgId,'phone_line',number,{...value,branch_id:s.text(line.branch_id)||'default'},'',value.revision);
@@ -91,13 +92,14 @@ export async function resolveRoute(org:string,number:string){
   const routing=routingSchema.parse(raw);
   return {routing,schedule:routing.schedule||{timezone:settings.timezone,business_hours:settings.business_hours,holidays:settings.holidays},members:members.length?members:settings.agent_user_ids,department_ids:[...new Set([...s.strings(c?.department_ids),...s.strings(g?.department_ids)])],group_id:s.text(c?.group_id)};
 }
-export async function trackingSnapshot(org:string,number:string){
+export async function trackingSnapshot(org:string,number:string,at=new Date()){
+  const dynamic=await websiteSnapshot(org,number,at);if(dynamic)return dynamic;
   const line=await s.resource(org,'phone_line',number);const tracking=s.object(line?.tracking);
   return tracking.enabled?{...tracking,number,label:line?.label,revision:line?.revision,captured_at:s.now()}:null;
 }
 /** An inquiry is distinct from a known contact: never guess a project when matches are ambiguous. */
 export async function recordAttribution(call:s.CustomerCall){
-  const attribution=s.object(call.metadata.attribution);if(!attribution.enabled)return;
+  const attribution=s.object(call.metadata.attribution);if(!attribution.enabled)return;await indexTrackingCall(call);
   const leadId=s.id('phonelead',`${call.organization_id}:${/^\+[1-9]\d{7,14}$/.test(call.customer_number)?call.customer_number:call.id}`);
   await s.transaction(async()=>{const prior=await s.resource(call.organization_id,'phone_lead',leadId);
     const first=!prior||call.created_at<s.text(prior.first_seen),last=!prior||call.created_at>=s.text(prior.last_seen);

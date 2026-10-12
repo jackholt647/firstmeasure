@@ -53,6 +53,7 @@ export async function onInboundCommunication(organizationId: string, messageId: 
   } catch {
     return null;
   }
+  await (await import('./phone/broadcast.js')).recordBroadcastReply(organizationId,message);
   if (cleanText(message.direction) !== "inbound") return null;
   const channel = cleanText(message.channel);
   // Webchat already notifies through the live-chat pipeline (notifyTeam);
