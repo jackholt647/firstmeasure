@@ -273,3 +273,16 @@ test('world extrusion axes are viable, ordered and nonduplicated',()=>{
  assert.throws(()=>G.extrude(face,1,{direction:{x:0,y:1,z:0}}),/zero thickness/);
  const result=G.extrude(face,2,{direction:{x:0,y:0,z:1}});assert.equal(result.cap.points[1].x,2);assert.equal(result.cap.points[1].z,2.4);assert.equal(result.sides.length,4);
 });
+
+for(const amount of [-.1,.1,2])for(const direction of [{x:0,y:0,z:1},{x:-1,y:0,z:0},{x:1,y:0,z:2}])test(`directional extrusion levels its cap and hole beyond source (${amount}, ${JSON.stringify(direction)})`,()=>{
+ const p=(x,y)=>({x,y,z:.2*x}),face={id:'slope',points:[p(0,0),p(4,0),p(4,4),p(0,4)],holes:[[p(1,1),p(1,2),p(2,2),p(2,1)]],retainedPoints:[p(3,3)]},before=JSON.stringify(face),length=Math.hypot(direction.x,direction.y,direction.z),n=Object.fromEntries(Object.entries(direction).map(([k,v])=>[k,v/length])),dot=p=>p.x*n.x+p.y*n.y+p.z*n.z,extreme=(amount<0?Math.min:Math.max)(...face.points.map(dot)),result=G.extrude(face,amount,{direction}),K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+ assert.equal(JSON.stringify(face),before);for(const q of [...result.cap.points,...result.cap.holes.flat(),...result.cap.retainedPoints])assert.ok(Math.abs(dot(q)-extreme-amount)<1e-8,'every cap point is on the perpendicular plane');for(const f of [result.cap,...result.sides])K.validateFace(f);
+ for(let i=0;i<face.points.length;i++){const a=face.points[i],b=result.cap.points[i],delta={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},distance=dot(delta);assert.ok(Math.hypot(delta.x-n.x*distance,delta.y-n.y*distance,delta.z-n.z*distance)<1e-8,'boundary moves only along extrusion direction');assert.ok(Math.sign(distance)===Math.sign(amount));}
+ const reference=G.extrusionReference(face,direction,amount);assert.ok(reference.points.every((q,i)=>Math.abs(dot(result.cap.points[i])-dot(q)-amount)<1e-8),'snap reference predicts actual cap');
+ assert.deepEqual(G.extrude(face,0,{direction}).cap.points,face.points,'zero distance does not reshape');
+});
+
+test('directional cap projects analytic curved boundaries and their connecting surfaces together',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry'),q=(x,y)=>({x,y,z:0}),c={...K.splineThrough([q(1,3),q(3,3)],[q(2,4)],{x:0,y:0,z:1}),id:'arch'},flat=K.archFaces([{id:'opening',points:[q(1,1),q(3,1),q(3,3),q(1,3)],holes:[]}],c).faces[0],map=p=>({...p,z:.2*p.x}),face={...flat,...K.mapCurveData(flat,map),points:flat.points.map(map)},r=G.extrude(face,.3,{direction:{x:0,y:0,z:1}});
+ assert.ok(r.cap.curves.flatMap(c=>K.curveSamples(c)).every(p=>Math.abs(p.z-.9)<1e-6));const curved=r.sides.filter(f=>f.curvedSurface);assert.ok(curved.length);for(const f of curved){assert.equal(f.curvedSurface.type,'conic-ruled');assert.ok(K.curveSamples(f.curvedSurface.finish).every(p=>Math.abs(p.z-.9)<1e-6));K.validateFace(f);}
+});
