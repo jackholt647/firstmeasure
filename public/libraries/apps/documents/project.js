@@ -1243,6 +1243,8 @@
     // -------------------------------------------------------------- render
     function render(){
       if (state.destroyed) return;
+      // A background refresh must not take the opening screen away.
+      if (state.openingDoc && state.view !== 'editor' && root.querySelector('[data-fmdx-opening]')) return;
       if (state.view === 'editor') {
         renderDocScreen();
         return;
@@ -1944,7 +1946,7 @@
         openFullPreview: async () => { await flushAllWrites(); openPreview(state.doc); },
         // What the Review & send step offers: only what this workflow declares.
         deliverables: async () => {
-          const options = await presentationOptions(state.doc?.id);
+          const options = state.presentOptions || await presentationOptions(state.doc?.id);
           // Sending is the step's own Send button; these sit to its left. The
           // presentation's own editor and its emailed link are under More.
           return [
@@ -2179,6 +2181,9 @@
         }
       } else {
         await flushAutosave();
+        destroyEditor();
+        state.editorLoaded = false;
+        state.editorLoading = false;
         if (!state.workflowHandle) {
           await mountWorkflowHost();
         } else {
@@ -2200,6 +2205,29 @@
     async function flushAllWrites(){
       try { await flushAutosave(); } catch (e) { /* retried by autosave */ }
       try { await flushWorkflowWrites(); } catch (e) { /* retried by queue */ }
+    }
+
+    /**
+     * The document screen before there is a document: its top bar and an
+     * opening state, shown the instant a template is picked. openDocScreen
+     * replaces it; cancel() goes back to the list.
+     */
+    function showOpeningScreen(title){
+      state.openingDoc = true;
+      setEditorFocus(true);
+      root.innerHTML = `
+        <div class="fmdx-shell">
+          <div class="fmdx-editor-screen workflow-view" data-fmdx-opening>
+            <header class="fmdx-editor-top">
+              <button type="button" class="fmdx-icon-btn" disabled><i class="fas fa-arrow-left"></i></button>
+              <strong class="fmdx-doc-title-input" style="border-color:transparent">${esc(firstText(title, 'New document'))}</strong>
+              ${statusChip('draft')}
+            </header>
+            <div class="fmdx-state" style="margin:64px auto"><div class="fmdx-spinner"></div><strong>Opening\u2026</strong></div>
+          </div>
+        </div>`;
+      if (embedded) embed.onDocScreen?.();
+      return { cancel(){ const shown = state.openingDoc && !!root.querySelector('[data-fmdx-opening]'); state.openingDoc = false; if (!shown) return; setEditorFocus(false); render(); } };
     }
 
     /** Entry: open the unified document screen (one top bar for both views). */
@@ -2475,6 +2503,7 @@
       }
 
       /** Start the chosen document: paper intake, its workflow, or the inputs form. */
+      let proceeding = false;
       async function proceed(button){
         const uploadTemplateId = wizard.template === '__upload__'
           ? ''
@@ -2488,11 +2517,18 @@
         // failure along the way falls back to the classic params form.
         const workflowHint = createWorkflowHint();
         if (workflowHint) {
+          if (proceeding) return;
+          proceeding = true;
           const label = button ? button.innerHTML : '';
           body.querySelectorAll('button').forEach((entry) => { entry.disabled = true; });
           if (button) button.classList.add('busy');
+          const opening = options.inlineHost ? null : showOpeningScreen(firstText(prefill.title, wizard.template?.name, typeMeta(wizard.type, catalog.types).label));
+          if (opening) modal.el.style.display = 'none';
           const started = await tryWorkflowFirstCreate(workflowHint);
+          proceeding = false;
           if (started || !modal.el.isConnected) return;
+          // Nothing was created: back to the dialog, on its details form.
+          if (opening) { opening.cancel(); modal.el.style.display = ''; }
           body.querySelectorAll('button').forEach((entry) => { entry.disabled = false; });
           if (button) { button.classList.remove('busy'); button.innerHTML = label; }
         }
@@ -2520,18 +2556,17 @@
        *  Returns false (nothing created) when any prerequisite is missing. */
       async function tryWorkflowFirstCreate(workflowId){
         try {
-          const runtime = await ensureWorkflowRuntime();
+          // The runtime, the workflow and the template's defaults load together.
+          const [runtime, record, templateDef] = await Promise.all([
+            ensureWorkflowRuntime(),
+            api().workflows?.get ? api().workflows.get(orgId(), workflowId).then(normalizeWorkflowRecord).catch(() => null) : null,
+            wizard.template ? templateDefinition(wizard.template).catch(() => null) : null
+          ]);
           if (!runtime) return false;
-          let record = null;
-          if (api().workflows?.get) {
-            try { record = normalizeWorkflowRecord(await api().workflows.get(orgId(), workflowId)); }
-            catch (error) { record = null; }
-          }
           if (!record) return false; // route/definition missing → params form
           if (!modal.el.isConnected) return true;
           // Defaults only — the workflow gathers everything else.
           const catalogType = arrayValue(catalog.types).find((t) => firstText(t.id, t.type) === wizard.type) || {};
-          const templateDef = wizard.template ? await templateDefinition(wizard.template) : null;
           const defs = { ...objectValue(catalogType.param_schema), ...objectValue(templateDef?.params) };
           const params = { ...objectValue(prefill.params) };
           Object.entries(defs).forEach(([key, def]) => {
@@ -2552,10 +2587,8 @@
           modal.close();
           rememberStandaloneDoc(doc);
           loadDocs({ silent: true });
-          // Prefer the server-attached workflow (it may carry saved state).
-          state.doc = doc;
-          const attached = await loadDocWorkflow();
-          openWorkflowView(doc, attached || record);
+          // A draft made a moment ago has no saved step state to fetch: open on the workflow in hand.
+          openWorkflowView(doc, record);
           return true;
         } catch (error) {
           console.warn('Workflow-first create failed — using the params form', error);
@@ -2679,6 +2712,7 @@
       destroyWorkflowView();
       destroyEditor();
       setEditorFocus(true);
+      state.openingDoc = false;
       state.view = 'editor';
       state.doc = objectValue(docRecord);
       const record = objectValue(options.workflow);
@@ -4653,9 +4687,12 @@
       let deliveryDefaults;
       try {
         const branchId = firstText(docRecord.branch_id, project().branch_id, window.Portal?.branchModules?.currentBranchId?.(), 'default');
-        deliveryDefaults = objectValue((await api().documents.settings(orgId(), branchId)).settings);
+        deliveryDefaults = objectValue(objectValue(await Promise.race([
+          api().documents.settings(orgId(), branchId),
+          new Promise((resolve) => setTimeout(() => resolve({}), 2500))
+        ])).settings);
         if (state.destroyed) return;
-      } catch (error) { showToast('Send document', errorMessage(error, 'Could not load document delivery defaults.'), false); return; }
+      } catch (error) { deliveryDefaults = {}; }
       const doc = objectValue(docRecord);
       if (!doc.id) return;
       const branding = objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding);

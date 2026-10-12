@@ -3107,9 +3107,9 @@ for(const amount of [1,-1])test(`face E cycles world directions without committi
  f.editor.extrudeFace({face,event:f.e(0,0)});f.editor.distanceInput().set(amount);
  const cap=()=>f.state.wallEdits.$surfaces.find(s=>s.id.startsWith('curve-source-')&&!s.id.includes('-side-'));
  assert.ok(Math.abs(cap().points[0].x)>0.1,'default follows tilted normal');
- f.editor.key({key:'e'});assert.equal(f.history.length,0);assert.match(f.editor.distanceInput().label,/World Z/);assert.ok(Math.abs(cap().points[0].x)<1e-8);assert.ok(Math.abs(Math.abs(cap().points[0].z)-1)<1e-8);
+ f.editor.key({key:'e'});assert.equal(f.history.length,0);assert.match(f.editor.distanceInput().label,/World Z/);assert.ok(Math.abs(cap().points[0].x)<1e-8);assert.ok(cap().points.every(p=>Math.abs(p.z-cap().points[0].z)<1e-8),'World Z cap is level');assert.ok(Math.min(Math.abs(cap().points[0].z-1.4),Math.abs(cap().points[0].z+1))<1e-8);
  const vertical=JSON.stringify(f.state.wallEdits);f.editor.key({key:'e',repeat:true});assert.equal(JSON.stringify(f.state.wallEdits),vertical,'held E does not cycle');
- f.editor.key({key:'e'});assert.match(f.editor.distanceInput().label,/World X/);assert.ok(Math.abs(cap().points[0].z)<1e-8);assert.ok(Math.abs(Math.abs(cap().points[0].x)-1)<1e-8);
+ f.editor.key({key:'e'});assert.match(f.editor.distanceInput().label,/World X/);assert.ok(Math.abs(cap().points[0].z)<1e-8);assert.ok(cap().points.every(p=>Math.abs(p.x-cap().points[0].x)<1e-8),'World X cap is perpendicular to X');assert.ok(Math.min(Math.abs(cap().points[0].x-3),Math.abs(cap().points[0].x+1))<1e-8);
  f.editor.key({key:'e'});assert.match(f.editor.distanceInput().label,/Face normal/);assert.ok(Math.abs(cap().points[0].x)>0.1);assert.equal(f.history.length,0);
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before,'cancel restores pre-extrusion geometry');
  f.editor.extrudeFace({face,event:f.e(0,0)});f.editor.distanceInput().set(amount);f.editor.key({key:'e'});const preview=JSON.stringify(f.state.wallEdits);f.editor.down(f.e(0,0));assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.state.wallEdits),preview,'placement uses exact world-axis preview');
