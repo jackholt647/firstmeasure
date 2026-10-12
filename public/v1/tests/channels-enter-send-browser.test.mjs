@@ -67,7 +67,17 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     await page.addScriptTag({url:origin+'/tags.js'});await page.addScriptTag({url:origin+'/ui.js'});
     await page.evaluate(async()=>{window.instance=FirstMateChannels.create(document.querySelector('#app'),fixtureOptions);await instance.setChannel('general');});
 
+    async function verifyFormatting(editor){
+      const toolbar=editor.locator('xpath=..').locator('.fm-ch-formatbar');
+      for(const name of ['Bold','Italic','Strikethrough']){
+        await editor.evaluate(n=>{n.value='';n.focus();const range=document.createRange();range.selectNodeContents(n);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);});
+        const button=toolbar.getByRole('button',{name,exact:true});await button.click();assert.equal(await button.getAttribute('aria-pressed'),'true');assert.equal(await button.evaluate(n=>getComputedStyle(n).color),'rgb(217, 48, 37)');await button.click();assert.equal(await button.getAttribute('aria-pressed'),'false');
+      }
+      await editor.evaluate(n=>{n.value='';n.focus();const range=document.createRange();range.selectNodeContents(n);range.collapse(false);getSelection().removeAllRanges();getSelection().addRange(range);});const bold=toolbar.getByRole('button',{name:'Bold',exact:true});await editor.press('Control+b');await page.waitForFunction(n=>n.getAttribute('aria-pressed')==='true',await bold.elementHandle());await editor.press('Control+b');await page.waitForFunction(n=>n.getAttribute('aria-pressed')==='false',await bold.elementHandle());
+      await editor.evaluate(n=>n.value='');
+    }
     const editor=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();
+    await verifyFormatting(editor);
     assert.equal(await page.locator('.fm-ch-composer-hint').first().innerText(),'Shift+Enter for a new line');
     await editor.fill('First');await editor.press('Shift+Enter');await page.keyboard.type('Second');
     assert.equal(await page.evaluate(()=>sent.length),0);
@@ -90,13 +100,13 @@ test('Enter sends channels, DMs and replies while Shift+Enter inserts a line',as
     await editor.press('Escape');
     await page.evaluate(()=>instance.openThread('root'));
     const reply=page.locator('.fm-ch-panel .fm-ch-composer .fm-ch-rich-editor');
-    await reply.waitFor();await reply.fill('Reply first');await reply.press('Shift+Enter');await page.keyboard.type('Reply second');
+    await reply.waitFor();await verifyFormatting(reply);await reply.fill('Reply first');await reply.press('Shift+Enter');await page.keyboard.type('Reply second');
     assert.equal(await page.evaluate(()=>sent.length),3);
     await reply.press('Enter');await page.waitForFunction(()=>sent.length===4);
     assert.equal(await page.evaluate(()=>sent[3].parent_id),'root');
     assert.match(await page.evaluate(()=>sent[3].text),/Reply first\nReply second/);
     await page.evaluate(async()=>{instance.destroy();document.querySelector('#app').replaceChildren();const old=ChannelsAPI.channels.get;ChannelsAPI.channels.get=async()=>{const result=await old();result.channel.type='dm';return result;};window.instance=FirstMateChannels.create(document.querySelector('#app'),fixtureOptions);await instance.setChannel('general');});
-    const dm=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();await dm.fill('DM message');await dm.press('Enter');await page.waitForFunction(()=>sent.length===5);
+    const dm=page.locator('.fm-ch-composer .fm-ch-rich-editor').first();await verifyFormatting(dm);await dm.fill('DM message');await dm.press('Enter');await page.waitForFunction(()=>sent.length===5);
     assert.equal(await page.evaluate(()=>sent[4].text),'DM message');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

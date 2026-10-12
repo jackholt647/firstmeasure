@@ -56,7 +56,13 @@ test('project notes share channel formatting and controls, preserve drafts, and 
    assert.equal(await editor.evaluate(n=>n.value),markup);
    await editor.evaluate(n=>{n.value='';n.dispatchEvent(new Event('input',{bubbles:true}));});
   }
-  await editor.fill('Important update');
+  for(const name of ['Bold','Italic','Strikethrough']){
+   await editor.evaluate(n=>{n.value='';n.focus();const r=document.createRange();r.selectNodeContents(n);r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);});
+   const toggle=page.locator('.pn-composer .fm-ch-formatbar').getByRole('button',{name,exact:true});await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'true');assert.equal(await toggle.evaluate(n=>getComputedStyle(n).color),'rgb(217, 48, 37)');await editor.press('a');assert.equal(await toggle.getAttribute('aria-pressed'),'true');await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'false');
+  }
+  await editor.evaluate(n=>{n.value='**Bold** plain';n.focus();const r=document.createRange();r.setStart(n.querySelector('strong').firstChild,1);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r);});await page.waitForFunction(()=>document.querySelector('.pn-composer [data-format-toggle=bold]').getAttribute('aria-pressed')==='true');
+  await editor.evaluate(n=>{const r=document.createRange();r.setStart(n.lastChild,2);r.collapse(true);getSelection().removeAllRanges();getSelection().addRange(r);});await page.waitForFunction(()=>document.querySelector('.pn-composer [data-format-toggle=bold]').getAttribute('aria-pressed')==='false');
+  await editor.evaluate(n=>n.value='');await editor.fill('Important update');
   await editor.evaluate(node=>{const r=document.createRange();r.selectNodeContents(node);const s=getSelection();s.removeAllRanges();s.addRange(r);});
   await page.getByRole('button',{name:'Bold',exact:true}).click();
   assert.equal(await editor.evaluate(n=>n.value),'**Important update**');
@@ -103,9 +109,9 @@ test('project notes share channel formatting and controls, preserve drafts, and 
   await page.evaluate(()=>FirstMateChannels.mountEmojiPicker=(host,onPick)=>{host.innerHTML='<button type="button">Choose emoji</button>';host.firstChild.onclick=()=>onPick('👍');return {destroy(){host.replaceChildren();},focus(){}};});
   await page.getByRole('button',{name:'Insert emoji',exact:true}).click();await page.getByRole('button',{name:'Choose emoji'}).click();
   assert.equal(await editor.evaluate(n=>n.value),'👍');
-  assert.equal(await page.locator('[type=search]').isVisible(),false);
-  await page.getByRole('button',{name:'Search notes',exact:true}).click();
-  await page.locator('[type=search]').fill('does not exist');assert.match(await page.locator('.pn-history').textContent(),/No notes match/);await page.locator('[type=search]').fill('');await page.getByRole('button',{name:'Close search'}).click();
+  assert.equal(await page.locator('.pn-tools [type=search]').isVisible(),true);assert.equal(await page.locator('.pn-heading').count(),0);
+  await page.locator('.pn-tools [type=search]').fill('does not exist');assert.match(await page.locator('.pn-history').textContent(),/No notes match/);await page.locator('.pn-tools [type=search]').press('Escape');assert.equal(await page.locator('.pn-tools [type=search]').inputValue(),'');
+  assert.equal(await page.locator('.pn-tools').evaluate(n=>getComputedStyle(n).display),'grid');
   const firstMenu=page.locator('.pn-card .pn-menu summary').first();await firstMenu.click();
   assert.equal(await page.locator('.pn-menu[open]').count(),1);await page.mouse.click(800,40);assert.equal(await page.locator('.pn-menu[open]').count(),0);
   const original=page.locator('[data-project-note-id=n1]');await original.locator('summary').click();await original.getByRole('button',{name:'Pin Note',exact:true}).click();
@@ -138,7 +144,7 @@ test('project notes share channel formatting and controls, preserve drafts, and 
   // Replies share the rich composer and keep their own draft through root refreshes.
   assert.ok(await original.locator(':scope > header .pn-author').evaluate(n=>{const name=n.querySelector('span').getBoundingClientRect(),time=n.querySelector('time').getBoundingClientRect();return time.top-name.bottom<=1.5;}));
   await editor.fill('Separate Add Note draft');await original.locator(':scope > footer [data-act=replies]').click();
-  const replyForm=original.locator('.pn-reply-compose'),replyEditor=replyForm.locator('[contenteditable]');await replyEditor.waitFor();
+  const replyForm=original.locator('.pn-reply-compose'),replyEditor=replyForm.locator('[contenteditable]');assert.equal(await replyForm.isVisible(),false);await original.getByRole('button',{name:'Add Reply',exact:true}).click();await replyEditor.waitFor();
   assert.deepEqual(await replyForm.locator('.fm-ch-formatbar > button').evaluateAll(nodes=>nodes.map(n=>n.title)),['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Quote']);
   assert.deepEqual(await replyForm.locator('.pn-compose-actions > button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),['Insert emoji','Attach a file','Dictate message','Record an audio note']);
   await replyEditor.fill('Reply draft survives');await page.evaluate(()=>notes.refresh());assert.equal(await replyEditor.evaluate(n=>n===document.activeElement),true);assert.equal(await replyEditor.evaluate(n=>n.value),'Reply draft survives');assert.equal(await editor.evaluate(n=>n.value),'Separate Add Note draft');
@@ -153,13 +159,14 @@ test('project notes share channel formatting and controls, preserve drafts, and 
   await editedReply.locator('summary').click();await editedReply.getByRole('button',{name:'Archive Reply',exact:true}).click();await page.waitForFunction(()=>![...document.querySelectorAll('.pn-reply-card')].some(n=>n.textContent.includes('Edited reply')));
   await page.getByRole('button',{name:'Show Archived',exact:true}).click();await editedReply.waitFor();assert.match(await editedReply.textContent(),/Archived/);assert.match(await editedReply.locator('.pn-card-content').textContent(),/Edited reply/);
   await editedReply.locator('summary').click();await editedReply.getByRole('button',{name:'Unarchive Reply',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.pn-reply-card.pn-archived'));await page.getByRole('button',{name:'Hide Archived',exact:true}).click();
-  await replyEditor.fill('First line');await replyEditor.press('Shift+Enter');await replyEditor.press('a');assert.equal(await page.evaluate(()=>saved.length),countBeforeReply+2);assert.match(await replyEditor.evaluate(n=>n.value),/First line\na/);
+  assert.equal(await replyForm.isVisible(),false);await original.getByRole('button',{name:'Add Reply',exact:true}).click();await replyEditor.fill('First line');await replyEditor.press('Shift+Enter');await replyEditor.press('a');assert.equal(await page.evaluate(()=>saved.length),countBeforeReply+2);assert.match(await replyEditor.evaluate(n=>n.value),/First line\na/);
   await page.evaluate(()=>window.failSave=true);await replyEditor.press('Enter');await replyForm.getByText('Save failed',{exact:true}).waitFor();assert.match(await replyEditor.evaluate(n=>n.value),/First line\na/);await page.evaluate(()=>window.failSave=false);
   await replyForm.getByRole('button',{name:'Dictate message',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.pn-reply-compose [contenteditable]').value.includes('Dictated update'));
   await replyForm.getByRole('button',{name:'Record an audio note',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.pn-reply-compose [type=submit]').disabled);await replyForm.getByRole('button',{name:'Insert emoji',exact:true}).click();await replyForm.getByRole('button',{name:'Choose emoji'}).click();
   await replyForm.getByRole('button',{name:'Send reply',exact:true}).click();await page.waitForFunction(n=>saved.length===n+3,countBeforeReply);assert.deepEqual(await page.evaluate(()=>saved.at(-1).attachment_ids),['audio1']);assert.equal(await page.evaluate(()=>saved.at(-1).metadata.audio_note.duration_seconds),4);
   assert.equal(await editor.evaluate(n=>n.value),'Separate Add Note draft');
-  await replyEditor.fill('Collapsed draft');await replyForm.getByRole('button',{name:'Close reply composer'}).click();await original.locator(':scope > footer [data-act=replies]').click();assert.equal(await replyEditor.evaluate(n=>n.value),'Collapsed draft');
+  await original.getByRole('button',{name:'Add Reply',exact:true}).click();await replyEditor.fill('Collapsed draft');await replyForm.getByRole('button',{name:'Close reply composer'}).click();assert.equal(await replyForm.isVisible(),false);await original.getByRole('button',{name:'Add Reply',exact:true}).click();assert.equal(await replyEditor.evaluate(n=>n.value),'Collapsed draft');
+  await original.locator(':scope > footer [data-act=replies]').click();await original.locator(':scope > footer [data-act=replies]').click();assert.equal(await replyForm.isVisible(),false);await original.getByRole('button',{name:'Add Reply',exact:true}).click();assert.equal(await replyEditor.evaluate(n=>n.value),'Collapsed draft');
   for(const width of [360,280,240]){await page.locator('#notes').evaluate((n,w)=>n.style.width=w+'px',width);assert.equal(await original.evaluate(n=>n.scrollWidth<=n.clientWidth),true,`reply fits ${width}px`);}
   await page.locator('#notes').evaluate(n=>n.style.width='360px');await original.scrollIntoViewIfNeeded();await original.screenshot({path:fileURLToPath(new URL('../../../output/notes-tray/replies.png',import.meta.url))});
   await page.evaluate(async()=>{await ChannelsAPI.messages.post('org','channel',{text:Array.from({length:18},(_,i)=>'Line '+i).join('\n\n'),department_ids:[]});await notes.refresh();});

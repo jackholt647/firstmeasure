@@ -485,7 +485,7 @@
     };
     Object.defineProperty(editor, 'value', {
       get: () => !editor.textContent.trim() && !editor.querySelector('table') ? '' : serializeChildren(editor).trim(),
-      set: value => { savedSelection = null; editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); }
+      set: value => { savedSelection = null; editor.innerHTML = value ? renderBody({ text:String(value) }) : ''; if (!expandTables) decorateTables(editor, editor); editor.dispatchEvent(new Event('fm:formatting-change')); }
     });
     // Pickers move focus outside the editor. Keep the last actual caret/range,
     // rather than trusting the selection created when the editor regains focus.
@@ -513,7 +513,7 @@
       document.execCommand('insertHTML', false, clipboardRichHtml(event.clipboardData) + '<div><br></div>');
       editor.dispatchEvent(new Event('input', {bubbles:true}));
     });
-    editor.addEventListener('input', () => { if (!expandTables) decorateTables(editor, editor); });
+    editor.addEventListener('input', () => { if (!expandTables) decorateTables(editor, editor); editor.dispatchEvent(new Event('fm:formatting-change')); });
     // Drag a cell's right edge to resize its column, as in Documents.
     editor.addEventListener('pointerdown', event => {
       const cell = event.target.closest('td,th');
@@ -712,25 +712,34 @@
     }
 
 
+  const formattingUpdates=new WeakMap();
+  document.addEventListener('selectionchange',()=>{const node=root.getSelection()?.anchorNode,editor=(node?.nodeType===1 ? node : node?.parentElement)?.closest('.fm-ch-rich-editor');if(editor)formattingUpdates.get(editor)?.();});
   function messageFormatBar(editor, tableOnly = false, allowedCommands = null){
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_f4dce57ac0bb0e","Message formatting") ?? "Message formatting"));
     const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre'], ['Link', 'Link', 'link'], ['Table', 'Table', 'table'], ['Clear formatting', 'Tx', 'removeFormat']];
+    const toggles=[];
+    function updateFormatting(){const selection=root.getSelection(),inside=!!selection?.anchorNode && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode);if(!inside && editor.firstChild)return;for(const {button,command,value} of toggles){const active=inside && (command==='formatBlock' ? String(document.queryCommandValue(command)).toLowerCase()===value : document.queryCommandState(command));button.setAttribute('aria-pressed',String(!!active));}}
+    formattingUpdates.set(editor,updateFormatting);
+    for(const event of ['input','keyup','mouseup','focus','fm:formatting-change'])editor.addEventListener(event,updateFormatting);
+    editor.addEventListener('keydown',()=>setTimeout(updateFormatting,0));
     for (const [title, icon, command, value] of commands) {
       if (allowedCommands && !allowedCommands.includes(title)) continue;
       if (tableOnly && command === 'table') continue;
       const button = el('button', '', icon);
       button.type = 'button'; button.title = title; button.setAttribute('aria-label', title);
-      if (command === 'insertUnorderedList' || command === 'insertOrderedList') {
-        button.classList.add('fm-ch-list-format');
-        const update = () => { const selection = root.getSelection(); button.setAttribute('aria-pressed', String(!!selection?.anchorNode && editor.contains(selection.anchorNode) && document.queryCommandState(command))); };
+      if (['bold','italic','strikeThrough','insertUnorderedList','insertOrderedList','formatBlock'].includes(command)) {
+        if(command==='insertUnorderedList' || command==='insertOrderedList')button.classList.add('fm-ch-list-format');
+        button.dataset.formatToggle=command;
         button.setAttribute('aria-pressed', 'false');
-        for (const event of ['input', 'keyup', 'mouseup', 'focus']) editor.addEventListener(event, update);
+        toggles.push({button,command,value});
       }
       button.addEventListener('mousedown', event => { editor.saveSelection(); event.preventDefault(); });
       button.addEventListener('click', () => {
-        editor.restoreSelection();
+        const currentSelection=root.getSelection();
+        // Replacing an unchanged empty caret discards the browser's pending bold/italic state.
+        if(document.activeElement!==editor || !editor.contains(currentSelection?.anchorNode) || !editor.contains(currentSelection?.focusNode))editor.restoreSelection();
         if (command === 'table') {
           const range = root.getSelection()?.rangeCount ? root.getSelection().getRangeAt(0).cloneRange() : null;
           showPopover(button, pop => {
@@ -904,6 +913,7 @@
 .fm-ch-workflow-list .fm-ch-resource-copy{text-align:left}
 .fm-ch-workflow-list .fm-ch-resource-copy strong{margin-bottom:3px;font-size:13px;font-weight:750;line-height:1.3}
 .fm-ch-workflow-list .fm-ch-resource-copy span{font-size:11.5px;line-height:1.45;white-space:normal}
+.fm-ch-formatbar button[data-format-toggle][aria-pressed=true]{color:#d93025!important;background:rgba(217,48,37,.1)!important}
 .fm-ch-formatbar{display:flex;align-items:center;gap:2px;padding-bottom:5px;border-bottom:1px solid #f0f2f5;margin-bottom:5px}.fm-ch-formatbar button{width:26px;height:24px;border-radius:6px;color:var(--ch-muted)}.fm-ch-formatbar button:hover{background:var(--ch-hover);color:var(--ch-accent)}
 .fm-ch-huddle{position:relative;min-width:0;min-height:0;overflow:auto;background:#111827;color:#fff;padding:14px;display:flex;flex-direction:column;gap:8px}
 

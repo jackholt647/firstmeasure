@@ -50,6 +50,9 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   await choose(post.locator('[data-comment-gif]'));assert.equal(await page.evaluate(()=>comments.length),1);
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===2);assert.equal(await page.evaluate(()=>comments[1].text),'');
   await page.locator('[data-feed-compose-open]').click();
+  const postEditor=page.locator('[data-feed-compose] [contenteditable]');
+  for(const name of ['Bold','Italic','Strikethrough']){await postEditor.evaluate(n=>{n.value='';n.focus();const r=document.createRange();r.selectNodeContents(n);r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);});const toggle=page.locator('.pf-post-formatbar').getByRole('button',{name,exact:true});await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'true');assert.equal(await toggle.evaluate(n=>getComputedStyle(n).color),'rgb(217, 48, 37)');await toggle.click();assert.equal(await toggle.getAttribute('aria-pressed'),'false');}
+
   await choose(page.locator('[data-feed-compose-gif]'));assert.equal(await page.evaluate(()=>posts.length),0);
   await page.locator('[data-feed-compose-remove-gif]').click();await choose(page.locator('[data-feed-compose-gif]'));
   await page.locator('[data-feed-compose] button[type=submit]').click();await page.waitForFunction(()=>posts.length===1);
