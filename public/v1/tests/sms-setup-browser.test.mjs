@@ -134,7 +134,7 @@ test('registration landing page has one primary action, truthful states, and res
     assert.equal(await page.locator('[data-open-sms-profile]').count(),0);
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/entry-new.png'});
     await page.evaluate(profile=>{window.setup.profiles=[profile];return window.renderEntry();},fixture);
-    await page.getByRole('button',{name:'Review & submit campaign'}).click();
+    await page.getByRole('button',{name:'View full application'}).click();
     assert.equal(await page.evaluate(()=>window.opened.options.initialStep),'summary');
     assert.match(await page.locator('.sms-entry-facts').innerText(),/First Mate LLC/);
     assert.equal(await page.getByText('Messaging Profile',{exact:true}).count(),0);
