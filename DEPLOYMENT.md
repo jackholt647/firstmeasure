@@ -1,6 +1,6 @@
 # FirstMeasure: local development and production deployment
 
-October 12 SMS registration: [Texting policies and review workflow](deploy/digitalocean/development-sms-policies-20261012.md) records the screenshot evidence changes, shorter review checklist, focused validation, and verified development rollout.
+October 12 SMS registration: [Additional campaign numbers and form refinement](deploy/digitalocean/development-sms-multiple-numbers-20261012.md) records the latest development release, verification, and legacy-state readiness warning. [Texting policies and review workflow](deploy/digitalocean/development-sms-policies-20261012.md) records the preceding release.
 
 October 11 SMS registration final review: [Simplified fields and submission verification](deploy/digitalocean/development-sms-final-review-20261011.md) records the copy cleanup, removed final checkbox, focused tests, and verified development rollout.
 
