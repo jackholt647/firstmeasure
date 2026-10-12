@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Notes GIFs and filters: [Channels picker parity and typed advanced audiences](deploy/digitalocean/development-notes-gifs-audiences-20261012.md) records author filters, compact composer styling, membership-based visibility, access checks and verified development rollout.
+
 October 12 Compact Notes and Crew audit: [Composer placement, user previews and terminology-aware audiences](deploy/digitalocean/development-notes-compact-audience-audit-20261012.md) records the UI refinements, explicit field-app eligibility, long-term audience-model findings, checks and development rollout.
 
 October 12 Note sending and active replies: [Enter sends, archive-aware counts and bounded reply lines](deploy/digitalocean/development-note-enter-active-replies-20261012.md) records the keyboard behavior, historical count correction, immediate composer closure, checks and development rollout.

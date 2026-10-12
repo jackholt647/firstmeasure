@@ -1,0 +1,99 @@
+# Notes GIFs, author filters and advanced audiences — October 12, 2026
+
+Feature commit `18d7c000`, compatibility guard `7097d992`; integrated source is
+`8a1250d7334bf6ff0e28569ef78ec30b5999fb9f` for the verified rollout below.
+
+Both the main and reply composers reuse Channels' GIF picker button, staged
+preview, removal action and message card. Controls follow the same order:
+emoji, GIF, file, dictation, audio. Selection remains a draft until submit;
+GIF-only notes/replies are valid, failed sends retain the draft, successful
+reply sends close the composer. The main form has no extra background or
+separator around its outlined composer.
+
+The Notes toolbar follows Activity's search and filter layout. Filters list
+project note authors, support several selections or an Only shortcut, search
+authors, and include Show Archived Notes in the footer. The author endpoint
+reads complete root-note audience policies without note text and returns only
+authors whose notes the viewer can access. Author filtering occurs before
+pagination. Its cursor tracks raw pages so hidden private notes cannot truncate
+subsequent pages.
+
+Visibility starts with Everybody, then Your Departments using the configured
+department terminology. Advanced visibility offers the organization's resource
+group types, actual groups and individual active users in eligible departments,
+with a search field. The existing field-application audience remains explicitly
+labeled under Application access in Advanced; it is separate from group membership.
+The standalone word Just is removed.
+
+## Audience contract
+
+The shared workforce resolver retains active resource-group IDs on user
+memberships, plus each group's stable kind ID, label and department affiliations.
+Notes persist typed resource_group, resource_group_kind and user references.
+Group-type references are bounded to the sender's eligible department IDs;
+organization-wide administrators can choose the whole type. User/group IDs are
+validated within the current organization and department context. Active group
+membership is resolved afresh through the ordinary authorization context;
+renaming terminology, labels or roles does not alter recipients.
+
+Advanced selections replace broad department selections, preventing a selected
+individual from accidentally sharing with everyone in their department. The
+root author retains access; existing organizational administrative access remains.
+Project/channel authorization remains required. Replies inherit the root policy,
+including existing and archived replies after direct visibility or text-edit
+updates. Ordinary edits preserve an untouched policy. New reserved metadata is
+server-owned and cannot be injected through generic message metadata. Older
+composers cannot clear an advanced policy using department-only payloads; the
+server requires them to refresh. Existing legacy audiences remain compatible.
+
+Scope sets and project assignments are not inferred as user groups or permission
+grants. These choices are current organization memberships, not a snapshot of
+which crew happened to be assigned when the note was written. There is no schema
+migration or worker change.
+
+## Verification
+
+14 isolated note audience/count/author and organization-structure tests pass,
+including membership removal, inherited policy, foreign/unavailable IDs, type
+bounds, metadata injection and older-client protection. TypeScript checks pass.
+48 existing Channels and department tests pass. Three browser checks pass:
+Notes, Channels Enter/Shift+Enter and Feed GIF drafts. Notes additionally verifies
+real shared rich formatting, preview widgets, failure retention, GIF-only send,
+reply closure, filters and advanced choices at narrow tray widths. Fixture APIs
+write no customer notes.
+
+## Development rollout
+
+The rollout overlays only reviewed owned files onto each current immutable
+release. Existing Feed access/storage/client differences, scoped Feed exclusions,
+per-role application manifests and concurrent editor changes are preserved.
+Backends are activated across web, pool and compatibility before publishing the
+new frontend. UI activation reloads PHP without restarting the already-verified
+backend. Each phase guards the current path/runtime, verifies source/compiled
+hashes, and requires development isolation and outbound-safety enforcement.
+
+Payloads, baseline audits, scripts and receipts are retained under ignored
+output/notes-gifs-deploy and in immutable releases. Superseded/failed staging
+candidates were never activated. Rollback must preserve later work and reverse
+only the owned patch. Production is outside this rollout's authorization.
+
+## Verified result
+
+All three development roles passed final source and compiled hashes, readiness,
+exact runtime identity and enforced outbound safety. Public Notes, Channels UI,
+Channels client and the application manifest matched reviewed payload hashes.
+The Notes browser regression passed again using dev-hosted libraries. No customer
+notes were posted by these checks.
+
+Runtime identity: `8a1250d7334bf6ff0e28569ef78ec30b5999fb9f`. Bundle version:
+`20261012-notes-gifs-audiences-v6`.
+
+| Role | Current release | Backend stage | Previous release |
+| --- | --- | --- | --- |
+| Web | `/opt/firstmeasure/releases/8a1250d7334bf6ff0e28569ef78ec30b5999fb9f-notes-gifs-ui` | `/opt/firstmeasure/releases/8a1250d7334bf6ff0e28569ef78ec30b5999fb9f-notes-gifs-api` | `/opt/firstmeasure/releases/2cd4c8d27bf0333aacda35553e11526ed95bb114` |
+| Pool | `/opt/firstmeasure/releases/8a1250d7334bf6ff0e28569ef78ec30b5999fb9f-notes-gifs-ui` | `/opt/firstmeasure/releases/8a1250d7334bf6ff0e28569ef78ec30b5999fb9f-notes-gifs-api` | `/opt/firstmeasure/releases/2cd4c8d27bf0333aacda35553e11526ed95bb114` |
+| Compatibility | `/mnt/firstmeasure_dev_releases/releases/8a1250d7334bf6ff0e28569ef78ec30b5999fb9f-notes-gifs-ui` | `/mnt/firstmeasure_dev_releases/releases/8a1250d7334bf6ff0e28569ef78ec30b5999fb9f-notes-gifs-api` | `/mnt/firstmeasure_dev_releases/releases/2cd4c8d27bf0333aacda35553e11526ed95bb114` |
+
+Notes SHA-256:
+`942eef775d6fb354433c95b0913c4bf6562195b8bc10bd09c3987ce0fc439d0e`.
+
