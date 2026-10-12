@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 11 Feed settings: [Automatic-post description](deploy/digitalocean/development-feed-settings-copy-20261011.md) records the exact copy replacement and verified development rollout.
+
 October 12 Reputation onboarding: [Business signup, authorization and remediation](deploy/digitalocean/development-reputation-onboarding-20261012.md) records the guided flow without billing, publication contracts, tests and development rollout.
 
 October 11 GIF drafts: [Attach before sending in Channels and Feed](deploy/digitalocean/development-gif-drafts-20261011.md) records staging, removable previews, failure retention and the verified dev rollout.
