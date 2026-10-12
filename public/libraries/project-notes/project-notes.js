@@ -762,17 +762,47 @@
       }
     }
     if (options.channelId) {entry.channelId = options.channelId; subscribeRealtime(entry);}
-    // Match the original project composer, with history permanently expanded.
-    if(!document.getElementById('fm-project-notes-composer-style')){
-      const style=document.createElement('style');style.id='fm-project-notes-composer-style';
-      style.textContent=`.pn-workspace{font-family:inherit}.pn-tools{padding:12px 14px 8px;gap:7px}.pn-tools input[type=search]{font:inherit;font-size:11px;padding:7px 9px;border-radius:8px}.pn-tools label{font-size:10px;color:#667085}.pn-history{padding:8px 14px}.pn-empty{font-size:11px}.pn-composer{padding:12px 14px;display:flex;flex-direction:column;gap:6px}.pn-composer-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:18px;color:#667085}.pn-composer-heading{font-size:10px;font-weight:800;letter-spacing:.06em}.pn-visibility{display:flex;align-items:center;gap:9px;white-space:nowrap}.pn-visibility>span{font-size:8px;font-weight:800;color:#98a2b3}.pn-visibility-choice{position:relative;display:flex;align-items:center;gap:4px;color:#667085;font-size:9px;font-weight:900}.pn-visibility-choice select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.pn-visibility-choice:focus-within{outline:2px solid var(--primary,#d93025);outline-offset:3px;border-radius:3px}.pn-composer textarea{display:block;min-height:56px;max-height:180px;resize:none;border:1px solid #d0d5dd;border-radius:12px;padding:10px 12px;font-family:inherit;font-size:12px;line-height:1.42}.pn-compose-actions{gap:8px;margin-top:0;min-height:29px;justify-content:flex-end}.pn-compose-actions .pn-icon{box-sizing:border-box;display:grid;place-items:center;flex:none;width:29px;height:29px;border:1px solid #d0d5dd;border-radius:8px;background:white;color:#475467;font-size:11px;cursor:pointer;padding:0}.pn-compose-actions .pn-icon:focus-within{outline:2px solid var(--primary,#d93025);outline-offset:2px}.pn-add{margin-left:0}.pn-add button{min-height:29px;padding:0 10px;font:inherit;font-size:10px;font-weight:900;background:var(--primary,#d93025);color:var(--on-primary,#fff);border-radius:7px 0 0 7px}.pn-add button+button{border-radius:0 7px 7px 0;padding:0 8px}.pn-card{border-radius:11px;padding:10px 11px;font-size:11px;line-height:1.45}.pn-card header{font-size:10px}.pn-card footer{font-size:9px}.pn-card-content p{margin:6px 0}.pn-uploads:empty{display:none}`;
+    if (!document.getElementById('fm-project-notes-composer-style')) {
+      const style = document.createElement('style'); style.id = 'fm-project-notes-composer-style';
+      style.textContent = `
+        .pn-workspace{font-family:inherit;container-type:inline-size;--ch-muted:#667085;--ch-accent:var(--primary,#175cd3);--ch-hover:#f2f4f7}
+        .pn-tools{padding:12px 14px;gap:8px;border-bottom:1px solid #eef0f3}.pn-tools input[type=search]{font:inherit;font-size:12px;padding:8px 10px;border-color:#e4e7ec;border-radius:8px;background:#fafbfc}.pn-tools label{font-size:11px;color:#667085}
+        .pn-history{padding:14px;background:#fafbfc;overscroll-behavior:contain}.pn-pinned{padding:0 14px;background:#fafbfc}.pn-empty{font-size:12px;padding:24px 8px;text-align:center;color:#667085}
+        .pn-card{padding:14px;border-radius:12px;font-size:12px;line-height:1.55;margin-bottom:12px;box-shadow:0 1px 2px #10182804}.pn-card header{align-items:flex-start;gap:9px;font-size:12px}.pn-avatar{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--primary-light,#eef2ff);color:var(--primary,#175cd3);font-size:10px;font-weight:700}.pn-author{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}.pn-author>span{overflow-wrap:anywhere}.pn-card .pn-author time{margin:0;font-size:10px;font-weight:400}.pn-card .pn-menu{margin-left:auto}.pn-menu summary{border-radius:5px;color:#98a2b3}.pn-menu summary:hover,.pn-menu[open] summary{background:#f2f4f7;color:#344054}.pn-card-content{margin-top:10px}.pn-card-content p{margin:6px 0}.pn-card-content blockquote{margin:8px 0;padding:4px 10px;border-left:3px solid #d0d5dd;color:#667085}.pn-card-content ul,.pn-card-content ol{padding-left:22px}.pn-card footer{border-top:1px solid #f2f4f7;padding-top:8px;margin-top:12px;font-size:10px;flex-wrap:wrap}.pn-card footer button,.pn-more{border:0;background:transparent;color:var(--primary,#175cd3);font:inherit;font-size:11px;cursor:pointer}.pn-more[hidden]{display:none}.pn-card footer button:hover,.pn-more:hover{background:#f2f4f7}
+        .pn-composer{padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:#fff}.pn-composer-head{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#667085}.pn-composer-heading{font-size:10px;font-weight:700;letter-spacing:.04em}.pn-visibility{display:flex;align-items:center;gap:8px;white-space:nowrap}.pn-visibility>span{font-size:10px;color:#98a2b3}.pn-visibility-choice{position:relative;display:flex;align-items:center;gap:5px;font-size:11px}.pn-visibility-choice select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+        .pn-composer-box{position:relative;border:1px solid #d0d5dd;border-radius:10px;padding:8px 10px;background:#fff;min-width:0}.pn-composer-box:focus-within{border-color:var(--primary,#175cd3);box-shadow:0 0 0 2px var(--primary-light,#eef2ff)}.pn-composer-box .fm-ch-formatbar{gap:2px;margin-bottom:6px;padding-bottom:6px;flex-wrap:wrap}.pn-composer-box .fm-ch-formatbar button{border:0;background:transparent;min-width:28px;height:28px;padding:4px!important;cursor:pointer}
+        .pn-composer-box .fm-ch-rich-editor,.pn-composer-box textarea{box-sizing:border-box;display:block;width:100%;min-height:84px;max-height:180px;overflow:auto;border:0;outline:none;resize:none;padding:8px 2px;font:inherit;font-size:12px;line-height:1.5;background:transparent;color:#101828;white-space:pre-wrap;overflow-wrap:anywhere}.pn-composer-box .fm-ch-rich-editor:empty:before{content:attr(data-placeholder);color:#98a2b3;pointer-events:none}.pn-composer-box .fm-ch-rich-editor p{margin:0}.pn-composer-box .fm-ch-rich-editor blockquote{border-left:3px solid #d0d5dd;padding-left:10px;margin:6px 0}
+        .pn-compose-actions{gap:4px;margin-top:6px;flex-wrap:wrap}.pn-compose-actions .pn-icon{display:grid;place-items:center;flex:none;width:28px;height:28px;padding:0;border:0;border-radius:6px;background:transparent;color:#667085;font-size:14px;cursor:pointer}.pn-compose-actions .pn-icon:hover{background:#f2f4f7;color:var(--primary,#175cd3)}.pn-compose-actions .pn-icon.voice-active{background:#fef3f2;color:#d92d20}.pn-workspace button:disabled{opacity:.45;cursor:default}.pn-workspace button:focus-visible,.pn-menu summary:focus-visible,.pn-visibility-choice:focus-within{outline:2px solid var(--primary,#175cd3);outline-offset:2px}.pn-add{margin-left:auto}.pn-add button{height:28px;padding:0 9px;font:inherit;font-size:11px;font-weight:600;cursor:pointer;background:var(--primary,#175cd3);color:var(--on-primary,#fff)}.pn-add button[hidden]{display:none}.pn-uploads:empty,.pn-emoji-pop[hidden]{display:none}.pn-emoji-pop{position:absolute;bottom:44px;left:0;right:0;z-index:100;background:white;border:1px solid #e4e7ec;border-radius:10px;box-shadow:0 8px 24px #10182820;max-height:320px;overflow:auto}.pn-cancel-edit{align-self:flex-start;font-size:11px}.pn-cancel-edit[hidden]{display:none}
+        @container (max-width:300px){.pn-visibility>span{display:none}.pn-composer{padding:10px}.pn-history{padding:10px}.pn-card{padding:11px}.pn-compose-actions{gap:2px}}
+      `;
       document.head.append(style);
     }
     let disposed = false, busy = false, prepared = [], editId = '', query = '', showRemoved = false;
     const expanded = new Set();
-    container.innerHTML = `<section class="pn-workspace"><div class="pn-tools"><input type="search" aria-label="Search project notes" placeholder="Search notes"><label><input type="checkbox" data-removed> Removed</label></div><div class="pn-pinned" aria-label="Pinned notes"></div><div class="pn-history" role="log" aria-label="Project notes history"></div><div class="pn-status" role="status"></div><form class="pn-composer"><div class="pn-composer-head"><span class="pn-composer-heading">ADD NOTE</span><div class="pn-visibility"><span>Who can see it?</span><label class="pn-visibility-choice"><strong data-visibility-label>Everybody</strong><i class="fas fa-eye" aria-hidden="true"></i><select aria-label="Note visibility"><option value="all">Everybody</option><option value="office">Office</option><option value="crew">Crew</option><option value="sales">Sales</option></select></label></div></div><textarea aria-label="New project note" placeholder="Add an internal note… Use @name or @email to tag someone." rows="2"></textarea><div class="pn-uploads"></div><div class="pn-compose-actions"><label class="pn-icon" title="Attach a file"><i class="fas fa-paperclip"></i><input type="file" hidden multiple></label><button type="button" class="pn-icon" data-audio aria-label="Record audio note"><i class="fas fa-microphone"></i></button><div class="pn-add"><button type="submit" aria-label="Add note"><span aria-hidden="true">+</span> Note</button><button type="button" data-pin-send title="Add pinned note" aria-label="Add pinned note"><i class="fas fa-thumbtack"></i></button></div></div></form></section>`;
+    const voiceIcon = mode => `<span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:18px;height:18px;background:currentColor;mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/${mode}.svg) center/contain no-repeat;mask-mode:alpha"></span>`;
+    container.innerHTML = `<section class="pn-workspace"><div class="pn-tools"><input type="search" aria-label="Search project notes" placeholder="Search notes"><label><input type="checkbox" data-removed> Removed</label></div><div class="pn-pinned" aria-label="Pinned notes"></div><div class="pn-history" role="log" aria-label="Project notes history"></div><div class="pn-status" role="status"></div><form class="pn-composer"><div class="pn-composer-head"><span class="pn-composer-heading">ADD NOTE</span><div class="pn-visibility"><span>Who can see it?</span><label class="pn-visibility-choice"><strong data-visibility-label>Everybody</strong><i class="fas fa-eye" aria-hidden="true"></i><select aria-label="Note visibility"><option value="all">Everybody</option><option value="office">Office</option><option value="crew">Crew</option><option value="sales">Sales</option></select></label></div></div><button type="button" class="pn-cancel-edit" hidden>Cancel editing</button><div class="pn-composer-box"><div class="pn-editor-mount"></div><div class="pn-uploads"></div><div class="pn-compose-actions"><button type="button" class="pn-icon" data-emoji title="Insert emoji" aria-label="Insert emoji" aria-expanded="false"><i class="fas fa-face-smile"></i></button><button type="button" class="pn-icon" data-attach title="Attach a file" aria-label="Attach a file"><i class="fas fa-paperclip"></i></button><input type="file" hidden multiple><button type="button" class="pn-icon" data-dictate title="Dictate message" aria-label="Dictate message" aria-pressed="false">${voiceIcon('dictation')}</button><button type="button" class="pn-icon" data-audio title="Record an audio note" aria-label="Record an audio note" aria-pressed="false">${voiceIcon('record')}</button><div class="pn-add"><button type="submit" title="Add note" aria-label="Add note"><i class="fas fa-paper-plane" aria-hidden="true"></i></button><button type="button" data-pin-send title="Add pinned note" aria-label="Add pinned note"><i class="fas fa-thumbtack"></i></button></div></div><div class="pn-emoji-pop" hidden></div></div></form></section>`;
     const history = container.querySelector('.pn-history'), pinned = container.querySelector('.pn-pinned');
-    const status = container.querySelector('.pn-status'), form = container.querySelector('form'), text = form.querySelector('textarea'), uploadBox = container.querySelector('.pn-uploads');
+    const status = container.querySelector('.pn-status'), form = container.querySelector('form'), uploadBox = container.querySelector('.pn-uploads');
+    const widgets = window.FirstMateChannels?.composerWidgets;
+    const placeholder = 'Add an internal note… Use @name or @email to tag someone.';
+    const text = widgets?.createEditor ? widgets.createEditor(placeholder) : document.createElement('textarea');
+    text.setAttribute('aria-label', 'New project note'); text.placeholder = placeholder;
+    const editorMount = form.querySelector('.pn-editor-mount');
+    if (widgets?.formatBar) editorMount.append(widgets.formatBar(text, ['Bold','Italic','Strikethrough','Bulleted list','Numbered list','Quote']));
+    editorMount.append(text);
+    const mentions = window.FirstMateTags?.attachMentionTextarea?.(text, {orgId:orgId(),source:'project_notes'});
+    const sendButton = form.querySelector('[type=submit]');
+    const resetSendButton = () => {sendButton.innerHTML = '<i class="fas fa-paper-plane" aria-hidden="true"></i>';sendButton.setAttribute('aria-label','Add note');sendButton.title='Add note';form.querySelector('.pn-cancel-edit').hidden = true;};
+    const emojiButton = form.querySelector('[data-emoji]'), emojiPop = form.querySelector('.pn-emoji-pop');
+    let emojiPicker = null;
+    const closeEmoji = () => {emojiPicker?.destroy?.();emojiPicker=null;emojiPop.hidden=true;emojiButton.setAttribute('aria-expanded','false');};
+    emojiButton.onclick = () => {
+      if (!emojiPop.hidden) {closeEmoji();return;}
+      emojiPop.hidden=false;emojiButton.setAttribute('aria-expanded','true');
+      emojiPicker=window.FirstMateChannels?.mountEmojiPicker?.(emojiPop, emoji => {text.insertText ? text.insertText(emoji) : text.setRangeText(emoji,text.selectionStart,text.selectionEnd,'end');text.dispatchEvent(new Event('input',{bubbles:true}));closeEmoji();text.focus();});
+      emojiPicker?.focus?.();
+    };
+    form.querySelector('[data-attach]').onclick = () => form.querySelector('[type=file]').click();
     const syncVisibility=()=>{form.querySelector('[data-visibility-label]').textContent=form.querySelector('select').selectedOptions[0]?.textContent || 'Everybody';};
     form.querySelector('select').addEventListener('change',syncVisibility);
     const esc = escapeHtml;
@@ -782,7 +812,7 @@
       const shared = note.metadata?.note_shared;
       const actions = deleted ? (note.can_restore ? '<button data-act="restore">Restore</button>' : '') :
         `<button data-act="pin">${note.pinned_at ? 'Unpin' : 'Pin'}</button>${entry.separate && note.metadata?.project_note && !shared ? '<button data-act="share">Share to channel</button>' : ''}${note.can_edit ? '<button data-act="edit">Edit</button>' : ''}<button data-act="history">Edit history</button><button data-act="copy">Copy text</button><button data-act="save">Save message</button>${note.can_delete ? '<button data-act="delete">Delete</button>' : ''}`;
-      return `<article class="pn-card${deleted ? ' pn-removed' : ''}" data-project-note-id="${esc(note.id)}"><header><span>${esc(note.created_by?.name || 'Teammate')}</span><time>${esc(fmtWhen(note.created_at))}</time>${note.pinned_at ? '<i class="fas fa-thumbtack" title="Pinned"></i>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header>${deleted ? '<p>Note removed</p>' : `<div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"><p>${esc(note.text)}</p>${mediaAttachmentsHtml(note)}</div>${note.text.length > 400 || note.attachments?.length ? `<button class="pn-more" data-act="expand">${expanded.has(note.id) ? 'Show Less' : 'Show More'}</button>` : ''}<footer>${esc(visibilityLabel(note.visibility))}${note.edited_at ? ' · Edited' : ''}${shared ? ' · Shared to channel' : ''}<button data-act="replies">${Number(note.reply_count) || 0} replies</button></footer>`}</article>`;
+      return `<article class="pn-card${deleted ? ' pn-removed' : ''}" data-project-note-id="${esc(note.id)}"><header><div class="pn-avatar" aria-hidden="true">${esc((note.created_by?.name || 'Teammate').split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase())}</div><div class="pn-author"><span>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}</time></div>${note.pinned_at ? '<i class="fas fa-thumbtack" title="Pinned"></i>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header>${deleted ? '<p>Note removed</p>' : `<div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"><p>${esc(note.text)}</p>${mediaAttachmentsHtml(note)}</div><button class="pn-more" data-act="expand" hidden>${expanded.has(note.id) ? 'Show less' : 'Show more'}</button><footer>${esc(visibilityLabel(note.visibility))}${note.edited_at ? ' · Edited' : ''}${shared ? ' · Shared to channel' : ''}<button data-act="replies">${note.reply_count ? `${Number(note.reply_count)} ${Number(note.reply_count) === 1 ? 'reply' : 'replies'}` : 'Reply'}</button></footer>`}</article>`;
     }
     function render() {
       if (disposed) return;
@@ -792,14 +822,15 @@
       const rest = rows.filter(note => !note.pinned_at || note.deleted_at).sort((a,b) => Number(b.seq) - Number(a.seq));
       pinned.hidden = !pins.length;
       pinned.innerHTML = pins.length ? `<h4>Pinned notes</h4>${pins.map(card).join('')}` : '';
-      history.innerHTML = rest.map(card).join('') || '<p class="pn-empty">No notes yet.</p>';
+      history.innerHTML = rest.map(card).join('') || `<p class="pn-empty">${query ? 'No notes match your search.' : 'No notes yet. Add the first update below.'}</p>`;
       if (entry.historyBefore) history.insertAdjacentHTML('beforeend', '<button type="button" data-load-more>Load older notes</button>');
       for (const note of rows) {
         const target = container.querySelector(`[data-pn-content="${CSS.escape(note.id)}"]`);
         if (!target) continue;
         if (window.FirstMateChannels?.renderMessageContent) target.replaceChildren(window.FirstMateChannels.renderMessageContent(note,{orgId:orgId()}));
-        else target.innerHTML = (window.FirstMateChannels?.renderBody?.(note.text) || `<p>${escapeHtml(note.text)}</p>`) + audioPlayerHtml(note) + mediaAttachmentsHtml(note);
+        else target.innerHTML = (widgets?.renderBody?.({...note, text:note.translation?.text || note.text}) || `<p>${escapeHtml(note.text)}</p>`) + audioPlayerHtml(note) + mediaAttachmentsHtml(note);
       }
+      container.querySelectorAll('.pn-card').forEach(card => {const content=card.querySelector('.pn-card-content'),more=card.querySelector('.pn-more');if (content && more) more.hidden = !content.classList.contains('expanded') && content.scrollHeight <= content.clientHeight;});
       window.FirstMateAudioNotes?.hydrate?.(container);
       history.scrollTop = scroll;
     }
@@ -810,57 +841,83 @@
     container.querySelector('[type=search]').oninput = event => {query = event.target.value.toLowerCase(); render();};
     container.querySelector('[data-removed]').onchange = event => {showRemoved = event.target.checked; render();};
     async function submit(pin = false) {
-      if (busy || disposed) return;
+      if (busy || disposed || capturing || uploading) return;
       const body = clean(text.value);
       if (!body && !prepared.length) return;
-      busy = true; form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = true); say('Saving note…');
+      busy = true; text.contentEditable = 'false'; closeEmoji(); form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = true); say('Saving note…');
       try {
         await ensureSavedProject();
         await ensureChannel(entry);
         const group = form.querySelector('select').value;
         const visibility = group === 'all' ? [] : [group];
         if (editId) {
-          await channels().messages.edit(orgId(), editId, {text:body, audience:visibility});
+          await channels().messages.edit(orgId(), editId, {text:body, audience:visibility, mention_users:mentions?.selectedMentions?.() || []});
         } else {
           const metadata = Object.assign({}, ...prepared.map(item => item.kind === "audio" ? {audio_note:item.metadata} : item.metadata || {}));
           await channels().messages.post(orgId(), entry.channelId, {text:body || prepared.map(item => item.text || '').filter(Boolean).join('\n'), project_note:true, pin,
-            client_msg_id:form.dataset.operationId || (form.dataset.operationId = id()), audience:visibility,
+            mention_users:mentions?.selectedMentions?.() || [], client_msg_id:form.dataset.operationId || (form.dataset.operationId = id()), audience:visibility,
             attachment_ids:prepared.map(item => item.attachment?.id).filter(Boolean), metadata});
         }
         if (disposed) return;
         text.value = ''; prepared = []; editId = ''; delete form.dataset.operationId; uploadBox.replaceChildren();
-        form.querySelector('[type=submit]').textContent = '+ Note'; form.querySelector('[data-pin-send]').hidden = false;
+        resetSendButton(); mentions?.setSelectedMentions?.([]); form.querySelector('[data-pin-send]').hidden = false;
         await refresh(); announce(entry.projectId); say('');
       } catch (error) { say(error.message || 'Could not save the note. Your draft has been kept.'); }
-      finally { busy = false; if (!disposed) form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = false); }
+      finally { busy = false; if (!disposed) {text.contentEditable = 'true';form.querySelectorAll('button,input,textarea,select').forEach(node => node.disabled = false);syncSendState();} }
     }
     form.onsubmit = event => {event.preventDefault(); void submit();};
     form.querySelector('[data-pin-send]').onclick = () => submit(true);
-    text.oninput = () => { delete form.dataset.operationId; text.style.height='auto';text.style.height=Math.min(180,Math.max(56,text.scrollHeight))+'px'; };
+    text.oninput = () => { delete form.dataset.operationId; syncSendState(); };
     form.querySelector('[type=file]').onchange = async event => {
-      say('Preparing files…');
+      uploading++; syncSendState(); say('Preparing files…');
       try {
         await ensureSavedProject();
         for (const file of event.target.files) {
           const result = await prepareUpload(project, file);
           if (disposed) return;
           prepared.push(result); const node = document.createElement('div'); uploadBox.append(node);
-          mountPreparedUpload(node, result, () => {prepared = prepared.filter(item => item !== result); node.remove(); delete form.dataset.operationId;});
+          mountPreparedUpload(node, result, () => {prepared = prepared.filter(item => item !== result); node.remove(); delete form.dataset.operationId;syncSendState();});
         }
         delete form.dataset.operationId; say('');
       } catch (error) {say(error.message);}
+      finally {uploading--;syncSendState();}
       event.target.value = '';
     };
-    let audio = null;
-    form.querySelector('[data-audio]').onclick = async () => {
-      if (audio) return;
+    const captureAbort = new AbortController();
+    let capturing = false, captureMode = '', recorderControl = null, uploading = 0;
+    const dictateButton = form.querySelector('[data-dictate]'), audioButton = form.querySelector('[data-audio]');
+    function syncSendState() {
+      sendButton.disabled = busy || capturing || uploading > 0 || (!clean(text.value) && !prepared.length);
+      form.querySelector('[data-pin-send]').disabled = sendButton.disabled;
+      if (!capturing) {dictateButton.disabled = busy; audioButton.disabled = busy || !!editId || prepared.some(item=>item.kind === 'audio');}
+      form.querySelector('[data-attach]').disabled = busy || !!editId;
+    }
+    async function capture(mode) {
+      if (capturing) {if (captureMode === mode) recorderControl?.stop();return;}
+      if (busy || disposed) return;
+      capturing = true; captureMode = mode; syncSendState();
+      dictateButton.disabled = audioButton.disabled = true;
+      const button = mode === 'dictation' ? dictateButton : audioButton;
       const node = document.createElement('div'); uploadBox.append(node);
-      audio = true;
       let result;
-      try { await ensureSavedProject(); result = await prepareAudioInline(project, node, {onRemove() {prepared = prepared.filter(item => item !== result); node.remove();}}); if (!disposed) prepared.push(result); }
-      catch (error) {node.remove(); say(error.message);}
-      finally {audio = null;}
-    };
+      try {
+        await ensureSavedProject();
+        if (disposed) return;
+        result = await prepareAudioInline(project, node, {mode,signal:captureAbort.signal,onRecordingState(control) {
+          recorderControl = control;
+          if (disposed) {control?.cancel?.();return;}
+          button.disabled = !control;button.classList.toggle('voice-active',!!control);button.setAttribute('aria-pressed',String(!!control));
+          button.setAttribute('aria-label',control ? (mode === 'dictation' ? 'Finish dictation' : 'Finish recording') : button.title);
+        },onRemove() {prepared = prepared.filter(item => item !== result);node.remove();delete form.dataset.operationId;syncSendState();}});
+        if (disposed) return;
+        if (mode === 'dictation') {text.value = [text.value,result.text].filter(Boolean).join(' ');node.remove();text.dispatchEvent(new Event('input',{bubbles:true}));text.focus();}
+        else {result.kind = 'audio';prepared.push(result);delete form.dataset.operationId;}
+      } catch (error) {node.remove();if (!/cancelled/i.test(error.message || '')) say(error.message);}
+      finally {capturing=false;recorderControl=null;if (!disposed) {dictateButton.disabled=audioButton.disabled=busy;button.classList.remove('voice-active');button.setAttribute('aria-pressed','false');button.setAttribute('aria-label',button.title);syncSendState();}}
+    }
+    dictateButton.onclick = () => capture('dictation');
+    audioButton.onclick = () => capture('record');
+    syncSendState();
     container.onclick = async event => {
       const older = event.target.closest('[data-load-more]');
       const button = event.target.closest('[data-act]');
@@ -880,7 +937,7 @@
         if (action === 'expand') {expanded.has(note.id) ? expanded.delete(note.id) : expanded.add(note.id); render(); return;}
         if (action === 'edit') {
           editId = note.id; text.value = note.text; form.querySelector('select').value = note.visibility.length === GROUPS.length ? 'all' : note.visibility[0];
-          syncVisibility();form.querySelector('[type=submit]').textContent = 'Save Note'; form.querySelector('[data-pin-send]').hidden = true; text.focus();
+          mentions?.setSelectedMentions?.(note.mention_users || []);syncVisibility();syncSendState();form.querySelector('.pn-cancel-edit').hidden = false;sendButton.setAttribute('aria-label','Save note');sendButton.title='Save note';sendButton.textContent = 'Save'; form.querySelector('[data-pin-send]').hidden = true; text.focus();
           say('Editing note. Escape cancels.'); return;
         }
         if (action === 'copy') {await navigator.clipboard.writeText(note.text); say('Copied.'); return;}
@@ -899,10 +956,14 @@
       const button = event.target.closest('[data-pn-reply-send]');
       if (button) void sendReply(button.closest('.pn-replies-wrap').querySelector('input'), project, button.dataset.pnReplySend);
     });
+    function cancelEdit() {editId='';text.value='';resetSendButton();mentions?.setSelectedMentions?.([]);form.querySelector('[data-pin-send]').hidden=false;delete form.dataset.operationId;syncSendState();say('');}
+    form.querySelector('.pn-cancel-edit').onclick = cancelEdit;
     text.onkeydown = event => {
-      if (event.key === 'Escape' && editId) {event.stopPropagation(); editId = ''; text.value = ''; form.querySelector('[type=submit]').textContent = '+ Note'; form.querySelector('[data-pin-send]').hidden = false; say('');}
+      if (event.key === 'Escape' && !emojiPop.hidden) {event.stopPropagation();closeEmoji();return;}
+      if (event.key === 'Escape' && editId) {event.stopPropagation();cancelEdit();}
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {event.preventDefault();void submit();}
     };
-    return {ready, refresh, destroy() {disposed = true; window.removeEventListener('fm:project-notes:refreshed',notified); container.querySelector('.fm-an-inline-remove')?.click(); container.replaceChildren();}};
+    return {ready, refresh, destroy() {disposed = true; captureAbort.abort();closeEmoji();mentions?.destroy?.();window.removeEventListener('fm:project-notes:refreshed',notified); container.querySelector('.fm-an-inline-remove')?.click(); container.replaceChildren();}};
   }
 
   window.Portal.ProjectNotes = {

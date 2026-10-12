@@ -712,12 +712,13 @@
     }
 
 
-  function messageFormatBar(editor, tableOnly = false){
+  function messageFormatBar(editor, tableOnly = false, allowedCommands = null){
     const bar = el('div', 'fm-ch-formatbar');
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("channels-ui","m_f4dce57ac0bb0e","Message formatting") ?? "Message formatting"));
     const commands = [['Bold', '<b>B</b>', 'bold'], ['Italic', '<i>I</i>', 'italic'], ['Strikethrough', '<s>S</s>', 'strikeThrough'], ['Bulleted list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>', 'insertUnorderedList'], ['Numbered list', '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4l1.5-1v6M3 9h3M2.5 15c0-3 4-3 4-.5 0 1.5-4 3-4 5.5h4M10 6h11M10 12h11M10 18h11"/></svg>', 'insertOrderedList'], ['Quote', '❞', 'formatBlock', 'blockquote'], ['Code block', '&lt;/&gt;', 'formatBlock', 'pre'], ['Link', 'Link', 'link'], ['Table', 'Table', 'table'], ['Clear formatting', 'Tx', 'removeFormat']];
     for (const [title, icon, command, value] of commands) {
+      if (allowedCommands && !allowedCommands.includes(title)) continue;
       if (tableOnly && command === 'table') continue;
       const button = el('button', '', icon);
       button.type = 'button'; button.title = title; button.setAttribute('aria-label', title);
@@ -6148,6 +6149,6 @@
     return title;
   }
 
-  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor)=>{ensureStyles();return messageFormatBar(editor);},mentionButton:mountMentionButton,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
+  const composerWidgets={createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();
