@@ -14,11 +14,12 @@ test('shared backdrops cover managed and legacy modals, native dialogs and ifram
   await page.evaluate(()=>FirstMateWindows.backdrops.setEffect('blur'));
   await page.waitForFunction(()=>document.querySelector('#project').dataset.fmBackdrop==='active');
   const css=selector=>page.locator(selector).evaluate(el=>({blur:getComputedStyle(el).backdropFilter,background:getComputedStyle(el).backgroundColor}));
-  assert.deepEqual(await css('#project'),{blur:'blur(8px)',background:'rgba(11, 16, 24, 0.1)'});
+  assert.deepEqual(await css('#project'),{blur:'blur(8px)',background:'rgba(11, 16, 24, 0.58)'});
   await page.evaluate(()=>{const el=document.createElement('div');el.id='child';el.className='overlay';el.style.zIndex=120;el.innerHTML='<div class="window">Child</div>';document.body.append(el);});
   await page.waitForFunction(()=>document.querySelector('#child').dataset.fmBackdrop==='active');
   assert.equal((await css('#project')).blur,'none');assert.equal((await css('#project')).background,'rgba(0, 0, 0, 0)');
   assert.equal((await css('#child')).blur,'blur(8px)');
+  assert.equal((await css('#child')).background,'rgba(11, 16, 24, 0.58)');
   await page.evaluate(()=>{const p=document.createElement('div');p.id='popover';p.className='modal';p.dataset.fmModalId='popover';p.style.cssText='position:fixed;top:10px;right:10px;width:100px;height:100px;background:white;z-index:200';document.body.append(p);});
   await page.waitForTimeout(40);
   assert.equal((await css('#popover')).background,'rgb(255, 255, 255)');
@@ -26,6 +27,7 @@ test('shared backdrops cover managed and legacy modals, native dialogs and ifram
   await page.waitForFunction(()=>document.querySelector('#native').dataset.fmNativeBackdrop==='active');
   assert.equal((await css('#child')).blur,'none');
   assert.equal(await page.locator('#native').evaluate(el=>getComputedStyle(el,'::backdrop').backdropFilter),'blur(8px)');
+  assert.equal(await page.locator('#native').evaluate(el=>getComputedStyle(el,'::backdrop').backgroundColor),'rgba(11, 16, 24, 0.58)');
   await page.evaluate(()=>document.querySelector('#second').showModal());
   await page.waitForFunction(()=>document.querySelector('#second').dataset.fmNativeBackdrop==='active');
   assert.equal(await page.locator('#native').evaluate(el=>getComputedStyle(el,'::backdrop').backdropFilter),'none');
