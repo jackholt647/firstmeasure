@@ -3121,3 +3121,11 @@ test('E on a selected floating face creates full side walls while M translates i
   const sides=state.wallEdits.$surfaces.filter(f=>f.id!==face.id&&!f.deleted);if(key==='e'){for(let i=0;i<4;i++)assert.ok(W.sharedIntervals(face.points[i],face.points[(i+1)%4],sides).length,'selected solid E must return along every edge');const preview=JSON.stringify(state.wallEdits);f.editor.down(f.e(0,2));assert.equal(JSON.stringify(state.wallEdits),preview);assert.equal(f.history.length,1);}else assert.equal(sides.length,0,'detached M remains a translation');
  }
 });
+
+for(const angle of [80,90,100])for(const partial of [false,true])for(const amount of [-.3,.3])test(`oblique corner edge extrusion cycles without bending faces (${angle}, ${amount}, partial=${partial})`,()=>{
+ const p=(x,y,z)=>({x,y,z}),a=p(0,0,2),b=p(4,0,2),dy=2*Math.cos(angle*Math.PI/180),dz=-2*Math.sin(angle*Math.PI/180),faces=[{id:'top',points:[a,b,p(4,3,2),p(0,3,2)]},{id:'side',points:[b,a,p(0,dy,2+dz),p(4,dy,2+dz)]}],state={wallEdits:{$surfaces:structuredClone(faces)}},f=fixture({state,walls:[],selected:null,globals:{isFreeMove:true}}),before=JSON.stringify(state.wallEdits);
+ const pair=partial?[p(1,0,2),p(3,0,2)]:[a,b];f.editor.restoreSelection({lineSelection:[{pair}]});f.listeners.pointermove(f.e(2,2));f.editor.key({key:'e'});
+ for(let i=0;i<4;i++){f.editor.distanceInput().set(amount);assert.ok(state.wallEdits.$surfaces.some(face=>JSON.stringify(face.points)!==JSON.stringify(faces.find(q=>q.id===face.id)?.points)),'extrusion produces geometry');assert.doesNotMatch(f.message(),/supporting plane|out of plane/i);for(const face of state.wallEdits.$surfaces)if(!face.deleted)assert.doesNotThrow(()=>require('../public/measure/internal/editor_scripts/exterior_geometry').validateFace(face));f.editor.key({key:'e'});}
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
+ f.editor.key({key:'e'});f.editor.distanceInput().set(amount);const preview=JSON.stringify(state.wallEdits);f.editor.down(f.e(2,2));assert.equal(f.history.length,1,f.message());assert.equal(JSON.stringify(state.wallEdits),preview,'placement preserves valid preview');assert.equal(f.editor.busy(),false);JSON.parse(preview).$surfaces.forEach(face=>require('../public/measure/internal/editor_scripts/exterior_geometry').validateFace(face));
+});
