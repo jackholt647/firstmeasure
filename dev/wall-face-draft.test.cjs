@@ -1359,6 +1359,7 @@ test('V uses all Shift-selected points across coplanar draft owners',()=>{
  assert.equal(f.message(),'6 points selected');f.editor.key({key:'v'});
  const face=f.state.wallEdits.$surfaces?.find(f=>f.id.startsWith('filled-face'));
  assert.equal(face?.points.length,6,f.message());
+ assert.equal(Object.hasOwn(face,'material'),false,'V leaves the new face without an assigned material');
 });
 
 test('point picking an edited surface activates walls and removes face selection before V',()=>{
@@ -3040,4 +3041,17 @@ test('typed plane lengths still snap bearing and F disables the bearing without 
 });
 test('plane Q near the starting row keeps a four-sided preview and commits that rectangle',()=>{
  const f=planeLineFixture([{x:0,y:0,z:0}],{globals:{...renderGlobals(),isFreeMove:false}});f.editor.key({key:'q'});f.listeners.pointermove(f.e(3,.1));const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);const preview=objects.filter(o=>o.material?.color==='#FFD700'&&o.geometry?.points?.length===2).flatMap(o=>o.geometry.points);assert.ok(preview.some(p=>p.z>.05),'preview has nonzero height');assert.ok(preview.some(p=>p.x>2.9));f.editor.planeDown(f.e(3,.1));f.editor.planeDown(f.e(3,.1));assert.equal(f.history.length,1,f.message());assert.ok(f.state.wallEdits.$loose.edges.some(pair=>pair.some(p=>p.z>.05)));
+});
+
+test('plane-created connection stays deleted in 3D after its noded pieces are removed',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry'),p=(x,z)=>({x,y:0,z}),a=p(0,4),b=p(2,0),m=p(1,2),face={id:'wall',points:[a,p(1,4),b,p(1,0)]},state={wallEdits:{$surfaces:[face],$loose:{points:[m],edges:[]}}},f=fixture({state,walls:[],selected:null,globals:renderGlobals()});
+ f.editor.togglePlane(face);
+ // Add a connection crossing a retained point, then delete its selectable pieces.
+ planeSelection(f,[a,b]);f.editor.key({key:'c'});
+ const snap=f.editor.selectionSnapshot();snap.workingPlane.selection=[a,m,b];snap.workingPlane.selectedLines=[[a,m],[m,b]];f.editor.restoreSelection(snap);f.editor.key({key:'Delete'});f.editor.key({key:'p'});
+ const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);
+ const drawn=objects.filter(o=>o.geometry?.points?.length===2).map(o=>o.geometry.points);
+ assert.ok(!drawn.some(pair=>W.sharedIntervals(...pair,[{points:[a,b]}]).length),'deleted connection must not be rendered outside plane mode');
+ const reloaded=fixture({state:JSON.parse(JSON.stringify(state)),walls:[],selected:null,globals:renderGlobals()}),after=[];reloaded.editor.draw3D({add:o=>after.push(o)},p=>p);
+ assert.ok(!after.filter(o=>o.geometry?.points?.length===2).some(o=>W.sharedIntervals(...o.geometry.points,[{points:[a,b]}]).length),'reload must not resurrect the connection');
 });
