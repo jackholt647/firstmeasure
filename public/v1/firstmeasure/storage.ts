@@ -533,10 +533,15 @@ export async function updateStatus(projectId: string, status: string) {
 
 export async function getProjectDetail(projectId: string) {
   const manifest = await readManifest(projectId);
+  // The full response already needs a fresh listing. Use that same snapshot to
+  // avoid three speculative GETs for optional JSON files that do not exist.
+  // Keep real bodies for editors, and never turn a failed listing into emptiness.
+  const files = await listProjectFiles(projectId);
+  const names = new Set(files.map((file) => file.name));
   const [appMetadata, pdfState, brandingDefaults] = await Promise.all([
-    readAppMetadata(projectId),
-    readPdfState(projectId),
-    readBrandingDefaults(projectId)
+    names.has(FIRSTMEASURE_FILE_NAMES.appMetadata) ? readAppMetadata(projectId) : null,
+    names.has(FIRSTMEASURE_FILE_NAMES.pdfState) ? readPdfState(projectId) : null,
+    names.has(FIRSTMEASURE_FILE_NAMES.brandingDefaults) ? readBrandingDefaults(projectId) : null
   ]);
 
   return {
@@ -544,7 +549,7 @@ export async function getProjectDetail(projectId: string) {
     app_metadata: appMetadata,
     pdf_state: pdfState,
     branding_defaults: brandingDefaults,
-    files: await listProjectFiles(projectId)
+    files
   };
 }
 
