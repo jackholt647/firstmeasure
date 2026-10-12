@@ -251,3 +251,11 @@ test('locked-radius snapping keeps length for axes, diagonals and rotated edge b
  for(const angle of [0,Math.PI/4,.3]){const edges=angle===.3?[[a,{x:Math.cos(angle),y:Math.sin(angle),z:0}]]:[],raw={x:3*Math.cos(angle+.025),y:3*Math.sin(angle+.025),z:0},hit=G.radialDraftSnap(raw,a,.3048,[],edges,screen,20);assert.ok(hit.kind);assert.ok(Math.abs(Math.hypot(hit.point.x,hit.point.y)-.3048)<1e-9);assert.ok(Math.abs(Math.atan2(hit.point.y,hit.point.x)-angle)<1e-9);assert.equal(hit.guides.length,1);}
  const free=G.radialDraftSnap({x:3*Math.cos(.3),y:3*Math.sin(.3),z:0},a,.3048,[],[],screen,20);assert.equal(free.kind,null);
 });
+
+for(const reversed of [false,true])test(`loose wire respects noded deletion intervals (${reversed})`,()=>{
+ const a=p(0,0,0),b=p(4,0,4),m=p(2,0,2),pair=reversed?[b,a]:[a,b],edits={$loose:{points:[a,m,b],edges:[pair]},$removedSurfaceEdges:[G.edgeKey(a,m),G.edgeKey(m,b)]};
+ assert.equal(G.surfaceWire(edits).edges.length,0,'two deleted subsegments must not leave the original loose line visible');
+ edits.$removedSurfaceEdges=[G.edgeKey(a,m)];const wire=G.surfaceWire(edits);
+ assert.deepEqual(wire.edges.map(e=>e.id),[G.edgeKey(m,b)],'only the undeleted portion remains');
+ assert.equal(wire.nodes.length,3,'endpoint and intersection nodes survive');
+});
