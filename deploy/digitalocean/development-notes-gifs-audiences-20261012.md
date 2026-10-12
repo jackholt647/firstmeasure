@@ -169,3 +169,17 @@ Each role preserves the concurrent editor baseline and backend runtime `7b30efb5
 Prior paths use that ID in the same release directories. Baselines, owned patches,
 scripts and receipts are retained under ignored output/notes-author-selection-deploy
 and in the immutable releases. Production was not changed.
+
+## Small main-composer height adjustment
+
+Feature a9bd824a, integrated frontend source `201300a314eb37bbade99bae98d587aef3ecd52d`.
+The main editor's minimum height is 76px instead of 84px, reducing empty space
+above the actions by eight pixels. The rule is scoped to the main composer;
+reply and inline-edit heights remain as before. Notes browser checks pass locally
+and with dev-hosted assets. Web, pool and compatibility pass source hashes,
+readiness, retained runtime `8bba9383f94c208c57c5f164eb1e75b566001aa3` and enforced development
+outbound safety. Public Notes/manifest hashes match reviewed payloads.
+Current role paths are the appropriate releases directory followed by
+`201300a314eb37bbade99bae98d587aef3ecd52d-notes-height`. The previous role paths use baseline
+`8bba9383f94c208c57c5f164eb1e75b566001aa3`. Frontend-only artifacts and receipts are retained
+under ignored output/notes-height-deploy; no backend/data/worker or production change.
