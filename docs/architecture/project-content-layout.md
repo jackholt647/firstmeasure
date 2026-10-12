@@ -14,9 +14,15 @@ width by default; Materials, Labor and Equipment occupy the remaining two thirds
 An app-owned draggable, keyboard accessible divider remembers the proportion
 locally. Mobile stacks the rail and resource content. There is no shared rail API.
 
-The rail has three compact icon tabs along its bottom: Scope of Work, 3D Roof
-and Photos. Scope of Work shows accepted document publishers first and
-published measurement datasets below. Document membership comes from persisted
+The rail has three compact icon tabs along its bottom: Measurements, Documents
+and Photos. Measurements is the default and is the 3D roof viewer with its key
+(line types, pitches and summary); the rail has no separate list of every
+published measurement, and one must not be added back.
+Documents mirrors Photos with a document viewer in place of the image viewer:
+the selected accepted document is rendered by FMDocRenderer above its published
+materials, and a strip beneath lists every accepted document, with the first
+selected. With no accepted documents the same viewer-above-strip layout stays,
+showing No document selected and No documents yet. There is no Scope of Work tab and no tile-then-Back navigation. Document membership comes from persisted
 material ledger origins, including an accepted snapshot identity, and requires a
 signed/completed document. Drafts, standalone presentations, document types and
 unpublished module instances do not establish membership. Materialized module
@@ -25,19 +31,10 @@ reads use the existing typed dataset publication provider and retain units. Olde
 completed reports use the authorized project-widget report/measurement contracts
 without importing data; incomplete reports remain excluded.
 
-Document tiles show retained contract totals when captured and material artifact
-counts. Hover/focus exposes a concise content preview. Opening a document
-tile replaces this rail's content with readable material details and
-the accepted snapshot rendered by FMDocRenderer; Back restores the tiles. This
-uses neither a modal nor a generic JSON instance viewer. Measurements appear
-directly below the documents, with every published value in compact inline editable rows. Each section
-measures labels and value widths and uses up to three columns when the rail width permits.
-Oversized labels move to full-width rows at the end of a section. Pitch breakdown is a two-row table with one column per pitch (a Pitch row above a Squares row) that scrolls sideways when the rail is narrow; the 3D roof key uses the same layout. Zero and unavailable measurements are hidden by default; the
-Measurements heading includes a Show zero measurements toggle. Editable values accept
-nonnegative decimal text, never exponent notation.
-Pitch and roofing-square explanations are inline control tooltips. Edits use project-local measurement overrides, never write to the published
-source, and have the existing override lifetime. Measurement cards have no hover
-tooltip or separate detail view.
+Each strip entry shows the retained contract total, document type and material
+count. The viewer uses neither a modal nor a generic JSON instance viewer. Measurement edits come from the roof key. They use project-local measurement
+overrides, never write to the published source, and have the existing override
+lifetime.
 
 The right side has a thin action header, described below. Ten pixels of padding match its gutter.
 Its three resource panes use the remaining height, scroll independently and narrow

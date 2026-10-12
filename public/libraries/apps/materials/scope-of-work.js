@@ -2,57 +2,6 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;',
 const dividers = new WeakMap(), sidebars = new WeakMap();
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString(undefined,{maximumFractionDigits:2}) : 'Unavailable';
 const label = value => String(value || '').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_.-]/g,' ').replace(/^./,c=>c.toUpperCase());
-// Presentation precision never changes the published source quantities.
-const measurementDefinitions = {
- roofArea:['Roof area','ft²','Area'],ventilationSquares:['Ventilated roof area','sq','Area'],roofSquares:['Roofing squares','sq','Area'],shingleSquares:['Shingle area','sq','Area'],flatRoofSquares:['Low slope · up to 2/12','sq','Pitch breakdown'],
- ridgesLf:['Ridges','ft','Roof edges'],hipsLf:['Hips','ft','Roof edges'],valleyLf:['Valleys','ft','Roof edges'],eavesLf:['Eaves','ft','Roof edges'],rakesLf:['Rakes','ft','Roof edges'],
- headWallLf:['Headwall flashing','ft','Flashing & openings'],sideWallLf:['Sidewall / step flashing','ft','Flashing & openings'],transitionsLf:['Transitions','ft','Flashing & openings'],parapetLf:['Parapet walls','ft','Flashing & openings'],protrusionLf:['Protrusion edges','ft','Flashing & openings'],chimneyBackLf:['Chimney back pan','ft','Flashing & openings'],chimneyStepLf:['Chimney step flashing','ft','Flashing & openings'],chimneyApronLf:['Chimney apron','ft','Flashing & openings'],skylightLf:['Skylight perimeter','ft','Flashing & openings'],unknownLf:['Unclassified edges','ft','Roof edges'],
- chimneysEa:['Chimneys','each','Counts'],skylightsEa:['Skylights','each','Counts'],pipeBootsEa:['Pipe boots','each','Counts'],structureCount:['Structures','each','Counts'],gutterLf:['Gutters','ft','Drainage'],downspoutLf:['Downspouts','ft','Drainage'],
- pitch2to4Squares:['Over 2/12–4/12','sq','Pitch breakdown'],pitch4to6Squares:['Over 4/12–6/12','sq','Pitch breakdown'],pitch6to8Squares:['Over 6/12–8/12','sq','Pitch breakdown'],pitch9to12Squares:['Over 8/12–12/12','sq','Pitch breakdown'],pitch13PlusSquares:['Over 12/12','sq','Pitch breakdown'],
- wallGrossArea:['Gross wall area','ft²','Exterior'],wallNetArea:['Net wall area','ft²','Exterior'],wallOpeningArea:['Wall openings','ft²','Exterior'],wallOpeningPerimeter:['Opening perimeter','ft','Exterior'],wallTopLf:['Wall top edges','ft','Exterior'],wallBottomLf:['Wall bottom edges','ft','Exterior'],wallTransitionsLf:['Wall transitions','ft','Exterior'],wallTerminationsLf:['Wall terminations','ft','Exterior'],insideCornersLf:['Inside corners','ft','Exterior'],outsideCornersLf:['Outside corners','ft','Exterior'],wallReturnsArea:['Wall returns','ft²','Exterior']
-};
-const friendlyUnits={ft2:'ft²',sqft:'ft²',roofing_square:'sq',ft:'ft',m2:'m²',ea:'each',count:'each',percent:'%',degree:'°'};
-function measurementInfo(key,row={}) {
- const known=measurementDefinitions[key],pitch=key.match(/^pitch(\d+(?:\.\d+)?)Squares$/);
- const unit=row.unit?(friendlyUnits[row.unit] || label(row.unit)):known?.[1] || '';
- return {name:known?.[0] || (pitch?`${pitch[1]}/12 pitch`:label(key).replace(/\bLf$/,'').replace(/\bEa$/,'')),unit,group:known?.[2] || (pitch?'Pitch breakdown':'Other measurements'),digits:unit==='ft²'||unit==='m²'||unit==='each'?0:unit==='ft'||unit==='m'?1:2};
-}
-function measurementValue(value,key,row={}) {const digits=measurementInfo(key,row).digits;return typeof value==='number'&&Number.isFinite(value)?Number(value.toFixed(digits)).toLocaleString('en-US',{useGrouping:false,maximumFractionDigits:digits}):'';}
-const compactNames={roofSquares:'Roof squares',ventilationSquares:'Ventilated area',headWallLf:'Head wall',sideWallLf:'Side wall',parapetLf:'Parapets',protrusionLf:'Protrusions',chimneyBackLf:'Back pan',chimneyStepLf:'Chimney',chimneyApronLf:'Chimney',unknownLf:'Unclassified'};
-function measurementTip(key,info,missing) {
- const notes=[info.name];
- if(info.group==='Pitch breakdown')notes.push('Pitch is rise per 12 inches of horizontal run. This value is the roof area at this pitch, in roofing squares.');
- if(info.unit==='sq')notes.push('1 roofing square = 100 square feet; roofing squares = roof area in square feet ÷ 100.');
- if(missing)notes.push('The source did not supply this measurement. Enter a value to use a project override.');
- return notes.join(' ');
-}
-// Each section measures its own labels; long flashing names must not force
-// short edge/pitch sections to use fewer columns. Recompute on rail resizing.
-export function fitMeasurementColumns(panel) {
- const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');const font=el=>{const style=getComputedStyle(el);return `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;};
- for(const grid of panel.querySelectorAll('.sw-measure-grid')) {
-  const fields=[...grid.children];if(!fields.length||!grid.clientWidth)continue;
-  fields.forEach((field,index)=>field.dataset.measureOrder ??= String(index));fields.sort((a,b)=>Number(a.dataset.measureOrder)-Number(b.dataset.measureOrder));
-  const widths=new Map();
-  for(const field of fields){const name=field.querySelector('.sw-measure-name'),unit=field.querySelector('small'),input=field.querySelector('input');ctx.font=font(input);const text=input.value||'—',digitWidth=Math.max(...'0123456789'.split('').map(digit=>ctx.measureText(digit).width)),textWidth=[...text].reduce((sum,char)=>sum+( /[0-9]/.test(char)?digitWidth:ctx.measureText(char).width),0),style=getComputedStyle(input),inset=parseFloat(style.paddingLeft)+parseFloat(style.paddingRight)+parseFloat(style.borderLeftWidth)+parseFloat(style.borderRightWidth);const inputWidth=Math.max(32,Math.min(72,Math.ceil(textWidth+inset+2)));field.style.setProperty('--sw-value-width',inputWidth+'px');ctx.font=font(name);const labelWidth=ctx.measureText(name.textContent).width;ctx.font=font(unit);widths.set(field,Math.ceil(labelWidth+Math.max(12,ctx.measureText(unit.textContent).width)+inputWidth+10));}
-  let columns=1,score=fields.length,wide=[];
-  for(let count=2;count<=Math.min(3,fields.length);count++){const available=(grid.clientWidth-12*(count-1))/count,overflow=fields.filter(field=>widths.get(field)>available),normal=fields.length-overflow.length;if(normal<count)continue;const cost=Math.ceil(normal/count)+overflow.length+overflow.length*.15;if(cost<score){columns=count;score=cost;wide=overflow;}}
-  grid.style.setProperty('--sw-measure-columns',columns);
-  for(const field of fields)field.classList.toggle('is-wide',wide.includes(field));
-  const ordered=[...fields.filter(field=>!wide.includes(field)),...wide],current=[...grid.children];
-  if(ordered.some((field,index)=>field!==current[index])){const focused=document.activeElement;ordered.forEach(field=>grid.append(field));if(grid.contains(focused))focused.focus({preventScroll:true});}
- }
-}
-function measurementFields(doc,showZero=false) {
- const values=doc.value?.measurements || {},keys=Object.keys(values),roof=keys.some(k=>k==='roofArea'||k==='roofSquares'),groups=new Map();
- // Show the full roof edge/flashing checklist, without inventing absent quantities.
- if(roof)for(const [key,definition] of Object.entries(measurementDefinitions))if(['Roof edges','Flashing & openings'].includes(definition[2])&&!keys.includes(key))keys.push(key);
- if(keys.some(k=>/^pitch\d+(?:\.\d+)?Squares$/.test(k)))for(let i=keys.length-1;i>=0;i--)if(/^pitch\d+to|^pitch13Plus|^flatRoofSquares$/.test(keys[i]))keys.splice(i,1);
- const order=['Area','Roof edges','Flashing & openings','Pitch breakdown','Counts','Drainage','Exterior','Other measurements'];
- keys.sort((a,b)=>{const ia=measurementInfo(a,values[a]),ib=measurementInfo(b,values[b]);return order.indexOf(ia.group)-order.indexOf(ib.group)||(ia.group==='Pitch breakdown' ? Number(a.match(/\d+/)?.[0]||0)-Number(b.match(/\d+/)?.[0]||0):0);});
- for(const key of keys){const row=values[key] || {};if(!showZero&&!(Number(row.value)>0))continue;const info=measurementInfo(key,row),tip=measurementTip(key,info,row.value==null);if(!groups.has(info.group))groups.set(info.group,[]);groups.get(info.group).push(info.group==='Pitch breakdown'?`<th scope="col" title="${esc(tip)}">${esc((compactNames[key] || info.name).replace(/ pitch$/, ''))}</th>\n<td title="${esc(tip)}"><input type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]*)?|[.][0-9]+" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="—" aria-label="${esc(info.name)}" aria-description="${esc(tip)}"></td>`:`<label class="sw-measure-field" title="${esc(tip)}"><span class="sw-measure-name">${esc(compactNames[key] || info.name)}</span><span><input type="text" inputmode="decimal" pattern="[0-9]+([.][0-9]*)?|[.][0-9]+" data-scope-measure="${esc(key)}" value="${esc(measurementValue(row.value,key,row))}" placeholder="—" aria-label="${esc(info.name)}" aria-description="${esc(tip)}"><small title="${esc(tip)}">${esc(info.unit)}</small></span></label>`);}
- return [...groups].map(([group,fields])=>`<section class="sw-measure-group"><h4>${esc(group)}</h4>${group==='Pitch breakdown'?`<div class="sw-pitch-scroll"><table class="sw-pitch-table"><tbody><tr><th scope="row">Pitch</th>${fields.map(field=>field.split('\n')[0]).join('')}</tr><tr><th scope="row" title="1 roofing square = 100 square feet">Squares</th>${fields.map(field=>field.split('\n')[1]).join('')}</tr></tbody></table></div>`:`<div class="sw-measure-grid">${fields.join('')}</div>`}</section>`).join('');
-}
 const money = (value,currency='USD') => {try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(value);}catch{return `${number(value)} ${currency}`;}};
 
 // Membership comes from persisted publications, never a document type or module draft.
@@ -125,27 +74,13 @@ export async function loadDocuments(orgId, projectId) {
   return {documents,error:failures.length?'Some published scope data could not load.':''};
 }
 
-function measurements(doc,limit=Infinity) {
-  return Object.entries(doc.value?.measurements || {}).slice(0,limit).map(([key,row])=>`<div class="sw-measure"><span>${esc(label(key))}</span><strong>${esc(number(row.value))} <small>${esc(row.unit)}</small></strong></div>`).join('');
-}
-function summary(doc) {
-  if(doc.source==='measurement')return measurements(doc,3);
-  const count=doc.sets?.reduce((n,s)=>n+s.lines.length,0) || 0;
-  return `<div class="sw-summary"><strong>${esc(doc.total || 'Accepted document')}</strong><span>${doc.sets?.length || 0} published material artifact${doc.sets?.length===1?'':'s'} · ${count} material${count===1?'':'s'}</span></div>`;
-}
-function tile(doc,index) {
-  return `<button type="button" class="sw-tile ${doc.source==='measurement'?'sw-tile-measurement':''}" data-scope-document="${esc(doc.id)}" aria-describedby="sw-preview-${index}">
-    <span class="sw-tile-heading"><i class="fas ${doc.source==='measurement'?'fa-ruler-combined':'fa-file-signature'}" aria-hidden="true"></i><strong>${esc(doc.title)}</strong></span>
-    ${summary(doc)}<span class="sw-tile-footer">${doc.source==='measurement'?'Published measurements':'Accepted · '+esc(label(doc.document_type))}<span aria-hidden="true">↗</span></span>
-    <span class="sw-hover" role="tooltip" id="sw-preview-${index}"><strong>${esc(doc.title)}</strong>${doc.source==='measurement'?measurements(doc,8):doc.sets.map(set=>`<span>${esc(set.title)}</span>${set.lines.slice(0,4).map(line=>`<span>${esc(line.name)} · ${esc(number(line.quantity))} ${esc(line.unit)}</span>`).join('') || '<span>Published calculation · awaiting generated quantities</span>'}`).join('')}<span>Open to see all published data</span></span></button>`;
-}
-export function renderDocuments(documents=[],error='',showZero=false) {
-  const docs=documents.filter(d=>d.source==='document'), measures=documents.filter(d=>d.source==='measurement');
-  return `<div class="sw-home"><section aria-label="Published scope documents"><h3>Scope documents</h3><div class="sw-tiles">${docs.map((d,i)=>tile(d,i)).join('') || '<p class="sw-empty">No accepted documents have published scope artifacts yet.</p>'}</div></section><section aria-label="Measurements"><div class="sw-measure-heading"><h3>Measurements</h3><label title="Include zero and unavailable measurements"><input type="checkbox" data-show-zero ${showZero?'checked':''}>Show zero measurements</label></div>${measures.map(doc=>`<div class="sw-measurements" data-measurement-source="${esc(doc.id)}">${measurementFields(doc,showZero)}</div>`).join('') || '<p class="sw-empty">No published measurements yet.</p>'}</section>${error?`<p role="status" class="sw-empty">${esc(error)}</p>`:''}</div>`;
+// One selectable entry per accepted document, like the Photos thumbnail row.
+export function renderDocumentStrip(documents=[],selectedId='') {
+  return documents.filter(d=>d.source==='document').map(doc=>{const count=doc.sets?.reduce((n,s)=>n+s.lines.length,0) || 0;return `<button type="button" class="sw-doc-thumb" data-scope-document="${esc(doc.id)}" aria-pressed="${doc.id===selectedId}" title="${esc(doc.title)}"><i class="fas fa-file-signature" aria-hidden="true"></i><span><strong>${esc(doc.title)}</strong><small>${esc([doc.total,'Accepted '+label(doc.document_type).toLowerCase(),count?`${count} material${count===1?'':'s'}`:''].filter(Boolean).join(' · '))}</small></span></button>`;}).join('');
 }
 function detail(doc) {
   const materials=(doc.sets || []).map(set=>`<section><h3>${esc(set.title)}</h3>${set.lines.length?`<div class="sw-table-wrap"><table><thead><tr><th>Material</th><th>Required</th><th>Order quantity</th><th>Unit cost</th></tr></thead><tbody>${set.lines.map(line=>`<tr><td><strong>${esc(line.name)}</strong>${line.variant?`<small>${esc(line.variant)}</small>`:''}${line.explanation?`<small>${esc(line.explanation)}</small>`:''}${line.group||line.structure?`<small>${esc([line.group,line.structure].filter(Boolean).join(' · '))}</small>`:''}</td><td>${esc(number(line.quantity))} ${esc(line.unit)}</td><td>${esc(number(line.order_quantity))} ${esc(line.order_unit)}</td><td>${line.unit_cost==null?'—':esc(money(line.unit_cost,line.currency))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="sw-empty">This accepted document published a material calculation. Quantities have not been generated yet.</p>'}${set.evaluations?.find(e=>e.id===set.applied_evaluation)?.warnings?.map(w=>`<p class="sw-empty">${esc(w)}</p>`).join('') || ''}</section>`).join('');
-  return `<div class="sw-detail"><button type="button" class="sw-back" data-scope-back>← Back</button><header><small>${doc.source==='measurement'?'Published measurements':'Accepted scope document'}</small><h2 tabindex="-1">${esc(doc.title)}</h2>${doc.total?`<strong class="sw-total">${esc(doc.total)}</strong>`:''}${doc.acceptedAt?`<p>Accepted ${esc(new Date(doc.acceptedAt).toLocaleDateString())}</p>`:''}</header>${doc.source==='measurement'?`<section>${measurements(doc)}<h3>Source artifacts</h3>${(doc.value.artifacts || []).map(a=>`<p>${esc(label(a.kind))}<small class="sw-source-id">${esc(a.id)}</small></p>`).join('')}</section>`:materials+'<section><h3>Accepted document</h3><div class="sw-document-stage" data-scope-stage></div></section>'}</div>`;
+  return `<header><small>Accepted ${esc(label(doc.document_type).toLowerCase())}${doc.acceptedAt?` · ${esc(new Date(doc.acceptedAt).toLocaleDateString())}`:''}</small><h2 tabindex="-1">${esc(doc.title)}</h2>${doc.total?`<strong class="sw-total">${esc(doc.total)}</strong>`:''}</header><div class="sw-document-stage" data-scope-stage></div>${materials}`;
 }
 let rendererReady;
 async function renderer() {
@@ -158,22 +93,24 @@ async function renderer() {
   })().catch(error=>{rendererReady=null;throw error;});
   await rendererReady;
 }
+const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-signature','Documents'],['aerial','fa-images','Photos']];
 export function mountSidebar(root,documents,error,contextKey,options={}) {
   let state=sidebars.get(root);
   if(!state || state.contextKey!==contextKey){
     disposeSidebar(root);
-    state={contextKey,selected:null,handle:null,view:'scope',widgets:{},visible:true,generation:0};sidebars.set(root,state);
-    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="scope"></div><div class="sw-panel" data-scope-panel="roof" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${[['scope','fa-file-contract','Scope of Work'],['roof','fa-cube','3D Roof'],['aerial','fa-images','Photos']].map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    state={contextKey,selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div></div><nav class="sw-tabs" role="tablist" aria-label="Project views">${VIEWS.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
       tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();tabs[event.key==='Home'?0:event.key==='End'?2:(index+(event.key==='ArrowRight'?1:2))%3].click();}};
     });
+    root.querySelectorAll('[data-scope-panel]').forEach(panel=>panel.setAttribute('role','tabpanel'));
     state.measurementViewers=new Set();
     // Mount both report views once, before the user selects them. Their DOM,
     // network results and viewer state survive all local tab changes.
     for(const key of ['roof','aerial']){
-      const stage=root.querySelector(`[data-scope-panel="${key}"]`);stage.setAttribute('role','tabpanel');
+      const stage=root.querySelector(`[data-scope-panel="${key}"]`);
       if(key==='aerial'){
         let handle,disposed=false,visible=false;
         state.widgets[key]={setVisible(value){visible=value;handle?.setVisible?.(value);},destroy(){disposed=true;handle?.destroy?.();},serialize(){return handle?.serialize?.();}};
@@ -188,38 +125,26 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
   const fingerprint=JSON.stringify([documents,error,options.measurementOverrides]);
   if(state.fingerprint===fingerprint)return;
   state.fingerprint=fingerprint;state.documents=documents;state.error=error;
-  const draw=()=>{
-    state.observer?.disconnect();state.handle?.destroy?.();state.handle=null;state.generation++;
-    const selected=state.documents.find(d=>d.id===state.selected);
-    const panel=root.querySelector('[data-scope-panel="scope"]');
-    const displayed=state.documents.map(doc=>doc.source==='measurement'?{...doc,value:{...doc.value,measurements:{...doc.value?.measurements,...Object.fromEntries(Object.entries(state.options.measurementOverrides||{}).map(([key,value])=>[key,{...doc.value?.measurements?.[key],value}]))}}}:doc);
-    panel.innerHTML=selected?detail(selected):renderDocuments(displayed,state.error,state.showZero===true);
-    for(const listener of state.measurementViewers||[])listener();
-    if(selected){
-      panel.querySelector('[data-scope-back]').onclick=()=>{const id=state.selected;state.selected=null;draw();[...panel.querySelectorAll('[data-scope-document]')].find(b=>b.dataset.scopeDocument===id)?.focus();};
-      panel.querySelector('h2')?.focus({preventScroll:true});
-      const stage=panel.querySelector('[data-scope-stage]'),generation=state.generation;
-      if(stage){stage.textContent='Loading accepted document…';renderer().then(()=>{
-        if(!stage.isConnected || state.generation!==generation)return;
-        const snapshot=selected.snapshot,definition=snapshot.resolved_definition;
-        const dims=window.FMDocModel?.paperDimensions?.(definition) || {w_pt:612};
-        const paint=()=>{state.handle?.destroy?.();stage.innerHTML='';state.handle=window.FMDocRenderer.render(stage,{document:definition,mode:'static',readonly:true,widgetData:snapshot.widget_data || {},widgetContext:{params:snapshot.params || {},outputs:snapshot.outputs || {}},theme:snapshot.theme,themeContext:{overrides:snapshot.theme_vars || {}},scale:Math.min(1,Math.max(0.1,stage.clientWidth/(dims.w_pt*96/72)))});};
-        paint();state.observer=new ResizeObserver(()=>{if(stage.isConnected&&stage.clientWidth)paint();});state.observer.observe(stage);
-      }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
-    }else {
-      panel.querySelector('[data-show-zero]')?.addEventListener('change',event=>{state.showZero=event.target.checked;draw();});
-      fitMeasurementColumns(panel);state.observer=new ResizeObserver(()=>fitMeasurementColumns(panel));state.observer.observe(panel);document.fonts?.ready.then(()=>{if(panel.isConnected)fitMeasurementColumns(panel);});
-      panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;draw();});
-      panel.querySelectorAll('[data-scope-measure]').forEach(input=>{
-        const key=input.dataset.scopeMeasure;
-        if(Object.hasOwn(state.options.measurementOverrides || {},key))input.value=measurementValue(state.options.measurementOverrides[key],key);
-        let valid=input.value;
-        input.oninput=()=>{if(!/^\d*(?:\.\d*)?$/.test(input.value))input.value=valid;else valid=input.value;};
-        input.onkeydown=event=>{if(['e','E','+','-'].includes(event.key))event.preventDefault();};
-        input.onchange=()=>{if(input.value!==''&&input.checkValidity()&&Number.isFinite(Number(input.value))){const value=Number(input.value);state.editMeasurement(key,value);input.value=measurementValue(value,key);valid=input.value;fitMeasurementColumns(panel);}else input.value=valid;};
-      });
-    }
+  // Documents: the selected accepted document fills the viewer and every accepted document sits in the strip beneath it.
+  const drawDocuments=()=>{
+    const panel=root.querySelector('[data-scope-panel="documents"]'),accepted=state.documents.filter(d=>d.source==='document');
+    const selected=accepted.find(d=>d.id===state.selected)||accepted[0]||null,key=JSON.stringify([accepted,selected?.id,state.error]);
+    if(state.documentsKey===key)return;
+    state.documentsKey=key;state.selected=selected?.id||null;state.stageObserver?.disconnect();state.handle?.destroy?.();state.handle=null;const generation=++state.generation;
+    panel.innerHTML=`<div class="sw-docs"><div class="sw-detail sw-doc-viewer">${selected?detail(selected):`<div class="sw-doc-empty" role="status"><i class="fas fa-file-lines" aria-hidden="true"></i><strong>No document selected</strong><span>${esc(state.error || 'Signed proposals and contracts for this project open here.')}</span></div>`}</div><div class="sw-doc-strip" aria-label="Accepted documents">${accepted.length?renderDocumentStrip(accepted,selected.id):'<span class="sw-doc-strip-empty">No documents yet</span>'}</div></div>`;
+    panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;drawDocuments();[...panel.querySelectorAll('[data-scope-document]')].find(b=>b.dataset.scopeDocument===state.selected)?.focus();});
+    const stage=panel.querySelector('[data-scope-stage]');
+    if(stage){stage.textContent='Loading accepted document…';renderer().then(()=>{
+      if(!stage.isConnected || state.generation!==generation)return;
+      const snapshot=selected.snapshot,definition=snapshot.resolved_definition;
+      const dims=window.FMDocModel?.paperDimensions?.(definition) || {w_pt:612};
+      let width=0;const paint=()=>{if(!stage.clientWidth||stage.clientWidth===width)return;width=stage.clientWidth;state.handle?.destroy?.();stage.innerHTML='';state.handle=window.FMDocRenderer.render(stage,{document:definition,mode:'static',readonly:true,widgetData:snapshot.widget_data || {},widgetContext:{params:snapshot.params || {},outputs:snapshot.outputs || {}},theme:snapshot.theme,themeContext:{overrides:snapshot.theme_vars || {}},scale:Math.min(1,Math.max(0.1,width/(dims.w_pt*96/72)))});};
+      // The panel is hidden until its tab is chosen; paint when it first has a width and again on resize.
+      paint();state.stageObserver=new ResizeObserver(()=>{if(stage.isConnected)paint();});state.stageObserver.observe(stage);
+    }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
   };
+  // Measurement edits come from the roof key; its open viewers re-read the merged values.
+  const draw=()=>{for(const listener of state.measurementViewers||[])listener();drawDocuments();};
   state.editMeasurement=(key,value)=>{state.options={...state.options,measurementOverrides:{...state.options.measurementOverrides,[key]:value}};state.options.onMeasurementChange?.(key,value);draw();};
   draw();
 }
@@ -229,7 +154,7 @@ function showViews(root,state){
   for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key);
   window.dispatchEvent(new Event('resize'));
 }
-export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.handle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
+export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
 export function setSidebarVisible(root,visible){const state=sidebars.get(root);if(state){state.visible=visible;showViews(root,state);}}
 
 export function installDivider(sidebar) {

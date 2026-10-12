@@ -45,11 +45,18 @@ async function open(browser, { pinned = null } = {}) {
       const project = () => ({ name: 'Maple Street' });
       const showToast = (...args) => window.calls.push(['toast', ...args]);
       const errorMessage = (error, fallback) => (error && error.message) || fallback;
-      const api = () => ({ documents: { settings: async () => ({ settings: { pinned_template_ids: window.__pinned } }), pinTemplates: async (org, ids) => { window.calls.push(['pin', ids]); return { ok: true }; }, types: async () => window.__types, saveTypes: async (org, types, assignments) => { window.calls.push(['types', types, assignments]); window.__types = { ...window.__types, types: types.map((type, index) => ({ ...type, id: type.id || 'new_' + index })), assignments }; return window.__types; } } });
+      const api = () => ({ workflows: { get: async () => { await new Promise((r) => setTimeout(r, 400)); return { definition: { steps: [{ id: 's' }] } }; } }, documents: { settings: async () => ({ settings: { pinned_template_ids: window.__pinned } }), pinTemplates: async (org, ids) => { window.calls.push(['pin', ids]); return { ok: true }; }, types: async () => window.__types, saveTypes: async (org, types, assignments) => { window.calls.push(['types', types, assignments]); window.__types = { ...window.__types, types: types.map((type, index) => ({ ...type, id: type.id || 'new_' + index })), assignments }; return window.__types; } } });
       const loadCatalog = async () => ({ types: [['proposal','Proposal'],['contract','Contract'],['change_order','Change Order'],['invoice','Invoice'],['completion_certificate','Completion Certificate'],['document','Document']].map(([id, label]) => ({ id, label })) });
       const loadTemplates = async () => window.__templates;
       const startPaperUpload = (templateId, type) => window.calls.push(['upload', templateId, type]);
       const ensureInlineStyles = () => {};
+      const ensureWorkflowRuntime = () => new Promise((r) => setTimeout(() => r({}), 400));
+      const normalizeWorkflowRecord = (record) => record;
+      const showOpeningScreen = (title) => { window.calls.push(['opening', title, Math.round(performance.now() - window.__clicked)]); return { cancel(){ window.calls.push(['opening-cancel']); } }; };
+      const createDocumentRecord = async (body) => { window.calls.push(['createDoc', body.template_id]); return { document: { id: 'd1' } }; };
+      const rememberStandaloneDoc = () => {};
+      const loadDocs = () => {};
+      const openWorkflowView = (doc) => window.calls.push(['openWorkflow', doc.id]);
       const templateDefinition = async () => ({ params: {} });
       const paramFieldHtml = () => '';
     `;
@@ -116,6 +123,28 @@ test('New document shows the everyday templates pinned, the user\'s departments,
     await page.locator('.fmdx-tpl-grid [data-pick-template="tpl_quick"]').click();
     await page.waitForFunction(() => window.calls.some((call) => call[0] === 'create'));
     assert.deepEqual(await page.evaluate(() => window.calls.find((call) => call[0] === 'create')), ['create', 'proposal', 'tpl_quick']);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('picking a template with a workflow answers at once and cannot be clicked twice', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await open(browser);
+    await page.evaluate(() => { window.__templates.find((tpl) => tpl.id === 'tpl_quick').metadata = { default_workflow_id: 'wf_quick' }; });
+    const tile = page.locator('.fmdx-tpl-grid [data-pick-template="tpl_quick"]');
+    await page.evaluate(() => { window.__clicked = performance.now(); });
+    // Two clicks in quick succession, as an impatient hand does.
+    await tile.evaluate((el) => { el.click(); el.click(); });
+    // The document screen is asked for in the same tick and the dialog steps out of the way.
+    const first = await page.evaluate(() => window.calls.filter((call) => call[0] === 'opening'));
+    assert.equal(first.length, 1, 'one opening screen');
+    assert.equal(first[0][1], 'Quick roof quote');
+    assert.ok(first[0][2] < 50, `opening screen after ${first[0][2]}ms`);
+    assert.equal(await page.locator('.fmdx-modal-back').evaluate((el) => getComputedStyle(el).display), 'none');
+    await page.waitForFunction(() => window.calls.some((call) => call[0] === 'openWorkflow'));
+    assert.deepEqual(await page.evaluate(() => window.calls.filter((call) => call[0] === 'createDoc')), [['createDoc', 'tpl_quick']]);
+    assert.equal(await page.locator('.fmdx-modal-back').count(), 0, 'dialog closed once the document opens');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

@@ -29,8 +29,8 @@ test('only accepted artifact publishers and published measurement datasets appea
     assert.deepEqual(result.documents.map(doc=>doc.id),['proposal:accepted','roof']);
     assert.equal(result.documents[0].total,'$12,345.00');
     assert.ok(calls.every(path=>!path.includes('document-modules')));
-    const html=module.renderDocuments(result.documents);
-    assert.match(html,/Roof proposal/);assert.match(html,/Measurements/);assert.match(html,/value="1400"/);assert.doesNotMatch(html,/draft|presentation|JSON/);
+    const html=module.renderDocumentStrip(result.documents,'proposal:accepted');
+    assert.match(html,/Roof proposal/);assert.match(html,/\$12,345\.00/);assert.match(html,/aria-pressed="true"/);assert.equal(html.match(/data-scope-document=/g).length,1);assert.doesNotMatch(html,/draft|presentation|JSON|Roof report/);
     assert.equal(result.error,'');
     window.PlatformAPI.request=async()=>{throw Error('denied')};window.PlatformAPI.publication.list=async()=>{throw Error('denied')};
     const denied=await module.loadDocuments('org','project');assert.equal(denied.documents.length,0);assert.match(denied.error,/could not load/);
@@ -134,23 +134,21 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.FirstMateWidgets={mount(root,ref,context){window.roofContext=context;widgetMounts.push(ref.id);root.innerHTML='<div>Cached '+ref.id+'</div>';return {setVisible(){},destroy(){widgetDestroyed++;}};}};
       helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project');
     });
-    const tile=page.locator('[data-scope-document="contract"]');
-    await tile.hover();assert.ok(await tile.getByRole('tooltip').isVisible());
-    await page.locator('[data-scope-document="contract"]').click();
+    assert.equal(await page.getByRole('tab',{name:'Measurements',exact:true}).getAttribute('aria-selected'),'true');assert.ok(await page.getByText('Cached reports.roof').isVisible());
+    await page.getByRole('tab',{name:'Documents',exact:true}).click();
+    const tile=page.locator('[data-scope-document="contract"]');assert.equal(await tile.getAttribute('aria-pressed'),'true');
     await page.getByText('Rendered accepted roof contract').waitFor();
     assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>renderedSnapshot.id),'captured-definition');assert.deepEqual(await page.evaluate(()=>renderedContext),{params:{contract_value:12345},outputs:{signed:true}});
-    assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());
-    await page.getByRole('button',{name:'Back',exact:false}).click();assert.ok(await tile.isVisible());
-    assert.equal(await page.locator('[data-scope-document="report"]').count(),0);
-    assert.equal(await page.locator('[data-scope-measure="roofArea"]').inputValue(),'1400');
-    assert.equal(await page.locator('.sw-measurements [role=tooltip]').count(),0);
-    for(let i=0;i<3;i++){await page.getByRole('tab',{name:'3D Roof',exact:true}).click();await page.getByRole('tab',{name:'Photos',exact:true}).click();await page.getByRole('tab',{name:'Scope of Work',exact:true}).click();}
+    assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());assert.equal(await page.getByRole('button',{name:'Back',exact:false}).count(),0);
+    assert.equal(await page.locator('[data-scope-document="report"]').count(),0);assert.equal(await page.locator('aside [data-scope-measure],aside details').count(),0);
+    for(let i=0;i<3;i++){await page.getByRole('tab',{name:'Documents',exact:true}).click();await page.getByRole('tab',{name:'Photos',exact:true}).click();await page.getByRole('tab',{name:'Measurements',exact:true}).click();}
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1500},onMeasurementChange:(key,value)=>window.edited={key,value}}));
-    assert.equal(await page.locator('[data-scope-measure="roofArea"]').inputValue(),'1500');
-    await page.locator('[data-scope-measure="roofArea"]').fill('1600');await page.locator('[data-scope-measure="roofArea"]').press('Tab');
-    assert.deepEqual(await page.evaluate(()=>edited),{key:'roofArea',value:1600});await page.evaluate(()=>roofContext.onMeasurementChange('roofArea',1750));assert.equal(await page.locator('[data-scope-measure=roofArea]').inputValue(),'1750');assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1750);
-    assert.deepEqual(await page.evaluate(()=>widgetMounts),['reports.roof']);assert.equal(await page.evaluate(()=>widgetDestroyed),0);
-    assert.equal(await page.getByRole('tab').count(),3);assert.ok(await page.getByRole('tab',{name:'Scope of Work'}).isVisible());
+    assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1500);await page.evaluate(()=>roofContext.onMeasurementChange('roofArea',1750));assert.deepEqual(await page.evaluate(()=>edited),{key:'roofArea',value:1750});assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1750);
+    await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs.filter(doc=>doc.source!=='document'),'','org:empty'));await page.getByRole('tab',{name:'Documents',exact:true}).click();
+    assert.ok(await page.getByText('No document selected',{exact:true}).isVisible());assert.ok(await page.getByText('No documents yet',{exact:true}).isVisible());const emptyViewer=await page.locator('.sw-doc-viewer').boundingBox(),emptyStrip=await page.locator('.sw-doc-strip').boundingBox();assert.ok(emptyViewer.height>emptyStrip.height*3&&emptyStrip.y>=emptyViewer.y+emptyViewer.height-1);
+    await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1750}}));
+    assert.deepEqual(await page.evaluate(()=>widgetMounts),['reports.roof','reports.roof','reports.roof']);
+    assert.equal(await page.getByRole('tab').count(),3);assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['Measurements','Documents','Photos']);
     const widths=()=>page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width));
     let w=await widths();assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),3);
     await page.evaluate(()=>{state.lists=[{id:'m',title:'Materials',resource_type:'material'},{id:'l',title:'Labor',resource_type:'labor'}];state.visibleListIds=new Set(['m','l']);items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});
@@ -164,32 +162,6 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
     await divider.focus();await page.keyboard.press('Home');assert.equal(await divider.getAttribute('aria-valuenow'),'20');
     await page.setViewportSize({width:390,height:844});assert.equal(await divider.isVisible(),false);
   } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
-});
-
-
-test('real report values have rounded editable quantities, full edge coverage and readable pitch units',async()=>{
- const values={hipsLf:{value:166.4845006259476,unit:'ft'},roofArea:{value:4518,unit:'ft2'},roofSquares:{value:45.18,unit:'roofing_square'},pitch2to4Squares:{value:9.95999999999999,unit:'roofing_square'},chimneyStepLf:{value:12.3789,unit:'ft'},skylightLf:{value:9.5632,unit:'ft'}};
- const html=module.renderDocuments([{id:'report',source:'measurement',value:{measurements:values}}],'',true);
- assert.match(html,/value="166.5"/);assert.match(html,/value="9.96"/);assert.match(html,/Over 2\/12–4\/12/);assert.match(html,/Chimney step flashing/);assert.match(html,/Skylight perimeter/);assert.match(html,/ft²/);assert.doesNotMatch(html,/166\.4845|roofing_square|Hips Lf|Pitch2to4Squares/);
- const exact=module.renderDocuments([{id:'report',source:'measurement',value:{measurements:{...values,pitch3Squares:{value:9.96,unit:'roofing_square'},pitch7Squares:{value:32.64,unit:'roofing_square'}}}}]);assert.match(exact,/3\/12 pitch/);assert.doesNotMatch(exact,/Over 2\/12/);
- assert.match(exact,/<table class="sw-pitch-table">/);assert.match(exact,/<tr><th scope="row">Pitch<\/th><th scope="col"[^>]*>3\/12<\/th><th scope="col"[^>]*>7\/12<\/th><\/tr><tr><th scope="row"[^>]*>Squares<\/th><td[^>]*><input[^>]*data-scope-measure="pitch3Squares"[^>]*><\/td><td[^>]*><input[^>]*data-scope-measure="pitch7Squares"[^>]*><\/td><\/tr>/);
- const browser=await chromium.launch({channel:'chrome',headless:true});
- try {const page=await browser.newPage({viewport:{width:590,height:1000}});await page.setContent('<div class="r-overlay materials-workspace"><aside class="mt-widget-sidebar" style="width:540px">'+html+'</aside></div>');await page.evaluate(css=>{(0,eval)(css);const style=document.createElement('style');style.textContent=window.css();document.head.append(style);},fn('css'));
- await page.evaluate(async helper=>{window.scopeModule=(await import('data:text/javascript;base64,'+btoa(unescape(encodeURIComponent(helper)))));window.fitMeasurements=scopeModule.fitMeasurementColumns;fitMeasurements(document.body);},helper);
- assert.equal(await page.locator('[data-scope-measure]').count(),18);assert.equal(await page.locator('[data-scope-measure="parapetLf"]').inputValue(),'');assert.equal(await page.getByLabel('Hips',{exact:true}).inputValue(),'166.5');
- const a=await page.getByLabel('Hips',{exact:true}).boundingBox(),b=await page.getByLabel('Ridges',{exact:true}).boundingBox();assert.ok(Math.abs(a.y-b.y)<2);assert.ok(b.x>a.x);
- assert.equal(await page.locator('.sw-measure-grid').nth(1).evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),3);
- assert.equal(await page.locator('.sw-measure-grid').nth(2).evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),3);
- const field=page.locator('[data-scope-measure="roofSquares"]').locator('..').locator('..');const name=await field.locator('.sw-measure-name').boundingBox(),value=await field.locator('input').boundingBox();assert.ok(Math.abs((name.y+name.height/2)-(value.y+value.height/2))<2);
- assert.equal(await page.locator('.sw-measure-note').count(),0);assert.match(await field.getAttribute('title'),/100 square feet/);assert.ok((await page.locator('.sw-measurements').boundingBox()).height<420);
- await page.evaluate(values=>{const rail=document.querySelector('aside');rail.style.height='650px';rail.style.display='flex';rail.style.flexDirection='column';scopeModule.mountSidebar(rail,[{id:'report',source:'measurement',value:{measurements:values}}],'','density-resize',{onMeasurementChange:(key,value)=>window.changedMeasurement={key,value}});rail.querySelector('[data-show-zero]').click();rail.style.width='310px';},values);await page.waitForFunction(()=>getComputedStyle(document.querySelectorAll('.sw-measure-grid')[1]).gridTemplateColumns.split(' ').length===2);assert.equal(await page.locator('.sw-measure-grid').nth(1).evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2);
- const narrow=page.locator('.sw-measure-grid').nth(2);assert.equal(await narrow.evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2);assert.ok(await narrow.locator('.is-wide').count()>0);assert.ok(await narrow.locator('label').last().evaluate(e=>e.classList.contains('is-wide')));const wide=await narrow.locator('.is-wide').first().boundingBox(),gridBox=await narrow.boundingBox();assert.ok(Math.abs(wide.width-gridBox.width)<1);assert.ok((await page.getByLabel('Hips',{exact:true}).boundingBox()).width<50);
- const head=page.locator('[data-scope-measure="headWallLf"]');await head.fill('e-3');assert.equal(await head.inputValue(),'');await head.fill('0.003');await head.press('Tab');assert.equal(await head.inputValue(),'0');assert.deepEqual(await page.evaluate(()=>changedMeasurement),{key:'headWallLf',value:0.003});
- await page.locator('[data-show-zero]').uncheck();assert.equal(await page.locator('[data-scope-measure="parapetLf"]').count(),0);await page.locator('[data-show-zero]').check();assert.equal(await page.locator('[data-scope-measure="parapetLf"]').count(),1);
- await page.evaluate(()=>{document.querySelector('aside').style.width='850px';});await page.waitForFunction(()=>getComputedStyle(document.querySelectorAll('.sw-measure-grid')[2]).gridTemplateColumns.split(' ').length===3);assert.equal(await page.locator('.sw-measure-grid').nth(2).evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),3);
- await page.evaluate(()=>{document.querySelector('aside').style.width='540px';document.body.style.fontFamily='Arial,sans-serif';fitMeasurements(document.body);});
- await mkdir(new URL('../../../output/project-measurement-fit-20261010/',import.meta.url),{recursive:true});await page.screenshot({path:new URL('../../../output/project-measurement-fit-20261010/measurements.png',import.meta.url).pathname.replace(/^\/(\w:)/,'$1'),fullPage:true});
- }finally{await browser.close();}
 });
 
 
