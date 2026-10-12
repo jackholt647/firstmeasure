@@ -913,10 +913,14 @@ test("10DLC compliance profile workflow saves drafts and builds dry-run provider
       optInDisclosure: "Receive customer care, appointment notices, and marketing texts from FirstMate Test. Message frequency varies. Message & data rates may apply. Reply STOP to opt out or HELP for help. Consent is not a condition of purchase. Mobile information will not be shared with third parties for marketing.",
       policyContentConfirmed: true,
       websiteFormConfirmed: true,
-      sample3: "FirstMate Test: Our fall roof inspection offer is available this week. Reply STOP to opt out."
+      sample3: "FirstMate Test: Our fall roof inspection offer is available this week. Reply STOP to opt out.",
+      sample4: "FirstMate Test: Join our open house this Saturday to explore our services. Reply STOP to opt out."
     }
   });
   assert.equal(lowVolume.profile.validation.campaign.ok, true);
+  const missingMarketing=await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`,{campaign:{sample4:""}});
+  assert.ok(missingMarketing.profile.validation.campaign.missing.includes("marketingDescriptionAndSamples"));
+  await client.request("PATCH", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}`,{campaign:{sample4:lowVolume.profile.campaign.sample4}});
   const lowVolumeDryRun = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${profileId}/submit-campaign`, { dry_run: true });
   assert.equal(lowVolumeDryRun.payload.usecase, "LOW_VOLUME");
   assert.deepEqual(lowVolumeDryRun.payload.subUsecases, ["CUSTOMER_CARE", "ACCOUNT_NOTIFICATION", "MARKETING"]);

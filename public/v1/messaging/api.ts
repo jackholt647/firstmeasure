@@ -683,7 +683,8 @@ function validateCampaignDraft(campaignInput: JsonObject) {
       || !/marketing|promotional/i.test(cleanText(campaignInput.messageFlow))
       || !/marketing|promotional/i.test(disclosure)
       || !/consent is not a condition of purchase|not required (?:to|for) (?:a )?purchase/i.test(disclosure)
-      || !nonEmpty(campaignInput.sample3))) missing.push("marketingDescriptionAndSamples");
+      || !nonEmpty(campaignInput.sample3) || !nonEmpty(campaignInput.sample4)
+      || cleanText(campaignInput.sample3) === cleanText(campaignInput.sample4))) missing.push("marketingDescriptionAndSamples");
     if (campaignMessageFlow(campaignInput).length > 2048) missing.push("messageFlowMaxLength");
   }
   if (normalizeBoolean(campaignInput.subscriberOptin, true) && !nonEmpty(campaignInput.optinMessage)) {

@@ -5178,6 +5178,7 @@
       const company = smsCompanyName(base);
       const companyKnown = Boolean(String(base.brand?.displayName || base.brand?.companyName || '').trim());
       const includesMarketing = selectedIds.includes('customer_growth');
+      const startPurposes = [selectedIds.includes('crm_conversations') && 'customer care', selectedIds.includes('operations') && 'updates', includesMarketing && 'marketing'].filter(Boolean).join(', ');
       const featureLabels = selected.map((feature) => feature.label.toLowerCase()).join(', ');
       const website = String(base.brand?.website || '').trim();
       const soleProprietor = String(base.brand?.entityType || '').toUpperCase() === 'SOLE_PROPRIETOR';
@@ -5200,7 +5201,7 @@
         optinKeywords: 'START',
         optoutKeywords: 'STOP',
         helpKeywords: 'HELP',
-        optinMessage: `${company}: You are subscribed to SMS. Message frequency varies. Msg & data rates may apply. Reply HELP for help or STOP to opt out.`,
+        optinMessage: smsHasProviderCampaign(base) && base.campaign.optinMessage ? base.campaign.optinMessage : `${company}: Subscribed to ${startPurposes || 'business'} texts. Msg freq varies. Msg & data rates may apply. HELP for help; STOP to opt out.${includesMarketing ? ' Consent is not a condition of purchase.' : ''}`,
         optoutMessage: `${company}: You are unsubscribed and will receive no more SMS messages. Reply START to resubscribe.`,
         helpMessage: `${company} SMS: Help at ${String(base.brand?.email || 'support').trim()}. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.`,
         embeddedLink: /https?:\/\//i.test([base.campaign.sample1, base.campaign.sample2, base.campaign.sample3, base.campaign.sample4, base.campaign.sample5].filter(Boolean).join(' ')),
@@ -5524,6 +5525,8 @@
           requireFields(brand, [['stockSymbol', 'Stock symbol'], ['stockExchange', 'Stock exchange']]);
         }
         if (!smsValidWebsite(brand.website)) missing.push('Valid website');
+        if (String(campaign.description || '').trim().length < 40) missing.push('Campaign description of at least 40 characters');
+        if (smsSelectedFeatures(profile).includes('customer_growth') && !/marketing|promotional/i.test(String(campaign.description || ''))) missing.push('Campaign description: mention marketing or promotional texts');
       } else if (step === 'contact') {
         requireFields(brand, [
           ['street', 'Street address'],
@@ -5588,7 +5591,11 @@
           if (!smsNoThirdPartyMarketingSharing(disclosure)) missing.push('Consent script: state that mobile or SMS opt-in data is not shared with third parties for marketing');
         }
         if (smsSelectedFeatures(profile).length < 2 && String(brand.entityType || '').toUpperCase() !== 'SOLE_PROPRIETOR') missing.push('At least two Low Volume Mixed purposes');
-        if (smsSelectedFeatures(profile).includes('customer_growth') && !smsValuePresent(campaign.sample3)) missing.push('Marketing sample message');
+        if (smsSelectedFeatures(profile).includes('customer_growth')) {
+          if (!smsValuePresent(campaign.sample3)) missing.push('Sample message 3: first marketing message');
+          if (!smsValuePresent(campaign.sample4)) missing.push('Sample message 4: second marketing message');
+          if (campaign.sample3 && campaign.sample4 && campaign.sample3.trim() === campaign.sample4.trim()) missing.push('Sample message 4: use a different marketing message');
+        }
         if (smsSelectedFeatures(profile).includes('customer_growth')) {
           if (!/marketing|promotional/i.test(String(campaign.description || ''))) missing.push('Campaign description: mention marketing or promotional texts');
           if (!/marketing|promotional/i.test(String(campaign.messageFlow || ''))) missing.push('Opt-in flow: mention marketing or promotional texts');
@@ -5620,7 +5627,7 @@
       if (/Consent acknowledgement/.test(text)) return { step: 'summary', selector: '[data-sms-consent-ack]' };
       if (/Opt-in flow confirmation/.test(text)) return { step: 'consent', selector: '[data-sms-flow-ack]' };
       const fields = [
-        [/Campaign description/i, 'description', 'messages'],
+        [/Campaign description/i, 'description', 'business'],
         [/Marketing sample/i, 'sample3', 'messages'],
         [/Sample (?:SMS )?message 1/i, 'sample1', 'messages'],
         [/Sample (?:SMS )?message 2/i, 'sample2', 'messages'],
@@ -5656,7 +5663,7 @@
         consent: ['How do customers say yes?', ''],
         messages: ['Show what customers will receive', ''],
         number: ['Choose your business number', 'This will be your sending number once carrier registration is approved.'],
-        summary: ['One last look', 'Review your details, confirm your consent practices, and submit for carrier registration.']
+        summary: ['Review and Submit', 'Review your details, confirm your consent practices, and submit for carrier registration.']
       }[step];
       if (!copy) return '';
       return `<header class="sms-step-heading"><span class="sms-eyebrow">STEP ${smsSteps.findIndex(item => item.id === step) + 1} OF ${smsSteps.length}</span><h2>${copy[0]}</h2>${copy[1] ? `<p>${copy[1]}</p>` : ''}</header>`;
@@ -5696,7 +5703,7 @@
       return {
         cls: '',
         icon: 'fa-circle',
-        label: isActive && issues.length ? `Needs ${issues.length} item${issues.length === 1 ? '' : 's'}` : step.note
+        label: isActive && issues.length ? `Needs ${issues.length} item${issues.length === 1 ? '' : 's'}` : ''
       };
     }
     function smsFinalFeaturePills(profile){
@@ -5844,13 +5851,11 @@
         <ul class="sms-evidence-list">${smsEvidence(c).map((item,index)=>`<li><a href="${escapeHtml(smsValidHttpsUrl(item.url)?item.url:'#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.name || 'Evidence link')}</a><button type="button" class="sms-text-button" data-sms-remove-evidence="${index}" aria-label="Remove ${escapeHtml(item.name || 'evidence link')}">Remove</button></li>`).join('')}</ul>
         <div class="sms-evidence-actions"><button type="button" class="cs-btn" data-sms-upload-trigger>Upload files</button><input hidden id="sms-evidence-file" type="file" multiple data-sms-evidence-upload accept="application/pdf,image/png,image/jpeg"><button type="button" class="sms-text-button" data-sms-add-link>Add a link</button><span class="sms-muted">PDF, PNG or JPEG · 5 MB per file</span></div>
         <div class="sms-evidence-link-entry" hidden data-sms-link-entry><div class="sms-field"><label for="sms-evidence-link">Public evidence link</label><input id="sms-evidence-link" inputmode="url" placeholder="example.com/consent"></div><button type="button" class="cs-btn" data-sms-save-link>Add</button></div>
-        <p class="sms-evidence-feedback" data-sms-upload-status role="status"></p><p class="sms-muted">Attachments are shared with Telnyx through public review links.</p></section></section>
+        <p class="sms-evidence-feedback" data-sms-upload-status role="status"></p></section></section>
         <section class="sms-section"><h3>Public policies</h3><div class="sms-consent-box"><p>Your privacy policy should explain what information you collect, how you use it, how customers contact you, and that SMS opt-in data is not shared with third parties for marketing.</p><p>Your SMS terms should identify the business, describe the message types and frequency, disclose message/data rates, explain STOP and HELP, provide support contact details, and link to your privacy policy. Marketing consent cannot be a condition of purchase. Publish both pages where anyone can open them.</p></div>
         <div class="sms-form-grid">${link('privacyPolicyLink','Privacy policy',c.privacyPolicyLink,true)}${link('termsAndConditionsLink','SMS terms',c.termsAndConditionsLink,true)}</div>
-        ${smsExample('Open example privacy policy — SMS section',`${brand} collects your mobile number and SMS consent record to send the messages you requested. We retain consent and opt-out records to manage your choices. Mobile information, SMS opt-in data, and consent will not be sold or shared with third parties for their marketing or promotional purposes. We may use service providers solely to deliver and support our messaging service. You can opt out by replying STOP. Contact [support email] about privacy requests.
-
-Add your actual data collection, retention, security, sharing, and customer-rights practices to your full privacy policy.`)}
-        ${smsExample('Open example SMS terms',`${brand} SMS Program
+        ${smsExample('See an example privacy policy: SMS section',`${brand} collects your mobile number and SMS consent record to send the messages you requested. We retain consent and opt-out records to manage your choices. Mobile information, SMS opt-in data, and consent will not be sold or shared with third parties for their marketing or promotional purposes. We may use service providers solely to deliver and support our messaging service. You can opt out by replying STOP. Contact [support email] about privacy requests.`)}
+        ${smsExample('See an example of SMS terms',`${brand} SMS Program
 By opting in, you agree to receive ${purposes}. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for assistance. Contact [support email or phone]. ${marketing ? 'Consent is not a condition of purchase. ' : ''}Carriers are not liable for delayed or undelivered messages. See our Privacy Policy at [privacy URL].`)}</section></div>`;
     }
     function smsMessagesContent(profile){
@@ -5860,13 +5865,13 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       const examples = [
         `Hi Jane, this is ${brand}. Thanks for contacting us. How can we help with your project? Reply STOP to opt out.`,
         `Hi Jane, this is ${brand}. Your appointment is confirmed for tomorrow at 10:00 AM. Reply HELP for help or STOP to opt out.`,
-        `Hi Jane, ${brand} has a seasonal offer available this week. Contact us for details. Reply STOP to opt out.`
+        `Hi Jane, ${brand} has a seasonal offer available this week. Contact us for details. Reply STOP to opt out.`,
+        `${brand}: Join us at our open house this Saturday to explore our services and meet the team. Reply STOP to opt out.`
       ];
       const sample = (n, title, required) => `<div class="sms-message-card">${smsField('campaign.sample' + n, title, c['sample' + n], { kind: 'textarea', wide: true, required, placeholder: 'Write a message your business would actually send.', hint: 'Use your business name and include STOP to opt out. Maximum 255 characters.' })}${smsExample('See an example message',examples[n-1] || examples[0])}</div>`;
-      return `<section class="sms-section">${smsField('campaign.description', 'Campaign description', c.description, { kind: 'textarea', wide: true, required: true, hint: 'Required for carrier review. Describe your business and the messages you will send. Minimum 40 characters.' })}</section>
-        <div class="sms-message-grid">${sample(1, 'Customer conversation', true)}${sample(2, 'Update or reminder', true)}${marketing ? sample(3, 'Marketing or promotional offer', true) : ''}</div>
-        <details class="sms-details" ${!marketing && c.sample3 || c.sample4 || c.sample5 ? 'open' : ''}><summary>More messages <span>Optional</span></summary><div class="sms-message-grid">${!marketing ? sample(3, 'Additional message', false) : ''}${sample(4, 'Additional message', false)}${sample(5, 'Additional message', false)}</div></details>
-        <details class="sms-details"><summary>Automatic START, STOP and HELP replies</summary><p>These replies are sent to Telnyx with your application and configured for your business number.</p>${['optinMessage', 'optoutMessage', 'helpMessage'].map((key, i) => `<div class="sms-auto-reply"><strong>${['START', 'STOP', 'HELP'][i]}</strong><p>${escapeHtml(smsGeneratedCampaign(profile)[key])}</p></div>`).join('')}</details>`;
+      return `        <div class="sms-message-grid">${sample(1, 'Customer conversation', true)}${sample(2, 'Update or reminder', true)}${marketing ? sample(3, 'Marketing message 1', true) + sample(4, 'Marketing message 2', true) : ''}</div>
+        <details class="sms-details" ${(!marketing && (c.sample3 || c.sample4)) || c.sample5 ? 'open' : ''}><summary>More messages <span>Optional</span></summary><div class="sms-message-grid">${!marketing ? sample(3, 'Additional message', false) : ''}${!marketing ? sample(4, 'Additional message', false) : ''}${sample(5, 'Additional message', false)}</div></details>
+        <details class="sms-details"><summary>Automatic START, STOP and HELP replies</summary><p>These messages are configured automatically.</p>${['optinMessage', 'optoutMessage', 'helpMessage'].map((key, i) => `<div class="sms-auto-reply"><strong>${['START', 'STOP', 'HELP'][i]}</strong><p>${escapeHtml(smsGeneratedCampaign(profile)[key])}</p></div>`).join('')}</details>`;
     }
     function smsRegistrationTimeline(profile, compact = false){
       const brand = smsBrandReadyForCampaign(profile);
@@ -5918,6 +5923,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
             hint: '',
             ok: !!websiteNormalized
           })}
+          ${smsField('campaign.description', 'Campaign description', profile.campaign?.description, { kind: 'textarea', wide: true, required: true, disabled: smsHasProviderCampaign(profile), hint: 'Describe your business and the messages you will send. Minimum 40 characters.' })}
         </div>`;
       }
       if (step === 'contact') {

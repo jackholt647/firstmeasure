@@ -259,11 +259,16 @@ test('business identity switches paths, formats EIN and website, and preserves u
       ${wizard}
       window.start=()=>openSmsWizard(window.saved,{initialStep:'business'});
       window.usecase=brand=>smsGeneratedCampaign(mergeSmsProfile({brand})).usecase;
-      window.fieldState=smsFieldLiveState;
+      window.fieldState=smsFieldLiveState;window.generated=smsGeneratedCampaign;window.stepState=smsStepStatus;
       window.einValid=smsValidEin; window.defaultFeatures=()=>smsSelectedFeatures(mergeSmsProfile({}));
     `});
     await page.evaluate(()=>window.start());
     assert.equal(await page.locator('[data-sms-field]').first().getAttribute('data-sms-field'),'brand.entityType');
+    assert.equal(await page.locator('[data-sms-field="campaign.description"]').count(),1);
+    const copy=await page.evaluate(()=>window.generated({brand:{displayName:'x'.repeat(75)},campaign:{enabledFeatures:['crm_conversations','operations','customer_growth']}}).optinMessage);
+    assert.match(copy,/Subscribed to customer care, updates, marketing texts/);assert.match(copy,/Consent is not a condition of purchase/);assert.ok(copy.length<=255);
+    const frozen=await page.evaluate(()=>window.generated({provider_refs:{telnyx_campaign_id:'submitted'},campaign:{optinMessage:'Already registered reply'}}).optinMessage);assert.equal(frozen,'Already registered reply');
+    assert.equal(await page.evaluate(()=>window.stepState({id:'number',note:'Sending line'},4,0,{campaign:{}}).label),'');
     assert.equal(await page.locator('[data-sms-field="brand.vertical"] option').count(),23);
     assert.equal(await page.locator('[data-sms-field="brand.vertical"] option[value="PROFESSIONAL"]').innerText(),'Professional services');
     const ein=page.locator('[data-sms-field="brand.ein"]');
@@ -305,7 +310,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
     const signup=page.locator('[data-sms-field="campaign.optInLocationUrl"]');await signup.fill('example.com/signup');await signup.blur();assert.equal(await signup.inputValue(),'https://example.com/signup');
     assert.equal(await page.locator('[data-sms-field="campaign.websiteFormConfirmed"]').count(),0);
     assert.equal(await page.locator('[data-sms-field="campaign.policyContentConfirmed"]').count(),0);
-    await page.getByText('Open example privacy policy — SMS section',{exact:true}).click();
+    await page.getByText('See an example privacy policy: SMS section',{exact:true}).click();
     assert.equal(await page.getByText(/collects your mobile number and SMS consent record/).count(),1);
     assert.equal(await page.locator('[data-sms-feature-confirm]').count(),0);
     assert.equal(await page.locator('.sms-feature-icon').count(),0);
@@ -326,7 +331,12 @@ test('business identity switches paths, formats EIN and website, and preserves u
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-mobile.png'});
     await page.setViewportSize({width:1280,height:960});
     if(process.env.SMS_SCREENSHOTS){await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-new-desktop.png'});await page.locator('.sms-evidence').scrollIntoViewIfNeeded();await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/evidence-desktop.png'});}
+    await page.locator('[data-sms-feature="customer_growth"]').check();
     await page.getByRole('button',{name:'4. Message examples'}).click();
+    assert.equal(await page.locator('[data-sms-field="campaign.description"]').count(),0);
+    assert.equal(await page.locator('[data-sms-field="campaign.sample4"]').isVisible(),true);
+    assert.equal(await page.locator('[data-sms-field="campaign.sample4"]').inputValue(),'');
+    assert.equal(await page.locator('[data-sms-field="campaign.sample4"]').count(),1);
     assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'');
     await page.getByText('See an example message',{exact:true}).first().click();
     assert.equal(await page.locator('[data-sms-field="campaign.sample1"]').inputValue(),'');
