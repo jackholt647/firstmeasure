@@ -1027,6 +1027,10 @@
 .fm-ch-reaction.mine{background:var(--ch-accent-soft);border-color:var(--ch-accent);color:var(--ch-accent)}
 .fm-ch-thread-link{display:inline-flex;align-items:center;gap:6px;margin-top:4px;color:var(--ch-accent);font-size:12px;font-weight:600;border-radius:6px;padding:2px 6px}
 .fm-ch-thread-link:hover{background:var(--ch-accent-soft)}
+.fm-ch-thread-link .fm-ch-reply-people{display:inline-flex;gap:3px;flex:none}
+.fm-ch-thread-link .fm-ch-reply-people .fm-ch-avatar{width:24px;height:24px;min-width:24px;font-size:10px;border-radius:6px}
+.fm-ch-thread-link .fm-ch-last-reply{color:var(--ch-muted);font-weight:400}
+.fm-ch-thread-link{flex-wrap:wrap;text-align:left}
 .fm-ch-attachments{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .fm-ch-attachment{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ch-border);border-radius:8px;padding:6px 10px;font-size:12px;color:#344054;text-decoration:none;max-width:260px}
 .fm-ch-attachment:hover{background:var(--ch-hover)}
@@ -1774,7 +1778,7 @@
       if (state.threadRootId && (message.parent_id === state.threadRootId || message.id === state.threadRootId)) {
         openThread(state.threadRootId, { silent: true });
       }
-      if (inThread && !state.threadRootId) {
+      if (inThread && message.parent_id !== state.threadRootId) {
         const rootIndex = state.messages.findIndex((item) => item.id === message.parent_id);
         if (rootIndex >= 0) refreshActiveMessages();
       }
@@ -4030,7 +4034,9 @@
       }
 
       if (features.threads && !inThread && message.reply_count > 0) {
-        const link = el('button', 'fm-ch-thread-link', `<i class="fas fa-comment-dots"></i> ${message.reply_count} ${message.reply_count === 1 ? 'reply' : 'replies'}`);
+        const people = (message.reply_participants || []).slice(0, 4);
+        const link = el('button', 'fm-ch-thread-link', `${people.length ? `<span class="fm-ch-reply-people" aria-hidden="true">${people.map(person => `<span title="${esc(person.name || 'Unknown')}">${avatarHtml(person, 'sm')}</span>`).join('')}</span>` : ''}<span>${message.reply_count} ${message.reply_count === 1 ? 'reply' : 'replies'}</span>${message.last_reply_at ? `<span class="fm-ch-last-reply">Last reply ${esc(fmtDateTime(message.last_reply_at))}</span>` : ''}`);
+        link.type = 'button';
         link.addEventListener('click', () => openThread(message.parent_id || message.id));
         content.appendChild(link);
       }
@@ -4820,6 +4826,11 @@
         const preserveComposer = silent && !resetComposer && state.threadRootId === rootId;
         state.threadRootId = rootId;
         state.thread = { root: data.root, replies: data.replies || [] };
+        const rootIndex = state.messages.findIndex(message => message.id === rootId);
+        if (rootIndex >= 0) {
+          state.messages[rootIndex] = data.root;
+          renderMessages();
+        }
         renderPanel({ scrollToEnd: !silent, preserveComposer });
         const lastReplySeq = Math.max(0, ...(state.thread.replies || []).map((reply) => Number(reply.seq) || 0));
         api.threads.markRead?.(orgId, rootId, lastReplySeq).catch(() => {});

@@ -27,7 +27,7 @@ import {
   findMessageByClientId,
   getChannelsDatabase,
   listAttachmentsForMessages,
-  listActiveReplyCounts,
+  listReplySummaryRecords,
   listChannelAttachmentResources,
   listChannelMembers,
   listChannelRecords,
@@ -630,10 +630,33 @@ export async function hydrateMessages(ctx: PlatformAuthContext, channel: Channel
   const manage = await channelAdminAllowed(ctx, channel);
   const preferences = await viewerTranslationPreferences(ctx);
   const translations = (await listMessageTranslations(ids, preferences.language));
-  const noteReplyCounts=await listActiveReplyCounts(ctx.orgId,channel.type==='project' ? messages.filter(message=>!message.parent_id && message.metadata.project_note===true).map(message=>message.id) : []);
+  const groups = viewerAudienceGroups(ctx);
+  const summaries = new Map<string, { count: number; last: string; people: MessageRow[]; seen: Set<string> }>();
+  for (const reply of await listReplySummaryRecords(ctx.orgId, channel.id, messages.filter(message => !message.parent_id && !message.deleted_at).map(message => message.id))) {
+    if (!messageVisibleTo(reply, ctx, groups)) continue;
+    const summary = summaries.get(reply.parent_id!) ?? { count: 0, last: reply.created_at, people: [], seen: new Set<string>() };
+    summary.count++;
+    if (!summary.seen.has(reply.author_id) && summary.people.length < 4) {
+      summary.seen.add(reply.author_id);
+      summary.people.push(reply);
+    }
+    summaries.set(reply.parent_id!, summary);
+  }
   return Promise.all(messages.map(async message => {
     const hydrated = hydrateMessage(ctx, message, { directory, reactions, attachments, saved, manage, preferences, translations, archivedNoteReadable:channel.type === 'project' && message.metadata.project_note === true && messageVisibleTo(message,ctx,viewerAudienceGroups(ctx)) });
-    if(channel.type==='project' && !message.parent_id && message.metadata.project_note===true)hydrated.reply_count=noteReplyCounts.get(message.id) || 0;
+    if (!message.parent_id) {
+      const summary = summaries.get(message.id);
+      hydrated.reply_count = summary?.count || 0;
+      hydrated.last_reply_at = summary?.last || null;
+      hydrated.reply_participants = await Promise.all((summary?.people || []).map(async reply => {
+        if (reply.metadata.collaboration_actor) {
+          const { participantView, verifiedMessageContributor } = await import('../collaboration/service.js');
+          const contributor = await verifiedMessageContributor(reply);
+          if (contributor) return { id: reply.author_id, ...await participantView(ctx.orgId, contributor, true).catch(() => ({ name: 'External participant' })) };
+        }
+        return directory.get(reply.author_id) ?? (cleanText(asObject(reply.metadata.legacy_photo_author).id) === reply.author_id ? asObject(reply.metadata.legacy_photo_author) : { id: reply.author_id, name: 'Unknown', avatar: '' });
+      }));
+    }
     if(message.metadata.collaboration_actor){
       const {participantView,verifiedMessageContributor}=await import("../collaboration/service.js");
       const contributor=await verifiedMessageContributor(message);
