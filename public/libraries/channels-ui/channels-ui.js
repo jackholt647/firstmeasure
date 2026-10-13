@@ -1004,7 +1004,7 @@
 .fm-ch-avatar--sm{width:22px;height:22px;font-size:10px;border-radius:6px}
 .fm-ch-msg-content{flex:1;min-width:0}
 .fm-ch-msg-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
-.fm-ch-msg-author{font-weight:850}
+.fm-ch-msg-author.fm-ch-summary-trigger{font-weight:850}
 .fm-ch-msg-time{color:var(--ch-muted);font-size:11px}
 .fm-ch-msg-edited{color:var(--ch-muted);font-size:11px;cursor:pointer;text-decoration:none}
 .fm-ch-msg-edited:hover{text-decoration:underline}
