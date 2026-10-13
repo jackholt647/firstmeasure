@@ -59,10 +59,11 @@ export function assertUnitProvides(type: unknown, unitProvides: unknown) {
   }
 }
 
-export type AvailableFunction = { id: string; label: string; unit: string; description: string; schemas: { id: string; title: string }[] };
+export type AvailableFunction = { id: string; label: string; unit: string; description: string; per_load_default: boolean; schemas: { id: string; title: string; color: string }[] };
 
 /** The functions the given kinds of work need of a job, each with the kinds of work that need it. */
-export function functionsForSchemas(schemaIds: string[]): AvailableFunction[] {
+/** `colors` gives each kind of work the colour of the scope it came from, for showing where a function is needed. */
+export function functionsForSchemas(schemaIds: string[], colors: Map<string, string> = new Map()): AvailableFunction[] {
   const wanted = new Set(schemaIds), titles = new Map(listMeasurementSchemas().map((schema) => [schema.id, schema.title]));
   const found = new Map<string, AvailableFunction>();
   for (const schema of listWorkSchemas()) {
@@ -70,8 +71,8 @@ export function functionsForSchemas(schemaIds: string[]): AvailableFunction[] {
     for (const entry of schema.items) {
       const definition = workItem(entry.item);
       if (!definition || definition.kind !== "function") continue;
-      const row = found.get(definition.id) || { id: definition.id, label: definition.label, unit: definition.unit, description: definition.description, schemas: [] };
-      row.schemas.push({ id: schema.id, title: titles.get(schema.id) || schema.id });
+      const row = found.get(definition.id) || { id: definition.id, label: definition.label, unit: definition.unit, description: definition.description, per_load_default: definition.per_load_default === true, schemas: [] };
+      row.schemas.push({ id: schema.id, title: titles.get(schema.id) || schema.id, color: colors.get(schema.id) || "" });
       found.set(definition.id, row);
     }
   }
@@ -86,5 +87,8 @@ export async function availableEquipmentFunctions(orgId: string, branchId = "def
   const { listScopeTemplates } = await import("../scopes/storage.js");
   const scopes = await listScopeTemplates(orgId, text(branchId) || "default");
   const schemaIds = [...new Set(scopes.flatMap((scope) => measurementSchemaIdsForScope(scope.definition)))].sort();
-  return { schema_ids: schemaIds, functions: functionsForSchemas(schemaIds) };
+  // A kind of work takes the colour of the first enabled scope that works in it.
+  const colors = new Map<string, string>();
+  for (const scope of scopes) { const color = text(scope.color) || text((scope.metadata as { color?: unknown } | undefined)?.color); for (const schema of measurementSchemaIdsForScope(scope.definition)) if (color && !colors.has(schema)) colors.set(schema, color); }
+  return { schema_ids: schemaIds, functions: functionsForSchemas(schemaIds, colors) };
 }

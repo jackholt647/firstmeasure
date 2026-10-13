@@ -84,7 +84,9 @@ test("an equipment type provides functions only, validated like a pay sheet's eq
 test("an organization sees the functions its enabled scopes' kinds of work need, and no others", async () => {
   const f = await import("../equipment/functions.js"), scopes = await import("../scopes/storage.js");
   const { measurementSchemaIdsForScope } = await import("../platform/publication/measurement-schemas.js");
-  assert.deepEqual(f.functionsForSchemas(["roofing"]).map((row) => [row.id, row.label, row.unit, row.schemas]), [["disposal.debris", "Debris disposal", "yd3", [{ id: "roofing", title: "Roofing" }]]]);
+  assert.deepEqual(f.functionsForSchemas(["roofing"]).map((row) => [row.id, row.label, row.unit, row.schemas]), [["disposal.debris", "Debris disposal", "yd3", [{ id: "roofing", title: "Roofing", color: "" }]]]);
+  // A kind of work is shown in the colour of the scope it came from, and debris is usually hauled a load at a time.
+  assert.deepEqual([f.functionsForSchemas(["roofing"], new Map([["roofing", "#dc2626"]]))[0]!.schemas[0]!.color, f.functionsForSchemas(["roofing"])[0]!.per_load_default], ["#dc2626", true]);
   assert.match(f.functionsForSchemas(["roofing"])[0]!.description, /dumpster/);
   assert.deepEqual(f.functionsForSchemas(["gutters", "siding"]), [], "a kind of work that needs no function offers none");
   assert.deepEqual(f.functionsForSchemas([]), []);

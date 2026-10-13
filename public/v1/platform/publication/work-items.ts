@@ -18,7 +18,11 @@ import { contentHash, jsonClone } from "./validation.js";
  * dictionary, this only grows: an item's meaning and unit never change.
  */
 export type WorkItemKind = "work" | "function";
-export type WorkItemDefinition = { id: string; label: string; kind: WorkItemKind; unit: string; description: string };
+export type WorkItemDefinition = {
+  id: string; label: string; kind: WorkItemKind; unit: string; description: string;
+  /** For a function: equipment usually meets it a load at a time, emptied and used again. Only a starting point for whoever sets a type up. */
+  per_load_default?: boolean;
+};
 /**
  * How much of an item a job requires. Measurements are added together, then multiplied by `factor` and by each
  * project field in `scale` (existing layers, say), which falls back to its default when the project has no value.
@@ -145,7 +149,7 @@ work("roofing.valleys", "Valleys", "ft", "Line and finish the valleys.");
 work("roofing.wall_flashing", "Wall flashing", "ft", "Flash where the roof meets a wall.");
 work("roofing.cleanup", "Clean up", "job", "Clear the site and sweep for nails.");
 // A function is a capacity the job needs, whoever supplies it. It is not specific to one trade.
-registerWorkItem({ id: "disposal.debris", label: "Debris disposal", kind: "function", unit: "yd3", description: "Somewhere for the torn-off material to go: a dumpster, a dump trailer or truck, or a company that hauls it away." });
+registerWorkItem({ id: "disposal.debris", label: "Debris disposal", kind: "function", unit: "yd3", per_load_default: true, description: "Somewhere for the torn-off material to go: a dumpster, a dump trailer or truck, or a company that hauls it away." });
 
 // ---- What each kind of work requires. The amounts are rules of thumb an organization will be able to change. ----
 registerWorkSchema({ id: "roofing", version: "1", items: [
@@ -162,7 +166,7 @@ registerWorkSchema({ id: "roofing", version: "1", items: [
 ] });
 
 // ---- Publication ----
-const itemSchema: JsonSchema = { type: "object", required: ["id", "label", "kind", "unit", "description"], properties: { id: { type: "string" }, label: { type: "string" }, kind: { enum: ["work", "function"] }, unit: { type: "string" }, description: { type: "string" } }, additionalProperties: false };
+const itemSchema: JsonSchema = { type: "object", required: ["id", "label", "kind", "unit", "description"], properties: { id: { type: "string" }, label: { type: "string" }, kind: { enum: ["work", "function"] }, unit: { type: "string" }, description: { type: "string" }, per_load_default: { type: "boolean" } }, additionalProperties: false };
 const schemaSchema: JsonSchema = { type: "object", required: ["id", "version", "items"], properties: { id: { type: "string" }, version: { type: "string" }, items: { type: "array", items: { type: "object", required: ["item", "quantity"], properties: { item: { type: "string" }, quantity: { type: "object" }, under: { type: "string" }, optional: { type: "boolean" } }, additionalProperties: false } } }, additionalProperties: false };
 let registered = false;
 export function registerWorkItemProvider() {

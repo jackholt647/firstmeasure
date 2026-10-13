@@ -26,7 +26,7 @@ async function mount(page, functions){
   await page.evaluate(()=>window.handle=equipmentApp.mount(document.querySelector('#app'),{orgId:'test'}));
   await page.locator('.eq-card').waitFor();
 }
-const DEBRIS = {id:'disposal.debris',label:'Debris disposal',unit:'yd3',description:'Somewhere for the torn-off material to go.',schemas:[{id:'roofing',title:'Roofing'}]};
+const DEBRIS = {id:'disposal.debris',label:'Debris disposal',unit:'yd3',description:'Somewhere for the torn-off material to go.',per_load_default:true,schemas:[{id:'roofing',title:'Roofing',color:'#d49a22'}]};
 
 test('an equipment type says which functions it provides, how much it holds and whether per load', async () => {
   const browser = await launch();
@@ -47,7 +47,11 @@ test('an equipment type says which functions it provides, how much it holds and 
     assert.equal(await page.locator('#eq-fn-help-0').isVisible(),false);
     await page.getByRole('button',{name:'About Debris disposal',exact:true}).hover();
     await page.locator('#eq-fn-help-0').waitFor({state:'visible'});
-    assert.match(await page.locator('#eq-fn-help-0').textContent(),/torn-off material.*Needed by: Roofing\./);
+    // The kinds of work that need it are pills in their scope's colour, above the description.
+    assert.deepEqual(await page.locator('#eq-fn-help-0 .eq-fn-scope').evaluateAll(nodes=>nodes.map(node=>[node.textContent,getComputedStyle(node).backgroundColor])),[['Roofing','rgb(212, 154, 34)']]);
+    assert.match(await page.locator('#eq-fn-help-0').textContent(),/^Roofing\s*Somewhere for the torn-off material to go\.$/);assert.doesNotMatch(await page.locator('#eq-fn-help-0').textContent(),/Needed by/);
+    // The amount is a plain, compact field with no stepper arrows.
+    assert.equal(await row.locator('[data-eq-fn-capacity]').getAttribute('type'),'text');assert.ok((await row.locator('[data-eq-fn-capacity]').boundingBox()).height<=28);
     await page.getByRole('button',{name:'About per load',exact:true}).focus();
     assert.match(await page.locator('#eq-fn-load-help-0').textContent(),/emptied and used again.*like a dumpster/);
     const tip = await page.locator('#eq-fn-load-help-0').boundingBox(), modal = await page.locator('.eq-catalog-modal').boundingBox();
@@ -71,8 +75,9 @@ test('an equipment type says which functions it provides, how much it holds and 
     const fresh = page.locator('[data-eq-fn-row="disposal.debris"]');
     assert.equal(await fresh.locator('[data-eq-fn-on]').isChecked(),false);
     assert.equal(await fresh.locator('[data-eq-fn-capacity]').isDisabled(),true);
+    // Turning debris disposal on starts as per load, which is how it is usually met.
     await fresh.locator('label').first().click();
-    await fresh.locator('.eq-fn-load').click();
+    assert.equal(await fresh.locator('[data-eq-fn-per-load]').isChecked(),true);
     await page.locator('[data-eq-catalog-save]').click();
     await page.locator('[data-eq-catalog-back]').waitFor({state:'detached'});
     assert.deepEqual(await page.evaluate(()=>created[0].provides),[{item:'disposal.debris',per_load:true}]);
