@@ -45,15 +45,16 @@ test('Spaces artifact save uses the existing row lock without another database l
   assert.equal(result.name,'Report.pdf');
   assert.equal(state.existenceReads,1,'the pre-write project guard is still required');
   assert.equal(state.listFiles,0,'Spaces refresh must not re-enter generic existence guard');
-  assert.equal(state.listSpaces,1);
+  assert.equal(state.listSpaces,0);
   assert.equal(state.committed,true);assert.equal(state.mirrors,1);
   assert.equal(manifest.artifacts.has_report_pdf,true);assert.equal(manifest.artifacts.has_google_image,true);
 });
 
-test('failed Spaces listing fails the mutation and does not clear known artifact flags',async()=>{
+test('artifact save does not depend on a storage listing and retains unrelated flags',async()=>{
   const {state,manifest,context}=setup({listingError:new Error('synthetic storage timeout')});
-  await assert.rejects(context.saveArtifact('synthetic','Report.pdf',new Uint8Array([1])),/synthetic storage timeout/);
-  assert.equal(state.committed,false);assert.equal(state.mirrors,0);
+  await context.saveArtifact('synthetic','Report.pdf',new Uint8Array([1]));
+  assert.equal(state.committed,true);assert.equal(state.mirrors,1);
+  assert.equal(state.listSpaces,0);
   assert.equal(manifest.artifacts.has_report_pdf,true);assert.equal(manifest.artifacts.has_google_image,true);
 });
 

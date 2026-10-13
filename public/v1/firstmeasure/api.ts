@@ -1,3 +1,6 @@
+import { isTransientProviderFailure } from './transient_failure.js';
+import { catalogState, catalogReadsEnabled } from "../src/storage/artifact_catalog.js";
+import { projectPageChanges } from "./project_refresh.js";
 import { assertFullHouseEligible, assertFullHouseReview, assertFullHouseSnapshot, fullHouseEligible, isCustomerFullHouse } from './full_house_workflow.js';
 import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
@@ -41,6 +44,7 @@ import {
   deleteProjectArtifact,
 
   getProjectArtifact,
+  listProjectArtifacts,
 
   isSpacesArtifactStorageEnabled,
 
@@ -1092,6 +1096,20 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
   await ensureFirstMeasureProjectIndexReady();
 
+  registerFirstMeasureJobHandler("imagery.process", async (job) => {
+    const projectId = String(job.payload.project_id || '');
+    const manifest = await readManifest(projectId);
+    if (['completed','rejected','rejected_no_coverage','cancelled'].includes(manifest.status)) return { skipped: true };
+    try {
+      if (job.payload.structure_pins === true) await runBackgroundImageryProcess(projectId, asRecord(job.payload.input), true);
+      else await processProjectImagery(projectId, asRecord(job.payload.input));
+      return { processed: true };
+    } catch (error) {
+      await patchManifest(projectId, imageryFailurePatch(error));
+      if (isTransientProviderFailure(error)) throw error;
+      return { processed: false, needs_attention: true };
+    }
+  });
   registerFirstMeasureJobHandler("pdf.sync", runBackgroundPdfSyncJob);
 
   registerFirstMeasureJobHandler("report.delivery", runBackgroundReportDeliveryJob);
@@ -2145,11 +2163,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     if (shouldProcessAsync) {
 
-      void processProjectImagery(projectId, processInput).catch((error) => {
-
-        app.log.error({ err: error, projectId }, "Failed background imagery processing for queued project");
-
-      });
+      await enqueueImageryProcess(projectId, processInput);
 
     } else {
 
@@ -2159,7 +2173,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
-    const refreshed = await getProjectDetail(projectId);
+    const refreshed = shouldProcessAsync ? await acceptedImageryProject(projectId) : await getProjectDetail(projectId);
 
     reply.code(201);
 
@@ -2281,11 +2295,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     if (shouldProcessAsync) {
 
-      void processProjectImagery(projectId, processInput).catch((error) => {
-
-        app.log.error({ err: error, projectId }, "Failed background instant imagery processing");
-
-      });
+      await enqueueImageryProcess(projectId, processInput);
 
       reply.code(202);
 
@@ -2295,7 +2305,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
         accepted: true,
 
-        project: await getProjectDetail(projectId),
+        project: await acceptedImageryProject(projectId),
 
         instant_url: buildAbsoluteApiUrl(request, `/instants/${encodeURIComponent(projectId)}`)
 
@@ -2330,7 +2340,13 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
   app.post("/projects/list", async (request) => {
 
     const input = asRecord(request.body);
-
+    if (input.refresh === true) {
+      const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+      input.actor = { email: String(auth.identity.email || ''), organization_id: auth.orgId,
+        team_id: String(auth.user.team_id || auth.branchId || ''), roles: [] };
+      input.filter = ['mine', 'org', 'team'].includes(String(input.filter)) ? input.filter : 'org';
+      input.refresh_authority = { user: auth.userId, org: auth.orgId, permissions: auth.permissions, role: auth.role };
+    }
     return buildProjectsListResponse(input, request);
 
   });
@@ -2402,6 +2418,24 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
   app.get("/projects/:id", async (request) => {
 
     const projectId = getProjectId(request.params);
+
+    if (asRecord(request.query).view === 'portal-card') {
+      const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+      const manifest = await readManifest(projectId);
+      const legacy = buildLegacyManifest(manifest);
+      const email = String(auth.identity.email || '').toLowerCase();
+      if (String(legacy.organization_id || '') !== auth.orgId &&
+          ![legacy.owner_email, legacy.issuer_email, legacy.assigned_to_email].some(value => email && String(value || '').toLowerCase() === email)) {
+        throw new FirstMeasureError('project_forbidden', 403, 'This project is not available to this account.');
+      }
+      const artifacts = await catalogState(projectId);
+      const revision = createHash('sha256').update(JSON.stringify([manifest, artifacts?.generation, artifacts?.ready])).digest('hex');
+      if (asRecord(request.query).revision === revision) return { ok: true, unchanged: true, revision };
+      return { ok: true, project: { manifest, revision, summary_only: true, artifact_flags: {
+        has_report_pdf: Boolean(legacy.has_report_pdf), has_summary_pdf: Boolean(legacy.has_summary_pdf),
+        has_model_data: Boolean(asRecord(manifest.artifacts).has_model_data)
+      } } };
+    }
 
     const project = await getProjectDetail(projectId);
 
@@ -8765,6 +8799,7 @@ async function buildProjectsListResponse(
 
 ) {
 
+  const summaryIds = input.refresh === true && Array.isArray(input.summary_ids) ? [...new Set(input.summary_ids.map(String))].slice(0, 100) : undefined;
   const filter = String(input.filter ?? "mine").trim().toLowerCase() || "mine";
 
   const rawSearch = String(input.search ?? "").trim();
@@ -8793,9 +8828,10 @@ async function buildProjectsListResponse(
 
   const limit = wantsAll ? 5000 : Math.min(parsedQuery.limit ?? 35, 200);
 
-  const view = getProjectListView(input);
+  const view = summaryIds ? 'card' : getProjectListView(input);
 
   const result = await searchIndexedProjectsForLegacyList({
+    ids: summaryIds,
 
     filter,
 
@@ -8821,27 +8857,39 @@ async function buildProjectsListResponse(
 
   });
 
-  const projects = view === "full"
+  const projects = summaryIds ? result.rows.map(row => {
+    const legacy = buildLegacyManifest(row.manifest);
+    return { id: row.manifest.id, project: { manifest: row.manifest, summary_only: true,
+      revision: createHash('sha256').update(JSON.stringify([row.manifest, row.revision])).digest('hex'),
+      artifact_flags: { has_report_pdf: Boolean(legacy.has_report_pdf), has_summary_pdf: Boolean(legacy.has_summary_pdf),
+        has_model_data: Boolean(asRecord(row.manifest.artifacts).has_model_data), thumbnail_source: row.thumbnailArtifactName }
+    } };
+  }) : view === "full"
 
     ? await Promise.all(
 
-        result.rows.map((row) => buildLegacyProjectRow(row.manifest, request, row.thumbnailArtifactName))
+        result.rows.map(async (row) => ({ ...await buildLegacyProjectRow(row.manifest, request, row.thumbnailArtifactName), revision: row.revision }))
 
       )
 
-    : result.rows.map((row) => buildProjectListViewRow(row.manifest, request, view, row.thumbnailArtifactName));
+    : result.rows.map((row) => ({ ...buildProjectListViewRow(row.manifest, request, view, row.thumbnailArtifactName), revision: row.revision }));
 
 
 
+  const changes = input.refresh === true && limit <= 200 ? projectPageChanges(
+    { summaryIds, actor, authority: input.refresh_authority, filter, rawSearch, statusFilter, complexityFilter, page, limit, view,
+      includeInstantOnly: parsedQuery.includeInstantOnly,
+      activityStart: input.activity_start ?? null, activityEnd: input.activity_end ?? null,
+      activityFields: parsedQuery.activityFields }, projects, input.cursor) : null;
   return {
-
+    ...(changes ? { refresh: changes } : {}),
     ok: true,
 
     success: true,
 
     view,
 
-    projects,
+    projects: changes ? changes.projects : projects,
 
     search: rawSearch || null,
 
@@ -22552,15 +22600,24 @@ async function sendProjectThumbnail(projectId: string, query: Record<string, unk
 
 
 
+  const listedVersions = catalogReadsEnabled() ? await listProjectArtifacts(projectId, true) : null;
+  const versions = listedVersions ? new Map(listedVersions.map(file => [file.name, file.etag || ''])) : null;
+  let availableSources: Set<string> | null = versions ? new Set(versions.keys()) : null;
   for (const source of sources) {
 
-    const cachedPath = thumbnailCachePath(projectId, source, width, format);
+    if (versions && !versions.has(source)) continue;
+    const version = versions?.get(source);
+    const versionedSource = version ? source + '-' + createHash('sha256').update(version).digest('hex').slice(0,16) : source;
+    const cachedPath = thumbnailCachePath(projectId, versionedSource, width, format);
 
     const cached = await readCachedThumbnail(cachedPath, reply);
 
     if (cached) return cached;
 
 
+
+    availableSources ??= new Set((await listProjectFiles(projectId)).map(file => file.name));
+    if (!availableSources.has(source)) continue;
 
     const artifact = await readProjectArtifactFile(projectId, source).catch(() => null);
 
@@ -23000,9 +23057,9 @@ async function acceptProcessRequest(
 
     });
 
-    void runBackgroundImageryProcess(projectId, input);
+    await enqueueImageryProcess(projectId, input, true);
 
-    const project = await getProjectDetail(projectId);
+    const project = await acceptedImageryProject(projectId);
 
     reply.code(202);
 
@@ -23514,7 +23571,21 @@ function wantsBackgroundProcessing(input: Record<string, unknown>) {
 
 
 
-async function runBackgroundImageryProcess(projectId: string, input: Record<string, unknown>) {
+async function acceptedImageryProject(projectId: string) {
+  return { manifest: await readManifest(projectId), summary_only: true,
+    app_metadata: null, pdf_state: null, branding_defaults: null, files: [] };
+}
+
+async function enqueueImageryProcess(projectId: string, input: Record<string, unknown>, structurePins = false) {
+  // Provider credentials are resolved by the worker, never stored in job payloads.
+  const safeInput = Object.fromEntries(Object.entries(input).filter(([key]) =>
+    ['address','lat','lng','radius_meters','pins','structure_pins','selected_pins','force','pin_source','include_gutter_measurements'].includes(key)));
+  const actor = asRecord(input.actor);
+  if (actor.email || actor.name) safeInput.actor = { email: String(actor.email || ''), name: String(actor.name || '') };
+  return enqueueFirstMeasureJob('imagery.process', { project_id: projectId, input: safeInput, structure_pins: structurePins }, { maxAttempts: 5 });
+}
+
+async function runBackgroundImageryProcess(projectId: string, input: Record<string, unknown>, propagate = false) {
 
   try {
 
@@ -23542,6 +23613,7 @@ async function runBackgroundImageryProcess(projectId: string, input: Record<stri
 
   } catch (error) {
 
+    if (propagate) throw error;
     await patchManifest(projectId, imageryFailurePatch(error)).catch(() => null);
 
   }

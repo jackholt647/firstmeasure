@@ -12,6 +12,7 @@ import {
   getProjectArtifact,
   isSpacesArtifactStorageEnabled,
   listProjectArtifacts,
+  readListedProjectJson,
   projectArtifactReference,
   putProjectArtifact
 } from "../src/storage/project_artifacts.js";
@@ -460,6 +461,9 @@ export async function patchManifest(
   if (isCustomerExteriorId(projectId) && Object.prototype.hasOwnProperty.call(patch, 'include_gutter_measurements') && patch.include_gutter_measurements !== true) {
     throw badRequest('full_house_gutters_required', 'Gutters are required for full-house reports.');
   }
+  const artifactRefreshBase = options?.refreshArtifacts ? await readManifest(projectId) : null;
+  const originalArtifactFlags = { ...asRecord(artifactRefreshBase?.artifacts) };
+  const refreshedArtifactFlags = artifactRefreshBase ? (await refreshArtifactFlags(projectId, artifactRefreshBase)).artifacts : null;
   let previous: ProjectManifest | null = null;
   if (isFirstMeasurePostgresEnabled()) {
     const { mutatePostgresManifest } = await import("./project_index_postgres.js");
@@ -483,7 +487,14 @@ export async function patchManifest(
       merged.timestamps = {
         ...asRecord(current.timestamps), ...asRecord(merged.timestamps), updated_at: toSqlDate(new Date().toISOString())
       };
-      return options?.refreshArtifacts ? refreshArtifactFlags(projectId, merged) : merged;
+      if (refreshedArtifactFlags) {
+        const currentFlags = asRecord(current.artifacts);
+        merged.artifacts = { ...currentFlags };
+        for (const [name, value] of Object.entries(asRecord(refreshedArtifactFlags))) {
+          if (currentFlags[name] === originalArtifactFlags[name]) asRecord(merged.artifacts)[name] = value;
+        }
+      }
+      return merged;
     }, { storagePath: directory });
     if (!updated) throw notFound("project_not_found", `Project '${projectId}' does not exist.`);
     await writeProjectManifestMirror(projectId, updated).catch((error) => {
@@ -585,10 +596,26 @@ export async function updateStatus(projectId: string, status: string) {
 
 export async function getProjectDetail(projectId: string) {
   const manifest = await readManifest(projectId);
+  // Resolve the current catalog (or a fresh listing during reconciliation) to
+  // avoid three speculative GETs for optional JSON files that do not exist.
+  // Keep real bodies for editors, and never turn a failed listing into emptiness.
+  const listed = isSpacesArtifactStorageEnabled()
+    ? await listProjectArtifacts(projectId, true)
+    : await listProjectFiles(projectId);
+  const files = listed.map(({ name, size, updated_at }) => ({ name, size, updated_at }));
+  const names = new Set(files.map((file) => file.name));
+  const readListed = async (name: string, localRead: () => Promise<unknown>) => {
+    if (!names.has(name)) return null;
+    if (!isSpacesArtifactStorageEnabled()) return localRead();
+    const entry = listed.find((file) => file.name === name);
+    try {
+      return await readListedProjectJson(projectId, name, entry && "etag" in entry ? String(entry.etag) : undefined);
+    } catch { return null; } // Preserve the optional-JSON reader's existing error behavior.
+  };
   const [appMetadata, pdfState, brandingDefaults] = await Promise.all([
-    readAppMetadata(projectId),
-    readPdfState(projectId),
-    readBrandingDefaults(projectId)
+    readListed(FIRSTMEASURE_FILE_NAMES.appMetadata, () => readAppMetadata(projectId)),
+    readListed(FIRSTMEASURE_FILE_NAMES.pdfState, () => readPdfState(projectId)),
+    readListed(FIRSTMEASURE_FILE_NAMES.brandingDefaults, () => readBrandingDefaults(projectId))
   ]);
 
   return {
@@ -596,7 +623,7 @@ export async function getProjectDetail(projectId: string) {
     app_metadata: appMetadata,
     pdf_state: pdfState,
     branding_defaults: brandingDefaults,
-    files: await listProjectFiles(projectId)
+    files
   };
 }
 
@@ -704,7 +731,7 @@ export async function saveArtifact(projectId: string, fileName: string, content:
     const { mutatePostgresManifest } = await import("./project_index_postgres.js");
     const updated = await mutatePostgresManifest(projectId, async (manifest) => {
       applyArtifactNameToManifest(manifest, safeName);
-      return refreshArtifactFlags(projectId, manifest);
+      return manifest; // The successful write identifies the changed artifact; no storage I/O under this row lock.
     }, { storagePath: projectDir(projectId), artifactFileName: safeName });
     if (!updated) throw notFound("project_not_found", `Project '${projectId}' does not exist.`);
     await writeProjectManifestMirror(projectId, updated).catch((error) => {

@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 FirstMeasure development scaling: [incremental project refresh, artifact metadata and durable imagery](deploy/digitalocean/development-firstmeasure-storage-scaling-20261012.md) records the source changes, verification and required staged activation. Catalog reads remain gated until every writer is upgraded and reconciled. No production activation is included.
+
 October 12 Suppliers: [supplier records, the Price Book Suppliers tab, supplier ordering and project projections](deploy/digitalocean/development-suppliers-20261012.md) records the model, the ordering and projection behaviour, what is still a placeholder, checks and verified development rollouts.
 
 October 12 Project ordering and entry: [Order Materials dialog, instant line entry and line item sources](deploy/digitalocean/development-project-ordering-entry-20261012.md) records the behaviour, the one backend field, checks and verified development rollouts.

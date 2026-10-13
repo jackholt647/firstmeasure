@@ -1,3 +1,5 @@
+import { recordStorageOperation } from "./storage_metrics.js";
+import { beginArtifactWrite, finishArtifactWrite, catalogState, reconcileArtifactCatalog, catalogReadsEnabled } from "./artifact_catalog.js";
 import {
   GetObjectCommand,
   DeleteObjectCommand,
@@ -14,6 +16,7 @@ export type ProjectArtifactEntry = {
   name: string;
   size: number;
   updated_at: string;
+  etag?: string;
 };
 
 export type ProjectArtifactInventoryEntry = ProjectArtifactEntry & {
@@ -63,15 +66,23 @@ export function validateArtifactStorageConfiguration() {
 
 function client() {
   validateArtifactStorageConfiguration();
-  spacesClient ??= new S3Client({
+  if (spacesClient) return spacesClient;
+  spacesClient = new S3Client({
     endpoint: env.spacesEndpoint,
     region: env.spacesRegion,
     forcePathStyle: env.spacesForcePathStyle,
+    maxAttempts: 3,
+    retryMode: "standard",
     credentials: {
       accessKeyId: env.spacesAccessKeyId,
       secretAccessKey: env.spacesSecretAccessKey
     }
   });
+  spacesClient.middlewareStack.add((next, context) => async (args) => {
+    const started = performance.now();
+    try { const result = await next(args); recordStorageOperation(context.commandName || 'unknown', performance.now() - started); return result; }
+    catch (error) { recordStorageOperation(context.commandName || 'unknown', performance.now() - started, error); throw error; }
+  }, { step: 'finalizeRequest', priority: 'low', name: 'firstmeasureStorageMetrics' });
   return spacesClient;
 }
 
@@ -130,16 +141,16 @@ function safeSharedObjectKey(value: string) {
   return objectKeyForPrefix(sharedPrefix(), value);
 }
 
-export async function putSharedObject(keyValue: string, content: Uint8Array | string, contentType = "application/octet-stream") {
+async function putSharedObjectRaw(keyValue: string, content: Uint8Array | string, contentType = "application/octet-stream") {
   const key = safeSharedObjectKey(keyValue);
-  await client().send(new PutObjectCommand({
+  const response = await client().send(new PutObjectCommand({
     Bucket: env.spacesBucket,
     Key: key,
     Body: typeof content === "string" ? Buffer.from(content, "utf8") : content,
     ContentType: contentType
   }));
   await clearTombstone(keyValue);
-  return { key, reference: `spaces://${env.spacesBucket}/${key}` };
+  return { etag: response.ETag || "", key, reference: `spaces://${env.spacesBucket}/${key}` };
 }
 
 export async function getSharedObject(keyValue: string) {
@@ -167,7 +178,7 @@ export async function getSharedObject(keyValue: string) {
   }
 }
 
-export async function deleteSharedObject(keyValue: string) {
+async function deleteSharedObjectRaw(keyValue: string) {
   await client().send(new DeleteObjectCommand({
     Bucket: env.spacesBucket,
     Key: safeSharedObjectKey(keyValue)
@@ -209,25 +220,26 @@ export function projectArtifactReference(projectId: string, fileName = "") {
   return isSpacesArtifactStorageEnabled() ? `spaces://${env.spacesBucket}/${key}` : key;
 }
 
-export async function putProjectArtifact(projectId: string, fileName: string, content: Uint8Array | string) {
+async function putProjectArtifactRaw(projectId: string, fileName: string, content: Uint8Array | string) {
   const key = projectArtifactKey(projectId, fileName);
-  await client().send(new PutObjectCommand({
+  const response = await client().send(new PutObjectCommand({
     Bucket: env.spacesBucket,
     Key: key,
     Body: typeof content === "string" ? Buffer.from(content, "utf8") : content,
     ContentType: contentTypeFor(fileName)
   }));
   await clearTombstone(logicalProjectArtifactKey(projectId, fileName));
-  return { key, reference: `spaces://${env.spacesBucket}/${key}` };
+  return { etag: response.ETag || "", key, reference: `spaces://${env.spacesBucket}/${key}` };
 }
 
-export async function putProjectArtifactFile(
+async function putProjectArtifactFileRaw(
   projectId: string,
   fileName: string,
   filePath: string,
   options: ProjectArtifactFileOptions
 ) {
   const key = projectArtifactKey(projectId, fileName);
+  let etag = "";
   const checksum = Buffer.from(options.sourceSha256, "hex").toString("base64");
   for (let attempt = 1; attempt <= PROJECT_ARTIFACT_UPLOAD_ATTEMPTS; attempt += 1) {
     // The AWS SDK cannot replay a consumed Node stream. Constructing the
@@ -235,7 +247,7 @@ export async function putProjectArtifactFile(
     // stream while preserving the same idempotent object key and checksum.
     const body = createReadStream(filePath);
     try {
-      await client().send(new PutObjectCommand({
+      const response = await client().send(new PutObjectCommand({
         Bucket: env.spacesBucket,
         Key: key,
         Body: body,
@@ -250,6 +262,7 @@ export async function putProjectArtifactFile(
           "data-environment": env.dataEnvironment
         }
       }));
+      etag = response.ETag || "";
       await clearTombstone(logicalProjectArtifactKey(projectId, fileName));
       break;
     } catch (error) {
@@ -258,7 +271,7 @@ export async function putProjectArtifactFile(
       await new Promise((resolve) => setTimeout(resolve, objectUploadRetryDelayMs(attempt)));
     }
   }
-  return { key, reference: `spaces://${env.spacesBucket}/${key}` };
+  return { etag, key, reference: `spaces://${env.spacesBucket}/${key}` };
 }
 
 function isRetryableObjectUploadError(error: unknown) {
@@ -285,12 +298,12 @@ function objectUploadRetryDelayMs(attempt: number) {
   return exponential + Math.floor(Math.random() * Math.max(1, Math.floor(exponential / 4)));
 }
 
-export async function getProjectArtifact(projectId: string, fileName: string) {
+async function getProjectArtifactVersion(projectId: string, fileName: string) {
   const key = projectArtifactKey(projectId, fileName);
   try {
     const response = await client().send(new GetObjectCommand({ Bucket: env.spacesBucket, Key: key }));
     if (!response.Body) return null;
-    return Buffer.from(await response.Body.transformToByteArray());
+    return { content: Buffer.from(await response.Body.transformToByteArray()), etag: response.ETag || "" };
   } catch (error) {
     if (isMissingObjectError(error)) {
       const logicalKey = logicalProjectArtifactKey(projectId, fileName);
@@ -301,13 +314,63 @@ export async function getProjectArtifact(projectId: string, fileName: string) {
           Key: `${fallbackProjectPrefix(projectId)}${safeObjectPath(fileName)}`
         }));
         if (!response.Body) return null;
-        return Buffer.from(await response.Body.transformToByteArray());
+        return { content: Buffer.from(await response.Body.transformToByteArray()), etag: response.ETag || "" };
       } catch (fallbackError) {
         if (isMissingObjectError(fallbackError)) return null;
         throw fallbackError;
       }
     }
     throw error;
+  }
+}
+
+export async function getProjectArtifact(projectId: string, fileName: string) {
+  return (await getProjectArtifactVersion(projectId, fileName))?.content ?? null;
+}
+
+// Used after the authoritative catalog or a fresh LIST supplies the object version. Never
+// reuse a body on age alone, and never cache errors or mutable parsed objects.
+const detailJsonCache = new Map<string, { etag: string; content: Buffer }>();
+const detailJsonPending = new Map<string, Promise<Buffer | null>>();
+const DETAIL_JSON_CACHE_BYTES = 128 * 1024 * 1024;
+const DETAIL_JSON_CACHE_ENTRIES = 12000;
+let detailJsonCacheBytes = 0;
+
+export async function readListedProjectJson(projectId: string, fileName: string, etag?: string) {
+  const key = projectArtifactKey(projectId, fileName);
+  const cached = detailJsonCache.get(key);
+  if (etag && cached?.etag === etag) {
+    detailJsonCache.delete(key); detailJsonCache.set(key, cached);
+    return JSON.parse(cached.content.toString("utf8"));
+  }
+  const pendingKey = `${key}\0${etag || ""}`;
+  let pending = detailJsonPending.get(pendingKey);
+  if (!pending) {
+    pending = (async () => {
+      const result = await getProjectArtifactVersion(projectId, fileName);
+      if (!result) return null;
+      // Confirm it is JSON before retaining it. Cache under the GET's actual
+      // ETag, not the listing's: a writer may change it between LIST and GET.
+      JSON.parse(result.content.toString("utf8"));
+      if (result.etag && result.content.length <= DETAIL_JSON_CACHE_BYTES / 4) {
+        const old = detailJsonCache.get(key);
+        if (old) { detailJsonCacheBytes -= old.content.length; detailJsonCache.delete(key); }
+        detailJsonCache.set(key, result); detailJsonCacheBytes += result.content.length;
+        while (detailJsonCacheBytes > DETAIL_JSON_CACHE_BYTES || detailJsonCache.size > DETAIL_JSON_CACHE_ENTRIES) {
+          const oldestKey = detailJsonCache.keys().next().value!;
+          detailJsonCacheBytes -= detailJsonCache.get(oldestKey)!.content.length;
+          detailJsonCache.delete(oldestKey);
+        }
+      }
+      return result.content;
+    })();
+    detailJsonPending.set(pendingKey, pending);
+  }
+  try {
+    const content = await pending;
+    return content ? JSON.parse(content.toString("utf8")) : null;
+  } finally {
+    if (detailJsonPending.get(pendingKey) === pending) detailJsonPending.delete(pendingKey);
   }
 }
 
@@ -352,7 +415,7 @@ export async function headProjectArtifact(projectId: string, fileName: string): 
   }
 }
 
-export async function deleteProjectArtifact(projectId: string, fileName: string) {
+async function deleteProjectArtifactRaw(projectId: string, fileName: string) {
   await client().send(new DeleteObjectCommand({
     Bucket: env.spacesBucket,
     Key: projectArtifactKey(projectId, fileName)
@@ -360,7 +423,7 @@ export async function deleteProjectArtifact(projectId: string, fileName: string)
   await writeTombstone(logicalProjectArtifactKey(projectId, fileName));
 }
 
-export async function listProjectArtifacts(projectId: string): Promise<ProjectArtifactEntry[]> {
+async function listProjectArtifactsRaw(projectId: string, includeEtags = false): Promise<ProjectArtifactEntry[]> {
   const listAtPrefix = async (prefix: string) => {
     const files: ProjectArtifactEntry[] = [];
     let continuationToken: string | undefined;
@@ -377,7 +440,8 @@ export async function listProjectArtifacts(projectId: string): Promise<ProjectAr
         files.push({
           name,
           size: Number(object.Size ?? 0),
-          updated_at: object.LastModified?.toISOString() ?? new Date(0).toISOString()
+          updated_at: object.LastModified?.toISOString() ?? new Date(0).toISOString(),
+          ...(includeEtags ? { etag: object.ETag || "" } : {})
         });
       }
       continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
@@ -459,4 +523,50 @@ function contentTypeFor(fileName: string) {
   if (lower.endsWith(".tif") || lower.endsWith(".tiff")) return "image/tiff";
   if (lower.endsWith(".xml")) return "application/xml";
   return "application/octet-stream";
+}
+
+async function catalogWrite<T>(projectId: string, fileName: string, write: () => Promise<T>, metadata: (result: T) => ProjectArtifactEntry | null) {
+  const lease = await beginArtifactWrite(projectId);
+  try {
+    const result = await write();
+    await finishArtifactWrite(lease, fileName, fileName.includes('/') ? undefined : metadata(result));
+    return result;
+  } catch (error) {
+    await finishArtifactWrite(lease, fileName).catch(() => undefined);
+    throw error;
+  }
+}
+export async function putProjectArtifact(projectId: string, fileName: string, content: Uint8Array | string) {
+  return catalogWrite(projectId, fileName, () => putProjectArtifactRaw(projectId, fileName, content), result => ({
+    name: fileName, size: typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength,
+    updated_at: new Date().toISOString(), etag: result.etag
+  }));
+}
+export async function putProjectArtifactFile(projectId: string, fileName: string, filePath: string, options: ProjectArtifactFileOptions) {
+  return catalogWrite(projectId, fileName, () => putProjectArtifactFileRaw(projectId, fileName, filePath, options), result => ({
+    name: fileName, size: options.size, updated_at: new Date().toISOString(), etag: result.etag
+  }));
+}
+export async function deleteProjectArtifact(projectId: string, fileName: string) {
+  return catalogWrite(projectId, fileName, () => deleteProjectArtifactRaw(projectId, fileName), () => null);
+}
+export async function listProjectArtifacts(projectId: string, includeEtags = false, reconcile = false): Promise<ProjectArtifactEntry[]> {
+  const state = await catalogState(projectId);
+  const files = catalogReadsEnabled() && state?.ready && !reconcile ? state.files : await listProjectArtifactsRaw(projectId, true);
+  if (!state?.ready || reconcile) await reconcileArtifactCatalog(projectId, state, files);
+  return includeEtags ? files : files.map(({name,size,updated_at}) => ({name,size,updated_at}));
+}
+
+export async function putSharedObject(keyValue: string, content: Uint8Array | string, contentType = 'application/octet-stream') {
+  const match = /^projects\/([^/]+)\/(.+)$/.exec(keyValue);
+  if (!match) return putSharedObjectRaw(keyValue, content, contentType);
+  return catalogWrite(match[1]!, match[2]!, () => putSharedObjectRaw(keyValue, content, contentType), result => ({
+    name: match[2]!, size: typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength,
+    updated_at: new Date().toISOString(), etag: result.etag
+  }));
+}
+export async function deleteSharedObject(keyValue: string) {
+  const match = /^projects\/([^/]+)\/(.+)$/.exec(keyValue);
+  if (!match) return deleteSharedObjectRaw(keyValue);
+  return catalogWrite(match[1]!, match[2]!, () => deleteSharedObjectRaw(keyValue), () => null);
 }

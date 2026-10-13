@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+test('artifact catalog handles cold reads, writes, races, failures and deletes with a single database slot', {skip: !process.env.TEST_POSTGRES_URL}, async () => {
+  process.env.FIRSTMEASURE_DATABASE_MODE='postgres'; process.env.DATABASE_URL=process.env.TEST_POSTGRES_URL;
+  process.env.POSTGRES_POOL_MAX='1'; process.env.SPACES_READ_FALLBACK_PREFIX='';
+  const {queryPostgres}=await import('../src/database/postgres.js');
+  await queryPostgres('CREATE TABLE IF NOT EXISTS projects(id text PRIMARY KEY, revision bigint NOT NULL DEFAULT 1)');
+  const c=await import('../src/storage/artifact_catalog.js');
+  const id='catalog-test-'+Date.now();
+  const first={name:'a.json',size:2,updated_at:new Date().toISOString(),etag:'"one"'};
+  assert.equal(await c.catalogState(id),null);
+  assert.equal(await c.reconcileArtifactCatalog(id,null,[first]),true);
+  const write=await c.beginArtifactWrite(id);
+  assert.equal((await c.catalogState(id))!.ready,false);
+  await c.finishArtifactWrite(write,'a.json',{...first,etag:'"two"'});
+  assert.equal((await c.catalogState(id))!.ready,true);
+  assert.equal((await c.catalogState(id))!.files[0]!.etag,'"two"');
+  const before=await c.catalogState(id);
+  const a=await c.beginArtifactWrite(id), b=await c.beginArtifactWrite(id);
+  assert.equal(await c.reconcileArtifactCatalog(id,before,[first]),false);
+  await c.finishArtifactWrite(b,'a.json',first); await c.finishArtifactWrite(a,'a.json',first);
+  assert.equal((await c.catalogState(id))!.ready,false);
+  assert.equal(await c.reconcileArtifactCatalog(id,await c.catalogState(id),[first]),true);
+  const fail=await c.beginArtifactWrite(id); await c.finishArtifactWrite(fail,'a.json');
+  assert.equal((await c.catalogState(id))!.ready,false);
+  assert.equal(await c.reconcileArtifactCatalog(id,await c.catalogState(id),[first]),true);
+  const del=await c.beginArtifactWrite(id); await c.finishArtifactWrite(del,'a.json',null);
+  assert.deepEqual((await c.catalogState(id))!.files,[]);
+  assert.equal((await c.catalogState(id))!.ready,true);
+});
