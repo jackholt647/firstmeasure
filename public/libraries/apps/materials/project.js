@@ -906,7 +906,7 @@
       .mt-labor-hours input{width:46px;height:24px;box-sizing:border-box;padding:0 5px;border:1px solid #d0d5dd;border-radius:6px;font:inherit;font-size:11px;text-align:right;color:#101828}
       .mt-labor-regenerate{display:flex;align-items:center;gap:6px;width:100%;margin-top:8px;padding:7px 8px;border:0;border-top:1px solid #eaecf0;border-radius:0 0 6px 6px;background:#fff;color:#475467;font-size:11px;cursor:pointer}
       .mt-labor-regenerate:hover{background:#f2f4f7}
-      .mt-resource-column .mt-section-label{padding:4px 0 1px 11px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
+      .mt-resource-column .mt-section-label{padding:4px 0 1px 2px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
       .mt-resource-column .mt-table,.mt-resource-column .mt-table tbody{display:block;width:100%}
       .mt-resource-column .mt-table colgroup,.mt-resource-column .mt-table thead{display:none}
       .mt-resource-column .mt-table tr.mt-list-row{box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:0 2px;min-height:24px;border-bottom:1px solid #f0f2f5;background:none}
