@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 13 Pay cadence and time clock: [flexible pay schedules, salary, pay defaults, group splits, the time clock as published data and the payroll screens](deploy/digitalocean/development-pay-cadence-20261013.md) records what changed, what was removed, checks and the verified development rollout.
+
 October 13 Pay rules: [pay rules, pay plans and derived earnings](deploy/digitalocean/development-pay-rules-20261013.md) records the new pay model, what was removed, checks and the verified development rollout.
 
 October 12 FirstMeasure development scaling: [incremental project refresh, artifact metadata and durable imagery](deploy/digitalocean/development-firstmeasure-storage-scaling-20261012.md) records the source changes, verification and required staged activation. Catalog reads remain gated until every writer is upgraded and reconciled. No production activation is included.
