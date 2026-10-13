@@ -1018,9 +1018,9 @@
       .mt-workspace-actions button[data-mt-autofill-toggle][aria-pressed=true]{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
       .mt-resource-column .mt-list-head button[data-mt-open-pricebook][aria-pressed=true]{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
       .mt-autofill{position:fixed;z-index:2147482660;box-sizing:border-box;max-height:264px;overflow:auto;padding:4px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;box-shadow:0 14px 34px rgba(15,23,42,.18);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
-      .mt-autofill button{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;padding:6px 8px;border:0;border-radius:5px;background:#fff;color:#101828;text-align:left;cursor:pointer}
+      .mt-autofill{width:max-content}.mt-autofill button{display:flex;align-items:baseline;gap:14px;width:100%;padding:6px 8px;border:0;border-radius:5px;background:#fff;color:#101828;text-align:left;cursor:pointer}
       .mt-autofill button:hover,.mt-autofill button[aria-selected=true]{background:rgba(var(--primary-rgb,217,48,37),.09)}
-      .mt-autofill strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}.mt-autofill span{flex:none;font-size:10px;color:#667085;white-space:nowrap}
+      .mt-autofill strong{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}.mt-autofill em{flex:none;font-style:normal;font-size:10px;color:#98a2b3;white-space:nowrap}.mt-autofill span{flex:none;min-width:84px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;color:#344054;white-space:nowrap}
     `;
   }
 
@@ -3262,6 +3262,12 @@
     Promise.resolve(window.EquipmentAPI.units(orgId())).then((result) => { state.equipmentUnits = (Array.isArray(result?.units) ? result.units : []).filter((unit) => cleanText(unit.status) !== 'archived'); }).catch(() => { state.equipmentUnits = []; }).finally(() => { state.equipmentUnitsLoading = false; });
   }
   // Suggestions for one list from the sources its category has switched on.
+  // What kind of item a suggestion is, in words: its type when it has one, otherwise its category key read as a phrase.
+  function autofillGroup(item){
+    const type = cleanText(item?.type), category = cleanText(item?.category);
+    const text = type && type !== category ? type : category.replace(/[_-]+/g, ' ');
+    return text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+  }
   function autofillMatches(query, list){
     const tokens = cleanText(query).toLowerCase().split(/\s+/).filter(Boolean);
     if (!tokens.length || !list) return [];
@@ -3271,7 +3277,7 @@
     const skuOnly = categorySkuOnly(resourceType(list));
     if (sources.includes('pricebook')) state.pricebookItems.forEach((item) => {
       if (skuOnly && !cleanText(item.code)) return;
-      if (matches(`${item.name || ''} ${item.variantName || ''} ${item.category || ''}`)) entries.push({ label: item.name, detail: [item.category, `${money(item.unitPrice || 0)} per ${item.unit || 'ea'}`].filter(Boolean).join(' · '), catalogItem: item });
+      if (matches(`${item.name || ''} ${item.variantName || ''} ${item.category || ''}`)) entries.push({ label: item.name, group: autofillGroup(item), detail: `${money(item.unitPrice || 0)}/${item.unit || 'ea'}`, catalogItem: item });
     });
     const resource = sources.includes('piece_rate') || sources.includes('hourly_labor') ? laborSettings(list).resource : null;
     const plans = [resource?.compensation_plan, ...(Array.isArray(resource?.members) ? resource.members.map((member) => member?.compensation_plan) : [])].filter(Boolean);
@@ -3358,12 +3364,13 @@
     portal.className = 'mt-autofill';
     portal.dataset.mtAutofill = '';
     portal.setAttribute('role', 'listbox');
-    portal.innerHTML = matches.map((item, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" data-mt-autofill-item="${index}"><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.detail)}</span></button>`).join('');
+    portal.innerHTML = matches.map((item, index) => `<button type="button" role="option" tabindex="-1" aria-selected="false" data-mt-autofill-item="${index}"><strong>${escapeHtml(item.label)}</strong>${item.group ? `<em>${escapeHtml(item.group)}</em>` : ''}<span>${escapeHtml(item.detail)}</span></button>`).join('');
     colorPortalHost(state.panelRoot).appendChild(portal);
     const rect = input.getBoundingClientRect();
-    const width = Math.max(280, rect.width);
+    portal.style.minWidth = `${Math.max(280, rect.width)}px`;
+    portal.style.maxWidth = `${Math.max(280, Math.min(760, window.innerWidth - 16))}px`;
+    const width = portal.offsetWidth;
     const height = portal.offsetHeight;
-    portal.style.width = `${width}px`;
     portal.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.left))}px`;
     portal.style.top = `${rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 2 : Math.max(8, rect.top - height - 2)}px`;
     state.autofill = { input, matches, index: -1, portal };
