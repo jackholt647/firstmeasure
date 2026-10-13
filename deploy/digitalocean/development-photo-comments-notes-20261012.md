@@ -331,3 +331,20 @@ The release was patched onto the current `d73fc1cdd6c45422e2689f3c461a04c97dbf32
 | web | `/opt/firstmeasure/releases/c2eb5c33c42082fdc00ad6903667694161427f2d-channels-polish` | `/opt/firstmeasure/releases/d73fc1cdd6c45422e2689f3c461a04c97dbf32d5` |
 | pool | `/opt/firstmeasure/releases/c2eb5c33c42082fdc00ad6903667694161427f2d-channels-polish` | `/opt/firstmeasure/releases/d73fc1cdd6c45422e2689f3c461a04c97dbf32d5` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/c2eb5c33c42082fdc00ad6903667694161427f2d-channels-polish` | `/mnt/firstmeasure_dev_releases/releases/d73fc1cdd6c45422e2689f3c461a04c97dbf32d5` |
+
+
+## Balanced polishing icon and bottom tool order
+
+October 12, 2026. Frontend feature `7c4f7bac` and canonical merge `c1d1e83c60475d32cf79802cc7cdb7b15143abfc` replace the spell-check glyph with the approved compact text-and-sparkle design. The self-contained 16px SVG keeps its small star within the icon bounds and inherits the existing tool color. The icon returns after the loading spinner on success or failure.
+
+Channels/DMs and replies now end their bottom tool group with **Mention → Polish text → More options**, followed by the separate Send/Schedule controls. More is the final tool icon. When only one recording action is available, its direct icon stays before Mention, keeping Polish beside Mention without creating a More menu.
+
+Four browser checks passed locally and against the published development assets. They assert icon dimensions, exact tool order in main and reply composers, the final More position, the layout with no More menu, spinner restoration, polishing/Undo/failure behavior and confirmed mentions. Concurrent bold-name and Notes table-border regressions also passed. Both public frontend asset hashes and all role payload hashes matched the staged release; JavaScript syntax, readiness, development isolation and enforced outbound safety were verified.
+
+The canonical branch advanced during the source push. The merge preserved the new bold-name and Notes table styling, retaining their cache versions while updating the Channels UI cache version. Only this feature's Channels UI patch and manifest cache edit were staged onto each role's current `2c118e67-notes-table` release. The published Channels source matched the merged canonical source apart from newline termination. The backend runtime `5b2eb1a823614698ac8ddf0fa65bda4b2e0fe1d8` was retained; activation reloaded PHP-FPM only. No backend, worker, schema or production changes were made. Receipts are under ignored `output/polish-icon-order-deploy`.
+
+| Role | Activated frontend path | Rollback frontend path |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/c1d1e83c60475d32cf79802cc7cdb7b15143abfc-polish-icon-order` | `/opt/firstmeasure/releases/2c118e671e0689fc523dce04ae6b4dfeb8b01c8f-notes-table` |
+| pool | `/opt/firstmeasure/releases/c1d1e83c60475d32cf79802cc7cdb7b15143abfc-polish-icon-order` | `/opt/firstmeasure/releases/2c118e671e0689fc523dce04ae6b4dfeb8b01c8f-notes-table` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/c1d1e83c60475d32cf79802cc7cdb7b15143abfc-polish-icon-order` | `/mnt/firstmeasure_dev_releases/releases/2c118e671e0689fc523dce04ae6b4dfeb8b01c8f-notes-table` |
