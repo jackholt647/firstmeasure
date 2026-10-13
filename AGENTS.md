@@ -147,7 +147,10 @@ returns steps. Availability comes from commitments alone. Run
 Read [requirements](docs/architecture/requirements.md) before changing what a
 job requires, how a line accounts for it, capabilities, or the Requirements
 tray. A project has two lists that carry money (materials and the work order)
-and requirements, which carry none. A work item or function has one shared
+and requirements, which carry none. What a project requires is the sum of its
+scope artifacts (ledger sets published by an accepted document, added by hand
+or built by an agent) and never comes from the scope set, which only says what
+a kind of work could include and how it is sized. A work item or function has one shared
 definition in `platform/publication/work-items.ts`, sized from measurements and
 never priced; the dictionary only grows. Coverage is read from the lists as
 they stand: a generated line carries what it pays for, and a pay sheet maps pay

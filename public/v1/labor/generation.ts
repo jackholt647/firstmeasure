@@ -5,7 +5,8 @@ import type { JsonObject } from "../platform/storage.js";
 import { measurementSchemaIdsForScope } from "../platform/publication/measurement-schemas.js";
 import { createMaterialVersion, patchMaterialList, readMaterialList } from "../materials/storage.js";
 import { ASSIGNEE_TYPE_BY_KIND, requireActor, requireAssignee, type Actor, type Assignee } from "./assignees.js";
-import { workItem, workRequirements } from "../platform/publication/work-items.js";
+import { workItem } from "../platform/publication/work-items.js";
+import { projectScope, requiredWork, type RequiredWork } from "./scope-artifacts.js";
 import { capabilitiesFor } from "./capabilities.js";
 import { evaluatePaySheet, listPaySheets, paySheetWork, type PayContext, type PaySheet } from "./pay-sheets.js";
 import { projectPayContext } from "./pay-sheet-publication.js";
@@ -32,11 +33,11 @@ export function listExcludedWork(list: JsonObject): string[] {
   return Array.isArray(excluded) ? [...new Set(excluded.map(text).filter(Boolean))] : [];
 }
 /**
- * What a sheet is evaluated against for one list: what the job requires of the sheet's kinds of work, and the items
- * that are this list's to do. With nothing left to someone else there is no scope, which means all of it.
+ * What a sheet is evaluated against for one list: what the project requires, and the items that are this list's to
+ * do. With nothing left to someone else there is no scope, which means all of it.
  */
-export function workContext(sheet: PaySheet, context: PayContext, excluded: string[]): Pick<PayContext, "work" | "scope"> {
-  const work = workRequirements(sheet.schema_ids, context).map((row) => ({ item: row.item, quantity: row.quantity }));
+export function workContext(sheet: PaySheet, required: RequiredWork[], excluded: string[]): Pick<PayContext, "work" | "scope"> {
+  const work = required.map((row) => ({ item: row.item, quantity: row.quantity }));
   if (!excluded.length) return { work };
   const handled = new Set([...paySheetWork(sheet).keys(), ...sheet.work.map((entry) => entry.item)]);
   return { work, scope: [...handled].filter((item) => !excluded.includes(item)) };
@@ -89,7 +90,8 @@ export async function previewLaborList(orgId: string, input: unknown) {
     if (quantity > 0 && !stillEstimate) typed[source.name] = quantity / (entry.multiplier ?? 1);
   }
   const base = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: { ...typed, ...(parsed.manual || {}) }, legacy_measurements: parsed.legacy_measurements });
-  const context = { ...base, ...workContext(sheet, base, listExcludedWork(list)) };
+  const required = requiredWork((await projectScope(orgId, text(list.project_id))).sets, base);
+  const context = { ...base, ...workContext(sheet, required, listExcludedWork(list)) };
   const evaluation = evaluatePaySheet(sheet, context);
   // Which requirements a line accounts for travels with the line, so the list itself says what it covers.
   const cover = (line: { covers?: string[]; adjusts?: string[]; covers_outside?: string[] }): JsonObject => ({ ...(line.covers?.length ? { covers: line.covers } : {}), ...(line.adjusts?.length ? { adjusts: line.adjusts } : {}), ...(line.covers_outside?.length ? { covers_outside: line.covers_outside } : {}) });
@@ -153,16 +155,17 @@ export async function compareAssigneesForList(orgId: string, input: unknown) {
   for (const sheet of sheets) assignees.set(`${sheet.subject.type}:${sheet.subject.id}`, sheet.subject);
   const capabilities = await capabilitiesFor(orgId, [...assignees.values()]);
   const excluded = listExcludedWork(list);
+  const projectWork = requiredWork((await projectScope(orgId, text(list.project_id))).sets, context);
   const rows = [];
   for (const assignee of assignees.values()) {
     const found = await requireAssignee(orgId, assignee).catch(() => null);
     if (!found) continue;
     const sheet = await paySheetForList(orgId, list, assignee).catch(() => null);
     if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, cost_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], work_items: [], not_covered: [], not_capable: [], estimated_hours: null, reason: "More than one pay sheet could apply." }); continue; }
-    const work = workContext(sheet, context, excluded);
+    const work = workContext(sheet, projectWork, excluded);
     const evaluation = evaluatePaySheet(sheet, { ...context, ...work });
     // What this job requires that the sheet says nothing about is left for someone else, and is said up front.
-    const handled = new Set(evaluation.work.items.map((entry) => entry.item)), required = workRequirements(sheet.schema_ids, context).filter((row) => !excluded.includes(row.item));
+    const handled = new Set(evaluation.work.items.map((entry) => entry.item)), required = projectWork.filter((row) => !excluded.includes(row.item) && row.schemas.some((schema) => sheet.schema_ids.includes(schema)));
     const able = capabilities.get(`${assignee.type}:${assignee.id}`);
     const label = (item: string) => ({ item, label: workItem(item)?.label || item });
     const hourly = sheet.entries.find((entry) => entry.kind === "hourly"), costed = sheet.entries.find((entry) => entry.kind === "cost_rate");

@@ -229,6 +229,8 @@ async function initializeSchema(db: SqlStore) {
   await ensureSqlColumn(db, "equipment_units", "department_id", "TEXT NOT NULL DEFAULT ''");
   await ensureSqlColumn(db, "equipment_units", "color", "TEXT NOT NULL DEFAULT ''");
   await ensureSqlColumn(db, "equipment_types", "kind", "TEXT NOT NULL DEFAULT 'other'");
+  await ensureSqlColumn(db, "equipment_types", "provides_json", "TEXT NOT NULL DEFAULT '[]'");
+  await ensureSqlColumn(db, "equipment_units", "provides_json", "TEXT NOT NULL DEFAULT '[]'");
 }
 
 /* Row views --------------------------------------------------------------- */
@@ -269,6 +271,7 @@ export function typeView(row: unknown): JsonObject {
     attributes_schema: parseJson(value.attributes_schema_json, []),
     default_rates: parseJson(value.default_rates_json, {}),
     scope_item_keys: parseJson(value.scope_item_keys_json, []),
+    provides: parseJson(value.provides_json, []),
     status: cleanText(value.status || "active"),
     sort_order: Number(value.sort_order || 0),
     seed_key: cleanText(value.seed_key),
@@ -321,6 +324,7 @@ export function unitView(row: unknown): JsonObject {
     current_meter: parseJson(value.current_meter_json, {}),
     rates: parseJson(value.rates_json, {}),
     attributes: parseJson(value.attributes_json, {}),
+    provides: parseJson(value.provides_json, []),
     operator_tag_overrides: parseJson(value.operator_tag_overrides_json, []),
     custody: parseJson(value.custody_json, {}),
     photos: parseJson(value.photos_json, []),
@@ -431,23 +435,23 @@ export async function saveType(orgId: string, input: JsonObject) {
     if (expected && expected !== current) throw conflict("equipment_type_revision_conflict", "The equipment type was changed elsewhere. Reload and try again.");
     (await db.prepare(`UPDATE equipment_types SET name=?, kind=?, category_id=?, description=?, icon=?, color=?, tracking=?, mobility=?, pool_quantity=?,
       allow_double_booking=?, default_meter_kind=?, operator_requirements_json=?, attributes_schema_json=?, default_rates_json=?,
-      scope_item_keys_json=?, status=?, sort_order=?, revision=?, updated_at=?
+      scope_item_keys_json=?, provides_json=?, status=?, sort_order=?, revision=?, updated_at=?
       WHERE organization_id=? AND id=?`)
       .run(cleanText(input.name), cleanText(input.kind || "other"), cleanText(input.category_id), cleanText(input.description), cleanText(input.icon), cleanText(input.color),
         cleanText(input.tracking || "unit"), cleanText(input.mobility || "mobile"), Number(input.pool_quantity || 0),
         input.allow_double_booking === true ? 1 : 0, cleanText(input.default_meter_kind || "none"),
         JSON.stringify(input.operator_requirements ?? []), JSON.stringify(input.attributes_schema ?? []), JSON.stringify(input.default_rates ?? {}),
-        JSON.stringify(input.scope_item_keys ?? []), cleanText(input.status || "active"), Number(input.sort_order || 0), current + 1, now, orgId, typeId));
+        JSON.stringify(input.scope_item_keys ?? []), JSON.stringify(input.provides ?? []), cleanText(input.status || "active"), Number(input.sort_order || 0), current + 1, now, orgId, typeId));
   } else {
     (await db.prepare(`INSERT INTO equipment_types (id, organization_id, name, kind, category_id, description, icon, color, tracking, mobility, pool_quantity,
       allow_double_booking, default_meter_kind, operator_requirements_json, attributes_schema_json, default_rates_json, scope_item_keys_json,
-      status, sort_order, seed_key, revision, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+      provides_json, status, sort_order, seed_key, revision, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
       .run(typeId, orgId, cleanText(input.name), cleanText(input.kind || "other"), cleanText(input.category_id), cleanText(input.description), cleanText(input.icon), cleanText(input.color),
         cleanText(input.tracking || "unit"), cleanText(input.mobility || "mobile"), Number(input.pool_quantity || 0),
         input.allow_double_booking === true ? 1 : 0, cleanText(input.default_meter_kind || "none"),
         JSON.stringify(input.operator_requirements ?? []), JSON.stringify(input.attributes_schema ?? []), JSON.stringify(input.default_rates ?? {}),
-        JSON.stringify(input.scope_item_keys ?? []), cleanText(input.status || "active"), Number(input.sort_order || 0), cleanText(input.seed_key), now, now));
+        JSON.stringify(input.scope_item_keys ?? []), JSON.stringify(input.provides ?? []), cleanText(input.status || "active"), Number(input.sort_order || 0), cleanText(input.seed_key), now, now));
   }
   return (await readType(orgId, typeId));
 
@@ -566,27 +570,27 @@ export async function saveUnit(orgId: string, input: JsonObject) {
     if (expected && expected !== current) throw conflict("equipment_unit_revision_conflict", "The unit was changed elsewhere. Reload and try again.");
     (await db.prepare(`UPDATE equipment_units SET type_id=?, branch_id=?, department_id=?, name=?, identifier=?, serial_number=?, license_plate=?, year=?, make=?, model=?, vin=?, color=?,
       ownership=?, contact_id=?, service_location_json=?, acquisition_json=?, status=?, condition_status_id=?, location_source=?, location_json=?,
-      home_location_json=?, current_meter_json=?, rates_json=?, attributes_json=?, operator_tag_overrides_json=?, custody_json=?, photos_json=?,
+      home_location_json=?, current_meter_json=?, rates_json=?, attributes_json=?, provides_json=?, operator_tag_overrides_json=?, custody_json=?, photos_json=?,
       documents_json=?, tags_json=?, notes=?, revision=?, updated_at=?
       WHERE organization_id=? AND id=?`)
       .run(cleanText(input.type_id), cleanText(input.branch_id || "default"), cleanText(input.department_id), cleanText(input.name), cleanText(input.identifier),
         cleanText(input.serial_number), cleanText(input.license_plate), cleanText(input.year), cleanText(input.make), cleanText(input.model), cleanText(input.vin), cleanText(input.color),
         cleanText(input.ownership || "owned"), cleanText(input.contact_id), JSON.stringify(input.service_location ?? {}), JSON.stringify(input.acquisition ?? {}),
         cleanText(input.status || "available"), cleanText(input.condition_status_id), cleanText(input.location_source || "manual"), JSON.stringify(input.location ?? {}),
-        JSON.stringify(input.home_location ?? {}), JSON.stringify(input.current_meter ?? {}), JSON.stringify(input.rates ?? {}), JSON.stringify(input.attributes ?? {}),
+        JSON.stringify(input.home_location ?? {}), JSON.stringify(input.current_meter ?? {}), JSON.stringify(input.rates ?? {}), JSON.stringify(input.attributes ?? {}), JSON.stringify(input.provides ?? []),
         JSON.stringify(input.operator_tag_overrides ?? []), JSON.stringify(input.custody ?? {}), JSON.stringify(input.photos ?? []),
         JSON.stringify(input.documents ?? []), JSON.stringify(input.tags ?? []), cleanText(input.notes), current + 1, now, orgId, unitId));
   } else {
     (await db.prepare(`INSERT INTO equipment_units (id, organization_id, type_id, branch_id, department_id, name, identifier, serial_number, license_plate, year, make, model, vin, color,
       ownership, contact_id, service_location_json, acquisition_json, status, condition_status_id, location_source, location_json, home_location_json,
-      current_meter_json, rates_json, attributes_json, operator_tag_overrides_json, custody_json, photos_json, documents_json, tags_json, notes,
+      current_meter_json, rates_json, attributes_json, provides_json, operator_tag_overrides_json, custody_json, photos_json, documents_json, tags_json, notes,
       revision, created_at, updated_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, '')`)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, '')`)
       .run(unitId, orgId, cleanText(input.type_id), cleanText(input.branch_id || "default"), cleanText(input.department_id), cleanText(input.name), cleanText(input.identifier),
         cleanText(input.serial_number), cleanText(input.license_plate), cleanText(input.year), cleanText(input.make), cleanText(input.model), cleanText(input.vin), cleanText(input.color),
         cleanText(input.ownership || "owned"), cleanText(input.contact_id), JSON.stringify(input.service_location ?? {}), JSON.stringify(input.acquisition ?? {}),
         cleanText(input.status || "available"), cleanText(input.condition_status_id), cleanText(input.location_source || "manual"), JSON.stringify(input.location ?? {}),
-        JSON.stringify(input.home_location ?? {}), JSON.stringify(input.current_meter ?? {}), JSON.stringify(input.rates ?? {}), JSON.stringify(input.attributes ?? {}),
+        JSON.stringify(input.home_location ?? {}), JSON.stringify(input.current_meter ?? {}), JSON.stringify(input.rates ?? {}), JSON.stringify(input.attributes ?? {}), JSON.stringify(input.provides ?? []),
         JSON.stringify(input.operator_tag_overrides ?? []), JSON.stringify(input.custody ?? {}), JSON.stringify(input.photos ?? []),
         JSON.stringify(input.documents ?? []), JSON.stringify(input.tags ?? []), cleanText(input.notes), now, now));
   }

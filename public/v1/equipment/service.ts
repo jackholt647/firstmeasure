@@ -2,6 +2,7 @@ import { isCapabilityEnabled } from "../platform/capabilities.js";
 import { badRequest } from "../platform/errors.js";
 import { listDocuments, readBranchModule, readDocument, upsertDocument } from "../platform/storage.js";
 import type { JsonObject } from "./storage.js";
+import { effectiveProvides } from "./functions.js";
 import {
   getEquipmentDatabase,
   countCategoriesWithSeedKey,
@@ -130,7 +131,9 @@ export async function fleetUnits(orgId: string, options: Parameters<typeof listU
       type_icon: cleanText(type?.icon) || "fa-truck-pickup",
       type_tracking: cleanText(type?.tracking) || "unit",
       category_id: cleanText(type?.category_id),
-      category_name: cleanText(category?.name)
+      category_name: cleanText(category?.name),
+      type_provides: effectiveProvides(type),
+      effective_provides: effectiveProvides(type, unit)
     };
   }));
   return options.status ? decorated.filter((unit) => unit.status === options.status) : decorated;

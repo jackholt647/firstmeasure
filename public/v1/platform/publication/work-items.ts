@@ -103,17 +103,19 @@ function amount(quantity: WorkQuantity, context: { measurements?: unknown; field
   return total;
 }
 /**
- * What a job of these kinds of work requires, from its measurements. An item that two kinds of work both require is
- * one requirement with the amounts added. Reads nothing and changes nothing.
+ * What a job of these kinds of work would require if it included everything, from its measurements: the scope
+ * set's sizing of each item. What a particular project requires is decided by its scope artifacts
+ * (labor/scope-artifacts.ts), which use this for the amounts. An item that two kinds of work both require is one
+ * requirement with the amounts added. Reads nothing and changes nothing.
  */
-export function workRequirements(schemaIds: string[], context: { measurements?: unknown; fields?: Record<string, number> }): WorkRequirement[] {
+export function workRequirements(schemaIds: string[], context: { measurements?: unknown; fields?: Record<string, number> }, options: { includeEmpty?: boolean } = {}): WorkRequirement[] {
   const rows = new Map<string, WorkRequirement>();
   for (const schemaId of [...new Set(schemaIds)]) {
     const schema = schemas.get(schemaId);
     if (!schema) continue;
     for (const entry of schema.items) {
       const definition = items.get(entry.item)!, quantity = amount(entry.quantity, context);
-      if (entry.optional && !(Number(quantity) > 0)) continue;
+      if (entry.optional && !(Number(quantity) > 0) && !options.includeEmpty) continue;
       const single = "measurements" in entry.quantity && entry.quantity.measurements.length === 1 && (entry.quantity.factor ?? 1) === 1 && !(entry.quantity.scale || []).length;
       const existing = rows.get(entry.item);
       if (existing) {

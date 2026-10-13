@@ -56,7 +56,7 @@ export function nativeCalculusAPI(base, currentProject) {
       catch(error) { if(error.status===403){ledger={revision:0,sets:[],orders:[],deliveries:[]};return native;}throw error; }
       if(currentProject()!==projectId)return native;
       org=orgId;project=projectId;ledger=response.ledger;
-      return {...native,material_lists:[...native.material_lists,...ledger.sets.map(list)]};
+      return {...native,material_lists:[...native.material_lists,...ledger.sets.filter(s=>(s.lines||[]).length||!(s.work||[]).length&&s.definition?.key!=='manual_scope').map(list)]};
     }},
     lists:{...base.lists,
       async get(o,id){return set(id)?result(id):base.lists.get(o,id);},

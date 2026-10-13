@@ -11,14 +11,15 @@ import { assertSafeTenantSchema } from "../platform/publication/tenant-schema.js
 import type { PublicationContext, DataBinding, DataResult } from "../platform/publication/contracts.js";
 import { moduleBindingSchema } from "../documents/modules/schemas.js";
 import { runModuleCode } from "../documents/modules/runtime.js";
-import { calculusDefinitionSchema, calculationOutputSchema, commandSchema, requirementSchema, type CalculusDefinition, type CalculusCommand, type Requirement } from "./calculus-contract.js";
+import { calculusDefinitionSchema, calculationOutputSchema, commandSchema, requirementSchema, type CalculusDefinition, type CalculusCommand, type Requirement, type ScopeWork } from "./calculus-contract.js";
+import { workItem } from "../platform/publication/work-items.js";
 
 export const CALCULUS_LEDGER = "materials_calculus_ledgers";
 const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
 const identity = (prefix: string, value: unknown) => `${prefix}_${contentHash(value).slice(0, 32)}`;
 type Line = Requirement & { id: string; order_quantity: number; order_unit: string; lineage: string[] };
-type Evaluation = { id: string; base_revision: number; inputs: JsonObject; lines: Requirement[]; warnings: string[]; evidence: JsonObject; at: string; definition_hash: string };
-type SetRecord = { id: string; title: string; presentation?: JsonObject; definition: CalculusDefinition; document: JsonObject; origin: JsonObject; revision: number; lines: Line[]; evaluations: Evaluation[]; history: JsonObject[]; applied_evaluation?: string };
+type Evaluation = { id: string; base_revision: number; inputs: JsonObject; lines: Requirement[]; work?: ScopeWork[]; warnings: string[]; evidence: JsonObject; at: string; definition_hash: string };
+type SetRecord = { id: string; title: string; presentation?: JsonObject; definition: CalculusDefinition; document: JsonObject; origin: JsonObject; revision: number; lines: Line[]; work?: ScopeWork[]; evaluations: Evaluation[]; history: JsonObject[]; applied_evaluation?: string };
 type Allocation = { id: string; set_id: string; line_id: string; line: Line; quantity: number; cancelled: number; received: number; returned: number; unit_cost?: number; currency: string };
 type Order = { presentation?: JsonObject; id: string; supplier: string; reference: string; at: string; lines: Allocation[] };
 type Delivery = { id: string; title: string; date: string; allocations: string[] };
@@ -73,6 +74,25 @@ export async function readMaterialsLedger(ctx: PublicationContext, project: stri
   const ledger = await rawLedger(ctx.organizationId, project);
   await evidenceAccess({ ...ctx, projectId: project }, ledger);
   return ledgerView(ledger);
+}
+/**
+ * The project's scope artifacts as its requirements read them: each set's material lines and the work items and
+ * functions it says the job includes. A set a document published that has not been generated yet is pending. Reads only.
+ */
+export async function projectScopeSets(org: string, project: string) {
+  return (await rawLedger(org, project)).sets.map(set => ({
+    id: set.id, title: set.title, key: set.definition.key, origin: String(set.origin.type || ""), document_id: String(set.origin.document_id || ""),
+    work: jsonClone(set.work || []), lines: set.lines.map(line => ({ id: line.id, name: line.name, quantity: line.quantity, unit: line.unit, group: line.group })),
+    pending: !set.applied_evaluation && !set.lines.length && !(set.work || []).length && set.origin.type === "document"
+  }));
+}
+function assertScopeWork(work: ScopeWork[]) {
+  const seen = new Set<string>();
+  for (const entry of work) {
+    if (!workItem(entry.item)) throw badRequest("scope_work_unknown", `${entry.item} is not in the work item dictionary.`);
+    if (seen.has(entry.item)) throw badRequest("scope_work_duplicate", `${entry.item} is listed twice. State each work item once.`);
+    seen.add(entry.item);
+  }
 }
 function compatible(a: Line, b: Line) { return a.product_id === b.product_id && a.variant === b.variant && a.order_unit === b.order_unit; }
 export function lineBalance(ledger: MaterialsLedger, set: SetRecord, line: Line) {
@@ -185,6 +205,7 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
     const session = createBindingSession({ ...ctx, projectId: ledger.project_id, mode: "evaluate" }, set.id, set.definition.bindings as Record<string, DataBinding>);
     const result = await runModuleCode({ source: set.definition.source, inputs: { document: set.document, values: manual }, state: {}, mode: "evaluate", now: at }, { read: name => session.read(name), invoke: async () => { throw forbidden("calculus_pure", "Materials calculation cannot invoke actions."); } });
     const output = calculationOutputSchema.parse(result.outputs);
+    assertScopeWork(output.work);
     const evaluation: Evaluation = { id: identity("evaluation", key), base_revision: set.revision, inputs: manual, ...output, evidence: session.manifest(), at, definition_hash: contentHash(set.definition) };
     // Validate stable keys and package arithmetic before saving a preview.
     makeLines(set, output.lines.map(l => ({ ...l, replaces: undefined })), [], key);
@@ -203,6 +224,8 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
     const additions = evaluation.lines.map(line => { const replaces = line.replaces || set.lines.find(l => l.key === line.key && removed.includes(l.id))?.id; return { ...line, ...(replaces ? { replaces } : {}) }; });
     const result = amend(ledger, set, { set_revision: target?.revision ?? evaluation.base_revision, remove: removed, add: additions, reason: input.reason || "Apply calculated requirements" }, key, at, { ...producer.origin, calculus_id: producer.id, evaluation_id: evaluation.id });
     producer.applied_evaluation = evaluation.id;
+    // What the job includes is replaced with the material it needs. An amendment that names no work leaves its target's alone.
+    if (!target || evaluation.work?.length) set.work = jsonClone(evaluation.work || []);
     if (target) producer.revision++;
     return result;
   }

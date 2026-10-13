@@ -5,6 +5,8 @@ import {evaluateProjectPaySheets,requireLaborEnabled} from '../labor/pay-sheet-p
 import {assigneeSchema} from '../labor/assignees.js';
 import {assigneeCapabilities,saveCapabilities} from '../labor/capabilities.js';
 import {projectRequirements} from '../labor/requirements.js';
+import {saveManualScope} from '../labor/scope-artifacts.js';
+import {userPublicationContext as scopePublicationContext} from '../platform/publication/context.js';
 import {generateLaborList,previewLaborList,compareAssigneesForList} from '../labor/generation.js';
 import {commitLaborList,listCommitments,listDeliverySettings,saveDeliverySetting,releaseCommitment,redeliverCommitment,confirmDelivery,releaseCommitmentsForList,listUnits,saveUnit,archiveUnit,assigneeAvailability} from '../labor/commitments.js';
 import type { FastifyPluginAsync } from "fastify";
@@ -125,6 +127,8 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
   app.put('/organizations/:orgId/labor-delivery-settings',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);return {ok:true,setting:await saveDeliverySetting(orgId,request.body,ctx)};});
   // Everything the project requires and what on its lists accounts for each thing. Reads only.
   app.post('/organizations/:orgId/projects/:projectId/requirements',async request=>{const {orgId}=await laborAuth(request,'manage_projects');return {ok:true,...await projectRequirements(orgId,getParam(request.params,'projectId'),request.body||{})};});
+  // The work a person has added to this project's scope by hand: one manual artifact, replaced as a whole.
+  app.put('/organizations/:orgId/projects/:projectId/scope/manual',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_projects',true);const projectId=getParam(request.params,'projectId');return {ok:true,...await saveManualScope(scopePublicationContext(ctx,{projectId}),projectId,request.body||{})};});
   // What an assignee is able to do, as work items, apart from how they are paid.
   app.get('/organizations/:orgId/assignees/:type/:assigneeId/capabilities',async request=>{const {orgId}=await laborAuth(request,'manage_projects|manage_company_settings');return {ok:true,capabilities:await assigneeCapabilities(orgId,assigneeSchema.parse({type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')}))};});
   app.put('/organizations/:orgId/assignees/:type/:assigneeId/capabilities',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);const {assignee:_assignee,...body}=(request.body||{}) as Record<string,unknown>;return {ok:true,capabilities:await saveCapabilities(orgId,{...body,assignee:{type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')}},ctx)};});

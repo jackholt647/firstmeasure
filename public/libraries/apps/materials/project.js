@@ -6,7 +6,7 @@
   let scopeWorkspace;
   let refreshTimer;
   const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261012-schedule-view', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
-  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261005-quantities', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261013-scope', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
   const util = Portal?.util || {};
@@ -1042,7 +1042,8 @@
       .mt-req-bar-label{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#98a2b3;margin-top:2px}
       .mt-req-panel{width:0;opacity:0;overflow:hidden;transition:width .26s cubic-bezier(.4,0,.2,1),opacity .2s ease}.mt-req-tray.is-open .mt-req-panel{width:290px;opacity:1}
       .mt-req-panel-inner{width:290px;height:100%;display:flex;flex-direction:column;min-height:0}
-      .mt-req-title{flex:none;display:flex;flex-direction:column;gap:1px;padding:7px 10px;border-bottom:1px solid #eaecf0}.mt-req-title strong{font-size:12px;color:#101828}.mt-req-title span{font-size:10px;color:#667085}
+      .mt-req-title{flex:none;display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #eaecf0}.mt-req-title>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.mt-req-title strong{font-size:12px;color:#101828}.mt-req-title span{font-size:10px;color:#667085}
+      .mt-req-title select{flex:none;width:64px;height:22px;padding:0 4px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;font-size:10px;font-weight:600;color:#344054;cursor:pointer}.mt-req-source{display:flex;align-items:center;gap:6px;color:#667085}.mt-req-source span{flex:1}
       .mt-req-scroll{flex:1;min-height:0;overflow:auto;padding:4px 6px 8px}
       .mt-req-group-head{display:flex;align-items:center;gap:5px;width:100%;padding:6px 4px 3px;border:0;background:transparent;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3;cursor:pointer}.mt-req-group-head i{font-size:8px}.mt-req-group-head span{flex:1;text-align:left}.mt-req-group-head em{font-style:normal}
       .mt-req-row{border-bottom:1px solid #f0f2f5}.mt-req-row.is-open{background:#fef3f2}.mt-req-row.is-warning{background:#fffaeb}
@@ -3305,6 +3306,12 @@
     if (state.equipmentUnits || state.equipmentUnitsLoading || !window.EquipmentAPI?.units || !orgId()) return;
     state.equipmentUnitsLoading = true;
     Promise.resolve(window.EquipmentAPI.units(orgId())).then((result) => { state.equipmentUnits = (Array.isArray(result?.units) ? result.units : []).filter((unit) => cleanText(unit.status) !== 'archived'); }).catch(() => { state.equipmentUnits = []; }).finally(() => { state.equipmentUnitsLoading = false; });
+    if (window.EquipmentAPI.types) Promise.resolve(window.EquipmentAPI.types(orgId())).then((result) => { state.equipmentTypes = (Array.isArray(result?.types) ? result.types : []).filter((type) => cleanText(type.status) !== 'archived'); }).catch(() => { state.equipmentTypes = []; });
+  }
+  // What a unit or a type of equipment does for a job (debris disposal, so many cubic yards), copied onto the line it
+  // is picked for so the project's requirements count the line as covering it.
+  function equipmentProvides(value){
+    return (Array.isArray(value) ? value : []).filter((entry) => cleanText(entry?.item)).map((entry) => ({ item: cleanText(entry.item), ...(typeof entry.capacity === 'number' && Number.isFinite(entry.capacity) ? { capacity: entry.capacity } : {}), per_load: entry.per_load === true }));
   }
   // Suggestions for one list from the sources its category has switched on.
   // What kind of item a suggestion is, in words: its type when it has one, otherwise its category key read as a phrase.
@@ -3345,7 +3352,13 @@
         const name = cleanText(unit.name || unit.label);
         if (!name || !matches(name)) return;
         const daily = number(unit.rates?.daily_cents, 0);
-        entries.push({ label: name, detail: daily > 0 ? `Equipment · ${money(daily / 100)} per day` : 'Equipment', patch: { name, unit: 'day', ...(daily > 0 ? { projected_unit_price: daily / 100 } : {}), metadata: { equipment_unit_id: cleanText(unit.id) } } });
+        entries.push({ label: name, detail: daily > 0 ? `Equipment · ${money(daily / 100)} per day` : 'Equipment', patch: { name, unit: 'day', ...(daily > 0 ? { projected_unit_price: daily / 100 } : {}), metadata: { equipment_unit_id: cleanText(unit.id), equipment_type_id: cleanText(unit.type_id), provides: equipmentProvides(unit.effective_provides) } } });
+      });
+      (state.equipmentTypes || []).forEach((type) => {
+        const name = cleanText(type.name);
+        if (!name || !matches(name) || entries.some((entry) => entry.label === name)) return;
+        const daily = number(type.default_rates?.daily_cents, 0);
+        entries.push({ label: name, detail: daily > 0 ? `Equipment type · ${money(daily / 100)} per day` : 'Equipment type', patch: { name, unit: 'day', ...(daily > 0 ? { projected_unit_price: daily / 100 } : {}), metadata: { equipment_unit_id: '', equipment_type_id: cleanText(type.id), provides: equipmentProvides(type.provides) } } });
       });
     }
     return entries.slice(0, 8);
@@ -5809,13 +5822,15 @@
     const id = cleanText(row.id), expanded = !!state.expandedRequirementIds?.has(id), [icon, meaning] = REQUIREMENT_STATUS[row.status] || REQUIREMENT_STATUS.open;
     const covers = row.covered_by || [], by = covers.map((cover) => cleanText(cover.assignee_name || cover.list_title)).filter(Boolean);
     const kind = requirementKind(row);
-    const tip = [`${row.label}${requirementAmount(row) ? `, ${requirementAmount(row)}` : ''}`, `${kind.what}.${row.description ? ` ${cleanText(row.description)}` : ''}`, meaning + (by.length ? `: ${[...new Set(by)].join(', ')}` : ''), ...(row.warnings || []).map((warning) => cleanText(warning.message)), cleanText(row.reason)].filter(Boolean).join('\n');
+    const from = [...new Set((row.sources || []).map((source) => cleanText(source.title)).filter(Boolean))];
+    const byHand = row.kind !== 'material' && (requirementSet()?.data?.manual_work || []).some((entry) => entry.item === id);
+    const tip = [`${row.label}${requirementAmount(row) ? `, ${requirementAmount(row)}` : ''}`, `${kind.what}.${row.description ? ` ${cleanText(row.description)}` : ''}`, from.length && row.kind !== 'material' ? `Required by: ${from.join(', ')}` : '', meaning + (by.length ? `: ${[...new Set(by)].join(', ')}` : ''), ...(row.warnings || []).map((warning) => cleanText(warning.message)), cleanText(row.reason)].filter(Boolean).join('\n');
     // How a cover reads depends on what is covered: work is done by someone, a function is taken care of, material is listed.
     const coverSays = (cover) => row.kind === 'material' ? 'Listed here' : cover.mode === 'included' ? (row.kind === 'function' ? 'Takes care of this at no separate charge' : 'Does this work at no separate charge') : cover.mode === 'provided' ? 'Brings equipment that takes care of this' : row.kind === 'function' ? (cover.assignee_name ? 'Takes care of this, on these line items' : 'These line items take care of this') : 'Does this work, on these line items';
     const lineMoney = (line) => line.total_cents == null ? '' : money(number(line.total_cents, 0) / 100);
     // Lines a person added to a work order, which they may mark as taking care of this.
     const handLines = row.kind === 'material' || row.status !== 'open' ? [] : state.lists.filter((list) => (row.kind === 'function' ? ['labor', 'equipment'] : ['labor']).includes(resourceType(list))).flatMap((list) => listItems(list).filter((item) => item.metadata?.generated_from_pay_sheet !== true && !(item.metadata?.covers || []).includes(id)).map((item) => ({ list, item })));
-    const detail = !expanded ? '' : `<div class="mt-req-detail">${row.reason ? `<p class="mt-req-note">${escapeHtml(row.reason)}</p>` : ''}
+    const detail = !expanded ? '' : `<div class="mt-req-detail">${byHand ? `<div class="mt-req-source" title="You added this to the job by hand.${from.length > 1 ? ` It is also required by ${from.filter((title) => title !== 'Added by hand').join(', ')}, which stays.` : ''}"><span>Added by hand</span><button type="button" class="mt-req-remove" data-mt-req-unrequire="${escapeHtml(id)}">Remove</button></div>` : ''}${row.reason ? `<p class="mt-req-note">${escapeHtml(row.reason)}</p>` : ''}
       ${(row.warnings || []).map((warning) => `<p class="mt-req-warning"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${escapeHtml(warning.message)}</span></p>`).join('')}
       ${covers.map((cover) => { const name = cleanText(cover.assignee_name || cover.list_title), list = materialListById(cover.list_id), mine = !!list && resourceType(list) === 'labor' && !!assignmentWorkResourceRef(list)?.id;
         const lines = (cover.lines || []).map((line) => `<li><span title="${escapeHtml(line.name)}">${escapeHtml(line.name)}</span><em>${escapeHtml([number(line.quantity, 0) ? `${Math.round(number(line.quantity, 0) * 100) / 100} ${cleanText(line.unit)}`.trim() : '', lineMoney(line)].filter(Boolean).join(' · '))}</em>${row.kind !== 'material' && line.generated === false ? `<button type="button" data-mt-req-unmark="${escapeHtml(id)}" data-mt-list-id="${escapeHtml(cover.list_id)}" data-mt-item-id="${escapeHtml(line.id)}" title="This line no longer accounts for it" aria-label="Unmark ${escapeHtml(line.name)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>` : ''}</li>`).join('');
@@ -5841,7 +5856,7 @@
     const group = (key, label, list) => { if (!list.length) return ''; const collapsed = !!state.collapsedRequirementGroups?.has(key); return `<section class="mt-req-group${collapsed ? ' is-collapsed' : ''}"><button type="button" class="mt-req-group-head" data-mt-req-group="${escapeHtml(key)}" aria-expanded="${!collapsed}"><i class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></i><span>${escapeHtml(label)}</span><em>${list.length}</em></button>${collapsed ? '' : list.map(renderRequirementRow).join('')}</section>`; };
     const body = set?.error ? `<p class="mt-req-note">${escapeHtml(set.error)}</p>` : !data ? '<p class="mt-req-note">Working out what this project requires…</p>' : !rows.length ? `<p class="mt-req-note">${escapeHtml(data.reason || 'Nothing is required yet.')}</p>`
       : `${group('attention', 'Needs attention', attention)}${group('material', 'Materials', settled.filter((row) => row.kind === 'material'))}${group('work', 'Work', settled.filter((row) => row.kind === 'work'))}${group('function', 'Other', settled.filter((row) => row.kind === 'function'))}`;
-    return `<aside class="mt-req-tray${open ? ' is-open' : ''}" data-mt-req-tray data-status="${escapeHtml(status)}" aria-label="Requirements"><button type="button" class="mt-req-bar" data-mt-req-open aria-expanded="${open}" title="${escapeHtml(`Requirements: ${summary}. ${open ? 'Click to close.' : 'Click to open.'}`)}" aria-label="${escapeHtml(`Requirements: ${summary}`)}"><i class="fas fa-chevron-left mt-req-arrow" aria-hidden="true"></i><span class="mt-req-badges">${badges}</span><span class="mt-req-bar-label">Requirements</span></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><strong>Requirements</strong><span>${escapeHtml(summary)}</span></header><div class="mt-req-scroll">${body}</div></div></div></aside>`;
+    return `<aside class="mt-req-tray${open ? ' is-open' : ''}" data-mt-req-tray data-status="${escapeHtml(status)}" aria-label="Requirements"><button type="button" class="mt-req-bar" data-mt-req-open aria-expanded="${open}" title="${escapeHtml(`Requirements: ${summary}. ${open ? 'Click to close.' : 'Click to open.'}`)}" aria-label="${escapeHtml(`Requirements: ${summary}`)}"><i class="fas fa-chevron-left mt-req-arrow" aria-hidden="true"></i><span class="mt-req-badges">${badges}</span><span class="mt-req-bar-label">Requirements</span></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><div><strong>Requirements</strong><span>${escapeHtml(summary)}</span></div>${(data?.available || []).length ? `<select data-mt-req-add aria-label="Add a requirement by hand" title="Add something this job includes that no accepted document has listed. It is sized from the measurements."><option value="">+ Add</option>${data.available.map((entry) => `<option value="${escapeHtml(entry.item)}" title="${escapeHtml(entry.description || '')}">${escapeHtml(entry.label)}</option>`).join('')}</select>` : ''}</header><div class="mt-req-scroll">${body}</div></div></div></aside>`;
   }
   function syncRequirementsTray(){
     const current = materialRoot()?.querySelector?.('[data-mt-req-tray]');
@@ -5871,6 +5886,21 @@
       refreshRequirements();
     }
   }
+  // What a person adds by hand is one artifact on the project, replaced as a whole each time it changes.
+  async function setManualRequirement(item, required){
+    const api = (materialsAPI || window.MaterialsAPI)?.labor, current = requirementSet()?.data?.manual_work || [];
+    if (!api?.saveManualScope || !item || state.savingManualScope) return;
+    const operation = captureProjectOperation();
+    state.savingManualScope = true;
+    try {
+      await api.saveManualScope(operation.orgId, operation.projectId, required ? [...current.filter((entry) => entry.item !== item), { item }] : current.filter((entry) => entry.item !== item));
+    } catch (error) {
+      if (projectOperationIsCurrent(operation)) showToast('Could not change what this job includes', error?.message || 'Please try again.', false);
+    } finally {
+      state.savingManualScope = false;
+      if (projectOperationIsCurrent(operation)) { state.assigneePay = {}; refreshRequirements(); }
+    }
+  }
   async function markLineCover(listId, itemId, requirement, covers){
     const item = listItems(materialListById(listId)).find((entry) => cleanText(entry.id) === cleanText(itemId));
     if (!item) return;
@@ -5893,6 +5923,8 @@
     root.querySelectorAll('[data-mt-req-exclude]').forEach((button) => button.onclick = () => setWorkExcluded(button.dataset.mtListId, button.dataset.mtReqExclude, true));
     root.querySelectorAll('[data-mt-req-include]').forEach((button) => button.onclick = () => setWorkExcluded(button.dataset.mtListId, button.dataset.mtReqInclude, false));
     root.querySelectorAll('[data-mt-req-unmark]').forEach((button) => button.onclick = () => markLineCover(button.dataset.mtListId, button.dataset.mtItemId, button.dataset.mtReqUnmark, false));
+    root.querySelectorAll('[data-mt-req-add]').forEach((select) => select.onchange = () => { const item = select.value; select.value = ''; if (item) setManualRequirement(item, true); });
+    root.querySelectorAll('[data-mt-req-unrequire]').forEach((button) => button.onclick = () => setManualRequirement(button.dataset.mtReqUnrequire, false));
     root.querySelectorAll('[data-mt-req-mark]').forEach((select) => select.onchange = () => { const [listId, itemId] = String(select.value || '').split('|'); if (listId && itemId) markLineCover(listId, itemId, select.dataset.mtReqMark, true); });
   }
   function laborSettings(list){

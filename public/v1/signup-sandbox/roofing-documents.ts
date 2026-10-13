@@ -80,7 +80,19 @@ if (scoped) {
   if (p.ridge_vent === true && ridges !== null) add('vent','ridge_vent',ridges,'Ventilation','Measured ridges; verify usable vent length on site');
   warnings.push('Confirm ice barrier, wall/penetration flashing, fasteners and ventilation requirements on site. These are not inferred from roof area.');
 }
-return {outputs:{lines,warnings}};`
+// What the job includes. Amounts are left to the scope set, which sizes each from the same measurements; a part of
+// the roof that was not measured, or is not there, is not work on this job.
+const work = [];
+if (${JSON.stringify(mode !== 'gutters')}) {
+  const has = (...keys) => keys.some(key => Number(measured[key]?.value) > 0);
+  work.push({item:'roofing.tear_off'},{item:'disposal.debris'},{item:'roofing.dry_in'},{item:'roofing.install'});
+  if (has('eavesLf','rakesLf')) work.push({item:'roofing.edge_metal'});
+  if (has('ridgesLf','hipsLf')) work.push({item:'roofing.ridge_cap'});
+  if (has('valleyLf')) work.push({item:'roofing.valleys'});
+  if (has('headWallLf','sideWallLf')) work.push({item:'roofing.wall_flashing'});
+  work.push({item:'roofing.cleanup'});
+}
+return {outputs:{lines,warnings,work}};`
   };
 }
 

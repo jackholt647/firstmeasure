@@ -128,13 +128,42 @@ test("a project's requirements say what is open, what accounts for each thing, a
   const status = (set: Awaited<ReturnType<typeof read>>) => Object.fromEntries(set.requirements.map((row) => [row.id, row.status]));
   const row = (set: Awaited<ReturnType<typeof read>>, id: string) => set.requirements.find((entry) => entry.id === id)!;
 
-  // Nothing on the project names a kind of work yet.
-  assert.deepEqual([(await read([])).status, (await read([])).requirements.length], ["empty", 0]);
-  // The scope says it is roofing: everything is required and nothing accounts for any of it.
+  const { saveManualScope, projectScope, requiredWork } = await import("../labor/scope-artifacts.js"), { userPublicationContext } = await import("../platform/publication/context.js"), calculus = await import("../materials/calculus.js");
+  const ctx = (projectId: string) => userPublicationContext({ ...owner, permissions: { "*": true }, capabilities: { effectiveByKey: { "platform.materials": true } }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } } }, { projectId });
+  const roofWork = ["roofing.tear_off", "disposal.debris", "roofing.dry_in", "roofing.install", "roofing.edge_metal", "roofing.cleanup"];
+  // No artifact says what this job includes, so nothing is required, however much roof has been measured. The scope
+  // set only decides what could be added.
+  assert.deepEqual([(await read([])).status, (await read([])).requirements.length, (await read([])).available.length], ["empty", 0, 0]);
+  const offered = await read();
+  assert.deepEqual([offered.status, offered.schema_ids, offered.available.map((entry) => entry.item).sort()], ["empty", ["roofing"], ["disposal.debris", "roofing.cleanup", "roofing.dry_in", "roofing.edge_metal", "roofing.install", "roofing.ridge_cap", "roofing.tear_off", "roofing.valleys", "roofing.wall_flashing"]]);
+  // A person adds the work by hand. It is an artifact in the project's ledger like one a document would publish.
+  await saveManualScope(ctx("project"), "project", { work: roofWork.map((item) => ({ item })) });
   const open = await read();
-  assert.deepEqual(open.schema_ids, ["roofing"]); assert.equal(open.status, "open");
-  assert.deepEqual(status(open), { material: "open", "roofing.tear_off": "open", "disposal.debris": "open", "roofing.dry_in": "open", "roofing.install": "open", "roofing.edge_metal": "open", "roofing.cleanup": "open" });
-  assert.deepEqual([row(open, "disposal.debris").quantity, row(open, "disposal.debris").under, row(open, "disposal.debris").kind], [12, "roofing.tear_off", "function"]);
+  assert.equal(open.status, "open");
+  assert.deepEqual(status(open), { "roofing.tear_off": "open", "disposal.debris": "open", "roofing.dry_in": "open", "roofing.install": "open", "roofing.edge_metal": "open", "roofing.cleanup": "open" });
+  assert.deepEqual([row(open, "disposal.debris").quantity, row(open, "disposal.debris").under, row(open, "disposal.debris").kind, row(open, "disposal.debris").sources.map((source) => [source.title, source.origin])], [12, "roofing.tear_off", "function", [["Added by hand", "manual"]]]);
+  assert.deepEqual(open.manual_work.map((entry) => entry.item), roofWork); assert.deepEqual(open.available.map((entry) => entry.item), ["roofing.ridge_cap", "roofing.valleys", "roofing.wall_flashing"]);
+  // Changing what was added by hand replaces it; taking the tear-off away takes its requirement away, and disposal no longer hangs under it.
+  await saveManualScope(ctx("project"), "project", { work: [{ item: "roofing.install" }, { item: "disposal.debris", quantity: 5 }] });
+  const fewer = await read();
+  assert.deepEqual(fewer.requirements.map((entry) => [entry.id, entry.quantity, entry.under]), [["disposal.debris", 5, ""], ["roofing.install", 30, ""]], "a stated amount is taken as stated; one left out is sized from the measurements");
+  await assert.rejects(() => saveManualScope(ctx("project"), "project", { work: [{ item: "roofing.plumbing" }] }), /not in the work item dictionary/);
+  // An agent or a document builds a whole scope the same way: a set whose calculation returns material and work,
+  // evaluated and then applied. Nothing is required until it is applied, and artifacts add together.
+  const ledger = await calculus.readMaterialsLedger(ctx("project"), "project");
+  const created = await calculus.materialsCommand(ctx("project"), "project", { key: "agent-create-1", expected_revision: ledger.revision, operation: "create", input: { definition: { type: "materials_calculus", key: "agent_scope", title: "Built by an agent", source: "return {outputs:{lines:[],warnings:[],work:[{item:'roofing.tear_off'},{item:'disposal.debris',quantity:7,explanation:'Two layers on the back slope'}]}};" } } });
+  const setId = String((created.result as any).set_id);
+  const evaluated = await calculus.materialsCommand(ctx("project"), "project", { key: "agent-evaluate-1", expected_revision: created.ledger.revision, operation: "evaluate", input: { set_id: setId } });
+  assert.equal(row(await read(), "roofing.tear_off"), undefined, "a calculation that has only been previewed requires nothing");
+  await calculus.materialsCommand(ctx("project"), "project", { key: "agent-apply-1", expected_revision: evaluated.ledger.revision, operation: "apply", input: { set_id: setId, evaluation_id: (evaluated.result as any).evaluation_id } });
+  const added = await read();
+  assert.deepEqual(added.requirements.map((entry) => [entry.id, entry.quantity, entry.under, entry.sources.map((source) => source.title).sort()]), [["roofing.tear_off", 30, "", ["Built by an agent"]], ["disposal.debris", 12, "roofing.tear_off", ["Added by hand", "Built by an agent"]], ["roofing.install", 30, "", ["Added by hand"]]], "five yards from one artifact and seven from another are twelve");
+  assert.deepEqual(requiredWork((await projectScope(ORG, "project")).sets, {}).map((entry) => [entry.item, entry.quantity]), [["roofing.tear_off", null], ["disposal.debris", 12], ["roofing.install", null]], "with nothing measured a stated amount still stands and the rest is unknown, never zero");
+  await assert.rejects(async () => calculus.materialsCommand(ctx("project"), "project", { key: "agent-bad-1", expected_revision: (await calculus.readMaterialsLedger(ctx("project"), "project")).revision, operation: "create", input: { definition: { type: "materials_calculus", key: "bad", title: "Bad", source: "return {outputs:{lines:[],warnings:[],work:[{item:'roofing.install'},{item:'roofing.install'}]}};" } } }).then((bad) => calculus.materialsCommand(ctx("project"), "project", { key: "agent-bad-2", expected_revision: bad.ledger.revision, operation: "evaluate", input: { set_id: (bad.result as any).set_id } })), /listed twice/);
+  // Back to the whole roof by hand, with the agent's set emptied, for the coverage that follows.
+  const again = await calculus.readMaterialsLedger(ctx("project"), "project");
+  await calculus.materialsCommand(ctx("project"), "project", { key: "agent-amend-1", expected_revision: again.revision, operation: "create", input: { definition: { type: "materials_calculus", key: "agent_scope_clear", title: "Clear", source: "return {outputs:{lines:[],warnings:[],work:[]}};", amendment: { set_id: setId, revision: (again.sets as any[]).find((set) => set.id === setId).revision, remove: [], replace_all: true } } } });
+  await saveManualScope(ctx("project"), "project", { work: roofWork.map((item) => ({ item })) });
 
   // Material on a list is a requirement that is already met by its own lines.
   const materialList = await lists.createMaterialList(ORG, "project", { title: "Roof materials", resource_type: "material", items: [{ id: "m1", name: "Shingles", quantity: 90, unit: "bundle", pricebook_ref: { item_id: "shingle" } }, { id: "m2", name: "Starter", quantity: 4, unit: "box" }] }, owner);
@@ -169,7 +198,7 @@ test("a project's requirements say what is open, what accounts for each thing, a
   const split = await read([]);
   assert.deepEqual(row(split, "roofing.tear_off").covered_by.map((entry) => entry.assignee_name), ["Ridgeline"]);
   assert.deepEqual(row(split, "roofing.tear_off").warnings.map((warning) => warning.code), ["paid_outside"]);
-  assert.match(row(split, "roofing.tear_off").warnings[0]!.message, /Summit's line "Tear off and install" also pays for this/);
+  assert.match(row(split, "roofing.tear_off").warnings[0]!.message, /Summit's line item "Tear off and install" also pays for this/);
   assert.deepEqual(row(split, "roofing.install").covered_by.map((entry) => entry.assignee_name), ["Summit"]); assert.equal(row(split, "roofing.install").status, "covered");
   assert.deepEqual(row(split, "roofing.install").can_cover.map((entry) => entry.assignee_name), ["Ridgeline"], "work left to someone else can be given back");
   assert.ok(split.line_warnings.some((warning) => warning.list_id === String(summit.id) && warning.code === "paid_outside"));
@@ -177,6 +206,7 @@ test("a project's requirements say what is open, what accounts for each thing, a
   // An hourly group with no truck: the work is theirs and the debris is nobody's until something is marked as taking it.
   await s.upsertDocument(ORG, "projects", { id: "second", data: { title: "4 Pine St" } });
   const held = { roofSquares: { value: 20, unit: "roofing_square" } };
+  await saveManualScope(ctx("second"), "second", { work: ["roofing.tear_off", "disposal.debris", "roofing.dry_in", "roofing.install", "roofing.cleanup"].map((item) => ({ item })) });
   const crew = await lists.createMaterialList(ORG, "second", { title: "Labor", resource_type: "labor", items: [], assignment: { work_resource_ref: reference("Crew A") } }, owner);
   await g.generateLaborList(ORG, { list_id: String(crew.id), legacy_measurements: held }, owner);
   const second = async () => r.projectRequirements(ORG, "second", { legacy_measurements: held });

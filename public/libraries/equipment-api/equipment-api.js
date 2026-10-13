@@ -114,6 +114,8 @@
 
     types(orgId, options = {}){ return request(orgPath(orgId, `/types${queryString({ include_archived:options.includeArchived, category_id:options.categoryId })}`)); },
     type(orgId, typeId){ return request(orgPath(orgId, `/types/${enc(typeId)}`)); },
+    /* The functions equipment types can provide: those the organization's enabled scopes need. */
+    functions(orgId, options = {}){ return request(orgPath(orgId, `/functions${queryString({ branch_id:options.branchId })}`)); },
     createType(orgId, input = {}){ return request(orgPath(orgId, '/types'), { method:'POST', body:input }); },
     saveType(orgId, typeId, input = {}){ return request(orgPath(orgId, `/types/${enc(typeId)}`), { method:'PATCH', body:input }); },
     archiveType(orgId, typeId){ return request(orgPath(orgId, `/types/${enc(typeId)}`), { method:'DELETE' }); },

@@ -13,8 +13,15 @@ export const requirementSchema = z.object({
   presentation: z.record(z.unknown()).optional()
 }).strict();
 export type Requirement = z.infer<typeof requirementSchema>;
+/**
+ * A work item or function this job includes, by its id in the work item dictionary. An amount is what the artifact
+ * says the job needs; left out, it means all of it, sized from the project's measurements by the scope set's rule.
+ */
+export const scopeWorkSchema = z.object({ item: z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/).max(120), quantity: quantity.optional(), explanation: z.string().max(4000).optional() }).strict();
+export type ScopeWork = z.infer<typeof scopeWorkSchema>;
 export const calculationOutputSchema = z.object({
   lines: z.array(requirementSchema).max(1000),
+  work: z.array(scopeWorkSchema).max(300).default([]),
   warnings: z.array(z.string().max(2000)).max(100).default([])
 }).strict();
 export const calculusDefinitionSchema = z.object({

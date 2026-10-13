@@ -207,6 +207,8 @@
     .eq-crop-back{position:fixed;inset:0;z-index:2147483600;background:rgba(10,15,28,.78);display:grid;place-items:center;padding:20px}.eq-crop-modal{width:min(720px,100%);background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}.eq-crop-head,.eq-crop-foot{display:flex;align-items:center;gap:10px;padding:14px 16px}.eq-crop-head{border-bottom:1px solid #e7eaf0}.eq-crop-head strong{flex:1}.eq-crop-body{padding:16px;background:#151922}.eq-crop-stage{width:min(640px,100%);aspect-ratio:4/3;margin:auto;overflow:hidden;cursor:grab;touch-action:none;background:#090b10}.eq-crop-stage:active{cursor:grabbing}.eq-crop-stage canvas{display:block;width:100%;height:100%}.eq-crop-tools{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid #e7eaf0;color:#667085;font-size:11px;font-weight:800}.eq-crop-tools input{flex:1}.eq-crop-foot{justify-content:flex-end;border-top:1px solid #e7eaf0}
     .eq-catalog-back{position:fixed;inset:0;z-index:2147483700;background:rgba(16,22,42,.5);display:grid;place-items:center;padding:18px;animation:eq-fade .16s ease both}.eq-catalog-modal{width:min(560px,100%);max-height:calc(100dvh - 36px);display:flex;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(16,24,40,.28);overflow:hidden;animation:eq-catalog-in .2s cubic-bezier(.22,1,.36,1) both}@keyframes eq-catalog-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}.eq-catalog-body{padding:18px;display:grid;gap:14px;overflow:auto;min-height:0}.eq-kind-options{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.eq-kind-options label,.eq-icon-options label{cursor:pointer}.eq-kind-options input,.eq-icon-options input{position:absolute;opacity:0;pointer-events:none}.eq-kind-options span{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;height:72px;border:1px solid #d0d5dd;border-radius:11px;color:#667085;font-size:10.5px;line-height:1.1;font-weight:850;text-align:center}.eq-kind-options span i{font-size:14px;line-height:1}.eq-kind-options input:checked+span,.eq-icon-options input:checked+span{border-color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}.eq-kind-options input:focus-visible+span,.eq-icon-options input:focus-visible+span{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}.eq-icon-options{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:4px;width:100%;padding:0;background:transparent}.eq-icon-options span{display:grid;place-items:center;min-height:44px;padding:6px;border:1px solid transparent;border-radius:8px;color:var(--primary-readable,var(--primary,#d93025))}.eq-icon-options label:hover span{background:#e9edf3}.eq-kind-choice{position:relative}.eq-kind-help{position:absolute;top:4px;right:4px;width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:#667085;cursor:help;display:grid;place-items:center}.eq-kind-help:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025))}.eq-kind-tooltip{display:none;position:absolute;top:100%;left:0;z-index:5;width:240px;max-width:calc(100vw - 80px);padding:12px;border-radius:10px;background:#101828;color:#fff;font-size:12px;font-weight:500;line-height:1.5;box-shadow:0 4px 16px #10182833;text-transform:none;letter-spacing:normal}.eq-kind-choice:nth-child(n+3) .eq-kind-tooltip{left:auto;right:0}.eq-kind-help:hover+.eq-kind-tooltip,.eq-kind-help:focus+.eq-kind-tooltip,.eq-kind-tooltip:hover{display:block}.eq-icon-options i{font-size:19px;line-height:1}
     .eq-field.invalid input,.eq-field.invalid textarea{border-color:#d92d20!important;box-shadow:0 0 0 3px rgba(217,45,32,.1)!important}.eq-field-error{display:none;margin-top:6px;color:#b42318;font-size:11px;font-weight:800;align-items:center;gap:6px}.eq-field.invalid .eq-field-error,.eq-field-error.show{display:flex!important;animation:eq-error-in .22s cubic-bezier(.22,1,.36,1) both}@keyframes eq-error-in{0%{opacity:0;transform:translateY(-3px)}60%{transform:translateX(2px)}100%{opacity:1;transform:none}}.eq-catalog-modal.has-error{animation:eq-error-shake .26s ease both}@keyframes eq-error-shake{0%,100%{transform:none}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}.eq-foot-spacer{flex:1}.pac-container{z-index:2147483900!important}
+    .eq-fn-head{display:flex;align-items:center;gap:2px;margin-bottom:3px}.eq-field .eq-fn-head label{margin:0}.eq-fn-list{display:grid;gap:6px}.eq-fn-row{display:flex;align-items:center;gap:8px;min-height:40px;padding:5px 10px;border:1px solid #e4e7ec;border-radius:10px;background:#fff}.eq-field .eq-fn-row label{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;font-weight:800;letter-spacing:0;text-transform:none;color:#344054;cursor:pointer;min-width:0}.eq-field .eq-fn-row label input{position:absolute;opacity:0;width:1px;height:1px;padding:0;pointer-events:none}.eq-fn-switch{flex:none;width:28px;height:16px;border-radius:999px;background:#d0d5dd;position:relative;transition:background .14s ease}.eq-fn-switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .14s ease}.eq-fn-row input:checked+.eq-fn-switch{background:var(--primary-readable,var(--primary,#d93025))}.eq-fn-row input:checked+.eq-fn-switch::after{transform:translateX(12px)}.eq-fn-row input:focus-visible+.eq-fn-switch{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}
+    .eq-fn-tip{position:relative;display:inline-grid;flex:none}.eq-fn-tip.grow{margin-right:auto}.eq-fn-help{width:22px;height:22px;padding:0;border:0;border-radius:50%;background:transparent;color:#98a2b3;cursor:help;display:grid;place-items:center;font-size:12px}.eq-fn-help:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025))}.eq-fn-tip .eq-kind-tooltip{top:auto;bottom:calc(100% + 4px)}.eq-fn-tip.end .eq-kind-tooltip{left:auto;right:0}.eq-fn-help:hover+.eq-kind-tooltip,.eq-fn-help:focus+.eq-kind-tooltip{display:block}.eq-fn-capacity{display:flex;align-items:center;gap:5px;flex:none;color:#667085;font-size:11.5px;font-weight:800}.eq-field .eq-fn-capacity input{width:74px;padding:6px 8px;text-align:right}.eq-fn-row:not(.on) .eq-fn-capacity,.eq-fn-row:not(.on) .eq-fn-load{opacity:.45}.eq-fn-note{margin:0;padding:10px 12px;border:1px dashed #d0d5dd;border-radius:10px;color:#667085;font-size:11.5px;font-weight:650;line-height:1.5}@media(max-width:560px){.eq-fn-row{flex-wrap:wrap}}
     .eq-modal-error,.eq-form-error{display:none;border:1px solid #fda29b;border-radius:10px;background:#fef3f2;color:#b42318;padding:9px 11px;font-size:11px;font-weight:800;line-height:1.4;align-items:flex-start;gap:7px}.eq-modal-error.show,.eq-form-error.show{display:flex;animation:eq-error-in .22s ease both}.eq-form-error{grid-column:1/-1}
     @media(max-width:560px){.eq-grid{grid-template-columns:1fr}.eq-card{grid-template-columns:minmax(105px,35%) minmax(0,1fr)}.eq-unit-identity,.eq-inline-view-form .eq-unit-identity{grid-template-columns:120px minmax(0,1fr);gap:16px}.eq-form,.eq-dynamic-panel{grid-template-columns:1fr}.eq-field.wide,.eq-section-label,.eq-condition-list,.eq-condition-media{grid-column:1}.eq-name-color{grid-template-columns:minmax(0,1fr) 58px}.eq-kind-options{grid-template-columns:repeat(2,1fr)}.eq-kind-choice:nth-child(odd) .eq-kind-tooltip{left:0;right:auto}.eq-kind-choice:nth-child(even) .eq-kind-tooltip{left:auto;right:0}}
   `;
@@ -241,6 +243,7 @@
       types:null,
       categories:null,
       yards:null,
+      functions:null,    /* what equipment can provide, from the organization's enabled scopes */
       loading:false,
       filters:{ query:'', typeId:'', categoryId:'', status:'' },
       drawer:null,       /* { mode:'view'|'edit'|'create', unit } */
@@ -333,6 +336,67 @@
       drawer.unit = { ...drawer.unit, ...values };
       drawer.autosaver.queue(values, immediate);
     }
+    const FUNCTION_UNITS = { yd3:'yd³', roofing_square:'sq' };
+    const functionUnit = (unit) => FUNCTION_UNITS[clean(unit)] || clean(unit);
+    const functionById = (id) => arr(state.functions).find((entry) => clean(entry.id) === clean(id));
+    const functionLabel = (id) => clean(functionById(id)?.label) || clean(id).split('.').pop().replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+    const PER_LOAD_HELP = 'Can be emptied and used again, so its size never limits the job. Leave off for something like a dumpster, where what it holds is all it holds.';
+    const functionHelp = (id, label, text, end = false) => `<span class="eq-fn-tip ${end ? 'end' : ''}"><button type="button" class="eq-fn-help" aria-label="${esc(label)}" aria-describedby="${esc(id)}"><i class="fas fa-circle-info" aria-hidden="true"></i></button><div class="eq-kind-tooltip" id="${esc(id)}" role="tooltip">${esc(text)}</div></span>`;
+    // Only the editors need the list, so it loads beside the fleet and fills an editor that is already open.
+    async function loadFunctions(){
+      if (state.functions || state.functionsLoading || !window.EquipmentAPI?.functions) return;
+      state.functionsLoading = true;
+      try { state.functions = arr((await window.EquipmentAPI.functions(organizationId)).functions); state.functionsFailed = false; }
+      catch (_) { state.functionsFailed = true; }
+      state.functionsLoading = false;
+      if (destroyed) return;
+      const host = root.querySelector('[data-eq-fn-host]');
+      if (host) host.innerHTML = typeFunctionsHtml();
+    }
+    function typeFunctionsHtml(){
+      const editor = state.catalogEditor;
+      if (!editor || editor.kind !== 'type') return '';
+      if (!state.functions) return `<p class="eq-fn-note">${state.functionsFailed || !window.EquipmentAPI?.functions ? 'The functions could not be loaded.' : 'Loading…'}</p>`;
+      if (!state.functions.length) return '<p class="eq-fn-note" data-eq-fn-empty>None of your enabled scopes needs equipment to provide anything yet.</p>';
+      const provided = new Map(arr(editor.provides ?? editor.entity?.provides).map((entry) => [clean(entry.item), entry]));
+      return state.functions.map((fn, index) => {
+        const id = clean(fn.id), entry = provided.get(id), on = Boolean(entry), unit = functionUnit(fn.unit);
+        const needed = arr(fn.schemas).map((schema) => clean(schema.title || schema.id)).filter(Boolean).join(', ');
+        return `<div class="eq-fn-row ${on ? 'on' : ''}" data-eq-fn-row="${esc(id)}">
+          <label><input type="checkbox" data-eq-fn-on aria-label="Provides ${esc(fn.label)}" ${on ? 'checked' : ''}><span class="eq-fn-switch" aria-hidden="true"></span><b>${esc(fn.label)}</b></label>
+          ${functionHelp(`eq-fn-help-${index}`, `About ${clean(fn.label)}`, `${clean(fn.description)}${needed ? ` Needed by: ${needed}.` : ''}`).replace('eq-fn-tip ', 'eq-fn-tip grow ')}
+          <span class="eq-fn-capacity"><input type="number" min="0" step="any" inputmode="decimal" data-eq-fn-capacity value="${esc(String(entry?.capacity ?? ''))}" placeholder="Any" aria-label="${esc(fn.label)} capacity in ${esc(unit)}" ${on ? '' : 'disabled'}><span>${esc(unit)}</span></span>
+          <label class="eq-fn-load"><input type="checkbox" data-eq-fn-per-load aria-label="${esc(fn.label)} per load" ${entry?.per_load === true ? 'checked' : ''} ${on ? '' : 'disabled'}><span class="eq-fn-switch" aria-hidden="true"></span><span>Per load</span></label>
+          ${functionHelp(`eq-fn-load-help-${index}`, 'About per load', PER_LOAD_HELP, true)}
+        </div>`;
+      }).join('');
+    }
+    // What the editor says the type provides. Anything stored that is not offered here is kept as it is.
+    function catalogProvides(){
+      const editor = state.catalogEditor;
+      const current = arr(editor?.provides ?? editor?.entity?.provides);
+      const rows = [...root.querySelectorAll('[data-eq-fn-row]')];
+      if (!rows.length) return current;
+      const offered = new Set(rows.map((row) => row.dataset.eqFnRow));
+      const next = current.filter((entry) => !offered.has(clean(entry.item)));
+      rows.forEach((row) => {
+        if (!row.querySelector('[data-eq-fn-on]')?.checked) return;
+        const raw = clean(row.querySelector('[data-eq-fn-capacity]')?.value), capacity = Number(raw);
+        next.push({ item:row.dataset.eqFnRow, ...(raw !== '' && Number.isFinite(capacity) && capacity >= 0 ? { capacity } : {}), per_load:Boolean(row.querySelector('[data-eq-fn-per-load]')?.checked) });
+      });
+      return next;
+    }
+    const onFunctionInput = (event) => {
+      const row = event.target.closest?.('[data-eq-fn-row]');
+      if (!row || !state.catalogEditor) return;
+      if (event.target.matches('[data-eq-fn-on]')) {
+        row.classList.toggle('on', event.target.checked);
+        row.querySelectorAll('[data-eq-fn-capacity], [data-eq-fn-per-load]').forEach((input) => { input.disabled = !event.target.checked; });
+      }
+      state.catalogEditor.provides = catalogProvides();
+    };
+    root.addEventListener('input', onFunctionInput, true);
+    root.addEventListener('change', onFunctionInput, true);
     function queueTypeAutosave(immediate = false){
       const editor = state.catalogEditor;
       if (!editor?.entity || editor.kind !== 'type') return;
@@ -350,9 +414,10 @@
       const values = {
         name:clean(root.querySelector('[data-eq-catalog-name]')?.value),
         kind:clean(root.querySelector('[data-eq-catalog-kind]:checked')?.value) || 'other',
-        icon:clean(root.querySelector('[data-eq-catalog-icon]:checked')?.value) || DEFAULT_TYPE_ICONS.other
+        icon:clean(root.querySelector('[data-eq-catalog-icon]:checked')?.value) || DEFAULT_TYPE_ICONS.other,
+        provides:catalogProvides()
       };
-      editor.name = values.name; editor.selectedKind = values.kind; editor.selectedIcon = values.icon;
+      editor.name = values.name; editor.selectedKind = values.kind; editor.selectedIcon = values.icon; editor.provides = values.provides;
       editor.autosaver.queue(values, immediate);
     }
     function onAutosaveInput(event){
@@ -360,7 +425,7 @@
       const target = event.target;
       const drawer = state.drawer, editor = state.catalogEditor;
       const unitInput = target.matches?.('[data-eq-input], [data-eq-pickup-note]');
-      const typeInput = target.matches?.('[data-eq-catalog-name], [data-eq-catalog-kind], [data-eq-catalog-icon]');
+      const typeInput = target.matches?.('[data-eq-catalog-name], [data-eq-catalog-kind], [data-eq-catalog-icon], [data-eq-fn-on], [data-eq-fn-capacity], [data-eq-fn-per-load]');
       if (!unitInput && !typeInput) return;
       if (unitInput && target.value === '__new__') return;
       queueMicrotask(() => {
@@ -397,6 +462,7 @@
     };
 
     async function loadFleet(options = {}){
+      void loadFunctions();
       if (state.loading && !options.force) return;
       if (state.drawer && !state.drawer.loading) preserveDrawerDraft();
       state.loading = true;
@@ -879,6 +945,11 @@
         acquisition,
         ...(state.drawer?.mode === 'create' ? { status:'available' } : {}),
         operator_tag_overrides:driverRequirement(read('driver_requirement')),
+        provides:arr(arr(state.types).find((type) => clean(type.id) === read('type_id'))?.provides).map((entry) => {
+          const input = container.querySelector(`[data-eq-input="provides:${clean(entry.item)}"]`);
+          const raw = input ? clean(input.value) : clean(arr(currentUnit.provides).find((row) => clean(row.item) === clean(entry.item))?.capacity);
+          return raw !== '' && Number.isFinite(Number(raw)) && Number(raw) >= 0 ? { item:clean(entry.item), capacity:Number(raw) } : null;
+        }).filter(Boolean),
         photos:arr(currentUnit.photos),
         notes: read('notes'),
         location:Object.keys(yard).length ? yard : (obj(currentUnit.location).kind === 'yard' ? {} : obj(currentUnit.location)),
@@ -1029,6 +1100,7 @@
       }
       state.catalogEditor = { kind, source, entity:entity ? { ...entity } : null, saving:false, addressSelected:Boolean(clean(obj(entity?.address).formatted)), address:entity ? { ...obj(entity.address) } : null };
       mountCatalogEditor();
+      if (kind === 'type') void loadFunctions();
     }
 
     async function saveCatalogEditor(){
@@ -1055,7 +1127,7 @@
         if (editor.kind === 'type') {
           const result = editor.entity
             ? await window.EquipmentAPI.saveType(organizationId, clean(editor.entity.id), { ...editor.entity, name, kind:selectedKind, icon:selectedIcon, expected_revision:Number(editor.entity.revision || 0) || undefined })
-            : await window.EquipmentAPI.createType(organizationId, { name, kind:selectedKind, icon:selectedIcon });
+            : await window.EquipmentAPI.createType(organizationId, { name, kind:selectedKind, icon:selectedIcon, provides:catalogProvides() });
           savedEntity = obj(result.type);
         } else {
           const address = formatted ? { ...obj(editor.address), formatted, access_instructions:accessInstructions } : (accessInstructions ? { access_instructions:accessInstructions } : {});
@@ -1372,6 +1444,10 @@
       if (selectedType && clean(selectedType.status) === 'archived' && !selectableTypes.includes(selectedType)) selectableTypes.push(selectedType);
       const typeOptions = [['', 'No type'], ...selectableTypes.map((type) => [clean(type.id), `${clean(type.name)}${clean(type.status) === 'archived' ? ' (Archived)' : ''}`])];
       const vehicleType = ['vehicle','trailer'].includes(clean(selectedType?.kind));
+      const capacityFields = arr(selectedType?.provides).map((entry) => {
+        const item = clean(entry.item), fn = functionById(item), own = arr(unit.provides).find((row) => clean(row.item) === item);
+        return `<div class="eq-field"><label>${esc(functionLabel(item))}${fn ? ` (${esc(functionUnit(fn.unit))})` : ''}</label><input type="number" min="0" step="any" inputmode="decimal" data-eq-input="provides:${esc(item)}" value="${esc(String(own?.capacity ?? ''))}" placeholder="${esc(entry.capacity == null ? 'Not set on the type' : `${entry.capacity} from the type`)}"></div>`;
+      }).join('');
       const selectedYardId = clean(obj(unit.home_location).yard_id || obj(unit.location).yard_id);
       const selectedYard = arr(state.yards).find((yard) => clean(yard.id) === selectedYardId);
       const selectableYards = activeRecords(state.yards);
@@ -1412,6 +1488,7 @@
             ${String(field('Driver requirement', 'driver_requirement', driverRequirementId(unit), { select:DRIVER_REQUIREMENTS }))}
             ${drawer.mode !== 'create' ? `<section class="eq-unit-status" aria-label="Equipment status"><div class="eq-unit-status-row"><span>Status</span>${statusChip(unit.status)}</div>${clean(obj(unit.status_event).title) ? `<details class="eq-status-details"><summary>Schedule details</summary><div><span>Scheduled event</span><p>${esc(obj(unit.status_event).title)}</p></div></details>` : ''}</section>` : ''}
             ${String(vehicleType ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_113d0683ef8084","Vehicle details") ?? "Vehicle details")}</div>${field('License plate', 'license_plate', unit.license_plate)}${field('Year', 'year', unit.year)}${field('Make', 'make', unit.make)}${field('Model', 'model', unit.model)}${field('VIN', 'vin', unit.vin)}</div>` : '')}
+            ${capacityFields ? `<div class="eq-dynamic-panel" data-eq-unit-capacity><div class="eq-section-label" title="What this unit holds. Leave blank to use what its type holds.">Capacity</div>${capacityFields}</div>` : ''}
             ${String(ownership === 'owned' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_250d080790e059","Purchase details") ?? "Purchase details")}</div>${field('Purchased on (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Estimated value ($)', 'estimated_value', dollars(acquisition.estimated_value_cents), { type:'number', step:'0.01' })}</div>` : '')}
             ${String(ownership === 'leased' ? `<div class="eq-dynamic-panel"><div class="eq-section-label">${(globalThis.PlatformLanguage?.htmlText("equipment","m_b01d4473f12ba7","Lease details") ?? "Lease details")}</div>${field('Lease start (optional)', 'procurement_date', acquisition.procurement_date, { type:'date' })}${field('Lease term (months)', 'lease_term_months', acquisition.lease_term_months, { type:'number', step:'1' })}${field('Monthly lease cost ($)', 'lease_monthly_cost', dollars(acquisition.monthly_cost_cents), { type:'number', step:'0.01' })}</div>` : '')}
             ${String(ownership === 'rented' ? `
@@ -1527,7 +1604,7 @@
                 ${[['vehicle','fa-truck-pickup','Vehicle'],['trailer','fa-trailer','Trailer'],['tool','fa-screwdriver-wrench','Tool'],['other','fa-box','Other']].map(([value,icon,label]) => `<div class="eq-kind-choice"><label><input type="radio" name="eq-catalog-kind" data-eq-catalog-kind value="${value}" aria-label="${label}" ${currentKind === value ? 'checked' : ''}><span><i class="fas ${icon}"></i><b>${label}</b></span></label><button type="button" class="eq-kind-help" aria-label="About ${label}" aria-describedby="eq-kind-help-${value}"><i class="fas fa-circle-info" aria-hidden="true"></i></button><div class="eq-kind-tooltip" id="eq-kind-help-${value}" role="tooltip">${esc(CLASSIFICATION_HELP[value])}</div></div>`).join('')}
               </div></div><div class="eq-field"><label>Icon</label><div class="eq-icon-options" role="radiogroup" aria-label="Equipment type icon">
                 ${iconChoices.map(([icon,label]) => `<label title="${esc(label)}"><input type="radio" name="eq-catalog-icon" data-eq-catalog-icon value="${esc(icon)}" aria-label="${esc(label)}" ${currentIcon === icon ? 'checked' : ''}><span><i class="fas ${esc(icon)}" aria-hidden="true"></i></span></label>`).join('')}
-              </div></div>` : `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ecd09516ac094","Address (optional)") ?? "Address (optional)")}</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_251e51ba7e4761","Start typing an address") ?? "Start typing an address")}" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_bd935bf52d86b9","Access instructions (optional)") ?? "Access instructions (optional)")}</label><textarea rows="3" data-eq-catalog-access placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b9e346d068c27a","Gate code, entrance, parking, or check-in details") ?? "Gate code, entrance, parking, or check-in details")}">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
+              </div></div><div class="eq-field"><div class="eq-fn-head"><label>Functions</label>${functionHelp('eq-fn-about', 'About functions', 'What this type of equipment does for a job, and how much it holds. A job that needs it then counts this equipment as covering it. The list comes from the kinds of work your enabled scopes do.')}</div><div class="eq-fn-list" data-eq-fn-host>${typeFunctionsHtml()}</div></div>` : `<div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_0ecd09516ac094","Address (optional)") ?? "Address (optional)")}</label><input type="text" data-eq-catalog-address value="${esc(editor.formatted ?? obj(editor.entity?.address).formatted)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_251e51ba7e4761","Start typing an address") ?? "Start typing an address")}" autocomplete="off"><span class="eq-field-error" data-eq-field-error></span></div><div class="eq-field"><label>${(globalThis.PlatformLanguage?.htmlText("equipment","m_bd935bf52d86b9","Access instructions (optional)") ?? "Access instructions (optional)")}</label><textarea rows="3" data-eq-catalog-access placeholder="${(globalThis.PlatformLanguage?.htmlText("equipment","m_b9e346d068c27a","Gate code, entrance, parking, or check-in details") ?? "Gate code, entrance, parking, or check-in details")}">${esc(obj(editor.entity?.address).access_instructions)}</textarea></div>`)}
               <div class="eq-modal-error" data-eq-catalog-save-error></div>
             </div>
             ${editing && typeEditor ? `<div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>Done</button>${autosaveFooter('type', editor.autosaver)}</div>` : `            <div class="eq-drawer-foot"><button type="button" class="eq-btn" data-eq-catalog-cancel>${(globalThis.PlatformLanguage?.htmlText("equipment","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button type="button" class="eq-btn primary" data-eq-catalog-save ${String(editor.saving ? 'disabled' : '')}><i class="fas ${String(editor.saving ? 'fa-spinner fa-spin' : 'fa-check')}"></i> ${String(editor.saving ? 'Saving…' : 'Save')}</button></div>`}

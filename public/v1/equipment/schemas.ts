@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { equipmentProvidesSchema, unitProvidesSchema } from "./functions.js";
+
 const jsonObject = z.record(z.string(), z.unknown());
 
 export const saveCategorySchema = z.object({
@@ -46,6 +48,8 @@ export const saveTypeSchema = z.object({
   attributes_schema: z.array(attributeFieldSchema).max(80).optional(),
   default_rates: ratesSchema.optional(),
   scope_item_keys: z.array(z.string().trim().max(200)).max(80).optional(),
+  /** The functions this type fulfils (debris disposal), each with a capacity or per load. */
+  provides: equipmentProvidesSchema.optional(),
   status: z.enum(["active", "archived"]).optional(),
   sort_order: z.number().int().min(0).max(100000).optional(),
   expected_revision: z.number().int().min(0).optional()
@@ -89,6 +93,8 @@ export const saveUnitSchema = z.object({
   current_meter: jsonObject.optional(),
   rates: ratesSchema.optional(),
   attributes: jsonObject.optional(),
+  /** What this unit holds where it differs from its type, for functions the type provides. */
+  provides: unitProvidesSchema.optional(),
   operator_tag_overrides: z.array(operatorRequirementSchema).max(40).optional(),
   custody: jsonObject.optional(),
   photos: z.array(z.unknown()).max(200).optional(),

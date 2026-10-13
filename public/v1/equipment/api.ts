@@ -18,6 +18,7 @@ import {
   saveUnitSchema,
   scheduleWorkOrderSchema
 } from "./schemas.js";
+import { assertUnitProvides, availableEquipmentFunctions } from "./functions.js";
 import {
   availabilityForEquipment,
   cancelWorkOrder,
@@ -191,6 +192,14 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
     return { ok: true, type: (await archiveType(orgId, getParam(request.params, "typeId"))) };
   });
 
+  /* The functions this organization's equipment can provide: those its enabled scopes' kinds of work need. */
+
+  app.get("/organizations/:orgId/functions", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requireScheduleReader(request, orgId);
+    return { ok: true, ...(await availableEquipmentFunctions(orgId, getQuery(request.query, "branch_id") || ctx.branchId || "default")) };
+  });
+
   /* Yards. */
 
   app.get("/organizations/:orgId/yards", async (request) => {
@@ -253,6 +262,7 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
     const ctx = await requireManager(request, orgId);
     const body = saveUnitSchema.parse(request.body ?? {});
     await authorizeEquipmentOwner(ctx,body);
+    if (body.provides?.length) assertUnitProvides(body.type_id ? await readType(orgId, body.type_id) : null, body.provides);
     return { ok: true, unit: (await saveUnit(orgId, { ...body, id: "" })) };
   });
 
@@ -260,7 +270,12 @@ export const registerEquipmentApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const ctx = await requireManager(request, orgId);
     const body = patchUnitSchema.parse(request.body ?? {});
-    await authorizeEquipmentOwner(ctx,body,await readUnit(orgId,getParam(request.params,"unitId")));
+    const current = await readUnit(orgId,getParam(request.params,"unitId"));
+    await authorizeEquipmentOwner(ctx,body,current);
+    if (body.provides?.length) {
+      const typeId = String(body.type_id ?? current.type_id ?? "");
+      assertUnitProvides(typeId ? await readType(orgId, typeId) : null, body.provides);
+    }
     return { ok: true, unit: (await patchUnit(orgId, getParam(request.params, "unitId"), body)) };
   });
 

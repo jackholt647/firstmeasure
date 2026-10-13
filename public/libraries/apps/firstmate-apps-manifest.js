@@ -62,7 +62,7 @@
   const crewBundles = [
     ...channelsLibBundles,
     ...fieldApprovalBundles,
-    versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'),
+    versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
     versionedBundle('../payroll-api/payroll-api.js', '20261013-pay-rules-v2'),
     versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'),
     versionedBundle('../proposals-api/proposals-api.js', '20260711-crew-change-orders'),
@@ -270,7 +270,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261013-requirements'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'), versionedBundle('materials/project.js', '20261013-requirements-3')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261013-scope'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261013-scope')]
     },
     {
       id: 'project.money',
@@ -433,8 +433,8 @@
       order: 57,
       access: managementAccess,
       bundles: [
-        versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'),
-        versionedBundle('equipment/app.js', '20260930-app-groups-v1')
+        versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
+        versionedBundle('equipment/app.js', '20261013-functions')
       ]
     },
     {

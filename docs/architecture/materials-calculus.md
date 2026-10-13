@@ -26,6 +26,15 @@ does not evaluate code, purchase materials, or require the signer to possess
 staff material permissions. Invalid deliverables are rejected before issuance.
 Later template/catalog edits do not rewrite the accepted specification.
 
+## Work and functions
+
+A calculation may also return `work`: the work items and functions the job
+includes, by their ids in the work item dictionary, each with an optional
+amount. It is validated when evaluated and stored on the set when the
+evaluation is applied, beside the material lines. Together a project's sets are
+its scope artifacts, and its [requirements](requirements.md) are their sum. A
+set that carries only work is not shown as a material list.
+
 ## Persistence and concurrency
 
 The project materials ledger stores independent sets, accepted evaluation

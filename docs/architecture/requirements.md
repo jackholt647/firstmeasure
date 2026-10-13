@@ -5,6 +5,31 @@ and a third that carries none: its **requirements**. Requirements say what has
 to exist or be done. The lists say how, by whom and for how much. Coverage is
 the link between them: which lines account for which requirement.
 
+## Where requirements come from
+
+Three layers, and they do different jobs:
+
+1. **The scope set** for a kind of work (roofing) standardizes the vocabulary:
+   which measurements exist, which work items and functions a job of that kind
+   *could* include, and how each is sized. It describes the type of job, not
+   any one job.
+2. **The project's scope artifacts** say what *this* job includes. They are the
+   sets in the project's materials ledger ([materials calculus](materials-calculus.md)).
+   Each set carries material lines and, in `work`, the work items and functions
+   the job includes. An accepted document's calculation publishes them; a
+   person can add work by hand; an agent can build a set from scratch. They
+   take their shape from the scope set and the measurements, and their content
+   from whatever defined the job.
+3. **The requirements** are those artifacts added together, and nothing else
+   (`labor/scope-artifacts.ts`, `requiredWork`). No artifact naming work means
+   no work is required, however much roof has been measured. No material
+   artifact means no material is required.
+
+An artifact names a work item by its dictionary id. An amount it states is
+taken as stated, and stated amounts from several artifacts add. An amount left
+out means "all of it": the scope set's rule sizes it from the project's
+measurements, counted once however many artifacts say it.
+
 Nothing here prices anything. Pay stays in [pay sheets](pay-sheets.md); who can
 be assigned stays in [assignees](assignees.md); what can be measured stays in
 the [measurement dictionary](measurement-schemas.md).
@@ -36,8 +61,27 @@ Like the measurement dictionary, this only grows: an item's meaning and unit
 never change. The quantity rules are rules of thumb and are in code today; an
 organization cannot yet change them or add its own items.
 
-`workRequirements(schemaIds, context)` returns what a job requires. An item two
-kinds of work both require is one requirement with the amounts added.
+`workRequirements(schemaIds, context)` is the scope set's sizing: what a job of
+that kind would need if it included everything. It is used for amounts only.
+What a project requires is `requiredWork(sets, context)` over its artifacts.
+
+### Publishing a scope
+
+- **From a document.** A `materials_calculus` deliverable's code returns
+  `{ lines, warnings, work }`. `work` is `[{ item, quantity?, explanation? }]`.
+  It is validated against the dictionary when evaluated and becomes the set's
+  `work` when the evaluation is applied, with the material lines. The sample
+  roofing document does this (`signup-sandbox/roofing-documents.ts`).
+- **By hand.** `saveManualScope` keeps one manual set per project ("Added by
+  hand") and replaces its work as a whole, through the ledger's own create,
+  evaluate and apply commands. Action `work-requirements.manual.save`, route
+  `PUT projects/:projectId/scope/manual`.
+- **By an agent.** The same two paths. `materials.calculus.command` lets an
+  agent create a set whose code returns material and work, evaluate it and apply
+  it; `work-requirements.manual.save` sets the hand-added work directly. The
+  dictionary an agent needs is `work-items.dictionary` and `work-items.catalog`.
+
+A set that has only been evaluated requires nothing; applying it does.
 
 ## Parts of a measurement
 
@@ -90,13 +134,17 @@ one of three states:
   to do it), `short` (the equipment named holds less than is needed),
   `adjusted_only` (a line changes its price but none pays for it).
 
-Equipment adds up, so two dumpsters are not a duplicate. Material on a material
-list is a requirement that has already been made specific, so each material
-type is listed as covered by its own lines.
+Equipment adds up, so two dumpsters are not a duplicate. Material in a set, or
+on a material list a person made, is a requirement that has already been made
+specific, so each is listed as covered by its own lines. A set an accepted
+document published that has not been generated yet is material that is
+required and not yet accounted for.
 
-A project's kinds of work come from the scope each list was generated from and
-from the sheet each work order is priced on. With neither, there is nothing to
-require and the result is `empty`.
+Each requirement lists its `sources`: the artifacts that say it is required.
+The result also carries `manual_work` (what was added by hand) and `available`
+(what the project's kinds of work would let a person add). A project's kinds of
+work come from the scope each list was generated from and the sheet each work
+order is priced on; they decide what can be added, never what is required.
 
 ### Splitting work between assignees
 
@@ -121,16 +169,41 @@ single items can be added or excluded on top. An assignee nobody has said
 anything about is `known: false`, which is not the same as unable, and nothing
 is reported against them.
 
+## Equipment that provides a function
+
+An equipment type lists the functions it provides as
+`provides: [{ item, capacity?, per_load }]`, the same shape as a pay sheet's
+equipment. `item` must be a function in the work item dictionary; capacity is
+in the function's unit; `per_load` means it can be emptied and used again, so
+capacity never limits the job. A unit may hold a different amount than its type
+with `provides: [{ item, capacity }]`, only for functions its type provides.
+`effectiveProvides` (`equipment/functions.ts`) is the type's list with the
+unit's capacity where it has one; fleet units carry it as `effective_provides`.
+
+An organization is offered only the functions needed by the kinds of work its
+enabled scopes work in (`measurement_schema_ids`, then work schemas, then items
+of kind `function`): `availableEquipmentFunctions`,
+`GET /v1/equipment/organizations/:orgId/functions`, published as action
+`equipment.functions.available` under `equipment.view`.
+
+When equipment is picked for a line item on a project's equipment list, the
+line is stamped with `metadata.equipment_unit_id`, `metadata.equipment_type_id`
+and `metadata.provides`, a copy taken at the time. Coverage reads the line, not
+the type, so a later change to the type does not change existing lines.
+
 ## Published
 
 - `work-items.dictionary`, `work-items.catalog` — `view_project_data`.
 - `measurement-schemas.partitions` — `view_project_data`.
-- `work-requirements.project` — `manage_projects`.
+- `work-requirements.project` — `manage_projects`; action
+  `work-requirements.manual.save` — `manage_projects`.
+- `equipment.functions.available` — `equipment.view`.
 - `assignee-capabilities.assignee` — `manage_projects`; action
   `assignees.capabilities.save` — `manage_company_settings`.
 
 Routes under `/v1/materials/organizations/:orgId`:
-`POST projects/:projectId/requirements`, and `GET`/`PUT`
+`POST projects/:projectId/requirements`, `PUT projects/:projectId/scope/manual`,
+and `GET`/`PUT`
 `assignees/:type/:assigneeId/capabilities`.
 
 ## In the Project tab
@@ -142,17 +215,22 @@ anything has a warning, and green otherwise; open, it pins what needs attention
 first and groups the rest. A row expands to the lines that account for it and
 to the actions: take work off a work order, give it back, or mark a
 hand-added line as covering it. A line with a warning carries a triangle in its
-list. The tray has no total.
+list. The tray has no total. Its "+ Add" adds something the kind of work offers
+that no artifact has listed; a requirement added by hand says so and can be
+removed there.
 
 ## Not built
 
-- Equipment types declaring the functions they fulfil, and the editor for it.
-  Today a function is covered by a pay sheet's equipment or by a marked line.
 - Organization-defined work items and quantity rules.
-- Requirements added by hand for one project.
+- A stated amount for a requirement added by hand in the Project tab (the
+  server accepts one; the tray adds items sized from measurements).
+- Documents accepted before this was built captured a calculation with no
+  `work`, so they publish material only.
 - Splitting a requirement by structure.
 - Whether work was actually done. Coverage is about what is planned and paid
   for; "done" belongs with actuals.
 - Load weight alongside volume, and a cost per load.
 
-Run `tests/work-requirements.test.ts` for changes here.
+Run `tests/work-requirements.test.ts` for changes here, and
+`tests/equipment-functions.test.ts`, `tests/equipment-functions-browser.test.mjs`
+and `tests/equipment-functions-project.test.mjs` for equipment functions.

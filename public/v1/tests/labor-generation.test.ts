@@ -31,6 +31,9 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   await pricebook.saveOrganizationCatalog(ORG, { ...book.catalog, items: [...book.catalog.items, { id: "shingle", kind: "atomic", name: "Shingles", type: "Shingles", category: "shingle_roofs", unit: "bundle", unit_price: 40 }, { id: "ridge", kind: "atomic", name: "Ridge cap", type: "Hip & Ridge", category: "shingle_roofs", unit: "bundle", unit_price: 60 }] }, Number(book.manifest.revision));
   await lists.createMaterialList(ORG, "project", { title: "Materials", resource_type: "material", items: [{ id: "m1", name: "Shingles", quantity: 96, unit: "bundle", pricebook_ref: { item_id: "shingle" } }, { id: "m2", name: "Ridge cap", quantity: 5, unit: "bundle", pricebook_ref: { item_id: "ridge" } }] }, owner);
 
+  // What the job includes is said by an artifact, here one added by hand. The amounts are left to the measurements.
+  const { saveManualScope } = await import("../labor/scope-artifacts.js"), { userPublicationContext } = await import("../platform/publication/context.js");
+  await saveManualScope(userPublicationContext({ ...owner, permissions: { "*": true }, capabilities: { effectiveByKey: { "platform.materials": true } }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } } }, { projectId: "project" }), "project", { work: ["roofing.tear_off", "disposal.debris", "roofing.dry_in", "roofing.install", "roofing.edge_metal", "roofing.cleanup"].map((item) => ({ item })) });
   const seeded = await (await import("../labor/sample-pay-sheets.js")).seedInstantPaySheets(ORG, owner);
   assert.deepEqual(seeded, { assignees: 5, sheets: 5 });
   await (await import("../labor/sample-pay-sheets.js")).seedInstantPaySheets(ORG, owner);
