@@ -16,14 +16,14 @@ document in the platform `users` collection.
 - `app_access_overrides` uses `show`, `hide`, or `inherit` per app. App
   relevance is intentionally separate from permission grants.
 - `resource_groups` group existing organization users. Each group has a
-  data-defined `kind_id`, assignment tags, memberships, scope capabilities,
-  and an optional fallback compensation profile. `crew` is the seeded default
-  kind, not a separate storage type.
+  data-defined `kind_id`, assignment tags, memberships and scope capabilities.
+  `crew` is the seeded default kind, not a separate storage type.
 - `organization_connections` represent persistent organizations outside the
   tenant. “Subcontractor” is the default terminology, not the storage or API
   type. A connection can later link to another FirstMate organization.
-- `compensation_profiles` are polymorphic records whose subject is an
-  `organization_user`, `resource_group`, or `organization_connection`.
+- How a user, group or connection is paid is not stored here. Each is a payee
+  with a pay setup (`docs/architecture/pay-rules.md`) and, for pricing a job,
+  a pay sheet (`docs/architecture/pay-sheets.md`).
 - Scope capabilities reference versioned scope-template IDs. Availability
   flags control whether a scope is offered for new work without invalidating
   existing capability or historical version references.
@@ -50,11 +50,11 @@ anybody that day) instead of only assigned work. All of this is per-role
 permission data, so companies can build their own foreman/supervisor/repairman
 variants from the access matrix.
 
-The time clock is compensation-derived, not role-derived: the
-`time_clock_enabled` entitlement param and the time-clock endpoints require an
-hourly component on the worker's compensation profile (falling back to their
-active resource group's profile), so salaried and pure piece-rate workers never
-see or use the clock (`hasHourlyCompensation` in `access.ts`).
+The time clock is permission-derived and knows nothing about pay: the
+`time_clock_enabled` entitlement param and the time-clock endpoints follow
+`crew.time_clock.use` and nothing else. Everything the clock records is
+published as selectable rows (`payroll/time-clock-sources.ts`); whether clocked
+hours are paid depends only on whether the person's pay rules select them.
 
 Project checklists live in `crew_checklists`/`crew_checklist_items` with
 per-checklist `audience` and `crew_editable` flags; the management project

@@ -808,7 +808,7 @@ test("public customer portal mock deposit can be recorded before proposal signat
     && event.payload.payment_kind === "deposit"));
 });
 
-test("expense tracking projects mixed labor, preserves receipt evidence, and groups overlapping attributions transitively", async () => {
+test("expense tracking projects labor from its list lines, preserves receipt evidence, and groups overlapping attributions transitively", async () => {
   const client = createSessionClient();
   const { orgId, userId } = await register(client);
   const projectId = "project_expense_tracking_test";
@@ -819,12 +819,6 @@ test("expense tracking projects mixed labor, preserves receipt evidence, and gro
     metadata: { kind: "platform_project" }
   });
 
-  await client.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${userId}/profile`, {
-    compensation_profile: {
-      name: "Hourly installer",
-      components: [{ id: "installer_hourly", kind: "hourly", rate_cents: 4500, period: "hour" }]
-    }
-  });
   const salariedEmail = `salary-${Date.now()}@example.test`;
   const salariedPassword = "salary test password";
   const salariedUser = await client.request("POST", `/v1/platform/organizations/${orgId}/users`, {
@@ -844,10 +838,6 @@ test("expense tracking projects mixed labor, preserves receipt evidence, and gro
     application_access: {
       management: { enabled: false, role_id: "viewer", permissions: {} },
       field: { enabled: true, role_id: "member", permissions: { view_assigned_work: true } }
-    },
-    compensation_profile: {
-      name: "Salary supervisor",
-      components: [{ id: "supervisor_salary", kind: "salary", rate_cents: 200000, period: "week", hours_per_period: 40 }]
     }
   });
   const restrictedMediaEmail = `media-viewer-${Date.now()}@example.test`;
@@ -876,11 +866,7 @@ test("expense tracking projects mixed labor, preserves receipt evidence, and gro
       { user_id: userId, role: "installer", is_lead: true },
       { user_id: salariedUserId, role: "supervisor" }
     ],
-    capability_scope_ids: ["roof_replacement"],
-    compensation_profile: {
-      name: "Piece-rate work",
-      components: [{ id: "roof_piece", kind: "piece_rate", rate_cents: 10000, unit: "square", label: "Shingles" }]
-    }
+    capability_scope_ids: ["roof_replacement"]
   });
   const group = createdGroup.resource_group;
 
@@ -928,6 +914,11 @@ test("expense tracking projects mixed labor, preserves receipt evidence, and gro
     materialLists.push(created.material_list);
   }
 
+  const laborLines = [
+    { name: "Shingles", quantity: 20, unit: "square", projected_unit_price: 100, metadata: { compensation_kind: "piece_rate" } },
+    { name: "Installer hours", quantity: 10, unit: "hour", projected_unit_price: 45, metadata: { compensation_kind: "hourly" } },
+    { name: "Supervisor time", quantity: 10, unit: "hour", projected_unit_price: 50, metadata: { compensation_kind: "cost_rate", projection_only: true } }
+  ];
   const laborListResponse = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, {
     id: "expense_labor",
     title: "Installation labor",
@@ -936,20 +927,8 @@ test("expense tracking projects mixed labor, preserves receipt evidence, and gro
     metadata: { generated_from_scope: true },
     scope_template_id: "roof_replacement",
     assignment: { work_resource_ref: { kind: "resource_group", id: group.id, name: group.name } },
-    compensation: {
-      mode: "crew_default",
-      resolved_mode: "hybrid",
-      estimated_hours: 10,
-      salary_expense_mode: "hourly",
-      include_salary_as_hourly: true
-    },
-    items: [{
-      name: "Shingles",
-      quantity: 20,
-      unit: "square",
-      projected_unit_price: 100,
-      metadata: { compensation_kind: "piece_rate" }
-    }]
+    // The lines an assignee's pay sheet writes: piece work, hours at a rate, and salaried time at what it costs.
+    items: laborLines
   });
   const laborList = laborListResponse.material_list;
 
@@ -966,26 +945,20 @@ test("expense tracking projects mixed labor, preserves receipt evidence, and gro
   const laborTarget = expenseSummary.targets.find((target: any) => target.source_id === laborList.id);
   assert.equal(laborTarget.projected_cents, 295_000);
   assert.equal(laborTarget.details.hourly_cents, 45_000);
-  assert.equal(laborTarget.details.salary_cents, 50_000);
+  assert.equal(laborTarget.details.cost_rate_cents, 50_000);
   assert.equal(laborTarget.details.piece_rate_cents, 200_000);
-  assert.deepEqual(new Set(laborTarget.details.details.map((detail: any) => detail.kind)), new Set(["hourly", "salary", "piece_rate"]));
+  assert.deepEqual(new Set(laborTarget.details.details.map((detail: any) => detail.kind)), new Set(["hourly", "cost_rate", "piece_rate"]));
+  assert.equal(laborTarget.details.work_resource_ref.id, group.id);
 
-  await client.request("PATCH", `/v1/materials/organizations/${orgId}/material-lists/${laborList.id}`, {
-    expected_revision: laborList.revision,
-    compensation: {
-      ...laborList.compensation,
-      mode: "crew_default",
-      resolved_mode: "hybrid",
-      estimated_hours: 10,
-      salary_expense_mode: "ignore",
-      include_salary_as_hourly: false
-    }
+  // The projection is the list's own lines: taking the salaried time off the list takes it out of the projection.
+  await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${laborList.id}/versions`, {
+    expected_revision: laborList.revision, reason: "revision", items: laborLines.slice(0, 2)
   });
   expenseSummary = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/expense-summary`)).expense_summary;
-  const salaryIgnored = expenseSummary.targets.find((target: any) => target.source_id === laborList.id);
-  assert.equal(salaryIgnored.projected_cents, 245_000);
-  assert.equal(salaryIgnored.details.salary_cents, 0);
-  assert.ok(!salaryIgnored.details.details.some((detail: any) => detail.kind === "salary"));
+  const withoutCostRate = expenseSummary.targets.find((target: any) => target.source_id === laborList.id);
+  assert.equal(withoutCostRate.projected_cents, 245_000);
+  assert.equal(withoutCostRate.details.cost_rate_cents, 0);
+  assert.ok(!withoutCostRate.details.details.some((detail: any) => detail.kind === "cost_rate"));
 
   const supplemental = await client.request("POST", `/v1/payments/organizations/${orgId}/projects/${projectId}/expenses`, {
     title: "Additional chimney flashing",

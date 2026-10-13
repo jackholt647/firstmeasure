@@ -2,15 +2,12 @@ import { randomBytes } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 import type { SqlStore } from "../platform/sql_store.js";
 
-import { compensationPlanProjection, type JsonObject } from "../compensation/service.js";
 import { badRequest, conflict, notFound } from "../platform/errors.js";
 import {
   assertCapabilityScopesExist,
-  assertCompensationCapabilityScopes,
   getWorkforceDatabase,
-  readCompensationProfile,
-  upsertCompensationProfileRecord,
-  withWorkforceTransaction
+  withWorkforceTransaction,
+  type JsonObject
 } from "../workforce/storage.js";
 
 function cleanText(value: unknown) {
@@ -98,7 +95,6 @@ async function connectionRowView(rowValue: unknown) {
   const row = asObject(rowValue);
   const orgId = cleanText(row.organization_id);
   const id = cleanText(row.id);
-  const compensation = (await readCompensationProfile(orgId, "organization_connection", id));
   const capabilityScopeIds = (await connectionCapabilityIds(orgId, id));
   const paymentMetadata = asObject(parseJson(row.payment_metadata_json));
   return {
@@ -116,8 +112,6 @@ async function connectionRowView(rowValue: unknown) {
     capability_scope_ids: capabilityScopeIds,
     linked_organization_id: cleanText(row.linked_organization_id) || null,
     link_status: cleanText(row.link_status || "unlinked"),
-    compensation_profile: compensation,
-    compensation_plan: compensation ? compensationPlanProjection(compensation) : null,
     project_types: capabilityScopeIds,
     metadata: asObject(parseJson(row.metadata_json)),
     revision: Number(row.revision || 1),
@@ -193,10 +187,6 @@ export async function createOrganizationConnection(orgIdValue: string, input: Js
   validateLink(orgId, linkedOrganizationId, linkStatus);
   const branchIds = uniqueIds(input.branch_ids);
   const capabilityScopeIds = (await assertCapabilityScopesExist(orgId, branchIds, input.capability_scope_ids || input.project_types));
-  const compensationInput = input.compensation_profile || input.compensation_plan;
-  const compensation = compensationInput && typeof compensationInput === "object"
-    ? (await assertCompensationCapabilityScopes(orgId, branchIds, compensationInput))
-    : null;
   const now = nowIso();
   try {
     (await withWorkforceTransaction(async (db) => {
@@ -222,9 +212,6 @@ export async function createOrganizationConnection(orgIdValue: string, input: Js
         ));
       (await replaceBranches(db, orgId, connectionId, branchIds));
       (await replaceCapabilities(db, orgId, connectionId, capabilityScopeIds));
-      if (compensation) {
-        (await upsertCompensationProfileRecord(db, orgId, "organization_connection", connectionId, compensation));
-      }
     }));
   } catch (error) {
     if (String(error).includes("UNIQUE constraint failed")) {
@@ -251,10 +238,6 @@ export async function patchOrganizationConnection(orgIdValue: string, connection
   const nextCapabilityScopeIds = Object.prototype.hasOwnProperty.call(input, "capability_scope_ids") || Object.prototype.hasOwnProperty.call(input, "project_types")
     ? (await assertCapabilityScopesExist(orgId, nextBranchIds, input.capability_scope_ids || input.project_types))
     : (await assertCapabilityScopesExist(orgId, nextBranchIds, current.capability_scope_ids));
-  const compensationInput = input.compensation_profile || input.compensation_plan;
-  const compensation = compensationInput && typeof compensationInput === "object"
-    ? (await assertCompensationCapabilityScopes(orgId, nextBranchIds, compensationInput))
-    : null;
   (await withWorkforceTransaction(async (db) => {
     const locked = await db.prepare("SELECT revision FROM organization_connections WHERE organization_id=? AND id=?").get(orgId, connectionId);
     if (!locked || Number(locked.revision) !== Number(current.revision)) throw conflict("organization_connection_revision_conflict", "This record changed elsewhere. Reload and try again.");
@@ -287,9 +270,6 @@ export async function patchOrganizationConnection(orgIdValue: string, connection
     if (Object.prototype.hasOwnProperty.call(input, "capability_scope_ids") || Object.prototype.hasOwnProperty.call(input, "project_types")) {
       (await replaceCapabilities(db, orgId, connectionId, nextCapabilityScopeIds));
     }
-    if (compensation) {
-      (await upsertCompensationProfileRecord(db, orgId, "organization_connection", connectionId, compensation));
-    }
   }));
   return (await readOrganizationConnection(orgId, connectionId));
 }
@@ -309,7 +289,6 @@ export async function archiveOrganizationConnection(orgIdValue: string, connecti
 
 export function organizationConnectionAssignableProjection(connectionValue: JsonObject) {
   const capabilities = uniqueIds(connectionValue.capability_scope_ids || connectionValue.project_types);
-  const compensation = asObject(connectionValue.compensation_profile);
   const resourceId = cleanText(connectionValue.id);
   const resourceName = cleanText(connectionValue.name);
   return {
@@ -328,7 +307,6 @@ export function organizationConnectionAssignableProjection(connectionValue: Json
     id: resourceId,
     name: resourceName,
     status: cleanText(connectionValue.status || "active"),
-    compensation_plan: cleanText(compensation.id) ? compensationPlanProjection(compensation) : null,
     project_types: capabilities
   };
 }

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { badRequest, conflict, notFound } from "../platform/errors.js";
-import { getWorkforceDatabase, readCompensationProfile } from "./storage.js";
+import { getWorkforceDatabase } from "./storage.js";
 import { resolveOrganizationStructure, type OrganizationStructure } from './organization-structure.js';
 import { resolveScopedAccessGrants, type ScopedAccessGrant } from './department-access.js';
 import { capabilityDefinitions } from '../platform/capabilities.js';
@@ -1795,31 +1795,6 @@ function primaryRole(roles: AccessRole[]) {
   return [...roles].sort((left, right) => roleLevel(left) - roleLevel(right) || left.id.localeCompare(right.id)).at(-1);
 }
 
-/**
- * Whether a user's pay includes an hourly component -- either on their own
- * compensation profile or, when they have none, on an active resource group
- * they belong to. Drives time-clock availability: salaried and pure
- * piece-rate workers never see or use the clock.
- */
-export async function hasHourlyCompensation(orgIdValue: string, userIdValue: string): Promise<boolean> {
-  const orgId = cleanText(orgIdValue);
-  const userId = cleanText(userIdValue);
-  if (!orgId || !userId) return false;
-  const hasHourly = (profile: unknown) => asArray(asObject(profile).components).map(asObject)
-    .some((component) => cleanText(component.kind).toLowerCase() === "hourly");
-  try {
-    const direct = (await readCompensationProfile(orgId, "organization_user", userId));
-    if (direct && asArray(asObject(direct).components).length) return hasHourly(direct);
-    const groups = (await getWorkforceDatabase().prepare(`SELECT g.id FROM resource_groups g
-      JOIN resource_group_memberships m ON m.organization_id = g.organization_id AND m.group_id = g.id
-      WHERE g.organization_id = ? AND g.status = 'active' AND m.user_id = ? AND m.status = 'active'`)
-      .all(orgId, userId));
-    return (await Promise.all(groups.map(async row => hasHourly(await readCompensationProfile(orgId, "resource_group", cleanText(asObject(row).id)))))).some(Boolean);
-  } catch {
-    return false;
-  }
-}
-
 async function effectiveEntitlements(
   orgId: string,
   roles: AccessRole[],
@@ -1892,12 +1867,6 @@ async function effectiveEntitlements(
     if (restricted) enabled = false;
     for (const [param, permission] of Object.entries(catalog.parameter_permissions)) {
       params[param] = hasPermission(effectivePermissions, permission);
-    }
-    // The time clock is compensation-derived, not purely permission-derived:
-    // it only appears for workers whose pay actually has an hourly component.
-    if (Object.prototype.hasOwnProperty.call(params, "time_clock_enabled")) {
-      params.time_clock_enabled = params.time_clock_enabled === true
-        && (await hasHourlyCompensation(orgId, cleanText(user.id || user.user_id)));
     }
     // Scoped grants reveal a navigation entry, never a global permission or parameter flag.
     const permissionChecks = catalog.required_permissions.map((permission) => hasPermission(effectivePermissions, permission)

@@ -182,6 +182,20 @@ test("pay rules derive earnings from declared data, post only differences, and r
     assert.equal(everyone.payees.length, 4);
     assert.equal(everyone.posted_count, 0);
     assert.equal(everyone.unresolved_count, 2);
+    // What needs a person's attention can be read at any time, without refreshing again.
+    const unresolved = await engine.listUnresolvedPay(ORG);
+    assert.deepEqual(unresolved.map((item) => [item.payee_name, item.rule_id, item.unit, item.whole_rule]).sort(), [["Cara", "salary", "2026-04-01", false], ["Cara", "salary", "2026-05-01", false]]);
+    assert.match(unresolved[0]!.reason, /whole number of cents/);
+    const review = await engine.listPayReview(ORG);
+    assert.deepEqual(review.held.map((entry) => [entry.payee.id, entry.amount_cents]), [["ana", -15_000]], "the declined correction is settled; the withdrawn booking still waits");
+    assert.deepEqual(review.off_cycle, []);
+    // A rule whose inputs cannot be read at all is remembered too, and forgotten once it reads again.
+    unavailable = true;
+    await refresh(team);
+    assert.deepEqual((await engine.listUnresolvedPay(ORG)).filter((item) => item.whole_rule).map((item) => [item.payee_name, item.rule_id]), [["Install team", "booking"]]);
+    unavailable = false;
+    await refresh(team);
+    assert.equal((await engine.listUnresolvedPay(ORG)).filter((item) => item.whole_rule).length, 0);
   } finally {
     await store.closePayrollDatabase().catch(() => undefined);
     await rm(root, { recursive: true, force: true }).catch(() => undefined);

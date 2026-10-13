@@ -32,7 +32,6 @@ import {
 } from "./storage.js";
 import { registerCrewApi } from "./crew_api.js";
 import { registerSalesApi } from "./sales_api.js";
-import { migrateLegacyLaborCrews } from "./legacy_migration.js";
 import {
   ACCESS_SCHEMA_VERSION,
   CREW_PERMISSION_KEYS,
@@ -111,7 +110,7 @@ function assertUserProfilePatchScope(
   body: Record<string, unknown>
 ) {
   if (canMutateFullUserProfile(context)) return;
-  const forbiddenFields = ["compensation_profile", "worker_classification", "payment_terms"]
+  const forbiddenFields = ["worker_classification", "payment_terms"]
     .filter((field) => Object.prototype.hasOwnProperty.call(body, field));
   if (forbiddenFields.length) {
     throw forbidden(
@@ -374,7 +373,6 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
     await requireWorkforceRead(request, orgId);
-    await migrateLegacyLaborCrews(orgId, branchId);
     const groups = await listResourceGroups(orgId, { ...queryObject(request), branch_id: branchId });
     return { ok: true, ...(await settingsPayload(orgId, branchId)), resource_groups: groups, groups, count: groups.length };
   });
@@ -393,7 +391,6 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
     await requireWorkforceRead(request, orgId);
-    await migrateLegacyLaborCrews(orgId, branchId);
     const group = await readResourceGroup(orgId, getParam(request.params, "groupId"));
     return { ok: true, ...(await settingsPayload(orgId, branchId)), resource_group: group, group };
   });
@@ -435,7 +432,6 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
     await requireWorkforceRead(request, orgId);
-    await migrateLegacyLaborCrews(orgId, branchId);
     const result = await listAssignableResources(orgId, branchId, queryObject(request));
     return { ok: true, ...(await settingsPayload(orgId, branchId)), ...result, count: result.resources.length };
   });
@@ -444,7 +440,6 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
     await requireWorkforceRead(request, orgId);
-    await migrateLegacyLaborCrews(orgId, branchId);
     const body = objectSchema.parse(request.body ?? {});
     const result = await resolveAssignableSubjects(orgId, branchId, body.policy || body.assignment_policy, asObject(body.options));
     return { ok: true, ...(await settingsPayload(orgId, branchId)), ...result, count: result.subjects.length };

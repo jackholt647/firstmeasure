@@ -185,12 +185,33 @@ export async function listCrewTimeShifts(orgId: string, options: JsonObject = {}
   return rows.map((row) => timesheetShiftView(row, byShift.get(cleanText(asObject(row).id)) || []));
 }
 
-/** Closed shifts in id order, without their event trail: the published time clock that pay rules read. */
-export async function listClosedCrewTimeShifts(orgId: string, page: { after?: string; limit: number }) {
+/** Every shift, open or closed, in id order with its event trail: what the time clock publishes. `from` starts at that shift, inclusive. */
+export async function listCrewTimeShiftPage(orgId: string, page: { after?: string; from?: string; limit: number }) {
   ensureCrewSchema();
-  const rows = (await getWorkforceDatabase().prepare(`SELECT * FROM crew_time_shifts WHERE organization_id=? AND status='closed' AND id>?
-    ORDER BY id LIMIT ?`).all(orgId, cleanText(page.after), Math.min(500, Math.max(1, page.limit))));
-  return rows.map((row) => timesheetShiftView(row)).filter((shift): shift is NonNullable<typeof shift> => !!shift);
+  const limit = Math.min(500, Math.max(1, page.limit));
+  const rows = cleanText(page.from)
+    ? (await getWorkforceDatabase().prepare(`SELECT * FROM crew_time_shifts WHERE organization_id=? AND id>=? ORDER BY id LIMIT ?`).all(orgId, cleanText(page.from), limit))
+    : (await getWorkforceDatabase().prepare(`SELECT * FROM crew_time_shifts WHERE organization_id=? AND id>? ORDER BY id LIMIT ?`).all(orgId, cleanText(page.after), limit));
+  if (!rows.length) return [];
+  const ids = rows.map((row) => cleanText(asObject(row).id));
+  const events = (await getWorkforceDatabase().prepare(`SELECT * FROM crew_time_events WHERE organization_id=?
+    AND shift_id IN (${ids.map(() => "?").join(",")}) ORDER BY occurred_at ASC, created_at ASC, id ASC`).all(orgId, ...ids)).map(timeEventView);
+  const byShift = new Map<string, JsonObject[]>();
+  for (const event of events) byShift.set(event.shift_id, [...(byShift.get(event.shift_id) || []), event]);
+  // `finished_break_seconds` leaves out a break still in progress, which the views above count up to the moment they are read.
+  return rows.flatMap((row) => { const shift = timesheetShiftView(row, byShift.get(cleanText(asObject(row).id)) || []); return shift ? [{ ...shift, finished_break_seconds: Math.max(0, Number(asObject(row).break_seconds || 0)) }] : []; });
+}
+
+/** Time clock events in id order, each with the shift it belongs to. */
+export async function listCrewTimeEventPage(orgId: string, page: { after?: string; limit: number }) {
+  ensureCrewSchema();
+  const events = (await getWorkforceDatabase().prepare(`SELECT * FROM crew_time_events WHERE organization_id=? AND id>? ORDER BY id LIMIT ?`)
+    .all(orgId, cleanText(page.after), Math.min(500, Math.max(1, page.limit)))).map(timeEventView);
+  if (!events.length) return [];
+  const ids = [...new Set(events.map((event) => event.shift_id))];
+  const shifts = new Map((await getWorkforceDatabase().prepare(`SELECT * FROM crew_time_shifts WHERE organization_id=? AND id IN (${ids.map(() => "?").join(",")})`)
+    .all(orgId, ...ids)).map((row) => [cleanText(asObject(row).id), timesheetShiftView(row)]));
+  return events.map((event) => ({ ...event, shift: shifts.get(event.shift_id) || null }));
 }
 
 export async function patchCrewTimeShift(orgId: string, shiftId: string, inputValue: unknown, actorUserId: string) {

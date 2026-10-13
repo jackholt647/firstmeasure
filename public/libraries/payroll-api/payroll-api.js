@@ -202,14 +202,18 @@
     rules(orgId){ return paySource(orgId, 'pay_rules'); },
     plans(orgId){ return paySource(orgId, 'pay_plans'); },
     setups(orgId){ return paySource(orgId, 'pay_setups'); },
+    defaults(orgId){ return paySource(orgId, 'pay_defaults'); },
     setup(orgId, payee){ return paySource(orgId, 'pay_setup', payeeId(payee)); },
     units(orgId, payee){ return paySource(orgId, 'pay_units', payeeId(payee)); },
+    unresolved(orgId){ return paySource(orgId, 'pay_unresolved'); },
+    review(orgId){ return paySource(orgId, 'pay_review'); },
     saveRule(orgId, rule){ return payAction(orgId, 'payroll.payRule.save', rule); },
     archiveRule(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.payRule.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },
     savePlan(orgId, plan){ return payAction(orgId, 'payroll.payPlan.save', plan); },
     archivePlan(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.payPlan.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },
     previewSetup(orgId, setup){ return payAction(orgId, 'payroll.paySetup.preview', setup, '', false); },
     saveSetup(orgId, setup){ return payAction(orgId, 'payroll.paySetup.save', setup); },
+    saveDefault(orgId, value){ return payAction(orgId, 'payroll.payDefault.save', value); },
     refreshEarnings(orgId, payees){ return payAction(orgId, 'payroll.earnings.refresh', payees && payees.length ? { payees } : {}); },
     declineCorrection(orgId, entryId, note = ''){ return payAction(orgId, 'payroll.correction.decline', note ? { note } : {}, entryId); }
   };

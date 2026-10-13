@@ -124,16 +124,11 @@ test("workforce architecture keeps users canonical and unifies internal and exte
   const { orgId, userId } = await registerOwner(owner);
   const branchBase = `/v1/workforce/organizations/${orgId}/branches/default`;
 
-  await t.test("access profiles and optional compensation work independently of the workforce rollout flag", async () => {
+  await t.test("access profiles and employment terms work independently of the workforce rollout flag", async () => {
     const profile = await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${userId}/profile`, {
       application_access: {
         management: { enabled: true, role_id: "owner", permissions: { "*": true } },
         field: { enabled: true, role_id: "lead", permissions: { view_assigned_work: true } }
-      },
-      compensation_profile: {
-        name: "Owner direct pay",
-        currency: "USD",
-        components: [{ id: "owner_hourly", kind: "hourly", rate_cents: 4500, period: "hour" }]
       },
       worker_classification: "independent_contractor",
       payment_terms: { basis: "net_days", net_days: 30 }
@@ -141,13 +136,12 @@ test("workforce architecture keeps users canonical and unifies internal and exte
     assert.equal(Object.prototype.hasOwnProperty.call(profile.user, "user_type_ids"), false);
     assert.equal(profile.user.application_access.management.enabled, true);
     assert.equal(profile.user.application_access.field.enabled, true);
-    assert.equal(profile.user.compensation_profile.components[0].rate_cents, 4500);
+    assert.equal(Object.hasOwn(profile.user, "compensation_profile"), false, "how someone is paid is a pay setup, not part of their profile");
     assert.equal(profile.user.worker_classification, "independent_contractor");
     assert.deepEqual(profile.user.payment_terms, { basis: "net_days", net_days: 30 });
 
     const profiles = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users?include_disabled=1`);
     const listedProfile = profiles.users.find((user: any) => user.id === userId);
-    assert.equal(listedProfile.compensation_profile.components[0].rate_cents, 4500);
     assert.equal(listedProfile.worker_classification, "independent_contractor");
     assert.equal(listedProfile.payment_terms.net_days, 30);
 
@@ -189,53 +183,12 @@ test("workforce architecture keeps users canonical and unifies internal and exte
     assert.equal(managementDenied.data.error, "application_access_denied");
   });
 
-  await t.test("legacy labor crews migrate into resource groups without inventing non-user memberships", async () => {
-    const { saveLaborSettings } = await import("../labor/storage.js");
-    await saveLaborSettings(orgId, "default", {
-      crews: [
-        {
-          id: "crew_legacy",
-          name: "Legacy Crew",
-          status: "active",
-          members: [
-            { id: userId, user_id: userId, name: "Workforce Owner", role: "foreman", is_foreman: true, active: true },
-            { id: "member_not_a_user", user_id: "member_not_a_user", name: "Legacy Name", role: "laborer", active: true }
-          ],
-          foreman_member_id: userId,
-          compensation_plan: { name: "Legacy hourly", type: "hourly", hourly_rate_cents: 2750 }
-        },
-        {
-          id: "subcontractor_legacy",
-          name: "Legacy Partner",
-          employment_type: "subcontractor",
-          status: "archived",
-          members: [{ id: "partner_contact", name: "Partner Contact", email: "partner@example.test", role: "owner", is_foreman: true }],
-          foreman_member_id: "partner_contact",
-          compensation_plan: { name: "Legacy partner hourly", type: "hourly", hourly_rate_cents: 5000 }
-        }
-      ]
-    });
-    const response = await owner.request("GET", `${branchBase}/resource-groups`);
-    const migrated = response.resource_groups.find((group: any) => group.id === "crew_legacy");
-    assert.equal(migrated.name, "Legacy Crew");
-    assert.deepEqual(migrated.members.map((member: any) => member.user_id), [userId]);
-    assert.equal(migrated.members[0].is_lead, true);
-    assert.equal(migrated.compensation_plan.hourly_rate_cents, 2750);
-    assert.equal(migrated.metadata.migrated_from, "labor_crews");
-    const connections = await owner.request("GET", `/v1/connections/organizations/${orgId}/organization-connections?branch_id=default&include_archived=1`);
-    const migratedConnection = connections.organization_connections.find((connection: any) => connection.id === "subcontractor_legacy");
-    assert.equal(migratedConnection.name, "Legacy Partner");
-    assert.equal(migratedConnection.status, "archived");
-    assert.equal(migratedConnection.contacts[0].email, "partner@example.test");
-    assert.equal(migratedConnection.compensation_plan.hourly_rate_cents, 5000);
-  });
-
   const scopeCatalog = await owner.request("GET", `/v1/scopes/organizations/${orgId}/branches/default/templates?include_disabled=1`);
   assert.ok(scopeCatalog.templates.some((template: any) => template.id === "roof_replacement"));
   assert.ok(scopeCatalog.templates.some((template: any) => template.id === "repairs"));
 
   let group: any;
-  await t.test("resource groups attach existing users and resolve direct compensation before group compensation", async () => {
+  await t.test("resource groups attach existing users and carry no pay of their own", async () => {
     const configuration = await owner.request("GET", `${branchBase}/configuration`);
     assert.equal(configuration.configuration.terminology.resource_group.singular, "Crew");
     assert.equal(configuration.configuration.terminology.organization_connection.singular, "Subcontractor");
@@ -249,19 +202,14 @@ test("workforce architecture keeps users canonical and unifies internal and exte
       name: "Alpha Resource Group",
       primary_member_user_id: userId,
       members: [{ user_id: userId, role: "lead", is_lead: true }],
-      capability_scope_ids: ["roof_replacement"],
-      compensation_profile: {
-        name: "Group fallback pay",
-        components: [{ id: "group_hourly", kind: "hourly", rate_cents: 3000, period: "hour" }]
-      }
+      capability_scope_ids: ["roof_replacement"]
     });
     group = created.resource_group;
     assert.equal(group.members.length, 1);
     assert.equal(group.members[0].user_id, userId);
     assert.equal(group.members[0].user.name, "Workforce Owner");
-    assert.equal(group.members[0].compensation_source, "organization_user");
-    assert.equal(group.members[0].compensation_plan.hourly_rate_cents, 4500);
-    assert.equal(group.compensation_plan.hourly_rate_cents, 3000);
+    for (const key of ["compensation_profile", "compensation_plan"]) assert.equal(Object.hasOwn(group, key), false, key);
+    for (const key of ["compensation_source", "compensation_plan", "effective_compensation_profile"]) assert.equal(Object.hasOwn(group.members[0], key), false, key);
     assert.deepEqual(group.capability_scope_ids, ["roof_replacement"]);
 
     const invalidCapability = await owner.raw("POST", `${branchBase}/resource-groups`, {
@@ -417,7 +365,7 @@ test("workforce architecture keeps users canonical and unifies internal and exte
     assert.equal(invalidTag.data.error, "assignment_tag_not_found");
   });
 
-  await t.test("organization connections are first-class resources and reject salary compensation", async () => {
+  await t.test("organization connections are first-class resources", async () => {
     const created = await owner.request("POST", `/v1/connections/organizations/${orgId}/organization-connections`, {
       name: "Exterior Partner LLC",
       legal_name: "Exterior Partner Holdings LLC",
@@ -427,28 +375,13 @@ test("workforce architecture keeps users canonical and unifies internal and exte
       address: { city: "Tacoma", region: "WA" },
       payment_metadata: { terms: "net_15" },
       payment_terms: { basis: "net_days", net_days: 15 },
-      capability_scope_ids: ["roof_replacement"],
-      compensation_profile: {
-        name: "Partner piece rates",
-        components: [{ id: "partner_piece", kind: "piece_rate", rate_cents: 12500, unit: "square" }]
-      }
+      capability_scope_ids: ["roof_replacement"]
     });
     connection = created.organization_connection;
     assert.equal(connection.name, "Exterior Partner LLC");
     assert.deepEqual(connection.branch_ids, ["default"]);
-    assert.equal(connection.compensation_plan.type, "piece_rate");
+    for (const key of ["compensation_profile", "compensation_plan"]) assert.equal(Object.hasOwn(connection, key), false, key);
     assert.equal(connection.payment_terms.net_days, 15);
-
-    const salaryRejected = await owner.raw("POST", `/v1/connections/organizations/${orgId}/organization-connections`, {
-      name: "Salary Connection",
-      branch_ids: ["default"],
-      capability_scope_ids: ["roof_replacement"],
-      compensation_profile: {
-        components: [{ id: "not_allowed", kind: "salary", rate_cents: 100000, period: "week" }]
-      }
-    });
-    assert.equal(salaryRejected.statusCode, 400);
-    assert.equal(salaryRejected.data.error, "connection_salary_not_allowed");
 
     const invalidCapability = await owner.raw("POST", `/v1/connections/organizations/${orgId}/organization-connections`, {
       name: "Invalid Scope Connection",

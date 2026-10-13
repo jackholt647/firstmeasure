@@ -159,34 +159,6 @@
     return '';
   };
   const workforceUniqueIds = (value) => [...new Set(workforceArray(value).map((item) => workforceText(item?.id, item?.role_id, item)).filter(Boolean))];
-  const workforceCents = (value) => Math.max(0, Math.round(Number(String(value ?? '').replace(/[^0-9.-]/g, '')) * 100) || 0);
-  const workforceMoney = (value) => {
-    const amount = Number(value || 0) / 100;
-    return amount ? amount.toFixed(2) : '';
-  };
-  const salaryPeriodOptions = [
-    ['week', 'Weekly'],
-    ['biweekly', 'Every two weeks'],
-    ['semimonthly', 'Twice monthly'],
-    ['month', 'Monthly'],
-    ['year', 'Annually']
-  ];
-  function normalizeSalaryPeriod(value = 'week'){
-    const raw = workforceText(value, 'week');
-    const compact = raw.toLowerCase().replace(/[\s_-]+/g, '');
-    return ({ week:'week', weekly:'week', biweek:'biweekly', biweekly:'biweekly', fortnight:'biweekly', semimonth:'semimonthly', semimonthly:'semimonthly', month:'month', monthly:'month', year:'year', yearly:'year', annual:'year', annually:'year' })[compact] || raw;
-  }
-  function salaryPeriodOptionsHtml(value = 'week'){
-    const selected = normalizeSalaryPeriod(value);
-    const options = salaryPeriodOptions.some(([period]) => period === selected)
-      ? salaryPeriodOptions
-      : [...salaryPeriodOptions, [selected, selected.replace(/[_-]+/g, ' ')]];
-    return options.map(([period, label]) => `<option value="${escapeHtml(period)}" ${period === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
-  }
-  function salaryPeriodLabel(value = 'week'){
-    const period = normalizeSalaryPeriod(value);
-    return salaryPeriodOptions.find(([candidate]) => candidate === period)?.[1]?.toLowerCase() || period.replace(/[_-]+/g, ' ');
-  }
   function normalizeApplicationAccess(value = {}){
     const access = workforceObject(value);
     const entry = (raw, fallbackEnabled = false) => {
@@ -202,50 +174,6 @@
       management:entry(access.management ?? access.main ?? access.management_app, true),
       field:entry(access.field ?? access.field_app, false)
     };
-  }
-  function normalizeCompensationProfile(value = {}){
-    const source = workforceObject(value);
-    const canonicalComponents = workforceArray(source.components).map((component) => workforceObject(component));
-    const canonicalHourly = canonicalComponents.find((component) => workforceText(component.kind, component.type).toLowerCase() === 'hourly');
-    const canonicalSalary = canonicalComponents.find((component) => workforceText(component.kind, component.type).toLowerCase() === 'salary');
-    const canonicalPieces = canonicalComponents.filter((component) => ['piece_rate', 'piece'].includes(workforceText(component.kind, component.type).toLowerCase()));
-    const pieceRates = canonicalPieces.length ? canonicalPieces : workforceArray(source.piece_rates || source.pieceRates);
-    const explicitEnabled = source.enabled === true || source.active === true;
-    const componentKinds = [...new Set(canonicalComponents.map((component) => workforceText(component.kind, component.type).toLowerCase()).filter(Boolean))];
-    const inferredType = componentKinds.length > 1 ? 'hybrid' : componentKinds[0] || '';
-    const type = workforceText(source.type, source.mode, source.compensation_type, inferredType, 'hourly').toLowerCase();
-    const hourlyRateCents = Math.max(0, Number(source.hourly_rate_cents ?? source.hourlyRateCents ?? canonicalHourly?.rate_cents ?? 0) || 0);
-    const salaryRateCents = Math.max(0, Number(source.salary_rate_cents ?? source.salaryRateCents ?? canonicalSalary?.rate_cents ?? 0) || 0);
-    const pieceRateCents = Math.max(0, Number(source.piece_rate_cents ?? source.pieceRateCents ?? pieceRates[0]?.rate_cents ?? 0) || 0);
-    const enabled = source.status !== 'archived' && type !== 'none' && (explicitEnabled || source.enabled !== false && (canonicalComponents.length > 0 || !!source.id || hourlyRateCents > 0 || salaryRateCents > 0 || pieceRateCents > 0));
-    const normalizedType = enabled && ['hourly', 'salary', 'piece_rate', 'hybrid'].includes(type) ? type : 'none';
-    const normalizedPieceSources = canonicalPieces.length ? canonicalPieces : pieceRates;
-    const components = enabled ? [
-      ...(['hourly', 'hybrid'].includes(normalizedType) ? [{ ...workforceObject(canonicalHourly), kind:'hourly', label:workforceText(canonicalHourly?.label, 'Hourly'), rate_cents:hourlyRateCents, period:workforceText(canonicalHourly?.period, 'hour') }] : []),
-      ...(normalizedType === 'salary' || normalizedType === 'hybrid' ? [{ ...workforceObject(canonicalSalary), kind:'salary', label:workforceText(canonicalSalary?.label, 'Salary'), rate_cents:salaryRateCents, period:normalizeSalaryPeriod(workforceText(source.salary_period, canonicalSalary?.period, 'week')) }] : []),
-      ...(['piece_rate', 'hybrid'].includes(normalizedType) ? (normalizedPieceSources.length ? normalizedPieceSources : [{}]).map((piece, index) => ({ ...workforceObject(piece), kind:'piece_rate', label:workforceText(piece?.label, `Piece Rate${index ? ` ${index + 1}` : ''}`), unit:workforceText(piece?.unit, 'unit'), rate_cents:index === 0 ? pieceRateCents : Math.max(0, Number(piece?.rate_cents || 0) || 0) })) : [])
-    ] : [];
-    return {
-      ...source,
-      enabled,
-      status:enabled ? 'active' : 'archived',
-      type:normalizedType,
-      hourly_rate_cents: hourlyRateCents,
-      salary_rate_cents: salaryRateCents,
-      salary_period: normalizeSalaryPeriod(workforceText(source.salary_period, canonicalSalary?.period, 'week')),
-      piece_rates: ['piece_rate', 'hybrid'].includes(normalizedType) ? components.filter((component) => component.kind === 'piece_rate').map((piece) => ({ ...piece })) : [],
-      components,
-      ...(Number(source.revision || 0) > 0 ? { expected_revision:Number(source.revision) } : {})
-    };
-  }
-  function compensationProfileLabel(value = {}, emptyLabel = 'No compensation'){
-    const plan = normalizeCompensationProfile(value);
-    if (!plan.enabled || plan.type === 'none') return emptyLabel;
-    const parts = [];
-    if (['hourly', 'hybrid'].includes(plan.type) && plan.hourly_rate_cents) parts.push(`$${workforceMoney(plan.hourly_rate_cents)}/hr`);
-    if (['salary', 'hybrid'].includes(plan.type) && plan.salary_rate_cents) parts.push(`$${workforceMoney(plan.salary_rate_cents)} ${salaryPeriodLabel(plan.salary_period)}`);
-    if (['piece_rate', 'hybrid'].includes(plan.type) && plan.piece_rates?.[0]?.rate_cents) parts.push(`$${workforceMoney(plan.piece_rates[0].rate_cents)}/${plan.piece_rates[0].unit || 'unit'}`);
-    return parts.join(' + ') || plan.type.replace(/_/g, ' ');
   }
   function workforceUserAccess(user = {}){
     return normalizeApplicationAccess(user.access_profile?.application_access || user.application_access || user.app_access || user.workforce_profile?.application_access || user.workforce?.application_access);
@@ -264,9 +192,6 @@
   }
   function workforceUserAssignmentTags(user = {}){
     return workforceUniqueIds(user.assignment_tag_ids || user.tag_ids || user.workforce_profile?.assignment_tag_ids || user.workforce?.assignment_tag_ids);
-  }
-  function workforceUserCompensation(user = {}){
-    return normalizeCompensationProfile(user.compensation_profile || user.compensation || user.workforce_profile?.compensation_profile || user.workforce?.compensation_profile);
   }
   function normalizeWorkforceTerminology(value = {}){
     const source = workforceObject(value);
@@ -1065,7 +990,7 @@
     if (!data || !data.success) return { ok:false, error: data?.error || 'List failed' };
     return { ok:true, users: data.users || [] };
   }
-  async function userAdd({ email, name, permLevel, permItems, applicationAccess = {}, accessRoleIds = [], permissionOverrides = {}, appAccessOverrides = {}, compensationProfile = null }){
+  async function userAdd({ email, name, permLevel, permItems, applicationAccess = {}, accessRoleIds = [], permissionOverrides = {}, appAccessOverrides = {} }){
     const orgId = currentOrgId();
     if (orgId && window.PlatformAPI?.users?.create) {
       const workforceProfile = {
@@ -1167,7 +1092,7 @@
     if (!data || !data.success) return { ok:false, error: data?.error || 'Update failed' };
     return { ok:true, user: data.user || null };
   }
-  async function userSaveWorkforceProfile({ userId, applicationAccess, accessRoleIds, scopedAccessAssignments, permissionOverrides, appAccessOverrides, assignmentTagIds, compensationProfile = null }){
+  async function userSaveWorkforceProfile({ userId, applicationAccess, accessRoleIds, scopedAccessAssignments, permissionOverrides, appAccessOverrides, assignmentTagIds }){
     const orgId = currentOrgId();
     if (!orgId || !userId || !window.PlatformAPI?.workforce?.saveUserProfile) {
       return { ok:false, error:'Workforce profile API is unavailable.' };
@@ -1178,8 +1103,7 @@
       ...(scopedAccessAssignments !== undefined ? { scoped_access_assignments:scopedAccessAssignments } : {}),
       ...(permissionOverrides !== undefined ? { permission_overrides:workforceObject(permissionOverrides) } : {}),
       ...(appAccessOverrides !== undefined ? { app_access_overrides:workforceObject(appAccessOverrides) } : {}),
-      ...(assignmentTagIds !== undefined ? { assignment_tag_ids:workforceUniqueIds(assignmentTagIds) } : {}),
-      ...(compensationProfile ? { compensation_profile:normalizeCompensationProfile(compensationProfile) } : {})
+      ...(assignmentTagIds !== undefined ? { assignment_tag_ids:workforceUniqueIds(assignmentTagIds) } : {})
     });
     return { ok:true, user: platformUserFromDocument(result?.document || result?.user || result || {}) };
   }
@@ -4494,8 +4418,8 @@
     injectCSS('company_call_workflows_visual_fix', `.cw-field:has(>select[data-cw-field="tone"]){display:none}`);
     injectCSS('company_workforce_user_chips', `
       .cu-userMetaChips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
-      .wf-group-chip,.wf-app-chip,.wf-comp-chip,.wf-role-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;padding:3px 7px;font-size:9px;font-weight:950;color:#475467;white-space:nowrap}
-      .wf-app-chip.on{border-color:#abefc6;background:#ecfdf3;color:#067647}.wf-comp-chip{border-color:#b2ddff;background:#eff8ff;color:#175cd3}.wf-role-chip{border-color:#c7d7fe;background:#eef4ff;color:#3538cd}.wf-role-chip.field{border-color:#abefc6;background:#ecfdf3;color:#067647}.wf-role-chip.hybrid{border-color:#d6bbfb;background:#f4ebff;color:#6941c6}
+      .wf-group-chip,.wf-app-chip,.wf-role-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;padding:3px 7px;font-size:9px;font-weight:950;color:#475467;white-space:nowrap}
+      .wf-app-chip.on{border-color:#abefc6;background:#ecfdf3;color:#067647}.wf-role-chip{border-color:#c7d7fe;background:#eef4ff;color:#3538cd}.wf-role-chip.field{border-color:#abefc6;background:#ecfdf3;color:#067647}.wf-role-chip.hybrid{border-color:#d6bbfb;background:#f4ebff;color:#6941c6}
       .cu-invite-modal{width:min(640px,100%)}.cu-invite-form{display:grid;gap:12px}.cu-invite-section{border:1px solid #eaecf0;border-radius:12px;background:#fff;padding:12px}.cu-invite-section h4{margin:0 0 3px;color:#344054;font-size:12px;font-weight:1000}.cu-invite-section>p{margin:0 0 10px;color:#667085;font-size:11px;line-height:1.4}.cu-invite-identity{display:grid;grid-template-columns:76px minmax(0,1fr);align-items:center;gap:12px}.cu-invite-identity .cu-newAvatarRow{margin:0}.cu-invite-identity .cu-newAvatarNote{display:none}.cu-invite-fields{display:grid;gap:9px}.cu-invite-details{border:1px solid #eaecf0;border-radius:12px;background:#f9fafb;overflow:hidden}.cu-invite-details>summary{display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer;list-style:none;color:#344054;font-size:11px;font-weight:950}.cu-invite-details>summary::-webkit-details-marker{display:none}.cu-invite-details>summary i{color:#667085}.cu-invite-details>summary small{margin-left:auto;color:#667085;font-size:10px;font-weight:750}.cu-invite-details-body{display:grid;gap:12px;padding:0 12px 12px;border-top:1px solid #eaecf0}.cu-invite-details-body .cu-workforce-section{margin-top:0}.cu-invite-custom{margin-top:10px}.cu-invite-custom .cu-permGrid{margin-top:0}
       .cu-workforce-section{margin-top:12px;border:1px solid #eaecf0;border-radius:12px;background:#f9fafb;padding:12px;display:grid;gap:10px}.cu-workforce-title{font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#475467}.cu-workforce-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.cu-workforce-grid .wide{grid-column:1/-1}.cu-choice-list{display:flex;gap:7px;flex-wrap:wrap}.cu-workforce-choice{display:flex;align-items:center;gap:7px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:8px 10px;font-size:11px;font-weight:850;color:#344054}.cu-workforce-choice input{accent-color:var(--primary,#d93025)}
       .cu-access-intro{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 4px}.cu-access-concept{border:1px solid #e4e7ec;border-radius:11px;background:#fff;padding:10px}.cu-access-concept i{color:var(--primary,#d93025);margin-right:5px}.cu-access-concept strong{display:block;color:#344054;font-size:11px;font-weight:1000}.cu-access-concept span{display:block;margin-top:4px;color:#667085;font-size:9.5px;line-height:1.35}
@@ -9236,13 +9160,13 @@
         .wf-page{max-width:1180px;margin:0 auto;display:grid;gap:14px;padding-top:8px}.wf-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.wf-head h3{margin:0 0 4px;font-size:22px;font-weight:1000;color:#101828}.wf-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
         .wf-subtabs{display:inline-flex;align-items:center;gap:3px;border:1px solid #e4e7ec;border-radius:12px;background:#f9fafb;padding:3px;width:max-content;max-width:100%}.wf-subtab{border:0;border-radius:9px;background:transparent;color:#667085;padding:8px 12px;font-size:12px;font-weight:950;cursor:pointer}.wf-subtab.active{background:#fff;color:#101828;box-shadow:0 1px 4px rgba(16,24,40,.10)}
         .wf-card{border:1px solid #e4e7ec;border-radius:16px;background:#fff;overflow:hidden}.wf-card.embedded-focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb),.12)}.wf-card.archived{opacity:.68}.wf-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-bottom:1px solid #edf0f4;background:#fbfcfe}.wf-card-head-copy{display:grid;gap:3px;min-width:0}.wf-card-head-copy strong{font-size:15px;color:#101828}.wf-card-head-copy span{font-size:11px;color:#667085;font-weight:800}.wf-card-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.wf-card-body{display:grid;gap:15px;padding:15px}.wf-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.wf-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-field{display:grid;gap:5px;min-width:0}.wf-field.wide{grid-column:1/-1}.wf-field>span,.wf-section-title{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:#667085}.wf-input,.wf-select{width:100%;height:38px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:0 10px;color:#101828;font-size:12px;font-weight:800;box-sizing:border-box}.wf-check{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:850;color:#344054;cursor:pointer}.wf-check input{width:17px;height:17px;accent-color:var(--primary,#d93025)}
-        .wf-member-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.wf-member-summary{font-size:11px;color:#667085;font-weight:800}.wf-member-list{display:grid;gap:8px}.wf-member-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,auto);gap:9px 14px;align-items:center;border:1px solid #e5e8ed;border-radius:12px;padding:11px 12px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.03)}.wf-member-identity{display:flex;align-items:center;gap:9px;min-width:0}.wf-member-avatar{width:32px;height:32px;flex:0 0 auto;display:grid;place-items:center;border-radius:50%;background:rgba(var(--primary-rgb,217,48,37),.11);color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:1000}.wf-member-person{display:grid;gap:2px;min-width:0}.wf-member-person strong{font-size:13px;color:#1d2939;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wf-member-person span{font-size:10px;color:#667085;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wf-member-actions{display:grid;grid-template-columns:minmax(145px,180px) 32px;gap:7px;align-items:end}.wf-member-role{display:grid;gap:4px;min-width:0}.wf-member-role>span{font-size:9px;line-height:1;text-transform:uppercase;letter-spacing:.04em;font-weight:1000;color:#667085}.wf-member-role .wf-select{height:34px;font-size:11px}.wf-member-remove{width:32px;height:32px;min-width:32px;padding:0;display:grid;place-items:center;border:1px solid #eaecf0;border-radius:9px;background:#fff;color:#667085;box-shadow:none}.wf-member-remove:hover{border-color:#fecdca;background:#fff5f4;color:#b42318}.wf-member-comp{grid-column:1/-1;padding-top:8px;border-top:1px solid #f0f2f5;color:#667085;font-size:10px;font-weight:750}.wf-member-comp strong{color:#475467;font-weight:950}.wf-member-empty{border:1px dashed #d0d5dd;border-radius:11px;padding:18px;text-align:center;display:grid;gap:4px;color:#667085}.wf-member-empty strong{font-size:12px;color:#344054}.wf-member-empty span{font-size:11px;font-weight:750}
+        .wf-member-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.wf-member-summary{font-size:11px;color:#667085;font-weight:800}.wf-member-list{display:grid;gap:8px}.wf-member-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,auto);gap:9px 14px;align-items:center;border:1px solid #e5e8ed;border-radius:12px;padding:11px 12px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.03)}.wf-member-identity{display:flex;align-items:center;gap:9px;min-width:0}.wf-member-avatar{width:32px;height:32px;flex:0 0 auto;display:grid;place-items:center;border-radius:50%;background:rgba(var(--primary-rgb,217,48,37),.11);color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:1000}.wf-member-person{display:grid;gap:2px;min-width:0}.wf-member-person strong{font-size:13px;color:#1d2939;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wf-member-person span{font-size:10px;color:#667085;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wf-member-actions{display:grid;grid-template-columns:minmax(145px,180px) 32px;gap:7px;align-items:end}.wf-member-role{display:grid;gap:4px;min-width:0}.wf-member-role>span{font-size:9px;line-height:1;text-transform:uppercase;letter-spacing:.04em;font-weight:1000;color:#667085}.wf-member-role .wf-select{height:34px;font-size:11px}.wf-member-remove{width:32px;height:32px;min-width:32px;padding:0;display:grid;place-items:center;border:1px solid #eaecf0;border-radius:9px;background:#fff;color:#667085;box-shadow:none}.wf-member-remove:hover{border-color:#fecdca;background:#fff5f4;color:#b42318}.wf-member-empty{border:1px dashed #d0d5dd;border-radius:11px;padding:18px;text-align:center;display:grid;gap:4px;color:#667085}.wf-member-empty strong{font-size:12px;color:#344054}.wf-member-empty span{font-size:11px;font-weight:750}
         .wf-member-picker{width:min(680px,calc(100vw - 28px))}.wf-member-picker-intro{margin:0;color:#667085;font-size:12px;line-height:1.45}.wf-member-picker-controls{display:grid;grid-template-columns:minmax(0,1fr) 155px;gap:8px;align-items:end;margin:14px 0 8px}.wf-picker-search{position:relative}.wf-picker-search i{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#98a2b3;font-size:12px}.wf-picker-search .wf-input{padding-left:32px}.wf-member-picker-list{display:grid;gap:7px;max-height:min(48vh,390px);overflow:auto;padding-right:2px}.wf-member-picker>[data-member-invite-toggle]{margin-top:5px}.wf-member-picker-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #eaecf0;border-radius:11px;padding:9px 10px;background:#fff}.wf-member-picker-row strong{display:block;color:#344054;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wf-member-picker-row span{display:block;margin-top:2px;color:#667085;font-size:10px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wf-member-picker-empty{padding:22px 12px;text-align:center;color:#667085;font-size:12px;font-weight:800}.wf-quick-invite{border-top:1px solid #eaecf0;margin-top:8px;padding-top:10px}.wf-quick-invite[hidden]{display:none}.wf-quick-invite h4{margin:0 0 4px;color:#344054;font-size:13px}.wf-quick-invite p{margin:0 0 10px;color:#667085;font-size:11px;line-height:1.4}.wf-quick-invite-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wf-quick-invite-grid .wide{grid-column:1/-1}
         .wf-scope-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:7px}.wf-scope-option{min-width:0;min-height:38px;border:1px solid #dfe3ea;border-radius:10px;background:#fff;padding:8px 9px;display:flex;align-items:center;gap:7px;color:#475467;font:900 10px/1.15 inherit;text-align:left;cursor:pointer;transition:.14s ease}.wf-scope-option:hover{border-color:rgba(var(--primary-rgb,217,48,37),.34);background:#fffafa}.wf-scope-option.active{border-color:rgba(var(--primary-rgb,217,48,37),.55);background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 2px rgba(var(--primary-rgb,217,48,37),.08)}.wf-scope-color{width:7px;height:22px;flex:0 0 auto;border-radius:99px;background:var(--scope-color,#98a2b3)}.wf-scope-option span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
-        .wf-comp-box,.wf-terms{border:1px solid #eaecf0;border-radius:12px;background:#f9fafb;padding:12px;display:grid;gap:10px}.wf-comp-fields{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:8px;align-items:end}.wf-comp-fields.connection{grid-template-columns:repeat(3,minmax(110px,1fr))}.wf-inline-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px}.wf-inline-toggle strong{font-size:12px;color:#344054}.wf-empty{border:1px dashed #d0d5dd;border-radius:14px;padding:28px;text-align:center;color:#667085;font-size:12px;font-weight:850}.wf-status{min-height:18px;color:#667085;font-size:11px;font-weight:850}.wf-status:empty{display:none}.wf-connection-list,.wf-group-list{display:grid;gap:12px}
-        .wf-group-chip,.wf-app-chip,.wf-comp-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;padding:3px 7px;font-size:9px;font-weight:950;color:#475467;white-space:nowrap}.wf-app-chip.on{border-color:#abefc6;background:#ecfdf3;color:#067647}.wf-comp-chip{border-color:#b2ddff;background:#eff8ff;color:#175cd3}.cu-userMetaChips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+        .wf-terms{border:1px solid #eaecf0;border-radius:12px;background:#f9fafb;padding:12px;display:grid;gap:10px}.wf-inline-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px}.wf-inline-toggle strong{font-size:12px;color:#344054}.wf-empty{border:1px dashed #d0d5dd;border-radius:14px;padding:28px;text-align:center;color:#667085;font-size:12px;font-weight:850}.wf-status{min-height:18px;color:#667085;font-size:11px;font-weight:850}.wf-status:empty{display:none}.wf-connection-list,.wf-group-list{display:grid;gap:12px}
+        .wf-group-chip,.wf-app-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;padding:3px 7px;font-size:9px;font-weight:950;color:#475467;white-space:nowrap}.wf-app-chip.on{border-color:#abefc6;background:#ecfdf3;color:#067647}.cu-userMetaChips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
         .cu-modal.wf-member-picker{width:min(680px,calc(100vw - 28px));max-height:min(760px,calc(100dvh - 28px));border-radius:18px}.cu-modal.wf-member-picker .cu-mb{padding:12px;overflow:auto}.cu-modal.wf-member-picker .wf-member-picker{width:100%;min-width:0;box-sizing:border-box}.wf-member-picker *{min-width:0;box-sizing:border-box}.wf-member-picker-row .cs-btn{min-height:32px;padding:6px 9px;font-size:11px;white-space:nowrap}
-        @media(max-width:860px){.wf-grid,.wf-grid.two{grid-template-columns:1fr}.wf-comp-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-comp-fields.connection{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-head{flex-direction:column}.wf-head-actions{justify-content:flex-start}}@media(max-width:620px){.wf-page{gap:10px;padding:4px 0 12px}.wf-head h3{font-size:19px}.wf-head-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.wf-head-actions .cs-btn{justify-content:center}.wf-subtabs{width:100%;display:grid;grid-template-columns:1fr 1fr}.wf-subtab{min-width:0;padding:9px 6px}.wf-card{border-radius:13px}.wf-card-head{align-items:stretch;flex-direction:column;padding:12px}.wf-card-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.wf-card-actions .cs-btn{justify-content:center}.wf-card-body{padding:12px;gap:13px}.wf-member-toolbar{align-items:stretch;flex-direction:column}.wf-member-toolbar .cs-btn{width:100%;justify-content:center}.wf-member-card{grid-template-columns:1fr;gap:10px;padding:11px}.wf-member-actions{grid-template-columns:minmax(0,1fr) 34px;width:100%}.wf-member-role .wf-select{height:38px;font-size:12px}.wf-member-remove{width:34px;height:38px;align-self:end}.wf-member-comp{padding-top:7px}.cu-modalBack:has(.cu-modal.wf-member-picker){align-items:center;padding:12px}.cu-modal.wf-member-picker{width:100%;max-height:calc(100dvh - 24px);border-radius:16px}.cu-modal.wf-member-picker .cu-mb{padding:10px}.wf-member-picker-controls{grid-template-columns:minmax(0,1fr) 116px;align-items:end}.wf-member-picker-list{max-height:28dvh}.wf-member-picker-row{grid-template-columns:minmax(0,1fr) auto;padding:8px}.wf-member-picker-row .cs-btn{padding:6px 8px}.wf-quick-invite-grid{grid-template-columns:1fr}.wf-quick-invite-grid .wide{grid-column:auto}.wf-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-empty{padding:22px 14px}}`);
+        @media(max-width:860px){.wf-grid,.wf-grid.two{grid-template-columns:1fr}.wf-head{flex-direction:column}.wf-head-actions{justify-content:flex-start}}@media(max-width:620px){.wf-page{gap:10px;padding:4px 0 12px}.wf-head h3{font-size:19px}.wf-head-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.wf-head-actions .cs-btn{justify-content:center}.wf-subtabs{width:100%;display:grid;grid-template-columns:1fr 1fr}.wf-subtab{min-width:0;padding:9px 6px}.wf-card{border-radius:13px}.wf-card-head{align-items:stretch;flex-direction:column;padding:12px}.wf-card-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.wf-card-actions .cs-btn{justify-content:center}.wf-card-body{padding:12px;gap:13px}.wf-member-toolbar{align-items:stretch;flex-direction:column}.wf-member-toolbar .cs-btn{width:100%;justify-content:center}.wf-member-card{grid-template-columns:1fr;gap:10px;padding:11px}.wf-member-actions{grid-template-columns:minmax(0,1fr) 34px;width:100%}.wf-member-role .wf-select{height:38px;font-size:12px}.wf-member-remove{width:34px;height:38px;align-self:end}.cu-modalBack:has(.cu-modal.wf-member-picker){align-items:center;padding:12px}.cu-modal.wf-member-picker{width:100%;max-height:calc(100dvh - 24px);border-radius:16px}.cu-modal.wf-member-picker .cu-mb{padding:10px}.wf-member-picker-controls{grid-template-columns:minmax(0,1fr) 116px;align-items:end}.wf-member-picker-list{max-height:28dvh}.wf-member-picker-row{grid-template-columns:minmax(0,1fr) auto;padding:8px}.wf-member-picker-row .cs-btn{padding:6px 8px}.wf-quick-invite-grid{grid-template-columns:1fr}.wf-quick-invite-grid .wide{grid-column:auto}.wf-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.wf-empty{padding:22px 14px}}`);
       paneCrews.innerHTML = `<div class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_1a0b40d09c63f4"," Loading workforce settings...") ?? " Loading workforce settings...")}</div>`;
       if (!orgId || !api?.workforce || !api?.connections) {
         paneCrews.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fde4f188ea1bab","Workforce or organization-connections API is unavailable.") ?? "Workforce or organization-connections API is unavailable.")}</div>`;
@@ -9286,55 +9210,17 @@
           const selected = new Set(workforceUniqueIds(selectedIds));
           return `<div class="wf-scope-grid">${enabledScopes().map((template) => `<button type="button" class="wf-scope-option ${selected.has(workforceText(template.id)) ? 'active' : ''}" data-capability-scope="${escapeHtml(template.id)}" aria-pressed="${selected.has(workforceText(template.id)) ? 'true' : 'false'}" style="--scope-color:${escapeHtml(template.color || '#98a2b3')}"><span class="wf-scope-color"></span><span>${escapeHtml(template.name || template.id)}</span></button>`).join('') || `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_abbf0d406aee84","Enable scopes in Scope Flags before assigning capabilities.") ?? "Enable scopes in Scope Flags before assigning capabilities.")}</div>`}</div>`;
         };
-        const compensationEditorHtml = (planInput = {}, options = {}) => {
-          const plan = normalizeCompensationProfile(planInput);
-          const prefix = options.prefix || 'comp';
-          const allowed = options.connection ? ['none','hourly','piece_rate','hybrid'] : ['none','hourly','salary','piece_rate','hybrid'];
-          return `<div class="wf-comp-box" data-comp-editor="${String(escapeHtml(prefix))}" data-comp-revision="${String(escapeHtml(plan.revision || ''))}" data-comp-components="${String(escapeHtml(JSON.stringify(plan.components || [])))}">
-            <div class="wf-inline-toggle"><strong>${String(escapeHtml(options.title || (globalThis.PlatformLanguage?.text("settings","m_a4bcdf09ecca61","Compensation override") ?? "Compensation override")))}</strong><label class="wf-check"><input type="checkbox" data-comp-enabled ${String(plan.enabled ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_0f5e8a42aaeb75"," Enabled") ?? " Enabled")}</label></div>
-            <div class="wf-comp-fields ${String(options.connection ? 'connection' : '')}">
-              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="wf-select" data-comp-type>${String(allowed.map((type) => `<option value="${type}" ${plan.type === type || (!plan.enabled && type === 'none') ? 'selected' : ''}>${escapeHtml(type.replace(/_/g, ' '))}</option>`).join(''))}</select></label>
-              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_c6dafd1ef27e19","Hourly rate") ?? "Hourly rate")}</span><input class="wf-input" data-comp-hourly inputmode="decimal" value="${String(escapeHtml(workforceMoney(plan.hourly_rate_cents)))}" placeholder="0.00"></label>
-              ${String(options.connection ? '' : `<label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_a1d615ae0871ea","Salary amount") ?? "Salary amount")}</span><input class="wf-input" data-comp-salary inputmode="decimal" value="${escapeHtml(workforceMoney(plan.salary_rate_cents))}" placeholder="0.00"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_d599dad8ed2b1b","Salary period") ?? "Salary period")}</span><select class="wf-select" data-comp-salary-period>${salaryPeriodOptionsHtml(plan.salary_period)}</select></label>`)}
-              <label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</span><input class="wf-input" data-comp-piece inputmode="decimal" value="${String(escapeHtml(workforceMoney(plan.piece_rates?.[0]?.rate_cents)))}" placeholder="0.00"></label>
-            </div>
-          </div>`;
-        };
-        const compensationFromEditor = (root) => {
-          const type = workforceText(root?.querySelector('[data-comp-type]')?.value, 'none');
-          const enabled = root?.querySelector('[data-comp-enabled]')?.checked === true && type !== 'none';
-          const piece = workforceCents(root?.querySelector('[data-comp-piece]')?.value);
-          const revision = Number(root?.dataset?.compRevision || 0);
-          let components = [];
-          try { components = workforceArray(JSON.parse(root?.dataset?.compComponents || '[]')); } catch (e) {}
-          if (!enabled && !revision) return null;
-          return normalizeCompensationProfile({
-            enabled,
-            revision,
-            type:enabled ? type : 'none',
-            components,
-            hourly_rate_cents:workforceCents(root?.querySelector('[data-comp-hourly]')?.value),
-            salary_rate_cents:workforceCents(root?.querySelector('[data-comp-salary]')?.value),
-            salary_period:normalizeSalaryPeriod(root?.querySelector('[data-comp-salary-period]')?.value),
-            piece_rate_cents:piece,
-            piece_rates:piece ? [{ label:(globalThis.PlatformLanguage?.text("settings","m_6162dea172ac71","Piece Rate") ?? "Piece Rate"), unit:'unit', rate_cents:piece }] : []
-          });
-        };
         const groupCardHtml = (group = {}) => {
           const members = workforceGroupMembers(group);
           const memberById = new Map(members.map((member) => [member.user_id, member]));
-          const groupPlan = normalizeCompensationProfile(group.compensation_profile || group.compensation_override || group.compensation_plan);
           const groupPhoto = portalAssetUrl(workforceText(group.attributes?.photo_url, group.attributes?.avatar_url, group.metadata?.photo_url));
           const memberRows = members.map((member) => {
             const userId = workforceText(member.user_id);
             const sourceUser = workforceUi.allUsers.find((user) => workforceText(user.id, user.user_id) === userId) || { id:userId, name:userId };
             const displayUser = workforceUserForDisplay(sourceUser);
-            const userPlan = workforceUserCompensation(displayUser);
-            const effectivePlan = userPlan.enabled ? userPlan : groupPlan;
-            const effectiveSource = userPlan.enabled ? 'User profile' : groupPlan.enabled ? `${terms().resource_group_singular} compensation` : 'No compensation';
             const roleId = memberRoleId(member);
             const memberPhoto = userAvatarUrl(displayUser);
-            return `<article class="wf-member-card" data-group-user-row="${String(escapeHtml(userId))}"><div class="wf-member-identity">${memberPhoto ? `<img class="wf-member-avatar" src="${escapeHtml(memberPhoto)}" alt="">` : `<span class="wf-member-avatar" aria-hidden="true">${String(escapeHtml(memberInitials(displayUser)))}</span>`}<div class="wf-member-person"><strong>${String(escapeHtml(displayUser.name || displayUser.email || userId))}</strong><span>${String(escapeHtml(displayUser.email || 'Organization user'))}</span></div></div><div class="wf-member-actions"><label class="wf-member-role"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_17b51e98936157","Role") ?? "Role")}</span><select class="wf-select" data-group-role>${String(roles().map((role) => `<option value="${escapeHtml(role.id)}" ${roleId === role.id ? 'selected' : ''}>${escapeHtml(role.label)}</option>`).join(''))}</select></label><button type="button" class="wf-member-remove" data-group-member-remove aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("settings","m_267054a63cc396",`Remove ${v5}`,{v5}) ?? `Remove ${v5}`)(escapeHtml(displayUser.name || displayUser.email || userId))}" data-fm-tooltip="Remove from ${String(escapeHtml(terms().resource_group_singular))}"><i class="fas fa-xmark"></i></button></div><div class="wf-member-comp"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_d643a04250443b","Compensation:") ?? "Compensation:")}</strong> ${String(escapeHtml(effectiveSource))} · ${String(escapeHtml(compensationProfileLabel(effectivePlan)))}</div></article>`;
+            return `<article class="wf-member-card" data-group-user-row="${String(escapeHtml(userId))}"><div class="wf-member-identity">${memberPhoto ? `<img class="wf-member-avatar" src="${escapeHtml(memberPhoto)}" alt="">` : `<span class="wf-member-avatar" aria-hidden="true">${String(escapeHtml(memberInitials(displayUser)))}</span>`}<div class="wf-member-person"><strong>${String(escapeHtml(displayUser.name || displayUser.email || userId))}</strong><span>${String(escapeHtml(displayUser.email || 'Organization user'))}</span></div></div><div class="wf-member-actions"><label class="wf-member-role"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_17b51e98936157","Role") ?? "Role")}</span><select class="wf-select" data-group-role>${String(roles().map((role) => `<option value="${escapeHtml(role.id)}" ${roleId === role.id ? 'selected' : ''}>${escapeHtml(role.label)}</option>`).join(''))}</select></label><button type="button" class="wf-member-remove" data-group-member-remove aria-label="${((v5) => globalThis.PlatformLanguage?.htmlText("settings","m_267054a63cc396",`Remove ${v5}`,{v5}) ?? `Remove ${v5}`)(escapeHtml(displayUser.name || displayUser.email || userId))}" data-fm-tooltip="Remove from ${String(escapeHtml(terms().resource_group_singular))}"><i class="fas fa-xmark"></i></button></div></article>`;
           }).join('');
           return `<section class="wf-card ${String(group.status === 'archived' || group.archived_at ? 'archived' : '')}" data-resource-group="${String(escapeHtml(group.id || ''))}">
             <header class="wf-card-head"><div class="wf-card-head-identity">${groupPhoto ? `<img class="wf-group-avatar" src="${escapeHtml(groupPhoto)}" alt="">` : ``}<div class="wf-card-head-copy"><strong>${String(escapeHtml(group.name || `New ${terms().resource_group_singular}`))}</strong><span data-group-member-count>${String(members.length)} ${String(escapeHtml(members.length === 1 ? terms().worker_singular : terms().worker_plural))}</span></div></div><div class="wf-card-actions">${String(group.status === 'archived' || group.archived_at ? '' : `<button type="button" class="cs-btn ghost" data-group-archive><i class="fas fa-box-archive"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d248c450100477"," Archive") ?? " Archive")}</button>`)}<button type="button" class="cs-btn primary" data-group-save><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button></div></header>
@@ -9342,7 +9228,6 @@
               <div class="wf-grid two"><label class="wf-field"><span>${((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_c2c792b3a7c1dc",`${v6} name`,{v6}) ?? `${v6} name`)(escapeHtml(terms().resource_group_singular))}</span><input class="wf-input" data-group-name value="${String(escapeHtml(group.name || ''))}" placeholder="${((v8) => globalThis.PlatformLanguage?.htmlText("settings","m_c9a57ee16a1314",`Installation ${v8}`,{v8}) ?? `Installation ${v8}`)(escapeHtml(terms().resource_group_singular))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_0c7d87cbffbf8c","Group kind") ?? "Group kind")}</span><select class="wf-select" data-group-kind>${String(resourceGroupKinds().map((kind) => `<option value="${escapeHtml(kind.id)}" ${workforceText(group.kind_id, 'crew') === kind.id ? 'selected' : ''}>${escapeHtml(kind.name)}</option>`).join(''))}</select></label></div>
               <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_75ef37c7aa8d48","Assignment tags") ?? "Assignment tags")}</div><div class="wf-inline-toggle" data-group-tags>${String(assignmentTagOptionsHtml(group.assignment_tag_ids))}</div></div>
               <div><div class="wf-member-toolbar"><div><div class="wf-section-title">${String(escapeHtml(terms().worker_plural))}</div><div class="wf-member-summary">${((v12) => globalThis.PlatformLanguage?.htmlText("settings","m_7439d2a2f3897d",`Only people assigned to this ${v12} appear here.`,{v12}) ?? `Only people assigned to this ${v12} appear here.`)(escapeHtml(terms().resource_group_singular.toLowerCase()))}</div></div><button type="button" class="cs-btn primary" data-group-member-picker><i class="fas fa-user-plus"></i>${((v13) => globalThis.PlatformLanguage?.htmlText("settings","m_ef421e925b36cc",` Add ${v13}`,{v13}) ?? ` Add ${v13}`)(escapeHtml(terms().worker_singular))}</button></div><div class="wf-member-list">${String(memberRows || `<div class="wf-member-empty"><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_37a2946aba9d92",`No ${v0} assigned yet.`,{v0}) ?? `No ${v0} assigned yet.`)(escapeHtml(terms().worker_plural.toLowerCase()))}</strong><span>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_ab6055c71030ce",`Add someone when this ${v1} is ready.`,{v1}) ?? `Add someone when this ${v1} is ready.`)(escapeHtml(terms().resource_group_singular.toLowerCase()))}</span></div>`)}</div></div>
-              ${String(compensationEditorHtml(groupPlan, { prefix:`group_${group.id || 'new'}`, title:((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_4f1a61ef0749c1",`${v0} compensation fallback`,{v0}) ?? `${v0} compensation fallback`)(terms().resource_group_singular) }))}
               <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2426f1592b4bf","Scope capabilities") ?? "Scope capabilities")}</div>${String(scopeOptionsHtml(workforceScopeIds(group)))}</div>
               <div data-group-departments data-settings-autosave="off"></div>
               <div class="wf-status" data-card-status></div>
@@ -9474,7 +9359,6 @@
               <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_fd30fab0713a9b","Contact name") ?? "Contact name")}</span><input class="wf-input" data-contact-field="name" value="${String(escapeHtml(contact.name || connection.contact_name || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_e3d024250938d3","Contact email") ?? "Contact email")}</span><input class="wf-input" type="email" data-contact-field="email" value="${String(escapeHtml(contact.email || connection.contact_email || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_714ecfa181c9a6","Contact phone") ?? "Contact phone")}</span><input class="wf-input" data-contact-field="phone" value="${String(escapeHtml(contact.phone || connection.contact_phone || ''))}"></label></div>
               <div class="wf-grid"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_23ffc9f3a20a55","Address line 1") ?? "Address line 1")}</span><input class="wf-input" data-address-field="line1" value="${String(escapeHtml(address.line1 || address.address1 || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_3c4721639d1b25","Address line 2") ?? "Address line 2")}</span><input class="wf-input" data-address-field="line2" value="${String(escapeHtml(address.line2 || address.address2 || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_38e1463e6f0488","City") ?? "City")}</span><input class="wf-input" data-address-field="city" value="${String(escapeHtml(address.city || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_841a63c7373720","State / region") ?? "State / region")}</span><input class="wf-input" data-address-field="region" value="${String(escapeHtml(address.region || address.state || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_3e2f364a929ac7","Postal code") ?? "Postal code")}</span><input class="wf-input" data-address-field="postal_code" value="${String(escapeHtml(address.postal_code || address.postalCode || ''))}"></label><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_a9a13ce3e2d181","Country") ?? "Country")}</span><input class="wf-input" data-address-field="country" value="${String(escapeHtml(address.country || 'US'))}"></label></div>
               <div class="wf-grid two"><label class="wf-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_52f969970c3c66","Linked FirstMate organization ID") ?? "Linked FirstMate organization ID")}</span><input class="wf-input" data-connection-field="linked_organization_id" value="${String(escapeHtml(connection.linked_organization_id || connection.linked_org_id || ''))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_a3f9a6b065b2d8","Optional") ?? "Optional")}"></label></div>
-              ${String(compensationEditorHtml(connection.compensation_profile || connection.compensation_plan, { prefix:`connection_${connection.id || 'new'}`, title:((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_cdb2a1886fa926",`${v0} compensation`,{v0}) ?? `${v0} compensation`)(terms().organization_connection_singular), connection:true }))}
               <div><div class="wf-section-title" style="margin-bottom:7px">${(globalThis.PlatformLanguage?.htmlText("settings","m_f2426f1592b4bf","Scope capabilities") ?? "Scope capabilities")}</div>${String(scopeOptionsHtml(workforceScopeIds(connection)))}</div>
               <div class="wf-status" data-card-status></div>
             </div>
@@ -9601,7 +9485,6 @@
               if (status) status.textContent = (globalThis.PlatformLanguage?.text("settings","m_b82c4e12389843","Saving...") ?? "Saving...");
               try {
                 const members = memberAssignments.map((member) => ({ user_id:member.user_id, role:workforceText(member.role_id, 'member'), is_lead:member.is_lead, status:'active' }));
-                const compensationProfile = compensationFromEditor(card.querySelector('[data-comp-editor]'));
                 await (await groupDepartmentEditor)?.save();
                 const result = await api.workforce.updateResourceGroup(orgId, branchId, group.id, {
                   expected_revision:Number(group.revision || 0) || undefined,
@@ -9610,7 +9493,6 @@
                   assignment_tag_ids:Array.from(card.querySelectorAll('[data-group-tags] [data-assignment-tag]:checked')).map((input) => input.dataset.assignmentTag),
                   members,
                   primary_member_user_id:members.find((member) => member.is_lead)?.user_id || null,
-                  ...(compensationProfile ? { compensation_profile:compensationProfile } : {}),
                   capability_scope_ids:scopeIds
                 });
                 const saved = result?.resource_group || result?.group || result;
@@ -9653,8 +9535,7 @@
                 const existingPrimaryContact = workforceObject(existingContacts.find((entry) => entry?.primary === true) || existingContacts[0]);
                 const primaryContact = { ...existingPrimaryContact, ...contact, id:workforceText(existingPrimaryContact.id, 'primary'), primary:true };
                 const linkStatus = linkedOrganizationId ? (connection.link_status === 'linked' && linkedOrganizationId === workforceText(connection.linked_organization_id) ? 'linked' : 'pending') : 'unlinked';
-                const compensationProfile = compensationFromEditor(card.querySelector('[data-comp-editor]'));
-                const result = await api.connections.update(orgId, connection.id, { expected_revision:Number(connection.revision || 0) || undefined, ...fields, linked_organization_id:linkedOrganizationId || null, link_status:linkStatus, contacts:Object.values(contact).some(Boolean) ? [primaryContact] : [], address, metadata, branch_ids:workforceUniqueIds([...workforceArray(connection.branch_ids), branchId]), ...(compensationProfile ? { compensation_profile:compensationProfile } : {}), capability_scope_ids:scopeIds });
+                const result = await api.connections.update(orgId, connection.id, { expected_revision:Number(connection.revision || 0) || undefined, ...fields, linked_organization_id:linkedOrganizationId || null, link_status:linkStatus, contacts:Object.values(contact).some(Boolean) ? [primaryContact] : [], address, metadata, branch_ids:workforceUniqueIds([...workforceArray(connection.branch_ids), branchId]), capability_scope_ids:scopeIds });
                 const saved = result?.organization_connection || result?.connection || result;
                 connections = connections.map((item) => workforceText(item.id) === workforceText(connection.id) ? { ...item, ...saved } : item);
                 window.dispatchEvent(new CustomEvent('fm:organization-connections:updated', { detail:{ connection:saved } }));
@@ -16000,7 +15881,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const currentAppOverrides = workforceUserAppOverrides(storedWorkforceUser);
       const currentAssignmentTagIds = workforceUserAssignmentTags(storedWorkforceUser);
       const activeAssignmentTags = workforceArray(workforceUi.configuration.assignment_tags).filter((tag) => tag.status !== 'archived' && workforceText(tag.id));
-      const currentCompensation = workforceUserCompensation(storedWorkforceUser);
       const currentGroups = workforceGroupForUser(u.id);
       const currentGroupId = currentGroups[0]?.id || '';
       const isMe = normEmail(u) === ME_EMAIL;
@@ -16044,17 +15924,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <summary><i class="fas fa-key"></i><strong>Data &amp; actions</strong><small>Inherit, allow, or deny</small></summary>
             <div class="cu-access-body">${workforcePermissionOverrideMarkup(currentPermissionOverrides, { disabled:!canManageAccess })}</div>
           </details>
-          ${canAddDelete ? `<section class="cu-workforce-section">
-            <div class="cu-workforce-title">${(globalThis.PlatformLanguage?.htmlText("settings","m_510424838bcfea","Optional user compensation") ?? "Optional user compensation")}</div>
-            <label class="cu-workforce-choice"><input type="checkbox" id="cuEditCompEnabled" ${String(currentCompensation.enabled ? 'checked' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_8456b172ac7367"," Store compensation on this user") ?? " Store compensation on this user")}</label>
-            <div class="cu-workforce-grid">
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_6952fe71f8dc85","Method") ?? "Method")}</span><select class="cs-in" id="cuEditCompType">${String(['hourly','salary','piece_rate','hybrid'].map((type) => `<option value="${type}" ${currentCompensation.type === type ? 'selected' : ''}>${escapeHtml(type.replace(/_/g, ' '))}</option>`).join(''))}</select></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_c6dafd1ef27e19","Hourly rate") ?? "Hourly rate")}</span><input class="cs-in" id="cuEditCompHourly" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.hourly_rate_cents)))}" placeholder="0.00"></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_a1d615ae0871ea","Salary amount") ?? "Salary amount")}</span><input class="cs-in" id="cuEditCompSalary" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.salary_rate_cents)))}" placeholder="0.00"></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_d599dad8ed2b1b","Salary period") ?? "Salary period")}</span><select class="cs-in" id="cuEditCompSalaryPeriod">${String(salaryPeriodOptionsHtml(currentCompensation.salary_period))}</select></label>
-              <label class="cu-row"><span class="cu-lbl">${(globalThis.PlatformLanguage?.htmlText("settings","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</span><input class="cs-in" id="cuEditCompPiece" inputmode="decimal" value="${String(escapeHtml(workforceMoney(currentCompensation.piece_rates?.[0]?.rate_cents)))}" placeholder="0.00"></label>
-            </div>
-          </section>` : ''}
           <div data-user-departments data-settings-autosave="off"></div>
           <div data-user-scoped-access data-settings-autosave="off"></div>
           ${canAddDelete ? '<section data-user-custom-fields data-settings-autosave="off"></section>' : ''}
@@ -16111,11 +15980,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const assignmentTagIds = canManageAccess
           ? Array.from(m.el.querySelectorAll('[data-user-assignment-tag]:checked')).map((input) => input.dataset.userAssignmentTag)
           : currentAssignmentTagIds;
-        const compEnabled = canAddDelete && m.el.querySelector('#cuEditCompEnabled')?.checked === true;
-        const pieceRateCents = workforceCents(m.el.querySelector('#cuEditCompPiece')?.value);
-        const compensationProfile = !canAddDelete ? null : compEnabled
-          ? normalizeCompensationProfile({ ...currentCompensation, enabled:true, status:'active', type:m.el.querySelector('#cuEditCompType')?.value, hourly_rate_cents:workforceCents(m.el.querySelector('#cuEditCompHourly')?.value), salary_rate_cents:workforceCents(m.el.querySelector('#cuEditCompSalary')?.value), salary_period:normalizeSalaryPeriod(m.el.querySelector('#cuEditCompSalaryPeriod')?.value), piece_rate_cents:pieceRateCents, piece_rates:[{ label:(globalThis.PlatformLanguage?.text("settings","m_6162dea172ac71","Piece Rate") ?? "Piece Rate"), unit:'unit', rate_cents:pieceRateCents }] })
-          : (currentCompensation.id && currentCompensation.status !== 'archived' ? normalizeCompensationProfile({ ...currentCompensation, enabled:false, status:'archived', type:'none', components:[] }) : null);
         const resourceGroupId = canAddDelete ? (m.el.querySelector('#cuEditResourceGroup')?.value || '') : currentGroupId;
         if (isMe && canManageAccess && !accessRoleIds.some((roleId) => workforceRoleApplications(workforceAccessRoleForId(roleId)).includes('management'))) {
           showToast((globalThis.PlatformLanguage?.text("settings","m_e6ae16ead43bae","Not allowed") ?? "Not allowed"), ((v0) => globalThis.PlatformLanguage?.text("settings","m_347c416ba9d524",`Keep at least one ${v0} role on your own account to avoid locking yourself out.`,{v0}) ?? `Keep at least one ${v0} role on your own account to avoid locking yourself out.`)(workforceApplicationLabel('management')), false);
@@ -16145,7 +16009,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           const profileRet = await userSaveWorkforceProfile({
             userId:u.id,
             ...(scopedAssignmentsChanged ? { scopedAccessAssignments:scopedAssignments } : {}),
-            ...(canAddDelete ? { compensationProfile } : {}),
             applicationAccess,
             accessRoleIds,
             permissionOverrides,
@@ -16377,13 +16240,11 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           return { label:workforceText(role?.name, roleId), applications };
         });
         const appAccess = workforceUserAccess(workforceUser);
-        const compensation = workforceUserCompensation(workforceUser);
         const groupLabels = workforceGroupForUser(id).map((group) => workforceText(group.name)).filter(Boolean);
         const workforceChips = [
           ...accessRoleChips.map((role) => `<span class="wf-role-chip ${role.applications.length > 1 ? 'hybrid' : role.applications[0] === 'field' ? 'field' : ''}" title="${escapeHtml(role.applications.map(workforceApplicationLabel).join(' + '))}"><i class="fas fa-user-shield"></i>${escapeHtml(role.label)}</span>`),
           ...(appAccess.management.enabled ? [`<span class="wf-app-chip on"><i class="fas fa-desktop"></i>${escapeHtml(workforceApplicationLabels().management_application)}</span>`] : []),
           ...(appAccess.field.enabled ? [`<span class="wf-app-chip on"><i class="fas fa-mobile-screen"></i>${escapeHtml(workforceApplicationLabels().field_application)}</span>`] : []),
-          ...(compensation.enabled ? [`<span class="wf-comp-chip"><i class="fas fa-money-check-dollar"></i>${escapeHtml(compensationProfileLabel(compensation))}</span>`] : []),
           ...groupLabels.map((label) => `<span class="wf-group-chip"><i class="fas fa-people-group"></i>${escapeHtml(label)}</span>`)
         ].join('');
         const avatarHtml = avatarUrl
@@ -16802,7 +16663,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                   </details>
                 </section>
                 <details class="cu-invite-details">
-                  <summary><i class="fas fa-gear"></i> Additional setup <small>Role, group, and compensation</small></summary>
+                  <summary><i class="fas fa-gear"></i> Additional setup <small>Role and group</small></summary>
                   <div class="cu-invite-details-body">
                     <section class="cu-workforce-section">
                       <div class="cu-workforce-title">Initial role &amp; assignment</div>
@@ -16810,17 +16671,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
                       <div class="cu-access-role-grid">${workforceRoleChoicesMarkup(inviteState.accessRoleIds, { disabled:!canManageAccess })}</div>
                       ${!canManageAccess ? `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_115d9cd7a974ab","User administration is required to choose another role.") ?? "User administration is required to choose another role.")}</div>` : ''}
                       <div class="cu-workforce-grid"><label class="cu-row wide"><span class="cu-lbl">Initial ${escapeHtml(normalizeWorkforceTerminology(workforceUi.configuration.terminology).resource_group_singular)}</span><select class="cs-in" id="cuNewResourceGroup"><option value="">No group</option>${workforceUi.resourceGroups.filter((group) => group.status !== 'archived' && !group.archived_at).map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.name || group.id)}</option>`).join('')}</select></label></div>
-                    </section>
-                    <section class="cu-workforce-section">
-                      <div class="cu-workforce-title">Compensation</div>
-                      <label class="cu-workforce-choice"><input type="checkbox" id="cuNewCompEnabled"> Store compensation on this user</label>
-                      <div class="cu-workforce-grid">
-                        <label class="cu-row"><span class="cu-lbl">Method</span><select class="cs-in" id="cuNewCompType">${['hourly','salary','piece_rate','hybrid'].map((type) => `<option value="${type}">${escapeHtml(type.replace(/_/g, ' '))}</option>`).join('')}</select></label>
-                        <label class="cu-row"><span class="cu-lbl">Hourly rate</span><input class="cs-in" id="cuNewCompHourly" inputmode="decimal" placeholder="0.00"></label>
-                        <label class="cu-row"><span class="cu-lbl">Salary amount</span><input class="cs-in" id="cuNewCompSalary" inputmode="decimal" placeholder="0.00"></label>
-                        <label class="cu-row"><span class="cu-lbl">Salary period</span><select class="cs-in" id="cuNewCompSalaryPeriod">${salaryPeriodOptionsHtml('week')}</select></label>
-                        <label class="cu-row"><span class="cu-lbl">Piece rate</span><input class="cs-in" id="cuNewCompPiece" inputmode="decimal" placeholder="0.00"></label>
-                      </div>
                     </section>
                   </div>
                 </details>
@@ -16912,9 +16762,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             const applicationAccess = workforceActiveAccessRoles().length
               ? workforceApplicationAccessForRoleIds(accessRoleIds)
               : { management:{ enabled:true, role_id:'member', permissions:{} }, field:{ enabled:false, role_id:'member', permissions:{} } };
-            const compEnabled = m.el.querySelector('#cuNewCompEnabled')?.checked === true;
-            const pieceRateCents = workforceCents(m.el.querySelector('#cuNewCompPiece')?.value);
-            const compensationProfile = compEnabled ? normalizeCompensationProfile({ enabled:true, status:'active', type:m.el.querySelector('#cuNewCompType')?.value, hourly_rate_cents:workforceCents(m.el.querySelector('#cuNewCompHourly')?.value), salary_rate_cents:workforceCents(m.el.querySelector('#cuNewCompSalary')?.value), salary_period:normalizeSalaryPeriod(m.el.querySelector('#cuNewCompSalaryPeriod')?.value), piece_rate_cents:pieceRateCents, piece_rates:[{ label:(globalThis.PlatformLanguage?.text("settings","m_6162dea172ac71","Piece Rate") ?? "Piece Rate"), unit:'unit', rate_cents:pieceRateCents }] }) : null;
             if (workforceActiveAccessRoles().length && !accessRoleIds.length) {
               showToast((globalThis.PlatformLanguage?.text("settings","m_a904008a6a2fbb","Choose a role") ?? "Choose a role"), (globalThis.PlatformLanguage?.text("settings","m_d1031a5ff93046","Select at least one initial access role.") ?? "Select at least one initial access role."), false);
               return;
@@ -16931,8 +16778,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
               permLevel: level,
               permItems: level === 'custom' ? inviteState.perms : {},
               applicationAccess,
-              accessRoleIds,
-              compensationProfile
+              accessRoleIds
             });
             btnSend.disabled = false;
             if (!ret.ok){
@@ -16943,7 +16789,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             if (ret.user?.id) {
               elStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_938dc0130b74fd","Saving workforce profile...") ?? "Saving workforce profile...");
               try {
-                const profileRet = await userSaveWorkforceProfile({ userId:ret.user.id, applicationAccess, accessRoleIds, permissionOverrides:{}, appAccessOverrides:{}, compensationProfile });
+                const profileRet = await userSaveWorkforceProfile({ userId:ret.user.id, applicationAccess, accessRoleIds, permissionOverrides:{}, appAccessOverrides:{} });
                 if (!profileRet.ok) throw new Error(profileRet.error || 'Could not save workforce profile.');
                 await saveUserInitialGroupMembership(ret.user.id, resourceGroupId);
                 workforceUi.loaded = false;

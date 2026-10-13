@@ -136,6 +136,17 @@ host's filter would. `selectionSupport(ref)` reports whether an export is
 selectable and whether it is indexed.
 Moving a provider from scanning to an index changes no consumer.
 
-Not built: exposure of selections to the module sandbox and HTTP, cursors, and
-matching inside list-valued fields (a many-valued assignee field cannot yet be
-matched by member). Run `tests/publication-select.test.ts` for changes here.
+A collection published for selection gives every row a stable string `id` and a
+`revision` that changes whenever the row's content does. A value that changes
+with the passing of time rather than with a write is left out of the row, or
+the row's revision is made to reflect it; it is never published under a
+revision that stays the same. The time clock is the worked example
+(`payroll.time_shifts`, `payroll.time_clock_events`,
+`payroll.time_shift_changes`, described in [pay rules](pay-rules.md#time-clock)):
+a shift still on the clock is published without a running duration, and a
+distance derived from the project's location is part of the hashed revision.
+
+Not built: exposure of selections to the module sandbox and HTTP, and cursors.
+A field that holds several values is matched by member with `contains` when the
+row publishes it as a list: rows that carry assignees publish `assignee_keys`
+lists of `type:id` for exactly this (`payroll.project_records`). Run `tests/publication-select.test.ts` for changes here.

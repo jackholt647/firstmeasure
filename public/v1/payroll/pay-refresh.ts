@@ -6,7 +6,7 @@ import type { PublicationContext } from "../platform/publication/contracts.js";
 import { selectPublishedData, type SelectedRow } from "../platform/publication/select.js";
 import { contentHash as hashJson } from "../platform/publication/validation.js";
 import {
-  candidateRuleSlots, effectiveRuleSlots, ensurePayRuleSchema, listPayPlans, listPayRules, listPaySetups, payeeKey, readPaySetup, resolvedParams, versionOn,
+  candidateRuleSlots, distributionOn, effectiveRuleSlots, ensurePayRuleSchema, listPayDefaults, listPayPlans, listPayRules, listPaySetups, payeeKey, payLayersFor, resolvedParams, versionOn,
   type PayPlan, type PayRule, type PayRuleDefinition, type PayRuleVersion, type PaySetup
 } from "./pay-rules.js";
 import type { PayrollLedgerEntryInput, PayrollPayeeRef } from "./schemas.js";
@@ -23,10 +23,11 @@ import { findPayrollLedgerSourceEntries, getPayrollDatabase, nowIso, readPayroll
  * rows is still a scan today (see platform/publication/select.ts).
  */
 export type PayLine = { key: string; amount_cents: number; description: string; details?: JsonObject };
-export type PayDifference = { rule_id: string; unit: string; line: string; earned_on: string; posted_cents: number; target_cents: number; delta_cents: number; handling: string };
+/** `payee` is set when the entry belongs to someone other than the payee being refreshed: a member of a group whose pay is split. */
+export type PayDifference = { rule_id: string; unit: string; line: string; earned_on: string; posted_cents: number; target_cents: number; delta_cents: number; handling: string; payee?: string };
 export type PayUnresolved = { rule_id: string; unit?: string; reason: string };
 export type PayRefreshResult = {
-  payee: Assignee; evaluated: number; unchanged: number; differences: PayDifference[]; unresolved: PayUnresolved[];
+  payee: Assignee; payee_name?: string; evaluated: number; unchanged: number; differences: PayDifference[]; unresolved: PayUnresolved[];
   /** Ledger entries written by this refresh. Empty for a preview. */
   posted: JsonObject[];
 };
@@ -34,7 +35,7 @@ export type PayRefreshOptions = {
   /** Work out and report differences without posting or remembering anything. */
   dryRun?: boolean;
   /** Evaluate as if the payee had this setup. Only with `dryRun`. */
-  setup?: Pick<PaySetup, "entries">;
+  setup?: Pick<PaySetup, "entries" | "distribution">;
   /** The instant "now" is. Periods that end after it are not earned yet. */
   asOf?: string;
   /** Reads run as each rule's author unless a trusted caller supplies the context. */
@@ -44,7 +45,9 @@ export type PayRefreshOptions = {
 type Row = SelectedRow;
 type Unit = { key: string; date: string; earned_at: string; payload: JsonObject; evidence: [string, string, string][]; project_id: string };
 type Planned = Unit & { version: PayRuleVersion; rule: PayRule; params: Record<string, number | boolean | string>; digest: string; shared: JsonObject; timezone: string };
-type StoredUnit = { rule_id: string; unit_key: string; digest: string; status: string; earned_at: string; lines: PayLine[] };
+/** Who shares a group's earning, fixed when it is first worked out. `basis` identifies the distribution setting it came from. */
+export type PayAllocation = { basis: string; members: { id: string; weight: number }[] };
+type StoredUnit = { rule_id: string; unit_key: string; digest: string; status: string; earned_at: string; lines: PayLine[]; allocation: PayAllocation | null };
 
 /** Hashes plain data; keys left undefined are not part of it. */
 const contentHash = (value: unknown) => hashJson(JSON.parse(JSON.stringify(value)));
@@ -79,6 +82,22 @@ export function payPeriodOf(date: string, period: NonNullable<PayRuleDefinition[
   else if (period === "quarter") { from = Date.UTC(year, month - month % 3, 1); through = Date.UTC(year, month - month % 3 + 3, 0); }
   else { from = Date.UTC(year, 0, 1); through = Date.UTC(year, 11, 31); }
   return { key: dayOf(from), from: dayOf(from), through: dayOf(through) };
+}
+
+/**
+ * What a formula may need to know about its period and cannot work out itself,
+ * since it has no clock or calendar: how long the period is and where its first
+ * day sits. A salary earned by the day divides by `days_in_month` or
+ * `days_in_year`, which is also what prorates someone who starts mid-month.
+ */
+function calendarFacts(from: string, through: string) {
+  const start = new Date(utc(from)), year = start.getUTCFullYear(), month = start.getUTCMonth();
+  return {
+    days: Math.round((utc(through) - utc(from)) / DAY) + 1,
+    year, month: month + 1, day_of_month: start.getUTCDate(), weekday: start.getUTCDay(),
+    days_in_month: new Date(Date.UTC(year, month + 1, 0)).getUTCDate(),
+    days_in_year: Math.round((Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / DAY)
+  };
 }
 
 function withTokens<T>(value: T, payee: Assignee): T {
@@ -150,7 +169,7 @@ function unitsFor(definition: PayRuleDefinition, rows: Record<string, Row[]>, ti
       // A period is earned once its last day is over.
       if (entry.through >= asOfDay) continue;
       units.push({ key, date: entry.through, earned_at: `${entry.through}T12:00:00.000Z`, project_id: "",
-        payload: { period: { key, from: entry.from, through: entry.through }, rows: Object.fromEntries(dated.map(([name]) => [name, (entry.rows[name] || []).map((row) => row.value)])) },
+        payload: { period: { key, from: entry.from, through: entry.through, ...calendarFacts(entry.from, entry.through) }, rows: Object.fromEntries(dated.map(([name]) => [name, (entry.rows[name] || []).map((row) => row.value)])) },
         evidence: dated.flatMap(([name]) => (entry.rows[name] || []).map((row): [string, string, string] => [name, row.key, row.revision])) });
     }
   }
@@ -213,10 +232,24 @@ async function evaluate(group: Planned[], payee: Assignee, asOf: string): Promis
   return results;
 }
 
-const sourceId = (ruleId: string, unit: string, line: string) => {
-  const plain = `pay_rule:${ruleId}:${unit}:${line}`;
+/** One earning line of one payee's rule. Every ledger entry for it carries this, whoever the entry pays. */
+const sourceId = (owner: string, ruleId: string, unit: string, line: string) => {
+  const plain = `pay_rule:${owner}:${ruleId}:${unit}:${line}`;
   return plain.length <= 280 ? plain : `pay_rule:${contentHash(plain)}`;
 };
+/** Splits whole cents by weight so the parts always add up to the total; leftover cents go to the largest remainders. */
+export function splitCentsByWeight(total: number, members: { id: string; weight: number }[]) {
+  const weight = members.reduce((sum, member) => sum + member.weight, 0);
+  const size = Math.abs(total), sign = total < 0 ? -1 : 1;
+  const parts = members.map((member) => ({ id: member.id, exact: size * member.weight / weight }));
+  const shares = new Map(parts.map((part) => [part.id, Math.floor(part.exact)]));
+  let left = size - [...shares.values()].reduce((sum, value) => sum + value, 0);
+  for (const part of [...parts].sort((a, b) => (b.exact - Math.floor(b.exact)) - (a.exact - Math.floor(a.exact)) || a.id.localeCompare(b.id))) {
+    if (left <= 0) break;
+    shares.set(part.id, shares.get(part.id)! + 1); left -= 1;
+  }
+  return new Map([...shares].map(([id, value]) => [id, sign * value]));
+}
 type Handling = "normal" | "next_run" | "off_cycle" | "hold";
 function correctionPolicy(schedule: JsonObject | null | undefined, increase: boolean): Exclude<Handling, "normal"> {
   const chosen = text(((schedule?.metadata as JsonObject | undefined)?.correction_policy as JsonObject | undefined)?.[increase ? "increase" : "decrease"]);
@@ -226,15 +259,17 @@ function correctionPolicy(schedule: JsonObject | null | undefined, increase: boo
 /** Exported with `saveUnit` so the storage statements can be exercised on both database backends. */
 export async function storedUnits(orgId: string, payee: Assignee): Promise<StoredUnit[]> {
   await ensurePayRuleSchema();
-  const rows = await getPayrollDatabase().prepare("SELECT rule_id, unit_key, digest, status, earned_at, lines_json FROM pay_rule_units WHERE organization_id=? AND payee_type=? AND payee_id=?").all(orgId, payee.type, payee.id);
-  return rows.map((row) => ({ rule_id: String(row.rule_id), unit_key: String(row.unit_key), digest: String(row.digest), status: String(row.status), earned_at: String(row.earned_at), lines: JSON.parse(String(row.lines_json || "[]")) }));
+  const rows = await getPayrollDatabase().prepare("SELECT rule_id, unit_key, digest, status, earned_at, lines_json, allocation_json FROM pay_rule_units WHERE organization_id=? AND payee_type=? AND payee_id=?").all(orgId, payee.type, payee.id);
+  return rows.map((row) => ({ rule_id: String(row.rule_id), unit_key: String(row.unit_key), digest: String(row.digest), status: String(row.status), earned_at: String(row.earned_at),
+    lines: JSON.parse(String(row.lines_json || "[]")), allocation: String(row.allocation_json || "") ? JSON.parse(String(row.allocation_json)) as PayAllocation : null }));
 }
-export async function saveUnit(orgId: string, payee: Assignee, ruleId: string, unit: { key: string; digest: string; status: string; earned_at: string; version: string; lines: PayLine[]; error: string; evidence: [string, string, string][] }) {
+export async function saveUnit(orgId: string, payee: Assignee, ruleId: string, unit: { key: string; digest: string; status: string; earned_at: string; version: string; lines: PayLine[]; error: string; evidence: [string, string, string][]; allocation?: PayAllocation | null }) {
+  await ensurePayRuleSchema();
   const db = getPayrollDatabase();
   const where = [orgId, payee.type, payee.id, ruleId, unit.key];
   await db.prepare("DELETE FROM pay_rule_units WHERE organization_id=? AND payee_type=? AND payee_id=? AND rule_id=? AND unit_key=?").run(...where);
-  await db.prepare(`INSERT INTO pay_rule_units (organization_id, payee_type, payee_id, rule_id, unit_key, digest, status, earned_at, rule_version, lines_json, error, evaluated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...where, unit.digest, unit.status, unit.earned_at, unit.version, JSON.stringify(unit.lines), unit.error, nowIso());
+  await db.prepare(`INSERT INTO pay_rule_units (organization_id, payee_type, payee_id, rule_id, unit_key, digest, status, earned_at, rule_version, lines_json, error, evaluated_at, allocation_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...where, unit.digest, unit.status, unit.earned_at, unit.version, JSON.stringify(unit.lines), unit.error, nowIso(), unit.allocation ? JSON.stringify(unit.allocation) : "");
   // What this earning read, by source row: the index a change feed will use to find the earnings a changed row affects.
   await db.prepare("DELETE FROM pay_rule_evidence WHERE organization_id=? AND payee_type=? AND payee_id=? AND rule_id=? AND unit_key=?").run(...where);
   const seen = new Set<string>();
@@ -248,67 +283,104 @@ export async function saveUnit(orgId: string, payee: Assignee, ruleId: string, u
 /** What each rule last worked out for a payee, with any reason a record or period could not be worked out. */
 export async function listPayUnits(orgId: string, payee: Assignee) {
   await ensurePayRuleSchema();
-  const rows = await getPayrollDatabase().prepare(`SELECT rule_id, unit_key, status, earned_at, rule_version, lines_json, error, evaluated_at FROM pay_rule_units
+  const rows = await getPayrollDatabase().prepare(`SELECT rule_id, unit_key, status, earned_at, rule_version, lines_json, error, evaluated_at, allocation_json FROM pay_rule_units
     WHERE organization_id=? AND payee_type=? AND payee_id=? ORDER BY earned_at DESC, rule_id, unit_key`).all(orgId, payee.type, payee.id);
   return rows.map((row) => ({ id: `${row.rule_id}:${row.unit_key}`, rule_id: String(row.rule_id), unit: String(row.unit_key), status: String(row.status), earned_at: String(row.earned_at),
-    rule_version: String(row.rule_version), lines: JSON.parse(String(row.lines_json || "[]")) as PayLine[], error: String(row.error), evaluated_at: String(row.evaluated_at) }));
+    rule_version: String(row.rule_version), lines: JSON.parse(String(row.lines_json || "[]")) as PayLine[], error: String(row.error), evaluated_at: String(row.evaluated_at),
+    split_among: String(row.allocation_json || "") ? (JSON.parse(String(row.allocation_json)) as PayAllocation).members : null }));
 }
 
 export async function refreshPayeeEarnings(orgId: string, payee: Assignee, options: PayRefreshOptions = {}): Promise<PayRefreshResult> {
   const result: PayRefreshResult = { payee, evaluated: 0, unchanged: 0, differences: [], unresolved: [], posted: [] };
   const dryRun = !!options.dryRun;
   const asOf = options.asOf || nowIso();
-  const setup = dryRun && options.setup ? options.setup : await readPaySetup(orgId, payee);
+  const layers = await payLayersFor(orgId, payee, dryRun && options.setup ? options.setup : undefined);
   const rules = new Map((await listPayRules(orgId)).map((rule) => [rule.id, rule]));
   const plans = new Map<string, PayPlan>((await listPayPlans(orgId)).map((plan) => [plan.id, plan]));
   const stored = await storedUnits(orgId, payee);
+  const owner = payeeKey(payee);
   const ref = await payeeRef(orgId, payee);
   if (!ref) { result.unresolved.push({ rule_id: "", reason: "This payee is no longer available in the organization." }); return result; }
-  const firstDay = setup.entries.map((entry) => entry.effective_from).sort()[0] || "";
-  const slots = candidateRuleSlots(setup, plans);
+  result.payee_name = ref.name || "";
+  const desired = new Set<string>();
+  const unreadable = new Set<string>();
+  // A rule that cannot be read at all is remembered under the unit "*", so it can be listed without refreshing again.
+  const WHOLE_RULE = "*";
+  const ruleFailed = async (ruleId: string, reason: string) => {
+    result.unresolved.push({ rule_id: ruleId, reason }); unreadable.add(ruleId);
+    if (!dryRun) await saveUnit(orgId, payee, ruleId, { key: WHOLE_RULE, digest: "", status: "error", earned_at: "", version: "", lines: [], error: reason, evidence: [] });
+  };
+  const firstDay = layers.flatMap((layer) => layer.entries.map((entry) => entry.effective_from)).sort()[0] || "";
+  const slots = candidateRuleSlots(layers, plans);
   const { recordPayrollLedgerEntries } = await import("./service.js");
+  const refs = new Map<string, PayrollPayeeRef | null>([[owner, ref]]);
+  const refFor = async (key: string) => {
+    if (!refs.has(key)) { const [type, ...rest] = key.split(":"); refs.set(key, await payeeRef(orgId, { type, id: rest.join(":") } as Assignee)); }
+    return refs.get(key)!;
+  };
+  let members: string[] | null = null;
+  /** Who shares this earning. Kept from the first time it was worked out unless the distribution setting itself has changed. */
+  const allocationFor = async (date: string, prior: PayAllocation | null | undefined): Promise<PayAllocation | null | { error: string }> => {
+    const setting = payee.type === "resource_group" ? distributionOn(layers, date) : null;
+    if (!setting || setting.mode === "as_one") return null;
+    const basis = contentHash(setting);
+    if (prior && prior.basis === basis) return prior;
+    if (setting.method === "shares") return { basis, members: Object.entries(setting.shares || {}).map(([id, weight]) => ({ id, weight })).sort((a, b) => a.id.localeCompare(b.id)) };
+    if (!members) {
+      const group = (await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, true)).find((entry) => text((entry as JsonObject).id) === payee.id) as JsonObject | undefined;
+      members = (Array.isArray(group?.members) ? group!.members as JsonObject[] : []).filter((member) => text(member.status || "active") === "active").map((member) => text(member.user_id)).filter(Boolean).sort();
+    }
+    return members.length ? { basis, members: members.map((id) => ({ id, weight: 1 })) } : { error: "This group has no active members to split its pay among." };
+  };
 
   const reconcile = async (ruleId: string, unit: { key: string; date: string; earned_at: string; project_id: string; digest: string }, rule: PayRule | undefined, version: PayRuleVersion | undefined,
-    params: JsonObject, lines: PayLine[], previous: PayLine[]) => {
+    params: JsonObject, lines: PayLine[], previous: PayLine[], allocation: PayAllocation | null) => {
     const kind = version?.definition.kind || "adjustment";
-    const policy = await resolvePayrollPolicy(orgId, ref, kind).catch(() => null);
     for (const key of new Set([...lines.map((line) => line.key), ...previous.map((line) => line.key)])) {
       const line = lines.find((entry) => entry.key === key);
-      const source = sourceId(ruleId, unit.key, key);
-      const entries = (await findPayrollLedgerSourceEntries(orgId, source)).filter((entry) => entry.payee.type === payee.type && entry.payee.id === payee.id);
-      const counted = entries.filter((entry) => entry.state !== "void" || entry.metadata.pay_rule_declined === true);
-      const posted = counted.reduce((sum, entry) => sum + entry.amount_cents, 0);
-      const target = line?.amount_cents || 0;
-      const delta = target - posted;
-      if (!delta) continue;
-      const settled = entries.some((entry) => entry.state !== "void" && entry.applied_cents !== 0);
-      const handling: Handling = settled ? correctionPolicy(policy?.schedule as JsonObject | undefined, delta > 0) : "normal";
-      result.differences.push({ rule_id: ruleId, unit: unit.key, line: key, earned_on: unit.date, posted_cents: posted, target_cents: target, delta_cents: delta, handling });
-      if (dryRun) continue;
-      const label = line?.description || previous.find((entry) => entry.key === key)?.description || rule?.name || "Pay rule";
-      const entry = {
-        payee: ref, state: handling === "hold" ? "projected" : "accrued", amount_cents: delta,
-        kind: delta > 0 ? kind : kind === "commission" ? "clawback" : "adjustment", subgroup: kind,
-        ...(unit.project_id ? { project_id: unit.project_id } : {}),
-        worked_at: handling === "normal" ? unit.earned_at : asOf, completed_at: handling === "normal" ? unit.earned_at : asOf,
-        source_event_id: source, source_trigger_id: `${unit.digest.slice(0, 24) || "withdrawn"}:${entries.length}`,
-        description: counted.length ? `Correction: ${label}` : label,
-        metadata: {
-          source: "pay_rule",
-          pay_rule: { rule_id: ruleId, definition_rule_id: rule?.id || "", version: version?.version || "", unit: unit.key, line: key, earned_on: unit.date, earned_at: unit.earned_at, params },
-          ...(line?.details ? { details: line.details } : {}),
-          ...(counted.length ? { correction: { posted_cents: posted, target_cents: target, handling } } : {}),
-          ...(handling === "next_run" || handling === "off_cycle" ? { back_pay: true } : {}),
-          ...(handling === "off_cycle" ? { off_cycle_requested: true } : {}),
-          ...(handling === "hold" ? { review_required: true } : {})
-        }
-      } as PayrollLedgerEntryInput & JsonObject;
-      result.posted.push(...await recordPayrollLedgerEntries(orgId, [entry]));
+      const source = sourceId(owner, ruleId, unit.key, key);
+      const all = await findPayrollLedgerSourceEntries(orgId, source);
+      const amount = line?.amount_cents || 0;
+      // Who this line should have paid, and how much: the payee itself, or each member's share of a split.
+      const want = new Map<string, number>(allocation ? [...splitCentsByWeight(amount, allocation.members)].map(([id, cents]) => [`organization_user:${id}`, cents]) : [[owner, amount]]);
+      for (const paid of [...new Set([...want.keys(), ...all.map((entry) => `${entry.payee.type}:${entry.payee.id}`)])].sort()) {
+        const entries = all.filter((entry) => `${entry.payee.type}:${entry.payee.id}` === paid);
+        const counted = entries.filter((entry) => entry.state !== "void" || entry.metadata.pay_rule_declined === true);
+        const posted = counted.reduce((sum, entry) => sum + entry.amount_cents, 0);
+        const target = want.get(paid) || 0;
+        const delta = target - posted;
+        if (!delta) continue;
+        const paidRef = await refFor(paid);
+        if (!paidRef) throw new Error(`${paid} is no longer available in the organization, so their share cannot be posted.`);
+        const policy = await resolvePayrollPolicy(orgId, paidRef, kind).catch(() => null);
+        const settled = entries.some((entry) => entry.state !== "void" && entry.applied_cents !== 0);
+        const handling: Handling = settled ? correctionPolicy(policy?.schedule as JsonObject | undefined, delta > 0) : "normal";
+        result.differences.push({ rule_id: ruleId, unit: unit.key, line: key, earned_on: unit.date, posted_cents: posted, target_cents: target, delta_cents: delta, handling, ...(paid === owner ? {} : { payee: paid }) });
+        if (dryRun) continue;
+        const label = line?.description || previous.find((entry) => entry.key === key)?.description || rule?.name || "Pay rule";
+        const entry = {
+          payee: paidRef, state: handling === "hold" ? "projected" : "accrued", amount_cents: delta,
+          kind: delta > 0 ? kind : kind === "commission" ? "clawback" : "adjustment", subgroup: kind,
+          ...(unit.project_id ? { project_id: unit.project_id } : {}),
+          worked_at: handling === "normal" ? unit.earned_at : asOf, completed_at: handling === "normal" ? unit.earned_at : asOf,
+          source_event_id: source, source_trigger_id: `${unit.digest.slice(0, 24) || "withdrawn"}:${entries.length}`,
+          description: counted.length ? `Correction: ${label}` : label,
+          metadata: {
+            source: "pay_rule",
+            pay_rule: { payee: owner, rule_id: ruleId, definition_rule_id: rule?.id || "", version: version?.version || "", unit: unit.key, line: key, earned_on: unit.date, earned_at: unit.earned_at, params },
+            ...(line?.details ? { details: line.details } : {}),
+            ...(paid === owner ? {} : { split: { of: owner, line_cents: amount, members: allocation?.members.length || 0 } }),
+            ...(counted.length ? { correction: { posted_cents: posted, target_cents: target, handling } } : {}),
+            ...(handling === "next_run" || handling === "off_cycle" ? { back_pay: true } : {}),
+            ...(handling === "off_cycle" ? { off_cycle_requested: true } : {}),
+            ...(handling === "hold" ? { review_required: true } : {})
+          }
+        } as PayrollLedgerEntryInput & JsonObject;
+        result.posted.push(...await recordPayrollLedgerEntries(orgId, [entry]));
+      }
     }
   };
 
-  const desired = new Set<string>();
-  const unreadable = new Set<string>();
   for (const [ruleId, definitionIds] of slots) {
     const versions = [...definitionIds].flatMap((definitionId) => (rules.get(definitionId)?.versions || []).map((version) => ({ rule: rules.get(definitionId)!, version })));
     const planned: Planned[] = [];
@@ -318,25 +390,29 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
       const definition = sample.version.definition;
       let ctx = options.context;
       if (!ctx) try { ctx = userPublicationContext(await backgroundAuthContext(orgId, sample.version.entered_by)); }
-      catch { result.unresolved.push({ rule_id: ruleId, reason: "The person who last saved this rule can no longer read its inputs. Save the rule again." }); unreadable.add(ruleId); break; }
+      catch { await ruleFailed(ruleId, "The person who last saved this rule can no longer read its inputs. Save the rule again."); break; }
       const read = await readInputs(ctx, orgId, definition, payee);
-      if (!read.rows) { result.unresolved.push({ rule_id: ruleId, reason: read.failure! }); unreadable.add(ruleId); break; }
+      if (!read.rows) { await ruleFailed(ruleId, read.failure!); break; }
       const schedule = definition.timezone ? null : await resolvePayrollPolicy(orgId, ref, definition.kind).catch(() => null);
       const timezone = definition.timezone || text((schedule?.schedule as JsonObject | undefined)?.timezone) || "UTC";
       const built = unitsFor(definition, read.rows, timezone, localDay(Date.parse(asOf), timezone), firstDay);
       const sharedDigest = contentHash(built.sharedEvidence);
       for (const unit of built.units) {
-        const slot = effectiveRuleSlots(setup, plans, unit.date).get(ruleId);
+        const slot = effectiveRuleSlots(layers, plans, unit.date).get(ruleId);
         const rule = slot && rules.get(slot.definition_rule_id);
         const version = rule && versionOn(rule.versions, unit.date);
         // A record or period belongs to the shape of the rule that applied on its day, and to no other.
         if (!slot || !rule || !version || shapeOf(version.definition) !== shape || planned.some((entry) => entry.key === unit.key)) continue;
         const params = resolvedParams(version.definition, slot.params);
         planned.push({ ...unit, rule, version, params, shared: built.shared, timezone, evidence: [...unit.evidence, ...built.sharedEvidence],
-          digest: contentHash({ rule: version.version, params, payee: payeeKey(payee), unit: unit.key, date: unit.date, earned_at: unit.earned_at, evidence: unit.evidence, shared: sharedDigest }) });
+          digest: contentHash({ rule: version.version, params, payee: owner, unit: unit.key, date: unit.date, earned_at: unit.earned_at, evidence: unit.evidence, shared: sharedDigest,
+            distribution: payee.type === "resource_group" ? distributionOn(layers, unit.date) : null }) });
       }
     }
     if (unreadable.has(ruleId)) continue;
+    if (!dryRun && stored.some((entry) => entry.rule_id === ruleId && entry.unit_key === WHOLE_RULE)) {
+      await getPayrollDatabase().prepare("DELETE FROM pay_rule_units WHERE organization_id=? AND payee_type=? AND payee_id=? AND rule_id=? AND unit_key=?").run(orgId, payee.type, payee.id, ruleId, WHOLE_RULE);
+    }
     const before = new Map(stored.filter((entry) => entry.rule_id === ruleId).map((entry) => [entry.unit_key, entry]));
     const changed = planned.filter((unit) => { desired.add(`${ruleId}\u0000${unit.key}`); const prior = before.get(unit.key); return !(prior && prior.status === "ok" && prior.digest === unit.digest); });
     result.unchanged += planned.length - changed.length;
@@ -355,8 +431,10 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
           continue;
         }
         try {
-          await reconcile(ruleId, unit, unit.rule, unit.version, unit.params, outcome.lines, prior?.lines || []);
-          if (!dryRun) await saveUnit(orgId, payee, ruleId, { key: unit.key, digest: unit.digest, status: "ok", earned_at: unit.earned_at, version: unit.version.version, lines: outcome.lines, error: "", evidence: unit.evidence });
+          const allocation = await allocationFor(unit.date, prior?.allocation);
+          if (allocation && "error" in allocation) throw new Error(allocation.error);
+          await reconcile(ruleId, unit, unit.rule, unit.version, unit.params, outcome.lines, prior?.lines || [], allocation);
+          if (!dryRun) await saveUnit(orgId, payee, ruleId, { key: unit.key, digest: unit.digest, status: "ok", earned_at: unit.earned_at, version: unit.version.version, lines: outcome.lines, error: "", evidence: unit.evidence, allocation });
         } catch (error) {
           result.unresolved.push({ rule_id: ruleId, unit: unit.key, reason: text((error as Error).message) || "The earning could not be posted." });
         }
@@ -368,7 +446,7 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
     if (desired.has(`${prior.rule_id}\u0000${prior.unit_key}`) || unreadable.has(prior.rule_id) || prior.status === "withdrawn" || !prior.lines.length) continue;
     const rule = rules.get(prior.rule_id);
     try {
-      await reconcile(prior.rule_id, { key: prior.unit_key, date: prior.earned_at.slice(0, 10), earned_at: prior.earned_at, project_id: "", digest: "" }, rule, rule && versionOn(rule.versions, prior.earned_at.slice(0, 10)) || undefined, {}, [], prior.lines);
+      await reconcile(prior.rule_id, { key: prior.unit_key, date: prior.earned_at.slice(0, 10), earned_at: prior.earned_at, project_id: "", digest: "" }, rule, rule && versionOn(rule.versions, prior.earned_at.slice(0, 10)) || undefined, {}, [], prior.lines, null);
       if (!dryRun) await saveUnit(orgId, payee, prior.rule_id, { key: prior.unit_key, digest: "", status: "withdrawn", earned_at: prior.earned_at, version: "", lines: [], error: "", evidence: [] });
     } catch (error) {
       result.unresolved.push({ rule_id: prior.rule_id, unit: prior.unit_key, reason: text((error as Error).message) || "The earning could not be taken back." });
@@ -389,20 +467,36 @@ export async function declinePayCorrection(orgId: string, entryId: string, actor
 }
 
 /** What saving this setup would change, earning by earning, without changing anything. Use it before backdating. */
-export async function previewPaySetup(orgId: string, payee: Assignee, setup: Pick<PaySetup, "entries">, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+export async function previewPaySetup(orgId: string, payee: Assignee, setup: Pick<PaySetup, "entries" | "distribution">, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
   const preview = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true, setup });
   return { ...preview, total_delta_cents: preview.differences.reduce((sum, difference) => sum + difference.delta_cents, 0) };
 }
 
-/** Refreshes every payee that has a setup, or the ones named. One payee failing does not stop the rest. */
+/** Everyone whose pay comes from rules: payees with their own setup, and, when any default exists, every assignee a default covers. */
+export async function payeesWithPay(orgId: string): Promise<Assignee[]> {
+  const found = new Map<string, Assignee>((await listPaySetups(orgId)).filter((setup) => setup.entries.length).map((setup) => [payeeKey(setup.payee), setup.payee]));
+  if ((await listPayDefaults(orgId)).some((entry) => entry.entries.length)) {
+    const { listDocuments } = await import("../platform/storage.js");
+    const everyone: Assignee[] = [
+      ...(await listDocuments(orgId, "users")).filter((row) => !["disabled", "deleted", "archived", "removed"].includes(text((row.data as JsonObject).status))).map((row) => ({ type: "organization_user" as const, id: row.id })),
+      ...(await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, false)).map((group) => ({ type: "resource_group" as const, id: text((group as JsonObject).id) })),
+      ...(await (await import("../connections/storage.js")).listOrganizationConnections(orgId)).map((connection) => ({ type: "organization_connection" as const, id: text((connection as JsonObject).id) }))
+    ];
+    for (const payee of everyone) if (payee.id && !found.has(payeeKey(payee)) && (await payLayersFor(orgId, payee)).some((layer) => layer.entries.length)) found.set(payeeKey(payee), payee);
+  }
+  return [...found.values()];
+}
+
+/** Refreshes every payee whose pay comes from rules, or the ones named. One payee failing does not stop the rest. */
 export async function refreshOrganizationEarnings(orgId: string, options: PayRefreshOptions & { payees?: Assignee[] } = {}) {
-  const payees = options.payees?.length ? options.payees : (await listPaySetups(orgId)).filter((setup) => setup.entries.length).map((setup) => setup.payee);
+  const payees = options.payees?.length ? options.payees : await payeesWithPay(orgId);
   const results: PayRefreshResult[] = [];
   for (const payee of payees) {
     try { results.push(await refreshPayeeEarnings(orgId, payee, { asOf: options.asOf, context: options.context })); }
     catch (error) { results.push({ payee, evaluated: 0, unchanged: 0, differences: [], posted: [], unresolved: [{ rule_id: "", reason: text((error as Error).message) || "Refresh failed." }] }); }
   }
   const posted = results.flatMap((entry) => entry.posted);
+  const held = posted.filter((entry) => (entry.metadata as JsonObject | undefined)?.review_required === true);
   // One event per payee whose pay changed, so an automation can tell them or their manager.
   const { publishPayrollWorkEvent } = await import("./service.js");
   for (const entry of results) if (entry.posted.length) await publishPayrollWorkEvent({
@@ -415,9 +509,36 @@ export async function refreshOrganizationEarnings(orgId: string, options: PayRef
     },
     context: {}
   }).catch(() => undefined);
+  // Held corrections are not owed until someone accepts them, so they are counted apart from what was posted.
   return {
-    payees: results, posted_count: posted.length, posted_cents: posted.reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0),
-    held_count: posted.filter((entry) => (entry.metadata as JsonObject | undefined)?.review_required === true).length,
+    payees: results, posted_count: posted.length - held.length, posted_cents: posted.reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0) - held.reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0),
+    held_count: held.length, held_cents: held.reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0),
     unresolved_count: results.reduce((sum, entry) => sum + entry.unresolved.length, 0)
   };
+}
+
+/** Every earning that could not be worked out at the last refresh, across the organization, with the reason. Reads only. */
+export async function listUnresolvedPay(orgId: string) {
+  await ensurePayRuleSchema();
+  const rows = await getPayrollDatabase().prepare(`SELECT payee_type, payee_id, rule_id, unit_key, earned_at, error, evaluated_at FROM pay_rule_units
+    WHERE organization_id=? AND status='error' ORDER BY evaluated_at DESC, payee_type, payee_id, rule_id, unit_key`).all(orgId);
+  const names = new Map<string, string>();
+  const items = [];
+  for (const row of rows) {
+    const payee = { type: String(row.payee_type), id: String(row.payee_id) } as Assignee, key = payeeKey(payee);
+    if (!names.has(key)) names.set(key, (await readAssignee(orgId, payee))?.name || "");
+    const unit = String(row.unit_key);
+    items.push({ id: `${key}:${row.rule_id}:${unit}`, payee, payee_name: names.get(key)!, rule_id: String(row.rule_id), unit: unit === "*" ? "" : unit, whole_rule: unit === "*",
+      earned_at: String(row.earned_at), reason: String(row.error), evaluated_at: String(row.evaluated_at) });
+  }
+  return items;
+}
+
+/** Corrections waiting on a person: held for review, and back pay asked to go on an off-cycle run and not yet in one. Reads only. */
+export async function listPayReview(orgId: string) {
+  const { listPayrollLedgerEntries } = await import("./storage.js");
+  const fromRules = (entry: { metadata: JsonObject }) => entry.metadata.source === "pay_rule";
+  const held = (await listPayrollLedgerEntries(orgId, { state: "projected", limit: 5000 })).filter((entry) => fromRules(entry) && entry.metadata.review_required === true);
+  const offCycle = (await listPayrollLedgerEntries(orgId, { state: "accrued", open_only: true, limit: 5000 })).filter((entry) => fromRules(entry) && entry.metadata.off_cycle_requested === true);
+  return { held, off_cycle: offCycle };
 }

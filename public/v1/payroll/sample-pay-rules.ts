@@ -48,13 +48,24 @@ return { amount_cents: unit.record.total_cents, description: "Committed labor" }
     inputs: { projects: { primary: true, source: { provider: "payroll", export: "project_records", args: { facts: true } }, where: role("estimator") } },
     parameters: { rate_bps: { label: "Share of contract (basis points)", default: 500 } },
     code: share("Completed")
+  } },
+  { id: "salary", name: "Salary", description: "An annual amount earned a day at a time. It reads no data; when it is paid follows the payee's pay schedule.", definition: {
+    grain: "period" as const, period: "day" as const, always: true, kind: "salary" as const, inputs: {},
+    parameters: { annual_cents: { label: "Annual salary (cents)" }, weekdays_only: { label: "Earn on weekdays only", default: false } },
+    code: `if (!(params.annual_cents > 0)) throw new Error("Set this payee's annual salary.");
+const weekend = unit.period.weekday === 0 || unit.period.weekday === 6;
+if (params.weekdays_only && weekend) return null;
+// Every day of the year earns an equal share; with weekdays only, 260 working days share it.
+const days = params.weekdays_only ? 260 : unit.period.days_in_year;
+return { amount_cents: Math.round(params.annual_cents / days), description: "Salary for " + unit.period.from };`
   } }
 ];
 export const SAMPLE_PAY_PLANS = [
   { id: "hourly_staff", name: "Hourly staff", description: "Paid for approved time clock hours.", rules: [{ rule_id: "hourly_time_clock" }] },
   { id: "labor_by_commitment", name: "Paid by committed labor", description: "Paid the total of the labor lists committed to them.", rules: [{ rule_id: "committed_labor" }] },
   { id: "estimator", name: "Estimator", description: "A share of each contract, half when sold and half when completed.", rules: [{ rule_id: "estimator_commission_sold" }, { rule_id: "estimator_commission_completed" }] },
-  { id: "inside_sales", name: "Inside sales", description: "A booking fee for each sold project they booked.", rules: [{ rule_id: "inside_sales_booking" }] }
+  { id: "inside_sales", name: "Inside sales", description: "A booking fee for each sold project they booked.", rules: [{ rule_id: "inside_sales_booking" }] },
+  { id: "salaried", name: "Salaried", description: "An annual salary earned by the day.", rules: [{ rule_id: "salary" }] }
 ];
 
 export async function seedSamplePayRules(orgId: string, actor: { userId: string }) {

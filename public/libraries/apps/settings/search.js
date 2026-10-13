@@ -68,8 +68,7 @@
   add('scheduling', 'Scheduling', ['Appointment confirmations', 'Scheduling availability', 'Assignment rules', 'Booking windows']);
   add('crews', 'Crews and Subcontractors', [
     { title:(globalThis.PlatformLanguage?.text("settings","m_40d0afffa9e25d","Crews and resource groups") ?? "Crews and resource groups"), view:'groups', keywords:'crew members teams' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_8a99cca02b36a4","Organization connections") ?? "Organization connections"), view:'connections', keywords:'subcontractors vendors companies' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_093e042581e1a6","Crew compensation") ?? "Crew compensation"), view:'groups', keywords:'pay rates commissions' }
+    { title:(globalThis.PlatformLanguage?.text("settings","m_8a99cca02b36a4","Organization connections") ?? "Organization connections"), view:'connections', keywords:'subcontractors vendors companies' }
   ]);
   add('storage', 'Storage', ['Media storage usage', 'Storage limits', 'Deleted media', 'Storage plan']);
   add('sms', 'SMS', ['Messaging registration', '10DLC registration', 'SMS setup', 'Messaging profile']);

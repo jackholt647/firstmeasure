@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { compensationProfileInputSchema } from "../compensation/schemas.js";
 
 export const jsonObjectSchema = z.object({}).passthrough();
 export const stableIdSchema = z.string().trim().min(1).max(180);
@@ -57,8 +56,6 @@ export const resourceGroupCreateSchema = jsonObjectSchema.extend({
   member_user_ids: z.array(stableIdSchema).optional(),
   capability_scope_ids: z.array(stableIdSchema).optional(),
   project_types: z.array(stableIdSchema).optional(),
-  compensation_profile: compensationProfileInputSchema.optional(),
-  compensation_plan: compensationProfileInputSchema.optional(),
   attributes: jsonObjectSchema.optional(),
   metadata: jsonObjectSchema.optional()
 }).passthrough();
@@ -99,8 +96,7 @@ export const workforceUserProfilePatchSchema = jsonObjectSchema.extend({
   payment_terms: jsonObjectSchema.extend({
     basis: z.enum(["payroll_schedule", "net_days"]).optional(),
     net_days: z.number().int().min(0).max(365).optional()
-  }).optional(),
-  compensation_profile: compensationProfileInputSchema.optional()
+  }).optional()
 }).refine((value) => (
   Object.prototype.hasOwnProperty.call(value, "application_access")
   || Object.prototype.hasOwnProperty.call(value, "access_role_ids")
@@ -110,5 +106,4 @@ export const workforceUserProfilePatchSchema = jsonObjectSchema.extend({
   || Object.prototype.hasOwnProperty.call(value, "assignment_tag_ids")
   || Object.prototype.hasOwnProperty.call(value, "worker_classification")
   || Object.prototype.hasOwnProperty.call(value, "payment_terms")
-  || Object.prototype.hasOwnProperty.call(value, "compensation_profile")
 ), { message: "At least one workforce profile field is required." });

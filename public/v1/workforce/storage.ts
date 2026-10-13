@@ -5,18 +5,12 @@ import { existsSync } from 'node:fs';
 import { isFirstMeasurePostgresEnabled, queryPostgres } from '../src/database/postgres.js';
 import { openSqlStore, ensureSqlColumn, type SqlStore } from "../platform/sql_store.js";
 
-import {
-  assertCompensationAllowed,
-  compensationPlanProjection,
-  effectiveCompensation,
-  normalizeCompensationProfileInput,
-  type JsonObject
-} from "../compensation/service.js";
-import type { CompensationSubjectType } from "../compensation/schemas.js";
 import { env } from "../src/config/env.js";
 import { badRequest, conflict, notFound } from "../platform/errors.js";
 import { readDocument } from "../platform/storage.js";
 import { listScopeTemplates } from "../scopes/storage.js";
+
+export type JsonObject = Record<string, unknown>;
 
 const DATABASE_SCHEMA_VERSION = 3;
 const DEFAULT_BRANCH_ID = "default";
@@ -101,13 +95,6 @@ export async function assertCapabilityScopesExist(orgIdValue: string, branchIdsV
   return scopeIds;
 }
 
-export async function assertCompensationCapabilityScopes(orgId: string, branchIds: unknown, input: unknown) {
-  const profile = normalizeCompensationProfileInput(input);
-  const scopeIds = profile.components.flatMap((component) => asArray(component.capability_scope_ids));
-  (await assertCapabilityScopesExist(orgId, branchIds, scopeIds));
-  return profile;
-}
-
 function resolvedDatabasePath() {
   return path.resolve(process.cwd(), env.platformStorageRoot, "workforce.sqlite");
 }
@@ -187,28 +174,6 @@ async function initializeSchema(db: SqlStore) {
     );
     CREATE INDEX IF NOT EXISTS resource_group_capabilities_scope_idx
       ON resource_group_capabilities (organization_id, scope_id, group_id);
-
-    CREATE TABLE IF NOT EXISTS compensation_profiles (
-      id TEXT PRIMARY KEY,
-      organization_id TEXT NOT NULL,
-      subject_type TEXT NOT NULL,
-      subject_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      currency TEXT NOT NULL DEFAULT 'USD',
-      effective_from TEXT,
-      effective_to TEXT,
-      components_json TEXT NOT NULL DEFAULT '[]',
-      notes TEXT NOT NULL DEFAULT '',
-      metadata_json TEXT NOT NULL DEFAULT '{}',
-      revision INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      archived_at TEXT,
-      UNIQUE (organization_id, subject_type, subject_id)
-    );
-    CREATE INDEX IF NOT EXISTS compensation_profiles_subject_idx
-      ON compensation_profiles (organization_id, subject_type, subject_id, status);
 
     CREATE TABLE IF NOT EXISTS organization_connections (
       organization_id TEXT NOT NULL,
@@ -419,138 +384,6 @@ export async function saveWorkforceConfiguration(orgIdValue: string, inputValue:
   }));
 }
 
-function compensationProfileView(rowValue: unknown): JsonObject | null {
-  if (!rowValue) return null;
-  const row = asObject(rowValue);
-  return {
-    id: cleanText(row.id),
-    organization_id: cleanText(row.organization_id),
-    subject_type: cleanText(row.subject_type),
-    subject_id: cleanText(row.subject_id),
-    name: cleanText(row.name),
-    status: cleanText(row.status || "active"),
-    currency: cleanText(row.currency || "USD"),
-    effective_from: cleanText(row.effective_from),
-    effective_to: cleanText(row.effective_to),
-    components: asArray(parseJson(row.components_json, [])),
-    notes: cleanText(row.notes),
-    metadata: asObject(parseJson(row.metadata_json)),
-    revision: Number(row.revision || 1),
-    created_at: cleanText(row.created_at),
-    updated_at: cleanText(row.updated_at),
-    archived_at: cleanText(row.archived_at)
-  };
-}
-
-export async function readCompensationProfile(orgIdValue: string, subjectType: CompensationSubjectType, subjectIdValue: string) {
-  const orgId = cleanId(orgIdValue, "organization_id");
-  const subjectId = cleanId(subjectIdValue, "subject_id");
-  return compensationProfileView((await getWorkforceDatabase().prepare(`SELECT * FROM compensation_profiles
-    WHERE organization_id=? AND subject_type=? AND subject_id=?`).get(orgId, subjectType, subjectId)));
-}
-
-export async function listCompensationProfiles(orgIdValue: string, options: JsonObject = {}) {
-  const orgId = cleanId(orgIdValue, "organization_id");
-  const conditions = ["organization_id = ?"];
-  const params: SQLInputValue[] = [orgId];
-  if (cleanText(options.subject_type)) {
-    conditions.push("subject_type = ?");
-    params.push(cleanText(options.subject_type));
-  }
-  if (cleanText(options.subject_id)) {
-    conditions.push("subject_id = ?");
-    params.push(cleanId(options.subject_id, "subject_id"));
-  }
-  if (options.include_archived !== true && cleanText(options.include_archived) !== "1") conditions.push("status <> 'archived'");
-  return (await getWorkforceDatabase().prepare(`SELECT * FROM compensation_profiles WHERE ${conditions.join(" AND ")} ORDER BY updated_at DESC`)
-    .all(...params)).map((row) => compensationProfileView(row) as JsonObject);
-}
-
-export async function upsertCompensationProfileRecord(
-  db: SqlStore,
-  orgIdValue: string,
-  subjectType: CompensationSubjectType,
-  subjectIdValue: string,
-  inputValue: unknown
-) {
-  const orgId = cleanId(orgIdValue, "organization_id");
-  const subjectId = cleanId(subjectIdValue, "subject_id");
-  const input = normalizeCompensationProfileInput(inputValue);
-  assertCompensationAllowed(subjectType, input);
-  const existingRow = (await db.prepare(`SELECT * FROM compensation_profiles WHERE organization_id=? AND subject_type=? AND subject_id=?`)
-    .get(orgId, subjectType, subjectId));
-  const existing = compensationProfileView(existingRow);
-  if (existing && input.expected_revision && input.expected_revision !== Number(existing.revision || 0)) {
-    throw conflict("compensation_revision_conflict", "Compensation profile revision does not match.", { current_revision: existing.revision });
-  }
-  const now = nowIso();
-  if (existing) {
-    (await db.prepare(`UPDATE compensation_profiles SET name=?, status=?, currency=?, effective_from=?, effective_to=?, components_json=?, notes=?,
-      metadata_json=?, revision=revision+1, updated_at=?, archived_at=? WHERE organization_id=? AND subject_type=? AND subject_id=?`)
-      .run(
-        input.name,
-        input.status,
-        input.currency,
-        input.effective_from || null,
-        input.effective_to || null,
-        json(input.components),
-        input.notes,
-        json({ ...asObject(existing.metadata), ...input.metadata }),
-        now,
-        input.status === "archived" ? now : null,
-        orgId,
-        subjectType,
-        subjectId
-      ));
-  } else {
-    (await db.prepare(`INSERT INTO compensation_profiles
-      (id, organization_id, subject_type, subject_id, name, status, currency, effective_from, effective_to, components_json,
-       notes, metadata_json, revision, created_at, updated_at, archived_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`)
-      .run(
-        generatedId("compensation"),
-        orgId,
-        subjectType,
-        subjectId,
-        input.name,
-        input.status,
-        input.currency,
-        input.effective_from || null,
-        input.effective_to || null,
-        json(input.components),
-        input.notes,
-        json(input.metadata),
-        now,
-        now,
-        input.status === "archived" ? now : null
-      ));
-  }
-  return compensationProfileView((await db.prepare(`SELECT * FROM compensation_profiles
-    WHERE organization_id=? AND subject_type=? AND subject_id=?`).get(orgId, subjectType, subjectId))) as JsonObject;
-}
-
-export async function saveCompensationProfile(orgId: string, subjectType: CompensationSubjectType, subjectId: string, input: unknown) {
-  return (await withWorkforceTransaction(async (db) => (await upsertCompensationProfileRecord(db, orgId, subjectType, subjectId, input))));
-}
-
-export async function archiveCompensationProfile(orgIdValue: string, subjectType: CompensationSubjectType, subjectIdValue: string, expectedRevision: number) {
-  const orgId = cleanId(orgIdValue, "organization_id");
-  const subjectId = cleanId(subjectIdValue, "subject_id");
-  return (await withWorkforceTransaction(async (db) => {
-    const current = compensationProfileView((await db.prepare(`SELECT * FROM compensation_profiles
-      WHERE organization_id=? AND subject_type=? AND subject_id=?`).get(orgId, subjectType, subjectId)));
-    if (!current) throw notFound("compensation_profile_not_found", "Compensation profile was not found.");
-    if (expectedRevision !== Number(current.revision || 0)) {
-      throw conflict("compensation_revision_conflict", "Compensation profile revision does not match.", { current_revision: current.revision });
-    }
-    const now = nowIso();
-    (await db.prepare(`UPDATE compensation_profiles SET status='archived', archived_at=?, updated_at=?, revision=revision+1
-      WHERE organization_id=? AND subject_type=? AND subject_id=?`).run(now, now, orgId, subjectType, subjectId));
-    return compensationProfileView((await db.prepare(`SELECT * FROM compensation_profiles
-      WHERE organization_id=? AND subject_type=? AND subject_id=?`).get(orgId, subjectType, subjectId))) as JsonObject;
-  }));
-}
-
 function platformUserSummary(documentValue: unknown) {
   const document = asObject(documentValue);
   const data = asObject(document.data);
@@ -667,29 +500,17 @@ export async function readResourceGroup(orgIdValue: string, groupIdValue: string
   const row = (await getWorkforceDatabase().prepare("SELECT * FROM resource_groups WHERE organization_id=? AND id=?").get(orgId, groupId));
   if (!row) throw notFound("resource_group_not_found", "Resource group was not found.");
   const group = groupRowView(row);
-  const groupCompensation = (await readCompensationProfile(orgId, "resource_group", groupId));
   const memberships = (await groupMembershipRows(orgId, groupId));
   const members = await Promise.all(memberships.map(async (membership) => {
     const document = await readDocument(orgId, "users", membership.user_id).catch(() => null);
     const user = document ? platformUserSummary(document) : { id: membership.user_id, name: membership.user_id, email: "", phone: "", status: "missing", branch_id: "", assignment_role_ids: [], revision: 0 };
-    const directCompensation = (await readCompensationProfile(orgId, "organization_user", membership.user_id));
-    const effective = effectiveCompensation(directCompensation, groupCompensation);
-    return {
-      ...membership,
-      user,
-      direct_compensation_profile: directCompensation,
-      effective_compensation_profile: effective.profile,
-      compensation_source: effective.source,
-      compensation_plan: effective.profile ? compensationPlanProjection(effective.profile) : null
-    };
+    return { ...membership, user };
   }));
   const capabilityScopeIds = (await groupCapabilityIds(orgId, groupId));
   return {
     ...group,
     members,
     capability_scope_ids: capabilityScopeIds,
-    compensation_profile: groupCompensation,
-    compensation_plan: groupCompensation ? compensationPlanProjection(groupCompensation) : null,
     project_types: capabilityScopeIds
   };
 }
@@ -758,10 +579,6 @@ export async function createResourceGroup(orgIdValue: string, input: JsonObject)
   const primaryMemberUserId = cleanText(members.find((member) => member.is_lead === true)?.user_id);
   await validateGroupMembers(orgId, members);
   const capabilities = (await assertCapabilityScopesExist(orgId, [branchId], input.capability_scope_ids || input.project_types));
-  const compensationInput = input.compensation_profile || input.compensation_plan;
-  const compensation = compensationInput && typeof compensationInput === "object"
-    ? (await assertCompensationCapabilityScopes(orgId, [branchId], compensationInput))
-    : null;
   const now = nowIso();
   try {
     (await withWorkforceTransaction(async (db) => {
@@ -773,7 +590,6 @@ export async function createResourceGroup(orgIdValue: string, input: JsonObject)
           primaryMemberUserId || null, json(asObject(input.attributes)), json(asObject(input.metadata)), now, now));
       (await replaceGroupMembers(db, orgId, groupId, members));
       (await replaceGroupCapabilities(db, orgId, groupId, capabilities));
-      if (compensation) (await upsertCompensationProfileRecord(db, orgId, "resource_group", groupId, compensation));
     }));
   } catch (error) {
     if (String(error).includes("UNIQUE constraint failed")) throw conflict("resource_group_exists", `Resource group '${groupId}' already exists.`);
@@ -805,10 +621,6 @@ export async function patchResourceGroup(orgIdValue: string, groupIdValue: strin
   const capabilities = hasCapabilities
     ? (await assertCapabilityScopesExist(orgId, [nextBranchId], input.capability_scope_ids || input.project_types))
     : (await assertCapabilityScopesExist(orgId, [nextBranchId], current.capability_scope_ids));
-  const compensationInput = input.compensation_profile || input.compensation_plan;
-  const compensation = compensationInput && typeof compensationInput === "object"
-    ? (await assertCompensationCapabilityScopes(orgId, [nextBranchId], compensationInput))
-    : null;
   const hasPrimaryMember = Object.prototype.hasOwnProperty.call(input, "primary_member_user_id");
   const nextPrimaryMemberUserId = hasMembers
     ? cleanText(members.find((member) => member.is_lead === true)?.user_id)
@@ -840,7 +652,6 @@ export async function patchResourceGroup(orgIdValue: string, groupIdValue: strin
       ));
     if (hasMembers) (await replaceGroupMembers(db, orgId, groupId, members));
     if (hasCapabilities) (await replaceGroupCapabilities(db, orgId, groupId, capabilities));
-    if (compensation) (await upsertCompensationProfileRecord(db, orgId, "resource_group", groupId, compensation));
   }));
   return await readResourceGroup(orgId, groupId);
 }
@@ -909,7 +720,6 @@ export async function removeResourceGroupMember(orgIdValue: string, groupIdValue
 
 export function resourceGroupAssignableProjection(groupValue: JsonObject) {
   const capabilities = uniqueIds(groupValue.capability_scope_ids || groupValue.project_types);
-  const compensation = asObject(groupValue.compensation_profile);
   const resourceId = cleanText(groupValue.id);
   const resourceName = cleanText(groupValue.name);
   return {
@@ -931,7 +741,6 @@ export function resourceGroupAssignableProjection(groupValue: JsonObject) {
     id: resourceId,
     name: resourceName,
     status: cleanText(groupValue.status || "active"),
-    compensation_plan: cleanText(compensation.id) ? compensationPlanProjection(compensation) : null,
     project_types: capabilities
   };
 }

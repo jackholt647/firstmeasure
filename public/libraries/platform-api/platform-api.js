@@ -2918,18 +2918,6 @@
     return Array.isArray(result?.modules) ? result.modules : (Array.isArray(result?.documents) ? result.documents : []);
   }
 
-  function laborBaseUrl(){
-    const platformBase = baseUrl();
-    if (platformBase) return platformBase.replace(/\/v1\/platform\/?$/i, '/v1/labor').replace(/\/+$/, '');
-    const host = cleanText(location.hostname).toLowerCase();
-    if (host === '127.0.0.1' || host === 'localhost' || host === '10.0.2.2') return `${location.origin}/v1/labor`;
-    return `${location.origin}/v1/labor`;
-  }
-
-  function laborPath(path = ''){
-    return `${laborBaseUrl()}/${cleanText(path).replace(/^\/+/, '')}`;
-  }
-
   const labor = {
     async crews(orgId, branchId = 'default'){
       const [assignableResult, configurationResult, groupsResult] = await Promise.all([
@@ -2968,8 +2956,7 @@
           is_lead:member?.is_lead === true || member?.is_foreman === true
         })).filter((member) => member.user_id),
         primary_member_user_id:cleanText(crew?.primary_member_user_id || crew?.foreman_user_id || crew?.foreman_member_id),
-        capability_scope_ids:Array.isArray(crew?.capability_scope_ids) ? crew.capability_scope_ids : (Array.isArray(crew?.supported_scope_ids) ? crew.supported_scope_ids : (Array.isArray(crew?.project_types) ? crew.project_types : [])),
-        compensation_profile:crew?.compensation_profile || crew?.compensation_plan || null
+        capability_scope_ids:Array.isArray(crew?.capability_scope_ids) ? crew.capability_scope_ids : (Array.isArray(crew?.supported_scope_ids) ? crew.supported_scope_ids : (Array.isArray(crew?.project_types) ? crew.project_types : []))
       };
       if (id) await workforce.updateResourceGroup(orgId, branchId, id, group);
       else await workforce.createResourceGroup(orgId, branchId, group);

@@ -41,7 +41,7 @@ import { emitWorkEvent } from "../work/engine.js";
 import { createFollowUpTodo } from "../work/followups.js";
 import { listWorkTodos, transitionWorkNode } from "../work/service.js";
 import { listNodeRecords, listPlanRecords, readNodeRecord } from "../work/storage.js";
-import { hasHourlyCompensation, resolveAccessProfile } from "./access.js";
+import { resolveAccessProfile } from "./access.js";
 import {
   documentWorkflowDetail,
   filterWorkflowForAudience,
@@ -1725,21 +1725,14 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/crew/me/time-clock", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const actor = await requireCrewActor(request, orgId, "crew.time_clock.use");
-    return {
-      ok: true,
-      applicable: (await hasHourlyCompensation(orgId, actor.ctx.userId)),
-      time_clock: (await readCrewTimeClock(orgId, actor.ctx.userId))
-    };
+    return { ok: true, time_clock: (await readCrewTimeClock(orgId, actor.ctx.userId)) };
   });
 
   app.post("/organizations/:orgId/crew/me/time-clock/actions", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const actor = await requireCrewActor(request, orgId, "crew.time_clock.use", true);
-    // The clock is compensation-derived: salaried or pure piece-rate workers
-    // have no hourly component and therefore nothing to clock against.
-    if (!(await hasHourlyCompensation(orgId, actor.ctx.userId))) {
-      throw forbidden("time_clock_not_applicable", "The time clock is only available for workers with hourly compensation.");
-    }
+    // Who may clock is the time clock permission and nothing else. Whether the hours are paid is
+    // up to the person's pay rules, which read the published time clock like any other data.
     const body = requestBody(request);
     const result = (await performCrewTimeClockAction(orgId, actor.ctx.userId, body.action, clockActionMetadata(request, body.metadata)));
     await emitTimeClockWorkEvent(orgId, actor.ctx.userId, cleanText(result.action), result);

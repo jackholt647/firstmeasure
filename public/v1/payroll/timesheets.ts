@@ -7,50 +7,7 @@ import {
   setCrewTimeShiftApproval
 } from "../workforce/crew_storage.js";
 import { asObject, cleanText, type JsonObject } from "./storage.js";
-
-function finite(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function eventLocation(eventValue: unknown) {
-  const event = asObject(eventValue);
-  const data = asObject(event.data);
-  const location = asObject(data.location || data.geolocation || data.geo);
-  const latitude = finite(location.latitude ?? location.lat);
-  const longitude = finite(location.longitude ?? location.lng ?? location.lon);
-  return {
-    status: cleanText(location.status || (latitude !== null && longitude !== null ? "captured" : "unavailable")),
-    ...(latitude !== null && longitude !== null ? { latitude, longitude } : {}),
-    ...(finite(location.accuracy_meters ?? location.accuracy) !== null ? { accuracy_meters: finite(location.accuracy_meters ?? location.accuracy) } : {}),
-    captured_at: cleanText(location.captured_at),
-    reason: cleanText(location.reason)
-  };
-}
-
-function radians(value: number) { return value * Math.PI / 180; }
-
-function distanceMeters(leftValue: unknown, rightValue: unknown) {
-  const left = asObject(leftValue);
-  const right = asObject(rightValue);
-  const lat1 = finite(left.latitude ?? left.lat);
-  const lon1 = finite(left.longitude ?? left.lng ?? left.lon);
-  const lat2 = finite(right.latitude ?? right.lat);
-  const lon2 = finite(right.longitude ?? right.lng ?? right.lon);
-  if ([lat1, lon1, lat2, lon2].some((value) => value === null)) return null;
-  const dLat = radians((lat2 as number) - (lat1 as number));
-  const dLon = radians((lon2 as number) - (lon1 as number));
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(lat1 as number)) * Math.cos(radians(lat2 as number)) * Math.sin(dLon / 2) ** 2;
-  return Math.round(6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
-
-function projectLocation(documentValue: unknown) {
-  const data = asObject(asObject(documentValue).data);
-  const measurement = asObject(data.measurement);
-  const latitude = finite(data.latitude ?? data.lat ?? measurement.latitude ?? measurement.lat);
-  const longitude = finite(data.longitude ?? data.lng ?? measurement.longitude ?? measurement.lng);
-  return latitude === null || longitude === null ? {} : { latitude, longitude };
-}
+import { distanceMeters, eventLocation, projectLocation } from "./time-clock-sources.js";
 
 function projectTitle(documentValue: unknown) {
   const document = asObject(documentValue);

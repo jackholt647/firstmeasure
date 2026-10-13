@@ -32,9 +32,11 @@ section is an audit of what exists today (2026-07-30).
   (`public/v1/platform/capabilities.ts:507-643`, custom presets at
   `{platformStorageRoot}/config/capability_presets.json`). Note `applyCapabilityPreset()`
   (:764) is destructive/complete — unlisted booleans turn off.
-- **Compensation-driven visibility** already exists (`hasHourlyCompensation`,
-  access.ts:1551 → forces `time_clock_enabled` off for non-hourly). Pure-commission reps
-  never see the clock with zero new code.
+- *Superseded on 2026-10-13: compensation-driven clock visibility
+  (`hasHourlyCompensation`) was removed with compensation profiles. Who sees the
+  time clock is the `crew.time_clock.use` permission alone; give a role that
+  should not clock no such permission. See
+  [pay rules](architecture/pay-rules.md#time-clock).*
 - *Superseded on 2026-10-13: the commission rules engine, its automations, the
   scope-template commission editor and project payee roles described in the next
   item were removed. Pay is now derived by pay rules; see

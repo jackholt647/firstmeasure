@@ -1,10 +1,9 @@
 import { ASSIGNEE_TYPES } from "../labor/assignees.js";
 import { listCommitments } from "../labor/commitments.js";
-import { badRequest } from "../platform/errors.js";
 import type { AccessPolicy } from "../platform/publication/contracts.js";
 import type { DataExport } from "../platform/publication/providers.js";
 import { listDocuments, type JsonObject } from "../platform/storage.js";
-import { listClosedCrewTimeShifts } from "../workforce/crew_storage.js";
+import { TIME_CLOCK_EXPORTS, timeClockExports } from "./time-clock-sources.js";
 
 /**
  * Collections published for pay rules to select from. Every row has a stable
@@ -46,23 +45,11 @@ async function projectFacts(orgId: string) {
   return new Map(facts.map((row) => [String(row.project_id), row as JsonObject]));
 }
 
-export const PAY_SOURCE_EXPORTS = ["time_shifts", "project_records", "labor_commitments"] as const;
+/** The time clock is published beside these (time-clock-sources.ts); a rule reads it like any other collection. */
+export const PAY_SOURCE_EXPORTS = [...TIME_CLOCK_EXPORTS, "project_records", "labor_commitments"] as const;
 export function paySourceExports(): Record<typeof PAY_SOURCE_EXPORTS[number], DataExport> {
   return {
-    time_shifts: {
-      description: "Closed time clock shifts, one row each: who worked (`user_id`, `assignee_key`), `project_id`, clock-in and clock-out, `worked_seconds` net of breaks, and `approval_status` (pending, approved, rejected). A corrected shift has a new revision.",
-      schema: rows, schemaVersion: "1", access, units: { worked_seconds: "seconds", break_seconds: "seconds" },
-      read: async () => { throw badRequest("source_list_required", "List or select time shifts; there can be too many to read at once."); },
-      list: async (ctx, _ref, page) => {
-        const shifts = await listClosedCrewTimeShifts(ctx.organizationId, { after: page.cursor, limit: page.limit + 1 });
-        const items = shifts.slice(0, page.limit).map((shift) => ({
-          id: shift.id, revision: shift.revision, user_id: shift.user_id, assignee_key: `organization_user:${shift.user_id}`, project_id: shift.project_id,
-          clocked_in_at: shift.clocked_in_at, clocked_out_at: shift.clocked_out_at, worked_seconds: shift.worked_seconds, break_seconds: shift.break_seconds,
-          approval_status: shift.approval_status, approved_at: shift.approved_at
-        }));
-        return { items, ...(shifts.length > page.limit ? { nextCursor: items.at(-1)!.id } : {}) };
-      }
-    },
+    ...timeClockExports(),
     project_records: {
       description: "Every project, one row each: `title`, `status`, `created_at`, its stored custom field values under `fields`, and under `assignee_keys` the same paths for fields that hold an assignee, as lists of `type:id` keys (match with `contains`). With args `{ \"facts\": true }` each row also carries indexed `sold_at`, `completed_at`, `canceled_at`, `stage_key` and money in cents (`contract_cents`, `collected_cents`, `outstanding_cents`, `expenses_cents`, `profit_cents`); that reading is pending until project indexing has finished.",
       schema: rows, schemaVersion: "1", access,

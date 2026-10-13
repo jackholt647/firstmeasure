@@ -51,7 +51,6 @@ import { registerEmailApi } from "../email/api.js";
 import { registerInternalApi } from "../internal/api.js";
 import { installDiagnostics } from "../internal/diagnostics.js";
 import { registerFormsApi } from "../forms/api.js";
-import { registerLaborApi } from "../labor/api.js";
 import { registerMaterialsApi } from "../materials/api.js";
 import { registerPaymentsApi } from "../payments/api.js";
 import { registerPlatformApi } from "../platform/api.js";
@@ -195,7 +194,6 @@ export async function buildApp() {
   void app.register(registerFirstMeasureApi, { prefix: "/v1/firstmeasure" });
   void app.register(registerFirstMeasureRemoteApi, { prefix: "/v1/firstmeasure-remote" });
   void app.register(registerFormsApi, { prefix: "/v1/forms" });
-  void app.register(registerLaborApi, { prefix: "/v1/labor" });
   void app.register(registerMaterialsApi, { prefix: "/v1/materials" });
   void app.register(registerPaymentsApi, { prefix: "/v1/payments" });
   void app.register(registerPlatformApi, { prefix: "/v1/platform" });

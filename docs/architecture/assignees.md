@@ -9,7 +9,7 @@ in stored data and are listed so they can be recognised, not copied.
 |---|---|---|
 | **Assignee** | Anyone work can be assigned to: a person, a group of users, or an outside company. It is not specific to production — a sales team taking appointments is one. Equipment is never one. | "work resource" (`work_resource_ref` on lists and events), "assignable subject" (`workforce/assignability.ts`), "subject" (compensation profiles, pay sheets), "resource group" for a group of users, "organization connection" for an outside company |
 | **Unit** | A group inside an assignee that does one job at a time. | — |
-| **Pay sheet** | How one assignee prices a job, as data evaluated against it. See [pay sheets](pay-sheets.md). What they are then paid, and when, comes from [pay rules](pay-rules.md). | "compensation profile" is the older, per-person record that now only decides who sees the time clock |
+| **Pay sheet** | How one assignee prices a job, as data evaluated against it. See [pay sheets](pay-sheets.md). What they are then paid, and when, comes from [pay rules](pay-rules.md). | "compensation profile" and "compensation plan" were the older per-person and per-group pay records; they are removed |
 | **Commitment** | A frozen copy of a labor list as it was handed to its assignee. | — |
 | **Delivery** | How a commitment reaches its assignee. | — |
 

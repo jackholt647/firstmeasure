@@ -56,7 +56,7 @@ export type CapabilityDefinition = {
   audience?: CapabilityAudience[];
   /** Device visibility. Informational; enforced by the entitlement layer. */
   devices?: CapabilityDevice[];
-  /** Named relevance predicate (e.g. "hourly_compensation"). Informational. */
+  /** Named relevance predicate. Informational. */
   relevance?: string;
   /** Permission nodes: the permission key checked by hasPermission(). */
   permission_key?: string;
@@ -694,7 +694,6 @@ export function builtinCapabilityPresets(): CapabilityPreset[] {
         "checklists.supervision": true,
         "apps.payroll": true,
         "payroll.pay_runs": true,
-        "payroll.compensation_profiles": true,
         "payroll.self_service_earnings": true,
         "apps.training": true,
         "training.studio": true,

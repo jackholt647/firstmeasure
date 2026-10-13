@@ -884,14 +884,6 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
-    key: "payroll.compensation_profiles",
-    kind: "feature",
-    parent: "apps.payroll",
-    label: "Compensation Profiles",
-    description: "Pay policies and per-user compensation setup.",
-    default: true
-  },
-  {
     key: "payroll.self_service_earnings",
     kind: "feature",
     parent: "apps.payroll",
@@ -905,10 +897,9 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.crew",
     label: "Time Clock",
-    description: "Field clock in/out. Only shown to users with an hourly pay component.",
+    description: "Field clock in/out, for everyone given the time clock permission.",
     default: true,
-    audience: ["field"],
-    relevance: "hourly_compensation"
+    audience: ["field"]
   },
   {
     key: "crew.receipts",
@@ -1718,9 +1709,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.time_clock.use",
     access: "write",
     audience: ["field"],
-    relevance: "hourly_compensation",
     label: "Time Clock",
-    description: "Clock in and out. Only shown to users with an hourly pay component."
+    description: "Clock in and out."
   },
   {
     key: "permission.crew_receipts_upload",

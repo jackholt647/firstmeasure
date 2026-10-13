@@ -1,12 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { readOrganizationConnection } from "../connections/storage.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, conflict, notFound } from "../platform/errors.js";
 import { listDocuments, readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { listPayrollLedgerEntries } from "../payroll/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
-import { readResourceGroup } from "../workforce/storage.js";
 
 export const PAYMENT_EXPENSE_ITEM_COLLECTION = "payment_expense_items";
 export const PAYMENT_EXPENSE_OVERRIDE_COLLECTION = "payment_expense_overrides";
@@ -121,260 +119,56 @@ function listProjectedCents(list: JsonObject) {
   return asArray(list.current_items).map(asObject).reduce((sum, item) => sum + dollarsToCents(item.projected_total), 0);
 }
 
-function compensationComponents(profileValue: unknown) {
-  return asArray(asObject(profileValue).components).map(asObject)
-    .filter((component) => cleanText(component.kind));
+/** What a labor line is: hours paid at a rate, salaried time that costs the job but is not paid out, or anything else priced by the piece. */
+function laborLineKind(item: JsonObject) {
+  const kind = cleanText(asObject(item.metadata).compensation_kind).toLowerCase();
+  return kind === "hourly" || kind === "cost_rate" ? kind : "piece_rate";
 }
 
-function salaryPeriodHours(component: JsonObject) {
-  const metadata = asObject(component.metadata);
-  const explicit = Number(metadata.hours_per_period || component.hours_per_period);
-  if (Number.isFinite(explicit) && explicit > 0) return explicit;
-  const period = cleanText(component.period || "week").toLowerCase().replace(/[\s_-]+/g, "");
-  const hours: Record<string, number> = {
-    hour: 1,
-    day: 8,
-    week: 40,
-    weekly: 40,
-    biweek: 80,
-    biweekly: 80,
-    fortnight: 80,
-    semimonth: 86.6667,
-    semimonthly: 86.6667,
-    month: 173.3333,
-    monthly: 173.3333,
-    quarter: 520,
-    quarterly: 520,
-    year: 2080,
-    annual: 2080,
-    annually: 2080
-  };
-  return hours[period] || 40;
-}
-
-function salaryHourlyRate(component: JsonObject) {
-  const explicit = integerCents(component.hourly_equivalent_rate_cents);
-  if (explicit > 0) return explicit;
-  const rate = integerCents(component.rate_cents);
-  const hours = salaryPeriodHours(component);
-  return hours > 0 ? Math.round(rate / hours) : 0;
-}
-
-function itemCompensationKind(item: JsonObject) {
-  const metadata = asObject(item.metadata);
-  const raw = cleanText(metadata.compensation_kind || metadata.pay_type || metadata.estimate_mode || item.compensation_kind).toLowerCase();
-  if (["hourly", "salary", "piece_rate"].includes(raw)) return raw;
-  if (raw === "piece" || raw === "piece-rate") return "piece_rate";
-  return "piece_rate";
-}
-
-function lineProjectedCents(item: JsonObject, fallbackRateCents = 0) {
+function lineProjectedCents(item: JsonObject) {
   const explicitTotal = Number(item.projected_total);
   if (Number.isFinite(explicitTotal) && explicitTotal > 0) return dollarsToCents(explicitTotal);
   const quantity = Number(item.quantity);
   const unitPrice = Number(item.projected_unit_price);
   if (Number.isFinite(quantity) && Number.isFinite(unitPrice) && unitPrice > 0) return dollarsToCents(quantity * unitPrice);
-  if (Number.isFinite(quantity) && fallbackRateCents > 0) return Math.max(0, Math.round(quantity * fallbackRateCents));
   return 0;
 }
 
-function profileMode(profileValue: unknown) {
-  const kinds = new Set(compensationComponents(profileValue).map((component) => cleanText(component.kind)));
-  const hourly = kinds.has("hourly");
-  const salary = kinds.has("salary");
-  const piece = kinds.has("piece_rate");
-  if ((hourly || salary) && piece) return "hybrid";
-  if (piece) return "piece_rate";
-  if (hourly) return "hourly";
-  if (salary) return "salary";
-  return "none";
-}
-
-function resourceCompensationMode(resource: JsonObject) {
-  const kinds = new Set<string>();
-  const collect = (profile: unknown) => compensationComponents(profile).forEach((component) => {
-    const kind = cleanText(component.kind);
-    if (kind) kinds.add(kind);
-  });
-  const collectPlan = (planValue: unknown) => {
-    const plan = asObject(planValue);
-    const type = cleanText(plan.type).toLowerCase();
-    if (plan.default_hourly === true || ["hourly", "hybrid"].includes(type)) kinds.add("hourly");
-    if (plan.default_salary === true || ["salary", "hybrid"].includes(type)) kinds.add("salary");
-    if (plan.default_piece_rate === true || ["piece_rate", "hybrid"].includes(type)) kinds.add("piece_rate");
-  };
-  collect(resource.compensation_profile);
-  collectPlan(resource.compensation_plan);
-  for (const member of asArray(resource.members).map(asObject)) {
-    collect(member.effective_compensation_profile || member.direct_compensation_profile);
-    collectPlan(member.compensation_plan);
-  }
-  return profileMode({ components: [...kinds].map((kind) => ({ kind })) });
-}
-
-function resolvedLaborMode(list: JsonObject, resource: JsonObject) {
-  const compensation = asObject(list.compensation);
-  const configured = cleanText(compensation.resolved_mode || compensation.mode || compensation.default_mode || "crew_default").toLowerCase();
-  if (configured && configured !== "crew_default") return configured;
-  return resourceCompensationMode(resource);
-}
-
 function assignmentReference(list: JsonObject) {
-  const assignment = asObject(list.assignment);
-  const ref = asObject(assignment.work_resource_ref);
-  const id = cleanText(ref.id || assignment.resource_id || assignment.crew_id);
-  return id ? {
-    kind: cleanText(ref.kind || assignment.resource_kind || "resource_group") || "resource_group",
-    id,
-    name: cleanText(ref.name || assignment.resource_name || assignment.crew_name)
-  } : null;
+  const ref = asObject(asObject(list.assignment).work_resource_ref);
+  const id = cleanText(ref.id);
+  return id ? { kind: cleanText(ref.kind) || "resource_group", id, name: cleanText(ref.name) } : null;
 }
 
-async function assignedLaborResource(orgId: string, list: JsonObject) {
+/**
+ * What a labor list is expected to cost: its own priced lines and nothing
+ * else. The lines are written from the assignee's pay sheet
+ * (labor/generation.ts) or typed by hand, and each says what it is. Nothing
+ * here reads how anyone is paid; what people are paid comes from pay rules.
+ */
+export function laborListProjection(list: JsonObject) {
   const ref = assignmentReference(list);
-  if (!ref) return { ref: null, resource: {} as JsonObject };
-  try {
-    const resource = ref.kind === "organization_connection"
-      ? (await readOrganizationConnection(orgId, ref.id))
-      : await readResourceGroup(orgId, ref.id);
-    return { ref, resource: asObject(resource) };
-  } catch {
-    return {
-      ref,
-      resource: {
-        id: ref.id,
-        name: ref.name,
-        compensation_plan: asObject(asObject(list.compensation).resource_plan)
-      }
-    };
-  }
-}
-
-function compatiblePieceRate(item: JsonObject, components: JsonObject[]) {
-  const unit = cleanText(item.unit).toLowerCase();
-  const name = cleanText(item.name).toLowerCase();
-  return components.find((component) => cleanText(component.label).toLowerCase() === name)
-    || components.find((component) => unit && cleanText(component.unit).toLowerCase() === unit)
-    || components[0]
-    || null;
-}
-
-export async function laborListProjection(orgId: string, list: JsonObject) {
-  const { ref, resource } = await assignedLaborResource(orgId, list);
-  const compensation = asObject(list.compensation);
-  const mode = resolvedLaborMode(list, resource);
-  const includeHourly = ["hourly", "hybrid"].includes(mode);
-  const includePiece = ["piece_rate", "hybrid"].includes(mode);
-  const includeSalary = mode !== "none" && (compensation.include_salary_as_hourly === true || cleanText(compensation.salary_expense_mode) === "hourly");
-  const defaultHours = Math.max(0, Number(compensation.estimated_hours || compensation.hours || 0));
-  const memberHours = asObject(compensation.member_hours);
-  const resourceProfile = asObject(resource.compensation_profile);
-  const groupPieces = compensationComponents(resourceProfile).filter((component) => cleanText(component.kind) === "piece_rate");
   const details: JsonObject[] = [];
-
-  if (includePiece) {
-    for (const item of asArray(list.current_items).map(asObject).filter((entry) => itemCompensationKind(entry) === "piece_rate")) {
-      const matched = compatiblePieceRate(item, groupPieces);
-      const amount = lineProjectedCents(item, integerCents(matched?.rate_cents));
-      if (amount <= 0) continue;
-      details.push({
-        id: `piece:${cleanText(item.id)}`,
-        kind: "piece_rate",
-        label: cleanText(item.name || "Piece-rate work"),
-        quantity: Number(item.quantity || 0),
-        unit: cleanText(item.unit),
-        rate_cents: Number.isFinite(Number(item.projected_unit_price))
-          ? dollarsToCents(item.projected_unit_price)
-          : integerCents(matched?.rate_cents),
-        projected_cents: amount,
-        work_resource_ref: ref
-      });
-    }
-  }
-
-  const members = asArray(resource.members).map(asObject).filter((member) => cleanText(member.status || "active").toLowerCase() === "active");
-  for (const member of members) {
-    const user = asObject(member.user);
-    const userId = cleanText(member.user_id || user.id);
-    const name = cleanText(user.name || user.email || userId || "Team member");
-    const hoursValue = Number(memberHours[userId]);
-    const hours = Number.isFinite(hoursValue) && hoursValue >= 0 ? hoursValue : defaultHours;
-    if (hours <= 0) continue;
-    const components = compensationComponents(member.effective_compensation_profile || member.direct_compensation_profile);
-    const hourly = components.find((component) => cleanText(component.kind) === "hourly");
-    if (includeHourly && hourly) {
-      const rate = integerCents(hourly.rate_cents);
-      const amount = Math.max(0, Math.round(rate * hours));
-      if (amount > 0) details.push({
-        id: `hourly:${userId}`,
-        kind: "hourly",
-        label: name,
-        user_id: userId,
-        hours,
-        rate_cents: rate,
-        projected_cents: amount,
-        compensation_source: cleanText(member.compensation_source),
-        work_resource_ref: ref
-      });
-    }
-    const salary = components.find((component) => cleanText(component.kind) === "salary");
-    if (includeSalary && salary) {
-      const rate = salaryHourlyRate(salary);
-      const amount = Math.max(0, Math.round(rate * hours));
-      if (amount > 0) details.push({
-        id: `salary:${userId}`,
-        kind: "salary",
-        label: name,
-        user_id: userId,
-        hours,
-        rate_cents: rate,
-        salary_rate_cents: integerCents(salary.rate_cents),
-        salary_period: cleanText(salary.period || "week"),
-        projected_cents: amount,
-        compensation_source: cleanText(member.compensation_source),
-        work_resource_ref: ref
-      });
-    }
-  }
-
-  // Explicit hourly/salary scope lines remain useful for contractors or people
-  // who are not represented by an internal resource-group membership.
+  const byKind = { hourly_cents: 0, cost_rate_cents: 0, piece_rate_cents: 0 };
   for (const item of asArray(list.current_items).map(asObject)) {
-    const kind = itemCompensationKind(item);
-    if ((kind === "hourly" && !includeHourly) || (kind === "salary" && !includeSalary) || kind === "piece_rate") continue;
-    const itemMetadata = asObject(item.metadata);
-    if (members.length && itemMetadata.include_alongside_members !== true && itemMetadata.standalone_compensation !== true) continue;
     const amount = lineProjectedCents(item);
     if (amount <= 0) continue;
+    const kind = laborLineKind(item);
+    const quantity = Number(item.quantity || 0);
+    byKind[`${kind}_cents`] += amount;
     details.push({
       id: `${kind}:${cleanText(item.id)}`,
       kind,
-      label: cleanText(item.name || (kind === "salary" ? "Salary" : "Hourly labor")),
-      quantity: Number(item.quantity || 0),
-      hours: cleanText(item.unit).toLowerCase().startsWith("hour") ? Number(item.quantity || 0) : undefined,
+      label: cleanText(item.name || "Labor"),
+      quantity,
+      ...(cleanText(item.unit).toLowerCase().startsWith("hour") ? { hours: quantity } : {}),
       unit: cleanText(item.unit),
       rate_cents: Number.isFinite(Number(item.projected_unit_price)) ? dollarsToCents(item.projected_unit_price) : 0,
       projected_cents: amount,
       work_resource_ref: ref
     });
   }
-
-  const byKind = { hourly_cents: 0, salary_cents: 0, piece_rate_cents: 0 };
-  for (const detail of details) {
-    const amount = integerCents(detail.projected_cents);
-    if (cleanText(detail.kind) === "hourly") byKind.hourly_cents += amount;
-    else if (cleanText(detail.kind) === "salary") byKind.salary_cents += amount;
-    else if (cleanText(detail.kind) === "piece_rate") byKind.piece_rate_cents += amount;
-  }
-  return {
-    mode,
-    estimated_hours: defaultHours,
-    include_salary_as_hourly: includeSalary,
-    work_resource_ref: ref,
-    details,
-    ...byKind,
-    projected_cents: byKind.hourly_cents + byKind.salary_cents + byKind.piece_rate_cents
-  };
+  return { work_resource_ref: ref, details, ...byKind, projected_cents: byKind.hourly_cents + byKind.cost_rate_cents + byKind.piece_rate_cents };
 }
 
 function overrideId(projectId: string, targetKey: string) {
@@ -641,7 +435,7 @@ async function projectExpenseTargets(orgId: string, projectId: string, sources?:
   const targets: ExpenseTarget[] = [];
   for (const list of lists) {
     const type = resourceType(list.resource_type);
-    const labor = type === "labor" ? await laborListProjection(orgId, list) : null;
+    const labor = type === "labor" ? laborListProjection(list) : null;
     const projected = labor ? integerCents(labor.projected_cents) : listProjectedCents(list);
     const targetKey = `scope_resource_list:${cleanText(list.id)}`;
     const override = overrideMap.get(targetKey);

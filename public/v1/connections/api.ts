@@ -4,7 +4,6 @@ import { ZodError, z } from "zod";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, PlatformError } from "../platform/errors.js";
 import { workforceConfigurationBundle } from "../workforce/service.js";
-import { migrateLegacyLaborCrews } from "../workforce/legacy_migration.js";
 import { organizationConnectionCreateSchema, organizationConnectionPatchSchema } from "./schemas.js";
 import {
   archiveOrganizationConnection,
@@ -75,7 +74,6 @@ export const registerConnectionsApi: FastifyPluginAsync = async (app) => {
     await requireRead(request, orgId);
     const query = queryObject(request);
     const branchId = cleanText(query.branch_id || query.branchId || "default");
-    await migrateLegacyLaborCrews(orgId, branchId);
     const connections = (await listOrganizationConnections(orgId, query));
     return {
       ok: true,
@@ -100,7 +98,6 @@ export const registerConnectionsApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/organization-connections/:connectionId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requireRead(request, orgId);
-    await migrateLegacyLaborCrews(orgId, cleanText(queryObject(request).branch_id || "default"));
     const connection = (await readOrganizationConnection(orgId, getParam(request.params, "connectionId")));
     const branchId = Array.isArray(connection.branch_ids) && connection.branch_ids[0] ? String(connection.branch_ids[0]) : "default";
     return { ok: true, organization_connection: connection, connection, ...(await settingsBundle(orgId, branchId)) };

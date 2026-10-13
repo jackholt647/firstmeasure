@@ -1,4 +1,3 @@
-import type { JsonObject } from "../compensation/service.js";
 import {
   listOrganizationConnections,
   organizationConnectionAssignableProjection
@@ -11,12 +10,10 @@ import { resolveOrganizationStructure } from './organization-structure.js';
 import { listDocuments, readDocument, upsertDocument } from "../platform/storage.js";
 import {
   assertAssignmentTagsExist,
-  assertCompensationCapabilityScopes,
   listResourceGroups,
-  readCompensationProfile,
   readWorkforceConfiguration,
   resourceGroupAssignableProjection,
-  saveCompensationProfile
+  type JsonObject
 } from "./storage.js";
 import { resolveAccessProfile, listAccessRoles } from "./access.js";
 import { filterAssignableSubjects, normalizeAssignmentPolicy } from "./assignability.js";
@@ -110,7 +107,6 @@ async function hydratedWorkforceUserDocument(orgId: string, documentValue: unkno
     app_access_overrides: appAccessOverrides(data.app_access_overrides),
     access_profile: (({ organization_structure: _private, ...profile }) => profile)(accessProfile),
     app_entitlements: accessProfile.app_entitlements,
-    compensation_profile: (await readCompensationProfile(orgId, "organization_user", cleanText(document.id))),
     revision: Number(document.revision || 0),
     updated_at: cleanText(document.updated_at)
   };
@@ -137,9 +133,6 @@ export async function patchWorkforceUserProfile(orgId: string, userId: string, i
   const document = await readDocument(orgId, "users", userId).catch(() => null);
   if (!document) throw notFound("workforce_user_not_found", "Organization user was not found.");
   const current = asObject(document.data);
-  const compensation = Object.prototype.hasOwnProperty.call(input, "compensation_profile")
-    ? (await assertCompensationCapabilityScopes(orgId, [cleanText(current.branch_id || "default")], input.compensation_profile))
-    : null;
 
   const patch: JsonObject = {};
   if (Object.prototype.hasOwnProperty.call(input, 'scoped_access_assignments')) {
@@ -180,9 +173,6 @@ export async function patchWorkforceUserProfile(orgId: string, userId: string, i
       data: patch,
       metadata: { workforce_profile_updated_at: new Date().toISOString() }
     }, { replace: false });
-  }
-  if (compensation) {
-    (await saveCompensationProfile(orgId, "organization_user", userId, compensation));
   }
   return await hydratedWorkforceUser(orgId, userId);
 }

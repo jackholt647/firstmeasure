@@ -409,7 +409,7 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
   const foreman = await createCrewUser(owner, orgId, suffix, "foreman");
   const supervisor = await createCrewUser(owner, orgId, suffix, "supervisor");
 
-  await t.test("permission-only administrators can edit access but not compensation", async () => {
+  await t.test("permission-only administrators can edit access but not employment terms", async () => {
     const accessAdmin = await createPermissionOnlyAdmin(owner, orgId, suffix);
     const allowed = await accessAdmin.client.request(
       "PATCH",
@@ -426,14 +426,14 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
     assert.equal(allowed.user.permission_overrides["crew.receipts.upload"], false);
     assert.equal(allowed.user.app_access_overrides["portal.crew_receipts"], "hide");
 
-    const compensationMutation = await accessAdmin.client.raw(
+    const termsMutation = await accessAdmin.client.raw(
       "PATCH",
       `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`,
-      { compensation_profile: { components: [] } }
+      { worker_classification: "independent_contractor" }
     );
-    assert.equal(compensationMutation.statusCode, 403);
-    assert.equal(compensationMutation.data.error, "workforce_profile_fields_forbidden");
-    assert.deepEqual(compensationMutation.data.details.forbidden_fields, ["compensation_profile"]);
+    assert.equal(termsMutation.statusCode, 403);
+    assert.equal(termsMutation.data.error, "workforce_profile_fields_forbidden");
+    assert.deepEqual(termsMutation.data.details.forbidden_fields, ["worker_classification"]);
 
     // Restore the receipt/app defaults used by the remaining Crew workflow
     // tests. A full administrator retains authority over every profile field.
@@ -674,28 +674,28 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
   });
 
   await t.test("time clock enforces one active shift and valid break transitions", async () => {
-    // The clock is compensation-derived: without an hourly component the
-    // member cannot clock in at all.
-    const notApplicable = await member.client.raw("POST", `${crewBase}/me/time-clock/actions`, { action: "clock_in" });
-    assert.equal(notApplicable.statusCode, 403);
-    assert.equal(notApplicable.data.error, "time_clock_not_applicable");
-    const inapplicableClock = await member.client.request("GET", `${crewBase}/me/time-clock`);
-    assert.equal(inapplicableClock.applicable, false);
-    const noCompSession = await member.client.request("GET", "/v1/platform/auth/session");
-    assert.equal(entitlement(noCompSession.access_profile, "portal.crew_overview").params.time_clock_enabled, false);
-    const memberProfile = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`);
+    // Who may clock is the time clock permission and nothing about pay: nobody here has any pay set up.
+    const withoutPermission = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`);
     await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`, {
-      expected_revision: memberProfile.user.revision,
-      compensation_profile: { components: [{ kind: "hourly", rate_cents: 2_500 }] }
+      expected_revision: withoutPermission.user.revision,
+      permission_overrides: { ...withoutPermission.user.permission_overrides, "crew.time_clock.use": false }
+    });
+    const denied = await member.client.raw("POST", `${crewBase}/me/time-clock/actions`, { action: "clock_in" });
+    assert.equal(denied.statusCode, 403);
+    assert.notEqual(denied.data.error, "time_clock_not_applicable");
+    const deniedSession = await member.client.request("GET", "/v1/platform/auth/session");
+    assert.equal(entitlement(deniedSession.access_profile, "portal.crew_overview").params.time_clock_enabled, false);
+    const withPermission = await owner.request("GET", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`);
+    await owner.request("PATCH", `/v1/workforce/organizations/${orgId}/users/${member.userId}/profile`, {
+      expected_revision: withPermission.user.revision,
+      permission_overrides: withoutPermission.user.permission_overrides
     });
 
     const initial = await member.client.request("GET", `${crewBase}/me/time-clock`);
-    assert.equal(initial.applicable, true);
+    assert.equal(Object.hasOwn(initial, "applicable"), false);
     assert.equal(initial.time_clock.active, false);
-    // The entitlement param follows compensation too, so the clock UI only
-    // renders for hourly workers.
-    const hourlySession = await member.client.request("GET", "/v1/platform/auth/session");
-    assert.equal(entitlement(hourlySession.access_profile, "portal.crew_overview").params.time_clock_enabled, true);
+    const allowedSession = await member.client.request("GET", "/v1/platform/auth/session");
+    assert.equal(entitlement(allowedSession.access_profile, "portal.crew_overview").params.time_clock_enabled, true);
 
     const breakBeforeShift = await member.client.raw("POST", `${crewBase}/me/time-clock/actions`, { action: "break_start" });
     assert.equal(breakBeforeShift.statusCode, 409);

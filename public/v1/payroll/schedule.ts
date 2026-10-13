@@ -93,28 +93,63 @@ export function payrollPayDates(schedule: unknown, fromValue: string, throughVal
   if (!from || !through || from > through) return [];
   const recurrence = scheduleRecurrence(schedule);
   const frequency = cleanText(recurrence.frequency);
+  const numbers = (value: unknown) => (Array.isArray(value) ? value : []).map((entry) => Math.trunc(Number(entry))).filter(Number.isFinite);
+  const anchor = parseDate(recurrence.anchor_date);
+  const months = new Set(numbers(recurrence.months));
+  const interval = Math.max(1, Math.trunc(Number(recurrence.interval || 0)) || (frequency === "biweekly" ? 2 : 1));
+  const adjust = cleanText(recurrence.adjust);
+  // A weekend pay day can move a few days, so look slightly past each end and trim afterwards.
+  const start = addDays(from, -3), end = addDays(through, 3);
   const dates = new Set<string>();
+  const add = (date: Date) => {
+    if (months.size && !months.has(date.getUTCMonth() + 1)) return;
+    const weekday = date.getUTCDay();
+    const moved = weekday !== 0 && weekday !== 6 ? date
+      : adjust === "previous_weekday" ? addDays(date, weekday === 6 ? -1 : -2)
+        : adjust === "next_weekday" ? addDays(date, weekday === 6 ? 2 : 1) : date;
+    if (moved >= from && moved <= through) dates.add(dateKey(moved));
+  };
 
-  if (frequency === "weekly" || frequency === "biweekly") {
-    const weekday = Math.max(0, Math.min(6, Math.floor(Number(recurrence.weekday || 0))));
-    let cursor = addDays(from, (weekday - from.getUTCDay() + 7) % 7);
-    const anchor = parseDate(recurrence.anchor_date) || cursor;
-    while (cursor <= through) {
-      if (frequency === "weekly" || Math.abs(daysBetween(anchor, cursor)) % 14 === 0) dates.add(dateKey(cursor));
-      cursor = addDays(cursor, 7);
+  if (frequency === "daily") {
+    for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+      if (interval === 1 || (anchor && ((daysBetween(anchor, cursor) % interval) + interval) % interval === 0)) add(cursor);
+    }
+  } else if (frequency === "weekly" || frequency === "biweekly") {
+    const weekdays = new Set(numbers(recurrence.weekdays).length ? numbers(recurrence.weekdays) : [Math.max(0, Math.min(6, Math.floor(Number(recurrence.weekday || 0))))]);
+    const weekOf = (date: Date) => addDays(date, -date.getUTCDay());
+    const anchorWeek = anchor ? weekOf(anchor) : null;
+    for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+      if (!weekdays.has(cursor.getUTCDay())) continue;
+      const weeks = anchorWeek ? Math.round(daysBetween(anchorWeek, weekOf(cursor)) / 7) : 0;
+      if (interval === 1 || !anchorWeek || ((weeks % interval) + interval) % interval === 0) add(cursor);
     }
   } else {
-    const monthCursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1));
-    const finalMonth = new Date(Date.UTC(through.getUTCFullYear(), through.getUTCMonth(), 1));
-    while (monthCursor <= finalMonth) {
-      const days = frequency === "semi_monthly"
-        ? [...new Set((Array.isArray(recurrence.days) ? recurrence.days : [1, 15]).map((day) => Number(day)).filter(Number.isFinite))]
-        : [Number(recurrence.day || 1)];
-      for (const day of days) {
-        const candidate = monthDay(monthCursor.getUTCFullYear(), monthCursor.getUTCMonth(), day);
-        if (candidate >= from && candidate <= through) dates.add(dateKey(candidate));
+    const step = interval * (frequency === "quarterly" ? 3 : frequency === "yearly" ? 12 : 1);
+    const anchorMonth = anchor ? anchor.getUTCFullYear() * 12 + anchor.getUTCMonth() : 0;
+    const positions = (Array.isArray(recurrence.nth_weekdays) ? recurrence.nth_weekdays : []).map((entry) => asObject(entry))
+      .map((entry) => ({ nth: Math.trunc(Number(entry.nth)), weekday: Math.trunc(Number(entry.weekday)) })).filter((entry) => entry.nth && entry.weekday >= 0 && entry.weekday <= 6);
+    const listed = numbers(recurrence.days).length ? numbers(recurrence.days) : recurrence.day !== undefined ? [Math.trunc(Number(recurrence.day))] : [];
+    const days = [...new Set(listed.length || positions.length ? listed : frequency === "semi_monthly" ? [1, 15] : [1])].filter((day) => day !== 0);
+    const monthCursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+    const finalMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+    for (; monthCursor <= finalMonth; monthCursor.setUTCMonth(monthCursor.getUTCMonth() + 1)) {
+      const year = monthCursor.getUTCFullYear(), month = monthCursor.getUTCMonth();
+      if (frequency === "yearly") {
+        // Named months decide which months of a paying year; otherwise it is the anchor's month, or January.
+        const years = year - (anchor ? anchor.getUTCFullYear() : 0);
+        if (((years % interval) + interval) % interval !== 0 || (!months.size && month !== (anchor ? anchor.getUTCMonth() : 0))) continue;
+      } else {
+        const index = year * 12 + month - anchorMonth;
+        if (step > 1 && ((index % step) + step) % step !== 0) continue;
       }
-      monthCursor.setUTCMonth(monthCursor.getUTCMonth() + 1);
+      const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      // A day past the end of a short month pays on its last day; a negative day counts back from the end.
+      for (const day of days) add(monthDay(year, month, day > 0 ? day : last + 1 + day));
+      for (const position of positions) {
+        const matches = Array.from({ length: last }, (_value, offset) => new Date(Date.UTC(year, month, offset + 1))).filter((date) => date.getUTCDay() === position.weekday);
+        const chosen = position.nth > 0 ? matches[position.nth - 1] : matches[matches.length + position.nth];
+        if (chosen) add(chosen);
+      }
     }
   }
 
@@ -153,6 +188,8 @@ export function payrollOccurrence(schedule: unknown, payDateValue: string) {
   const payDate = parseDate(payDateValue);
   const cutoff = cutoffDate(schedule, payDateValue);
   if (!payDate || !cutoff) return null;
+  // Only a day the schedule actually pays on is an occurrence of it.
+  if (!payrollPayDates(schedule, dateKey(payDate), dateKey(payDate)).length) return null;
   const previousPayDate = adjacentPayDate(schedule, payDateValue, -1);
   const previousCutoff = previousPayDate ? cutoffDate(schedule, previousPayDate) : null;
   const periodStart = previousCutoff ? addDays(previousCutoff, 1) : addDays(cutoff, -31);

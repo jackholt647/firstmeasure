@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { compensationProfileInputSchema } from "../compensation/schemas.js";
 import { jsonObjectSchema, stableIdSchema } from "../workforce/schemas.js";
 
 const contactSchema = jsonObjectSchema.extend({
@@ -30,8 +29,6 @@ export const organizationConnectionCreateSchema = jsonObjectSchema.extend({
   project_types: z.array(stableIdSchema).optional(),
   linked_organization_id: stableIdSchema.nullable().optional(),
   link_status: z.enum(["unlinked", "pending", "linked"]).optional(),
-  compensation_profile: compensationProfileInputSchema.optional(),
-  compensation_plan: compensationProfileInputSchema.optional(),
   metadata: jsonObjectSchema.optional()
 }).passthrough();
 

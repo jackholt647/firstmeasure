@@ -4,24 +4,45 @@ export const jsonObjectSchema = z.object({}).passthrough();
 export const payrollIdSchema = z.string().trim().min(1).max(180);
 export const isoDateSchema = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date.");
 
+/**
+ * When a schedule pays, as data. `frequency` is the unit that repeats and
+ * `interval` how many of them apart: every 2 weeks, every 3 months. Within it,
+ * pay days are picked by weekday (`weekday` or `weekdays`), by day of the month
+ * (`day` or `days`; a negative day counts back from the end, so -1 is the last
+ * day), or by position (`nth_weekdays`: the 3rd Thursday is `{ nth: 3,
+ * weekday: 4 }`, the last Friday `{ nth: -1, weekday: 5 }`). `months` limits
+ * the months it pays in. `adjust` moves a pay day that lands on a weekend.
+ * `biweekly` and `semi_monthly` are the common cases by name: every 2 weeks,
+ * and monthly on two days.
+ */
 export const payrollRecurrenceSchema = jsonObjectSchema.extend({
-  frequency: z.enum(["weekly", "biweekly", "semi_monthly", "monthly"]),
+  frequency: z.enum(["daily", "weekly", "biweekly", "semi_monthly", "monthly", "quarterly", "yearly"]),
+  interval: z.number().int().min(1).max(52).optional(),
   weekday: z.number().int().min(0).max(6).optional(),
-  days: z.array(z.number().int().min(1).max(31)).min(1).max(4).optional(),
-  day: z.number().int().min(1).max(31).optional(),
+  weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+  days: z.array(z.number().int().min(-31).max(31).refine((day) => day !== 0, "Day 0 does not exist.")).min(1).max(31).optional(),
+  day: z.number().int().min(-31).max(31).refine((day) => day !== 0, "Day 0 does not exist.").optional(),
+  nth_weekdays: z.array(z.object({ nth: z.number().int().min(-5).max(5).refine((nth) => nth !== 0, "Use 1 to 5, or -1 for the last."), weekday: z.number().int().min(0).max(6) }).strict()).min(1).max(12).optional(),
+  months: z.array(z.number().int().min(1).max(12)).min(1).max(12).optional(),
+  adjust: z.enum(["none", "previous_weekday", "next_weekday"]).optional(),
   anchor_date: isoDateSchema.optional()
 }).superRefine((value, context) => {
-  if (["weekly", "biweekly"].includes(value.frequency) && value.weekday === undefined) {
+  const weekly = ["weekly", "biweekly"].includes(value.frequency);
+  const monthly = ["semi_monthly", "monthly", "quarterly", "yearly"].includes(value.frequency);
+  if (weekly && value.weekday === undefined && !value.weekdays?.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekday"], message: "Weekly schedules require a weekday." });
   }
-  if (value.frequency === "biweekly" && !value.anchor_date) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["anchor_date"], message: "Biweekly schedules require an anchor date." });
+  if ((value.frequency === "biweekly" || (value.interval || 1) > 1) && !value.anchor_date) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["anchor_date"], message: "A schedule that skips periods needs an anchor date to count from." });
   }
   if (value.frequency === "semi_monthly" && !value.days?.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["days"], message: "Semi-monthly schedules require pay days." });
   }
-  if (value.frequency === "monthly" && value.day === undefined) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["day"], message: "Monthly schedules require a pay day." });
+  if (monthly && value.frequency !== "semi_monthly" && value.day === undefined && !value.days?.length && !value.nth_weekdays?.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["day"], message: "Choose the day of the month, or a position such as the 3rd Thursday." });
+  }
+  if (!monthly && value.nth_weekdays?.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["nth_weekdays"], message: "A position such as the 3rd Thursday belongs to a monthly, quarterly or yearly schedule." });
   }
 });
 

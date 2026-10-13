@@ -3,6 +3,7 @@ import { badRequest, conflict, notFound } from "../platform/errors.js";
 import { ASSIGNEE_TYPES, requireAssignee, type Assignee } from "../labor/assignees.js";
 import { normalizeSelection } from "../platform/publication/select.js";
 import { contentHash as hashJson } from "../platform/publication/validation.js";
+import { ensureSqlColumn } from "../platform/sql_store.js";
 import { getPayrollDatabase, nowIso, type JsonObject } from "./storage.js";
 
 /**
@@ -110,9 +111,43 @@ export const paySetupEntrySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("override"), rule_id: id, params: params.optional(), replacement_rule_id: id.optional(), ...span }).strict()
 ]);
 const payeeSchema = z.object({ type: z.enum(ASSIGNEE_TYPES), id: z.string().trim().min(1).max(200) }).strict();
+/**
+ * How a group's earnings reach people, from a date. `as_one` pays the group as
+ * one payee. `split` pays its members instead: `equal` shares among the active
+ * members, or fixed `shares` by user id (any positive weights). Who shared an
+ * earning is fixed when it is first worked out, so a later change of members
+ * or of this setting never moves pay that was already earned.
+ */
+export const payDistributionSchema = z.object({
+  effective_from: day,
+  mode: z.enum(["as_one", "split"]),
+  method: z.enum(["equal", "shares"]).optional(),
+  shares: z.record(z.string().min(1).max(200), z.number().positive().finite()).optional()
+}).strict().superRefine((value, context) => {
+  if (value.mode === "split" && value.method === "shares" && !Object.keys(value.shares || {}).length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["shares"], message: "Name each member's share." });
+  if (value.mode === "as_one" && (value.method || value.shares)) context.addIssue({ code: z.ZodIssueCode.custom, path: ["method"], message: "A group paid as one has nothing to split." });
+});
+export type PayDistribution = z.infer<typeof payDistributionSchema>;
 export const paySetupSaveSchema = z.object({
   payee: payeeSchema,
   entries: z.array(paySetupEntrySchema).max(200),
+  distribution: z.array(payDistributionSchema).max(50).optional(),
+  expected_revision: z.number().int().nonnegative().optional()
+}).strict();
+
+/**
+ * What a default is attached to. A default is a pay setup shared by every
+ * payee the subject covers, underneath each payee's own setup:
+ * `organization` (everyone), `assignee_kind` (all users, all groups of users,
+ * or all outside companies), `worker_classification` (users who are employees
+ * or independent contractors) and `group_kind` (groups of one kind).
+ * Later in that order wins over earlier, and a payee's own entries win over all.
+ */
+export const PAY_DEFAULT_SUBJECTS = ["organization", "assignee_kind", "worker_classification", "group_kind"] as const;
+export const payDefaultSaveSchema = z.object({
+  subject: z.object({ type: z.enum(PAY_DEFAULT_SUBJECTS), id: z.string().trim().min(1).max(200) }).strict(),
+  entries: z.array(paySetupEntrySchema).max(200),
+  distribution: z.array(payDistributionSchema).max(50).optional(),
   expected_revision: z.number().int().nonnegative().optional()
 }).strict();
 
@@ -122,7 +157,11 @@ export type PayRule = { id: string; name: string; description: string; status: "
 export type PayPlanVersion = Stamp & { effective_from: string; rules: z.infer<typeof ruleRef>[] };
 export type PayPlan = { id: string; name: string; description: string; status: "active" | "archived"; versions: PayPlanVersion[]; revision: number };
 export type PaySetupEntry = z.infer<typeof paySetupEntrySchema> & Stamp & { id: string };
-export type PaySetup = { payee: Assignee; entries: PaySetupEntry[]; revision: number };
+export type PaySetup = { payee: Assignee; entries: PaySetupEntry[]; distribution?: PayDistribution[]; revision: number };
+export type PayDefaultSubject = { type: typeof PAY_DEFAULT_SUBJECTS[number]; id: string };
+export type PayDefault = { subject: PayDefaultSubject; entries: PaySetupEntry[]; distribution?: PayDistribution[]; revision: number };
+/** One layer of a payee's pay: a default it inherits, or its own setup (`source` is null). Lower layers come first. */
+export type PayLayer = { source: PayDefaultSubject | null; entries: PaySetupEntry[]; distribution?: PayDistribution[] };
 export type Actor = { userId: string };
 
 const ensured = new WeakMap<object, Promise<void>>();
@@ -151,6 +190,7 @@ export function ensurePayRuleSchema() {
         );
         CREATE INDEX IF NOT EXISTS pay_rule_evidence_unit_idx ON pay_rule_evidence (organization_id, payee_type, payee_id, rule_id, unit_key);
       `);
+      await ensureSqlColumn(db, "pay_rule_units", "allocation_json", "TEXT NOT NULL DEFAULT ''");
     })();
     ensured.set(db, ready);
     ready.catch(() => ensured.delete(db));
@@ -158,7 +198,7 @@ export function ensurePayRuleSchema() {
   return ready;
 }
 
-type Kind = "rule" | "plan" | "setup";
+type Kind = "rule" | "plan" | "setup" | "default";
 async function readRow<T>(orgId: string, kind: Kind, key: string): Promise<(T & { revision: number }) | null> {
   await ensurePayRuleSchema();
   const row = await getPayrollDatabase().prepare("SELECT data_json, revision FROM pay_definitions WHERE organization_id=? AND kind=? AND id=?").get(orgId, kind, key);
@@ -253,13 +293,13 @@ export async function archivePayPlan(orgId: string, input: unknown) {
   return archive(orgId, "plan", parsed.id, await readPayPlan(orgId, parsed.id), parsed.expected_revision);
 }
 
-/** Checks a setup against the rules and plans that exist and stamps who entered each new or changed entry, and when. */
-export async function normalizePaySetup(orgId: string, input: unknown, actor: Actor, current: PaySetup): Promise<PaySetup> {
-  const parsed = paySetupSaveSchema.parse(input);
+type EntryInput = z.infer<typeof paySetupEntrySchema>;
+/** Checks entries against the rules and plans that exist and stamps who entered each new or changed one, and when. */
+async function stampEntries(orgId: string, input: EntryInput[], actor: Actor, current: PaySetupEntry[]): Promise<PaySetupEntry[]> {
   const rules = new Set((await listPayRules(orgId)).map((rule) => rule.id));
   const plans = new Set((await listPayPlans(orgId)).map((plan) => plan.id));
-  const previous = new Map(current.entries.map((entry) => [entry.id, entry]));
-  const entries = parsed.entries.map((entry) => {
+  const previous = new Map(current.map((entry) => [entry.id, entry]));
+  const entries = input.map((entry) => {
     if (entry.effective_through && entry.effective_through < entry.effective_from) throw badRequest("pay_setup_span", "An entry cannot end before it starts.");
     if (entry.kind === "plan" && !plans.has(entry.plan_id)) throw badRequest("pay_plan_unknown", `Pay plan ${entry.plan_id} does not exist.`);
     if (entry.kind !== "plan" && !rules.has(entry.rule_id)) throw badRequest("pay_rule_unknown", `Pay rule ${entry.rule_id} does not exist.`);
@@ -270,50 +310,119 @@ export async function normalizePaySetup(orgId: string, input: unknown, actor: Ac
     return { ...entry, id: entryId, entered_at: kept?.entered_at || nowIso(), entered_by: kept?.entered_by || actor.userId } as PaySetupEntry;
   });
   if (new Set(entries.map((entry) => entry.id)).size !== entries.length) throw badRequest("pay_setup_duplicate", "The same entry appears twice.");
-  return { payee: parsed.payee, entries, revision: current.revision };
+  return entries;
+}
+function checkDistribution(distribution: PayDistribution[] | undefined, groups: boolean) {
+  if (!distribution?.length) return undefined;
+  if (!groups) throw badRequest("pay_distribution_not_group", "Only a group of users can be paid as one or split among its members.");
+  if (new Set(distribution.map((entry) => entry.effective_from)).size !== distribution.length) throw badRequest("pay_distribution_duplicate", "Two distribution settings start on the same day.");
+  return [...distribution].sort((a, b) => a.effective_from.localeCompare(b.effective_from));
+}
+/** Checks a setup against the rules and plans that exist and stamps who entered each new or changed entry, and when. */
+export async function normalizePaySetup(orgId: string, input: unknown, actor: Actor, current: PaySetup): Promise<PaySetup> {
+  const parsed = paySetupSaveSchema.parse(input);
+  const distribution = checkDistribution(parsed.distribution, parsed.payee.type === "resource_group");
+  return { payee: parsed.payee, entries: await stampEntries(orgId, parsed.entries, actor, current.entries), ...(distribution ? { distribution } : {}), revision: current.revision };
 }
 export async function savePaySetup(orgId: string, input: unknown, actor: Actor): Promise<PaySetup> {
   const parsed = paySetupSaveSchema.parse(input);
   await requireAssignee(orgId, parsed.payee);
   const current = await readPaySetup(orgId, parsed.payee);
   const next = await normalizePaySetup(orgId, parsed, actor, current);
-  const data = { payee: next.payee, entries: next.entries };
+  const data = { payee: next.payee, entries: next.entries, ...(next.distribution ? { distribution: next.distribution } : {}) };
   return { ...data, revision: await writeRow(orgId, "setup", payeeKey(parsed.payee), data, parsed.expected_revision, current.revision || null) };
 }
 
+const defaultKey = (subject: PayDefaultSubject) => `${subject.type}:${subject.id}`;
+export const listPayDefaults = (orgId: string) => listRows<Omit<PayDefault, "revision">>(orgId, "default") as Promise<PayDefault[]>;
+export async function readPayDefault(orgId: string, subject: PayDefaultSubject): Promise<PayDefault> {
+  return (await readRow<Omit<PayDefault, "revision">>(orgId, "default", defaultKey(subject)) as PayDefault | null) || { subject, entries: [], revision: 0 };
+}
+/** Saves the pay every payee a subject covers starts from. Saving no entries and no distribution clears it. */
+export async function savePayDefault(orgId: string, input: unknown, actor: Actor): Promise<PayDefault> {
+  const parsed = payDefaultSaveSchema.parse(input);
+  const { type, id: subjectId } = parsed.subject;
+  if (type === "organization" && subjectId !== orgId) throw badRequest("pay_default_subject", "The organization default belongs to this organization.");
+  if (type === "assignee_kind" && !(ASSIGNEE_TYPES as readonly string[]).includes(subjectId)) throw badRequest("pay_default_subject", "Choose users, groups of users or outside companies.");
+  if (type === "worker_classification" && !["employee", "independent_contractor"].includes(subjectId)) throw badRequest("pay_default_subject", "Choose employees or independent contractors.");
+  const groups = type === "group_kind" || (type === "assignee_kind" && subjectId === "resource_group") || type === "organization";
+  const distribution = checkDistribution(parsed.distribution, groups);
+  const current = await readPayDefault(orgId, parsed.subject);
+  const data = { subject: parsed.subject, entries: await stampEntries(orgId, parsed.entries, actor, current.entries), ...(distribution ? { distribution } : {}) };
+  return { ...data, revision: await writeRow(orgId, "default", defaultKey(parsed.subject), data, parsed.expected_revision, current.revision || null) };
+}
+
+/** The default subjects that cover a payee, lowest first. Reads the payee's own record; a payee that no longer exists is covered by nothing. */
+export async function payDefaultSubjectsFor(orgId: string, payee: Assignee): Promise<PayDefaultSubject[]> {
+  const { readAssignee } = await import("../labor/assignees.js");
+  const found = await readAssignee(orgId, payee);
+  if (!found) return [];
+  const subjects: PayDefaultSubject[] = [{ type: "organization", id: orgId }, { type: "assignee_kind", id: payee.type }];
+  if (payee.type === "organization_user") subjects.push({ type: "worker_classification", id: String(found.record.worker_classification || "") === "independent_contractor" ? "independent_contractor" : "employee" });
+  if (payee.type === "resource_group" && String(found.record.kind_id || "").trim()) subjects.push({ type: "group_kind", id: String(found.record.kind_id).trim() });
+  return subjects;
+}
+/** A payee's pay, layer by layer: every default that covers them, then their own setup. `own` replaces the stored setup, for previews. */
+export async function payLayersFor(orgId: string, payee: Assignee, own?: Pick<PaySetup, "entries" | "distribution">): Promise<PayLayer[]> {
+  const defaults = new Map((await listPayDefaults(orgId)).map((entry) => [defaultKey(entry.subject), entry]));
+  const layers: PayLayer[] = [];
+  for (const subject of defaults.size ? await payDefaultSubjectsFor(orgId, payee) : []) {
+    const found = defaults.get(defaultKey(subject));
+    if (found && (found.entries.length || found.distribution?.length)) layers.push({ source: subject, entries: found.entries, ...(found.distribution ? { distribution: found.distribution } : {}) });
+  }
+  const setup = own || await readPaySetup(orgId, payee);
+  layers.push({ source: null, entries: setup.entries as PaySetupEntry[], ...(setup.distribution ? { distribution: setup.distribution } : {}) });
+  return layers;
+}
+/** How a group's earnings on one day reach people: the highest layer that says, else paid as one. */
+export function distributionOn(layers: Pick<PayLayer, "distribution">[], date: string): PayDistribution | null {
+  for (let index = layers.length - 1; index >= 0; index--) {
+    const found = versionOn(layers[index]!.distribution || [], date);
+    if (found) return found;
+  }
+  return null;
+}
+
 export type RuleSlot = { rule_id: string; definition_rule_id: string; params: Record<string, number | boolean | string> };
+type Entries = Pick<PaySetup, "entries">;
+const asLayers = (value: Entries | Entries[]) => Array.isArray(value) ? value : [value];
 const inSpan = (entry: { effective_from: string; effective_through?: string }, date: string) => entry.effective_from <= date && (!entry.effective_through || date <= entry.effective_through);
 /**
  * The rules that apply to a payee on one day. Plans and added rules bring
  * rules in, removals take them out, and overrides change parameters or swap
  * the formula. A rule keeps its own id as its slot even when its formula is
  * swapped, so what it earned before and after the swap is compared, not
- * paid twice. Later entries win over earlier ones of the same kind.
+ * paid twice. Layers are applied lowest first, so a payee's own entries can
+ * add to, change or remove what a default brought; within a layer later
+ * entries win over earlier ones of the same kind.
  */
-export function effectiveRuleSlots(setup: Pick<PaySetup, "entries">, plans: Map<string, PayPlan>, date: string): Map<string, RuleSlot> {
-  const active = setup.entries.filter((entry) => inSpan(entry, date)).sort((a, b) => a.effective_from.localeCompare(b.effective_from) || a.entered_at.localeCompare(b.entered_at));
+export function effectiveRuleSlots(setup: Entries | Entries[], plans: Map<string, PayPlan>, date: string): Map<string, RuleSlot> {
   const slots = new Map<string, RuleSlot>();
-  for (const entry of active) if (entry.kind === "plan") {
-    const version = versionOn(plans.get(entry.plan_id)?.versions || [], date);
-    for (const ref of version?.rules || []) slots.set(ref.rule_id, { rule_id: ref.rule_id, definition_rule_id: ref.rule_id, params: { ...ref.params } });
+  for (const layer of asLayers(setup)) {
+    const active = layer.entries.filter((entry) => inSpan(entry, date)).sort((a, b) => a.effective_from.localeCompare(b.effective_from) || a.entered_at.localeCompare(b.entered_at));
+    for (const entry of active) if (entry.kind === "plan") {
+      const version = versionOn(plans.get(entry.plan_id)?.versions || [], date);
+      for (const ref of version?.rules || []) slots.set(ref.rule_id, { rule_id: ref.rule_id, definition_rule_id: ref.rule_id, params: { ...ref.params } });
+    }
+    for (const entry of active) if (entry.kind === "add") slots.set(entry.rule_id, { rule_id: entry.rule_id, definition_rule_id: entry.rule_id, params: { ...entry.params } });
+    for (const entry of active) if (entry.kind === "override") {
+      const slot = slots.get(entry.rule_id);
+      if (slot) slots.set(entry.rule_id, { ...slot, definition_rule_id: entry.replacement_rule_id || slot.definition_rule_id, params: { ...slot.params, ...entry.params } });
+    }
+    for (const entry of active) if (entry.kind === "remove") slots.delete(entry.rule_id);
   }
-  for (const entry of active) if (entry.kind === "add") slots.set(entry.rule_id, { rule_id: entry.rule_id, definition_rule_id: entry.rule_id, params: { ...entry.params } });
-  for (const entry of active) if (entry.kind === "override") {
-    const slot = slots.get(entry.rule_id);
-    if (slot) slots.set(entry.rule_id, { ...slot, definition_rule_id: entry.replacement_rule_id || slot.definition_rule_id, params: { ...slot.params, ...entry.params } });
-  }
-  for (const entry of active) if (entry.kind === "remove") slots.delete(entry.rule_id);
   return slots;
 }
-/** Every rule a setup could ever bring in, at any date: the slots a refresh has to look at. */
-export function candidateRuleSlots(setup: Pick<PaySetup, "entries">, plans: Map<string, PayPlan>) {
+/** Every rule a payee's layers could ever bring in, at any date: the slots a refresh has to look at. */
+export function candidateRuleSlots(setup: Entries | Entries[], plans: Map<string, PayPlan>) {
+  const entries = asLayers(setup).flatMap((layer) => layer.entries);
   const slots = new Map<string, Set<string>>();
   const add = (slot: string, definition = slot) => slots.set(slot, (slots.get(slot) || new Set<string>()).add(definition));
-  for (const entry of setup.entries) {
+  for (const entry of entries) {
     if (entry.kind === "plan") for (const version of plans.get(entry.plan_id)?.versions || []) for (const ref of version.rules) add(ref.rule_id);
     if (entry.kind === "add") add(entry.rule_id);
   }
-  for (const entry of setup.entries) if (entry.kind === "override" && entry.replacement_rule_id && slots.has(entry.rule_id)) add(entry.rule_id, entry.replacement_rule_id);
+  for (const entry of entries) if (entry.kind === "override" && entry.replacement_rule_id && slots.has(entry.rule_id)) add(entry.rule_id, entry.replacement_rule_id);
   return slots;
 }
 /** Parameters as the formula sees them: the rule's defaults under what the plan and the payee set. */
