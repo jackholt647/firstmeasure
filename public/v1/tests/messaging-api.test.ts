@@ -1995,6 +1995,72 @@ test("10DLC mock campaign submit records qualification failure and still calls T
   }
 });
 
+test("verified business automatically submits the campaign after one registration request", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, true);
+  let campaignPosts = 0;
+  let server: Server | null = null;
+  const serverUrl = await new Promise<string>((resolve) => {
+    server = createServer((request, response) => {
+      response.setHeader("content-type", "application/json");
+      if (request.method === "GET" && request.url === "/10dlc/brand/B_AUTO") {
+        response.end(JSON.stringify({ brandId: "B_AUTO", identityStatus: "VERIFIED", status: "OK" }));
+      } else if (request.method === "GET" && request.url === "/10dlc/campaignBuilder/brand/B_AUTO/usecase/MIXED") {
+        response.statusCode = 400;
+        response.end(JSON.stringify({ errors: [{ detail: "Qualification pending." }] }));
+      } else if (request.method === "POST" && request.url === "/10dlc/campaignBuilder") {
+        campaignPosts++;
+        response.end(JSON.stringify({ campaignId: "C_AUTO", tcrCampaignId: "TCR_AUTO", campaignStatus: "PENDING" }));
+      } else {
+        response.statusCode = 404;
+        response.end(JSON.stringify({ error: "not_found" }));
+      }
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const address = server?.address();
+      assert.ok(address && typeof address === "object");
+      resolve(`http://127.0.0.1:${address.port}`);
+    });
+  });
+  const { env } = await import("../src/config/env.js");
+  const previousKey = env.telnyxApiKey;
+  const previousBaseUrl = env.telnyxBaseUrl;
+  (env as any).telnyxApiKey = "KEY_TEST";
+  (env as any).telnyxBaseUrl = serverUrl;
+  try {
+    const created = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles`, {
+      brand: { displayName: "Mock Auto Brand", companyName: "Mock Auto Brand LLC", entityType: "PRIVATE_PROFIT", mock: true },
+      campaign: {
+        autoSubmitCampaign: true, brandId: "B_AUTO", usecase: "MIXED", enabledFeatures: ["crm_conversations", "operations"],
+        description: "Mock Auto Brand sends customer service and appointment update texts after consent.",
+        messageFlow: "Customers agree to receive updates when they speak to our staff before any message is sent.",
+        sample1: "Mock Auto Brand: Thanks for contacting us. Reply STOP to opt out.",
+        sample2: "Mock Auto Brand: Your appointment is tomorrow. Reply STOP to opt out.",
+        subscriberOptin: true, subscriberOptout: true, subscriberHelp: true,
+        optinKeywords: "START", optoutKeywords: "STOP", helpKeywords: "HELP",
+        optinMessage: "Mock Auto Brand: You are opted in. Message frequency varies. Msg & data rates may apply. Reply HELP for help or STOP to opt out.",
+        optoutMessage: "Mock Auto Brand: You are unsubscribed and will receive no more messages. Reply START to resubscribe.",
+        helpMessage: "Mock Auto Brand: Help at support@example.test. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.",
+        privacyPolicyLink: "https://example.test/privacy", termsAndConditionsLink: "https://example.test/terms", termsAndConditions: true
+      }
+    });
+    const { ensureMessagingOrganization, readSmsComplianceProfile, updateSmsComplianceProfile } = await import("../messaging/storage.js");
+    const messagingOrganization = await ensureMessagingOrganization(orgId);
+    const stored = await readSmsComplianceProfile(messagingOrganization.id, created.profile.id);
+    const preflight = await client.raw("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/submit-campaign`, { dry_run: true });
+    assert.equal(preflight.statusCode, 200, preflight.body);
+    await updateSmsComplianceProfile(stored, { brand_status: "pending", provider_refs: { telnyx_brand_id: "B_AUTO" } });
+    const refreshed = await client.request("POST", `/v1/messaging/organizations/${orgId}/sms/compliance-profiles/${created.profile.id}/refresh-status`, {});
+    assert.equal(refreshed.profile.provider_refs.telnyx_campaign_id, "C_AUTO", JSON.stringify({ status: refreshed.profile.status, campaign_status: refreshed.profile.campaign_status, events: refreshed.profile.events?.slice(-2), campaignPosts }));
+    assert.equal(refreshed.profile.status, "campaign_submitted");
+    assert.equal(campaignPosts, 1);
+  } finally {
+    (env as any).telnyxApiKey = previousKey;
+    (env as any).telnyxBaseUrl = previousBaseUrl;
+    await new Promise<void>((resolve, reject) => server?.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
 test("organization communications capture SMS with production-shaped responses and idempotency", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);

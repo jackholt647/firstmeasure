@@ -14,7 +14,7 @@ const fixture = {
   id:'fixture', status:'draft', brand_status:'verified',
   provider_refs:{telnyx_brand_id:'brand-fixture',telnyx_number_order_id:'order-fixture'},
   brand:{displayName:'FirstMate',companyName:'First Mate LLC',ein:'123456789',website:'https://example.com',email:'support@example.com',phone:'+12065515546',street:'707 South Grady Way',city:'Renton',state:'WA',postalCode:'98057'},
-  campaign:{enabledFeatures:['crm_conversations','operations'],featuresConfirmed:false,optInMethod:'VERBAL',
+  campaign:{description:'FirstMate uses SMS for customer conversations and appointment updates after customers opt in.',enabledFeatures:['crm_conversations','operations'],featuresConfirmed:false,optInMethod:'VERBAL',
     sample1:'FirstMate: Thanks for contacting us. How can we help? Reply STOP to opt out.',
     sample2:'FirstMate: Your appointment is tomorrow at 10 AM. Reply STOP to opt out.',
     optInDisclosure:'FirstMate sends SMS text messages. Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help. SMS opt-in data is not shared with third parties for marketing.',
@@ -69,7 +69,8 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     await disclosure.fill(fixture.campaign.optInDisclosure);
     await page.locator('[data-sms-method="WEBSITE_FORM"]').check();
     await page.locator('[data-sms-field="campaign.optInLocationUrl"]').waitFor();
-    assert.equal(await page.locator('.sms-signup-card li').count(),6);
+    assert.equal(await page.locator('.sms-signup-card li').count(),5);
+    assert.equal(await page.locator('.sms-signup-card>p').last().innerText(),'Marketing consent must be explicit and not required to purchase.');
     assert.equal(await page.locator('.sms-signup-card').getByText('Your SMS signup form must include:').count(),1);
     await page.locator('[data-sms-method="WEBSITE_FORM"]').uncheck();
     assert.equal(await page.locator('[data-sms-field="campaign.optInLocationUrl"]').count(),0);
@@ -98,8 +99,8 @@ test('SMS setup: editable campaign after verification, actionable errors, safe s
     if(process.env.SMS_SCREENSHOTS)await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/consent-mobile.png'});
     await page.getByRole('button',{name:'6. Review & submit'}).click();
     await page.evaluate(()=>window.failSubmit=false);
-    await page.locator('#smsContinueSetup').click();
-    await page.getByText('Your campaign is under review',{exact:true}).waitFor();
+    await page.locator('#smsRetrySubmission').click();
+    await page.getByText(/Your SMS registration is under review/).waitFor();
     assert.equal(await page.locator('#smsContinueSetup').count(),0);
     assert.equal(await page.locator('.sms-final-features, .sms-review-actions').count(),0);
     if(process.env.SMS_SCREENSHOTS){await page.setViewportSize({width:1280,height:960});await page.screenshot({path:process.env.SMS_SCREENSHOTS+'/review-desktop.png'});}
@@ -249,7 +250,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
       const normalizeOrganizationBusinessAddress=v=>v||{};const organizationBusinessAddressFromState=()=>({});const formatOrganizationBusinessAddress=()=>'';
       const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       const formatPhoneUS=v=>v;const readSettingsRoute=()=>({});const writeSettingsRoute=()=>{};const showToast=()=>{};const renderSmsSettings=()=>{};
-      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{},campaign:{...fixture.campaign,selectedNumber:'',sample1:'',sample2:''}})};
+      window.saved=${JSON.stringify({...fixture,brand_status:'draft',provider_refs:{},campaign:{...fixture.campaign,description:'',selectedNumber:'',sample1:'',sample2:''}})};
       window.requests=[];
       const messagingRequest=async(path,options={})=>{
         window.requests.push({path,...options});
@@ -271,6 +272,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.locator('[data-sms-field]').first().getAttribute('data-sms-field'),'brand.entityType');
     assert.equal(await page.locator('[data-sms-field="campaign.description"]').count(),1);
     assert.equal(await page.locator('[data-sms-field="campaign.description"]').getAttribute('maxlength'),'600');
+    assert.equal(await page.locator('[data-sms-field="campaign.description"]').inputValue(),'');
     assert.equal(await page.getByText('See an example campaign description',{exact:true}).count(),1);
     const copy=await page.evaluate(()=>window.generated({brand:{displayName:'x'.repeat(75)},campaign:{enabledFeatures:['crm_conversations','operations','customer_growth']}}).optinMessage);
     assert.match(copy,/Subscribed to customer care, updates, marketing texts/);assert.match(copy,/Consent is not a condition of purchase/);assert.ok(copy.length<=255);
@@ -337,7 +339,7 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.locator('.sms-evidence-list a').count(),2);
     await page.evaluate(()=>window.longEvidenceUrl=true);
     await page.locator('[data-sms-evidence-upload]').setInputFiles([{name:'third.png',mimeType:'image/png',buffer:screenshot}]);
-    await page.getByText(/No room for another screenshot link/).waitFor();
+    await page.getByText(/Maximum screenshots submitted/).waitFor();
     assert.equal(await page.evaluate(()=>window.saved.campaign.optInEvidence.length),2);
     await page.locator('[data-sms-remove-evidence="0"]').click();
     await page.waitForFunction(()=>window.saved.campaign.optInEvidence?.length===1 && window.saved.campaign.optInEvidenceUrl==='https://example.com/second.png');
@@ -386,10 +388,11 @@ test('business identity switches paths, formats EIN and website, and preserves u
     assert.equal(await page.getByText('Your choice',{exact:true}).count(),0);
     await page.locator('[data-sms-choose-number="+12065550102"]').click();
     assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path.endsWith('/select-number')).length),0);
-    page.on('dialog',dialog=>dialog.accept());
+    let numberDialogs=0;page.on('dialog',dialog=>{numberDialogs++;dialog.dismiss();});
     await page.locator('#smsNext').click();
     await page.waitForFunction(()=>window.saved.campaign.selectedNumber==='+12065550102');
     assert.equal(await page.evaluate(()=>window.requests.filter(r=>r.path.endsWith('/select-number')).length),1);
+    assert.equal(numberDialogs,0);
     await page.locator('[data-sms-summary-checklist]').waitFor();
     assert.equal(await page.locator('.sms-timeline').count(),0);
     await page.getByRole('button',{name:'3. Messages & consent'}).click();

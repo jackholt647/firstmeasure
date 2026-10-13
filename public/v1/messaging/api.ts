@@ -5,7 +5,7 @@ import { request as httpsRequest, type RequestOptions as HttpsRequestOptions } f
 import type { ClientRequest, IncomingMessage } from "node:http";
 import { BlockList, isIP } from "node:net";
 import path from "node:path";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import "./instructions.js";
@@ -142,7 +142,7 @@ const EDITABLE_CAMPAIGN_FIELDS = [
   "numberPool", "directLending", "ageGated", "termsAndConditions", "termsAndConditionsLink", "privacyPolicyLink",
   "autoRenewal", "enabledFeatures", "featuresConfirmed", "consentAcknowledged", "standardizationVersion",
   "messageFlowConfirmed", "selectedNumberSearch", "selectedNumberAreaCode", "optInMethod", "optInLocationUrl",
-  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed"
+  "optInMethods", "keywordLocationUrl", "optInEvidence", "optInEvidenceUrl", "optInDisclosure", "policyContentConfirmed", "websiteFormConfirmed", "autoSubmitCampaign"
 ] as const;
 
 function editableBrand(value: unknown) {
@@ -2306,10 +2306,10 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
     return { ok: true, profile: publicSmsComplianceProfile(saved) };
   });
 
-  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/submit-campaign", async (request) => {
+  const submitCampaignHandler = async (request: FastifyRequest, bodyOverride?: JsonObject) => {
     const orgId = param(request.params, "orgId");
     const ctx = await requireSmsSettingsAccess(request, orgId, true);
-    const body = objectBodySchema.parse(request.body ?? {});
+    const body = objectBodySchema.parse(bodyOverride ?? request.body ?? {});
     let { profile } = await profileForRequest(orgId, param(request.params, "profileId"));
     const currentCampaignStatus = cleanText(profile.campaign_status).toLowerCase();
     if (body.submit === true && body.dry_run !== true && /suspended/.test(currentCampaignStatus)) {
@@ -2548,7 +2548,8 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       });
       throw error;
     }
-  });
+  };
+  app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/submit-campaign", (request) => submitCampaignHandler(request));
 
   app.post("/organizations/:orgId/sms/compliance-profiles/:profileId/appeal-campaign", async (request) => {
     const orgId = param(request.params, "orgId");
@@ -3048,6 +3049,24 @@ export const registerMessagingApi: FastifyPluginAsync = async (app) => {
       if (JSON.stringify(updated) !== JSON.stringify(additionalNumbers)) {
         saved = await appendSmsComplianceEvent(saved, { type: "additional_number_status_refreshed", provider: "telnyx" },
           { provider_refs: { additional_numbers: updated } });
+      }
+    }
+    if (asObject(saved.campaign).autoSubmitCampaign === true
+      && brandReadyForCampaignStatus(saved.brand_status)
+      && !cleanText(asObject(saved.provider_refs).telnyx_campaign_id)
+      && !/failed|rejected|suspended|expired/.test(cleanText(saved.campaign_status).toLowerCase())) {
+      try {
+        const submitted = await submitCampaignHandler(request, { submit: true });
+        saved = (await profileForRequest(orgId, saved.id)).profile;
+        if (!asObject(submitted).submitted) throw new Error("Automatic campaign submission did not complete.");
+      } catch (error) {
+        saved = (await profileForRequest(orgId, saved.id)).profile;
+        if (!cleanText(asObject(saved.provider_refs).telnyx_campaign_id)) {
+          saved = await appendSmsComplianceEvent(saved, {
+            type: "automatic_campaign_submission_failed",
+            error: error instanceof Error ? error.message : String(error)
+          }, { status: "campaign_submit_failed", campaign_status: "auto_submit_failed" });
+        }
       }
     }
     await notifySmsCampaignApproved(saved);
