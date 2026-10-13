@@ -185,6 +185,8 @@
       )
     },
 
+    compose: {polish:(orgId,channelId,input)=>request(orgPath(orgId,`/channels/${enc(channelId)}/compose/polish`),{method:'POST',body:input})},
+
     drafts: {
       get: (orgId, draftKey) => request(orgPath(orgId, `/drafts/${enc(draftKey)}`)),
       save: (orgId, draftKey, input) => request(orgPath(orgId, `/drafts/${enc(draftKey)}`), { method:'PUT', body:input }),

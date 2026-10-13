@@ -24,6 +24,7 @@ import {
   messageReminderSchema,
   memberPatchSchema,
   postMessageSchema,
+  polishDraftSchema,
   reactionSchema,
   readStateSchema,
   resourceRefSchema,
@@ -37,6 +38,7 @@ import {
   updateChannelSchema
 } from "./schemas.js";
 import * as service from "./service.js";
+import { polishChannelDraft } from "./polish.js";
 import * as collaboration from "./collaboration.js";
 import { startChannelAgentScheduler } from "./agent.js";
 import { createAttachmentRecord } from "./storage.js";
@@ -252,6 +254,8 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     const ctx = await auth(request, orgId);
     return { ok: true, preferences: await service.translationPreferences(ctx) };
   });
+
+  app.post('/organizations/:orgId/channels/:channelId/compose/polish',async request=>{const ctx=await auth(request,getParam(request.params,'orgId'),{csrf:true});return {ok:true,...await polishChannelDraft(ctx,getParam(request.params,'channelId'),polishDraftSchema.parse(request.body ?? {}))};});
 
   app.post("/organizations/:orgId/channels/:channelId/messages", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");

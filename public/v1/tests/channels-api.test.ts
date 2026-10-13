@@ -1417,3 +1417,23 @@ test("locked channels allow only managers to post while members can react", asyn
   assert.equal((await member.client.request("GET",`${base}/channels/${channel.id}`)).channel.can_post,true);
   await member.client.request("POST",`${base}/channels/${channel.id}/messages`,{text:"Unlocked"});
 });
+
+
+test('Channel draft polish authorizes membership, preserves references and records AI usage without posting',async()=>{
+ const {client:owner,orgId,suffix}=await registerOwner();await enableExpandedPlatformFixture(orgId,{'channels.ai':true});
+ const outsider=await createOrgUser(owner,orgId,suffix,'Polish Outsider');
+ const {channel}=await owner.request('POST',`/v1/channels/organizations/${orgId}/channels`,{type:'private',name:'Polish draft',member_user_ids:[]});
+ const url=`/v1/channels/organizations/${orgId}/channels/${channel.id}/compose/polish`;
+ const {env}=await import('../src/config/env.js');const oldKey=env.openaiApiKey,oldFetch=globalThis.fetch;Object.assign(env,{openaiApiKey:'polish-fixture-key'});let calls=0,mode='ok';
+ globalThis.fetch=async(_url,options)=>{assert.equal(String(_url),'https://api.openai.com/v1/responses');calls++;const body=JSON.parse(String(options?.body));assert.equal(body.store,false);assert.match(body.instructions,/grammar only/);assert.equal(body.tools,undefined);if(mode==='fail')return new Response('Unavailable',{status:503});const text=String(body.input).replace('helo','Hello');return new Response(JSON.stringify({output_text:mode==='format'?text.replace('**',''):mode==='references'?text.replace(/\[\[FM_POLISH_[a-f0-9]+_\d+\]\]/,''):text,usage:{input_tokens:50,output_tokens:40}}),{status:200});};
+ try{
+  const draft={text:'helo @Ada Bell, see https://example.com/path for 50 units.',mention_names:['Ada Bell']};
+  assert.equal((await app.inject({method:'POST',url,payload:draft})).statusCode,401);assert.equal((await outsider.client.raw('POST',url,draft)).statusCode,403);assert.equal(calls,0);
+  assert.equal((await owner.raw('POST',url,{text:' '})).statusCode,400);assert.equal(calls,0);
+  const result=await owner.request('POST',url,draft);assert.equal(result.text,'Hello @Ada Bell, see https://example.com/path for 50 units.');
+  const {messages}=await owner.request('GET',`/v1/channels/organizations/${orgId}/channels/${channel.id}/messages`);assert.equal(messages.length,0);
+  const {countAgentRunsToday}=await import('../agents/storage.js');assert.equal(await countAgentRunsToday('draft_polish',orgId),1);
+  mode='format';assert.equal((await owner.raw('POST',url,{text:'**helo**'})).statusCode,400);mode='references';assert.equal((await owner.raw('POST',url,draft)).statusCode,400);mode='fail';assert.equal((await owner.raw('POST',url,draft)).statusCode,400);
+  await enableExpandedPlatformFixture(orgId,{'channels.ai':false});const previous=calls;assert.equal((await owner.raw('POST',url,draft)).statusCode,403);assert.equal(calls,previous);
+ }finally{globalThis.fetch=oldFetch;Object.assign(env,{openaiApiKey:oldKey});}
+});

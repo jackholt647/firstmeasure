@@ -235,3 +235,5 @@ export const searchQuerySchema = z.object({
   channel_id: z.string().trim().optional(),
   limit: z.coerce.number().int().positive().max(100).optional()
 });
+
+export const polishDraftSchema=z.object({text:z.string().trim().min(1).max(20000),mention_names:z.array(z.string().trim().min(1).max(300)).max(100).default([])});

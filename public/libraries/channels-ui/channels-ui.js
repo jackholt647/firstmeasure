@@ -4776,6 +4776,7 @@
       } catch (error) {}
 
       bindTyping(composerInput);
+      mountPolishButton(composerInput,row,()=>state.activeChannelId+':'+state.editingMessageId,()=>send.disabled || !!box.querySelector('.voice-active'));
 
       const doSend = async () => {
         if(send.disabled)return;
@@ -5039,6 +5040,27 @@
       panel.innerHTML = '';
     }
 
+    function mountPolishButton(editor,row,identity,isBusy){
+      if(!features.ai || !api.compose?.polish)return;
+      const button=el('button','fm-ch-icon-btn','<i class="fas fa-spell-check" aria-hidden="true"></i>');button.type='button';button.dataset.polishDraft='';button.title='Polish text';button.setAttribute('aria-label',button.title);let working=false,revision=0;
+      const refresh=()=>button.disabled=working || !editor.value.trim() || !!isBusy?.();
+      editor.addEventListener('input',()=>{revision++;refresh();});editor.addEventListener('fm:formatting-change',refresh);
+      button.onclick=async()=>{
+        if(working || isBusy?.() || !editor.value.trim())return;
+        const text=editor.value,version=revision,context=identity(),mentions=editor._mentionApi?.confirmedMentions?.() || editor.mentionUsers || [];
+        working=true;button.setAttribute('aria-busy','true');button.innerHTML='<i class="fas fa-spinner fa-spin" aria-hidden="true"></i>';refresh();
+        try{
+          const result=await api.compose.polish(orgId,state.activeChannelId,{text,mention_names:mentions.map(user=>user.name).filter(Boolean)});
+          if(state.destroyed || !editor.isConnected || identity()!==context)return;
+          if(revision!==version || editor.value!==text || isBusy?.()){showError(new Error('Your draft changed while polishing. Click Polish text again to polish the latest version.'));return;}
+          if(!result?.text?.trim())throw Error('Text could not be polished. Your draft is unchanged.');
+          if(result.text!==text){editor.focus();const range=document.createRange();range.selectNodeContents(editor);const selection=root.getSelection();selection.removeAllRanges();selection.addRange(range);if(!document.execCommand('insertHTML',false,renderBody({text:result.text})))throw Error('Text could not be updated. Your draft is unchanged.');editor.saveSelection();editor.dispatchEvent(new Event('input',{bubbles:true}));editor._mentionApi?.setSelectedMentions?.(mentions);}
+        }catch(error){if(editor.isConnected && identity()===context)showError(error);}
+        finally{working=false;button.removeAttribute('aria-busy');button.innerHTML='<i class="fas fa-spell-check" aria-hidden="true"></i>';refresh();}
+      };
+      row.insertBefore(button,row.querySelector(':scope>.fm-ch-send-pair,:scope>.fm-ch-send'));refresh();
+    }
+
     function buildThreadComposer(node){
       if (postingBlocked()) { node.append(el('div','fm-ch-empty','Only channel managers can reply here. You can still react to messages.')); return; }
       const channelId=state.activeChannelId, rootId=state.threadRootId;
@@ -5101,6 +5123,7 @@
           threadInput._mentionApi = threadMentionApi;
         }
       } catch (error) {}
+      mountPolishButton(threadInput,row,()=>state.activeChannelId+':'+state.threadRootId+':'+editingId,()=>send.disabled || threadCapturing);
       const editNote = el('div', 'fm-ch-edit-note');
       editNote.style.display = 'none';
       node.prepend(editNote);
