@@ -97,6 +97,18 @@ The concurrently maintained FirstMeasure editor under `public/measure/internal`
 is outside this architecture change. Preserve its work and stage only the files
 owned by the current task when preparing commits or release artifacts.
 
+## Measurements
+
+Read [measurement dictionary and schemas](docs/architecture/measurement-schemas.md)
+before adding a measurement, a producer of measurements, or anything that binds
+to one. A measurement has one shared definition in
+`platform/publication/measurement-schemas.ts`; a kind of work selects from the
+dictionary with a schema, and scope templates name their schemas. The dictionary
+only grows: never change a definition's meaning, unit or key, and when unsure
+whether two trades mean the same thing, define two. Producers such as FirstMeasure
+fill dictionary keys and do not invent names. Run
+`tests/publication-measurement-schemas.test.ts` for changes here.
+
 ## Automations
 
 Read [automation authoring](docs/architecture/automation-authoring.md) before

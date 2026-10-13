@@ -51,7 +51,7 @@ const bundles: Record<string, { actions?: readonly string[]; data?: readonly str
   send_live_chat: { actions: ["chat.conversation.claim", "chat.conversation.release", "chat.conversation.send"] },
   view_customer_portals: { data: ["customer-portal.record"] },
   manage_customer_portals: { actions: ["customerPortal.ensure"] },
-  view_project_data: { data: ["datasets.contract", "datasets.value"] },
+  view_project_data: { data: ["datasets.contract", "datasets.value", "measurement-schemas.dictionary", "measurement-schemas.catalog", "measurement-schemas.assessment"] },
   manage_project_data: { actions: ["datasets.save", "datasets.select", "firstmeasure.measurements.import"] },
   view_reports: { actions: ["referrals.customer.ensure"], data: ["firstmeasure.status", "firstmeasure.measurements", "project-widgets.report"] },
   order_reports: { actions: ["firstmeasure.exteriors.quote"] },

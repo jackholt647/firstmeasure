@@ -1413,6 +1413,15 @@ function scopeChecklists(templateId: string) {
 // Maps proposal scope-piece types onto the template that owns them. This is
 // preset data, not engine code: a new industry ships templates whose
 // `proposal.piece_types` cover its own piece vocabulary.
+// The measurement schema each kind of work speaks in (platform/publication/measurement-schemas.ts).
+const PRESET_MEASUREMENT_SCHEMAS: Record<string, string[]> = {
+  roof_replacement: ["roofing"],
+  repairs: ["roofing"],
+  maintenance: ["roofing"],
+  gutters: ["gutters"],
+  siding_replacement: ["siding"]
+};
+
 const PRESET_PIECE_TYPES: Record<string, string[]> = {
   roof_replacement: ["roof_replacement", "full_roof", "partial_roof"],
   repairs: ["repairs", "roof_repair"],
@@ -1428,6 +1437,7 @@ function replacementTemplate(input: Pick<ScopeTemplateDefinition, "id" | "name" 
     ...input,
     kind: "production",
     status: "active",
+    ...(PRESET_MEASUREMENT_SCHEMAS[input.id] ? { measurement_schema_ids: PRESET_MEASUREMENT_SCHEMAS[input.id] } : {}),
     proposal: { kind: input.id, supports_structures: true, piece_types: PRESET_PIECE_TYPES[input.id] || [input.id] },
     fields: [
       { id: "section_name", type: "text", label: "Section Name", required: true },
@@ -1520,6 +1530,7 @@ function serviceTemplate(input: Pick<ScopeTemplateDefinition, "id" | "name" | "d
     ...input,
     kind: "production",
     status: "active",
+    ...(PRESET_MEASUREMENT_SCHEMAS[input.id] ? { measurement_schema_ids: PRESET_MEASUREMENT_SCHEMAS[input.id] } : {}),
     proposal: { kind: input.id, piece_types: PRESET_PIECE_TYPES[input.id] || [input.id], ...(input.id === "manual" ? { fallback: true } : {}) },
     fields: [{ id: "section_name", type: "text", label: "Section Name", required: true }],
     ...productionAssignmentConfiguration(),
