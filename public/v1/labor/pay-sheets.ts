@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { badRequest } from "../platform/errors.js";
 import { listDocuments, upsertDocument, type JsonObject } from "../platform/storage.js";
-import { listMeasurementDefinitions, listMeasurementSchemas, measurementAmounts } from "../platform/publication/measurement-schemas.js";
+import { listMeasurementDefinitions, listMeasurementSchemas, measurementAmounts, measurementBase, measurementWhole } from "../platform/publication/measurement-schemas.js";
+import { workItem, workItemMeasure, workItemsForSchemas } from "../platform/publication/work-items.js";
 import { assigneeSchema, requireActor, requireAssignee, type Actor } from "./assignees.js";
 
 /**
@@ -11,12 +12,17 @@ import { assigneeSchema, requireActor, requireAssignee, type Actor } from "./ass
  * types) and whether each is required. Its entries turn those inputs into pay lines. Nothing about a job is
  * assumed: two subs priced on the same roof produce different lines because their sheets differ, and a sheet that
  * reads no measurement (hourly, salary) names no kind of work at all.
+ *
+ * A sheet is also the mapping between how the assignee is paid and the work a job requires (see
+ * platform/publication/work-items.ts). Each entry says which work items it pays for; `work` says which items are done
+ * at no separate charge and roughly how long each takes. An item that is neither is not offered on this sheet.
  */
 export const PAY_SHEET_COLLECTION = "labor_pay_sheets";
 const id = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/);
 const name = z.string().trim().regex(/^[a-z][a-z0-9_]{0,59}$/, "Use a short lowercase name such as roof_squares.");
 const cents = z.number().int().min(0).max(1_000_000_000);
 const amount = z.number().finite().min(0).max(1e9);
+const workItemId = z.string().trim().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/).max(120);
 
 const inputSchema = z.object({
   name,
@@ -29,7 +35,10 @@ const inputSchema = z.object({
     // A numeric project field that production fills in, such as pack-out distance.
     z.object({ kind: z.literal("field"), key: z.string().trim().min(1).max(200) }).strict(),
     // A number entered for this job, such as hours.
-    z.object({ kind: z.literal("manual") }).strict()
+    z.object({ kind: z.literal("manual") }).strict(),
+    // Hours estimated from the work the job requires and the sheet's own hours for each item. A number typed for the
+    // job replaces the estimate.
+    z.object({ kind: z.literal("work_hours") }).strict()
   ]),
   /** A required input that is missing leaves its lines unresolved. An optional one falls back to `default`, or to nothing. */
   required: z.boolean().default(true),
@@ -50,7 +59,15 @@ const entrySchema = z.object({
   multiplier: amount.optional(),
   minimum_cents: cents.optional(),
   /** Charge this entry only when the named input is above zero. */
-  when: name.optional()
+  when: name.optional(),
+  /** The work items and functions this entry pays for. An entry that covers none is always charged. */
+  covers: z.array(workItemId).max(50).default([]),
+  /**
+   * counts: this entry is the pay for what it covers. adjusts: it only changes the price of work another entry pays
+   * for, such as a steep charge. Left out, it is worked out from what the entry reads: a part of the measurement the
+   * work is sized by adjusts, unless the sheet's parts add up to the whole.
+   */
+  role: z.enum(["counts", "adjusts"]).optional()
 }).strict();
 const equipmentSchema = z.object({
   id: id.optional(),
@@ -58,7 +75,19 @@ const equipmentSchema = z.object({
   equipment_type_id: id.optional(),
   /** Included equipment comes with the assignee at no charge; otherwise rate_cents is charged once per job. */
   included: z.boolean().default(true),
-  rate_cents: cents.optional()
+  rate_cents: cents.optional(),
+  /**
+   * The functions this equipment fulfils, such as debris disposal. per_load means it can be emptied and used again, so
+   * its capacity never limits the job; otherwise capacity is all it holds.
+   */
+  provides: z.array(z.object({ item: workItemId, capacity: amount.optional(), per_load: z.boolean().default(false) }).strict()).max(20).default([])
+}).strict();
+const workSchema = z.object({
+  item: workItemId,
+  /** Done as part of the job at no separate charge. */
+  included: z.boolean().default(false),
+  /** Roughly how many hours one unit of this item takes. An estimate that follows the shape of the work, not a promise. */
+  hours_per_unit: amount.optional()
 }).strict();
 export const paySheetInputSchema = z.object({
   id: id.optional(),
@@ -69,8 +98,13 @@ export const paySheetInputSchema = z.object({
   inputs: z.array(inputSchema).max(100).default([]),
   entries: z.array(entrySchema).max(300).default([]),
   equipment: z.array(equipmentSchema).max(100).default([]),
-  /** How long the work takes, for scheduling: an input divided by what the assignee gets through in a day. */
-  duration: z.object({ input: name, units_per_day: z.number().finite().positive().max(1e9) }).strict().nullable().optional(),
+  /** Work items done at no separate charge, and the hours each item takes. What an entry pays for is on the entry. */
+  work: z.array(workSchema).max(200).default([]),
+  /**
+   * How long the work takes, for scheduling: an input divided by what the assignee gets through in a day, or the
+   * hours estimated from the work divided by the hours worked in a day.
+   */
+  duration: z.union([z.object({ input: name, units_per_day: z.number().finite().positive().max(1e9) }).strict(), z.object({ hours_per_day: z.number().finite().positive().max(24) }).strict()]).nullable().optional(),
   expected_revision: z.number().int().nonnegative().optional()
 }).strict().superRefine((sheet, context) => {
   const issue = (message: string) => context.addIssue({ code: z.ZodIssueCode.custom, message });
@@ -92,11 +126,53 @@ export const paySheetInputSchema = z.object({
     for (const reference of [entry.input, entry.when]) if (reference && !inputs.has(reference)) issue(`Entry ${entry.label} reads ${reference}, which is not a declared input.`);
     if (entry.kind === "piece_rate" && !entry.input) issue(`Piece rate ${entry.label} needs the input it is paid on.`);
   }
-  if (sheet.duration && !inputs.has(sheet.duration.input)) issue(`Duration reads ${sheet.duration.input}, which is not a declared input.`);
+  if (sheet.duration && "input" in sheet.duration && !inputs.has(sheet.duration.input)) issue(`Duration reads ${sheet.duration.input}, which is not a declared input.`);
+  // Work means different things in different trades, so it is only named through a declared kind of work.
+  const offered = new Set(workItemsForSchemas(sheet.schema_ids));
+  const named = [...sheet.entries.flatMap((entry) => entry.covers), ...sheet.work.map((entry) => entry.item), ...sheet.equipment.flatMap((item) => item.provides.map((entry) => entry.item))];
+  for (const item of new Set(named)) {
+    if (!workItem(item)) issue(`${item} is not in the work item dictionary.`);
+    else if (!offered.has(item)) issue(sheet.schema_ids.length ? `${item} is not something ${sheet.schema_ids.join(" or ")} requires.` : `The sheet names ${item}, so it must name the kind of work it prices.`);
+  }
+  const listed = new Set<string>();
+  for (const entry of sheet.work) { if (listed.has(entry.item)) issue(`${entry.item} is listed twice under work.`); listed.add(entry.item); }
+  for (const item of sheet.equipment) for (const entry of item.provides) if (workItem(entry.item) && workItem(entry.item)!.kind !== "function") issue(`${item.name} can only provide a function, and ${entry.item} is work.`);
+  if (sheet.inputs.some((input) => input.source.kind === "work_hours") && !sheet.work.some((entry) => entry.hours_per_unit !== undefined)) issue("An input estimated from the work needs hours for at least one work item.");
+  if (sheet.duration && "hours_per_day" in sheet.duration && !sheet.work.some((entry) => entry.hours_per_unit !== undefined)) issue("A duration in hours needs hours for at least one work item.");
 });
 export const paySheetArchiveSchema = z.object({ id, expected_revision: z.number().int().nonnegative().optional() }).strict();
 export type PaySheetInput = z.infer<typeof inputSchema>;
 export type PaySheet = Omit<z.infer<typeof paySheetInputSchema>, "expected_revision" | "id"> & { id: string; revision: number };
+
+/**
+ * What each entry is to each work item it covers: the pay for it, or an adjustment to pay another entry carries. An
+ * entry that says is taken at its word. Otherwise an entry that reads a part of the measurement the work is sized by
+ * (steep squares, where the work is all the squares) adjusts, unless the sheet's entries for that item read parts
+ * that add up to the whole, in which case those parts are the pay. Anything else that covers an item is its pay.
+ */
+export function paySheetCoverRoles(sheet: Pick<PaySheet, "schema_ids" | "inputs" | "entries">) {
+  const reads = (entry: PaySheet["entries"][number]) => { const source = sheet.inputs.find((input) => input.name === entry.input)?.source; return source?.kind === "measurement" ? source.definition : ""; };
+  const roles = new Map<PaySheet["entries"][number], Map<string, "counts" | "adjusts">>();
+  for (const item of new Set(sheet.entries.flatMap((entry) => entry.covers || []))) {
+    const measure = workItemMeasure(sheet.schema_ids, item), covering = sheet.entries.filter((entry) => (entry.covers || []).includes(item));
+    const whole = measure ? measurementWhole(measure, covering.filter((entry) => !entry.role).map(reads).filter(Boolean)) : [];
+    for (const entry of covering) {
+      const definition = reads(entry), partOfMeasure = !!measure && !!definition && measurementBase(definition) === measure;
+      const role = entry.role || (partOfMeasure && !whole.includes(definition) ? "adjusts" : "counts");
+      if (!roles.has(entry)) roles.set(entry, new Map());
+      roles.get(entry)!.set(item, role);
+    }
+  }
+  return roles;
+}
+/** How a sheet stands to each work item: paid by an entry, included at no charge, only adjusted, or not on it at all. */
+export function paySheetWork(sheet: Pick<PaySheet, "schema_ids" | "inputs" | "entries" | "work" | "equipment">) {
+  const roles = paySheetCoverRoles(sheet), states = new Map<string, "paid" | "included" | "provided" | "adjusted">();
+  for (const entry of sheet.entries) for (const [item, role] of roles.get(entry) || []) if (role === "counts" || !states.has(item)) states.set(item, role === "counts" ? "paid" : "adjusted");
+  for (const entry of sheet.work) if (entry.included && states.get(entry.item) !== "paid") states.set(entry.item, "included");
+  for (const item of sheet.equipment) for (const entry of item.provides) if (!states.has(entry.item) || states.get(entry.item) === "adjusted") states.set(entry.item, "provided");
+  return states;
+}
 
 /** What a sheet needs in order to price a job, in the same terms the data layer publishes. */
 export function paySheetRequirements(sheet: Pick<PaySheet, "id" | "name" | "subject" | "schema_ids" | "inputs">) {
@@ -111,16 +187,33 @@ export type PayContext = {
   /** A measurement dataset value: `{ measurements, structures? }`. */
   measurements?: unknown;
   /** Material on the project's live lists. */
-  materials?: { item_id: string; item_type: string; quantity: number; unit: string }[];
+  materials?: { item_id: string; item_type: string; quantity: number; unit: string; list_id?: string; line_id?: string; name?: string }[];
   fields?: Record<string, number>;
   manual?: Record<string, number>;
+  /** What the job requires, by work item. Hours are estimated from it. */
+  work?: { item: string; quantity: number | null }[];
+  /** The work items this evaluation is for. Left out, it is for everything the sheet covers. */
+  scope?: string[];
   /** Why something could not be read, by source kind. An input of that kind is then missing whatever its default says. */
   unavailable?: Partial<Record<PaySheetInput["source"]["kind"], string>>;
 };
 type Resolved = { value: number | null; structures: { id: string; name: string; value: number }[]; missing: boolean; reason: string };
 const finite = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
-function resolveInput(input: PaySheetInput, context: PayContext): Resolved {
+/** Hours estimated for the work in scope, from the sheet's hours for each item. Null when any of it cannot be sized yet. */
+export function estimateWorkHours(sheet: Pick<PaySheet, "work">, context: Pick<PayContext, "work" | "scope">) {
+  const rated = sheet.work.filter((entry) => entry.hours_per_unit !== undefined && (!context.scope || context.scope.includes(entry.item)));
+  const basis: { item: string; quantity: number; hours_per_unit: number }[] = [], waiting: string[] = [];
+  for (const entry of rated) {
+    const required = (context.work || []).find((row) => row.item === entry.item);
+    // An item the job does not require takes no time.
+    if (!required) continue;
+    if (required.quantity === null) waiting.push(entry.item); else basis.push({ item: entry.item, quantity: required.quantity, hours_per_unit: entry.hours_per_unit! });
+  }
+  const hours = waiting.length || !basis.length ? null : Math.round(basis.reduce((sum, row) => sum + row.quantity * row.hours_per_unit, 0) * 4) / 4;
+  return { hours, basis, waiting };
+}
+function resolveInput(input: PaySheetInput, context: PayContext, sheet?: Pick<PaySheet, "work">): Resolved {
   const source = input.source, label = input.label || input.name;
   const blocked = context.unavailable?.[source.kind];
   if (blocked) return { value: null, structures: [], missing: true, reason: blocked };
@@ -141,20 +234,37 @@ function resolveInput(input: PaySheetInput, context: PayContext): Resolved {
     if (units.length > 1) return { value: null, structures: [], missing: true, reason: `${label} is on the lists in different units (${units.join(", ")}), so it cannot be added up.` };
     value = matching.length ? matching.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0) : null;
   } else if (source.kind === "field") value = finite(context.fields?.[source.key]);
-  else { value = finite(context.manual?.[input.name]); reason = `Enter ${label} for this job.`; }
+  else if (source.kind === "work_hours") {
+    value = finite(context.manual?.[input.name]) ?? estimateWorkHours(sheet || { work: [] }, context).hours;
+    reason = `Enter ${label} for this job; they cannot be estimated until the work can be sized.`;
+  } else { value = finite(context.manual?.[input.name]); reason = `Enter ${label} for this job.`; }
   if (value === null && !input.required && input.default !== undefined) value = input.default;
   return { value, structures, missing: value === null, reason };
 }
 
-export type PayLine = { entry_id: string; label: string; kind: string; quantity: number | null; unit: string; rate_cents: number; total_cents: number | null; structure_id?: string; structure_name?: string };
+export type PayLine = { entry_id: string; label: string; kind: string; quantity: number | null; unit: string; rate_cents: number; total_cents: number | null; structure_id?: string; structure_name?: string; covers?: string[]; adjusts?: string[]; covers_outside?: string[]; estimated?: boolean };
 /**
  * Prices one job on one sheet. A line whose required input is missing comes back unresolved, never as zero, and the
  * result says which inputs are missing. An optional input that is absent contributes nothing.
  */
 export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
-  const inputs = new Map(sheet.inputs.map((input) => [input.name, { input, ...resolveInput(input, context) }]));
-  const lines: PayLine[] = [], unresolved: { entry_id: string; label: string; input: string; reason: string }[] = [];
+  const inputs = new Map(sheet.inputs.map((input) => [input.name, { input, ...resolveInput(input, context, sheet) }]));
+  const lines: PayLine[] = [], unresolved: { entry_id: string; label: string; input: string; reason: string; covers?: string[] }[] = [];
+  const roles = paySheetCoverRoles(sheet), inScope = (item: string) => !context.scope || context.scope.includes(item);
   sheet.entries.forEach((entry, index) => {
+    // An entry for work that is not part of this evaluation is not charged. One that also pays for work outside it
+    // is charged in full, and says so: a price for two things cannot be split by guessing.
+    const entryCovers = entry.covers || [];
+    if (entryCovers.length && !entryCovers.some(inScope)) return;
+    const role = roles.get(entry) || new Map<string, "counts" | "adjusts">();
+    const cover = { covers: entryCovers.filter((item) => inScope(item) && role.get(item) !== "adjusts"), adjusts: entryCovers.filter((item) => inScope(item) && role.get(item) === "adjusts"), covers_outside: entryCovers.filter((item) => !inScope(item) && role.get(item) !== "adjusts") };
+    const estimated = !!entry.input && inputs.get(entry.input)?.input.source.kind === "work_hours" && finite(context.manual?.[entry.input]) === null;
+    const before0 = lines.length, unresolved0 = unresolved.length;
+    priceEntry(entry, index);
+    for (const line of lines.slice(before0)) { if (cover.covers.length) line.covers = cover.covers; if (cover.adjusts.length) line.adjusts = cover.adjusts; if (cover.covers_outside.length) line.covers_outside = cover.covers_outside; if (estimated) line.estimated = true; }
+    for (const row of unresolved.slice(unresolved0)) if (cover.covers.length) row.covers = cover.covers;
+  });
+  function priceEntry(entry: PaySheet["entries"][number], index: number) {
     const entryId = entry.id || `entry_${index + 1}`, unit = entry.unit || (entry.kind === "hourly" || entry.kind === "cost_rate" ? "hour" : entry.kind === "flat" ? "job" : "");
     const gate = entry.when ? inputs.get(entry.when)! : null;
     if (gate) {
@@ -179,19 +289,24 @@ export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
     // A minimum is for the entry as a whole, however many structures it was priced across.
     const earned = lines.slice(before).reduce((sum, line) => sum + (line.total_cents || 0), 0);
     if (lines.length > before && entry.minimum_cents && earned < entry.minimum_cents) lines.push({ entry_id: entryId, label: `${entry.label} (minimum)`, kind: "minimum", quantity: 1, unit: "job", rate_cents: entry.minimum_cents - earned, total_cents: entry.minimum_cents - earned });
-  });
-  const basis = sheet.duration ? inputs.get(sheet.duration.input)! : null;
+  }
+  const hours = estimateWorkHours(sheet, context);
+  const byInput = sheet.duration && "input" in sheet.duration ? sheet.duration : null, byHours = sheet.duration && "hours_per_day" in sheet.duration ? sheet.duration : null;
+  const basis = byInput ? inputs.get(byInput.input)! : null;
   // Scheduling works in half days; anything measurable rounds up to the next half.
-  const duration_days = sheet.duration && basis && !basis.missing ? Math.ceil((Number(basis.value) / sheet.duration.units_per_day) * 2) / 2 : null;
+  const duration_days = byInput && basis && !basis.missing ? Math.ceil((Number(basis.value) / byInput.units_per_day) * 2) / 2 : byHours && hours.hours !== null ? Math.ceil((hours.hours / byHours.hours_per_day) * 2) / 2 : null;
+  const states = paySheetWork(sheet);
   return {
     sheet: { id: sheet.id, name: sheet.name, subject: sheet.subject, revision: sheet.revision },
     lines,
-    equipment: sheet.equipment.map((item, index) => ({ id: item.id || `equipment_${index + 1}`, name: item.name, ...(item.equipment_type_id ? { equipment_type_id: item.equipment_type_id } : {}), included: item.included, total_cents: item.included ? 0 : item.rate_cents || 0 })),
+    equipment: sheet.equipment.map((item, index) => ({ id: item.id || `equipment_${index + 1}`, name: item.name, ...(item.equipment_type_id ? { equipment_type_id: item.equipment_type_id } : {}), included: item.included, total_cents: item.included ? 0 : item.rate_cents || 0, provides: (item.provides || []).filter((entry) => inScope(entry.item)) })),
+    // The work this evaluation accounts for and how: paid by a line, included at no charge, or provided by equipment.
+    work: { items: [...states].filter(([item]) => inScope(item)).map(([item, state]) => ({ item, state })), hours: hours.hours, hours_basis: hours.basis },
     unresolved,
     missing_inputs: [...inputs.values()].filter((entry) => entry.missing).map((entry) => ({ name: entry.input.name, label: entry.input.label || entry.input.name, required: entry.input.required, source: entry.input.source, reason: entry.reason })),
     duration_days,
     // What the estimate of days rests on, so it can be explained rather than taken on trust.
-    duration_basis: sheet.duration && basis && !basis.missing ? { label: basis.input.label || basis.input.name, value: Number(basis.value), units_per_day: sheet.duration.units_per_day } : null,
+    duration_basis: byInput && basis && !basis.missing ? { label: basis.input.label || basis.input.name, value: Number(basis.value), units_per_day: byInput.units_per_day } : byHours && hours.hours !== null ? { label: "Estimated hours", value: hours.hours, units_per_day: byHours.hours_per_day } : null,
     total_cents: lines.reduce((sum, line) => sum + (line.total_cents || 0), 0) + sheet.equipment.reduce((sum, item) => sum + (item.included ? 0 : item.rate_cents || 0), 0),
     // The part of the total that is projection only: salaried time at its cost rate, which no one is paid per job.
     projection_only_cents: lines.filter((line) => line.kind === "cost_rate").reduce((sum, line) => sum + (line.total_cents || 0), 0),
@@ -202,7 +317,7 @@ export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
 const requireWrite = (orgId: string, actor: Actor) => requireActor(orgId, actor, "manage_company_settings", "pay_sheet_write_denied", "Pay sheet editing requires company settings access.");
 function row(document: { id: string; revision?: number; data: JsonObject }): PaySheet {
   const data = document.data as unknown as Omit<PaySheet, "id" | "revision">;
-  return { id: document.id, subject: data.subject, name: data.name, schema_ids: data.schema_ids || [], inputs: data.inputs || [], entries: data.entries || [], equipment: data.equipment || [], duration: data.duration ?? null, revision: Number(document.revision || 0) };
+  return { id: document.id, subject: data.subject, name: data.name, schema_ids: data.schema_ids || [], inputs: data.inputs || [], entries: (data.entries || []).map((entry) => ({ ...entry, covers: entry.covers || [] })), equipment: (data.equipment || []).map((item) => ({ ...item, provides: item.provides || [] })), work: data.work || [], duration: data.duration ?? null, revision: Number(document.revision || 0) };
 }
 export async function listPaySheets(orgId: string): Promise<PaySheet[]> {
   return (await listDocuments(orgId, PAY_SHEET_COLLECTION)).filter((document) => !document.data.archived_at).map(row).sort((a, b) => a.name.localeCompare(b.name));

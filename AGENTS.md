@@ -142,6 +142,20 @@ frozen copy and is never edited. Delivery code runs in the sandbox and only
 returns steps. Availability comes from commitments alone. Run
 `tests/labor-commitments.test.ts` for changes here.
 
+## Requirements and coverage
+
+Read [requirements](docs/architecture/requirements.md) before changing what a
+job requires, how a line accounts for it, capabilities, or the Requirements
+tray. A project has two lists that carry money (materials and the work order)
+and requirements, which carry none. A work item or function has one shared
+definition in `platform/publication/work-items.ts`, sized from measurements and
+never priced; the dictionary only grows. Coverage is read from the lists as
+they stand: a generated line carries what it pays for, and a pay sheet maps pay
+to work with `covers`, `work` and `provides`. Work is counted once: use the
+measurement partitions to tell a line that pays from one that adjusts, and do
+not add parts of different partitions together. A warning never blocks. Run
+`tests/work-requirements.test.ts` for changes here.
+
 ## Automations
 
 Read [automation authoring](docs/architecture/automation-authoring.md) before

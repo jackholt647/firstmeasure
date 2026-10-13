@@ -146,3 +146,10 @@ table); actuals against a commitment (what a released commitment pays is a
 availability; equipment an assignee brings covering a job's equipment needs.
 
 Run `tests/labor-commitments.test.ts` for changes here.
+
+## Capabilities
+
+What an assignee is able to do, as work items, is kept apart from how they are
+paid and is described in [requirements](requirements.md#capabilities). The
+`capability_scope_ids` on a group or company grant the kinds of work those
+scopes work in; `labor/capabilities.ts` adds or removes single items.

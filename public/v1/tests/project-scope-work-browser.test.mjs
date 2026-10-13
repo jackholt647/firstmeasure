@@ -109,7 +109,7 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
   try {
     const page=await browser.newPage({viewport:{width:1500,height:900}});
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    await page.evaluate(({css,render,helper})=>{
+    await page.evaluate(({css,render,merged,helper})=>{
       window.state={lists:[],resourceTypes:['material','labor','equipment'].map((id,i)=>({id,name:['Materials','Labor','Equipment'][i],icon:'fa-box',color:'#123456'})),visibleListIds:new Set(),saving:false,loading:false};
       window.resourceCategories=()=>state.resourceTypes;
       window.items=[];
@@ -118,15 +118,15 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.materialListById=id=>state.lists.find(list=>list.id===id);
       window.resourceTerms=type=>({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type],singular:type});
       window.escapeHtml=value=>String(value);
-      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.assigneeEquipment=()=>[];window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
+      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.renderRequirementsTray=()=>'<aside class="mt-req-tray" data-mt-req-tray></aside>';window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
       window.materialSectionDefinitions=()=>['material','labor','equipment'].map(type=>({key:type,resource_type:type}));
       window.lineSectionKey=item=>item.section;
       window.renderMaterialSection=(section,rows)=>`<section class="mt-section">${rows.map(row=>`<div style="height:30px">${row.name}</div>`).join('')}</section>`;
-      (0,eval)(css+'\n'+render);
+      (0,eval)(css+'\n'+render+'\n'+merged);
       const style=document.createElement('style');style.textContent=window.css()+'.r-tab-content{display:flex;height:600px;width:1400px}.r-tab-main{flex:1;min-width:0}.mt-app{height:100%}';document.head.append(style);
       document.body.innerHTML='<div class="r-overlay materials-workspace"><div class="r-tab-content"><aside class="r-tab-sidebar mt-widget-sidebar"></aside><div class="r-tab-main"><div class="mt-app"><div class="mt-material-grid" data-mt-material-grid></div></div></div></div></div>';
       window.draw=()=>document.querySelector('[data-mt-material-grid]').innerHTML=renderMaterialSections();draw();
-    },{css:fn('css'),render:fn('renderMaterialSections'),helper});
+    },{css:fn('css'),render:fn('renderMaterialSections'),merged:fn('workOrderMerged'),helper});
     await page.evaluate(async()=>{window.helper=await import('/helper.js');helper.installDivider(document.querySelector('aside'));
       window.FMDocWidgets={};window.FMDocModel={paperDimensions:()=>({w_pt:612})};window.FMDocRenderer={render:(root,options)=>{root.innerHTML='<p>Rendered accepted roof contract</p>';window.renderedSnapshot=options.document;window.renderedContext=options.widgetContext;return {destroy(){}};}};
       window.scopeDocs=[{id:'contract',title:'Roof contract',source:'document',document_type:'contract',total:'$12,345.00',snapshot:{resolved_definition:{id:'captured-definition'},params:{contract_value:12345},outputs:{signed:true},widget_data:{}},sets:[{title:'Roof materials',lines:[{name:'Shingles',quantity:12,unit:'bundle',order_quantity:12,order_unit:'bundle'}]}]},{id:'report',title:'Roof report',source:'measurement',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[{id:'report/pdf',kind:'firstmeasure.report'}]}}];
@@ -150,9 +150,12 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
     assert.deepEqual(await page.evaluate(()=>widgetMounts),['reports.roof','reports.roof','reports.roof']);
     assert.equal(await page.getByRole('tab').count(),4);assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['Measurements','Documents','Photos','Schedule']);
     const widths=()=>page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().width));
-    let w=await widths();assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),3);
+    let w=await widths();assert.equal(w.length,2,'labor and equipment share one work order column');assert.ok(Math.max(...w)-Math.min(...w)<2);assert.equal(await page.getByText('Empty List',{exact:true}).count(),2);assert.deepEqual(await page.locator('.mt-resource-column').evaluateAll(nodes=>nodes.map(node=>node.dataset.resourceType)),['material','labor']);assert.equal(await page.locator('.mt-column-title').innerText(),'Work order');assert.equal(await page.locator('.mt-material-grid > .mt-req-tray').count(),1,'the requirements tray sits after the columns');
     await page.evaluate(()=>{state.lists=[{id:'m',title:'Materials',resource_type:'material'},{id:'l',title:'Labor',resource_type:'labor'}];state.visibleListIds=new Set(['m','l']);items=Array.from({length:70},(_,i)=>({name:'Item '+i,section:i%2?'labor':'material',__material_list_id:i%2?'l':'m'}));draw()});
-    w=await widths();assert.ok(Math.abs(w[0]-w[2])<2);assert.ok(Math.abs(w[1]-w[2])<2);
+    w=await widths();assert.ok(Math.abs(w[0]-w[1])<2);
+    // An equipment list is drawn inside the work order column, after the labor.
+    await page.evaluate(()=>{state.lists.push({id:'e',title:'Dumpster',resource_type:'equipment'});state.visibleListIds.add('e');items.push({name:'20 yard dumpster',section:'equipment',__material_list_id:'e'});draw()});
+    assert.deepEqual(await page.locator('.mt-resource-column[data-resource-type=labor] [data-mt-pane-list]').evaluateAll(nodes=>nodes.map(node=>node.dataset.mtPaneList)),['l','e']);assert.equal((await widths()).length,2);
     await page.locator('.mt-resource-scroll').nth(0).evaluate(el=>el.scrollTop=200);
     assert.equal(await page.locator('.mt-resource-scroll').nth(1).evaluate(el=>el.scrollTop),0);
     assert.ok(await page.locator('.mt-resource-scroll').nth(0).evaluate(el=>el.scrollTop)>0);
@@ -178,9 +181,10 @@ test('inline resource creation leaves empty placeholders, serializes names and i
 
 test('real resource rows are one line showing quantity and total, with unit price and remove behind the expander',async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});try{const page=await browser.newPage({viewport:{width:780,height:650}});
- await page.evaluate(code=>{Object.assign(window,{state:{activeListId:'list',saving:false,unitsMode:'measured'},variantsForLine:()=>[],materialSecondaryText:()=>'',cleanText:value=>String(value||''),normalizeColor:value=>value,materialListColor:()=> '#123456',materialListById:()=>({resource_type:'material'}),resourceType:list=>list.resource_type,integerQuantity:value=>value,preciseQuantity:value=>value,materialPrimaryName:item=>item.name,escapeHtml:value=>String(value??''),renderVariantControl:()=>'',renderColorControl:()=>'<span class="mt-small">-</span>',money:value=>'$'+value});(0,eval)(code);const style=document.createElement('style');style.textContent=css()+'.mt-material-grid{height:500px;width:720px}';document.head.append(style);
+ await page.evaluate(code=>{Object.assign(window,{state:{activeListId:'list',saving:false,unitsMode:'measured'},variantsForLine:()=>[],materialSecondaryText:()=>'',cleanText:value=>String(value||''),normalizeColor:value=>value,materialListColor:()=> '#123456',materialListById:()=>({resource_type:'material'}),resourceType:list=>list.resource_type,lineWarnings:(list,item)=>item==='labor'?[{message:'Tear off is also accounted for by Crew B.'}]:[],integerQuantity:value=>value,preciseQuantity:value=>value,materialPrimaryName:item=>item.name,escapeHtml:value=>String(value??''),renderVariantControl:()=>'',renderColorControl:()=>'<span class="mt-small">-</span>',money:value=>'$'+value});(0,eval)(code);const style=document.createElement('style');style.textContent=css()+'.mt-material-grid{height:500px;width:720px}';document.head.append(style);
  document.body.innerHTML='<div class="mt-material-grid">'+['material','labor','equipment'].map((type,i)=>'<section class="mt-resource-column"><h3 class="mt-resource-heading">'+type+'</h3><div class="mt-resource-scroll"><table class="mt-table"><tbody>'+renderLineRow({id:type,name:'Complete resource item name',__resource_type:type,quantity:12,unit:'ea',projected_unit_price:65})+'</tbody></table></div></section>').join('')+'</div>';},fn('css')+'\n'+fn('renderLineRow'));
- const columns=page.locator('.mt-resource-column');assert.equal(await columns.count(),3);for(let i=0;i<3;i++){assert.ok(await columns.nth(i).evaluate(el=>el.scrollWidth<=el.clientWidth));const row=await columns.nth(i).locator('tr.mt-list-row').boundingBox();assert.ok(row.height<=26);const name=await columns.nth(i).locator('[data-mt-item-name]').boundingBox();assert.ok(name.width>60);for(const part of ['[data-mt-item-qty]','[data-mt-item-unit]','.mt-c-total','[data-mt-expand-item]','.mt-drag']){const box=await columns.nth(i).locator(part).boundingBox();assert.ok(box.width>0&&box.y>=row.y&&box.y+box.height<=row.y+row.height&&box.x+box.width<=row.x+row.width+1,part);}assert.ok((await columns.nth(i).locator('[data-mt-item-qty]').boundingBox()).width<40);assert.equal(await columns.nth(i).locator('.mt-c-total').innerText(),'$780');for(const part of ['[data-mt-item-price]','[data-mt-remove]'])assert.equal(await columns.nth(i).locator(part).isVisible(),false);assert.match(await columns.nth(i).locator('tr.mt-list-row').getAttribute('title'),/^Complete resource item name\n12 ea × \$65 = \$780$/);}
+ const columns=page.locator('.mt-resource-column');assert.equal(await columns.count(),3);
+ assert.equal(await page.locator('.mt-c-warn').count(),1,'only the line with something to check carries the triangle');assert.equal(await page.locator('tr[data-mt-item-row=labor] .mt-c-warn').getAttribute('title'),'Tear off is also accounted for by Crew B.');for(let i=0;i<3;i++){assert.ok(await columns.nth(i).evaluate(el=>el.scrollWidth<=el.clientWidth));const row=await columns.nth(i).locator('tr.mt-list-row').boundingBox();assert.ok(row.height<=26);const name=await columns.nth(i).locator('[data-mt-item-name]').boundingBox();assert.ok(name.width>60);for(const part of ['[data-mt-item-qty]','[data-mt-item-unit]','.mt-c-total','[data-mt-expand-item]','.mt-drag']){const box=await columns.nth(i).locator(part).boundingBox();assert.ok(box.width>0&&box.y>=row.y&&box.y+box.height<=row.y+row.height&&box.x+box.width<=row.x+row.width+1,part);}assert.ok((await columns.nth(i).locator('[data-mt-item-qty]').boundingBox()).width<40);assert.equal(await columns.nth(i).locator('.mt-c-total').innerText(),'$780');for(const part of ['[data-mt-item-price]','[data-mt-remove]'])assert.equal(await columns.nth(i).locator(part).isVisible(),false);assert.match(await columns.nth(i).locator('tr.mt-list-row').getAttribute('title'),/^Complete resource item name\n12 ea × \$65 = \$780$/);}
  await page.locator('tr.mt-list-row').first().evaluate(row=>row.classList.add('is-expanded'));assert.equal(await page.locator('[data-mt-item-price=material]').inputValue(),'65');assert.ok(await page.locator('[data-mt-remove=material]').isVisible());assert.ok(await columns.nth(0).evaluate(el=>el.scrollWidth<=el.clientWidth));assert.equal(await page.locator('[data-mt-item-price=labor]').isVisible(),false);
  await page.locator('[data-mt-item-name=material]').fill('Long roofing material name');await page.locator('[data-mt-item-qty=material]').fill('28');assert.equal(await page.locator('[data-mt-item-qty=material]').inputValue(),'28');await page.addStyleTag({content:'.mt-material-grid{width:1560px!important}'});await page.setViewportSize({width:1600,height:650});
  for(let i=1;i<3;i++){assert.ok((await columns.nth(i).locator('tr.mt-list-row').boundingBox()).height<=26);assert.equal(await columns.nth(i).locator('.mt-c-total').innerText(),'$780');assert.ok(await columns.nth(i).evaluate(el=>el.scrollWidth<=el.clientWidth));}
@@ -359,4 +363,49 @@ test('projected delivery is one estimate per category, switched off for the whol
  b.current_items=[line('b1','shingle'),line('b2','nails')];assert.equal(ctx.projectedDelivery('material').amount,50,'with no full match, the lowest fee among suppliers carrying something');
  b.current_items=[line('b1','shingle'),{id:'fee',metadata:{delivery_fee:true}}];assert.equal(ctx.projectedDelivery('material').amount,75,'a list with a real delivery line is left out');
  ctx.state.lists=[labor];assert.equal(ctx.projectedDelivery('material').available,false);ctx.state.lists=[a];ctx.state.suppliers=[];assert.equal(ctx.projectedDelivery('material').available,false);
+});
+
+test('the requirements tray says how the project stands when closed and what accounts for each thing when open',async()=>{
+ const escapeHtml=value=>String(value??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+ const lists=[{id:'labor',resource_type:'labor',title:'Roof labor',assigned:'sub',metadata:{work_scope:{excluded_items:['roofing.cleanup']}}},{id:'equipment',resource_type:'equipment',title:'Equipment'}];
+ const items={labor:[{id:'g1',name:'Tear off and install',metadata:{generated_from_pay_sheet:true,covers:['roofing.install']}}],equipment:[{id:'dumpster',name:'20 yard dumpster',metadata:{}}]};
+ const cover=(name,mode,lines=[])=>({list_id:'labor',list_title:'Roof labor',assignee_name:name,mode,lines});
+ const data={status:'open',counts:{open:1,warning:1,covered:2},reason:'',line_warnings:[{list_id:'labor',item_id:'g1',code:'duplicate',message:'Install roofing is also accounted for by Crew B.'}],requirements:[
+  {id:'material:shingles',kind:'material',label:'Shingles',unit:'bundle',quantity:96,status:'covered',covered_by:[{list_id:'m',list_title:'Roof materials',assignee_name:'',mode:'paid',lines:[]}],warnings:[],can_cover:[]},
+  {id:'roofing.install',kind:'work',label:'Install roofing',unit:'roofing_square',quantity:32,status:'warning',covered_by:[cover('Summit','paid',[{id:'g1',name:'Tear off and install',quantity:32,unit:'sq',total_cents:304000,generated:true}])],warnings:[{code:'duplicate',message:'Accounted for twice: Crew B and Summit.'}],can_cover:[]},
+  {id:'roofing.cleanup',kind:'work',label:'Clean up',unit:'job',quantity:1,status:'covered',covered_by:[cover('Summit','included')],warnings:[],can_cover:[]},
+  {id:'disposal.debris',kind:'function',label:'Debris disposal',unit:'yd3',quantity:12.8,under:'roofing.tear_off',status:'open',covered_by:[],warnings:[],can_cover:[{list_id:'labor',list_title:'Roof labor',assignee_name:'Summit'}]}]};
+ const calls=[],stored={};
+ const ctx={state:{lists,requirements:{key:'org:project',loading:false,error:'',data},expandedRequirementIds:new Set(),assigningListId:''},setTimeout,clearTimeout,JSON,
+  rootWindow:{localStorage:{getItem:key=>stored[key]??null,setItem:(key,value)=>{stored[key]=value;}}},cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,escapeHtml,money:value=>'$'+Number(value).toLocaleString('en-US'),
+  orgId:()=>'org',projectId:()=>'project',apiReady:()=>true,materialsAPI:null,window:{},workspaceIsEditing:()=>false,syncMaterialsGrid(){},materialRoot:()=>null,resourceType:list=>list.resource_type,listItems:list=>items[list?.id]||[],materialListById:id=>lists.find(list=>list.id===id),
+  assignmentWorkResourceRef:list=>list?.assigned?{id:list.assigned,name:'Summit'}:null,resourceTerms:()=>({plural:'Equipment'}),captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast(){},
+  patchScopeResourceList:async(id,patch)=>{calls.push(['patch',id,patch.metadata.work_scope.excluded_items]);},generateLaborList:async id=>{calls.push(['generate',id]);},updateItem:async(id,patch,listId)=>{calls.push(['update',listId,id,patch.metadata.covers]);}};
+ vm.createContext(ctx);vm.runInContext("const REQUIREMENT_STATUS = { open: ['fa-circle-exclamation', 'Not accounted for'], warning: ['fa-triangle-exclamation', 'Accounted for, with something to check'], covered: ['fa-circle-check', 'Accounted for'] };"+['requirementsOpen','requirementsKey','requirementSet','loadRequirements','refreshRequirements','lineWarnings','requirementAmount','renderRequirementRow','renderRequirementsTray','syncRequirementsTray','setWorkExcluded','markLineCover'].map(fn).join('\n'),ctx);
+ // Closed by default: the bar alone carries the status, red for what is missing and yellow for what to check.
+ let html=ctx.renderRequirementsTray();
+ assert.match(html,/<aside class="mt-req-tray" data-mt-req-tray data-status="open"/);assert.match(html,/aria-expanded="false"/);
+ assert.match(html,/mt-req-badge is-open" title="1 not accounted for"/);assert.match(html,/mt-req-badge is-warning" title="1 to check"/);assert.doesNotMatch(html,/mt-req-badge is-covered/);
+ assert.doesNotMatch(html,/mt-column-total|>Total</,'requirements carry no money, so there is no total');
+ // What needs attention is pinned first, missing before merely odd; the rest is grouped below it.
+ assert.deepEqual([...html.matchAll(/data-mt-req-group="([^"]+)"/g)].map(match=>match[1]),['attention','material','work']);
+ assert.deepEqual([...html.matchAll(/data-mt-req-row="([^"]+)"/g)].map(match=>match[1]),['disposal.debris','roofing.install','material:shingles','roofing.cleanup']);
+ assert.match(html,/Debris disposal<\/span><em>12\.8 yd³<\/em>/);assert.match(html,/Install roofing<\/span><em>32 sq<\/em>/);assert.match(html,/Clean up<\/span><em><\/em>/);
+ // Green only when nothing is missing and nothing is odd.
+ ctx.state.requirements.data={...data,status:'covered',counts:{open:0,warning:0,covered:4}};assert.match(ctx.renderRequirementsTray(),/mt-req-badge is-covered" title="Everything is accounted for"/);
+ ctx.state.requirements.data={...data,status:'empty',counts:{open:0,warning:0,covered:0},requirements:[],reason:'Nothing on this project names a kind of work yet.'};assert.match(ctx.renderRequirementsTray(),/Nothing on this project names a kind of work yet\./);
+ ctx.state.requirements.data=data;
+ // Open, a requirement shows the lines that account for it and what can be done about it.
+ ctx.state.requirementsOpen=true;ctx.state.expandedRequirementIds=new Set(['roofing.install','disposal.debris','roofing.cleanup']);html=ctx.renderRequirementsTray();
+ assert.match(html,/class="mt-req-tray is-open"/);
+ assert.match(html,/<strong>Summit<\/strong><small>Paid for it<\/small><ul><li><span title="Tear off and install">Tear off and install<\/span><em>32 sq · \$3,040<\/em><\/li><\/ul>/);
+ assert.match(html,/Accounted for twice: Crew B and Summit\./);assert.match(html,/data-mt-req-exclude="roofing\.install" data-mt-list-id="labor"[^>]*>Take off Summit</);
+ assert.match(html,/<small>Does it at no separate charge<\/small>/);
+ assert.match(html,/data-mt-req-include="disposal\.debris" data-mt-list-id="labor"[^>]*>Give to Summit</);
+ assert.match(html,/<select data-mt-req-mark="disposal\.debris"><option value="">Choose a line…<\/option><option value="equipment\|dumpster">20 yard dumpster · Equipment<\/option><\/select>/,'only a line a person added can be marked, never one the pay sheet wrote');
+ // Taking work off a work order records it on the list and builds the list again; marking a line records it on the line.
+ await ctx.setWorkExcluded('labor','roofing.install',true);assert.equal(JSON.stringify(calls),JSON.stringify([['patch','labor',['roofing.cleanup','roofing.install']],['generate','labor']]));
+ calls.length=0;await ctx.setWorkExcluded('labor','roofing.cleanup',false);assert.equal(JSON.stringify(calls[0]),JSON.stringify(['patch','labor',[]]));
+ calls.length=0;await ctx.markLineCover('equipment','dumpster','disposal.debris',true);assert.equal(JSON.stringify(calls),JSON.stringify([['update','equipment','dumpster',['disposal.debris']]]));
+ assert.equal(ctx.lineWarnings('labor','g1')[0].code,'duplicate');assert.equal(ctx.lineWarnings('labor','other').length,0);
 });

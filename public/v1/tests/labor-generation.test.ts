@@ -47,8 +47,13 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   assert.equal(row("Crew B").total_cents, 32 * 6500 + 6 * 1000); assert.equal(row("Crew B").complete, true); assert.equal(row("Crew B").duration_days, 1.5);
   assert.equal(row("Summit").total_cents, 32 * 9500 + 6 * 1500 + 5 * 800); assert.deepEqual(row("Summit").equipment.map((entry) => [entry.name, entry.included]), [["Dump truck", true]]);
   assert.equal(row("Ridgeline").total_cents, 96 * 2900 + 32 * 2500 + 180 * 75, "paid on bundles from the material list, squares and eaves"); assert.deepEqual(row("Ridgeline").equipment, []);
-  assert.equal(row("Crew A").complete, false, "an hourly assignee cannot be priced until hours are entered"); assert.deepEqual(row("Crew A").unresolved.map((entry) => entry.label), ["Hourly labor"]);
-  assert.deepEqual(compared.filter((entry) => entry.complete).map((entry) => entry.sheet!.name.split(" ")[0]), ["Crew", "Summit", "Ridgeline"], "complete prices first, cheapest first");
+  // Crew A is paid by the hour, and its hours are estimated from the work: 32 squares torn off, dried in and laid,
+  // 180 ft of edge metal and the clean-up, at the hours its sheet gives each, to the nearest quarter hour.
+  assert.deepEqual([row("Crew A").complete, row("Crew A").estimated_hours, row("Crew A").total_cents, row("Crew A").duration_days], [true, 14.5, 14.5 * 12800, 2], "an hourly assignee is priced on the hours the work is estimated to take");
+  assert.deepEqual(compared.filter((entry) => entry.complete).map((entry) => entry.sheet!.name.split(" ")[0]), ["Crew", "Crew", "Summit", "Ridgeline"], "complete prices first, cheapest first");
+  // What each would leave for someone else: only two of them take the debris away.
+  assert.deepEqual(row("Crew A").not_covered.map((entry) => entry.item), ["disposal.debris"]); assert.deepEqual(row("Summit").not_covered, []); assert.deepEqual(row("Ridgeline").not_covered.map((entry) => entry.item), ["disposal.debris"]);
+  assert.deepEqual(row("Crew B").not_capable, [], "the sample assignees are marked as doing roofing, which grants every roofing item");
   assert.equal((await g.compareAssigneesForList(ORG, { list_id: String(list.id), manual: { hours: 60 } })).find((entry) => entry.sheet?.name.startsWith("Crew A"))!.total_cents, 60 * 12800);
 
   await assert.rejects(() => g.generateLaborList(ORG, { list_id: String(list.id) }, owner), /Assign this list/);
@@ -62,6 +67,8 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   assert.equal(first.evaluation.complete, true);
   assert.deepEqual((await items()).map((item) => [item.name, item.quantity, item.unit, Math.round(Number(item.projected_total) * 100)]), [["Tear off and install", 32, "sq", 208000], ["Steep pay", 6, "sq", 6000], ["Dump truck", 1, "job", 0]]);
   assert.deepEqual((await items()).at(-1).metadata.equipment, true); assert.equal((await items()).at(-1).metadata.equipment_included, true);
+  // Each line says what it accounts for: the roof price pays for the roof work, the steep line only adjusts it, and the truck takes the debris.
+  assert.deepEqual((await items()).map((item) => [item.metadata.covers || null, item.metadata.adjusts || null, (item.metadata.provides || []).map((entry: any) => entry.item)]), [[["roofing.tear_off", "roofing.dry_in", "roofing.install"], null, []], [null, ["roofing.tear_off", "roofing.dry_in", "roofing.install"], []], [null, null, ["disposal.debris"]]]);
   const generation = (await lists.readMaterialList(ORG, String(list.id))).metadata as any;
   assert.equal(generation.labor_generation.pay_sheet_name, "Crew B production pay (sample)"); assert.equal(generation.labor_generation.duration_days, 1.5); assert.equal(generation.labor_generation.complete, true);
 
@@ -74,16 +81,18 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   assert.deepEqual((await items()).map((item) => item.name), ["Shingles laid", "Tear off", "Drip edge", "Replace two sheets of decking"], "the previous assignee's lines and its dump truck are gone; the hand-added line stays");
   assert.equal(second.evaluation.total_cents, 96 * 2900 + 32 * 2500 + 180 * 75);
 
-  // An hourly assignee's list is one line at the hourly rate, waiting for the hours to be typed in. Nothing is asked first.
+  // An hourly assignee's list is one line at the hourly rate, with the hours estimated from the work. Nothing is asked first.
   await assign("Crew A", "Crew A");
-  const waiting = await g.generateLaborList(ORG, { list_id: String(list.id) }, owner);
-  assert.equal(waiting.evaluation.complete, false);
+  const estimated = await g.generateLaborList(ORG, { list_id: String(list.id) }, owner);
+  assert.equal(estimated.evaluation.complete, true);
   const hourly = (await items()).find((item) => item.name === "Hourly labor");
-  assert.deepEqual([hourly.quantity, hourly.unit, hourly.projected_unit_price, hourly.metadata.quantity_needed, hourly.metadata.compensation_kind], [0, "hour", 128, true, "hourly"]);
-  assert.equal((await items()).some((item) => item.metadata?.unresolved === true), false, "an hourly line is a line to fill in, not an error");
-  assert.deepEqual((await g.previewLaborList(ORG, { list_id: String(list.id) })).ask, [], "hours are typed in the list, so there is nothing to ask up front");
+  assert.deepEqual([hourly.quantity, hourly.unit, hourly.projected_unit_price, hourly.metadata.quantity_estimated, hourly.metadata.estimated_quantity, hourly.metadata.compensation_kind], [14.5, "hour", 128, true, 14.5, "hourly"]);
+  assert.equal((await items()).some((item) => item.metadata?.unresolved === true), false);
+  assert.deepEqual((await g.previewLaborList(ORG, { list_id: String(list.id) })).ask, [], "hours are estimated or typed in the list, so there is nothing to ask up front");
+  // An estimate left alone is worked out again; it is not mistaken for something a person typed.
+  assert.equal((await g.previewLaborList(ORG, { list_id: String(list.id), legacy_measurements: {} })).evaluation.work.hours, 14.5);
   const preview = await g.previewLaborList(ORG, { list_id: String(list.id), manual: { hours: 60 } });
-  assert.equal(preview.evaluation.total_cents, 60 * 12800); assert.equal((await items()).find((item) => item.name === "Hourly labor").quantity, 0, "a preview writes nothing");
+  assert.equal(preview.evaluation.total_cents, 60 * 12800); assert.equal((await items()).find((item) => item.name === "Hourly labor").quantity, 14.5, "a preview writes nothing");
   // Someone types 60 hours into the line and adds a bonus that is not on the pay sheet. Regenerating keeps both.
   const typedList = await lists.readMaterialList(ORG, String(list.id));
   await lists.createMaterialVersion(ORG, String(list.id), { expected_revision: Number(typedList.revision), reason: "revision", items: [...(typedList.current_items as any[]).map((item) => (item.name === "Hourly labor" ? { ...item, quantity: 60, projected_total: 7680 } : item)), { id: "bonus", section: "labor", name: "Finish-early bonus", quantity: 1, unit: "ea", projected_unit_price: 20 }] }, owner);
@@ -91,7 +100,7 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   assert.equal(priced.evaluation.complete, true); assert.equal(priced.evaluation.total_cents, 60 * 12800);
   assert.deepEqual((await items()).map((item) => [item.name, item.quantity]), [["Hourly labor", 60], ["Replace two sheets of decking", 2], ["Finish-early bonus", 1]], "the typed hours and the hand-added lines survive");
   const rowA = (await g.compareAssigneesForList(ORG, { list_id: String((await lists.createMaterialList(ORG, "project", { title: "Other labor", resource_type: "labor", items: [] }, owner)).id) })).find((entry) => entry.sheet?.name.startsWith("Crew A"))!;
-  assert.deepEqual([rowA.awaiting_hours, rowA.hourly_rate_cents, rowA.complete], [true, 12800, false], "an hourly assignee is described by its rate until hours exist");
+  assert.deepEqual([rowA.awaiting_hours, rowA.hourly_rate_cents, rowA.complete], [false, 12800, true], "an hourly assignee whose hours can be estimated has a price");
   assert.deepEqual((await g.compareAssigneesForList(ORG, { list_id: String(list.id) })).find((entry) => entry.sheet?.name.startsWith("Crew B"))!.duration_basis, { label: "Roof squares", value: 32, units_per_day: 22 }, "an estimate of days says what it rests on");
 
   // A project with no measurement dataset is priced from what the Project tab holds, in dictionary keys and units only.

@@ -28,8 +28,21 @@ export type MeasurementDefinition = {
    * whose number falls in the band. Producers differ in whether they write the band or the exact pitches.
    */
   derive?: { from: string; above: number; upTo: number | null };
+  /**
+   * This measurement is a part of another one: the same thing measured, narrowed by one attribute. Squares over 8/12
+   * are roof squares narrowed by pitch. Naming the partition is what lets a consumer know that two measurements
+   * overlap, or that a set of them adds up to the whole, without being told case by case.
+   */
+  slice?: { partition: string };
   description: string;
 };
+/**
+ * One way of cutting a base measurement into parts by an attribute of the building: roof squares by pitch band, by
+ * exact pitch, by how the material reaches the roof. Parts of one partition never overlap each other. Parts of two
+ * different partitions of the same base always may: ten hand-carried squares are ten of the same squares the pitch
+ * bands already count, not ten more. A complete partition's parts add up to the base.
+ */
+export type MeasurementPartition = { id: string; of: string; dimension: string; label: string; complete: boolean; description: string };
 export type MeasurementSchema = {
   id: string;
   version: string;
@@ -40,12 +53,70 @@ export type MeasurementSchema = {
 
 const definitions = new Map<string, MeasurementDefinition>();
 const schemas = new Map<string, MeasurementSchema>();
+const partitions = new Map<string, MeasurementPartition>();
 const ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
 
+export function registerMeasurementPartition(partition: MeasurementPartition) {
+  if (!ID.test(partition.id) || !ID.test(partition.dimension) || !partition.label.trim()) throw badRequest("measurement_partition_invalid", "A partition needs a stable id, the attribute it cuts by and a label.");
+  if (partitions.has(partition.id)) throw badRequest("measurement_partition_duplicate", `Partition ${partition.id} is already defined.`);
+  const base = definitions.get(partition.of);
+  if (!base) throw badRequest("measurement_partition_unknown_base", `Partition ${partition.id} cuts ${partition.of}, which is not in the dictionary.`);
+  // A part of a part would need the overlap of two attributes, which is only known where someone measured it.
+  if (base.slice) throw badRequest("measurement_partition_invalid", `Partition ${partition.id} must cut a whole measurement, and ${partition.of} is itself a part.`);
+  partitions.set(partition.id, Object.freeze(jsonClone(partition)));
+}
+export function listMeasurementPartitions() { return [...partitions.values()].map((partition) => jsonClone(partition)); }
+/** The whole measurement a definition is a part of, or the definition itself when it is not a part of anything. */
+export function measurementBase(definitionId: string): string {
+  const slice = definitions.get(definitionId)?.slice;
+  return slice ? partitions.get(slice.partition)!.of : definitionId;
+}
+/**
+ * How the first measurement stands to the second. `part`: it is cut from it. `whole`: the second is cut from it.
+ * `disjoint`: two parts of one partition, which never share anything. `overlap`: two parts of different partitions of
+ * the same base, which may count the same thing. `unrelated`: different things measured.
+ */
+export function measurementRelation(first: string, second: string): "same" | "part" | "whole" | "disjoint" | "overlap" | "unrelated" {
+  if (first === second) return "same";
+  const a = definitions.get(first), b = definitions.get(second);
+  if (!a || !b || measurementBase(first) !== measurementBase(second)) return "unrelated";
+  if (!b.slice) return "part";
+  if (!a.slice) return "whole";
+  return a.slice.partition === b.slice.partition ? "disjoint" : "overlap";
+}
+/**
+ * Whether a set of measurements accounts for all of a base measurement, part of it, or none of it. All of it means
+ * the base itself is in the set, or every part of one complete partition is. Parts of different partitions are never
+ * added together, because they may count the same thing.
+ */
+export function measurementCover(baseId: string, definitionIds: string[]): "whole" | "part" | "none" {
+  if (measurementWhole(baseId, definitionIds).length) return "whole";
+  return definitionIds.some((id) => definitions.has(id) && measurementBase(id) === baseId) ? "part" : "none";
+}
+/**
+ * The measurements in a set that between them are all of a base measurement: the base itself, or else every part of
+ * one complete partition. Empty when the set does not add up to the whole. Anything else in the set that is a part of
+ * the same base counts some of the same thing again.
+ */
+export function measurementWhole(baseId: string, definitionIds: string[]): string[] {
+  const set = new Set(definitionIds.filter((id) => definitions.has(id) && measurementBase(id) === baseId));
+  if (set.has(baseId)) return [baseId];
+  for (const partition of partitions.values()) {
+    if (partition.of !== baseId || !partition.complete) continue;
+    const parts = [...definitions.values()].filter((definition) => definition.slice?.partition === partition.id);
+    if (parts.length && parts.every((definition) => set.has(definition.id))) return parts.map((definition) => definition.id);
+  }
+  return [];
+}
 export function registerMeasurementDefinition(definition: MeasurementDefinition) {
   if (!ID.test(definition.id) || !definition.label.trim() || !definition.unit.trim() || !definition.levels.length) throw badRequest("measurement_definition_invalid", "A measurement needs a stable id, a label, a unit and a level.");
   if (!definition.key === !definition.keyPattern) throw badRequest("measurement_definition_invalid", "A measurement has either one key or one key pattern.");
   if (definition.keyPattern) new RegExp(definition.keyPattern);
+  if (definition.slice) {
+    const partition = partitions.get(definition.slice.partition);
+    if (!partition) throw badRequest("measurement_definition_invalid", `Measurement ${definition.id} names partition ${definition.slice.partition}, which is not defined.`);
+    if (definitions.get(partition.of)!.unit !== definition.unit) throw badRequest("measurement_definition_invalid", `Measurement ${definition.id} is a part of ${partition.of} and must be in its unit.`);
+  }
   if (definitions.has(definition.id)) throw badRequest("measurement_definition_duplicate", `Measurement ${definition.id} is already defined.`);
   // One key, one meaning: two definitions may not claim the same dataset key.
   if (definition.key && definitionForKey(definition.key)) throw badRequest("measurement_key_claimed", `Key ${definition.key} already belongs to ${definitionForKey(definition.key)!.id}.`);
@@ -165,8 +236,14 @@ const define = (id: string, key: string, label: string, unit: string, descriptio
 define("roof.area", "roofArea", "Roof area", "ft2", "Sloped surface area of every roof face.");
 define("roof.squares", "roofSquares", "Roof squares", "roofing_square", "Roof area in roofing squares of 100 square feet.");
 define("roof.ventilation_squares", "ventilationSquares", "Ventilated squares", "roofing_square", "Roof squares counted toward ventilation.");
-registerMeasurementDefinition({ id: "roof.squares_at_pitch", keyPattern: "^pitch\\d+(?:\\.\\d+)?Squares$", label: "Squares at each pitch", unit: "roofing_square", levels: both, description: "Squares at one exact pitch, one key per pitch such as pitch6Squares for 6/12." });
-const band = (id: string, key: string, label: string, description: string, above: number, upTo: number | null) => registerMeasurementDefinition({ id, key, label, unit: "roofing_square", levels: both, description, derive: { from: "roof.squares_at_pitch", above, upTo } });
+// Roof squares cut three ways. Every square has a pitch, so both pitch partitions are complete; only some squares are
+// hand-carried, so that partition names one part and leaves the rest unnamed.
+registerMeasurementPartition({ id: "roof.pitch_exact", of: "roof.squares", dimension: "roof.pitch", label: "By exact pitch", complete: true, description: "Roof squares at each exact pitch." });
+registerMeasurementPartition({ id: "roof.pitch_bands", of: "roof.squares", dimension: "roof.pitch", label: "By pitch band", complete: true, description: "Roof squares in the standard pitch bands, from flat to steeper than 12/12." });
+registerMeasurementPartition({ id: "roof.access_carried", of: "roof.squares", dimension: "roof.access", label: "By how material reaches the roof", complete: false, description: "Roof squares whose material has to be carried by hand." });
+registerMeasurementDefinition({ id: "roof.squares_hand_carried", key: "handCarriedSquares", label: "Hand-carried squares", unit: "roofing_square", levels: both, slice: { partition: "roof.access_carried" }, description: "Roof squares that cannot be loaded directly, so material is carried to them and debris carried away by hand." });
+registerMeasurementDefinition({ id: "roof.squares_at_pitch", keyPattern: "^pitch\\d+(?:\\.\\d+)?Squares$", label: "Squares at each pitch", unit: "roofing_square", levels: both, slice: { partition: "roof.pitch_exact" }, description: "Squares at one exact pitch, one key per pitch such as pitch6Squares for 6/12." });
+const band = (id: string, key: string, label: string, description: string, above: number, upTo: number | null) => registerMeasurementDefinition({ id, key, label, unit: "roofing_square", levels: both, description, derive: { from: "roof.squares_at_pitch", above, upTo }, slice: { partition: "roof.pitch_bands" } });
 band("roof.flat_squares", "flatRoofSquares", "Flat roof squares", "Squares pitched 2/12 or lower.", -1, 2);
 band("roof.squares_2_to_4", "pitch2to4Squares", "Squares over 2/12 up to 4/12", "Squares pitched over 2/12 and up to 4/12.", 2, 4);
 band("roof.squares_4_to_6", "pitch4to6Squares", "Squares over 4/12 up to 6/12", "Squares pitched over 4/12 and up to 6/12.", 4, 6);
@@ -203,13 +280,14 @@ define("exterior_wall.return_area", "wallReturnsArea", "Returns", "ft2", "Area o
 // ---- Schemas. A new kind of work is mostly a new selection from the dictionary. ----
 const select = (required: string[], optional: string[]) => [...required.map((definition) => ({ definition, required: true })), ...optional.map((definition) => ({ definition, required: false }))];
 const roofLines = ["roof.ridge_length", "roof.hip_length", "roof.valley_length", "roof.rake_length", "roof.eave_length", "roof.head_wall_length", "roof.side_wall_length", "roof.transition_length", "roof.parapet_length", "roof.protrusion_length", "roof.chimney_back_length", "roof.chimney_step_length", "roof.chimney_apron_length", "roof.skylight_length", "roof.unclassified_length"];
-registerMeasurementSchema({ id: "roofing", version: "1", title: "Roofing", description: "Sloped and flat roof replacement, repair and maintenance.", measurements: select(["roof.area", "roof.squares"], ["roof.ventilation_squares", "roof.flat_squares", "roof.squares_2_to_4", "roof.squares_4_to_6", "roof.squares_6_to_8", "roof.squares_9_to_12", "roof.squares_13_plus", "roof.squares_at_pitch", ...roofLines]) });
+registerMeasurementSchema({ id: "roofing", version: "2", title: "Roofing", description: "Sloped and flat roof replacement, repair and maintenance.", measurements: select(["roof.area", "roof.squares"], ["roof.ventilation_squares", "roof.squares_hand_carried","roof.flat_squares", "roof.squares_2_to_4", "roof.squares_4_to_6", "roof.squares_6_to_8", "roof.squares_9_to_12", "roof.squares_13_plus", "roof.squares_at_pitch", ...roofLines]) });
 // Gutters run along the eaves, so this schema shares the roofing schema's eave length rather than defining its own.
 registerMeasurementSchema({ id: "gutters", version: "1", title: "Gutters", description: "Gutter and downspout replacement.", measurements: select(["roof.eave_length"], ["roof.rake_length"]) });
 registerMeasurementSchema({ id: "siding", version: "1", title: "Siding", description: "Wall cladding replacement.", measurements: select(["exterior_wall.net_area"], ["exterior_wall.gross_area", "exterior_wall.opening_area", "exterior_wall.opening_perimeter", "exterior_wall.top_length", "exterior_wall.bottom_length", "exterior_wall.transition_length", "exterior_wall.termination_length", "exterior_wall.inside_corner_length", "exterior_wall.outside_corner_length", "exterior_wall.return_area"]) });
 
 // ---- Publication ----
-const definitionSchema: JsonSchema = { type: "object", required: ["id", "label", "unit", "levels", "description"], properties: { id: { type: "string" }, key: { type: "string" }, keyPattern: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, levels: { type: "array", items: { enum: ["project", "structure"] } }, description: { type: "string" }, derive: { type: "object" } }, additionalProperties: false };
+const definitionSchema: JsonSchema = { type: "object", required: ["id", "label", "unit", "levels", "description"], properties: { id: { type: "string" }, key: { type: "string" }, keyPattern: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, levels: { type: "array", items: { enum: ["project", "structure"] } }, description: { type: "string" }, derive: { type: "object" }, slice: { type: "object", required: ["partition"], properties: { partition: { type: "string" } }, additionalProperties: false } }, additionalProperties: false };
+const partitionSchema: JsonSchema = { type: "object", required: ["id", "of", "dimension", "label", "complete", "description"], properties: { id: { type: "string" }, of: { type: "string" }, dimension: { type: "string" }, label: { type: "string" }, complete: { type: "boolean" }, description: { type: "string" } }, additionalProperties: false };
 const schemaSchema: JsonSchema = { type: "object", required: ["id", "version", "title", "description", "measurements"], properties: { id: { type: "string" }, version: { type: "string" }, title: { type: "string" }, description: { type: "string" }, measurements: { type: "array", items: { type: "object", required: ["definition", "required"], properties: { definition: { type: "string" }, required: { type: "boolean" } }, additionalProperties: false } } }, additionalProperties: false };
 const valueMap: JsonSchema = { type: "object", additionalProperties: { type: "object" } };
 const assessmentSchema: JsonSchema = { type: "object", required: ["schema", "measurements", "missing_required", "unrecognized"], properties: { status: { type: "string" }, dataset_id: { type: "string" }, schema: { type: "object" }, measurements: { type: "array", items: { type: "object", required: ["definition", "label", "unit", "required", "status", "values", "structures"], properties: { definition: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, required: { type: "boolean" }, status: { enum: ["ready", "missing", "unit_mismatch"] }, values: valueMap, structures: { type: "array", items: { type: "object", required: ["id", "name", "values"], properties: { id: { type: "string" }, name: { type: "string" }, values: valueMap }, additionalProperties: false } } }, additionalProperties: false } }, missing_required: { type: "array", items: { type: "string" } }, unrecognized: { type: "array", items: { type: "string" } } }, additionalProperties: false };
@@ -221,6 +299,8 @@ export function registerMeasurementSchemaProvider() {
   registerDataProvider({ id: "measurement-schemas", version: "1", apps: ["measurements", "documents", "materials", "crew"], exports: {
     dictionary: { description: "Every measurement the platform has a shared meaning for: its id, dataset key, unit and whether it can be recorded per structure. Bind to these rather than to a producer's names.", schema: { type: "array", items: definitionSchema }, schemaVersion: "1", access: anyone,
       read: async () => { const value = listMeasurementDefinitions(); return { value, revision: `sha256:${contentHash(value)}` }; } },
+    partitions: { description: "How base measurements are cut into parts: which measurement each partition cuts, by which attribute of the building, and whether its parts add up to the whole. Parts of one partition never overlap; parts of different partitions of the same measurement may count the same thing and are never added together.", schema: { type: "array", items: partitionSchema }, schemaVersion: "1", access: anyone,
+      read: async () => { const value = listMeasurementPartitions(); return { value, revision: `sha256:${contentHash(value)}` }; } },
     catalog: { description: "Measurement schemas by kind of work (roofing, gutters, siding): which dictionary measurements each uses and which it requires.", schema: { type: "array", items: schemaSchema }, schemaVersion: "1", access: anyone,
       read: async () => { const value = listMeasurementSchemas(); return { value, revision: `sha256:${contentHash(value)}` }; } },
     assessment: { description: "What one schema asks for against this project's selected measurements: each measurement's status and values in total and per structure, the required ones still missing, and dataset keys no definition recognizes. Missing is never reported as zero.", schema: assessmentSchema, schemaVersion: "1", argsSchema: { type: "object", required: ["schema"], properties: { schema: { type: "string" } }, additionalProperties: false }, access: { scopes: ["project"] as const, permissions: ["view_project_data"], systemKinds: ["work", "module", "agent"] as const },

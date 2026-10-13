@@ -36,6 +36,33 @@ migration:
 - Prefer a narrow name. `roof.area` can coexist with whatever another
   industry needs; a bare `area` cannot.
 
+## Parts of a measurement
+
+Some measurements are a part of another: squares over 8/12 are roof squares
+narrowed by pitch. A definition says so with `slice: { partition }`, and a
+**partition** says which base measurement it cuts, by which attribute of the
+building, and whether its parts add up to the whole.
+
+Roof squares are cut three ways: `roof.pitch_bands` and `roof.pitch_exact`
+(both complete, since every square has a pitch) and `roof.access_carried` (not
+complete: it names the hand-carried squares and leaves the rest unnamed).
+
+This is what lets a consumer tell overlap from addition without being told case
+by case. Parts of one partition never overlap. Parts of two partitions of the
+same base may count the same squares, so they are never added together: ten
+hand-carried squares are ten of the squares the pitch bands already count, not
+ten more. A combination nobody measured (steep and hand-carried) is unknown,
+and is only added to the dictionary when something prices on it.
+
+`measurementBase`, `measurementRelation`, `measurementCover` and
+`measurementWhole` answer these questions. A partition must cut a whole
+measurement, not another part, and a part must be in its base's unit. When
+FirstMeasure produces the measurement, any combination could be worked out from
+the roof planes; a hand-entered dataset holds only the parts someone gave.
+
+[Requirements](requirements.md) uses this to decide whether a pay line pays for
+a piece of work or only adjusts its price.
+
 ## Schemas
 
 A **schema** (`roofing`, `gutters`, `siding`) is a selection from the
@@ -74,6 +101,7 @@ wall measurements are not yet broken down by structure.
 The `measurement-schemas` provider (permission `view_project_data`) exports:
 
 - `dictionary` — every definition.
+- `partitions` — how base measurements are cut into parts.
 - `catalog` — every schema.
 - `assessment` (project, argument `schema`) — that schema against the project's
   selected measurements: each measurement's status (`ready`, `missing`,

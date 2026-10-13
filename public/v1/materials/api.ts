@@ -3,6 +3,8 @@ import {listSuppliers,saveSupplier,archiveSupplier,saveSupplierLocation,archiveS
 import {listPaySheets,savePaySheet,archivePaySheet,paySheetRequirements} from '../labor/pay-sheets.js';
 import {evaluateProjectPaySheets,requireLaborEnabled} from '../labor/pay-sheet-publication.js';
 import {assigneeSchema} from '../labor/assignees.js';
+import {assigneeCapabilities,saveCapabilities} from '../labor/capabilities.js';
+import {projectRequirements} from '../labor/requirements.js';
 import {generateLaborList,previewLaborList,compareAssigneesForList} from '../labor/generation.js';
 import {commitLaborList,listCommitments,listDeliverySettings,saveDeliverySetting,releaseCommitment,redeliverCommitment,confirmDelivery,releaseCommitmentsForList,listUnits,saveUnit,archiveUnit,assigneeAvailability} from '../labor/commitments.js';
 import type { FastifyPluginAsync } from "fastify";
@@ -121,6 +123,11 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
   app.post('/organizations/:orgId/labor-commitments/:commitmentId/confirm-delivery',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_projects',true);const detail=((request.body||{}) as {detail?:string}).detail;return {ok:true,commitment:await confirmDelivery(orgId,{id:getParam(request.params,'commitmentId'),...(detail?{detail}:{})},ctx)};});
   app.get('/organizations/:orgId/labor-delivery-settings',async request=>{const {orgId}=await laborAuth(request,'manage_company_settings');return {ok:true,settings:await listDeliverySettings(orgId)};});
   app.put('/organizations/:orgId/labor-delivery-settings',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);return {ok:true,setting:await saveDeliverySetting(orgId,request.body,ctx)};});
+  // Everything the project requires and what on its lists accounts for each thing. Reads only.
+  app.post('/organizations/:orgId/projects/:projectId/requirements',async request=>{const {orgId}=await laborAuth(request,'manage_projects');return {ok:true,...await projectRequirements(orgId,getParam(request.params,'projectId'),request.body||{})};});
+  // What an assignee is able to do, as work items, apart from how they are paid.
+  app.get('/organizations/:orgId/assignees/:type/:assigneeId/capabilities',async request=>{const {orgId}=await laborAuth(request,'manage_projects|manage_company_settings');return {ok:true,capabilities:await assigneeCapabilities(orgId,assigneeSchema.parse({type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')}))};});
+  app.put('/organizations/:orgId/assignees/:type/:assigneeId/capabilities',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);const {assignee:_assignee,...body}=(request.body||{}) as Record<string,unknown>;return {ok:true,capabilities:await saveCapabilities(orgId,{...body,assignee:{type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')}},ctx)};});
   // Units inside an assignee, and how much the assignee can take on given what it is committed to.
   app.get('/organizations/:orgId/assignees/:type/:assigneeId',async request=>{const {orgId}=await laborAuth(request,'manage_projects|manage_company_settings');const assignee=assigneeSchema.parse({type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')});return {ok:true,units:await listUnits(orgId,assignee),availability:await assigneeAvailability(orgId,assignee)};});
   app.post('/organizations/:orgId/assignee-units',async(request,reply)=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);const {id:_id,...body}=(request.body||{}) as Record<string,unknown>;reply.code(201);return {ok:true,unit:await saveUnit(orgId,body,ctx)};});

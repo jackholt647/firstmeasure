@@ -137,6 +137,58 @@ result says which was used (`measurement_source`: `dataset`, `project` or
 Routes: `lists/:listId/generate`, `…/generate/preview`, `…/assignee-pay`, and
 action `labor.list.generate`, all `manage_projects`.
 
+## Mapping pay to the work
+
+A sheet is three things: how the assignee is paid (its entries), the work they
+do (work items from [requirements](requirements.md)), and the mapping between
+the two. The mapping may read anything a sheet can read.
+
+- An entry's `covers` lists the work items and functions it pays for. An entry
+  that covers nothing is always charged.
+- `work` lists items done at no separate charge (`included`) and roughly how
+  many hours one unit of each takes (`hours_per_unit`).
+- Equipment `provides` the functions it fulfils, with a `capacity`, or
+  `per_load` when it can be emptied and used again.
+- An item that is none of these is not offered on the sheet, and stays open on
+  the project until something else accounts for it.
+
+**Counting and adjusting.** Work is paid for once. An entry that reads the
+measurement the work is sized by is its pay. An entry that reads a part of that
+measurement (steep squares, where the work is all the squares) adjusts the
+price and is not a second cover, unless the sheet's entries for that item read
+parts that add up to the whole, in which case those parts are the pay. An entry
+that reads something else entirely (hours, bundles, a flat price) covers by
+declaration. `role` on an entry overrides this. `paySheetCoverRoles` and
+`paySheetWork` work it out.
+
+**Hours.** An input with source `work_hours` is estimated from the job's
+requirements and the sheet's `hours_per_unit`, to the nearest quarter hour. A
+number typed for the job replaces the estimate; an estimate nobody changed is
+worked out again each time. The estimate is meant to be shaped like the work,
+so that more work means more hours, not to be exact. `duration` may be
+`{ hours_per_day }` to turn the same hours into days.
+
+**Part of the work.** Evaluation takes a `scope` of work items. Entries for
+work outside it are not charged. An entry that pays for work both inside and
+outside it is charged in full and says so (`covers_outside`).
+
+### Writing a good mapping
+
+A weak mapping does not break anything; it produces a warning or a wrong
+number that a person has to catch. When writing or reviewing a sheet:
+
+- Prefer one entry for each work item where the assignee's pricing allows it. A
+  single price for tear-off and install cannot be split when someone else does
+  the tear-off.
+- If the assignee does something without charging for it, say so with
+  `included`. Leaving it off says they do not do it.
+- Do not mark a surcharge as covering work on its own. A sheet whose only line
+  for an item is an adjustment never pays for that item.
+- Give hours to every item the assignee does, so an estimate moves when the
+  scope of work does.
+- When an assignee brings equipment, say what it provides. Otherwise the
+  function stays open.
+
 ## Published
 
 Provider `pay-sheets`. A pay sheet is a compensation record:
@@ -160,10 +212,10 @@ Material calculations do not yet publish their declared inputs the same way.
 
 ## Not built
 
-The editor for sheets, equipment needs a job has that an assignee's equipment
-would cover, and pay or payroll against what was committed. Committing a list and delivering it are described in
+The editor for sheets, and pay or payroll against what was committed. What a job
+needs and what covers it is in [requirements](requirements.md). Committing a list and delivering it are described in
 [assignees](assignees.md). Development Instant
-Full Orgs start with two sample sheets (`labor/sample-pay-sheets.ts`), with
+Full Orgs start with five sample sheets (`labor/sample-pay-sheets.ts`), with
 placeholder rates.
 
 Run `tests/labor-pay-sheets.test.ts` for changes here.

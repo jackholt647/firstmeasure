@@ -5,7 +5,9 @@ import type { JsonObject } from "../platform/storage.js";
 import { measurementSchemaIdsForScope } from "../platform/publication/measurement-schemas.js";
 import { createMaterialVersion, patchMaterialList, readMaterialList } from "../materials/storage.js";
 import { ASSIGNEE_TYPE_BY_KIND, requireActor, requireAssignee, type Actor, type Assignee } from "./assignees.js";
-import { evaluatePaySheet, listPaySheets, type PaySheet } from "./pay-sheets.js";
+import { workItem, workRequirements } from "../platform/publication/work-items.js";
+import { capabilitiesFor } from "./capabilities.js";
+import { evaluatePaySheet, listPaySheets, paySheetWork, type PayContext, type PaySheet } from "./pay-sheets.js";
 import { projectPayContext } from "./pay-sheet-publication.js";
 
 /**
@@ -24,6 +26,21 @@ const text = (value: unknown) => String(value ?? "").trim();
 const obj = (value: unknown): JsonObject => (value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {});
 const GENERATED = "generated_from_pay_sheet";
 
+/** The work items a list has been told to leave to someone else. Everything else its assignee's sheet covers is the list's. */
+export function listExcludedWork(list: JsonObject): string[] {
+  const excluded = obj(obj(list.metadata).work_scope).excluded_items;
+  return Array.isArray(excluded) ? [...new Set(excluded.map(text).filter(Boolean))] : [];
+}
+/**
+ * What a sheet is evaluated against for one list: what the job requires of the sheet's kinds of work, and the items
+ * that are this list's to do. With nothing left to someone else there is no scope, which means all of it.
+ */
+export function workContext(sheet: PaySheet, context: PayContext, excluded: string[]): Pick<PayContext, "work" | "scope"> {
+  const work = workRequirements(sheet.schema_ids, context).map((row) => ({ item: row.item, quantity: row.quantity }));
+  if (!excluded.length) return { work };
+  const handled = new Set([...paySheetWork(sheet).keys(), ...sheet.work.map((entry) => entry.item)]);
+  return { work, scope: [...handled].filter((item) => !excluded.includes(item)) };
+}
 /** The assignee a list is assigned to, in assignee terms, or null when it is not assigned. */
 export function listAssignee(list: JsonObject): (Assignee & { name: string }) | null {
   const reference = obj(obj(list.assignment).work_resource_ref), type = ASSIGNEE_TYPE_BY_KIND[text(reference.kind)];
@@ -62,15 +79,20 @@ export async function previewLaborList(orgId: string, input: unknown) {
   // A number only a person can supply, paid directly at a rate (hours at an hourly rate, extra layers at a price each),
   // is typed into the list as that line's quantity. What is already typed there is what the job is priced on.
   const current = (Array.isArray(list.current_items) ? list.current_items : []).map(obj);
-  const typedInList = sheet.entries.flatMap((entry) => { const source = sheet.inputs.find((candidate) => candidate.name === entry.input); return entry.id && source?.source.kind === "manual" && (entry.kind === "hourly" || entry.kind === "piece_rate" || entry.kind === "cost_rate") ? [{ entry, input: source }] : []; });
+  const typedInList = sheet.entries.flatMap((entry) => { const source = sheet.inputs.find((candidate) => candidate.name === entry.input); return entry.id && (source?.source.kind === "manual" || source?.source.kind === "work_hours") && (entry.kind === "hourly" || entry.kind === "piece_rate" || entry.kind === "cost_rate") ? [{ entry, input: source }] : []; });
   const typed: Record<string, number> = {};
   for (const { entry, input: source } of typedInList) {
     const line = current.find((item) => obj(item.metadata)[GENERATED] === true && obj(item.metadata).pay_entry_id === entry.id && obj(item.metadata).pay_sheet_id === sheet.id);
     const quantity = Number(line?.quantity);
-    if (quantity > 0) typed[source.name] = quantity / (entry.multiplier ?? 1);
+    // An estimate that generation wrote is not something a person typed: it is worked out again. A changed one is.
+    const stillEstimate = obj(line?.metadata).quantity_estimated === true && Number(obj(line?.metadata).estimated_quantity) === quantity;
+    if (quantity > 0 && !stillEstimate) typed[source.name] = quantity / (entry.multiplier ?? 1);
   }
-  const context = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: { ...typed, ...(parsed.manual || {}) }, legacy_measurements: parsed.legacy_measurements });
+  const base = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: { ...typed, ...(parsed.manual || {}) }, legacy_measurements: parsed.legacy_measurements });
+  const context = { ...base, ...workContext(sheet, base, listExcludedWork(list)) };
   const evaluation = evaluatePaySheet(sheet, context);
+  // Which requirements a line accounts for travels with the line, so the list itself says what it covers.
+  const cover = (line: { covers?: string[]; adjusts?: string[]; covers_outside?: string[] }): JsonObject => ({ ...(line.covers?.length ? { covers: line.covers } : {}), ...(line.adjusts?.length ? { adjusts: line.adjusts } : {}), ...(line.covers_outside?.length ? { covers_outside: line.covers_outside } : {}) });
   const stamp = (extra: JsonObject = {}) => ({ [GENERATED]: true, pay_sheet_id: sheet.id, pay_sheet_revision: sheet.revision, ...extra });
   const items: JsonObject[] = [];
   evaluation.lines.forEach((line, index) => {
@@ -83,19 +105,19 @@ export async function previewLaborList(orgId: string, input: unknown) {
       // The list multiplies quantity by unit price; the line total is stated too so rounding never moves it.
       projected_unit_price: quantity ? total / quantity : total, projected_total: total,
       ...(line.structure_id ? { structure_id: line.structure_id, structure_name: line.structure_name } : {}),
-      metadata: stamp({ pay_entry_id: line.entry_id, compensation_kind: line.kind === "hourly" || line.kind === "cost_rate" ? line.kind : "piece_rate", ...(line.kind === "cost_rate" ? { projection_only: true } : {}) })
+      metadata: stamp({ pay_entry_id: line.entry_id, compensation_kind: line.kind === "hourly" || line.kind === "cost_rate" ? line.kind : "piece_rate", ...(line.kind === "cost_rate" ? { projection_only: true } : {}), ...(line.estimated ? { quantity_estimated: true, estimated_quantity: quantity } : {}), ...cover(line) })
     });
   });
   // A typed line that has no quantity yet is on the list at its rate, waiting for the number. Nothing is asked up front.
   const written = new Set(evaluation.lines.map((line) => line.entry_id));
   for (const { entry, input: source } of typedInList) {
     if (written.has(entry.id!)) continue;
-    items.push({ id: `ps_${entry.id}_typed`, section: "labor", name: entry.label, quantity: 0, unit: entry.unit || (entry.kind === "piece_rate" ? "ea" : "hour"), projected_unit_price: entry.rate_cents / 100, projected_total: 0, metadata: stamp({ pay_entry_id: entry.id, compensation_kind: entry.kind, ...(entry.kind === "cost_rate" ? { projection_only: true } : {}), quantity_needed: source.required, quantity_label: source.label || source.name }) });
+    items.push({ id: `ps_${entry.id}_typed`, section: "labor", name: entry.label, quantity: 0, unit: entry.unit || (entry.kind === "piece_rate" ? "ea" : "hour"), projected_unit_price: entry.rate_cents / 100, projected_total: 0, metadata: stamp({ pay_entry_id: entry.id, compensation_kind: entry.kind, ...(entry.kind === "cost_rate" ? { projection_only: true } : {}), quantity_needed: source.required, quantity_label: source.label || source.name, ...cover(evaluation.unresolved.find((row) => row.entry_id === entry.id) || {}) }) });
   }
   const typedIds = new Set(typedInList.map(({ entry }) => entry.id));
   // Anything else that could not be priced is on the list as a line with no price, saying what it is waiting for.
-  evaluation.unresolved.filter((entry) => !typedIds.has(entry.entry_id)).forEach((entry, index) => items.push({ id: `ps_unresolved_${entry.entry_id}_${index}`, section: "labor", name: entry.label, quantity: 0, unit: "", description: entry.reason, metadata: stamp({ pay_entry_id: entry.entry_id, unresolved: true, unresolved_reason: entry.reason, unresolved_input: entry.input }) }));
-  evaluation.equipment.forEach((entry, index) => items.push({ id: `ps_equipment_${index}`, section: "labor", name: entry.name, quantity: 1, unit: "job", projected_unit_price: entry.total_cents / 100, projected_total: entry.total_cents / 100, metadata: stamp({ equipment: true, equipment_included: entry.included, ...(entry.equipment_type_id ? { equipment_type_id: entry.equipment_type_id } : {}) }) }));
+  evaluation.unresolved.filter((entry) => !typedIds.has(entry.entry_id)).forEach((entry, index) => items.push({ id: `ps_unresolved_${entry.entry_id}_${index}`, section: "labor", name: entry.label, quantity: 0, unit: "", description: entry.reason, metadata: stamp({ pay_entry_id: entry.entry_id, unresolved: true, unresolved_reason: entry.reason, unresolved_input: entry.input, ...cover(entry) }) }));
+  evaluation.equipment.forEach((entry, index) => items.push({ id: `ps_equipment_${index}`, section: "labor", name: entry.name, quantity: 1, unit: "job", projected_unit_price: entry.total_cents / 100, projected_total: entry.total_cents / 100, metadata: stamp({ equipment: true, equipment_included: entry.included, ...(entry.equipment_type_id ? { equipment_type_id: entry.equipment_type_id } : {}), ...(entry.provides.length ? { provides: entry.provides } : {}) }) }));
   const kept = current.filter((item) => obj(item.metadata)[GENERATED] !== true);
   // Numbers a person must supply that are not a line's quantity (a gate, a duration) still have to be asked for.
   const typedInputs = new Set(typedInList.map(({ input: source }) => source.name));
@@ -112,7 +134,7 @@ export async function generateLaborList(orgId: string, input: unknown, actor: Ac
   const version = await createMaterialVersion(orgId, parsed.list_id, { expected_revision: Number(preview.list.revision), reason: "revision", notes: `Generated from ${preview.sheet.name}`, items: preview.items }, auth);
   const current = await readMaterialList(orgId, parsed.list_id);
   // What it was generated from, so the list can say when its sheet or its inputs have moved on.
-  const generation = { pay_sheet_id: preview.sheet.id, pay_sheet_revision: preview.sheet.revision, pay_sheet_name: preview.sheet.name, generated_at: new Date().toISOString(), generated_by_user_id: text(actor.userId), duration_days: preview.evaluation.duration_days, measurement_source: preview.measurement_source, complete: preview.evaluation.complete, total_cents: preview.evaluation.total_cents, manual: parsed.manual || {}, missing_inputs: preview.evaluation.missing_inputs.map((entry) => ({ name: entry.name, label: entry.label, required: entry.required, kind: entry.source.kind, reason: entry.reason })) };
+  const generation = { pay_sheet_id: preview.sheet.id, pay_sheet_revision: preview.sheet.revision, pay_sheet_name: preview.sheet.name, generated_at: new Date().toISOString(), generated_by_user_id: text(actor.userId), duration_days: preview.evaluation.duration_days, work_items: preview.evaluation.work.items, estimated_hours: preview.evaluation.work.hours, measurement_source: preview.measurement_source, complete: preview.evaluation.complete, total_cents: preview.evaluation.total_cents, manual: parsed.manual || {}, missing_inputs: preview.evaluation.missing_inputs.map((entry) => ({ name: entry.name, label: entry.label, required: entry.required, kind: entry.source.kind, reason: entry.reason })) };
   const list = await patchMaterialList(orgId, parsed.list_id, { expected_revision: Number(current.revision), metadata: { ...obj(current.metadata), labor_generation: generation } }, auth);
   return { list, version, evaluation: preview.evaluation, kept: preview.kept, measurement_source: preview.measurement_source };
 }
@@ -129,18 +151,25 @@ export async function compareAssigneesForList(orgId: string, input: unknown) {
   const sheets = await listPaySheets(orgId);
   const assignees = new Map<string, Assignee>();
   for (const sheet of sheets) assignees.set(`${sheet.subject.type}:${sheet.subject.id}`, sheet.subject);
+  const capabilities = await capabilitiesFor(orgId, [...assignees.values()]);
+  const excluded = listExcludedWork(list);
   const rows = [];
   for (const assignee of assignees.values()) {
     const found = await requireAssignee(orgId, assignee).catch(() => null);
     if (!found) continue;
     const sheet = await paySheetForList(orgId, list, assignee).catch(() => null);
-    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, cost_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], reason: "More than one pay sheet could apply." }); continue; }
-    const evaluation = evaluatePaySheet(sheet, context);
+    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, cost_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], work_items: [], not_covered: [], not_capable: [], estimated_hours: null, reason: "More than one pay sheet could apply." }); continue; }
+    const work = workContext(sheet, context, excluded);
+    const evaluation = evaluatePaySheet(sheet, { ...context, ...work });
+    // What this job requires that the sheet says nothing about is left for someone else, and is said up front.
+    const handled = new Set(evaluation.work.items.map((entry) => entry.item)), required = workRequirements(sheet.schema_ids, context).filter((row) => !excluded.includes(row.item));
+    const able = capabilities.get(`${assignee.type}:${assignee.id}`);
+    const label = (item: string) => ({ item, label: workItem(item)?.label || item });
     const hourly = sheet.entries.find((entry) => entry.kind === "hourly"), costed = sheet.entries.find((entry) => entry.kind === "cost_rate");
     // An assignee priced on time has no job price until hours are typed into its list; it is described by its rate instead.
     const timed = (entryId: string) => { const kind = sheet.entries.find((candidate) => candidate.id === entryId)?.kind; return kind === "hourly" || kind === "cost_rate"; };
     const awaitingHours = !evaluation.complete && !!(hourly || costed) && evaluation.unresolved.every((entry) => timed(entry.entry_id));
-    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, hourly_rate_cents: hourly ? hourly.rate_cents : null, cost_rate_cents: costed ? costed.rate_cents : null, awaiting_hours: awaitingHours, duration_days: evaluation.duration_days, duration_basis: evaluation.duration_basis, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, reason: "" });
+    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, hourly_rate_cents: hourly ? hourly.rate_cents : null, cost_rate_cents: costed ? costed.rate_cents : null, awaiting_hours: awaitingHours, duration_days: evaluation.duration_days, duration_basis: evaluation.duration_basis, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, work_items: evaluation.work.items, not_covered: required.filter((row) => !handled.has(row.item)).map((row) => label(row.item)), not_capable: able?.known ? [...handled].filter((item) => !able.items.includes(item)).map(label) : [], estimated_hours: evaluation.work.hours, reason: "" });
   }
   return rows.sort((a, b) => Number(b.complete) - Number(a.complete) || (a.total_cents ?? Infinity) - (b.total_cents ?? Infinity) || a.assignee.name.localeCompare(b.assignee.name));
 }
