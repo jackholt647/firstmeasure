@@ -100,6 +100,17 @@ test("pay sheets are stored per organization, published with their requirements 
     assert.equal(after.length, 1); assert.equal(after[0]!.lines.find((row) => row.label === "Tear off")!.total_cents, 80000); assert.equal(after[0]!.duration_days, 1); assert.equal(after[0]!.complete, true);
     assert.equal(after[0]!.lines.some((row) => row.label === "Pack out"), false, "a gated entry is left out when its input is zero");
 
+    // Project fields are read on the server: a pay sheet that prices pack-out finds the project's own value.
+    const { projectFieldNumbers } = await import("../labor/pay-sheet-publication.js");
+    await s.saveBranchModule("org_pay", "default", "custom_fields", { data: { fields: [{ key: "pack_out_feet", path: "pack_out_feet", label: "Pack-out distance", type: "number", entity: "project" }, { key: "steep_access", path: "access.steep", label: "Steep access", type: "boolean", entity: "project" }, { key: "notes", path: "notes", label: "Notes", type: "text", entity: "project" }] } });
+    const current = await s.readDocument("org_pay", "projects", "project_pay");
+    await s.upsertDocument("org_pay", "projects", { id: "project_pay", expected_revision: Number(current.revision), data: { ...current.data, custom_field_values: { pack_out_feet: 80, access: { steep: true }, notes: "Gate code 4411" } } });
+    const fields = await projectFieldNumbers("org_pay", "project_pay");
+    assert.equal(fields.pack_out_feet, 80); assert.equal(fields["access.steep"], 1, "a yes/no field counts as 1"); assert.equal(fields.custom_access_steep, 1, "also under the name the Project tab's formulas use"); assert.equal("notes" in fields, false);
+    const packed = await evaluateProjectPaySheets("org_pay", "project_pay", { sheet_id: saved.id, manual: { layers: 0 } });
+    assert.equal(packed[0]!.lines.find((row) => row.label === "Pack out")!.total_cents, 8000, "80 ft at $1 a foot, read from the project");
+    assert.equal((await evaluateProjectPaySheets("org_pay", "project_pay", { sheet_id: saved.id, manual: { layers: 0 }, fields: { pack_out_feet: 0 } }))[0]!.lines.some((row) => row.label === "Pack out"), false, "a value passed by the caller still wins");
+
     // Documents, scope code and the assistant read the same published views a person does.
     (await import("../platform/publication/bootstrap.js")).initializePublication();
     const { readPublishedData } = await import("../platform/publication/providers.js");

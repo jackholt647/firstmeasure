@@ -119,6 +119,15 @@ names a measurement schema. Evaluation is deterministic and leaves a line
 unresolved rather than pricing it at zero; an agent may author a sheet but never
 computes pay. Run `tests/labor-pay-sheets.test.ts` for changes here.
 
+Read [labor providers](docs/architecture/labor-providers.md) before changing who
+work is committed to, crews, commitments, delivery or availability. Say **labor
+provider** for a person, in-house crew or subcontractor that work can be
+committed to; `work_resource_ref`, "assignable subject" and "subject" are older
+names for the same thing and stay only where they are stored. A commitment is a
+frozen copy and is never edited. Delivery code runs in the sandbox and only
+returns steps. Availability comes from commitments alone. Run
+`tests/labor-commitments.test.ts` for changes here.
+
 ## Automations
 
 Read [automation authoring](docs/architecture/automation-authoring.md) before

@@ -10,8 +10,9 @@ evaluated against any job.
 
 ## Shape
 
-A sheet belongs to one subject (`organization_user`, `resource_group` or
-`organization_connection`) and has:
+A sheet belongs to one [labor provider](labor-providers.md), stored as its
+`subject` (`organization_user`, `resource_group` or `organization_connection`),
+and has:
 
 - **inputs** — everything it reads, each named, each `required` or optional
   with a `default`. A source is one of:
@@ -55,8 +56,12 @@ gives the same lines every time. It never invents a quantity:
 
 `evaluateProjectPaySheets` prices every sheet (or one) against the same
 project, reading its selected measurement dataset and material lists, so
-parties can be compared on the same job. Project field values and manual
-numbers are passed in by the caller; field values are not yet read server-side.
+parties can be compared on the same job. Project fields are read on the server
+through the same path the data layer publishes them (`custom-fields-project.values`):
+stored values, defaults, formulas and published calculations, with yes/no fields
+counting as 1 and 0. A field input names the field's path, or the `custom_<path>`
+name the Project tab's formulas use. Numbers entered by hand, and any field value
+the caller wants to override, are passed in.
 
 An agent may write or propose a pay sheet from a subcontractor's price sheet;
 it does not compute pay. Pay comes only from an approved sheet's evaluation.
@@ -81,8 +86,9 @@ Material calculations do not yet publish their declared inputs the same way.
 
 ## Not built
 
-Generating a labor list from a sheet, committing it to its recipient, the
-editor for sheets, and equipment needs covered by a crew. Development Instant
+Generating a labor list from a sheet, the editor for sheets, and equipment needs
+covered by a crew. Committing a list and delivering it are described in
+[labor providers](labor-providers.md). Development Instant
 Full Orgs start with two sample sheets (`labor/sample-pay-sheets.ts`), with
 placeholder rates.
 
