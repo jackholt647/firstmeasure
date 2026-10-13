@@ -100,6 +100,15 @@ test("pay sheets are stored per organization, published with their requirements 
     assert.equal(after.length, 1); assert.equal(after[0]!.lines.find((row) => row.label === "Tear off")!.total_cents, 80000); assert.equal(after[0]!.duration_days, 1); assert.equal(after[0]!.complete, true);
     assert.equal(after[0]!.lines.some((row) => row.label === "Pack out"), false, "a gated entry is left out when its input is zero");
 
+    // Documents, scope code and the assistant read the same published views a person does.
+    (await import("../platform/publication/bootstrap.js")).initializePublication();
+    const { readPublishedData } = await import("../platform/publication/providers.js");
+    const reader = systemPublicationContext({ kind: "agent", organizationId: "org_pay", projectId: "project_pay", operations: ["pay-sheets.requirements", "pay-sheets.evaluation", "pay-sheets.catalog"] });
+    const published = await readPublishedData(reader, { provider: "pay-sheets", export: "requirements", target: { scope: "organization", organizationId: "org_pay" } }) as any;
+    assert.equal(published.status, "ready"); assert.deepEqual(published.value.map((row: any) => [row.consumer.id, row.schema_ids]), [[saved.id, ["roofing"]]]);
+    const evaluated = await readPublishedData(reader, { provider: "pay-sheets", export: "evaluation", target: { scope: "project", organizationId: "org_pay", projectId: "project_pay" }, args: { manual: { layers: 0 } } }) as any;
+    assert.equal(evaluated.status, "ready"); assert.equal(evaluated.value[0].complete, true);
+
     await sheets.archivePaySheet("org_pay", { id: saved.id }, owner);
     assert.deepEqual(await sheets.listPaySheets("org_pay"), []);
   } finally { await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }).catch(() => {}); }
