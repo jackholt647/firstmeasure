@@ -1263,6 +1263,7 @@
 .fm-ch-composer-row .fm-ch-icon-btn,.fm-ch-composer-row [data-mention-button]{width:26px;height:26px;min-height:0;padding:3px;border:0;background:transparent;color:var(--ch-muted);cursor:pointer;border-radius:5px}
 .fm-ch-composer-row .fm-ch-send{display:inline-flex;align-items:center;justify-content:center;flex:none;width:38px;height:28px;padding:0 10px!important;min-height:28px;border:0;border-radius:6px;background:var(--ch-accent,#d93025);color:var(--on-primary,#fff);font-size:13px}.fm-ch-composer-row .fm-ch-send:hover:not(:disabled){filter:brightness(1.06)}.fm-ch-composer-row .fm-ch-send:disabled{opacity:.4}.fm-ch-send-pair{border-left:0;padding-left:0;gap:0}.fm-ch-send-pair>.fm-ch-send{border-radius:6px 0 0 6px}.fm-ch-send-pair>.fm-ch-icon-btn{width:26px;height:28px;background:var(--ch-accent,#d93025);color:var(--on-primary,#fff);border-left:1px solid #ffffff55;border-radius:0 6px 6px 0}.fm-ch-composer-box>.fm-ch-reply-broadcast{margin:5px 0 0;font-size:11px}
 .fm-ch-popover{overflow-x:hidden}.fm-ch-emoji-search{display:block;box-sizing:border-box;min-width:0;height:auto;line-height:1.45;background:#fff;color:var(--ch-text)}.fm-ch-emoji-search::placeholder{color:var(--ch-muted)}.fm-ch-message-menu{min-width:0;width:100%}.fm-ch-message-menu>button{width:100%;height:auto;min-height:32px;color:var(--ch-text);background:transparent;white-space:normal;overflow-wrap:anywhere}
+.fm-ch-polish-icon{display:block;width:16px;height:16px;flex:none}
 .fm-ch-image-draft{position:relative;display:inline-block;flex:none;width:84px;height:84px;margin:7px 6px 3px 0;vertical-align:top}.fm-ch-image-draft>.fm-ch-image-preview{display:block;width:84px;height:84px;padding:0!important;border:0!important;border-radius:8px;overflow:hidden;background:#f2f4f7;cursor:zoom-in}.fm-ch-image-preview img{display:block;width:100%;height:100%;object-fit:cover}.fm-ch-image-draft>.fm-ch-image-remove{position:absolute;right:-5px;top:-5px;display:grid;place-items:center;width:22px;height:22px;padding:0!important;border:0!important;border-radius:50%;background:#344054!important;color:#fff!important;cursor:pointer;z-index:1}.fm-ch-image-remove svg{width:12px;height:12px}.fm-ch-image-view{display:block;max-width:100%;max-height:70vh;margin:auto;object-fit:contain}.fm-ch-pending-files:empty{display:none}
 .fm-ch-format-menu{display:flex;flex-wrap:wrap;gap:4px;max-width:100%;padding:4px}.fm-ch-format-menu>button{display:grid;place-items:center;flex:none;width:32px;height:32px;padding:3px;border:0;border-radius:6px;background:transparent;color:var(--ch-muted,#667085);font:inherit;font-size:13px;cursor:pointer}.fm-ch-format-menu>button:hover{background:var(--ch-hover,#f2f4f7)}.fm-ch-format-menu>button[aria-pressed="true"]{color:#d93025;background:#fff0ee}
 .fm-ch-recording-menu{display:flex;gap:4px;padding:4px}.fm-ch-recording-menu button{display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--ch-text,#475467);cursor:pointer}.fm-ch-recording-menu button:hover{background:var(--ch-hover,#f2f4f7)}
@@ -5042,7 +5043,8 @@
 
     function mountPolishButton(editor,row,identity,isBusy){
       if(!features.ai || !api.compose?.polish)return;
-      const button=el('button','fm-ch-icon-btn','<i class="fas fa-spell-check" aria-hidden="true"></i>');button.type='button';button.dataset.polishDraft='';button.title='Polish text';button.setAttribute('aria-label',button.title);let working=false,revision=0;
+      const icon='<svg class="fm-ch-polish-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.92H8.4M1.75 9H8.75M1.75 13.08H9.92"/><g transform="translate(9 1) scale(.2916667)" stroke-width="3"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></g></svg>';
+      const button=el('button','fm-ch-icon-btn',icon);button.type='button';button.dataset.polishDraft='';button.title='Polish text';button.setAttribute('aria-label',button.title);let working=false,revision=0;
       const refresh=()=>button.disabled=working || !editor.value.trim() || !!isBusy?.();
       editor.addEventListener('input',()=>{revision++;refresh();});editor.addEventListener('fm:formatting-change',refresh);
       button.onclick=async()=>{
@@ -5056,9 +5058,11 @@
           if(!result?.text?.trim())throw Error('Text could not be polished. Your draft is unchanged.');
           if(result.text!==text){editor.focus();const range=document.createRange();range.selectNodeContents(editor);const selection=root.getSelection();selection.removeAllRanges();selection.addRange(range);if(!document.execCommand('insertHTML',false,renderBody({text:result.text})))throw Error('Text could not be updated. Your draft is unchanged.');editor.saveSelection();editor.dispatchEvent(new Event('input',{bubbles:true}));editor._mentionApi?.setSelectedMentions?.(mentions);}
         }catch(error){if(editor.isConnected && identity()===context)showError(error);}
-        finally{working=false;button.removeAttribute('aria-busy');button.innerHTML='<i class="fas fa-spell-check" aria-hidden="true"></i>';refresh();}
+        finally{working=false;button.removeAttribute('aria-busy');button.innerHTML=icon;refresh();}
       };
-      row.insertBefore(button,row.querySelector(':scope>.fm-ch-send-pair,:scope>.fm-ch-send'));refresh();
+      row.insertBefore(button,row.querySelector(':scope>.fm-ch-more-actions,:scope>.fm-ch-send-pair,:scope>.fm-ch-send'));
+      const mention=row.querySelector(':scope>[data-mention-button]');if(mention)button.before(mention);
+      refresh();
     }
 
     function buildThreadComposer(node){
