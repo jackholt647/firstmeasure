@@ -401,7 +401,7 @@ test('the requirements tray says how the project stands when closed and what acc
  // Open, a requirement shows the lines that account for it and what can be done about it.
  ctx.state.requirementsOpen=true;ctx.state.expandedRequirementIds=new Set(['roofing.install','disposal.debris','roofing.cleanup']);html=ctx.renderRequirementsTray();
  assert.match(html,/class="mt-req-tray is-open"/);
- assert.match(html,/<div class="mt-req-cover-head" title="Summit: does this work, on these line items\."><strong>Summit<\/strong><button type="button" class="mt-req-remove" data-mt-req-exclude="roofing\.install" data-mt-list-id="labor"[^>]*>Remove<\/button><\/div><ul><li><span title="Tear off and install">Tear off and install<\/span><em>32 sq · \$3,040<\/em><\/li><\/ul>/);
+ assert.match(html,/<div class="mt-req-cover-head" title="Summit: does this work, on these line items\.\nTear off and install, 32 sq · \$3,040"><strong>Summit<\/strong><em>Tear off and install<\/em><button type="button" class="mt-req-remove" data-mt-req-exclude="roofing\.install" data-mt-list-id="labor"[^>]*>Remove<\/button><\/div><\/div>/);assert.doesNotMatch(html,/<ul><li><span title="Tear off and install">Tear off and install<\/span><em>32 sq · \$3,040<\/em><\/li><\/ul>/);
  assert.match(html,/Accounted for twice: Crew B and Summit\./);assert.doesNotMatch(html,/Take off|<small>/,'the name is said once and how it is covered is on hover');
  assert.match(html,/title="Summit: does this work at no separate charge\."/);assert.doesNotMatch(html,/Paid for it|A line that takes care/);
  assert.match(html,/data-mt-req-include="disposal\.debris" data-mt-list-id="labor"[^>]*><i class="fas fa-plus" aria-hidden="true"><\/i><span>Summit</);
