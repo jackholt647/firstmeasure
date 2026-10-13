@@ -315,7 +315,7 @@ The authenticated, CSRF-protected `POST /v1/channels/organizations/:orgId/channe
 
 Code, tables, URLs, email addresses, selected mention labels and numbers are protected with per-request placeholders. Missing, duplicated or reordered placeholders reject the output. Changed Markdown marker counts, list/quote prefixes, link structure or line breaks also reject it. Usage is recorded in the existing agent usage ledger, including token counts; an organization daily cap bounds repeat calls. No channel message is posted by polishing.
 
-The editor remains available while the request is running. A version/identity check prevents a late response from overwriting newer edits, a different channel or a different edit target. Failure retains the draft. Successful changes use native editing commands so Undo works, refresh mention highlighting and preserve confirmed mention recipients. GIFs, uploaded attachments and audio remain in their existing draft state.
+The initial implementation left the editor available while the request was running; the [cancellable polishing follow-up](#locked-draft-shimmer-and-cancellable-polishing) below supersedes that behavior. A version/identity check prevents a late response from overwriting newer edits, a different channel or a different edit target. Failure retains the draft. Successful changes use native editing commands so Undo works, refresh mention highlighting and preserve confirmed mention recipients. GIFs, uploaded attachments and audio remain in their existing draft state.
 
 Validation:
 
@@ -348,3 +348,24 @@ The canonical branch advanced during the source push. The merge preserved the ne
 | web | `/opt/firstmeasure/releases/c1d1e83c60475d32cf79802cc7cdb7b15143abfc-polish-icon-order` | `/opt/firstmeasure/releases/2c118e671e0689fc523dce04ae6b4dfeb8b01c8f-notes-table` |
 | pool | `/opt/firstmeasure/releases/c1d1e83c60475d32cf79802cc7cdb7b15143abfc-polish-icon-order` | `/opt/firstmeasure/releases/2c118e671e0689fc523dce04ae6b4dfeb8b01c8f-notes-table` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/c1d1e83c60475d32cf79802cc7cdb7b15143abfc-polish-icon-order` | `/mnt/firstmeasure_dev_releases/releases/2c118e671e0689fc523dce04ae6b4dfeb8b01c8f-notes-table` |
+
+
+## Locked draft, shimmer and cancellable polishing
+
+October 12, 2026. Feature `e70e85fd` and deployed canonical source `9a21d47ec83b93f6ac1f6811d97749b5d9ee3976` lock Channels/DM drafts and thread replies while polishing. The rich editor is temporarily non-editable, inert and non-selectable, with a subtle moving opacity shimmer. Formatting, mention, recording, attachment and sending controls are temporarily disabled so they cannot change or send a pending draft. Reduced-motion settings replace the animation with a subdued static appearance.
+
+The approved polishing icon changes to a self-contained 16px spinner that remains enabled. A small **Click to cancel** tooltip stays visible above it in the browser top layer, including after pointer exit; it tracks scrolling and viewport changes. Normal hover tooltips are suppressed for this control while pending. Clicking the spinner immediately aborts the browser request, restores the untouched draft and caret, unlocks controls and removes the shimmer and tooltip. Each run owns its cleanup: a canceled request resolving later cannot replace the draft or unlock a subsequent polish operation. Closing or changing the composer also cancels and cleans up. Success and failure restore editing; successful native replacement still supports Undo and preserves confirmed mentions and rich formatting.
+
+Validation:
+
+- Four local browser/client checks passed: the expanded Channels composer regression, confirmed mentions, bold profile names and the API client abort test. They cover main/reply locking, attempted typing and paste, blocked sending/tagging, persistent cancellation hints, reduced motion, immediate cancel, late-result races, successful replacement/Undo, provider failure and composer destruction.
+- All three browser checks passed again against published development assets (`DEV_ASSETS=1`). AI responses were fixture stubs; no real messages or user drafts were sent to a model. Main and narrow reply screenshots with platform icons and the visible cancellation hint were reviewed.
+- Changed JavaScript passed syntax checks. All three public asset hashes and per-role payload hashes matched the staged artifacts. Development readiness, enforced outbound safety and the exact retained runtime `93f34621358e942c449bcb02a067367c6d623ad4` were verified.
+
+The release applies only the owned Channels UI/API patch and their manifest cache versions to each role's current Notes-separation release, preserving the concurrent Notes and Channels work. Activation reloaded PHP-FPM only. Backend services, workers, schema, provider settings and production were unchanged. Detailed receipts are under ignored `output/polish-cancel-deploy` in the isolated polishing checkout.
+
+| Role | Activated frontend path | Rollback frontend path |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/9a21d47ec83b93f6ac1f6811d97749b5d9ee3976-polish-cancel` | `/opt/firstmeasure/releases/93f34621358e942c449bcb02a067367c6d623ad4-notes-separation` |
+| pool | `/opt/firstmeasure/releases/9a21d47ec83b93f6ac1f6811d97749b5d9ee3976-polish-cancel` | `/opt/firstmeasure/releases/93f34621358e942c449bcb02a067367c6d623ad4-notes-separation` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/9a21d47ec83b93f6ac1f6811d97749b5d9ee3976-polish-cancel` | `/mnt/firstmeasure_dev_releases/releases/93f34621358e942c449bcb02a067367c6d623ad4-notes-separation` |
