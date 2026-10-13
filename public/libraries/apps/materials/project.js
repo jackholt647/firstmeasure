@@ -615,7 +615,8 @@
   }
   // What a list is expected to cost: labor from the pay projection, everything else from its lines.
   function listProjected(list){
-    const labor = resourceType(list) === 'labor' ? expenseTargetForList(list) : null;
+    // A labor list built from a pay sheet is worth its lines. One that is not still uses the older pay projection.
+    const labor = resourceType(list) === 'labor' && !list?.metadata?.labor_generation ? expenseTargetForList(list) : null;
     return labor ? number(labor.projected_cents, 0) / 100 : listTotals(list).projected;
   }
   // A category's lists plus its projected delivery, and the same across every category.
@@ -1020,10 +1021,12 @@
       @keyframes mt-action-in{from{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}to{opacity:1;max-width:40px;transform:none}}
       @keyframes mt-action-out{from{opacity:1;max-width:40px;transform:none}to{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}}
       @media(prefers-reduced-motion:reduce){.mt-header-action.is-entering,.mt-header-action.is-leaving{animation:none}.mt-header-action.is-leaving{display:none}}
-      .mt-assign-block{display:flex;flex-direction:column;gap:4px;margin:8px;padding:10px;border:1px dashed #d0d5dd;border-radius:8px;background:#f9fafb}.mt-assign-block>strong{font-size:13px;color:#101828}.mt-assign-block>span{margin-bottom:4px;font-size:11px;color:#667085}
-      .mt-assign-block button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 9px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;text-align:left;color:#344054;cursor:pointer}.mt-assign-block button:hover:not(:disabled){border-color:var(--primary,#d93025)}.mt-assign-block button:disabled{opacity:.6;cursor:default}
-      .mt-assign-block button span{min-width:0;display:flex;flex-direction:column}.mt-assign-block button strong{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-assign-block button small{font-size:10px;color:#667085}
-      .mt-assign-block button b,.mt-labor-option b.mt-pay{flex:none;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:#101828}.mt-assign-block button b.unknown,.mt-labor-option b.mt-pay.unknown{font-size:10px;font-weight:600;color:#b54708}
+      .mt-assign-block{display:flex;flex-direction:column;gap:5px;margin:8px;padding:10px;border:1px dashed #d0d5dd;border-radius:8px;background:#f9fafb}.mt-assign-block>strong{margin-bottom:2px;font-size:13px;color:#101828}.mt-assign-block>strong i{margin-left:3px;font-size:10px;color:#98a2b3}.mt-assign-block>em{font-size:11px;font-style:normal;color:#667085}
+      .mt-assign-block button{display:flex;flex-direction:column;align-items:stretch;gap:5px;width:100%;padding:7px 9px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;text-align:left;color:#344054;cursor:pointer}.mt-assign-block button:hover:not(:disabled){border-color:var(--primary,#d93025)}.mt-assign-block button:disabled{opacity:.6;cursor:default}
+      .mt-assign-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.mt-assign-top strong{min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-assign-pills{display:flex;flex-wrap:wrap;gap:4px}
+      .mt-pill{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;border-radius:999px;background:#eef2f6;color:#344054;font-size:10px;font-weight:600;white-space:nowrap}.mt-pill i{font-size:9px;color:#667085}.mt-pill.plain{background:transparent;border:1px solid #e4e7ec;color:#667085;font-weight:500}
+      .mt-assign-top b,.mt-labor-option b.mt-pay{flex:none;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:#101828}.mt-assign-top b.unknown,.mt-labor-option b.mt-pay.unknown{font-size:11px;font-weight:600;color:#475467}
+      tr.mt-list-row.needs-quantity .mt-c-qty input{box-shadow:inset 0 0 0 1px #f79009;background:#fffaeb}
       .mt-generate-portal{width:260px;display:flex;flex-direction:column;gap:6px}.mt-generate-portal label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}.mt-generate-portal label em{font-style:normal;font-size:10px;color:#98a2b3}.mt-generate-portal input{width:90px;height:28px;padding:0 6px;border:1px solid #d0d5dd;border-radius:6px;font-size:12px;text-align:right}
       .mt-paired-row{flex:none;display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-top:1px solid #f0f2f5;border-left:3px solid var(--pair-color,#667085);font-size:11px;color:#475467}.mt-paired-row i{font-size:9px;color:var(--pair-color,#667085)}.mt-paired-row span{flex:1;min-width:0;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-paired-row small{flex:none;font-size:10px;color:var(--pair-color,#667085);font-weight:600}
       tr.mt-list-row.is-unresolved .mt-c-name input,tr.mt-list-row.is-unresolved .mt-c-name{color:#b54708}tr.mt-list-row.is-unresolved .mt-c-total::after{content:"needs input";font-size:9px;font-weight:600;color:#b54708}
@@ -4246,7 +4249,7 @@
     const priceText = Number.isFinite(unitPrice) ? unitPrice.toLocaleString('en-US', unitPrice < 100 && !Number.isInteger(unitPrice) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 }) : '';
     const orderTooltip = orderInfo ? `Measured: ${quantity} ${cleanText(item.unit || 'ea')}${orderInfo.covered_quantity !== quantity ? ` · ${orderInfo.order_quantity} ${orderInfo.order_unit} covers ${orderInfo.covered_quantity} ${cleanText(item.unit || 'ea')}` : ''}${orderInfo.packaging?.description ? ` · ${orderInfo.packaging.description}` : ''}` : '';
     return `
-      <tr class="mt-list-row${state.expandedItemIds?.has(cleanText(item.id)) ? ' is-expanded' : ''}${item.metadata?.unresolved === true ? ' is-unresolved' : ''}" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(item.metadata?.unresolved === true ? `${item.name}: not priced yet. ${cleanText(item.metadata.unresolved_reason)}` : summary)}">
+      <tr class="mt-list-row${state.expandedItemIds?.has(cleanText(item.id)) ? ' is-expanded' : ''}${item.metadata?.unresolved === true ? ' is-unresolved' : ''}${item.metadata?.quantity_needed === true && !(number(item.quantity, 0) > 0) ? ' needs-quantity' : ''}" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(item.metadata?.unresolved === true ? `${item.name}: not priced yet. ${cleanText(item.metadata.unresolved_reason)}` : item.metadata?.quantity_needed === true && !(number(item.quantity, 0) > 0) ? `${item.name}: enter ${cleanText(item.metadata.quantity_label || 'the quantity').toLowerCase()} to price this line.` : summary)}">
         <td class="mt-c-drag"><span class="mt-drag" role="button" tabindex="0" draggable="true" data-mt-list-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="Drag to reorder or move to another list. Click to choose a list." aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("materials","m_790adaaf81ef83",`Change list for ${v8}`,{v8}) ?? `Change list for ${v8}`)(escapeHtml(name))}" aria-expanded="${String(state.listMenu?.itemId === item.id ? 'true' : 'false')}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></span></td>
         <td class="mt-c-name"><input class="mt-input mt-cell-input mt-line-name" data-mt-item-name="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" value="${String(escapeHtml(name))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_7bd2b28790fb35","Item name") ?? "Item name")}" ${String(state.saving ? 'disabled' : '')}></td>
         ${String(material ? `<td class="mt-c-color">${renderColorControl(item)}</td>` : '')}
@@ -5597,17 +5600,25 @@
   function assigneePayFor(listId, resourceId){
     return (assigneePay(listId)?.rows || []).find((row) => cleanText(row.assignee?.id) === cleanText(resourceId)) || null;
   }
-  // The price, or the one thing standing in the way of a price. Never a zero that means "unknown".
+  // The price, or why there is not one yet. An hourly assignee has no job price until hours exist, so it says Hourly.
   function assigneePayLabel(row){
     if (!row) return '';
     if (!row.sheet) return 'No pay sheet';
     if (row.complete) return money(number(row.total_cents, 0) / 100);
+    if (row.awaiting_hours) return 'Hourly';
     const needed = (row.missing_inputs || []).filter((input) => input.required).map((input) => cleanText(input.label))[0];
     return needed ? `Needs ${needed.toLowerCase()}` : 'Cannot price yet';
   }
-  function assigneeBrings(row){
-    const names = (row?.equipment || []).filter((entry) => entry.included).map((entry) => cleanText(entry.name)).filter(Boolean);
-    return names.length ? `Brings ${names.join(', ').toLowerCase()}` : '';
+  // Short facts about an assignee for this job, each with its own explanation on hover.
+  function assigneePills(resource, row){
+    const pill = (icon, label, tip) => `<span class="mt-pill" title="${escapeHtml(tip)}"><i class="fas ${icon}" aria-hidden="true"></i>${escapeHtml(label)}</span>`;
+    const pills = [];
+    if (row?.hourly_rate_cents != null) pills.push(pill('fa-clock', `${money(number(row.hourly_rate_cents, 0) / 100)}/hr`, 'Paid by the hour at this rate. Enter the hours on the list.'));
+    (row?.equipment || []).filter((entry) => entry.included).forEach((entry) => pills.push(pill('fa-truck', cleanText(entry.name), `Brings their own ${cleanText(entry.name).toLowerCase()}, included in their pay.`)));
+    (row?.equipment || []).filter((entry) => !entry.included).forEach((entry) => pills.push(pill('fa-truck', `${cleanText(entry.name)} ${money(number(entry.total_cents, 0) / 100)}`, `Brings their own ${cleanText(entry.name).toLowerCase()} and charges for it.`)));
+    const basis = row?.duration_basis;
+    if (row?.duration_days) pills.push(pill('fa-calendar-day', `${row.duration_days} day${row.duration_days === 1 ? '' : 's'}`, basis ? `An estimate: ${Math.round(number(basis.value, 0) * 10) / 10} ${cleanText(basis.label).toLowerCase()} at ${basis.units_per_day} a day, the speed on their pay sheet.` : 'An estimate from the speed on their pay sheet.'));
+    return pills.join('');
   }
   // An unassigned, empty labor list asks who does the work, with what each choice would cost.
   function renderAssignBlock(list){
@@ -5616,9 +5627,10 @@
     const rank = (row) => (row?.complete ? 0 : row?.sheet ? 1 : 2);
     const options = workResourcesForScopeList(list).map((resource) => ({ resource, row: assigneePayFor(id, resource.id) }))
       .sort((a, b) => rank(a.row) - rank(b.row) || number(a.row?.total_cents, Infinity) - number(b.row?.total_cents, Infinity) || cleanText(a.resource.name).localeCompare(cleanText(b.resource.name)));
-    return `<div class="mt-assign-block"><strong>Assign this work</strong><span>${options.length ? 'Choose who does it. Their pay sheet builds the list.' : 'No one is set up for this kind of work yet.'}</span>${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}" ${state.saving ? 'disabled' : ''}><span><strong>${escapeHtml(resource.name || resource.label || resource.id)}</strong><small>${escapeHtml([workforceLabel(cleanText(resource.resource_kind) || 'resource_group'), assigneeBrings(row), row?.complete && row.duration_days ? `about ${row.duration_days} day${row.duration_days === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · '))}</small></span><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></button>`).join('')}</div>`;
+    return `<div class="mt-assign-block"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${options.length ? '' : '<em>No one is set up for this kind of work yet.</em>'}${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}" ${state.saving ? 'disabled' : ''}><span class="mt-assign-top"><strong>${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills"><span class="mt-pill plain" title="${escapeHtml(cleanText(resource.resource_kind) === 'organization_connection' ? 'An outside company.' : 'People inside your organization.')}">${escapeHtml(workforceLabel(cleanText(resource.resource_kind) || 'resource_group'))}</span>${assigneePills(resource, row)}</span></button>`).join('')}</div>`;
   }
-  // Generating asks first for any number only a person can supply (hours, extra layers), then writes the list.
+  // Generating writes the list. Hours and the like are typed into their own lines afterwards; only a number that is not
+  // a line's quantity is asked for first.
   async function generateLaborList(listId, manual){
     const id = cleanText(listId), api = (materialsAPI || window.MaterialsAPI)?.labor, list = materialListById(id);
     if (!list || !api?.generate || !apiReady()) return;
@@ -5627,7 +5639,7 @@
       if (manual === undefined) {
         const preview = await api.preview(orgId(), id, { legacy_measurements: legacyMeasurementPayload() });
         if (!projectOperationIsCurrent(operation)) return;
-        const inputs = (preview?.sheet?.inputs || []).filter((input) => input.source?.kind === 'manual');
+        const inputs = Array.isArray(preview?.ask) ? preview.ask : [];
         if (inputs.length) { openGenerateMenu(id, inputs); return; }
         manual = {};
       }
@@ -5639,7 +5651,9 @@
       if (!projectOperationIsCurrent(operation)) return;
       render({ preserveScroll: true });
       const evaluation = result?.evaluation || {}, gaps = (evaluation.unresolved || []).length;
-      showToast(gaps ? 'Generated with gaps' : 'Labor generated', gaps ? `${gaps} line${gaps === 1 ? '' : 's'} could not be priced yet. Hover one to see what it is waiting for.` : `${money(number(evaluation.total_cents, 0) / 100)}${evaluation.duration_days ? ` · about ${evaluation.duration_days} day${evaluation.duration_days === 1 ? '' : 's'}` : ''}`, !gaps);
+      const typed = listItems(materialListById(id)).filter((item) => item.metadata?.quantity_needed === true && !(number(item.quantity, 0) > 0)).map((item) => cleanText(item.metadata.quantity_label || item.name).toLowerCase());
+      const waiting = listItems(materialListById(id)).filter((item) => item.metadata?.unresolved === true).length;
+      showToast(waiting ? 'Generated with gaps' : 'Labor generated', waiting ? `${waiting} line${waiting === 1 ? '' : 's'} could not be priced yet. Hover one to see what it is waiting for.` : typed.length ? `Enter ${typed.join(' and ')} on the list to finish pricing it.` : money(number(evaluation.total_cents, 0) / 100), !waiting);
     } catch (error) {
       if (projectOperationIsCurrent(operation)) showToast('Could not generate labor', error?.message || 'Please try again.', false);
     }
@@ -5710,7 +5724,7 @@
   function renderLaborListControls(list){
     const settings = laborSettings(list);
     const name = cleanText(settings.resource?.name || assignmentWorkResourceRef(list)?.name);
-    return `<button type="button" class="mt-labor-assign${name ? '' : ' is-empty'}" data-mt-labor-menu="${escapeHtml(settings.id)}" aria-haspopup="dialog" aria-expanded="${state.laborMenu?.listId === settings.id ? 'true' : 'false'}" title="${escapeHtml(name ? `${name} · ${laborPayLabel(settings.resolvedMode)}` : 'Assign this work and set its pay')}"><span>${escapeHtml(name || 'Unassigned')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>${name ? `<div class="mt-list-secondary"><button type="button" data-mt-labor-generate="${escapeHtml(settings.id)}" title="Generate this list from ${escapeHtml(name)}'s pay sheet. Lines added by hand are kept." aria-label="Generate from pay sheet"><i class="fas fa-wand-magic-sparkles"></i></button></div>` : ''}`;
+    return `<button type="button" class="mt-labor-assign${name ? '' : ' is-empty'}" data-mt-labor-menu="${escapeHtml(settings.id)}" aria-haspopup="dialog" aria-expanded="${state.laborMenu?.listId === settings.id ? 'true' : 'false'}" title="${escapeHtml(name ? `Assigned to ${name}` : 'Assign this work')}"><span>${escapeHtml(name || 'Unassigned')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>${name ? `<div class="mt-list-secondary"><button type="button" data-mt-labor-generate="${escapeHtml(settings.id)}" title="Generate this list from ${escapeHtml(name)}'s pay sheet. Lines added by hand are kept." aria-label="Generate from pay sheet"><i class="fas fa-wand-magic-sparkles"></i></button></div>` : ''}`;
   }
 
   function renderLaborMenu(list){
@@ -5719,16 +5733,12 @@
     const option = (resource) => {
       const id = cleanText(resource?.id);
       const members = Array.isArray(resource?.members) ? resource.members.length : 0;
-      const detail = resource ? [workforceLabel(cleanText(resource.resource_kind) || 'resource_group'), members ? `${members} ${members === 1 ? 'member' : 'members'}` : '', `${laborPayLabel(workResourceCompensationMode(resource))} by default`].filter(Boolean).join(' · ') : 'No labor expense is estimated';
+      const detail = resource ? [workforceLabel(cleanText(resource.resource_kind) || 'resource_group'), members ? `${members} ${members === 1 ? 'member' : 'members'}` : ''].filter(Boolean).join(' · ') : 'No one is assigned';
       return `<button type="button" class="mt-labor-option${id === settings.resourceId ? ' active' : ''}" data-mt-labor-assign="${escapeHtml(id)}" role="menuitemradio" aria-checked="${id === settings.resourceId}"><span><strong>${escapeHtml(resource ? resource.name || resource.label || id : 'Unassigned')}</strong><small>${escapeHtml(detail)}</small></span>${resource ? `<b class="mt-pay${assigneePayFor(settings.id, id)?.complete ? '' : ' unknown'}">${escapeHtml(assigneePay(settings.id)?.loading && !assigneePayFor(settings.id, id) ? '…' : assigneePayLabel(assigneePayFor(settings.id, id)))}</b>` : ''}${id === settings.resourceId ? '<i class="fas fa-check" aria-hidden="true"></i>' : ''}</button>`;
     };
     return `
       <div class="mt-labor-menu-title">Assigned to</div>
       <div class="mt-labor-options" role="menu">${option(null)}${settings.resources.map(option).join('')}</div>
-      ${settings.resourceId ? `
-      <div class="mt-labor-menu-title">Project pay</div>
-      <div class="mt-labor-pay"><div class="mt-labor-chips">${chip('data-mt-labor-pay-mode', 'crew_default', `Default (${laborPayLabel(settings.defaultMode)})`, settings.mode === 'crew_default', `Use ${settings.resource?.name || 'the assignee'}'s own pay plan`)}${['hourly', 'piece_rate', 'hybrid', 'none'].map((mode) => chip('data-mt-labor-pay-mode', mode, laborPayLabel(mode), settings.mode === mode)).join('')}</div>${settings.usesHours ? `<label class="mt-labor-hours" title="Estimated project hours per person"><input type="number" min="0" step="0.25" value="${escapeHtml(settings.estimatedHours || '')}" placeholder="0" aria-label="Estimated hours per person" data-mt-labor-hours-input><span>hr each</span></label>` : ''}</div>
-      ${settings.hasSalary ? `<div class="mt-labor-menu-title">Salaried members</div><div class="mt-labor-chips">${chip('data-mt-labor-salary-mode', 'ignore', 'Leave out', settings.salaryMode !== 'hourly', 'Salary is not counted as a cost of this project')}${chip('data-mt-labor-salary-mode', 'hourly', 'Count as hourly', settings.salaryMode === 'hourly', 'Convert salary to an hourly cost for the estimated hours')}</div>` : ''}` : ''}
       ${settings.canRegenerate ? `<button type="button" class="mt-labor-regenerate" data-mt-labor-regenerate><i class="fas fa-arrows-rotate" aria-hidden="true"></i> Regenerate labor from scope</button>` : ''}
     `;
   }
@@ -5757,7 +5767,7 @@
     portal.className = 'mt-labor-portal';
     portal.dataset.mtLaborPortal = '';
     portal.setAttribute('role', 'dialog');
-    portal.setAttribute('aria-label', 'Assignment and pay');
+    portal.setAttribute('aria-label', 'Assignment');
     portal.innerHTML = renderLaborMenu(list);
     colorPortalHost(state.panelRoot).appendChild(portal);
     const rect = trigger.getBoundingClientRect();
@@ -5769,13 +5779,6 @@
     portal.querySelectorAll('[data-mt-labor-assign]').forEach((button) => {
       button.addEventListener('click', () => { if (button.dataset.mtLaborAssign !== laborSettings(materialListById(listId)).resourceId) assignWorkResource(listId, button.dataset.mtLaborAssign); });
     });
-    portal.querySelectorAll('[data-mt-labor-pay-mode]').forEach((button) => {
-      button.addEventListener('click', () => setLaborCompensationMode(listId, button.dataset.mtLaborPayMode));
-    });
-    portal.querySelectorAll('[data-mt-labor-salary-mode]').forEach((button) => {
-      button.addEventListener('click', () => setLaborExpenseSettings(listId, { salary_expense_mode: button.dataset.mtLaborSalaryMode === 'hourly' ? 'hourly' : 'ignore', include_salary_as_hourly: button.dataset.mtLaborSalaryMode === 'hourly' }));
-    });
-    portal.querySelector('[data-mt-labor-hours-input]')?.addEventListener('change', (event) => setLaborExpenseSettings(listId, { estimated_hours: Math.max(0, number(event.target.value, 0)) }));
     portal.querySelector('[data-mt-labor-regenerate]')?.addEventListener('click', () => { closeLaborMenu(); regenerateLaborListFromScope(listId); });
   }
 

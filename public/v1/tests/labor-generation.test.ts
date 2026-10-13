@@ -74,16 +74,25 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   assert.deepEqual((await items()).map((item) => item.name), ["Shingles laid", "Tear off", "Drip edge", "Replace two sheets of decking"], "the previous assignee's lines and its dump truck are gone; the hand-added line stays");
   assert.equal(second.evaluation.total_cents, 96 * 2900 + 32 * 2500 + 180 * 75);
 
-  // An hourly assignee's list says what it is waiting for, and prices once the hours are given.
+  // An hourly assignee's list is one line at the hourly rate, waiting for the hours to be typed in. Nothing is asked first.
   await assign("Crew A", "Crew A");
   const waiting = await g.generateLaborList(ORG, { list_id: String(list.id) }, owner);
   assert.equal(waiting.evaluation.complete, false);
-  const unresolved = (await items()).find((item) => item.metadata?.unresolved === true);
-  assert.equal(unresolved.name, "Hourly labor"); assert.match(unresolved.metadata.unresolved_reason, /Enter Hours for this job/); assert.equal(unresolved.projected_total ?? null, null, "what cannot be priced has no price, not zero");
+  const hourly = (await items()).find((item) => item.name === "Hourly labor");
+  assert.deepEqual([hourly.quantity, hourly.unit, hourly.projected_unit_price, hourly.metadata.quantity_needed, hourly.metadata.compensation_kind], [0, "hour", 128, true, "hourly"]);
+  assert.equal((await items()).some((item) => item.metadata?.unresolved === true), false, "an hourly line is a line to fill in, not an error");
+  assert.deepEqual((await g.previewLaborList(ORG, { list_id: String(list.id) })).ask, [], "hours are typed in the list, so there is nothing to ask up front");
   const preview = await g.previewLaborList(ORG, { list_id: String(list.id), manual: { hours: 60 } });
-  assert.equal(preview.evaluation.total_cents, 60 * 12800); assert.equal((await items()).some((item) => item.metadata?.unresolved === true), true, "a preview writes nothing");
-  const priced = await g.generateLaborList(ORG, { list_id: String(list.id), manual: { hours: 60 } }, owner);
-  assert.equal(priced.evaluation.complete, true); assert.deepEqual((await items()).map((item) => [item.name, item.quantity]), [["Hourly labor", 60], ["Replace two sheets of decking", 2]]);
+  assert.equal(preview.evaluation.total_cents, 60 * 12800); assert.equal((await items()).find((item) => item.name === "Hourly labor").quantity, 0, "a preview writes nothing");
+  // Someone types 60 hours into the line and adds a bonus that is not on the pay sheet. Regenerating keeps both.
+  const typedList = await lists.readMaterialList(ORG, String(list.id));
+  await lists.createMaterialVersion(ORG, String(list.id), { expected_revision: Number(typedList.revision), reason: "revision", items: [...(typedList.current_items as any[]).map((item) => (item.name === "Hourly labor" ? { ...item, quantity: 60, projected_total: 7680 } : item)), { id: "bonus", section: "labor", name: "Finish-early bonus", quantity: 1, unit: "ea", projected_unit_price: 20 }] }, owner);
+  const priced = await g.generateLaborList(ORG, { list_id: String(list.id) }, owner);
+  assert.equal(priced.evaluation.complete, true); assert.equal(priced.evaluation.total_cents, 60 * 12800);
+  assert.deepEqual((await items()).map((item) => [item.name, item.quantity]), [["Hourly labor", 60], ["Replace two sheets of decking", 2], ["Finish-early bonus", 1]], "the typed hours and the hand-added lines survive");
+  const rowA = (await g.compareAssigneesForList(ORG, { list_id: String((await lists.createMaterialList(ORG, "project", { title: "Other labor", resource_type: "labor", items: [] }, owner)).id) })).find((entry) => entry.sheet?.name.startsWith("Crew A"))!;
+  assert.deepEqual([rowA.awaiting_hours, rowA.hourly_rate_cents, rowA.complete], [true, 12800, false], "an hourly assignee is described by its rate until hours exist");
+  assert.deepEqual((await g.compareAssigneesForList(ORG, { list_id: String(list.id) })).find((entry) => entry.sheet?.name.startsWith("Crew B"))!.duration_basis, { label: "Roof squares", value: 32, units_per_day: 22 }, "an estimate of days says what it rests on");
 
   // A project with no measurement dataset is priced from what the Project tab holds, in dictionary keys and units only.
   await s.upsertDocument(ORG, "projects", { id: "bare", data: { title: "4 Pine St" } });
@@ -100,5 +109,5 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
 
   // What was generated is what gets committed.
   const committed = await c.commitLaborList(ORG, { list_id: String(list.id) }, owner, { todo: async () => null, email: async () => null, run: async () => [] });
-  assert.equal(committed.total_cents, 60 * 12800 + 9000); assert.equal(committed.unpriced_lines, 0); assert.equal(committed.pay_sheets.length, 1);
+  assert.equal(committed.total_cents, 60 * 12800 + 9000 + 2000); assert.equal(committed.unpriced_lines, 0); assert.equal(committed.pay_sheets.length, 1);
 });

@@ -209,22 +209,20 @@ test('labor pay writers re-render only after saving is released, so controls are
  }
 });
 
-test('the labor popover shows pay only when assigned, hours only for hourly work and salary only for salaried assignees',()=>{
+test('the labor popover is about who does the work and shows what each would be paid',()=>{
  const crews=[{id:'hourly',name:'Crew A',resource_kind:'resource_group',members:[{},{}],compensation_plan:{type:'hourly'}},{id:'piece',name:'Sub B',resource_kind:'organization_connection',compensation_plan:{type:'piece_rate'}},{id:'salary',name:'Staff C',resource_kind:'resource_group',compensation_plan:{type:'salary'}}];
  const ctx={state:{laborMenu:null},cleanText:value=>String(value??''),escapeHtml:value=>String(value??''),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,workResourcesForScopeList:()=>crews,workResourceById:id=>crews.find(crew=>crew.id===id)||null,workforceLabel:kind=>kind==='organization_connection'?'Partner':'Team',workResourceCompensationMode:resource=>resource?.compensation_plan?.type||'none'};
  ctx.money=value=>'$'+Number(value).toLocaleString('en-US');vm.createContext(ctx);for(const name of ['laborPayLabel','assigneePay','assigneePayFor','assigneePayLabel','laborSettings','renderLaborListControls','renderLaborMenu'])vm.runInContext(fn(name),ctx);
  const menu=list=>ctx.renderLaborMenu({id:'labor',...list});
- let html=menu({});assert.match(html,/Crew A/);assert.match(html,/Team · 2 members · Hourly by default/);assert.match(html,/Partner · Piece rate by default/);assert.doesNotMatch(html,/data-mt-labor-pay-mode|data-mt-labor-hours-input|data-mt-labor-salary-mode/);assert.match(ctx.renderLaborListControls({id:'labor'}),/Unassigned/);
+ let html=menu({});assert.match(html,/Crew A/);assert.match(html,/Team · 2 members</);assert.match(html,/>Partner</);assert.doesNotMatch(html,/data-mt-labor-pay-mode|data-mt-labor-hours-input|data-mt-labor-salary-mode/);assert.match(ctx.renderLaborListControls({id:'labor'}),/Unassigned/);
  // Each assignee shows what this job would pay them, or the one thing standing in the way. Unknown is never shown as zero.
- ctx.state.assigneePay={labor:{rows:[{assignee:{id:'piece'},sheet:{id:'s1'},complete:true,total_cents:214000},{assignee:{id:'hourly'},sheet:{id:'s2'},complete:false,total_cents:0,missing_inputs:[{required:true,label:'Hours'}]},{assignee:{id:'salary'},sheet:null,complete:false}]}};
- html=menu({});assert.match(html,/Sub B[\s\S]*?<b class="mt-pay">\$2,140<\/b>/);assert.match(html,/Crew A[\s\S]*?<b class="mt-pay unknown">Needs hours<\/b>/);assert.match(html,/Staff C[\s\S]*?<b class="mt-pay unknown">No pay sheet<\/b>/);assert.doesNotMatch(html,/\$0/);
+ ctx.state.assigneePay={labor:{rows:[{assignee:{id:'piece'},sheet:{id:'s1'},complete:true,total_cents:214000},{assignee:{id:'hourly'},sheet:{id:'s2'},complete:false,total_cents:0,awaiting_hours:true,hourly_rate_cents:12800,missing_inputs:[{required:true,label:'Hours'}]},{assignee:{id:'salary'},sheet:null,complete:false}]}};
+ html=menu({});assert.match(html,/Sub B[\s\S]*?<b class="mt-pay">\$2,140<\/b>/);assert.match(html,/Crew A[\s\S]*?<b class="mt-pay unknown">Hourly<\/b>/);assert.match(html,/Staff C[\s\S]*?<b class="mt-pay unknown">No pay sheet<\/b>/);assert.doesNotMatch(html,/\$0/);
  assert.doesNotMatch(ctx.renderLaborListControls({id:'labor'}),/data-mt-labor-generate/,'nothing to generate from until someone is assigned');assert.match(ctx.renderLaborListControls({id:'labor',assigned:'hourly'}),/data-mt-labor-generate="labor"/);
  ctx.state.assigneePay=null;
- html=menu({assigned:'hourly'});assert.match(html,/Default \(Hourly\)/);assert.match(html,/data-mt-labor-hours-input/);assert.doesNotMatch(html,/data-mt-labor-salary-mode/);assert.match(ctx.renderLaborListControls({id:'labor',assigned:'hourly'}),/<span>Crew A<\/span>/);
- html=menu({assigned:'piece'});assert.match(html,/Default \(Piece rate\)/);assert.doesNotMatch(html,/data-mt-labor-hours-input|data-mt-labor-salary-mode/);
- html=menu({assigned:'piece',compensation:{mode:'hourly'}});assert.match(html,/data-mt-labor-hours-input/);
- html=menu({assigned:'salary'});assert.match(html,/data-mt-labor-salary-mode="hourly"/);assert.doesNotMatch(html,/data-mt-labor-hours-input/);
- html=menu({assigned:'salary',compensation:{salary_expense_mode:'hourly',estimated_hours:12}});assert.match(html,/data-mt-labor-hours-input/);assert.match(html,/value="12"/);
+ // Pay modes, hours and salary handling are not chosen here: a list's pay is its lines.
+ for(const assigned of ['hourly','piece','salary']){html=menu({assigned});assert.doesNotMatch(html,/data-mt-labor-pay-mode|data-mt-labor-hours-input|data-mt-labor-salary-mode|Project pay/);}
+ assert.match(ctx.renderLaborListControls({id:'labor',assigned:'hourly'}),/<span>Crew A<\/span>/);
 });
 
 test('dragging a column divider trades width between its two neighbours, starting from unset weights',()=>{

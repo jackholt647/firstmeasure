@@ -59,7 +59,17 @@ export async function previewLaborList(orgId: string, input: unknown) {
   if (!assignee) throw badRequest("labor_generate_unassigned", "Assign this list before generating it.");
   await requireAssignee(orgId, assignee);
   const sheet = await paySheetForList(orgId, list, assignee, parsed.sheet_id);
-  const context = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: parsed.manual, legacy_measurements: parsed.legacy_measurements });
+  // A number only a person can supply, paid directly at a rate (hours at an hourly rate, extra layers at a price each),
+  // is typed into the list as that line's quantity. What is already typed there is what the job is priced on.
+  const current = (Array.isArray(list.current_items) ? list.current_items : []).map(obj);
+  const typedInList = sheet.entries.flatMap((entry) => { const source = sheet.inputs.find((candidate) => candidate.name === entry.input); return entry.id && source?.source.kind === "manual" && (entry.kind === "hourly" || entry.kind === "piece_rate") ? [{ entry, input: source }] : []; });
+  const typed: Record<string, number> = {};
+  for (const { entry, input: source } of typedInList) {
+    const line = current.find((item) => obj(item.metadata)[GENERATED] === true && obj(item.metadata).pay_entry_id === entry.id && obj(item.metadata).pay_sheet_id === sheet.id);
+    const quantity = Number(line?.quantity);
+    if (quantity > 0) typed[source.name] = quantity / (entry.multiplier ?? 1);
+  }
+  const context = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: { ...typed, ...(parsed.manual || {}) }, legacy_measurements: parsed.legacy_measurements });
   const evaluation = evaluatePaySheet(sheet, context);
   const stamp = (extra: JsonObject = {}) => ({ [GENERATED]: true, pay_sheet_id: sheet.id, pay_sheet_revision: sheet.revision, ...extra });
   const items: JsonObject[] = [];
@@ -76,11 +86,21 @@ export async function previewLaborList(orgId: string, input: unknown) {
       metadata: stamp({ pay_entry_id: line.entry_id, compensation_kind: line.kind === "hourly" ? "hourly" : "piece_rate" })
     });
   });
-  // What could not be priced is on the list as a line with no price, saying what it is waiting for.
-  evaluation.unresolved.forEach((entry, index) => items.push({ id: `ps_unresolved_${entry.entry_id}_${index}`, section: "labor", name: entry.label, quantity: 0, unit: "", description: entry.reason, metadata: stamp({ pay_entry_id: entry.entry_id, unresolved: true, unresolved_reason: entry.reason, unresolved_input: entry.input }) }));
+  // A typed line that has no quantity yet is on the list at its rate, waiting for the number. Nothing is asked up front.
+  const written = new Set(evaluation.lines.map((line) => line.entry_id));
+  for (const { entry, input: source } of typedInList) {
+    if (written.has(entry.id!)) continue;
+    items.push({ id: `ps_${entry.id}_typed`, section: "labor", name: entry.label, quantity: 0, unit: entry.unit || (entry.kind === "hourly" ? "hour" : "ea"), projected_unit_price: entry.rate_cents / 100, projected_total: 0, metadata: stamp({ pay_entry_id: entry.id, compensation_kind: entry.kind === "hourly" ? "hourly" : "piece_rate", quantity_needed: source.required, quantity_label: source.label || source.name }) });
+  }
+  const typedIds = new Set(typedInList.map(({ entry }) => entry.id));
+  // Anything else that could not be priced is on the list as a line with no price, saying what it is waiting for.
+  evaluation.unresolved.filter((entry) => !typedIds.has(entry.entry_id)).forEach((entry, index) => items.push({ id: `ps_unresolved_${entry.entry_id}_${index}`, section: "labor", name: entry.label, quantity: 0, unit: "", description: entry.reason, metadata: stamp({ pay_entry_id: entry.entry_id, unresolved: true, unresolved_reason: entry.reason, unresolved_input: entry.input }) }));
   evaluation.equipment.forEach((entry, index) => items.push({ id: `ps_equipment_${index}`, section: "labor", name: entry.name, quantity: 1, unit: "job", projected_unit_price: entry.total_cents / 100, projected_total: entry.total_cents / 100, metadata: stamp({ equipment: true, equipment_included: entry.included, ...(entry.equipment_type_id ? { equipment_type_id: entry.equipment_type_id } : {}) }) }));
-  const kept = (Array.isArray(list.current_items) ? list.current_items : []).map(obj).filter((item) => obj(item.metadata)[GENERATED] !== true);
-  return { list, assignee, sheet, evaluation, items: [...items, ...kept], kept: kept.length, measurement_source: context.measurement_source };
+  const kept = current.filter((item) => obj(item.metadata)[GENERATED] !== true);
+  // Numbers a person must supply that are not a line's quantity (a gate, a duration) still have to be asked for.
+  const typedInputs = new Set(typedInList.map(({ input: source }) => source.name));
+  const ask = sheet.inputs.filter((candidate) => candidate.source.kind === "manual" && !typedInputs.has(candidate.name)).map((candidate) => ({ name: candidate.name, label: candidate.label || candidate.name, required: candidate.required }));
+  return { list, assignee, sheet, evaluation, items: [...items, ...kept], kept: kept.length, ask, measurement_source: context.measurement_source };
 }
 
 /** Prices the project on the list's assignee's pay sheet and writes the result as the list's lines. */
@@ -114,9 +134,12 @@ export async function compareAssigneesForList(orgId: string, input: unknown) {
     const found = await requireAssignee(orgId, assignee).catch(() => null);
     if (!found) continue;
     const sheet = await paySheetForList(orgId, list, assignee).catch(() => null);
-    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, duration_days: null, unresolved: [], missing_inputs: [], equipment: [], reason: "More than one pay sheet could apply." }); continue; }
+    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], reason: "More than one pay sheet could apply." }); continue; }
     const evaluation = evaluatePaySheet(sheet, context);
-    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, duration_days: evaluation.duration_days, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, reason: "" });
+    const hourly = sheet.entries.find((entry) => entry.kind === "hourly");
+    // An hourly assignee has no job price until hours are typed into its list; it is described by its rate instead.
+    const awaitingHours = !evaluation.complete && !!hourly && evaluation.unresolved.every((entry) => sheet.entries.find((candidate) => candidate.id === entry.entry_id)?.kind === "hourly");
+    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, hourly_rate_cents: hourly ? hourly.rate_cents : null, awaiting_hours: awaitingHours, duration_days: evaluation.duration_days, duration_basis: evaluation.duration_basis, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, reason: "" });
   }
   return rows.sort((a, b) => Number(b.complete) - Number(a.complete) || (a.total_cents ?? Infinity) - (b.total_cents ?? Infinity) || a.assignee.name.localeCompare(b.assignee.name));
 }

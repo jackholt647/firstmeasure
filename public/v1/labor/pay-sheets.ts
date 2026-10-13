@@ -186,6 +186,8 @@ export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
     unresolved,
     missing_inputs: [...inputs.values()].filter((entry) => entry.missing).map((entry) => ({ name: entry.input.name, label: entry.input.label || entry.input.name, required: entry.input.required, source: entry.input.source, reason: entry.reason })),
     duration_days,
+    // What the estimate of days rests on, so it can be explained rather than taken on trust.
+    duration_basis: sheet.duration && basis && !basis.missing ? { label: basis.input.label || basis.input.name, value: Number(basis.value), units_per_day: sheet.duration.units_per_day } : null,
     total_cents: lines.reduce((sum, line) => sum + (line.total_cents || 0), 0) + sheet.equipment.reduce((sum, item) => sum + (item.included ? 0 : item.rate_cents || 0), 0),
     complete: unresolved.length === 0
   };
