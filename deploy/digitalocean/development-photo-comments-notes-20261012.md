@@ -305,3 +305,29 @@ The frontend was staged from each role's current immutable release. The compatib
 | web | `/opt/firstmeasure/releases/174fc71b96773fe8807991b201ef0f98c5d83f43-composer-link-icons` | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` |
 | pool | `/opt/firstmeasure/releases/174fc71b96773fe8807991b201ef0f98c5d83f43-composer-link-icons` | `/opt/firstmeasure/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` |
 | compat | `/mnt/firstmeasure_dev_releases/releases/174fc71b96773fe8807991b201ef0f98c5d83f43-composer-link-icons` | `/mnt/firstmeasure_dev_releases/releases/7d3a51e380ef518d6f5aef67cff7b57704255c75-composer-media-fixes` |
+
+
+## Channels draft text polishing
+
+October 12, 2026. Verified development source `c2eb5c33c42082fdc00ad6903667694161427f2d` adds a bottom-row spell-check icon, labelled **Polish text**, to Channels/DM composers and thread replies, including message editing. It uses the existing Channels AI feature availability. Notes, photo comments and Posts composers do not receive the new control.
+
+The authenticated, CSRF-protected `POST /v1/channels/organizations/:orgId/channels/:channelId/compose/polish` endpoint requires Channels access, Channels AI availability, current channel membership and posting access. It rechecks channel access after the model call. Input is bounded to 20,000 characters and 100 mention labels. The existing shared Responses client uses the configured chat AI model with a low reasoning effort, a 30-second timeout and `store:false`. Instructions request spelling, punctuation and grammar corrections only, preserving tone, meaning, language and approximate length. Draft text is content to edit, never instructions to execute; no model tools or conversation history are supplied.
+
+Code, tables, URLs, email addresses, selected mention labels and numbers are protected with per-request placeholders. Missing, duplicated or reordered placeholders reject the output. Changed Markdown marker counts, list/quote prefixes, link structure or line breaks also reject it. Usage is recorded in the existing agent usage ledger, including token counts; an organization daily cap bounds repeat calls. No channel message is posted by polishing.
+
+The editor remains available while the request is running. A version/identity check prevents a late response from overwriting newer edits, a different channel or a different edit target. Failure retains the draft. Successful changes use native editing commands so Undo works, refresh mention highlighting and preserve confirmed mention recipients. GIFs, uploaded attachments and audio remain in their existing draft state.
+
+Validation:
+
+- `npm run check` passed. All 46 local Channels API, protection/schema and SSE checks passed. The full API fixture exercised draft-only behavior, unauthorised membership, AI feature denial, reference and formatting rejection, provider failures and usage recording. AI requests were stubbed in these tests; no customer messages or real drafts were submitted. Existing FirstMeasure fixture teardown warnings appeared without failing the suite.
+- Five browser checks passed locally and again against development assets. They cover main/reply polishing, rich formatting, Undo, failed-request retention, stale-result protection and confirmed mentions, plus regression coverage for Channels mentions and existing Notes, photo and Posts composers. An initial post-restart browser run failed; the affected checks passed on rerun and the complete five-check development run then passed.
+- Each Linux role passed the isolated full TypeScript build and the three targeted polish API/protection tests. Compilation used a separate output directory, replacing only the four owned compiled Channels modules.
+- All seven owned source hashes, four compiled hashes per role, three public JavaScript asset hashes, development readiness and enforced outbound safety were verified. The public polish endpoint returned 401 without authentication.
+
+The release was patched onto the current `d73fc1cdd6c45422e2689f3c461a04c97dbf32d5` development release on all roles, preserving concurrent storage and other deployed changes. Activation restarted only the development web/legacy services and reloaded PHP-FPM. No schema migration, permission grants, worker activation or production changes were made. Receipts are under ignored `output/channels-polish-deploy`.
+
+| Role | Activated release/runtime | Rollback release/runtime |
+| --- | --- | --- |
+| web | `/opt/firstmeasure/releases/c2eb5c33c42082fdc00ad6903667694161427f2d-channels-polish` | `/opt/firstmeasure/releases/d73fc1cdd6c45422e2689f3c461a04c97dbf32d5` |
+| pool | `/opt/firstmeasure/releases/c2eb5c33c42082fdc00ad6903667694161427f2d-channels-polish` | `/opt/firstmeasure/releases/d73fc1cdd6c45422e2689f3c461a04c97dbf32d5` |
+| compat | `/mnt/firstmeasure_dev_releases/releases/c2eb5c33c42082fdc00ad6903667694161427f2d-channels-polish` | `/mnt/firstmeasure_dev_releases/releases/d73fc1cdd6c45422e2689f3c461a04c97dbf32d5` |
