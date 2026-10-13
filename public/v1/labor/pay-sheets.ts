@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { hasPermission, type PlatformAuthContext } from "../platform/auth.js";
-import { badRequest, forbidden } from "../platform/errors.js";
+import { badRequest } from "../platform/errors.js";
 import { listDocuments, upsertDocument, type JsonObject } from "../platform/storage.js";
-import { definitionForKey, listMeasurementDefinitions, listMeasurementSchemas } from "../platform/publication/measurement-schemas.js";
+import { listMeasurementDefinitions, listMeasurementSchemas, measurementAmounts } from "../platform/publication/measurement-schemas.js";
+import { assigneeSchema, requireActor, requireAssignee, type Actor } from "./assignees.js";
 
 /**
  * A pay sheet is how one assignee (a person, a group of users or an outside company) is paid, written as data that can be evaluated.
@@ -58,7 +58,7 @@ const equipmentSchema = z.object({
 }).strict();
 export const paySheetInputSchema = z.object({
   id: id.optional(),
-  subject: z.object({ type: z.enum(["organization_user", "resource_group", "organization_connection"]), id }).strict(),
+  subject: assigneeSchema,
   name: z.string().trim().min(1).max(200),
   /** Measurement schemas (kinds of work) this sheet prices. Required as soon as any input reads a measurement. */
   schema_ids: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
@@ -106,44 +106,40 @@ export function paySheetRequirements(sheet: Pick<PaySheet, "id" | "name" | "subj
 export type PayContext = {
   /** A measurement dataset value: `{ measurements, structures? }`. */
   measurements?: unknown;
-  /** Material on the project's lists. */
-  materials?: { item_id: string; item_type: string; quantity: number }[];
+  /** Material on the project's live lists. */
+  materials?: { item_id: string; item_type: string; quantity: number; unit: string }[];
   fields?: Record<string, number>;
   manual?: Record<string, number>;
+  /** Why something could not be read, by source kind. An input of that kind is then missing whatever its default says. */
+  unavailable?: Partial<Record<PaySheetInput["source"]["kind"], string>>;
 };
-type Resolved = { value: number | null; structures: { id: string; name: string; value: number }[]; missing: boolean };
-const obj = (value: unknown): Record<string, unknown> => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {});
+type Resolved = { value: number | null; structures: { id: string; name: string; value: number }[]; missing: boolean; reason: string };
 const finite = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
-function measured(source: unknown, definitionId: string, unit: string) {
-  let total: number | null = null;
-  for (const [key, entry] of Object.entries(obj(source))) {
-    if (definitionForKey(key)?.id !== definitionId) continue;
-    const value = finite(obj(entry).value);
-    // A value in another unit is not this measurement; it is never converted by guesswork.
-    if (value === null || obj(entry).unit !== unit || obj(entry).status === "missing" || obj(entry).status === "pending") continue;
-    total = (total || 0) + value;
-  }
-  return total;
-}
 function resolveInput(input: PaySheetInput, context: PayContext): Resolved {
-  const source = input.source;
-  let value: number | null = null;
+  const source = input.source, label = input.label || input.name;
+  const blocked = context.unavailable?.[source.kind];
+  if (blocked) return { value: null, structures: [], missing: true, reason: blocked };
+  let value: number | null = null, reason = `${label} is not available for this job.`;
   let structures: Resolved["structures"] = [];
   if (source.kind === "measurement") {
-    const unit = listMeasurementDefinitions().find((definition) => definition.id === source.definition)?.unit || "";
-    value = measured(obj(context.measurements).measurements, source.definition, unit);
-    if (source.per_structure) {
-      structures = (Array.isArray(obj(context.measurements).structures) ? obj(context.measurements).structures as unknown[] : []).map((structure) => ({ id: String(obj(structure).id || ""), name: String(obj(structure).name || ""), value: measured(obj(structure).measurements, source.definition, unit) })).filter((structure): structure is { id: string; name: string; value: number } => structure.value !== null);
-      if (value === null && structures.length) value = structures.reduce((sum, structure) => sum + structure.value, 0);
-    }
+    const amounts = measurementAmounts(context.measurements, source.definition);
+    value = amounts.total;
+    // Structures are priced one by one only when every structure has a value and together they are the project's
+    // figure. Otherwise the total is the figure: it carries manual corrections, and a partial breakdown would underpay.
+    const everyStructure = amounts.structures.length > 1 && amounts.structures.length === amounts.structure_count;
+    const sum = amounts.structures.reduce((total, structure) => total + structure.value, 0);
+    if (source.per_structure && everyStructure && (amounts.recorded_total === null || Math.abs(sum - amounts.recorded_total) <= Math.max(0.01, Math.abs(amounts.recorded_total) * 0.001))) structures = amounts.structures;
   } else if (source.kind === "material") {
     const matching = (context.materials || []).filter((line) => (source.item_id ? line.item_id === source.item_id : line.item_type.toLowerCase() === source.item_type!.toLowerCase()));
+    const units = [...new Set(matching.map((line) => line.unit.trim().toLowerCase()))];
+    // Ten rolls and four boxes are not fourteen of anything.
+    if (units.length > 1) return { value: null, structures: [], missing: true, reason: `${label} is on the lists in different units (${units.join(", ")}), so it cannot be added up.` };
     value = matching.length ? matching.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0) : null;
   } else if (source.kind === "field") value = finite(context.fields?.[source.key]);
-  else value = finite(context.manual?.[input.name]);
+  else { value = finite(context.manual?.[input.name]); reason = `Enter ${label} for this job.`; }
   if (value === null && !input.required && input.default !== undefined) value = input.default;
-  return { value, structures, missing: value === null };
+  return { value, structures, missing: value === null, reason };
 }
 
 export type PayLine = { entry_id: string; label: string; kind: string; quantity: number | null; unit: string; rate_cents: number; total_cents: number | null; structure_id?: string; structure_name?: string };
@@ -157,20 +153,28 @@ export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
   sheet.entries.forEach((entry, index) => {
     const entryId = entry.id || `entry_${index + 1}`, unit = entry.unit || (entry.kind === "hourly" ? "hour" : entry.kind === "flat" ? "job" : "");
     const gate = entry.when ? inputs.get(entry.when)! : null;
-    if (gate && !(Number(gate.value) > 0)) return;
+    if (gate) {
+      // A gate that is required and unknown cannot be decided either way, so the entry is unresolved rather than dropped.
+      if (gate.missing && (gate.input.required || context.unavailable?.[gate.input.source.kind])) { unresolved.push({ entry_id: entryId, label: entry.label, input: gate.input.name, reason: gate.reason }); return; }
+      if (!(Number(gate.value) > 0)) return;
+    }
     if (entry.kind === "salary") { lines.push({ entry_id: entryId, label: entry.label, kind: entry.kind, quantity: null, unit: unit || "period", rate_cents: entry.rate_cents, total_cents: null }); return; }
     if (entry.kind === "flat" && !entry.input) { lines.push({ entry_id: entryId, label: entry.label, kind: entry.kind, quantity: 1, unit, rate_cents: entry.rate_cents, total_cents: entry.rate_cents }); return; }
     const resolved = entry.input ? inputs.get(entry.input)! : null;
     if (!resolved || resolved.missing) {
       // An optional input with nothing recorded and no default simply does not apply to this job.
-      if (resolved && !resolved.input.required) return;
-      unresolved.push({ entry_id: entryId, label: entry.label, input: entry.input || "", reason: entry.input ? `${resolved?.input.label || entry.input} is not available for this job.` : "Enter the hours for this job." });
+      if (resolved && !resolved.input.required && !context.unavailable?.[resolved.input.source.kind]) return;
+      unresolved.push({ entry_id: entryId, label: entry.label, input: entry.input || "", reason: resolved ? resolved.reason : "Enter the hours for this job." });
       return;
     }
-    const price = (quantity: number) => Math.max(entry.minimum_cents || 0, Math.round(quantity * (entry.multiplier ?? 1) * entry.rate_cents));
-    const perStructure = resolved.input.source.kind === "measurement" && resolved.input.source.per_structure && resolved.structures.length > 1;
-    if (perStructure) for (const structure of resolved.structures) { const quantity = structure.value * (entry.multiplier ?? 1); if (quantity > 0) lines.push({ entry_id: entryId, label: entry.label, kind: entry.kind, quantity, unit, rate_cents: entry.rate_cents, total_cents: price(structure.value), structure_id: structure.id, structure_name: structure.name }); }
-    else { const quantity = Number(resolved.value) * (entry.multiplier ?? 1); if (quantity > 0 || entry.kind === "flat") lines.push({ entry_id: entryId, label: entry.label, kind: entry.kind, quantity: entry.kind === "flat" ? 1 : quantity, unit, rate_cents: entry.rate_cents, total_cents: entry.kind === "flat" ? entry.rate_cents : price(Number(resolved.value)) }); }
+    const multiplier = entry.multiplier ?? 1, price = (quantity: number) => Math.round(quantity * multiplier * entry.rate_cents);
+    const before = lines.length;
+    if (entry.kind === "flat") lines.push({ entry_id: entryId, label: entry.label, kind: entry.kind, quantity: 1, unit, rate_cents: entry.rate_cents, total_cents: entry.rate_cents });
+    else if (resolved.structures.length) { for (const structure of resolved.structures) if (structure.value * multiplier > 0) lines.push({ entry_id: entryId, label: entry.label, kind: entry.kind, quantity: structure.value * multiplier, unit, rate_cents: entry.rate_cents, total_cents: price(structure.value), structure_id: structure.id, structure_name: structure.name }); }
+    else if (Number(resolved.value) * multiplier > 0) lines.push({ entry_id: entryId, label: entry.label, kind: entry.kind, quantity: Number(resolved.value) * multiplier, unit, rate_cents: entry.rate_cents, total_cents: price(Number(resolved.value)) });
+    // A minimum is for the entry as a whole, however many structures it was priced across.
+    const earned = lines.slice(before).reduce((sum, line) => sum + (line.total_cents || 0), 0);
+    if (lines.length > before && entry.minimum_cents && earned < entry.minimum_cents) lines.push({ entry_id: entryId, label: `${entry.label} (minimum)`, kind: "minimum", quantity: 1, unit: "job", rate_cents: entry.minimum_cents - earned, total_cents: entry.minimum_cents - earned });
   });
   const basis = sheet.duration ? inputs.get(sheet.duration.input)! : null;
   // Scheduling works in half days; anything measurable rounds up to the next half.
@@ -180,16 +184,14 @@ export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
     lines,
     equipment: sheet.equipment.map((item, index) => ({ id: item.id || `equipment_${index + 1}`, name: item.name, ...(item.equipment_type_id ? { equipment_type_id: item.equipment_type_id } : {}), included: item.included, total_cents: item.included ? 0 : item.rate_cents || 0 })),
     unresolved,
-    missing_inputs: [...inputs.values()].filter((entry) => entry.missing).map((entry) => ({ name: entry.input.name, label: entry.input.label || entry.input.name, required: entry.input.required, source: entry.input.source })),
+    missing_inputs: [...inputs.values()].filter((entry) => entry.missing).map((entry) => ({ name: entry.input.name, label: entry.input.label || entry.input.name, required: entry.input.required, source: entry.input.source, reason: entry.reason })),
     duration_days,
     total_cents: lines.reduce((sum, line) => sum + (line.total_cents || 0), 0) + sheet.equipment.reduce((sum, item) => sum + (item.included ? 0 : item.rate_cents || 0), 0),
     complete: unresolved.length === 0
   };
 }
 
-function requireWrite(orgId: string, auth: PlatformAuthContext) {
-  if (!auth || auth.orgId !== orgId || !hasPermission(auth, "manage_company_settings")) throw forbidden("pay_sheet_write_denied", "Pay sheet editing requires company settings access.");
-}
+const requireWrite = (orgId: string, actor: Actor) => requireActor(orgId, actor, "manage_company_settings", "pay_sheet_write_denied", "Pay sheet editing requires company settings access.");
 function row(document: { id: string; revision?: number; data: JsonObject }): PaySheet {
   const data = document.data as unknown as Omit<PaySheet, "id" | "revision">;
   return { id: document.id, subject: data.subject, name: data.name, schema_ids: data.schema_ids || [], inputs: data.inputs || [], entries: data.entries || [], equipment: data.equipment || [], duration: data.duration ?? null, revision: Number(document.revision || 0) };
@@ -202,24 +204,29 @@ export async function readPaySheet(orgId: string, sheetId: string) {
   if (!sheet) throw badRequest("pay_sheet_unknown", "This pay sheet is unavailable.");
   return sheet;
 }
-export async function savePaySheet(orgId: string, input: unknown, auth: PlatformAuthContext) {
+export async function savePaySheet(orgId: string, input: unknown, auth: Actor) {
   requireWrite(orgId, auth);
   const parsed = paySheetInputSchema.parse(input);
-  const existing = parsed.id ? (await listPaySheets(orgId)).find((entry) => entry.id === parsed.id) || null : null;
+  await requireAssignee(orgId, parsed.subject);
+  const all = await listPaySheets(orgId);
+  const existing = parsed.id ? all.find((entry) => entry.id === parsed.id) || null : null;
   if (parsed.id && !existing) throw badRequest("pay_sheet_unknown", "This pay sheet is unavailable.");
+  // An assignee has one sheet for each kind of work, and at most one that names none, so it is never unclear which applies.
+  const clash = all.find((entry) => entry.id !== parsed.id && entry.subject.type === parsed.subject.type && entry.subject.id === parsed.subject.id && (parsed.schema_ids.length ? entry.schema_ids.some((schema) => parsed.schema_ids.includes(schema)) : !entry.schema_ids.length));
+  if (clash) throw badRequest("pay_sheet_overlap", `${clash.name} already covers ${parsed.schema_ids.length ? "that kind of work" : "work that names no kind"} for this assignee.`);
   const { id: _id, expected_revision: _revision, ...data } = parsed;
   const document = await upsertDocument(orgId, PAY_SHEET_COLLECTION, {
     ...(existing ? { id: existing.id, expected_revision: parsed.expected_revision ?? existing.revision } : {}),
-    data: { ...data, duration: data.duration ?? null, entries: data.entries.map((entry, index) => ({ ...entry, id: entry.id || `entry_${index + 1}` })), updated_by_user_id: auth.userId } as unknown as JsonObject,
+    data: { ...data, duration: data.duration ?? null, entries: data.entries.map((entry, index) => ({ ...entry, id: entry.id || `entry_${index + 1}` })), updated_by_user_id: String(auth.userId || "") } as unknown as JsonObject,
     metadata: { kind: "labor_pay_sheet", subject_type: parsed.subject.type, subject_id: parsed.subject.id }
   }, { replace: true });
   return row(document as { id: string; revision?: number; data: JsonObject });
 }
-export async function archivePaySheet(orgId: string, input: unknown, auth: PlatformAuthContext) {
+export async function archivePaySheet(orgId: string, input: unknown, auth: Actor) {
   requireWrite(orgId, auth);
   const parsed = paySheetArchiveSchema.parse(input);
   const document = (await listDocuments(orgId, PAY_SHEET_COLLECTION)).find((entry) => entry.id === parsed.id && !entry.data.archived_at);
   if (!document) throw badRequest("pay_sheet_unknown", "This pay sheet is unavailable.");
-  await upsertDocument(orgId, PAY_SHEET_COLLECTION, { id: parsed.id, expected_revision: parsed.expected_revision ?? Number(document.revision || 0), data: { ...document.data, archived_at: new Date().toISOString(), archived_by_user_id: auth.userId }, metadata: { kind: "labor_pay_sheet" } }, { replace: true });
+  await upsertDocument(orgId, PAY_SHEET_COLLECTION, { id: parsed.id, expected_revision: parsed.expected_revision ?? Number(document.revision || 0), data: { ...document.data, archived_at: new Date().toISOString(), archived_by_user_id: String(auth.userId || "") }, metadata: { kind: "labor_pay_sheet", subject_type: String((document.data.subject as { type?: string } | undefined)?.type || ""), subject_id: String((document.data.subject as { id?: string } | undefined)?.id || "") } }, { replace: true });
   return { id: parsed.id, archived: true };
 }

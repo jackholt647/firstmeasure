@@ -34,37 +34,68 @@ a whole or to one of its units.
 
 ## Commitment
 
-`commitLaborList` freezes a labor list that is assigned and not empty: its lines
-with rates and totals, the assignee, the chosen unit, the assignee's pay sheet
-revision, the list's schedule and a note. Editing the list afterwards never
-changes a commitment. Committing again writes the next revision and marks the
-previous one `superseded`. `releaseCommitment` marks one `released` when the work
-is finished or taken back.
+`commitLaborList` freezes a labor list that is assigned to a real assignee, not
+archived and not empty: its lines, the assignee, the chosen unit, the revisions
+of the assignee's pay sheets, the list's schedule and a note. Each line keeps
+the list's own rate exactly and the list's own line total, so a commitment
+never disagrees with what the list showed; a line with no rate is unpriced, and
+the commitment says how many are (`unpriced_lines`) rather than presenting a
+partial sum as the whole. It also records the list revision and a
+`content_hash` of exactly what was frozen, so anything can tell whether the
+list has changed since.
 
-A committed list emits `labor.list.committed`, and `labor.list.delivered` once
-it has reached the assignee, so organization rules and scope automations can
-react.
+Rules that keep it safe to build on:
+
+- **Unchanged means the same commitment.** Committing a list whose frozen
+  content has not changed returns the commitment it already has. Nothing is
+  sent again. A second click cannot create a second commitment.
+- **One winner.** A commitment's id is its list and revision, created
+  create-only, so two requests racing for the same revision cannot both
+  succeed; the loser is told to reload.
+- **Same key, same result.** An `idempotency_key` (body or `Idempotency-Key`
+  header) returns the commitment first made with it.
+- **Only the newest revision can be current.** Readers treat any older
+  revision as superseded even if the write that should have marked it never
+  finished, and whatever later happened to the newer one.
+- **A project-scoped call stays in its project.** The published actions refuse
+  a list or commitment that belongs to a different project than their target.
+- Commitments are never edited. `releaseCommitment` marks one `released` when
+  the work is finished or taken back; archiving a list releases what it held.
+
+`labor.list.committed`, `labor.list.delivered` and `labor.list.released` are
+registered when the module loads and emitted as they happen. If an event could
+not be recorded the commitment carries `event_error`.
 
 ## Delivery
 
 Each assignee has a delivery method, chosen in `labor_delivery_settings` or
-defaulted: people, groups of users and outside companies whose organization is
-linked are shared with; an unlinked outside company is emailed a work order.
+defaulted: people and groups of users are shared with; an outside company is
+emailed a work order.
 
-- `share` — the commitment is the assignee's inside FirstMate. Nothing is sent.
+- `share` — the commitment is the assignee's inside FirstMate. For people and
+  groups in this organization that is arrival. An outside company's own account
+  is not reached yet, so sharing with one stays `pending`.
 - `work_order_email` — a work order is emailed from the project. With no
-  address the delivery needs attention; it is never reported delivered.
+  address the delivery needs attention.
 - `custom` — the assignee's own delivery code runs in the document-module
   sandbox. It receives the commitment, the recipient and the rendered work
-  order, can read and invoke nothing, and returns steps from a fixed set:
-  `todo`, `email`, `share`. The platform carries the steps out. With no code of
-  its own an assignee gets `DEFAULT_CUSTOM_DELIVERY`, which creates a to-do asking
-  someone to deliver the work by hand.
+  order, can read and invoke nothing, and returns at most ten steps from a
+  fixed set: `todo`, `email`, `share`. The platform carries the steps out. With
+  no code of its own an assignee gets `DEFAULT_CUSTOM_DELIVERY`, which creates a
+  to-do asking someone to deliver the work by hand.
 
-A delivery ends `delivered`, `pending` (only to-dos were created: someone still
-has to send the work) or `needs_attention` (a step failed or could not run). To
-add a kind of step, add it to `DeliveryStep` and to the dispatcher; do not let
-delivery code call actions directly.
+Email only ever goes to an address already on record for the assignee (the
+delivery setting's address, or the company's own contacts). Delivery code that
+names any other address is refused, so it cannot be used to send pay data
+elsewhere.
+
+A delivery ends `delivered`, `pending` (someone still has to send the work) or
+`needs_attention` (a step failed or could not run). It never reports delivered
+unless the work reached someone. `redeliverCommitment` tries again without
+making a new revision or re-sending an email that already went;
+`confirmDelivery` records that it was handed over by hand. To add a kind of
+step, add it to `DeliveryStep` and to the dispatcher; do not let delivery code
+call actions directly.
 
 ## Availability
 
@@ -77,16 +108,28 @@ and is reported as `unplaced`. More commitments than units is `over_committed`
 and is reported, not prevented. Dates are carried on each commitment's `schedule`
 for a scheduler to use; this view does not reason about dates.
 
-## Published
+## Published and access
 
-- `labor-commitments.project` — commitments on a project. `labor-commitments.settings` — delivery methods.
-- `assignees.units` and `assignees.availability` (arguments `type`, `id`).
-- Actions `labor.list.commit`, `labor.commitment.release` (`manage_projects`);
-  `labor.delivery-setting.save`, `assignees.unit.save`, `assignees.unit.archive`
-  (`manage_company_settings`).
-- HTTP under `/v1/materials/organizations/:orgId/`: `lists/:listId/commit`,
-  `projects/:projectId/labor-commitments`, `labor-commitments/:id/release`,
-  `labor-delivery-settings`, `assignees/:type/:id`, `assignee-units`.
+Pay sheets and delivery settings are compensation records. What a job pays,
+what was committed and who is free are project management. Seeing materials is
+not enough for any of it.
+
+| | Permission |
+|---|---|
+| `pay-sheets.catalog`, `pay-sheets.requirements`, `labor-commitments.settings`; saving sheets, delivery settings and units | `manage_company_settings` |
+| `pay-sheets.evaluation`, `labor-commitments.project`, `assignees.units`, `assignees.availability`; `labor.list.commit`, `labor.commitment.release`, `.deliver`, `.confirm-delivery` | `manage_projects` |
+
+The HTTP routes under `/v1/materials/organizations/:orgId/` enforce the same
+permissions and the same Materials switch as the published views:
+`pay-sheets`, `projects/:projectId/pay-sheets/evaluate`, `lists/:listId/commit`,
+`projects/:projectId/labor-commitments`, `labor-commitments/:id/release`,
+`…/deliver`, `…/confirm-delivery`, `labor-delivery-settings`,
+`assignees/:type/:id`, `assignee-units`. The commit and commitment actions can
+also be run by the platform itself for an automation that has been granted
+them.
+
+A pay sheet, delivery setting or unit can only be saved for an assignee that
+exists. A unit that still holds committed work cannot be removed.
 
 Commitments, delivery and pay sheets are about labor lists today, so their names
 say `labor`. Units and availability belong to assignees in general and are named
@@ -94,8 +137,10 @@ for them.
 
 ## Not built
 
-The interface for any of this; sharing a commitment into a linked
-organization's own account; a rendered work order document (the email carries a
+The interface for any of this; sharing a commitment into an outside company's
+own account; removing an assignee does not yet clean up its pay sheets,
+settings and units; commitments are listed by reading the whole collection,
+which will need an index before there are many thousands; a rendered work order document (the email carries a
 table); payouts and actuals against a commitment; scheduling against
 availability; equipment an assignee brings covering a job's equipment needs.
 

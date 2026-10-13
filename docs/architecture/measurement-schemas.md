@@ -13,6 +13,13 @@ its unit, and the levels it can be recorded at (`project`, `structure`). A famil
 of keys uses `keyPattern` (`pitch6Squares`, `pitch7.5Squares`, …). One key has
 one meaning: registering a second definition for a claimed key fails.
 
+`measurementAmount` and `measurementAmounts` are the only place a measurement is
+read as a number: the assessment and pay evaluation both use them. A banded
+definition (`roof.squares_9_to_12`) may `derive` from a family: when a producer
+recorded exact pitches instead of the band, the band is the sum of the pitches
+that fall inside it. With no project total recorded, structures that are all
+measured stand in for it.
+
 Write definitions as facts about the building, not as a trade's idea of it.
 `exterior_wall.net_area` is a fact; "siding area" is an interpretation that a
 mason and a painter would each read differently. Facts are what stay true across

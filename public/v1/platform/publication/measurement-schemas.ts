@@ -23,6 +23,11 @@ export type MeasurementDefinition = {
   unit: string;
   /** Where it can be measured. A per-structure value also rolls up into the project total. */
   levels: MeasurementLevel[];
+  /**
+   * A banded measurement that can be worked out when its own key is absent: the sum of another definition's keys
+   * whose number falls in the band. Producers differ in whether they write the band or the exact pitches.
+   */
+  derive?: { from: string; above: number; upTo: number | null };
   description: string;
 };
 export type MeasurementSchema = {
@@ -77,6 +82,43 @@ export function measurementSchemaIdsForScope(template: unknown): string[] {
 }
 
 type Value = { value: number | null; unit: string; status?: string; source?: string };
+const numberIn = (key: string) => { const match = key.match(/\d+(?:\.\d+)?/); return match ? Number(match[0]) : null; };
+/**
+ * The amount recorded for one definition in one set of measurements (a project's totals, or one structure's), or null
+ * when nothing usable is there. A value in another unit is not this measurement. A band with no key of its own is
+ * summed from the exact values that fall inside it. This is the only place a measurement is read as a number.
+ */
+export function measurementAmount(source: unknown, definitionId: string): number | null {
+  const definition = definitions.get(definitionId);
+  if (!definition) return null;
+  const entries = Object.entries(obj(source));
+  const read = (target: MeasurementDefinition, accept: (key: string) => boolean = () => true) => {
+    let total: number | null = null;
+    for (const [key, entry] of entries) {
+      if (!(target.key ? target.key === key : new RegExp(target.keyPattern!).test(key)) || !accept(key) || !usable(entry, target.unit)) continue;
+      total = (total || 0) + (obj(entry).value as number);
+    }
+    return total;
+  };
+  const own = read(definition);
+  if (own !== null || !definition.derive) return own;
+  const family = definitions.get(definition.derive.from);
+  if (!family || family.unit !== definition.unit) return null;
+  const { above, upTo } = definition.derive;
+  return read(family, (key) => { const n = numberIn(key); return n !== null && n > above && (upTo === null || n <= upTo); });
+}
+/**
+ * One definition across a whole dataset value: the project total, and each structure's own amount. With no total
+ * recorded, the structures' sum stands in for it.
+ */
+export function measurementAmounts(datasetValue: unknown, definitionId: string) {
+  const structures = (Array.isArray(obj(datasetValue).structures) ? obj(datasetValue).structures as unknown[] : []).map(obj)
+    .map((structure) => ({ id: String(structure.id || ""), name: String(structure.name || ""), value: measurementAmount(structure.measurements, definitionId) }));
+  const measured = structures.filter((structure): structure is { id: string; name: string; value: number } => structure.value !== null);
+  const recorded = measurementAmount(obj(datasetValue).measurements, definitionId);
+  const total = recorded ?? (measured.length ? measured.reduce((sum, structure) => sum + structure.value, 0) : null);
+  return { total, recorded_total: recorded, structures: measured, structure_count: structures.length };
+}
 type Obj = Record<string, unknown>;
 const obj = (value: unknown): Obj => (value && typeof value === "object" && !Array.isArray(value) ? value as Obj : {});
 const usable = (entry: unknown, unit: string) => { const value = obj(entry); return typeof value.value === "number" && Number.isFinite(value.value) && value.unit === unit && value.status !== "missing" && value.status !== "pending"; };
@@ -105,7 +147,7 @@ export function assessMeasurements(schemaId: string, datasetValue: unknown): Mea
     const values = matching(totals, definition);
     const perStructure = definition.levels.includes("structure") ? structures.map((structure) => ({ id: String(structure.id || ""), name: String(structure.name || ""), values: matching(obj(structure.measurements), definition) })).filter((structure) => Object.keys(structure.values).length) : [];
     const recorded = [...Object.values(values), ...perStructure.flatMap((structure) => Object.values(structure.values))];
-    const status = recorded.some((value) => usable(value, definition.unit)) ? "ready" as const : recorded.some((value) => typeof obj(value).value === "number") ? "unit_mismatch" as const : "missing" as const;
+    const status = measurementAmounts(datasetValue, definition.id).total !== null ? "ready" as const : recorded.some((value) => typeof obj(value).value === "number") ? "unit_mismatch" as const : "missing" as const;
     return { definition: definition.id, label: definition.label, unit: definition.unit, required: entry.required, status, values, structures: perStructure };
   });
   const keys = new Set([...Object.keys(totals), ...structures.flatMap((structure) => Object.keys(obj(structure.measurements)))]);
@@ -123,13 +165,14 @@ const define = (id: string, key: string, label: string, unit: string, descriptio
 define("roof.area", "roofArea", "Roof area", "ft2", "Sloped surface area of every roof face.");
 define("roof.squares", "roofSquares", "Roof squares", "roofing_square", "Roof area in roofing squares of 100 square feet.");
 define("roof.ventilation_squares", "ventilationSquares", "Ventilated squares", "roofing_square", "Roof squares counted toward ventilation.");
-define("roof.flat_squares", "flatRoofSquares", "Flat roof squares", "roofing_square", "Squares pitched 2/12 or lower.");
-define("roof.squares_2_to_4", "pitch2to4Squares", "Squares over 2/12 up to 4/12", "roofing_square", "Squares pitched over 2/12 and up to 4/12.");
-define("roof.squares_4_to_6", "pitch4to6Squares", "Squares over 4/12 up to 6/12", "roofing_square", "Squares pitched over 4/12 and up to 6/12.");
-define("roof.squares_6_to_8", "pitch6to8Squares", "Squares over 6/12 up to 8/12", "roofing_square", "Squares pitched over 6/12 and up to 8/12.");
-define("roof.squares_9_to_12", "pitch9to12Squares", "Squares over 8/12 up to 12/12", "roofing_square", "Squares pitched over 8/12 and up to 12/12.");
-define("roof.squares_13_plus", "pitch13PlusSquares", "Squares over 12/12", "roofing_square", "Squares pitched steeper than 12/12.");
 registerMeasurementDefinition({ id: "roof.squares_at_pitch", keyPattern: "^pitch\\d+(?:\\.\\d+)?Squares$", label: "Squares at each pitch", unit: "roofing_square", levels: both, description: "Squares at one exact pitch, one key per pitch such as pitch6Squares for 6/12." });
+const band = (id: string, key: string, label: string, description: string, above: number, upTo: number | null) => registerMeasurementDefinition({ id, key, label, unit: "roofing_square", levels: both, description, derive: { from: "roof.squares_at_pitch", above, upTo } });
+band("roof.flat_squares", "flatRoofSquares", "Flat roof squares", "Squares pitched 2/12 or lower.", -1, 2);
+band("roof.squares_2_to_4", "pitch2to4Squares", "Squares over 2/12 up to 4/12", "Squares pitched over 2/12 and up to 4/12.", 2, 4);
+band("roof.squares_4_to_6", "pitch4to6Squares", "Squares over 4/12 up to 6/12", "Squares pitched over 4/12 and up to 6/12.", 4, 6);
+band("roof.squares_6_to_8", "pitch6to8Squares", "Squares over 6/12 up to 8/12", "Squares pitched over 6/12 and up to 8/12.", 6, 8);
+band("roof.squares_9_to_12", "pitch9to12Squares", "Squares over 8/12 up to 12/12", "Squares pitched over 8/12 and up to 12/12.", 8, 12);
+band("roof.squares_13_plus", "pitch13PlusSquares", "Squares over 12/12", "Squares pitched steeper than 12/12.", 12, null);
 define("roof.ridge_length", "ridgesLf", "Ridges", "ft", "Total ridge length.");
 define("roof.hip_length", "hipsLf", "Hips", "ft", "Total hip length.");
 define("roof.valley_length", "valleyLf", "Valleys", "ft", "Total valley length.");
@@ -166,7 +209,7 @@ registerMeasurementSchema({ id: "gutters", version: "1", title: "Gutters", descr
 registerMeasurementSchema({ id: "siding", version: "1", title: "Siding", description: "Wall cladding replacement.", measurements: select(["exterior_wall.net_area"], ["exterior_wall.gross_area", "exterior_wall.opening_area", "exterior_wall.opening_perimeter", "exterior_wall.top_length", "exterior_wall.bottom_length", "exterior_wall.transition_length", "exterior_wall.termination_length", "exterior_wall.inside_corner_length", "exterior_wall.outside_corner_length", "exterior_wall.return_area"]) });
 
 // ---- Publication ----
-const definitionSchema: JsonSchema = { type: "object", required: ["id", "label", "unit", "levels", "description"], properties: { id: { type: "string" }, key: { type: "string" }, keyPattern: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, levels: { type: "array", items: { enum: ["project", "structure"] } }, description: { type: "string" } }, additionalProperties: false };
+const definitionSchema: JsonSchema = { type: "object", required: ["id", "label", "unit", "levels", "description"], properties: { id: { type: "string" }, key: { type: "string" }, keyPattern: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, levels: { type: "array", items: { enum: ["project", "structure"] } }, description: { type: "string" }, derive: { type: "object" } }, additionalProperties: false };
 const schemaSchema: JsonSchema = { type: "object", required: ["id", "version", "title", "description", "measurements"], properties: { id: { type: "string" }, version: { type: "string" }, title: { type: "string" }, description: { type: "string" }, measurements: { type: "array", items: { type: "object", required: ["definition", "required"], properties: { definition: { type: "string" }, required: { type: "boolean" } }, additionalProperties: false } } }, additionalProperties: false };
 const valueMap: JsonSchema = { type: "object", additionalProperties: { type: "object" } };
 const assessmentSchema: JsonSchema = { type: "object", required: ["schema", "measurements", "missing_required", "unrecognized"], properties: { status: { type: "string" }, dataset_id: { type: "string" }, schema: { type: "object" }, measurements: { type: "array", items: { type: "object", required: ["definition", "label", "unit", "required", "status", "values", "structures"], properties: { definition: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, required: { type: "boolean" }, status: { enum: ["ready", "missing", "unit_mismatch"] }, values: valueMap, structures: { type: "array", items: { type: "object", required: ["id", "name", "values"], properties: { id: { type: "string" }, name: { type: "string" }, values: valueMap }, additionalProperties: false } } }, additionalProperties: false } }, missing_required: { type: "array", items: { type: "string" } }, unrecognized: { type: "array", items: { type: "string" } } }, additionalProperties: false };

@@ -37,6 +37,10 @@ different trades, and this is what stops "per square" on a roofing sheet being
 matched to siding. A sheet that reads no measurement — purely hourly or
 salaried — names none.
 
+An assignee has one sheet for each kind of work, and at most one that names no
+kind of work; a second is refused, so it is never unclear which applies. A sheet
+can only be saved for an assignee that exists.
+
 Bind material inputs to an item type where possible. A type covers items added
 to the price book later; a single item id must be revisited when that item
 changes. Sheets are evaluated against the project's current lists, so signed
@@ -48,39 +52,62 @@ documents never need changing to suit a pay sheet.
 gives the same lines every time. It never invents a quantity:
 
 - a required input that is missing leaves its entries in `unresolved`, with the
-  reason, and `complete` is false;
+  reason, and `complete` is false. That includes an entry whose `when` gate is a
+  required input nobody has entered: the gate cannot be decided, so the entry is
+  not dropped;
 - an optional input with nothing recorded and no default simply does not apply;
 - a measurement recorded in another unit is not that measurement;
-- a `per_structure` input yields one line per structure when the project has
-  more than one.
+- material of one type recorded in different units is not added together; the
+  input is missing and says why;
+- when a whole source could not be read (project fields, measurements), every
+  input of that kind is missing whatever its default says, because "could not
+  read" is not "zero".
+
+Measurements are read through `measurementAmount` in
+`platform/publication/measurement-schemas.ts`, the same reading the assessment
+uses, so the two never disagree. A pitch band with no key of its own is summed
+from the exact pitches a producer recorded.
+
+**Structures.** The project total is what gets paid, because it carries manual
+corrections. A `per_structure` input is priced structure by structure only when
+every structure has a value and together they equal the recorded total (or no
+total is recorded, in which case their sum stands in for it). Otherwise it is
+priced once on the total. A partial breakdown never reduces pay.
+
+**Minimums** apply to the entry as a whole. When an entry's lines come to less
+than its `minimum_cents`, the difference is added as its own "(minimum)" line.
 
 `evaluateProjectPaySheets` prices every sheet (or one) against the same
-project, reading its selected measurement dataset and material lists, so
-parties can be compared on the same job. Project fields are read on the server
-through the same path the data layer publishes them (`custom-fields-project.values`):
-stored values, defaults, formulas and published calculations, with yes/no fields
-counting as 1 and 0. A field input names the field's path, or the `custom_<path>`
-name the Project tab's formulas use. Numbers entered by hand, and any field value
-the caller wants to override, are passed in.
+project, so assignees can be compared on the same job. It reads the project's
+selected measurement dataset, the material on its lists that are not archived,
+and its fields. Project fields are read on the server through the same path the
+data layer publishes them (`custom-fields-project.values`): stored values,
+defaults, formulas and published calculations, with yes/no fields counting as 1
+and 0 and text never read as a number. A field input names the field's path, or
+the `custom_<path>` name the Project tab's formulas use. Numbers entered by
+hand, and any field value the caller wants to override, are passed in.
 
 An agent may write or propose a pay sheet from a subcontractor's price sheet;
 it does not compute pay. Pay comes only from an approved sheet's evaluation.
 
 ## Published
 
-Provider `pay-sheets` (permission `view_materials`):
+Provider `pay-sheets`. A pay sheet is a compensation record:
 
-- `catalog` — every sheet.
+- `catalog` — every sheet. `manage_company_settings`.
 - `requirements` — per sheet, the schemas it covers and each declared input
-  with its source and whether it is required. This is the consumer side of the
-  data layer: compare it with `measurement-schemas.assessment` and a project's
-  lists to see what a crew still needs.
+  with its source and whether it is required. `manage_company_settings`. This is
+  the consumer side of the data layer: compare it with
+  `measurement-schemas.assessment` and a project's lists to see what an assignee
+  still needs.
 - `evaluation` (project; arguments `sheet_id`, `fields`, `manual`).
+  `manage_projects`.
 
 Actions `pay-sheets.sheet.save` and `pay-sheets.sheet.archive` need
 `manage_company_settings`. The HTTP routes are under
 `/v1/materials/organizations/:orgId/pay-sheets` and
-`…/projects/:projectId/pay-sheets/evaluate`.
+`…/projects/:projectId/pay-sheets/evaluate`, with the same permissions.
+Documents, scope code and the assistant read these views when granted them.
 
 Material calculations do not yet publish their declared inputs the same way.
 

@@ -51,12 +51,12 @@ test("the same job prices differently per sheet, leaves missing inputs unresolve
   const { paySheetInputSchema, evaluatePaySheet } = await import("../labor/pay-sheets.js");
   const sheet = { ...paySheetInputSchema.parse(pieceRate), id: "ps_1", revision: 1 };
   const measurements = { measurements: { roofSquares: { value: 32, unit: "roofing_square" }, pitch9to12Squares: { value: 6, unit: "roofing_square" } }, structures: [{ id: "house", name: "House", measurements: { roofSquares: { value: 26, unit: "roofing_square" } } }, { id: "garage", name: "Garage", measurements: { roofSquares: { value: 6, unit: "roofing_square" } } }] };
-  const materials = [{ item_id: "lib-ridge-gaf-seal-a-ridge", item_type: "Hip & Ridge", quantity: 5 }, { item_id: "lib-shingle-gaf-hdz", item_type: "Shingles", quantity: 96 }];
+  const materials = [{ item_id: "lib-ridge-gaf-seal-a-ridge", item_type: "Hip & Ridge", quantity: 5, unit: "bundle" }, { item_id: "lib-shingle-gaf-hdz", item_type: "Shingles", quantity: 96, unit: "bundle" }];
   const priced = evaluatePaySheet(sheet, { measurements, materials, fields: { pack_out_feet: 30 }, manual: { layers: 1 } });
   const line = (label: string) => priced.lines.filter((row) => row.label === label);
   assert.deepEqual(line("Tear off").map((row) => [row.structure_name, row.quantity, row.total_cents]), [["House", 26, 104000], ["Garage", 6, 24000]], "a per-structure input prices each structure");
   assert.equal(line("Steep charge")[0]!.total_cents, 9000); assert.equal(line("Ridge cap")[0]!.total_cents, 4000, "material quantities come from the lists by item type");
-  assert.equal(line("Pack out")[0]!.total_cents, 5000, "30 ft at $1 is below the $50 minimum"); assert.equal(line("Extra layers")[0]!.total_cents, 20000); assert.equal(line("Dump fee")[0]!.total_cents, 35000);
+  assert.deepEqual(priced.lines.filter((row) => row.label.startsWith("Pack out")).map((row) => [row.label, row.total_cents]), [["Pack out", 3000], ["Pack out (minimum)", 2000]], "30 ft at $1 is below the $50 minimum, and the difference is its own line"); assert.equal(line("Extra layers")[0]!.total_cents, 20000); assert.equal(line("Dump fee")[0]!.total_cents, 35000);
   assert.deepEqual(priced.equipment.map((row) => [row.name, row.included, row.total_cents]), [["Dump trailer", true, 0], ["Shingle lift", false, 12000]]);
   assert.equal(priced.total_cents, 104000 + 24000 + 9000 + 4000 + 5000 + 20000 + 35000 + 12000); assert.equal(priced.duration_days, 1.5, "32 squares at 25 a day rounds up to the next half day"); assert.equal(priced.complete, true);
 
@@ -65,6 +65,33 @@ test("the same job prices differently per sheet, leaves missing inputs unresolve
   assert.deepEqual(bare.lines.map((row) => row.label), ["Dump fee"], "optional inputs with nothing recorded simply do not apply");
   assert.deepEqual(bare.missing_inputs.filter((row) => row.required).map((row) => row.name), ["squares", "layers"]); assert.equal(bare.duration_days, null); assert.equal(bare.complete, false);
   assert.equal(evaluatePaySheet(sheet, { measurements: { measurements: { roofSquares: { value: 3200, unit: "ft2" } } }, manual: { layers: 0 } }).unresolved[0]!.label, "Tear off", "a value in another unit is not the measurement");
+
+  // A corrected total is what gets paid. Structures that do not add up to it, or that are not all measured, are not used.
+  const corrected = evaluatePaySheet(sheet, { measurements: { measurements: { roofSquares: { value: 40, unit: "roofing_square" } }, structures: [{ id: "house", name: "House", measurements: { roofSquares: { value: 26, unit: "roofing_square" } } }, { id: "garage", name: "Garage", measurements: { roofSquares: { value: 3, unit: "roofing_square" } } }, { id: "shed", name: "Shed", measurements: { roofSquares: { value: 400, unit: "ft2" } } }] }, manual: { layers: 0 } });
+  assert.deepEqual(corrected.lines.filter((row) => row.label === "Tear off").map((row) => [row.structure_name, row.quantity, row.total_cents]), [[undefined, 40, 160000]], "pay follows the total the estimate was built on"); assert.equal(corrected.duration_days, 2);
+  // With no total recorded, structures that are all measured stand in for it.
+  const structuresOnly = evaluatePaySheet(sheet, { measurements: { measurements: {}, structures: [{ id: "house", name: "House", measurements: { roofSquares: { value: 26, unit: "roofing_square" } } }, { id: "garage", name: "Garage", measurements: { roofSquares: { value: 6, unit: "roofing_square" } } }] }, manual: { layers: 0 } });
+  assert.deepEqual(structuresOnly.lines.filter((row) => row.label === "Tear off").map((row) => row.quantity), [26, 6]); assert.equal(structuresOnly.duration_days, 1.5);
+  // A minimum belongs to the entry, not to each structure it was priced across.
+  const minimum = { ...paySheetInputSchema.parse({ ...pieceRate, entries: [{ label: "Tear off", kind: "piece_rate", unit: "sq", rate_cents: 10000, input: "squares", minimum_cents: 50000 }] }), id: "ps_min", revision: 1 };
+  const small = evaluatePaySheet(minimum, { measurements: { measurements: {}, structures: [{ id: "house", name: "House", measurements: { roofSquares: { value: 30, unit: "roofing_square" } } }, { id: "garage", name: "Garage", measurements: { roofSquares: { value: 3, unit: "roofing_square" } } }] }, manual: { layers: 0 } });
+  assert.deepEqual(small.lines.map((row) => [row.label, row.total_cents]), [["Tear off", 300000], ["Tear off", 30000]], "the garage is $300, not raised to the $500 minimum");
+  const tiny = evaluatePaySheet(minimum, { measurements: { measurements: { roofSquares: { value: 3, unit: "roofing_square" } } }, manual: { layers: 0 } });
+  assert.deepEqual(tiny.lines.map((row) => [row.label, row.total_cents]), [["Tear off", 30000], ["Tear off (minimum)", 20000]]); assert.equal(tiny.total_cents, 50000 + 12000);
+  // A gate whose required input was never entered cannot be decided, so its entry is unresolved rather than dropped.
+  const gated = { ...paySheetInputSchema.parse({ ...pieceRate, entries: [{ label: "Extra layers", kind: "piece_rate", rate_cents: 20000, input: "layers", when: "layers" }] }), id: "ps_gate", revision: 1 };
+  const undecided = evaluatePaySheet(gated, { measurements });
+  assert.deepEqual(undecided.unresolved.map((row) => [row.label, row.input]), [["Extra layers", "layers"]]); assert.equal(undecided.complete, false);
+  assert.deepEqual(evaluatePaySheet(gated, { measurements, manual: { layers: 0 } }).lines, [], "entered as zero, the gate is decided and the entry does not apply");
+  // Steep charges are found whether the producer wrote the band or the exact pitches.
+  const exact = evaluatePaySheet(sheet, { measurements: { measurements: { roofSquares: { value: 32, unit: "roofing_square" }, pitch10Squares: { value: 7, unit: "roofing_square" }, pitch12Squares: { value: 5, unit: "roofing_square" }, pitch6Squares: { value: 20, unit: "roofing_square" } } }, manual: { layers: 0 } });
+  assert.equal(exact.lines.find((row) => row.label === "Steep charge")!.quantity, 12, "10/12 and 12/12 fall in the band over 8/12 up to 12/12; 6/12 does not");
+  // Quantities in different units are not added together.
+  const mixed = evaluatePaySheet(sheet, { measurements, manual: { layers: 0 }, materials: [{ item_id: "a", item_type: "Hip & Ridge", quantity: 5, unit: "bundle" }, { item_id: "b", item_type: "Hip & Ridge", quantity: 40, unit: "ft" }] });
+  assert.match(mixed.missing_inputs.find((row) => row.name === "ridge_bundles")!.reason, /different units \(bundle, ft\)/); assert.equal(mixed.lines.some((row) => row.label === "Ridge cap"), false);
+  // When a source could not be read at all, nothing that depends on it is priced, even an optional input with a default.
+  const unread = evaluatePaySheet(sheet, { measurements, manual: { layers: 0 }, unavailable: { field: "Project fields could not be read." } });
+  assert.deepEqual(unread.unresolved.map((row) => [row.label, row.reason]), [["Pack out", "Project fields could not be read."]]); assert.equal(unread.complete, false);
 
   const hourly = { ...paySheetInputSchema.parse({ subject: { type: "resource_group", id: "crew_a" }, name: "Crew A hourly", inputs: [{ name: "hours", source: { kind: "manual" } }], entries: [{ label: "Hourly", kind: "hourly", rate_cents: 3200, input: "hours" }, { label: "Foreman salary", kind: "salary", rate_cents: 150000 }] }), id: "ps_2", revision: 1 };
   const unknown = evaluatePaySheet(hourly, { measurements, materials });
@@ -83,11 +110,20 @@ test("pay sheets are stored per organization, published with their requirements 
     await s.createOrganization({ id: "org_pay", name: "Pay" }); await s.saveGlobal("org_pay", { data: { app_flags: { platform: { expanded_access: true, materials: true } } } }, { replace: false }); await enableExpandedPlatformFixture("org_pay", { "platform.materials": true, "platform.pricebook": true });
     await s.upsertDocument("org_pay", "projects", { id: "project_pay", data: { title: "Oak St" } });
     const owner = { orgId: "org_pay", userId: "owner", role: "owner", permissions: {} } as any;
-    await assert.rejects(() => sheets.savePaySheet("org_pay", pieceRate, { orgId: "org_pay", userId: "crew", role: "member", permissions: {}, accessProfile: { roles: [] } } as any), /company settings access/);
-    const saved = await sheets.savePaySheet("org_pay", pieceRate, owner);
+    await assert.rejects(() => sheets.savePaySheet("org_pay", pieceRate, owner), /not available in this organization/, "a pay sheet needs a real assignee");
+    const summit = await (await import("../connections/storage.js")).createOrganizationConnection("org_pay", { name: "Summit Roofing", relationship_type_ids: ["work_provider"] });
+    const real = { ...pieceRate, subject: { type: "organization_connection" as const, id: String(summit.id) } };
+    await assert.rejects(() => sheets.savePaySheet("org_pay", real, { orgId: "org_pay", userId: "crew", role: "member", permissions: {}, accessProfile: { roles: [] } } as any), /company settings access/);
+    const saved = await sheets.savePaySheet("org_pay", real, owner);
+    // One sheet per kind of work for an assignee, and at most one that names none.
+    await assert.rejects(() => sheets.savePaySheet("org_pay", { ...real, name: "Second roofing sheet" }, owner), /already covers that kind of work/);
+    const hourlyOnly = { subject: real.subject, name: "Summit hourly", inputs: [{ name: "hours", source: { kind: "manual" as const } }], entries: [{ label: "Hourly", kind: "hourly" as const, rate_cents: 5000, input: "hours" }] };
+    const unscoped = await sheets.savePaySheet("org_pay", hourlyOnly, owner);
+    await assert.rejects(() => sheets.savePaySheet("org_pay", { ...hourlyOnly, name: "Another hourly" }, owner), /already covers work that names no kind/);
+    await sheets.archivePaySheet("org_pay", { id: unscoped.id }, owner);
     assert.equal(saved.entries[0]!.id, "entry_1"); assert.equal(saved.revision >= 1, true);
-    const renamed = await sheets.savePaySheet("org_pay", { ...pieceRate, id: saved.id, name: "Summit 2026 rates", expected_revision: saved.revision }, owner);
-    assert.equal(renamed.name, "Summit 2026 rates"); await assert.rejects(() => sheets.savePaySheet("org_pay", { ...pieceRate, id: saved.id, expected_revision: saved.revision }, owner), "a stale revision is refused");
+    const renamed = await sheets.savePaySheet("org_pay", { ...real, id: saved.id, name: "Summit 2026 rates", expected_revision: saved.revision }, owner);
+    assert.equal(renamed.name, "Summit 2026 rates"); await assert.rejects(() => sheets.savePaySheet("org_pay", { ...real, id: saved.id, expected_revision: saved.revision }, owner), /revision/i, "a stale revision is refused");
     assert.deepEqual((await sheets.listPaySheets("org_pay")).map((row) => row.id), [saved.id]);
 
     const writer = systemPublicationContext({ kind: "module", organizationId: "org_pay", projectId: "project_pay", operations: ["datasets.save", "datasets.select", "datasets.value"], mode: "command" });
@@ -105,11 +141,22 @@ test("pay sheets are stored per organization, published with their requirements 
     await s.saveBranchModule("org_pay", "default", "custom_fields", { data: { fields: [{ key: "pack_out_feet", path: "pack_out_feet", label: "Pack-out distance", type: "number", entity: "project" }, { key: "steep_access", path: "access.steep", label: "Steep access", type: "boolean", entity: "project" }, { key: "notes", path: "notes", label: "Notes", type: "text", entity: "project" }] } });
     const current = await s.readDocument("org_pay", "projects", "project_pay");
     await s.upsertDocument("org_pay", "projects", { id: "project_pay", expected_revision: Number(current.revision), data: { ...current.data, custom_field_values: { pack_out_feet: 80, access: { steep: true }, notes: "Gate code 4411" } } });
-    const fields = await projectFieldNumbers("org_pay", "project_pay");
-    assert.equal(fields.pack_out_feet, 80); assert.equal(fields["access.steep"], 1, "a yes/no field counts as 1"); assert.equal(fields.custom_access_steep, 1, "also under the name the Project tab's formulas use"); assert.equal("notes" in fields, false);
+    await s.upsertDocument("org_pay", "projects", { id: "project_pay", expected_revision: Number((await s.readDocument("org_pay", "projects", "project_pay")).revision), data: { ...(await s.readDocument("org_pay", "projects", "project_pay")).data, custom_field_values: { pack_out_feet: 80, access: { steep: true }, notes: "4411" } } });
+    const { numbers: fields, error } = await projectFieldNumbers("org_pay", "project_pay");
+    assert.equal(error, ""); assert.equal(fields.pack_out_feet, 80); assert.equal(fields["access.steep"], 1, "a yes/no field counts as 1"); assert.equal(fields.custom_access_steep, 1, "also under the name the Project tab's formulas use"); assert.equal("notes" in fields, false, "text that looks like a number is still text");
     const packed = await evaluateProjectPaySheets("org_pay", "project_pay", { sheet_id: saved.id, manual: { layers: 0 } });
     assert.equal(packed[0]!.lines.find((row) => row.label === "Pack out")!.total_cents, 8000, "80 ft at $1 a foot, read from the project");
     assert.equal((await evaluateProjectPaySheets("org_pay", "project_pay", { sheet_id: saved.id, manual: { layers: 0 }, fields: { pack_out_feet: 0 } }))[0]!.lines.some((row) => row.label === "Pack out"), false, "a value passed by the caller still wins");
+
+    // Material comes from the project's live lists only: an archived list beside its replacement is not paid twice.
+    const lists = await import("../materials/storage.js");
+    const ridge = (quantity: number) => lists.createMaterialList("org_pay", "project_pay", { title: "Ridge", resource_type: "material", items: [{ id: "r1", name: "Ridge cap", quantity, unit: "bundle", pricebook_ref: { item_id: "ridge_item" } }] }, owner);
+    const pricebook = await import("../pricebook/storage.js");
+    const book = await pricebook.getOrganizationPricebook("org_pay");
+    await pricebook.saveOrganizationCatalog("org_pay", { ...book.catalog, items: [...book.catalog.items, { id: "ridge_item", kind: "atomic", name: "Ridge cap", type: "Hip & Ridge", category: "shingle_roofs", unit: "bundle", unit_price: 60 }] }, Number(book.manifest.revision));
+    const oldList = await ridge(5); await ridge(6);
+    const ridgeTotal = async () => (await evaluateProjectPaySheets("org_pay", "project_pay", { sheet_id: saved.id, manual: { layers: 0 } }))[0]!.lines.find((row) => row.label === "Ridge cap")!.quantity;
+    assert.equal(await ridgeTotal(), 11); await lists.archiveMaterialList("org_pay", String(oldList.id), { reason: "Replaced" }, owner); assert.equal(await ridgeTotal(), 6, "the archived list no longer counts");
 
     // Documents, scope code and the assistant read the same published views a person does.
     (await import("../platform/publication/bootstrap.js")).initializePublication();
