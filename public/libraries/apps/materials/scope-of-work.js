@@ -153,12 +153,17 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
   draw();
 }
 function showViews(root,state){
-  root.querySelectorAll('[data-scope-panel]').forEach(panel=>{panel.hidden=panel.dataset.scopePanel!==state.view;});
+  // A view that replaces another slides in from the side its tab sits on. The first view shown does not move.
+  const order=VIEWS.map(([key])=>key),forward=order.indexOf(state.view)>order.indexOf(state.shown),moving=!!state.shown&&state.shown!==state.view;
+  root.querySelectorAll('[data-scope-panel]').forEach(panel=>{const active=panel.dataset.scopePanel===state.view;panel.hidden=!active;panel.classList.remove('sw-enter-forward','sw-enter-back');if(active&&moving){void panel.offsetWidth;panel.classList.add(forward?'sw-enter-forward':'sw-enter-back');}});
+  state.shown=state.view;
   root.querySelectorAll('[data-scope-view]').forEach(tab=>{const active=tab.dataset.scopeView===state.view;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
   for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key);
   window.dispatchEvent(new Event('resize'));
 }
 export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
+/** Shows one of the rail's views, as if its tab had been chosen. */
+export function showSidebarView(root,view){const state=sidebars.get(root);if(!state||!VIEWS.some(([key])=>key===view))return false;if(state.view!==view){state.view=view;showViews(root,state);}return true;}
 export function setSidebarVisible(root,visible){const state=sidebars.get(root);if(state){state.visible=visible;showViews(root,state);}}
 
 export function installDivider(sidebar) {

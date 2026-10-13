@@ -421,3 +421,28 @@ test('the requirements tray says how the project stands when closed and what acc
  calls.length=0;await ctx.markLineCover('equipment','dumpster','disposal.debris',true);assert.equal(JSON.stringify(calls),JSON.stringify([['update','equipment','dumpster',['disposal.debris']]]));
  assert.equal(ctx.lineWarnings('labor','g1')[0].code,'duplicate');assert.equal(ctx.lineWarnings('labor','other').length,0);
 });
+
+test('the header says what is done and the Schedule button opens the schedule view and starts placing the job',async()=>{
+ const escapeHtml=value=>String(value??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+ const lists=[{id:'m',resource_type:'material',status:'ordered'},{id:'l',resource_type:'labor',assigned:'sub',metadata:{labor_generation:{}},pending:true},{id:'e',resource_type:'equipment',pending:true}];
+ const shown=[],focused=[],timers=[];
+ const ctx={state:{lists,project:{events:[{id:'span',kind:'schedule_group',status:'unscheduled'},{id:'old',kind:'schedule_group',status:'cancelled'}]}},setTimeout:fn=>{timers.push(fn);},
+  cleanText:value=>String(value??'').trim(),resourceType:list=>list.resource_type,listItems:()=>[{}],materialListOrdered:list=>list.status==='ordered',assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,
+  resourceSchedulePending:list=>!!list.pending,resourceScheduleEnabled:()=>true,eventDateParts:event=>({date:event?.date||''}),linkedScheduleEvent:list=>list.event||null,
+  rootWindow:{Portal:{modules:{projectSchedule:{focusMaterialDelivery:payload=>focused.push(payload)}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view)},leftContentRoot:()=>'rail',
+  captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast(){},ensureScheduleEventForList:async list=>({list,event:{id:'event-'+list.id}}),schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
+ vm.createContext(ctx);for(const name of ['headerDone','jobSchedule','scheduleJobButton','scheduleJob'])vm.runInContext(fn(name),ctx);
+ // Ordered material is done; labor that has been built is done; equipment with no date is not.
+ assert.equal(JSON.stringify(ctx.headerDone()),JSON.stringify({material:true,labor:true,equipment:false}));
+ let html=ctx.scheduleJobButton();assert.match(html,/class="mt-schedule-job" data-mt-schedule-job[^>]*><i class="fas fa-calendar-days"[^>]*><\/i><span>Schedule<\/span>/);
+ // The piece of work with no dates is what gets placed; a cancelled one is not waiting.
+ await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule"]');assert.equal(focused.length,0,'placing waits for the view to arrive');timers.shift()();assert.equal(JSON.stringify(focused),JSON.stringify([{event_id:'span'}]));
+ // With no piece of work yet, a list still waiting leads the way, labor first.
+ ctx.state.project.events=[];focused.length=0;await ctx.scheduleJob();timers.shift()();assert.equal(JSON.stringify(focused),JSON.stringify([{event_id:'event-l',scope_resource_list_id:'l'}]));
+ // Everything dated: the button is green and says so.
+ lists.forEach(list=>{list.pending=false;list.event={date:'2026-10-20'};});ctx.state.project.events=[{id:'span',kind:'schedule_group',status:'scheduled',start_at:'2026-10-20T08:00:00Z'}];
+ html=ctx.scheduleJobButton();assert.match(html,/class="mt-schedule-job is-done"[^>]*><i class="fas fa-check"[^>]*><\/i><span>Scheduled<\/span>/);assert.equal(ctx.headerDone().equipment,true);
+ focused.length=0;await ctx.scheduleJob();assert.equal(timers.length,0,'nothing is left to place, so the view just opens');
+ // The rail can be told which view to show, and a view that replaces another slides in from its side.
+ const panels=['roof','documents','aerial','schedule'].map(key=>({dataset:{scopePanel:key},hidden:key!=='roof',classes:new Set(),classList:{add(name){this.owner.classes.add(name);},remove(...names){names.forEach(name=>this.owner.classes.delete(name));}},offsetWidth:1}));panels.forEach(panel=>panel.classList.owner=panel);
+});
