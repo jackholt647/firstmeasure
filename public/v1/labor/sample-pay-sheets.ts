@@ -9,9 +9,9 @@ const squares = { name: "squares", label: "Roof squares", source: measurement("r
 const DUMP_TRUCK = { name: "Dump truck", included: true };
 
 /**
- * Four assignees paid four different ways for the same roof, so pay sheets, generated labor lists and comparing
- * assignees have something to show. Two are in-house groups and two are outside companies; one of each brings its
- * own dump truck and one of each does not. Names and rates are placeholders. Safe to run again: groups, companies
+ * Five assignees paid five different ways for the same roof, so pay sheets, generated labor lists and comparing
+ * assignees have something to show. Three are in-house groups (hourly, by the square, and salaried at a cost rate) and two are outside companies; one
+ * in-house group and one company bring their own dump truck. Names and rates are placeholders. Safe to run again: groups, companies
  * and sheets are matched by name, and a sheet that already exists is brought up to this definition.
  */
 export async function seedInstantPaySheets(orgId: string, actor: Actor) {
@@ -21,7 +21,7 @@ export async function seedInstantPaySheets(orgId: string, actor: Actor) {
   const groups = await listResourceGroups(orgId, {}), connections = await listOrganizationConnections(orgId, {});
   const group = async (name: string) => groups.find((row) => text(row.name) === name) || await create(() => createResourceGroup(orgId, { name, kind_id: "crew", capability_scope_ids: scopes }), () => createResourceGroup(orgId, { name, kind_id: "crew" }));
   const company = async (name: string) => connections.find((row) => text(row.name) === name) || await create(() => createOrganizationConnection(orgId, { name, relationship_type_ids: ["work_provider"], capability_scope_ids: scopes }), () => createOrganizationConnection(orgId, { name, relationship_type_ids: ["work_provider"] }));
-  const crewA = await group("Crew A (sample)"), crewB = await group("Crew B (sample)");
+  const crewA = await group("Crew A (sample)"), crewB = await group("Crew B (sample)"), crewC = await group("Crew C (sample)");
   const summit = await company("Summit Roofing (sample subcontractor)"), ridgeline = await company("Ridgeline Exteriors (sample subcontractor)");
   const sheets = [
     // An in-house group paid by the hour, with no truck of its own. It cannot be priced until hours are entered.
@@ -30,6 +30,14 @@ export async function seedInstantPaySheets(orgId: string, actor: Actor) {
       inputs: [{ name: "hours", label: "Hours", source: { kind: "manual" as const }, required: true }, { name: "squares", label: "Roof squares", source: measurement("roof.squares"), required: false }],
       entries: [{ label: "Hourly labor", kind: "hourly" as const, unit: "hour", rate_cents: 12800, input: "hours" }],
       equipment: [], duration: { input: "squares", units_per_day: 18 }
+    },
+    // A salaried in-house group. Its hours are priced at what that time costs the business, to project the job; nobody
+    // is paid from this line, because their pay is their salary.
+    {
+      subject: { type: "resource_group" as const, id: text(crewC.id) }, name: "Crew C salaried cost rate (sample)", schema_ids: ["roofing"],
+      inputs: [{ name: "hours", label: "Hours", source: { kind: "manual" as const }, required: true }, { name: "squares", label: "Roof squares", source: measurement("roof.squares"), required: false }],
+      entries: [{ label: "Salaried time", kind: "cost_rate" as const, unit: "hour", rate_cents: 9500, input: "hours" }],
+      equipment: [], duration: { input: "squares", units_per_day: 20 }
     },
     // An in-house group paid by the square, which brings its own dump truck.
     {
@@ -80,5 +88,5 @@ export async function seedInstantPaySheets(orgId: string, actor: Actor) {
     const match = existing.find((row) => row.name === sheet.name) || existing.find((row) => row.subject.type === sheet.subject.type && row.subject.id === sheet.subject.id);
     await savePaySheet(orgId, match ? { ...sheet, id: match.id, expected_revision: match.revision } : sheet, actor);
   }
-  return { assignees: 4, sheets: sheets.length };
+  return { assignees: 5, sheets: sheets.length };
 }

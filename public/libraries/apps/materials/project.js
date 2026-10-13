@@ -4234,7 +4234,6 @@
     const quantity = type === 'material' && !item.metadata?.calculus_line_id ? integerQuantity(item.quantity, 0) : preciseQuantity(item.quantity, 0);
     const material = type === 'material';
     const labor = type === 'labor';
-    const payType = cleanText(item?.metadata?.compensation_kind || item?.metadata?.pay_type || item?.metadata?.estimate_mode || 'piece_rate').replace('piece-rate', 'piece_rate');
     const orderInfo = material && state.unitsMode === 'order' ? orderInfoForLine(item, quantity) : null;
     const unitPrice = item.projected_unit_price == null || item.projected_unit_price === '' ? NaN : Number(item.projected_unit_price);
     const lineTotal = item.projected_total != null ? Number(item.projected_total) : quantity * unitPrice;
@@ -4249,7 +4248,7 @@
     const priceText = Number.isFinite(unitPrice) ? unitPrice.toLocaleString('en-US', unitPrice < 100 && !Number.isInteger(unitPrice) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 }) : '';
     const orderTooltip = orderInfo ? `Measured: ${quantity} ${cleanText(item.unit || 'ea')}${orderInfo.covered_quantity !== quantity ? ` · ${orderInfo.order_quantity} ${orderInfo.order_unit} covers ${orderInfo.covered_quantity} ${cleanText(item.unit || 'ea')}` : ''}${orderInfo.packaging?.description ? ` · ${orderInfo.packaging.description}` : ''}` : '';
     return `
-      <tr class="mt-list-row${state.expandedItemIds?.has(cleanText(item.id)) ? ' is-expanded' : ''}${item.metadata?.unresolved === true ? ' is-unresolved' : ''}${item.metadata?.quantity_needed === true && !(number(item.quantity, 0) > 0) ? ' needs-quantity' : ''}" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(item.metadata?.unresolved === true ? `${item.name}: not priced yet. ${cleanText(item.metadata.unresolved_reason)}` : item.metadata?.quantity_needed === true && !(number(item.quantity, 0) > 0) ? `${item.name}: enter ${cleanText(item.metadata.quantity_label || 'the quantity').toLowerCase()} to price this line.` : summary)}">
+      <tr class="mt-list-row${state.expandedItemIds?.has(cleanText(item.id)) ? ' is-expanded' : ''}${item.metadata?.unresolved === true ? ' is-unresolved' : ''}${item.metadata?.quantity_needed === true && !(number(item.quantity, 0) > 0) ? ' needs-quantity' : ''}" data-resource-kind="${escapeHtml(type)}" data-mt-item-row="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${escapeHtml(item.metadata?.unresolved === true ? `${item.name}: not priced yet. ${cleanText(item.metadata.unresolved_reason)}` : item.metadata?.quantity_needed === true && !(number(item.quantity, 0) > 0) ? `${item.name}: enter ${cleanText(item.metadata.quantity_label || 'the quantity').toLowerCase()} to price this line.` : item.metadata?.projection_only === true ? `${summary}\nCost rate: this projects what their time costs. They are paid by salary, not from this line.` : summary)}">
         <td class="mt-c-drag"><span class="mt-drag" role="button" tabindex="0" draggable="true" data-mt-list-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="Drag to reorder or move to another list. Click to choose a list." aria-label="${((v8) => globalThis.PlatformLanguage?.htmlText("materials","m_790adaaf81ef83",`Change list for ${v8}`,{v8}) ?? `Change list for ${v8}`)(escapeHtml(name))}" aria-expanded="${String(state.listMenu?.itemId === item.id ? 'true' : 'false')}"><i class="fas fa-grip-vertical" aria-hidden="true"></i></span></td>
         <td class="mt-c-name"><input class="mt-input mt-cell-input mt-line-name" data-mt-item-name="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" value="${String(escapeHtml(name))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_7bd2b28790fb35","Item name") ?? "Item name")}" ${String(state.saving ? 'disabled' : '')}></td>
         ${String(material ? `<td class="mt-c-color">${renderColorControl(item)}</td>` : '')}
@@ -4260,7 +4259,7 @@
         <td class="mt-c-unit"><input class="mt-input mt-cell-input" aria-label="Unit" placeholder="unit" ${fit(unit, 2)} data-mt-item-unit="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" value="${escapeHtml(item.unit || '')}" ${state.saving ? 'disabled' : ''}></td>`)}
         <td class="mt-c-total">${Number.isFinite(lineTotal) ? `$${Math.round(lineTotal).toLocaleString('en-US')}` : ''}</td>
         <td class="mt-c-expand"><button type="button" class="mt-expand" data-mt-expand-item="${escapeHtml(item.id)}" aria-expanded="${state.expandedItemIds?.has(cleanText(item.id)) ? 'true' : 'false'}" title="${labor ? 'Rate' : 'Unit price'} and remove" aria-label="Show ${labor ? 'rate' : 'unit price'} and remove for ${escapeHtml(name)}"><i class="fas fa-chevron-down" aria-hidden="true"></i></button></td>
-        <td class="mt-c-detail"><span class="mt-c-meta">${labor ? `<select class="mt-input mt-cell-input" data-mt-item-pay-type="${escapeHtml(item.id)}" data-mt-list-id="${escapeHtml(listId)}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d9b2666bd68237","Pay type") ?? "Pay type")}" ${state.saving ? 'disabled' : ''}><option value="piece_rate" ${payType === 'piece_rate' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_237cf67332e1e8","Piece rate") ?? "Piece rate")}</option><option value="hourly" ${payType === 'hourly' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_6a122e6ae08ae2","Hourly") ?? "Hourly")}</option><option value="salary" ${payType === 'salary' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("materials","m_40c128013ab7d0","Salary") ?? "Salary")}</option></select>` : meta}</span>
+        <td class="mt-c-detail"><span class="mt-c-meta">${meta}</span>
           <label class="mt-c-price"><span>${labor ? 'Rate' : 'Unit price'}</span><input class="mt-input mt-cell-input mt-number" aria-label="${labor?'Rate':'Unit price'}" placeholder="0" ${fit(priceText, 6)} data-mt-item-price="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" data-mt-raw="${String(escapeHtml(item.projected_unit_price ?? ''))}" type="text" inputmode="decimal" value="${escapeHtml(priceText)}" ${String(state.saving ? 'disabled' : '')}></label>
           <button type="button" class="mt-row-remove" data-mt-remove="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(listId))}" title="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_f643f568915438","Remove") ?? "Remove")}" ${String(state.saving ? 'disabled' : '')}><i class="fas fa-trash" aria-hidden="true"></i> Remove</button></td>
       </tr>
@@ -4999,15 +4998,6 @@
     root.querySelectorAll('[data-mt-item-variant]').forEach((select) => {
       select.addEventListener('change', () => updateItemVariant(select.dataset.mtItemVariant, select.value, select.dataset.mtListId));
     });
-    root.querySelectorAll('[data-mt-item-pay-type]').forEach((select) => {
-      select.addEventListener('change', () => {
-        const list = materialListById(select.dataset.mtListId);
-        const item = listItems(list).find((entry) => cleanText(entry.id) === cleanText(select.dataset.mtItemPayType));
-        updateItem(select.dataset.mtItemPayType, {
-          metadata: { ...(item?.metadata || {}), compensation_kind: select.value }
-        }, select.dataset.mtListId);
-      });
-    });
     root.querySelectorAll('[data-mt-color-trigger]').forEach((button) => {
       button.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -5605,7 +5595,7 @@
     if (!row) return '';
     if (!row.sheet) return 'No pay sheet';
     if (row.complete) return money(number(row.total_cents, 0) / 100);
-    if (row.awaiting_hours) return 'Hourly';
+    if (row.awaiting_hours) return row.cost_rate_cents != null && row.hourly_rate_cents == null ? 'Salaried' : 'Hourly';
     const needed = (row.missing_inputs || []).filter((input) => input.required).map((input) => cleanText(input.label))[0];
     return needed ? `Needs ${needed.toLowerCase()}` : 'Cannot price yet';
   }
@@ -5614,6 +5604,7 @@
     const pill = (icon, label, tip, fit = false) => `<span class="mt-pill${fit ? ' fit' : ''}" title="${escapeHtml(tip)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${escapeHtml(label)}</span></span>`;
     const pills = [];
     if (row?.hourly_rate_cents != null) pills.push(pill('fa-clock', `${money(number(row.hourly_rate_cents, 0) / 100)}/hr`, 'Paid by the hour at this rate. Enter the hours on the list.'));
+    if (row?.cost_rate_cents != null) pills.push(pill('fa-user-clock', `${money(number(row.cost_rate_cents, 0) / 100)}/hr`, 'Cost rate. They are on salary, so this is what an hour of their time costs you. It projects the job and is never paid out. Enter the hours on the list.'));
     (row?.equipment || []).filter((entry) => entry.included).forEach((entry) => pills.push(pill('fa-truck', cleanText(entry.name), `Brings their own ${cleanText(entry.name).toLowerCase()}, included in their pay.`, true)));
     (row?.equipment || []).filter((entry) => !entry.included).forEach((entry) => pills.push(pill('fa-truck', `${cleanText(entry.name)} ${money(number(entry.total_cents, 0) / 100)}`, `Brings their own ${cleanText(entry.name).toLowerCase()} and charges ${money(number(entry.total_cents, 0) / 100)} for it.`, true)));
     const basis = row?.duration_basis;

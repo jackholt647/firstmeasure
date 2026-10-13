@@ -23,7 +23,11 @@ and has:
   - `field`: a numeric project field production fills in (pack-out distance);
   - `manual`: a number entered for this job (hours, extra layers).
 - **entries** — pay lines. `piece_rate` and `hourly` multiply an input by a
-  rate; `flat` is one amount; `salary` is recorded but never charged to a job.
+  rate and are what the assignee is paid; `flat` is one amount. `cost_rate` is
+  for salaried people: hours at what their time costs the business. It projects
+  the job's cost and is never paid out (their pay is their salary), and the
+  evaluation reports it separately as `projection_only_cents`. `salary` is
+  recorded but never charged to a job.
   An entry may have a `minimum_cents`, a `multiplier`, and a `when` input that
   gates it.
 - **equipment** — what the party brings, `included` or charged.
@@ -98,7 +102,11 @@ the sheet asked for, else the assignee's sheet for the list's kind of work, else
 their only sheet; more than one candidate is an error, never a guess — and
 writes the result as the list's lines:
 
-- one line per pay line, carrying the sheet and entry it came from;
+- one line per pay line, carrying the sheet and entry it came from. A number
+  only a person can supply that is paid directly at a rate (hours, extra layers)
+  is typed into the list as that line's quantity: the line is written at its
+  rate with no quantity, and regenerating prices the job on whatever has been
+  typed. A line has no pay type of its own to choose;
 - a line with no price for anything unresolved, saying what it is waiting for;
 - a line for each piece of equipment the assignee brings, free when included.
 

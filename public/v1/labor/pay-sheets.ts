@@ -38,8 +38,12 @@ const inputSchema = z.object({
 const entrySchema = z.object({
   id: id.optional(),
   label: z.string().trim().min(1).max(300),
-  /** piece_rate and hourly multiply an input by the rate. flat is one amount. salary is recorded but never charged to a job. */
-  kind: z.enum(["piece_rate", "hourly", "flat", "salary"]),
+  /**
+   * piece_rate and hourly multiply an input by the rate and are what the assignee is paid. flat is one amount.
+   * cost_rate is for salaried people: hours at what their time costs the business. It projects the job's cost and is
+   * never paid out; their pay is their salary. salary is recorded but never charged to a job.
+   */
+  kind: z.enum(["piece_rate", "hourly", "flat", "salary", "cost_rate"]),
   unit: z.string().trim().max(60).optional(),
   rate_cents: cents,
   input: name.optional(),
@@ -151,7 +155,7 @@ export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
   const inputs = new Map(sheet.inputs.map((input) => [input.name, { input, ...resolveInput(input, context) }]));
   const lines: PayLine[] = [], unresolved: { entry_id: string; label: string; input: string; reason: string }[] = [];
   sheet.entries.forEach((entry, index) => {
-    const entryId = entry.id || `entry_${index + 1}`, unit = entry.unit || (entry.kind === "hourly" ? "hour" : entry.kind === "flat" ? "job" : "");
+    const entryId = entry.id || `entry_${index + 1}`, unit = entry.unit || (entry.kind === "hourly" || entry.kind === "cost_rate" ? "hour" : entry.kind === "flat" ? "job" : "");
     const gate = entry.when ? inputs.get(entry.when)! : null;
     if (gate) {
       // A gate that is required and unknown cannot be decided either way, so the entry is unresolved rather than dropped.
@@ -189,6 +193,8 @@ export function evaluatePaySheet(sheet: PaySheet, context: PayContext) {
     // What the estimate of days rests on, so it can be explained rather than taken on trust.
     duration_basis: sheet.duration && basis && !basis.missing ? { label: basis.input.label || basis.input.name, value: Number(basis.value), units_per_day: sheet.duration.units_per_day } : null,
     total_cents: lines.reduce((sum, line) => sum + (line.total_cents || 0), 0) + sheet.equipment.reduce((sum, item) => sum + (item.included ? 0 : item.rate_cents || 0), 0),
+    // The part of the total that is projection only: salaried time at its cost rate, which no one is paid per job.
+    projection_only_cents: lines.filter((line) => line.kind === "cost_rate").reduce((sum, line) => sum + (line.total_cents || 0), 0),
     complete: unresolved.length === 0
   };
 }

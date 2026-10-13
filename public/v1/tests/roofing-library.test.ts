@@ -41,7 +41,7 @@ test('an Instant Full Org starts with the roofing price book library and its sup
   // The organization also starts with two ways of being paid for the same roof, and its roofing scope names its schema.
   const sheets = await import('../labor/pay-sheets.js');
   const paySheets = await sheets.listPaySheets(ctx.orgId);
-  assert.deepEqual(paySheets.map((row) => [row.name, row.subject.type, row.equipment.length]).sort(), [['Crew A hourly (sample)', 'resource_group', 0], ['Crew B production pay (sample)', 'resource_group', 1], ['Ridgeline Exteriors per bundle (sample)', 'organization_connection', 0], ['Summit Roofing piece rates (sample)', 'organization_connection', 1]], 'two in-house groups and two outside companies, one of each with its own dump truck');
+  assert.deepEqual(paySheets.map((row) => [row.name, row.subject.type, row.equipment.length]).sort(), [['Crew A hourly (sample)', 'resource_group', 0], ['Crew B production pay (sample)', 'resource_group', 1], ['Crew C salaried cost rate (sample)', 'resource_group', 0], ['Ridgeline Exteriors per bundle (sample)', 'organization_connection', 0], ['Summit Roofing piece rates (sample)', 'organization_connection', 1]], 'three in-house groups and two outside companies; one group and one company bring a dump truck');
   const requirements = paySheets.map(sheets.paySheetRequirements);
   assert.ok(requirements.every((row) => row.schema_ids.includes('roofing')));
   assert.ok(requirements.find((row) => row.consumer.name.startsWith('Summit'))!.inputs.some((input) => input.source.kind === 'measurement' && input.required));
@@ -51,7 +51,7 @@ test('an Instant Full Org starts with the roofing price book library and its sup
   assert.deepEqual(compared.find((row) => row.sheet.name.startsWith('Summit'))!.unresolved.map((row) => row.label), ['Tear off and install'], 'with no measurements the subcontractor cannot be priced yet');
   const { seedInstantPaySheets } = await import('../labor/sample-pay-sheets.js');
   await seedInstantPaySheets(ctx.orgId, ctx);
-  assert.equal((await sheets.listPaySheets(ctx.orgId)).length, 4, 'seeding again adds nothing');
+  assert.equal((await sheets.listPaySheets(ctx.orgId)).length, 5, 'seeding again adds nothing');
   const { listScopeTemplates } = await import('../scopes/storage.js');
   const roof = (await listScopeTemplates(ctx.orgId, 'default') as any[]).find((row) => row.id === 'roof_replacement');
   if (roof) assert.deepEqual((await import('../platform/publication/measurement-schemas.js')).measurementSchemaIdsForScope(roof.definition || roof), ['roofing']);

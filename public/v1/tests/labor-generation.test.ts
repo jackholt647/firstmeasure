@@ -32,10 +32,10 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   await lists.createMaterialList(ORG, "project", { title: "Materials", resource_type: "material", items: [{ id: "m1", name: "Shingles", quantity: 96, unit: "bundle", pricebook_ref: { item_id: "shingle" } }, { id: "m2", name: "Ridge cap", quantity: 5, unit: "bundle", pricebook_ref: { item_id: "ridge" } }] }, owner);
 
   const seeded = await (await import("../labor/sample-pay-sheets.js")).seedInstantPaySheets(ORG, owner);
-  assert.deepEqual(seeded, { assignees: 4, sheets: 4 });
+  assert.deepEqual(seeded, { assignees: 5, sheets: 5 });
   await (await import("../labor/sample-pay-sheets.js")).seedInstantPaySheets(ORG, owner);
   const all = await sheets.listPaySheets(ORG);
-  assert.equal(all.length, 4, "seeding again adds nothing");
+  assert.equal(all.length, 5, "seeding again adds nothing");
   const subject = (name: string) => all.find((sheet) => sheet.name.startsWith(name))!.subject;
   const kind = (type: string) => (type === "resource_group" ? "resource_group" : "organization_connection");
   const reference = (name: string, label: string) => ({ id: subject(name).id, kind: kind(subject(name).type), name: label });
@@ -106,6 +106,18 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   // Once the project has a selected dataset, what the tab holds is ignored.
   const ignored = await g.previewLaborList(ORG, { list_id: String(list.id), manual: { hours: 60 }, legacy_measurements: { roofSquares: { value: 999, unit: "roofing_square" } } });
   assert.equal(ignored.measurement_source, "dataset");
+
+  // A salaried group is priced at a cost rate: hours at what that time costs the business. It projects the job and is
+  // marked as never paid out, because their pay is their salary.
+  const salaried = await lists.createMaterialList(ORG, "project", { title: "Salaried labor", resource_type: "labor", items: [], assignment: { work_resource_ref: reference("Crew C", "Crew C") } }, owner);
+  const rowC = (await g.compareAssigneesForList(ORG, { list_id: String(salaried.id) })).find((entry) => entry.sheet?.name.startsWith("Crew C"))!;
+  assert.deepEqual([rowC.awaiting_hours, rowC.cost_rate_cents, rowC.hourly_rate_cents], [true, 9500, null]);
+  await g.generateLaborList(ORG, { list_id: String(salaried.id) }, owner);
+  const costLine = ((await lists.readMaterialList(ORG, String(salaried.id))).current_items as any[])[0];
+  assert.deepEqual([costLine.name, costLine.quantity, costLine.unit, costLine.projected_unit_price, costLine.metadata.compensation_kind, costLine.metadata.projection_only], ["Salaried time", 0, "hour", 95, "cost_rate", true]);
+  const costed = await g.previewLaborList(ORG, { list_id: String(salaried.id), manual: { hours: 40 } });
+  assert.equal(costed.evaluation.total_cents, 40 * 9500); assert.equal(costed.evaluation.projection_only_cents, 40 * 9500, "all of it is projection, none of it is payable");
+  assert.equal((await g.previewLaborList(ORG, { list_id: String(list.id) })).evaluation.projection_only_cents, 0, "hourly pay is payable, not projection only");
 
   // What was generated is what gets committed.
   const committed = await c.commitLaborList(ORG, { list_id: String(list.id) }, owner, { todo: async () => null, email: async () => null, run: async () => [] });

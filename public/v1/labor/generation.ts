@@ -62,7 +62,7 @@ export async function previewLaborList(orgId: string, input: unknown) {
   // A number only a person can supply, paid directly at a rate (hours at an hourly rate, extra layers at a price each),
   // is typed into the list as that line's quantity. What is already typed there is what the job is priced on.
   const current = (Array.isArray(list.current_items) ? list.current_items : []).map(obj);
-  const typedInList = sheet.entries.flatMap((entry) => { const source = sheet.inputs.find((candidate) => candidate.name === entry.input); return entry.id && source?.source.kind === "manual" && (entry.kind === "hourly" || entry.kind === "piece_rate") ? [{ entry, input: source }] : []; });
+  const typedInList = sheet.entries.flatMap((entry) => { const source = sheet.inputs.find((candidate) => candidate.name === entry.input); return entry.id && source?.source.kind === "manual" && (entry.kind === "hourly" || entry.kind === "piece_rate" || entry.kind === "cost_rate") ? [{ entry, input: source }] : []; });
   const typed: Record<string, number> = {};
   for (const { entry, input: source } of typedInList) {
     const line = current.find((item) => obj(item.metadata)[GENERATED] === true && obj(item.metadata).pay_entry_id === entry.id && obj(item.metadata).pay_sheet_id === sheet.id);
@@ -83,14 +83,14 @@ export async function previewLaborList(orgId: string, input: unknown) {
       // The list multiplies quantity by unit price; the line total is stated too so rounding never moves it.
       projected_unit_price: quantity ? total / quantity : total, projected_total: total,
       ...(line.structure_id ? { structure_id: line.structure_id, structure_name: line.structure_name } : {}),
-      metadata: stamp({ pay_entry_id: line.entry_id, compensation_kind: line.kind === "hourly" ? "hourly" : "piece_rate" })
+      metadata: stamp({ pay_entry_id: line.entry_id, compensation_kind: line.kind === "hourly" || line.kind === "cost_rate" ? line.kind : "piece_rate", ...(line.kind === "cost_rate" ? { projection_only: true } : {}) })
     });
   });
   // A typed line that has no quantity yet is on the list at its rate, waiting for the number. Nothing is asked up front.
   const written = new Set(evaluation.lines.map((line) => line.entry_id));
   for (const { entry, input: source } of typedInList) {
     if (written.has(entry.id!)) continue;
-    items.push({ id: `ps_${entry.id}_typed`, section: "labor", name: entry.label, quantity: 0, unit: entry.unit || (entry.kind === "hourly" ? "hour" : "ea"), projected_unit_price: entry.rate_cents / 100, projected_total: 0, metadata: stamp({ pay_entry_id: entry.id, compensation_kind: entry.kind === "hourly" ? "hourly" : "piece_rate", quantity_needed: source.required, quantity_label: source.label || source.name }) });
+    items.push({ id: `ps_${entry.id}_typed`, section: "labor", name: entry.label, quantity: 0, unit: entry.unit || (entry.kind === "piece_rate" ? "ea" : "hour"), projected_unit_price: entry.rate_cents / 100, projected_total: 0, metadata: stamp({ pay_entry_id: entry.id, compensation_kind: entry.kind, ...(entry.kind === "cost_rate" ? { projection_only: true } : {}), quantity_needed: source.required, quantity_label: source.label || source.name }) });
   }
   const typedIds = new Set(typedInList.map(({ entry }) => entry.id));
   // Anything else that could not be priced is on the list as a line with no price, saying what it is waiting for.
@@ -134,12 +134,13 @@ export async function compareAssigneesForList(orgId: string, input: unknown) {
     const found = await requireAssignee(orgId, assignee).catch(() => null);
     if (!found) continue;
     const sheet = await paySheetForList(orgId, list, assignee).catch(() => null);
-    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], reason: "More than one pay sheet could apply." }); continue; }
+    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, cost_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], reason: "More than one pay sheet could apply." }); continue; }
     const evaluation = evaluatePaySheet(sheet, context);
-    const hourly = sheet.entries.find((entry) => entry.kind === "hourly");
-    // An hourly assignee has no job price until hours are typed into its list; it is described by its rate instead.
-    const awaitingHours = !evaluation.complete && !!hourly && evaluation.unresolved.every((entry) => sheet.entries.find((candidate) => candidate.id === entry.entry_id)?.kind === "hourly");
-    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, hourly_rate_cents: hourly ? hourly.rate_cents : null, awaiting_hours: awaitingHours, duration_days: evaluation.duration_days, duration_basis: evaluation.duration_basis, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, reason: "" });
+    const hourly = sheet.entries.find((entry) => entry.kind === "hourly"), costed = sheet.entries.find((entry) => entry.kind === "cost_rate");
+    // An assignee priced on time has no job price until hours are typed into its list; it is described by its rate instead.
+    const timed = (entryId: string) => { const kind = sheet.entries.find((candidate) => candidate.id === entryId)?.kind; return kind === "hourly" || kind === "cost_rate"; };
+    const awaitingHours = !evaluation.complete && !!(hourly || costed) && evaluation.unresolved.every((entry) => timed(entry.entry_id));
+    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, hourly_rate_cents: hourly ? hourly.rate_cents : null, cost_rate_cents: costed ? costed.rate_cents : null, awaiting_hours: awaitingHours, duration_days: evaluation.duration_days, duration_basis: evaluation.duration_basis, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, reason: "" });
   }
   return rows.sort((a, b) => Number(b.complete) - Number(a.complete) || (a.total_cents ?? Infinity) - (b.total_cents ?? Infinity) || a.assignee.name.localeCompare(b.assignee.name));
 }
