@@ -79,7 +79,6 @@
     minimizedTypes: new Set(),
     dragItem: null,
     laborMenu: null,
-    pricebookAutofill: null,
     equipmentUnits: null,
     equipmentUnitsLoading: false,
     sourcesMenu: null,
@@ -1017,15 +1016,14 @@
       @media (min-width:901px){.mt-order-content.manual,.mt-order-content.manual.calendar-mode{grid-template-columns:var(--order-left,330px) 14px minmax(0,1fr);gap:0}}
       .mt-order-divider{position:relative;align-self:stretch;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none}.mt-order-divider::after{content:'';position:absolute;top:6px;bottom:6px;left:6px;width:2px;border-radius:2px;background:#e4e7ec;transition:background .12s}.mt-order-divider:hover::after,.mt-order-divider:focus-visible::after,.mt-order-divider.is-dragging::after{background:var(--primary,#d93025)}.mt-order-divider:focus-visible{outline:none}
       .mt-projected-total{flex:none;display:flex;flex-direction:column;justify-content:center;gap:1px;padding-right:10px;margin-right:2px;border-right:1px solid #e4e7ec;line-height:1.1}.mt-projected-total span{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}.mt-projected-total strong{font-size:14px;font-variant-numeric:tabular-nums;color:#101828}
-      .mt-header-action{overflow:hidden;max-width:220px}.mt-header-action.is-entering{animation:mt-action-in .3s cubic-bezier(.2,.7,.3,1) both}.mt-header-action.is-leaving{pointer-events:none;animation:mt-action-out .28s cubic-bezier(.5,0,.8,.4) both}
-      @keyframes mt-action-in{from{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}to{opacity:1;max-width:220px;transform:none}}
-      @keyframes mt-action-out{from{opacity:1;max-width:220px;transform:none}to{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}}
+      .mt-header-action{overflow:hidden;max-width:40px}.mt-header-action.is-entering{animation:mt-action-in .3s cubic-bezier(.2,.7,.3,1) both}.mt-header-action.is-leaving{pointer-events:none;animation:mt-action-out .28s cubic-bezier(.5,0,.8,.4) both}
+      @keyframes mt-action-in{from{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}to{opacity:1;max-width:40px;transform:none}}
+      @keyframes mt-action-out{from{opacity:1;max-width:40px;transform:none}to{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}}
       @media(prefers-reduced-motion:reduce){.mt-header-action.is-entering,.mt-header-action.is-leaving{animation:none}.mt-header-action.is-leaving{display:none}}
       .mt-delivery-row{flex:none;display:flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 9px;border-top:1px solid #e4e7ec;background:#fff;font-size:11px;color:#475467}.mt-delivery-row i.fa-truck{font-size:10px;color:#98a2b3}.mt-delivery-row span{flex:1;min-width:0;font-style:italic}.mt-delivery-row strong{font-weight:600;font-variant-numeric:tabular-nums;color:#101828}.mt-delivery-row.off strong,.mt-delivery-row.off span{color:#98a2b3}
       .mt-delivery-row button{border:0;background:transparent;padding:0 2px;font-size:15px;color:var(--primary,#d93025);cursor:pointer}.mt-delivery-row.off button{color:#98a2b3}
       .mt-source-sub{display:flex;align-items:center;gap:6px;padding:2px 8px 6px 20px;font-size:11px;color:#475467;cursor:pointer}.mt-source-sub input{margin:0}
-      .mt-workspace-actions button.mt-header-action{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);font-weight:700}.mt-workspace-actions button.mt-header-action:hover:not(:disabled){background:var(--primary-dark,var(--primary,#d93025))}.mt-workspace-actions button.mt-header-action:disabled{opacity:.5;cursor:not-allowed}
-      .mt-workspace-actions button[data-mt-autofill-toggle][aria-pressed=true]{border-color:color-mix(in srgb,var(--primary,#d93025) 45%,#d0d5dd);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025))}
+      .mt-workspace-actions button.mt-header-action{border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);font-weight:700;align-self:stretch;width:32px;min-height:26px;padding:0;justify-content:center}.mt-workspace-actions button.mt-header-action:hover:not(:disabled){background:var(--primary-dark,var(--primary,#d93025))}.mt-workspace-actions button.mt-header-action:disabled{opacity:.5;cursor:not-allowed}
       .mt-resource-column .mt-list-head button[data-mt-open-pricebook][aria-pressed=true]{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
       .mt-autofill{position:fixed;z-index:2147482660;box-sizing:border-box;max-height:264px;overflow:auto;padding:4px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:#fff;box-shadow:0 14px 34px rgba(15,23,42,.18);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
       .mt-autofill{width:max-content}.mt-autofill button{display:flex;align-items:baseline;gap:14px;width:100%;padding:6px 8px;border:0;border-radius:5px;background:#fff;color:#101828;text-align:left;cursor:pointer}
@@ -3242,13 +3240,9 @@
     }
   }
 
+  // Line item suggestions are always on; there is no switch.
   function autofillEnabled(){
-    if (state.pricebookAutofill == null) {
-      let saved = null;
-      try { saved = rootWindow.localStorage?.getItem?.('fm_scope_pricebook_autofill'); } catch (_) {}
-      state.pricebookAutofill = saved !== 'off';
-    }
-    return state.pricebookAutofill;
+    return true;
   }
 
   // Where a category's line item suggestions come from. Each entry reads data another app already owns; none is a fixed list.
@@ -3910,7 +3904,6 @@
   function ensureStyles(){
     columnWeights();
     if (!state.suppliers && !state.suppliersLoading) loadSuppliers().then(() => { if (!workspaceIsEditing()) syncMaterialsGrid(); });
-    autofillEnabled();
     loadEquipmentUnits();
     if (stylesInjected) return;
     injectCSS('materials-tab', css());
@@ -4084,7 +4077,6 @@
   function bindResourceActions(root){
     if(!root)return;
     root.querySelectorAll('[data-mt-new-category]').forEach(button=>button.onclick=addResourceCategory);
-    root.querySelectorAll('[data-mt-autofill-toggle]').forEach(button=>button.onclick=()=>{state.pricebookAutofill=!autofillEnabled();try{rootWindow.localStorage?.setItem?.('fm_scope_pricebook_autofill',state.pricebookAutofill?'on':'off');}catch(_){}closeAutofill();syncResourceHeader();});
     root.querySelectorAll('[data-mt-units-toggle]').forEach(button=>button.onclick=()=>{state.unitsMode=state.unitsMode==='order'?'measured':'order';render({preserveScroll:true});});
     root.querySelectorAll('[data-mt-minimize-type],[data-mt-restore-type]').forEach(button=>button.onclick=()=>{const minimizing=!!button.dataset.mtMinimizeType,type=button.dataset.mtMinimizeType||button.dataset.mtRestoreType,source=minimizing?button.closest('.mt-resource-column'):button,from=source.getBoundingClientRect(),clone=minimizing?source.cloneNode(true):null;if(minimizing)state.minimizedTypes.add(type);else state.minimizedTypes.delete(type);syncMaterialsGrid();animateMinimize(type,from,minimizing,clone);});
     root.querySelectorAll('[data-mt-category-sources]').forEach(button=>button.onclick=()=>toggleSourcesMenu(button.dataset.mtCategorySources,button));
@@ -4118,11 +4110,11 @@
     // An action exists only while its category has items. It slides in when the first item arrives and out when the last goes.
     const has=type=>state.lists.some(list=>resourceType(list)===type&&listItems(list).length);
     const want={material:has('material'),labor:has('labor'),equipment:has('equipment')},shown=state.headerActions||want;
-    const action=(key,attributes,icon,label)=>want[key]||shown[key]?`<button type="button" class="mt-header-action${key==='material'?' mt-order-all':''}${want[key]?(shown[key]?'':' is-entering'):' is-leaving'}" ${attributes}><i class="fas ${icon}"></i> ${label}</button>`:'';
+    const action=(key,attributes,icon)=>want[key]||shown[key]?`<button type="button" class="mt-header-action${key==='material'?' mt-order-all':''}${want[key]?(shown[key]?'':' is-entering'):' is-leaving'}" ${attributes}><i class="fas ${icon}"></i></button>`:'';
     const leaving=Object.keys(want).some(key=>shown[key]&&!want[key]);
     state.headerActions=want;
     if(leaving)setTimeout(()=>syncResourceHeader(),300);
-    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button><button type="button" data-mt-autofill-toggle aria-pressed="${state.pricebookAutofill!==false}" data-fm-tooltip="${state.pricebookAutofill!==false?'Autofill: on. Typing an item name suggests entries from the sources chosen for its category (the gear on each column). Arrow keys choose one, Tab takes it and moves to the count, Enter takes it and starts the next row.':'Autofill: off. Click to suggest items as you type.'}" aria-label="Line item autofill"><i class="fas fa-book-open"></i></button></span>${action('labor','data-mt-work-order data-fm-tooltip="Generate a work order for the labor on this project" aria-label="Generate work order"','fa-clipboard-list','Work Order')}${action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve the equipment on this project" aria-label="Reserve equipment"','fa-truck-pickup','Reserve Equipment')}${action('material','data-mt-order-all data-fm-tooltip="Order every material list, each from its own supplier" aria-label="Order materials for every material list"','fa-cart-shopping','Order Materials')}</div></header>`;
+    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button></span>${action('labor','data-mt-work-order data-fm-tooltip="Work Order: generate a work order for the labor on this project" aria-label="Work Order: generate a work order"','fa-clipboard-list')}${action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve Equipment: reserve the equipment on this project" aria-label="Reserve Equipment"','fa-truck-pickup')}${action('material','data-mt-order-all data-fm-tooltip="Order Materials: order every material list, each from its own supplier" aria-label="Order Materials: order every material list"','fa-cart-shopping')}</div></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
