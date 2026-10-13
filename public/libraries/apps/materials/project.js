@@ -3396,6 +3396,7 @@
   }
 
   // Commits a name cell: a chosen price book item replaces the line, typed text renames it, and Enter on a list's last row starts the next row.
+  // Without addNext (Tab, or a clicked suggestion) focus moves to the row's count.
   function commitItemName(input, suggestion, addNext){
     const catalogItem = suggestion?.catalogItem || null;
     const itemId = input.dataset.mtItemName;
@@ -3420,7 +3421,8 @@
       updateItem(itemId, { name: input.value }, listId);
     }
     if (addNext && last && (suggestion || renamed)) { addItem(null, resourceType(list) === 'material' ? 'accessories' : resourceType(list), listId); return; }
-    if (!suggestion) return;
+    // Enter on typed text stays in the name. Tab and a picked suggestion go on to this row's count, found after the row was redrawn above.
+    if (addNext && !suggestion) return;
     const count = findByData(materialRoot(), '[data-mt-item-qty]', 'mtItemQty', itemId);
     count?.focus?.();
     count?.select?.();
@@ -4863,8 +4865,18 @@
       const totalCents = quote ? (quote.subtotal == null ? null : quote.subtotal + (paysDelivery ? deliveryQuote.delivery : 0)) : Math.round(listTotals(list).projected * 100);
       const rows = items.map((item) => {
         const missing = !!quote?.missing.has(item.id), unknown = !!quote?.unpriced.has(item.id);
-        const price = !quote ? '' : missing ? '' : unknown ? 'unknown' : money(Math.round(quote.prices.get(item.id) * Math.max(0, number(item.quantity, 0))) / 100);
-        return `<li class="${missing ? 'missing' : unknown ? 'unknown' : ''}" ${missing ? `title="The selected supplier doesn't carry this item."` : unknown ? 'title="We don\'t have this supplier\'s price for this item."' : ''}><span>${escapeHtml(materialPrimaryName(item))}</span><em>${escapeHtml(`${number(item.quantity, 0)} ${cleanText(item.unit)}`.trim())}</em>${quote ? `<b>${escapeHtml(price)}</b>` : ''}</li>`;
+        const itemName = materialPrimaryName(item);
+        const amount = `${number(item.quantity, 0)} ${cleanText(item.unit)}`.trim();
+        const quantity = Math.max(0, number(item.quantity, 0));
+        // The hover summary uses the prices the row shows: the chosen supplier's, or the list's own when none is chosen.
+        const listPrice = item.projected_unit_price == null || item.projected_unit_price === '' ? NaN : Number(item.projected_unit_price);
+        const cents = quote && !missing && !unknown ? quote.prices.get(item.id) : NaN;
+        const unitPrice = quote ? cents / 100 : listPrice;
+        const lineTotal = quote ? Math.round(cents * quantity) / 100 : item.projected_total != null ? Number(item.projected_total) : quantity * listPrice;
+        const price = !quote || missing ? '' : unknown ? 'unknown' : money(lineTotal);
+        const note = missing ? "The selected supplier doesn't carry this item." : unknown ? "We don't have this supplier's price for this item." : Number.isFinite(unitPrice) || Number.isFinite(lineTotal) ? '' : 'Price unknown.';
+        const summary = [itemName, `${amount}${Number.isFinite(unitPrice) ? ` × ${money(unitPrice)}` : ''}${Number.isFinite(lineTotal) ? ` = ${money(lineTotal)}` : ''}`, note].filter(Boolean).join('\n');
+        return `<li class="${missing ? 'missing' : unknown ? 'unknown' : ''}" title="${escapeHtml(summary)}"><span>${escapeHtml(itemName)}</span><em>${escapeHtml(amount)}</em>${quote ? `<b>${escapeHtml(price)}</b>` : ''}</li>`;
       }).join('') || '<li><span>No items</span></li>';
       const flags = `${quote && !quote.coversAll ? `<i class="fas fa-triangle-exclamation mt-flag-red" title="The selected supplier doesn't carry every item on this list." aria-label="The selected supplier doesn't carry every item on this list."></i>` : ''}${quote && quote.unpriced.size ? `<i class="fas fa-flag mt-flag-yellow" title="Contains items we don't have supplier pricing for." aria-label="Contains items we don't have supplier pricing for."></i>` : ''}`;
       const supplier = !selected ? '' : `<div class="mt-order-tile-supplier"><button type="button" data-mt-order-supplier="${escapeHtml(id)}" aria-haspopup="dialog" title="${escapeHtml(groupLead ? `Ordered with ${cleanText(groupLead.title) || 'Materials'}` : 'Choose who to order this list from')}" ${groupLead ? 'disabled' : ''}>${supplierMark(choice.target?.supplier)}<span>${escapeHtml(choice.name || 'Choose supplier')}</span>${groupLead ? '' : '<i class="fas fa-chevron-down" aria-hidden="true"></i>'}</button>${flags}</div>`;
@@ -5049,8 +5061,15 @@
         const open = state.autofill?.input === input ? state.autofill : null;
         if (open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) { event.preventDefault(); moveAutofill(event.key === 'ArrowDown' ? 1 : -1); return; }
         if (open && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeAutofill(); return; }
-        // Tab with a suggestion chosen takes it and moves on to the count instead of starting a new line.
-        if (open && open.index >= 0 && event.key === 'Tab' && !event.shiftKey) { event.preventDefault(); commitItemName(input, open.matches[open.index], false); return; }
+        // Tab takes the chosen suggestion, or keeps the typed text, and moves on to the count. Left to the browser, the focus
+        // would land on a control that the rename's row redraw then replaces, and be lost.
+        if (event.key === 'Tab' && !event.shiftKey) {
+          const suggestion = open && open.index >= 0 ? open.matches[open.index] : null;
+          if (!suggestion && !findByData(materialRoot(), '[data-mt-item-qty]', 'mtItemQty', input.dataset.mtItemName)) return;
+          event.preventDefault();
+          commitItemName(input, suggestion, false);
+          return;
+        }
         if (event.key !== 'Enter') return;
         event.preventDefault();
         commitItemName(input, open && open.index >= 0 ? open.matches[open.index] : null, true);

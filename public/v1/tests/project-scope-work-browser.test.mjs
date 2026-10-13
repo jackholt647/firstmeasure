@@ -246,6 +246,11 @@ test('committing a name renames or swaps in a price book item, and Enter on the 
  ctx=make();await ctx.commitItemName(input('last','New material'),null,true);assert.deepEqual(plain(ctx),[],'an untouched row does nothing');
  ctx=make();await ctx.commitItemName(input('last','Ridge vent'),null,false);assert.deepEqual(plain(ctx),[['update','last','Ridge vent',null,null,'list']]);
  ctx=make();await ctx.commitItemName(input('last','tear'),{patch:{name:'Tear off',unit:'sq',projected_unit_price:65}},true);assert.deepEqual(plain(ctx),[['update','last','Tear off',null,null,'list'],['add',null,'accessories','list']],'a suggestion from another source fills the row and starts the next');
+ const counted=()=>{const next=make();next.findByData=(root,selector,key,id)=>selector==='[data-mt-item-qty]'&&key==='mtItemQty'?{focus(){next.calls.push(['focus',id]);},select(){next.calls.push(['select',id]);}}:null;return next;};
+ ctx=counted();await ctx.commitItemName(input('first','Custom flashing'),null,false);assert.deepEqual(plain(ctx),[['update','first','Custom flashing',null,null,'list'],['focus','first'],['select','first']],'Tab from typed text keeps it and moves to that row\'s count');
+ ctx=counted();await ctx.commitItemName(input('first','Drip edge'),null,false);assert.deepEqual(plain(ctx),[['focus','first'],['select','first']],'Tab from an unchanged name still moves to the count');
+ ctx=counted();await ctx.commitItemName(input('first','timber'),{catalogItem:{id:'p1',name:'Timberline HDZ'}},false);assert.deepEqual(plain(ctx),[['update','first','Timberline HDZ','p1',4,'list'],['grid'],['focus','first'],['select','first']],'Tab with a suggestion chosen takes it and moves to the count');
+ ctx=counted();await ctx.commitItemName(input('first','Custom flashing'),null,true);assert.deepEqual(plain(ctx),[['update','first','Custom flashing',null,null,'list']],'Enter on typed text in a middle row leaves the focus alone');
 
 });
 
