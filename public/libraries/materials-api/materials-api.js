@@ -153,7 +153,10 @@
   const supplierPath=(orgId,id='')=>`/organizations/${enc(orgId)}/suppliers${id?`/${enc(id)}`:''}`;
   const suppliers={list:orgId=>request(supplierPath(orgId)),create:(orgId,input)=>request(supplierPath(orgId),{method:'POST',body:input}),save:(orgId,id,input)=>request(supplierPath(orgId,id),{method:'PATCH',body:input}),archive:(orgId,id,input={})=>request(supplierPath(orgId,id),{method:'DELETE',body:input}),
     createLocation:(orgId,id,input)=>request(`${supplierPath(orgId,id)}/locations`,{method:'POST',body:input}),saveLocation:(orgId,id,locationId,input)=>request(`${supplierPath(orgId,id)}/locations/${enc(locationId)}`,{method:'PATCH',body:input}),archiveLocation:(orgId,id,locationId,input={})=>request(`${supplierPath(orgId,id)}/locations/${enc(locationId)}`,{method:'DELETE',body:input})};
-  const api = { configure, baseUrl, url, request, projects, resourceTypes, suppliers, lists, orders, deliveries };
+  // Labor lists come from their assignee's pay sheet: compare assignees, preview or generate the list, then commit it.
+  const laborPath=(orgId,listId,rest)=>`/organizations/${enc(orgId)}/lists/${enc(listId)}/${rest}`;
+  const labor={compare:(orgId,listId,input={})=>request(laborPath(orgId,listId,'assignee-pay'),{method:'POST',body:input}),preview:(orgId,listId,input={})=>request(laborPath(orgId,listId,'generate/preview'),{method:'POST',body:input}),generate:(orgId,listId,input={})=>request(laborPath(orgId,listId,'generate'),{method:'POST',body:input}),commit:(orgId,listId,input={})=>request(laborPath(orgId,listId,'commit'),{method:'POST',body:input}),commitments:(orgId,projectId)=>request(`/organizations/${enc(orgId)}/projects/${enc(projectId)}/labor-commitments`)};
+  const api = { configure, baseUrl, url, request, projects, resourceTypes, suppliers, labor, lists, orders, deliveries };
   configure({ baseUrl: APP.materialsApiBase || '' });
   root.MaterialsAPI = api;
 })();
