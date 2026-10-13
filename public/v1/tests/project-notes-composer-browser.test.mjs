@@ -229,6 +229,28 @@ test('project notes share channel formatting and controls, preserve drafts, and 
   assert.equal(await page.locator('.pn-workspace').evaluate(n=>getComputedStyle(n).backgroundColor),await page.locator('.pn-history').evaluate(n=>getComputedStyle(n).backgroundColor));assert.equal(await page.locator('.pn-composer').evaluate(n=>getComputedStyle(n).backgroundColor),'rgba(0, 0, 0, 0)');assert.equal(await page.locator('.pn-history').evaluate(n=>getComputedStyle(n).maskImage.includes('linear-gradient')),true);
   assert.equal(await page.locator('.pn-history').evaluate(n=>{const history=n.getBoundingClientRect(),form=document.querySelector('.pn-composer').getBoundingClientRect(),box=document.querySelector('.pn-composer .pn-composer-box').getBoundingClientRect();return Math.round(history.bottom-form.top)===20 && Math.round(box.top-form.top)===24;}),true,'notes fade in the gap and end before the composer border');
   await page.locator('#notes').screenshot({path:fileURLToPath(new URL('../../../output/notes-tray/author-filter-fade.png',import.meta.url))});
+  // Saved tables must carry their grid outside the Channels message container.
+  await page.evaluate(async()=>{
+   const table='| Heading | Details |\n| --- | --- |\n| Cell | ALongUnbrokenValueThatMustWrapInsideTheNarrowNotesTray |';
+   fixtureRows.find(n=>n.id==='n1').text=table;
+   fixtureRows.find(n=>n.parent_id==='n1' && !n.deleted_at).text=table;
+   await notes.refresh();
+  });
+  await original.locator(':scope > .pn-card-content table').waitFor();
+  if(!await original.locator('.pn-reply-card table').count())await original.locator(':scope > footer [data-act=replies]').click();
+  await original.locator('.pn-reply-card table').first().waitFor();
+  for(const width of [360,280,240]){
+   await page.locator('#notes').evaluate((n,w)=>n.style.width=w+'px',width);
+   for(const selector of [':scope > .pn-card-content','.pn-reply-card .pn-card-content']){
+    const body=original.locator(selector).first();
+    assert.equal(await body.locator('table').evaluate(n=>getComputedStyle(n).borderCollapse),'collapse');
+    assert.deepEqual(await body.locator('th,td').evaluateAll(nodes=>nodes.map(n=>{const s=getComputedStyle(n);return [s.borderTopWidth,s.borderTopStyle,s.borderTopColor];})),Array(4).fill(['1px','solid','rgb(228, 231, 236)']));
+    assert.equal(await body.locator('th').first().evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(247, 248, 250)');
+    assert.equal(await body.evaluate(n=>n.scrollWidth<=n.clientWidth),true,`table fits ${width}px`);
+   }
+  }
+  await page.locator('#notes').evaluate(n=>n.style.width='360px');
+  await original.scrollIntoViewIfNeeded();await original.screenshot({path:fileURLToPath(new URL('../../../output/notes-tray/table-borders.png',import.meta.url))});
   assert.deepEqual(errors,[]);
   await page.evaluate(()=>notes.destroy());
  } finally {await browser.close();await new Promise(r=>server.close(r));}
