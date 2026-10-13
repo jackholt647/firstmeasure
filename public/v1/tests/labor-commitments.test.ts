@@ -98,6 +98,15 @@ test("committing a labor list freezes it, supersedes the last revision and deliv
     await c.releaseCommitment("org_commit", { id: placed.id }, owner);
     const freed = await c.providerAvailability("org_commit", summit);
     assert.deepEqual([freed.committed, freed.available, freed.over_committed], [1, 1, false]); assert.deepEqual(freed.units.map((unit) => unit.available), [true, false]);
+
+    // With the real effects: the default delivery code runs in the sandbox and its to-do is really created.
+    const handList = await labor("By hand", { id: "crew_b", kind: "resource_group", name: "Crew B" });
+    await c.saveDeliverySetting("org_commit", { subject: { type: "resource_group", id: "crew_b" }, method: "custom" }, owner);
+    const real = await c.commitLaborList("org_commit", { list_id: String(handList.id) }, owner);
+    assert.deepEqual([real.delivery.status, real.delivery.detail], ["pending", "A to-do was created to deliver this work by hand."]);
+    const plans = await (await import("../work/service.js")).listWorkPlans("org_commit", { project_id: "project" }) as any;
+    const titles = (Array.isArray(plans) ? plans : plans.plans || plans.items || []).map((plan: any) => String(plan.title || ""));
+    assert.ok(titles.includes("Send work to Crew B"), `the to-do exists on the project: ${JSON.stringify(titles)}`);
   } finally { await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }).catch(() => {}); }
 });
 
