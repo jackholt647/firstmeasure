@@ -8,6 +8,8 @@ import { env } from "../config/env.js";
 const { Pool: PgPool } = pg;
 
 let applicationPool: Pool | null = null;
+let poolMetrics = { acquisitions: 0, acquisition_failures: 0, wait_ms: 0, max_wait_ms: 0 };
+
 // Platform SQL stores opt into this context so calls into the existing core
 // participate in the same transaction, including when the pool has one slot.
 const platformTransactionClient = new AsyncLocalStorage<PoolClient>();
@@ -62,6 +64,12 @@ export function getPostgresPool(): Pool {
   }
   if (!applicationPool) {
     applicationPool = new PgPool(poolConfig(env.databaseUrl, env.postgresPoolMax));
+    setInterval(() => {
+      if (!applicationPool) return;
+      console.info(JSON.stringify({ event: 'firstmeasure_database_pool', pid: process.pid, window_seconds: 60,
+        total: applicationPool.totalCount, idle: applicationPool.idleCount, waiting: applicationPool.waitingCount, ...poolMetrics }));
+      poolMetrics = { acquisitions: 0, acquisition_failures: 0, wait_ms: 0, max_wait_ms: 0 };
+    }, 60_000).unref();
     applicationPool.on("error", (error) => {
       console.error("Unexpected idle PostgreSQL application connection error", error);
     });
@@ -84,7 +92,8 @@ export async function queryPostgres<T extends QueryResultRow = QueryResultRow>(
   text: string,
   values: unknown[] = []
 ) {
-  return (platformTransactionClient.getStore() ?? getPostgresPool()).query<T>(text, values);
+  const existing = platformTransactionClient.getStore();
+  return existing ? existing.query<T>(text, values) : withPostgresClient(client => client.query<T>(text, values));
 }
 
 // Session advisory locks must not occupy the application's only pool slot.
@@ -97,7 +106,12 @@ export function createPostgresDedicatedClient(applicationName: string) {
 }
 
 export async function withPostgresClient<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await getPostgresPool().connect();
+  const started = performance.now();
+  let client: PoolClient;
+  try { client = await getPostgresPool().connect(); }
+  catch (error) { poolMetrics.acquisition_failures++; throw error; }
+  const waitMs = performance.now() - started;
+  poolMetrics.acquisitions++; poolMetrics.wait_ms += waitMs; poolMetrics.max_wait_ms = Math.max(poolMetrics.max_wait_ms, waitMs);
   try {
     return await fn(client);
   } finally {

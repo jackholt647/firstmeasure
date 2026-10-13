@@ -961,6 +961,7 @@ export async function searchPostgresProjectsForLegacyList(query: LegacyListQuery
   await ensurePostgresProjectIndexReady();
   const where = ["left(p.id, 10) <> 'fullhouse_'"];
   const values: unknown[] = [];
+  if (query.ids) { values.push(query.ids); where.push(`p.id = ANY($${values.length}::text[])`); }
   if (!query.includeInstantOnly) where.push("p.instant_only = 0");
   appendLegacyVisibility(where, values, query.filter, query.actor);
   appendLegacyStatus(where, query.statusFilter);
@@ -983,13 +984,13 @@ export async function searchPostgresProjectsForLegacyList(query: LegacyListQuery
       ts_rank_cd(p.search_vector, websearch_to_tsquery('simple', ${exact})) DESC, p.sort_ts DESC, p.updated_at_ms DESC, p.id DESC`;
   }
   searchOrderValues.push(query.limit, (query.page - 1) * query.limit);
-  const result = await queryPostgres<{ manifest_json: unknown; thumbnail_artifact_name: string }>(`
-    SELECT p.manifest_json, p.thumbnail_artifact_name FROM projects p WHERE ${where.join(" AND ")}
+  const result = await queryPostgres<{ manifest_json: unknown; thumbnail_artifact_name: string; revision: string }>(`
+    SELECT p.manifest_json, p.thumbnail_artifact_name, p.revision::text FROM projects p WHERE ${where.join(" AND ")}
     ORDER BY ${order} LIMIT $${searchOrderValues.length - 1} OFFSET $${searchOrderValues.length}
   `, searchOrderValues);
   return {
     totalCount: Number(count.rows[0]?.count ?? 0),
-    rows: result.rows.map((row) => ({ manifest: manifestFromValue(row.manifest_json), thumbnailArtifactName: row.thumbnail_artifact_name || null }))
+    rows: result.rows.map((row) => ({ revision: row.revision, manifest: manifestFromValue(row.manifest_json), thumbnailArtifactName: row.thumbnail_artifact_name || null }))
   };
 }
 

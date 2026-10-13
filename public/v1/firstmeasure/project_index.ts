@@ -135,6 +135,7 @@ export type LegacyListActor = {
 } | null;
 
 export type LegacyListQuery = {
+  ids?: string[];
   filter: string;
   statusFilter: string;
   complexityFilter?: string;
@@ -149,6 +150,7 @@ export type LegacyListQuery = {
 };
 
 export type LegacyListRow = {
+  revision?: string;
   manifest: ProjectManifest;
   thumbnailArtifactName: string | null;
 };
@@ -757,6 +759,7 @@ export async function searchIndexedProjectsForLegacyList(query: LegacyListQuery)
   const joins: string[] = [];
   const where: string[] = ["1 = 1"];
   const params: SqlParams = {};
+  if (query.ids) { params.$summaryIds = JSON.stringify(query.ids); where.push('p.id IN (SELECT value FROM json_each($summaryIds))'); }
   const searchText = normalizeProjectSearchText(query.search);
   const searchTokens = tokenizeProjectSearch(query.search);
 

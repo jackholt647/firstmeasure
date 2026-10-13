@@ -4564,7 +4564,7 @@
     };
   }
   function needsDisplayHydration(p){
-    if (!p || p._detailHydrated || !p.id) return false;
+    if (!p || p._summaryHydrated || p._detailHydrated || !p.id) return false;
     const resident = resolveResidentFields(p);
     return !resident.name;
   }
@@ -5420,7 +5420,12 @@
     ) {
       delete merged._linkedFullProject;
     }
-    if (existing._detailHydrated) {
+    const sameMeasurementRevision = incoming._measurementRevision && incoming._measurementRevision === existing._measurementRevision;
+    if (incoming._measurementRevision && !sameMeasurementRevision) {
+      merged._detailHydrated = false;
+      delete merged._linkedFullProject;
+    }
+    if (existing._detailHydrated && sameMeasurementRevision) {
       merged._detailHydrated = true;
       const keepIfIncomingBlank = (key) => {
         if (incoming?.[key] == null || String(incoming[key]).trim() === '') merged[key] = existing[key];
@@ -5712,7 +5717,7 @@
     const s = statusBadgeClasses(p);
     const isProcessing = projectStatusGroup(p) === 'processing';
     const thumbnailCandidates = Array.isArray(p.thumbnail_candidates) ? p.thumbnail_candidates : preferredThumbnailUrls(p);
-    const shouldProbeThumbnail = isProcessing && !p._detailHydrated && thumbnailCandidates.length === 0;
+    const shouldProbeThumbnail = isProcessing && !p._summaryHydrated && !p._detailHydrated && thumbnailCandidates.length === 0;
     const hasThumbnail = thumbnailCandidates.length > 0 && !shouldProbeThumbnail;
     const placeholderThumb = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     const thumbSrc = hasThumbnail ? thumbnailCandidates[0] : placeholderThumb;
@@ -6028,15 +6033,20 @@
       country: raw.country?.long || raw.country || ''
     };
   }
-  async function hydrateProjectDetails(p){
+  async function hydrateProjectDetails(p, summaryOnly = false){
     const measurementId = firstMeasureProjectId(p);
-    if (!measurementId || p._detailHydrated || !fmJson) return p;
+    if (!measurementId || p._detailHydrated || (summaryOnly && p._summaryHydrated) || !fmJson) return p;
     try{
-      const data = await fmJson(`projects/${encodeURIComponent(measurementId)}`);
+      const data = await fmJson(`projects/${encodeURIComponent(measurementId)}${summaryOnly ? "?view=portal-card" : ""}`);
       const project = data?.project || {};
       const manifest = project?.manifest || {};
       const files = Array.isArray(project?.files) ? project.files : [];
       const names = new Set(files.map(f => String(f?.name || '')));
+      if (project.summary_only) {
+        if (project.artifact_flags?.has_report_pdf) names.add('Report.pdf');
+        if (project.artifact_flags?.has_summary_pdf) names.add('Summary.pdf');
+        if (project.artifact_flags?.has_model_data) names.add('model_data.xml');
+      }
       const releaseHeld = projectReleaseHoldIsActive(manifest, project, p);
       const isComplete = !releaseHeld && isFirstMeasureCompleteStatus(project.status, manifest.status, p.status);
       const hasReportPdf = !releaseHeld && (names.has('Report.pdf') || names.has('report.pdf'));
@@ -6072,7 +6082,8 @@
         report_url: releaseHeld ? null : (p.report_url || p.pdf_url || manifest.report_url || manifest.pdf_url || (hasReportPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Report.pdf`) : null)),
         summary_url: releaseHeld ? null : (p.summary_url || manifest.summary_url || (hasSummaryPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Summary.pdf`) : null)),
         xml_url: p.xml_url || (names.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/model_data.xml`) : null),
-        _detailHydrated: true
+        _summaryHydrated: project.summary_only === true,
+        _detailHydrated: project.summary_only !== true
       };
       merged.thumbnail_candidates = preferredThumbnailUrls(merged, names);
       merged.thumbnail = merged.thumbnail_candidates[0] || null;
@@ -6093,7 +6104,7 @@
       const id = String(project.id);
       if (!id || detailHydrationInFlight.has(id)) continue;
       detailHydrationInFlight.add(id);
-      hydrateProjectDetails(project)
+      hydrateProjectDetails(project, true)
         .then((normalized) => {
           if (normalized && normalized !== project) scheduleHydratedDisplayRefresh();
         })
@@ -7485,9 +7496,10 @@
     setView(viewMode, { syncUrl:false }); syncSortDropdown();
     fetchProjects(true);
     pollTimer = setInterval(()=>{
+      if (document.hidden) return;
       fetchProjects(false);
       if (viewMode === 'stages' || viewMode === 'list') loadWorkBoards({ refresh:true }).catch(() => null);
-    }, 60000);
+    }, 120000);
   }
 
   window.Portal.instantReports = {

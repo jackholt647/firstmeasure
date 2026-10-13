@@ -398,7 +398,8 @@ export async function failFirstMeasureJob(id: string, error: unknown, claim: Fir
 }
 
 export function getFirstMeasureJobRetryDelayMs(job: Pick<FirstMeasureJobRow, "type" | "attempts">) {
-  if (job.type !== "report.delivery" && job.type !== "report.release") return 0;
+  if (!["report.delivery", "report.release", "imagery.process"].includes(job.type)) return 0;
   const delays = [15_000, 30_000, 60_000, 120_000];
-  return delays[Math.max(0, Math.min(delays.length - 1, job.attempts - 1))] ?? 120_000;
+  const base = delays[Math.max(0, Math.min(delays.length - 1, job.attempts - 1))] ?? 120_000;
+  return job.type === "imagery.process" ? base + Math.floor(Math.random() * base / 4) : base;
 }
