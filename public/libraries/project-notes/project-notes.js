@@ -978,6 +978,7 @@
       const options=filterMenu.querySelector('.pn-filter-options'),focusedAuthor=options.contains(document.activeElement) ? document.activeElement.value : null;options.innerHTML=[...authors.values()].sort((a,b)=>a.name.localeCompare(b.name)).filter(row=>row.name.toLowerCase().includes(authorSearch.value.toLowerCase())).map(row=>`<div class="pn-filter-option" data-selected="${selectedAuthors.has(row.id)}"><label><input type="checkbox" value="${esc(row.id)}" ${selectedAuthors.has(row.id) ? 'checked' : ''}><i class="fas fa-user" aria-hidden="true"></i><span>${esc(row.name)}</span><span class="pn-filter-total">${row.count}</span></label></div>`).join('') || '<div class="pn-filter-none">No matching note authors.</div>';
       if(focusedAuthor!==null)options.querySelector(`input[value="${CSS.escape(focusedAuthor)}"]`)?.focus({preventScroll:true});
       filterButton.dataset.active=String(!allAuthorsSelected || showArchived);
+      filterMenu.querySelector('[data-all-authors]').textContent=allAuthorsSelected ? 'Deselect All' : 'Select All';
       filterMenu.querySelector('[data-archived-notes]').checked=showArchived;
     }
     async function refreshAuthors(){if(!entry.channelId || !channels().messages.noteAuthors)return;try{projectAuthors=(await channels().messages.noteAuthors(orgId(),entry.channelId)).authors;}catch{projectAuthors=null;}}
@@ -986,7 +987,7 @@
     filterButton.onkeydown=event=>{if(event.key==='ArrowDown'){event.preventDefault();if(filterMenu.hidden)filterButton.click();}};filterMenu.onfocusout=event=>{if(event.relatedTarget && !filterMenu.contains(event.relatedTarget) && event.relatedTarget!==filterButton)closeFilter();};
     filterButton.onclick=()=>{if(!filterMenu.hidden){closeFilter();return;}syncAuthorFilters();filterMenu.hidden=false;filterButton.setAttribute('aria-expanded','true');authorSearch.focus();};authorSearch.oninput=syncAuthorFilters;
     filterMenu.onchange=event=>{const input=event.target;if(input.hasAttribute('data-archived-notes'))showArchived=input.checked;else if(input.type==='checkbox'){allAuthorsSelected=false;input.checked ? selectedAuthors.add(input.value) : selectedAuthors.delete(input.value);}applyAuthorFilters();};
-    filterMenu.onclick=event=>{if(event.target.closest('[data-all-authors]')){allAuthorsSelected=true;applyAuthorFilters();}};
+    filterMenu.onclick=event=>{if(event.target.closest('[data-all-authors]')){allAuthorsSelected=!allAuthorsSelected;selectedAuthors.clear();applyAuthorFilters();}};
     filterMenu.onkeydown=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeFilter();filterButton.focus();}};
     document.addEventListener('pointerdown',event=>{if(!filterMenu.contains(event.target) && !filterButton.contains(event.target))closeFilter();},{capture:true,signal:lifetime.signal});
 
