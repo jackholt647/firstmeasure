@@ -85,6 +85,19 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   const priced = await g.generateLaborList(ORG, { list_id: String(list.id), manual: { hours: 60 } }, owner);
   assert.equal(priced.evaluation.complete, true); assert.deepEqual((await items()).map((item) => [item.name, item.quantity]), [["Hourly labor", 60], ["Replace two sheets of decking", 2]]);
 
+  // A project with no measurement dataset is priced from what the Project tab holds, in dictionary keys and units only.
+  await s.upsertDocument(ORG, "projects", { id: "bare", data: { title: "4 Pine St" } });
+  const bare = await lists.createMaterialList(ORG, "bare", { title: "Roof labor", resource_type: "labor", items: [], assignment: { work_resource_ref: reference("Crew B", "Crew B") } }, owner);
+  assert.equal((await g.previewLaborList(ORG, { list_id: String(bare.id) })).evaluation.complete, false, "nothing to price from");
+  const held = { roofSquares: { value: 20, unit: "roofing_square" }, pitch9to12Squares: { value: 4, unit: "roofing_square" }, eavesLf: { value: 100, unit: "inches" }, madeUp: { value: 9, unit: "ft" } };
+  const fromTab = await g.previewLaborList(ORG, { list_id: String(bare.id), legacy_measurements: held });
+  assert.equal(fromTab.measurement_source, "project"); assert.equal(fromTab.evaluation.total_cents, 20 * 6500 + 4 * 1000);
+  const { legacyMeasurements } = await import("../labor/pay-sheet-publication.js");
+  assert.deepEqual(Object.keys(legacyMeasurements(held)), ["roofSquares", "pitch9to12Squares"], "a wrong unit or an unknown key is left out");
+  // Once the project has a selected dataset, what the tab holds is ignored.
+  const ignored = await g.previewLaborList(ORG, { list_id: String(list.id), manual: { hours: 60 }, legacy_measurements: { roofSquares: { value: 999, unit: "roofing_square" } } });
+  assert.equal(ignored.measurement_source, "dataset");
+
   // What was generated is what gets committed.
   const committed = await c.commitLaborList(ORG, { list_id: String(list.id) }, owner, { todo: async () => null, email: async () => null, run: async () => [] });
   assert.equal(committed.total_cents, 60 * 12800 + 9000); assert.equal(committed.unpriced_lines, 0); assert.equal(committed.pay_sheets.length, 1);

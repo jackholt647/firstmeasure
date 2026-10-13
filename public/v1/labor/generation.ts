@@ -16,7 +16,9 @@ import { projectPayContext } from "./pay-sheet-publication.js";
  */
 const id = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/);
 const numbers = z.record(z.string().max(200), z.number().finite());
-export const generateInputSchema = z.object({ list_id: id, sheet_id: id.optional(), manual: numbers.optional(), fields: numbers.optional() }).strict();
+/** `legacy_measurements` is what the Project tab holds for a project with no measurement dataset; see legacyMeasurements. */
+const legacy = z.record(z.string().max(120), z.object({ value: z.number().finite().nonnegative(), unit: z.string().max(40) }).strict());
+export const generateInputSchema = z.object({ list_id: id, sheet_id: id.optional(), manual: numbers.optional(), fields: numbers.optional(), legacy_measurements: legacy.optional() }).strict();
 
 const text = (value: unknown) => String(value ?? "").trim();
 const obj = (value: unknown): JsonObject => (value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {});
@@ -57,7 +59,8 @@ export async function previewLaborList(orgId: string, input: unknown) {
   if (!assignee) throw badRequest("labor_generate_unassigned", "Assign this list before generating it.");
   await requireAssignee(orgId, assignee);
   const sheet = await paySheetForList(orgId, list, assignee, parsed.sheet_id);
-  const evaluation = evaluatePaySheet(sheet, await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: parsed.manual }));
+  const context = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: parsed.manual, legacy_measurements: parsed.legacy_measurements });
+  const evaluation = evaluatePaySheet(sheet, context);
   const stamp = (extra: JsonObject = {}) => ({ [GENERATED]: true, pay_sheet_id: sheet.id, pay_sheet_revision: sheet.revision, ...extra });
   const items: JsonObject[] = [];
   evaluation.lines.forEach((line, index) => {
@@ -77,7 +80,7 @@ export async function previewLaborList(orgId: string, input: unknown) {
   evaluation.unresolved.forEach((entry, index) => items.push({ id: `ps_unresolved_${entry.entry_id}_${index}`, section: "labor", name: entry.label, quantity: 0, unit: "", description: entry.reason, metadata: stamp({ pay_entry_id: entry.entry_id, unresolved: true, unresolved_reason: entry.reason, unresolved_input: entry.input }) }));
   evaluation.equipment.forEach((entry, index) => items.push({ id: `ps_equipment_${index}`, section: "labor", name: entry.name, quantity: 1, unit: "job", projected_unit_price: entry.total_cents / 100, projected_total: entry.total_cents / 100, metadata: stamp({ equipment: true, equipment_included: entry.included, ...(entry.equipment_type_id ? { equipment_type_id: entry.equipment_type_id } : {}) }) }));
   const kept = (Array.isArray(list.current_items) ? list.current_items : []).map(obj).filter((item) => obj(item.metadata)[GENERATED] !== true);
-  return { list, assignee, sheet, evaluation, items: [...items, ...kept], kept: kept.length };
+  return { list, assignee, sheet, evaluation, items: [...items, ...kept], kept: kept.length, measurement_source: context.measurement_source };
 }
 
 /** Prices the project on the list's assignee's pay sheet and writes the result as the list's lines. */
@@ -89,9 +92,9 @@ export async function generateLaborList(orgId: string, input: unknown, actor: Ac
   const version = await createMaterialVersion(orgId, parsed.list_id, { expected_revision: Number(preview.list.revision), reason: "revision", notes: `Generated from ${preview.sheet.name}`, items: preview.items }, auth);
   const current = await readMaterialList(orgId, parsed.list_id);
   // What it was generated from, so the list can say when its sheet or its inputs have moved on.
-  const generation = { pay_sheet_id: preview.sheet.id, pay_sheet_revision: preview.sheet.revision, pay_sheet_name: preview.sheet.name, generated_at: new Date().toISOString(), generated_by_user_id: text(actor.userId), duration_days: preview.evaluation.duration_days, complete: preview.evaluation.complete, total_cents: preview.evaluation.total_cents, manual: parsed.manual || {}, missing_inputs: preview.evaluation.missing_inputs.map((entry) => ({ name: entry.name, label: entry.label, required: entry.required, kind: entry.source.kind, reason: entry.reason })) };
+  const generation = { pay_sheet_id: preview.sheet.id, pay_sheet_revision: preview.sheet.revision, pay_sheet_name: preview.sheet.name, generated_at: new Date().toISOString(), generated_by_user_id: text(actor.userId), duration_days: preview.evaluation.duration_days, measurement_source: preview.measurement_source, complete: preview.evaluation.complete, total_cents: preview.evaluation.total_cents, manual: parsed.manual || {}, missing_inputs: preview.evaluation.missing_inputs.map((entry) => ({ name: entry.name, label: entry.label, required: entry.required, kind: entry.source.kind, reason: entry.reason })) };
   const list = await patchMaterialList(orgId, parsed.list_id, { expected_revision: Number(current.revision), metadata: { ...obj(current.metadata), labor_generation: generation } }, auth);
-  return { list, version, evaluation: preview.evaluation, kept: preview.kept };
+  return { list, version, evaluation: preview.evaluation, kept: preview.kept, measurement_source: preview.measurement_source };
 }
 
 /**
@@ -99,10 +102,10 @@ export async function generateLaborList(orgId: string, input: unknown, actor: Ac
  * priced on the same job. An assignee with several sheets is priced on the one that applies to this list.
  */
 export async function compareAssigneesForList(orgId: string, input: unknown) {
-  const parsed = z.object({ list_id: id, manual: numbers.optional(), fields: numbers.optional() }).strict().parse(input);
+  const parsed = z.object({ list_id: id, manual: numbers.optional(), fields: numbers.optional(), legacy_measurements: legacy.optional() }).strict().parse(input);
   const list = await readMaterialList(orgId, parsed.list_id);
   if (text(list.resource_type) !== "labor") throw badRequest("labor_generate_not_labor", "Only a labor list is priced from pay sheets.");
-  const context = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: parsed.manual });
+  const context = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: parsed.manual, legacy_measurements: parsed.legacy_measurements });
   const sheets = await listPaySheets(orgId);
   const assignees = new Map<string, Assignee>();
   for (const sheet of sheets) assignees.set(`${sheet.subject.type}:${sheet.subject.id}`, sheet.subject);

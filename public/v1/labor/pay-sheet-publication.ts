@@ -8,6 +8,7 @@ import { systemPublicationContext } from "../platform/publication/context.js";
 import { backendImplementationDigest } from "../platform/publication/implementation.js";
 import { registerDataProvider } from "../platform/publication/providers.js";
 import { contentHash } from "../platform/publication/validation.js";
+import { definitionForKey } from "../platform/publication/measurement-schemas.js";
 import { listProjectMaterialLists } from "../materials/storage.js";
 import { readOrganizationPricebook } from "../pricebook/storage.js";
 import { archiveUnit, commitInputSchema, commitLaborList, confirmDelivery, unitInputSchema, deliverySettingSchema, listCommitments, listUnits, listDeliverySettings, assigneeAvailability, redeliverCommitment, releaseCommitment, saveUnit, saveDeliverySetting, type Actor } from "./commitments.js";
@@ -45,11 +46,31 @@ export async function projectFieldNumbers(orgId: string, projectId: string): Pro
   }
 }
 /** What a project offers a pay sheet: its selected measurements, the material on its live lists and its field values. Reads only. */
-export async function projectPayContext(orgId: string, projectId: string, supplied: Pick<PayContext, "fields" | "manual"> = {}): Promise<PayContext> {
+/**
+ * Measurements a caller supplies for a project that has no measurement dataset selected yet. Most projects still keep
+ * their measurements where the Project tab reads them, not in a dataset, and the dataset layer says a missing dataset
+ * enables that older path. Only dictionary keys in the dictionary's own unit are accepted, and they are never used
+ * once the project has a selected dataset.
+ */
+export function legacyMeasurements(value: unknown) {
+  const accepted: Record<string, { value: number; unit: string; source: string }> = {};
+  for (const [key, raw] of Object.entries(obj(value))) {
+    const definition = definitionForKey(key), amount = Number(obj(raw).value);
+    if (!definition || !Number.isFinite(amount) || amount < 0 || String(obj(raw).unit || "") !== definition.unit) continue;
+    accepted[key] = { value: amount, unit: definition.unit, source: "project" };
+  }
+  return accepted;
+}
+export async function projectPayContext(orgId: string, projectId: string, supplied: Pick<PayContext, "fields" | "manual"> & { legacy_measurements?: unknown } = {}): Promise<PayContext & { measurement_source: "dataset" | "project" | "none" }> {
   const unavailable: NonNullable<PayContext["unavailable"]> = {};
   const { effectiveProjectMeasurements } = await import("../platform/publication/firstmeasure-datasets.js");
   let measurements: unknown = {};
-  try { const measured = await effectiveProjectMeasurements(systemPublicationContext({ kind: "work", organizationId: orgId, projectId, operations: ["datasets.value"] }), projectId); if (measured.status === "ready") measurements = measured.value; }
+  let measurementSource: "dataset" | "project" | "none" = "none";
+  try {
+    const measured = await effectiveProjectMeasurements(systemPublicationContext({ kind: "work", organizationId: orgId, projectId, operations: ["datasets.value"] }), projectId);
+    if (measured.status === "ready") { measurements = measured.value; measurementSource = "dataset"; }
+    else { const legacy = legacyMeasurements(supplied.legacy_measurements); if (Object.keys(legacy).length) { measurements = { measurements: legacy }; measurementSource = "project"; } }
+  }
   catch (error) { unavailable.measurement = `Project measurements could not be read${error instanceof Error && error.message ? `: ${error.message}` : "."}`; }
   const types = new Map<string, string>();
   try { for (const item of (await readOrganizationPricebook(orgId)).catalog.items) types.set(String(item.id), String(item.type || item.category || "")); } catch { /* an organization without a price book has no item types to match */ }
@@ -62,10 +83,10 @@ export async function projectPayContext(orgId: string, projectId: string, suppli
   const fields = await projectFieldNumbers(orgId, projectId);
   // A value the caller passes for a field stands even when the project's own fields could not be read.
   if (fields.error && !Object.keys(supplied.fields || {}).length) unavailable.field = fields.error;
-  return { measurements, materials, fields: { ...fields.numbers, ...(supplied.fields || {}) }, manual: supplied.manual || {}, unavailable };
+  return { measurements, materials, fields: { ...fields.numbers, ...(supplied.fields || {}) }, manual: supplied.manual || {}, unavailable, measurement_source: measurementSource };
 }
 /** Every pay sheet, or one, priced against the same project so assignees can be compared on the same job. */
-export async function evaluateProjectPaySheets(orgId: string, projectId: string, options: { sheet_id?: string; fields?: Record<string, number>; manual?: Record<string, number> } = {}) {
+export async function evaluateProjectPaySheets(orgId: string, projectId: string, options: { sheet_id?: string; fields?: Record<string, number>; manual?: Record<string, number>; legacy_measurements?: unknown } = {}) {
   const context = await projectPayContext(orgId, projectId, options);
   const sheets = (await listPaySheets(orgId)).filter((sheet) => !options.sheet_id || sheet.id === options.sheet_id);
   return sheets.map((sheet) => evaluatePaySheet(sheet, context));
@@ -123,7 +144,7 @@ export function registerPaySheetPublication() {
   ] as const) registerAction({ id: "labor.commitment." + operation, version: "1", domain: "materials", implementation: backendImplementationDigest(), description, inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" }, reason: { type: "string" }, detail: { type: "string" } }, additionalProperties: false }, outputSchema: commitmentSchema as Obj, policy: { scopes: ["organization", "project"], permissions: ["manage_projects"], capabilities: ["platform.materials"], systemKinds: ["work", "module"] }, effect: "write", executionKinds: ["api", "module", "agent", "work"], idempotency: "required", execute: async (ctx, target, input) => { await withinTarget(ctx, target, await commitmentProject(ctx, (input as Obj).id)); return run(ctx.organizationId, operation === "release" ? input : operation === "confirm-delivery" ? { id: (input as Obj).id, ...((input as Obj).detail ? { detail: (input as Obj).detail } : {}) } : { id: (input as Obj).id }, actor(ctx)); } });
   registerAction({ id: "assignees.unit.save", version: "1", domain: "materials", implementation: backendImplementationDigest(), description: "create or rename a unit inside an assignee, or move it under another unit.", inputSchema: zodToJsonSchema(unitInputSchema, { $refStrategy: "none" }) as Obj, outputSchema: unitSchema as Obj, policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.materials"] }, effect: "write", executionKinds: ["api", "module", "agent", "work"], idempotency: "required", execute: (ctx, _target, input) => saveUnit(ctx.organizationId, input, actor(ctx)) });
   registerAction({ id: "assignees.unit.archive", version: "1", domain: "materials", implementation: backendImplementationDigest(), description: "remove a unit that has no units under it.", inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" } }, additionalProperties: false }, outputSchema: archived as Obj, policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.materials"] }, effect: "write", executionKinds: ["api", "module", "agent", "work"], idempotency: "required", execute: (ctx, _target, input) => archiveUnit(ctx.organizationId, input, actor(ctx)) });
-  registerAction({ id: "labor.list.generate", version: "1", domain: "materials", implementation: backendImplementationDigest(), description: "price a project on a labor list's assignee's pay sheet and write the result as the list's lines, keeping lines added by hand. Does not commit the list.", inputSchema: zodToJsonSchema(generateInputSchema, { $refStrategy: "none" }) as Obj, outputSchema: { type: "object", required: ["list", "evaluation", "kept"], properties: { list: { type: "object" }, version: { type: "object" }, evaluation: evaluationSchema, kept: { type: "integer" } }, additionalProperties: false }, policy: { scopes: ["organization", "project"], permissions: ["manage_projects"], capabilities: ["platform.materials"] }, effect: "write", executionKinds: ["api", "agent"], idempotency: "required", execute: async (ctx, target, input) => { await withinTarget(ctx, target, await listProject(ctx, (input as Obj).list_id)); return generateLaborList(ctx.organizationId, input, actor(ctx)); } });
+  registerAction({ id: "labor.list.generate", version: "1", domain: "materials", implementation: backendImplementationDigest(), description: "price a project on a labor list's assignee's pay sheet and write the result as the list's lines, keeping lines added by hand. Does not commit the list.", inputSchema: zodToJsonSchema(generateInputSchema, { $refStrategy: "none" }) as Obj, outputSchema: { type: "object", required: ["list", "evaluation", "kept"], properties: { list: { type: "object" }, version: { type: "object" }, evaluation: evaluationSchema, kept: { type: "integer" }, measurement_source: { type: "string" } }, additionalProperties: false }, policy: { scopes: ["organization", "project"], permissions: ["manage_projects"], capabilities: ["platform.materials"] }, effect: "write", executionKinds: ["api", "agent"], idempotency: "required", execute: async (ctx, target, input) => { await withinTarget(ctx, target, await listProject(ctx, (input as Obj).list_id)); return generateLaborList(ctx.organizationId, input, actor(ctx)); } });
   registerAction({ id: "labor.list.commit", version: "1", domain: "materials", implementation: backendImplementationDigest(), description: "freeze a labor list as it stands and hand it to its assignee. Committing again makes a new revision.", inputSchema: zodToJsonSchema(commitInputSchema, { $refStrategy: "none" }) as Obj, outputSchema: commitmentSchema as Obj, policy: { scopes: ["organization", "project"], permissions: ["manage_projects"], capabilities: ["platform.materials"], systemKinds: ["work", "module"] }, effect: "write", executionKinds: ["api", "module", "agent", "work"], idempotency: "required", execute: async (ctx, target, input) => { await withinTarget(ctx, target, await listProject(ctx, (input as Obj).list_id)); return commitLaborList(ctx.organizationId, input, actor(ctx)); } });
   registerAction({ id: "labor.delivery-setting.save", version: "1", domain: "materials", implementation: backendImplementationDigest(), description: "choose how an assignee receives committed work.", inputSchema: zodToJsonSchema(deliverySettingSchema, { $refStrategy: "none" }) as Obj, outputSchema: settingSchema as Obj, policy: { scopes: ["organization"], permissions: ["manage_company_settings"], capabilities: ["platform.materials"] }, effect: "write", executionKinds: ["api", "module", "agent", "work"], idempotency: "required", execute: (ctx, _target, input) => saveDeliverySetting(ctx.organizationId, input, actor(ctx)) });
   for (const [operation, description, schema, output, execute] of [

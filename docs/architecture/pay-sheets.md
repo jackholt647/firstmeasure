@@ -90,6 +90,41 @@ hand, and any field value the caller wants to override, are passed in.
 An agent may write or propose a pay sheet from a subcontractor's price sheet;
 it does not compute pay. Pay comes only from an approved sheet's evaluation.
 
+## Generating a labor list
+
+A labor list's lines come from its assignee's pay sheet (`labor/generation.ts`).
+`generateLaborList` prices the list's project on the one sheet that applies —
+the sheet asked for, else the assignee's sheet for the list's kind of work, else
+their only sheet; more than one candidate is an error, never a guess — and
+writes the result as the list's lines:
+
+- one line per pay line, carrying the sheet and entry it came from;
+- a line with no price for anything unresolved, saying what it is waiting for;
+- a line for each piece of equipment the assignee brings, free when included.
+
+Lines someone added by hand are kept; generating again replaces only what
+generation wrote, so reassigning a list reprices the same job on the new
+assignee's sheet. Salary entries are not written: they are not a cost of the
+job. The list records what it was generated from in `metadata.labor_generation`.
+Generating never commits; committing is its own step.
+
+`compareAssigneesForList` prices every assignee that has a pay sheet on the same
+job, complete prices first and cheapest first, so one can be chosen before
+anyone is assigned. `previewLaborList` shows what generating would write
+without writing it.
+
+**Measurements for a project with no dataset.** Most projects still keep their
+measurements where the Project tab reads them rather than in a selected
+measurement dataset, and the dataset layer treats a missing dataset as enabling
+that older path. So these three calls accept `legacy_measurements`: dictionary
+keys, in the dictionary's units, supplied by the caller. Anything else is
+dropped, they are ignored the moment the project has a selected dataset, and the
+result says which was used (`measurement_source`: `dataset`, `project` or
+`none`). Remove this once projects have datasets.
+
+Routes: `lists/:listId/generate`, `…/generate/preview`, `…/assignee-pay`, and
+action `labor.list.generate`, all `manage_projects`.
+
 ## Published
 
 Provider `pay-sheets`. A pay sheet is a compensation record:
@@ -113,8 +148,8 @@ Material calculations do not yet publish their declared inputs the same way.
 
 ## Not built
 
-Generating a labor list from a sheet, the editor for sheets, and equipment needs
-covered by a crew. Committing a list and delivering it are described in
+The editor for sheets, equipment needs a job has that an assignee's equipment
+would cover, and pay or payroll against what was committed. Committing a list and delivering it are described in
 [assignees](assignees.md). Development Instant
 Full Orgs start with two sample sheets (`labor/sample-pay-sheets.ts`), with
 placeholder rates.

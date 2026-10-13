@@ -5572,6 +5572,16 @@
   }
 
   // One reading of a labor list's assignment and pay, shared by its header control and settings popover.
+  // Most projects still keep their measurements where this tab reads them rather than in a measurement dataset. They
+  // are sent along in the dictionary's keys and units; the server uses them only when the project has no dataset.
+  function legacyMeasurementPayload(){
+    const m = projectMeasurements(), out = {};
+    const put = (key, value, unit) => { const amount = Number(value); if (Number.isFinite(amount) && amount > 0) out[key] = { value: amount, unit }; };
+    put('roofSquares', m.slopeSquares ?? m.shingleSquares, 'roofing_square');
+    ['flatRoofSquares', 'pitch2to4Squares', 'pitch4to6Squares', 'pitch6to8Squares', 'pitch9to12Squares', 'pitch13PlusSquares'].forEach((key) => put(key, m[key], 'roofing_square'));
+    ['eavesLf', 'rakesLf', 'hipsLf', 'ridgesLf', 'valleyLf'].forEach((key) => put(key, m[key], 'ft'));
+    return out;
+  }
   // What each assignee with a pay sheet would be paid for this list's project, read from the server and kept briefly.
   function assigneePay(listId){ return state.assigneePay?.[cleanText(listId)] || null; }
   function loadAssigneePay(listId, force = false){
@@ -5580,7 +5590,7 @@
     const cached = assigneePay(id);
     if (cached && !force && (cached.loading || Date.now() - cached.at < 30000)) return cached.promise || Promise.resolve(cached);
     const entry = { loading: true, rows: cached?.rows || [], at: Date.now(), error: '' };
-    entry.promise = Promise.resolve(api.compare(orgId(), id, {})).then((result) => { entry.rows = Array.isArray(result?.assignees) ? result.assignees : []; }).catch((error) => { entry.error = error?.message || 'Pay could not be worked out.'; }).then(() => { entry.loading = false; entry.at = Date.now(); return entry; });
+    entry.promise = Promise.resolve(api.compare(orgId(), id, { legacy_measurements: legacyMeasurementPayload() })).then((result) => { entry.rows = Array.isArray(result?.assignees) ? result.assignees : []; }).catch((error) => { entry.error = error?.message || 'Pay could not be worked out.'; }).then(() => { entry.loading = false; entry.at = Date.now(); return entry; });
     state.assigneePay = { ...(state.assigneePay || {}), [id]: entry };
     return entry.promise;
   }
@@ -5615,13 +5625,13 @@
     const operation = captureProjectOperation(id);
     try {
       if (manual === undefined) {
-        const preview = await api.preview(orgId(), id, {});
+        const preview = await api.preview(orgId(), id, { legacy_measurements: legacyMeasurementPayload() });
         if (!projectOperationIsCurrent(operation)) return;
         const inputs = (preview?.sheet?.inputs || []).filter((input) => input.source?.kind === 'manual');
         if (inputs.length) { openGenerateMenu(id, inputs); return; }
         manual = {};
       }
-      const result = await api.generate(orgId(), id, { manual });
+      const result = await api.generate(orgId(), id, { manual, legacy_measurements: legacyMeasurementPayload() });
       if (!projectOperationIsCurrent(operation)) return;
       updateMaterialListState(result?.material_list);
       state.assigneePay = { ...(state.assigneePay || {}), [id]: null };

@@ -270,7 +270,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261012-suppliers'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'), versionedBundle('materials/project.js', '20261013-labor-generate')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261012-suppliers'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'), versionedBundle('materials/project.js', '20261013-labor-measurements')]
     },
     {
       id: 'project.money',
