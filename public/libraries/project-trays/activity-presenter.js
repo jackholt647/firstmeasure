@@ -177,9 +177,8 @@
     else if(api.channels?.channels?.list&&api.channels?.messages?.list)jobs.push(read(async()=>{
       const listed=await api.channels.channels.list(oid,{initialize:false}),channel=listed?.channels?.find(x=>x.project_id===pid);
       if(!channel){c.noteMessages.clear();return;}
-      const [r,pins]=await Promise.all([api.channels.messages.list(oid,channel.id,{limit:200,view:channel.separate_notes?'notes':'all'}),api.channels.pins?.list?read(()=>api.channels.pins.list(oid,channel.id,{view:'all'})):null]);
-      const separate=r?.channel?.separate_notes??channel.separate_notes;
-      const messages=[...new Map([...(r?.messages||[]),...(pins?.messages||[])].map(m=>[m.id,m])).values()].filter(m=>!separate||m.metadata?.project_note===true);
+      const [r,pins]=await Promise.all([api.channels.messages.list(oid,channel.id,{limit:200,view:'notes'}),api.channels.pins?.list?read(()=>api.channels.pins.list(oid,channel.id,{view:'notes'})):null]);
+      const messages=[...new Map([...(r?.messages||[]),...(pins?.messages||[])].map(m=>[m.id,m])).values()].filter(m=>m.metadata?.project_note===true);
       c.noteMessages=new Map(messages.map(m=>[m.id,m]));
     }));
     if(api.platform?.users?.list)jobs.push(read(()=>api.platform.users.list(oid)).then(r=>(r?.users||r?.documents||[]).forEach(u=>{const v=u.data?{...u.data,id:u.id}:u;c.users.set(v.id,v);})));

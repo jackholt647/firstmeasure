@@ -200,14 +200,12 @@
     const oid = orgId();
     if (!api || !oid) return entry;
     await ensureChannel(entry);
-    let data = await api.messages.list(oid, entry.channelId, {limit:200, view:entry.separate ? "notes" : "all"});
-    if ((data.channel?.separate_notes === true) !== !!entry.separate) data = await api.messages.list(oid, entry.channelId, {limit:200, view:data.channel?.separate_notes ? "notes" : "all"});
-    entry.separate = data.channel?.separate_notes === true;
+    const data = await api.messages.list(oid, entry.channelId, {limit:200, view:"notes"});
     entry.historyBefore = data.messages?.length === 200 ? data.messages[0].seq : 0;
-    const pins = await (api.pins?.list?.(oid, entry.channelId, {view:"all"}) || Promise.resolve({messages:[]}));
+    const pins = await (api.pins?.list?.(oid, entry.channelId, {view:"notes"}) || Promise.resolve({messages:[]}));
     const rows = [...new Map([...(data.messages || []), ...(pins.messages || [])].map(row => [row.id,row])).values()];
     entry.notes = rows
-      .filter((message) => message.kind !== 'system')
+      .filter((message) => message.kind !== 'system' && message.metadata?.project_note === true)
       .map(noteFromMessage);
     entry.loaded = true;
     return entry;
@@ -942,13 +940,13 @@
     function card(note){
       const archived=!!note.deleted_at,shared=note.metadata?.note_shared;
       const historyAction=note.edited_at ? '<button type="button" data-act="history">View Edit History</button>' : '';
-      const actions=archived ? `${note.can_restore ? '<button type="button" data-act="restore">Unarchive Note</button>' : ''}${historyAction}<button type="button" data-act="copy">Copy text</button>` : `<button type="button" data-act="pin">${note.pinned_at ? 'Unpin Note' : 'Pin Note'}</button>${entry.separate && note.metadata?.project_note && !shared ? '<button type="button" data-act="share">Share to channel</button>' : ''}${note.can_edit ? '<button type="button" data-act="edit">Edit Note</button>' : ''}${historyAction}<button type="button" data-act="copy">Copy text</button>${note.can_delete ? '<button type="button" data-act="delete">Archive Note</button>' : ''}`;
+      const actions=archived ? `${note.can_restore ? '<button type="button" data-act="restore">Unarchive Note</button>' : ''}${historyAction}<button type="button" data-act="copy">Copy text</button>` : `<button type="button" data-act="pin">${note.pinned_at ? 'Unpin Note' : 'Pin Note'}</button>${note.can_edit ? '<button type="button" data-act="edit">Edit Note</button>' : ''}${historyAction}<button type="button" data-act="copy">Copy text</button>${note.can_delete ? '<button type="button" data-act="delete">Archive Note</button>' : ''}`;
       return `<article class="pn-card${archived ? ' pn-archived' : ''}" data-project-note-id="${esc(note.id)}"><header>${avatarHtml(note)}<div class="pn-author"><span class="pn-author-name" tabindex="0"${userSummaryAttributes(note)}>${esc(note.created_by?.name || 'Teammate')}</span><time datetime="${esc(note.created_at)}">${esc(fmtWhen(note.created_at))}${archived ? ' · Archived' : ''}</time></div>${note.pinned_at && !archived ? '<button type="button" class="pn-pin-toggle" data-act="pin" title="Unpin Note" aria-label="Unpin Note"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>' : ''}<details class="pn-menu"><summary aria-label="Note options"><i class="fas fa-ellipsis"></i></summary><div>${actions}</div></details></header><div class="pn-card-content${expanded.has(note.id) ? ' expanded' : ''}" data-pn-content="${esc(note.id)}"></div><button type="button" class="pn-more" data-act="expand" aria-expanded="${expanded.has(note.id)}" hidden><span>${expanded.has(note.id) ? 'Show less' : 'Show more'}</span></button><footer><div class="pn-audience" data-note-audience="${esc(note.id)}"></div>${note.edited_at ? '<span class="pn-edited-label">Edited</span>' : ''}${shared ? '<span>Shared</span>' : ''}${!archived ? `<button type="button" data-act="replies" aria-expanded="${!!replyThreads.get(note.id)?.open}">${replyToggleLabel(note,!!replyThreads.get(note.id)?.open)}</button>` : ''}</footer></article>`;
     }
     function render(){
       if(disposed)return;syncAuthorFilters();const scroll=history.scrollTop,editingNode=editSession?.node,restoreReplyFocus=captureReplyFocus();
       for(const handle of [...audienceHandles])if(handle.host.hasAttribute('data-note-audience') && !editingNode?.contains(handle.host))handle.destroy();
-      const rows=entry.notes.filter(note=>(!entry.separate || note.metadata?.project_note===true) && (showArchived || !note.deleted_at) && (allAuthorsSelected || selectedAuthors.has(note.created_by?.id || 'unknown')) && (!query || `${note.text} ${note.created_by?.name}`.toLowerCase().includes(query)));
+      const rows=entry.notes.filter(note=>(note.metadata?.project_note===true) && (showArchived || !note.deleted_at) && (allAuthorsSelected || selectedAuthors.has(note.created_by?.id || 'unknown')) && (!query || `${note.text} ${note.created_by?.name}`.toLowerCase().includes(query)));
       const pins=rows.filter(note=>note.pinned_at && !note.deleted_at),rest=rows.filter(note=>!note.pinned_at || note.deleted_at).sort((a,b)=>Number(b.seq)-Number(a.seq));
       pinned.hidden=!pins.length;pinned.innerHTML=pins.length ? `<h4>${copy('Pinned notes')}</h4>${pins.map(card).join('')}` : '';history.innerHTML=rest.map(card).join('') || `<p class="pn-empty">${copy(query ? 'No notes match your search.' : !allAuthorsSelected ? 'No notes match your author selections.' : 'No notes yet. Add the first update below.')}</p>`;
       if(allAuthorsSelected ? entry.historyBefore : selectedAuthors.size && filteredBefore)history.insertAdjacentHTML('beforeend','<button type="button" data-load-more>Load older notes</button>');
@@ -972,7 +970,7 @@
     function closeFilter(){filterMenu.hidden=true;filterButton.setAttribute('aria-expanded','false');}
     function syncAuthorFilters(){
 
-      const authors=new Map();for(const note of entry.notes){if(entry.separate && !note.metadata?.project_note)continue;const user=note.created_by || {},key=user.id || 'unknown';const row=authors.get(key) || {id:key,name:user.name || 'Teammate',count:0};if(showArchived || !note.deleted_at)row.count++;authors.set(key,row);}
+      const authors=new Map();for(const note of entry.notes){if(note.metadata?.project_note!==true)continue;const user=note.created_by || {},key=user.id || 'unknown';const row=authors.get(key) || {id:key,name:user.name || 'Teammate',count:0};if(showArchived || !note.deleted_at)row.count++;authors.set(key,row);}
       if(projectAuthors)for(const user of projectAuthors)authors.set(user.id,{...user,count:user.count+(showArchived ? user.archived_count : 0)});
       if(allAuthorsSelected){selectedAuthors.clear();for(const key of authors.keys())selectedAuthors.add(key);}else{for(const key of selectedAuthors)if(!authors.has(key))selectedAuthors.delete(key);if(authors.size && [...authors.keys()].every(key=>selectedAuthors.has(key)))allAuthorsSelected=true;}
       const options=filterMenu.querySelector('.pn-filter-options'),focusedAuthor=options.contains(document.activeElement) ? document.activeElement.value : null;options.innerHTML=[...authors.values()].sort((a,b)=>a.name.localeCompare(b.name)).filter(row=>row.name.toLowerCase().includes(authorSearch.value.toLowerCase())).map(row=>`<div class="pn-filter-option" data-selected="${selectedAuthors.has(row.id)}"><label><input type="checkbox" value="${esc(row.id)}" ${selectedAuthors.has(row.id) ? 'checked' : ''}><i class="fas fa-user" aria-hidden="true"></i><span>${esc(row.name)}</span><span class="pn-filter-total">${row.count}</span></label></div>`).join('') || '<div class="pn-filter-none">No matching note authors.</div>';
@@ -1110,7 +1108,7 @@
     }
     container.onclick=async event=>{
       const older=event.target.closest('[data-load-more]'),button=event.target.closest('[data-act]');if(!button && !older)return;if(button)event.preventDefault();
-      try{if(older){older.disabled=true;if(!allAuthorsSelected){await loadAuthorNotes(filteredBefore);render();return;}const data=await channels().messages.list(orgId(),entry.channelId,{view:entry.separate ? 'notes' : 'all',before:entry.historyBefore,limit:100});entry.notes=[...new Map([...entry.notes,...data.messages.map(noteFromMessage)].map(note=>[note.id,note])).values()];entry.historyBefore=data.messages.length===100 ? data.messages[0].seq : 0;render();return;}
+      try{if(older){older.disabled=true;if(!allAuthorsSelected){await loadAuthorNotes(filteredBefore);render();return;}const data=await channels().messages.list(orgId(),entry.channelId,{view:'notes',before:entry.historyBefore,limit:100});entry.notes=[...new Map([...entry.notes,...data.messages.map(noteFromMessage)].map(note=>[note.id,note])).values()];entry.historyBefore=data.messages.length===100 ? data.messages[0].seq : 0;render();return;}
         const node=button.closest('[data-project-note-id]'),thread=[...replyThreads.values()].find(item=>item.items.some(reply=>reply.id===node.dataset.projectNoteId)),note=thread?.items.find(item=>item.id===node.dataset.projectNoteId) || entry.notes.find(item=>item.id===node.dataset.projectNoteId);if(!note)return;const action=button.dataset.act,anchor=node.querySelector('.pn-menu summary');say();node.querySelector('.pn-menu').open=false;
         if(action==='expand'){expanded.has(note.id) ? expanded.delete(note.id) : expanded.add(note.id);render();return;}
         if(action==='edit'){startEdit(note,node);return;}
@@ -1119,7 +1117,6 @@
         if(action==='replies'){await toggleReplyThread(note,node);return;}
         button.disabled=true;
         if(action==='pin')await channels().messages[note.pinned_at ? 'unpin' : 'pin'](orgId(),note.id);
-        if(action==='share')await channels().messages.shareNote(orgId(),note.id);
         if(action==='delete')await channels().messages.remove(orgId(),note.id);
         if(action==='restore')await channels().messages.restore(orgId(),note.id);
         if(thread)await loadReplyThread(thread);await refresh();announce(entry.projectId);
