@@ -123,6 +123,8 @@ function runWorkerThread(job: FirstMeasureJobRow) {
 
 async function executeClaimedJob(job: FirstMeasureJobRow, logger?: Logger) {
   runtimeState.claimed += 1;
+  logger?.info?.({ event: 'firstmeasure_job_started', type: job.type, attempt: job.attempts,
+    queue_age_ms: Math.max(0, Date.now() - (Date.parse(job.created_at) || Date.now())) }, 'FirstMeasure job started.');
   try {
     const handler = registeredJobHandlers.get(job.type);
     const result = await runWithJobLease({

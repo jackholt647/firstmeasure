@@ -32,6 +32,10 @@ test("SQLite fallback remains operational", async () => {
         timestamps: { created_at: timestamp, queued_at: timestamp, updated_at: timestamp }
       } as unknown as ProjectManifest);
     }
+    const summaries = await index.searchIndexedProjectsForLegacyList({ ids: ['sqlite-0000'], filter: 'org', statusFilter: 'all', page: 1, limit: 100, search: '', actor: null });
+    assert.deepEqual(summaries.rows.map(row => row.manifest.id), ['sqlite-0000']);
+    const hidden = await index.searchIndexedProjectsForLegacyList({ ids: ['sqlite-0000'], filter: 'org', statusFilter: 'all', page: 1, limit: 100, search: '', actor: {email:'outsider@example.test',organization_id:'other'} });
+    assert.equal(hidden.totalCount, 0);
     const migrationDb = index.getFirstMeasureProjectIndexDb();
     migrationDb.prepare("UPDATE projects SET queue_group = ''").run();
     migrationDb.prepare(`

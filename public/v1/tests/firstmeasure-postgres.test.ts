@@ -100,6 +100,14 @@ test("PostgreSQL migration, concurrency, jobs, and locks", { skip: !databaseUrl 
     assert.equal(search.count, projectCount);
     assert.equal(search.projects.length, 25);
 
+    const requestedIds = ['pg-load-000000', 'pg-load-000001'];
+    const summaryQuery = { ids: requestedIds, filter: 'org', statusFilter: 'all', page: 1, limit: 100, search: '', actor: null };
+    const summaryPage = await index.searchIndexedProjectsForLegacyList(summaryQuery);
+    assert.deepEqual(summaryPage.rows.map(row => row.manifest.id).sort(), requestedIds);
+    assert.ok(summaryPage.rows.every(row => typeof row.revision === 'string'));
+    assert.equal((await index.searchIndexedProjectsForLegacyList({ ...summaryQuery, actor: { email: 'outsider@example.test', organization_id: 'other' } })).totalCount, 0);
+    assert.equal((await index.searchIndexedProjectsForLegacyList({ ...summaryQuery, ids: [] })).totalCount, 0);
+
     const reservedActor = { email: "reserved-tech@example.test", name: "Reserved Tech", drafter_rank: "senior" };
     const unrelatedActor = { email: "unrelated-tech@example.test", name: "Unrelated Tech", drafter_rank: "senior" };
     const reservationTarget = `pg-load-${String(projectCount - 1).padStart(6, "0")}`;

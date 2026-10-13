@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 FirstMeasure development scaling: [incremental project refresh, artifact metadata and durable imagery](deploy/digitalocean/development-firstmeasure-storage-scaling-20261012.md) records the source changes, verification and required staged activation. Catalog reads remain gated until every writer is upgraded and reconciled. No production activation is included.
+
 October 12 reply participants: [Channels and Feed photos](deploy/digitalocean/development-reply-participants-20261012.md) records recent participant summaries, visibility-aware counts, tests and the verified development rollout.
 
 October 12 Photo comments: [Project Notes parity](deploy/digitalocean/development-photo-comments-notes-20261012.md) records the shared photo workspace, media-scoped authorization, retained historical comments, checks and verified development rollout.

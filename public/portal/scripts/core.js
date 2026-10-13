@@ -1391,11 +1391,33 @@
   async function projectPageFromCandidates(projects = [], fields = {}, options = {}) {
     const page = paginateProjects(projects, fields);
     if (options.hydrateDetails === false) return page;
-    page.projects = await Promise.all(page.projects.map(hydratePlatformProjectFromFirstMeasure));
+    const ids = [...new Set(page.projects.map(project => cleanMeasurementText(project?.measurement_project?.id, project?.measurement?.id, project?.id))
+      .filter(id => id && !page.projects.some(project => cleanText(project.platform_project_id) === id)))];
+    const summaries = new Map();
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const response = await refreshFirstMeasurePage({ actor: currentActor(), filter: 'org', page: 1, limit: 100,
+        include_all: true, include_instant_only: true, summary_ids: ids.slice(offset, offset + 100).sort() });
+      for (const row of response.projects || []) if (row.project?.summary_only) summaries.set(String(row.id), row.project);
+    }
+    page.projects = await Promise.all(page.projects.map((project) => hydratePlatformProjectFromFirstMeasure(project, { summaryOnly: true, summaries })));
     return page;
   }
 
-  async function hydratePlatformProjectFromFirstMeasure(project = {}){
+  const firstMeasureSummaryCache = new Map();
+  async function readFirstMeasureSummary(id) {
+    const actor = currentActor();
+    const key = JSON.stringify([actor, id]);
+    const prior = firstMeasureSummaryCache.get(key);
+    let data;
+    try { data = await fmJson(`projects/${encodeURIComponent(id)}?view=portal-card${prior?.project?.revision ? '&revision=' + encodeURIComponent(prior.project.revision) : ''}`); }
+    catch (error) { firstMeasureSummaryCache.delete(key); throw error; }
+    if (data?.unchanged && prior) return prior;
+    firstMeasureSummaryCache.delete(key); firstMeasureSummaryCache.set(key, data);
+    while (firstMeasureSummaryCache.size > 500) firstMeasureSummaryCache.delete(firstMeasureSummaryCache.keys().next().value);
+    return data;
+  }
+
+  async function hydratePlatformProjectFromFirstMeasure(project = {}, options = {}){
     const measurementId = cleanMeasurementText(
       project?.measurement_project?.id,
       project?.measurement?.id,
@@ -1417,15 +1439,18 @@
     );
     if (!measurementId || measurementId === cleanText(project.platform_project_id)) return project;
     try {
-      const data = await fmJson(`projects/${encodeURIComponent(measurementId)}`);
+      if (options.summaries && !options.summaries.has(measurementId)) return project;
+      const data = options.summaries ? { project: options.summaries.get(measurementId) }
+        : options.summaryOnly ? await readFirstMeasureSummary(measurementId) : await fmJson(`projects/${encodeURIComponent(measurementId)}`);
       const fmProject = data?.project && typeof data.project === 'object' ? data.project : {};
       const manifest = fmProject?.manifest && typeof fmProject.manifest === 'object' ? fmProject.manifest : {};
       const files = Array.isArray(fmProject.files) ? fmProject.files : [];
+      const summaryOnly = fmProject.summary_only === true;
       const names = new Set(files.map((file) => String(file?.name || '')));
       const releaseHeld = reportReleaseHoldIsActive(manifest, fmProject, project);
       const isComplete = !releaseHeld && isFirstMeasureCompleteStatus(fmProject.status, manifest.status, project.status);
-      const hasReportPdf = isComplete && (names.has('Report.pdf') || names.has('report.pdf'));
-      const hasSummaryPdf = isComplete && names.has('Summary.pdf');
+      const hasReportPdf = isComplete && (summaryOnly ? fmProject.artifact_flags?.has_report_pdf === true : (names.has('Report.pdf') || names.has('report.pdf')));
+      const hasSummaryPdf = isComplete && (summaryOnly ? fmProject.artifact_flags?.has_summary_pdf === true : names.has('Summary.pdf'));
       const firstMeasureRejection = firstMeasureRejectionMetadata({ ...fmProject, ...manifest }, project);
       const measurementRejection = firstMeasureRejectionMetadata({ ...fmProject, ...manifest }, project.measurement || {});
       const measurementProjectRejection = firstMeasureRejectionMetadata({ ...fmProject, ...manifest }, project.measurement_project || {});
@@ -1496,8 +1521,10 @@
         has_report: !!(isComplete && (project.has_report || hasReportPdf)),
         report_url: isComplete ? (project.report_url || project.pdf_url || (hasReportPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Report.pdf`) : null)) : null,
         summary_url: isComplete ? (project.summary_url || (hasSummaryPdf ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/Summary.pdf`) : null)) : null,
-        xml_url: project.xml_url || (names.has('model_data.xml') ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/model_data.xml`) : null),
-        _detailHydrated: true,
+        xml_url: project.xml_url || ((summaryOnly ? fmProject.artifact_flags?.has_model_data === true : names.has('model_data.xml')) ? fmUrl(`projects/${encodeURIComponent(measurementId)}/artifacts/model_data.xml`) : null),
+        _measurementRevision: fmProject.revision || null,
+        _summaryHydrated: summaryOnly,
+        _detailHydrated: !summaryOnly,
       });
     } catch (error) {
       return project;
@@ -1670,6 +1697,33 @@
     return base;
   }
 
+  const firstMeasureRefreshPages = new Map();
+  const firstMeasureRefreshPending = new Map();
+  async function refreshFirstMeasurePage(payload) {
+    const key = JSON.stringify(payload);
+    if (firstMeasureRefreshPending.has(key)) return firstMeasureRefreshPending.get(key);
+    const pending = (async () => {
+      const prior = firstMeasureRefreshPages.get(key);
+      const data = await fmPost('projects/list', { ...payload, refresh: true, cursor: prior?.cursor });
+      if (!data?.refresh) return data; // Compatible with a rolling deployment.
+      const delta = data.refresh;
+      const rows = new Map(delta.reset ? [] : (prior?.rows || []));
+      for (const id of delta.removed || []) rows.delete(id);
+      for (const row of delta.projects || []) rows.set(String(row.id), row);
+      const projects = (delta.order || []).map(id => rows.get(String(id))).filter(Boolean);
+      if (projects.length !== (delta.order || []).length) {
+        firstMeasureRefreshPages.delete(key);
+        throw new Error('Incomplete project refresh; a fresh snapshot is required.');
+      }
+      firstMeasureRefreshPages.delete(key);
+      firstMeasureRefreshPages.set(key, { cursor: delta.cursor, rows: [...rows] });
+      while (firstMeasureRefreshPages.size > 100) firstMeasureRefreshPages.delete(firstMeasureRefreshPages.keys().next().value);
+      return { ...data, projects };
+    })();
+    firstMeasureRefreshPending.set(key, pending);
+    try { return await pending; } finally { firstMeasureRefreshPending.delete(key); }
+  }
+
   async function listFirstMeasureProjectCandidates(fields = {}){
     const actor = currentActor();
     const requestedFilter = String(fields.filter || 'org');
@@ -1690,7 +1744,7 @@
         if (fields.search) payload.search = String(fields.search);
         if (fields.status_filter) payload.status_filter = String(fields.status_filter);
         if (fields.include_instant_only != null) payload.include_instant_only = String(fields.include_instant_only);
-        const data = await fmPost('projects/list', payload);
+        const data = await refreshFirstMeasurePage(payload);
         const batch = Array.isArray(data?.projects) ? data.projects : [];
         collected.push(...batch);
         const pagination = data && typeof data.pagination === 'object' ? data.pagination : {};
