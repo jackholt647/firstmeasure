@@ -434,7 +434,7 @@
       access: managementAccess,
       bundles: [
         versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
-        versionedBundle('equipment/app.js', '20261013-functions-2')
+        versionedBundle('equipment/app.js', '20261013-functions-3')
       ]
     },
     {
