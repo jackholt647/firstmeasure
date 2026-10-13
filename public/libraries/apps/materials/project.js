@@ -1021,9 +1021,9 @@
       @keyframes mt-action-in{from{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}to{opacity:1;max-width:40px;transform:none}}
       @keyframes mt-action-out{from{opacity:1;max-width:40px;transform:none}to{opacity:0;max-width:0;padding-left:0;padding-right:0;margin-left:-6px;border-width:0;transform:translateX(36px)}}
       @media(prefers-reduced-motion:reduce){.mt-header-action.is-entering,.mt-header-action.is-leaving{animation:none}.mt-header-action.is-leaving{display:none}}
-      .mt-assign-block{display:flex;flex-direction:column;gap:5px;margin:8px;padding:10px;border:1px dashed #d0d5dd;border-radius:8px;background:#f9fafb}.mt-assign-block>strong{margin-bottom:2px;font-size:13px;color:#101828}.mt-assign-block>strong i{margin-left:3px;font-size:10px;color:#98a2b3}.mt-assign-block>em{font-size:11px;font-style:normal;color:#667085}
-      .mt-assign-block button{display:flex;flex-direction:column;align-items:stretch;gap:5px;width:100%;padding:7px 9px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;text-align:left;color:#344054;cursor:pointer}.mt-assign-block button:hover:not(:disabled){border-color:var(--primary,#d93025)}.mt-assign-block button:disabled{opacity:.6;cursor:default}
-      .mt-assign-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.mt-assign-top strong{min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-assign-pills{display:flex;flex-wrap:wrap;gap:4px}
+      .mt-assign-block{display:flex;flex-direction:column;gap:6px;margin:8px;padding:10px;border:1px dashed #d0d5dd;border-radius:8px;background:#f9fafb}.mt-assign-block>strong{margin-bottom:2px;font-size:13px;color:#101828}.mt-assign-block>strong i{margin-left:3px;font-size:10px;color:#98a2b3}.mt-assign-block>em{font-size:11px;font-style:normal;color:#667085}
+      .mt-assign-block button{display:flex;flex-direction:column;align-items:stretch;gap:8px;width:100%;padding:9px 10px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;text-align:left;color:#344054;cursor:pointer}.mt-assign-block button:hover{border-color:var(--primary,#d93025)}.mt-assign-block.is-busy button{opacity:.6;cursor:progress}.mt-assign-block.is-busy button:hover{border-color:#e4e7ec}
+      .mt-assign-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.mt-assign-top strong{min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mt-assign-pills{display:flex;flex-wrap:nowrap;gap:4px;min-width:0;overflow:hidden}.mt-assign-pills .mt-pill{flex:none;padding:0 6px}.mt-assign-pills .mt-pill i{flex:none}.mt-assign-pills .mt-pill.fit{flex:0 1 auto;min-width:0;overflow:hidden}.mt-assign-pills .mt-pill.fit>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
       .mt-pill{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;border-radius:999px;background:#eef2f6;color:#344054;font-size:10px;font-weight:600;white-space:nowrap}.mt-pill i{font-size:9px;color:#667085}.mt-pill.plain{background:transparent;border:1px solid #e4e7ec;color:#667085;font-weight:500}
       .mt-assign-top b,.mt-labor-option b.mt-pay{flex:none;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;color:#101828}.mt-assign-top b.unknown,.mt-labor-option b.mt-pay.unknown{font-size:11px;font-weight:600;color:#475467}
       tr.mt-list-row.needs-quantity .mt-c-qty input{box-shadow:inset 0 0 0 1px #f79009;background:#fffaeb}
@@ -5611,13 +5611,14 @@
   }
   // Short facts about an assignee for this job, each with its own explanation on hover.
   function assigneePills(resource, row){
-    const pill = (icon, label, tip) => `<span class="mt-pill" title="${escapeHtml(tip)}"><i class="fas ${icon}" aria-hidden="true"></i>${escapeHtml(label)}</span>`;
+    const pill = (icon, label, tip, fit = false) => `<span class="mt-pill${fit ? ' fit' : ''}" title="${escapeHtml(tip)}"><i class="fas ${icon}" aria-hidden="true"></i><span>${escapeHtml(label)}</span></span>`;
     const pills = [];
     if (row?.hourly_rate_cents != null) pills.push(pill('fa-clock', `${money(number(row.hourly_rate_cents, 0) / 100)}/hr`, 'Paid by the hour at this rate. Enter the hours on the list.'));
-    (row?.equipment || []).filter((entry) => entry.included).forEach((entry) => pills.push(pill('fa-truck', cleanText(entry.name), `Brings their own ${cleanText(entry.name).toLowerCase()}, included in their pay.`)));
-    (row?.equipment || []).filter((entry) => !entry.included).forEach((entry) => pills.push(pill('fa-truck', `${cleanText(entry.name)} ${money(number(entry.total_cents, 0) / 100)}`, `Brings their own ${cleanText(entry.name).toLowerCase()} and charges for it.`)));
+    (row?.equipment || []).filter((entry) => entry.included).forEach((entry) => pills.push(pill('fa-truck', cleanText(entry.name), `Brings their own ${cleanText(entry.name).toLowerCase()}, included in their pay.`, true)));
+    (row?.equipment || []).filter((entry) => !entry.included).forEach((entry) => pills.push(pill('fa-truck', `${cleanText(entry.name)} ${money(number(entry.total_cents, 0) / 100)}`, `Brings their own ${cleanText(entry.name).toLowerCase()} and charges ${money(number(entry.total_cents, 0) / 100)} for it.`, true)));
     const basis = row?.duration_basis;
-    if (row?.duration_days) pills.push(pill('fa-calendar-day', `${row.duration_days} day${row.duration_days === 1 ? '' : 's'}`, basis ? `An estimate: ${Math.round(number(basis.value, 0) * 10) / 10} ${cleanText(basis.label).toLowerCase()} at ${basis.units_per_day} a day, the speed on their pay sheet.` : 'An estimate from the speed on their pay sheet.'));
+    const days = row?.duration_days ? `${row.duration_days} day${row.duration_days === 1 ? '' : 's'}` : '';
+    if (days) pills.push(pill('fa-calendar-day', `${row.duration_days}d`, basis ? `${days}. An estimate: ${Math.round(number(basis.value, 0) * 10) / 10} ${cleanText(basis.label).toLowerCase()} at ${basis.units_per_day} a day, the speed on their pay sheet.` : `${days}. An estimate from the speed on their pay sheet.`));
     return pills.join('');
   }
   // An unassigned, empty labor list asks who does the work, with what each choice would cost.
@@ -5627,7 +5628,13 @@
     const rank = (row) => (row?.complete ? 0 : row?.sheet ? 1 : 2);
     const options = workResourcesForScopeList(list).map((resource) => ({ resource, row: assigneePayFor(id, resource.id) }))
       .sort((a, b) => rank(a.row) - rank(b.row) || number(a.row?.total_cents, Infinity) - number(b.row?.total_cents, Infinity) || cleanText(a.resource.name).localeCompare(cleanText(b.resource.name)));
-    return `<div class="mt-assign-block"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${options.length ? '' : '<em>No one is set up for this kind of work yet.</em>'}${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}" ${state.saving ? 'disabled' : ''}><span class="mt-assign-top"><strong>${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills"><span class="mt-pill plain" title="${escapeHtml(cleanText(resource.resource_kind) === 'organization_connection' ? 'An outside company.' : 'People inside your organization.')}">${escapeHtml(workforceLabel(cleanText(resource.resource_kind) || 'resource_group'))}</span>${assigneePills(resource, row)}</span></button>`).join('')}</div>`;
+    // The organization's own word for the kind, cut short to fit; the whole word is in the tooltip.
+    const kindPill = (resource) => {
+      const outside = cleanText(resource.resource_kind) === 'organization_connection', label = cleanText(workforceLabel(cleanText(resource.resource_kind) || 'resource_group'));
+      const word = label.split(/\s+/)[0] || label, short = label.length <= 5 ? label : word.slice(0, /[aeiouy]/i.test(word.charAt(2)) ? 4 : 3);
+      return `<span class="mt-pill plain" title="${escapeHtml(`${label}. ${outside ? 'An outside company.' : 'People inside your organization.'}`)}">${escapeHtml(short)}</span>`;
+    };
+    return `<div class="mt-assign-block${state.assigningListId === id ? ' is-busy' : ''}" data-mt-assign-block="${escapeHtml(id)}"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${options.length ? '' : '<em>No one is set up for this kind of work yet.</em>'}${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}"><span class="mt-assign-top"><strong title="${escapeHtml(resource.name || resource.label || resource.id)}">${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills">${kindPill(resource)}${assigneePills(resource, row)}</span></button>`).join('')}</div>`;
   }
   // Generating writes the list. Hours and the like are typed into their own lines afterwards; only a number that is not
   // a line's quantity is asked for first.
@@ -5658,9 +5665,27 @@
       if (projectOperationIsCurrent(operation)) showToast('Could not generate labor', error?.message || 'Please try again.', false);
     }
   }
+  function syncAssignBusy(){
+    materialRoot()?.querySelectorAll?.('[data-mt-assign-block]')?.forEach((block) => block.classList.toggle('is-busy', block.dataset.mtAssignBlock === state.assigningListId));
+  }
+  // The block is never disabled by the page-wide saving flag, which a background line save can leave on a block drawn
+  // mid-save. One assignment runs at a time, and it waits for line saves so it writes on the revision they leave.
   async function assignAndGenerate(listId, resourceId){
-    await assignWorkResource(listId, resourceId);
-    if (cleanText(assignmentWorkResourceRef(materialListById(listId))?.id) === cleanText(resourceId)) await generateLaborList(listId);
+    const id = cleanText(listId);
+    if (!id || state.assigningListId) return;
+    const operation = captureProjectOperation(id);
+    state.assigningListId = id;
+    syncAssignBusy();
+    try {
+      for (let waited = 0; (state.saving || listWritesPending()) && waited < 15000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
+      if (!projectOperationIsCurrent(operation)) return;
+      if (state.saving || listWritesPending()) { showToast('Still saving', 'Earlier changes are still saving. Please try again in a moment.', false); return; }
+      await assignWorkResource(id, resourceId);
+      if (cleanText(assignmentWorkResourceRef(materialListById(id))?.id) === cleanText(resourceId)) await generateLaborList(id);
+    } finally {
+      state.assigningListId = '';
+      syncAssignBusy();
+    }
   }
   function closeGenerateMenu(){
     document.querySelectorAll?.('[data-mt-generate-portal]')?.forEach((node) => node.remove());
@@ -6042,7 +6067,7 @@
       });
     });
     root.querySelectorAll('[data-mt-labor-generate]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); if (!state.saving) generateLaborList(button.dataset.mtLaborGenerate); }));
-    root.querySelectorAll('[data-mt-assign-pick]').forEach((button) => button.addEventListener('click', () => { if (!state.saving) assignAndGenerate(button.dataset.mtAssignPick, button.dataset.mtAssignResource); }));
+    root.querySelectorAll('[data-mt-assign-pick]').forEach((button) => button.addEventListener('click', () => assignAndGenerate(button.dataset.mtAssignPick, button.dataset.mtAssignResource)));
     root.querySelectorAll('[data-mt-labor-menu]').forEach((button) => {
       button.addEventListener('click', (event) => {
         event.stopPropagation();

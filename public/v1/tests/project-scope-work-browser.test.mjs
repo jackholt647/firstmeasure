@@ -209,6 +209,26 @@ test('labor pay writers re-render only after saving is released, so controls are
  }
 });
 
+test('the assign block stays clickable through a background save, assigns once and keeps its pills short',async()=>{
+ const escapeHtml=value=>String(value??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+ const calls=[],list={id:'labor'};let pending=0;
+ const ctx={state:{saving:true,assigneePay:{labor:{loading:false,at:Date.now(),rows:[{assignee:{id:'sub'},sheet:{id:'s'},complete:true,total_cents:433080,hourly_rate_cents:12800,duration_days:2,equipment:[{name:'Dump truck',included:true}]}]}}},setTimeout,
+  cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,escapeHtml,money:value=>'$'+Number(value).toLocaleString('en-US'),
+  workResourcesForScopeList:()=>[{id:'sub',name:'Summit Roofing',resource_kind:'organization_connection'},{id:'crew',name:'Crew A',resource_kind:'resource_group'}],workforceLabel:kind=>kind==='organization_connection'?'Subcontractor':'Crew',
+  workspaceIsEditing:()=>false,syncMaterialsGrid(){},materialRoot:()=>null,captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,listWritesPending:()=>pending>0,showToast(){},materialListById:()=>list,
+  assignmentWorkResourceRef:value=>value.assigned?{id:value.assigned}:null,assignWorkResource:async(id,resource)=>{calls.push(['assign',resource,ctx.state.saving,pending]);await new Promise(resolve=>setTimeout(resolve,5));list.assigned=resource;},generateLaborList:async id=>{calls.push(['generate',id]);}};
+ vm.createContext(ctx);for(const name of ['assigneePay','assigneePayFor','assigneePayLabel','assigneePills','renderAssignBlock','syncAssignBusy','assignAndGenerate'])vm.runInContext(fn(name),ctx);
+ const html=ctx.renderAssignBlock(list);
+ assert.doesNotMatch(html,/<button[^>]*disabled/,'a save in progress does not disable the options');
+ assert.match(html,/title="Subcontractor\. An outside company\.">Sub</);assert.match(html,/People inside your organization\.">Crew</);
+ assert.match(html,/title="2 days\. [^"]*"><i[^>]*><\/i><span>2d</);assert.match(html,/<span>\$128\/hr</);assert.match(html,/class="mt-pill fit" title="Brings their own dump truck[^"]*"><i[^>]*><\/i><span>Dump truck</);
+ // Clicked twice while a line save is still running: it waits for the save, then assigns and generates once.
+ pending=1;setTimeout(()=>{ctx.state.saving=false;pending=0;},120);
+ await Promise.all([ctx.assignAndGenerate('labor','sub'),ctx.assignAndGenerate('labor','sub'),ctx.assignAndGenerate('labor','crew')]);
+ assert.deepEqual(calls,[['assign','sub',false,0],['generate','labor']]);assert.equal(ctx.state.assigningListId,'');
+ assert.doesNotMatch(source,/state\.saving\) assignAndGenerate/,'the click is not gated on the page-wide saving flag');
+});
+
 test('the labor popover is about who does the work and shows what each would be paid',()=>{
  const crews=[{id:'hourly',name:'Crew A',resource_kind:'resource_group',members:[{},{}],compensation_plan:{type:'hourly'}},{id:'piece',name:'Sub B',resource_kind:'organization_connection',compensation_plan:{type:'piece_rate'}},{id:'salary',name:'Staff C',resource_kind:'resource_group',compensation_plan:{type:'salary'}}];
  const ctx={state:{laborMenu:null},cleanText:value=>String(value??''),escapeHtml:value=>String(value??''),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,workResourcesForScopeList:()=>crews,workResourceById:id=>crews.find(crew=>crew.id===id)||null,workforceLabel:kind=>kind==='organization_connection'?'Partner':'Team',workResourceCompensationMode:resource=>resource?.compensation_plan?.type||'none'};
