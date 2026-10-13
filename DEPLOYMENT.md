@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 12 Notes separation: [Independent Notes and project conversations](deploy/digitalocean/development-notes-separation-20261012.md) records mandatory separation, pinned and live content filtering, checks and verified development rollout.
+
 October 12 Notes filters: [Select All and Deselect All](deploy/digitalocean/development-notes-filter-toggle-20261012.md) records selection-aware labels and actions, browser checks and verified development rollout.
 
 October 12 Channels: [Bold profile names](deploy/digitalocean/development-channels-bold-names-20261012.md) records the font-reset correction, rendered conversation and thread checks, and verified development rollout.
