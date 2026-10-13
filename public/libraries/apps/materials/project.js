@@ -2766,7 +2766,7 @@
   function markGenerateButtonLoading(button){
     if (!button) return;
     button.disabled = true;
-    button.innerHTML = '<i class="fas fa-rotate mt-spin"></i> Regenerating';
+    button.innerHTML = `<i class="fas fa-rotate mt-spin"></i>${button.closest('.mt-icon-toggles') ? '' : ' Regenerating'}`;
   }
 
   async function regenerateMaterialListsFromScope(){
@@ -2786,6 +2786,7 @@
     if (!confirmed) {
       state.generatingMaterials = false;
       renderLeft();
+      syncResourceHeader();
       return;
     }
     state.generatingMaterials = true;
