@@ -68,7 +68,8 @@
       body,
       headers,
       cache: 'no-store',
-      credentials: 'include'
+      credentials: 'include',
+      signal: options.signal
     });
     const text = await res.text();
     let data = null;
@@ -185,7 +186,7 @@
       )
     },
 
-    compose: {polish:(orgId,channelId,input)=>request(orgPath(orgId,`/channels/${enc(channelId)}/compose/polish`),{method:'POST',body:input})},
+    compose: {polish:(orgId,channelId,input,options={})=>request(orgPath(orgId,`/channels/${enc(channelId)}/compose/polish`),{method:'POST',body:input,signal:options.signal})},
 
     drafts: {
       get: (orgId, draftKey) => request(orgPath(orgId, `/drafts/${enc(draftKey)}`)),
