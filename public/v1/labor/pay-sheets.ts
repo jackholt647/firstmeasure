@@ -5,7 +5,7 @@ import { listDocuments, upsertDocument, type JsonObject } from "../platform/stor
 import { definitionForKey, listMeasurementDefinitions, listMeasurementSchemas } from "../platform/publication/measurement-schemas.js";
 
 /**
- * A pay sheet is how one crew, person or subcontractor is paid, written as data that can be evaluated.
+ * A pay sheet is how one assignee (a person, a group of users or an outside company) is paid, written as data that can be evaluated.
  *
  * It declares the inputs it reads (a measurement, a quantity of material, a production field, or a number someone
  * types) and whether each is required. Its entries turn those inputs into pay lines. Nothing about a job is
@@ -52,7 +52,7 @@ const equipmentSchema = z.object({
   id: id.optional(),
   name: z.string().trim().min(1).max(200),
   equipment_type_id: id.optional(),
-  /** Included equipment comes with the crew at no charge; otherwise rate_cents is charged once per job. */
+  /** Included equipment comes with the assignee at no charge; otherwise rate_cents is charged once per job. */
   included: z.boolean().default(true),
   rate_cents: cents.optional()
 }).strict();
@@ -65,7 +65,7 @@ export const paySheetInputSchema = z.object({
   inputs: z.array(inputSchema).max(100).default([]),
   entries: z.array(entrySchema).max(300).default([]),
   equipment: z.array(equipmentSchema).max(100).default([]),
-  /** How long the work takes, for scheduling: an input divided by what the crew gets through in a day. */
+  /** How long the work takes, for scheduling: an input divided by what the assignee gets through in a day. */
   duration: z.object({ input: name, units_per_day: z.number().finite().positive().max(1e9) }).strict().nullable().optional(),
   expected_revision: z.number().int().nonnegative().optional()
 }).strict().superRefine((sheet, context) => {

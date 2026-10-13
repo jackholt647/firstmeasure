@@ -111,19 +111,21 @@ fill dictionary keys and do not invent names. Run
 
 ## Labor pay
 
-Read [pay sheets](docs/architecture/pay-sheets.md) before changing how crews,
-people or subcontractors are paid, or how labor lists are priced. There is no
+Read [pay sheets](docs/architecture/pay-sheets.md) before changing how assignees
+are paid, or how labor lists are priced. There is no
 shared catalogue of priced labor tasks: each party has a pay sheet that declares
 its inputs and is evaluated against a job. A sheet that reads a measurement
 names a measurement schema. Evaluation is deterministic and leaves a line
 unresolved rather than pricing it at zero; an agent may author a sheet but never
 computes pay. Run `tests/labor-pay-sheets.test.ts` for changes here.
 
-Read [labor providers](docs/architecture/labor-providers.md) before changing who
-work is committed to, crews, commitments, delivery or availability. Say **labor
-provider** for a person, in-house crew or subcontractor that work can be
-committed to; `work_resource_ref`, "assignable subject" and "subject" are older
-names for the same thing and stay only where they are stored. A commitment is a
+Read [assignees](docs/architecture/assignees.md) before changing who work is
+assigned or committed to, units, commitments, delivery or availability. Say
+**assignee** for a person, group of users or outside company that work can be
+assigned to; `work_resource_ref`, "assignable subject" and "subject" are older
+names for the same thing and stay only where they are stored. "Crew" is not a
+platform word: what a group or unit is called comes from the terminology system,
+so do not write it into contracts, field names or fixed copy. A commitment is a
 frozen copy and is never edited. Delivery code runs in the sandbox and only
 returns steps. Availability comes from commitments alone. Run
 `tests/labor-commitments.test.ts` for changes here.

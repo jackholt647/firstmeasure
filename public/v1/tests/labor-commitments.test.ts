@@ -22,10 +22,10 @@ test("committing a labor list freezes it, supersedes the last revision and deliv
     const effects = (planned?: any[]): any => ({
       todo: async (body: any) => { calls.push(["todo", body.title, body.id]); },
       email: async (input: any) => { calls.push(["email", input.to, input.subject, input.idempotency_key]); },
-      run: async (source: string, inputs: any) => { calls.push(["run", source === c.DEFAULT_CUSTOM_DELIVERY, inputs.commitment.provider.name]); return planned || [{ action: "todo", title: "Send work to " + inputs.commitment.provider.name }]; }
+      run: async (source: string, inputs: any) => { calls.push(["run", source === c.DEFAULT_CUSTOM_DELIVERY, inputs.commitment.assignee.name]); return planned || [{ action: "todo", title: "Send work to " + inputs.commitment.assignee.name }]; }
     });
     const labor = (title: string, reference: object | null, items = [{ id: "l1", name: "Tear off", quantity: 32, unit: "sq", projected_unit_price: 40, metadata: { compensation_kind: "piece_rate" } }, { id: "l2", name: "Hourly help", quantity: 6, unit: "hour" }]) =>
-      lists.createMaterialList("org_commit", "project", { title, resource_type: "labor", items, ...(reference ? { assignment: { provider_ref: reference } } : {}) }, owner);
+      lists.createMaterialList("org_commit", "project", { title, resource_type: "labor", items, ...(reference ? { assignment: { work_resource_ref: reference } } : {}) }, owner);
 
     const unassigned = await labor("Unassigned", null);
     await assert.rejects(() => c.commitLaborList("org_commit", { list_id: String(unassigned.id) }, owner, effects()), /Assign this list/);
@@ -36,7 +36,7 @@ test("committing a labor list freezes it, supersedes the last revision and deliv
     // An in-house crew is shared with by default.
     const crewList = await labor("Roof labor", { id: "crew_a", kind: "resource_group", name: "Crew A" });
     const first = await c.commitLaborList("org_commit", { list_id: String(crewList.id), note: "Start Monday" }, owner, effects());
-    assert.equal(first.revision, 1); assert.equal(first.status, "committed"); assert.deepEqual(first.provider, { type: "resource_group", id: "crew_a", name: "Crew A" });
+    assert.equal(first.revision, 1); assert.equal(first.status, "committed"); assert.deepEqual(first.assignee, { type: "resource_group", id: "crew_a", name: "Crew A" });
     assert.deepEqual(first.lines.map((line) => [line.name, line.quantity, line.rate_cents, line.total_cents]), [["Tear off", 32, 4000, 128000], ["Hourly help", 6, null, null]], "a line with no rate stays unpriced");
     assert.equal(first.total_cents, 128000); assert.equal(first.project_title, "12 Oak St");
     assert.deepEqual([first.delivery.method, first.delivery.status], ["share", "delivered"]); assert.deepEqual(calls, [], "sharing sends nothing");
@@ -69,34 +69,34 @@ test("committing a labor list freezes it, supersedes the last revision and deliv
     assert.deepEqual([failing.delivery.status, failing.delivery.detail], ["needs_attention", "Delivery code failed to run."], "a failed delivery never reports delivered");
     assert.equal((await c.listCommitments("org_commit", { project_id: "project" })).filter((entry) => entry.status === "committed").length, 2, "one current commitment per list");
 
-    // Crews inside a provider: capacity is one job per crew with no crews under it, worked out from commitments alone.
+    // Units inside an assignee: capacity is one job per unit with no units under it, worked out from commitments alone.
     const summit = { type: "organization_connection" as const, id: "conn_summit" };
-    const alone = await c.providerAvailability("org_commit", summit);
-    assert.deepEqual([alone.capacity, alone.committed, alone.available, alone.over_committed], [1, 1, 0, false], "a provider with no crews is one unit, and it is busy");
-    const north = await c.saveCrew("org_commit", { provider: summit, name: "North crew" }, owner);
-    const south = await c.saveCrew("org_commit", { provider: summit, name: "South crew" }, owner);
-    const southB = await c.saveCrew("org_commit", { provider: summit, name: "South B", parent_crew_id: south.id }, owner);
-    await assert.rejects(() => c.saveCrew("org_commit", { provider: summit, name: "South crew", id: south.id, parent_crew_id: southB.id }, owner), /cannot sit under itself/);
-    await assert.rejects(() => c.saveCrew("org_commit", { provider: { type: "resource_group", id: "crew_a" }, name: "Stray", parent_crew_id: north.id }, owner), /same labor provider/);
-    await assert.rejects(() => c.archiveCrew("org_commit", { id: south.id }, owner), /crews under this one/);
-    const split = await c.providerAvailability("org_commit", summit);
+    const alone = await c.assigneeAvailability("org_commit", summit);
+    assert.deepEqual([alone.capacity, alone.committed, alone.available, alone.over_committed], [1, 1, 0, false], "an assignee with no units is one unit, and it is busy");
+    const north = await c.saveUnit("org_commit", { assignee: summit, name: "North crew" }, owner);
+    const south = await c.saveUnit("org_commit", { assignee: summit, name: "South crew" }, owner);
+    const southB = await c.saveUnit("org_commit", { assignee: summit, name: "South B", parent_unit_id: south.id }, owner);
+    await assert.rejects(() => c.saveUnit("org_commit", { assignee: summit, name: "South crew", id: south.id, parent_unit_id: southB.id }, owner), /cannot sit under itself/);
+    await assert.rejects(() => c.saveUnit("org_commit", { assignee: { type: "resource_group", id: "crew_a" }, name: "Stray", parent_unit_id: north.id }, owner), /same assignee/);
+    await assert.rejects(() => c.archiveUnit("org_commit", { id: south.id }, owner), /units under this one/);
+    const split = await c.assigneeAvailability("org_commit", summit);
     assert.deepEqual(split.units.map((unit) => unit.name), ["North crew", "South B"], "South has a crew under it, so South B is the unit");
-    assert.deepEqual([split.capacity, split.committed, split.available], [2, 1, 1]); assert.equal(split.unplaced.length, 1, "work committed to the provider as a whole uses a unit without naming one");
-    await assert.rejects(() => c.commitLaborList("org_commit", { list_id: String(subList.id), crew_id: "crew_elsewhere" }, owner, effects()), /does not belong to the assigned labor provider/);
-    const placed = await c.commitLaborList("org_commit", { list_id: String(subList.id), crew_id: north.id }, owner, effects());
-    assert.deepEqual(placed.crew, { id: north.id, name: "North crew" });
+    assert.deepEqual([split.capacity, split.committed, split.available], [2, 1, 1]); assert.equal(split.unplaced.length, 1, "work committed to the assignee as a whole uses a unit without naming one");
+    await assert.rejects(() => c.commitLaborList("org_commit", { list_id: String(subList.id), unit_id: "crew_elsewhere" }, owner, effects()), /does not belong to the assignee/);
+    const placed = await c.commitLaborList("org_commit", { list_id: String(subList.id), unit_id: north.id }, owner, effects());
+    assert.deepEqual(placed.unit, { id: north.id, name: "North crew" });
     const second2 = await labor("Second job", { id: "conn_summit", kind: "organization_connection", name: "Summit Roofing" });
-    await c.commitLaborList("org_commit", { list_id: String(second2.id), crew_id: southB.id }, owner, effects());
+    await c.commitLaborList("org_commit", { list_id: String(second2.id), unit_id: southB.id }, owner, effects());
     const third = await labor("Third job", { id: "conn_summit", kind: "organization_connection", name: "Summit Roofing" });
     const extra = await c.commitLaborList("org_commit", { list_id: String(third.id) }, owner, effects());
-    const full = await c.providerAvailability("org_commit", summit);
+    const full = await c.assigneeAvailability("org_commit", summit);
     assert.deepEqual(full.units.map((unit) => [unit.name, unit.available, unit.committed.length]), [["North crew", false, 1], ["South B", false, 1]]);
     assert.deepEqual([full.capacity, full.committed, full.available, full.over_committed], [2, 3, 0, true], "three jobs on two crews is over-committed, and says so");
     // Releasing finished work frees the capacity; nothing else does.
     const released = await c.releaseCommitment("org_commit", { id: extra.id, reason: "Job complete" }, owner);
     assert.equal(released.status, "released"); assert.equal((await c.releaseCommitment("org_commit", { id: extra.id }, owner)).status, "released", "releasing twice changes nothing");
     await c.releaseCommitment("org_commit", { id: placed.id }, owner);
-    const freed = await c.providerAvailability("org_commit", summit);
+    const freed = await c.assigneeAvailability("org_commit", summit);
     assert.deepEqual([freed.committed, freed.available, freed.over_committed], [1, 1, false]); assert.deepEqual(freed.units.map((unit) => unit.available), [true, false]);
 
     // With the real effects: the default delivery code runs in the sandbox and its to-do is really created.
@@ -113,7 +113,7 @@ test("committing a labor list freezes it, supersedes the last revision and deliv
 test("delivery code runs in the sandbox and can only return steps", async () => {
   const c = await import("../labor/commitments.js");
   const effects = c.platformDeliveryEffects("org_commit", { project_id: "project" }, { orgId: "org_commit", userId: "owner" } as any);
-  const commitment = { title: "Roof labor", project_title: "12 Oak St", provider: { name: "Crew A" } };
+  const commitment = { title: "Roof labor", project_title: "12 Oak St", assignee: { name: "Crew A" } };
   assert.deepEqual(await effects.run(c.DEFAULT_CUSTOM_DELIVERY, { commitment }), [{ action: "todo", title: "Send work to Crew A", body: "Roof labor on 12 Oak St is committed and has not been delivered. Open the project to send it." }]);
   await assert.rejects(() => effects.run(`await api.actions.invoke('pay', {}); return { outputs: { steps: [] } };`, { commitment }), "delivery code cannot act");
   await assert.rejects(() => effects.run(`return { outputs: { steps: [{ action: "wire_money", amount: 5 }] } };`, { commitment }), "only the fixed steps are accepted");

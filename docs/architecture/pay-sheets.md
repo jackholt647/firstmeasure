@@ -3,14 +3,14 @@
 Materials can be priced centrally because every supplier sells the same
 products. Labor cannot: two subcontractors charge for different things on the
 same roof, one by the square, one by the bundle, an in-house crew by the hour.
-So there is no shared catalogue of priced labor tasks. Each crew, person or
-subcontractor has a **pay sheet** (`labor/pay-sheets.ts`, collection
+So there is no shared catalogue of priced labor tasks. Each
+[assignee](assignees.md) has a **pay sheet** (`labor/pay-sheets.ts`, collection
 `labor_pay_sheets`): how that one party is paid, written as data that can be
 evaluated against any job.
 
 ## Shape
 
-A sheet belongs to one [labor provider](labor-providers.md), stored as its
+A sheet belongs to one [assignee](assignees.md), stored as its
 `subject` (`organization_user`, `resource_group` or `organization_connection`),
 and has:
 
@@ -88,7 +88,7 @@ Material calculations do not yet publish their declared inputs the same way.
 
 Generating a labor list from a sheet, the editor for sheets, and equipment needs
 covered by a crew. Committing a list and delivering it are described in
-[labor providers](labor-providers.md). Development Instant
+[assignees](assignees.md). Development Instant
 Full Orgs start with two sample sheets (`labor/sample-pay-sheets.ts`), with
 placeholder rates.
 
