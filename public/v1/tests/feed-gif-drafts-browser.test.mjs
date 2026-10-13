@@ -1,3 +1,4 @@
+import {installPolishFixture,verifyPolishComposer} from './helpers/draft-polish-browser.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,mkdir} from 'node:fs/promises';
@@ -17,7 +18,7 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
    return route.fulfill({contentType:'text/html',body:'<html><body><main id="feed" style="height:900px"></main></body></html>'});
   });
   await page.route('https://media.giphy.com/**',r=>r.fulfill({contentType:'image/gif',body:Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64')}));
-  await page.goto('http://feed.test/');await page.addStyleTag({content:'.fas{display:inline-block;width:14px;height:14px}'});
+  await page.goto('http://feed.test/');if(process.env.VISUAL_QA){await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.addStyleTag({content:'body{font-family:Arial}'});await page.evaluate(()=>document.fonts.ready);}await page.addStyleTag({content:'.fas{display:inline-block;width:14px;height:14px}'});
   await page.addScriptTag({url:'/libraries/platform-widgets/gifs.js'});
   await page.evaluate(()=>{
    window.__APP={userOrgId:'org',userId:'sam'};
@@ -34,11 +35,13 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
     createPost:async(org,body)=>{posts.push(body);return {message:{id:'new-post'}};}
    }};
   });
+  await installPolishFixture(page);
   for(const path of ['channels-ui/channels-ui.js','platform-ui/platform-ui.js','platform-tags/platform-tags.js','apps/photos/feed.js'])await page.addScriptTag({url:'/libraries/'+path});
   await page.waitForFunction(()=>window.feedApp);await page.evaluate(()=>feedApp.mount(document.querySelector('#feed')));
   await page.getByRole('button',{name:'Posts',exact:true}).click();
   const post=page.locator('[data-feed-post="manual:root"]');await post.waitFor();assert.equal(await post.locator('.pf-manual-gif .fm-widget-gif').count(),1);assert.equal(await post.locator('.pf-manual-gif figcaption img').getAttribute('alt'),'Powered by GIPHY');
-  await post.getByRole('button',{name:'Comments',exact:true}).click();
+  await post.locator('[data-post-comments]').last().click();
+  await mkdir(new URL('../../../output/shared-polish/',import.meta.url),{recursive:true});await verifyPolishComposer(page,post.locator('[data-comment-editor]'),post.locator('[data-comment-form]'),{screenshot:fileURLToPath(new URL('../../../output/shared-polish/feed-comment-polishing.png',import.meta.url))});assert.equal(await page.evaluate(()=>comments.length),0);assert.equal(await page.evaluate(()=>polishCalls.at(-1).kind),'comment');
   const choose=async trigger=>{await trigger.click();await page.getByRole('dialog',{name:'Choose a GIF'}).getByRole('button',{name:'Choose test GIF'}).click();};
   assert.equal(await post.locator('.pf-comment-input').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(255, 255, 255)');
   assert.ok(await post.locator('[data-comment-editor]').evaluate(n=>n.getBoundingClientRect().height>=42 && n.getBoundingClientRect().height<=48));assert.equal(await post.locator('.fm-ch-formatbar').evaluate(n=>getComputedStyle(n).borderBottomWidth),'0px');
@@ -57,10 +60,12 @@ test('Feed comments and posts attach GIFs until explicit submit and retain faile
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===1);
   assert.equal(await page.evaluate(()=>comments[0].metadata.giphy.id),'draft-gif');assert.equal(await page.evaluate(()=>comments[0].text),'Caption');assert.equal(await post.locator('.pf-comment .fm-widget-gif figcaption img').count(),1);
   assert.equal(await post.locator('.pf-composer-gif').count(),0);
+  await post.locator('.pf-comment').getByRole('button',{name:'Reply',exact:true}).first().click();await verifyPolishComposer(page,post.locator('[data-comment-editor]'),post.locator('[data-comment-form]'));assert.equal(await page.evaluate(()=>polishCalls.at(-1).reply_to),'reply1');await post.getByRole('button',{name:'Cancel reply'}).click();
   await choose(post.locator('[data-comment-gif]'));assert.equal(await page.evaluate(()=>comments.length),1);
   await post.getByRole('button',{name:'Post comment'}).click();await page.waitForFunction(()=>comments.length===2);assert.equal(await page.evaluate(()=>comments[1].text),'');
   await page.locator('[data-feed-compose-open]').click();
   const postEditor=page.locator('[data-feed-compose] [contenteditable]');
+  await verifyPolishComposer(page,postEditor,page.locator('[data-feed-compose]'),{screenshot:fileURLToPath(new URL('../../../output/shared-polish/post-modal-polishing.png',import.meta.url))});assert.equal(await page.evaluate(()=>posts.length),0);assert.equal(await page.evaluate(()=>polishCalls.at(-1).kind),'post');
   assert.equal(await page.locator('.pf-post-formatbar').evaluate(n=>getComputedStyle(n).borderBottomWidth),'1px','manual-post toolbar retains its prior divider and spacing');assert.equal(await page.locator('.pf-post-compose-tools .fm-ch-more-actions').count(),0);
   assert.equal(await page.locator('.pf-post-compose-tools [data-mention-button]').evaluate(n=>getComputedStyle(n).borderTopWidth),'0px');
   await page.locator('.pf-compose-message').screenshot({path:fileURLToPath(new URL('../../../output/composer-refinements/manual-post.png',import.meta.url))});

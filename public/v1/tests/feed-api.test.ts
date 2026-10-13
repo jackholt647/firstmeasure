@@ -100,6 +100,37 @@ async function registerOwner() {
   return { client, suffix, orgId: String(registered.organization.id), userId: String(registered.user.id) };
 }
 
+test('Feed draft polish uses Feed access without Channels and never creates or posts a draft',async()=>{
+  const {client,orgId,userId}=await registerOwner();
+  const {upsertDocument,readDocument}=await import('../platform/storage.js');
+  const {findChannelByDmKey,listMessageRecords}=await import('../channels/storage.js');
+  const base=`/v1/channels/organizations/${orgId}/feed`,url=base+'/compose/polish';
+  await upsertDocument(orgId,'projects',{id:'polish-project',data:{title:'Polish fixture',photos:[{id:'polish-photo',src:'/photo.jpg'}]}});
+  await enableExpandedPlatformFixture(orgId,{'apps.channels':false});
+  const {env}=await import('../src/config/env.js');const oldKey=env.openaiApiKey,oldFetch=globalThis.fetch;Object.assign(env,{openaiApiKey:'polish-fixture-key'});let calls=0;
+  globalThis.fetch=async(_url,options)=>{calls++;const input=JSON.parse(String(options?.body));assert.equal(input.store,false);assert.equal(input.tools,undefined);return new Response(JSON.stringify({output_text:input.input.replace('helo','Hello'),usage:{input_tokens:20,output_tokens:10}}));};
+  try{
+    const draft={kind:'post',text:'**helo** @Ada Bell, https://example.com/ for 50 units.',mention_names:['Ada Bell']};
+    assert.equal((await app.inject({method:'POST',url,payload:draft})).statusCode,401);
+    assert.equal((await client.raw('POST',url,{...draft,kind:'comment'})).statusCode,403);
+    assert.equal((await client.raw('POST',url,{...draft,text:' '})).statusCode,400);assert.equal(calls,0);
+    const result=await client.request('POST',url,draft);assert.equal(result.text,'**Hello** @Ada Bell, https://example.com/ for 50 units.');
+    assert.equal(await findChannelByDmKey(orgId,'company-feed'),null,'polishing a new post creates no channel');
+    const refs=[{kind:'media',id:'polish-photo',project_id:'polish-project'}];
+    assert.equal((await client.request('POST',url,{kind:'comment',text:'helo first comment',refs})).text,'Hello first comment');
+    assert.equal(await findChannelByDmKey(orgId,'company-feed'),null,'polishing the first comment creates no root');
+    const {root}=await client.request('POST',base+'/posts/resolve',{refs});
+    assert.equal((await client.request('POST',url,{kind:'comment',text:'helo existing thread',post_id:root.id})).text,'Hello existing thread');
+    const channel=await findChannelByDmKey(orgId,'company-feed');assert.equal((await listMessageRecords(orgId,channel!.id,{})).length,1,'polish posts no comments');
+    const previous=calls;assert.ok((await client.raw('POST',url,{kind:'comment',text:'helo',post_id:'outside-org'})).statusCode>=400);assert.equal(calls,previous);
+    const member=await readDocument(orgId,'users',userId);
+    await upsertDocument(orgId,'users',{id:userId,data:{...member.data,org_permissions:{level:'owner',items:{comment_feed:false}}}});
+    assert.equal((await client.raw('POST',url,draft)).statusCode,403);assert.equal(calls,previous);
+    await upsertDocument(orgId,'users',{id:userId,data:{...member.data,org_permissions:{level:'owner',items:{view_media:false}}}});
+    assert.ok((await client.raw('POST',url,{kind:'comment',text:'helo',post_id:root.id})).statusCode>=400);assert.equal(calls,previous);
+  }finally{globalThis.fetch=oldFetch;Object.assign(env,{openaiApiKey:oldKey});}
+});
+
 
 test('feed threads use shared messages/reactions, stay hidden, and reauthorize artifacts', async () => {
   const {client,orgId,userId}=await registerOwner();

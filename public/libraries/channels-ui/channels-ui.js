@@ -1329,6 +1329,67 @@
     mount.append(originals);mount.insertBefore(button,mount.querySelector(':scope > button[type=submit]'));return button;
   }
 
+  // One lifecycle for Channels, Notes and Feed rich-text drafts.
+  function mountDraftPolish(editor,row,options={}){
+      if(!editor || !row || !options.request)return null;
+      ensureStyles();
+      const identity=options.identity || (()=>editor),isBusy=options.isBusy,isCurrent=options.isCurrent || (()=>true),showError=options.onError || (()=>{});
+      const lockRoot=options.lockRoot || editor.closest('form,.fm-ch-composer-box') || editor.parentElement;
+      const icon='<svg class="fm-ch-polish-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.92H8.4M1.75 9H8.75M1.75 13.08H9.92"/><g transform="translate(9 1) scale(.2916667)" stroke-width="3"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></g></svg>';
+      const button=el('button','fm-ch-icon-btn',icon);button.type='button';button.dataset.polishDraft='';button.title='Polish text';button.setAttribute('aria-label',button.title);let active=null,revision=0;
+      const refresh=()=>button.disabled=!active && (!editor.value.trim() || !!isBusy?.() || !!editor.uploadingFiles);
+      const onInput=()=>{revision++;refresh();};editor.addEventListener('input',onInput);editor.addEventListener('fm:formatting-change',refresh);
+      const preserveAttributes=(node,names)=>{const values=names.map(name=>[name,node.getAttribute(name)]);return ()=>{for(const [name,value] of values)if(value===null)node.removeAttribute(name);else node.setAttribute(name,value);};};
+      function lockDraft(run){
+        const box=lockRoot,selection=root.getSelection();
+        editor.saveSelection();editor.blur();button.blur();if(selection?.anchorNode && editor.contains(selection.anchorNode))selection.removeAllRanges();
+        closePopover();root.FirstMatePickerWidgets?.closeFor?.();options.closeMenus?.();root.PlatformUI?.hideTooltip?.(button);
+        const restoreEditor=preserveAttributes(editor,['contenteditable','inert','tabindex','aria-busy','aria-readonly']);
+        const restoreButton=preserveAttributes(button,['title','data-fm-tooltip','data-fm-tooltip-html','data-fm-native-title','aria-describedby']);
+        for(const name of ['title','data-fm-tooltip','data-fm-tooltip-html','data-fm-native-title'])button.removeAttribute(name);
+        editor.contentEditable='false';editor.inert=true;editor.tabIndex=-1;editor.setAttribute('aria-busy','true');editor.setAttribute('aria-readonly','true');editor.classList.add('fm-ch-polishing');
+        const controls=[...box.querySelectorAll('button,input,select,textarea')].filter(control=>control!==button).map(control=>[control,control.disabled]);
+        for(const [control] of controls)control.disabled=true;
+        // Guard non-button controls and rich-editor event handlers as well.
+        const events=['beforeinput','keydown','paste','drop','pointerdown','click','submit'];
+        const block=event=>{if(!button.contains(event.target)){event.preventDefault();event.stopImmediatePropagation();}};
+        for(const name of events)box.addEventListener(name,block,true);
+        button.setAttribute('aria-busy','true');button.setAttribute('aria-label','Click to cancel');
+        button.innerHTML='<svg class="fm-ch-polish-spinner" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6" opacity=".2"/><path d="M8 2a6 6 0 0 1 6 6" stroke-linecap="round"/></svg>';
+        const tip=el('div','fm-ch-polish-cancel-tip','Click to cancel');tip.id='fm-ch-polish-tip-'+Math.random().toString(36).slice(2);tip.setAttribute('role','tooltip');
+        button.setAttribute('aria-describedby',[button.getAttribute('aria-describedby'),tip.id].filter(Boolean).join(' '));document.body.append(tip);
+        if(tip.showPopover){tip.popover='manual';tip.showPopover();}
+        const position=()=>{const r=button.getBoundingClientRect(),t=tip.getBoundingClientRect();tip.style.left=Math.max(8,Math.min(root.innerWidth-t.width-8,r.left+(r.width-t.width)/2))+'px';tip.style.top=(r.top>=t.height+8 ? r.top-t.height-6 : r.bottom+6)+'px';};
+        position();root.addEventListener('resize',position);document.addEventListener('scroll',position,true);
+        const watcher=new MutationObserver(()=>{if(!editor.isConnected || !isCurrent() || identity()!==run.context)cancel(false);else position();});watcher.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden']});
+        run.unlock=()=>{watcher.disconnect();root.removeEventListener('resize',position);document.removeEventListener('scroll',position,true);tip.remove();for(const name of events)box.removeEventListener(name,block,true);restoreEditor();restoreButton();editor.classList.remove('fm-ch-polishing');for(const [control,disabled] of controls)control.disabled=disabled;button.removeAttribute('aria-busy');button.setAttribute('aria-label','Polish text');button.innerHTML=icon;};
+        refresh();
+      }
+      function finish(run){if(active!==run)return;active=null;run.unlock();options.onSettled?.();refresh();}
+      function cancel(focus=true){const run=active;if(!run)return;run.controller.abort();finish(run);if(focus && editor.isConnected)editor.restoreSelection();}
+      button.onclick=async()=>{
+        if(active){cancel();return;}
+        if(isBusy?.() || editor.uploadingFiles || !editor.value.trim())return;
+        const text=editor.value,version=revision,context=identity(),mentions=editor._mentionApi?.confirmedMentions?.() || editor.mentionUsers || [];
+        const run={context,controller:new AbortController(),unlock(){}};active=run;
+        try{
+          lockDraft(run);
+          const result=await options.request({text,mention_names:mentions.map(user=>user.name).filter(Boolean)},{signal:run.controller.signal});
+          if(active!==run || !isCurrent() || !editor.isConnected || identity()!==context)return;
+          finish(run); // Native insertHTML needs an editable host, and retains Undo.
+          if(revision!==version || editor.value!==text || isBusy?.()){showError(new Error('Your draft changed while polishing. Click Polish text again to polish the latest version.'));return;}
+          if(!result?.text?.trim())throw Error('Text could not be polished. Your draft is unchanged.');
+          if(result.text!==text){editor.focus();const range=document.createRange();range.selectNodeContents(editor);const selection=root.getSelection();selection.removeAllRanges();selection.addRange(range);if(!document.execCommand('insertHTML',false,renderBody({text:result.text})))throw Error('Text could not be updated. Your draft is unchanged.');editor.saveSelection();editor.dispatchEvent(new Event('input',{bubbles:true}));editor._mentionApi?.setSelectedMentions?.(mentions);}
+        }catch(error){if(!run.controller.signal.aborted && editor.isConnected && identity()===context)showError(error);}
+        finally{finish(run);}
+      };
+      row.insertBefore(button,row.querySelector(':scope>.fm-ch-more-actions,:scope>.fm-ch-send-pair,:scope>.fm-ch-send,:scope>.pn-add,:scope>[data-comment-attachments],:scope>button[type=submit]'));
+      const mention=row.querySelector(':scope>[data-mention-button]');if(mention)mention.after(button);const more=row.querySelector(':scope>.fm-ch-more-actions');if(more && (more.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING))button.after(more);
+      const handle={button,refresh,cancel:()=>cancel(false),get polishing(){return !!active;},destroy(){cancel(false);editor.removeEventListener('input',onInput);editor.removeEventListener('fm:formatting-change',refresh);button.remove();}};
+      editor._polishApi=handle;refresh();return handle;
+  }
+
+
   // --- popover / modal plumbing -------------------------------------------------
 
   let openPopover = null;
@@ -5049,56 +5110,7 @@
 
     function mountPolishButton(editor,row,identity,isBusy){
       if(!features.ai || !api.compose?.polish)return;
-      const icon='<svg class="fm-ch-polish-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.92H8.4M1.75 9H8.75M1.75 13.08H9.92"/><g transform="translate(9 1) scale(.2916667)" stroke-width="3"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/></g></svg>';
-      const button=el('button','fm-ch-icon-btn',icon);button.type='button';button.dataset.polishDraft='';button.title='Polish text';button.setAttribute('aria-label',button.title);let active=null,revision=0;
-      const refresh=()=>button.disabled=!active && (!editor.value.trim() || !!isBusy?.() || !!editor.uploadingFiles);
-      editor.addEventListener('input',()=>{revision++;refresh();});editor.addEventListener('fm:formatting-change',refresh);
-      const preserveAttributes=(node,names)=>{const values=names.map(name=>[name,node.getAttribute(name)]);return ()=>{for(const [name,value] of values)if(value===null)node.removeAttribute(name);else node.setAttribute(name,value);};};
-      function lockDraft(run){
-        const box=editor.closest('.fm-ch-composer-box'),selection=root.getSelection();
-        editor.saveSelection();editor.blur();button.blur();if(selection?.anchorNode && editor.contains(selection.anchorNode))selection.removeAllRanges();
-        closePopover();root.PlatformUI?.hideTooltip?.(button);
-        const restoreEditor=preserveAttributes(editor,['contenteditable','inert','tabindex','aria-busy','aria-readonly']);
-        const restoreButton=preserveAttributes(button,['title','data-fm-tooltip','data-fm-tooltip-html','data-fm-native-title','aria-describedby']);
-        for(const name of ['title','data-fm-tooltip','data-fm-tooltip-html','data-fm-native-title'])button.removeAttribute(name);
-        editor.contentEditable='false';editor.inert=true;editor.tabIndex=-1;editor.setAttribute('aria-busy','true');editor.setAttribute('aria-readonly','true');editor.classList.add('fm-ch-polishing');
-        const controls=[...box.querySelectorAll('button,input,select,textarea')].filter(control=>control!==button).map(control=>[control,control.disabled]);
-        for(const [control] of controls)control.disabled=true;
-        // Guard non-button controls and rich-editor event handlers as well.
-        const events=['beforeinput','keydown','paste','drop','pointerdown','click'];
-        const block=event=>{if(!button.contains(event.target)){event.preventDefault();event.stopImmediatePropagation();}};
-        for(const name of events)box.addEventListener(name,block,true);
-        button.setAttribute('aria-busy','true');button.setAttribute('aria-label','Click to cancel');
-        button.innerHTML='<svg class="fm-ch-polish-spinner" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6" opacity=".2"/><path d="M8 2a6 6 0 0 1 6 6" stroke-linecap="round"/></svg>';
-        const tip=el('div','fm-ch-polish-cancel-tip','Click to cancel');tip.id='fm-ch-polish-tip-'+Math.random().toString(36).slice(2);tip.setAttribute('role','tooltip');
-        button.setAttribute('aria-describedby',[button.getAttribute('aria-describedby'),tip.id].filter(Boolean).join(' '));document.body.append(tip);
-        if(tip.showPopover){tip.popover='manual';tip.showPopover();}
-        const position=()=>{const r=button.getBoundingClientRect(),t=tip.getBoundingClientRect();tip.style.left=Math.max(8,Math.min(root.innerWidth-t.width-8,r.left+(r.width-t.width)/2))+'px';tip.style.top=(r.top>=t.height+8 ? r.top-t.height-6 : r.bottom+6)+'px';};
-        position();root.addEventListener('resize',position);document.addEventListener('scroll',position,true);
-        const watcher=new MutationObserver(()=>{if(!editor.isConnected || state.destroyed || identity()!==run.context)cancel(false);else position();});watcher.observe(container,{childList:true,subtree:true});
-        run.unlock=()=>{watcher.disconnect();root.removeEventListener('resize',position);document.removeEventListener('scroll',position,true);tip.remove();for(const name of events)box.removeEventListener(name,block,true);restoreEditor();restoreButton();editor.classList.remove('fm-ch-polishing');for(const [control,disabled] of controls)control.disabled=disabled;button.removeAttribute('aria-busy');button.setAttribute('aria-label','Polish text');button.innerHTML=icon;};
-        refresh();
-      }
-      function finish(run){if(active!==run)return;active=null;run.unlock();refresh();}
-      function cancel(focus=true){const run=active;if(!run)return;run.controller.abort();finish(run);if(focus && editor.isConnected)editor.restoreSelection();}
-      button.onclick=async()=>{
-        if(active){cancel();return;}
-        if(isBusy?.() || editor.uploadingFiles || !editor.value.trim())return;
-        const text=editor.value,version=revision,context=identity(),mentions=editor._mentionApi?.confirmedMentions?.() || editor.mentionUsers || [];
-        const run={context,controller:new AbortController()};active=run;lockDraft(run);
-        try{
-          const result=await api.compose.polish(orgId,state.activeChannelId,{text,mention_names:mentions.map(user=>user.name).filter(Boolean)},{signal:run.controller.signal});
-          if(active!==run || state.destroyed || !editor.isConnected || identity()!==context)return;
-          finish(run); // Native insertHTML needs an editable host, and retains Undo.
-          if(revision!==version || editor.value!==text || isBusy?.()){showError(new Error('Your draft changed while polishing. Click Polish text again to polish the latest version.'));return;}
-          if(!result?.text?.trim())throw Error('Text could not be polished. Your draft is unchanged.');
-          if(result.text!==text){editor.focus();const range=document.createRange();range.selectNodeContents(editor);const selection=root.getSelection();selection.removeAllRanges();selection.addRange(range);if(!document.execCommand('insertHTML',false,renderBody({text:result.text})))throw Error('Text could not be updated. Your draft is unchanged.');editor.saveSelection();editor.dispatchEvent(new Event('input',{bubbles:true}));editor._mentionApi?.setSelectedMentions?.(mentions);}
-        }catch(error){if(!run.controller.signal.aborted && editor.isConnected && identity()===context)showError(error);}
-        finally{finish(run);}
-      };
-      row.insertBefore(button,row.querySelector(':scope>.fm-ch-more-actions,:scope>.fm-ch-send-pair,:scope>.fm-ch-send'));
-      const mention=row.querySelector(':scope>[data-mention-button]');if(mention)button.before(mention);
-      refresh();
+      return mountDraftPolish(editor,row,{identity,isBusy,isCurrent:()=>!state.destroyed,onError:showError,lockRoot:editor.closest('.fm-ch-composer-box'),request:(input,options)=>api.compose.polish(orgId,state.activeChannelId,input,options)});
     }
 
     function buildThreadComposer(node){
@@ -6358,6 +6370,6 @@
     return title;
   }
 
-  const composerWidgets={renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,moreActions,attachmentDraft,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
+  const composerWidgets={polishButton:mountDraftPolish,renderGifDraft,renderGifCard:gif=>{ensureStyles();return gifMessageCard(gif)?.outerHTML || '';},createEditor:(placeholder)=>{ensureStyles();return createMessageEditor(placeholder);},formatBar:(editor,commands)=>{ensureStyles();return messageFormatBar(editor,false,commands);},mentionButton:mountMentionButton,moreActions,attachmentDraft,renderBody:(message)=>{ensureStyles();return renderBody(message);}};
   root.FirstMateChannels = { create, createChannelTitle, openChannelProject, createGifPickerButton, mountEmojiPicker, mountLinkInput, composerWidgets, DEFAULT_FEATURES };
 })();

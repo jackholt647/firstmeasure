@@ -18,4 +18,8 @@ test('polish cancellation aborts the browser request and preserves normal API ca
   assert.deepEqual(JSON.parse(requests[0].body),{text:'helo'});
   controller.abort();await assert.rejects(request,{name:'AbortError'});
   assert.equal((await window.ChannelsAPI.compose.polish('org','channel',{text:'hello'})).ok,true);
+  const feedAbort=new AbortController();
+  const feed=window.ChannelsAPI.feed.polish('org',{kind:'post',text:'helo'},{signal:feedAbort.signal});
+  assert.equal(requests.at(-1).url,'http://fixture/v1/channels/organizations/org/feed/compose/polish');
+  assert.equal(requests.at(-1).signal,feedAbort.signal);feedAbort.abort();await assert.rejects(feed,{name:'AbortError'});
 });

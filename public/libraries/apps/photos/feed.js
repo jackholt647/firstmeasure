@@ -2399,6 +2399,7 @@
       if(capturing){if(captureMode===mode)recorderControl?.stop();return;}
       if(mode==='audio' && options.hasPendingAudio?.())return;
       capturing=true;captureMode=mode;
+      const voiceEditor=rootEl.querySelector(prefix==='comment'?'[data-comment-editor]':'[data-feed-compose-text]');if(voiceEditor){voiceEditor.dataset.voiceCapturing='true';voiceEditor._polishApi?.refresh();}
       buttons.audio.disabled=buttons.dictate.disabled=true;
       try{
         if(!window.FirstMateAudioNotes?.prepareInline)throw new Error('Audio tools are unavailable.');
@@ -2408,7 +2409,7 @@
         if(mount?.isConnected)options.onPrepared(mode,prepared);
       }catch(error){if(!String(error?.message || '').toLowerCase().includes('cancelled'))options.onError(error);}
       finally{
-        capturing=false;recorderControl=null;
+        capturing=false;recorderControl=null;if(voiceEditor){delete voiceEditor.dataset.voiceCapturing;voiceEditor._polishApi?.refresh();}
         for(const kind of ['audio','dictate']){const button=buttons[kind];button.classList.remove('voice-active');button.setAttribute('aria-pressed','false');button.title=labels[kind][0];button.setAttribute('aria-label',button.title);button.disabled=kind==='audio' && !!options.hasPendingAudio?.();}
       }
     });
@@ -2605,10 +2606,17 @@
         if(mentionButton){mentionButton.classList.add('fm-ch-icon-btn','pf-compose-tool');form.querySelector('[data-comment-attachments]')?.before(mentionButton);}
       }
       input?.addEventListener('input',()=>{current.draft=input.value;});
+      const polish=window.ChannelsAPI?.feed?.polish && commentWidgets?.polishButton?.(input,form?.querySelector('.pf-comment-tools'),{
+        lockRoot:form,identity:()=>post.id+':'+current.replyTo,isCurrent:()=>!!state.root?.contains(card) && current.open,
+        isBusy:()=>current.busy || input.dataset.voiceCapturing==='true',onError:error,
+        closeMenus:()=>feedEmojiClose?.(),
+        request:(draft,options)=>window.ChannelsAPI.feed.polish(orgId(),{...draft,kind:'comment',...(current.root?.id || post.manual?.id ? {post_id:current.root?.id || post.manual.id} : {refs:post.entries.slice(0,200).map(entryRef)}),...(current.replyTo ? {reply_to:current.replyTo} : {})},options)
+      });polish?.button.classList.add('pf-compose-tool');
+
       card.querySelector('[data-comment-cancel-reply]')?.addEventListener('click',()=>{current.replyTo='';current.replyToName='';rerender();});
       card.querySelector('[data-comment-emoji-open]')?.addEventListener('click',event=>openFeedEmojiWidget(event.currentTarget,emoji=>{const start=input.selectionStart,end=input.selectionEnd;input.setRangeText(emoji,start,end,'end');current.draft=input.value;input.focus();}));
       const send=async(metadata={},text=current.draft,clientId)=>{const mentions=current.mentionApi?.selectedMentions?.() || [];await fetchPost(post,true);await window.ChannelsAPI.feed.comment(orgId(),current.root.id,{text,mention_users:mentions,parent_id:current.replyTo || undefined,client_msg_id:clientId || current.operationId || (current.operationId=globalThis.crypto?.randomUUID?.() || `feed_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`),attachment_ids:(current.attachments || []).map(a=>a.id),metadata:{...(current.audioNote?{audio_note:current.audioNote}:{}),...(current.gif?{giphy:current.gif}:{}),...metadata}});current.draft='';current.attachments=[];current.audioNote=null;current.gif=null;current.operationId='';current.replyTo='';current.replyToName='';await fetchPost(post);};
-      form?.addEventListener('submit',event=>{event.preventDefault();if(current.draft.trim() || current.attachments?.length || current.gif)act(()=>send());});
+      form?.addEventListener('submit',event=>{event.preventDefault();if(!input?._polishApi?.polishing && (current.draft.trim() || current.attachments?.length || current.gif))act(()=>send());});
       const gifPreview=document.createElement('div');
       form?.querySelector('.pf-comment-tools')?.before(gifPreview);
       const paintGif=()=>{
@@ -2894,6 +2902,13 @@
     const removeComposerAudio=()=>{clearComposerAudio();const button=rootEl.querySelector('[data-feed-compose-audio]');if(button)button.disabled=false;};
     mountFeedPreparedAudio(rootEl.querySelector('[data-feed-compose-audio-mount]'),state.composerAudioAttachment,state.composerAudioNote,removeComposerAudio);
     composerWidgets?.moreActions?.(rootEl.querySelector('.pf-post-compose-tools'),[rootEl.querySelector('[data-feed-compose-audio]')]);
+    const polish=window.ChannelsAPI?.feed?.polish && composerWidgets?.polishButton?.(composeText,rootEl.querySelector('.pf-post-compose-tools'),{
+      lockRoot:rootEl.querySelector('[data-feed-compose]'),identity:()=>state.composerDepartment,isCurrent:()=>state.composerOpen && !!state.root?.contains(composeText),
+      isBusy:()=>state.composerBusy || composeText.dataset.voiceCapturing==='true',closeMenus:()=>feedEmojiClose?.(),
+      onError:error=>showToast?.('Polish text',error?.message || 'Could not polish this draft.',false),
+      request:(draft,options)=>window.ChannelsAPI.feed.polish(orgId(),{...draft,kind:'post'},options)
+    });polish?.button.classList.add('pf-compose-tool');
+
     bindFeedVoiceControls(rootEl,'feed-compose',{
       upload:async file=>{state.composerAudioFile=file;state.composerAudioAttachment={id:'pending',url:URL.createObjectURL(file)};return state.composerAudioAttachment;},
       onRemove:removeComposerAudio,
@@ -2921,7 +2936,7 @@
       state.composerFiles.push(...chosen);render();
     });
     rootEl.querySelector('[data-feed-compose]')?.addEventListener('submit',async event=>{
-      event.preventDefault();if(state.composerBusy||!(state.composerText.trim()||state.composerFiles.length||state.composerGif||state.composerAudioFile))return;
+      event.preventDefault();if(composeText?._polishApi?.polishing || state.composerBusy||!(state.composerText.trim()||state.composerFiles.length||state.composerGif||state.composerAudioFile))return;
       if(state.composerText.length>5000){showToast?.('Post is too long','Keep the post under 5,000 characters.',false);return;}
       const eligible=eligibleMentions();
       const tagged=state.composerMentionApi?.selectedMentions?.() || [];
