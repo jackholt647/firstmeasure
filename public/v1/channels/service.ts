@@ -92,7 +92,8 @@ registerWorkEvents(["created", "edited", "deleted", "restored", "pinned", "unpin
   notification:{group:"projects", source:"channels", tab:"messaging"}
 })));
 
-async function separateProjectNotes(ctx: PlatformAuthContext) { return can(ctx, "channels.separate_project_notes"); }
+// Notes and project conversations are separate domains, regardless of legacy feature settings.
+async function separateProjectNotes(_ctx: PlatformAuthContext) { return true; }
 async function messageWorkEvent(ctx: PlatformAuthContext, channel: ChannelRow, message: MessageRow, action: string, at = nowIso()) {
   if (channel.type === "feed") return;
   const note = message.metadata.project_note === true && await separateProjectNotes(ctx);
@@ -1141,7 +1142,7 @@ export async function removeMember(ctx: PlatformAuthContext, channelId: string, 
 export async function listMessages(ctx: PlatformAuthContext, channelId: string, options: { before?: number; after?: number; limit?: number; author_ids?:string[]; view?: "messages" | "notes" | "all" }) {
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
-  const records=await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null, projectNotes: options.view === "notes" ? true : options.view === "all" || channel.type !== "project" || !await separateProjectNotes(ctx) ? undefined : false });
+  const records=await listMessageRecords(ctx.orgId, channelId, { ...options, parentId: null, projectNotes: options.view === "notes" ? true : channel.type !== "project" || channel.settings.photo_media_id ? undefined : false });
   const raw=records.filter(message=>messageVisibleTo(message,ctx,groups));
   const messages = await hydrateMessages(ctx, channel, raw);
   const limit=Math.min(Math.max(Number(options.limit)||50,1),200);
@@ -1385,8 +1386,7 @@ export async function postAgentMessage(orgId: string, channelId: string, input: 
     metadata: { source: "agent", ...asObject(input.metadata) }
   }));
   if (parentId) (await collaboration.ensureThreadSubscriptionRecord(orgId, channelId, parentId, cleanText(input.author_id)));
-  const split = (await import("../platform/capabilities.js")).effectiveCapabilities;
-  const hiddenAgentNote = channel.type === "project" && message.metadata.project_note === true && (await split(orgId)).effectiveByKey["channels.separate_project_notes"] === true;
+  const hiddenAgentNote = channel.type === "project" && message.metadata.project_note === true;
   if (!hiddenAgentNote) (await collaboration.recordAttentionForMessage(channel, message));
   (await publishMessageEvent("channels.message.created", channel, message, null));
   if (hiddenAgentNote) {
@@ -1694,6 +1694,7 @@ export async function shareProjectNote(ctx: PlatformAuthContext, messageId: stri
   const {channel} = await requireChannelAccess(ctx, initial.channel_id, {post:true});
   if (channel.type !== "project" || initial.parent_id || initial.metadata.project_note !== true || initial.deleted_at || !messageVisibleTo(initial, ctx, viewerAudienceGroups(ctx)))
     throw notFound("message_not_found", "This note is not available.");
+  if (!channel.settings.photo_media_id) throw badRequest("project_notes_separate", "Project notes stay in Notes and cannot be shared to the project channel.");
   return getChannelsDatabase().transaction(async db => {
     // Serialize two simultaneous shares on the source row before checking its marker.
     await db.prepare("UPDATE messages SET metadata_json=metadata_json WHERE organization_id=? AND id=?").run(ctx.orgId, messageId);
@@ -1724,8 +1725,8 @@ export async function pinnedMessages(ctx: PlatformAuthContext, channelId: string
   const { channel } = await requireChannelAccess(ctx, channelId);
   const groups = viewerAudienceGroups(ctx);
   const pinned = (await listPinnedMessages(ctx.orgId, channelId)).filter((message) => messageVisibleTo(message, ctx, groups));
-  const separate = channel.type === "project" && await separateProjectNotes(ctx);
-  return hydrateMessages(ctx, channel, pinned.filter(message => view === "all" || !separate || (message.metadata.project_note === true) === (view === "notes")));
+  const separate = channel.type === "project" && !channel.settings.photo_media_id;
+  return hydrateMessages(ctx, channel, pinned.filter(message => separate ? (message.metadata.project_note === true) === (view === "notes") : view !== "notes" || message.metadata.project_note === true));
 }
 
 export async function savedMessages(ctx: PlatformAuthContext) {

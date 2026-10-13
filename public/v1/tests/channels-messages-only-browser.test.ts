@@ -354,7 +354,7 @@ test("separated project notes stay outside Messages occurrence bridge while ordi
  let entries=(await inbox()).entries;assert.ok(!entries.some((e:Json)=>e.title==='persisted-separated-note'),'old linked note occurrence obeys current project-note separation');
  const visible=entries.find((e:Json)=>e.title==='ordinary-project-activity');assert.ok(visible);assert.equal(visible.channel_type,'project');assert.equal(visible.project_id,project.id);assert.equal(visible.related_message_id,message.id);
  await saveCapabilityValues(orgId,{'channels.separate_project_notes':false});
- assert.ok((await inbox()).entries.some((e:Json)=>e.title==='persisted-separated-note'),'feature reversal preserves existing non-separated visibility');
+ assert.ok(!(await inbox()).entries.some((e:Json)=>e.title==='persisted-separated-note'),'legacy flag cannot mix Notes into Messages');
  await saveCapabilityValues(orgId,{'channels.separate_project_notes':true});
  await owner.request('POST',base+'/inbox/read',{entry_id:visible.entry_id,message_id:visible.message_id,kind:'activity'});assert.equal((await inbox()).entries.length,0,'acknowledges only the visible occurrence while separated note remains excluded');
 });

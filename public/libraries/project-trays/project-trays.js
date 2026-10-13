@@ -5,7 +5,7 @@
   if (root.FirstMateProjectTrays) return;
   const clean = value => String(value ?? '').trim();
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const activityScriptUrl=new URL('activity-presenter.js?v=20261012-activity-labels-v4',document.currentScript?.src || location.href).href;
+  const activityScriptUrl=new URL('activity-presenter.js?v=20261012-notes-separation-v1',document.currentScript?.src || location.href).href;
   let activityPromise;
   function activityPresenter(){
     if(root.FirstMateActivity)return Promise.resolve(root.FirstMateActivity);
@@ -18,7 +18,7 @@
   const registry = new Map([
     ['notes',{id:'notes',label:'Notes',icon:'fa-note-sticky',capability:'channels.project_notes'}],
     ['todo',{id:'todo',label:'To Do',icon:'fa-list-check'}],
-    ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_notes',enabled:()=>root.Portal?.can?.('channels.separate_project_notes') === true}],
+    ['messages',{id:'messages',label:'Messages',icon:'fa-comments',capability:'channels.project_notes'}],
     ['activity',{id:'activity',label:'Activity',icon:'fa-clock-rotate-left'}],
     ['agent',{id:'agent',label:'Agent',icon:'fa-wand-magic-sparkles',capability:'apps.assistant'}]
   ]);

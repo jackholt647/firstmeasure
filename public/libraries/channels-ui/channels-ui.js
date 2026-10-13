@@ -1851,7 +1851,7 @@
     }
 
     function applyIncomingMessage(topic, message, payload){
-      if (state.activeChannel?.separate_notes && message.metadata?.project_note === true) {
+      if (state.activeChannel?.type === "project" && message.metadata?.project_note === true) {
         projectNotesWorkspace?.refresh?.(); return;
       }
       const inThread = Boolean(message.parent_id);
