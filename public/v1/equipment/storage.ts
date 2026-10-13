@@ -49,7 +49,8 @@ export function getEquipmentDatabase() {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   void closeEquipmentDatabase();
-  database = openSqlStore({ id: "equipment", filename: nextPath, initialize: initializeSchema });
+  // Raise this whenever initializeSchema gains a table or a column: Postgres runs it again only for a higher version.
+  database = openSqlStore({ id: "equipment", schemaVersion: 2, filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
