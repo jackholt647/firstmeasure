@@ -372,25 +372,28 @@ test('the requirements tray says how the project stands when closed and what acc
  const cover=(name,mode,lines=[])=>({list_id:'labor',list_title:'Roof labor',assignee_name:name,mode,lines});
  const data={status:'open',counts:{open:1,warning:1,covered:2},reason:'',line_warnings:[{list_id:'labor',item_id:'g1',code:'duplicate',message:'Install roofing is also accounted for by Crew B.'}],requirements:[
   {id:'material:shingles',kind:'material',label:'Shingles',unit:'bundle',quantity:96,status:'covered',covered_by:[{list_id:'m',list_title:'Roof materials',assignee_name:'',mode:'paid',lines:[]}],warnings:[],can_cover:[]},
-  {id:'roofing.install',kind:'work',label:'Install roofing',unit:'roofing_square',quantity:32,status:'warning',covered_by:[cover('Summit','paid',[{id:'g1',name:'Tear off and install',quantity:32,unit:'sq',total_cents:304000,generated:true}])],warnings:[{code:'duplicate',message:'Accounted for twice: Crew B and Summit.'}],can_cover:[]},
+  {id:'roofing.install',kind:'work',label:'Install roofing',description:'Lay the new field roofing.',unit:'roofing_square',quantity:32,status:'warning',covered_by:[cover('Summit','paid',[{id:'g1',name:'Tear off and install',quantity:32,unit:'sq',total_cents:304000,generated:true}])],warnings:[{code:'duplicate',message:'Accounted for twice: Crew B and Summit.'}],can_cover:[]},
   {id:'roofing.cleanup',kind:'work',label:'Clean up',unit:'job',quantity:1,status:'covered',covered_by:[cover('Summit','included')],warnings:[],can_cover:[]},
   {id:'disposal.debris',kind:'function',label:'Debris disposal',unit:'yd3',quantity:12.8,under:'roofing.tear_off',status:'open',covered_by:[],warnings:[],can_cover:[{list_id:'labor',list_title:'Roof labor',assignee_name:'Summit'}]}]};
  const calls=[],stored={};
  const ctx={state:{lists,requirements:{key:'org:project',loading:false,error:'',data},expandedRequirementIds:new Set(),assigningListId:''},setTimeout,clearTimeout,JSON,
   rootWindow:{localStorage:{getItem:key=>stored[key]??null,setItem:(key,value)=>{stored[key]=value;}}},cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,escapeHtml,money:value=>'$'+Number(value).toLocaleString('en-US'),
   orgId:()=>'org',projectId:()=>'project',apiReady:()=>true,materialsAPI:null,window:{},workspaceIsEditing:()=>false,syncMaterialsGrid(){},materialRoot:()=>null,resourceType:list=>list.resource_type,listItems:list=>items[list?.id]||[],materialListById:id=>lists.find(list=>list.id===id),
-  assignmentWorkResourceRef:list=>list?.assigned?{id:list.assigned,name:'Summit'}:null,resourceTerms:()=>({plural:'Equipment'}),captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast(){},
+  assignmentWorkResourceRef:list=>list?.assigned?{id:list.assigned,name:'Summit'}:null,resourceCategories:()=>[{id:'material',icon:'fa-cubes',color:'#d93025'},{id:'labor',icon:'fa-helmet',color:'#2563eb'},{id:'equipment',icon:'fa-truck',color:'#067647'}],resourceTerms:()=>({plural:'Equipment'}),captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast(){},
   patchScopeResourceList:async(id,patch)=>{calls.push(['patch',id,patch.metadata.work_scope.excluded_items]);},generateLaborList:async id=>{calls.push(['generate',id]);},updateItem:async(id,patch,listId)=>{calls.push(['update',listId,id,patch.metadata.covers]);}};
- vm.createContext(ctx);vm.runInContext("const REQUIREMENT_STATUS = { open: ['fa-circle-exclamation', 'Not accounted for'], warning: ['fa-triangle-exclamation', 'Accounted for, with something to check'], covered: ['fa-circle-check', 'Accounted for'] };"+['requirementsOpen','requirementsKey','requirementSet','loadRequirements','refreshRequirements','lineWarnings','requirementAmount','renderRequirementRow','renderRequirementsTray','syncRequirementsTray','setWorkExcluded','markLineCover'].map(fn).join('\n'),ctx);
+ vm.createContext(ctx);vm.runInContext("const REQUIREMENT_STATUS = { open: ['fa-circle-exclamation', 'Not accounted for'], warning: ['fa-triangle-exclamation', 'Accounted for, with something to check'], covered: ['fa-circle-check', 'Accounted for'] };"+['requirementsOpen','requirementsKey','requirementSet','loadRequirements','refreshRequirements','lineWarnings','requirementAmount','requirementKind','renderRequirementRow','renderRequirementsTray','syncRequirementsTray','setWorkExcluded','markLineCover'].map(fn).join('\n'),ctx);
  // Closed by default: the bar alone carries the status, red for what is missing and yellow for what to check.
  let html=ctx.renderRequirementsTray();
  assert.match(html,/<aside class="mt-req-tray" data-mt-req-tray data-status="open"/);assert.match(html,/aria-expanded="false"/);
- assert.match(html,/mt-req-badge is-open" title="1 not accounted for"/);assert.match(html,/mt-req-badge is-warning" title="1 to check"/);assert.doesNotMatch(html,/mt-req-badge is-covered/);
+ assert.match(html,/mt-req-badge is-open" title="1 not accounted for">1<\/span>/,'the count sits inside the red circle');assert.match(html,/mt-req-badge is-warning" title="1 to check">1<\/span>/);assert.doesNotMatch(html,/mt-req-badge is-covered/);
  assert.doesNotMatch(html,/mt-column-total|>Total</,'requirements carry no money, so there is no total');
  // What needs attention is pinned first, missing before merely odd; the rest is grouped below it.
  assert.deepEqual([...html.matchAll(/data-mt-req-group="([^"]+)"/g)].map(match=>match[1]),['attention','material','work']);
  assert.deepEqual([...html.matchAll(/data-mt-req-row="([^"]+)"/g)].map(match=>match[1]),['disposal.debris','roofing.install','material:shingles','roofing.cleanup']);
- assert.match(html,/Debris disposal<\/span><em>12\.8 yd³<\/em>/);assert.match(html,/Install roofing<\/span><em>32 sq<\/em>/);assert.match(html,/Clean up<\/span><em><\/em>/);
+ assert.match(html,/Debris disposal<\/span><em>12\.8 yd³<\/em>/);
+ // Each requirement carries the icon of the list that meets it, and says on hover what kind of thing it is.
+ assert.match(html,/fa-helmet mt-req-kind" style="color:#2563eb"[^>]*><\/i><span>Install roofing/);assert.match(html,/fa-truck mt-req-kind[^>]*><\/i><span>Debris disposal/);assert.match(html,/fa-cubes mt-req-kind[^>]*><\/i><span>Shingles/);
+ assert.match(html,/title="Install roofing, 32 sq\nWork to be done, met by a work order\. Lay the new field roofing\./);assert.match(html,/Install roofing<\/span><em>32 sq<\/em>/);assert.match(html,/Clean up<\/span><em><\/em>/);
  // Green only when nothing is missing and nothing is odd.
  ctx.state.requirements.data={...data,status:'covered',counts:{open:0,warning:0,covered:4}};assert.match(ctx.renderRequirementsTray(),/mt-req-badge is-covered" title="Everything is accounted for"/);
  ctx.state.requirements.data={...data,status:'empty',counts:{open:0,warning:0,covered:0},requirements:[],reason:'Nothing on this project names a kind of work yet.'};assert.match(ctx.renderRequirementsTray(),/Nothing on this project names a kind of work yet\./);
@@ -398,11 +401,14 @@ test('the requirements tray says how the project stands when closed and what acc
  // Open, a requirement shows the lines that account for it and what can be done about it.
  ctx.state.requirementsOpen=true;ctx.state.expandedRequirementIds=new Set(['roofing.install','disposal.debris','roofing.cleanup']);html=ctx.renderRequirementsTray();
  assert.match(html,/class="mt-req-tray is-open"/);
- assert.match(html,/<strong>Summit<\/strong><small>Paid for it<\/small><ul><li><span title="Tear off and install">Tear off and install<\/span><em>32 sq · \$3,040<\/em><\/li><\/ul>/);
- assert.match(html,/Accounted for twice: Crew B and Summit\./);assert.match(html,/data-mt-req-exclude="roofing\.install" data-mt-list-id="labor"[^>]*>Take off Summit</);
- assert.match(html,/<small>Does it at no separate charge<\/small>/);
- assert.match(html,/data-mt-req-include="disposal\.debris" data-mt-list-id="labor"[^>]*>Give to Summit</);
- assert.match(html,/<select data-mt-req-mark="disposal\.debris"><option value="">Choose a line…<\/option><option value="equipment\|dumpster">20 yard dumpster · Equipment<\/option><\/select>/,'only a line a person added can be marked, never one the pay sheet wrote');
+ assert.match(html,/<div class="mt-req-cover-head" title="Summit: does this work, on these line items\."><strong>Summit<\/strong><button type="button" class="mt-req-remove" data-mt-req-exclude="roofing\.install" data-mt-list-id="labor"[^>]*>Remove<\/button><\/div><ul><li><span title="Tear off and install">Tear off and install<\/span><em>32 sq · \$3,040<\/em><\/li><\/ul>/);
+ assert.match(html,/Accounted for twice: Crew B and Summit\./);assert.doesNotMatch(html,/Take off|<small>/,'the name is said once and how it is covered is on hover');
+ assert.match(html,/title="Summit: does this work at no separate charge\."/);assert.doesNotMatch(html,/Paid for it|A line that takes care/);
+ assert.match(html,/data-mt-req-include="disposal\.debris" data-mt-list-id="labor"[^>]*><i class="fas fa-plus" aria-hidden="true"><\/i><span>Summit</);
+ assert.match(html,/<select data-mt-req-mark="disposal\.debris"[^>]*><option value="">Choose a line item<\/option><option value="equipment\|dumpster">20 yard dumpster · Equipment<\/option><\/select>/,'only a line item a person added can be chosen, never one the pay sheet wrote');
+ // Work is done by labor: an equipment line item is never offered for it.
+ ctx.state.requirements.data={...data,requirements:[{id:'roofing.ridge_cap',kind:'work',label:'Hip and ridge cap',unit:'ft',quantity:314,status:'open',covered_by:[],warnings:[],can_cover:[]}]};ctx.state.expandedRequirementIds=new Set(['roofing.ridge_cap']);items.labor.push({id:'hand',name:'Ridge cap install',metadata:{}});
+ const work=ctx.renderRequirementsTray();assert.match(work,/<option value="labor\|hand">Ridge cap install · Summit<\/option>/);assert.doesNotMatch(work,/equipment\|dumpster/);ctx.state.requirements.data=data;
  // Taking work off a work order records it on the list and builds the list again; marking a line records it on the line.
  await ctx.setWorkExcluded('labor','roofing.install',true);assert.equal(JSON.stringify(calls),JSON.stringify([['patch','labor',['roofing.cleanup','roofing.install']],['generate','labor']]));
  calls.length=0;await ctx.setWorkExcluded('labor','roofing.cleanup',false);assert.equal(JSON.stringify(calls[0]),JSON.stringify(['patch','labor',[]]));
