@@ -35,6 +35,10 @@ section is an audit of what exists today (2026-07-30).
 - **Compensation-driven visibility** already exists (`hasHourlyCompensation`,
   access.ts:1551 → forces `time_clock_enabled` off for non-hourly). Pure-commission reps
   never see the clock with zero new code.
+- *Superseded on 2026-10-13: the commission rules engine, its automations, the
+  scope-template commission editor and project payee roles described in the next
+  item were removed. Pay is now derived by pay rules; see
+  [pay rules](architecture/pay-rules.md).*
 - **Commissions are first-class payroll**: `payroll.commissions` capability
   (`capability_defs.ts:663`), rules engine (`public/v1/payroll/commission_rules.ts`),
   automations `payroll.commission.rule.v1` / `payroll.commission.post.v1`, clawbacks with

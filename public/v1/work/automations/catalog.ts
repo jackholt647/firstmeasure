@@ -150,28 +150,15 @@ export const ACTION_CATALOG: Record<string, ActionCatalogEntry> = {
   "payments.reconcileRecognition.v1": { title: "Recognize milestone payments", category: "payments", internal: true, input_schema: schema() },
   "documents.dispatchOnSigned.v1": { title: "Run a signed document's behaviors", category: "documents", internal: true, input_schema: schema() },
 
-  "payroll.commission.post.v1": { title: "Post a commission", category: "payroll", input_schema: schema({
-    payee_role: { type: "string", title: "Recipient role", description: "Commission role key on the project." },
-    payees: { type: "array", items: {}, title: "Recipients", description: "Explicit payees; overrides the role.", "x-control": "json" },
-    amount: json("Amount", "Amount definition, for example {cents: 25000} or a calculation."),
-    allocation: choice("Allocation", "Split one pool or pay each recipient in full.", ["split_evenly", "each"], "split_evenly"),
-    entry_state: choice("State", "Projected or accrued immediately.", ["projected", "accrued"], "projected")
-  }, ["amount"]) },
-  "payroll.projectPayees.set.v1": { title: "Set commission recipients", category: "payroll", input_schema: schema({
-    role_key: { type: "string", title: "Role key", description: "Commission role key." },
-    label: template("Label", "Role name shown on the project."),
-    payees: { type: "array", items: {}, title: "Recipients", description: "The people or groups paid under this role.", "x-control": "json" }
-  }, ["role_key"]) },
-  "payroll.commission.rule.v1": { title: "Apply a commission rule", category: "payroll", internal: true, input_schema: schema({ rule: json("Rule", "Compiled from the scope's commission settings.") }, ["rule"]) },
-  "payroll.commission.accrue.v1": { title: "Accrue a commission installment", category: "payroll", internal: true, input_schema: schema({
-    rule_id: { type: "string", title: "Rule" }, installment_id: { type: "string", title: "Installment" }
-  }, ["rule_id"]) },
-  "payroll.reconcileScopeCommissions.v1": { title: "Set up commissions", category: "setup", internal: true, input_schema: schema() },
+  "payroll.refreshEarnings.v1": { title: "Refresh earnings from pay rules", category: "payroll", input_schema: schema({
+    payee_type: choice("Payee type", "Refresh one payee. Leave out to refresh everyone with a pay setup.", ["organization_user", "resource_group", "organization_connection"]),
+    payee_id: { type: "string", title: "Payee", description: "That payee's id." }
+  }) },
 
   "customFields.initializeFromScope.v1": { title: "Add the scope's project fields", category: "setup", internal: true, input_schema: schema() },
   "materials.initializeFromScope.v1": { title: "Generate the scope's resource lists", category: "setup", internal: true, input_schema: schema() },
   "checklists.initializeFromScope.v1": { title: "Create the scope's checklists", category: "setup", internal: true, input_schema: schema() },
-  "scopes.reconcileProjectResources.v1": { title: "Reconcile resources and commissions", category: "setup", internal: true, input_schema: schema() },
+  "scopes.reconcileProjectResources.v1": { title: "Reconcile resources", category: "setup", internal: true, input_schema: schema() },
 
   "scope.code.run.v1": { title: "Run custom code", category: "code", input_schema: {
     type: "object", additionalProperties: false, required: ["id", "source", "inputSchema", "outputSchema"],

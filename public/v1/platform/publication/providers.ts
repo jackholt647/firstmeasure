@@ -3,11 +3,16 @@ import { authorizePublication } from "./context.js";
 import { badRequest, PlatformError } from "../errors.js";
 import { contentHash, jsonClone, readPointer, validateJson } from "./validation.js";
 import { publishedDataPermission } from "./permission-bundles.js";
+/** For trusted publication-layer consumers in this directory; callers authorize the reference themselves. */
+export function resolveDataExport(ref: SourceRef) { return resolve(ref); }
 
 export type ProviderValue = { value: unknown; revision?: string; provenance?: Record<string, unknown> } | Exclude<DataResult, {status:"ready"}>;
 export type DataExport = {
   schema: JsonSchema; schemaVersion: string; argsSchema?: JsonSchema; access: AccessPolicy;
   listItemSchema?: JsonSchema;
+  /** Optional indexed pushdown of a declared selection (see select.ts). It must return exactly
+   * the rows the host's own filter would; the host does not filter its result again. */
+  select?: (ctx: PublicationContext, ref: SourceRef, selection: import("./select.js").Selection) => Promise<{items:Record<string,unknown>[];revision?:string}>;
   authorizeRef?: (ctx:PublicationContext,ref:SourceRef)=>Promise<void>|void;
   authorizeSnapshot?: (ctx:PublicationContext,ref:SourceRef,result:Extract<DataResult,{status:"ready"}>)=>Promise<void>|void;
   description: string; units?: Record<string,string>; historical?: boolean;

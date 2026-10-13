@@ -8,6 +8,7 @@ import { asObject, cleanText, listPayrollPolicies, listPayrollBatches, type Json
 import { upcomingPayroll, createPayrollBatch, patchPayrollBatchItem, applyPayrollBatchAction } from './service.js';
 import { syncContractorPayrollPayables, syncPaidContractorPayrollDisbursements } from './contractor_disbursements.js';
 import { syncPaidPayrollReimbursements } from '../payments/reimbursements.js';
+import { refreshOrganizationEarnings } from './pay-refresh.js';
 
 export async function payrollDashboard(orgId:string,options:JsonObject={}){
   return {...await upcomingPayroll(orgId,options),policies:await listPayrollPolicies(orgId),history:await listPayrollBatches(orgId,{...options,limit:Number(options.history_limit||100)})};
@@ -23,9 +24,11 @@ export async function payrollDirectory(orgId:string){
   return {...contractors,roles:roles.map(r=>({id:String(r.id),name:String(r.name),status:String(r.status),application_ids:JSON.parse(String(r.application_ids_json||'[]'))})),resource_groups:await listAssignmentGroups(orgId,true)};
 }
 export async function createPayrollRun(ctx:PlatformAuthContext,input:JsonObject){
+  // A pay run pays what the rules say as of now, so work that out first. A rule that cannot be evaluated is reported, not a reason to block the run.
+  const earnings_refresh=await refreshOrganizationEarnings(ctx.orgId).then(r=>({posted_count:r.posted_count,posted_cents:r.posted_cents,held_count:r.held_count,unresolved_count:r.unresolved_count,unresolved:r.payees.flatMap(p=>p.unresolved.map(u=>({payee:p.payee,...u}))).slice(0,50)})).catch(error=>({posted_count:0,posted_cents:0,held_count:0,unresolved_count:1,unresolved:[{rule_id:'',reason:String((error as Error)?.message||'Earnings could not be refreshed.')}]}));
   const batch=await createPayrollBatch(ctx.orgId,input,ctx.userId);
   const contractor_payables=await syncContractorPayrollPayables(ctx.orgId,batch,ctx);
-  return {batch,contractor_payables};
+  return {batch,contractor_payables,earnings_refresh};
 }
 async function syncPayments(ctx:PlatformAuthContext,batch:JsonObject){
   await syncPaidPayrollReimbursements(ctx.orgId,batch,ctx);

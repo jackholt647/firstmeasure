@@ -91,12 +91,12 @@ test("immutable definitions and pinned implementation reject drift; wrong output
   actions.registerAction(definition(invalid,()=>"wrong"));
   await assert.rejects(actions.invokeAction(context(invalid),ref(invalid),{amount:1},{idempotencyKey:"x"}),{code:"publication_schema_invalid"});
 });
-test("all 29 legacy work actions are published but cannot be invoked with a fabricated work context",async () => {
+test("all 25 legacy work actions are published but cannot be invoked with a fabricated work context",async () => {
   (await import("../work/automations/builtins.js")).registerBuiltinWorkAutomations();
   (await import("../payroll/automations.js")).registerPayrollAutomations();
   const registry=await import("../work/registry.js");
   const {legacyWorkActionIds}=await import("../platform/publication/work-actions.js");
-  assert.equal(legacyWorkActionIds.length,29);
+  assert.equal(legacyWorkActionIds.length,25);
   for(const id of legacyWorkActionIds) assert.ok(registry.hasWorkAutomation(id));
   for(const id of registry.listWorkAutomations()) assert.ok(actions.describeAction(id,"1"));
   const ctx=contexts.systemPublicationContext({kind:"work",organizationId:target.organizationId,operations:["project.patch.v1"],mode:"command"});

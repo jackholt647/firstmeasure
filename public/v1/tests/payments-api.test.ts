@@ -694,33 +694,6 @@ test("public customer portal e-sign workflow signs proposal and records mock dep
   assert.equal(publicView.snapshot.status, "signed");
   assert.equal(publicView.workflow.payment.deposit_due_cents, 220_000);
 
-  const commissionPayees = await client.request("GET", `/v1/payroll/organizations/${orgId}/projects/${projectId}/payees`);
-  const estimatorRole = commissionPayees.payee_roles.find((role: any) => role.role_key === "estimator");
-  const insideSalesRole = commissionPayees.payee_roles.find((role: any) => role.role_key === "inside_salesperson");
-  assert.equal(estimatorRole.payees[0].id, userId, "proposal creator should be the estimator when no sales appointment exists");
-  assert.deepEqual(insideSalesRole.payees, [], "inside salesperson requires an appointment scheduler");
-  const projectedCommissions = await client.request("GET", `/v1/payroll/organizations/${orgId}/ledger?project_id=${projectId}&kind=commission`);
-  const estimatorCommissions = projectedCommissions.entries.filter((entry: any) => entry.metadata.commission_rule_id === "roof_estimator_standard");
-  assert.equal(estimatorCommissions.length, 2);
-  assert.ok(estimatorCommissions.every((entry: any) => entry.state === "projected"));
-  assert.ok(estimatorCommissions.every((entry: any) => entry.amount_cents === 44_000));
-  const clearedEstimator = await client.request("PUT", `/v1/payroll/organizations/${orgId}/projects/${projectId}/payees/estimator`, {
-    label: estimatorRole.label,
-    payees: [],
-    metadata: estimatorRole.metadata,
-    expected_revision: estimatorRole.revision
-  });
-  const payeesAfterClear = await client.request("GET", `/v1/payroll/organizations/${orgId}/projects/${projectId}/payees`);
-  const emptyEstimatorRole = payeesAfterClear.payee_roles.find((role: any) => role.role_key === "estimator");
-  assert.deepEqual(emptyEstimatorRole.payees, [], "an explicitly cleared automatic role should remain empty after reconciliation");
-  assert.equal(emptyEstimatorRole.metadata.payees_explicitly_set, true);
-  const restoredEstimator = await client.request("PUT", `/v1/payroll/organizations/${orgId}/projects/${projectId}/payees/estimator`, {
-    label: estimatorRole.label,
-    payees: estimatorRole.payees,
-    metadata: emptyEstimatorRole.metadata,
-    expected_revision: clearedEstimator.payee_role.revision
-  });
-  assert.equal(restoredEstimator.payee_role.payees[0].id, userId);
   const preDepositMoney = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/money-summary`)).summary;
   assert.equal(preDepositMoney.accrued_commissions_cents, 0);
   assert.equal(preDepositMoney.expense_summary.groups.some((group: any) => group.targets?.some((target: any) => target.resource_type === "commission")), false);
@@ -730,12 +703,6 @@ test("public customer portal e-sign workflow signs proposal and records mock dep
   assert.equal(paid.payment.status, "settled");
   assert.equal(paid.payment.amount_cents, 220_000);
   assert.equal(paid.snapshot.customer_payment.status, "deposit_paid");
-
-  const recognizedCommissions = await client.request("GET", `/v1/payroll/organizations/${orgId}/ledger?project_id=${projectId}&kind=commission`);
-  const depositCommission = recognizedCommissions.entries.find((entry: any) => entry.metadata.commission_installment_id === "deposit");
-  const completionCommission = recognizedCommissions.entries.find((entry: any) => entry.metadata.commission_installment_id === "completion");
-  assert.equal(depositCommission.state, "accrued");
-  assert.equal(completionCommission.state, "projected");
 
   const soldProject = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   const soldProjection = soldProject.document.data.work_projection;
@@ -747,15 +714,6 @@ test("public customer portal e-sign workflow signs proposal and records mock dep
   const summary = (await client.request("GET", `/v1/payments/organizations/${orgId}/projects/${projectId}/money-summary`)).summary;
   assert.equal(summary.total_collected_cents, 220_000);
   assert.ok(summary.obligations.some((item: any) => item.label === "Deposit" && item.status === "paid"));
-  assert.equal(summary.accrued_commissions_cents, 44_000);
-  assert.equal(summary.expense_summary.by_resource.commission.actual_cents, 44_000);
-  assert.equal(summary.expense_summary.by_resource.commission.current_cents, 44_000);
-  const commissionExpense = summary.expense_summary.groups.find((group: any) => group.targets?.some((target: any) => target.resource_type === "commission"));
-  assert.equal(commissionExpense.title, "Commissions Accrued");
-  assert.equal(commissionExpense.actual_cents, 44_000);
-  assert.equal(commissionExpense.projected_cents, 0);
-  assert.ok(summary.expenses_to_date_cents >= 44_000);
-
   const portal = await client.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/customer-portal`, {
     contact_id: "contact_portal_pay"
   });

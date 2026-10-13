@@ -1,9 +1,15 @@
 # Payroll API v1
 
-The payroll domain is the durable source of truth for pay-cycle configuration,
-earned and projected compensation, commissions, clawbacks, payroll batches, and
-per-payee payment history. It deliberately remains separate from project
-payment collection and from compensation-rate configuration.
+The payroll domain is the durable source of truth for how people are paid (pay
+rules, pay plans and each payee's pay setup), what they have earned, pay-cycle
+configuration, clawbacks, pay runs, and per-payee payment history. It remains
+separate from project payment collection.
+
+Earnings are derived: pay rules read published data and a refresh posts only
+the difference to the ledger. Read
+[pay rules](../../../docs/architecture/pay-rules.md) before changing how anyone
+is paid. There are no commission rules on scope templates and no project payee
+roles.
 
 ## Model
 
@@ -14,11 +20,12 @@ payment collection and from compensation-rate configuration.
   classification, access role, resource group, user, or organization
   connection. Policies may target all earning kinds or one component. Direct
   payee policies take precedence; ambiguous same-level policies are rejected.
-- A **project payee role** is a named array of typed payees such as `estimators`
-  or `booked_by`. Scope-template automations can address these roles.
+- A **payee** is any assignee: a user, a group of users paid as one, or an
+  outside company. Who is paid for a role on a project is an assignee custom
+  field on the project.
 - The **ledger** stores signed projected or accrued entries. Accrued entries are
-  immutable. Corrections and commission cancellations append negative
-  adjustment/clawback entries.
+  immutable. Corrections append new entries; a reduction is a negative
+  adjustment or clawback.
 - A **batch** snapshots accrued entries eligible for one schedule occurrence.
   Each payee can be marked run or paid independently. Batch history is durable.
 
@@ -60,10 +67,6 @@ Projects and earnings:
 - `GET /v1/payroll/organizations/:orgId/earnings/me`
 - `GET /v1/payroll/organizations/:orgId/earnings/payees/:payeeType/:payeeId`
 - `GET /v1/payroll/organizations/:orgId/earnings?payee=organization_user:user_1&payee=organization_user:user_2`
-- `GET /v1/payroll/organizations/:orgId/projects/:projectId/payees`
-- `PUT /v1/payroll/organizations/:orgId/projects/:projectId/payees/:roleKey`
-- `POST /v1/payroll/organizations/:orgId/projects/:projectId/commission-events`
-- `POST /v1/payroll/organizations/:orgId/projects/:projectId/commission-overrides`
 - `GET|POST /v1/payroll/organizations/:orgId/ledger`
 - `POST /v1/payroll/organizations/:orgId/projections`
 - `POST /v1/payroll/organizations/:orgId/projections/:entryId/accrue`
@@ -101,76 +104,13 @@ PayrollAPI.earnings.forPayee(orgId, payeeType, payeeId, options);
 PayrollAPI.earnings.list(orgId, [{ type: 'organization_user', id: userId }], options);
 ```
 
-## Scope-template commission rules
-
-Commission formulas belong to the versioned scope-template definition. A rule
-chooses a project payee role, an allocation method, a Work lifecycle trigger,
-and either a preset calculation or trusted custom code. The preset library
-supports percentages, percentages after discounts, discount-rate tiers, fixed
-amounts, and selected or excluded line items.
-
-Custom code is an advanced internal implementation path, not the default
-customer authoring model. A saved rule is evaluated with JSON-only project,
-scope, signed-proposal, Money-summary, Work-event, plan, and node context plus
-normalized `context.facts`. Facts include proposal totals, discounts, collected
-revenue, forecast profit, and normalized line items. The function must return
-an integer `amount_cents`, an award object, an array of award objects, or
-`{ awards: [...] }`. Execution is synchronous, time-limited, and cannot use
-dynamic code generation; it must not perform I/O or mutate application state.
-
-Scope versions compile these rules to the trusted
-`payroll.commission.rule.v1` Work automation. The older lower-level automation
-contract remains available for compatible definitions:
-
-Scope-level commission roles use stable internal keys and editable labels.
-Roles may be assigned manually or populated from the sales appointment's
-assigned user or scheduling user. A rule may also define installments whose
-shares total 100%. The full calculated commission is posted as projected when
-the scope starts; each installment is accrued only when its configured Work
-node reaches the configured lifecycle hook.
-
-The standard Roof Replacement preset defines:
-
-- `estimator`: 10% of total proposal revenue, projected as two equal payments;
-  the first accrues when the deposit is received and the second when production
-  is completed.
-- `inside_salesperson`: a projected $100 booking commission that accrues when
-  the deposit is received.
-
-These triggers are independent of the amounts or percentages of the
-customer's deposit, progress, and final-payment obligations.
-
-```json
-{
-  "id": "signed-estimator-commission",
-  "automation": "payroll.commission.post.v1",
-  "input": {
-    "entry_state": "accrued",
-    "payee_role": "estimators",
-    "amount": {
-      "kind": "percentage_pool",
-      "rate_bps": 1000,
-      "basis_path": "proposal.pricing.total_cents"
-    },
-    "allocation": "split_evenly",
-    "reason": "Proposal signed"
-  }
-}
-```
-
-Fixed pay for each member of a role uses `amount.kind: fixed`,
-`amount.amount_cents`, and `allocation: each`. The companion
-`payroll.projectPayees.set.v1` automation can populate a project role from a
-trusted workflow. Cancellation rules post `state: cancelled` and may specify
-`reverses_source_event_id` or `reverses_trigger_id`; otherwise matching project
-commission entries for that trigger are reversed.
-
 ## Audit and idempotency invariants
 
-- Commission identity includes work event, binding/trigger, and payee, so two
-  rules on the same event can pay the same person independently.
+- A ledger entry's identity is its source event, trigger and payee. An earning
+  from a pay rule uses `pay_rule:<rule>:<record or period>:<line>` as its source,
+  so a rule's entries for one earning can always be summed and compared.
 - Projected entries may transition to accrued. Accrued entries cannot be edited.
 - Draft/run batches reserve their ledger allocations. Voiding an unpaid batch
   releases them; paid items require later correcting entries.
-- Schedule, policy, and project-payee configuration use revisions to prevent
-  lost updates.
+- Schedules, policies, pay rules, pay plans and pay setups use revisions to
+  prevent lost updates.

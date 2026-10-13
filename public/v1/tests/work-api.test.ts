@@ -111,10 +111,6 @@ test("scope presets are versioned and exposed by the Scope API", async () => {
   assert.equal(roof.definition.work_plan.metadata.board_color, "#dc2626");
   assert.equal(roof.definition.work_plan.metadata.canceled_column.title, "Cancelled");
   assert.equal(roof.definition.work_plan.root_nodes[0].automation_bindings.onStarted[0].automation, "notification.create.v1");
-  assert.deepEqual(roof.definition.commissions.roles.map((role: any) => [role.key, role.assignment_source, role.custom_field_path]), [
-    ["estimator", "project_custom_field", "assignments.estimator"],
-    ["inside_salesperson", "project_custom_field", "assignments.inside_salesperson"]
-  ]);
   assert.deepEqual(
     roof.definition.custom_fields.fields.map((field: any) => field.path),
     [
@@ -133,15 +129,6 @@ test("scope presets are versioned and exposed by the Scope API", async () => {
   assert.equal(sales.definition.custom_fields.fields[0].default_from.event_type_id, "sales_appointment");
   assert.equal(sales.definition.custom_fields.fields[1].default_from.source, "event_scheduler");
   assert.equal(sales.definition.communications.email_forwarding.target.custom_field_path, "assignments.estimator");
-  const estimatorCommission = roof.definition.commissions.rules.find((rule: any) => rule.payee_role === "estimator");
-  const insideSalesCommission = roof.definition.commissions.rules.find((rule: any) => rule.payee_role === "inside_salesperson");
-  assert.equal(estimatorCommission.calculation.rate_bps, 1000);
-  assert.deepEqual(estimatorCommission.installments.map((installment: any) => [installment.id, installment.share_bps, installment.recognition.node_id]), [
-    ["deposit", 5000, "deposit_paid"],
-    ["completion", 5000, "finish_project"]
-  ]);
-  assert.equal(insideSalesCommission.calculation.fixed_amount_cents, 10000);
-  assert.equal(insideSalesCommission.installments[0].recognition.node_id, "deposit_paid");
   const newlySold = roof.definition.work_plan.root_nodes[0].children.find((item: any) => item.id === "newly_sold_stage");
   const welcomeCall = newlySold.children.find((item: any) => item.id === "welcome_call");
   assert.equal(welcomeCall.automation_bindings.onReady[0].automation, "crm.callLists.add.v1");

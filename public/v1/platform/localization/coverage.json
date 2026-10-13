@@ -375,13 +375,6 @@
       "edits": 6
     },
     {
-      "file": "public/libraries/apps/payroll/project.js",
-      "namespace": "payroll",
-      "references": 41,
-      "candidates": 0,
-      "edits": 0
-    },
-    {
       "file": "public/libraries/apps/photos/feed.js",
       "namespace": "photos",
       "references": 107,

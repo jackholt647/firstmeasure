@@ -6,8 +6,7 @@ import { badRequest, PlatformError } from "../platform/errors.js";
 import { hydratedWorkforceUser } from "../workforce/service.js";
 import { registerPayrollAutomations } from "./automations.js";
 import {
-  commissionTriggerSchema,
-  commissionOverrideSchema,
+  payrollPayeeType,
   payrollBatchActionSchema,
   payrollBatchCreateSchema,
   payrollBatchItemPatchSchema,
@@ -20,7 +19,6 @@ import {
   payrollPolicySubjectSchema,
   payrollScheduleInputSchema,
   payrollSchedulePatchSchema,
-  projectPayeeSetSchema
 } from "./schemas.js";
 import { generatePayrollArtifact, PAYROLL_EXPORT_CATALOG } from "./exports.js";
 import { createPayrollRun, updatePayrollRunItem, actOnPayrollRun, payrollDashboard } from "./operations.js";
@@ -36,11 +34,8 @@ import {
   applyPayrollBatchAction,
   createPayrollBatch,
   patchPayrollBatchItem,
-  overrideProjectCommission,
-  reconcileProjectedCommissionPayees,
   recordPayrollLedgerEntries,
   reversePayrollLedgerEntry,
-  triggerCommissionEvent,
   upcomingPayroll
 } from "./service.js";
 import {
@@ -54,7 +49,6 @@ import {
   listPayrollLedgerEntries,
   listPayrollPolicies,
   listPayrollSchedules,
-  listProjectPayees,
   patchPayrollSchedule,
   readPayrollBatch,
   readPayrollArtifact,
@@ -62,7 +56,6 @@ import {
   readPayrollSchedule,
   resolvePayrollPolicy,
   savePayrollPolicy,
-  saveProjectPayeeRole
 } from "./storage.js";
 
 const querySchema = z.object({}).passthrough();
@@ -109,12 +102,6 @@ function expectedRevision(request: FastifyRequest) {
   return revision;
 }
 
-async function reconcileProjectCommissions(orgId: string, projectId: string) {
-  if (!projectId) return null;
-  const { reconcileProjectScopeCommissions } = await import("../scopes/service.js");
-  return await reconcileProjectScopeCommissions(orgId, projectId).catch(() => null);
-}
-
 export const registerPayrollApi: FastifyPluginAsync = async (app) => {
   registerPayrollAutomations();
 
@@ -136,7 +123,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     ok: true,
     api: "payroll",
     version: 1,
-    capabilities: ["schedule_groups", "policy_inheritance", "worked_or_completed_recognition", "delays", "projections", "commissions", "clawbacks", "batches", "individual_payment_status", "named_approvals", "off_cycle_runs", "contractor_payables", "csv_exports", "report_documents"]
+    capabilities: ["schedule_groups", "policy_inheritance", "worked_or_completed_recognition", "delays", "projections", "pay_rules", "clawbacks", "batches", "individual_payment_status", "named_approvals", "off_cycle_runs", "contractor_payables", "csv_exports", "report_documents"]
   }));
 
   app.get("/organizations/:orgId/dashboard", async (request) => {
@@ -267,7 +254,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePayrollRead(request, orgId);
     const query = queryObject(request);
-    const payeeType = getParam(request.params, "payeeType") === "organization_connection" ? "organization_connection" : "organization_user";
+    const payeeType = payrollPayeeType(getParam(request.params, "payeeType"));
     const policy = (await resolvePayrollPolicy(orgId, {
       type: payeeType,
       id: getParam(request.params, "payeeId"),
@@ -296,50 +283,10 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     return { ok: true, ...result };
   });
 
-  app.get("/organizations/:orgId/projects/:projectId/payees", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollRead(request, orgId);
-    const projectId = getParam(request.params, "projectId");
-    await reconcileProjectCommissions(orgId, projectId);
-    return { ok: true, payee_roles: (await listProjectPayees(orgId, projectId)) };
-  });
-
-  app.put("/organizations/:orgId/projects/:projectId/payees/:roleKey", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollMutation(request, orgId);
-      const projectId = getParam(request.params, "projectId");
-      const roleKey = getParam(request.params, "roleKey");
-      const input = projectPayeeSetSchema.parse(request.body ?? {});
-      const role = (await saveProjectPayeeRole(orgId, projectId, roleKey, {
-        ...input,
-        metadata: { ...asObject(input.metadata), payees_explicitly_set: true }
-      }));
-      (await reconcileProjectedCommissionPayees(orgId, projectId, roleKey));
-      await reconcileProjectCommissions(orgId, projectId);
-    return { ok: true, payee_role: (await listProjectPayees(orgId, projectId)).find((entry) => cleanText(entry.role_key) === roleKey) || role };
-  });
-
-  app.post("/organizations/:orgId/projects/:projectId/commission-events", async (request, reply) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollMutation(request, orgId);
-    const result = (await triggerCommissionEvent(orgId, getParam(request.params, "projectId"), commissionTriggerSchema.parse(request.body ?? {})));
-    reply.code(201);
-    return { ok: true, ...result };
-  });
-
-  app.post("/organizations/:orgId/projects/:projectId/commission-overrides", async (request, reply) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollMutation(request, orgId);
-    const result = (await overrideProjectCommission(orgId, getParam(request.params, "projectId"), commissionOverrideSchema.parse(request.body ?? {})));
-    reply.code(201);
-    return { ok: true, ...result };
-  });
-
   app.get("/organizations/:orgId/ledger", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePayrollRead(request, orgId);
     const query = queryObject(request);
-    await reconcileProjectCommissions(orgId, cleanText(query.project_id));
     return { ok: true, entries: (await listPayrollLedgerEntries(orgId, query)) };
   });
 

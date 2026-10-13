@@ -1,15 +1,12 @@
 import { badRequest, conflict } from "../platform/errors.js";
 import { readDocument, listDocuments } from "../platform/storage.js";
-import { resolveHourlyCompensation } from "../workforce/access.js";
 import {
   listCrewTimeShifts,
   patchCrewTimeShift,
   readCrewTimeShift,
   setCrewTimeShiftApproval
 } from "../workforce/crew_storage.js";
-import { hydratedWorkforceUser, listWorkforceUsers } from "../workforce/service.js";
-import { recordPayrollLedgerEntries, reversePayrollLedgerEntry } from "./service.js";
-import { asObject, cleanText, readPayrollLedgerEntry, type JsonObject } from "./storage.js";
+import { asObject, cleanText, type JsonObject } from "./storage.js";
 
 function finite(value: unknown) {
   const number = Number(value);
@@ -124,19 +121,6 @@ export async function listPayrollTimesheets(orgId: string, options: JsonObject =
   };
 }
 
-async function reverseTimesheetPayroll(orgId: string, shift: JsonObject, actorUserId: string, reason: string) {
-  const entryId = cleanText(shift.payroll_entry_id);
-  if (!entryId) return null;
-  const entry = (await readPayrollLedgerEntry(orgId, entryId));
-  if (Number(entry.amount_cents || 0) <= 0) return null;
-  return (await reversePayrollLedgerEntry(orgId, entryId, {
-    source_event_id: `crew.time_shift:${cleanText(shift.id)}:reversal:r${Number(shift.revision || 0)}`,
-    occurred_at: new Date().toISOString(),
-    description: `Timesheet ${reason}: ${cleanText(asObject(entry.payee).name || shift.user_id)}`,
-    metadata: { source: "crew_timesheet", shift_id: cleanText(shift.id), actor_user_id: actorUserId, reason }
-  }));
-}
-
 function assertExpectedRevision(shift: JsonObject, input: JsonObject) {
   const expected = Number(input.expected_revision || 0);
   if (expected && expected !== Number(shift.revision || 0)) {
@@ -157,83 +141,38 @@ function validateCorrection(shift: JsonObject, input: JsonObject) {
   }
 }
 
+/**
+ * Timesheets no longer post pay themselves. Approving, correcting or rejecting
+ * a shift changes the published time clock, and each payee's pay rules work
+ * out what the hours are worth at the next earnings refresh. A change to a
+ * shift that was already paid comes out there as a correction.
+ */
 export async function correctPayrollTimesheet(orgId: string, shiftId: string, input: JsonObject, actorUserId: string) {
   const current = (await readCrewTimeShift(orgId, shiftId));
   assertExpectedRevision(current, input);
   validateCorrection(current, input);
-  if (cleanText(current.approval_status) === "approved" && cleanText(current.payroll_entry_id)) {
-    await reverseTimesheetPayroll(orgId, current, actorUserId, "corrected");
-  }
-  return await Promise.resolve((await patchCrewTimeShift(orgId, shiftId, input, actorUserId)));
+  return (await patchCrewTimeShift(orgId, shiftId, input, actorUserId));
 }
 
 export async function approvePayrollTimesheet(orgId: string, shiftId: string, input: JsonObject, actorUserId: string) {
   const current = (await readCrewTimeShift(orgId, shiftId));
   if (cleanText(current.status) !== "closed") throw conflict("timesheet_shift_open", "Clock the worker out before approving this timesheet.");
-  if (cleanText(current.approval_status) === "approved" && cleanText(current.payroll_entry_id)) return current;
+  if (cleanText(current.approval_status) === "approved") return current;
   assertExpectedRevision(current, input);
-  const compensation = (await resolveHourlyCompensation(orgId, cleanText(current.user_id)));
-  if (!compensation) throw badRequest("timesheet_hourly_rate_missing", "This worker does not have a positive hourly compensation rate.");
-  const user = await hydratedWorkforceUser(orgId, cleanText(current.user_id));
-  const workerClassification = cleanText(user.worker_classification) === "independent_contractor" ? "independent_contractor" : "employee";
-  const projectId = cleanText(input.project_id || current.project_id);
-  let project: JsonObject | null = null;
-  if (projectId) project = await readDocument(orgId, "projects", projectId).catch(() => null);
-  const rateCents = Math.round(Number(compensation.rate_cents || 0));
-  const workedSeconds = Math.max(0, Math.round(Number(current.worked_seconds || 0)));
-  const amountCents = Math.round(rateCents * workedSeconds / 3600);
-  if (amountCents <= 0) throw badRequest("timesheet_amount_zero", "This shift does not contain payable worked time.");
-  const fresh = (await readCrewTimeShift(orgId, shiftId));
-  if (Number(fresh.revision || 0) !== Number(current.revision || 0)) {
-    throw conflict("time_shift_revision_conflict", "The timesheet changed elsewhere. Reload and try again.", { current_revision: fresh.revision });
-  }
-  const sourceTriggerId = `approved:r${Number(current.revision || 0)}`;
-  const [entry] = (await recordPayrollLedgerEntries(orgId, [{
-    payee: { type: "organization_user", id: cleanText(current.user_id), name: cleanText(user.name || user.email || current.user_id), worker_type: workerClassification },
-    kind: "hourly",
-    subgroup: "hourly",
-    state: "accrued",
-    amount_cents: amountCents,
-    currency: cleanText(compensation.currency || "USD"),
-    project_id: projectId,
-    project_title: projectTitle(project),
-    worked_at: cleanText(current.clocked_out_at),
-    completed_at: cleanText(current.clocked_out_at),
-    source_event_id: `crew.time_shift:${cleanText(current.id)}`,
-    source_trigger_id: sourceTriggerId,
-    description: `${(workedSeconds / 3600).toFixed(2)} hours at ${(rateCents / 100).toFixed(2)}/hr`,
-    metadata: {
-      source: "crew_timesheet",
-      shift_id: cleanText(current.id),
-      shift_revision: Number(current.revision || 0),
-      worked_seconds: workedSeconds,
-      break_seconds: Number(current.break_seconds || 0),
-      hourly_rate_cents: rateCents,
-      compensation_profile_id: cleanText(compensation.profile_id),
-      compensation_profile_revision: Number(compensation.profile_revision || 0),
-      compensation_source: cleanText(compensation.source),
-      approved_by_user_id: actorUserId
-    }
-  }]));
-  if (!entry) throw badRequest("timesheet_payroll_entry_missing", "Payroll did not create an hourly ledger entry for this shift.");
+  if (Math.round(Number(current.worked_seconds || 0)) <= 0) throw badRequest("timesheet_amount_zero", "This shift does not contain payable worked time.");
   return (await setCrewTimeShiftApproval(orgId, shiftId, {
     status: "approved",
     expected_revision: Number(input.expected_revision || current.revision || 0),
-    manager_note: cleanText(input.manager_note),
-    payroll_entry_id: cleanText(entry.id)
+    manager_note: cleanText(input.manager_note)
   }, actorUserId));
 }
 
 export async function rejectPayrollTimesheet(orgId: string, shiftId: string, input: JsonObject, actorUserId: string) {
   const current = (await readCrewTimeShift(orgId, shiftId));
   assertExpectedRevision(current, input);
-  if (cleanText(current.approval_status) === "approved" && cleanText(current.payroll_entry_id)) {
-    await reverseTimesheetPayroll(orgId, current, actorUserId, "rejected");
-  }
   return (await setCrewTimeShiftApproval(orgId, shiftId, {
     status: "rejected",
     expected_revision: Number(input.expected_revision || current.revision || 0),
-    manager_note: cleanText(input.manager_note),
-    payroll_entry_id: ""
+    manager_note: cleanText(input.manager_note)
   }, actorUserId));
 }

@@ -63,7 +63,7 @@
     ...channelsLibBundles,
     ...fieldApprovalBundles,
     versionedBundle('../equipment-api/equipment-api.js', '20260904-equipment-unit-cards-v14'),
-    versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'),
+    versionedBundle('../payroll-api/payroll-api.js', '20261013-pay-rules-v1'),
     versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'),
     versionedBundle('../proposals-api/proposals-api.js', '20260711-crew-change-orders'),
     versionedBundle('crew/app.js', '20260929-overview-content-v1')
@@ -72,7 +72,7 @@
   const salesBundles = [
     ...fieldApprovalBundles,
     versionedBundle('../sales-api/sales-api.js', '20260801-field-flows-v4'),
-    versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'),
+    versionedBundle('../payroll-api/payroll-api.js', '20261013-pay-rules-v1'),
     versionedBundle('sales/app.js', '20260801-field-flows-v4')
   ];
 
@@ -283,7 +283,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
+      bundles: [versionedBundle('../payments-api/payments-api.js', '20260730-payment-reconciliation'), versionedBundle('../payroll-api/payroll-api.js', '20261013-pay-rules-v1'), versionedBundle('../documents-api/documents-api.js', '20260730-money-reports'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261007-feed-list-project-v4'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20260929-overview-content-v1')]
     },
     {
       id: 'project.request',
@@ -507,7 +507,7 @@
       settingsTabId: 'payroll',
       order: 55,
       access: managementAccess,
-      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('payroll/app.js', '20261006-payroll-widgets-v1')]
+      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261013-pay-rules-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('payroll/app.js', '20261006-payroll-widgets-v1')]
     },
     {
       id: 'portal.chat',
@@ -608,7 +608,7 @@
       portalTabId: 'company_settings',
       placement: 'settings',
       access: managementAccess,
-      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261006-payroll-publication-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261010-priority-owners-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261012-supplier-logos')]
+      bundles: [priorityFieldsBundle, versionedBundle('../custom-fields/firstmate-custom-fields.js', '20261010-published-calculations-owners-v2'), versionedBundle('../payroll-api/payroll-api.js', '20261013-pay-rules-v1'), versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'), versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'), versionedBundle('../insights/firstmate-insights.js', '20260901-insights-v1'), versionedBundle('settings/domains.js', '20260731-domains-v11'), versionedBundle('settings/crm.js', '20261010-priority-owners-v2'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('settings/payroll.js', '20261006-payroll-publication-v1'), versionedBundle('settings/money-overlay-enforcer.js', '20260828-money-overlay-integrity-v1'), versionedBundle('settings/platform-billing.js', '20260924-subscription-service-v3'), versionedBundle('../brand-kit/brand-kit.js', '20261006-firstmeasure-localization-v1'), bundle('../platform-terminology/editor.js'), versionedBundle('settings/company.js', '20261012-supplier-logos')]
     },
     {
       id: 'portal.crew_overview',
@@ -952,8 +952,8 @@
     chat: { callQueue:{ history:'push' },callIndex:{ history:'replace' },callStep:{ history:'replace' },chatConversation:{ history:'push' },chatFilter:{history:'replace',values:['open','mine','unclaimed','snoozed','closed']},chatChannel:{history:'replace',values:['all','email','sms','call','webchat']} },
     channels: { channel:{ history:'push' }, channelThread:{ history:'replace' }, channelMessage:{ history:'replace' }, channelsView:{ default:'channel', values:['channel','saved','search'], history:'replace' } },
     canvassing: { pin:{ history:'push' }, canvassingStatus:{ history:'replace' } },
-    settings: { sub:{ history:'push' }, settingsView:{ history:'push' }, settingsEntity:{ history:'push' }, scopeTemplateView:{ default:'details', values:['details','boards','scheduling','developer','automations','todos','checklists','documents','materials','events','notifications','communications','resources','fields','calls','transitions','workflows','portal','payments','other','commissions','assistant'], history:'push' }, scopeArtifact:{ history:'replace' }, scopeArtifactFilter:{ default:'all', values:['all','conditional','inactive'], history:'replace' }, scopeAutomation:{ history:'push' }, scopeEventFocus:{ history:'push' }, scopeEventFilter:{ default:'all', values:['all','connected','unused','actions','documents','todos','events','materials','checklists','notifications'], history:'replace' }, previewMode:{ history:'replace' }, terminologyQuery:{ history:'replace' }, terminologySection:{ history:'replace' }, terminologyStatus:{ history:'replace' }, workflow:{ history:'push' }, workflow_step:{ history:'push' } },
-    money: { moneyView:{ default:'overview', values:['overview','ledger','payments','invoices','recurring','expenses','receipts','commissions','take_payment'], history:'push' }, receipt:{ history:'push' } },
+    settings: { sub:{ history:'push' }, settingsView:{ history:'push' }, settingsEntity:{ history:'push' }, scopeTemplateView:{ default:'details', values:['details','boards','scheduling','developer','automations','todos','checklists','documents','materials','events','notifications','communications','resources','fields','calls','transitions','workflows','portal','payments','other','assistant'], history:'push' }, scopeArtifact:{ history:'replace' }, scopeArtifactFilter:{ default:'all', values:['all','conditional','inactive'], history:'replace' }, scopeAutomation:{ history:'push' }, scopeEventFocus:{ history:'push' }, scopeEventFilter:{ default:'all', values:['all','connected','unused','actions','documents','todos','events','materials','checklists','notifications'], history:'replace' }, previewMode:{ history:'replace' }, terminologyQuery:{ history:'replace' }, terminologySection:{ history:'replace' }, terminologyStatus:{ history:'replace' }, workflow:{ history:'push' }, workflow_step:{ history:'push' } },
+    money: { moneyView:{ default:'overview', values:['overview','ledger','payments','invoices','recurring','expenses','receipts','take_payment'], history:'push' }, receipt:{ history:'push' } },
     receipts: { receipt:{ history:'push' } },
     invoices: { invoicesView:{ default:'outstanding', values:['outstanding','needs_invoicing','history'], history:'push' }, invoice:{ history:'push' }, invoicesStatus:{ history:'replace' } },
     docs: { document:{ history:'push' }, documentView:{ default:'tiles', values:['tiles','list'], history:'replace' } },

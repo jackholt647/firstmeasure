@@ -773,11 +773,9 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
       expected_revision: corrected.timesheet.revision
     });
     assert.equal(approved.timesheet.approval_status, "approved");
-    assert.ok(approved.timesheet.payroll_entry_id);
-    const payrollEntry = await owner.request("GET", `${payrollBase}/ledger/${approved.timesheet.payroll_entry_id}`);
-    assert.equal(payrollEntry.entry.kind, "hourly");
-    assert.equal(payrollEntry.entry.amount_cents, 18_750);
-    assert.equal(payrollEntry.entry.project_id, "crew_early");
+    // Approval no longer posts pay itself: the hours are published, and the worker's pay rules price them at the next earnings refresh.
+    const hourly = await owner.request("GET", `${payrollBase}/ledger?kind=hourly`);
+    assert.equal(hourly.entries.length, 0);
   });
 
   await t.test("checklists expose completion-only member mode and full foreman management", async () => {

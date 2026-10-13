@@ -23,8 +23,7 @@ of work nodes plus the automations around them.
   (piece_types the template claims, supports_structures, fallback);
   work_plan.root_nodes — the node tree; optional materials/resources
   (pricebook-selector-driven material lists, labor with piece rates,
-  equipment); commissions (roles + rules with preset or custom-code
-  calculations, installments recognized on node hooks); checklists (crew and
+  equipment); checklists (crew and
   supervisor); custom_fields (durable typed project fields, nested groups,
   workforce assignment references, event-assignment defaults, and project-tag
   presentation); communications (including project email forwarding targets);
@@ -105,8 +104,8 @@ event carries, and every action's typed input schema.
   with apply_scope_instance_update.
 - Default instantiation bindings are injected automatically from template
   content: customFields.initializeFromScope.v1,
-  materials.initializeFromScope.v1, checklists.initializeFromScope.v1,
-  payroll.reconcileScopeCommissions.v1 (override by declaring a binding with
+  materials.initializeFromScope.v1, checklists.initializeFromScope.v1
+  (override by declaring a binding with
   the same id). Scope custom fields are additive by dotted path and remain on
   the project after that scope instance completes. Use assignable_subject,
   organization_user, resource_group, or organization_connection fields with
@@ -143,8 +142,10 @@ event carries, and every action's typed input schema.
   via work_resource_ref for production.
 - Crew app (field): mobile view for crews — assigned work, time clock,
   checklists, materials confirmation, change orders, payments (cash/check).
-- Payroll: compensation profiles (hourly/salary/piece-rate), commission
-  engine driven by template commissions, pay schedules and batches.
+- Payroll: pay rules grouped into pay plans and assigned per payee (any
+  assignee), earnings derived from published data, pay schedules and runs.
+  Who is paid for a role on a project is an assignee custom field on the
+  project, set by an automation; scope templates hold no pay logic.
 - Pricebook: org catalog of items/assemblies with measurement-driven
   quantity formulas feeding proposals and material lists.
 - FirstMeasure: roof measurement reports; measurements feed pricebook
@@ -160,7 +161,7 @@ event carries, and every action's typed input schema.
 
 ## Safety rails for editing
 - Save through the provided tools only; they validate and version templates.
-- Node ids referenced by depends_on, commissions recognition, and material
+- Node ids referenced by depends_on and material
   schedule source_node_template_id must exist in the tree.
 - Prefer ADDING nodes/bindings over restructuring; never silently delete
   work the customer did not ask to remove.

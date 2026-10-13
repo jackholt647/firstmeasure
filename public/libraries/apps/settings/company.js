@@ -10752,7 +10752,7 @@
       let scopeSaveTimer = null;
       let scopeSavePromise = null;
       let scopeSaveStatus = 'All changes saved';
-      let editorSection = ['details', 'boards', 'scheduling', 'developer', 'automations', 'todos', 'checklists', 'documents', 'materials', 'events', 'notifications', 'communications', 'resources', 'fields', 'calls', 'transitions', 'workflows', 'portal', 'payments', 'other', 'commissions', 'assistant'].includes(readSettingsRoute().scopeTemplateView) ? readSettingsRoute().scopeTemplateView : 'details';
+      let editorSection = ['details', 'boards', 'scheduling', 'developer', 'automations', 'todos', 'checklists', 'documents', 'materials', 'events', 'notifications', 'communications', 'resources', 'fields', 'calls', 'transitions', 'workflows', 'portal', 'payments', 'other', 'assistant'].includes(readSettingsRoute().scopeTemplateView) ? readSettingsRoute().scopeTemplateView : 'details';
       let draftDefinition = null;
       let artifactHandle = null;
       const definitionFor = (template) => ({ ...(template?.definition && typeof template.definition === 'object' ? template.definition : {}), id:template?.id, name:template?.name, description:template?.description || '', details:template?.details || '', color:template?.color || '', icon:template?.icon || '', status:template?.status || 'active', sort_order:Number(template?.sort_order || 0) });
@@ -10964,36 +10964,6 @@
           } catch (error) { button.disabled = false; if (statusNode) statusNode.textContent = error?.message || 'Could not create this project scope.'; }
         });
       };
-      const defaultCommissionCode = () => [
-        '({ project, proposal, scope, money, facts, event }) => {',
-        '  const basis = facts.proposal_total_cents;',
-        '  const rateBps = 1000; // 10%',
-        '  return {',
-        '    amount_cents: Math.round(basis * rateBps / 10000),',
-        '    basis_cents: basis,',
-        '    rate_bps: rateBps,',
-        "    breakdown: [{ label: 'Custom commission', basis_cents: basis, rate_bps: rateBps }]",
-        '  };',
-        '}'
-      ].join('\n');
-      const commissionRoleLabel = (value) => String(value || '').trim().replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-      const commissionRoleKey = (value) => String(value || '').trim().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-      const commissionPresetRule = (preset) => {
-        const id = `commission_${preset}_${Date.now().toString(36)}`;
-        const titles = { percentage:'Percentage of contract', percentage_after_discount:'Percentage after discounts', discount_tiered:'Discount-tiered percentage', fixed:'Fixed amount', selected_line_items:'Selected line items', code:'Custom code' };
-        const calculation = preset === 'code'
-          ? { mode:'code', code:defaultCommissionCode() }
-          : preset === 'fixed'
-            ? { mode:'preset', preset, fixed_amount_cents:10000 }
-            : preset === 'discount_tiered'
-              ? { mode:'preset', preset, basis:'proposal_subtotal', subtract_discounts:true, rate_bps:600, tiers:[{ min_discount_bps:0, max_discount_bps:500, rate_bps:1000 },{ min_discount_bps:501, max_discount_bps:1000, rate_bps:800 },{ min_discount_bps:1001, rate_bps:600 }] }
-              : { mode:'preset', preset, basis:preset === 'selected_line_items' ? 'selected_line_items' : preset === 'percentage_after_discount' ? 'proposal_subtotal' : 'proposal_total', subtract_discounts:preset === 'percentage_after_discount', rate_bps:1000, selector:{} };
-        return { id, title:titles[preset] || 'Commission rule', enabled:true, payee_role:'', entry_state:'projected', allocation:'split_evenly', trigger:{ hook:'onStarted' }, calculation };
-      };
-      const commissionDefinition = (definition) => {
-        const value = definition?.commissions && typeof definition.commissions === 'object' ? definition.commissions : {};
-        return { ...value, enabled:value.enabled !== false, roles:Array.isArray(value.roles) ? value.roles : [], rules:Array.isArray(value.rules) ? value.rules : [] };
-      };
       const checklistAssignmentPreset = (checklist) => {
         if (!checklist?.assignment_policy || typeof checklist.assignment_policy !== 'object') {
           if (checklist?.audience === 'crew') return 'crew';
@@ -11054,94 +11024,6 @@
           </div>`;
         }).join('')}</div>`;
       };
-      const commissionRuleMarkup = (rule, index, roles = []) => {
-        const calculation = rule?.calculation && typeof rule.calculation === 'object' ? rule.calculation : { mode:'preset', preset:'percentage', basis:'proposal_total', rate_bps:1000 };
-        const mode = calculation.mode === 'code' ? 'code' : 'preset';
-        const preset = calculation.preset || 'percentage';
-        const selector = calculation.selector && typeof calculation.selector === 'object' ? calculation.selector : {};
-        const payeeRole = String(rule.payee_role || '').trim();
-        const roleOptions = [...roles, ...(payeeRole && !roles.some((role) => role.key === payeeRole) ? [{ key:payeeRole, label:commissionRoleLabel(payeeRole) }] : [])];
-        const installments = Array.isArray(rule.installments) ? rule.installments : [];
-        const dollars = (value) => Number.isFinite(Number(value)) ? (Number(value) / 100).toFixed(2) : '';
-        const csv = (value) => Array.isArray(value) ? value.join(', ') : '';
-        return `<details class="scope-commission-rule scope-commission-fold" data-commission-rule="${String(index)}" ${String(index===0?'open':'')}><summary>${String(escapeHtml(rule.title || ((v0) => globalThis.PlatformLanguage?.text("settings","m_5add49ec578635",`Rule ${v0}`,{v0}) ?? `Rule ${v0}`)(index+1)))}<span>${String(escapeHtml(roleOptions.find(role=>role.key===payeeRole)?.label || commissionRoleLabel(payeeRole)))} · ${String(mode==='code'?'Custom calculation':preset==='discount_tiered'?'Tiered rates':preset==='fixed'?`$${dollars(calculation.fixed_amount_cents)}`:`${Number(calculation.rate_bps || 0)/100}%`)} · ${String(rule.enabled===false?'Disabled':'Enabled')}</span></summary><header class="scope-commission-rule-head"><label class="scope-commission-check"><input type="checkbox" data-cr="enabled" ${String(rule.enabled === false ? '' : 'checked')}><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_fedcd55fa394f3","Enable rule") ?? "Enable rule")}</strong></label><button type="button" class="cs-btn ghost" data-commission-remove="${String(index)}"><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_09a65903b3217c"," Remove") ?? " Remove")}</button></header><div class="scope-commission-rule-body"><div class="scope-editor-grid">
-          <input type="hidden" data-cr="id" value="${String(escapeHtml(rule.id || ''))}"><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_025584181cebdf","Rule title") ?? "Rule title")}<input data-cr="title" value="${String(escapeHtml(rule.title || ''))}"></label>
-          <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_c0b56937efb395","Recipient role") ?? "Recipient role")}<select data-cr="payee_role"><option value="">${(globalThis.PlatformLanguage?.htmlText("settings","m_21f0f0b74ed53e","Choose a role…") ?? "Choose a role…")}</option>${String(roleOptions.map((role) => `<option value="${escapeHtml(role.key)}" ${payeeRole === role.key ? 'selected' : ''}>${escapeHtml(role.label || commissionRoleLabel(role.key))}</option>`).join(''))}</select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_c25137487d78f8","Entry state") ?? "Entry state")}<select data-cr="entry_state"><option value="projected" ${String(rule.entry_state !== 'accrued' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_b70868e44ab174","Projected / upcoming") ?? "Projected / upcoming")}</option><option value="accrued" ${String(rule.entry_state === 'accrued' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_ab2bdfb0d2c6b6","Accrued immediately") ?? "Accrued immediately")}</option></select></label>
-          <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_8d84fb6ac8bc79","Allocation") ?? "Allocation")}<select data-cr="allocation"><option value="split_evenly" ${String(rule.allocation !== 'each' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_501d4acb579f2d","Split pool evenly") ?? "Split pool evenly")}</option><option value="each" ${String(rule.allocation === 'each' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_267ba4a955d540","Full amount for each") ?? "Full amount for each")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_493159f7771ebc","When") ?? "When")}<select data-cr="trigger_hook">${String(['onCreated','onStarted','onReady','onCompleted','onCanceled'].map((hook) => `<option value="${hook}" ${(rule.trigger?.hook || 'onStarted') === hook ? 'selected' : ''}>${({onCreated:'Created',onStarted:'Starts',onReady:'Becomes ready',onCompleted:'Completes',onCanceled:'Is canceled'})[hook]}</option>`).join(''))}</select></label>
-          <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_7b27447fdce391","Workflow step") ?? "Workflow step")}<select data-cr="trigger_node_id">${String(workflowNodeOptions(rule.trigger?.node_id))}</select></label>
-          <input type="hidden" data-cr="mode" value="${String(mode)}">
-          ${String(mode === 'code' ? `<div class="wide scope-commission-warning">${(globalThis.PlatformLanguage?.htmlText("settings","m_e3db7b9f3bfbce","Custom calculation · maintained in Developer ") ?? "Custom calculation · maintained in Developer ")}<button type="button" class="cs-btn ghost" data-scope-section-link="developer">${(globalThis.PlatformLanguage?.htmlText("settings","m_9a9ac18eccfd93","Open Developer") ?? "Open Developer")}</button></div><textarea hidden data-cr="code">${escapeHtml(calculation.code || defaultCommissionCode())}</textarea>` : `
-            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_401488cd49adb7","Preset") ?? "Preset")}<select data-cr="preset"><option value="percentage" ${preset === 'percentage' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_629eaaf9caef92","Percentage of basis") ?? "Percentage of basis")}</option><option value="percentage_after_discount" ${preset === 'percentage_after_discount' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_1f866df0898207","Percentage after discounts") ?? "Percentage after discounts")}</option><option value="discount_tiered" ${preset === 'discount_tiered' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_40874c1a8e0f28","Discount-tiered") ?? "Discount-tiered")}</option><option value="fixed" ${preset === 'fixed' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_6c4835f9ae892e","Fixed amount") ?? "Fixed amount")}</option><option value="selected_line_items" ${preset === 'selected_line_items' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_256869f39b5ac2","Selected line items") ?? "Selected line items")}</option></select></label>
-            ${preset === 'fixed' ? `<label>${(globalThis.PlatformLanguage?.htmlText("settings","m_56cc7fcbed29ba","Fixed amount ($)") ?? "Fixed amount ($)")}<input type="number" min="0" step="0.01" data-cr="fixed_amount" value="${escapeHtml(dollars(calculation.fixed_amount_cents))}"></label>` : `<label>${(globalThis.PlatformLanguage?.htmlText("settings","m_344f9a56adce24","Basis") ?? "Basis")}<select data-cr="basis"><option value="proposal_total" ${calculation.basis === 'proposal_total' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_eed2f2b0590056","Proposal total") ?? "Proposal total")}</option><option value="proposal_subtotal" ${calculation.basis === 'proposal_subtotal' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_88510d98e03db0","Proposal subtotal") ?? "Proposal subtotal")}</option><option value="collected_revenue" ${calculation.basis === 'collected_revenue' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_10f5f33a0b49a0","Collected revenue") ?? "Collected revenue")}</option><option value="forecast_profit" ${calculation.basis === 'forecast_profit' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_0655e4b3743f9a","Forecast profit") ?? "Forecast profit")}</option><option value="selected_line_items" ${calculation.basis === 'selected_line_items' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_256869f39b5ac2","Selected line items") ?? "Selected line items")}</option></select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_24c904032f348c","Rate (%)") ?? "Rate (%)")}<input type="number" min="0" step="0.01" data-cr="rate_percent" value="${escapeHtml(String(Number(calculation.rate_bps || 0) / 100))}"></label>`}
-            <details class="wide scope-commission-options"><summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_403efd8bd83f5b","Limits, adjustments & eligible items") ?? "Limits, adjustments & eligible items")}</summary><div class="scope-editor-grid"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a11f94d22d6fd9","Minimum ($)") ?? "Minimum ($)")}<input type="number" min="0" step="0.01" data-cr="minimum" value="${escapeHtml(dollars(calculation.minimum_cents))}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_b5785f150fc836","Maximum ($)") ?? "Maximum ($)")}<input type="number" min="0" step="0.01" data-cr="maximum" value="${escapeHtml(dollars(calculation.maximum_cents))}"></label>
-            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_2b0f820ba8bc39","Fixed adjustment ($)") ?? "Fixed adjustment ($)")}<input type="number" step="0.01" data-cr="fixed_adjustment" value="${escapeHtml(dollars(calculation.fixed_adjustment_cents))}"></label><label class="scope-commission-check"><input type="checkbox" data-cr="subtract_discounts" ${calculation.subtract_discounts === true ? 'checked' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_a24e1dd0661041","Subtract proposal discounts from basis") ?? "Subtract proposal discounts from basis")}</label>
-            <label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_48363c67b24212","Include line item IDs") ?? "Include line item IDs")}<input data-cr="item_ids" value="${escapeHtml(csv(selector.item_ids))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_13c5d009a4501d","Comma-separated; blank includes all") ?? "Comma-separated; blank includes all")}"></label><label class="wide">${(globalThis.PlatformLanguage?.htmlText("settings","m_231689dd880d1f","Exclude line item IDs") ?? "Exclude line item IDs")}<input data-cr="exclude_item_ids" value="${escapeHtml(csv(selector.exclude_item_ids))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_3bf08acd7526ca","permit, financing_fee") ?? "permit, financing_fee")}"></label>
-            <label>${(globalThis.PlatformLanguage?.htmlText("settings","m_523a8deb2ddb22","Exclude categories") ?? "Exclude categories")}<input data-cr="exclude_categories" value="${escapeHtml(csv(selector.exclude_categories))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_35eadf90ecae3d","Permits, Financing") ?? "Permits, Financing")}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_b0f397577697c2","Exclude tags") ?? "Exclude tags")}<input data-cr="exclude_tags" value="${escapeHtml(csv(selector.exclude_tags))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_89718d924c2aae","noncommissionable") ?? "noncommissionable")}"></label>
-            ${preset === 'discount_tiered' ? `<div class="wide"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_ca33cc0403fa69","Discount tiers") ?? "Discount tiers")}</strong>${(calculation.tiers || []).map(t=>`<p>${((v0,v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_2cdb9154dbfb8c",`${v0}%–${v1} discount → ${v2}% commission`,{v0,v1,v2}) ?? `${v0}%–${v1} discount → ${v2}% commission`)(Number(t.min_discount_bps || 0)/100,t.max_discount_bps==null?'above':Number(t.max_discount_bps)/100+'%',Number(t.rate_bps || 0)/100)}</p>`).join('')}<button type="button" class="cs-btn ghost" data-scope-section-link="developer">${(globalThis.PlatformLanguage?.htmlText("settings","m_9be2bf7021df3e","Edit tiers in Developer") ?? "Edit tiers in Developer")}</button><textarea hidden data-cr="tiers">${escapeHtml(JSON.stringify(calculation.tiers || [], null, 2))}</textarea></div>` : ''}
-          </div></details>`)}
-          <div class="wide"><div class="scope-editor-card-intro"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_f0f7bfc2fb1b87","Payout schedule") ?? "Payout schedule")}</strong><br>${String(installments.length ? 'The total commission above is projected immediately and divided across these lifecycle events.' : 'No split schedule: this rule is recognized at its trigger hook.')}</div><div class="scope-installment-list">${String(installments.map((installment, installmentIndex) => `<div class="scope-installment" data-commission-installment="${installmentIndex}"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a5facc76d24f93","Payment label") ?? "Payment label")}<input data-ci="title" value="${escapeHtml(installment.title || '')}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_fc9978bb0c9be1","Share (%)") ?? "Share (%)")}<input type="number" min="0.01" max="100" step="0.01" data-ci="share_percent" value="${escapeHtml(String(Number(installment.share_bps || 0) / 100))}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_7b27447fdce391","Workflow step") ?? "Workflow step")}<select data-ci="node_id">${workflowNodeOptions(installment.recognition?.node_id)}</select></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_0ff4f256371726","Due event") ?? "Due event")}<select data-ci="hook"><option value="onCompleted" ${(installment.recognition?.hook || 'onCompleted') === 'onCompleted' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_3c4d2141b2fa1c","Completed") ?? "Completed")}</option><option value="onStarted" ${installment.recognition?.hook === 'onStarted' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_705b16f536b804","Started") ?? "Started")}</option></select></label><button type="button" class="cs-btn ghost" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b1c83e1c455163","Remove scheduled payment") ?? "Remove scheduled payment")}" data-installment-remove="${index}:${installmentIndex}"><i class="fas fa-trash"></i></button><div class="scope-installment-note">${escapeHtml(installment.metadata?.description || `Upcoming until ${commissionRoleLabel(installment.recognition?.node_id || 'the event')} is completed.`)}</div></div>`).join(''))}</div><button type="button" class="cs-btn ghost" data-installment-add="${String(index)}" style="margin-top:8px"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_65f1bdcbe4a17c"," Add scheduled payment") ?? " Add scheduled payment")}</button></div>
-        </div></div></details>`;
-      };
-      const commissionsMarkup = (definition) => {
-        const commissions = commissionDefinition(definition);
-        return `<div class="scope-commission-summary"><label class="scope-commission-check"><input type="checkbox" data-commissions-enabled ${String(commissions.enabled?'checked':'')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_7d736de334a54d"," Enable commissions") ?? " Enable commissions")}</label><span>${((v1,v2) => globalThis.PlatformLanguage?.htmlText("settings","m_1cb8c18eb110d4",`${v1} rules · ${v2} recipient roles`,{v1,v2}) ?? `${v1} rules · ${v2} recipient roles`)(commissions.rules.length,commissions.roles.length)}</span></div>
-        <div class="scope-commission-rules">${String(commissions.rules.map((rule,index)=>commissionRuleMarkup(rule,index,commissions.roles)).join('') || `<div class="scope-commission-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_a053838ddccdfa","No commission rules. Add a rule below.") ?? "No commission rules. Add a rule below.")}</div>`)}</div>
-        <details class="scope-commission-options" ${String(commissions.rules.length?'':'open')}><summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_fcb0ff057647db","Add commission rule") ?? "Add commission rule")}</summary>
-        <section class="scope-editor-card"><div class="scope-commission-library">${String([
-          ['percentage','Percentage of contract','Flat percentage of a financial basis.'],['percentage_after_discount','After discounts','Subtract discounts before applying the rate.'],['discount_tiered','Discount tiers','Change the rate as the discount grows.'],['fixed','Fixed amount','Pay a fixed pool or amount per recipient.'],['selected_line_items','Selected line items','Commission only selected scope items.']
-        ].map(([id,title,description]) => `<button type="button" class="scope-commission-preset" data-commission-add="${id}"><strong>${title}</strong><span>${description}</span></button>`).join(''))}</div></section></details>
-        <details class="scope-commission-options"><summary>${(globalThis.PlatformLanguage?.htmlText("settings","m_5135e8c0a8b00a","Recipient roles & automatic assignment") ?? "Recipient roles & automatic assignment")}</summary><section class="scope-editor-card"><div class="scope-commission-role-list">${String(commissions.roles.map((role, roleIndex) => `<div class="scope-commission-role" data-commission-role="${roleIndex}" data-role-key="${escapeHtml(role.key)}"><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_31e35037ebeb35","Role name") ?? "Role name")}<input data-role-label value="${escapeHtml(role.label || commissionRoleLabel(role.key))}"></label><label>${(globalThis.PlatformLanguage?.htmlText("settings","m_a8385ff2b17195","Automatically assign") ?? "Automatically assign")}<select data-role-source><option value="manual" ${!role.assignment_source || role.assignment_source === 'manual' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_cec752a2e856fc","Manually on each project") ?? "Manually on each project")}</option><option value="sales_appointment_assignee" ${role.assignment_source === 'sales_appointment_assignee' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_fa37d49652896a","Person assigned to the sales appointment") ?? "Person assigned to the sales appointment")}</option><option value="sales_appointment_scheduler" ${role.assignment_source === 'sales_appointment_scheduler' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_8a28d061ce0f90","Person who scheduled the sales appointment") ?? "Person who scheduled the sales appointment")}</option></select></label>${role.metadata?.stable_role === true ? `<span class="scope-template-pill">${(globalThis.PlatformLanguage?.htmlText("settings","m_b5c97212f374f0","Default role") ?? "Default role")}</span>` : `<button type="button" class="cs-btn ghost" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_67a684215c78f2","Remove recipient role") ?? "Remove recipient role")}" data-role-remove="${roleIndex}"><i class="fas fa-trash"></i></button>`}</div>`).join('') || `<div class="scope-commission-empty">${(globalThis.PlatformLanguage?.htmlText("settings","m_a154366ca56b94","No scope-level roles yet.") ?? "No scope-level roles yet.")}</div>`)}</div><div class="scope-commission-role-add"><input data-commission-new-role placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6e938ea18cabaa","Custom role title") ?? "Custom role title")}"><button type="button" class="cs-btn ghost" data-role-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_73874dd6c488f4"," Add custom role") ?? " Add custom role")}</button></div></section></details>`;
-      };
-      const readCommissionEditor = (strict = false) => {
-        const current = commissionDefinition(draftDefinition || {});
-        const csv = (value) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
-        const centsValue = (value) => value === '' || value == null ? undefined : Math.round(Number(value) * 100);
-        const roles = Array.from(paneScopeTemplates.querySelectorAll('[data-commission-role]')).map((row, index) => ({
-          ...current.roles[index],
-          key:String(row.dataset.roleKey || current.roles[index]?.key || '').trim(),
-          label:String(row.querySelector('[data-role-label]')?.value || '').trim(),
-          assignment_source:String(row.querySelector('[data-role-source]')?.value || 'manual')
-        }));
-        const rules = Array.from(paneScopeTemplates.querySelectorAll('[data-commission-rule]')).map((card, index) => {
-          const value = (key) => card.querySelector(`[data-cr="${key}"]`)?.value ?? '';
-          const checked = (key) => !!card.querySelector(`[data-cr="${key}"]`)?.checked;
-          const payeeRole = String(value('payee_role') || '').trim();
-          if (strict && !payeeRole) throw new Error(`Rule ${index + 1} requires a recipient role title.`);
-          const mode = value('mode') === 'code' ? 'code' : 'preset';
-          let tiers = current.rules[index]?.calculation?.tiers || [];
-          if (card.querySelector('[data-cr="tiers"]')) {
-            try { tiers = JSON.parse(value('tiers') || '[]'); }
-            catch (error) { if (strict) throw new Error(`Rule ${index + 1} has invalid tier JSON.`); }
-          }
-          const calculation = mode === 'code' ? { mode, code:value('code') } : {
-            mode,
-            preset:value('preset') || 'percentage',
-            basis:value('basis') || (value('preset') === 'selected_line_items' ? 'selected_line_items' : 'proposal_total'),
-            rate_bps:Math.round(Number(value('rate_percent') || 0) * 100),
-            fixed_amount_cents:centsValue(value('fixed_amount')),
-            fixed_adjustment_cents:centsValue(value('fixed_adjustment')),
-            minimum_cents:centsValue(value('minimum')),
-            maximum_cents:centsValue(value('maximum')),
-            subtract_discounts:checked('subtract_discounts'),
-            selector:{ item_ids:csv(value('item_ids')), exclude_item_ids:csv(value('exclude_item_ids')), exclude_categories:csv(value('exclude_categories')), exclude_tags:csv(value('exclude_tags')) },
-            tiers
-          };
-          Object.keys(calculation).forEach((key) => calculation[key] === undefined && delete calculation[key]);
-          const installments = Array.from(card.querySelectorAll('[data-commission-installment]')).map((row, installmentIndex) => ({
-            ...current.rules[index]?.installments?.[installmentIndex],
-            id:String(current.rules[index]?.installments?.[installmentIndex]?.id || `payment_${installmentIndex + 1}`).trim(),
-            title:String(row.querySelector('[data-ci="title"]')?.value || `Payment ${installmentIndex + 1}`).trim(),
-            share_bps:Math.round(Number(row.querySelector('[data-ci="share_percent"]')?.value || 0) * 100),
-            recognition:{
-              node_id:String(row.querySelector('[data-ci="node_id"]')?.value || '').trim(),
-              hook:String(row.querySelector('[data-ci="hook"]')?.value || 'onCompleted')
-            }
-          }));
-          if (strict && installments.length && installments.reduce((sum, installment) => sum + installment.share_bps, 0) !== 10000) throw new Error(`Rule ${index + 1} payout shares must total 100%.`);
-          return { ...current.rules[index], id:String(value('id') || `commission_rule_${index + 1}`).trim(), title:String(value('title') || `Commission rule ${index + 1}`).trim(), enabled:checked('enabled'), payee_role:payeeRole, entry_state:value('entry_state') === 'accrued' ? 'accrued' : 'projected', allocation:value('allocation') === 'each' ? 'each' : 'split_evenly', trigger:{ hook:value('trigger_hook') || 'onStarted', ...(String(value('trigger_node_id') || '').trim() ? { node_id:String(value('trigger_node_id')).trim() } : {}) }, ...(installments.length ? { installments } : { installments:undefined }), calculation };
-        });
-        return { ...current, enabled:!!paneScopeTemplates.querySelector('[data-commissions-enabled]')?.checked, roles, rules };
-      };
       const scopeIconChoices = (current) => {
         const choices=[['fa-house-chimney','Home'],['fa-house','House'],['fa-helmet-safety','Construction'],['fa-hammer','Repairs'],['fa-screwdriver-wrench','Service'],['fa-utensils','Kitchen'],['fa-paint-roller','Painting'],['fa-faucet','Plumbing'],['fa-bolt','Electrical'],['fa-solar-panel','Solar'],['fa-door-open','Doors'],['fa-border-all','Windows'],['fa-building','Commercial'],['fa-tree','Landscaping'],['fa-truck','Delivery'],['fa-clipboard-check','Inspection'],['fa-ruler-combined','Measurements'],['fa-calendar-check','Appointment'],['fa-handshake','Sales'],['fa-file-signature','Contract'],['fa-layer-group','Scope'],['fa-diagram-project','Workflow'],['fa-toolbox','Maintenance'],['fa-shield-alt','Warranty']];
         const icon=iconClass(current);if(!choices.some(c=>c[0]===icon))choices.unshift([icon,'Current icon']);return choices;
@@ -11189,7 +11071,6 @@
         let nextDefinition;
         try {
           nextDefinition = structuredClone(draftDefinition || definitionFor(template));
-          if (editorSection === 'commissions' && paneScopeTemplates.querySelector('[data-scope-commissions]')) nextDefinition.commissions = readCommissionEditor(true);
           const jsonInput = paneScopeTemplates.querySelector('[data-scope-json]');
           if (jsonInput) nextDefinition = JSON.parse(jsonInput.value);
           nextDefinition.id = template.id;
@@ -11222,7 +11103,6 @@
         return saved;
       };
       const drawEditor = (statusText = '') => {
-        const openCommissionRules = paneScopeTemplates.querySelector('[data-scope-commissions]') ? new Set(Array.from(paneScopeTemplates.querySelectorAll('[data-commission-rule][open]')).map(card=>card.dataset.commissionRule)) : null;
         const template = templates.find((item) => item.id === selectedId);
         if (!template) { drawList(); return; }
         const definition = draftDefinition || definitionFor(template);
@@ -11235,7 +11115,7 @@
           <nav class="scope-editor-nav" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_71efbd50182ef7","Project scope settings") ?? "Project scope settings")}">${String([
             ['details','Details','fa-sliders'],['boards','Boards','fa-table-columns'],['scheduling','Customer Scheduling','fa-calendar-check'],['automations','Automations','fa-bolt'],
             ...Object.entries(window.FirstMateScopeArtifacts?.TYPES || {}).map(([id, info]) => [id, info[0], info[1]]),
-            ['commissions','Commissions','fa-percent'],['developer','Developer','fa-code'],...(canAutomations ? [['assistant','Assistant','fa-wand-magic-sparkles']] : [])
+            ['developer','Developer','fa-code'],...(canAutomations ? [['assistant','Assistant','fa-wand-magic-sparkles']] : [])
           ].map(([id,label,icon]) => `<button type="button" id="scope-editor-tab-${id}" role="tab" aria-controls="scope-editor-panel-${id}" aria-selected="${editorSection === id}" data-scope-editor-section="${id}" class="${editorSection === id ? 'active' : ''}"><i class="fas ${icon}"></i> ${escapeHtml(label)}<span data-scope-artifact-count="${id}"></span></button>`).join(''))}</nav>
           <div class="scope-editor-layout automation"><main class="scope-editor-main">${String(editorSection === 'details' ? `<div id="scope-editor-panel-details" role="tabpanel" aria-labelledby="scope-editor-tab-details" data-scope-details class="scope-basics">
             <div class="scope-editor-grid">
@@ -11263,12 +11143,11 @@
             </section></div>` : editorSection === 'developer' ? `<div id="scope-editor-panel-developer" role="tabpanel" aria-labelledby="scope-editor-tab-developer">
             <div class="scope-data-bar"><span>${((v0) => globalThis.PlatformLanguage?.htmlText("settings","m_93359c06cccfee",`${v0} work nodes`,{v0}) ?? `${v0} work nodes`)(stats.nodes)}</span><span>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_f361e1c250ff11",`${v1} proposal inputs`,{v1}) ?? `${v1} proposal inputs`)(stats.fields)}</span><span>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_023342e9dffd00",`${v2} resource lists`,{v2}) ?? `${v2} resource lists`)(stats.resourceLists)}</span><span>${((v3) => globalThis.PlatformLanguage?.htmlText("settings","m_29c733afb70414",`Version ${v3}`,{v3}) ?? `Version ${v3}`)(version)}</span></div>
             <div class="scope-json-wrap"><label for="scope-definition-json">${(globalThis.PlatformLanguage?.htmlText("settings","m_4fe20dd434f3aa","Scope definition") ?? "Scope definition")}</label><p class="scope-editor-card-intro">${(globalThis.PlatformLanguage?.htmlText("settings","m_2847bce37ce3cc","Stable IDs, custom functions, metadata, and configuration. Valid changes auto-save.") ?? "Stable IDs, custom functions, metadata, and configuration. Valid changes auto-save.")}</p><textarea id="scope-definition-json" spellcheck="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_e28c52ce582afc","Scope definition JSON") ?? "Scope definition JSON")}" data-scope-json>${escapeHtml(JSON.stringify(definition, null, 2))}</textarea><div class="scope-json-state" data-scope-json-state role="status">${(globalThis.PlatformLanguage?.htmlText("settings","m_b56f31932be2d3","Valid JSON") ?? "Valid JSON")}</div></div>
-          </div>` : editorSection === 'boards' ? `<div id="scope-editor-panel-boards" role="tabpanel" aria-labelledby="scope-editor-tab-boards">${boardStructureMarkup(definition)}</div>` : editorSection === 'automations' ? `<div id="scope-editor-panel-automations" role="tabpanel" aria-labelledby="scope-editor-tab-automations" data-scope-events-host></div>` : editorSection === 'assistant' ? `<div id="scope-editor-panel-assistant" role="tabpanel" aria-labelledby="scope-editor-tab-assistant" class="scope-automation-host" data-scope-automation-host></div>` : window.FirstMateScopeArtifacts?.TYPES?.[editorSection] ? `<div id="scope-editor-panel-${editorSection}" role="tabpanel" aria-labelledby="scope-editor-tab-${editorSection}" data-scope-artifacts-host></div>` : `<div id="scope-editor-panel-commissions" role="tabpanel" aria-labelledby="scope-editor-tab-commissions" data-scope-commissions style="display:grid;gap:14px">${commissionsMarkup(definition)}</div>`)}</main></div>
+          </div>` : editorSection === 'boards' ? `<div id="scope-editor-panel-boards" role="tabpanel" aria-labelledby="scope-editor-tab-boards">${boardStructureMarkup(definition)}</div>` : editorSection === 'automations' ? `<div id="scope-editor-panel-automations" role="tabpanel" aria-labelledby="scope-editor-tab-automations" data-scope-events-host></div>` : editorSection === 'assistant' ? `<div id="scope-editor-panel-assistant" role="tabpanel" aria-labelledby="scope-editor-tab-assistant" class="scope-automation-host" data-scope-automation-host></div>` : window.FirstMateScopeArtifacts?.TYPES?.[editorSection] ? `<div id="scope-editor-panel-${editorSection}" role="tabpanel" aria-labelledby="scope-editor-tab-${editorSection}" data-scope-artifacts-host></div>` : '')}</main></div>
         </div>`;
         const scopeNav = paneScopeTemplates.querySelector('.scope-editor-nav');
         const activeScopeTab = scopeNav?.querySelector('[aria-selected="true"]');
         if (scopeNav && activeScopeTab && scopeNav.scrollWidth > scopeNav.clientWidth) scopeNav.scrollLeft=Math.max(0,activeScopeTab.offsetLeft-scopeNav.offsetLeft-12);
-        if (openCommissionRules) paneScopeTemplates.querySelectorAll('[data-commission-rule]').forEach(card=>{ card.open=openCommissionRules.has(card.dataset.commissionRule); });
         const navigateArtifact = async (section, focus = {}) => {
           if (!await saveScopeDraft()) return;
           if (artifactHandle && !await artifactHandle.canLeave()) return;
@@ -11311,8 +11190,7 @@
         paneScopeTemplates.querySelectorAll('[data-scope-editor-section]').forEach((button) => button.addEventListener('click', async () => {
           if (!await saveScopeDraft()) return;
           if (artifactHandle && !await artifactHandle.canLeave()) return;
-          if (editorSection === 'commissions') draftDefinition = { ...(draftDefinition || definition), commissions:readCommissionEditor() };
-          editorSection = ['boards', 'scheduling', 'developer', 'automations', 'todos', 'checklists', 'documents', 'materials', 'events', 'notifications', 'communications', 'resources', 'fields', 'calls', 'transitions', 'workflows', 'portal', 'payments', 'other', 'commissions', 'assistant'].includes(button.dataset.scopeEditorSection) ? button.dataset.scopeEditorSection : 'details';
+          editorSection = ['boards', 'scheduling', 'developer', 'automations', 'todos', 'checklists', 'documents', 'materials', 'events', 'notifications', 'communications', 'resources', 'fields', 'calls', 'transitions', 'workflows', 'portal', 'payments', 'other', 'assistant'].includes(button.dataset.scopeEditorSection) ? button.dataset.scopeEditorSection : 'details';
           if (!window.Portal?.navigation?.applying) writeSettingsRoute({ sub:'project_scopes', settingsView:'editor', settingsEntity:`scope:${selectedId}`, scopeTemplateView:editorSection, scopeArtifact:null, scopeAutomation:null, scopeEventFocus:null }, { history:'push', source:'project-scope-section', ownedKeys:['scopeTemplateView','scopeArtifact','scopeAutomation','scopeEventFocus'] });
           drawEditor(statusText);
         }));
@@ -11413,57 +11291,6 @@
             if (!button.disabled) updateCustomer({ voice_mode:button.dataset.checklistVoiceMode });
           }));
         });
-        const syncCommissions = (redraw = false) => {
-          draftDefinition = { ...(draftDefinition || definition), commissions:readCommissionEditor() };
-          markDirty();
-          if (redraw) drawEditor(statusText);
-        };
-        paneScopeTemplates.querySelectorAll('[data-commission-rule] input,[data-commission-rule] textarea,[data-commission-rule] select,[data-commission-role] input,[data-commission-role] select,[data-commissions-enabled]').forEach((input) => {
-          input.addEventListener('input', () => syncCommissions(false));
-          input.addEventListener('change', () => syncCommissions(input.matches('[data-cr="mode"],[data-cr="preset"]')));
-        });
-        paneScopeTemplates.querySelectorAll('[data-commission-add]').forEach((button) => button.addEventListener('click', () => {
-          const current = readCommissionEditor();
-          const rule = { ...commissionPresetRule(button.dataset.commissionAdd), payee_role:current.roles[0]?.key || '' };
-          draftDefinition = { ...(draftDefinition || definition), commissions:{ ...current, enabled:true, rules:[...current.rules, rule] } };
-          markDirty(); drawEditor(statusText);
-          const added = paneScopeTemplates.querySelector(`[data-commission-rule="${current.rules.length}"]`);
-          if (added) { added.open=true; added.querySelector('[data-cr="title"]')?.focus(); }
-        }));
-        paneScopeTemplates.querySelectorAll('[data-commission-remove]').forEach((button) => button.addEventListener('click', () => {
-          const current = readCommissionEditor(); const index = Number(button.dataset.commissionRemove);
-          draftDefinition = { ...(draftDefinition || definition), commissions:{ ...current, rules:current.rules.filter((_rule, ruleIndex) => ruleIndex !== index) } };
-          markDirty(); drawEditor(statusText);
-        }));
-        paneScopeTemplates.querySelector('[data-role-add]')?.addEventListener('click', () => {
-          const input = paneScopeTemplates.querySelector('[data-commission-new-role]'); const label = String(input?.value || '').trim(); const key = commissionRoleKey(label);
-          if (!key) return;
-          const current = readCommissionEditor();
-          if (current.roles.some((role) => role.key === key)) return showToast((globalThis.PlatformLanguage?.text("settings","m_ca0779eccc4125","Role already exists") ?? "Role already exists"), ((v0) => globalThis.PlatformLanguage?.text("settings","m_e5124a2a46b889",`${v0} is already available.`,{v0}) ?? `${v0} is already available.`)(label), false);
-          draftDefinition = { ...(draftDefinition || definition), commissions:{ ...current, roles:[...current.roles, { key, label, assignment_source:'manual', metadata:{ stable_role:false } }] } };
-          markDirty(); drawEditor(statusText);
-        });
-        paneScopeTemplates.querySelectorAll('[data-role-remove]').forEach((button) => button.addEventListener('click', () => {
-          const current = readCommissionEditor(); const index = Number(button.dataset.roleRemove); const role = current.roles[index];
-          if (current.rules.some((rule) => rule.payee_role === role?.key)) return showToast((globalThis.PlatformLanguage?.text("settings","m_866c6334d555f6","Role is in use") ?? "Role is in use"), (globalThis.PlatformLanguage?.text("settings","m_f6d777083112fc","Choose another recipient on its commission rules before removing it.") ?? "Choose another recipient on its commission rules before removing it."), false);
-          draftDefinition = { ...(draftDefinition || definition), commissions:{ ...current, roles:current.roles.filter((_role, roleIndex) => roleIndex !== index) } };
-          markDirty(); drawEditor(statusText);
-        }));
-        paneScopeTemplates.querySelectorAll('[data-installment-add]').forEach((button) => button.addEventListener('click', () => {
-          const current = readCommissionEditor(); const ruleIndex = Number(button.dataset.installmentAdd); const rule = current.rules[ruleIndex];
-          const installments = [...(Array.isArray(rule.installments) ? rule.installments : []), { id:`payment_${Date.now().toString(36)}`, title:(globalThis.PlatformLanguage?.text("settings","m_54f666cee11968","Scheduled commission payment") ?? "Scheduled commission payment"), share_bps:10000, recognition:{ node_id:'', hook:'onCompleted' } }];
-          const evenShare = Math.floor(10000 / installments.length); let assigned = 0;
-          installments.forEach((installment, index) => { installment.share_bps = index === installments.length - 1 ? 10000 - assigned : evenShare; assigned += installment.share_bps; });
-          current.rules[ruleIndex] = { ...rule, entry_state:'projected', installments };
-          draftDefinition = { ...(draftDefinition || definition), commissions:current }; markDirty(); drawEditor(statusText);
-        }));
-        paneScopeTemplates.querySelectorAll('[data-installment-remove]').forEach((button) => button.addEventListener('click', () => {
-          const [ruleIndex, installmentIndex] = String(button.dataset.installmentRemove || '').split(':').map(Number); const current = readCommissionEditor(); const rule = current.rules[ruleIndex];
-          const installments = (Array.isArray(rule.installments) ? rule.installments : []).filter((_installment, index) => index !== installmentIndex);
-          if (installments.length) { const evenShare = Math.floor(10000 / installments.length); let assigned = 0; installments.forEach((installment, index) => { installment.share_bps = index === installments.length - 1 ? 10000 - assigned : evenShare; assigned += installment.share_bps; }); }
-          current.rules[ruleIndex] = { ...rule, installments:installments.length ? installments : undefined };
-          draftDefinition = { ...(draftDefinition || definition), commissions:current }; markDirty(); drawEditor(statusText);
-        }));
         const goBack = async () => {
           if (!await saveScopeDraft()) return;
           if (artifactHandle && !await artifactHandle.canLeave()) return;
@@ -11508,7 +11335,7 @@
           }
           const routed = readSettingsRoute();
           selectedId = routed.settingsEntity.replace(/^scope:/, '') || selectedId;
-          editorSection = ['details', 'boards', 'scheduling', 'developer', 'automations', 'todos', 'checklists', 'documents', 'materials', 'events', 'notifications', 'communications', 'resources', 'fields', 'calls', 'transitions', 'workflows', 'portal', 'payments', 'other', 'commissions', 'assistant'].includes(routed.scopeTemplateView) ? routed.scopeTemplateView : 'details';
+          editorSection = ['details', 'boards', 'scheduling', 'developer', 'automations', 'todos', 'checklists', 'documents', 'materials', 'events', 'notifications', 'communications', 'resources', 'fields', 'calls', 'transitions', 'workflows', 'portal', 'payments', 'other', 'assistant'].includes(routed.scopeTemplateView) ? routed.scopeTemplateView : 'details';
           const selected = templates.find((item) => item.id === selectedId);
           if (selected && routed.settingsView === 'editor') { draftDefinition = definitionFor(selected); drawEditor(); }
           else if (routed.settingsView === 'library') drawAddScope();

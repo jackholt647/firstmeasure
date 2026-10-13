@@ -7,7 +7,7 @@ Scope templates are versioned workflow definitions. There are two kinds:
 
 A template carries its display metadata, proposal fields, and the complete work-plan definition that should be instantiated when the scope starts. A project can hold multiple scope instances (work plans) at once; per-instance stages and project-level lifecycle facts (`lifecycle.status` open/completed/canceled/lost, `sold_at`, `completed_at`) are denormalized onto the project document as `work_projection` — there is no `project.stage`.
 
-The scope library is a canonical catalog separate from installed scope instances. A catalog template remains selectable after installation; selecting it creates a new scope with copied board behavior, automations, fields, resources, checklists, and commissions. Copies record `library_template_id` / `based_on_preset` provenance without modifying the source template.
+The scope library is a canonical catalog separate from installed scope instances. A catalog template remains selectable after installation; selecting it creates a new scope with copied board behavior, automations, fields, resources, and checklists. Copies record `library_template_id` / `based_on_preset` provenance without modifying the source template.
 
 ## The automation engine around scopes
 
@@ -17,7 +17,7 @@ The scope library is a canonical catalog separate from installed scope instances
 - **Claims** (`project.claim.v1`): atomic test-and-set on `project.claims[key]` so parallel scope instances coordinate (one welcome call across roof + gutter scopes).
 - **Time triggers**: nodes declare `timers: [{id, anchor: created|ready|started|due, offset_minutes}]` and react in `onTimer` bindings (`work.node.timer` events, one-shot); org rules with `schedule.cron` fire `time.cron` on a 5-field cron (minute resolution).
 - **Data context providers** (`public/v1/work/context.ts`): automation inputs interpolate any registered namespace — `{{organization.name}}`, `{{users.by_role.sales_appointments.0.email}}`, `{{pricebook.default.catalog...}}`, `{{branch.<moduleId>...}}`, `{{scopes.list...}}`, `{{money.obligations...}}`, `{{work.active_instances...}}`, or project media such as `{{media.by_tag.before_photos.0.media_id}}` — lazily loaded and cached per event. New subsystems register a provider to become scriptable.
-- **No blessed subsystems**: custom-field schema contribution, materials, checklists, and commission setup run as default `onStarted` bindings (`customFields.initializeFromScope.v1`, `materials.initializeFromScope.v1`, `checklists.initializeFromScope.v1`, `payroll.reconcileScopeCommissions.v1`) injected from template content; deposit-time reconciliation is a preset binding (`scopes.reconcileProjectResources.v1`); receivables are a default org rule. Templates override any default by declaring a binding with the same id.
+- **No blessed subsystems**: custom-field schema contribution, materials and checklists run as default `onStarted` bindings (`customFields.initializeFromScope.v1`, `materials.initializeFromScope.v1`, `checklists.initializeFromScope.v1`) injected from template content; deposit-time reconciliation is a preset binding (`scopes.reconcileProjectResources.v1`); receivables are a default org rule. Templates override any default by declaring a binding with the same id.
 
 - **Authoring contract**: typed action inputs, the shared condition operators, the one-event meaning of binding keys, `sequence` steps, multi-action organization rules, dry runs and pushing a template change to running instances are documented in [automation authoring](../../../docs/architecture/automation-authoring.md).
 
@@ -32,7 +32,7 @@ The scope library is a canonical catalog separate from installed scope instances
 Settings → Project Scopes → a scope → Automations uses the read-only
 `GET /v1/scopes/organizations/:orgId/branches/:branchId/templates/:templateId/event-map`
 endpoint (`manage_company_settings`). It combines the saved scope definition,
-runtime setup defaults, compiled commission bindings, organization rules, and
+runtime setup defaults, organization rules, and
 registered event/action documentation. It includes hidden and unused entries,
 conditions, inputs, timers, and transition destinations. A lifecycle hook is
 listed only under its own work event; sequences appear as their compiled timers
@@ -62,14 +62,15 @@ just as it does at runtime.
 `artifact_id`, optional `usage_id` for a document invocation, and `changes`.
 Supported fields update the original definition path, then pass the complete
 scope schema through the normal versioned save. There is no second artifact
-store. Existing artifact edits, Details, and Commissions auto-save after a short
+store. Existing artifact edits and Details auto-save after a short
 pause. Requests are serialized, use the latest confirmed version, and retain
 invalid or failed edits with an explicit unsaved status. New artifacts use Add
 once their configuration is ready. Creation accepts `type`, `changes`, and a lifecycle `trigger`; it adds an
 executable binding (or a checklist preset). Existing scope instances retain
 their installed definitions. Management permission and CSRF protection apply;
-outdated versions return 409. Payments compiled from commission definitions are
-inspected here and edited through Commissions.
+outdated versions return 409. Scope templates hold no pay logic: who is paid
+for a role is an assignee field on the project, and what they are paid comes
+from [pay rules](../../../docs/architecture/pay-rules.md).
 
 ## Stored Definition
 
@@ -158,5 +159,3 @@ Boards previews the configured stage columns for the single board keyed by this
 scope template, with links to work items and event-driven milestones inside each
 stage. Project cards and
 legacy columns from existing project instances belong to the live board.
-Commissions presents configured rules first, named workflow-step selectors,
-payout schedules, and collapsible optional settings and recipient assignments.

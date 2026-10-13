@@ -102,11 +102,6 @@ export const scopeResourcesDefinitionSchema = jsonObjectSchema.extend({
   metadata: jsonObjectSchema.optional()
 }).passthrough();
 
-export const scopeCommissionTriggerSchema = jsonObjectSchema.extend({
-  hook: z.enum(["onCreated", "onStarted", "onReady", "onCompleted", "onCanceled"]).optional(),
-  node_id: scopeDefinitionIdSchema.optional()
-}).passthrough();
-
 const scopeCustomFieldPathSchema = z.string().trim().min(1).max(780)
   .regex(/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/, "Custom field paths use letters, numbers, underscores, hyphens, and dots.");
 
@@ -178,84 +173,6 @@ export const scopeCommunicationsDefinitionSchema = jsonObjectSchema.extend({
   }).passthrough().optional()
 }).passthrough();
 
-export const scopeCommissionRoleSchema = jsonObjectSchema.extend({
-  key: scopeDefinitionIdSchema,
-  label: z.string().trim().min(1).max(300),
-  assignment_source: z.enum(["manual", "sales_appointment_assignee", "sales_appointment_scheduler", "project_custom_field"]).optional(),
-  custom_field_path: scopeCustomFieldPathSchema.optional(),
-  metadata: jsonObjectSchema.optional()
-}).passthrough().superRefine((value, context) => {
-  if (value.assignment_source === "project_custom_field" && !value.custom_field_path) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["custom_field_path"], message: "Custom-field commission roles require custom_field_path." });
-  }
-});
-
-export const scopeCommissionInstallmentSchema = jsonObjectSchema.extend({
-  id: scopeDefinitionIdSchema,
-  title: z.string().trim().min(1).max(300),
-  share_bps: z.number().int().min(1).max(10_000),
-  recognition: scopeCommissionTriggerSchema,
-  metadata: jsonObjectSchema.optional()
-}).passthrough();
-
-export const scopeCommissionSelectorSchema = jsonObjectSchema.extend({
-  item_ids: z.array(scopeDefinitionIdSchema).optional(),
-  categories: z.array(z.string().trim().min(1).max(180)).optional(),
-  tags: z.array(z.string().trim().min(1).max(180)).optional(),
-  exclude_item_ids: z.array(scopeDefinitionIdSchema).optional(),
-  exclude_categories: z.array(z.string().trim().min(1).max(180)).optional(),
-  exclude_tags: z.array(z.string().trim().min(1).max(180)).optional()
-}).passthrough();
-
-export const scopeCommissionTierSchema = jsonObjectSchema.extend({
-  min_discount_bps: z.number().int().min(0).max(1_000_000).optional(),
-  max_discount_bps: z.number().int().min(0).max(1_000_000).optional(),
-  rate_bps: z.number().int().min(0).max(1_000_000)
-}).passthrough();
-
-export const scopeCommissionCalculationSchema = jsonObjectSchema.extend({
-  mode: z.enum(["preset", "code"]),
-  preset: z.enum(["percentage", "percentage_after_discount", "discount_tiered", "fixed", "selected_line_items"]).optional(),
-  basis: z.enum(["proposal_total", "proposal_subtotal", "collected_revenue", "forecast_profit", "selected_line_items"]).optional(),
-  rate_bps: z.number().int().min(0).max(1_000_000).optional(),
-  fixed_amount_cents: z.number().int().min(0).optional(),
-  fixed_adjustment_cents: z.number().int().optional(),
-  minimum_cents: z.number().int().min(0).optional(),
-  maximum_cents: z.number().int().min(0).optional(),
-  subtract_discounts: z.boolean().optional(),
-  selector: scopeCommissionSelectorSchema.optional(),
-  tiers: z.array(scopeCommissionTierSchema).max(50).optional(),
-  code: z.string().max(100_000).optional()
-}).superRefine((value, context) => {
-  if (value.mode === "code" && !String(value.code || "").trim()) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["code"], message: "Custom commission rules require code." });
-  }
-});
-
-export const scopeCommissionRuleSchema = jsonObjectSchema.extend({
-  id: scopeDefinitionIdSchema,
-  title: z.string().trim().min(1).max(300),
-  enabled: z.boolean().optional(),
-  payee_role: scopeDefinitionIdSchema,
-  entry_state: z.enum(["projected", "accrued"]).optional(),
-  allocation: z.enum(["split_evenly", "each"]).optional(),
-  trigger: scopeCommissionTriggerSchema.optional(),
-  installments: z.array(scopeCommissionInstallmentSchema).max(20).optional(),
-  calculation: scopeCommissionCalculationSchema,
-  metadata: jsonObjectSchema.optional()
-}).passthrough().superRefine((value, context) => {
-  if (value.installments?.length && value.installments.reduce((sum, installment) => sum + installment.share_bps, 0) !== 10_000) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["installments"], message: "Commission installment shares must total 100%." });
-  }
-});
-
-export const scopeCommissionsDefinitionSchema = jsonObjectSchema.extend({
-  enabled: z.boolean().optional(),
-  roles: z.array(scopeCommissionRoleSchema).max(100).optional(),
-  rules: z.array(scopeCommissionRuleSchema).max(100),
-  metadata: jsonObjectSchema.optional()
-}).passthrough();
-
 export const scopeChecklistItemDefinitionSchema = jsonObjectSchema.extend({
   title: z.string().trim().min(1).max(500),
   item_type: z.enum(["todo", "rating"]).optional(),
@@ -319,7 +236,6 @@ export const scopeTemplateDefinitionSchema = jsonObjectSchema.extend({
   // Defaults for appointments created under this sales/production scope.
   // Individual appointments can still override or disable the policy.
   customer_scheduling: jsonObjectSchema.optional(),
-  commissions: scopeCommissionsDefinitionSchema.optional(),
   checklists: z.array(scopeChecklistDefinitionSchema).max(20).optional(),
   work_plan: jsonObjectSchema.extend({
     department_ids: z.array(scopeDefinitionIdSchema).max(100).optional(),

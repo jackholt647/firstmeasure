@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   applyProjectCustomFieldDefaults,
-  assignmentPayeesFromCustomField,
   customFieldValueAtPath,
   mergeProjectCustomFieldsForSave,
   reconcileProjectCustomFieldSchema
@@ -118,18 +117,7 @@ test("event defaults fill only empty assignment fields and preserve manual sibli
   );
 });
 
-test("payroll can resolve payees from assignment custom fields", () => {
-  const payees = assignmentPayeesFromCustomField({
-    custom_field_values:{
-      assignments:{
-        estimator:{ subject_type:"organization_user", subject_id:"user_1", name:"Ada" }
-      }
-    }
-  }, "assignments.estimator");
-  assert.deepEqual(payees, [{ type:"organization_user", id:"user_1", name:"Ada", worker_type:"employee" }]);
-});
-
-test("scope schema accepts assignment fields, defaulting, forwarding, and payroll references", () => {
+test("scope schema accepts assignment fields, defaulting and forwarding", () => {
   const parsed = scopeTemplateDefinitionSchema.parse({
     id:"sales_pipeline",
     name:"Sales pipeline",
@@ -147,15 +135,6 @@ test("scope schema accepts assignment fields, defaulting, forwarding, and payrol
       email_forwarding:{
         target:{ kind:"custom_field", custom_field_path:"assignments.estimator" }
       }
-    },
-    commissions:{
-      roles:[{
-        key:"estimator",
-        label:"Estimator",
-        assignment_source:"project_custom_field",
-        custom_field_path:"assignments.estimator"
-      }],
-      rules:[]
     },
     work_plan:{ root_nodes:[{ id:"sales", title:"Sales" }] }
   });

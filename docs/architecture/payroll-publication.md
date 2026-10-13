@@ -7,7 +7,7 @@ not add tax calculation, bank transfers, or new earning recognition rules.
 schema version 2 and the payroll action domain during shared bootstrap. The old
 flat collection export and standalone upcoming adapter are replaced by typed
 domain adapters. The provider exposes ledger entries, schedules, policy
-assignments, configuration, project payees, upcoming occurrences, dashboard,
+assignments, configuration, upcoming occurrences, dashboard,
 runs, earnings, timesheets, contractor and assignment directories, report
 catalog, and generated artifacts. Ledger entries retain payee type, source
 evidence, recognition state, eligibility, currency, and remaining balance.
@@ -21,10 +21,9 @@ organization ownership. Contractor profile edits additionally require the
 existing workforce/company permission. Sensitive workforce fields and file
 bytes are excluded from the directory and artifact exports.
 
-Reads do not reconcile commissions, seed roles, create ledger entries, or
-generate reports. Scope commission reconciliation is an explicit published
-write. Existing business writers handle schedule/policy changes, project payee
-assignments, earning posting/accrual/reversal, commission operations, run
+Reads do not refresh earnings, seed roles, create ledger entries, or
+generate reports. Working out earnings from pay rules is an explicit published
+write (`payroll.earnings.refresh`); see [pay rules](pay-rules.md). Existing business writers handle schedule/policy changes, earning posting/accrual/reversal, pay rule, plan and setup changes, run
 creation/approval/payment, timesheet corrections/approval, contractor terms, and
 report generation. Published writes require durable idempotency receipts.
 PayrollAPI routes the existing browser controls through these actions; binary
@@ -36,8 +35,8 @@ immutable global snapshot. Dashboard and earnings reports retain domain limits
 and truncation indicators; reads do not invent missing obligations.
 
 The shared widget catalog contains six native view widgets (`payroll.upcoming`,
-`timesheets`, `contractors`, `exports`, `history`, `settings`) and six detail
-widgets (`ledger`, `commissions`, `earnings`, `my_earnings`, `project_payees`,
+`timesheets`, `contractors`, `exports`, `history`, `settings`) and five detail
+widgets (`ledger`, `commissions`, `earnings`, `my_earnings`,
 `batch`). The Payroll tab mounts those same native leaves. Agents discover
 their sources and configuration through the standard widget registry and
 present them through `platform_show_widget`. Each instance owns its filters,

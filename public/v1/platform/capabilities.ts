@@ -695,7 +695,6 @@ export function builtinCapabilityPresets(): CapabilityPreset[] {
         "apps.payroll": true,
         "payroll.pay_runs": true,
         "payroll.compensation_profiles": true,
-        "payroll.commissions": true,
         "payroll.self_service_earnings": true,
         "apps.training": true,
         "training.studio": true,

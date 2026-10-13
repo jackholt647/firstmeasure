@@ -30,7 +30,6 @@ import { expandAutomationRules, readAutomationRules } from "../work/rules.js";
 import { createWorkPlanSchema } from "../work/schemas.js";
 import { compileSequences, waitMinutes } from "../work/sequences.js";
 import { listDependenciesForNode, listNodeRecords, readPlanRecord } from "../work/storage.js";
-import { compileScopeCommissionBindings } from "../payroll/commission_rules.js";
 import { scopeTemplateDefinitionSchema } from "./schemas.js";
 import { defaultInstantiationBindings } from "./service.js";
 import { readScopeTemplate } from "./storage.js";
@@ -184,7 +183,7 @@ export async function dryRunAutomations(orgId: string, branchIdValue: string, in
     notes.push("Simulating against this scope instance's current state. Timers that have already fired on the live instance may be reported again.");
   } else if (definition) {
     const workPlan = asObject(definition.work_plan);
-    planBindings = mergeBindings(workPlan.automation_bindings, input.signed_proposal === true ? compileScopeCommissionBindings(definition).plan : {}, defaultInstantiationBindings(definition));
+    planBindings = mergeBindings(workPlan.automation_bindings, defaultInstantiationBindings(definition));
     const insert = (value: unknown, parent: string) => {
       const node = asObject(value);
       const id = text(node.id);

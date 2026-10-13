@@ -96,3 +96,46 @@ public exports. New consumers use explicit publication context and bindings.
 Referrals publishes the extracted read-only eligibility helper; creating an offer remains an action.
 
 User-filtered channel, training and chat snapshots retain subject IDs in provenance, including when a binding selects a scalar path. Frozen replay checks the original viewer and every captured subject against current permitted subjects. Document snapshots recheck all captured published keys. Revocation denies replay rather than substituting new values.
+
+## Declared selections
+
+`selectPublishedData(ctx, ref, selection)` in `platform/publication/select.ts`
+answers "which rows of this published collection, in which period, in what
+order". A consumer states the selection as data and never filters in its own
+code:
+
+```json
+{ "where": { "match": "all", "rules": [
+    { "field": "booked_by.subject_id", "operator": "equals", "value": "user_1" } ] },
+  "period": { "field": "sold_at", "from": "2026-03-01", "through": "2026-03-31" },
+  "orderBy": { "field": "sold_at", "direction": "asc" },
+  "limit": 1000, "asOf": "2026-04-01T00:00:00.000Z" }
+```
+
+- `where` is the group form of the one condition contract (`work/conditions.ts`);
+  fields are dot paths into the published row. The equality-map spelling is not
+  accepted here. Operators may be added; an existing operator's meaning never
+  changes, because stored selections depend on it.
+- `period` is inclusive at both ends. A date without a time covers that whole
+  UTC day; pass exact instants for another timezone. A row with no value in the
+  date field is in no period.
+- More matches than `limit` (default 1,000, at most 5,000) is
+  `selection_too_large`, never a shortened result. There is no cursor yet.
+- `asOf` fixes what relative times such as `now-3d` are measured from, so the
+  same selection can be repeated.
+- Every row must publish a stable string `id`. Each returned row carries `key`
+  and `revision` (the row's own `revision`, otherwise a hash of its content).
+  A consumer that records these can tell later whether anything it depended on
+  has changed.
+
+Today the host answers a selection by reading the collection (`list` pages, or
+a whole array export) and filtering, up to 50,000 rows; beyond that it fails
+with `selection_scan_limit`. A provider that implements the optional `select`
+hook answers from its own index instead and must return exactly the rows the
+host's filter would. `selectionSupport(ref)` reports whether an export is
+selectable and whether it is indexed.
+Moving a provider from scanning to an index changes no consumer.
+
+Not built: exposure of selections to the module sandbox and HTTP, cursors, and
+matching inside list-valued fields (a many-valued assignee field cannot yet be
+matched by member). Run `tests/publication-select.test.ts` for changes here.

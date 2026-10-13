@@ -83,6 +83,10 @@ still needs a responsible salesperson before an appointment exists.
 
 ## Payroll
 
+*Superseded on 2026-10-13: scope commission roles were removed. A pay rule
+selects projects whose assignment field names the payee; see
+[pay rules](architecture/pay-rules.md). The example below is historical.*
+
 A scope commission role can read the same assignment:
 
 ```json

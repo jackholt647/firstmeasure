@@ -118,7 +118,7 @@ use and are not counted as a complete public catalog. Data publication is tracke
 | materials | `materials.project.lists`, `materials.list.read`, `materials.order.read`, `materials.initializeFromScope.v1` | Order creation, supplier delivery and inventory mutations |
 | invoices, money | `payments.project.summary`, `payments.invoice.create`, `payments.invoice.due`, `payments.invoice.void`, `payments.payment.clear`, `payments.payment.refund`, `payments.ledger.list`, `payments.ensureReceivables.v1`, `payments.reconcileRecognition.v1` | Remaining payment initiation, expense and payable workflows |
 | financials | `payments.ledger.list`, `payments.project.summary` | Dedicated financial projection/cash-flow query adapters |
-| payroll | `payroll.upcoming.read`, `payroll.reconcileScopeCommissions.v1`, `payroll.commission.post.v1`, `payroll.projectPayees.set.v1`, `payroll.commission.rule.v1`, `payroll.commission.accrue.v1` | Payroll approval/export/provider administration |
+| payroll | `payroll.upcoming.read`, `payroll.payRule.save`, `payroll.payPlan.save`, `payroll.paySetup.preview`, `payroll.paySetup.save`, `payroll.earnings.refresh`, `payroll.correction.decline`, `payroll.refreshEarnings.v1` | Payroll approval/export/provider administration |
 | canvassing | `canvassing.pins.list`, `canvassing.pin.save` | Campaign and territory administration |
 | channels | `channels.list`, `channels.messages.list`, `channels.message.react` | Posting, channel membership and administration |
 | chat | `chat.inbox`, `chat.conversation.claim`, `chat.conversation.release`, `chat.conversation.send` | Remaining conversation administration and visitor-context actions |

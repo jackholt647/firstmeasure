@@ -516,6 +516,7 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     await (await import('./roofing-documents.js')).seedInstantRoofingDocuments(String(organization.id), ctx);
     await (await import('../materials/roofing-library.js')).seedInstantRoofingLibrary(String(organization.id), ctx);
     await (await import('../labor/sample-pay-sheets.js')).seedInstantPaySheets(String(organization.id), ctx);
+    await (await import('../payroll/sample-pay-rules.js')).seedSamplePayRules(String(organization.id), ctx);
     try {
       await completeDevelopmentOnboarding(ctx);
     } catch (error) {

@@ -54,7 +54,6 @@
     autopayBusy: false,
     autopayError: '',
     autopayEnrollOpen: false,
-    commissionHandle: null,
     receiptBrowserHandle: null,
     receiptReview: null,
     receiptBatch: null,
@@ -158,18 +157,6 @@
     ].find((candidate) => candidate && typeof candidate === 'object' && Object.keys(candidate).length);
     if (!permissions) return false;
     return permissions['*'] === true || permissions.manage_projects === true;
-  }
-
-  function canManageCommissions(){
-    const permissions = [
-      state.context?.permissions,
-      state.context?.user?.effective_permissions,
-      state.context?.user?.permissions,
-      Portal?.currentUser?.permissions,
-      Portal?.permissions,
-      rootWindow.__APP?.permissions
-    ].find((candidate) => candidate && typeof candidate === 'object' && Object.keys(candidate).length);
-    return !!permissions && (permissions['*'] === true || permissions.manage_payroll === true || permissions.manage_company_settings === true);
   }
 
   function moneyMutationBusy(){
@@ -545,8 +532,6 @@
 
   function renderMain(){
     if (!state.panelRoot) return;
-    state.commissionHandle?.destroy?.();
-    state.commissionHandle = null;
     state.receiptBrowserHandle?.destroy?.();
     state.receiptBrowserHandle = null;
     const root = state.panelRoot.querySelector('[data-money-root]') || state.panelRoot;
@@ -581,12 +566,11 @@
       ${String(renderReceiptBatch(summary))}
     `;
     bindMain(root);
-    mountCommissions(root);
     mountReceiptsBrowser(root);
   }
 
   function viewTab(id, icon, label){
-    const compactLabels = { overview:'Ovr', ledger:'Led', payments:'Pay', invoices:'Inv', recurring:'Rec', expenses:'Costs', receipts:'Rcpt', commissions:'Comm', reports:'Rpt' };
+    const compactLabels = { overview:'Ovr', ledger:'Led', payments:'Pay', invoices:'Inv', recurring:'Rec', expenses:'Costs', receipts:'Rcpt', reports:'Rpt' };
     const compactLabel = compactLabels[id] || label;
     return `<button type="button" class="mn-tab${state.activeView === id ? ' active' : ''}" data-money-view="${escapeHtml(id)}" aria-label="${escapeHtml(label)}"><i class="fas ${escapeHtml(icon)}"></i><span class="mn-tab-label mn-tab-label-full">${escapeHtml(label)}</span><span class="mn-tab-label mn-tab-label-compact">${escapeHtml(compactLabel)}</span></button>`;
   }
@@ -600,7 +584,6 @@
     if (state.activeView === 'expenses') return isMobileMoneyLayout() ? mobileExpensesView(summary) : expensesView(summary);
     if (state.activeView === 'receipts') return receiptsView();
     if (state.activeView === 'reports') return reportsView();
-    if (state.activeView === 'commissions' && canManageCommissions()) return '<div class="mn-commission-mount" data-money-commissions></div>';
     return overviewView(summary);
   }
 
@@ -626,7 +609,6 @@
           { id:'receipts', icon:'fa-file-invoice', label:term('receipts') }
         ];
     tabs.push({ id:'reports', icon:'fa-chart-column', label:term('reports') });
-    if (canManageCommissions()) tabs.push({ id:'commissions', icon:'fa-percent', label:term('commissions') });
     return tabs;
   }
 
@@ -638,22 +620,6 @@
     const requested = cleanText(view);
     if (isMobileMoneyLayout() && (requested === 'overview' || requested === 'take_payment')) return requested === 'take_payment' ? 'payments' : 'ledger';
     return allowedMoneyViews().includes(requested) ? requested : (isMobileMoneyLayout() ? 'ledger' : 'overview');
-  }
-
-  function mountCommissions(root){
-    const mount = root.querySelector('[data-money-commissions]');
-    if (!mount || !canManageCommissions() || !rootWindow.FirstMateProjectCommissions?.mount) return;
-    state.commissionHandle = rootWindow.FirstMateProjectCommissions.mount({
-      ...state.context,
-      panelRoot:mount,
-      roots:{ ...(state.context?.roots || {}), main:mount },
-      project:state.project,
-      projectId:projectId(),
-      orgId:orgId(),
-      branchId:branchId(),
-      moneyTerms:{ ...state.moneyTerms },
-      active:true
-    });
   }
 
   function invoices(){
@@ -2497,8 +2463,6 @@
     setWorkspaceChrome(state.active);
     if (state.active) loadData();
     else {
-      state.commissionHandle?.destroy?.();
-      state.commissionHandle = null;
       state.receiptBrowserHandle?.destroy?.();
       state.receiptBrowserHandle = null;
       state.sidebarRoot?.querySelector?.('#mnSidebarList .mn-left')?.remove();
@@ -2515,8 +2479,6 @@
     state.receiptUploadToken += 1;
     state.mutationToken += 1;
     state.receiptUploadInFlight = false;
-    state.commissionHandle?.destroy?.();
-    state.commissionHandle = null;
     state.receiptBrowserHandle?.destroy?.();
     state.receiptBrowserHandle = null;
     state.summary = null;

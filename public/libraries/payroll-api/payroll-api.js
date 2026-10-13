@@ -123,10 +123,6 @@
       else if(method==='PUT'){action='payroll.policy.save';input={subject_type:p[1],subject_id:p[2],values:input};}
       else if(method==='DELETE'){action='payroll.policy.remove';input={subject_type:p[1],subject_id:p[2],earning_kind:query.earning_kind};}
       else{action='payroll.policies.list';input={};}wrap=value=>({ok:true,[method==='GET'&&!p[1]?'policies':'policy']:value});
-    }else if(p[0]==='projects'){
-      target.scope='project';target.projectId=p[1];
-      action=p[2]==='payees'?(method==='GET'?'payroll.projectPayees.read':'payroll.projectPayees.set'):p[2]==='commission-events'?'payroll.commission.post':'payroll.commission.override';
-      if(p[3])target.id=p[3];if(method==='GET')input={};wrap=value=>({ok:true,...(p[2]==='payees'?{[method==='GET'?'payee_roles':'payee_role']:value}:value)});
     }else if(p[0]==='ledger'||p[0]==='projections'){
       if(p[1])target.id=p[1];action=p[2]==='reverse'?'payroll.ledger.reverse':p[2]==='accrue'?'payroll.projection.accrue':method==='POST'?'payroll.ledger.post':p[1]?'payroll.ledger.read':'payroll.ledger.list';
       if(method==='GET')input=query;else if(action==='payroll.ledger.post')input={entries:Array.isArray(input.entries)?input.entries:[{...input,...(p[0]==='projections'?{state:'projected'}:{})}]};
@@ -192,17 +188,30 @@
     }
   };
 
-  const projects = {
-    payees(orgId, projectId){ return request(orgPath(orgId, `/projects/${enc(projectId)}/payees`)); },
-    setPayeeRole(orgId, projectId, roleKey, payload = {}){
-      return request(orgPath(orgId, `/projects/${enc(projectId)}/payees/${enc(roleKey)}`), { method:'PUT', body:payload });
-    },
-    commissionEvent(orgId, projectId, payload = {}){
-      return request(orgPath(orgId, `/projects/${enc(projectId)}/commission-events`), { method:'POST', body:payload });
-    },
-    overrideCommission(orgId, projectId, payload = {}){
-      return request(orgPath(orgId, `/projects/${enc(projectId)}/commission-overrides`), { method:'POST', body:payload });
-    }
+  // Pay rules, pay plans and each payee's pay setup. These exist only as published data and actions.
+  const paySource = (orgId, exportName, id) => root.PlatformAPI.publication.read(orgId, { provider:'payroll', export:exportName, target:{ scope:'organization', organizationId:orgId, ...(id ? { id } : {}) } })
+    .then((result) => { if (result.status !== 'ready') throw Object.assign(new Error(result.message || 'Pay rules are unavailable.'), { code:result.code }); return result.value; });
+  const payAction = async (orgId, action, input = {}, id = '', write = true) => {
+    const result = await root.PlatformAPI.publication.invoke(orgId, action, { scope:'organization', organizationId:orgId, ...(id ? { id } : {}) }, input, write ? { idempotencyKey:'payroll-' + root.crypto.randomUUID() } : {});
+    if (result.receipt && result.receipt.status !== 'succeeded') throw Error(result.message || 'The payroll operation did not complete.');
+    if (write) root.dispatchEvent(new Event('fm:payroll:updated'));
+    return result.value;
+  };
+  const payeeId = (payee) => `${payee.type}:${payee.id}`;
+  const pay = {
+    rules(orgId){ return paySource(orgId, 'pay_rules'); },
+    plans(orgId){ return paySource(orgId, 'pay_plans'); },
+    setups(orgId){ return paySource(orgId, 'pay_setups'); },
+    setup(orgId, payee){ return paySource(orgId, 'pay_setup', payeeId(payee)); },
+    units(orgId, payee){ return paySource(orgId, 'pay_units', payeeId(payee)); },
+    saveRule(orgId, rule){ return payAction(orgId, 'payroll.payRule.save', rule); },
+    archiveRule(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.payRule.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },
+    savePlan(orgId, plan){ return payAction(orgId, 'payroll.payPlan.save', plan); },
+    archivePlan(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.payPlan.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },
+    previewSetup(orgId, setup){ return payAction(orgId, 'payroll.paySetup.preview', setup, '', false); },
+    saveSetup(orgId, setup){ return payAction(orgId, 'payroll.paySetup.save', setup); },
+    refreshEarnings(orgId, payees){ return payAction(orgId, 'payroll.earnings.refresh', payees && payees.length ? { payees } : {}); },
+    declineCorrection(orgId, entryId, note = ''){ return payAction(orgId, 'payroll.correction.decline', note ? { note } : {}, entryId); }
   };
 
   const ledger = {
@@ -256,7 +265,7 @@
     earnings,
     schedules,
     policies,
-    projects,
+    pay,
     ledger,
     batches,
     timesheets,

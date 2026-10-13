@@ -367,7 +367,7 @@ const TOOLS: AgentTool[] = [
       project: { type: "object", additionalProperties: true, description: "Sample project fields, layered over the real project when project_id is given." },
       rules: { type: "string", description: "Draft organization rules as a JSON array string. Omit to use the saved rules." },
       include_organization_rules: { type: "boolean", description: "Set false to leave organization rules out." },
-      signed_proposal: { type: "boolean", description: "Simulate an instance created by a signed proposal (adds commission automations)." },
+      signed_proposal: { type: "boolean", description: "Simulate an instance created by a signed proposal." },
       steps: { type: "array", description: "What happens, in order. Each step is one of: {event, payload?, node_id?} · {transition: {node_id, status}} · {advance: {minutes|hours|days|weeks}}.", items: { type: "object", additionalProperties: true } }
     }, required: ["steps"], additionalProperties: false },
     async execute(run, args) {

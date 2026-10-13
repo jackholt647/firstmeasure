@@ -5,8 +5,6 @@ import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 
-import { compileScopeCommissionBindings, evaluateScopeCommissionRule } from "../payroll/commission_rules.js";
-
 let app: any = null;
 let storageRoot = "";
 
@@ -106,91 +104,7 @@ function byPayee(items: any[], payeeId: string) {
   return item;
 }
 
-test("scope commission rules support presets, line-item context, and trusted custom code", () => {
-  const context = {
-    proposal: {
-      content: {
-        pricing: { total_cents: 900_00 },
-        scope: {
-          root_items: [
-            { id: "roof", name: "Roof", category: "labor", unit_price: { amount_cents: 80_000 } },
-            { id: "permit", name: "Permit", category: "fees", unit_price: { amount_cents: 20_000 } },
-            { id: "promo", name: "Promotion", type: "discount", unit_price: { amount_cents: 10_000 } }
-          ]
-        }
-      }
-    },
-    money: { total_collected_cents: 45_000, forecast_profit_cents: 30_000 },
-    project: { id: "project_rule_test" },
-    scope_template: { id: "roofing" }
-  } as any;
-  const preset = evaluateScopeCommissionRule({
-    id: "discount-tier",
-    payee_role: "estimators",
-    allocation: "split_evenly",
-    calculation: {
-      mode: "preset",
-      preset: "discount_tiered",
-      basis: "proposal_subtotal",
-      subtract_discounts: true,
-      tiers: [
-        { min_discount_bps: 0, max_discount_bps: 999, rate_bps: 1000 },
-        { min_discount_bps: 1000, rate_bps: 500 }
-      ]
-    }
-  }, context);
-  assert.equal(preset.length, 1);
-  assert.equal(preset[0]!.amount_cents, 4_500);
-  assert.equal(preset[0]!.basis_cents, 90_000);
-  assert.equal(preset[0]!.rate_bps, 500);
-
-  const contractPercentage = evaluateScopeCommissionRule({
-    id: "contract-total",
-    payee_role: "estimators",
-    calculation: { mode: "preset", preset: "percentage", basis: "proposal_total", rate_bps: 1_000 }
-  }, context);
-  assert.equal(contractPercentage[0]!.amount_cents, 9_000);
-
-  const selectedItems = evaluateScopeCommissionRule({
-    id: "labor-only",
-    payee_role: "sales_team",
-    calculation: {
-      mode: "preset",
-      preset: "selected_line_items",
-      basis: "selected_line_items",
-      rate_bps: 1_250,
-      selector: { categories: ["labor"] }
-    }
-  }, context);
-  assert.equal(selectedItems.length, 1);
-  assert.equal(selectedItems[0]!.amount_cents, 10_000);
-
-  const custom = evaluateScopeCommissionRule({
-    id: "internal-code",
-    calculation: {
-      mode: "code",
-      code: "(context) => ({ amount_cents: Math.round(context.facts.forecast_profit_cents * 0.2), payee_role: 'closers', allocation: 'each' })"
-    }
-  }, context);
-  assert.equal(custom.length, 1);
-  assert.equal(custom[0]!.amount_cents, 6_000);
-  assert.equal(custom[0]!.payee_role, "closers");
-  assert.equal(custom[0]!.allocation, "each");
-
-  const bindings = compileScopeCommissionBindings({
-    commissions: {
-      enabled: true,
-      rules: [
-        { id: "plan-rule", enabled: true, trigger: { hook: "onStarted" }, calculation: { mode: "preset" } },
-        { id: "node-rule", enabled: true, trigger: { hook: "onCompleted", node_id: "install" }, calculation: { mode: "code", code: "() => 100" } }
-      ]
-    }
-  });
-  assert.equal(bindings.plan.onStarted?.[0]?.automation, "payroll.commission.rule.v1");
-  assert.equal(bindings.nodes.install?.onCompleted?.[0]?.input && (bindings.nodes.install.onCompleted[0]!.input as any).rule.id, "node-rule");
-});
-
-test("payroll v1 resolves policies, recognizes earnings, posts commissions, carries clawbacks, and preserves payment history", async (t) => {
+test("payroll v1 resolves policies, recognizes earnings, carries clawbacks, and preserves payment history", async (t) => {
   const client = createSessionClient();
   const { orgId, ownerUserId } = await registerOwner(client);
   const base = `/v1/payroll/organizations/${orgId}`;
@@ -331,37 +245,17 @@ test("payroll v1 resolves policies, recognizes earnings, posts commissions, carr
 
   let employeeCommissionEntryId = "";
   let contractorCommissionEntryId = "";
-  await t.test("project payees split commission cents and projected accrual is retry-idempotent", async () => {
-    const payeeRole = await client.request("PUT", `${base}/projects/project_commission/payees/estimators`, {
-      label: "Estimators",
-      payees: [
-        { type: "organization_user", id: employeeId, name: "Alex Employee", worker_type: "employee" },
-        { type: "organization_connection", id: contractorId, name: "Roofing Partner", worker_type: "subcontractor" }
-      ]
+  await t.test("projected earnings accrue idempotently and a reversal becomes a clawback", async () => {
+    const commission = (payee: Record<string, unknown>, amount_cents: number) => ({
+      payee, kind: "commission", amount_cents, project_id: "project_commission", project_title: "Commission Test Project",
+      worked_at: "2026-07-10T18:00:00.000Z", completed_at: "2026-07-10T18:00:00.000Z",
+      source_event_id: "proposal_project_commission_paid", source_trigger_id: "proposal_payment_commission"
     });
-    assert.equal(payeeRole.payee_role.revision, 1);
-
-    const commissionInput = {
-      source_event_id: "proposal_project_commission_paid",
-      trigger_id: "proposal_payment_commission",
-      state: "projected",
-      payee_role: "estimators",
-      amount_cents: 10001,
-      allocation: "split_evenly",
-      occurred_at: "2026-07-10T18:00:00.000Z",
-      completed_at: "2026-07-10T18:00:00.000Z",
-      project_title: "Commission Test Project"
-    };
-    const projected = await client.request("POST", `${base}/projects/project_commission/commission-events`, commissionInput);
-    assert.equal(projected.entries.length, 2);
-    assert.deepEqual(projected.entries.map((entry: any) => entry.amount_cents).sort((a: number, b: number) => a - b), [5000, 5001]);
-    const retried = await client.request("POST", `${base}/projects/project_commission/commission-events`, commissionInput);
-    assert.deepEqual(retried.entries.map((entry: any) => entry.id).sort(), projected.entries.map((entry: any) => entry.id).sort());
-    const sourceEntries = await client.request("GET", `${base}/ledger?source_event_id=${commissionInput.source_event_id}`);
+    const employeeProjection = (await client.request("POST", `${base}/projections`, commission({ type: "organization_user", id: employeeId, name: "Alex Employee", worker_type: "employee" }, 5001))).projection;
+    const contractorProjection = (await client.request("POST", `${base}/projections`, commission({ type: "organization_connection", id: contractorId, name: "Roofing Partner", worker_type: "subcontractor" }, 5000))).projection;
+    assert.equal(employeeProjection.state, "projected");
+    const sourceEntries = await client.request("GET", `${base}/ledger?source_event_id=proposal_project_commission_paid`);
     assert.equal(sourceEntries.entries.length, 2);
-
-    const employeeProjection = projected.entries.find((entry: any) => entry.payee.id === employeeId);
-    const contractorProjection = projected.entries.find((entry: any) => entry.payee.id === contractorId);
     employeeCommissionEntryId = employeeProjection.id;
     contractorCommissionEntryId = contractorProjection.id;
     const employeeAccrued = await client.request("POST", `${base}/projections/${employeeCommissionEntryId}/accrue`, {});
@@ -371,244 +265,16 @@ test("payroll v1 resolves policies, recognizes earnings, posts commissions, carr
     const accrueRetry = await client.request("POST", `${base}/projections/${employeeCommissionEntryId}/accrue`, {});
     assert.equal(accrueRetry.entry.id, employeeCommissionEntryId);
     assert.equal(accrueRetry.entry.state, "accrued");
-  });
 
-  await t.test("removing and restoring a project payee reconciles projected commissions", async () => {
-    const projectId = "project_commission_payee_reconciliation";
-    const sourceEventId = "project_commission_payee_reconciliation_created";
-    const employee = { type: "organization_user", id: employeeId, name: "Alex Employee", worker_type: "employee" };
-    const contractor = { type: "organization_connection", id: contractorId, name: "Roofing Partner", worker_type: "subcontractor" };
-    await client.request("PUT", `${base}/projects/${projectId}/payees/estimators`, {
-      label: "Estimators",
-      payees: [employee, contractor]
-    });
-    await client.request("POST", `${base}/projects/${projectId}/commission-events`, {
-      source_event_id: sourceEventId,
-      trigger_id: "estimator_projection",
-      state: "projected",
-      payee_role: "estimators",
-      amount_cents: 10001,
-      allocation: "split_evenly",
-      project_title: "Payee Reconciliation Project"
-    });
-
-    await client.request("PUT", `${base}/projects/${projectId}/payees/estimators`, {
-      label: "Estimators",
-      payees: [employee],
-      expected_revision: 1
-    });
-    const removed = await client.request("GET", `${base}/ledger?source_event_id=${sourceEventId}`);
-    const activeAfterRemoval = removed.entries.filter((entry: any) => entry.state === "projected");
-    const voidAfterRemoval = removed.entries.filter((entry: any) => entry.state === "void");
-    assert.equal(activeAfterRemoval.length, 1);
-    assert.equal(activeAfterRemoval[0].payee.id, employeeId);
-    assert.equal(activeAfterRemoval[0].amount_cents, 10001);
-    assert.equal(voidAfterRemoval.length, 1);
-    assert.equal(voidAfterRemoval[0].payee.id, contractorId);
-    assert.equal(voidAfterRemoval[0].metadata.commission_payee_removed, true);
-
-    await client.request("PUT", `${base}/projects/${projectId}/payees/estimators`, {
-      label: "Estimators",
-      payees: [employee, contractor],
-      expected_revision: 2
-    });
-    const restored = await client.request("GET", `${base}/ledger?source_event_id=${sourceEventId}`);
-    assert.equal(restored.entries.filter((entry: any) => entry.state === "projected").length, 2);
-    assert.deepEqual(restored.entries.map((entry: any) => entry.amount_cents).sort((a: number, b: number) => a - b), [5000, 5001]);
-  });
-
-  await t.test("scope work automations can assign project payees and accrue commission idempotently", async () => {
-    const projectId = "project_scope_commission_automation";
-    await client.request("PUT", `${base}/policies/organization_user/${automationEmployeeId}`, {
-      schedule_id: delayedWeekly.id,
-      earning_kind: "commission"
-    });
-    const definition = {
-      id: "plan_scope_commission_automation",
-      branch_id: "default",
-      source_type: "scope_template",
-      source_id: "scope_commission_test",
-      source_key: "scope-commission-automation-source",
-      title: "Scope commission automation",
-      start_immediately: true,
-      root_nodes: [{
-        id: "commission_trigger",
-        title: "Accrue signed commission",
-        actionable: true,
-        automation_bindings: {
-          onReady: [
-            {
-              id: "assign-automation-estimator",
-              automation: "payroll.projectPayees.set.v1",
-              input: {
-                role_key: "automation_estimators",
-                label: "Automation Estimators",
-                payees: [{ type: "organization_user", id: automationEmployeeId, name: "Scope Automation Employee", worker_type: "employee" }]
-              }
-            },
-            {
-              id: "accrue-automation-estimator-commission",
-              automation: "payroll.commission.post.v1",
-              input: {
-                rule_id: "scope_signed_commission",
-                entry_state: "accrued",
-                payee_role: "automation_estimators",
-                amount: { kind: "fixed", amount_cents: 101 },
-                allocation: "each",
-                reason: "Scope trigger commission"
-              }
-            }
-          ]
-        }
-      }]
-    };
-    const created = await client.request("POST", `/v1/work/organizations/${orgId}/projects/${projectId}/plans`, definition);
-    assert.equal(created.created, true);
-    const payees = await client.request("GET", `${base}/projects/${projectId}/payees`);
-    assert.equal(payees.payee_roles.length, 1);
-    assert.equal(payees.payee_roles[0].role_key, "automation_estimators");
-    assert.equal(payees.payee_roles[0].payees[0].id, automationEmployeeId);
-    const automatedLedger = await client.request("GET", `${base}/ledger?project_id=${projectId}&kind=commission`);
-    assert.equal(automatedLedger.entries.length, 1);
-    assert.equal(automatedLedger.entries[0].amount_cents, 101);
-    assert.equal(automatedLedger.entries[0].state, "accrued");
-    assert.equal(automatedLedger.entries[0].metadata.work_plan_id, created.plan.id);
-
-    const retry = await client.request("POST", `/v1/work/organizations/${orgId}/projects/${projectId}/plans`, definition);
-    assert.equal(retry.created, false);
-    const retryLedger = await client.request("GET", `${base}/ledger?project_id=${projectId}&kind=commission`);
-    assert.equal(retryLedger.entries.length, 1);
-    assert.equal(retryLedger.entries[0].id, automatedLedger.entries[0].id);
-  });
-
-  await t.test("roof commission schedule projects all installments and accrues them at deposit and completion", async () => {
-    const projectId = "project_roof_commission_schedule";
-    const payee = { type: "organization_user", id: automationEmployeeId, name: "Scope Automation Employee", worker_type: "employee" };
-    await client.request("PUT", `${base}/projects/${projectId}/payees/estimator`, { label: "Estimator", payees: [payee] });
-    await client.request("PUT", `${base}/projects/${projectId}/payees/inside_salesperson`, { label: "Inside Salesperson", payees: [payee] });
-    const commissions = {
-      enabled: true,
-      rules: [
-        {
-          id: "roof_estimator_standard", title: "Estimator — 10% of project revenue", payee_role: "estimator", entry_state: "projected", allocation: "split_evenly",
-          trigger: { hook: "onStarted" },
-          installments: [
-            { id: "deposit", title: "First half when deposit is paid", share_bps: 5000, recognition: { node_id: "deposit_paid", hook: "onCompleted" } },
-            { id: "completion", title: "Second half when job is completed", share_bps: 5000, recognition: { node_id: "finish_project", hook: "onCompleted" } }
-          ],
-          calculation: { mode: "preset", preset: "percentage", basis: "proposal_total", rate_bps: 1000 }
-        },
-        {
-          id: "roof_inside_sales_standard", title: "Inside Salesperson — $100 booking commission", payee_role: "inside_salesperson", entry_state: "projected", allocation: "each",
-          trigger: { hook: "onStarted" },
-          installments: [{ id: "deposit", title: "Paid when deposit is paid", share_bps: 10000, recognition: { node_id: "deposit_paid", hook: "onCompleted" } }],
-          calculation: { mode: "preset", preset: "fixed", fixed_amount_cents: 10000 }
-        }
-      ]
-    };
-    const bindings = compileScopeCommissionBindings({ commissions });
-    const created = await client.request("POST", `/v1/work/organizations/${orgId}/projects/${projectId}/plans`, {
-      id: "plan_roof_commission_schedule",
-      branch_id: "default",
-      source_type: "scope_template",
-      source_id: "roof_replacement",
-      source_key: "roof-commission-schedule-test",
-      template_id: "roof_replacement",
-      template_version: 17,
-      title: "Roof Replacement",
-      start_immediately: true,
-      automation_bindings: bindings.plan,
-      context: { proposal: { content: { pricing: { total_cents: 100000 } } } },
-      root_nodes: [
-        { id: "deposit_paid", title: "Collect deposit", actionable: true, automation_bindings: bindings.nodes.deposit_paid },
-        { id: "finish_project", title: "Finish project", actionable: true, automation_bindings: bindings.nodes.finish_project }
-      ]
-    });
-    const initial = await client.request("GET", `${base}/ledger?project_id=${projectId}&kind=commission`);
-    assert.equal(initial.entries.length, 3);
-    assert.deepEqual(initial.entries.map((entry: any) => entry.amount_cents).sort((a: number, b: number) => a - b), [5000, 5000, 10000]);
-    assert.ok(initial.entries.every((entry: any) => entry.state === "projected"));
-    const depositNode = created.tree.root_nodes.find((node: any) => node.template_node_id === "deposit_paid");
-    const finishNode = created.tree.root_nodes.find((node: any) => node.template_node_id === "finish_project");
-    await client.request("POST", `/v1/work/organizations/${orgId}/nodes/${depositNode.id}/transition`, { status: "completed" });
-    const afterDeposit = await client.request("GET", `${base}/ledger?project_id=${projectId}&kind=commission`);
-    assert.equal(afterDeposit.entries.filter((entry: any) => entry.state === "accrued").length, 2);
-    assert.equal(afterDeposit.entries.find((entry: any) => entry.metadata.commission_installment_id === "completion").state, "projected");
-    await client.request("POST", `/v1/work/organizations/${orgId}/nodes/${finishNode.id}/transition`, { status: "completed" });
-    const completed = await client.request("GET", `${base}/ledger?project_id=${projectId}&kind=commission`);
-    assert.ok(completed.entries.every((entry: any) => entry.state === "accrued"));
-  });
-
-  await t.test("project commission overrides update projections and append accrued adjustments", async () => {
-    const projectId = "project_commission_override";
-    await client.request("PUT", `${base}/projects/${projectId}/payees/estimators`, {
-      label: "Estimators",
-      payees: [{ type: "organization_user", id: automationEmployeeId, name: "Scope Automation Employee", worker_type: "employee" }]
-    });
-    const created = await client.request("POST", `${base}/projects/${projectId}/commission-events`, {
-      source_event_id: "override_projection_created",
-      trigger_id: "override_test",
-      state: "projected",
-      payee_role: "estimators",
-      amount_cents: 1_000,
-      allocation: "each",
-      occurred_at: "2030-01-10T18:00:00.000Z",
-      completed_at: "2030-01-10T18:00:00.000Z"
-    });
-    const entryId = created.entries[0].id;
-    const projectionOverride = await client.request("POST", `${base}/projects/${projectId}/commission-overrides`, {
-      entry_id: entryId,
-      target_amount_cents: 1_200,
-      reason: "Customer-specific exception",
-      source_event_id: "override_projection_1200"
-    });
-    assert.equal(projectionOverride.entry.id, entryId);
-    assert.equal(projectionOverride.entry.amount_cents, 1_200);
-    assert.equal(projectionOverride.entry.metadata.manual_override, true);
-    assert.equal(projectionOverride.adjustment, null);
-
-    const accrued = await client.request("POST", `${base}/projections/${entryId}/accrue`, {});
-    assert.equal(accrued.entry.amount_cents, 1_200);
-    const accruedOverride = await client.request("POST", `${base}/projects/${projectId}/commission-overrides`, {
-      entry_id: entryId,
-      target_amount_cents: 1_600,
-      reason: "Final approved amount",
-      source_event_id: "override_accrued_1600"
-    });
-    assert.equal(accruedOverride.effective_amount_cents, 1_600);
-    assert.equal(accruedOverride.adjustment.kind, "commission");
-    assert.equal(accruedOverride.adjustment.amount_cents, 400);
-    assert.equal(accruedOverride.adjustment.metadata.manual_override_for, entryId);
-
-    const repeated = await client.request("POST", `${base}/projects/${projectId}/commission-overrides`, {
-      entry_id: entryId,
-      target_amount_cents: 1_600,
-      reason: "No additional adjustment",
-      source_event_id: "override_accrued_1600_retry"
-    });
-    assert.equal(repeated.adjustment, null);
-    const ledger = await client.request("GET", `${base}/ledger?project_id=${projectId}`);
-    assert.equal(ledger.entries.length, 2);
-  });
-
-  await t.test("cancellation creates idempotent clawbacks", async () => {
-    const cancellation = {
-      source_event_id: "project_commission_cancelled",
-      trigger_id: "project_cancel_commission",
-      state: "cancelled",
-      reverses_source_event_id: "proposal_project_commission_paid",
-      reverses_trigger_id: "proposal_payment_commission",
-      occurred_at: "2026-07-11T18:00:00.000Z",
-      completed_at: "2026-07-11T18:00:00.000Z",
-      description: "Cancelled project commission clawback"
-    };
-    const cancelled = await client.request("POST", `${base}/projects/project_commission/commission-events`, cancellation);
-    assert.equal(cancelled.reversed_count, 2);
-    assert.deepEqual(cancelled.entries.map((entry: any) => entry.amount_cents).sort((a: number, b: number) => a - b), [-5001, -5000]);
-    assert.ok(cancelled.entries.every((entry: any) => entry.kind === "clawback" && entry.state === "accrued"));
-    const retry = await client.request("POST", `${base}/projects/project_commission/commission-events`, cancellation);
-    assert.equal(retry.reversed_count, 2);
-    assert.deepEqual(retry.entries.map((entry: any) => entry.id).sort(), cancelled.entries.map((entry: any) => entry.id).sort());
+    const reversal = { source_event_id: "project_commission_cancelled", occurred_at: "2026-07-11T18:00:00.000Z", description: "Cancelled project commission clawback" };
+    const reversed = [
+      (await client.request("POST", `${base}/ledger/${employeeCommissionEntryId}/reverse`, reversal)).entry,
+      (await client.request("POST", `${base}/ledger/${contractorCommissionEntryId}/reverse`, reversal)).entry
+    ];
+    assert.deepEqual(reversed.map((entry: any) => entry.amount_cents), [-5001, -5000]);
+    assert.ok(reversed.every((entry: any) => entry.kind === "clawback" && entry.state === "accrued"));
+    const retry = (await client.request("POST", `${base}/ledger/${employeeCommissionEntryId}/reverse`, reversal)).entry;
+    assert.equal(retry.id, reversed[0].id);
     const clawbacks = await client.request("GET", `${base}/ledger?project_id=project_commission&kind=clawback`);
     assert.equal(clawbacks.entries.length, 2);
   });

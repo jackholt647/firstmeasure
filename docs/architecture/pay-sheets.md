@@ -50,6 +50,10 @@ to the price book later; a single item id must be revisited when that item
 changes. Sheets are evaluated against the project's current lists, so signed
 documents never need changing to suit a pay sheet.
 
+A sheet prices a job. Paying the assignee for a committed list, their hours or
+a salary is done by [pay rules](pay-rules.md), which can read what a committed
+list came to.
+
 ## Evaluation
 
 `evaluatePaySheet(sheet, context)` is pure and deterministic: the same job

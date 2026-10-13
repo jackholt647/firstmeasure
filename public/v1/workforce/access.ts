@@ -1820,44 +1820,6 @@ export async function hasHourlyCompensation(orgIdValue: string, userIdValue: str
   }
 }
 
-/** Resolves the hourly component used by time-clock payroll. A direct user
- * profile wins; otherwise the first active crew-group profile with an hourly
- * component is used, matching the clock's existing applicability rules. */
-export async function resolveHourlyCompensation(orgIdValue: string, userIdValue: string): Promise<JsonObject | null> {
-  const orgId = cleanText(orgIdValue);
-  const userId = cleanText(userIdValue);
-  if (!orgId || !userId) return null;
-  const hourlyFrom = (profileValue: unknown, source: string) => {
-    const profile = asObject(profileValue);
-    const component = asArray(profile.components).map(asObject)
-      .find((entry) => cleanText(entry.kind).toLowerCase() === "hourly" && Number(entry.rate_cents || 0) > 0);
-    return component ? {
-      ...component,
-      rate_cents: Math.round(Number(component.rate_cents || 0)),
-      currency: cleanText(profile.currency || "USD").toUpperCase(),
-      profile_id: cleanText(profile.id),
-      profile_revision: Number(profile.revision || 0),
-      source
-    } : null;
-  };
-  try {
-    const direct = (await readCompensationProfile(orgId, "organization_user", userId));
-    if (direct && asArray(asObject(direct).components).length) return hourlyFrom(direct, "organization_user");
-    const groups = (await getWorkforceDatabase().prepare(`SELECT g.id FROM resource_groups g
-      JOIN resource_group_memberships m ON m.organization_id = g.organization_id AND m.group_id = g.id
-      WHERE g.organization_id = ? AND g.status = 'active' AND m.user_id = ? AND m.status = 'active'
-      ORDER BY m.is_lead DESC, g.name ASC, g.id ASC`).all(orgId, userId));
-    for (const row of groups) {
-      const groupId = cleanText(asObject(row).id);
-      const resolved = hourlyFrom((await readCompensationProfile(orgId, "resource_group", groupId)), `resource_group:${groupId}`);
-      if (resolved) return resolved;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
 async function effectiveEntitlements(
   orgId: string,
   roles: AccessRole[],

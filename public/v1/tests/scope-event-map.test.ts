@@ -34,10 +34,9 @@ test("automatic setup uses runtime defaults and explicit IDs override without du
   assert.equal(connections.find((c) => c.automation === "materials.initializeFromScope.v1")!.source, "Automatic setup");
 });
 
-test("commission hooks, timers and organization policies retain their provenance", () => {
-  const map = buildScopeEventMap({ commissions:{ rules:[{ id:"sales", trigger:{ node_id:"finish", hook:"onCompleted" }, installments:[] }] }, work_plan:{ root_nodes:[{ id:"finish", title:"Finish", timers:[{ id:"remind", anchor:"ready", offset_minutes:30 }] }] } }, [{ id:"notify", event:"work.node.completed", automation:"notification.create.v1", conditions:{ "project.lifecycle.status":"open" }, enabled:false }]);
+test("timers and organization policies retain their provenance", () => {
+  const map = buildScopeEventMap({ work_plan:{ root_nodes:[{ id:"finish", title:"Finish", timers:[{ id:"remind", anchor:"ready", offset_minutes:30 }] }] } }, [{ id:"notify", event:"work.node.completed", automation:"notification.create.v1", conditions:{ "project.lifecycle.status":"open" }, enabled:false }]);
   const completed = map.events.find((e) => e.name === "work.node.completed")!.connections;
-  assert.equal(completed.find((c) => c.source === "Commission rule")!.automation, "payroll.commission.rule.v1");
   assert.equal(completed.find((c) => c.source === "Organization rule")!.enabled, false);
   assert.equal(map.events.find((e) => e.name === "work.node.timer")!.connections[0]!.kind, "timer");
   assert.ok(map.actions.some((a) => a.id === "notification.create.v1" && a.description));

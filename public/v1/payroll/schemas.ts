@@ -65,21 +65,17 @@ export const payrollPolicyInputSchema = jsonObjectSchema.extend({
   expected_revision: z.number().int().positive().optional()
 });
 
+/** Anyone work can be assigned to can be paid: a person, a group of users paid as one, or an outside company. */
+export const PAYROLL_PAYEE_TYPES = ["organization_user", "resource_group", "organization_connection"] as const;
+export const payrollPayeeType = (value: unknown) => (PAYROLL_PAYEE_TYPES as readonly string[]).includes(String(value)) ? String(value) as typeof PAYROLL_PAYEE_TYPES[number] : "organization_user";
 export const payrollPayeeRefSchema = jsonObjectSchema.extend({
-  type: z.enum(["organization_user", "organization_connection"]),
+  type: z.enum(PAYROLL_PAYEE_TYPES),
   id: payrollIdSchema,
   name: z.string().trim().max(300).optional(),
   worker_type: z.enum(["employee", "independent_contractor", "subcontractor"]).optional(),
   access_role_ids: z.array(payrollIdSchema).optional(),
   resource_group_ids: z.array(payrollIdSchema).optional(),
   metadata: jsonObjectSchema.optional()
-});
-
-export const projectPayeeSetSchema = jsonObjectSchema.extend({
-  payees: z.array(payrollPayeeRefSchema),
-  label: z.string().trim().max(300).optional(),
-  metadata: jsonObjectSchema.optional(),
-  expected_revision: z.number().int().positive().optional()
 });
 
 export const payrollLedgerStateSchema = z.enum(["projected", "accrued", "void"]);
@@ -118,41 +114,6 @@ export const payrollLedgerReverseSchema = jsonObjectSchema.extend({
   amount_cents: z.number().int().positive().optional(),
   occurred_at: z.string().trim().max(80).optional(),
   description: z.string().trim().max(1000).optional(),
-  metadata: jsonObjectSchema.optional()
-});
-
-export const commissionTriggerSchema = jsonObjectSchema.extend({
-  source_event_id: z.string().trim().min(1).max(300),
-  trigger_id: z.string().trim().min(1).max(300),
-  state: z.enum(["projected", "accrued", "cancelled"]),
-  reverses_source_event_id: z.string().trim().max(300).optional(),
-  reverses_trigger_id: z.string().trim().max(300).optional(),
-  payee_role: z.string().trim().max(180).optional(),
-  payees: z.array(payrollPayeeRefSchema).optional(),
-  amount_cents: z.number().int().min(0).optional(),
-  basis_cents: z.number().int().min(0).optional(),
-  rate_bps: z.number().int().min(0).max(1_000_000).optional(),
-  allocation: z.enum(["split_evenly", "each"]).optional(),
-  currency: z.string().trim().min(3).max(8).optional(),
-  occurred_at: z.string().trim().max(80).optional(),
-  completed_at: z.string().trim().max(80).optional(),
-  project_title: z.string().trim().max(500).optional(),
-  description: z.string().trim().max(1000).optional(),
-  metadata: jsonObjectSchema.optional()
-}).superRefine((value, context) => {
-  if (value.state !== "cancelled" && value.amount_cents === undefined && (value.basis_cents === undefined || value.rate_bps === undefined)) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["amount_cents"], message: "Provide amount_cents or basis_cents with rate_bps." });
-  }
-  if (value.state !== "cancelled" && !value.payee_role && !value.payees?.length) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["payees"], message: "Provide payees or a project payee role." });
-  }
-});
-
-export const commissionOverrideSchema = jsonObjectSchema.extend({
-  entry_id: payrollIdSchema,
-  target_amount_cents: z.number().int().min(0),
-  reason: z.string().trim().min(1).max(1000),
-  source_event_id: z.string().trim().min(1).max(300),
   metadata: jsonObjectSchema.optional()
 });
 

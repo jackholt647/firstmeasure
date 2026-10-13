@@ -47,7 +47,6 @@
   "../libraries/apps/comms/project.js",
   "../libraries/apps/receipts/app.js",
   "../libraries/apps/documents/project.js",
-  "../libraries/apps/payroll/project.js",
   "../libraries/apps/checklists/app.js",
   "../libraries/apps/financials/app.js",
   "../libraries/apps/invoices/app.js",

@@ -1245,58 +1245,6 @@ const ROOFING_SCOPE_RESOURCES = {
   metadata: { industry: "roofing", generated_from: "signed_scope", schema: "scope_resources.v1" }
 };
 
-const ROOF_REPLACEMENT_COMMISSIONS = {
-  enabled: true,
-  roles: [
-    {
-      key: "estimator",
-      label: "Estimator",
-      assignment_source: "project_custom_field" as const,
-      custom_field_path: "assignments.estimator",
-      metadata: { stable_role: true, description: "The person assigned to the sales appointment." }
-    },
-    {
-      key: "inside_salesperson",
-      label: "Inside Salesperson",
-      assignment_source: "project_custom_field" as const,
-      custom_field_path: "assignments.inside_salesperson",
-      metadata: { stable_role: true, description: "The person who scheduled the sales appointment." }
-    }
-  ],
-  rules: [
-    {
-      id: "roof_estimator_standard",
-      title: "Estimator — 10% of project revenue",
-      enabled: true,
-      payee_role: "estimator",
-      entry_state: "projected" as const,
-      allocation: "split_evenly" as const,
-      trigger: { hook: "onStarted" as const },
-      installments: [
-        { id: "deposit", title: "First half when deposit is paid", share_bps: 5_000, recognition: { node_id: "deposit_paid", hook: "onCompleted" as const } },
-        { id: "completion", title: "Second half when job is completed", share_bps: 5_000, recognition: { node_id: "finish_project", hook: "onCompleted" as const } }
-      ],
-      calculation: { mode: "preset" as const, preset: "percentage" as const, basis: "proposal_total" as const, rate_bps: 1_000 },
-      metadata: { commission_total_rate_bps: 1_000, summary: "10% of total project revenue, paid in two equal installments." }
-    },
-    {
-      id: "roof_inside_sales_standard",
-      title: "Inside Salesperson — $100 booking commission",
-      enabled: true,
-      payee_role: "inside_salesperson",
-      entry_state: "projected" as const,
-      allocation: "each" as const,
-      trigger: { hook: "onStarted" as const },
-      installments: [
-        { id: "deposit", title: "Paid when deposit is paid", share_bps: 10_000, recognition: { node_id: "deposit_paid", hook: "onCompleted" as const } }
-      ],
-      calculation: { mode: "preset" as const, preset: "fixed" as const, fixed_amount_cents: 10_000 },
-      metadata: { summary: "$100 when the customer deposit is paid." }
-    }
-  ],
-  metadata: { preset: "standard_roof_replacement_commissions_v1" }
-};
-
 // Default field checklists instantiated for every project created from this
 // scope. Safety and work go to the crew; the completion quality review goes to
 // the supervisor role and is rated green/yellow/red instead of checked off.
@@ -1444,7 +1392,7 @@ function replacementTemplate(input: Pick<ScopeTemplateDefinition, "id" | "name" 
       { id: "structures", type: "structures", label: "Structures" }
     ],
     ...productionAssignmentConfiguration(input.id === "roof_replacement"),
-    ...(input.id === "roof_replacement" ? { materials: ROOFING_MATERIALS, resources: ROOFING_SCOPE_RESOURCES, commissions: ROOF_REPLACEMENT_COMMISSIONS } : {}),
+    ...(input.id === "roof_replacement" ? { materials: ROOFING_MATERIALS, resources: ROOFING_SCOPE_RESOURCES } : {}),
     checklists: scopeChecklists(input.id),
     work_plan: {
       title: input.name,

@@ -1,5 +1,4 @@
 import type { JsonObject } from "../platform/storage.js";
-import { compileScopeCommissionBindings } from "../payroll/commission_rules.js";
 import { listWorkEventDefinitions, workEventNotification } from "../work/events.js";
 import { listWorkAutomationDefinitions } from "../work/registry.js";
 import { eventForBindingKey } from "../work/bindings.js";
@@ -30,18 +29,16 @@ export function buildScopeEventMap(definitionValue: JsonObject, organizationRule
     // A lifecycle hook listens for exactly one event (see work/bindings.ts).
     events.get(event)!.connections.push(connection);
   };
-  const commissions = compileScopeCommissionBindings(definition);
   const visit = (container: JsonObject, path: string[], isPlan: boolean, pointer: (string | number)[]) => {
     const title = text(container.title || definition.name || "Scope");
     const nodeId = isPlan ? "plan" : text(container.id);
     const location = [...path, title].join(" / ");
     const configured = object(container.automation_bindings);
-    const generated = isPlan ? commissions.plan : commissions.nodes[nodeId] || {};
     const defaults = isPlan ? defaultInstantiationBindings(definition) : {};
-    const hooks = new Set([...Object.keys(configured), ...Object.keys(generated), ...Object.keys(defaults)]);
+    const hooks = new Set([...Object.keys(configured), ...Object.keys(defaults)]);
     for (const hook of hooks) {
       const seen = new Set<string>();
-      const groups: [string, JsonObject[]][] = [["Scope", array(configured[hook])], ["Commission rule", array(generated[hook])], ["Automatic setup", array(object(defaults)[hook])]];
+      const groups: [string, JsonObject[]][] = [["Scope", array(configured[hook])], ["Automatic setup", array(object(defaults)[hook])]];
       for (const [source, bindings] of groups) for (const [index, binding] of bindings.entries()) {
         const id = text(binding.id);
         if (id && seen.has(id)) continue;
@@ -58,7 +55,7 @@ export function buildScopeEventMap(definitionValue: JsonObject, organizationRule
           automation, hook, registered:!!meta, enabled:binding.enabled !== false,
           conditions:object(binding.conditions), input:object(binding.input), input_help:meta?.input || {},
           continue_on_error:binding.continue_on_error === true,
-          note:fromSequence ? `Step “${text(binding.sequence_step)}” of this work item's sequence; edit the sequence to change it.` : source === "Commission rule" ? "Compiled from commission settings; attached for signed-proposal scopes and during commission reconciliation." : "",
+          note:fromSequence ? `Step “${text(binding.sequence_step)}” of this work item's sequence; edit the sequence to change it.` : "",
           source_path:source === "Scope" && !fromSequence ? [...pointer, "automation_bindings", hook, index] : null,
           raw:binding
         });

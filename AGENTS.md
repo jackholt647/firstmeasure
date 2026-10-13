@@ -119,6 +119,18 @@ names a measurement schema. Evaluation is deterministic and leaves a line
 unresolved rather than pricing it at zero; an agent may author a sheet but never
 computes pay. Run `tests/labor-pay-sheets.test.ts` for changes here.
 
+Read [pay rules](docs/architecture/pay-rules.md) before changing how anyone is
+paid, payroll earnings, pay runs or time clock pay. Earnings are derived: a pay
+rule declares its inputs as selections over published data, runs in the sandbox
+and returns what was earned; a refresh posts only the difference to the ledger
+and never edits a posted entry. Rules are grouped into pay plans and assigned,
+added, removed or overridden per payee, all effective-dated. Any assignee can be
+a payee. Who is paid for a role on a project is an assignee custom field on the
+project; do not add payee lists, commission settings on scope templates, or
+code that posts pay directly from an event. A formula that cannot be evaluated
+leaves the earning unresolved, never zero. Run `tests/pay-rules.test.ts` and
+`tests/pay-sources.test.ts` for changes here.
+
 Read [assignees](docs/architecture/assignees.md) before changing who work is
 assigned or committed to, units, commitments, delivery or availability. Say
 **assignee** for a person, group of users or outside company that work can be

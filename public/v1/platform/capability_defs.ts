@@ -892,14 +892,6 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
-    key: "payroll.commissions",
-    kind: "feature",
-    parent: "apps.payroll",
-    label: "Commissions",
-    description: "Commission events, overrides, and commission reporting.",
-    default: true
-  },
-  {
     key: "payroll.self_service_earnings",
     kind: "feature",
     parent: "apps.payroll",

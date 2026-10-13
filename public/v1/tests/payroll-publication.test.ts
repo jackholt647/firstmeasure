@@ -36,8 +36,8 @@ test('payroll publications expose complete records, safe reads, pagination, subj
   assert.equal((await listPublishedData(ctx,{provider:'payroll',export:'records',target:{...project,projectId:'other_project'}},{cursor:first.nextCursor})).status,'error');
   const before=await store.getPayrollDatabase().prepare('SELECT COUNT(*) AS n FROM payroll_ledger_entries').get();
   const roleCount=await (await import('../workforce/storage.js')).getWorkforceDatabase().prepare('SELECT COUNT(*) AS n FROM workforce_access_roles').get();
-  const refs:Record<string,any>={entry:{...project,id:posted[0].id},schedule:{...target,id:schedule.id},project_payees:project};
-  for(const name of ['records','entry','schedules','schedule','policies','configuration','project_payees','upcoming','dashboard','batches','earnings','my_earnings','timesheets','contractors','directory','export_catalog','artifacts']){
+  const refs:Record<string,any>={entry:{...project,id:posted[0].id},schedule:{...target,id:schedule.id}};
+  for(const name of ['records','entry','schedules','schedule','policies','configuration','upcoming','dashboard','batches','earnings','my_earnings','timesheets','contractors','directory','export_catalog','artifacts']){
    const result:any=await readPublishedData(ctx,{provider:'payroll',export:name,target:refs[name]||target,...(name==='earnings'?{args:{payees:[{type:'organization_user',id:'alice'}]}}:{})});
    assert.equal(result.status,'ready',name+': '+JSON.stringify(result));
    if(name==='contractors'||name==='directory')assert.equal(JSON.stringify(result.value).includes('DO NOT PUBLISH'),false);
@@ -60,8 +60,8 @@ test('payroll publications expose complete records, safe reads, pagination, subj
   await run('payroll.batch.action',{action:'paid'},batch.batch.id,'paid-run');
   const artifact:any=(await run('payroll.artifact.generate',{type:'payroll_register',format:'csv',batch_id:batch.batch.id})).value;assert.ok(artifact.download_url);assert.equal(artifact.content,undefined);
   assert.equal((await readPublishedData(ctx,{provider:'payroll',export:'artifact',target:{...target,id:artifact.id}})).status,'ready');
-  const widgets=(await listWidgets(ctx,target)).filter(w=>w.app==='payroll');assert.equal(widgets.length,11);assert.equal((await listWidgets(ctx)).filter(w=>w.app==='payroll').length,12);
-  await authorizeWidget(ctx,'payroll.upcoming','1',target,{include_projected:false});await authorizeWidget(ctx,'payroll.project_payees','1',project,{});await assert.rejects(authorizeWidget(ctx,'payroll.upcoming','99',target,{}));
+  const widgets=(await listWidgets(ctx,target)).filter(w=>w.app==='payroll');assert.equal(widgets.length,11);assert.equal((await listWidgets(ctx)).filter(w=>w.app==='payroll').length,11);
+  await authorizeWidget(ctx,'payroll.upcoming','1',target,{include_projected:false});await assert.rejects(authorizeWidget(ctx,'payroll.upcoming','99',target,{}));
   const denied=userPublicationContext({...auth,role:'member',permissions:{manage_payroll:false,manage_company_settings:false}});assert.equal((await readPublishedData(denied,{provider:'payroll',export:'records',target})).status,'denied');assert.deepEqual((await listWidgets(denied,target)).filter(w=>w.app==='payroll').map(w=>w.id),['payroll.my_earnings']);
   assert.ok(listActions().filter(a=>a.domain==='payroll'&&a.executionKinds.includes('agent')).length>=40);
  }finally{await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true}).catch(()=>{});}

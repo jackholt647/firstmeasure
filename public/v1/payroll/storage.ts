@@ -5,7 +5,7 @@ import { ensureSqlColumn, openSqlStore, type SqlStore } from "../platform/sql_st
 
 import { badRequest, conflict, notFound } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
-import type { PayrollLedgerEntryInput, PayrollPayeeRef, PayrollPolicySubject, PayrollScheduleInput } from "./schemas.js";
+import { payrollPayeeType, type PayrollLedgerEntryInput, type PayrollPayeeRef, type PayrollPolicySubject, type PayrollScheduleInput } from "./schemas.js";
 
 export type JsonObject = Record<string, unknown>;
 
@@ -102,19 +102,6 @@ async function initializeSchema(db: SqlStore) {
     );
     CREATE INDEX IF NOT EXISTS payroll_policies_schedule_idx
       ON payroll_policies (organization_id, schedule_id, subject_type, earning_kind);
-
-    CREATE TABLE IF NOT EXISTS payroll_project_payees (
-      organization_id TEXT NOT NULL,
-      project_id TEXT NOT NULL,
-      role_key TEXT NOT NULL,
-      label TEXT NOT NULL DEFAULT '',
-      payees_json TEXT NOT NULL DEFAULT '[]',
-      metadata_json TEXT NOT NULL DEFAULT '{}',
-      revision INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (organization_id, project_id, role_key)
-    );
 
     CREATE TABLE IF NOT EXISTS payroll_ledger_entries (
       id TEXT PRIMARY KEY,
@@ -244,6 +231,8 @@ async function initializeSchema(db: SqlStore) {
   await ensureSqlColumn(db, "payroll_work_outbox", "retry_at", "TEXT NOT NULL DEFAULT ''");
   await ensureSqlColumn(db, "payroll_work_outbox", "attempts", "INTEGER NOT NULL DEFAULT 0");
   await ensureSqlColumn(db, "payroll_work_outbox", "last_error", "TEXT NOT NULL DEFAULT ''");
+  // Project payee roles were replaced by assignee fields on the project; see docs/architecture/pay-rules.md.
+  await db.exec("DROP TABLE IF EXISTS payroll_project_payees");
   await db.exec("CREATE INDEX IF NOT EXISTS payroll_work_outbox_due_idx ON payroll_work_outbox(state, retry_at, created_at)");
 }
 
@@ -411,52 +400,6 @@ export async function resolvePayrollPolicy(orgId: string, payee: PayrollPayeeRef
   return null;
 }
 
-function projectPayeeView(rowValue: unknown) {
-  const row = asObject(rowValue);
-  return {
-    organization_id: cleanText(row.organization_id),
-    project_id: cleanText(row.project_id),
-    role_key: cleanText(row.role_key),
-    label: cleanText(row.label),
-    payees: asArray(parseJson(row.payees_json, [])),
-    metadata: asObject(parseJson(row.metadata_json)),
-    revision: Number(row.revision || 1),
-    created_at: cleanText(row.created_at),
-    updated_at: cleanText(row.updated_at)
-  };
-}
-
-export async function listProjectPayees(orgId: string, projectId: string) {
-  return (await getPayrollDatabase().prepare("SELECT * FROM payroll_project_payees WHERE organization_id=? AND project_id=? ORDER BY role_key")
-    .all(orgId, projectId)).map(projectPayeeView);
-}
-
-export async function readProjectPayeeRole(orgId: string, projectId: string, roleKey: string) {
-  const row = (await getPayrollDatabase().prepare("SELECT * FROM payroll_project_payees WHERE organization_id=? AND project_id=? AND role_key=?")
-    .get(orgId, projectId, roleKey));
-  if (!row) throw notFound("project_payee_role_not_found", "Project payee role was not found.");
-  return projectPayeeView(row);
-}
-
-export async function saveProjectPayeeRole(orgId: string, projectId: string, roleKey: string, input: JsonObject) {
-  return (await getPayrollDatabase().transaction(async () => {
-  const existing = (await getPayrollDatabase().prepare(`SELECT revision FROM payroll_project_payees
-    WHERE organization_id=? AND project_id=? AND role_key=?`).get(orgId, projectId, roleKey));
-  if (existing && Number(input.expected_revision || 0) !== Number(asObject(existing).revision || 0)) {
-    throw conflict("project_payee_revision_conflict", "Project payee role revision does not match.", { current_revision: Number(asObject(existing).revision || 0) });
-  }
-  const now = nowIso();
-  (await getPayrollDatabase().prepare(`INSERT INTO payroll_project_payees
-    (organization_id, project_id, role_key, label, payees_json, metadata_json, revision, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-    ON CONFLICT(organization_id, project_id, role_key) DO UPDATE SET label=excluded.label, payees_json=excluded.payees_json,
-      metadata_json=excluded.metadata_json, revision=payroll_project_payees.revision+1, updated_at=excluded.updated_at`)
-    .run(orgId, projectId, roleKey, cleanText(input.label), json(input.payees || []), json(input.metadata || {}), now, now));
-  return (await readProjectPayeeRole(orgId, projectId, roleKey));
-
-  }));
-}
-
 function ledgerEntryView(rowValue: unknown) {
   const row = asObject(rowValue);
   const amountCents = Number(row.amount_cents || 0);
@@ -537,7 +480,7 @@ export async function listPayrollLedgerEntries(orgId: string, options: JsonObjec
 function normalizedEarningsPayees(payees: PayrollPayeeRef[]) {
   const seen = new Set<string>();
   return payees.map((payee) => ({
-    type: payee.type === "organization_connection" ? "organization_connection" : "organization_user",
+    type: payrollPayeeType(payee.type),
     id: cleanText(payee.id),
     name: cleanText(payee.name),
     worker_type: ["subcontractor", "independent_contractor"].includes(cleanText(payee.worker_type))
@@ -683,12 +626,7 @@ export async function upsertPayrollLedgerEntry(orgId: string, input: PayrollLedg
       if (retryIsIdentical) return current;
       throw conflict("payroll_ledger_entry_immutable", "Accrued payroll ledger entries are immutable; append an adjustment or clawback instead.");
     }
-    if (existingState === "void") {
-      const current = (await readPayrollLedgerEntry(orgId, cleanText(existingValue.id)));
-      if (input.state !== "projected" || asObject(current.metadata).commission_payee_removed !== true) {
-        throw conflict("payroll_ledger_entry_immutable", "Voided payroll ledger entries are immutable.");
-      }
-    }
+    if (existingState === "void") throw conflict("payroll_ledger_entry_immutable", "Voided payroll ledger entries are immutable.");
     (await getPayrollDatabase().prepare(`UPDATE payroll_ledger_entries SET payee_name=?, worker_type=?, schedule_id=?, kind=?, subgroup=?, state=?,
       amount_cents=?, currency=?, project_id=?, project_title=?, worked_at=?, completed_at=?, eligible_at=?, source_trigger_id=?, description=?,
       metadata_json=?, revision=revision+1, updated_at=?, voided_at=? WHERE organization_id=? AND id=?`)
@@ -837,4 +775,4 @@ export async function listPayrollArtifacts(orgId: string, options: JsonObject = 
     .all(...params)).map((row) => payrollArtifactView(row));
 }
 
-export const payrollViews = { scheduleView, policyView, projectPayeeView, ledgerEntryView, batchView, batchItemView };
+export const payrollViews = { scheduleView, policyView, ledgerEntryView, batchView, batchItemView };

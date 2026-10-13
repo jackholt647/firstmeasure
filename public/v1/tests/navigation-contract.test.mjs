@@ -136,7 +136,7 @@ test('declared page routes push while filters replace the current entry', () => 
 test('scope Events preserves its parent route and replaces filters without extra Back steps', async () => {
   const harness = navigationHarness('/portal/?tab=company_settings&sub=project_scopes&settingsView=editor&settingsEntity=scope:roof&scopeTemplateView=details');
   const nav = harness.navigation;
-  nav.registerSchema('scopeTemplateView', { values:['details','boards','scheduling','developer','automations','commissions','events'], history:'push' });
+  nav.registerSchema('scopeTemplateView', { values:['details','boards','scheduling','developer','automations','events'], history:'push' });
   nav.registerSchema('scopeEventFilter', { values:['all','connected','unused','actions'], history:'replace' });
   nav.push({ scopeTemplateView:'events' }, { ownedKeys:['scopeTemplateView'] });
   nav.replace({ scopeEventFilter:'unused' }, { ownedKeys:['scopeEventFilter'] });
@@ -645,42 +645,23 @@ test('focused photos show immediate and persistent customer portal sharing feedb
   assert.match(projectPhotos, /refreshIndicators\?\.\(\{ pulseId: shared \? 'customer_portal_shared' : '' \}\)/);
 });
 
-test('commission workspaces are nested and routed through Money and Scope Templates', async () => {
+test('pay is configured through pay rules, not commission workspaces in Money or Scope Templates', async () => {
   const manifest = await readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8');
   const moneyApp = await readFile(path.join(publicRoot, 'libraries/apps/money/project.js'), 'utf8');
-  const commissionsApp = await readFile(path.join(publicRoot, 'libraries/apps/payroll/project.js'), 'utf8');
   const settingsApp = await readFile(path.join(publicRoot, 'libraries/apps/settings/company.js'), 'utf8');
+  const payrollApi = await readFile(path.join(publicRoot, 'libraries/payroll-api/payroll-api.js'), 'utf8');
   const terminology = await readFile(path.join(publicRoot, 'libraries/platform-terminology/platform-terminology.js'), 'utf8');
-  assert.match(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'commissions'/);
-  assert.match(manifest, /scopeTemplateView:\{ default:'details', values:\[[^\]]*'automations'[^\]]*'events'[^\]]*'commissions'[^\]]*\], history:'push' \}/);
-  assert.doesNotMatch(manifest, /id:'project\.commissions'/);
-  assert.match(moneyApp, /state\.activeView === 'commissions'/);
-  assert.match(moneyApp, /FirstMateProjectCommissions/);
-  assert.match(commissionsApp, /data-pc-new-title/);
-  assert.match(commissionsApp, /roleKeyForTitle/);
-  assert.match(commissionsApp, /setPayeeRole\(orgId, projectId, roleKey, \{ label:roleLabel, payees:\[\]/);
-  assert.doesNotMatch(commissionsApp, /Upcoming payments become payable only when their listed event happens/);
-  assert.match(commissionsApp, /await refreshEntries\(\)/);
-  assert.match(commissionsApp, /pc-card-summary/);
-  assert.match(commissionsApp, /word\('commission_payments', 'Commission Payments'\)/);
-  assert.match(moneyApp, /moneyTerms:\{ \.\.\.state\.moneyTerms \}/);
+  assert.doesNotMatch(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'commissions'/);
+  assert.doesNotMatch(manifest, /scopeTemplateView:\{ default:'details', values:\[[^\]]*'commissions'/);
+  assert.match(manifest, /scopeTemplateView:\{ default:'details', values:\[[^\]]*'automations'[^\]]*'events'[^\]]*\], history:'push' \}/);
+  assert.doesNotMatch(moneyApp, /FirstMateProjectCommissions|state\.activeView === 'commissions'/);
+  assert.doesNotMatch(settingsApp, /scope-editor-panel-commissions|readCommissionEditor|\['commissions','Commissions','fa-percent'\]/);
+  assert.doesNotMatch(payrollApi, /projectPayees|commission/);
+  for (const action of ['payroll.payRule.save', 'payroll.payPlan.save', 'payroll.paySetup.preview', 'payroll.paySetup.save', 'payroll.earnings.refresh', 'payroll.correction.decline']) assert.ok(payrollApi.includes(`'${action}'`), action);
   assert.match(terminology, /section\('money', 'Money', 'Project Money navigation/);
-  assert.match(settingsApp, /PlatformTerminology\?\.CATALOG/);
-  assert.match(commissionsApp, /Choose recipient…/);
-  assert.doesNotMatch(commissionsApp, /Choose employee or subcontractor/);
-  assert.match(commissionsApp, /sales_appointment_assignee/);
-  assert.match(commissionsApp, /sales_appointment_scheduler/);
-  assert.doesNotMatch(commissionsApp, /rolesWithDefaults|data-pc-new-key|data-pc-new-label/);
   assert.match(settingsApp, /scopeTemplateView:editorSection/);
-  assert.match(settingsApp, /\['commissions','Commissions','fa-percent'\]/);
   assert.match(settingsApp, /editorSection === 'details' \? `<div id="scope-editor-panel-details"/);
-  assert.match(settingsApp, /: `<div id="scope-editor-panel-commissions"/);
   assert.doesNotMatch(settingsApp, /data-scope-details \$\{editorSection === 'details' \? '' : 'hidden'\}/);
-  assert.match(settingsApp, /Recipient roles & automatic assignment/);
-  assert.match(settingsApp, /Person assigned to the sales appointment/);
-  assert.match(settingsApp, /Person who scheduled the sales appointment/);
-  assert.match(settingsApp, /Payout schedule/);
-  assert.doesNotMatch(settingsApp, /payee_role:'estimators'|payee_role:String\(value\('payee_role'\) \|\| 'estimators'/);
 });
 
 test('project checklist subtabs are routed and cleared with the project workspace', async () => {

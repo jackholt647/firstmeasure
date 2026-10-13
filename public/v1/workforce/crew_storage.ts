@@ -117,7 +117,6 @@ function timesheetShiftView(rowValue: unknown, events: JsonObject[] = []) {
     approved_at: cleanText(timesheet.approved_at),
     rejected_by_user_id: cleanText(timesheet.rejected_by_user_id),
     rejected_at: cleanText(timesheet.rejected_at),
-    payroll_entry_id: cleanText(timesheet.payroll_entry_id),
     audit: asArray(timesheet.audit).map(asObject),
     events
   };
@@ -184,6 +183,14 @@ export async function listCrewTimeShifts(orgId: string, options: JsonObject = {}
     byShift.set(cleanText(event.shift_id), list);
   }
   return rows.map((row) => timesheetShiftView(row, byShift.get(cleanText(asObject(row).id)) || []));
+}
+
+/** Closed shifts in id order, without their event trail: the published time clock that pay rules read. */
+export async function listClosedCrewTimeShifts(orgId: string, page: { after?: string; limit: number }) {
+  ensureCrewSchema();
+  const rows = (await getWorkforceDatabase().prepare(`SELECT * FROM crew_time_shifts WHERE organization_id=? AND status='closed' AND id>?
+    ORDER BY id LIMIT ?`).all(orgId, cleanText(page.after), Math.min(500, Math.max(1, page.limit))));
+  return rows.map((row) => timesheetShiftView(row)).filter((shift): shift is NonNullable<typeof shift> => !!shift);
 }
 
 export async function patchCrewTimeShift(orgId: string, shiftId: string, inputValue: unknown, actorUserId: string) {
@@ -256,7 +263,6 @@ export async function setCrewTimeShiftApproval(orgId: string, shiftId: string, i
     ...(status === "approved" ? { approved_by_user_id: actorUserId, approved_at: at, rejected_by_user_id: "", rejected_at: "" } : {}),
     ...(status === "rejected" ? { rejected_by_user_id: actorUserId, rejected_at: at, approved_by_user_id: "", approved_at: "" } : {}),
     ...(status === "pending" ? { approved_by_user_id: "", approved_at: "", rejected_by_user_id: "", rejected_at: "" } : {}),
-    ...(Object.prototype.hasOwnProperty.call(input, "payroll_entry_id") ? { payroll_entry_id: cleanText(input.payroll_entry_id) } : {})
   };
   (await getWorkforceDatabase().prepare(`UPDATE crew_time_shifts SET metadata_json=?, revision=revision+1, updated_at=?
     WHERE organization_id=? AND id=?`).run(json({ ...metadata, timesheet }), at, orgId, shiftId));

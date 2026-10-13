@@ -52,7 +52,7 @@ export const notificationEventGroups = {
   mentions: { id: "mentions", label: "Mentions" },
   websites: { id: "websites", label: "Websites" },
   expenses: { id: "expenses", label: "Expenses & receipts" },
-  payroll: { id: "payroll", label: "Payroll & commissions" },
+  payroll: { id: "payroll", label: "Payroll" },
   materials: { id: "materials", label: "Materials" },
   field_work: { id: "field_work", label: "Field work" },
   checklists: { id: "checklists", label: "Checklists & punch lists" },
@@ -270,7 +270,8 @@ registerWorkEvents([
   { name: "receipt.uploaded", notification: { group: "expenses", source: "billing", tab: "general" }, description: "A receipt was uploaded.", visibility: "activity" },
   { name: "receipt.extracted", notification: { group: "expenses", source: "billing", tab: "general" }, description: "Receipt data was extracted (AI OCR).", visibility: "system" },
   { name: "expense.recorded", notification: { group: "expenses", source: "billing", tab: "general" }, description: "An expense or payable was recorded.", visibility: "activity" },
-  { name: "payroll.commission.accrued", notification: { group: "payroll", source: "payroll", tab: "general" }, description: "A commission installment accrued.", visibility: "activity" },
+  { name: "payroll.earning.accrued", notification: { group: "payroll", source: "payroll", tab: "general" }, description: "A projected or held earning was accrued.", visibility: "activity" },
+  { name: "payroll.earnings.changed", notification: { group: "payroll", source: "payroll", tab: "general" }, description: "A refresh of pay rules changed what a payee is owed.", visibility: "activity" },
   { name: "payroll.batch.run", notification: { group: "payroll", source: "payroll", tab: "general" }, description: "A payroll batch was run.", visibility: "activity" },
   { name: "payroll.batch.paid", notification: { group: "payroll", source: "payroll", tab: "general" }, description: "A payroll batch was marked paid.", visibility: "activity" },
 

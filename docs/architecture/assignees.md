@@ -9,7 +9,7 @@ in stored data and are listed so they can be recognised, not copied.
 |---|---|---|
 | **Assignee** | Anyone work can be assigned to: a person, a group of users, or an outside company. It is not specific to production — a sales team taking appointments is one. Equipment is never one. | "work resource" (`work_resource_ref` on lists and events), "assignable subject" (`workforce/assignability.ts`), "subject" (compensation profiles, pay sheets), "resource group" for a group of users, "organization connection" for an outside company |
 | **Unit** | A group inside an assignee that does one job at a time. | — |
-| **Pay sheet** | How one assignee is paid, as data evaluated against a job. See [pay sheets](pay-sheets.md). | "compensation profile" is the older, per-person pay record that payroll reads |
+| **Pay sheet** | How one assignee prices a job, as data evaluated against it. See [pay sheets](pay-sheets.md). What they are then paid, and when, comes from [pay rules](pay-rules.md). | "compensation profile" is the older, per-person record that now only decides who sees the time clock |
 | **Commitment** | A frozen copy of a labor list as it was handed to its assignee. | — |
 | **Delivery** | How a commitment reaches its assignee. | — |
 
@@ -141,7 +141,8 @@ The interface for any of this; sharing a commitment into an outside company's
 own account; removing an assignee does not yet clean up its pay sheets,
 settings and units; commitments are listed by reading the whole collection,
 which will need an index before there are many thousands; a rendered work order document (the email carries a
-table); payouts and actuals against a commitment; scheduling against
+table); actuals against a commitment (what a released commitment pays is a
+[pay rule](pay-rules.md)); scheduling against
 availability; equipment an assignee brings covering a job's equipment needs.
 
 Run `tests/labor-commitments.test.ts` for changes here.

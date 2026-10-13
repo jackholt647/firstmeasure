@@ -525,14 +525,6 @@ async function initializeScopeCustomFields(context: WorkAutomationContext, _inpu
   });
 }
 
-async function reconcileScopeCommissions(context: WorkAutomationContext, _input: JsonObject) {
-  const orgId = cleanText(context.event.organization_id);
-  const projectId = cleanText(context.project.id || context.plan.project_id);
-  if (!projectId) return { skipped: true, reason: "missing_project" };
-  const { reconcileProjectScopeCommissions } = await import("../../scopes/service.js");
-  return await reconcileProjectScopeCommissions(orgId, projectId);
-}
-
 async function reconcileProjectResources(context: WorkAutomationContext, _input: JsonObject) {
   const orgId = cleanText(context.event.organization_id);
   const projectId = cleanText(context.project.id || context.plan.project_id);
@@ -851,11 +843,8 @@ export function registerBuiltinWorkAutomations() {
   registerWorkAutomation("customFields.initializeFromScope.v1", initializeScopeCustomFields, {
     description: "Adds the scope template's durable custom-field definitions to the project and applies empty defaults."
   });
-  registerWorkAutomation("payroll.reconcileScopeCommissions.v1", reconcileScopeCommissions, {
-    description: "Initializes commission roles and reconciles commission projections/accruals for the project."
-  });
   registerWorkAutomation("scopes.reconcileProjectResources.v1", reconcileProjectResources, {
-    description: "Re-reconciles the project's scope resources and commissions (typically bound to the deposit)."
+    description: "Re-reconciles the project's scope resources (typically bound to the deposit)."
   });
   registerWorkAutomation("payments.ensureReceivables.v1", ensureProposalReceivables, {
     description: "Creates the payment schedule (deposit/completion obligations) from a signed proposal snapshot."

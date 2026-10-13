@@ -2,7 +2,7 @@ import type { SqlStore } from "../platform/sql_store.js";
 
 import { badRequest, conflict } from "../platform/errors.js";
 import { payrollEligibleAt, payrollOccurrence, payrollOccurrences } from "./schedule.js";
-import type { PayrollLedgerEntryInput, PayrollPayeeRef } from "./schemas.js";
+import { payrollPayeeType, type PayrollLedgerEntryInput, type PayrollPayeeRef } from "./schemas.js";
 import {
   asArray,
   asObject,
@@ -12,7 +12,6 @@ import {
   listPayrollBatches,
   listPayrollLedgerEntries,
   listPayrollSchedules,
-  listProjectPayees,
   nowIso,
   readPayrollBatch,
   readPayrollBatchItem,
@@ -20,14 +19,13 @@ import {
   readPayrollSchedule,
   resolvePayrollPolicy,
   upsertPayrollLedgerEntry,
-  voidPayrollLedgerEntry,
   withPayrollTransaction,
   type JsonObject
 } from "./storage.js";
 
 // Record automation events in the same database transaction as payroll changes.
 // A worker forwards them with the original idempotency key after commit.
-async function publishPayrollWorkEvent(input: JsonObject) {
+export async function publishPayrollWorkEvent(input: JsonObject) {
   await getPayrollDatabase().prepare(`INSERT INTO payroll_work_outbox (id, payload_json, created_at)
     VALUES (?, ?, ?) ON CONFLICT(id) DO NOTHING`)
     .run(`${cleanText(input.organization_id)}:${cleanText(input.idempotency_key)}`, JSON.stringify(input), nowIso());
@@ -76,7 +74,7 @@ function entryPayee(entry: JsonObject): PayrollPayeeRef {
   const payee = asObject(entry.payee);
   const workerType = cleanText(payee.worker_type);
   return {
-    type: cleanText(payee.type) === "organization_connection" ? "organization_connection" : "organization_user",
+    type: payrollPayeeType(payee.type),
     id: cleanText(payee.id),
     name: cleanText(payee.name),
     worker_type: ["subcontractor", "independent_contractor"].includes(workerType) ? workerType as PayrollPayeeRef["worker_type"] : "employee"
@@ -164,8 +162,8 @@ export async function accruePayrollProjection(orgId: string, entryId: string, in
     organization_id: orgId,
     branch_id: "default",
     ...(projectId ? { project_id: projectId } : {}),
-    type: "payroll.commission.accrued",
-    idempotency_key: `payroll.commission.accrued:${cleanText(accrued.id) || entryId}`,
+    type: "payroll.earning.accrued",
+    idempotency_key: `payroll.earning.accrued:${cleanText(accrued.id) || entryId}`,
     payload: {
       entry_id: cleanText(accrued.id) || entryId,
       ...(projectId ? { project_id: projectId } : {}),
@@ -204,225 +202,6 @@ export async function reversePayrollLedgerEntry(orgId: string, entryId: string, 
     description: cleanText(input.description || `Reversal: ${entry.description || entry.kind}`),
     metadata: { ...asObject(input.metadata), reverses_ledger_entry_id: entry.id, original_amount_cents: entry.amount_cents }
   } as PayrollLedgerEntryInput & JsonObject))));
-
-  }));
-}
-
-function commissionTotal(input: JsonObject) {
-  if (Number.isFinite(Number(input.amount_cents))) return Math.max(0, Math.round(Number(input.amount_cents)));
-  return Math.max(0, Math.round(Number(input.basis_cents || 0) * Number(input.rate_bps || 0) / 10_000));
-}
-
-function splitCents(total: number, count: number) {
-  if (count <= 0) return [];
-  const base = Math.floor(total / count);
-  const remainder = total - base * count;
-  return Array.from({ length: count }, (_value, index) => base + (index < remainder ? 1 : 0));
-}
-
-export async function triggerCommissionEvent(orgId: string, projectId: string, input: JsonObject) {
-  return (await getPayrollDatabase().transaction(async () => {
-  const triggerId = cleanText(input.trigger_id);
-  if (cleanText(input.state) === "cancelled") {
-    const reverseSource = cleanText(input.reverses_source_event_id);
-    const reverseTrigger = cleanText(input.reverses_trigger_id || triggerId);
-    const originals = (await listPayrollLedgerEntries(orgId, {
-      project_id: projectId,
-      kind: "commission",
-      limit: 5000,
-      ...(reverseSource ? { source_event_id: reverseSource } : {})
-    })).filter((entry) => (!reverseTrigger || cleanText(entry.source_trigger_id) === reverseTrigger) && cleanText(entry.state) !== "void");
-    const results: JsonObject[] = [];
-    (await withPayrollTransaction(async () => {
-      for (const original of originals) {
-        if (cleanText(original.state) === "projected") {
-          results.push((await upsertPayrollLedgerEntry(orgId, {
-            ...original,
-            payee: entryPayee(original),
-            state: "void",
-            source_event_id: cleanText(original.source_event_id),
-            source_trigger_id: cleanText(original.source_trigger_id)
-          } as PayrollLedgerEntryInput & JsonObject)));
-          continue;
-        }
-        results.push((await upsertPayrollLedgerEntry(orgId, (await normalizedLedgerInput(orgId, {
-          payee: entryPayee(original),
-          schedule_id: cleanText(original.schedule_id),
-          kind: "clawback",
-          subgroup: "commission",
-          state: "accrued",
-          amount_cents: -Math.abs(Number(original.amount_cents || 0)),
-          currency: cleanText(original.currency || input.currency || "USD"),
-          project_id: projectId,
-          project_title: cleanText(input.project_title || original.project_title),
-          worked_at: cleanText(input.occurred_at || nowIso()),
-          completed_at: cleanText(input.completed_at || input.occurred_at || nowIso()),
-          source_event_id: `${cleanText(input.source_event_id)}:${cleanText(original.id)}`,
-          source_trigger_id: `${triggerId}:clawback:${cleanText(original.id)}`,
-          description: cleanText(input.description || `Clawback: ${original.description || "commission reversal"}`),
-          metadata: {
-            ...asObject(input.metadata),
-            reverses_ledger_entry_id: cleanText(original.id),
-            reverses_source_event_id: cleanText(original.source_event_id),
-            original_amount_cents: Number(original.amount_cents || 0)
-          }
-        } as PayrollLedgerEntryInput & JsonObject)))));
-      }
-    }));
-    return { entries: results, reversed_count: results.length };
-  }
-
-  const directPayees = asArray(input.payees) as PayrollPayeeRef[];
-  const roleKey = cleanText(input.payee_role);
-  const role = roleKey ? (await listProjectPayees(orgId, projectId)).find((entry) => cleanText(entry.role_key) === roleKey) : null;
-  const payees = (directPayees.length ? directPayees : asArray(role?.payees) as PayrollPayeeRef[])
-    .filter((payee) => cleanText(payee?.id));
-  if (!payees.length) throw badRequest("commission_payees_empty", `No commission payees are assigned${roleKey ? ` to '${roleKey}'` : ""}.`);
-  const total = commissionTotal(input);
-  const amounts = cleanText(input.allocation || "split_evenly") === "each"
-    ? payees.map(() => total)
-    : splitCents(total, payees.length);
-  const entries = (await Promise.all(payees.map(async (payee, index) => (await normalizedLedgerInput(orgId, {
-    payee,
-    kind: "commission",
-    subgroup: "commission",
-    state: cleanText(input.state) === "projected" ? "projected" : "accrued",
-    amount_cents: amounts[index],
-    currency: cleanText(input.currency || "USD"),
-    project_id: projectId,
-    project_title: cleanText(input.project_title),
-    worked_at: cleanText(input.occurred_at || nowIso()),
-    completed_at: cleanText(input.completed_at),
-    source_event_id: cleanText(input.source_event_id),
-    source_trigger_id: triggerId,
-    description: cleanText(input.description || "Project commission"),
-    metadata: {
-      ...asObject(input.metadata),
-      payee_role: roleKey,
-      allocation: cleanText(input.allocation || "split_evenly"),
-      pool_amount_cents: total,
-      payee_count: payees.length,
-      basis_cents: Number(input.basis_cents || 0),
-      rate_bps: Number(input.rate_bps || 0)
-    }
-  } as PayrollLedgerEntryInput & JsonObject)))));
-  return { entries: (await recordPayrollLedgerEntries(orgId, entries)), total_cents: amounts.reduce((sum, amount) => sum + amount, 0) };
-
-  }));
-}
-
-export async function reconcileProjectedCommissionPayees(orgId: string, projectId: string, roleKey: string) {
-  return (await getPayrollDatabase().transaction(async () => {
-  const role = (await listProjectPayees(orgId, projectId)).find((entry) => cleanText(entry.role_key) === roleKey);
-  const payees = asArray(role?.payees) as PayrollPayeeRef[];
-  const entries = (await listPayrollLedgerEntries(orgId, { project_id: projectId, kind: "commission", limit: 5000 }))
-    .filter((entry) => cleanText(asObject(entry.metadata).payee_role) === roleKey)
-    .filter((entry) => cleanText(entry.state) === "projected"
-      || (cleanText(entry.state) === "void" && asObject(entry.metadata).commission_payee_removed === true));
-  const groups = new Map<string, JsonObject[]>();
-  for (const entry of entries) {
-    const key = `${cleanText(entry.source_event_id)}\u0000${cleanText(entry.source_trigger_id)}`;
-    groups.set(key, [...(groups.get(key) || []), entry]);
-  }
-  let updatedCount = 0;
-  let voidedCount = 0;
-  for (const group of groups.values()) {
-    const first = group[0] || {};
-    const metadata = asObject(first.metadata);
-    let desired = new Set<string>();
-    if (payees.length) {
-      const result = (await triggerCommissionEvent(orgId, projectId, {
-        source_event_id: cleanText(first.source_event_id),
-        trigger_id: cleanText(first.source_trigger_id),
-        state: "projected",
-        payee_role: roleKey,
-        payees,
-        amount_cents: Number(metadata.pool_amount_cents ?? group.reduce((sum, entry) => sum + Number(entry.amount_cents || 0), 0)),
-        allocation: cleanText(metadata.allocation || "split_evenly"),
-        currency: cleanText(first.currency || "USD"),
-        occurred_at: cleanText(first.worked_at || first.created_at),
-        completed_at: cleanText(first.completed_at),
-        project_title: cleanText(first.project_title),
-        description: cleanText(first.description || "Project commission"),
-        metadata: { ...metadata, commission_payee_removed: false }
-      }));
-      desired = new Set(asArray(result.entries).map((entry) => {
-        const payee = asObject(asObject(entry).payee);
-        return `${cleanText(payee.type)}:${cleanText(payee.id)}`;
-      }));
-      updatedCount += asArray(result.entries).length;
-    }
-    for (const entry of group.filter((candidate) => cleanText(candidate.state) === "projected")) {
-      const payee = asObject(entry.payee);
-      if (!desired.has(`${cleanText(payee.type)}:${cleanText(payee.id)}`)) {
-        (await voidPayrollLedgerEntry(orgId, cleanText(entry.id), { commission_payee_removed: true, commission_payee_removed_at: nowIso() }));
-        voidedCount += 1;
-      }
-    }
-  }
-  return { updated_count: updatedCount, voided_count: voidedCount };
-
-  }));
-}
-
-export async function overrideProjectCommission(orgId: string, projectId: string, input: JsonObject) {
-  return (await getPayrollDatabase().transaction(async () => {
-  const entry = (await readPayrollLedgerEntry(orgId, cleanText(input.entry_id)));
-  if (cleanText(entry.project_id) !== projectId || cleanText(entry.kind) !== "commission") {
-    throw badRequest("project_commission_entry_invalid", "The selected entry is not a commission for this project.");
-  }
-  const target = Math.max(0, Math.round(Number(input.target_amount_cents || 0)));
-  const reason = cleanText(input.reason);
-  const overrideMetadata = {
-    ...asObject(input.metadata),
-    manual_override: true,
-    manual_override_for: cleanText(entry.id),
-    manual_override_reason: reason,
-    manual_override_target_cents: target,
-    manual_override_original_cents: Number(entry.amount_cents || 0)
-  };
-  if (cleanText(entry.state) === "projected") {
-    const { manual_override_for: _adjustmentTarget, ...projectionOverrideMetadata } = overrideMetadata;
-    const updated = (await upsertPayrollLedgerEntry(orgId, {
-      ...storedEntryInput(entry),
-      amount_cents: target,
-      description: cleanText(entry.description || "Project commission"),
-      metadata: {
-        ...asObject(entry.metadata),
-        ...projectionOverrideMetadata,
-        manual_override_history: [
-          ...asArray(asObject(entry.metadata).manual_override_history),
-          { target_amount_cents: target, reason, source_event_id: cleanText(input.source_event_id), at: nowIso() }
-        ]
-      }
-    }));
-    return { entry: updated, adjustment: null, effective_amount_cents: target };
-  }
-  if (cleanText(entry.state) !== "accrued") throw badRequest("project_commission_override_state", "Only projected or accrued commissions can be overridden.");
-  const related = (await listPayrollLedgerEntries(orgId, { project_id: projectId, limit: 5000 }))
-    .filter((candidate) => cleanText(candidate.id) !== cleanText(entry.id)
-      && cleanText(asObject(candidate.metadata).manual_override_for) === cleanText(entry.id));
-  const effective = Number(entry.amount_cents || 0) + related.reduce((sum, candidate) => sum + Number(candidate.amount_cents || 0), 0);
-  const delta = target - effective;
-  if (!delta) return { entry, adjustment: null, effective_amount_cents: effective };
-  const [adjustment] = (await recordPayrollLedgerEntries(orgId, [{
-    payee: entryPayee(entry),
-    schedule_id: cleanText(entry.schedule_id),
-    kind: delta < 0 ? "clawback" : "commission",
-    subgroup: "commission",
-    state: "accrued",
-    amount_cents: delta,
-    currency: cleanText(entry.currency || "USD"),
-    project_id: projectId,
-    project_title: cleanText(entry.project_title),
-    worked_at: nowIso(),
-    completed_at: nowIso(),
-    source_event_id: cleanText(input.source_event_id),
-    source_trigger_id: `manual_override:${cleanText(entry.id)}`,
-    description: `Manual commission override: ${reason}`,
-    metadata: overrideMetadata
-  } as PayrollLedgerEntryInput & JsonObject]));
-  return { entry, adjustment, effective_amount_cents: effective + delta };
 
   }));
 }

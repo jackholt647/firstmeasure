@@ -520,16 +520,3 @@ export async function materializeScopeCustomFields(
   }
   throw conflict("revision_conflict", "Project custom fields changed while the scope was being activated.");
 }
-
-export function assignmentPayeesFromCustomField(projectValue: unknown, pathValue: unknown) {
-  const project = asObject(projectValue);
-  const value = customFieldValueAtPath(project.custom_field_values || project.custom_fields, pathValue);
-  return (Array.isArray(value) ? value : [value]).map(asObject)
-    .map((subject) => ({
-      type: cleanText(subject.subject_type),
-      id: cleanText(subject.subject_id || subject.id),
-      name: cleanText(subject.name || subject.label || subject.subject_id || subject.id),
-      worker_type: cleanText(subject.worker_type || (subject.subject_type === "organization_connection" ? "subcontractor" : "employee"))
-    }))
-    .filter((payee) => ASSIGNABLE_TYPES.has(payee.type) && !!payee.id);
-}

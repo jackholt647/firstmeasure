@@ -27,15 +27,12 @@ const fields: Record<string, Record<string, JsonSchema>> = {
   "project.claim.v1": { key: text, holder: text }, "materials.initializeFromScope.v1": {},
   "checklists.initializeFromScope.v1": {},
   "punchlist.request.v1": { title: text, description: text, instance_key: text, terminology_key: text, labels: object, config: object },
-  "customFields.initializeFromScope.v1": {}, "payroll.reconcileScopeCommissions.v1": {}, "scopes.reconcileProjectResources.v1": {},
+  "customFields.initializeFromScope.v1": {}, "scopes.reconcileProjectResources.v1": {},
   "payments.ensureReceivables.v1": {}, "documents.dispatchOnSigned.v1": {}, "payments.reconcileRecognition.v1": {},
   "documents.issue.v1": { document_type: text, template_id: text, params: object, deliver: text, title: text, recipients: list, consent_contact: text, workflow_id: text },
   "completion.request.v1": { mode: text, deliver: text, params: object, tab: object },
   "feedback.requestReview.v1": { project_id: text, branch_id: text, channels: list, message_overrides: object, source_key: text, resend: { type: "boolean" } },
-  "payroll.commission.post.v1": { payee_role: text, payees: list, amount: object, allocation: text, entry_state: text },
-  "payroll.projectPayees.set.v1": { role_key: text, label: text, payees: list },
-  "payroll.commission.rule.v1": { rule: object },
-  "payroll.commission.accrue.v1": { rule_id: text, installment_id: text }
+  "payroll.refreshEarnings.v1": { payee_type: text, payee_id: text }
 };
 const contexts = new WeakMap<PublicationContext, WorkAutomationContext>();
 export const legacyWorkActionIds: readonly string[] = Object.freeze(Object.keys(fields));
