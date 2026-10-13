@@ -43,7 +43,7 @@
     versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
     versionedBundle('photos/feed.js', '20261012-composer-link-icons-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-channels-polish-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-profile-names-bold'),
     versionedBundle('../project-notes/project-notes.js', '20261012-composer-media-fixes-v1'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-activity-labels-v4'),
     versionedBundle('../project-trays/project-trays.js', '20261012-activity-labels-v4')
@@ -552,7 +552,7 @@
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261002-agent-persistence-v1'),
         versionedBundle('photos/feed.js', '20261012-composer-link-icons-v1'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261012-channels-polish-v1'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261012-profile-names-bold'),
     versionedBundle('../project-notes/project-notes.js', '20261012-composer-media-fixes-v1'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
