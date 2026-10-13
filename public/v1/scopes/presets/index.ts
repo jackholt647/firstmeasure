@@ -1520,7 +1520,7 @@ function replacementTemplate(input: Pick<ScopeTemplateDefinition, "id" | "name" 
         children: input.id === "roof_replacement" ? ROOF_REPLACEMENT_STAGES : FULL_PRODUCTION_STAGES
       }]
     },
-    metadata: { preset: true, preset_revision: input.id === "roof_replacement" ? 33 : 12 }
+    metadata: { preset: true, preset_revision: input.id === "roof_replacement" ? 34 : 13 }
   };
 }
 
@@ -1603,7 +1603,7 @@ function serviceTemplate(input: Pick<ScopeTemplateDefinition, "id" | "name" | "d
         ]
       }]
     },
-    metadata: { preset: true, preset_revision: 12 }
+    metadata: { preset: true, preset_revision: 13 }
   };
 }
 

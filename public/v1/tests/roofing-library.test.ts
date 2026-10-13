@@ -38,6 +38,24 @@ test('an Instant Full Org starts with the roofing price book library and its sup
   const quote = quoteSupplierDelivery(depot, null, [{ item_id: 'lib-ridge-gaf-seal-a-ridge', quantity: 2 }]);
   assert.equal(quote.covers_all, true); assert.equal(quote.total_cents, 2 * 5997 + 7900);
 
+  // The organization also starts with two ways of being paid for the same roof, and its roofing scope names its schema.
+  const sheets = await import('../labor/pay-sheets.js');
+  const paySheets = await sheets.listPaySheets(ctx.orgId);
+  assert.deepEqual(paySheets.map((row) => [row.name, row.subject.type]).sort(), [['Crew A hourly (sample)', 'resource_group'], ['Summit Roofing piece rates (sample)', 'organization_connection']]);
+  const requirements = paySheets.map(sheets.paySheetRequirements);
+  assert.ok(requirements.every((row) => row.schema_ids.includes('roofing')));
+  assert.ok(requirements.find((row) => row.consumer.name.startsWith('Summit'))!.inputs.some((input) => input.source.kind === 'measurement' && input.required));
+  const project = await (await import('../platform/storage.js')).upsertDocument(ctx.orgId, 'projects', { id: 'project_pay_compare', data: { title: 'Compare', branch_id: 'default' } });
+  const compared = await (await import('../labor/pay-sheet-publication.js')).evaluateProjectPaySheets(ctx.orgId, String(project.id), { manual: { hours: 40 } });
+  assert.equal(compared.find((row) => row.sheet.name.startsWith('Crew A'))!.total_cents, 40 * 12800);
+  assert.deepEqual(compared.find((row) => row.sheet.name.startsWith('Summit'))!.unresolved.map((row) => row.label), ['Tear off and install'], 'with no measurements the subcontractor cannot be priced yet');
+  const { seedInstantPaySheets } = await import('../labor/sample-pay-sheets.js');
+  await seedInstantPaySheets(ctx.orgId, ctx);
+  assert.equal((await sheets.listPaySheets(ctx.orgId)).length, 2, 'seeding again adds nothing');
+  const { listScopeTemplates } = await import('../scopes/storage.js');
+  const roof = (await listScopeTemplates(ctx.orgId, 'default') as any[]).find((row) => row.id === 'roof_replacement');
+  if (roof) assert.deepEqual((await import('../platform/publication/measurement-schemas.js')).measurementSchemaIdsForScope(roof.definition || roof), ['roofing']);
+
   // Running it again changes nothing an organization would notice.
   await seedInstantRoofingLibrary(ctx.orgId, ctx);
   assert.equal((await getOrganizationPricebook(ctx.orgId)).catalog.items.length, catalog.length);

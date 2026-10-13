@@ -55,9 +55,12 @@ do. Manual entry and other tools fill the same keys.
 
 A measurement dataset holds project totals in `measurements` and may also hold
 `structures: [{ id, name, measurements }]`. Totals stay authoritative for
-consumers that only want a total. Manual overrides apply to totals. The
-FirstMeasure adapters do not yet write per-structure values; the shape and the
-assessment support them.
+consumers that only want a total. Manual overrides apply to totals. A
+FirstMeasure report with more than one structure publishes each structure's own
+faces and lines (its model file has one `ROOF` element per structure). Those
+come from the model geometry, while totals prefer the saved report's
+classifications, so the structures need not sum exactly to the total. Exterior
+wall measurements are not yet broken down by structure.
 
 ## Published views
 
@@ -72,9 +75,8 @@ The `measurement-schemas` provider (permission `view_project_data`) exports:
   reported as zero and a value in another unit is never converted.
 
 `assessment` is the start of a requirements view: what a kind of work needs
-against what a project has. Consumers publishing their own declared inputs
-(material calculations, pay sheets) so they can be compared the same way is not
-built yet.
+against what a project has. [Pay sheets](pay-sheets.md) publish their declared inputs through
+`pay-sheets.requirements`; material calculations do not yet.
 
 Run `tests/publication-measurement-schemas.test.ts` and `npm run test:publication`
 for changes here.

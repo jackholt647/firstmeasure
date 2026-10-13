@@ -12,17 +12,28 @@ import { buildProjectInstantPayload } from "../../firstmeasure/instant.js";
 import { badRequest, forbidden } from "../errors.js";
 type Obj=Record<string,unknown>;
 const obj=(v:unknown):Obj=>v&&typeof v==="object"&&!Array.isArray(v)?v as Obj:{};
+type Measured=Record<string,{value:number;unit:string;source:string}>;
+type RoofplanModel=ReturnType<typeof parseRoofplanMeasurementXml>;
 /** Roofplan model coordinates and polygon sizes are feet/ft², independent of PDF display preferences. */
-export function measurementPayloadFromRoofplan(xml:string,reportId:string){
- const parsed=parseRoofplanMeasurementXml(xml);const measurements:Record<string,{value:number;unit:string;source:string}>={};
+function roofplanMeasurements(parsed:Pick<RoofplanModel,"lines"|"faces">,points:RoofplanModel["points"]){
+ const measurements:Measured={};
  const add=(key:string,value:number,unit:string)=>{if(Number.isFinite(value)&&value>=0)measurements[key]={value:(measurements[key]?.value||0)+value,unit,source:"firstmeasure"};};
- const pointMap=new Map(parsed.points.filter(p=>{const parts=String(p.raw.data||"").split(",");return parts.length===3&&parts.every(n=>n.trim()!==""&&Number.isFinite(Number(n)));}).map(p=>[p.id,p]));
+ const pointMap=new Map(points.filter(p=>{const parts=String(p.raw.data||"").split(",");return parts.length===3&&parts.every(n=>n.trim()!==""&&Number.isFinite(Number(n)));}).map(p=>[p.id,p]));
  const keys:Record<string,string>={ridge:"ridgesLf",hip:"hipsLf",valley:"valleyLf",rake:"rakesLf",eave:"eavesLf",headwall:"headWallLf",sidewall:"sideWallLf",stepflashing:"sideWallLf",transition:"transitionsLf"};
  for(const line of parsed.lines){const key=keys[line.type.toLowerCase().replace(/[^a-z]/g,"")];if(!key)continue;const a=pointMap.get(line.start_point_id||""),b=pointMap.get(line.end_point_id||"");if(a&&b&&[a.x,a.y,a.z,b.x,b.y,b.z].every(Number.isFinite))add(key,Math.hypot(Number(a.x)-Number(b.x),Number(a.y)-Number(b.y),Number(a.z)-Number(b.z)),"ft");}
  let roofArea=0;let observed=false;
  for(const face of parsed.faces){const rawSize=face.raw.polygon.size;if(rawSize===undefined||rawSize.trim()===""||!Number.isFinite(Number(rawSize))||face.area===null||face.area<0)continue;observed=true;roofArea+=face.area;if(face.pitch!==null&&face.raw.polygon.pitch?.trim()&&Number.isFinite(Number(face.raw.polygon.pitch))){const p=face.pitch;add(p<=2?"flatRoofSquares":p<=4?"pitch2to4Squares":p<=6?"pitch4to6Squares":p<=8?"pitch6to8Squares":p<=12?"pitch9to12Squares":"pitch13PlusSquares",face.area/100,"roofing_square");}}
  if(observed){add("roofSquares",roofArea/100,"roofing_square");add("roofArea",roofArea,"ft2");}
- return {measurements,artifacts:[{id:reportId,kind:"firstmeasure.report",sourceRevision:contentHash(xml)},{id:`${reportId}/model_data.xml`,kind:"roofplan.xml",sourceRevision:contentHash(xml)}]};
+ return measurements;
+}
+/** The report writes one ROOF element per structure. With more than one, each structure's own faces and lines are
+ * measured as well as the whole; a single-structure report has only totals. */
+export function measurementPayloadFromRoofplan(xml:string,reportId:string){
+ const parsed=parseRoofplanMeasurementXml(xml);
+ const measurements=roofplanMeasurements(parsed,parsed.points);
+ const roofs=Array.from(xml.matchAll(/<ROOF\b([^>]*)>([\s\S]*?)<\/ROOF>/gi));
+ const structures=roofs.length<2?[]:roofs.map((match,index)=>({id:String(match[1]?.match(/\bid="([^"]+)"/i)?.[1]||`ROOF${index+1}`),name:`Structure ${index+1}`,measurements:roofplanMeasurements(parseRoofplanMeasurementXml(match[2]||""),parsed.points)})).filter(structure=>Object.keys(structure.measurements).length);
+ return {measurements,...(structures.length?{structures}:{}),artifacts:[{id:reportId,kind:"firstmeasure.report",sourceRevision:contentHash(xml)},{id:`${reportId}/model_data.xml`,kind:"roofplan.xml",sourceRevision:contentHash(xml)}]};
 }
 /** Preserve the completed editor's saved classifications and exact pitch totals.
  * Lengths are already feet; never recalculate its pixel geometry or infer counts. */

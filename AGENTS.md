@@ -109,6 +109,16 @@ whether two trades mean the same thing, define two. Producers such as FirstMeasu
 fill dictionary keys and do not invent names. Run
 `tests/publication-measurement-schemas.test.ts` for changes here.
 
+## Labor pay
+
+Read [pay sheets](docs/architecture/pay-sheets.md) before changing how crews,
+people or subcontractors are paid, or how labor lists are priced. There is no
+shared catalogue of priced labor tasks: each party has a pay sheet that declares
+its inputs and is evaluated against a job. A sheet that reads a measurement
+names a measurement schema. Evaluation is deterministic and leaves a line
+unresolved rather than pricing it at zero; an agent may author a sheet but never
+computes pay. Run `tests/labor-pay-sheets.test.ts` for changes here.
+
 ## Automations
 
 Read [automation authoring](docs/architecture/automation-authoring.md) before

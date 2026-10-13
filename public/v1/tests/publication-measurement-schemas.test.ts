@@ -96,3 +96,18 @@ test("measurement schemas are published, and every FirstMeasure key has a defini
     }
   } finally { await (await import("../firstmeasure/project_index.js")).closeFirstMeasureProjectIndex(); await rm(dir, { recursive: true, force: true }); }
 });
+
+test("a report with several structures publishes each structure's measurements as well as the total", async () => {
+  const fm = await import("../platform/publication/firstmeasure-datasets.js");
+  const m = await import("../platform/publication/measurement-schemas.js");
+  const points = `<POINTS><POINT data="0,0,10" id="C1"/><POINT data="30,0,10" id="C2"/><POINT data="0,0,20" id="C3"/><POINT data="12,0,20" id="C4"/></POINTS>`;
+  const roof = (id: string, area: number, pitch: number, line: string) => `<ROOF id="${id}"><FACES><FACE id="F1" type="ROOF"><POLYGON id="P1" path="L1" pitch="${pitch}" size="${area}"/></FACE></FACES><LINES>${line}</LINES></ROOF>`;
+  const xml = `<STRUCTURES>${roof("ROOF1", 2600, 6, `<LINE id="L1" path="C1,C2" type="RIDGE"/>`)}${roof("ROOF2", 600, 4, `<LINE id="L2" path="C3,C4" type="RIDGE"/>`)}${points}</STRUCTURES>`;
+  const payload = fm.measurementPayloadFromRoofplan(xml, "report") as any;
+  assert.equal(payload.measurements.roofArea.value, 3200); assert.equal(payload.measurements.ridgesLf.value, 42);
+  assert.deepEqual(payload.structures.map((row: any) => [row.id, row.name, row.measurements.roofArea.value, row.measurements.ridgesLf.value]), [["ROOF1", "Structure 1", 2600, 30], ["ROOF2", "Structure 2", 600, 12]]);
+  assert.equal(payload.structures[1].measurements.pitch2to4Squares.value, 6);
+  const area = m.assessMeasurements("roofing", payload).measurements.find((row) => row.definition === "roof.area")!;
+  assert.deepEqual(area.structures.map((row) => row.id), ["ROOF1", "ROOF2"]);
+  assert.equal((fm.measurementPayloadFromRoofplan(`<STRUCTURES>${roof("ROOF1", 2600, 6, "")}${points}</STRUCTURES>`, "report") as any).structures, undefined, "one structure is just the total");
+});
