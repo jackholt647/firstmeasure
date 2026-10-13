@@ -118,7 +118,7 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.materialListById=id=>state.lists.find(list=>list.id===id);
       window.resourceTerms=type=>({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type],singular:type});
       window.escapeHtml=value=>String(value);
-      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
+      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
       window.materialSectionDefinitions=()=>['material','labor','equipment'].map(type=>({key:type,resource_type:type}));
       window.lineSectionKey=item=>item.section;
       window.renderMaterialSection=(section,rows)=>`<section class="mt-section">${rows.map(row=>`<div style="height:30px">${row.name}</div>`).join('')}</section>`;
@@ -315,20 +315,20 @@ test('a supplier quote covers carried items, flags unknown prices, applies deliv
  ctx.state.orderScheduleDrafts.a={supplier_key:''};assert.equal(ctx.orderSupplierChoice(lists[0]).target,null,'an explicit empty choice stays empty');
 });
 
-test('projected delivery is derived from supplier fees, can be switched off per list and stops once a list is ordered',()=>{
+test('projected delivery is one estimate per category, switched off for the whole category and dropped for ordered lists',()=>{
  const line=(id,item)=>({id,quantity:10,projected_total:100,pricebook_ref:{item_id:item}});
  const abc={id:'abc',name:'ABC',delivery_fee:{amount_cents:7500,free_above_cents:null},offerings:[{item_id:'shingle',sku:'',price_cents:4000},{item_id:'nails',sku:'',price_cents:null}],locations:[]};
  const beacon={id:'beacon',name:'Beacon',delivery_fee:{amount_cents:5000,free_above_cents:null},offerings:[{item_id:'shingle',sku:'',price_cents:4500}],locations:[]};
- const ctx={state:{suppliers:[abc,beacon]},ordered:false,cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,listItems:list=>list.current_items,linePricebookItemId:item=>item.pricebook_ref?.item_id||'',resourceType:list=>list.resource_type,materialListOrdered:()=>ctx.ordered,expenseTargetForList:list=>list.target||null,listTotals:list=>({projected:list.current_items.reduce((sum,item)=>sum+(item.projected_total||0),0)})};
- vm.createContext(ctx);vm.runInContext(['supplierTargets','supplierOffer','orderableItems','supplierQuote','bestSupplierTarget','projectedDelivery','listProjected'].map(fn).join(''),ctx);
+ const ctx={state:{suppliers:[abc,beacon],lists:[]},ordered:new Set(),cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,listItems:list=>list.current_items,linePricebookItemId:item=>item.pricebook_ref?.item_id||'',resourceType:list=>list.resource_type,materialListOrdered:list=>ctx.ordered.has(list.id),expenseTargetForList:list=>list.target||null,listTotals:list=>({projected:list.current_items.reduce((sum,item)=>sum+(item.projected_total||0),0)})};
+ vm.createContext(ctx);vm.runInContext(['supplierTargets','supplierOffer','orderableItems','supplierQuote','bestSupplierTarget','projectedDelivery','listProjected','categoryProjected','projectProjected'].map(fn).join(''),ctx);
  const plain=value=>JSON.parse(JSON.stringify(value));
- const list={id:'a',resource_type:'material',current_items:[line('a1','shingle')]};
- assert.deepEqual(plain(ctx.projectedDelivery(list)),{available:true,enabled:true,amount:75,estimate:75},'ABC is cheaper overall, so its fee is the estimate');assert.equal(ctx.listProjected(list),175);
- list.metadata={projected_delivery_disabled:true};assert.deepEqual(plain(ctx.projectedDelivery(list)),{available:true,enabled:false,amount:0,estimate:75});assert.equal(ctx.listProjected(list),100);list.metadata={};
- const unknown={id:'b',resource_type:'material',current_items:[line('b1','shingle'),line('b2','nails')]};assert.equal(ctx.projectedDelivery(unknown).amount,50,'with no full match, the lowest fee among suppliers carrying something');
- ctx.ordered=true;assert.equal(ctx.projectedDelivery(list).available,false);ctx.ordered=false;
- assert.equal(ctx.projectedDelivery({id:'c',resource_type:'material',current_items:[line('c1','shingle'),{id:'fee',metadata:{delivery_fee:true}}]}).available,false,'a real delivery line replaces the estimate');
- assert.equal(ctx.projectedDelivery({id:'d',resource_type:'material',current_items:[]}).available,false);assert.equal(ctx.projectedDelivery({id:'e',resource_type:'equipment',current_items:[line('e1','shingle')]}).available,false);
- assert.equal(ctx.listProjected({id:'l',resource_type:'labor',target:{projected_cents:123400},current_items:[]}),1234);
- ctx.state.suppliers=[];assert.equal(ctx.projectedDelivery(list).available,false);
+ const a={id:'a',resource_type:'material',current_items:[line('a1','shingle')]},b={id:'b',resource_type:'material',current_items:[line('b1','shingle')]},labor={id:'l',resource_type:'labor',target:{projected_cents:123400},current_items:[line('l1','shingle')]};
+ ctx.state.lists=[a,b,labor];
+ assert.deepEqual(plain(ctx.projectedDelivery('material')),{available:true,enabled:true,amount:75,estimate:75},'two lists are one delivery from the cheaper supplier overall');
+ assert.equal(ctx.listProjected(a),100,'a list no longer carries delivery itself');assert.equal(ctx.categoryProjected('material'),275);assert.equal(ctx.projectedDelivery('labor').available,false);assert.equal(ctx.projectProjected(),275+1234);
+ b.metadata={projected_delivery_disabled:true};assert.deepEqual(plain(ctx.projectedDelivery('material')),{available:true,enabled:false,amount:0,estimate:75},'off on any list of the category is off for the category');assert.equal(ctx.categoryProjected('material'),200);b.metadata={};
+ ctx.ordered.add('a');assert.equal(ctx.projectedDelivery('material').amount,75,'the unordered list still needs a delivery');ctx.ordered.add('b');assert.equal(ctx.projectedDelivery('material').available,false);ctx.ordered.clear();
+ b.current_items=[line('b1','shingle'),line('b2','nails')];assert.equal(ctx.projectedDelivery('material').amount,50,'with no full match, the lowest fee among suppliers carrying something');
+ b.current_items=[line('b1','shingle'),{id:'fee',metadata:{delivery_fee:true}}];assert.equal(ctx.projectedDelivery('material').amount,75,'a list with a real delivery line is left out');
+ ctx.state.lists=[labor];assert.equal(ctx.projectedDelivery('material').available,false);ctx.state.lists=[a];ctx.state.suppliers=[];assert.equal(ctx.projectedDelivery('material').available,false);
 });
