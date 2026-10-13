@@ -212,7 +212,7 @@ Material calculations do not yet publish their declared inputs the same way.
 
 ## Not built
 
-The editor for sheets, and pay or payroll against what was committed. What a job
+The editor for sheets. Pay against what was committed is in [pay rules](pay-rules.md). What a job
 needs and what covers it is in [requirements](requirements.md). Committing a list and delivering it are described in
 [assignees](assignees.md). Development Instant
 Full Orgs start with five sample sheets (`labor/sample-pay-sheets.ts`), with
