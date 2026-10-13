@@ -840,6 +840,7 @@
       id: item.id || `item_${index + 1}`,
       kind: item.kind || (Array.isArray(item.components) && item.components.length ? 'assembly' : 'atomic'),
       name: String(item.name || ''),
+      code: cleanText(item.code ?? item.sku),
       category,
       type: cleanText(item.type || item.product_type) || getCategoryLabel(category),
       manufacturer,
@@ -2352,6 +2353,7 @@
         <div class="pb-fields">
           <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8cf345002184e5","Name") ?? "Name")}</label><input id="pbName" value="${String(escapeHtml(item.name))}"></div>
           <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2e88df13ca7101","Type") ?? "Type")}</label><div class="pb-select-with-add"><select id="pbType">${String(typeOptions)}</select><button type="button" class="pb-select-add" id="pbAddType" title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9015ee6e65cb45","Add type") ?? "Add type")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_9015ee6e65cb45","Add type") ?? "Add type")}"><i class="fas fa-plus"></i></button></div></div>
+          <div class="pb-field"><label title="The manufacturer's model or product number. Items with a SKU are the ones suggested when adding materials to a project.">SKU</label><input id="pbCode" type="text" maxlength="120" value="${String(escapeHtml(item.code || ''))}" placeholder="Manufacturer model or product number"></div>
           <div class="pb-field"><label>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_d9f2c1e468ae43","Manufacturer") ?? "Manufacturer")}</label><div class="pb-select-with-add"><select id="pbManufacturer"><option value=""${String(item.manufacturer ? '' : ' selected')}>${(globalThis.PlatformLanguage?.htmlText("pricebook","m_2d4ff8a83b1b5c","None") ?? "None")}</option>${String(manufacturerOptions)}</select><button type="button" class="pb-select-add" id="pbAddManufacturer" title="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8c1ba47ec95f93","Add manufacturer") ?? "Add manufacturer")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("pricebook","m_8c1ba47ec95f93","Add manufacturer") ?? "Add manufacturer")}"><i class="fas fa-plus"></i></button></div></div>
         </div>
         <div class="pb-summary-section">
@@ -2497,6 +2499,7 @@
 
     main.querySelector('#pbName')?.addEventListener('input', (e) => patchItemInput(activeItem.id, { name: e.target.value }));
     main.querySelector('#pbType')?.addEventListener('change', (e) => patchItemInput(activeItem.id, { type:e.target.value }));
+    main.querySelector('#pbCode')?.addEventListener('input', (e) => patchItemInput(activeItem.id, { code: e.target.value.trim() }));
     main.querySelector('#pbManufacturer')?.addEventListener('change', (e) => patchItemInput(activeItem.id, { manufacturer: e.target.value }));
     main.querySelector('#pbUnit')?.addEventListener('change', (e) => patchItemInput(activeItem.id, { unit: e.target.value }));
     const bindAddOption = (buttonSelector, label, patchForValue) => {
