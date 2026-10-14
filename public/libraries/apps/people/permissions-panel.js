@@ -7,7 +7,11 @@
  *
  *   const panel = FirstMatePeople.permissionsPanel.mount(container, {
  *     level: 'user',                          // 'role' | 'group_type' | 'group' | 'user'
- *     groups: [{ id, label, icon, permissions: [{ key, label, description }] }],
+ *     groups: [{ id, label, icon, description,                         // a category
+ *                subgroups: [{ id, label, description,                 // a subcategory (optional)
+ *                              collapsed,                            // folded at the end of the category
+ *                              permissions: [{ key, label, description, unavailable }] }],
+ *                permissions: [...] }],                                // used when there are no subgroups
  *     value: { 'crew.schedule.view': false }, // what THIS level says; a missing key says nothing
  *     inherited(key) => ({ allowed: true, sources: ['Sales'] }),   // what the levels above give; omit for the base level
  *     readOnly: false,
@@ -18,8 +22,10 @@
  * With `inherited`, each permission is a three-way choice: inherit, allow,
  * deny. A row that says something itself is marked as overridden and can be
  * filtered to. Without `inherited` (a role), each permission is a switch.
- * Permissions are paged by group on the left so a group fits without
- * scrolling; searching looks across every group.
+ * Categories are paged on the left; the right side lists the category's
+ * subcategories under headings. Searching looks across every category.
+ * Labels are titles; descriptions are tooltips. An `unavailable` permission
+ * (its app is off) is muted but still editable.
  */
 (function(){
   'use strict';
@@ -39,7 +45,7 @@
       .pp-perm-tally{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--pp-muted);font-size:12px;font-weight:600;white-space:nowrap}
       .pp-perm-tally>span{display:inline-flex;align-items:center;gap:5px}
       .pp-perm-tally i{font-size:11px}
-      .pp-perm-body{display:grid;grid-template-columns:176px minmax(0,1fr);gap:16px;flex:1;min-height:0}
+      .pp-perm-body{display:grid;grid-template-columns:212px minmax(0,1fr);gap:16px;flex:1;min-height:0}
       .pp-perm.single .pp-perm-body{grid-template-columns:minmax(0,1fr)}
       .pp-perm.single .pp-perm-groups{display:none}
       .pp-perm-groups{display:flex;flex-direction:column;gap:2px;min-height:0;overflow-y:auto;padding-right:2px}
@@ -52,13 +58,15 @@
       .pp-perm-group-count.override{background:var(--pp-warn-bg);color:var(--pp-warn)}
       .pp-perm-group-count:empty{display:none}
       .pp-perm-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:min-content;align-content:start;gap:3px 14px;min-height:0;overflow-y:auto;padding:1px}
-      .pp-perm-row{display:flex;align-items:center;gap:9px;min-width:0;height:36px;padding:0 4px 0 9px;border-radius:8px;background:var(--pp-soft);transition:background .12s ease,box-shadow .12s ease}
+      .pp-perm-row{display:flex;align-items:center;gap:9px;min-width:0;min-height:36px;padding:3px 4px 3px 9px;box-sizing:border-box;border-radius:8px;background:var(--pp-soft);transition:background .12s ease,box-shadow .12s ease}
       .pp-perm-row.overridden{background:var(--pp-warn-bg);box-shadow:inset 0 0 0 1px var(--pp-warn-line)}
       .pp-perm-state{flex:none;width:14px;text-align:center;font-size:13px;color:#d0d5dd}
       .pp-perm-row.allowed .pp-perm-state{color:var(--pp-online)}
       .pp-perm-row.denied .pp-perm-state{color:var(--pp-danger)}
-      .pp-perm-label{flex:1;min-width:0;color:var(--pp-strong);font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .pp-perm-label{flex:1;min-width:0;color:var(--pp-strong);font-size:12.5px;font-weight:600;line-height:1.3;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
       .pp-perm-row:not(.allowed) .pp-perm-label{color:var(--pp-muted)}
+      .pp-perm-row.unavailable .pp-perm-label,.pp-perm-row.unavailable .pp-perm-state{opacity:.55}
+      .pp-perm-off{flex:none;color:var(--pp-faint);font-size:10.5px}
       .pp-tri{display:inline-flex;flex:none;padding:2px;border-radius:8px;background:rgba(16,24,40,.05)}
       .pp-tri>button{display:grid;place-items:center;width:26px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--pp-faint);font-size:11px;cursor:pointer;transition:background .1s ease,color .1s ease}
       .pp-tri>button:hover:not(:disabled){color:var(--pp-text)}
@@ -72,8 +80,15 @@
       .pp-switch[aria-checked="true"]::after{transform:translateX(14px)}
       .pp-switch:disabled{cursor:default;opacity:.6}
       .pp-perm-empty{grid-column:1/-1}
-      .pp-perm-heading{grid-column:1/-1;margin:8px 0 1px 2px;color:var(--pp-muted);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+      .pp-perm-heading{grid-column:1/-1;display:flex;align-items:baseline;gap:6px;margin:10px 0 1px 2px;color:var(--pp-muted);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
       .pp-perm-heading:first-child{margin-top:0}
+      .pp-perm-heading>span{color:var(--pp-faint);font-weight:650}
+      .pp-perm-heading>span::after{content:'\\203A';margin-left:6px}
+      .pp-perm-fold{grid-column:1/-1;display:flex;align-items:center;gap:7px;margin:12px 0 1px;padding:6px 2px;border:0;border-top:1px dashed var(--pp-line);background:transparent;color:var(--pp-muted);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-align:left;cursor:pointer}
+      .pp-perm-fold:hover{color:var(--pp-text)}
+      .pp-perm-fold>i{width:10px;font-size:9.5px;transition:transform .12s ease}
+      .pp-perm-fold[aria-expanded="true"]>i{transform:rotate(90deg)}
+      .pp-perm-fold>em{font-style:normal;font-weight:650;letter-spacing:0;text-transform:none;color:var(--pp-faint)}
       @container (max-width:620px){
         .pp-perm-body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:10px}
         .pp-perm-groups{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:0 0 2px;scrollbar-width:none}
@@ -92,7 +107,14 @@
   function mount(container, options = {}){
     if (!container) throw new Error('permissionsPanel.mount requires a container.');
     ensureStyles();
-    const groups = (options.groups || []).filter((group) => group && (group.permissions || []).length);
+    // A group is a category. Its subgroups are subcategories; a group without them is one unnamed subgroup.
+    const groups = (options.groups || []).filter(Boolean).map((group) => {
+      // Folded subgroups (rarely used, such as older names) go to the end of their category.
+      const subgroups = (group.subgroups || []).filter((sub) => sub && (sub.permissions || []).length)
+        .map((sub, index) => ({ sub, index })).sort((left, right) => (left.sub.collapsed === true) - (right.sub.collapsed === true) || left.index - right.index).map(({ sub }) => sub);
+      const permissions = subgroups.length ? subgroups.flatMap((sub) => sub.permissions) : (group.permissions || []);
+      return { ...group, permissions, named:subgroups.length > 0, subgroups:subgroups.length ? subgroups : [{ id:'', label:'', description:'', permissions }] };
+    }).filter((group) => group.permissions.length);
     const inheritable = typeof options.inherited === 'function';
     const readOnly = options.readOnly === true;
     let inherited = options.inherited;
@@ -140,7 +162,7 @@
       const own = says(key);
       const result = effective(key);
       const choice = own == null ? 'inherit' : own ? 'allow' : 'deny';
-      const classes = ['pp-perm-row', result ? 'allowed' : '', own === false ? 'denied' : '', inheritable && own != null ? 'overridden' : ''].filter(Boolean).join(' ');
+      const classes = ['pp-perm-row', result ? 'allowed' : '', own === false ? 'denied' : '', inheritable && own != null ? 'overridden' : '', permission.unavailable ? 'unavailable' : ''].filter(Boolean).join(' ');
       const stateIcon = result ? 'fa-circle-check' : own === false ? 'fa-circle-xmark' : 'fa-circle-minus';
       const control = inheritable
         ? `<div class="pp-tri" role="radiogroup" aria-label="${esc(permission.label)}">${[
@@ -149,14 +171,16 @@
             ['deny', kit.ICONS.deny, t('deny', 'Deny')]
           ].map(([id, icon, label]) => `<button type="button" role="radio" data-choice="${id}" aria-checked="${choice === id}" aria-label="${esc(label)}" tabindex="${choice === id ? 0 : -1}"${tip(label)} ${readOnly ? 'disabled' : ''}><i class="fas ${icon}" aria-hidden="true"></i></button>`).join('')}</div>`
         : `<button type="button" class="pp-switch" role="switch" aria-checked="${own === true}" aria-label="${esc(permission.label)}" data-choice="toggle" ${readOnly ? 'disabled' : ''}></button>`;
-      return `<div class="${classes}" data-perm-key="${esc(key)}"><i class="fas ${stateIcon} pp-perm-state" aria-hidden="true"${tip(sourceText(key))}></i><span class="pp-perm-label"${tip([permission.description, sourceText(key)].filter(Boolean).join(' • '))}>${esc(permission.label)}</span>${control}</div>`;
+      return `<div class="${classes}" data-perm-key="${esc(key)}"><i class="fas ${stateIcon} pp-perm-state" aria-hidden="true"${tip(sourceText(key))}></i><span class="pp-perm-label"${tip([permission.description, sourceText(key)].filter(Boolean).join(' • '))}>${esc(permission.label)}</span>${permission.unavailable ? `<i class="fas fa-power-off pp-perm-off" aria-label="${esc(t('permission_app_off', 'Its app is turned off for this company'))}"${tip(t('permission_app_off', 'Its app is turned off for this company'))}></i>` : ''}${control}</div>`;
     }
+    const placed = (group) => group.subgroups.flatMap((sub) => sub.permissions.map((permission) => ({ ...permission, groupId:group.id, groupLabel:group.label, subId:sub.id, subLabel:sub.label, subDescription:sub.description, folded:sub.collapsed === true, named:group.named })));
+    const unfolded = new Set();
     function visiblePermissions(){
       const text = query.trim().toLowerCase();
       const pool = text || activeGroup === ALL
-        ? groups.flatMap((group) => group.permissions.map((permission) => ({ ...permission, groupId:group.id, groupLabel:group.label })))
-        : (groups.find((group) => group.id === activeGroup)?.permissions || []);
-      return pool.filter((permission) => (!text || `${permission.label} ${permission.groupLabel || ''} ${permission.key} ${permission.description || ''}`.toLowerCase().includes(text))
+        ? groups.flatMap(placed)
+        : placed(groups.find((group) => group.id === activeGroup) || { subgroups:[] });
+      return pool.filter((permission) => (!text || `${permission.label} ${permission.groupLabel || ''} ${permission.subLabel || ''} ${permission.key} ${permission.description || ''}`.toLowerCase().includes(text))
         && (!onlyOverrides || says(permission.key) != null));
     }
     function renderGroups(){
@@ -164,16 +188,34 @@
       groupsEl.innerHTML = allButton + groups.map((group) => {
         const overrides = overrideCount(group.permissions);
         const count = inheritable ? (overrides || '') : (group.permissions.filter((permission) => effective(permission.key)).length || '');
-        return `<button type="button" class="pp-perm-group" role="tab" data-perm-group="${esc(group.id)}" aria-selected="${!query && group.id === activeGroup}" tabindex="${group.id === activeGroup ? 0 : -1}"><i class="fas ${esc(group.icon || 'fa-key')}" aria-hidden="true"></i><span>${esc(group.label)}</span><span class="pp-perm-group-count${inheritable ? ' override' : ''}"${tip(inheritable ? t('overridden_here', 'Overridden here') : t('granted', 'Granted'))}>${count}</span></button>`;
+        return `<button type="button" class="pp-perm-group" role="tab" data-perm-group="${esc(group.id)}" aria-selected="${!query && group.id === activeGroup}" tabindex="${group.id === activeGroup ? 0 : -1}"><i class="fas ${esc(group.icon || 'fa-key')}" aria-hidden="true"></i><span${tip(group.description ? `${group.label}: ${group.description}` : '')}>${esc(group.label)}</span><span class="pp-perm-group-count${inheritable ? ' override' : ''}"${tip(inheritable ? t('overridden_here', 'Overridden here') : t('granted', 'Granted'))}>${count}</span></button>`;
       }).join('');
     }
     function renderList(){
       const list = visiblePermissions();
-      const grouped = (query.trim() || activeGroup === ALL) && list.length;
-      let lastGroup = '';
+      // Across categories (search, All) a heading names the category and subcategory; within one, the subcategory.
+      const across = Boolean(query.trim() || activeGroup === ALL);
+      let lastSection = null;
       listEl.innerHTML = list.length ? list.map((permission) => {
-        const heading = grouped && permission.groupId !== lastGroup ? `<h5 class="pp-perm-heading">${esc(permission.groupLabel || '')}</h5>` : '';
-        lastGroup = permission.groupId;
+        const section = `${permission.groupId}/${permission.subId}`;
+        // A folded subgroup is a toggle at the end of its category; search, All and the overridden filter open it.
+        if (permission.folded && !across && !onlyOverrides) {
+          const open = unfolded.has(section);
+          const heading = section === lastSection ? '' : (() => {
+            const members = list.filter((entry) => `${entry.groupId}/${entry.subId}` === section);
+            const set = members.filter((entry) => says(entry.key) != null).length;
+            return `<button type="button" class="pp-perm-fold" data-perm-fold="${esc(section)}" aria-expanded="${open}"${tip(permission.subDescription)}><i class="fas fa-chevron-right" aria-hidden="true"></i>${esc(permission.subLabel)}<em>${esc(set ? t('permission_fold_set', '{count} of {total} set', { count:set, total:members.length }) : String(members.length))}</em></button>`;
+          })();
+          lastSection = section;
+          return heading + (open ? rowHtml(permission) : '');
+        }
+        let heading = '';
+        if (section !== lastSection && (across || permission.named)) {
+          const category = across ? `<span>${esc(permission.groupLabel || '')}</span>` : '';
+          const title = permission.named ? esc(permission.subLabel) : '';
+          heading = `<h5 class="pp-perm-heading" data-perm-section="${esc(section)}"${tip(permission.named ? permission.subDescription : '')}>${title ? category + title : esc(permission.groupLabel || '')}</h5>`;
+        }
+        lastSection = section;
         return heading + rowHtml(permission);
       }).join('')
         : `<div class="pp-list-state pp-perm-empty"><i class="fas ${onlyOverrides ? 'fa-rotate-left' : kit.ICONS.search}" aria-hidden="true"></i><strong>${esc(onlyOverrides && !query ? t('nothing_overridden', 'Nothing overridden') : t('no_matches', 'No matches'))}</strong></div>`;
@@ -208,6 +250,14 @@
     }
 
     listEl.addEventListener('click', (event) => {
+      const fold = event.target.closest('[data-perm-fold]');
+      if (fold) {
+        const section = fold.dataset.permFold;
+        if (unfolded.has(section)) unfolded.delete(section); else unfolded.add(section);
+        renderList();
+        listEl.querySelector(`[data-perm-fold="${CSS.escape(section)}"]`)?.focus({ preventScroll:true });
+        return;
+      }
       const button = event.target.closest('[data-choice]');
       const row = event.target.closest('[data-perm-key]');
       if (button && row && !button.disabled) setChoice(row.dataset.permKey, button.dataset.choice);

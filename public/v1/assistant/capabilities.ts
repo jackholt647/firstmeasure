@@ -39,7 +39,8 @@ registerCapabilities([
     parent: "apps.assistant",
     permission_key: "use_assistant",
     access: "read",
-    label: "Use AI Assistant",
+    permission_group: "assistant",
+    label: "Use the AI assistant",
     description: "Open the assistant and chat with it."
   }
 ]);

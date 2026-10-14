@@ -8,7 +8,8 @@ import { sandboxStore, sandboxError } from '../signup-sandbox/storage.js';
 import { isCapabilityEnabled } from '../platform/capabilities.js';
 import { withSyntheticBatch, sampleId } from './fixtures.js';
 
-import { batchProjects, companyContacts, companyProjects, companyEquipment, companyUsers, companyChannels } from './roofing-company.js';
+import { batchProjects, companyContacts, companyProjects, companyEquipment, companyChannels } from './roofing-company.js';
+import { ROOFING_PEOPLE, seedRoofingPeople } from './roofing-people.js';
 
 export const COMPANIES = [{ id: 'roofing', label: 'Roofing & exteriors' }];
 export const CATEGORIES = [
@@ -18,7 +19,7 @@ export const CATEGORIES = [
  { id: 'contacts', label: 'Contacts', description: 'Twenty-four fictional homeowners', icon: 'fa-address-book' },
  { id: 'material_lists', label: 'Material lists', description: 'Editable, price-book-linked project lists', icon: 'fa-layer-group' },
  { id: 'document_types', label: 'Document types', description: 'Four estimate styles and draft proposals', icon: 'fa-file-signature' },
- { id: 'users', label: 'Users', description: 'Six reusable fictional team members', icon: 'fa-users' },
+ { id: 'users', label: 'People', description: `A ${ROOFING_PEOPLE.length}-person roofing company: roles, departments, crews, subcontractors and pay`, icon: 'fa-users' },
  { id: 'channels', label: 'Channels', description: 'Two shared team spaces reused between batches', icon: 'fa-hashtag' },
  { id: 'communication', label: 'Communication', description: 'Sample inbox messages and channel replies', icon: 'fa-comments' }
 ];
@@ -130,7 +131,7 @@ export async function generateSyntheticData(ctx: PlatformAuthContext, raw: unkno
  try {
   for(let batch=0;batch<parsed.data.amount;batch++)await withSyntheticBatch(parsed.data.request_id ? `${parsed.data.request_id}:${batch}` : batch?`amount:${batch}`:'',async()=>{
   const run=async(key:string,fn:()=>Promise<unknown>)=>{if(!selected[key])return;try{const value=await fn() as JsonObject;const previous=results[key];results[key]={...addCounts(previous,value),status:previous?.status==='failed'?'failed':'complete',...(previous?.error?{error:previous.error}:{})};}catch(e:any){results[key]={...results[key],status:'failed',error:String(e.message||'Generation failed')};}};
-  await run('users',()=>companyUsers(ctx.orgId));
+  await run('users',()=>seedRoofingPeople(ctx));
   await run('contacts',()=>companyContacts(ctx.orgId));
   await run('projects',async()=>{const r=await companyProjects(ctx);await measurements(ctx);return r;});
   await run('equipment',()=>companyEquipment(ctx.orgId));

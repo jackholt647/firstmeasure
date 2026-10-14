@@ -43,18 +43,18 @@ const NEW_BUTTON_ITEM_OPTIONS: Array<[string, string]> = [
 const definitions: CapabilityDefinition[] = [
   {key:"platform.collaboration",kind:"app",label:"Partners",icon:"fa-handshake",category:"Sales & Customers",runtime_app_id:"partners",description:"Authenticated resource sharing and partner relationships.",default:true},
   ...([
-    ["view_partners","View partners","read"],
-    ["use_external_shares","Use external shares","read"],
-    ["manage_external_connections","Manage organization connections","write"],
-    ["manage_external_sharing","Manage external sharing","write"],
-    ["manage_external_privacy","Manage external privacy","write"],
-    ["manage_partner_payments","Pay partner invoices and record external payments","write"],
-    ["view_channels","View shared channels","read"],
-    ["send_channel_messages","Post in shared channels","write"]
-  ] as const).map(([key,label,access])=>({key:`permission.${key}`,kind:"permission" as const,parent:"platform.collaboration",permission_key:key,access,label,description:label})),
+    ["view_partners","View partners","read","partners","See partner companies, engagements and the documents they send."],
+    ["use_external_shares","Use shared work","read","sharing","Open and work on projects and items shared between partners."],
+    ["manage_external_connections","Manage partner connections","write","partners","Connect to partner companies and change how work is assigned to them."],
+    ["manage_external_sharing","Manage sharing","write","sharing","Share work with partners and revoke shares."],
+    ["manage_external_privacy","Manage partner privacy","write","sharing","Choose what partners can see about this company."],
+    ["manage_partner_payments","Pay partners","write","partner_payments","Pay partner invoices and record payments made outside the platform."],
+    ["view_channels","View shared channels","read","shared_channels","Read channels shared with partners."],
+    ["send_channel_messages","Post in shared channels","write","shared_channels","Post messages in channels shared with partners."]
+  ] as const).map(([key,label,access,permission_group,description])=>({key:`permission.${key}`,kind:"permission" as const,parent:"platform.collaboration",permission_key:key,access,permission_group,label,description})),
   { key: "platform.platform_billing", kind: "feature", label: "Platform Billing", description: "Platform subscriptions, usage, storage charges and invoices.", default: true },
-  { key: "permission.view_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "view_platform_billing", access: "read", label: "View Platform Billing", description: "View platform subscriptions, usage and invoices." },
-  { key: "permission.manage_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "manage_platform_billing", access: "write", label: "Manage Platform Billing", description: "Accept platform pricing, cancel subscriptions and pay platform invoices." },
+  { key: "permission.view_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "view_platform_billing", access: "read", permission_group: "billing", label: "View platform billing", description: "See platform subscriptions, usage and invoices." },
+  { key: "permission.manage_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "manage_platform_billing", access: "write", permission_group: "billing", label: "Manage platform billing", description: "Accept platform pricing, cancel subscriptions and pay platform invoices." },
   { key: "mobile.app_download", kind: "feature", label: "App Download", description: "Show mobile app download links in Settings.", default: false },
   { key: "mobile.developer_downloads", kind: "feature", label: "Mobile Test Downloads", description: "Allow private test builds on development deployments only.", requires: ["mobile.app_download"], default: false },
   {
@@ -1473,15 +1473,19 @@ const definitions: CapabilityDefinition[] = [
     default: false
   },
 
-  // --- Management permissions ------------------------------------------------
+  // --- Permissions -------------------------------------------------------------
+  // Every permission names the subcategory it is granted under
+  // (permission_group, see permission_categories.ts). Labels are short titles;
+  // the description is one line. Changing either changes no key or meaning.
   {
     key: "permission.view_projects",
     kind: "permission",
     parent: "apps.projects",
     permission_key: "view_projects",
     access: "read",
-    label: "View Projects",
-    description: "See projects, project data, payments, materials, and proposals."
+    permission_group: "projects",
+    label: "View projects",
+    description: "See projects, project data, payments, materials and proposals."
   },
   {
     key: "permission.manage_projects",
@@ -1489,8 +1493,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.projects",
     permission_key: "manage_projects",
     access: "write",
-    label: "Manage Projects",
-    description: "Create and edit projects, proposals, payments, and materials."
+    permission_group: "projects",
+    label: "Manage projects",
+    description: "Create and edit projects, proposals, payments and materials."
   },
   {
     key: "permission.view_reports",
@@ -1498,7 +1503,8 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.firstmeasure",
     permission_key: "view_reports",
     access: "read",
-    label: "View Reports",
+    permission_group: "measurement_reports",
+    label: "View reports",
     description: "See ordered measurement reports."
   },
   {
@@ -1507,7 +1513,8 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.firstmeasure",
     permission_key: "order_reports",
     access: "write",
-    label: "Order Reports",
+    permission_group: "measurement_reports",
+    label: "Order reports",
     description: "Order measurement reports and spend report credits."
   },
   {
@@ -1516,7 +1523,8 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.firstmeasure",
     permission_key: "manage_report_settings",
     access: "write",
-    label: "Manage Report Settings",
+    permission_group: "measurement_reports",
+    label: "Manage report settings",
     description: "Change measurement report defaults and settings."
   },
   {
@@ -1525,8 +1533,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.scheduling",
     permission_key: "manage_schedule",
     access: "write",
-    label: "Manage Schedule",
-    description: "Create and edit appointments and scheduling slots."
+    permission_group: "calendar",
+    label: "Manage the schedule",
+    description: "Create and edit appointments and booking slots."
   },
   {
     key: "permission.view_appointment_confirmation",
@@ -1534,8 +1543,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "scheduling.appointment_confirmations",
     permission_key: "view_appointment_confirmation",
     access: "read",
-    label: "View Appointment Confirmation Status",
-    description: "See whether a customer has confirmed an appointment. Companies that would rather their sales team not see unconfirmed appointments can withhold this."
+    permission_group: "confirmations",
+    label: "See confirmation status",
+    description: "See whether a customer has confirmed an appointment; withhold it to hide unconfirmed appointments from sales."
   },
   {
     key: "permission.send_communications",
@@ -1543,26 +1553,28 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.messaging",
     permission_key: "send_communications",
     access: "write",
-    label: "Send Communications",
-    description: "Send SMS and messaging conversations to customers."
+    permission_group: "messages",
+    label: "Send texts and messages",
+    description: "Send text messages and messaging conversations to customers."
   },
-  {key:'permission.make_calls',kind:'permission',parent:'apps.messaging',permission_key:'make_calls',access:'write',label:'Make Customer Calls',description:'Use call lists, log outcomes, and place customer calls through enabled voice service.'},
-  {key:'permission.manage_communications',kind:'permission',parent:'apps.messaging',permission_key:'manage_communications',access:'write',label:'Manage Communications',description:'Manage shared call lists, scripts, assignments, voice routing, and call recovery.'},
-  {key:'permission.record_calls',kind:'permission',parent:'apps.messaging',permission_key:'record_calls',access:'write',label:'Record Customer Calls',description:'Start consent-controlled recording on connected customer calls.'},
-  {key:'permission.listen_calls',kind:'permission',parent:'apps.messaging',permission_key:'listen_calls',access:'read',label:'Listen to Customer Calls',description:'Listen to permitted live customer calls without being heard.'},
-  {key:'permission.whisper_calls',kind:'permission',parent:'apps.messaging',permission_key:'whisper_calls',access:'write',label:'Whisper to Call Agents',description:'Privately coach the agent on a permitted live customer call.'},
-  {key:'permission.barge_calls',kind:'permission',parent:'apps.messaging',permission_key:'barge_calls',access:'write',label:'Join Customer Calls',description:'Join permitted live customer calls so all participants can hear you.'},
-  {key:'permission.takeover_calls',kind:'permission',parent:'apps.messaging',permission_key:'takeover_calls',access:'write',label:'Take Over Customer Calls',description:'Take ownership of a permitted live call and release the original agent.'},
-  {key:'permission.analyze_call_recordings',kind:'permission',parent:'apps.messaging',permission_key:'analyze_call_recordings',access:'write',label:'Analyze Call Recordings',description:'Generate AI notes and ask questions about permitted retained call transcripts.'},
-  {key:'permission.view_call_recordings',kind:'permission',parent:'apps.messaging',permission_key:'view_call_recordings',access:'read',label:'View Customer Call Recordings',description:'Access permitted customer call recordings and transcripts.'},
+  {key:'permission.make_calls',kind:'permission',parent:'apps.messaging',permission_key:'make_calls',access:'write',permission_group:'calls',label:'Make calls',description:'Use call lists, log outcomes and place customer calls through the enabled voice service.'},
+  {key:'permission.manage_communications',kind:'permission',parent:'apps.messaging',permission_key:'manage_communications',access:'write',permission_group:'call_center',label:'Manage the call center',description:'Manage shared call lists, scripts, assignments, voice routing and call recovery.'},
+  {key:'permission.record_calls',kind:'permission',parent:'apps.messaging',permission_key:'record_calls',access:'write',permission_group:'calls',label:'Record calls',description:'Start consent-controlled recording on connected customer calls.'},
+  {key:'permission.listen_calls',kind:'permission',parent:'apps.messaging',permission_key:'listen_calls',access:'read',permission_group:'call_coaching',label:'Listen in on calls',description:'Listen to permitted live customer calls without being heard.'},
+  {key:'permission.whisper_calls',kind:'permission',parent:'apps.messaging',permission_key:'whisper_calls',access:'write',permission_group:'call_coaching',label:'Whisper to the caller',description:'Privately coach the agent on a permitted live customer call.'},
+  {key:'permission.barge_calls',kind:'permission',parent:'apps.messaging',permission_key:'barge_calls',access:'write',permission_group:'call_coaching',label:'Join calls',description:'Join permitted live customer calls so everyone on the call can hear you.'},
+  {key:'permission.takeover_calls',kind:'permission',parent:'apps.messaging',permission_key:'takeover_calls',access:'write',permission_group:'call_coaching',label:'Take over calls',description:'Take ownership of a permitted live call and release the original agent.'},
+  {key:'permission.analyze_call_recordings',kind:'permission',parent:'apps.messaging',permission_key:'analyze_call_recordings',access:'write',permission_group:'calls',label:'Analyze call recordings',description:'Generate AI notes and ask questions about permitted call transcripts.'},
+  {key:'permission.view_call_recordings',kind:'permission',parent:'apps.messaging',permission_key:'view_call_recordings',access:'read',permission_group:'calls',label:'View call recordings',description:'Hear permitted customer call recordings and read their transcripts.'},
   {
     key: "permission.create_channels",
     kind: "permission",
     parent: "apps.channels",
     permission_key: "create_channels",
     access: "write",
-    label: "Create Channels",
-    description: "Create public and private team messaging channels."
+    permission_group: "team_channels",
+    label: "Create channels",
+    description: "Create public and private team channels."
   },
   {
     key: "permission.manage_channels",
@@ -1570,7 +1582,8 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.channels",
     permission_key: "manage_channels",
     access: "write",
-    label: "Manage Channels",
+    permission_group: "team_channels",
+    label: "Manage all channels",
     description: "Edit or archive any channel, manage members, and remove or restore any message."
   },
   {
@@ -1579,8 +1592,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crm",
     permission_key: "manage_sales",
     access: "write",
-    label: "Manage Sales",
-    description: "Work CRM pipeline records and sales workflows."
+    permission_group: "pipeline",
+    label: "Work the sales pipeline",
+    description: "Work pipeline records and sales workflows."
   },
   {
     key: "permission.manage_billing",
@@ -1588,8 +1602,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.billing",
     permission_key: "manage_billing",
     access: "write",
-    label: "Manage Billing",
-    description: "Change billing settings, payment methods, and credits."
+    permission_group: "billing",
+    label: "Manage billing and credits",
+    description: "Change billing settings, payment methods and report credits."
   },
   {
     key: "permission.manage_payroll",
@@ -1597,8 +1612,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.payroll",
     permission_key: "manage_payroll",
     access: "write",
-    label: "Manage Payroll",
-    description: "Run payroll and edit compensation settings."
+    permission_group: "payroll",
+    label: "Manage payroll",
+    description: "Run payroll and edit pay settings."
   },
   {
     key: "permission.equipment_view",
@@ -1606,8 +1622,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.equipment",
     permission_key: "equipment.view",
     access: "read",
-    label: "View Equipment",
-    description: "See the equipment registry, units, and availability."
+    permission_group: "equipment",
+    label: "View equipment",
+    description: "See the equipment registry, units and availability."
   },
   {
     key: "permission.equipment_manage",
@@ -1615,8 +1632,9 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.equipment",
     permission_key: "equipment.manage",
     access: "write",
-    label: "Manage Equipment",
-    description: "Create and edit equipment types, units, and equipment module settings."
+    permission_group: "equipment",
+    label: "Manage equipment",
+    description: "Create and edit equipment types, units and equipment settings."
   },
   {
     key: "permission.equipment_service",
@@ -1624,43 +1642,85 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.equipment",
     permission_key: "equipment.service",
     access: "write",
-    label: "Service Equipment",
-    description: "Log meter readings and work service and maintenance workflows."
+    permission_group: "equipment",
+    label: "Service equipment",
+    description: "Log meter readings and work through service and maintenance."
   },
   {
     key: "permission.manage_own_notifications", kind: "permission", permission_key: "manage_own_notifications",
-    access: "write", label: "Manage Personal Notifications", description: "Change your notification registrations, delivery preferences and quiet hours."
+    access: "write", permission_group: "notifications", label: "Manage my notifications", description: "Change your own notification registrations, delivery preferences and quiet hours."
   },
   {
     key: "permission.manage_notification_defaults", kind: "permission", permission_key: "manage_notification_defaults",
-    access: "write", label: "Manage Notification Defaults", description: "Manage organization notification defaults and administrative locks."
+    access: "write", permission_group: "notifications", label: "Set notification defaults", description: "Manage company notification defaults and lock them for everyone."
   },
   {
     key: "permission.manage_company_settings",
     kind: "permission",
     permission_key: "manage_company_settings",
     access: "write",
-    label: "Manage Company Settings",
-    description: "Edit organization-wide settings, templates, and configuration."
+    permission_group: "company_settings",
+    label: "Manage company settings",
+    description: "Edit company-wide settings, templates and configuration."
   },
   {
     key: "permission.manage_company_users",
     kind: "permission",
     permission_key: "manage_company_users",
     access: "write",
-    label: "Manage Company Users",
-    description: "Invite, edit, and disable organization users."
+    permission_group: "users",
+    label: "Manage users",
+    description: "Invite, edit and suspend company users."
   },
   {
     key: "permission.manage_company_user_permissions",
     kind: "permission",
     permission_key: "manage_company_user_permissions",
     access: "write",
-    label: "Manage User Permissions",
-    description: "Change other users' permission sets and roles."
+    permission_group: "roles",
+    label: "Manage roles and permissions",
+    description: "Change other users' roles and permissions."
+  },
+  // Older names that some checks still accept beside the current permission.
+  // They are listed so a grant of one is visible; new code uses the current key.
+  {
+    key: "permission.admin",
+    kind: "permission",
+    permission_key: "admin",
+    access: "write",
+    permission_group: "older_names",
+    label: "Administrator (older name)",
+    description: "Accepted beside Manage company settings for sending platform email; use Manage company settings."
+  },
+  {
+    key: "permission.manage_organization",
+    kind: "permission",
+    permission_key: "manage_organization",
+    access: "write",
+    permission_group: "older_names",
+    label: "Manage organization (older name)",
+    description: "Accepted beside Manage company settings for sending platform email; use Manage company settings."
+  },
+  {
+    key: "permission.manage_users",
+    kind: "permission",
+    permission_key: "manage_users",
+    access: "write",
+    permission_group: "older_names",
+    label: "Manage users (older name)",
+    description: "Accepted beside Manage users for inviting and editing users; use Manage users."
+  },
+  {
+    key: "permission.manage_sales_users",
+    kind: "permission",
+    permission_key: "manage_sales_users",
+    access: "write",
+    permission_group: "older_names",
+    label: "Manage sales users (older name)",
+    description: "Accepted beside Manage users for inviting and editing users; use Manage users."
   },
 
-  // --- Crew (field) permissions ----------------------------------------------
+  // --- Field app permissions ---------------------------------------------------
   {
     key: "permission.crew_dashboard_view",
     kind: "permission",
@@ -1668,8 +1728,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.dashboard.view",
     access: "read",
     audience: ["field"],
-    label: "Crew Dashboard",
-    description: "See the crew dashboard."
+    permission_group: "field_app",
+    label: "Field dashboard",
+    description: "See the home dashboard in the field app."
   },
   {
     key: "permission.crew_projects_view",
@@ -1678,8 +1739,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.projects.view",
     access: "read",
     audience: ["field"],
-    label: "View Assigned Projects",
-    description: "See projects assigned to the user or their crew."
+    permission_group: "field_app",
+    label: "View assigned projects",
+    description: "See projects assigned to them or to a group they belong to."
   },
   {
     key: "permission.crew_projects_view_all_production",
@@ -1688,7 +1750,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.projects.view_all_production",
     access: "read",
     audience: ["field"],
-    label: "View All Production Projects",
+    permission_group: "field_app",
+    label: "View all production projects",
     description: "Supervisor scope: see every production project, not just assigned ones."
   },
   {
@@ -1699,8 +1762,20 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.schedule.view",
     access: "read",
     audience: ["field"],
-    label: "View Schedule",
-    description: "See the crew schedule."
+    permission_group: "field_app",
+    label: "View field schedule",
+    description: "See their schedule in the field app."
+  },
+  {
+    key: "permission.crew_workflows_add",
+    kind: "permission",
+    parent: "apps.crew",
+    permission_key: "crew.workflows.add",
+    access: "write",
+    audience: ["field"],
+    permission_group: "field_app",
+    label: "Add work to projects",
+    description: "Add work from the library to assigned projects in the field app."
   },
   {
     key: "permission.crew_time_clock_use",
@@ -1709,7 +1784,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.time_clock.use",
     access: "write",
     audience: ["field"],
-    label: "Time Clock",
+    permission_group: "time_expenses",
+    label: "Use the time clock",
     description: "Clock in and out."
   },
   {
@@ -1719,7 +1795,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.receipts.upload",
     access: "write",
     audience: ["field"],
-    label: "Upload Receipts",
+    permission_group: "time_expenses",
+    label: "Upload receipts",
     description: "Upload purchase receipts from the field."
   },
   {
@@ -1730,8 +1807,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.reimbursements.request",
     access: "write",
     audience: ["field"],
-    label: "Request Reimbursements",
-    description: "Identify personal purchases and submit receipt-backed reimbursement requests."
+    permission_group: "time_expenses",
+    label: "Request reimbursements",
+    description: "Mark personal purchases and submit receipt-backed reimbursement requests."
   },
   {
     key: "permission.crew_materials_view",
@@ -1741,8 +1819,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.materials.view",
     access: "read",
     audience: ["field"],
-    label: "View Materials",
-    description: "See project material lists."
+    permission_group: "field_materials",
+    label: "View materials",
+    description: "See material lists on assigned projects."
   },
   {
     key: "permission.crew_materials_append",
@@ -1752,7 +1831,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.materials.append",
     access: "write",
     audience: ["field"],
-    label: "Append Materials",
+    permission_group: "field_materials",
+    label: "Add material changes",
     description: "Add material amendments from the field."
   },
   {
@@ -1763,8 +1843,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.payouts.view",
     access: "read",
     audience: ["field"],
-    label: "View Payouts",
-    description: "See personal payout history."
+    permission_group: "time_expenses",
+    label: "View own payouts",
+    description: "See their own payout history."
   },
   {
     key: "permission.crew_checklists_view",
@@ -1774,8 +1855,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.checklists.view",
     access: "read",
     audience: ["field"],
-    label: "View Checklists",
-    description: "See assigned checklists."
+    permission_group: "checklists",
+    label: "View checklists",
+    description: "See checklists on assigned work."
   },
   {
     key: "permission.crew_checklists_complete",
@@ -1785,7 +1867,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.checklists.complete",
     access: "write",
     audience: ["field"],
-    label: "Complete Checklists",
+    permission_group: "checklists",
+    label: "Complete checklists",
     description: "Complete checklist items in the field."
   },
   {
@@ -1796,7 +1879,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.checklists.manage",
     access: "write",
     audience: ["field"],
-    label: "Manage Checklists",
+    permission_group: "checklists",
+    label: "Manage checklists",
     description: "Create and edit checklists."
   },
   {
@@ -1807,8 +1891,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.checklists.supervise",
     access: "write",
     audience: ["field"],
-    label: "Supervise Checklists",
-    description: "Review and sign off on crew checklist completion."
+    permission_group: "checklists",
+    label: "Supervise checklists",
+    description: "Review and sign off on completed checklists."
   },
   {
     key: "permission.crew_payments_view",
@@ -1818,7 +1903,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.payments.view",
     access: "read",
     audience: ["field"],
-    label: "View Customer Payments",
+    permission_group: "field_payments",
+    label: "View customer payments",
     description: "See customer payment status on assigned projects."
   },
   {
@@ -1829,8 +1915,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.signatures.present",
     access: "write",
     audience: ["field"],
-    label: "Collect Customer Signatures",
-    description: "Present required documents and collect customer signatures in person from a mobile device."
+    permission_group: "field_payments",
+    label: "Collect customer signatures",
+    description: "Present required documents and collect customer signatures in person on a mobile device."
   },
   {
     key: "permission.crew_payments_take",
@@ -1840,7 +1927,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.payments.take",
     access: "write",
     audience: ["field"],
-    label: "Take Customer Payments",
+    permission_group: "field_payments",
+    label: "Take customer payments",
     description: "Collect customer payments in the field."
   },
   {
@@ -1850,7 +1938,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.change_orders.view",
     access: "read",
     audience: ["field"],
-    label: "View Change Orders",
+    permission_group: "field_materials",
+    label: "View change orders",
     description: "See change orders on assigned projects."
   },
   {
@@ -1860,11 +1949,12 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "crew.change_orders.manage",
     access: "write",
     audience: ["field"],
-    label: "Manage Change Orders",
+    permission_group: "field_materials",
+    label: "Manage change orders",
     description: "Create and edit change orders in the field."
   },
 
-  // --- Sales (field) permissions ---------------------------------------------
+  // --- Sales app permissions ---------------------------------------------------
   {
     key: "permission.sales_dashboard_view",
     kind: "permission",
@@ -1872,8 +1962,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.dashboard.view",
     access: "read",
     audience: ["field"],
-    label: "Sales Dashboard",
-    description: "See the sales Today dashboard: appointments, follow-ups, and pipeline pulse."
+    permission_group: "sales_app",
+    label: "Today dashboard",
+    description: "See today's appointments, follow-ups and pipeline pulse in the sales app."
   },
   {
     key: "permission.sales_schedule_view",
@@ -1883,7 +1974,8 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.schedule.view",
     access: "read",
     audience: ["field"],
-    label: "View Sales Schedule",
+    permission_group: "sales_app",
+    label: "View sales appointments",
     description: "See past and upcoming sales appointments."
   },
   {
@@ -1893,8 +1985,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.followups.manage",
     access: "write",
     audience: ["field"],
-    label: "Manage Own Follow-ups",
-    description: "Create, claim, and resolve the salesperson's own follow-ups."
+    permission_group: "sales_app",
+    label: "Manage own follow-ups",
+    description: "Create, claim and resolve their own follow-ups."
   },
   {
     key: "permission.sales_earnings_view",
@@ -1904,8 +1997,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.earnings.view",
     access: "read",
     audience: ["field"],
-    label: "View Commission Earnings",
-    description: "See personal commission and earnings history."
+    permission_group: "sales_app",
+    label: "View own commissions",
+    description: "See their own commission and earnings history."
   },
   {
     key: "permission.sales_documents_view_status",
@@ -1915,8 +2009,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.documents.view_status",
     access: "read",
     audience: ["field"],
-    label: "View Proposal Status",
-    description: "See whether proposals and documents are sent, signed, or paid."
+    permission_group: "sales_app",
+    label: "View proposal status",
+    description: "See whether proposals and documents are sent, signed or paid."
   },
   {
     key: "permission.sales_money_view_status",
@@ -1926,8 +2021,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.money.view_status",
     access: "read",
     audience: ["field"],
-    label: "View Payment Status",
-    description: "See payment status chips on own projects without amounts."
+    permission_group: "sales_app",
+    label: "View payment status",
+    description: "See payment status on their own projects without amounts."
   },
   {
     key: "permission.sales_stats_view_own",
@@ -1937,8 +2033,9 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.stats.view_own",
     access: "read",
     audience: ["field"],
-    label: "View Own Sales Stats",
-    description: "See personal close rate, appointments run, and revenue sold."
+    permission_group: "sales_app",
+    label: "View own sales stats",
+    description: "See their own close rate, appointments run and revenue sold."
   },
   {
     key: "permission.sales_stats_view_team",
@@ -1948,57 +2045,59 @@ const definitions: CapabilityDefinition[] = [
     permission_key: "sales.stats.view_team",
     access: "read",
     audience: ["field"],
-    label: "View Team Sales Stats",
-    description: "See the team leaderboard across salespeople."
+    permission_group: "sales_app",
+    label: "View team leaderboard",
+    description: "See the sales leaderboard across salespeople."
   },
   // Business permissions group published data and actions. These are separate
   // from the seven FirstMeasure permissions retained for existing accounts.
   ...([
-    ["view_contacts", "apps.projects", "read", "View Contacts", "Read customer and contact records."],
-    ["view_schedule", "platform.scheduling", "read", "View Schedule", "Read project calendars and availability."],
-    ["view_financials", "platform.money", "read", "View Financials", "Read project finances and the organization ledger."],
-    ["manage_project_billing", "platform.money", "write", "Manage Project Billing", "Create and update project invoices and payments."],
-    ["refund_payments", "platform.money", "write", "Refund Payments", "Issue customer payment refunds."],
-    ["view_documents", "platform.documents", "read", "View Documents", "Read project documents and published document values."],
-    ["manage_documents", "platform.documents", "write", "Manage Documents", "Edit document workflows and generated documents."],
-    ["issue_documents", "platform.documents", "write", "Issue Documents", "Issue documents to customers."],
-    ["sign_documents", "platform.documents", "write", "Sign Documents", "Execute signatures assigned to your account."],
-    ["import_document_signatures", "platform.documents", "write", "Import Signed Documents", "Attest to wet signatures on retained source documents."],
-    ["view_materials", "platform.materials", "read", "View Materials", "Read project material lists and orders."],
-    ["view_proposals", "platform.proposals", "read", "View Proposals", "Read project proposals."],
-    ["manage_proposals", "platform.proposals", "write", "Manage Proposals", "Create and edit project proposals."],
-    ["send_proposals", "platform.proposals", "write", "Send Proposals", "Send proposals to customers."],
-    ["view_stats", "apps.stats", "read", "View Statistics", "Query statistics and read dashboards."],
-    ["manage_stats", "apps.stats", "write", "Manage Statistics", "Refresh statistics and edit dashboards."],
-    ["view_websites", "apps.web_editor", "read", "View Websites", "Read company website designs."],
-    ["manage_websites", "apps.web_editor", "write", "Manage Websites", "Edit and discard website drafts."],
-    ["publish_websites", "apps.web_editor", "write", "Publish Websites", "Publish website pages."],
-    ["view_pricebook", "platform.pricebook", "read", "View Price Book", "Read published price book items and calculations."],
-    ["view_feedback", "apps.feedback", "read", "View Feedback", "Read customer feedback status."],
-    ["request_feedback", "apps.feedback", "write", "Request Feedback", "Send customer feedback requests."],
-    ["view_canvassing", "canvassing.app", "read", "View Canvassing", "Read canvassing pins."],
-    ["manage_canvassing", "canvassing.app", "write", "Manage Canvassing", "Create and edit canvassing pins."],
-    ["view_feed", "platform.photos_feed", "read", "View Feed", "View permitted company feed artifacts."],
-    ["view_feed_list", "platform.photos_feed", "read", "Feed: List", "Use the list feed view."],
-    ["view_feed_small", "platform.photos_feed", "read", "Feed: Small tiles", "Use the small tiles feed view."],
-    ["view_feed_large", "platform.photos_feed", "read", "Feed: Large tiles", "Use the large tiles feed view."],
-    ["view_feed_mosaic", "platform.photos_feed", "read", "Feed: Mosaic", "Use the mosaic feed view."],
-    ["view_feed_posts", "platform.photos_feed", "read", "Feed: Posts", "Use the posts feed view."],
-    ["comment_feed", "platform.photos_feed", "write", "Comment on Feed", "Reply to permitted feed posts."],
-    ["react_feed", "platform.photos_feed", "write", "React to Feed", "React to permitted feed posts and comments."],
-    ["view_media", "platform.photos_feed", "read", "View Media", "Read permitted media metadata."],
-    ["manage_media", "platform.photos_feed", "write", "Manage Media", "Rename permitted project media."],
-    ["view_customer_portals", "platform.customer_portal", "read", "View Customer Portals", "Read customer portal metadata."],
-    ["manage_customer_portals", "platform.customer_portal", "write", "Manage Customer Portals", "Create and configure customer portals."],
-    ["view_project_data", "apps.projects", "read", "View Project Data", "Read published project datasets."],
-    ["manage_project_data", "apps.projects", "write", "Manage Project Data", "Save and select project datasets."],
-    ["manage_training", "apps.training", "write", "Manage Training", "Manage training assignments and course progress."]
-  ] as const).map(([permission_key, parent, access, label, description]) => ({
+    ["view_contacts", "apps.projects", "read", "contacts", "View contacts", "See customer and contact records."],
+    ["view_schedule", "platform.scheduling", "read", "calendar", "View the schedule", "See project calendars and availability."],
+    ["view_financials", "platform.money", "read", "financials", "View financials", "See project finances and the company ledger."],
+    ["manage_project_billing", "platform.money", "write", "invoices", "Manage invoices and payments", "Create and update project invoices and payments."],
+    ["refund_payments", "platform.money", "write", "invoices", "Refund payments", "Refund customer payments."],
+    ["view_documents", "platform.documents", "read", "documents", "View documents", "See project documents and published document values."],
+    ["manage_documents", "platform.documents", "write", "documents", "Manage documents", "Edit document workflows and generated documents."],
+    ["issue_documents", "platform.documents", "write", "documents", "Send documents to customers", "Issue documents to customers."],
+    ["sign_documents", "platform.documents", "write", "signatures", "Sign documents", "Sign documents assigned to their account."],
+    ["import_document_signatures", "platform.documents", "write", "signatures", "Import paper signatures", "Attest to wet signatures on retained source documents."],
+    ["view_materials", "platform.materials", "read", "materials", "View materials", "See project material lists and orders."],
+    ["view_proposals", "platform.proposals", "read", "proposals", "View proposals", "See proposals made in the legacy proposal builder."],
+    ["manage_proposals", "platform.proposals", "write", "proposals", "Manage proposals", "Create and edit proposals in the legacy proposal builder."],
+    ["send_proposals", "platform.proposals", "write", "proposals", "Send proposals", "Send legacy proposals to customers."],
+    ["view_stats", "apps.stats", "read", "stats", "View stats", "Query stats and read dashboards."],
+    ["manage_stats", "apps.stats", "write", "stats", "Manage stats", "Refresh stats and edit dashboards."],
+    ["view_websites", "apps.web_editor", "read", "websites", "View websites", "See company website designs."],
+    ["manage_websites", "apps.web_editor", "write", "websites", "Edit website drafts", "Edit and discard website drafts."],
+    ["publish_websites", "apps.web_editor", "write", "websites", "Publish websites", "Publish website pages."],
+    ["view_pricebook", "platform.pricebook", "read", "pricebook", "View the price book", "See published price book items and calculations."],
+    ["view_feedback", "apps.feedback", "read", "feedback", "View feedback", "See customer feedback status."],
+    ["request_feedback", "apps.feedback", "write", "feedback", "Request feedback", "Send customers feedback requests."],
+    ["view_canvassing", "canvassing.app", "read", "canvassing", "View canvassing", "See canvassing pins."],
+    ["manage_canvassing", "canvassing.app", "write", "canvassing", "Manage canvassing", "Create and edit canvassing pins."],
+    ["view_feed", "platform.photos_feed", "read", "photo_feed", "View the photo feed", "See permitted posts in the company feed."],
+    ["view_feed_list", "platform.photos_feed", "read", "photo_feed", "List view", "Use the list view of the feed."],
+    ["view_feed_small", "platform.photos_feed", "read", "photo_feed", "Small tiles view", "Use the small tiles view of the feed."],
+    ["view_feed_large", "platform.photos_feed", "read", "photo_feed", "Large tiles view", "Use the large tiles view of the feed."],
+    ["view_feed_mosaic", "platform.photos_feed", "read", "photo_feed", "Mosaic view", "Use the mosaic view of the feed."],
+    ["view_feed_posts", "platform.photos_feed", "read", "photo_feed", "Posts view", "Use the posts view of the feed."],
+    ["comment_feed", "platform.photos_feed", "write", "photo_feed", "Comment on posts", "Reply to permitted feed posts."],
+    ["react_feed", "platform.photos_feed", "write", "photo_feed", "React to posts", "React to permitted feed posts and comments."],
+    ["view_media", "platform.photos_feed", "read", "photos", "View media", "See details of permitted project photos and files."],
+    ["manage_media", "platform.photos_feed", "write", "photos", "Manage media", "Rename permitted project photos and files."],
+    ["view_customer_portals", "platform.customer_portal", "read", "customer_portals", "View customer portals", "See customer portal details."],
+    ["manage_customer_portals", "platform.customer_portal", "write", "customer_portals", "Manage customer portals", "Create and set up customer portals."],
+    ["view_project_data", "apps.projects", "read", "project_data", "View project data", "Read published project datasets."],
+    ["manage_project_data", "apps.projects", "write", "project_data", "Manage project data", "Save and select project datasets."],
+    ["manage_training", "apps.training", "write", "training", "Manage training", "Manage training assignments and course progress."]
+  ] as const).map(([permission_key, parent, access, permission_group, label, description]) => ({
     key: `permission.${permission_key}`,
     kind: "permission" as const,
     parent,
     permission_key,
     access,
+    permission_group,
     label,
     description
   }))

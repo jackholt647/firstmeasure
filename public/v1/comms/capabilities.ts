@@ -70,8 +70,9 @@ registerCapabilities([
     parent: "apps.comms",
     permission_key: "view_comms",
     access: "read",
-    label: "View Comms",
-    description: "See the project comms tab and read conversations across channels."
+    permission_group: "messages",
+    label: "View project conversations",
+    description: "See the project Comms tab and read conversations across channels."
   },
   {
     key: "permission.send_comms",
@@ -79,7 +80,8 @@ registerCapabilities([
     parent: "apps.comms",
     permission_key: "send_comms",
     access: "write",
-    label: "Send Comms",
-    description: "Send customer email and SMS from the project comms tab."
+    permission_group: "messages",
+    label: "Send from projects",
+    description: "Send customer email and texts from the project Comms tab."
   }
 ]);

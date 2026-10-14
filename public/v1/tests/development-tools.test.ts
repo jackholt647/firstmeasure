@@ -95,8 +95,10 @@ test('development fixtures enforce isolation, independent toggles and additive r
  const allChannels=await channels.listChannelRecords(ctx.orgId);
  assert.equal(allChannels.filter(c=>c.type==='public').length,2,'Amount must not multiply shared channels');
  assert.equal(allChannels.filter(c=>c.type==='project').length,6);
- assert.ok(allChannels.every(c=>c.message_seq>0),'Generated channels should contain conversations');
- const syntheticUsers=(await storage.listDocuments(ctx.orgId,'users')).filter(u=>(u.metadata as any)?.source==='development_roofing_company');assert.equal(syntheticUsers.length,6);
+ // Department channels come with the sample people's departments and start empty.
+ assert.ok(allChannels.filter(c=>!c.settings.department_id).every(c=>c.message_seq>0),'Generated channels should contain conversations');
+ const {ROOFING_PEOPLE}=await import('../development/roofing-people.js');
+ const syntheticUsers=(await storage.listDocuments(ctx.orgId,'users')).filter(u=>(u.metadata as any)?.source==='development_roofing_company');assert.equal(syntheticUsers.length,ROOFING_PEOPLE.length);
  const equipment=await import('../equipment/storage.js');assert.equal((await equipment.listUnits(ctx.orgId)).length,4);
  const {env}=await import('../src/config/env.js');const original=env.dataEnvironment;(env as any).dataEnvironment='production';
  await assert.rejects(tools.requireDevelopmentOrganization(ctx),/Not found/);(env as any).dataEnvironment=original;

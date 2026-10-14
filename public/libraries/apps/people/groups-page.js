@@ -212,7 +212,18 @@
 
     const list = People.listPage.mount(container, {
       icon:kit.ICONS.group, title:t('user_groups', 'User Groups'), subtitle:'',
-      section:(group) => ({ key:String(group.kind_id || ''), title:typeTitle(group) }),
+      section:(group) => ({ key:String(group.kind_id || ''), title:typeTitle(group), icon:kit.ICONS.group, color:'#0e7090', order:typeOrder(group) }),
+      sorts:[
+        { id:'name', label:t('sort_name', 'Name'), compare:(left, right) => String(left.name || '').localeCompare(String(right.name || '')) },
+        { id:'members', label:t('sort_members', 'Members'), first:'desc', compare:(left, right) => (data.groupMembers(left).length - data.groupMembers(right).length) || String(right.name || '').localeCompare(String(left.name || '')) },
+        { id:'department', label:labels().departmentSingular || t('department', 'Department'), compare:(left, right) => {
+          const first = (group) => data.groupDepartments(group).map((department) => department.label).sort()[0] || '';
+          const a = first(left), b = first(right);
+          if (!a !== !b) return a ? -1 : 1;
+          return a.localeCompare(b) || String(left.name || '').localeCompare(String(right.name || ''));
+        } }
+      ],
+      sort:{ id:'name', dir:'asc' }, sortStore:'groups',
       search:{ placeholder:t('search', 'Search'), onInput(value){ query = value.trim().toLowerCase(); renderList(); } },
       filters:{ items:[{ id:'all', label:t('filter_all', 'All') }], value:filter, onChange(next){ filter = next; renderList(); } },
       actions:[

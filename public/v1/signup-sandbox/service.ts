@@ -518,6 +518,12 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     await (await import('../labor/sample-pay-sheets.js')).seedInstantPaySheets(String(organization.id), ctx);
     await (await import('../payroll/sample-pay-rules.js')).seedSamplePayRules(String(organization.id), ctx);
     try {
+      // A roofing company's people: roles, departments, crews, subcontractors and pay. Nobody is invited or messaged.
+      await (await import('../development/roofing-people.js')).seedRoofingPeople(ctx);
+    } catch (error) {
+      console.error('Instant Full Org sample people were not added:', error instanceof Error ? error.message : error);
+    }
+    try {
       await completeDevelopmentOnboarding(ctx);
     } catch (error) {
       // A fresh development server may not have a verified transport yet.

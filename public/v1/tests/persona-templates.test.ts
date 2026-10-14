@@ -268,3 +268,20 @@ test("stale expected_revision conflicts and access administration is required", 
   const denied = await anonymous.raw("GET", `/v1/workforce/organizations/${orgId}/access/templates`);
   assert.ok(denied.statusCode === 401 || denied.statusCode === 403);
 });
+
+test("the access catalog publishes the permission catalog beside the deprecated permission_keys", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner);
+  const catalog = await owner.request("GET", `/v1/workforce/organizations/${orgId}/access/catalog`);
+  assert.ok(catalog.permission_keys.includes("crew.time_clock.use"), "permission_keys stays until nothing reads it");
+  const categories = catalog.permission_catalog.categories;
+  assert.ok(categories.length >= 8);
+  const entries = categories.flatMap((category: Json) => category.subcategories.flatMap((sub: Json) => sub.permissions.map((entry: Json) => ({ ...entry, category: category.id, sub: sub.id }))));
+  const byKey = new Map(entries.map((entry: Json) => [entry.key, entry]));
+  for (const key of ["order_reports", "view_reports", "manage_billing", "manage_company_settings", "manage_report_settings", "manage_company_users", "manage_company_user_permissions"]) {
+    assert.ok(byKey.has(key), `${key} is in the catalog`);
+  }
+  assert.equal((byKey.get("crew.time_clock.use") as Json).category, "field");
+  assert.equal(typeof (byKey.get("view_projects") as Json).available, "boolean", "availability is resolved for the organization");
+  assert.equal(catalog.permission_catalog.other.id, "other");
+});

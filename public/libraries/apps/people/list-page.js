@@ -12,7 +12,7 @@
  *     actions: [{ id, label, icon, primary, menu, tooltip, onClick(button) }],   // right of the search, one line
  *     empty: { icon, title, action:{ label, onClick(button) } },   // no rows: one line and one action
  *     embedded: true,                         // inside a modal tab: no icon or title, the count leads the line
- *     row(item) => ({                         // how one item becomes a row
+ *     row(item, { section }) => ({            // how one item becomes a row; section is the key of the section it is drawn in, if any
  *       key,                                  // stable id
  *       entity: { id, name, photoUrl, icon, color },   // for the photo
  *       online: userId,                       // presence dot on the photo
@@ -28,6 +28,9 @@
  *     onOpen(item, rowElement),               // click or Enter on a row
  *     onAction(actionId, item, button),       // a quick action
  *     onPhoto(item, file)                     // an image was picked for the photo
+ *     section(item) => ({ key, title, icon, color, tooltip, order }) | [..] | null,   // sections; an item can sit in several
+ *     sorts: [{ id, label, compare(a, b), first }], sort: { id, dir }, sortStore: 'users'   // per-section sort buttons, remembered per page
+ *     columns: false                          // full-width rows instead of two columns
  *   });
  *   list.setItems(items)      list.setSubtitle(text)      list.setLoading(true)
  *   list.setError(message, retry)   list.refreshRow(key, item)  list.el   list.destroy()
@@ -58,6 +61,12 @@
       .pp-list-heading h2{margin:0;color:var(--pp-text);font-size:18px;font-weight:700;line-height:1.2;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pp-list-sub{margin:0;min-height:15px;color:var(--pp-muted);font-size:12px;font-weight:400;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pp-list-head{flex-wrap:wrap;row-gap:10px}
+      /* Stuck over scrolled rows, the header covers everything up to the top of its card and fades into the rows below. */
+      .pp-list-head::before,.pp-list-head::after{content:"";position:absolute;left:0;right:0;pointer-events:none;opacity:0;transition:opacity .12s ease}
+      .pp-list-head::before{bottom:100%;height:var(--pp-head-cover,0px);background:var(--pp-panel)}
+      .pp-list-head::after{top:100%;height:18px;background:linear-gradient(to bottom,var(--pp-panel),rgba(255,255,255,0))}
+      .pp-list-head.stuck::before,.pp-list-head.stuck::after{opacity:1}
+      .pp-list.embedded .pp-list-head::before,.pp-list.embedded .pp-list-head::after{display:none}
       .pp-list-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;flex:1 1 auto}
       .pp-list-filters{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
       .pp-list-filters::-webkit-scrollbar{display:none}
@@ -67,9 +76,16 @@
       /* Two columns of rows, read down the first and then the second. A grid, not CSS columns: a row holds positioned controls, and those misplace inside fragmented columns. */
       .pp-list-body,.pp-list-grid{position:relative;display:grid;grid-template-columns:minmax(0,1fr);column-gap:28px;margin:0;padding:0}
       .pp-list-body.sectioned{display:flex;flex-direction:column;gap:22px}
-      .pp-list-section-head{display:flex;align-items:baseline;gap:8px;margin:0 0 6px;padding:0 8px 7px;border-bottom:1px solid var(--pp-line-soft)}
-      .pp-list-section-head h3{margin:0;color:var(--pp-text);font-size:13.5px;font-weight:700;line-height:1.3}
-      .pp-list-section-head span{color:var(--pp-muted);font-size:12px}
+      .pp-list-section-head{display:flex;align-items:center;gap:8px;min-width:0;min-height:28px;margin:0 0 6px;padding:0 4px 6px 8px;border-bottom:1px solid var(--pp-line-soft)}
+      .pp-list-section-head h3{flex:0 1 auto;min-width:0;margin:0;color:var(--pp-text);font-size:13.5px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .pp-list-section-count{flex:none;color:var(--pp-muted);font-size:12px;font-variant-numeric:tabular-nums}
+      .pp-list-section-mark{display:inline-grid;place-items:center;flex:none;width:20px;height:20px;border-radius:6px;background:var(--pp-mark);color:#fff;font-size:9.5px}
+      .pp-list-section-mark.dot{width:8px;height:8px;border-radius:50%}
+      .pp-list-sorts{display:flex;align-items:center;gap:1px;flex:none;margin-left:auto}
+      .pp-list-sort{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--pp-muted);font:inherit;font-size:11.5px;font-weight:600;white-space:nowrap;cursor:pointer;transition:background .1s ease,color .1s ease}
+      .pp-list-sort:hover{background:var(--pp-hover);color:var(--pp-strong)}
+      .pp-list-sort[aria-pressed="true"]{background:var(--pp-hover);color:var(--pp-text)}
+      .pp-list-sort>i{font-size:9px}
       @container (min-width:888px){.pp-list:not(.embedded) :is(.pp-list-body,.pp-list-grid).two{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(var(--pp-rows,1),auto)}.pp-list:not(.embedded) :is(.pp-list-body,.pp-list-grid).two::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--pp-line-soft)}}
       @container (min-width:628px){.pp-list.embedded :is(.pp-list-body,.pp-list-grid).two{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(var(--pp-rows,1),auto)}.pp-list.embedded :is(.pp-list-body,.pp-list-grid).two::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--pp-line-soft)}}
       .pp-row{position:relative;display:flex;align-items:center;gap:10px;min-width:0;height:44px;padding:0 8px;border-radius:9px;break-inside:avoid;cursor:pointer;transition:background .1s ease}
@@ -147,11 +163,96 @@
     </div>`;
     const root = container.firstElementChild;
     const body = root.querySelector('.pp-list-body');
+    const head = root.querySelector('.pp-list-head');
+    /* The header is sticky inside whatever scrolls the page. When rows pass under it, it covers the gap up to the top of
+       its card (the card's padding is not part of the header) and shows a fade at its bottom edge. */
+    const scroller = (() => { for (let node = root.parentElement; node && node !== document.body; node = node.parentElement) { const overflow = getComputedStyle(node).overflowY; if (overflow === 'auto' || overflow === 'scroll') return node; } return window; })();
+    let headFrame = 0;
+    const paintHead = () => {
+      headFrame = 0;
+      if (!head.isConnected) return;
+      const headBox = head.getBoundingClientRect();
+      const stuck = body.getBoundingClientRect().top < headBox.bottom - 1;
+      head.classList.toggle('stuck', stuck);
+      if (!stuck) return;
+      const card = root.closest('.cs-card, .pp-modal, .pp-card') || (scroller === window ? null : scroller);
+      const top = Math.max(card ? card.getBoundingClientRect().top + (card.clientTop || 0) : 0, scroller === window ? 0 : scroller.getBoundingClientRect().top);
+      head.style.setProperty('--pp-head-cover', `${Math.max(0, Math.min(120, headBox.top - top))}px`);
+    };
+    const onScroll = () => { if (!headFrame) headFrame = requestAnimationFrame(paintHead); };
+    scroller.addEventListener('scroll', onScroll, { passive:true });
     const fileInput = root.querySelector('.pp-list-file');
     let photoKey = '';
 
-    const rowHtml = (item) => {
-      const model = options.row(item) || {};
+    /*
+     * Sections. options.section(item) returns { key, title, icon, color, tooltip, order } or a list of them
+     * (an item in two sections is drawn in each; row keys stay unique within a section), or null when the
+     * list is not sectioned. Sections are ordered by `order`, then by their first item. options.sorts are
+     * the orders each section can be put in: [{ id, label, compare(a, b), first:'asc' | 'desc' }], with
+     * options.sort ({ id, dir }) the default. A section's choice is remembered under options.sortStore.
+     */
+    const sorts = (options.sorts || []).filter((sort) => sort && sort.id && typeof sort.compare === 'function');
+    const defaultSort = () => ({ id:options.sort?.id || sorts[0]?.id || '', dir:options.sort?.dir || sorts.find((sort) => sort.id === options.sort?.id)?.first || sorts[0]?.first || 'asc' });
+    const sortStoreKey = options.sortStore ? `fm.people.list-sort.${options.sortStore}` : '';
+    let sortState = {};
+    try { if (sortStoreKey) sortState = JSON.parse(window.localStorage.getItem(sortStoreKey) || '{}') || {}; } catch (_) { sortState = {}; }
+    const saveSorts = () => { try { if (sortStoreKey) window.localStorage.setItem(sortStoreKey, JSON.stringify(sortState)); } catch (_) {} };
+    const sortOf = (key) => { const held = sortState[key]; return held && sorts.some((sort) => sort.id === held.id) ? { id:held.id, dir:held.dir === 'desc' ? 'desc' : 'asc' } : defaultSort(); };
+    let sectionCache = null;
+    function sectionList(){
+      if (!options.section || state !== 'ready' || !items.length) return null;
+      if (sectionCache) return sectionCache;
+      const sections = new Map();
+      let placedAny = false;
+      items.forEach((item, index) => {
+        const placed = options.section(item);
+        if (placed == null) return;
+        placedAny = true;
+        const seen = new Set();
+        (Array.isArray(placed) ? placed : [placed]).filter(Boolean).forEach((section) => {
+          const key = String(section.key ?? '');
+          if (seen.has(key)) return;
+          seen.add(key);
+          if (!sections.has(key)) sections.set(key, { key, title:section.title || '', icon:section.icon || '', color:section.color || '', tooltip:section.tooltip || '', order:section.order, first:sections.size, items:[], indexes:new Map() });
+          sections.get(key).items.push(item);
+          sections.get(key).indexes.set(item, index);
+        });
+      });
+      if (!placedAny) return null;
+      const rank = (section) => (typeof section.order === 'number' ? section.order : Number.MAX_SAFE_INTEGER);
+      sectionCache = [...sections.values()].sort((left, right) => (rank(left) - rank(right)) || (left.first - right.first));
+      return sectionCache;
+    }
+    function sortedItems(section){
+      const chosen = sortOf(section.key);
+      const sort = sorts.find((entry) => entry.id === chosen.id);
+      if (!sort) return section.items;
+      const sign = chosen.dir === 'desc' ? -1 : 1;
+      return [...section.items].sort((left, right) => (sign * sort.compare(left, right)) || (section.indexes.get(left) - section.indexes.get(right)));
+    }
+    const sectionMark = (section) => section.icon || section.color
+      ? `<span class="pp-list-section-mark${section.icon ? '' : ' dot'}" style="--pp-mark:${esc(section.color || '#64748b')}" aria-hidden="true">${section.icon ? `<i class="fas ${esc(String(section.icon).split(' ').pop())}"></i>` : ''}</span>` : '';
+    function sortControls(section){
+      if (!sorts.length) return '';
+      const chosen = sortOf(section.key);
+      return `<div class="pp-list-sorts" role="group" aria-label="${esc(t('sort_section', 'Sort {section}', { section:section.title }))}">${sorts.map((sort) => {
+        const active = sort.id === chosen.id;
+        const label = active ? t(chosen.dir === 'desc' ? 'sorted_desc' : 'sorted_asc', chosen.dir === 'desc' ? '{sort}, descending' : '{sort}, ascending', { sort:sort.label }) : t('sort_by', 'Sort by {sort}', { sort:sort.label });
+        return `<button type="button" class="pp-list-sort" data-list-sort="${esc(sort.id)}" data-sort-section="${esc(section.key)}" aria-pressed="${active}" aria-label="${esc(label)}">${esc(sort.label)}${active ? `<i class="fas fa-arrow-${chosen.dir === 'desc' ? 'down' : 'up'}" aria-hidden="true"></i>` : ''}</button>`;
+      }).join('')}</div>`;
+    }
+    function toggleSort(sectionKey, sortId){
+      const current = sortOf(sectionKey);
+      const sort = sorts.find((entry) => entry.id === sortId);
+      if (!sort) return;
+      sortState[sectionKey] = current.id === sortId ? { id:sortId, dir:current.dir === 'asc' ? 'desc' : 'asc' } : { id:sortId, dir:sort.first === 'desc' ? 'desc' : 'asc' };
+      saveSorts();
+      render();
+      body.querySelector(`[data-sort-section="${CSS.escape(sectionKey)}"][data-list-sort="${CSS.escape(sortId)}"]`)?.focus({ preventScroll:true });
+    }
+
+    const rowHtml = (item, sectionKey) => {
+      const model = options.row(item, { section:sectionKey ?? null }) || {};
       const key = String(model.key ?? '');
       models.set(key, model);
       byKey.set(key, item);
@@ -160,7 +261,7 @@
         ? `<button type="button" class="pp-row-photo" data-row-photo aria-label="${esc(model.photoAction)}"${tip(model.photoAction)}>${photo}<span class="pp-row-photo-edit" aria-hidden="true"><i class="fas fa-camera"></i></span></button>`
         : `<span class="pp-row-photo">${photo}</span>`;
       const rowActions = (model.actions || []).filter(Boolean);
-      return `<div class="pp-row${model.dimmed ? ' dimmed' : ''}" role="listitem" data-row-key="${esc(key)}">
+      return `<div class="pp-row${model.dimmed ? ' dimmed' : ''}" role="listitem" data-row-key="${esc(key)}"${sectionKey != null ? ` data-row-section="${esc(sectionKey)}"` : ''}>
         ${photoHtml}
         <div class="pp-row-main"${model.hover ? ` data-people-hover="${esc(model.hover)}"` : ''}>
           <div class="pp-row-title"><button type="button" class="pp-row-name" data-row-open>${esc(model.title || '')}</button>${(model.pills || []).map(kit.pill).join('')}</div>
@@ -175,22 +276,23 @@
     const skeleton = () => Array.from({ length:10 }, (_, index) => `<div class="pp-skeleton" aria-hidden="true"><i></i><span><b style="width:${38 + (index * 17) % 30}%"></b><b style="width:${52 + (index * 11) % 26}%"></b></span></div>`).join('');
 
     function render(){
-      const focused = document.activeElement?.closest?.('.pp-row')?.dataset.rowKey;
+      const focusedRow = document.activeElement?.closest?.('.pp-row');
+      const focused = focusedRow?.dataset.rowKey;
+      const focusedSection = focusedRow?.dataset.rowSection;
       const focusedSelector = document.activeElement?.matches?.('[data-row-open]') ? '[data-row-open]' : '';
       models = new Map();
       byKey = new Map();
+      sectionCache = null;
       body.setAttribute('aria-busy', String(state === 'loading'));
       if (state === 'loading') body.innerHTML = skeleton();
       else if (state === 'error') body.innerHTML = `<div class="pp-list-state" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>${esc(error?.message || t('load_failed', 'Could not load'))}</strong>${error?.retry ? `<button type="button" class="pp-btn" data-list-retry>${esc(t('try_again', 'Try again'))}</button>` : ''}</div>`;
       else if (!items.length) body.innerHTML = `<div class="pp-list-state"><i class="fas ${esc(options.empty?.icon || options.icon || 'fa-users')}" aria-hidden="true"></i><strong>${esc(options.empty?.title || t('nothing_here', 'Nothing here yet'))}</strong>${options.empty?.action ? `<button type="button" class="pp-btn" data-list-empty-action>${esc(options.empty.action.label)}</button>` : ''}</div>`;
-      else if (options.section) {
-        // Sections in the order of their first item; each is its own grid of rows.
-        const sections = new Map();
-        items.forEach((item) => { const section = options.section(item) || {}; const key = String(section.key ?? ''); if (!sections.has(key)) sections.set(key, { title:section.title || '', items:[] }); sections.get(key).items.push(item); });
-        body.innerHTML = Array.from(sections.values()).map((section) => `<section class="pp-list-section"><div class="pp-list-section-head"><h3>${esc(section.title)}</h3><span>${section.items.length.toLocaleString()}</span></div><div class="pp-list-grid${columns && section.items.length > 1 ? ' two' : ''}" role="list" style="--pp-rows:${Math.ceil(section.items.length / 2)}">${section.items.map(rowHtml).join('')}</div></section>`).join('');
+      else if (sectionList()) {
+        // Each section is its own grid of rows, its rows in the order its sort says.
+        body.innerHTML = sectionList().map((section) => `<section class="pp-list-section" data-list-section="${esc(section.key)}"><div class="pp-list-section-head">${sectionMark(section)}<h3${tip(section.tooltip)}>${esc(section.title)}</h3><span class="pp-list-section-count">${section.items.length.toLocaleString()}</span>${sortControls(section)}</div><div class="pp-list-grid${columns && section.items.length > 1 ? ' two' : ''}" role="list" aria-label="${esc(section.title)}" style="--pp-rows:${Math.ceil(section.items.length / 2)}">${sortedItems(section).map((item) => rowHtml(item, section.key)).join('')}</div></section>`).join('');
       }
-      else body.innerHTML = items.map(rowHtml).join('');
-      const sectioned = state === 'ready' && items.length > 0 && !!options.section;
+      else body.innerHTML = items.map((item) => rowHtml(item)).join('');
+      const sectioned = state === 'ready' && items.length > 0 && !!sectionList();
       const count = sectioned ? 0 : state === 'loading' ? 10 : state === 'ready' ? items.length : 0;
       body.classList.toggle('sectioned', sectioned);
       body.setAttribute('role', sectioned ? 'presentation' : 'list');
@@ -198,7 +300,10 @@
       body.style.setProperty('--pp-rows', String(Math.max(1, Math.ceil(count / 2))));
       kit.presence.paint(body);
       fit();
-      if (focused && focusedSelector) body.querySelector(`[data-row-key="${CSS.escape(focused)}"] ${focusedSelector}`)?.focus({ preventScroll:true });
+      if (focused && focusedSelector) {
+        const inSection = focusedSection != null ? body.querySelector(`[data-row-key="${CSS.escape(focused)}"][data-row-section="${CSS.escape(focusedSection)}"] ${focusedSelector}`) : null;
+        (inSection || body.querySelector(`[data-row-key="${CSS.escape(focused)}"] ${focusedSelector}`))?.focus({ preventScroll:true });
+      }
     }
 
     /*
@@ -267,6 +372,8 @@
     const rowOf = (target) => target.closest?.('.pp-row');
     body.addEventListener('click', (event) => {
       if (event.target.closest('[data-list-retry]')) { error?.retry?.(); return; }
+      const sortButton = event.target.closest('[data-list-sort]');
+      if (sortButton) { toggleSort(sortButton.dataset.sortSection, sortButton.dataset.listSort); return; }
       const emptyAction = event.target.closest('[data-list-empty-action]');
       if (emptyAction) { options.empty?.action?.onClick?.(emptyAction); return; }
       const row = rowOf(event.target);
@@ -330,6 +437,8 @@
         const row = body.querySelector(`[data-row-key="${CSS.escape(String(key))}"]`);
         const item = next || byKey.get(String(key));
         if (!row || !item) return;
+        // A sectioned list may move the item between sections or within its sort: draw it again.
+        if (sectionList()) { const old = byKey.get(String(key)); const index = items.indexOf(old); if (index >= 0) items[index] = item; render(); return; }
         row.insertAdjacentHTML('afterend', rowHtml(item));
         const fresh = row.nextElementSibling;
         row.remove();
@@ -339,7 +448,7 @@
       rowElement:(key) => body.querySelector(`[data-row-key="${CSS.escape(String(key))}"]`),
       actionButton:(id) => root.querySelector(`[data-list-action="${actions.findIndex((action) => action.id === id)}"]`),
       focusSearch(){ root.querySelector('[data-list-search]')?.focus(); },
-      destroy(){ window.clearTimeout(searchTimer); cancelAnimationFrame(fitFrame); resizeObserver?.disconnect(); container.replaceChildren(); }
+      destroy(){ window.clearTimeout(searchTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(headFrame); scroller.removeEventListener('scroll', onScroll); resizeObserver?.disconnect(); container.replaceChildren(); }
     };
   }
 

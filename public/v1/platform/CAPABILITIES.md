@@ -132,6 +132,28 @@ Preset saves are validated by the solver. Dependency violations do not block
 storage (the solver keeps unsatisfied nodes off at resolve time) but they are
 reported so the UI can surface them.
 
+## Permission categories
+
+Every permission node names the subcategory it is granted under with
+`permission_group`. Subcategories belong to the top-level categories declared
+in `permission_categories.ts` (Company & administration, People & access,
+Sales & customers, Projects & production, Scheduling, Field work, Materials &
+equipment, Money & payroll, Communications, Documents & reports, Partners &
+sharing). This is presentation only: it changes no key, meaning or
+availability, which still come from `parent` and `requires`. An unknown
+`permission_group` throws at boot. `permissionCatalog()` builds the
+category -> subcategory -> permission tree (reads before writes, `*` first
+under Full access) and the workforce access catalog publishes it as
+`permission_catalog`, marking permissions whose app is off as
+`available: false`. The People Permissions panel renders from it and lists any
+key it does not describe under Other. A subcategory with `collapsed: true`
+(Older permission names) is folded at the end of its category.
+
+When you add a permission key anywhere (a check, a role default, a bundle, an
+app requirement), add its node with a short title label, a one-line
+description and a `permission_group`. `tests/permission-catalog.test.ts`
+fails when a key used in the backend has no node. Labels never say "crew".
+
 ## Permission sets
 
 Permission sets are the existing workforce access roles

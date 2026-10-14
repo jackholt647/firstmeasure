@@ -7,6 +7,7 @@
  *   FirstMatePeople.pageKit
  *     identity(host, fields)              swap the summary's name for inputs: [{ id, value, placeholder, type:'text'|'textarea'|'select', options }]
  *     checkMenu(anchor, options)          checkbox menu over a draft list: { label, items:[{ id, label, color, hint, tooltip }], selected:[ids], onChange(next), refocus() }
+ *     scopedRolesMenu(anchor, options)    the roles a person holds only in one department or unit ("Roles in Production")
  *     peopleList(panel, options)          a tab of user rows (members): see below
  *     typesModal(options)                 the type list of a kind (people-lists.js puts it here)
  *     userRow(user, extra)                the row model of a person, as the Users list draws it
@@ -88,6 +89,38 @@
     });
   }
 
+  /*
+   * scopedRolesMenu(anchor, { place, kind:'department' | 'unit', selected:[roleIds], everywhere:[roleIds], onChange(next, roleId, on), refocus() })
+   * The roles a person holds only for work in one department or one unit, titled with the place
+   * ("Roles in Production"). Roles that administer the whole organization are not offered; a role the
+   * person already holds everywhere is shown but cannot be added again.
+   */
+  function scopedRolesMenu(anchor, options = {}){
+    let selected = [...(options.selected || [])];
+    const everywhere = new Set(options.everywhere || []);
+    const offered = data.scopableRoles();
+    const kept = selected.filter((id) => !offered.some((role) => role.id === id)).map((id) => data.role(id) || { id, name:id });
+    const place = options.place || '';
+    return kit.menu(anchor, {
+      title:t('roles_in', 'Roles in {place}', { place }),
+      titleTip:options.kind === 'unit'
+        ? t('roles_in_unit_tip', 'These apply only to work in {place} and its departments.', { place })
+        : t('roles_in_department_tip', 'These apply only to work in {place}.', { place }),
+      align:options.align || 'end', search:offered.length > 8 ? t('search_roles', 'Search roles') : '',
+      items:[...offered, ...kept].map((role) => {
+        const held = everywhere.has(role.id) && !selected.includes(role.id);
+        return { id:role.id, label:role.name || role.id, checked:selected.includes(role.id), disabled:held, hint:held ? t('everywhere_short', 'everywhere') : '', tooltip:held ? t('held_everywhere', 'Already held everywhere') : role.description };
+      }),
+      onSelect(item, menu){
+        const on = !selected.includes(item.id);
+        selected = on ? [...selected, item.id] : selected.filter((id) => id !== item.id);
+        menu.setChecked(item.id, on);
+        options.onChange?.(selected, item.id, on);
+      },
+      onClose:() => options.refocus?.()
+    });
+  }
+
   function userRow(user, extra = {}){
     const suspended = data.isSuspended(user);
     return {
@@ -152,5 +185,5 @@
   }
   ['organization_user', 'resource_group', 'organization_connection', 'department'].forEach((kind) => People.hoverCard.register(kind, resolveHover));
 
-  People.pageKit = { identity, checkMenu, peopleList, userRow, resolveHover, failed, byName };
+  People.pageKit = { identity, checkMenu, scopedRolesMenu, peopleList, userRow, resolveHover, failed, byName };
 })();

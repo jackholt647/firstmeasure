@@ -60,8 +60,44 @@ work plans on the organization's sales pipeline, spread across its configured
 stages. Manual fixture nodes contain no automation bindings; generating data does
 not sign an estimate, order materials or send a message externally.
 
-Users creates six fictional employee profiles without login credentials or access
-grants. Equipment creates four tracked units with reusable types and one yard;
+People (the `users` category, `roofing-people.ts`) builds a 40-person residential
+and commercial roofing contractor from the platform's own concepts: custom access
+roles beside the seeded ones (a user's types are their roles) with role-shaped
+permissions and app defaults, six departments with icons and colours plus
+department-scoped Department Manager grants, and three group types that are kinds
+of group, each giving a role on joining: Crew, Sales team and Canvassing team.
+Every install crew is a Crew; what it does is its capabilities, the scopes it is
+marked as doing (`capability_scope_ids`) and its declared kinds of work
+(`labor/capabilities.ts`): two shingle crews and a low-slope crew do roofing,
+replacement and repairs, the gutter crew does gutters. Each crew requires a crew
+foreman and a CDL driver. Repair technicians hold the seeded Repairman role in
+Service & Repair and are in no group. Five company types and six outside companies
+carry their own capabilities. Assignment tags, people fields on roles, the Crew type
+and company types with sample values, worker classification, three sample pay
+schedules and pay defaults from `payroll/sample-pay-rules.ts` (hourly for
+installers and hourly staff, salary for the office, commission plans for sales, a
+split by hours on the Crew type, committed labor for install subcontractors) and
+own pay for leads and the general manager complete it. The sample pay sheets'
+Crew A, B and C and two subcontractors are found by name and filled in rather than
+doubled. Every Instant Full Org created in the development data environment gets
+it at creation; the toggle refreshes it.
+
+An organization with the earlier version's structure converges: its crews move to
+Crew, and the generated Shingle, Low-slope, Gutter and Repair & service types and
+the generated repair group are archived once nothing else uses them, with the
+generator's pay default and field definitions on them cleared first.
+
+Running it again changes only what it made: its roles, people, groups and
+companies (`metadata.source = development_roofing_company`) and pay entries
+carrying its note. Lists of roles, members, tags, types and department members
+only grow; a role, type, department or pay default someone else made keeps its own
+settings, and a typed field value wins over the sample. A suspended sample person
+stays suspended and is an inactive member of their group. People have no login
+identity, no notification roles, `@example.test` addresses and 555-01xx numbers;
+companies are unlinked. Nothing is invited or messaged. Only development sandbox
+organizations are accepted. Test: `tests/roofing-people.test.ts`.
+
+Equipment creates four tracked units with reusable types and one yard;
 only units count in the result. Both are organization-scoped and remain bounded
 across batches and repeated clicks. Channels reuses two shared team spaces;
 Communication fills those with threaded conversations and adds discussions to

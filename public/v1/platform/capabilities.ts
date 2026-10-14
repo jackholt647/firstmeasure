@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { env } from "../src/config/env.js";
 import { badRequest, notFound } from "./errors.js";
+import { OTHER_PERMISSION_CATEGORY, PERMISSION_CATEGORIES, WILDCARD_PERMISSION, permissionSubcategory } from "./permission_categories.js";
 import { readGlobal, mutateGlobal, readPlatformConfiguration, mutatePlatformConfiguration, type JsonObject } from "./storage.js";
 
 /**
@@ -62,6 +63,11 @@ export type CapabilityDefinition = {
   permission_key?: string;
   /** Permission nodes: read (view) or write (mutate). */
   access?: "read" | "write";
+  /**
+   * Permission nodes: the subcategory id (see permission_categories.ts) the
+   * permission is listed under when people grant it. Presentation only.
+   */
+  permission_group?: string;
   /** App nodes: the embeddable-app runtime id this node gates. */
   runtime_app_id?: string;
   /** Optional UI grouping label for top-level setting nodes. */
@@ -96,6 +102,10 @@ export type NormalizedCapability = Required<Pick<CapabilityDefinition, "key" | "
   relevance: string;
   permission_key: string;
   access: "read" | "write" | "";
+  /** Permission nodes: subcategory id ("" when undeclared). */
+  permission_group: string;
+  /** Derived: the subcategory's top-level category id ("" when undeclared). */
+  permission_category: string;
   runtime_app_id: string;
   category: string;
   /** Compact copy for small add-app catalog tiles. */
@@ -224,6 +234,8 @@ export function registerCapabilities(definitions: CapabilityDefinition[]) {
       relevance: cleanText(definition.relevance),
       permission_key: cleanText(definition.permission_key),
       access: definition.access || "",
+      permission_group: kind === "permission" ? cleanText(definition.permission_group) : "",
+      permission_category: "",
       runtime_app_id: cleanText(definition.runtime_app_id),
       category: cleanText(definition.category),
       catalog_stub: cleanText(definition.catalog_stub),
@@ -251,6 +263,11 @@ export function validateCapabilityRegistry() {
     node.ancestors = [];
   }
   for (const node of registry.values()) {
+    if (node.permission_group) {
+      const placement = permissionSubcategory(node.permission_group);
+      if (!placement) throw new Error(`Permission capability "${node.key}" names unknown permission group "${node.permission_group}".`);
+      node.permission_category = placement.category.id;
+    }
     if (node.parent) {
       const parent = registry.get(node.parent);
       if (!parent) throw new Error(`Capability "${node.key}" declares unknown parent "${node.parent}".`);
@@ -324,6 +341,75 @@ export function valueCapabilities() {
 export function permissionCapabilities() {
   validateCapabilityRegistry();
   return Array.from(registry.values()).filter((node) => node.kind === "permission");
+}
+
+export type PermissionCatalogEntry = {
+  key: string;
+  label: string;
+  description: string;
+  access: "read" | "write" | "";
+  audience: CapabilityAudience[];
+  /** False when the permission's app or feature is off for the organization; omitted when not resolved. */
+  available?: boolean;
+};
+
+export type PermissionCatalog = {
+  categories: Array<{
+    id: string;
+    label: string;
+    description: string;
+    icon: string;
+    subcategories: Array<{ id: string; label: string; description: string; capability: string; collapsed: boolean; permissions: PermissionCatalogEntry[] }>;
+  }>;
+  /** Where a key the catalog does not describe is listed. */
+  other: { id: string; label: string; description: string; icon: string };
+};
+
+/**
+ * The permission catalog people grant from: category, then subcategory, then
+ * permission. Built from the permission nodes; a node without a group is
+ * listed under `other` by the reader. Reads come before writes within a
+ * subcategory, otherwise registration order. Pass an organization's resolved
+ * capabilities to mark permissions whose app or feature is off.
+ */
+export function permissionCatalog(effectiveByKey?: Record<string, boolean>): PermissionCatalog {
+  const byGroup = new Map<string, NormalizedCapability[]>();
+  for (const node of permissionCapabilities()) {
+    if (!node.permission_group) continue;
+    if (!byGroup.has(node.permission_group)) byGroup.set(node.permission_group, []);
+    byGroup.get(node.permission_group)!.push(node);
+  }
+  const rank = (node: NormalizedCapability) => (node.access === "read" ? 0 : 1);
+  const entry = (node: NormalizedCapability): PermissionCatalogEntry => ({
+    key: node.permission_key,
+    label: node.label,
+    description: node.description,
+    access: node.access,
+    audience: [...node.audience],
+    ...(effectiveByKey ? { available: effectiveByKey[node.key] === true } : {})
+  });
+  return {
+    categories: PERMISSION_CATEGORIES.map((category) => ({
+      id: category.id,
+      label: category.label,
+      description: category.description,
+      icon: category.icon,
+      subcategories: category.subcategories.map((subcategory) => ({
+        id: subcategory.id,
+        label: subcategory.label,
+        description: subcategory.description,
+        capability: subcategory.capability || "",
+        collapsed: subcategory.collapsed === true,
+        permissions: [
+          ...(subcategory.id === WILDCARD_PERMISSION.group
+            ? [{ key: WILDCARD_PERMISSION.key, label: WILDCARD_PERMISSION.label, description: WILDCARD_PERMISSION.description, access: "write" as const, audience: ["management", "field"] as CapabilityAudience[], ...(effectiveByKey ? { available: true } : {}) }]
+            : []),
+          ...(byGroup.get(subcategory.id) || []).slice().sort((left, right) => rank(left) - rank(right) || left.order - right.order).map(entry)
+        ]
+      })).filter((subcategory) => subcategory.permissions.length)
+    })).filter((category) => category.subcategories.length),
+    other: { ...OTHER_PERMISSION_CATEGORY }
+  };
 }
 
 /** Registry defaults as a flat key -> value map. */

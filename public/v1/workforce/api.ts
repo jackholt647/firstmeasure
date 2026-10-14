@@ -3,6 +3,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { ZodError, z } from "zod";
 
 import { requirePlatformAuth } from "../platform/auth.js";
+import { effectiveCapabilities, permissionCatalog } from "../platform/capabilities.js";
 import { forbidden, badRequest, PlatformError } from "../platform/errors.js";
 import { readDocument } from "../platform/storage.js";
 import {
@@ -204,7 +205,12 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
         { id: "management", label: "Management", enabled: ctx.applicationAccess.management?.enabled === true },
         { id: "field", label: "Crew", enabled: ctx.applicationAccess.field?.enabled === true }
       ],
+      // Deprecated: the field and sales keys only. Readers use permission_catalog;
+      // keep this until no client reads it.
       permission_keys: [...Object.values(CREW_PERMISSION_KEYS), ...Object.values(SALES_PERMISSION_KEYS)],
+      // Every permission by category and subcategory, with labels, descriptions
+      // and whether its app is on for this organization.
+      permission_catalog: permissionCatalog((await effectiveCapabilities(orgId)).effectiveByKey),
       apps,
       app_catalog: apps,
       roles: (await listAccessRoles(orgId))

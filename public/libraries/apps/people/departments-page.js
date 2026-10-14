@@ -1,7 +1,8 @@
 /* public/libraries/apps/people/departments-page.js
  *
  * People > Departments. Users, groups and outside companies belong to
- * departments (none, one or several); departments do not nest.
+ * departments (none, one or several); departments do not nest, but organizational
+ * units do and hold them, so the list is sectioned by unit (else by category).
  *
  *   FirstMatePeople.departmentsPage.mount(container, { entity:'department:<id>', onEntity(key) }) -> { refresh(), openDepartment(id), destroy() }
  *
@@ -90,8 +91,11 @@
         key:department.id, square:true,
         entity:{ id:department.id, name:department.label, icon:String(department.icon || kit.ICONS.department).split(' ').pop(), color:department.color || '#64748b' },
         title:department.label || department.id,
-        aside:kit.stack(members.users.map((entry) => person(entry.user)), members.users.length),
-        chipGroups:[{ chips:(department.role_ids || []).map((roleId) => ({ label:data.role(roleId)?.name || roleId, tone:'role' })), tone:'role' }, { chips:members.groups.map((entry) => ({ label:entry.group.name || entry.group.id, tone:'group' })), tone:'group' }],
+        // Sectioned by unit, a department's category is still worth seeing beside its name.
+        pills:data.departmentNesting() === 'units' && data.category(department.group_id) ? [{ label:data.category(department.group_id).label, tone:'neutral', icon:'fa-folder' }] : [],
+        // People and groups are counts with a few faces each, like the Users list; there may be dozens of groups.
+        aside:`<span class="pp-stacks">${kit.stack(members.users.map((entry) => person(entry.user)), members.users.length, { label:kit.countPhrase([[members.users.length, t('user_one', 'user'), t('user_many', 'users')]]) })}${members.groups.length ? kit.stack(members.groups.map((entry) => ({ id:entry.group.id, name:entry.group.name || entry.group.id, icon:kit.ICONS.group, color:'#0e7090' })), members.groups.length, { square:true, label:members.groups.map((entry) => entry.group.name || entry.group.id).join(', ') }) : ''}</span>`,
+        chipGroups:[{ chips:(department.role_ids || []).map((roleId) => ({ label:data.role(roleId)?.name || roleId, tone:'role' })), tone:'role' }],
         actions:[{ id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, canManage() ? { id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
         hover:`department:${department.id}`
       };
@@ -115,9 +119,26 @@
       submit:(values) => data.saveDepartment({ label:values.label, color:COLOR_CHOICES[data.state.departments.length % COLOR_CHOICES.length] })
     }).then((department) => { if (department?.id) openDepartment(department.id, { opener:button }); });
 
+    /* Sectioned the way the catalog organizes departments: by unit (with its parents), else by category. */
+    function placeSection(department){
+      const how = data.departmentNesting();
+      if (!how) return null;
+      const place = data.departmentPlace(department.id);
+      if (!place.length) return { key:'none', title:how === 'units' ? t('not_in_unit', 'Not in a unit') : t('no_category', 'No category'), order:Number.MAX_SAFE_INTEGER };
+      const last = place[place.length - 1];
+      const order = data.departmentOutline({ loose:'last' }).findIndex((row) => row.kind === last.kind && row.id === last.id);
+      return { key:`${last.kind}:${last.id}`, title:place.map((step) => step.label).join(' › '), icon:last.kind === 'unit' ? 'fa-diagram-project' : 'fa-folder', tooltip:last.tooltip || '', order };
+    }
+    const memberCount = (department) => data.departmentMembers(department).users.length;
     const list = People.listPage.mount(container, {
       // Few departments, each with several roles and groups: full-width rows.
       columns:false,
+      section:placeSection,
+      sorts:[
+        { id:'name', label:t('sort_name', 'Name'), compare:(left, right) => String(left.label || '').localeCompare(String(right.label || '')) },
+        { id:'members', label:t('sort_members', 'Members'), first:'desc', compare:(left, right) => (memberCount(left) - memberCount(right)) || String(right.label || '').localeCompare(String(left.label || '')) }
+      ],
+      sort:{ id:'name', dir:'asc' }, sortStore:'departments',
       icon:kit.ICONS.department, title:plural(), subtitle:'',
       search:{ placeholder:t('search', 'Search'), onInput(value){ query = value.trim().toLowerCase(); renderList(); } },
       actions:canManage() ? [{ id:'divisions', label:t('divisions_short', 'Units'), icon:'fa-diagram-project', tooltip:t('divisions', 'Organizational units'), onClick:(button) => People.lists.divisions({ opener:button }) }, { id:'categories', label:t('categories', 'Categories'), icon:'fa-folder', onClick:(button) => People.lists.categories({ opener:button }) }, { id:'new', label:t('new_department', 'New {department}', { department:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create }] : [],
@@ -218,16 +239,19 @@
         show();
         return { refresh(){ inner?.refresh(); counts(); }, destroy(){ inner?.destroy(); } };
       }
-      /* Roles that apply only inside this department. They are stored on each user. */
+      /* The roles people hold only for work in this department, one row per person. They are stored on each user. */
       function mountScoped(panel){
         const roles = () => data.scopableRoles();
-        return pageKit.peopleList(panel, {
-          title:t('scoped_roles', 'Roles here only'),
-          count:() => kit.countPhrase([[data.departmentScopedRoles(id).length, t('scoped_role_one', 'role held here only'), t('scoped_role_many', 'roles held here only')]]) || t('no_scoped_roles_count', 'No roles held here only'),
-          items:() => { const byUser = new Map(); data.departmentScopedRoles(id).forEach((entry) => { const item = byUser.get(entry.user.id) || { user:entry.user, chips:[], chipTone:'role', actions:can.permissions ? [{ id:'remove', icon:'fa-xmark', label:t('remove_scoped', 'Remove these roles'), tone:'danger' }] : [] }; item.chips.push({ label:data.role(entry.role_id)?.name || entry.role_id, tone:'role' }); byUser.set(entry.user.id, item); }); return [...byUser.values()]; },
-          actions:can.permissions && roles().length ? [{ id:'give', label:t('give_role_here', 'Give a role here'), icon:'fa-plus', onClick(button){
+        const place = () => current().label || singular();
+        const people = () => new Set(data.departmentScopedRoles(id).map((entry) => entry.user.id)).size;
+        const rolesOf = (userId) => data.departmentScopedRoles(id).filter((entry) => entry.user.id === userId).map((entry) => entry.role_id);
+        const list = pageKit.peopleList(panel, {
+          title:t('roles_in', 'Roles in {place}', { place:place() }),
+          count:() => people() ? t('people_with_roles_in', '{count} with roles in {place}', { count:kit.countPhrase([[people(), t('person_one', 'person'), t('person_many', 'people')]]), place:place() }) : t('nobody_with_roles_in', 'Nobody has roles only in {place}', { place:place() }),
+          items:() => { const byUser = new Map(); data.departmentScopedRoles(id).forEach((entry) => { const self = data.isMe(entry.user); const item = byUser.get(entry.user.id) || { user:entry.user, chips:[], chipTone:'role', actions:can.permissions && !self ? [{ id:'roles', icon:kit.ICONS.role, label:t('change_roles_of_in', 'Change {name}’s roles in {place}', { name:entry.user.name || entry.user.email, place:place() }) }, { id:'remove', icon:'fa-xmark', label:t('remove_roles_of_in', 'Remove {name}’s roles in {place}', { name:entry.user.name || entry.user.email, place:place() }), tone:'danger' }] : [] }; item.chips.push({ label:data.role(entry.role_id)?.name || entry.role_id, tone:'role' }); byUser.set(entry.user.id, item); }); return [...byUser.values()]; },
+          actions:can.permissions && roles().length ? [{ id:'give', label:t('give_role_in', 'Give a role in {place}', { place:place() }), icon:'fa-plus', onClick(button){
             kit.form(button, {
-              title:t('give_role_here', 'Give a role here'), submitLabel:t('give', 'Give'),
+              title:t('give_role_in', 'Give a role in {place}', { place:place() }), submitLabel:t('give', 'Give'),
               fields:[
                 { id:'userId', label:t('user', 'User'), type:'select', required:true, placeholder:t('choose', 'Choose'), options:[...data.state.users].filter((user) => !data.isMe(user)).sort(pageKit.byName).map((user) => ({ value:user.id, label:user.name || user.email || user.id })) },
                 { id:'roleId', label:t('role', 'Role'), type:'select', required:true, placeholder:t('choose', 'Choose'), options:roles().map((role) => ({ value:role.id, label:role.name || role.id })) }
@@ -235,9 +259,20 @@
               submit:(values) => data.setScopedRole(values.userId, values.roleId, id, true)
             });
           } }] : [],
-          onAction:(action, user) => { if (action === 'remove') saving(async () => { for (const entry of data.departmentScopedRoles(id).filter((item) => item.user.id === user.id)) await data.setScopedRole(user.id, entry.role_id, id, false); }); },
-          empty:{ icon:kit.ICONS.role, title:t('no_scoped_roles', 'Nobody holds a role only here') }
+          onAction:(action, user, button) => {
+            if (action === 'remove') queued(async () => { for (const roleId of rolesOf(user.id)) await data.setScopedRole(user.id, roleId, id, false); });
+            else if (action === 'roles') pageKit.scopedRolesMenu(button, {
+              place:place(), kind:'department', selected:rolesOf(user.id), everywhere:data.userRoleIds(user),
+              onChange:(next, roleId, on) => queued(() => data.setScopedRole(user.id, roleId, id, on)),
+              refocus:() => panel.querySelector(`[data-row-key="${CSS.escape(user.id)}"] [data-row-action="roles"]`)?.focus()
+            });
+          },
+          empty:{ icon:kit.ICONS.role, title:t('nobody_with_roles_in', 'Nobody has roles only in {place}', { place:place() }) }
         });
+        /* One write at a time: each reads the person's list as the last one left it. */
+        let queue = Promise.resolve();
+        const queued = (work) => (queue = queue.then(() => saving(work)));
+        return list;
       }
       const entity = data.entityFor('department', id, start.label);
       const modal = People.entityModal.open({
@@ -251,7 +286,7 @@
             modal.setTabBadge('apps', Object.keys(draft.apps).length || '');
             return { destroy:() => grid.destroy() };
           } },
-          { id:'scoped', label:t('scoped_roles', 'Roles here only'), icon:kit.ICONS.role, tooltip:t('scoped_roles_tip', 'A role given here applies only inside this department. Roles on the user apply everywhere.'), mount(panel){ scoped = mountScoped(panel); return scoped; } },
+          { id:'scoped', label:t('roles_in', 'Roles in {place}', { place:start.label || singular() }), icon:kit.ICONS.role, tooltip:t('roles_in_department_tab_tip', 'Roles these people hold only for work in {place}. Roles on a user apply everywhere.', { place:start.label || singular() }), mount(panel){ scoped = mountScoped(panel); return scoped; } },
           People.slots.tab('fields', entity, { readOnly:!can.settings })
         ],
         async onSave(){

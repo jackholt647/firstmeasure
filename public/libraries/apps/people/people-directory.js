@@ -20,6 +20,7 @@
  *   data.groupTypeName(id)  data.companyTypeName(id)  data.groupTypeNames()  data.companyTypeNames()  data.companyTypeIds(company | id)
  *   data.wording()  data.allTags()  data.tagUsage(id)  data.typeFlag(id)  data.typeUsage(kind, id)  data.memberRoleWords()
  *   data.division(id)  data.divisionDepartments(id)  data.categoryDepartments(id)  data.loadCompanyPermissions(id)
+ *   data.departmentNesting()  data.departmentPlace(id)  data.departmentOutline({ departmentIds, unitIds, loose })   how departments are organized
  *
  * Writing (each resolves after the store is current again)
  *   data.saveType({ kind, id, name, description, status })   data.setTypeMemberRoles(id, roleIds)
@@ -177,7 +178,7 @@
       pills:[],
       facts:[{ icon:kit.ICONS.users, label:t('members', 'Members'), value:String(members.users.length), panel:false, cardLabel:true }, { icon:kit.ICONS.group, label:state.groupLabels.plural || t('groups', 'Groups'), value:members.groups.length ? String(members.groups.length) : '', panel:false, cardLabel:true }],
       sections:[
-        { id:'roles', title:t('roles', 'Roles'), icon:kit.ICONS.role, tooltip:t('department_roles_tip', 'Everyone with one of these roles is in this department'), chips:ids(draft.role_ids || entry.role_ids).map((id) => ({ label:text(data.role(id)?.name, id), tone:'role' })), empty:t('none', 'None') },
+        { id:'roles', title:t('department_member_roles', 'Everyone with these roles'), icon:kit.ICONS.role, tooltip:t('department_roles_tip', 'Everyone with one of these roles is in this department'), chips:ids(draft.role_ids || entry.role_ids).map((id) => ({ label:text(data.role(id)?.name, id), tone:'role' })), empty:t('none', 'None') },
         { id:'group_types', title:t('group_types', '{groups} types', { groups:state.groupLabels.singular || t('group', 'Group') }), icon:kit.ICONS.group, tooltip:t('department_group_types_tip', 'Every group of one of these types is in this department'), chips:ids(draft.group_kind_ids || entry.group_kind_ids).map((id) => ({ label:typeName('resource_group', id), tone:'group' })), empty:t('none', 'None') }
       ]
     };
@@ -376,6 +377,58 @@
   }
   const categoryDepartments = (id) => state.departments.filter((entry) => String(entry.group_id || '') === String(id));
 
+  /*
+   * How departments are organized. Departments do not nest; organizational units (divisions) do, through
+   * parent_id, and a department sits in at most one unit. A category only labels a department. So the
+   * outline nests by unit when any department is in one, and by category when none is but some have one.
+   */
+  const category = (id) => state.departmentCategories.find((entry) => String(entry.id) === String(id)) || null;
+  function unitPath(unitId){
+    const path = [];
+    const seen = new Set();
+    let id = String(unitId || '');
+    while (id && !seen.has(id)) { seen.add(id); const unit = division(id); if (!unit) break; path.unshift(unit); id = String(unit.parent_id || ''); }
+    return path;
+  }
+  const departmentNesting = () => state.departments.some((entry) => unitPath(entry.division_id).length) ? 'units' : state.departments.some((entry) => category(entry.group_id)) ? 'categories' : '';
+  const unitSteps = (unitId) => unitPath(unitId).map((unit) => ({ kind:'unit', id:String(unit.id), label:text(unit.label, unit.id), tooltip:text(unit.kind), unit }));
+  /* Where a department sits, outermost first: [{ kind:'unit' | 'category', id, label }]. Empty when it sits at the top. */
+  function departmentPlace(departmentId){
+    const entry = department(departmentId);
+    if (!entry) return [];
+    const how = departmentNesting();
+    if (how === 'units') return unitSteps(entry.division_id);
+    const holder = how === 'categories' ? category(entry.group_id) : null;
+    return holder ? [{ kind:'category', id:String(holder.id), label:text(holder.label, holder.id) }] : [];
+  }
+  /*
+   * departmentOutline({ departmentIds, unitIds, loose:'first' | 'last' }) -> rows in reading order
+   *   [{ kind:'unit' | 'category' | 'department', id, label, tooltip, depth, department, unit }]
+   * The given departments (all when omitted) under the units or category that hold them. unitIds adds
+   * units that must show although none of the listed departments is in them. `loose` puts the
+   * departments of a level before (default) or after the units in it.
+   */
+  function departmentOutline(options = {}){
+    const wanted = options.departmentIds ? ids(options.departmentIds) : state.departments.map((entry) => String(entry.id));
+    const root = { children:new Map(), departments:[] };
+    const nodeFor = (path) => path.reduce((node, step) => {
+      const key = `${step.kind}:${step.id}`;
+      if (!node.children.has(key)) node.children.set(key, { step, children:new Map(), departments:[] });
+      return node.children.get(key);
+    }, root);
+    wanted.forEach((id) => { const entry = department(id); if (entry && !nodeFor(departmentPlace(id)).departments.includes(entry)) nodeFor(departmentPlace(id)).departments.push(entry); });
+    ids(options.unitIds).forEach((id) => { const path = unitSteps(id); if (path.length) nodeFor(path); });
+    const rows = [];
+    const byLabel = (left, right) => String(left).localeCompare(String(right));
+    const walk = (node, depth) => {
+      const departments = () => node.departments.sort((left, right) => byLabel(text(left.label, left.id), text(right.label, right.id))).forEach((entry) => rows.push({ kind:'department', id:String(entry.id), label:text(entry.label, entry.id), depth, department:entry }));
+      const children = () => [...node.children.values()].sort((left, right) => byLabel(left.step.label, right.step.label)).forEach((child) => { rows.push({ ...child.step, depth }); walk(child, depth + 1); });
+      if (options.loose === 'last') { children(); departments(); } else { departments(); children(); }
+    };
+    walk(root, 0);
+    return rows;
+  }
+
   /* ---- a company's permission set: read when the directory publishes it ---- */
   async function loadCompanyPermissions(id){
     const fromRow = companyPermissions({ id });
@@ -431,7 +484,7 @@
     department, departmentMembers, departmentScopedRoles, departmentSummary, saveDepartment, archiveDepartment, setScopedRole,
     company, companyTypeIds, companyContact, companyDepartments, companySummary, linkStatus, linkPill, createCompany, saveCompany, setCompanyTypes, archiveCompany, savePaymentTerms, companyPermissions, saveCompanyPermissions,
     counts, saveConfiguration, allTags, saveTag, tagUsage, typeFlag, setTypeExternal, typeUsage, wording, saveWording,
-    division, saveDivision, divisionDepartments, saveCategory, categoryDepartments, loadCompanyPermissions, entityFor, memberRoleWords, attention,
+    division, saveDivision, divisionDepartments, saveCategory, categoryDepartments, category, unitPath, departmentNesting, departmentPlace, departmentOutline, loadCompanyPermissions, entityFor, memberRoleWords, attention,
     groupTypeName:(id) => typeName('resource_group', id), companyTypeName:(id) => typeName('organization_connection', id),
     groupTypeNames:() => Object.fromEntries(types('resource_group').map((type) => [type.id, type.name])), companyTypeNames:() => Object.fromEntries(types('organization_connection').map((type) => [type.id, type.name]))
   });

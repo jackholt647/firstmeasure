@@ -37,8 +37,9 @@ registerCapabilities([
     parent: "apps.live_chat",
     permission_key: "view_live_chat",
     access: "read",
-    label: "View Live Chat",
-    description: "See the chat inbox and read conversations."
+    permission_group: "website_chat",
+    label: "View website chats",
+    description: "See the chat inbox and read conversations with website visitors."
   },
   {
     key: "permission.send_live_chat",
@@ -46,7 +47,8 @@ registerCapabilities([
     parent: "apps.live_chat",
     permission_key: "send_live_chat",
     access: "write",
-    label: "Send Live Chat",
-    description: "Reply to visitors, claim conversations, and close chats."
+    permission_group: "website_chat",
+    label: "Reply to website chats",
+    description: "Reply to visitors, claim conversations and close chats."
   }
 ]);

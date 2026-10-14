@@ -59,6 +59,17 @@ All other app permissions are development contracts and can be revised. Do
 not reuse a FirstMeasure key for an unrelated new operation merely to make a
 role pass. Keep cross-app grants explicit and business meaningful.
 
+## How permissions are presented
+
+Every permission key has one node in the capability registry with a title, a
+one-line description and a subcategory (`permission_group`) inside one of the
+categories in `public/v1/platform/permission_categories.ts`. The People
+Permissions panel reads that tree from `permission_catalog` on the workforce
+access catalog. Grouping is labels only and never changes a key or its meaning.
+See [CAPABILITIES.md](../../public/v1/platform/CAPABILITIES.md#permission-categories).
+`permission_keys` on the same response is deprecated and kept until nothing
+reads it.
+
 ## Shared agent runtime
 
 `agents/runtime.ts` runs the common conversation loop for all registered

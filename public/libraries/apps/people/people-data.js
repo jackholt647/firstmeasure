@@ -123,6 +123,7 @@
         }));
         state.applications = arr(catalog.applications);
         state.permissionKeys = ids(catalog.permission_keys);
+        state.permissionCatalog = catalog.permission_catalog && typeof catalog.permission_catalog === 'object' ? catalog.permission_catalog : null;
       } else state.errors.access = catalogResult.reason?.message || 'access';
       if (departmentsResult.status === 'fulfilled' && departmentsResult.value) {
         const departments = obj(departmentsResult.value.catalog || departmentsResult.value);
@@ -223,9 +224,12 @@
   const roleMembers = (roleId) => state.users.filter((entry) => userRoleIds(entry).includes(String(roleId)));
 
   const sentence = (value) => { const words = String(value || '').replace(/[_-]+/g, ' ').trim(); return words ? words.charAt(0).toUpperCase() + words.slice(1) : ''; };
-  const PERMISSION_GROUP_ICONS = { general:'fa-building', crew:'fa-helmet-safety', sales:'fa-handshake', projects:'fa-briefcase', payroll:'fa-money-check-dollar', schedule:'fa-calendar-days' };
+  /* Icons for categories the catalog sends without one, and for Other. */
+  const PERMISSION_GROUP_ICONS = { company:'fa-building', people:'fa-users', sales:'fa-handshake', projects:'fa-briefcase', scheduling:'fa-calendar-days', field:'fa-helmet-safety', materials:'fa-boxes-stacked', money:'fa-money-check-dollar', communications:'fa-comments', documents:'fa-file-signature', partners:'fa-people-arrows', other:'fa-key' };
+  /* Every permission key there is: the published catalog plus anything a role, an app or a user names. */
   function permissionKeys(){
     const keys = new Set(state.permissionKeys);
+    arr(obj(state.permissionCatalog).categories).forEach((category) => arr(category.subcategories).forEach((sub) => arr(sub.permissions).forEach((entry) => { if (text(entry.key)) keys.add(text(entry.key)); })));
     state.roles.forEach((entry) => Object.keys(obj(entry.permissions || entry.permission_defaults)).forEach((key) => keys.add(key)));
     state.apps.forEach((app) => {
       arr(app.required_permissions).forEach((key) => { if (text(key)) keys.add(text(key)); });
@@ -234,27 +238,51 @@
     state.users.forEach((entry) => Object.keys(userPermissionOverrides(entry)).forEach((key) => keys.add(key)));
     return [...keys].filter(Boolean).sort();
   }
+  /*
+   * Category -> subcategory -> permission, from the published catalog
+   * (permission_catalog on the access catalog). Each group is a category:
+   *   { id, label, icon, description, permissions:[every permission in it], subgroups:[{ id, label, description, collapsed, permissions }] }
+   * A permission is { key, label, description, unavailable }. A key the catalog
+   * does not describe is never hidden: it is listed under Other.
+   */
   function permissionGroups(){
-    const groups = new Map();
-    const usedBy = (key) => state.apps.filter((app) => arr(app.required_permissions).includes(key) || Object.values(obj(app.parameter_permissions)).includes(key)).map((app) => app.title);
-    permissionKeys().forEach((key) => {
-      const parts = key.split('.');
-      const groupId = key === '*' || parts.length === 1 ? 'general' : parts[0];
-      const label = key === '*' ? t('permission_everything', 'Everything') : sentence(parts.length === 1 ? key : parts.slice(1).join(' '));
+    const catalog = obj(state.permissionCatalog);
+    const usedBy = (key) => [...new Set(state.apps.filter((app) => arr(app.required_permissions).includes(key) || Object.values(obj(app.parameter_permissions)).includes(key)).map((app) => app.title))];
+    const tooltip = (key, description, unavailable) => {
       const apps = usedBy(key);
-      const description = key === '*' ? t('permission_everything_tip', 'Every current and future permission unless one is denied')
-        : apps.length ? t('permission_used_by', 'Used by {apps}', { apps:[...new Set(apps)].join(', ') }) : '';
-      if (!groups.has(groupId)) groups.set(groupId, {
-        id:groupId,
-        label:groupId === 'general' ? t('permission_group_general', 'Company') : term(`people.permission_group.${groupId}`, groupId === 'crew' ? t('permission_group_field', 'Field') : sentence(groupId)),
-        icon:PERMISSION_GROUP_ICONS[groupId] || 'fa-key',
-        permissions:[]
+      return [description, apps.length ? t('permission_used_by', 'Used by {apps}', { apps:apps.join(', ') }) : '', unavailable ? t('permission_app_off', 'Its app is turned off for this company') : ''].filter(Boolean).join('. ');
+    };
+    const seen = new Set();
+    const groups = arr(catalog.categories).map((category) => {
+      const id = text(category.id);
+      const subgroups = arr(category.subcategories).map((sub) => ({
+        id:text(sub.id),
+        label:term(`people.permission_subcategory.${text(sub.id)}`, text(sub.label, sentence(sub.id))),
+        description:text(sub.description),
+        collapsed:sub.collapsed === true,
+        permissions:arr(sub.permissions).filter((entry) => text(entry.key) && !seen.has(text(entry.key))).map((entry) => {
+          const key = text(entry.key);
+          seen.add(key);
+          const unavailable = entry.available === false;
+          return { key, label:key === '*' ? t('permission_everything', 'Everything') : text(entry.label, sentence(key)), description:tooltip(key, key === '*' ? t('permission_everything_tip', 'Every current and future permission unless one is denied') : text(entry.description), unavailable), unavailable };
+        })
+      })).filter((sub) => sub.permissions.length);
+      return {
+        id, label:term(`people.permission_category.${id}`, text(category.label, sentence(id))), icon:text(category.icon, PERMISSION_GROUP_ICONS[id] || 'fa-key'), description:text(category.description),
+        subgroups, permissions:subgroups.flatMap((sub) => sub.permissions)
+      };
+    }).filter((group) => group.permissions.length);
+    const unknown = permissionKeys().filter((key) => !seen.has(key));
+    if (unknown.length) {
+      const other = obj(catalog.other);
+      const permissions = unknown.map((key) => ({ key, label:key === '*' ? t('permission_everything', 'Everything') : sentence(key.split('.').join(' ')), description:tooltip(key, key === '*' ? t('permission_everything_tip', 'Every current and future permission unless one is denied') : key, false), unavailable:false }))
+        .sort((left, right) => (left.key === '*' ? -1 : right.key === '*' ? 1 : left.label.localeCompare(right.label)));
+      groups.push({
+        id:'other', label:t('permission_group_other', text(other.label, 'Other')), icon:text(other.icon, PERMISSION_GROUP_ICONS.other), description:t('permission_group_other_tip', text(other.description, 'Permissions the catalog does not describe yet')),
+        subgroups:[{ id:'other', label:t('permission_subgroup_other', 'Not described yet'), description:'', permissions }], permissions
       });
-      groups.get(groupId).permissions.push({ key, label, description });
-    });
-    const list = [...groups.values()];
-    list.forEach((group) => group.permissions.sort((left, right) => (left.key === '*' ? -1 : right.key === '*' ? 1 : left.label.localeCompare(right.label))));
-    return list.sort((left, right) => (left.id === 'general' ? -1 : right.id === 'general' ? 1 : left.label.localeCompare(right.label)));
+    }
+    return groups;
   }
   function inheritedPermission(roleIds){
     const roles = ids(roleIds).map(role).filter(Boolean);
@@ -341,11 +369,15 @@
         { icon:'fa-calendar-plus', label:t('added', 'Added'), value:neverSignedIn(entry) ? '' : dateText(entry.created_at), card:false }
       ],
       sections:[
-        { id:'roles', title:t('roles', 'Roles'), icon:kit.ICONS.role, chips:roleIds.map(role).filter(Boolean).map((item) => ({ label:text(item.name, item.id), tone:'role', tooltip:item.description })), empty:t('no_roles', 'No roles') },
+        /* Roles on the user apply to all work; roles held in one department are shown under that department. */
+        { id:'roles', title:t('roles_everywhere', 'Roles everywhere'), icon:kit.ICONS.role, tooltip:t('roles_everywhere_tip', 'These apply to all work, in every department'), chips:roleIds.map(role).filter(Boolean).map((item) => ({ label:text(item.name, item.id), tone:'role', tooltip:item.description })), empty:t('no_roles', 'No roles') },
         { id:'departments', title:state.groupLabels.departmentPlural || t('departments', 'Departments'), icon:kit.ICONS.department,
-          chips:departments.map((department) => ({ label:department.label, color:department.color, tooltip:department.direct ? '' : t('department_inherited', 'Through a role or a group') })), empty:t('no_departments', 'None') },
+          chips:departments.map((department) => {
+            const here = (draft.scopedAssignments || userScopedAssignments(entry)).filter((assignment) => assignment.scope.kind === 'department' && assignment.scope.id === department.id).map((assignment) => text(role(assignment.role_id)?.name, assignment.role_id));
+            const via = department.direct ? '' : t('department_inherited', 'Through a role or a group');
+            return { label:department.label, color:department.color, tooltip:[via, here.length ? t('roles_in_list', 'Roles in {place}: {roles}', { place:department.label, roles:here.join(', ') }) : ''].filter(Boolean).join('. ') };
+          }), empty:t('no_departments', 'None') },
         { id:'tags', title:t('tags', 'Tags'), icon:'fa-tag', chips:ids(draft.tagIds || userTagIds(entry)).map((id) => state.tags.find((tag) => String(tag.id) === id)).filter(Boolean).map((tag) => ({ label:text(tag.name, tag.id), tone:'muted' })), empty:t('none', 'None'), optional:true },
-        { id:'scoped', title:t('scoped_roles', 'Roles here only'), icon:'fa-location-crosshairs', tooltip:t('scoped_roles_user_tip', 'Roles that apply only inside one department'), chips:(draft.scopedAssignments || userScopedAssignments(entry)).map((assignment) => ({ label:`${text(role(assignment.role_id)?.name, assignment.role_id)} \u00b7 ${text((assignment.scope.kind === 'division' ? state.divisions : state.departments).find((unit) => unit.id === assignment.scope.id)?.label, assignment.scope.id)}`, tone:'role' })), empty:t('none', 'None'), optional:true },
         { id:'groups', title:state.groupLabels.plural || t('groups', 'Groups'), icon:kit.ICONS.group, tooltip:t('groups_tip', 'Membership is edited from the group'),
           chips:groups.map((group) => ({ label:text(group.name, group.id), tone:'group' })), empty:t('no_groups', 'None') }
       ]

@@ -100,7 +100,8 @@
    *   online: userId | '',                 presence dot on the photo
    *   pills: [{ label, tone, icon, tooltip }],
    *   facts: [{ icon, label, value, tooltip }],
-   *   sections: [{ id, title, icon, tone, chips:[chip], empty, action:{ id, icon, label } }]
+   *   sections: [{ id, title, icon, tone, chips:[chip], empty, action:{ id, icon, label }, html }]
+   *     html: the panel draws this markup in place of the chips (the card still shows the chips)
    * }
    * variant 'panel' is the modal's left column (photo, identity, facts, sections with titles);
    * 'card' is the read-only hover card (photo, identity, the facts and chips that matter).
@@ -124,7 +125,7 @@
       const action = !card && section.action ? `<button type="button" class="pp-icon-btn" data-people-section-action="${esc(section.id)}" aria-label="${esc(section.action.label)}"${tip(section.action.label)}><i class="fas ${esc(section.action.icon || ICONS.edit)}" aria-hidden="true"></i></button>` : '';
       return card
         ? `<div class="pp-sum-section" data-section="${esc(section.id)}"${tip(section.title)}><i class="fas ${esc(section.icon || 'fa-circle')} pp-sum-section-icon" aria-hidden="true"></i><div class="pp-chip-run wrap">${body}</div></div>`
-        : `<section class="pp-sum-section" data-section="${esc(section.id)}"><header><i class="fas ${esc(section.icon || 'fa-circle')}" aria-hidden="true"></i><h4${tip(section.tooltip)}>${esc(section.title)}</h4>${action}</header><div class="pp-chip-run wrap">${body}</div></section>`;
+        : `<section class="pp-sum-section" data-section="${esc(section.id)}"><header><i class="fas ${esc(section.icon || 'fa-circle')}" aria-hidden="true"></i><h4${tip(section.tooltip)}>${esc(section.title)}</h4>${action}</header>${section.html != null ? section.html : `<div class="pp-chip-run wrap">${body}</div>`}</section>`;
     }).join('');
     const editAction = !card && options.editAction ? `<button type="button" class="pp-icon-btn pp-sum-edit" data-people-identity aria-label="${esc(options.editAction)}"${tip(options.editAction)}><i class="fas ${ICONS.edit}" aria-hidden="true"></i></button>` : '';
     return `<div class="pp-sum ${card ? 'card' : 'panel'}" data-people-summary="${esc(model.kind || '')}:${esc(model.id || '')}">
@@ -140,10 +141,11 @@
     return `<span class="pp-select"><select class="pp-input" ${options.name ? `name="${esc(options.name)}"` : ''} aria-label="${esc(options.label || options.placeholder || '')}" ${options.attrs || ''} ${options.disabled ? 'disabled' : ''}>${options.placeholder != null ? `<option value="">${esc(options.placeholder)}</option>` : ''}${list.map((item) => `<option value="${esc(item.value)}" ${String(item.value) === String(options.value ?? '') ? 'selected' : ''}>${esc(item.label)}</option>`).join('')}</select><i class="fas fa-chevron-down" aria-hidden="true"></i></span>`;
   }
   /* stack(entities, total): overlapping photos with the count beside them, for "who is in this". */
-  function stack(entities = [], total){
+  /* stack(entities, total, { square, label }): up to four small avatars and a count; label is the count's tooltip. */
+  function stack(entities = [], total, options = {}){
     const shown = entities.slice(0, 4);
     const count = Number(total ?? entities.length);
-    return `<span class="pp-stack">${shown.map((entity) => avatar(entity, { size:22 })).join('')}<span class="pp-stack-count">${count.toLocaleString()}</span></span>`;
+    return `<span class="pp-stack"${options.label ? ` aria-label="${esc(options.label)}"${tip(options.label)}` : ''}>${shown.map((entity) => avatar(entity, { size:22, square:options.square })).join('')}<span class="pp-stack-count">${count.toLocaleString()}</span></span>`;
   }
   /* info(text): a small focusable "i" whose tooltip carries a sentence the screen itself must not spell out. */
   const info = (text) => `<button type="button" class="pp-info" aria-label="${esc(text)}"${tip(text)}><i class="fas fa-circle-info" aria-hidden="true"></i></button>`;
@@ -215,6 +217,7 @@
    *   search: placeholder text to add a filter field
    *   align: 'start' | 'end'
    *   label: accessible name
+   *   title: a heading drawn at the top (also the accessible name); titleTip: its one-line explanation, behind an "i"
    */
   function menu(anchor, options = {}){
     const panel = document.createElement('div');
@@ -229,7 +232,8 @@
         : item.color ? `<i class="pp-chip-dot" style="background:${esc(item.color)}" aria-hidden="true"></i>` : item.icon ? `<i class="fas ${esc(item.icon)} pp-menu-icon" aria-hidden="true"></i>` : '';
       return `<button type="button" class="pp-menu-item ${esc(item.tone || '')}" role="${checkbox ? 'menuitemcheckbox' : 'menuitem'}" ${checkbox ? `aria-checked="${item.checked}"` : ''} data-menu-index="${index}" tabindex="-1" ${item.disabled ? 'disabled aria-disabled="true"' : ''}${tip(item.tooltip)}>${lead}<span class="pp-menu-label">${esc(item.label)}</span>${item.hint ? `<span class="pp-menu-hint">${esc(item.hint)}</span>` : ''}</button>`;
     };
-    panel.innerHTML = `${options.search ? `<label class="pp-menu-search"><i class="fas ${ICONS.search}" aria-hidden="true"></i><input type="search" placeholder="${esc(options.search)}" aria-label="${esc(options.search)}" autocomplete="off"></label>` : ''}<div class="pp-menu-list" role="menu" aria-label="${esc(options.label || '')}">${items.map(rowHtml).join('')}</div>`;
+    const title = options.title ? `<div class="pp-menu-title"><strong>${esc(options.title)}</strong>${options.titleTip ? info(options.titleTip) : ''}</div>` : '';
+    panel.innerHTML = `${title}${options.search ? `<label class="pp-menu-search"><i class="fas ${ICONS.search}" aria-hidden="true"></i><input type="search" placeholder="${esc(options.search)}" aria-label="${esc(options.search)}" autocomplete="off"></label>` : ''}<div class="pp-menu-list" role="menu" aria-label="${esc(options.title || options.label || '')}">${items.map(rowHtml).join('')}</div>`;
     const list = panel.querySelector('.pp-menu-list');
     const input = panel.querySelector('input');
     const buttons = () => Array.from(list.querySelectorAll('.pp-menu-item:not([disabled]):not([hidden])'));
@@ -527,6 +531,8 @@
       .pp-menu-check{display:grid;place-items:center;flex:none;width:16px;height:16px;border:1.5px solid #d0d5dd;border-radius:5px;color:transparent;font-size:9px}
       .pp-menu-item[aria-checked="true"] .pp-menu-check{border-color:var(--pp-accent);background:var(--pp-accent);color:var(--pp-on-accent)}
       .pp-menu-sep{height:1px;margin:4px 6px;background:var(--pp-line-soft)}
+      .pp-menu-title{display:flex;align-items:center;gap:4px;min-height:30px;padding:2px 2px 5px 9px;margin-bottom:4px;border-bottom:1px solid var(--pp-line-soft)}
+      .pp-menu-title>strong{flex:1;min-width:0;color:var(--pp-text);font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .pp-menu-heading{padding:7px 9px 3px;color:var(--pp-faint);font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
       .pp-photo-pick{display:flex;align-items:center;gap:10px;min-width:0}
       .pp-photo-pick>input{min-width:0;flex:1;font:inherit;font-size:12px;color:var(--pp-muted)}
@@ -535,6 +541,7 @@
       .pp-select>select{appearance:none;-webkit-appearance:none;padding-right:28px;cursor:pointer;text-overflow:ellipsis}
       .pp-select>i{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--pp-faint);font-size:9px;pointer-events:none}
       .pp-stack{display:inline-flex;align-items:center;flex:none}
+      .pp-stacks{display:inline-flex;align-items:center;gap:16px;flex:none}
       .pp-stack>.pp-avatar{margin-left:-6px;box-shadow:0 0 0 2px var(--pp-panel)}
       .pp-stack>.pp-avatar:first-child{margin-left:0}
       .pp-stack-count{margin-left:7px;min-width:14px;color:var(--pp-muted);font-size:12px;font-weight:650;font-variant-numeric:tabular-nums}

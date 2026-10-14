@@ -30,6 +30,7 @@
   const { esc, t, tip } = kit;
   const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
   const sorted = (list) => [...list].sort();
+  const scopedKeys = (list) => list.map((assignment) => `${assignment.scope.kind}:${assignment.scope.id}:${assignment.role_id}`).sort();
   const failed = (title, error) => kit.toast(title, error?.message || t('try_again_later', 'Try again in a moment.'), false);
 
   function ensureStyles(){
@@ -47,6 +48,23 @@
       .pp-activity>li>time{flex:none;color:var(--pp-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
       .pp-members{height:100%;min-height:0;overflow-y:auto}
       .pp-members .pp-list-head{padding-bottom:8px}
+      .pp-dtree{list-style:none;display:grid;gap:2px;margin:0;padding:0}
+      .pp-dtree-item{position:relative;padding:3px 0 3px calc(var(--depth,0) * 16px)}
+      .pp-dtree-item:not([style*="--depth:0"])::before{content:"";position:absolute;left:calc((var(--depth,1) - 1) * 16px + 6px);top:0;bottom:0;border-left:1px solid var(--pp-line)}
+      .pp-dtree-line{display:flex;align-items:center;gap:7px;min-width:0;min-height:26px}
+      .pp-dtree-line>.pp-chip-dot{margin-left:3px}
+      .pp-dtree-icon{flex:none;width:14px;text-align:center;color:var(--pp-faint);font-size:10.5px}
+      .pp-dtree-name{flex:0 1 auto;min-width:0;color:var(--pp-strong);font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .pp-dtree-item.place .pp-dtree-name{color:var(--pp-muted);font-size:12px;font-weight:600}
+      .pp-dtree-item.away .pp-dtree-name{color:var(--pp-muted);font-style:italic;font-weight:600}
+      .pp-dtree-via{flex:none;color:var(--pp-faint);font-size:9.5px}
+      .pp-dtree-tools{display:flex;align-items:center;gap:2px;margin-left:auto;flex:none}
+      .pp-dtree-btn{flex:none;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--pp-line);border-radius:6px;background:var(--pp-panel);color:var(--pp-muted);font-size:11px;font-weight:650;cursor:pointer;transition:border-color .12s ease,color .12s ease}
+      .pp-dtree-btn:hover,.pp-dtree-btn[aria-expanded="true"]{border-color:var(--pp-role-line);color:var(--pp-role)}
+      .pp-dtree-btn>i{font-size:9.5px}
+      .pp-dtree-tools>.pp-dtree-remove{width:22px;height:22px;font-size:10.5px}
+      .pp-dtree-spacer{flex:none;width:22px}
+      .pp-dtree-roles{margin:2px 0 1px 17px}
     `;
     document.head.appendChild(style);
   }
@@ -65,7 +83,8 @@
     const FLAG_LABELS = { order_reports:'Order reports', view_reports:'View reports', manage_billing:'Manage billing', manage_company_settings:'Manage company settings', manage_report_settings:'Manage report settings', manage_company_users:'Manage users', manage_company_user_permissions:'Manage user permissions' };
 
     /* ---------- the list ---------- */
-    function rowModel(user){
+    /* In a department's section the row leaves that department out of its chips: the heading already says it. */
+    function rowModel(user, context = {}){
       if (user.deleted) return { key:user.id, entity:{ id:user.id, name:user.name || user.email, photoUrl:data.assetUrl(user.profile_photo_url || user.profile_photo) }, title:user.name || user.email || user.id, secondary:user.name ? user.email : '', pills:[{ label:t('archived', 'Archived'), tone:'neutral' }], chipGroups:[], actions:[], dimmed:true };
       const roles = data.userRoles(user);
       const departments = data.userDepartments(user);
@@ -87,7 +106,7 @@
         pills,
         chipGroups:[
           { chips:legacy ? [{ label:t(`level_${data.userLegacy(user).level}`, LEVEL_LABELS[data.userLegacy(user).level] || data.userLegacy(user).level), tone:'role' }] : roles.map((role) => ({ label:role.name || role.id, tone:'role' })), tone:'role' },
-          { chips:departments.map((department) => ({ label:department.label, color:department.color })), max:2 }
+          { chips:departments.filter((department) => context.section !== `department:${department.id}`).map((department) => ({ label:department.label, color:department.color })), max:2 }
         ],
         actions:[
           { id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') },
@@ -143,10 +162,41 @@
       list.setFilters(filterItems(), filter);
     }
 
+    /*
+     * The list is sectioned by department, in the order the departments are organized, with a person in
+     * two departments under each and "No department" last. Organizations without departments get one list.
+     */
+    function departmentSections(user){
+      if (filter === 'archived' || !data.state.departments.length) return null;
+      const order = new Map(data.departmentOutline({ loose:'first' }).filter((row) => row.kind === 'department').map((row, index) => [row.id, index]));
+      const held = data.userDepartments(user).filter((department) => order.has(department.id));
+      if (!held.length) return { key:'none', title:t('no_department', 'No {department}', { department:(data.state.groupLabels.departmentSingular || t('department', 'Department')).toLowerCase() }), order:Number.MAX_SAFE_INTEGER };
+      return held.map((entry) => {
+        const department = data.department(entry.id) || {};
+        const place = data.departmentPlace(entry.id).map((step) => step.label);
+        return { key:`department:${entry.id}`, title:entry.label, icon:department.icon || kit.ICONS.department, color:entry.color, tooltip:place.length ? [...place, entry.label].join(' › ') : '', order:order.get(entry.id) };
+      });
+    }
+    const byText = (value) => (left, right) => {
+      const a = value(left), b = value(right);
+      if (!a !== !b) return a ? -1 : 1;   // empty values last, whichever way
+      return String(a).localeCompare(String(b));
+    };
+    const userName = (user) => String(user.name || user.email || '');
+    const userRoleNames = (user) => legacy ? data.userLegacy(user).level : data.userRoles(user).map((role) => role.name || role.id).sort().join(', ');
+    const lastActive = (user) => { const time = Date.parse(user.last_login_at || ''); return Number.isFinite(time) ? time : 0; };
+    const SORTS = [
+      { id:'name', label:t('sort_name', 'Name'), compare:byText(userName) },
+      { id:'role', label:t('sort_role', 'Role'), compare:(left, right) => byText(userRoleNames)(left, right) || byText(userName)(left, right) },
+      { id:'active', label:t('sort_last_active', 'Last active'), first:'desc', compare:(left, right) => (lastActive(left) - lastActive(right)) || byText(userName)(right, left) }
+    ];
+
     const list = People.listPage.mount(container, {
       icon:kit.ICONS.users,
       title:t('users', 'Users'),
       subtitle:'',
+      section:departmentSections,
+      sorts:SORTS, sort:{ id:'name', dir:'asc' }, sortStore:'users',
       search:{ placeholder:t('search_users', 'Search users'), onInput(value){ query = value; renderList(); } },
       filters:{ items:[{ id:'all', label:t('filter_all', 'All') }], value:filter, onChange(next){ filter = next; renderList(); } },
       actions:[
@@ -259,7 +309,7 @@
         modal.setDirty('permission_overrides', !same(draft.permissionOverrides, base.permissionOverrides));
         modal.setDirty('app_overrides', !same(draft.appOverrides, base.appOverrides));
         modal.setDirty('tags', !same(sorted(draft.tagIds), sorted(base.tagIds)));
-        modal.setDirty('scoped', !same(draft.scopedAssignments, base.scopedAssignments));
+        modal.setDirty('scoped', !same(scopedKeys(draft.scopedAssignments), scopedKeys(base.scopedAssignments)));
         modal.setDirty('legacy', !same(draft.legacy, base.legacy));
         modal.setTabBadge('permissions', Object.keys(draft.permissionOverrides).length || '');
         modal.setTabBadge('apps', Object.keys(draft.appOverrides).length || '');
@@ -271,15 +321,67 @@
       };
       const rolesChanged = () => { permissions?.refresh(); mountApps(); modal.refreshSummary(); sync(); };
 
+      /*
+       * Departments, nested the way the catalog organizes them (units, or categories), each with the
+       * roles this person holds only for work there and its own Roles button. A unit can hold roles
+       * too: they apply to every department in it. All are scoped_access_assignments on the user.
+       */
+      const departmentWord = () => (data.state.groupLabels.departmentSingular || t('department', 'Department')).toLowerCase();
+      const rolesAt = (kind, placeId) => draft.scopedAssignments.filter((assignment) => assignment.scope.kind === kind && assignment.scope.id === String(placeId)).map((assignment) => assignment.role_id);
+      const setRolesAt = (kind, placeId, roleIds) => {
+        const others = draft.scopedAssignments.filter((assignment) => !(assignment.scope.kind === kind && assignment.scope.id === String(placeId)));
+        draft.scopedAssignments = [...others, ...roleIds.map((roleId) => ({ role_id:String(roleId), scope:{ kind, id:String(placeId) } }))];
+      };
+      const canAssignDepartments = () => !!data.state.departments.length && data.state.departmentState?.can_assign?.user !== false && (can.users || can.settings);
+      const canScope = () => can.permissions && !data.isMe(current()) && !!(data.state.departments.length || data.state.divisions.length) && data.scopableRoles().length > 0;
+      const inheritedDepartments = () => new Map(data.userDepartments(current()).map((department) => [department.id, department.sources.filter((source) => source.kind !== 'direct')]).filter(([, sources]) => sources.length));
+      const throughText = (sources) => [...new Set(sources.map((source) => source.kind === 'role' ? t('through_role', 'the {role} role', { role:data.role(source.id)?.name || source.id }) : (data.group?.(source.id)?.name || source.id)))].join(', ');
+      const placeLabel = (kind, id) => kind === 'division' ? (data.division(id)?.label || id) : (data.department(id)?.label || id);
+      /* Leaving a department also drops the roles held only there. */
+      function setMember(departmentId, on){
+        draft.departmentIds = on ? [...new Set([...draft.departmentIds, departmentId])] : draft.departmentIds.filter((id) => id !== departmentId);
+        if (!on && canScope()) setRolesAt('department', departmentId, []);
+      }
+      function departmentTree(){
+        const inherited = inheritedDepartments();
+        const shown = [...new Set([...draft.departmentIds, ...inherited.keys(), ...draft.scopedAssignments.filter((assignment) => assignment.scope.kind === 'department').map((assignment) => assignment.scope.id)])];
+        const unitIds = draft.scopedAssignments.filter((assignment) => assignment.scope.kind === 'division').map((assignment) => assignment.scope.id);
+        const rows = data.departmentOutline({ departmentIds:shown, unitIds });
+        if (!rows.length) return canAssignDepartments() ? '' : `<span class="pp-sum-empty">${esc(t('no_departments', 'None'))}</span>`;
+        const scope = canScope();
+        /* Rows that cannot be removed keep the remove button's room, so every Roles button lines up. */
+        const spacer = rows.some((row) => row.kind === 'department' && (draft.departmentIds.includes(row.id) ? canAssignDepartments() : scope && !inherited.has(row.id))) ? '<span class="pp-dtree-spacer" aria-hidden="true"></span>' : '';
+        const chipsFor = (roleIds) => roleIds.length ? `<div class="pp-chip-run wrap pp-dtree-roles">${roleIds.map((roleId) => kit.chip({ label:data.role(roleId)?.name || roleId, tone:'role', tooltip:data.role(roleId)?.description })).join('')}</div>` : '';
+        const rolesButton = (kind, id, label) => {
+          if (!scope) return '';
+          const name = t('roles_in', 'Roles in {place}', { place:label });
+          return `<button type="button" class="pp-dtree-btn" data-dtree-roles="${esc(kind)}:${esc(id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(name)}"${tip(name)}><i class="fas ${kit.ICONS.role}" aria-hidden="true"></i>${esc(t('roles', 'Roles'))}</button>`;
+        };
+        return `<ul class="pp-dtree" role="list">${rows.map((row) => {
+          if (row.kind !== 'department') {
+            const unit = row.kind === 'unit';
+            return `<li class="pp-dtree-item place" data-dtree="${esc(row.kind)}:${esc(row.id)}" style="--depth:${row.depth}"><div class="pp-dtree-line"><i class="fas ${unit ? 'fa-diagram-project' : 'fa-folder'} pp-dtree-icon" aria-hidden="true"></i><span class="pp-dtree-name"${tip(row.tooltip)}>${esc(row.label)}</span><span class="pp-dtree-tools">${unit ? rolesButton('division', row.id, row.label) + spacer : ''}</span></div>${unit ? chipsFor(rolesAt('division', row.id)) : ''}</li>`;
+          }
+          const direct = draft.departmentIds.includes(row.id);
+          const via = direct ? [] : inherited.get(row.id) || [];
+          const member = direct || via.length > 0;
+          const note = !member ? t('department_roles_only', 'Not in {place}. These roles still apply to its work.', { place:row.label }) : via.length ? t('department_through', 'In {place} through {sources}', { place:row.label, sources:throughText(via) }) : '';
+          const removable = (direct && canAssignDepartments()) || (!member && scope);
+          const removeLabel = member ? t('remove_from_place', 'Remove from {place}', { place:row.label }) : t('remove_roles_in', 'Remove roles in {place}', { place:row.label });
+          return `<li class="pp-dtree-item${member ? '' : ' away'}" data-dtree="department:${esc(row.id)}" style="--depth:${row.depth}"><div class="pp-dtree-line"><i class="pp-chip-dot" style="background:${esc(row.department.color || '#98a2b3')}" aria-hidden="true"></i><span class="pp-dtree-name"${tip(note)}>${esc(row.label)}</span>${via.length ? `<i class="fas ${kit.ICONS.inherited} pp-dtree-via" role="img" aria-label="${esc(note)}"${tip(note)}></i>` : ''}<span class="pp-dtree-tools">${rolesButton('department', row.id, row.label)}${removable ? `<button type="button" class="pp-icon-btn danger pp-dtree-remove" data-dtree-remove="${esc(row.id)}" aria-label="${esc(removeLabel)}"${tip(removeLabel)}><i class="fas fa-xmark" aria-hidden="true"></i></button>` : spacer}</span></div>${chipsFor(rolesAt('department', row.id))}</li>`;
+        }).join('')}</ul>`;
+      }
+
       function drawSummary(host){
         const user = current();
         const model = data.userSummary(user, draft);
-        const departmentCanAssign = data.state.departments.length && data.state.departmentState?.can_assign?.user !== false && (can.users || can.settings);
         model.sections.forEach((section) => {
-          if (section.id === 'roles' && can.access) section.action = { id:'roles', label:t('change_roles', 'Change roles') };
-          if (section.id === 'departments' && departmentCanAssign) section.action = { id:'departments', label:t('change_departments', 'Change departments') };
+          if (section.id === 'roles' && can.access) section.action = { id:'roles', label:t('change_roles_everywhere', 'Change roles everywhere') };
+          if (section.id === 'departments') {
+            section.html = departmentTree();
+            if (canAssignDepartments()) section.action = { id:'departments', icon:'fa-plus', label:t('add_to_department', 'Add to a {department}', { department:departmentWord() }) };
+          }
           if (section.id === 'tags' && can.access && data.state.tags.length) section.action = { id:'tags', label:t('change_tags', 'Change tags') };
-          if (section.id === 'scoped' && can.permissions && !data.isMe(user) && (data.state.departments.length || data.state.divisions.length) && data.scopableRoles().length) section.action = { id:'scoped', label:t('change_scoped_roles', 'Change roles held in one department') };
         });
         model.sections = model.sections.filter((section) => !section.optional || section.action || section.chips.length);
         host.innerHTML = kit.summary(model, 'panel', { photoAction:can.users ? t('change_photo', 'Change photo') : '', editAction:can.users && !editingIdentity ? t('edit_identity', 'Edit name and email') : '' })
@@ -296,6 +398,27 @@
         const host = event.currentTarget;
         if (event.target.closest('[data-people-identity]')) { editingIdentity = true; modal.refreshSummary(); host.querySelector('[data-identity="name"]')?.focus(); return; }
         if (event.target.closest('[data-people-photo]')) { const input = host.querySelector('[data-user-photo-input]'); input.value = ''; input.click(); return; }
+        const rolesButton = event.target.closest('[data-dtree-roles]');
+        if (rolesButton) {
+          const key = rolesButton.dataset.dtreeRoles;
+          const [kind, ...rest] = key.split(':');
+          const placeId = rest.join(':');
+          People.pageKit.scopedRolesMenu(rolesButton, {
+            place:placeLabel(kind, placeId), kind:kind === 'division' ? 'unit' : 'department',
+            selected:rolesAt(kind, placeId), everywhere:draft.roleIds,
+            onChange(next){ setRolesAt(kind, placeId, next); modal.refreshSummary(); sync(); },
+            refocus:() => (modal.el.querySelector(`[data-dtree-roles="${CSS.escape(key)}"]`) || modal.el.querySelector('[data-people-section-action="departments"]'))?.focus()
+          });
+          return;
+        }
+        const removeButton = event.target.closest('[data-dtree-remove]');
+        if (removeButton) {
+          const departmentId = removeButton.dataset.dtreeRemove;
+          if (draft.departmentIds.includes(departmentId)) setMember(departmentId, false); else setRolesAt('department', departmentId, []);
+          modal.refreshSummary(); sync();
+          modal.el.querySelector('[data-people-section-action="departments"]')?.focus();
+          return;
+        }
         const sectionButton = event.target.closest('[data-people-section-action]');
         if (!sectionButton) return;
         const refocus = (sectionId) => modal.el.querySelector(`[data-people-section-action="${sectionId}"]`)?.focus();
@@ -313,42 +436,24 @@
           });
         } else if (sectionButton.dataset.peopleSectionAction === 'tags') {
           People.pageKit.checkMenu(sectionButton, { label:t('tags', 'Tags'), items:data.state.tags.map((tag) => ({ id:String(tag.id), label:tag.name || tag.id })), selected:draft.tagIds, onChange(next){ draft.tagIds = next; modal.refreshSummary(); sync(); }, refocus:() => refocus('tags') });
-        } else if (sectionButton.dataset.peopleSectionAction === 'scoped') {
-          const label = (assignment) => `${data.role(assignment.role_id)?.name || assignment.role_id} \u00b7 ${(assignment.scope.kind === 'division' ? data.division(assignment.scope.id) : data.department(assignment.scope.id))?.label || assignment.scope.id}`;
-          kit.menu(sectionButton, {
-            label:t('scoped_roles', 'Roles here only'),
-            items:[...draft.scopedAssignments.map((assignment, index) => ({ id:`held:${index}`, label:label(assignment), checked:true })), draft.scopedAssignments.length ? { separator:true } : null, { id:'__give', label:t('give_role_in_department', 'Give a role in one department'), icon:'fa-plus', tone:'accent' }],
-            onSelect(item){
-              if (item.id === '__give') {
-                window.setTimeout(() => kit.form(modal.el.querySelector('[data-people-section-action="scoped"]'), {
-                  title:t('give_role_in_department', 'Give a role in one department'), submitLabel:t('give', 'Give'), align:'start',
-                  fields:[
-                    { id:'roleId', label:t('role', 'Role'), type:'select', required:true, placeholder:t('choose', 'Choose'), options:data.scopableRoles().map((role) => ({ value:role.id, label:role.name || role.id })) },
-                    { id:'departmentId', label:data.state.groupLabels.departmentSingular || t('department', 'Department'), type:'select', required:true, placeholder:t('choose', 'Choose'), options:[...data.state.departments.map((department) => ({ value:`department:${department.id}`, label:department.label || department.id })), ...data.state.divisions.map((unit) => ({ value:`division:${unit.id}`, label:`${unit.label} (${unit.kind || t('division', 'Division')})` }))] }
-                  ]
-                }).then((values) => {
-                  if (!values) return;
-                  const [scopeKind, ...scopeRest] = String(values.departmentId).split(':');
-                  const scope = { kind:scopeKind, id:scopeRest.join(':') };
-                  if (!draft.scopedAssignments.some((assignment) => assignment.role_id === values.roleId && assignment.scope.kind === scope.kind && assignment.scope.id === scope.id)) draft.scopedAssignments = [...draft.scopedAssignments, { role_id:values.roleId, scope }];
-                  modal.refreshSummary(); sync();
-                }), 0);
-                return;
-              }
-              draft.scopedAssignments = draft.scopedAssignments.filter((_, index) => `held:${index}` !== item.id);
-              modal.refreshSummary(); sync();
-              return true;
-            },
-            onClose:() => refocus('scoped')
-          });
         } else {
-          const inherited = new Map(data.userDepartments(current()).filter((department) => department.sources.some((source) => source.kind !== 'direct')).map((department) => [department.id, department]));
+          /* Add or leave a department; the menu is grouped the way the departments are organized. */
+          const inherited = inheritedDepartments();
+          const items = [];
+          let heading = '';
+          data.departmentOutline({ loose:'first' }).filter((row) => row.kind === 'department').forEach((row) => {
+            const place = data.departmentPlace(row.id).map((step) => step.label).join(' › ');
+            if (place && place !== heading) items.push({ heading:place });
+            heading = place;
+            const via = inherited.get(row.id);
+            items.push({ id:row.id, label:row.label, color:row.department.color, checked:draft.departmentIds.includes(row.id), hint:via && !draft.departmentIds.includes(row.id) ? t('inherited_short', 'inherited') : '', tooltip:via ? t('department_through', 'In {place} through {sources}', { place:row.label, sources:throughText(via) }) : '' });
+          });
           kit.menu(sectionButton, {
-            label:t('departments', 'Departments'), search:data.state.departments.length > 8 ? t('search_departments', 'Search departments') : '',
-            items:data.state.departments.map((department) => ({ id:department.id, label:department.label || department.name || department.id, color:department.color, checked:draft.departmentIds.includes(department.id), hint:inherited.has(department.id) && !draft.departmentIds.includes(department.id) ? t('inherited_short', 'inherited') : '', tooltip:inherited.has(department.id) ? t('department_inherited', 'Through a role or a group') : '' })),
+            label:data.state.groupLabels.departmentPlural || t('departments', 'Departments'), search:data.state.departments.length > 8 ? t('search_departments', 'Search departments') : '',
+            items,
             onSelect(item, menu){
               const on = !draft.departmentIds.includes(item.id);
-              draft.departmentIds = on ? [...draft.departmentIds, item.id] : draft.departmentIds.filter((departmentId) => departmentId !== item.id);
+              setMember(item.id, on);
               menu.setChecked(item.id, on);
               modal.refreshSummary();
               sync();
@@ -417,7 +522,8 @@
           if (accessChanged) { patch.roleIds = draft.roleIds; patch.permissionOverrides = draft.permissionOverrides; patch.appOverrides = draft.appOverrides; }
           const departmentsChanged = !same(sorted(draft.departmentIds), sorted(base.departmentIds));
           if (!same(sorted(draft.tagIds), sorted(base.tagIds))) patch.tagIds = draft.tagIds;
-          if (!same(draft.scopedAssignments, base.scopedAssignments)) patch.scopedAssignments = draft.scopedAssignments;
+          /* The whole list is written back, so roles held in a unit (division) are kept when a department's roles change. */
+          if (!same(scopedKeys(draft.scopedAssignments), scopedKeys(base.scopedAssignments))) patch.scopedAssignments = draft.scopedAssignments;
           if (!same(draft.legacy, base.legacy)) patch.legacy = draft.legacy;
           if (Object.keys(patch).length) await data.saveUser(id, patch);
           if (departmentsChanged) await data.saveUserDepartments(id, draft.departmentIds);

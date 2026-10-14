@@ -2,11 +2,19 @@
 // PEOPLE_SCREENSHOTS=1 writes screenshots to <repo>/output/people-ui/.
 import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 import { chromium } from 'playwright-core';
 
 const libraries = new URL('../../libraries/', import.meta.url);
+// The real permission catalog the access catalog publishes, with Equipment marked as switched off for this company.
+const PERMISSION_CATALOG = (() => {
+  const script = "for (const m of ['./platform/capability_defs.ts', './chat/capabilities.ts', './comms/capabilities.ts', './assistant/capabilities.ts']) await import(m); const { permissionCatalog } = await import('./platform/capabilities.ts'); process.stdout.write(JSON.stringify(permissionCatalog()));";
+  const catalog = JSON.parse(execFileSync(process.execPath, ['--experimental-sqlite', '--no-warnings', '--import', 'tsx', '--input-type=module', '-e', script], { cwd:path.resolve(import.meta.dirname, '..'), encoding:'utf8' }));
+  catalog.categories.forEach((category) => category.subcategories.forEach((sub) => sub.permissions.forEach((entry) => { entry.available = !entry.key.startsWith('equipment.'); })));
+  return catalog;
+})();
 const shots = process.env.PEOPLE_SCREENSHOTS ? path.resolve(import.meta.dirname, '..', '..', '..', 'output', 'people-ui') : '';
 // The two slot panels are other modules' work; most cases run without them so the slot contract itself is what is tested.
 const PANELS = ['fields-panel', 'compensation-panel'];
@@ -127,7 +135,7 @@ function stubPlatform(){
     },
     workforce:{
       users:async () => ({ users:copy(users) }),
-      accessCatalog:async () => copy({ applications:[{ id:'management', label:'Office' }, { id:'field', label:'Field' }], permission_keys:['crew.dashboard.view', 'crew.projects.view', 'crew.projects.view_all_production', 'crew.schedule.view', 'crew.time_clock.use', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'crew.payouts.view', 'crew.checklists.view', 'crew.checklists.complete', 'crew.payments.view', 'crew.payments.take', 'sales.dashboard.view', 'sales.schedule.view', 'sales.followups.manage', 'sales.earnings.view', 'sales.documents.view_status', 'sales.money.view_status', 'sales.stats.view_own', 'sales.stats.view_team', 'manage_billing', 'manage_company_settings', 'manage_company_user_permissions', 'order_reports', 'manage_report_settings', 'manage_payroll'], apps, roles }),
+      accessCatalog:async () => copy({ applications:[{ id:'management', label:'Office' }, { id:'field', label:'Field' }], permission_keys:['crew.dashboard.view', 'crew.projects.view', 'crew.projects.view_all_production', 'crew.schedule.view', 'crew.time_clock.use', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'crew.payouts.view', 'crew.checklists.view', 'crew.checklists.complete', 'crew.payments.view', 'crew.payments.take', 'sales.dashboard.view', 'sales.schedule.view', 'sales.followups.manage', 'sales.earnings.view', 'sales.documents.view_status', 'sales.money.view_status', 'sales.stats.view_own', 'sales.stats.view_team', 'manage_billing', 'manage_company_settings', 'manage_company_user_permissions', 'order_reports', 'manage_report_settings', 'manage_payroll'], permission_catalog:window.__permissionCatalog, apps, roles }),
       departments:async () => departmentState(),
       saveDepartments:async (orgId, payload) => { calls.push({ op:'saveDepartments', payload:copy(payload) }); departments.splice(0, departments.length, ...copy(payload.departments)); divisions.splice(0, divisions.length, ...copy(payload.divisions || [])); categories.splice(0, categories.length, ...copy(payload.groups || [])); if (payload.terminology) window.__departmentExtras.terminology = copy(payload.terminology); return departmentState(); },
       saveDepartmentAssignment:async (orgId, payload) => { calls.push({ op:'saveDepartmentAssignment', payload }); const key = `${payload.kind === 'group' ? 'resource_group' : payload.kind === 'connection' ? 'organization_connection' : 'organization_user'}:${payload.id}`; departments.forEach((department) => { department.subject_keys = department.subject_keys.filter((entry) => entry !== key); if (payload.department_ids.includes(department.id)) department.subject_keys.push(key); }); return departmentState(); },
@@ -284,7 +292,7 @@ async function openPage(browser, viewport, options = {}){
     return route.fulfill({ contentType:'text/html', body:SHELL });
   });
   await page.goto('http://people.test/');
-  await page.evaluate(stubPlatform);
+  await page.evaluate((catalog) => { window.__permissionCatalog = catalog; }, PERMISSION_CATALOG); await page.evaluate(stubPlatform);
   await page.evaluate(stubDirectory);
   if (options.flags) await page.evaluate((flags) => Object.assign(window.__people.flags, flags), options.flags);
   if (options.setup) await page.evaluate(options.setup);
@@ -321,14 +329,49 @@ test('People category: Users list, hover card, user and role modals, invitations
     // The category's sub-pages are the shared bubble tabs, hoisted by the shell; groups are named by terminology.
     assert.deepEqual(await page.locator('[data-settings-subtabs-proxy] button').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Overview', 'Users', 'Groups', 'Departments', 'Subcontractors']);
 
-    // Rows: two columns of tight rows.
-    assert.equal(await page.locator('.pp-row').count(), 42);
-    assert.equal(await columnsOf(page, '.pp-row'), 2);
+    // Rows: under a heading for each department, "No department" last; two columns of tight rows in each.
+    assert.equal(await page.evaluate(() => new Set([...document.querySelectorAll('.pp-list-body .pp-row')].map((row) => row.dataset.rowKey)).size), 42);
+    assert.deepEqual(await page.locator('.pp-list-section-head h3').allInnerTexts(), ['Office', 'Production', 'Sales', 'Service and warranty', 'Warehouse', 'No department']);
+    assert.equal(await page.locator('.pp-list-body [data-row-key="u9"]').count(), 5, 'someone in five departments is listed under each');
+    assert.equal(await page.locator('[data-list-section="department:service"] [data-row-key="u3"]').count(), 1);
+    assert.equal(await page.locator('[data-list-section="department:production"] .pp-list-section-mark i.fa-helmet-safety').count(), 1, 'the heading carries the department icon');
+    assert.equal(await page.locator('[data-list-section="department:sales"] .pp-list-section-count').innerText(), String(await page.locator('[data-list-section="department:sales"] .pp-row').count()));
+    assert.equal(await columnsOf(page, '[data-list-section="department:production"] .pp-row'), 2);
+    // Under a department's heading a row leaves that department out of its chips and keeps the person's others.
+    const departmentChips = (selector) => page.locator(selector).evaluate((row) => [...row.querySelectorAll('.pp-chip.dot')].map((chip) => chip.textContent.trim()));
+    assert.equal(await page.locator('[data-list-section="department:office"] .pp-row').evaluateAll((rows) => rows.some((row) => [...row.querySelectorAll('.pp-chip.dot')].some((chip) => chip.textContent.trim() === 'Office'))), false);
+    assert.deepEqual(await departmentChips('[data-list-section="department:office"] [data-row-key="u9"]'), ['Sales', 'Production', 'Service and warranty', 'Warehouse']);
+    assert.deepEqual(await departmentChips('[data-list-section="department:sales"] [data-row-key="u9"]'), ['Production', 'Office', 'Service and warranty', 'Warehouse']);
+    assert.deepEqual(await departmentChips('[data-list-section="department:service"] [data-row-key="u3"]'), ['Sales']);
+    const headGap = await page.evaluate(() => { const head = document.querySelector('.pp-list-head'); return document.querySelector('.pp-list-section').getBoundingClientRect().top - head.getBoundingClientRect().bottom + parseFloat(getComputedStyle(head).paddingBottom); });
+    assert.ok(Math.abs(headGap - 32) <= 1, `32px under the page header (${headGap})`);
+
+    // Sorting is per section: Name ascending by default, the active one again reverses it, and the choice is remembered.
+    const sales = page.locator('[data-list-section="department:sales"]');
+    const salesNames = () => sales.locator('.pp-row-name').allInnerTexts();
+    const ascending = [...await salesNames()].sort((left, right) => left.localeCompare(right));
+    assert.deepEqual(await salesNames(), ascending);
+    assert.deepEqual(await sales.locator('.pp-list-sort').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Name', 'Role', 'Last active']);
+    assert.equal(await sales.locator('[data-list-sort="name"]').getAttribute('aria-label'), 'Name, ascending');
+    await sales.locator('[data-list-sort="name"]').click();
+    assert.deepEqual(await salesNames(), [...ascending].reverse());
+    assert.ok(await sales.locator('[data-list-sort="name"] i.fa-arrow-down').count());
+    await sales.locator('[data-list-sort="role"]').click();
+    assert.equal(await sales.locator('.pp-row').first().getAttribute('data-row-key'), 'u9', 'Administrator sorts first');
+    await sales.locator('[data-list-sort="active"]').click();
+    assert.equal(await sales.locator('[data-list-sort="active"]').getAttribute('aria-label'), 'Last active, descending', 'last active starts with the most recent');
+    assert.equal(await page.locator('[data-list-section="department:production"] [data-list-sort="name"]').getAttribute('aria-pressed'), 'true', 'another section keeps its own order');
+    await shot(page, 'users-sections-sorted');
+    await openView(page, 'groups');
+    await openView(page, 'users');
+    assert.equal(await page.locator('[data-list-section="department:sales"] [data-list-sort="active"]').getAttribute('aria-pressed'), 'true', 'the choice survives the page being mounted again');
+    await page.locator('[data-list-section="department:sales"] [data-list-sort="name"]').click();
+    assert.deepEqual(await page.locator('[data-list-section="department:sales"] .pp-row-name').allInnerTexts(), ascending);
     assert.ok(await page.locator('.pp-row').first().evaluate((row) => row.getBoundingClientRect().height) <= 48);
     assert.equal(await page.locator('.pp-row .pp-pill.warn').count(), 3);
     assert.equal(await page.locator('.pp-row .pp-pill.warn').first().innerText(), 'Never signed in');
     assert.equal(await page.locator('.pp-row.dimmed .pp-pill.danger').innerText(), 'Suspended');
-    const manyRoles = page.locator('[data-row-key="u9"]');
+    const manyRoles = page.locator('[data-row-key="u9"]').first();
     assert.equal(await manyRoles.locator('.pp-chip.role.more').innerText().then((text) => /^\+\d$/.test(text)), true);
     assert.ok(await manyRoles.evaluate((row) => row.scrollWidth <= row.clientWidth + 1), 'a row with many roles and departments does not overflow');
     assert.ok(await page.locator('[data-row-key="u8"]').evaluate((row) => row.scrollWidth <= row.clientWidth + 1), 'a long name truncates');
@@ -337,22 +380,22 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.equal(await page.locator('[data-row-key="u2"] .pp-online').isHidden(), true);
     await page.evaluate(() => window.__people.presence([{ user_id:'u2', status:'active' }, { user_id:'u3', status:'away' }, { user_id:'u9', status:'active' }, { user_id:'u14', status:'active' }, { user_id:'u21', status:'active' }]));
     assert.equal(await page.locator('[data-row-key="u2"] .pp-online').isVisible(), true);
-    assert.equal(await page.locator('[data-row-key="u3"] .pp-online').getAttribute('data-status'), 'away');
+    assert.equal(await page.locator('[data-row-key="u3"] .pp-online').first().getAttribute('data-status'), 'away');
     assert.equal(await page.locator('[data-row-key="u5"] .pp-online').isHidden(), true);
     await shot(page, 'users-desktop');
 
     // Search.
     await page.locator('[data-list-search]').fill('foreman');
-    await page.waitForFunction(() => document.querySelectorAll('.pp-row').length < 42);
+    await page.waitForFunction(() => new Set([...document.querySelectorAll('.pp-list-body .pp-row')].map((row) => row.dataset.rowKey)).size < 42);
     assert.match(await page.locator('.pp-list-sub').innerText(), /^\d+ of 42 users/);
     await page.locator('[data-list-search]').fill('zzzz');
     await page.locator('.pp-list-state').waitFor();
     await shot(page, 'users-empty-search');
     await page.locator('[data-list-search]').fill('');
-    await page.waitForFunction(() => document.querySelectorAll('.pp-row').length === 42);
+    await page.waitForFunction(() => new Set([...document.querySelectorAll('.pp-list-body .pp-row')].map((row) => row.dataset.rowKey)).size === 42);
 
     // Hover card: opens after a short delay, is read-only and never focusable.
-    await page.locator('[data-row-key="u9"] .pp-row-name').hover();
+    await page.locator('[data-row-key="u9"] .pp-row-name').first().hover();
     await page.locator('.pp-hover.open').waitFor();
     assert.match(await page.locator('.pp-hover').innerText(), /northwind-exteriors\.example/);
     assert.equal(await page.locator('.pp-hover').getAttribute('aria-hidden'), 'true');
@@ -370,13 +413,13 @@ test('People category: Users list, hover card, user and role modals, invitations
     await page.waitForFunction(() => window.__people.calls.some((call) => call.op === 'resendInvite' && call.id === 'u5'));
 
     // Open a user: the large modal, summary left, tabs right.
-    await page.locator('[data-row-key="u3"] .pp-row-name').click();
+    await page.locator('[data-row-key="u3"] .pp-row-name').first().click();
     const dialog = page.getByRole('dialog');
     await dialog.waitFor();
     assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, ''))), ['Permissions', 'App experience', 'Compensation', 'Fields', 'Activity']);
     assert.ok(await page.evaluate(() => document.querySelector('.pp-modal').contains(document.activeElement)), 'focus moves into the modal');
     assert.match(await dialog.locator('[data-section="roles"]').innerText(), /Sales/);
-    assert.match(await dialog.locator('[data-section="departments"]').innerText(), /Service and warranty[\s\S]*Sales/);
+    assert.match(await dialog.locator('[data-section="departments"]').innerText(), /Sales[\s\S]*Service and warranty/, 'departments in the order they are organized');
     assert.match(await dialog.locator('[data-section="groups"]').innerText(), /Closers/);
     assert.equal(await dialog.locator('[data-section="groups"] button').count(), 0, 'group membership is not edited on the user');
     assert.equal(await dialog.locator('.pp-modal-panel:not([hidden])').evaluate((panel) => panel.scrollHeight <= panel.clientHeight + 1), true, 'the permissions tab fits without scrolling');
@@ -400,8 +443,44 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.equal(await dialog.locator('.pp-perm-row').count(), 2);
     await dialog.locator('[data-perm-filter="all"]').click();
 
+    // Categories on the left with their override counts, subcategories as headings on the right; titles are labels, descriptions tooltips.
+    const headings = () => dialog.locator('.pp-perm-heading').evaluateAll((nodes) => nodes.map((node) => node.textContent));
+    assert.deepEqual(await dialog.locator('[data-perm-group]').evaluateAll((buttons) => buttons.map((button) => button.dataset.permGroup)), ['company', 'people', 'sales', 'projects', 'scheduling', 'field', 'materials', 'money', 'communications', 'documents', 'partners', 'other']);
+    assert.equal(await dialog.locator('[data-perm-group="sales"] .pp-perm-group-count').innerText(), '2');
+    assert.deepEqual(await headings(), ['Contacts', 'Sales pipeline', 'Canvassing', 'Customer portals', 'Customer feedback', 'Websites', 'Sales app', 'Proposals (legacy)']);
+    assert.equal(await followups.locator('.pp-perm-label').innerText(), 'Manage own follow-ups');
+    assert.match(await followups.locator('.pp-perm-label').getAttribute('data-fm-tooltip'), /^Create, claim and resolve their own follow-ups/);
+    await dialog.locator('[data-perm-group="field"]').click();
+    assert.deepEqual(await headings(), ['Field app', 'Checklists', 'Time & expenses', 'Payments & signatures', 'Materials & change orders']);
+    // Search looks across every category and names the category beside the subcategory.
+    await dialog.locator('[data-perm-search]').fill('checklist');
+    assert.deepEqual(await headings(), ['Field workChecklists']);
+    assert.equal(await dialog.locator('.pp-perm-row').count(), 4);
+    await dialog.locator('[data-perm-search]').fill('');
+    // Older permission names are folded at the end of their category until opened; search still finds them.
+    await dialog.locator('[data-perm-group="company"]').click();
+    const fold = dialog.locator('[data-perm-fold="company/older_names"]');
+    assert.equal(await fold.getAttribute('aria-expanded'), 'false');
+    assert.equal(await dialog.locator('[data-perm-key="manage_organization"]').count(), 0);
+    assert.equal(await dialog.locator('.pp-perm-list > *').last().getAttribute('data-perm-fold'), 'company/older_names', 'the fold is last');
+    await fold.click();
+    assert.equal(await dialog.locator('[data-perm-fold="company/older_names"]').getAttribute('aria-expanded'), 'true');
+    assert.equal(await dialog.locator('[data-perm-key="manage_organization"]').count(), 1);
+    assert.ok(await dialog.locator('.pp-perm-label').evaluateAll((labels) => labels.every((label) => label.scrollHeight <= label.clientHeight + 1)), 'labels wrap instead of truncating');
+    await shot(page, 'user-modal-permissions-company');
+    await dialog.locator('[data-perm-fold="company/older_names"]').click();
+    await dialog.locator('[data-perm-search]').fill('older name');
+    assert.equal(await dialog.locator('.pp-perm-row').count(), 4);
+    await dialog.locator('[data-perm-search]').fill('');
+    // A permission whose app is off is muted, not hidden; a key the catalog does not know is listed under Other.
+    await dialog.locator('[data-perm-group="materials"]').click();
+    assert.match(await dialog.locator('[data-perm-key="equipment.view"]').getAttribute('class'), /unavailable/);
+    assert.doesNotMatch(await dialog.locator('[data-perm-key="view_pricebook"]').getAttribute('class'), /unavailable/);
+    await dialog.locator('[data-perm-group="other"]').click();
+    assert.equal(await dialog.locator('[data-perm-key="use_phone"] .pp-perm-label').innerText(), 'Use phone');
+
     // Changing a role changes what is inherited.
-    await dialog.locator('[data-perm-group="crew"]').click();
+    await dialog.locator('[data-perm-group="field"]').click();
     assert.doesNotMatch(await dialog.locator('[data-perm-key="crew.time_clock.use"]').getAttribute('class'), /allowed/);
     await dialog.locator('[data-people-section-action="roles"]').click();
     await page.getByRole('menuitemcheckbox', { name:'Foreman' }).click();
@@ -451,14 +530,14 @@ test('People category: Users list, hover card, user and role modals, invitations
 
     // Unsaved changes are confirmed; Escape closes and focus returns to the row.
     await dialog.getByRole('tab', { name:'Permissions' }).click();
-    await dialog.locator('[data-perm-group="general"]').click();
+    await dialog.locator('[data-perm-group="company"]').click();
     await dialog.locator('[data-perm-key="manage_billing"] [data-choice="allow"]').click();
     await page.keyboard.press('Escape');
     await page.getByRole('alertdialog').waitFor();
     await page.getByRole('button', { name:'Discard' }).click();
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
     assert.equal(await page.evaluate(() => document.activeElement?.closest('.pp-row')?.dataset.rowKey), 'u3');
-    assert.match(await page.locator('[data-row-key="u3"]').innerText(), /Foreman/);
+    assert.match(await page.locator('[data-row-key="u3"]').first().innerText(), /Foreman/);
 
     // Roles: the header button drops a menu; a role opens in the same modal.
     await page.locator('[data-list-action="0"]').click();
@@ -532,7 +611,7 @@ test('People category at phone width: one column of rows and a full-screen modal
     assert.equal(await page.locator('.pp-list-sub').innerText(), '42 users, 3 never signed in, 1 suspended');
     await page.evaluate(() => window.__people.presence([{ user_id:'u2', status:'active' }, { user_id:'u9', status:'active' }]));
     await shot(page, 'users-phone');
-    await page.locator('[data-row-key="u9"] .pp-row-name').click();
+    await page.locator('[data-row-key="u9"] .pp-row-name').first().click();
     const dialog = page.getByRole('dialog');
     await dialog.waitFor();
     await page.waitForTimeout(260);
@@ -549,6 +628,23 @@ test('People category at phone width: one column of rows and a full-screen modal
     await page.locator('[data-modal-summary-toggle]').click();
     await dialog.getByRole('tab', { name:'App experience' }).click();
     await shot(page, 'user-modal-phone-apps');
+    // Permissions at phone width: categories become a scrolling row of chips above one column of subcategories.
+    await dialog.getByRole('tab', { name:'Permissions' }).click();
+    await dialog.locator('[data-perm-group="sales"]').evaluate((button) => { button.scrollIntoView({ inline:'center', block:'nearest' }); button.click(); });
+    assert.equal(await dialog.locator('.pp-perm-groups').evaluate((row) => getComputedStyle(row).flexDirection), 'row');
+    assert.equal(await columnsOf(page, '.pp-perm-row'), 1);
+    assert.ok(await dialog.locator('.pp-perm-heading').count() >= 5, 'subcategory headings show at phone width');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await shot(page, 'user-modal-phone-permissions');
+    await page.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    await page.locator('[data-list-action="0"]').click();
+    await page.getByRole('menuitem', { name:/^Sales/ }).click();
+    const roleDialog = page.getByRole('dialog', { name:'Sales' });
+    await roleDialog.waitFor();
+    await roleDialog.locator('[data-perm-group="field"]').evaluate((button) => { button.scrollIntoView({ inline:'center', block:'nearest' }); button.click(); });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await shot(page, 'role-modal-phone-permissions');
     await page.locator('[data-modal-close]').click();
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
     assert.deepEqual(errors, []);
@@ -565,7 +661,7 @@ test('People list shows a loading skeleton and a retryable error', async () => {
       return route.fulfill({ contentType:'text/html', body:SHELL });
     });
     await page.goto('http://people.test/');
-    await page.evaluate(stubPlatform);
+    await page.evaluate((catalog) => { window.__permissionCatalog = catalog; }, PERMISSION_CATALOG); await page.evaluate(stubPlatform);
     await page.evaluate(stubDirectory);
     await page.evaluate(() => { window.__people.route.settingsView = 'users'; });
     await page.evaluate(() => { const list = window.PlatformAPI.users.list; let failed = false; window.PlatformAPI.users.list = async () => { await new Promise((resolve) => setTimeout(resolve, 500)); if (!failed) { failed = true; throw new Error('The people service did not answer.'); } return list(); }; });
@@ -616,6 +712,24 @@ test('Groups: rows, types with roles on joining, members and what joining gave, 
     assert.match(await north.locator('.pp-row-chips').innerText(), /Production/);
     assert.ok(await page.locator('[data-row-key="g4"]').evaluate((row) => row.scrollWidth <= row.clientWidth + 1 && row.getBoundingClientRect().height <= 48), 'a long group name stays on one tight row');
     assert.equal(await page.locator('.pp-row').evaluateAll((rows) => rows.every((row) => row.getBoundingClientRect().height <= 48)), true);
+
+    // Each section sorts on its own: Name (the default), Members, Department; the active one again reverses it.
+    const crews = page.locator('[data-list-section="crew"]');
+    const crewOrder = () => crews.locator('.pp-row').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey));
+    assert.deepEqual(await crews.locator('.pp-list-sort').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Name', 'Members', 'Department']);
+    assert.equal(await crews.locator('[data-list-sort="name"]').getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(await crewOrder(), ['g1', 'g3']);
+    await crews.locator('[data-list-sort="members"]').click();
+    assert.equal(await crews.locator('[data-list-sort="members"]').getAttribute('aria-label'), 'Members, descending');
+    assert.ok(await crews.locator('[data-list-sort="members"] i.fa-arrow-down').count(), 'the arrow shows the direction');
+    assert.deepEqual(await crewOrder(), ['g1', 'g3'], 'most members first');
+    await crews.locator('[data-list-sort="members"]').click();
+    assert.deepEqual(await crewOrder(), ['g3', 'g1'], 'clicking again reverses it');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.listSort), 'members', 'focus stays on the sort');
+    assert.equal(await page.locator('[data-list-section="sales_team"] [data-list-sort="name"]').getAttribute('aria-pressed'), 'true', 'another section keeps its own order');
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('fm.people.list-sort.groups'))), { crew:{ id:'members', dir:'asc' } });
+    await shot(page, 'groups-sorted');
+    await crews.locator('[data-list-sort="name"]').click();
     await shot(page, 'groups-desktop');
     await north.locator('.pp-row-name').hover();
     await page.locator('.pp-hover.open').waitFor();
@@ -742,13 +856,13 @@ test('Departments: icon and color, members of every kind, roles held only here, 
     assert.match(await page.locator('.pp-list-sub').innerText(), /^5 departments/);
     const production = page.locator('.pp-list-body [data-row-key="production"]');
     assert.ok(await production.locator('.pp-avatar i.fa-helmet-safety').count(), 'the row shows the department icon');
-    assert.ok(Number(await production.locator('.pp-stack-count').innerText()) > 5);
+    assert.ok(Number(await production.locator('.pp-stack-count').first().innerText()) > 5);
     await shot(page, 'departments-desktop');
 
     await production.locator('.pp-row-name').click();
     const dialog = page.getByRole('dialog', { name:'Production' });
     await dialog.waitFor();
-    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Members', 'App visibility', 'Roles here only', 'Fields']);
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Members', 'App visibility', 'Roles in Production', 'Fields']);
     assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Production[\s\S]*Roles[\s\S]*Foreman[\s\S]*Install crew/i);
     await dialog.locator('.pp-members .pp-row').first().waitFor();
     await shot(page, 'department-modal-members');
@@ -773,8 +887,9 @@ test('Departments: icon and color, members of every kind, roles held only here, 
     assert.match(await dialog.locator('[data-dept-list] [data-row-key="g1"]').innerText(), /North team[\s\S]*through its type/);
     await shot(page, 'department-modal-groups');
 
-    // Roles held only in this department are saved on the user.
-    await dialog.locator('.pp-tab', { hasText:'Roles here only' }).click();
+    // Roles held only for work in this department are saved on the user; the tab names the department.
+    await dialog.locator('.pp-tab', { hasText:'Roles in Production' }).click();
+    assert.equal(await dialog.locator('.pp-modal-panel:not([hidden]) [data-list-action="0"]').innerText(), 'Give a role in Production');
     await dialog.locator('.pp-modal-panel:not([hidden]) [data-list-action="0"]').click();
     await page.locator('.pp-form [name="userId"]').selectOption('u6');
     assert.equal(await page.locator('.pp-form [name="roleId"] option', { hasText:'Administrator' }).count(), 0, 'roles that administer the organization cannot be scoped');
@@ -782,6 +897,19 @@ test('Departments: icon and color, members of every kind, roles held only here, 
     await page.locator('.pp-form [type="submit"]').click();
     await dialog.locator('.pp-modal-panel:not([hidden]) [data-row-key="u6"]').waitFor();
     assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u6').pop().profile.scoped_access_assignments), [{ role_id:'production', scope:{ kind:'department', id:'production' } }]);
+    // Each person's row has its own Roles button, opening the same picker titled with the department.
+    const u6 = dialog.locator('.pp-modal-panel:not([hidden]) [data-row-key="u6"]');
+    await u6.hover();
+    assert.equal(await u6.locator('[data-row-action="roles"]').getAttribute('aria-label'), 'Change Farid Nair’s roles in Production');
+    await u6.locator('[data-row-action="roles"]').click();
+    const picker = page.getByRole('menu', { name:'Roles in Production' });
+    await picker.waitFor();
+    assert.equal(await picker.getByRole('menuitemcheckbox', { name:'Production' }).getAttribute('aria-checked'), 'true');
+    await picker.getByRole('menuitemcheckbox', { name:'Installer' }).click();
+    await page.waitForFunction(() => (window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u6').pop()?.profile.scoped_access_assignments || []).length === 2);
+    await shot(page, 'department-modal-roles-picker');
+    await page.keyboard.press('Escape');
+    await dialog.locator('.pp-modal-panel:not([hidden]) [data-row-key="u6"] .pp-chip', { hasText:'Installer' }).waitFor();
     await shot(page, 'department-modal-scoped-roles');
     await dialog.locator('.pp-tab', { hasText:'Fields' }).click();
     await dialog.locator('[data-people-slot-empty="fields"]').waitFor();
@@ -892,6 +1020,75 @@ test('Subcontractors: several types, link status, overview, link, payment terms;
   } finally { await browser.close(); }
 });
 
+// Units that nest: North region > Asheville office > Production, and Service and warranty in North region; the rest at the top.
+function nestUnits(){
+  const { departments, users } = window.__people;
+  window.__departmentExtras.divisions.push({ id:'asheville', label:'Asheville office', kind:'Office', parent_id:'north', branch_id:'', status:'active', subject_keys:[] });
+  departments.find((department) => department.id === 'production').division_id = 'asheville';
+  departments.find((department) => department.id === 'service').division_id = 'north';
+  departments.find((department) => department.id === 'office').group_id = 'field';
+  users.find((user) => user.id === 'u9').scoped_access_assignments = [{ role_id:'crew_foreman', scope:{ kind:'department', id:'production' } }, { role_id:'crew_member', scope:{ kind:'division', id:'north' } }];
+}
+
+test('User modal: departments nested the way they are organized, each with its own roles, at desktop and phone width', async () => {
+  const browser = await launch();
+  try {
+    for (const [width, height, suffix] of [[1440, 900, 'desktop'], [390, 844, 'phone']]) {
+      const { page, errors } = await openPage(browser, { width, height }, { setup:nestUnits });
+      await page.locator('[data-row-key="u9"] .pp-row-name').first().click();
+      const dialog = page.getByRole('dialog');
+      await dialog.waitFor();
+      if (suffix === 'phone') { await page.locator('[data-modal-summary-toggle]').click(); await dialog.locator('[data-section="departments"]').scrollIntoViewIfNeeded(); }
+      const section = dialog.locator('[data-section="departments"]');
+      const outline = await section.locator('.pp-dtree-item').evaluateAll((items) => items.map((item) => `${item.style.getPropertyValue('--depth')}:${item.querySelector('.pp-dtree-name').textContent}`));
+      assert.deepEqual(outline, ['0:Office', '0:Sales', '0:Warehouse', '0:North region', '1:Service and warranty', '1:Asheville office', '2:Production']);
+      assert.equal(await dialog.locator('[data-section="roles"] h4').textContent(), 'Roles everywhere');
+      const production = section.locator('[data-dtree="department:production"]');
+      assert.match(await production.innerText(), /Production[\s\S]*Foreman/);
+      assert.equal(await production.locator('.pp-dtree-via').getAttribute('aria-label'), 'In Production through the Production role');
+      assert.equal(await production.locator('.pp-dtree-remove').count(), 0, 'a department held through a role is not removed here');
+      assert.match(await section.locator('[data-dtree="unit:north"]').innerText(), /North region[\s\S]*Installer/);
+      assert.equal(await section.locator('[data-dtree="department:service"] .pp-dtree-remove').count(), 1);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no horizontal scrolling');
+      const fits = await section.locator('.pp-dtree-line').evaluateAll((lines) => lines.every((line) => line.scrollWidth <= line.clientWidth + 1));
+      assert.ok(fits, 'every department line fits its column');
+      await shot(page, `user-modal-departments-${suffix}`);
+
+      await production.locator('[data-dtree-roles]').click();
+      const picker = page.getByRole('menu', { name:'Roles in Production' });
+      await picker.waitFor();
+      assert.equal(await picker.getByRole('menuitemcheckbox', { name:'Foreman' }).getAttribute('aria-checked'), 'true');
+      assert.equal(await picker.getByRole('menuitemcheckbox', { name:/^Production/ }).isDisabled(), true, 'held everywhere');
+      await picker.getByRole('menuitemcheckbox', { name:'Installer' }).click();
+      assert.match(await production.innerText(), /Foreman[\s\S]*Installer/);
+      const box = await page.locator('.pp-menu').boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= width, 'the picker stays on screen');
+      await shot(page, `user-modal-roles-picker-${suffix}`);
+      await page.keyboard.press('Escape');
+
+      if (suffix === 'desktop') {
+        await section.locator('[data-dtree="department:service"] .pp-dtree-remove').click();
+        await dialog.locator('[data-modal-save]').click();
+        await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
+        const saved = await page.evaluate(() => ({ departments:window.__people.calls.filter((call) => call.op === 'saveDepartmentAssignment').pop().payload, scoped:window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u9').pop().profile.scoped_access_assignments }));
+        assert.deepEqual(saved.departments.department_ids, ['warehouse']);
+        assert.deepEqual(saved.scoped, [{ role_id:'crew_member', scope:{ kind:'division', id:'north' } }, { role_id:'crew_foreman', scope:{ kind:'department', id:'production' } }, { role_id:'crew_member', scope:{ kind:'department', id:'production' } }], 'the unit role is kept');
+        await dialog.locator('[data-modal-close]').click();
+        await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+        // The Departments list shows the same nesting, one section per unit, rows full width.
+        await openView(page, 'departments');
+        assert.deepEqual(await page.locator('.pp-list-section-head h3').allInnerTexts(), ['North region', 'North region › Asheville office', 'Not in a unit']);
+        assert.deepEqual(await page.locator('[data-list-section="unit:north"] .pp-row').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey)), ['service']);
+        assert.equal(await columnsOf(page, '.pp-list-body .pp-row'), 1, 'rows stay full width');
+        assert.equal(await page.locator('[data-row-key="office"] .pp-pill', { hasText:'Field' }).count(), 1, 'the category shows on the row');
+        await shot(page, 'departments-nested');
+      }
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
 test('Users parity: assignment tags, roles held in one department, and the admin level and seven flags without roles', async () => {
   const browser = await launch();
   try {
@@ -903,12 +1100,26 @@ test('Users parity: assignment tags, roles held in one department, and the admin
     await page.getByRole('menuitemcheckbox', { name:'Bilingual' }).click();
     await page.keyboard.press('Escape');
     assert.match(await dialog.locator('[data-section="tags"]').innerText(), /Bilingual/);
-    await dialog.locator('[data-people-section-action="scoped"]').click();
-    await page.getByRole('menuitem', { name:'Give a role in one department' }).click();
-    await page.locator('.pp-form [name="roleId"]').selectOption('production');
-    await page.locator('.pp-form [name="departmentId"]').selectOption('department:service');
-    await page.locator('.pp-form [type="submit"]').click();
-    await dialog.locator('[data-section="scoped"]').getByText('Production · Service and warranty').waitFor();
+    // Departments are added in the Departments section; each one has its own Roles button, titled with it.
+    const departments = dialog.locator('[data-section="departments"]');
+    assert.equal(await dialog.locator('[data-section="roles"] h4').textContent(), 'Roles everywhere');
+    assert.equal(await departments.locator('[data-dtree="department:sales"] .pp-dtree-remove').count(), 0, 'a department held through a role is not removed here');
+    await departments.locator('[data-people-section-action="departments"]').click();
+    await page.getByRole('menuitemcheckbox', { name:'Service and warranty' }).click();
+    await page.keyboard.press('Escape');
+    const service = departments.locator('[data-dtree="department:service"]');
+    assert.equal(await service.locator('[data-dtree-roles]').getAttribute('aria-label'), 'Roles in Service and warranty');
+    await service.locator('[data-dtree-roles]').click();
+    const picker = page.getByRole('menu', { name:'Roles in Service and warranty' });
+    await picker.waitFor();
+    assert.equal(await page.locator('.pp-menu-title strong').innerText(), 'Roles in Service and warranty');
+    assert.equal(await page.locator('.pp-menu-title .pp-info').getAttribute('data-fm-tooltip'), 'These apply only to work in Service and warranty.');
+    assert.equal(await picker.getByRole('menuitemcheckbox', { name:/^Administrator/ }).count(), 0, 'roles that administer the organization cannot be held in one department');
+    assert.equal(await picker.getByRole('menuitemcheckbox', { name:/^Sales/ }).isDisabled(), true, 'a role held everywhere is not given again');
+    await picker.getByRole('menuitemcheckbox', { name:'Production' }).click();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.dtreeRoles), 'department:service', 'focus returns to the Roles button');
+    assert.match(await service.innerText(), /Service and warranty[\s\S]*Production/);
     await shot(page, 'user-modal-tags-scoped-roles');
     await dialog.locator('[data-modal-save]').click();
     await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
@@ -916,6 +1127,14 @@ test('Users parity: assignment tags, roles held in one department, and the admin
     assert.deepEqual(profile.assignment_tag_ids, ['bilingual']);
     assert.deepEqual(profile.scoped_access_assignments, [{ role_id:'production', scope:{ kind:'department', id:'service' } }]);
     assert.equal(profile.access_role_ids, undefined, 'roles are not rewritten when only tags change');
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveDepartmentAssignment' && call.payload.id === 'u4').pop().payload.department_ids), ['service']);
+
+    // Leaving a department drops the roles held only there.
+    await service.locator('.pp-dtree-remove').click();
+    assert.equal(await service.count(), 0);
+    await dialog.locator('[data-modal-save]').click();
+    await page.waitForFunction(() => window.__people.calls.filter((call) => call.op === 'saveDepartmentAssignment' && call.payload.id === 'u4').pop().payload.department_ids.length === 0);
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments), []);
     assert.deepEqual(errors, []);
 
     // An organization without roles: the admin level is a dropdown, the seven flags are switches.
@@ -982,7 +1201,7 @@ test('People inside the real Settings shell (company.js): declared once, mounted
       return route.fulfill({ contentType:'text/html', body:'<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"><style>:root{--primary:#d93025;--primary-readable:#c5221f;--primary-rgb:217,48,37;--on-primary:#fff}html,body{height:100%;margin:0;background:#f0f2f5;font-family:Inter,system-ui,"Segoe UI",Arial,sans-serif}#tab_company_settings{height:100%;padding:18px 22px;box-sizing:border-box}</style></head><body><div id="tab_company_settings" class="active"></div></body></html>' });
     });
     await page.goto('http://people.test/');
-    await page.evaluate(stubPlatform);
+    await page.evaluate((catalog) => { window.__permissionCatalog = catalog; }, PERMISSION_CATALOG); await page.evaluate(stubPlatform);
     await page.evaluate(stubDirectory);
     await page.evaluate(() => {
       // What the portal gives every app, reduced to what the Settings shell reads.
@@ -1037,7 +1256,29 @@ test('People inside the real Settings shell (company.js): declared once, mounted
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     assert.ok(await page.evaluate(() => window.__people.route.sub === 'people' && window.__people.route.settingsView === 'users'));
     await shot(page, 'real-shell-users');
-    await page.locator('#csPanePeople [data-row-key="u9"] .pp-row-name').click();
+    // Scrolled, the stuck header covers everything up to the top of its card and fades into the rows.
+    const covered = await page.evaluate(async () => {
+      const list = document.querySelector('#csPanePeople .pp-list');
+      let scroller = list.parentElement;
+      while (scroller && scroller !== document.body && !['auto', 'scroll'].includes(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+      const target = scroller && scroller !== document.body ? scroller : document.scrollingElement;
+      target.scrollTop = 420;
+      target.dispatchEvent(new Event('scroll'));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const head = list.querySelector('.pp-list-head');
+      const headTop = head.getBoundingClientRect().top;
+      const card = list.closest('.cs-card') || target;
+      const cardTop = card === document.scrollingElement ? 0 : card.getBoundingClientRect().top + card.clientTop;
+      const cover = parseFloat(getComputedStyle(head, '::before').height) || 0;
+      return { stuck:head.classList.contains('stuck'), gap:Math.round(headTop - cardTop), cover:Math.round(cover), fade:getComputedStyle(head, '::after').opacity };
+    });
+    assert.equal(covered.stuck, true, 'the header is stuck over scrolled rows');
+    assert.ok(covered.cover >= covered.gap, `the header covers the ${covered.gap}px above it (cover ${covered.cover}px)`);
+    assert.equal(covered.fade, '1');
+    await shot(page, 'real-shell-users-scrolled');
+    await page.evaluate(() => { document.querySelectorAll('*').forEach((node) => { if (node.scrollTop) node.scrollTop = 0; }); });
+    await page.locator('#csPanePeople [data-row-key="u9"] .pp-row-name').first().click();
     await page.getByRole('dialog').waitFor();
     assert.ok(await page.evaluate(() => window.__people.route.settingsEntity === 'user:u9'));
     await shot(page, 'real-shell-user-modal');
@@ -1069,6 +1310,7 @@ test('Users: status filter chips, photo at invite, activity, and a role held in 
       const list = window.PlatformAPI.users.list;
       window.PlatformAPI.users.list = async () => { const result = await list(); result.users.push({ id:'gone1', name:'Otto Former', email:'otto@northwind-exteriors.example', status:'deleted', deleted:true, access_role_ids:[] }); return result; };
       window.Portal.cfg = { serverEndpoint:'http://people.test/upload' };
+      window.__people.departments.find((department) => department.id === 'sales').division_id = 'north';
     } });
     await page.route('http://people.test/upload', (route) => route.fulfill({ contentType:'application/json', body:JSON.stringify({ success:true, avatar_url:'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>' }) }));
     assert.deepEqual(await page.locator('[data-list-filter]').evaluateAll((chips) => chips.map((chip) => chip.textContent.trim())), ['All', 'Active38', 'Never signed in3', 'Suspended1', 'Archived1']);
@@ -1099,7 +1341,7 @@ test('Users: status filter chips, photo at invite, activity, and a role held in 
     await page.locator('[data-row-key="u43"]').waitFor();
 
     // Activity, and a role held only in one unit.
-    await page.locator('[data-row-key="u4"] .pp-row-name').click();
+    await page.locator('[data-row-key="u4"] .pp-row-name').first().click();
     const dialog = page.getByRole('dialog');
     await dialog.locator('.pp-tab', { hasText:'Activity' }).click();
     await dialog.locator('.pp-activity li').first().waitFor();
@@ -1107,15 +1349,29 @@ test('Users: status filter chips, photo at invite, activity, and a role held in 
     assert.match(await dialog.locator('.pp-activity').innerText(), /Uploaded 4 photos to 18 Maple Court/);
     assert.equal(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'activity').user), 'u4');
     await shot(page, 'user-modal-activity');
-    await dialog.locator('[data-people-section-action="scoped"]').click();
-    await page.getByRole('menuitem', { name:'Give a role in one department' }).click();
-    await page.locator('.pp-form [name="roleId"]').selectOption('production');
-    assert.ok(await page.locator('.pp-form [name="departmentId"] option', { hasText:'North region (Region)' }).count());
-    await page.locator('.pp-form [name="departmentId"]').selectOption('division:north');
-    await page.locator('.pp-form [type="submit"]').click();
-    await dialog.locator('[data-section="scoped"]').getByText('Production · North region').waitFor();
+    // Sales sits in North region: the unit heads it in the tree and has its own Roles button.
+    const departments = dialog.locator('[data-section="departments"]');
+    assert.deepEqual(await departments.locator('.pp-dtree-item .pp-dtree-name').allInnerTexts(), ['North region', 'Sales']);
+    const north = departments.locator('[data-dtree="unit:north"]');
+    await north.locator('[data-dtree-roles]').click();
+    await page.getByRole('menu', { name:'Roles in North region' }).waitFor();
+    assert.equal(await page.locator('.pp-menu-title .pp-info').getAttribute('data-fm-tooltip'), 'These apply only to work in North region and its departments.');
+    await page.getByRole('menuitemcheckbox', { name:'Production' }).click();
+    await page.keyboard.press('Escape');
+    assert.match(await north.innerText(), /North region[\s\S]*Production/);
+    // A role in one department is written beside the unit's, never instead of it.
+    await departments.locator('[data-dtree="department:sales"] [data-dtree-roles]').click();
+    await page.getByRole('menuitemcheckbox', { name:'Foreman' }).click();
+    await page.keyboard.press('Escape');
     await dialog.locator('[data-modal-save]').click();
     await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments), [{ role_id:'production', scope:{ kind:'division', id:'north' } }, { role_id:'crew_foreman', scope:{ kind:'department', id:'sales' } }]);
+    // Changing the department's roles again keeps the unit's.
+    await departments.locator('[data-dtree="department:sales"] [data-dtree-roles]').click();
+    await page.getByRole('menuitemcheckbox', { name:'Foreman' }).click();
+    await page.keyboard.press('Escape');
+    await dialog.locator('[data-modal-save]').click();
+    await page.waitForFunction(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments.length === 1);
     assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments), [{ role_id:'production', scope:{ kind:'division', id:'north' } }]);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
@@ -1269,7 +1525,7 @@ async function openRealShell(browser, viewport, view = 'users'){
     return route.fulfill({ contentType:'text/html', body:'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"><style>:root{--primary:#d93025;--primary-readable:#c5221f;--primary-rgb:217,48,37;--on-primary:#fff}html,body{height:100%;margin:0;background:#f0f2f5;font-family:Inter,system-ui,"Segoe UI",Arial,sans-serif}#tab_company_settings{height:100%;padding:18px 22px;box-sizing:border-box}@media(max-width:820px){#tab_company_settings{padding:0}}</style></head><body><div id="tab_company_settings" class="active"></div></body></html>' });
   });
   await page.goto('http://people.test/');
-  await page.evaluate(stubPlatform);
+  await page.evaluate((catalog) => { window.__permissionCatalog = catalog; }, PERMISSION_CATALOG); await page.evaluate(stubPlatform);
   await page.evaluate(stubDirectory);
   await page.evaluate((startView) => {
     const on = new Set(['platform.people_access', 'platform.expanded_access', 'platform.my_settings', 'apps.payroll']);
@@ -1339,7 +1595,7 @@ test('Compensation and Fields panels inside the real entity modal: every kind, a
   const browser = await launch();
   try {
     const { page, errors } = await openRealShell(browser, { width:1440, height:900 });
-    await page.locator('#csPanePeople [data-row-key="u3"] .pp-row-name').click();
+    await page.locator('#csPanePeople [data-row-key="u3"] .pp-row-name').first().click();
     const dialog = page.getByRole('dialog');
     await dialog.waitFor();
 
@@ -1436,7 +1692,7 @@ test('Compensation and Fields panels inside the real entity modal: every kind, a
 
     // Phone width.
     const phone = await openRealShell(browser, { width:390, height:844 });
-    await phone.page.locator('#csPanePeople [data-row-key="u3"] .pp-row-name').click();
+    await phone.page.locator('#csPanePeople [data-row-key="u3"] .pp-row-name').first().click();
     const sheet = phone.page.getByRole('dialog');
     await sheet.waitFor();
     await sheet.locator('.pp-tab', { hasText:'Compensation' }).click();
@@ -1472,7 +1728,7 @@ test('Subcontractors: the Permissions tab appears when the directory publishes a
     const dialog = page.getByRole('dialog', { name:'Summit Roofing' });
     await dialog.locator('.pp-tab', { hasText:'Permissions' }).click();
     assert.match(await dialog.locator('[data-company-roles]').innerText(), /Installer/);
-    await dialog.locator('[data-perm-group="crew"]').click();
+    await dialog.locator('[data-perm-group="field"]').click();
     assert.match(await dialog.locator('[data-perm-key="crew.payments.take"]').getAttribute('class'), /overridden/);
     assert.match(await dialog.locator('[data-perm-key="crew.schedule.view"]').getAttribute('class'), /allowed/);
     assert.match(await dialog.locator('.pp-company-perm .pp-info').getAttribute('aria-label'), /does not change anyone's access yet/);
