@@ -222,6 +222,23 @@ test("a project's requirements say what is open, what accounts for each thing, a
   await lists.createMaterialVersion(ORG, String(equipment.id), { expected_revision: Number(current.revision), reason: "revision", items: [{ id: "dumpster", name: "6 yard dumpster", quantity: 1, unit: "ea", projected_unit_price: 300, metadata: { provides: [{ item: "disposal.debris", capacity: 6 }] } }] }, owner);
   assert.deepEqual(row(await second(), "disposal.debris").warnings.map((warning) => warning.message), ["What is on the work order holds 6 cubic yards of the 8 needed."]);
 
+  // Equipment that names no capacity, or zero, holds whatever is needed: nothing to check.
+  const sized = await lists.readMaterialList(ORG, String(equipment.id));
+  await lists.createMaterialVersion(ORG, String(equipment.id), { expected_revision: Number(sized.revision), reason: "revision", items: [{ id: "dumpster", name: "Crew pickup", quantity: 1, unit: "day", metadata: { provides: [{ item: "disposal.debris", capacity: 0 }] } }] }, owner);
+  assert.deepEqual([row(await second(), "disposal.debris").status, row(await second(), "disposal.debris").warnings.length], ["covered", 0]);
+
+  // Delete the line a work order was paid for its work on: nothing accounts for that work any more, and the work order
+  // whose sheet handles it is offered, so building it again from the sheet puts the line back.
+  const built = await lists.readMaterialList(ORG, String(crew.id));
+  const paid = (built.current_items as { id: unknown; metadata?: { covers?: string[] } }[]).filter((item) => item.metadata?.covers?.includes("roofing.install"));
+  assert.ok(paid.length, "the generated work order pays for installing");
+  await lists.createMaterialVersion(ORG, String(crew.id), { expected_revision: Number(built.revision), reason: "removal", remove_item_ids: paid.map((item) => String(item.id)) }, owner);
+  const gap = row(await second(), "roofing.install");
+  assert.deepEqual([gap.status, gap.can_cover.map((entry) => [entry.assignee_name, entry.reason])], ["open", [["Crew A", "missing"]]]);
+  await g.generateLaborList(ORG, { list_id: String(crew.id), legacy_measurements: held }, owner);
+  const restored = row(await second(), "roofing.install");
+  assert.deepEqual([restored.status, restored.can_cover.length], ["covered", 0]);
+
   // Capabilities are apart from pay. The sample group is marked as doing roofing scopes or not at all; once someone
   // says it does not install, the work order that has it installing carries a warning.
   const crewA = all.find((sheet) => sheet.name.startsWith("Crew A"))!.subject;

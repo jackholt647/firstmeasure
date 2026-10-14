@@ -49,8 +49,10 @@ export type Requirement = {
   status: "open" | "warning" | "covered";
   covered_by: RequirementCover[];
   warnings: { code: string; message: string }[];
-  /** Work orders that could take this on because their assignee's pay sheet handles it and it was left to someone else. */
-  can_cover: { list_id: string; list_title: string; assignee_name: string }[];
+  /** Work orders that could take this on because their assignee's pay sheet handles it: it was left to someone else
+   * (excluded), or nothing accounts for it and the line that paid for it is gone (missing), so building the work order
+   * again from the sheet puts it back. */
+  can_cover: { list_id: string; list_title: string; assignee_name: string; reason?: "excluded" | "missing" }[];
   reason: string;
 };
 
@@ -121,7 +123,10 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
         const able = capabilities.get(`${order.assignee.type}:${order.assignee.id}`);
         if (able?.known && !able.items.includes(row.item)) warnings.push({ code: "not_capable", message: `${who(order)} is not marked as able to do this.` });
       }
-      if (order.excluded.includes(row.item) && order.handles.has(row.item) && order.assignee) canCover.push({ list_id: id, list_title: title(order.list), assignee_name: order.assignee.name });
+      if (order.handles.has(row.item) && order.assignee) {
+        if (order.excluded.includes(row.item)) canCover.push({ list_id: id, list_title: title(order.list), assignee_name: order.assignee.name, reason: "excluded" });
+        else if (!paying.length && !included) canCover.push({ list_id: id, list_title: title(order.list), assignee_name: order.assignee.name, reason: "missing" });
+      }
     }
     // Equipment adds up, so two dumpsters are not a duplicate. Two parties paid or relied on for the same thing are.
     const parties = covered.filter((entry) => entry.mode !== "provided");
@@ -132,6 +137,7 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
     }
     if (!parties.length && providers && !unlimited && row.quantity !== null && capacity + 1e-9 < row.quantity) warnings.push({ code: "short", message: `What is on the work order holds ${round(capacity)} ${unitLabel(row.unit)} of the ${round(row.quantity)} needed.` });
     if (!covered.length && adjustedOnlyBy) warnings.push({ code: "adjusted_only", message: `${adjustedOnlyBy} has a line item that changes the price of this, but none that pays for it.` });
+    if (covered.length) for (let index = canCover.length - 1; index >= 0; index -= 1) if (canCover[index]!.reason === "missing") canCover.splice(index, 1);
     const status = !covered.length ? "open" as const : warnings.length ? "warning" as const : "covered" as const;
     return { id: row.item, kind: row.kind, label: row.label, description: row.description, unit: row.unit, quantity: row.quantity, under: required.some((other) => other.item === row.under) ? row.under : "", sources: row.sources, status, covered_by: covered, warnings, can_cover: canCover, reason: row.reason };
   });

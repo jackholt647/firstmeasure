@@ -6075,13 +6075,28 @@
         done.push(...result.generated.map((title) => `Generated ${title}`)); notes.push(...result.failed);
         if (!(await fresh())) return;
       }
-      // 2. Work a work order left to someone else, which its assignee does: give it back.
+      // 2. Work an assigned work order's pay sheet handles but nothing accounts for: it was left to someone else, or the
+      // line that paid for it was deleted. Each such work order is built again from its sheet once, with that work back
+      // in it; lines added by hand stay.
+      const rebuild = new Map();
       for (const row of open()) {
         const entry = (row.can_cover || [])[0];
         if (!entry) continue;
-        await setWorkExcluded(entry.list_id, row.id, false);
-        done.push(`Gave ${row.label.toLowerCase()} back to ${entry.assignee_name}`);
+        if (!rebuild.has(entry.list_id)) rebuild.set(entry.list_id, { entry, rows: [] });
+        rebuild.get(entry.list_id).rows.push(row);
       }
+      for (const { entry, rows } of rebuild.values()) {
+        const list = materialListById(entry.list_id);
+        if (!list || !projectOperationIsCurrent(operation)) continue;
+        const excluded = new Set(list.metadata?.work_scope?.excluded_items || []), returning = rows.filter((row) => excluded.has(row.id));
+        if (returning.length) {
+          returning.forEach((row) => excluded.delete(row.id));
+          await patchScopeResourceList(entry.list_id, { metadata: { ...(list.metadata || {}), work_scope: { ...(list.metadata?.work_scope || {}), excluded_items: [...excluded] } } }, captureProjectOperation(entry.list_id));
+        }
+        await generateLaborList(entry.list_id, {});
+        done.push(`Rebuilt ${entry.assignee_name}'s work order from their pay sheet, so it covers ${rows.map((row) => row.label.toLowerCase()).join(', ')}`);
+      }
+      if (rebuild.size && !(await fresh())) return;
       // 3. Work orders that are assigned but were never built from their pay sheet.
       for (const list of state.lists.filter((entry) => resourceType(entry) === 'labor' && assignmentWorkResourceRef(entry)?.id && !entry.metadata?.labor_generation)) {
         await generateLaborList(list.id, {});
