@@ -371,6 +371,22 @@
         { value: 'driftwood', label: (globalThis.PlatformLanguage?.text("pricebook","m_54125272ba36af","Driftwood") ?? "Driftwood") }
       ]
     },
+    // A starter strip is usually plain, but designer shingles need it in the shingle's colour, so the colour is there and off.
+    starter_color: {
+      id: 'color',
+      label: (globalThis.PlatformLanguage?.text("pricebook","m_db7002926d9977","Color") ?? "Color"),
+      type: 'select',
+      defaultValue: 'none',
+      values: [
+        { value: 'none', label: 'No colour' },
+        { value: 'charcoal', label: 'Charcoal' },
+        { value: 'weathered_wood', label: 'Weathered Wood' },
+        { value: 'barkwood', label: 'Barkwood' },
+        { value: 'pewter_gray', label: 'Pewter Gray' },
+        { value: 'shakewood', label: 'Shakewood' },
+        { value: 'slate', label: 'Slate' }
+      ]
+    },
     metal_color: {
       id: 'color',
       label: (globalThis.PlatformLanguage?.text("pricebook","m_db7002926d9977","Color") ?? "Color"),
@@ -399,7 +415,7 @@
     gaf_hd: { itemTypeId: 'field_shingles', itemTypeName: 'Shingles', variantId: 'gaf_timberline_hdz', variantName: 'Timberline HDZ', variantGroupId: 'gaf', variantGroupName: 'GAF', variantRole: 'branded', isDefaultVariant: false, optionPreset: 'shingle_color' },
     owens_duration: { itemTypeId: 'field_shingles', itemTypeName: 'Shingles', variantId: 'owens_corning_duration', variantName: 'Duration', variantGroupId: 'owens_corning', variantGroupName: 'Owens Corning', variantRole: 'branded', isDefaultVariant: false, optionPreset: 'shingle_color' },
     malarkey_vista: { itemTypeId: 'field_shingles', itemTypeName: 'Shingles', variantId: 'malarkey_vista', variantName: 'Vista', variantGroupId: 'malarkey', variantGroupName: 'Malarkey', variantRole: 'branded', isDefaultVariant: false, optionPreset: 'shingle_color' },
-    starter: { itemTypeId: 'starter', itemTypeName: 'Starter Strip', variantId: 'generic', variantName: 'Starter Strip', variantGroupId: 'unbranded', variantGroupName: 'Unbranded', variantRole: 'generic', isDefaultVariant: true },
+    starter: { itemTypeId: 'starter', itemTypeName: 'Starter Strip', variantId: 'generic', variantName: 'Starter Strip', variantGroupId: 'unbranded', variantGroupName: 'Unbranded', variantRole: 'generic', isDefaultVariant: true, optionPreset: 'starter_color' },
     ridge_cap: { itemTypeId: 'ridge_cap', itemTypeName: 'Ridge Cap', variantId: 'generic', variantName: 'Ridge Cap', variantGroupId: 'unbranded', variantGroupName: 'Unbranded', variantRole: 'generic', isDefaultVariant: true, optionPreset: 'shingle_color' },
     ice_water: { itemTypeId: 'leak_barrier', itemTypeName: 'Leak Barrier', variantId: 'generic', variantName: 'Ice & Water Shield', variantGroupId: 'unbranded', variantGroupName: 'Unbranded', variantRole: 'generic', isDefaultVariant: true },
     gaf_weatherwatch: { itemTypeId: 'leak_barrier', itemTypeName: 'Leak Barrier', variantId: 'gaf_weatherwatch', variantName: 'WeatherWatch', variantGroupId: 'gaf', variantGroupName: 'GAF', variantRole: 'branded', isDefaultVariant: false },
@@ -575,7 +591,7 @@
       return {
         value: optionValue,
         label: cleanText(value.label || value.name || titleFromKey(optionValue)),
-        metadata: objectValue(value.metadata)
+        metadata: { ...objectValue(value.metadata), ...(cleanText(value.hex) ? { hex: cleanText(value.hex) } : {}) }
       };
     }
     const optionValue = slug(value, 'option');
@@ -802,8 +818,15 @@
     const optionPreset = OPTION_PRESETS[override.optionPreset] ? [OPTION_PRESETS[override.optionPreset]] : [];
     const itemType = objectValue(item.itemType || item.item_type);
     const variant = objectValue(item.variant);
+    // An item's own options come first. A colour that is a product variant (a shingle's colour) is offered as the colour
+    // option too, so the list can show and change it like any other colour.
+    const listed = (value) => (Array.isArray(value) && value.some((entry) => Array.isArray(objectValue(entry).values) && objectValue(entry).values.length) ? value : null);
+    const colorDimension = (Array.isArray(item.variant_dimensions || item.variantDimensions) ? (item.variant_dimensions || item.variantDimensions) : []).map(objectValue).find((dimension) => dimension.kind === 'color' || dimension.id === 'color');
+    const fromDimension = colorDimension && Array.isArray(colorDimension.values) && colorDimension.values.length
+      ? [{ id: 'color', label: cleanText(colorDimension.label) || 'Color', defaultValue: cleanText(objectValue(item.default_variant_selection || item.defaultVariantSelection).color), values: colorDimension.values }]
+      : null;
     const optionDefinitions = normalizeOptionDefinitions(
-      item.optionDefinitions || item.option_definitions || item.optionsSchema || item.options_schema || itemType.optionDefinitions || itemType.options || optionPreset
+      item.optionDefinitions || item.option_definitions || item.optionsSchema || item.options_schema || listed(item.options) || fromDimension || itemType.optionDefinitions || itemType.options || optionPreset
     );
     const itemTypeId = slug(item.itemTypeId || item.item_type_id || itemType.id || override.itemTypeId || normalized.id, normalized.id);
     const variantId = slug(item.variantId || item.variant_id || variant.id || override.variantId || normalized.manufacturer || 'generic', 'generic');

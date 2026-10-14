@@ -54,7 +54,7 @@ function add(key, id, quantity, group, explanation, variant = '') {
 }
 if (scoped) {
   // The accepted scope is the order: options and add-ons the customer passed over are not on it.
-  const physical = new Set(['gaf_hd','gaf_ns','gaf_uhdz','laminated_shingles','three_tab_shingles','starter','ridge_cap','underlayment','gaf_feltbuster','gaf_tiger_paw','drip_edge','valley_metal','ridge_vent','gutter_replace','downspout','gutter_guard']);
+  const physical = new Set(['gaf_hd','gaf_ns','gaf_uhdz','gaf_grand_sequoia','ct_presidential_shake','laminated_shingles','three_tab_shingles','starter','ridge_cap','underlayment','gaf_feltbuster','gaf_tiger_paw','drip_edge','valley_metal','ridge_vent','gutter_replace','downspout','gutter_guard']);
   function walk(rows, path) { (rows || []).forEach((r, index) => {
     if (r.selected === false || r.excluded === true || r.selection?.selected === false) return;
     const key = path + '_' + index;
@@ -63,6 +63,9 @@ if (scoped) {
     walk(r.children, key);
   }); }
   walk(p.scope_items, 'scope');
+  // A designer shingle needs its starter strip in the same colour; any other starter strip stays plain.
+  const designer = lines.find(line => ['gaf_grand_sequoia','ct_presidential_shake'].includes(line.product_id));
+  if (designer) lines.filter(line => line.product_id === 'starter').forEach(line => { line.variant = designer.variant || line.variant; line.explanation = (line.explanation ? line.explanation + '. ' : '') + 'Coloured to match ' + designer.name; });
   if (!lines.length) throw new Error('Select physical price-book materials on the proposal before generating materials.');
   warnings.push('Quantities follow the accepted scope; check flashing, ventilation and accessories on site before ordering.');
 } else {

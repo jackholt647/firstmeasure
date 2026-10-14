@@ -1037,7 +1037,7 @@
       .mt-req-panel{width:0;opacity:0;overflow:hidden;transition:width .26s cubic-bezier(.4,0,.2,1),opacity .2s ease}.mt-req-tray.is-open .mt-req-panel{width:290px;opacity:1}
       .mt-req-panel-inner{width:290px;height:100%;display:flex;flex-direction:column;min-height:0}
       .mt-req-title{flex:none;display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #eaecf0}.mt-req-title>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.mt-req-title strong{font-size:12px;color:#101828}.mt-req-title span{font-size:10px;color:#667085}
-      .mt-req-fix{flex:none;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:0;border-radius:5px;background:var(--primary,#d93025);color:#fff;font-size:10px;font-weight:700;cursor:pointer}.mt-req-fix:disabled{opacity:.7;cursor:default}.mt-req-fix i{font-size:10px}
+      .mt-req-fix{flex:none;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:0;border-radius:5px;background:var(--primary,#d93025);color:#fff;font-size:10px;font-weight:700;cursor:pointer}.mt-req-fix:disabled{opacity:.7;cursor:default}.mt-req-fix i{font-size:10px}.mt-req-title .mt-req-fix span,.mt-req-title .mt-req-fix i{color:#fff}
       .mt-req-title select{flex:none;width:64px;height:22px;padding:0 4px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;font-size:10px;font-weight:600;color:#344054;cursor:pointer}.mt-req-source{display:flex;align-items:center;gap:6px;color:#667085}.mt-req-source span{flex:1}
       .mt-req-scroll{flex:1;min-height:0;overflow:auto;padding:4px 6px 8px}
       .mt-req-group-head{display:flex;align-items:center;gap:5px;width:100%;padding:6px 4px 3px;border:0;background:transparent;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3;cursor:pointer}.mt-req-group-head i{font-size:8px}.mt-req-group-head span{flex:1;text-align:left}.mt-req-group-head em{font-style:normal}
@@ -1811,7 +1811,9 @@
   function optionValueBackground(value){
     const image = cleanText(value?.metadata?.image || value?.metadata?.imageUrl || value?.metadata?.swatchImage || value?.image || value?.imageUrl);
     if (image) return `background-image:url('${image.replaceAll("'", "\\'")}')`;
-    return `background:${colorForValue(value?.value)}`;
+    if (cleanText(value?.value) === 'none') return 'background:repeating-linear-gradient(135deg,#fff 0 3px,#d0d5dd 3px 4px)';
+    const hex = cleanText(value?.metadata?.hex);
+    return `background:${/^#[0-9a-f]{3,8}$/i.test(hex) ? hex : colorForValue(value?.value)}`;
   }
 
   function richColorPicker(item){
@@ -2744,10 +2746,10 @@
   }
 
   // Material an accepted document published waits for someone to generate it. Generates every such set; reports each.
-  async function generatePendingMaterialSets(){
+  async function generatePendingMaterialSets(options = {}){
     const api = (materialsAPI || window.MaterialsAPI)?.calculus, generated = [], failed = [];
     if (!api?.generate) return { generated, failed };
-    for (const list of state.lists.filter((entry) => entry.metadata?.calculus_pending)) {
+    for (const list of state.lists.filter((entry) => entry.metadata?.calculus_pending || (options.all && entry.metadata?.calculus))) {
       try { const result = await api.generate(list.id); updateMaterialListState(result?.material_list); generated.push(cleanText(list.title) || 'Materials'); }
       catch (error) { failed.push(`${cleanText(list.title) || 'Materials'}: ${error?.message || 'could not be generated'}`); }
     }
@@ -2784,7 +2786,7 @@
       await requestMeasurementHydration();
       if (!projectOperationIsCurrent(operation)) return;
       // An accepted document's material comes first; the scope's own list definitions are added to it.
-      const fromDocuments = await generatePendingMaterialSets();
+      const fromDocuments = await generatePendingMaterialSets({ all: true });
       if (!projectOperationIsCurrent(operation)) return;
       const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true }).catch((error) => (fromDocuments.generated.length ? null : Promise.reject(error)));
       const fromScope = (generated?.material_lists || generated?.lists || []).length;
