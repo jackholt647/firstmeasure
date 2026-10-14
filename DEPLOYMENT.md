@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 14 Settings search and assignment: [automatic UI-derived search and the larger, overlap-filtered assignment menu](deploy/digitalocean/development-settings-search-assignment-20261014.md) records the changes, tests and verified development rollout.
+
 October 14 Report preview: [Settings › Reports shows every page of the customer and internal PDFs beside the settings](deploy/digitalocean/development-report-preview-20261014.md) records what changed, checks and the verified development rollout.
 
 October 14 Project Reports tab: [the header no longer keeps a stale report tab strip highlighting Model & photos](deploy/digitalocean/development-report-tabs-20261014.md) records the cause, the fix, checks and the verified development rollout.

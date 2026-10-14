@@ -1,0 +1,184 @@
+{
+  "verification": {
+    "ok": true,
+    "release_id": "8c62f0abc9d2493101aae30ac7b2b71bba94c06a",
+    "data_environment": "development",
+    "outbound_safety_enforced": true,
+    "focused_tests_passed": 48,
+    "hosted_search": {
+      "results": [
+        {
+          "query": "waste",
+          "results": [
+            "Waste",
+            "Total squares"
+          ]
+        },
+        {
+          "query": "roof pitch",
+          "results": [
+            "Pitch",
+            "Pitch Page"
+          ]
+        },
+        {
+          "query": "company language",
+          "results": [
+            "Company language"
+          ]
+        },
+        {
+          "query": "push",
+          "results": []
+        },
+        {
+          "query": "mesage templates",
+          "results": []
+        },
+        {
+          "query": "bank",
+          "results": []
+        }
+      ],
+      "focusedReportControl": true,
+      "errors": []
+    },
+    "public_assets": [
+      {
+        "file": "public/libraries/apps/materials/project.js",
+        "sha256": "512d4ac4efb36cf9909962e0ee396bf76706d10c77f9731fe423e3cca16146f6"
+      },
+      {
+        "file": "public/libraries/apps/firstmate-apps-manifest.js",
+        "sha256": "480c41a7d4de7e818aefa3d4cd2744810944e4e449d573923b9bc169b3a15533"
+      },
+      {
+        "file": "public/libraries/apps/settings/search.js",
+        "sha256": "f1780e15ad50d4e7425c1794cda0a28aa7b3c23057d120986c02df586afba156"
+      },
+      {
+        "file": "public/libraries/apps/settings/search-index.js",
+        "sha256": "ea0975d72ab77da178fc49d262120b2a8ec9e6b6d9f73b6eb236f690022012a3"
+      }
+    ]
+  },
+  "releases": [
+    {
+      "release": "5f31152360ce75de5ecf9632cbb48bddb94e0532",
+      "roles": [
+        {
+          "name": "web",
+          "host": "fm-dev-web-598520065",
+          "previous_path": "/opt/firstmeasure/releases/33096a9dae1d259cece0506f4840ec629d4c293d",
+          "target_path": "/opt/firstmeasure/releases/5f31152360ce75de5ecf9632cbb48bddb94e0532",
+          "files": {
+            "public/libraries/apps/settings/company.js": "8383130eec8787d0971d5f7180ed5d1474811d336a708592f4db446cc884ff21",
+            "public/libraries/apps/settings/search.js": "4dca03c18d6af2c03e3136482a9333b270111ef94fadcb1b1502a77c01006ffa",
+            "public/libraries/apps/settings/search-index.js": "dbc841f9fb0591087e0140e030663039d46018c46a6a77b601f0d0a522366da6",
+            "public/portal/index.php": "8e2c00eb6131ace3c5154f1a11cc40488fa1d3e5d82c99591cafc3671a95e010",
+            "public/libraries/apps/firstmate-apps-manifest.js": "d93e461c7656576f0437187acc15716a3248781e3e0215bab1ed94e2d4b8de67",
+            "public/portal/scripts/topbar-artifacts.js": "70cc4967e94616db5b6cfa879d6cc2e6a006540d398afbdf044beaf85df0e1e5"
+          }
+        },
+        {
+          "name": "legacy",
+          "host": "firstmeasure-development-compatibility",
+          "previous_path": "/mnt/firstmeasure_dev_releases/releases/33096a9dae1d259cece0506f4840ec629d4c293d",
+          "target_path": "/mnt/firstmeasure_dev_releases/releases/5f31152360ce75de5ecf9632cbb48bddb94e0532",
+          "files": {
+            "public/libraries/apps/settings/company.js": "8383130eec8787d0971d5f7180ed5d1474811d336a708592f4db446cc884ff21",
+            "public/libraries/apps/settings/search.js": "4dca03c18d6af2c03e3136482a9333b270111ef94fadcb1b1502a77c01006ffa",
+            "public/libraries/apps/settings/search-index.js": "dbc841f9fb0591087e0140e030663039d46018c46a6a77b601f0d0a522366da6",
+            "public/portal/index.php": "8e2c00eb6131ace3c5154f1a11cc40488fa1d3e5d82c99591cafc3671a95e010",
+            "public/libraries/apps/firstmate-apps-manifest.js": "35e8fbe7b3977d26a93c22a0332d7069df8d6c912ccfb34661903c43b70fbf3d",
+            "public/portal/scripts/topbar-artifacts.js": "70cc4967e94616db5b6cfa879d6cc2e6a006540d398afbdf044beaf85df0e1e5"
+          }
+        },
+        {
+          "name": "pool",
+          "host": "fm-dev-web-603124965",
+          "previous_path": "/opt/firstmeasure/releases/33096a9dae1d259cece0506f4840ec629d4c293d",
+          "target_path": "/opt/firstmeasure/releases/5f31152360ce75de5ecf9632cbb48bddb94e0532",
+          "files": {
+            "public/libraries/apps/settings/company.js": "8383130eec8787d0971d5f7180ed5d1474811d336a708592f4db446cc884ff21",
+            "public/libraries/apps/settings/search.js": "4dca03c18d6af2c03e3136482a9333b270111ef94fadcb1b1502a77c01006ffa",
+            "public/libraries/apps/settings/search-index.js": "dbc841f9fb0591087e0140e030663039d46018c46a6a77b601f0d0a522366da6",
+            "public/portal/index.php": "8e2c00eb6131ace3c5154f1a11cc40488fa1d3e5d82c99591cafc3671a95e010",
+            "public/libraries/apps/firstmate-apps-manifest.js": "d93e461c7656576f0437187acc15716a3248781e3e0215bab1ed94e2d4b8de67",
+            "public/portal/scripts/topbar-artifacts.js": "70cc4967e94616db5b6cfa879d6cc2e6a006540d398afbdf044beaf85df0e1e5"
+          }
+        }
+      ]
+    },
+    {
+      "release": "d0ddb28afe8f1ab7de10c01438359cc29455da4c",
+      "roles": [
+        {
+          "name": "web",
+          "host": "fm-dev-web-598520065",
+          "previous_path": "/opt/firstmeasure/releases/5f31152360ce75de5ecf9632cbb48bddb94e0532",
+          "target_path": "/opt/firstmeasure/releases/d0ddb28afe8f1ab7de10c01438359cc29455da4c",
+          "files": {
+            "public/libraries/apps/materials/project.js": "512d4ac4efb36cf9909962e0ee396bf76706d10c77f9731fe423e3cca16146f6",
+            "public/libraries/apps/firstmate-apps-manifest.js": "480c41a7d4de7e818aefa3d4cd2744810944e4e449d573923b9bc169b3a15533"
+          }
+        },
+        {
+          "name": "legacy",
+          "host": "firstmeasure-development-compatibility",
+          "previous_path": "/mnt/firstmeasure_dev_releases/releases/5f31152360ce75de5ecf9632cbb48bddb94e0532",
+          "target_path": "/mnt/firstmeasure_dev_releases/releases/d0ddb28afe8f1ab7de10c01438359cc29455da4c",
+          "files": {
+            "public/libraries/apps/materials/project.js": "8ba55412dedb1bceead132df22c7a47ec50c3c58249c72689269cadf4517f64b",
+            "public/libraries/apps/firstmate-apps-manifest.js": "400c7e2f62222b650b2fcb14b1b8ef7a720f96087dcdb83d2141f1744279f35a"
+          }
+        },
+        {
+          "name": "pool",
+          "host": "fm-dev-web-603124965",
+          "previous_path": "/opt/firstmeasure/releases/5f31152360ce75de5ecf9632cbb48bddb94e0532",
+          "target_path": "/opt/firstmeasure/releases/d0ddb28afe8f1ab7de10c01438359cc29455da4c",
+          "files": {
+            "public/libraries/apps/materials/project.js": "512d4ac4efb36cf9909962e0ee396bf76706d10c77f9731fe423e3cca16146f6",
+            "public/libraries/apps/firstmate-apps-manifest.js": "480c41a7d4de7e818aefa3d4cd2744810944e4e449d573923b9bc169b3a15533"
+          }
+        }
+      ]
+    },
+    {
+      "release": "8c62f0abc9d2493101aae30ac7b2b71bba94c06a",
+      "roles": [
+        {
+          "name": "web",
+          "host": "fm-dev-web-598520065",
+          "previous_path": "/opt/firstmeasure/releases/d0ddb28afe8f1ab7de10c01438359cc29455da4c",
+          "target_path": "/opt/firstmeasure/releases/8c62f0abc9d2493101aae30ac7b2b71bba94c06a",
+          "files": {
+            "public/libraries/apps/settings/search.js": "f1780e15ad50d4e7425c1794cda0a28aa7b3c23057d120986c02df586afba156",
+            "public/libraries/apps/settings/search-index.js": "ea0975d72ab77da178fc49d262120b2a8ec9e6b6d9f73b6eb236f690022012a3"
+          }
+        },
+        {
+          "name": "legacy",
+          "host": "firstmeasure-development-compatibility",
+          "previous_path": "/mnt/firstmeasure_dev_releases/releases/d0ddb28afe8f1ab7de10c01438359cc29455da4c",
+          "target_path": "/mnt/firstmeasure_dev_releases/releases/8c62f0abc9d2493101aae30ac7b2b71bba94c06a",
+          "files": {
+            "public/libraries/apps/settings/search.js": "f1780e15ad50d4e7425c1794cda0a28aa7b3c23057d120986c02df586afba156",
+            "public/libraries/apps/settings/search-index.js": "ea0975d72ab77da178fc49d262120b2a8ec9e6b6d9f73b6eb236f690022012a3"
+          }
+        },
+        {
+          "name": "pool",
+          "host": "fm-dev-web-603124965",
+          "previous_path": "/opt/firstmeasure/releases/d0ddb28afe8f1ab7de10c01438359cc29455da4c",
+          "target_path": "/opt/firstmeasure/releases/8c62f0abc9d2493101aae30ac7b2b71bba94c06a",
+          "files": {
+            "public/libraries/apps/settings/search.js": "f1780e15ad50d4e7425c1794cda0a28aa7b3c23057d120986c02df586afba156",
+            "public/libraries/apps/settings/search-index.js": "ea0975d72ab77da178fc49d262120b2a8ec9e6b6d9f73b6eb236f690022012a3"
+          }
+        }
+      ]
+    }
+  ]
+}
