@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 13 People and assignees: [the assignee base, pay by role and type, field homes and the People settings category](deploy/digitalocean/development-people-20261015.md) records what changed, what was removed, checks and the verified development rollout.
+
 October 13 Pay cadence and time clock: [flexible pay schedules, salary, pay defaults, group splits, the time clock as published data and the payroll screens](deploy/digitalocean/development-pay-cadence-20261013.md) records what changed, what was removed, checks and the verified development rollout.
 
 October 13 Pay rules: [pay rules, pay plans and derived earnings](deploy/digitalocean/development-pay-rules-20261013.md) records the new pay model, what was removed, checks and the verified development rollout.
