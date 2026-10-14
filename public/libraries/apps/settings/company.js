@@ -12840,7 +12840,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
           subtitle: (globalThis.PlatformLanguage?.text("settings","m_2aeb2a60757c0f","Choose the standard report pages included in every future customer PDF.") ?? "Choose the standard report pages included in every future customer PDF."),
           items: [
             { key:'page_top_view',     label:(globalThis.PlatformLanguage?.text("settings","m_e8117eba7f9b47","Top View Page") ?? "Top View Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_top_view","The roof imagery and the top-down roof outline.") ?? "The roof imagery and the top-down roof outline.") },
-            { key:'page_elevations',   label:(globalThis.PlatformLanguage?.text("settings","m_5bb769b713d5ee","Elevations Page") ?? "Elevations Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_elevations","Side views of the roof from each direction.") ?? "Side views of the roof from each direction.") },
             { key:'page_3d',           label:(globalThis.PlatformLanguage?.text("settings","m_a9e9bc27c47d0d","3D Page") ?? "3D Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_3d","A 3D model of the roof.") ?? "A 3D model of the roof.") },
             { key:'page_pitch',        label:(globalThis.PlatformLanguage?.text("settings","m_1d44898cb67354","Pitch Page") ?? "Pitch Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_pitch","The roof outline with every facet labeled by pitch.") ?? "The roof outline with every facet labeled by pitch.") },
             { key:'page_area',         label:(globalThis.PlatformLanguage?.text("settings","m_93bdeee9cd7ae9","Area Page") ?? "Area Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_area","The roof outline with every facet labeled by area.") ?? "The roof outline with every facet labeled by area.") },
@@ -12866,7 +12865,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if (!host) return;
         const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, logo:logoKey(state.logo) });
         if (window.FirstMateReportPreview) { draw(); return; }
-        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261014-report-preview-v3'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
+        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261014-report-preview-v4'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
         window.__fmReportPreviewLoading.then(draw).catch(() => { window.__fmReportPreviewLoading = null; host.textContent = settingsText("fm_report_preview_failed", "The report preview could not load."); });
       };
       renderSample();

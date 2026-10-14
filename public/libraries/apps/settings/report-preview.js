@@ -179,24 +179,6 @@
   const imageryPage = () => card(MARGIN, 35, AVAIL_W, AVAIL_W, { border:0.4 }) + image('imagery', 25.5, 35.5, 174.9, 174.9, `border-radius:${mm(2.6)}`);
 
   const VIEWS = [['north', 'North View'], ['south', 'South View'], ['east', 'East View'], ['west', 'West View']];
-  // The elevations page. A real report places the elevation image the measurer uploads (one picture of the
-  // four sides) at y 35 with a grey label over each quarter; the sample has none, so each view of the sample
-  // roof stands in, framed as a card with its label inside.
-  function elevationsPage(){
-    const gap = 8, cellW = (AVAIL_W - gap) / 2, cellH = 98, pillW = cellW - 10, ratio = 79.95 / 81.15;
-    let out = '';
-    VIEWS.forEach(([name, label], i) => {
-      const px = MARGIN + (i % 2) * (cellW + gap), py = 35 + Math.floor(i / 2) * (cellH + gap);
-      out += card(px, py, cellW, cellH);
-      const pillX = px + 5, pillY = py + 4;
-      out += rect(pillX, pillY, pillW, 8, `background:#676767;border-radius:${mm(2)}`);
-      out += text(pillX + pillW / 2, pillY + 5, label, { size:10, bold:true, color:'#fff', align:'center' });
-      const areaY = pillY + 11, areaH = py + cellH - 4 - areaY, h = Math.min(areaH, (cellW - 8) / ratio), w = h * ratio;
-      out += image(`view-${name}`, px + (cellW - w) / 2, areaY + (areaH - h) / 2, w, h);
-    });
-    return out;
-  }
-
   // drawQuadGridPage: 2x2 cards with a grey header bar.
   function facetsPage(){
     const cellW = (AVAIL_W - 10) / 2, cellH = cellW + 8;
@@ -429,17 +411,17 @@
   // ---- Documents ----
   const ALL_PAGES = {
     cover_show_customer:true, cover_show_squares:true, cover_show_waste:true, cover_show_breakdown:true, cover_show_pitch:true, cover_show_facets:true,
-    page_top_view:true, page_elevations:true, page_3d:true, page_pitch:true, page_area:true, page_layers:true, page_summary:true, page_materials:true, page_ventilation:true, page_gutters:true, page_notes:true
+    page_top_view:true, page_3d:true, page_pitch:true, page_area:true, page_layers:true, page_summary:true, page_materials:true, page_ventilation:true, page_gutters:true, page_notes:true
   };
-  // The page sequence of generatePDFFromState. The sample has elevation imagery, a flat section and
-  // gutters ordered, so every setting shows its page.
+  // The page sequence of generatePDFFromState. The sample has a flat section and gutters ordered, so every
+  // setting shows its page. It has no elevation imagery, so the 3D views page takes the "Roof Elevations"
+  // title the PDF gives it then.
   function documentPages(mode, settings){
     const s = mode === 'internal' ? ALL_PAGES : { ...ALL_PAGES, ...settings };
     const pages = [{ key:'cover', label:'Cover', cover:true, draw:() => mode === 'internal' ? coverInternal() : coverCustomer(s) }];
     const add = (flag, key, label, title, draw) => { if (s[flag] !== false) pages.push({ key, label, title, draw }); };
     add('page_top_view', 'imagery', 'Imagery', 'Roof Imagery', imageryPage);
-    add('page_elevations', 'elevations', 'Elevations', 'Roof Elevations', elevationsPage);
-    add('page_3d', 'facets', 'Facets', 'Roof Facets', facetsPage);
+    add('page_3d', 'facets', 'Facets', 'Roof Elevations', facetsPage);
     add('page_summary', 'summary', 'Summary', 'Roof Summary', summaryPage);
     add('page_materials', 'steep-1', 'Materials', 'Steep-Slope Roof Materials', steepPage1);
     add('page_materials', 'steep-2', 'Materials', 'Steep-Slope Roof Materials', steepPage2);
