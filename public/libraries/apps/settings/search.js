@@ -1,140 +1,150 @@
-/* Shared settings search catalogue used by the portal top bar and Settings rail. */
+/* Settings discovery: generated UI text plus the current user's rendered controls. */
 (function(root){
-  const catalog = [];
-  const add = (section, tab, entries) => entries.forEach((entry) => {
-    const value = typeof entry === 'string' ? { title:entry } : entry;
-    catalog.push({ section, tab, view:'', keywords:'', ...value });
-  });
-
-  add('my_settings', 'My Settings', [
-    'My language', 'Show translations automatically', 'Left column width',
-    { title:(globalThis.PlatformLanguage?.text("settings","m_f58512207821a0","Language & translation") ?? "Language & translation"), keywords:'foreign messages localization' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_2805026f294644","Appearance") ?? "Appearance"), keywords:'sidebar display' }
-  ]);
-  add('company', 'Company', [
-    'Company name', 'Company logo', 'Company phone', 'Company email', 'Business address',
-    'Brand colors', 'Default branch', 'Company identity', 'Contact details', 'Branding'
-  ]);
-  add('money', 'Money', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_f16c79ddfcf747","Payment settings") ?? "Payment settings"), view:'payments', keywords:'online payments card ach' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_b1cfecd1c6d08e","Payment accounts") ?? "Payment accounts"), view:'accounts', keywords:'bank stripe processor' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_40f9425502b89f","Payment disputes") ?? "Payment disputes"), view:'disputes', keywords:'chargeback' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_18dc609c73fed7","Payment defaults") ?? "Payment defaults"), view:'payments', keywords:'deposit invoice' }
-  ]);
-  add('calls', 'Calls', ['Call queues', 'Call assignments', 'Call follow-ups', 'Call outcomes', 'Phone call workflow']);
-  add('contacts', 'Contacts', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_dd7c09f845edda","Import contacts") ?? "Import contacts"), view:'import', keywords:'csv vcard upload' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_21c1377746ce5f","Contact import history") ?? "Contact import history"), view:'history', keywords:'previous imports undo' }
-  ]);
-  add('project_scopes', 'Project Scopes', ['Scope library', 'Add project scope', 'Create from template', 'Clone scope', 'Automation boards', 'Project workflows', 'Automation triggers', 'Automation actions']);
-  add('feedback', 'Feedback', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_40390cdba7b5db","Feedback delivery") ?? "Feedback delivery"), view:'delivery' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_d4349c36aae182","Feedback workflow") ?? "Feedback workflow"), view:'workflow' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_25aca3d07d8eca","Review requests") ?? "Review requests"), view:'delivery' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_d0201580beb20c","Customer rating scale") ?? "Customer rating scale"), view:'workflow' }
-  ]);
-  add('equipment', 'Equipment', ['Equipment types', 'Equipment operating defaults', 'Equipment categories']);
-  add('live_chat', 'Live Chat', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_d03a3864e5debd","Chat widget") ?? "Chat widget"), view:'widget' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_e268628e71275b","Chat availability") ?? "Chat availability"), view:'hours', keywords:'hours schedule' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_6529324131a51e","Chat routing") ?? "Chat routing"), view:'routing' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_8486d5fa847daf","Chat team") ?? "Chat team"), view:'team' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_bd3b1064741670","Live chat AI agent") ?? "Live chat AI agent"), view:'ai' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_5f4470ddc00b44","Chat greeting") ?? "Chat greeting"), view:'widget' }
-  ]);
-  add('comms', 'Communications', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_58f88a4c743040","Communication preferences") ?? "Communication preferences"), view:'general', keywords:'email sms inbox' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_3cc8ac595c76f1","Message templates") ?? "Message templates"), view:'templates', keywords:'reusable email sms copy' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_c96e046123187e","Inbound email address") ?? "Inbound email address"), view:'general', keywords:'inbox' }
-  ]);
-  add('assistant', 'AI Agents', ['AI assistant behavior', 'AI assistant data access', 'AI customer messaging', 'AI agent permissions']);
-  add('channels', 'Channels', ['Team channels', 'Channel defaults', 'Channel members']);
-  add('payroll', 'Payroll', ['Pay schedules', 'Payroll assignments', 'Earnings', 'Contractor pay', 'Timesheet defaults']);
-  add('reports', 'Reports', ['Measurement report defaults', 'Customer report defaults', 'Report branding']);
-  add('documents', 'Documents', ['Required project documents', 'Document defaults', 'Document requirements']);
-  add('configuration', 'Configuration', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_2d1233007f5250","Custom fields") ?? "Custom fields"), view:'custom_fields', keywords:'project contact fields' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_172e88e9e61719","Terminology") ?? "Terminology"), view:'terminology', keywords:'rename labels wording' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_99f191126afd49","Project display") ?? "Project display"), view:'projects', keywords:'project configuration layout' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_ef207345c8196c","Celebrations") ?? "Celebrations"), view:'celebrations', keywords:'confetti success animation' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_5430e6902b900e","Insights") ?? "Insights"), view:'insights', keywords:'recommendations tips tooltip agent contextual help' }
-  ]);
-  add('scheduling', 'Scheduling', ['Appointment confirmations', 'Scheduling availability', 'Assignment rules', 'Booking windows']);
-  add('people', 'People', [
-    {title:'People overview',view:'home',keywords:'team staff directory'},
-    {title:'Users',view:'users',keywords:'people teammates invite user roles permissions app experience suspend delete admin level tags'},
-    {title:'Invite user',view:'users',keywords:'add teammate employee invitation'},
-    {title:'Roles & access',view:'users',keywords:'role permissions permission sets security members access'},
-    {title:'Groups',view:'groups',keywords:'crews teams group types members staffing requirements lead'},
-    {title:'Departments',view:'departments',keywords:'department members icon scoped roles organizational units divisions categories app visibility'},
-    {title:'Subcontractors',view:'subcontractors',keywords:'outside companies vendors partners company types link payment terms'}
-  ]);
-  add('storage', 'Storage', ['Media storage usage', 'Storage limits', 'Deleted media', 'Storage plan']);
-  add('sms', 'SMS', ['Messaging registration', '10DLC registration', 'SMS setup', 'Messaging profile']);
-  add('domains', 'Domains & Hosting', ['Register domain', 'Connect domain', 'Website hosting', 'DNS settings']);
-  add('app_flags', 'Developer Settings', [
-    { title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), view:'', keywords:'developer settings development dev tools feature flags features apps enable disable' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_4d4f031a019ad9","Manage My Apps") ?? "Manage My Apps"), view:'manage_apps', keywords:'installed applications' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_536d6b65f599fc","App Locations") ?? "App Locations"), view:'app_locations', keywords:'navigation placement' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_3f7df83412b6a8","App presets") ?? "App presets"), view:'presets', keywords:'feature configuration sets' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_9864b866a47464","Permission Sets") ?? "Permission Sets"), view:'permissions', keywords:'roles access' }
-  ]);
-  add('pricebook', 'Pricebook', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_a24fa117966050","Pricebook editor") ?? "Pricebook editor"), view:'editor', keywords:'items pricing labor material' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_e899c8b9ef96de","Generate pricebook items") ?? "Generate pricebook items"), view:'generate', keywords:'ai import create' },
-    'Proposal formulas'
-  ]);
-  add('proposals', 'Proposals', ['Proposal defaults', 'Proposal terms', 'Proposal presentation', 'New proposal defaults']);
-  add('forms', 'Forms and Leads', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_09e64e54fa804e","Estimate request form") ?? "Estimate request form"), view:'website:estimate', keywords:'website lead form' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_b826296c47cc15","Contact form") ?? "Contact form"), view:'website:contact', keywords:'website lead form' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_5ac2e7ea01fdda","Lead import") ?? "Lead import"), view:'email', keywords:'email inbound leads' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_383c27662b667a","Lead sources") ?? "Lead sources"), view:'email', keywords:'inbound capture' }
-  ]);
-  add('billing', 'Billing', ['Subscription plan', 'Billing balance', 'Automatic top-ups', 'Payment method', 'Billing history']);
-  add('billing', 'Billing', ['Platform subscriptions', 'Usage charges', 'Storage charges', 'Pricing catalog', 'Platform invoices'].map(title=>({title,platformBilling:true})));
-
-  function normalize(value){
-    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  'use strict';
+  const clean = value => String(value ?? '').replace(/\s+/g,' ').trim();
+  const normalize = value => clean(value).normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+  const controls = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]),select,textarea,[role="switch"],[aria-pressed]';
+  const ignored = 'script,style,option,textarea,input,select,[contenteditable],.rp-state,[data-settings-search-results],[data-settings-search-ignore]';
+  let attachment = null, pending = null;
+  const subscriptions = new Set();
+  const sourceEntries = () => root.FirstMateSettingsIndex?.entries || [];
+  const textOf = (element, labelOnly=false) => {
+    if (!element) return '';
+    const clone = element.cloneNode(true);
+    clone.querySelectorAll(ignored+(labelOnly?',small,[data-fm-tooltip],[data-tooltip],.fm-ui-help':'')).forEach(node=>node.remove());
+    const walker=document.createTreeWalker(clone,NodeFilter.SHOW_TEXT);const parts=[];while(walker.nextNode())parts.push(walker.currentNode.textContent);
+    return clean(parts.join(' ')).replace(/\s*\?\s*$/,'');
+  };
+  const tooltip = element => clean([element?.getAttribute('data-fm-tooltip'),element?.getAttribute('data-tooltip'),element?.getAttribute('title')].filter(Boolean).join(' '));
+  function selectorFor(element){
+    if (element.id && !element.id.includes('FM_DYNAMIC')) return `[id="${CSS.escape(element.id)}"]`;
+    for (const attr of element.attributes) {
+      if (/^data-/.test(attr.name) && !/(?:value|state|loaded|mounted|val|index|settings-search)/.test(attr.name) && !attr.value.includes('FM_DYNAMIC')) return `[${attr.name}="${CSS.escape(attr.value)}"]`;
+    }
+    if (element.getAttribute('name')) return `[name="${CSS.escape(element.name)}"]`;
+    return '';
   }
-
-  function search(query, options = {}){
-    const needle = normalize(query);
-    if (!needle) return [];
-    const tokens = needle.split(/\s+/).filter(Boolean);
-    const allowed = options.sections ? new Set(Array.from(options.sections, String)) : null;
-    return catalog
-      .filter((item) => !allowed || allowed.has(item.section))
-      .filter((item) => !item.platformBilling || root.FirstMatePlatformBilling?.isEnabled() === true)
-      .map((item) => {
-        const title = normalize(item.title);
-        const tab = normalize(item.tab);
-        const haystack = `${title} ${tab} ${normalize(item.keywords)}`;
-        if (!tokens.every((token) => haystack.includes(token))) return null;
-        const score = title === needle ? 0 : title.startsWith(needle) ? 1 : title.includes(needle) ? 2 : tab.startsWith(needle) ? 3 : 4;
-        return { ...item, score };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.score - b.score || a.title.localeCompare(b.title))
-      .slice(0, Number(options.limit) || 20);
-  }
-
-  function open(item, options = {}){
-    if (!item?.section || !root.Portal?.navigation?.navigate) return false;
-    root.Portal.navigation.navigate({
-      tab:'company_settings',
-      sub:item.section,
-      settingsView:item.view || '',
-      settingsEntity:'',
-      scopeTemplateView:'',
-      workflow:'',
-      workflow_step:''
-    }, {
-      source:options.source || 'settings-search',
-      ownedKeys:['tab','sub','settingsView','settingsEntity','scopeTemplateView','workflow','workflow_step']
+  function extract(host, context = {}){
+    const entries = [], seen = new Set();
+    const add = (node,title,description,kind,selector='') => {
+      title=clean(title); description=clean(description);
+      if (!title || title.length>120 || /FM_DYNAMIC|Loading|Could not load|^return |^Search |^Filter /i.test(title)) return;
+      if (node.closest('[data-settings-search-ignore],[data-settings-search-results],script,style,pre,code')) return;
+      let view=context.view||'';
+      for(let parent=node;parent&&parent!==host;parent=parent.parentElement){
+        const attr=Array.from(parent.attributes||[]).find(a=>/^data-(?:[\w-]+-)?(?:view-pane|pane|panel)$/.test(a.name)&&a.name!=='data-settings-pane'&&/^[a-z][a-z0-9_-]*$/.test(a.value));
+        if(attr){view=attr.value;break;}
+      }
+      const nav=Array.from(node.attributes||[]).find(a=>/^data-(?:[\w-]+-)?(?:view|subtab|subtab-value|tab)$/.test(a.name)&&/^[a-z][a-z0-9_-]*$/.test(a.value));
+      if(nav)view=nav.value;
+      const key=normalize(title)+'|'+view+'|'+selector;
+      if (seen.has(key)) return; seen.add(key);
+      entries.push({...context,view,title,description:description.includes('FM_DYNAMIC')?'':description,kind,selector,element:node});
+    };
+    host.querySelectorAll(controls).forEach(control=>{
+      if (control.closest('[data-settings-search-ignore]')) return;
+      const labels=Array.from(control.labels || []);
+      const label=labels[0] || control.closest('label');
+      let wrapper=label || control.parentElement;
+      if(!label){for(let i=0;i<3&&wrapper?.parentElement&&wrapper!==host&&!textOf(wrapper);i++)wrapper=wrapper.parentElement;}
+      // Many older settings use a sibling .*-label rather than <label for>.
+      if (!label && wrapper?.querySelectorAll(controls).length<=3 && textOf(wrapper).length<400) {} else if (!label) wrapper=null;
+      const labelled=clean((control.getAttribute('aria-labelledby') || '').split(/\s+/).map(id=>textOf(host.querySelector(`[id="${CSS.escape(id)}"]`))).join(' '));
+      const strong=label?.querySelector('strong,.rp-label') || wrapper?.querySelector('[class$="-label"],.bl-pill,.rp-label');
+      const title=labelled || control.getAttribute('aria-label') || textOf(strong) || textOf(label,true) || textOf(wrapper,true);
+      const described=clean((control.getAttribute('aria-describedby') || '').split(/\s+/).map(id=>textOf(host.querySelector(`[id="${CSS.escape(id)}"]`))).join(' '));
+      const tips=Array.from((wrapper || control).querySelectorAll('[data-fm-tooltip],[data-tooltip],[title]')).map(tooltip);
+      add(control,title,[tooltip(control),tooltip(wrapper),described,...Array.from((wrapper||control).querySelectorAll('small')).map(e=>textOf(e)),...tips].filter(Boolean).join(' '),'control',selectorFor(control));
     });
-    return true;
+    host.querySelectorAll('h1,h2,h3,h4,h5,h6,summary,[role="tab"],label,[class$="-label"],button').forEach(node=>{
+      if(node.tagName==='BUTTON'&&!Array.from(node.attributes).some(a=>/^data-(?:[\w-]+-)?(?:view|subtab|subtab-value|tab)$/.test(a.name)))return;
+      if (node.matches('label') && node.querySelector(controls)) return;
+      if (node.matches('[class$="-label"]') && node.parentElement?.querySelector(controls)) return;
+      add(node,textOf(node),tooltip(node),node.matches('[role="tab"],button')?'view':'heading',selectorFor(node));
+    });
+    return entries;
   }
-
-  root.FirstMateSettingsSearch = { catalog:Object.freeze(catalog), search, open };
+  function distanceOne(a,b){
+    if(Math.abs(a.length-b.length)>1)return false;
+    let i=0,j=0,edits=0;
+    while(i<a.length&&j<b.length){if(a[i]===b[j]){i++;j++;continue;}if(++edits>1)return false;
+      if(a[i]===b[j+1]&&a[i+1]===b[j]){i+=2;j+=2;continue;}
+      if(a.length>=b.length)i++;if(b.length>=a.length)j++;
+    }
+    return edits+(i<a.length||j<b.length?1:0)<=1;
+  }
+  function localized(item){
+    const title=item.translation ? root.PlatformLanguage?.text?.(...item.translation) || item.title : item.title;
+    const tab=attachment?.sections.get(item.section)?.title || item.tab;
+    return {...item,title,tab};
+  }
+  function search(query, options={}){
+    const needle=normalize(query);if(!needle)return [];
+    const tokens=needle.split(' '), allowed=options.sections?new Set(options.sections):attachment?new Set(attachment.sections.keys()):null;
+    const entries=[...(attachment?.live || []),...sourceEntries()], unique=new Map();
+    for(const original of entries){
+      if(allowed&&!allowed.has(original.section))continue;
+      if(attachment&&!attachment.sections.has(original.section))continue;
+      const item=localized(original), title=normalize(item.title), desc=normalize(item.description), tab=normalize(item.tab), words=(title+' '+tab+' '+desc+' '+normalize(item.keywords)).split(' ');
+      let penalty=0;
+      if(!tokens.every(token=>{
+        if(words.some(word=>word===token))return true;
+        if(words.some(word=>word.startsWith(token))){penalty+=1;return true;}
+        if(token.length>=5&&title.split(' ').some(word=>word.length>=4&&distanceOne(word,token))){penalty+=5;return true;}
+        return false;
+      }))continue;
+      const score=(title===needle?0:title.startsWith(needle)?10:tokens.every(t=>title.includes(t))?20:30)+penalty+(item.kind==='section'?3:0);
+      const key=item.section+'|'+(item.view||'')+'|'+title;
+      const old=unique.get(key);if(!old||score<old.score)unique.set(key,{...item,score});
+    }
+    return [...unique.values()].sort((a,b)=>a.score-b.score||a.title.localeCompare(b.title)).slice(0,options.limit||40);
+  }
+  function notify(){subscriptions.forEach(fn=>fn());}
+  function attach(panel, sections, route){
+    attachment?.destroy();
+    const current={panel,sections:new Map(sections.map(s=>[s.id,s])),live:[],route,destroy:null};attachment=current;
+    let timer;
+    const refresh=()=>{
+      if(!panel.isConnected){current.destroy();return;}
+      const entries=[];
+      for(const section of sections){
+        const pane=panel.querySelector(`[data-settings-pane="${CSS.escape(section.id)}"]`);if(!pane)continue;
+        const location=route?.()||{};
+        // Only the active page has a reliable nested route. Never associate stale DOM with a new route.
+        if(!pane.classList.contains('active'))continue;
+        entries.push(...extract(pane,{section:section.id,tab:section.title,view:location.settingsView||'',live:true}));
+      }
+      current.live=entries;notify();reveal();
+    };
+    const observer=new MutationObserver(records=>{
+      if(records.every(r=>(r.target.nodeType===3?r.target.parentElement:r.target).closest?.('[data-settings-search-results],.cs-settings-search')))return;
+      clearTimeout(timer);timer=setTimeout(refresh,150);
+    });
+    observer.observe(panel,{subtree:true,childList:true,characterData:true});
+    current.destroy=()=>{observer.disconnect();clearTimeout(timer);if(attachment===current)attachment=null;};
+    refresh();return current;
+  }
+  function reveal(){
+    if(!pending||!attachment)return;
+    if(Date.now()>pending.until){pending=null;return;}
+    const {item}=pending,pane=attachment.panel.querySelector(`[data-settings-pane="${CSS.escape(item.section)}"].active`);
+    if(!pane)return;
+    let target=item.selector?pane.querySelector(item.selector):null;
+    if(!target)target=extract(pane).find(entry=>normalize(entry.title)===normalize(item.title))?.element;
+    if(!target)return;
+    for(let parent=target.parentElement;parent&&parent!==pane;parent=parent.parentElement)if(parent.tagName==='DETAILS')parent.open=true;
+    if(!target.getClientRects().length)return;
+    target.scrollIntoView({block:'center',behavior:'smooth'});
+    if(target.matches('input,select,textarea,button,[tabindex]'))target.focus({preventScroll:true});
+    target.animate?.([{outline:'3px solid #f4b740',outlineOffset:'5px'},{outline:'3px solid transparent',outlineOffset:'5px'}],{duration:2200});
+    pending=null;
+  }
+  function open(item,options={}){
+    if(!item?.section||!root.Portal?.navigation?.navigate)return false;
+    if(attachment&&!attachment.sections.has(item.section))return false;
+    pending={item,until:Date.now()+10000};
+    root.Portal.navigation.navigate({tab:'company_settings',sub:item.section,settingsView:item.view||'',settingsEntity:'',scopeTemplateView:'',workflow:'',workflow_step:''},{source:options.source||'settings-search',ownedKeys:['tab','sub','settingsView','settingsEntity','scopeTemplateView','workflow','workflow_step']});
+    setTimeout(reveal,0);return true;
+  }
+  root.FirstMateSettingsSearch={get catalog(){return sourceEntries();},search,open,extract,attach,normalize,subscribe(fn){subscriptions.add(fn);return()=>subscriptions.delete(fn);}};
 })(window);

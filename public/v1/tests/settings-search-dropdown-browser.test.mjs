@@ -4,6 +4,7 @@ import test from 'node:test';
 import {chromium} from 'playwright-core';
 
 const source=(await readFile(process.env.SETTINGS_SEARCH_SOURCE || new URL('../../libraries/apps/settings/company.js',import.meta.url),'utf8')).replaceAll('\r\n','\n');
+const generated=await readFile(new URL('../../libraries/apps/settings/search-index.js',import.meta.url),'utf8');
 const catalog=await readFile(new URL('../../libraries/apps/settings/search.js',import.meta.url),'utf8');
 const css=source.slice(source.indexOf('      .cs-sidebar{'),source.indexOf('      .cfg-options{'));
 const markup=source.slice(source.indexOf('            <div class="cs-settings-search">'),source.indexOf('            <nav class="cs-tabs"'));
@@ -15,14 +16,14 @@ test('settings search overlays the rail without reflow or clipping and supports 
     const page=await browser.newPage({viewport:{width:1000,height:780}});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.setContent(`<style>body{font:14px Arial;background:#eff2f6;margin:24px}main{display:grid;grid-template-columns:300px 1fr;gap:24px}aside{height:220px;transform:translateZ(0)}.content{background:#fff;position:relative;z-index:100;padding:24px;border-radius:16px}.cs-tab{padding:15px;text-align:left;background:transparent;border:0;flex:none}.cs-settings-search-clear i:before{content:'×'}${css}</style><h1>My Settings</h1><main><aside class="cs-sidebar"></aside><section class="content"><h2>Language & translation</h2><button id="outside">Other settings</button></section></main>`);
-    await page.addScriptTag({content:catalog});
+    await page.addScriptTag({content:generated});await page.addScriptTag({content:catalog});
     await page.evaluate(({markup,behavior})=>{
       const panel=document.querySelector('main');
       const html=new Function('return `'+markup+'`;')();
       panel.querySelector('aside').innerHTML=html+'<div class="cs-tabs">'+['My Settings','Notifications','Company','Money','Calls','Contacts','Feedback'].map(label=>`<button class="cs-tab">${label}</button>`).join('')+'</div>';
       window.selected=[];window.Portal={navigation:{navigate:route=>window.selected.push(route)}};
-      const initialize=new Function('panel','$','availableSettingsSections','escapeHtml',behavior);
-      initialize(panel,(selector,host)=>host.querySelector(selector),window.FirstMateSettingsSearch.catalog.map(item=>({id:item.section})),value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+      const initialize=new Function('panel','$','availableSettingsSections','escapeHtml','readSettingsRoute','sectionTitle',behavior);
+      initialize(panel,(selector,host)=>host.querySelector(selector),window.FirstMateSettingsSearch.catalog.map(item=>({id:item.section})),value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),()=>({}),section=>section.title||section.id);
     },{markup,behavior});
     const input=page.getByRole('combobox'),list=page.getByRole('listbox');
     const before=await page.locator('.cs-tabs').boundingBox();

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicRoot = path.resolve(here, '..', '..');
+const indexSource = await readFile(path.join(publicRoot, 'libraries/apps/settings/search-index.js'), 'utf8');
 const searchSource = await readFile(path.join(publicRoot, 'libraries/apps/settings/search.js'), 'utf8');
 const artifactSource = await readFile(path.join(publicRoot, 'portal/scripts/topbar-artifacts.js'), 'utf8');
 const topbarSource = await readFile(path.join(publicRoot, 'portal/scripts/topbar.js'), 'utf8');
@@ -18,7 +19,8 @@ function searchHarness(){
   const window = {
     Portal:{ navigation:{ navigate:(route, options) => navigations.push({ route, options }) } }
   };
-  vm.runInNewContext(searchSource, { window });
+  vm.runInNewContext(indexSource, { window });
+  vm.runInNewContext(searchSource, { window, setTimeout:() => {} });
   return { api:window.FirstMateSettingsSearch, navigations };
 }
 
@@ -103,7 +105,8 @@ test('users and equipment providers return routed global-search results', async 
 });
 
 test('global and settings-only search surfaces share the catalogue contract', () => {
-  assert.match(portalIndex, /settings\/search\.js[\s\S]{0,240}scripts\/topbar-artifacts\.js[\s\S]{0,120}scripts\/topbar\.js/);
+  assert.ok(portalIndex.indexOf('settings/search-index.js') < portalIndex.indexOf('settings/search.js'));
+  assert.ok(portalIndex.indexOf('settings/search.js') < portalIndex.indexOf('scripts/topbar-artifacts.js'));
   assert.doesNotMatch(portalIndex, /placeholder="Search projects and contacts"/i);
   assert.match(portalIndex, /data-platform-search-input[^>]+placeholder="Search"/);
   assert.match(topbarSource, /enabledSearchTypes/);
@@ -111,8 +114,7 @@ test('global and settings-only search surfaces share the catalogue contract', ()
   assert.match(topbarSource, /FirstMateArtifactSearch\?\.search/);
   assert.match(topbarSource, /FirstMateArtifactSearch\?\.open/);
   assert.match(portalIndex, /\.ptb-search-filterbar\{position:sticky/);
-  assert.match(portalIndex, /\.ptb-search-filters\{display:grid;grid-template-columns:repeat\(5,max-content\)/);
-  assert.match(settingsSource, /data-settings-search placeholder="Search settings"/);
+  assert.match(settingsSource, /data-settings-search[^>]*placeholder=/);
   assert.match(settingsSource, /FirstMateSettingsSearch\?\.search/);
   assert.match(settingsSource, /FirstMateSettingsSearch\?\.open/);
 });

@@ -1549,6 +1549,7 @@
       .cs-settings-search.has-value .cs-settings-search-clear{display:grid}
       .cs-settings-search-results{position:fixed;inset:auto;z-index:10000;box-sizing:border-box;margin:0;padding:6px;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:3px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;box-shadow:0 12px 32px rgba(16,24,40,.2);font-family:inherit}
       .cs-settings-search-results[hidden]{display:none}
+      .cs-settings-result-description{display:block;font-size:11px;font-weight:400;line-height:1.4;color:#667085;white-space:normal;overflow-wrap:anywhere}
       .cs-settings-result{width:100%;border:0;border-radius:10px;background:transparent;padding:9px 10px;text-align:left;display:grid;gap:2px;cursor:pointer;color:#344054}
       .cs-settings-result:hover,.cs-settings-result[aria-selected="true"]{background:#eef2f6;outline:none}
       .cs-settings-result strong{font-size:11.5px;font-weight:950;line-height:1.25}
@@ -3903,7 +3904,7 @@
       settingsSearchInput.removeAttribute('aria-activedescendant');
       settingsSearchResults.innerHTML = settingsSearchMatches.length ? settingsSearchMatches.map((item, index) => `
         <button class="cs-settings-result" type="button" role="option" aria-selected="false" tabindex="-1" id="${settingsSearchId}-${index}" data-settings-search-result="${index}">
-          <strong>${escapeHtml(item.title)}</strong><small>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
+          <strong>${escapeHtml(item.title)}</strong>${item.description ? `<span class="cs-settings-result-description">${escapeHtml(item.description.slice(0, 160))}</span>` : ''}<small>${((v2) => globalThis.PlatformLanguage?.htmlText("settings","m_698af40b56ff68",`${v2} settings`,{v2}) ?? `${v2} settings`)(escapeHtml(item.tab))}</small>
         </button>`).join('') : `<div class="cs-settings-empty" role="status">${globalThis.PlatformLanguage?.htmlText("settings","m_aa396b00eb8558","No matching settings") ?? "No matching settings"}</div>`;
       settingsSearchResults.querySelectorAll('[data-settings-search-result]').forEach(button => {
         button.addEventListener('mousedown', event => event.preventDefault());
@@ -3947,6 +3948,14 @@
       renderSettingsSearch();
       settingsSearchInput.focus();
     });
+    // Discovery follows the same permitted sections and routes as the settings shell.
+    panel.__settingsSearchCleanup?.();
+    const settingsSearchAttachment = window.FirstMateSettingsSearch?.attach?.(panel,
+      availableSettingsSections.map(section => ({ ...section, title:sectionTitle(section) })), readSettingsRoute);
+    const unsubscribeSettingsSearch = window.FirstMateSettingsSearch?.subscribe?.(() => {
+      if (!settingsSearchResults.hidden) renderSettingsSearch();
+    });
+    panel.__settingsSearchCleanup = () => { settingsSearchAttachment?.destroy(); unsubscribeSettingsSearch?.(); };
     const SETTINGS_SUBTAB_SELECTOR = '.fm-settings-subtabs,.crm-subtabs,.cti-subtabs,.fb-subtabs,.lc-subtabs,.fmcos-tabs,.cu-subnav,.wf-subtabs,.cs-pb-tabs,.li-subtabs,.cap-views';
     let settingsSubtabsSyncQueued = false;
     const syncSettingsSubtabs = () => {

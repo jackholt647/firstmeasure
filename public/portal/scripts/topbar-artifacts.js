@@ -146,7 +146,7 @@
           [setting.keywords], null, { setting }
         ))
       : [];
-    return [...groups.flat(), ...settings].filter((item) => matches(item, query)).slice(0, Number(options.limit) || 80);
+    return [...groups.flat().filter((item) => matches(item, query)), ...settings].slice(0, Number(options.limit) || 80);
   }
 
   function open(result){

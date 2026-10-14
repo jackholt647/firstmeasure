@@ -1,0 +1,23 @@
+name: Settings search coverage
+on:
+  pull_request:
+    paths: ['public/libraries/**', 'public/v1/scripts/settings-search-index.mjs', 'public/v1/tests/settings-search*', '.github/workflows/settings-search.yml']
+  push:
+    paths: ['public/libraries/**', 'public/v1/scripts/settings-search-index.mjs', 'public/v1/tests/settings-search*', '.github/workflows/settings-search.yml']
+jobs:
+  settings-search:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: public/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: public/v1/package-lock.json
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: node scripts/settings-search-index.mjs --check
+      - run: node --test tests/settings-search-engine-browser.test.mjs tests/settings-search-contract.test.mjs

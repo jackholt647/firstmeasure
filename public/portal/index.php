@@ -2248,6 +2248,7 @@ session_write_close();
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/app-setup-workflows/app-setup-workflows.js?v=<?= portalAssetVersion('../libraries/app-setup-workflows/app-setup-workflows.js') ?>"></script>
   <?php endif; ?>
+  <script src="../libraries/apps/settings/search-index.js?v=<?= portalAssetVersion('../libraries/apps/settings/search-index.js') ?>"></script>
   <script src="../libraries/apps/settings/search.js?v=<?= portalAssetVersion('../libraries/apps/settings/search.js') ?>"></script>
   <script src="scripts/topbar-artifacts.js?v=<?= portalAssetVersion('scripts/topbar-artifacts.js') ?>"></script>
   <script src="../libraries/platform-action-items/todo-tray.js?v=<?= portalAssetVersion('../libraries/platform-action-items/todo-tray.js') ?>"></script>
