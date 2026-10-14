@@ -112,3 +112,11 @@ organization's colours and logo. The Customer PDF keeps the organization's brand
 `tests/report-preview-browser.test.mjs` checks both: a blue brand colour and a custom logo
 reach the customer pages only. The script loads as `?v=20261014-report-preview-v5`. Activated
 on legacy, web and pool on top of `a88c232a`; `verify` passed on all three.
+
+## Follow-up: first page at the top (commit `3d8e0039`)
+
+The viewer no longer pads above the first page so it can sit in the middle: the first page starts
+12 px from the top, and only the bottom keeps the padding that lets the last page come to the
+middle. Going to the first page scrolls to the top. The script loads as
+`?v=20261014-report-preview-v6`. Activated on legacy, web and pool on top of `5f9c3bc0`;
+`verify` passed on all three.
