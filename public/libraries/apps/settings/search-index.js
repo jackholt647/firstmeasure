@@ -3632,6 +3632,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
+      "title": "Customer portal Show a feedback card inside their project portal.",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-fb-channel=\"portal\"]"
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
       "title": "Default thank-you",
       "description": "",
       "kind": "control",
@@ -3696,6 +3706,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-fb-set=\"messages\\.email_body\"]"
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
+      "title": "Email Send a branded request to their inbox.",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-fb-channel=\"email\"]"
     },
     {
       "section": "feedback",
@@ -3880,6 +3900,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "view",
       "selector": "[data-fb-message-tab=\"sms\"]"
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
+      "title": "Text message Send a short link to their mobile phone.",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-fb-channel=\"sms\"]"
     },
     {
       "section": "feedback",
@@ -4705,6 +4735,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Live Chat",
       "view": "",
       "source": "libraries/apps/settings/live_chat.js",
+      "title": "Always",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ai-availability=\"always\"]"
+    },
+    {
+      "section": "live_chat",
+      "tab": "Live Chat",
+      "view": "",
+      "source": "libraries/apps/settings/live_chat.js",
       "title": "Answer from business knowledge",
       "description": "",
       "kind": "control",
@@ -4964,7 +5004,7 @@ window.FirstMateSettingsIndex = {
       "tab": "Live Chat",
       "view": "",
       "source": "libraries/apps/settings/live_chat.js",
-      "title": "Never Only when the team is offline Always",
+      "title": "Never",
       "description": "",
       "kind": "control",
       "selector": "[data-ai-availability=\"never\"]"
@@ -4988,6 +5028,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-path=\"copy\\.offline_message\"]"
+    },
+    {
+      "section": "live_chat",
+      "tab": "Live Chat",
+      "view": "",
+      "source": "libraries/apps/settings/live_chat.js",
+      "title": "Only when the team is offline",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-ai-availability=\"offline\"]"
     },
     {
       "section": "live_chat",
@@ -5424,6 +5474,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Money",
       "view": "",
       "source": "libraries/apps/settings/company.js",
+      "title": "Click detector: Off",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-money-click-detector=\"\"]"
+    },
+    {
+      "section": "money",
+      "tab": "Money",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
       "title": "Confirm account number",
       "description": "",
       "kind": "control",
@@ -5657,16 +5717,6 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-money-overlay-opacity=\"\"]"
-    },
-    {
-      "section": "money",
-      "tab": "Money",
-      "view": "",
-      "source": "libraries/apps/settings/company.js",
-      "title": "Overlay Dev Click Drag / Resize Click detector: Off Opacity 100% Mark state correct Click mode",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-money-click-detector=\"\"]"
     },
     {
       "section": "money",
@@ -6014,7 +6064,7 @@ window.FirstMateSettingsIndex = {
       "source": "libraries/apps/settings/company.js",
       "title": "All",
       "description": "",
-      "kind": "view",
+      "kind": "control",
       "selector": "[data-nc-tab=\"all\"]"
     },
     {
@@ -6044,7 +6094,7 @@ window.FirstMateSettingsIndex = {
       "source": "libraries/apps/settings/company.js",
       "title": "Custom",
       "description": "",
-      "kind": "view",
+      "kind": "control",
       "selector": "[data-nc-tab=\"custom\"]"
     },
     {
@@ -6064,7 +6114,7 @@ window.FirstMateSettingsIndex = {
       "source": "libraries/apps/settings/company.js",
       "title": "Documents",
       "description": "",
-      "kind": "view",
+      "kind": "control",
       "selector": "[data-nc-tab=\"documents\"]"
     },
     {
@@ -6094,7 +6144,7 @@ window.FirstMateSettingsIndex = {
       "source": "libraries/apps/settings/company.js",
       "title": "General",
       "description": "",
-      "kind": "view",
+      "kind": "control",
       "selector": "[data-nc-tab=\"general\"]"
     },
     {
@@ -6114,7 +6164,7 @@ window.FirstMateSettingsIndex = {
       "source": "libraries/apps/settings/company.js",
       "title": "Messaging",
       "description": "",
-      "kind": "view",
+      "kind": "control",
       "selector": "[data-nc-tab=\"messaging\"]"
     },
     {
@@ -6123,7 +6173,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Notification settings",
-      "description": "Notification settings",
+      "description": "Notification settings Notification settings",
       "kind": "control",
       "selector": "[data-nc-settings=\"\"]"
     },
@@ -6233,7 +6283,7 @@ window.FirstMateSettingsIndex = {
       "source": "libraries/apps/settings/company.js",
       "title": "Workflows",
       "description": "",
-      "kind": "view",
+      "kind": "control",
       "selector": "[data-nc-tab=\"workflows\"]"
     },
     {
@@ -6391,6 +6441,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Payroll",
       "view": "",
       "source": "libraries/apps/settings/payroll.js",
+      "title": "Every two weeks",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-cadence-preset=\"biweekly\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
       "title": "Extra delay — days",
       "description": "",
       "kind": "control",
@@ -6465,6 +6525,26 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "control",
       "selector": "[data-p=\"label\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Last day",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Monthly",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-cadence-preset=\"monthly\"]"
     },
     {
       "section": "payroll",
@@ -6660,6 +6740,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Payroll",
       "view": "",
       "source": "libraries/apps/settings/payroll.js",
+      "title": "Twice a month",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-cadence-preset=\"twice_monthly\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
       "title": "Unit",
       "description": "",
       "kind": "control",
@@ -6684,6 +6774,16 @@ window.FirstMateSettingsIndex = {
       "description": "Remove",
       "kind": "control",
       "selector": "[data-cadence-position-weekday=\"\"]"
+    },
+    {
+      "section": "payroll",
+      "tab": "Payroll",
+      "view": "",
+      "source": "libraries/apps/settings/payroll.js",
+      "title": "Weekly",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-cadence-preset=\"weekly\"]"
     },
     {
       "section": "payroll",
@@ -6830,7 +6930,7 @@ window.FirstMateSettingsIndex = {
       "tab": "People",
       "view": "",
       "source": "libraries/apps/people/permissions-panel.js",
-      "title": "All Overridden",
+      "title": "All",
       "description": "",
       "kind": "control",
       "selector": "[data-perm-filter=\"all\"]"
@@ -7268,6 +7368,16 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/compensation-panel.js",
+      "title": "Inherit",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-comp-mode=\"inherit\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "groups",
       "source": "libraries/apps/people/groups-page.js",
       "title": "Invite",
@@ -7568,6 +7678,26 @@ window.FirstMateSettingsIndex = {
     {
       "section": "people",
       "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/permissions-panel.js",
+      "title": "Overridden",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-perm-filter=\"overrides\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
+      "view": "",
+      "source": "libraries/apps/people/compensation-panel.js",
+      "title": "Override",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-comp-mode=\"override\"]"
+    },
+    {
+      "section": "people",
+      "tab": "People",
       "view": "subcontractors",
       "source": "libraries/apps/people/companies-page.js",
       "title": "Overview",
@@ -7718,11 +7848,11 @@ window.FirstMateSettingsIndex = {
       "section": "people",
       "tab": "People",
       "view": "",
-      "source": "libraries/apps/people/people-lists.js",
+      "source": "libraries/apps/people/compensation-panel.js",
       "title": "Remove",
       "description": "",
       "kind": "control",
-      "selector": ""
+      "selector": "[data-comp-mode=\"remove\"]"
     },
     {
       "section": "people",
@@ -8187,6 +8317,16 @@ window.FirstMateSettingsIndex = {
       "section": "project_scopes",
       "tab": "Project Scopes",
       "view": "",
+      "source": "libraries/apps/settings/scope-events.js",
+      "title": "Action library",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-se-filter=\"actions\"]"
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Add Project Scope",
       "description": "",
@@ -8212,6 +8352,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "heading",
       "selector": ""
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/scope-events.js",
+      "title": "All triggers",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-se-filter=\"all\"]"
     },
     {
       "section": "project_scopes",
@@ -8349,7 +8499,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Commercial",
-      "description": "Commercial",
+      "description": "Commercial Commercial",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-building\"]"
     },
@@ -8377,6 +8527,16 @@ window.FirstMateSettingsIndex = {
       "section": "project_scopes",
       "tab": "Project Scopes",
       "view": "",
+      "source": "libraries/apps/settings/scope-events.js",
+      "title": "Connected",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-se-filter=\"connected\"]"
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
       "source": "libraries/apps/settings/scope-artifacts.js",
       "title": "Connected artifacts",
       "description": "",
@@ -8389,7 +8549,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Construction",
-      "description": "Construction",
+      "description": "Construction Construction",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-helmet-safety\"]"
     },
@@ -8459,7 +8619,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Delivery",
-      "description": "Delivery",
+      "description": "Delivery Delivery",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-truck\"]"
     },
@@ -8519,7 +8679,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Doors",
-      "description": "Doors",
+      "description": "Doors Doors",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-door-open\"]"
     },
@@ -8529,7 +8689,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Electrical",
-      "description": "Electrical",
+      "description": "Electrical Electrical",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-bolt\"]"
     },
@@ -8569,7 +8729,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Home",
-      "description": "Home",
+      "description": "Home Home",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-house-chimney\"]"
     },
@@ -8579,7 +8739,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "House",
-      "description": "House",
+      "description": "House House",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-house\"]"
     },
@@ -8609,7 +8769,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Inspection",
-      "description": "Inspection",
+      "description": "Inspection Inspection",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-clipboard-check\"]"
     },
@@ -8629,7 +8789,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Kitchen",
-      "description": "Kitchen",
+      "description": "Kitchen Kitchen",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-utensils\"]"
     },
@@ -8639,7 +8799,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Landscaping",
-      "description": "Landscaping",
+      "description": "Landscaping Landscaping",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-tree\"]"
     },
@@ -8679,7 +8839,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Measurements",
-      "description": "Measurements",
+      "description": "Measurements Measurements",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-ruler-combined\"]"
     },
@@ -8739,7 +8899,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Painting",
-      "description": "Painting",
+      "description": "Painting Painting",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-paint-roller\"]"
     },
@@ -8769,7 +8929,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Plumbing",
-      "description": "Plumbing",
+      "description": "Plumbing Plumbing",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-faucet\"]"
     },
@@ -8808,7 +8968,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Repairs",
-      "description": "Repairs",
+      "description": "Repairs Repairs",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-hammer\"]"
     },
@@ -8928,7 +9088,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Service",
-      "description": "Service",
+      "description": "Service Service",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-screwdriver-wrench\"]"
     },
@@ -8948,7 +9108,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Solar",
-      "description": "Solar",
+      "description": "Solar Solar",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-solar-panel\"]"
     },
@@ -8981,6 +9141,16 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "heading",
       "selector": ""
+    },
+    {
+      "section": "project_scopes",
+      "tab": "Project Scopes",
+      "view": "",
+      "source": "libraries/apps/settings/scope-events.js",
+      "title": "Unused",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-se-filter=\"unused\"]"
     },
     {
       "section": "project_scopes",
@@ -9038,7 +9208,7 @@ window.FirstMateSettingsIndex = {
       "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Windows",
-      "description": "Windows",
+      "description": "Windows Windows",
       "kind": "control",
       "selector": "[data-scope-icon=\"fa-border-all\"]"
     },

@@ -45,10 +45,11 @@
       if (control.closest('[data-settings-search-ignore]')) return;
       const labels=Array.from(control.labels || []);
       const label=labels[0] || control.closest('label');
-      let wrapper=label || control.parentElement;
+      const selfLabelled=control.matches('button,[role="switch"],[role="checkbox"]');
+      let wrapper=label || (selfLabelled?control:control.parentElement);
       if(!label){for(let i=0;i<3&&wrapper?.parentElement&&wrapper!==host&&!textOf(wrapper);i++)wrapper=wrapper.parentElement;}
       // Many older settings use a sibling .*-label rather than <label for>.
-      if (!label && wrapper?.querySelectorAll(controls).length<=3 && textOf(wrapper).length<400) {} else if (!label) wrapper=null;
+      if (selfLabelled || (!label && wrapper?.querySelectorAll(controls).length<=3 && textOf(wrapper).length<400)) {} else if (!label) wrapper=null;
       const labelled=clean((control.getAttribute('aria-labelledby') || '').split(/\s+/).map(id=>textOf(host.querySelector(`[id="${CSS.escape(id)}"]`))).join(' '));
       const strong=label?.querySelector('strong,.rp-label') || wrapper?.querySelector('[class$="-label"],.bl-pill,.rp-label');
       const title=labelled || control.getAttribute('aria-label') || textOf(strong) || textOf(label,true) || textOf(wrapper,true);
@@ -59,7 +60,7 @@
     host.querySelectorAll('h1,h2,h3,h4,h5,h6,summary,[role="tab"],label,[class$="-label"],button').forEach(node=>{
       if(node.tagName==='BUTTON'&&!Array.from(node.attributes).some(a=>/^data-(?:[\w-]+-)?(?:view|subtab|subtab-value|tab)$/.test(a.name)))return;
       if (node.matches('label') && node.querySelector(controls)) return;
-      if (node.matches('[class$="-label"]') && node.parentElement?.querySelector(controls)) return;
+      if (node.matches('[class$="-label"]') && (node.parentElement?.matches(controls)||node.parentElement?.querySelector(controls))) return;
       add(node,textOf(node),tooltip(node),node.matches('[role="tab"],button')?'view':'heading',selectorFor(node));
     });
     return entries;

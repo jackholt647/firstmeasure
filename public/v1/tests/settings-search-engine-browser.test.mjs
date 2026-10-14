@@ -45,6 +45,16 @@ test('new HTML settings are discovered automatically and refresh after async ren
  await page.waitForFunction(()=>FirstMateSettingsSearch.search('dispatch grace').length===0);
  }finally{await page.close();}
 });
+test('a rendered grid of toggle buttons keeps its own labels and focus targets',async()=>{
+ const page=await fixture(`<section class="active" data-settings-pane="reports"><div>${['Waste','Pitch','Edges','Area','Images'].map((label,i)=>`<button aria-pressed="true" data-key="toggle_${i}" data-fm-tooltip="Help for ${label}"><span class="rp-label">${label}</span><span class="rp-state">On</span></button>`).join('')}</div></section>`);
+ try{
+ await page.evaluate(()=>{window.Portal={navigation:{navigate(){}}};FirstMateSettingsSearch.attach(document.querySelector('main'),[{id:'reports',title:'Reports'}],()=>({}));FirstMateSettingsSearch.open(FirstMateSettingsSearch.search('waste')[0]);});
+ await page.waitForFunction(()=>document.activeElement?.getAttribute('data-key')==='toggle_0');
+ const entries=await page.evaluate(()=>FirstMateSettingsSearch.search('waste').map(({element,...e})=>e));
+ assert.equal(entries[0].kind,'control');assert.match(entries[0].description,/Help for Waste/);
+ assert.equal(await page.locator('[data-key="toggle_0"]').getAttribute('aria-pressed'),'true');
+ }finally{await page.close();}
+});
 test('available-section filtering and reattachment remove results after access changes',async()=>{
  const page=await fixture();try{
  const result=await page.evaluate(()=>{

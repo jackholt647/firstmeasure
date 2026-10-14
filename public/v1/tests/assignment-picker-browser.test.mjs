@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile, mkdir} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
-const source = await readFile(new URL('../../libraries/apps/materials/project.js', import.meta.url), 'utf8');
+const source = await readFile(process.env.ASSIGNMENT_PICKER_SOURCE || new URL('../../libraries/apps/materials/project.js', import.meta.url), 'utf8');
 function fn(name) {
   const start = source.search(new RegExp(`  (?:async )?function ${name}\\(`));
   assert.ok(start >= 0, name);
