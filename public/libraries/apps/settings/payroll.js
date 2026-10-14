@@ -16,16 +16,9 @@
     ['salary', 'Salary'],
     ['piece_rate', 'Piece rate'],
     ['commission', 'Commission'],
+    ['reimbursement', 'Reimbursements'],
     ['adjustment', 'Adjustments'],
     ['clawback', 'Clawbacks']
-  ];
-  const SUBJECT_FILTERS = [
-    ['all', 'All'],
-    ['organization', 'Company'],
-    ['access_role', 'Roles'],
-    ['organization_user', 'People'],
-    ['resource_group', 'Crews'],
-    ['organization_connection', 'Subcontractors']
   ];
   const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const COMMON_TIMEZONES = [
@@ -46,15 +39,13 @@
   const CORRECTION_DEFAULTS = { increase:'next_run', decrease:'hold' };
   const PAY_RULE_KINDS = [['hourly', 'Hourly'], ['salary', 'Salary'], ['piece_rate', 'Piece rate'], ['commission', 'Commission'], ['reimbursement', 'Reimbursement'], ['adjustment', 'Adjustment']];
   const PAY_PERIODS = [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year']];
-  // The shared condition operators (work/conditions.ts): id, label, and the kind of value each takes.
-  const CONDITION_OPERATORS = [
-    ['equals', 'is', 'one'], ['not_equals', 'is not', 'one'], ['in', 'is any of', 'list'], ['not_in', 'is none of', 'list'],
-    ['contains', 'contains', 'one'], ['not_contains', 'does not contain', 'one'], ['starts_with', 'starts with', 'one'], ['ends_with', 'ends with', 'one'],
-    ['is_present', 'has a value', 'none'], ['is_missing', 'is empty', 'none'],
-    ['greater_than', 'is greater than', 'number'], ['greater_or_equal', 'is at least', 'number'], ['less_than', 'is less than', 'number'], ['less_or_equal', 'is at most', 'number'],
-    ['before', 'is before', 'time'], ['after', 'is after', 'time']
-  ];
-  const PAY_SOURCE_HINTS = ['time_shifts', 'project_records', 'labor_commitments'];
+  // What a rule parameter holds. A form shows money in whole units and a percentage as a percentage; the rule keeps cents and basis points.
+  const PARAMETER_TYPES = [['number', 'Number'], ['cents', 'Money'], ['basis_points', 'Percentage'], ['boolean', 'Yes or no'], ['text', 'Text']];
+  // The shared condition operators and the collections a rule can select from are published by the server
+  // (payroll.pay_rule_vocabulary and payroll.pay_rule_sources) and loaded with the rules; no copy is kept here.
+  // An operator is [id, label, the kind of value it takes].
+  let CONDITION_OPERATORS = [];
+  let PAY_SOURCES = [];
   let mountSequence = 0;
 
   const esc =(value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -111,8 +102,6 @@
   const monthDayLabel = (day) => day > 0 ? `the ${ordinal(day)}` : day === -1 ? 'the last day' : `the ${ordinal(day)} to last day`;
   const positionLabel = (position) => `the ${position.nth > 0 ? ordinal(position.nth) : position.nth === -1 ? 'last' : `${ordinal(position.nth)} to last`} ${WEEKDAYS[position.weekday] || 'day'}`;
   const optionsMarkup = (entries, selected) => entries.map(([value, label]) => `<option value="${esc(value)}" ${String(value) === String(selected) ? 'selected' : ''}>${esc(label)}</option>`).join('');
-  const policyKey = (subjectType, subjectId, earningKind = '*') => `${subjectType}:${subjectId}:${earningKind || '*'}`;
-  const subjectKey = (subjectType, subjectId) => `${subjectType}:${subjectId}`;
   const clampNumber = (value, min, max, fallback = min) => {
     const number = Number(value);
     return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
@@ -166,7 +155,7 @@
   function payrollClient(orgId){
     const api = root.PayrollAPI || {};
     const schedules = object(api.schedules);
-    const policies = object(api.policies);
+    const pay = object(api.pay);
     return {
       listSchedules(options = {}){
         if (typeof schedules.list === 'function') return schedules.list(orgId, options);
@@ -189,22 +178,16 @@
         if (typeof api.archiveSchedule === 'function') return api.archiveSchedule(orgId, scheduleId, revision);
         return rawRequest(`organizations/${enc(orgId)}/schedules/${enc(scheduleId)}?expected_revision=${enc(revision)}`, { method:'DELETE' });
       },
-      listPolicies(){
-        if (typeof policies.list === 'function') return policies.list(orgId);
-        if (typeof api.listPolicies === 'function') return api.listPolicies(orgId);
-        return rawRequest(`organizations/${enc(orgId)}/policies`);
+      // The organization's pay default: the pay rules everyone starts from and which schedule the company pays on.
+      organizationDefault(){
+        const subject = { type:'organization', id:orgId };
+        if (typeof pay.default === 'function') return pay.default(orgId, subject);
+        if (typeof pay.defaults === 'function') return pay.defaults(orgId).then((list) => array(list).find((entry) => entry?.subject?.type === 'organization') || { subject, entries:[], revision:0 });
+        return Promise.reject(new Error('Pay defaults are not available here.'));
       },
-      savePolicy(subjectType, subjectId, payload){
-        if (typeof policies.save === 'function') return policies.save(orgId, subjectType, subjectId, payload);
-        if (typeof policies.put === 'function') return policies.put(orgId, subjectType, subjectId, payload);
-        if (typeof api.savePolicy === 'function') return api.savePolicy(orgId, subjectType, subjectId, payload);
-        return rawRequest(`organizations/${enc(orgId)}/policies/${enc(subjectType)}/${enc(subjectId)}`, { method:'PUT', body:payload });
-      },
-      deletePolicy(subjectType, subjectId, earningKind){
-        if (typeof policies.remove === 'function') return policies.remove(orgId, subjectType, subjectId, earningKind);
-        if (typeof policies.delete === 'function') return policies.delete(orgId, subjectType, subjectId, earningKind);
-        if (typeof api.deletePolicy === 'function') return api.deletePolicy(orgId, subjectType, subjectId, earningKind);
-        return rawRequest(`organizations/${enc(orgId)}/policies/${enc(subjectType)}/${enc(subjectId)}?earning_kind=${enc(earningKind || '*')}`, { method:'DELETE' });
+      saveDefault(payload){
+        if (typeof pay.saveDefault === 'function') return pay.saveDefault(orgId, payload);
+        return Promise.reject(new Error('Pay defaults cannot be saved here.'));
       }
     };
   }
@@ -220,6 +203,8 @@
       .pycfg-picker-selected{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;margin:9px 9px 0;padding:7px;border:1px solid #b2ddff;border-radius:9px;background:#eff8ff}.pycfg-picker-selected small,.pycfg-picker-selected strong{display:block}.pycfg-picker-selected small{font-size:7.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em;color:#175cd3}.pycfg-picker-selected strong{font-size:10.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pycfg-picker-selected em{font-size:8px;font-weight:900;font-style:normal;color:#475467}
       .pycfg-cadence{grid-column:1/-1;border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:11px;display:grid;gap:11px;min-width:0}.pycfg-cadence-group{display:grid;gap:6px;min-width:0}.pycfg-cadence-group>span:first-child,.pycfg-cadence-preview>span{color:#475467;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.035em}.pycfg-chips{display:flex;flex-wrap:wrap;gap:5px}.pycfg-chip{appearance:none;min-height:30px;min-width:34px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;padding:6px 9px;font:900 10.5px/1 inherit;cursor:pointer}.pycfg-chip:hover:not(:disabled){background:#f9fafb}.pycfg-chip.active{border-color:#84adff;background:#eff4ff;color:#3538cd}.pycfg-chip:disabled{opacity:.55;cursor:default}.pycfg-chips.days .pycfg-chip{width:34px;padding:6px 0}.pycfg-chips.days .pycfg-chip.text{width:auto;padding:6px 9px}.pycfg-cadence-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:#344054;font-size:11px;font-weight:850}.pycfg-cadence-row .pycfg-input,.pycfg-cadence-row .pycfg-select{width:auto;min-width:0}.pycfg-cadence-row .pycfg-input[type=number]{width:72px}.pycfg-cadence-summary{border:1px solid #b2ddff;border-radius:9px;background:#f5faff;color:#175cd3;padding:9px 11px;font-size:11.5px;font-weight:900;line-height:1.45}.pycfg-cadence-summary.bad{border-color:#fecdca;background:#fef3f2;color:#b42318}.pycfg-cadence-preview{display:grid;gap:6px}.pycfg-cadence-preview ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:5px}.pycfg-cadence-preview li{border:1px solid #e4e7ec;border-radius:999px;background:#f9fafb;color:#344054;padding:5px 9px;font-size:10px;font-weight:900}
       .pycfg-stack{display:grid;gap:12px}.pycfg-section{display:grid;gap:10px;margin-bottom:22px}.pycfg-textarea{width:100%;min-height:64px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#101828;padding:8px 9px;font:800 11.5px/1.45 inherit;outline:none;resize:vertical}.pycfg-textarea:focus{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.07)}.pycfg-textarea.code{min-height:230px;font:500 12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2;white-space:pre;overflow:auto}.pycfg-textarea.json{min-height:90px;font:500 11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre}.pycfg-pre{margin:0;border:1px solid #1d2939;border-radius:9px;background:#101828;color:#f2f4f7;padding:11px;font:500 11px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto;max-height:340px;white-space:pre;tab-size:2}.pycfg-dl{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 12px;margin:0;font-size:11px}.pycfg-dl dt{color:#475467;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.035em;padding-top:2px}.pycfg-dl dd{margin:0;color:#182230;font-weight:750;line-height:1.5;min-width:0;overflow-wrap:anywhere}.pycfg-dl dd>div+div{margin-top:5px}.pycfg-dl code,.pycfg-help code{font:600 10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f2f4f7;border-radius:4px;padding:1px 4px;color:#344054}.pycfg-block{border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:11px;display:grid;gap:10px;min-width:0}.pycfg-block.nested{background:#fcfcfd}.pycfg-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.pycfg-block-head strong{font-size:11.5px}.pycfg-block-head small{display:block;color:#667085;font-size:9.5px;font-weight:750;margin-top:2px}.pycfg-rowgrid{display:grid;gap:7px;align-items:end}.pycfg-rowgrid.cond{grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1.2fr) 30px}.pycfg-rowgrid.kv{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 30px}.pycfg-rowgrid.param{grid-template-columns:minmax(0,.9fr) minmax(0,1.5fr) 110px minmax(0,.8fr) 30px}.pycfg-rowgrid .pycfg-icon-btn{align-self:end;height:38px}.pycfg-warn{color:#93370d;background:#fffaeb;border:1px solid #fedf89;border-radius:9px;padding:9px 11px;font-size:10.5px;font-weight:800;line-height:1.5}.pycfg-plan-rule{border:1px solid #e4e7ec;border-radius:10px;background:#fff;padding:10px;display:grid;gap:10px}.pycfg-plan-rule.on{border-color:#b2ddff;background:#f5faff}.pycfg-check{display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-size:11px;font-weight:850;color:#344054}.pycfg-check input{margin:2px 0 0}.pycfg-check strong{display:block;font-size:11.5px;color:#182230}.pycfg-check small{display:block;color:#667085;font-size:10px;font-weight:750;margin-top:2px}.pycfg-card-detail{display:grid;gap:12px}.pycfg-card-detail .pycfg-actions{margin-top:0}
+      .pycfg-when-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,250px);gap:12px;align-items:center;padding:10px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;cursor:default}.pycfg-when-row.main{border-color:#b2ddff;background:#f5faff;padding:13px 12px}.pycfg-when-copy{min-width:0}.pycfg-when-copy strong{display:block;font-size:12px;color:#182230}.pycfg-when-row.main .pycfg-when-copy strong{font-size:13px}.pycfg-when-copy small{display:block;color:#667085;font-size:10px;font-weight:750;line-height:1.45;margin-top:3px}.pycfg-when-group{display:grid;gap:6px}.pycfg-when-group>span{color:#475467;font-size:9.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.035em;margin-top:2px}.pycfg-preview{display:grid;gap:9px}.pycfg-preview-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-top:1px solid #eaecf0;padding-top:8px;font-size:11px}.pycfg-preview-row strong{display:block;font-size:11.5px}.pycfg-preview-row small{display:block;color:#667085;font-size:10px;font-weight:750;line-height:1.5;margin-top:2px}.pycfg-preview-row b{white-space:nowrap;font-size:11.5px}.pycfg-source-help{grid-column:1/-1}
+      @media(max-width:660px){.pycfg-when-row{grid-template-columns:1fr}}
       @media(max-width:660px){.pycfg-grid>[style*="span 2"]{grid-column:auto!important}.pycfg-rowgrid.cond,.pycfg-rowgrid.kv,.pycfg-rowgrid.param{grid-template-columns:1fr}.pycfg-dl{grid-template-columns:1fr}.pycfg-card>summary{grid-template-columns:38px minmax(0,1fr)}.pycfg-card-meta{grid-column:1/-1;justify-content:flex-start}}
       @media(max-width:980px){.pycfg-workspace{grid-template-columns:1fr}.pycfg-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pycfg-assignments-body{max-height:none}.pycfg-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pycfg-rule{grid-template-columns:repeat(2,minmax(0,1fr))}.pycfg-rule-actions{align-self:end}}@media(max-width:660px){.pycfg-head,.pycfg-toolbar{align-items:stretch;flex-direction:column}.pycfg-head-actions{justify-content:flex-start}.pycfg-detail-grid,.pycfg-add-grid,.pycfg-assignment-fields,.pycfg-advanced-grid{grid-template-columns:1fr}.pycfg-assignment-fields{padding-left:0}.pycfg-add-grid .wide{grid-column:auto}.pycfg-schedule-choice{min-width:205px}.pycfg-panel-head{align-items:flex-start}.pycfg-panel-head-actions{flex-wrap:wrap;justify-content:flex-end}.pycfg-grid,.pycfg-grid.two,.pycfg-rule{grid-template-columns:1fr}.pycfg-search{min-width:100%}}
     `;
@@ -429,14 +414,6 @@
     return EARNING_KINDS.find(([id]) => id === text(value, '*'))?.[1] || text(value).replace(/_/g, ' ');
   }
 
-  function subjectTypeLabel(value){
-    return ({ organization:'Company', access_role:'Role', organization_user:'Person', resource_group:'Crew', organization_connection:'Subcontractor' })[value] || value;
-  }
-
-  function subjectIcon(value){
-    return ({ organization:'fa-building', access_role:'fa-user-shield', organization_user:'fa-user', resource_group:'fa-people-group', organization_connection:'fa-handshake' })[value] || 'fa-circle';
-  }
-
   function cadenceOutcomeMarkup(cadence){
     let recurrence;
     try { recurrence = recurrenceFromCadence(cadence); }
@@ -639,13 +616,69 @@
     };
   }
 
-  function assignmentRuleMarkup(subject, policy = {}){
-    const earningKind = text(policy.earning_kind, '*');
-    return `<form class="pycfg-assignment" data-policy-form data-subject-type="${String(esc(subject.type))}" data-subject-id="${String(esc(subject.id))}" data-policy-kind="${String(esc(earningKind))}" data-policy-revision="${String(esc(policy.revision || ''))}" data-schedule-id="${String(esc(policy.schedule_id))}">
-      <header class="pycfg-assignment-head"><span class="pycfg-subject-icon"><i class="fas ${String(subjectIcon(subject.type))}"></i></span><span class="pycfg-subject-copy"><strong>${String(esc(subject.label))}</strong><span>${String(esc(subjectTypeLabel(subject.type)))} · ${String(esc(earningKindLabel(earningKind)))}</span></span><button class="pycfg-icon-btn danger" type="button" data-delete-policy title="${(globalThis.PlatformLanguage?.htmlText("settings","m_c1ddc7495a6c43","Remove assignment") ?? "Remove assignment")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_c1ddc7495a6c43","Remove assignment") ?? "Remove assignment")}"><i class="fas fa-trash"></i></button></header>
-      <div class="pycfg-assignment-fields"><label class="pycfg-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_48cacd50d701d8","Recognition") ?? "Recognition")}</span><select class="pycfg-select" data-policy-timing><option value="">${(globalThis.PlatformLanguage?.htmlText("settings","m_e8b95430c3cd30","Schedule default") ?? "Schedule default")}</option><option value="worked" ${String(policy.timing_basis === 'worked' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_12ee42c07782b8","When work is performed") ?? "When work is performed")}</option><option value="completed" ${String(policy.timing_basis === 'completed' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("settings","m_5eda8826a44a2d","When job is completed") ?? "When job is completed")}</option></select></label><label class="pycfg-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_57c29b3ae2c29b","Clawback cap") ?? "Clawback cap")}</span><div class="pycfg-percent"><input class="pycfg-input" data-policy-clawback type="number" min="0" max="100" step="0.01" value="${String(policy.clawback_cap_percent == null ? '' : esc(policy.clawback_cap_percent))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_f59e6b09f14267","Default") ?? "Default")}"><span>%</span></div></label><button class="pycfg-btn" type="submit"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button></div>
-      <span class="pycfg-rule-status" data-policy-status></span>
-    </form>`;
+  // ---- When people are paid: schedule choices on the organization's pay default (docs/architecture/pay-rules.md) ----
+
+  const CHOICE_FIELDS = ['effective_from', 'effective_through', 'earning_kind', 'schedule_id', 'timing_basis', 'clawback_cap_percent', 'note'];
+  const ENTRY_FIELDS = ['kind', 'plan_id', 'rule_id', 'params', 'replacement_rule_id', 'effective_from', 'effective_through', 'note'];
+  const DISTRIBUTION_FIELDS = ['effective_from', 'mode', 'method', 'shares', 'split_rule_id', 'params'];
+  // What a save takes back of a stored row: its own fields, without the stamps the server adds.
+  const pick = (value, keys) => {
+    const out = {};
+    keys.forEach((key) => { if (value?.[key] !== undefined && value[key] !== null && value[key] !== '') out[key] = value[key]; });
+    return out;
+  };
+  const dayBeforeKey = (day) => dayKey(addDays(parseDay(day), -1));
+  const choiceKind = (choice) => text(choice?.earning_kind, '*');
+
+  // The choice for one kind of earning in effect on a day: the latest to start that has not ended.
+  function choiceOn(choices, kind, date){
+    return array(choices).filter((choice) => choiceKind(choice) === kind && text(choice.effective_from) <= date && (!text(choice.effective_through) || date <= text(choice.effective_through)))
+      .sort((left, right) => text(left.effective_from).localeCompare(text(right.effective_from))).pop() || null;
+  }
+
+  // The choices to save so that, from a day, each kind in `picked` is paid on the schedule named ('' for no choice of
+  // its own). A choice that was in effect is ended the day before rather than rewritten, so what was true stays on record.
+  function scheduleChoicesFrom(existing, picked, from){
+    let next = array(existing).map((choice) => ({ ...pick(choice, CHOICE_FIELDS), earning_kind:choiceKind(choice) }));
+    Object.entries(object(picked)).forEach(([kind, scheduleId]) => {
+      if (text(choiceOn(next, kind, from)?.schedule_id) === text(scheduleId)) return;
+      next = next.filter((choice) => !(choice.earning_kind === kind && choice.effective_from >= from));
+      next.forEach((choice) => {
+        if (choice.earning_kind === kind && choice.effective_from < from && (!choice.effective_through || choice.effective_through >= from)) choice.effective_through = dayBeforeKey(from);
+      });
+      if (text(scheduleId)) next.push({ effective_from:from, earning_kind:kind, schedule_id:text(scheduleId) });
+    });
+    return next.sort((left, right) => left.effective_from.localeCompare(right.effective_from) || left.earning_kind.localeCompare(right.earning_kind));
+  }
+
+  const signedMoney = (cents) => `${Number(cents) < 0 ? '-' : '+'}${(Math.abs(Number(cents) || 0) / 100).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
+  const plural = (count, one, many) => `${count} ${count === 1 ? one : many || `${one}s`}`;
+
+  // What a preview of a rule or plan version found: who it reaches and what would change, said plainly.
+  function previewMarkup(preview){
+    if (!preview) return '';
+    if (preview.loading) return '<div class="pycfg-help" data-pay-preview-result><i class="fas fa-spinner fa-spin"></i> Working out what this would change...</div>';
+    if (preview.error) return `<div class="pycfg-warn" data-pay-preview-result><i class="fas fa-triangle-exclamation"></i> ${esc(preview.error)}</div>`;
+    const result = object(preview.result);
+    const payees = array(result.payees);
+    const reached = Number(result.payee_count || 0);
+    const changes = Number(result.difference_count || 0);
+    let summary = reached ? `It reaches ${plural(reached, 'payee')}. ` : 'Nobody is paid by this yet, so saving it changes no earnings. ';
+    if (reached) summary += changes ? `${plural(changes, 'earning')} would come to a different amount for ${plural(Number(result.changed_payee_count || 0), 'payee')}: ${signedMoney(result.change_cents)} in total. ` : 'Nothing they have earned so far would change. ';
+    if (Number(result.held_count || 0)) summary += `${plural(Number(result.held_count), 'of those has', 'of those have')} already been in a pay run, so the change would be held for review. `;
+    if (Number(result.unresolved_count || 0)) summary += `${plural(Number(result.unresolved_count), 'earning')} could not be worked out with it. `;
+    if (result.truncated) summary += 'Only the first 200 payees were worked out. ';
+    const rows = payees.slice(0, 25).map((entry) => {
+      const differences = array(entry.differences);
+      const lines = differences.slice(0, 4).map((difference) => `${esc(text(difference.unit))}: ${esc((Number(difference.without_change_cents || 0) / 100).toFixed(2))} to ${esc((Number(difference.target_cents || 0) / 100).toFixed(2))}${difference.handling === 'hold' ? ' (held for review)' : ''}`);
+      const unresolved = array(entry.unresolved);
+      return `<div class="pycfg-preview-row" data-pay-preview-payee="${esc(text(entry.payee?.type))}:${esc(text(entry.payee?.id))}"><span><strong>${esc(text(entry.payee_name, entry.payee?.id))}</strong><small>${lines.join(' · ')}${differences.length > 4 ? ` · and ${differences.length - 4} more` : ''}${unresolved.length ? `${lines.length ? ' · ' : ''}Unresolved: ${esc(text(unresolved[0].reason))}` : ''}</small></span><b>${differences.length ? esc(signedMoney(entry.change_cents)) : ''}</b></div>`;
+    }).join('');
+    return `<div class="pycfg-block nested" data-pay-preview-result><div class="pycfg-help" data-pay-preview-summary><strong>${esc(summary)}</strong>Nothing has been saved.</div>${rows}${payees.length > 25 ? `<div class="pycfg-help">And ${payees.length - 25} more payees.</div>` : ''}</div>`;
+  }
+
+  function previewBoxMarkup(preview){
+    return `<div class="pycfg-preview"><div class="pycfg-cadence-row"><button class="pycfg-btn" type="button" data-pay-preview ${preview?.loading ? 'disabled' : ''}><i class="fas fa-magnifying-glass-chart"></i> Preview what this changes</button><small class="pycfg-help">Works out every payee this reaches as it stands and as it would be. Nothing is saved or posted.</small></div>${previewMarkup(preview)}</div>`;
   }
 
   // ---- Pay rules and pay plans (docs/architecture/pay-rules.md) ----
@@ -685,6 +718,16 @@
 
   const isPlainValue = (value) => ['string', 'number', 'boolean'].includes(typeof value);
   const operatorEntry = (id) => CONDITION_OPERATORS.find(([operator]) => operator === id);
+  // The operators to offer, with the one a condition already uses even when the list could not be loaded.
+  const operatorChoices = (current) => [...CONDITION_OPERATORS.map(([id, label]) => [id, label]), ...(current && !operatorEntry(current) ? [[current, current.replace(/_/g, ' ')]] : [])];
+  const sourceFor = (input) => PAY_SOURCES.find((source) => source.provider === text(input?.provider) && source.export === text(input?.export)) || null;
+  const parameterTypeOf = (declared, value) => {
+    if (PARAMETER_TYPES.some(([id]) => id === declared?.type)) return declared.type;
+    const sample = declared?.default !== undefined ? declared.default : value;
+    return typeof sample === 'boolean' ? 'boolean' : typeof sample === 'string' ? 'text' : typeof sample === 'number' ? 'number' : '';
+  };
+  // A parameter's value as a person reads it: money in whole units, a percentage as a percentage.
+  const parameterText = (type, value) => value === undefined || value === null ? '' : type === 'cents' && typeof value === 'number' ? (value / 100).toFixed(2) : type === 'basis_points' && typeof value === 'number' ? `${value / 100}%` : type === 'boolean' ? (value ? 'Yes' : 'No') : looseFormat(value);
 
   // A filter as editable rows when it is one flat group; null when it nests and has to be edited as JSON.
   function flatWhere(where){
@@ -719,7 +762,7 @@
   }
 
   function blankRuleInput(primary = false){
-    return { name:'', provider:'payroll', export:'', args:[], date:'', limit:'', primary, whereMode:'rules', match:'all', rules:[], whereJson:'' };
+    return { name:'', provider:'payroll', export:'', args:[], date:'', limit:'', primary, whereMode:CONDITION_OPERATORS.length ? 'rules' : 'json', match:'all', rules:[], whereJson:'' };
   }
 
   function ruleInputDraft(name, value){
@@ -733,10 +776,10 @@
       date:text(input.date),
       limit:input.limit === undefined ? '' : String(input.limit),
       primary:input.primary === true,
-      whereMode:flat ? 'rules' : 'json',
+      whereMode:flat && CONDITION_OPERATORS.length ? 'rules' : 'json',
       match:flat?.match || 'all',
       rules:flat?.rules || [],
-      whereJson:flat ? '' : JSON.stringify(input.where, null, 2)
+      whereJson:flat && CONDITION_OPERATORS.length ? '' : input.where === undefined ? '' : JSON.stringify(input.where, null, 2)
     };
   }
 
@@ -764,7 +807,7 @@
       parameters:Object.entries(object(definition.parameters)).map(([key, parameter]) => ({
         key,
         label:text(parameter?.label),
-        type:typeof parameter?.default === 'boolean' ? 'boolean' : typeof parameter?.default === 'string' ? 'text' : 'number',
+        type:parameterTypeOf(parameter) || 'number',
         default:parameter?.default === undefined ? '' : String(parameter.default)
       })),
       code:String(definition.code ?? '')
@@ -832,8 +875,10 @@
       else if (raw !== '') {
         if (!Number.isFinite(Number(raw))) throw new Error(`Parameter ${key}: the default is a number.`);
         fallback = Number(raw);
+        if ((parameter.type === 'cents' || parameter.type === 'basis_points') && !Number.isInteger(fallback)) throw new Error(`Parameter ${key}: the default is a whole number of ${parameter.type === 'cents' ? 'cents' : 'basis points'}.`);
       }
-      parameters[key] = { ...(text(parameter.label) ? { label:text(parameter.label) } : {}), ...(fallback === undefined ? {} : { default:fallback }) };
+      const type = PARAMETER_TYPES.some(([id]) => id === parameter.type) ? parameter.type : 'number';
+      parameters[key] = { ...(text(parameter.label) ? { label:text(parameter.label) } : {}), type, ...(fallback === undefined ? {} : { default:fallback }) };
     });
     if (!String(draft.code || '').trim()) throw new Error('Write the formula.');
     const definition = { grain:record ? 'record' : 'period' };
@@ -937,7 +982,7 @@
 
   function versionHistoryMarkup(item){
     const info = versionInfo(item);
-    return [...info.versions].reverse().map((version) => `<div>From ${esc(formatDay(version.effective_from))}${version === info.current ? ' · in effect' : text(version.effective_from) > localToday() ? ' · upcoming' : ''}${version.version ? ` · <code>${esc(text(version.version).slice(0, 8))}</code>` : ''}${version.entered_at ? ` · entered ${esc(formatDay(version.entered_at))}` : ''}</div>`).join('');
+    return [...info.versions].reverse().map((version) => `<div>From ${esc(formatDay(version.effective_from))}${version === info.current ? ' · in effect' : text(version.effective_from) > localToday() ? ' · upcoming' : ''}${version.version ? ` · <code>${esc(text(version.version).slice(0, 8))}</code>` : ''}${version.entered_at ? ` · entered ${esc(formatDay(version.entered_at))}` : ''}${text(version.entered_by_name) ? ` by ${esc(version.entered_by_name)}` : ''}</div>`).join('');
   }
 
   function payCardActions(kind, item){
@@ -960,7 +1005,7 @@
         ${definition.project ? `<dt>Project</dt><dd><code>${esc(definition.project)}</code></dd>` : ''}
         ${definition.timezone ? `<dt>Timezone</dt><dd>${esc(definition.timezone)}</dd>` : ''}
         <dt>Inputs</dt><dd>${inputs.length ? inputs.map(([name, input]) => `<div><code>${esc(name)}</code>${input?.primary ? ' (each earning comes from one of these)' : ''}: ${esc(text(object(input?.source).provider))}.${esc(text(object(input?.source).export))}${Object.keys(object(object(input?.source).args)).length ? ` with ${esc(Object.entries(object(input.source.args)).map(([key, value]) => `${key} = ${looseFormat(value)}`).join(', '))}` : ''}, where ${esc(whereText(input?.where))}${input?.date ? `, dated by <code>${esc(input.date)}</code>` : ''}${input?.limit ? `, at most ${esc(input.limit)} rows` : ''}</div>`).join('') : 'None. It reads no data.'}</dd>
-        <dt>Parameters</dt><dd>${parameters.length ? parameters.map(([key, parameter]) => `<div><code>${esc(key)}</code>${parameter?.label ? ` ${esc(parameter.label)}` : ''}: ${parameter?.default === undefined ? 'no default, a plan or a payee sets it' : `default ${esc(looseFormat(parameter.default))}`}</div>`).join('') : 'None'}</dd>
+        <dt>Parameters</dt><dd>${parameters.length ? parameters.map(([key, parameter]) => `<div><code>${esc(key)}</code>${parameter?.label ? ` ${esc(parameter.label)}` : ''}${parameter?.type ? ` (${esc((PARAMETER_TYPES.find(([id]) => id === parameter.type)?.[1] || parameter.type).toLowerCase())})` : ''}: ${parameter?.default === undefined ? 'no default, a plan or a payee sets it' : `default ${esc(parameterText(parameter.type, parameter.default))}`}</div>`).join('') : 'None'}</dd>
         <dt>Versions</dt><dd>${versionHistoryMarkup(rule) || 'None'}</dd>
       </dl><pre class="pycfg-pre" data-rule-code>${esc(definition.code)}</pre>${payCardActions('rule', rule)}</div>
     </details>`;
@@ -973,7 +1018,7 @@
       const rule = rules.find((item) => item.id === reference?.rule_id);
       const declared = object(object(versionInfo(rule).shown?.definition).parameters);
       const set = object(reference?.params);
-      const parts = [...new Set([...Object.keys(declared), ...Object.keys(set)])].map((key) => `${esc(text(declared[key]?.label, key))}: ${set[key] !== undefined ? `<strong>${esc(looseFormat(set[key]))}</strong>` : declared[key]?.default !== undefined ? `${esc(looseFormat(declared[key].default))} (rule default)` : 'not set'}`);
+      const parts = [...new Set([...Object.keys(declared), ...Object.keys(set)])].map((key) => `${esc(text(declared[key]?.label, key))}: ${set[key] !== undefined ? `<strong>${esc(parameterText(declared[key]?.type, set[key]))}</strong>` : declared[key]?.default !== undefined ? `${esc(parameterText(declared[key].type, declared[key].default))} (rule default)` : 'not set'}`);
       return `<div><strong>${esc(text(rule?.name, reference?.rule_id))}</strong>${rule ? '' : ' (this rule no longer exists)'}${rule?.status === 'archived' ? ' (archived)' : ''}${parts.length ? `<br>${parts.join(' · ')}` : ''}</div>`;
     });
     return `<details class="pycfg-card" data-pay-card="plan:${esc(plan.id)}" ${open ? 'open' : ''}>
@@ -982,12 +1027,7 @@
     </details>`;
   }
 
-  function payParameterType(declared, value){
-    const sample = declared?.default !== undefined ? declared.default : value;
-    return typeof sample === 'boolean' ? 'boolean' : typeof sample === 'number' ? 'number' : typeof sample === 'string' ? 'text' : 'loose';
-  }
-
-  function planEditorMarkup(draft, plan, rules){
+  function planEditorMarkup(draft, plan, rules, preview){
     const isNew = !draft.id;
     const included = new Map(draft.rules.map((reference) => [reference.rule_id, reference]));
     const known = new Set(rules.map((rule) => rule.id));
@@ -1002,12 +1042,17 @@
       const keys = reference ? [...new Set([...Object.keys(declared), ...Object.keys(reference.params)])] : [];
       const fields = keys.map((key) => {
         const value = reference.params[key];
-        const type = payParameterType(declared[key], value);
+        const type = parameterTypeOf(declared[key], value) || 'loose';
         const fallback = declared[key]?.default;
         const attributes = `data-plan-param="${esc(key)}" data-param-type="${type}"`;
+        const hint = fallback === undefined ? 'Not set' : `Rule default: ${parameterText(type, fallback)}`;
+        // Money is typed in whole units and a percentage as a percentage; the plan stores cents and basis points.
+        const scaled = (type === 'cents' || type === 'basis_points') && typeof value === 'number' ? String(value / 100) : '';
         const control = type === 'boolean'
           ? `<select class="pycfg-select" ${attributes}>${optionsMarkup([['', fallback === undefined ? 'Not set' : `Rule default (${fallback ? 'Yes' : 'No'})`], ['true', 'Yes'], ['false', 'No']], value === undefined ? '' : String(value))}</select>`
-          : `<input class="pycfg-input" ${type === 'number' ? 'type="number" step="any"' : type === 'loose' ? 'inputmode="decimal"' : ''} ${attributes} value="${esc(value === undefined ? '' : type === 'loose' ? looseFormat(value) : value)}" placeholder="${esc(fallback === undefined ? 'Not set' : `Rule default: ${looseFormat(fallback)}`)}">`;
+          : type === 'cents' ? `<input class="pycfg-input" type="number" step="0.01" ${attributes} value="${esc(scaled)}" placeholder="${esc(hint)}">`
+            : type === 'basis_points' ? `<div class="pycfg-percent"><input class="pycfg-input" type="number" step="0.01" ${attributes} value="${esc(scaled)}" placeholder="${esc(hint)}"><span>%</span></div>`
+              : `<input class="pycfg-input" ${type === 'number' ? 'type="number" step="any"' : type === 'loose' ? 'inputmode="decimal"' : ''} ${attributes} value="${esc(value === undefined ? '' : type === 'loose' ? looseFormat(value) : value)}" placeholder="${esc(hint)}">`;
         return `<label class="pycfg-field"><span>${esc(text(declared[key]?.label, key))}</span>${control}<small class="pycfg-help">${declared[key] ? (fallback === undefined ? 'The rule has no default. Set it here, or leave it for each payee.' : 'Leave empty to use the rule default.') : 'The rule no longer declares this. Clear it to remove it.'}</small></label>`;
       }).join('');
       return `<div class="pycfg-plan-rule ${reference ? 'on' : ''}" data-plan-rule="${esc(rule.id)}"><label class="pycfg-check"><input type="checkbox" data-plan-include ${reference ? 'checked' : ''}><span><strong>${esc(text(rule.name, rule.id))}</strong><small>${rule.missing ? 'This rule no longer exists. Take it out to save the plan.' : `${esc(text(rule.description, grainLabel(definition)))}${rule.status === 'archived' ? ' · archived' : ''}`}</small></span></label>${fields ? `<div class="pycfg-grid two">${fields}</div>` : ''}</div>`;
@@ -1016,32 +1061,43 @@
       <form class="pycfg-panel-body pycfg-stack" data-pay-form="plan">
         <div class="pycfg-grid two"><label class="pycfg-field"><span>Plan name</span><input class="pycfg-input" data-plan="name" value="${esc(draft.name)}" placeholder="Estimator" maxlength="200" required></label><label class="pycfg-field"><span>Description</span><input class="pycfg-input" data-plan="description" value="${esc(draft.description)}" placeholder="Who this plan is for and what it pays" maxlength="2000"></label></div>
         <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Rules in this plan</strong><small>Tick the rules the plan pays by, and set the numbers the plan fixes for each.</small></span><span class="pycfg-pill" data-plan-count>${draft.rules.length} selected</span></div>${ruleRows || '<div class="pycfg-help">There are no pay rules yet. Create a pay rule first.</div>'}</div>
-        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>When this version takes effect</strong><small>Plans keep every version. People on the plan follow it from this date.</small></span></div><div class="pycfg-grid two"><label class="pycfg-field"><span>Effective from</span><input class="pycfg-input" type="date" data-plan="effective_from" data-pay-rerender value="${esc(draft.effective_from)}" required></label>${isNew ? '' : versionPickerMarkup(draft, plan)}</div>${effectiveNoteMarkup(draft, plan)}</div>
+        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>When this version takes effect</strong><small>Plans keep every version. People on the plan follow it from this date.</small></span></div><div class="pycfg-grid two"><label class="pycfg-field"><span>Effective from</span><input class="pycfg-input" type="date" data-plan="effective_from" data-pay-rerender value="${esc(draft.effective_from)}" required></label>${isNew ? '' : versionPickerMarkup(draft, plan)}</div>${effectiveNoteMarkup(draft, plan)}${previewBoxMarkup(preview)}</div>
         <div class="pycfg-actions"><span class="pycfg-form-status" data-form-status></span><button class="pycfg-btn" type="button" data-pay-close>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="pycfg-btn primary" type="submit"><i class="fas fa-floppy-disk"></i> ${isNew ? 'Create plan' : 'Save as a version'}</button></div>
       </form></section>`;
   }
 
-  function ruleEditorMarkup(draft, rule){
+  function ruleEditorMarkup(draft, rule, preview){
     const isNew = !draft.id;
     const record = draft.grain !== 'period';
     const removeButton = (attribute, label) => `<button class="pycfg-icon-btn danger" type="button" ${attribute} title="${label}" aria-label="${label}"><i class="fas fa-xmark"></i></button>`;
     const inputBlocks = draft.inputs.map((input, index) => {
       const conditions = input.whereMode === 'json'
-        ? `<label class="pycfg-field"><span>Filter (JSON)</span><textarea class="pycfg-textarea json" data-in="whereJson" spellcheck="false">${esc(input.whereJson)}</textarea><small class="pycfg-help">This filter has nested groups, so it is edited as written. <code>$payee.key</code>, <code>$payee.type</code> and <code>$payee.id</code> stand for the payee.</small></label><div><button class="pycfg-btn" type="button" data-in-where-mode="rules"><i class="fas fa-list"></i> Edit as rows</button></div>`
+        ? `<label class="pycfg-field"><span>Filter (JSON)</span><textarea class="pycfg-textarea json" data-in="whereJson" spellcheck="false">${esc(input.whereJson)}</textarea><small class="pycfg-help">This filter has nested groups, so it is edited as written. <code>$payee.key</code>, <code>$payee.type</code> and <code>$payee.id</code> stand for the payee.</small></label><div>${CONDITION_OPERATORS.length ? '<button class="pycfg-btn" type="button" data-in-where-mode="rules"><i class="fas fa-list"></i> Edit as rows</button>' : '<small class="pycfg-help">The list of conditions could not be loaded, so filters are edited as written.</small>'}</div>`
         : `${input.rules.map((rule) => {
           const kind = operatorEntry(rule.operator)?.[2] || 'one';
-          return `<div class="pycfg-rowgrid cond" data-in-cond><label class="pycfg-field"><span>Field</span><input class="pycfg-input" data-c="field" value="${esc(rule.field)}" placeholder="assignee_key" spellcheck="false"></label><label class="pycfg-field"><span>Condition</span><select class="pycfg-select" data-c="operator" data-pay-rerender>${optionsMarkup(CONDITION_OPERATORS.map(([id, label]) => [id, label]), rule.operator)}</select></label>${kind === 'none' ? '<span></span>' : `<label class="pycfg-field"><span>${kind === 'list' ? 'Values, comma separated' : 'Value'}</span><input class="pycfg-input" data-c="value" value="${esc(rule.value)}" placeholder="${kind === 'time' ? 'now-30d' : '$payee.key'}" spellcheck="false"></label>`}${removeButton('data-in-remove-cond', 'Remove this condition')}</div>`;
+          return `<div class="pycfg-rowgrid cond" data-in-cond><label class="pycfg-field"><span>Field</span><input class="pycfg-input" data-c="field" list="pycfgFields${index}" value="${esc(rule.field)}" placeholder="assignee_key" spellcheck="false"></label><label class="pycfg-field"><span>Condition</span><select class="pycfg-select" data-c="operator" data-pay-rerender>${optionsMarkup(operatorChoices(rule.operator), rule.operator)}</select></label>${kind === 'none' ? '<span></span>' : `<label class="pycfg-field"><span>${kind === 'list' ? 'Values, comma separated' : 'Value'}</span><input class="pycfg-input" data-c="value" value="${esc(rule.value)}" placeholder="${kind === 'time' ? 'now-30d' : '$payee.key'}" spellcheck="false"></label>`}${removeButton('data-in-remove-cond', 'Remove this condition')}</div>`;
         }).join('')}<div class="pycfg-cadence-row"><button class="pycfg-btn" type="button" data-in-add-cond><i class="fas fa-plus"></i> Add a condition</button>${input.rules.length > 1 ? `<select class="pycfg-select" data-in="match" aria-label="How conditions combine">${optionsMarkup([['all', 'Rows must match every condition'], ['any', 'Rows may match any condition']], input.match)}</select>` : ''}<button class="pycfg-btn" type="button" data-in-where-mode="json"><i class="fas fa-code"></i> Edit as JSON</button></div>`;
+      // The collection is picked from what the server publishes as selectable; one that is not listed can still be named.
+      const source = sourceFor(input);
+      const named = !!(text(input.provider) && text(input.export));
+      const custom = !PAY_SOURCES.length || input.custom === true || (!source && named);
+      const sourceOptions = [['', 'Choose a collection'], ...PAY_SOURCES.map((entry) => [entry.id, `${text(entry.export).replace(/_/g, ' ')} (${entry.provider})`]), ['__custom__', 'Another published collection']];
+      const sourcePicker = PAY_SOURCES.length ? `<label class="pycfg-field" ${custom ? '' : 'style="grid-column:span 2"'}><span>Collection</span><select class="pycfg-select" data-in="source" data-pay-rerender>${optionsMarkup(sourceOptions, custom ? '__custom__' : text(source?.id))}</select></label>` : '';
+      const sourceNamed = custom ? `<label class="pycfg-field"><span>Published by</span><input class="pycfg-input" data-in="provider" value="${esc(input.provider)}" placeholder="payroll" spellcheck="false"></label><label class="pycfg-field"><span>${PAY_SOURCES.length ? 'Its name' : 'Collection'}</span><input class="pycfg-input" data-in="export" value="${esc(input.export)}" placeholder="project_records" spellcheck="false"></label>` : '';
+      const sourceFields = `${sourcePicker}${sourceNamed}`;
+      const takes = array(source?.args);
+      const sourceHelp = source ? `<small class="pycfg-help pycfg-source-help" data-in-source-help>${esc(text(source.description))}${source.needs_args ? ` It cannot be read without ${esc(joinList(array(source.required_args)))}: add ${array(source.required_args).length === 1 ? 'it' : 'them'} under options below.` : takes.length ? ` Options it takes: ${esc(joinList(takes))}.` : ''}</small>` : '';
+      const fieldList = `<datalist id="pycfgFields${index}">${array(source?.fields).map((name) => `<option value="${esc(name)}"></option>`).join('')}</datalist>`;
       return `<div class="pycfg-block nested" data-rule-input="${index}">
         <div class="pycfg-block-head"><span><strong>${esc(text(input.name, `Input ${index + 1}`))}</strong></span>${removeButton('data-rule-remove-input', 'Remove this input')}</div>
-        <div class="pycfg-grid"><label class="pycfg-field"><span>Name in the formula</span><input class="pycfg-input" data-in="name" value="${esc(input.name)}" placeholder="projects" spellcheck="false" maxlength="60"></label><label class="pycfg-field"><span>Published by</span><input class="pycfg-input" data-in="provider" value="${esc(input.provider)}" placeholder="payroll" spellcheck="false"></label><label class="pycfg-field"><span>Collection</span><input class="pycfg-input" data-in="export" list="pycfgPaySources" value="${esc(input.export)}" placeholder="project_records" spellcheck="false"></label><label class="pycfg-field"><span>Most rows it may read</span><input class="pycfg-input" type="number" min="1" max="5000" step="1" data-in="limit" value="${esc(input.limit)}" placeholder="Default"></label>
-          <label class="pycfg-field"><span>Date field</span><input class="pycfg-input" data-in="date" value="${esc(input.date)}" placeholder="${record ? 'Optional' : 'clocked_out_at'}" spellcheck="false"><small class="pycfg-help">${record ? 'Not needed for the input each earning comes from.' : 'Rows are grouped into periods by this date. Without one the input arrives whole as shared.'}</small></label>
+        <div class="pycfg-grid"><label class="pycfg-field"><span>Name in the formula</span><input class="pycfg-input" data-in="name" value="${esc(input.name)}" placeholder="projects" spellcheck="false" maxlength="60"></label>${sourceFields}<label class="pycfg-field"><span>Most rows it may read</span><input class="pycfg-input" type="number" min="1" max="5000" step="1" data-in="limit" value="${esc(input.limit)}" placeholder="Default"></label>${sourceHelp}${fieldList}
+          <label class="pycfg-field"><span>Date field</span><input class="pycfg-input" data-in="date" list="pycfgFields${index}" value="${esc(input.date)}" placeholder="${record ? 'Optional' : 'clocked_out_at'}" spellcheck="false"><small class="pycfg-help">${record ? 'Not needed for the input each earning comes from.' : 'Rows are grouped into periods by this date. Without one the input arrives whole as shared.'}</small></label>
           ${record ? `<label class="pycfg-check" style="align-self:center"><input type="radio" name="pycfgRulePrimary" data-in="primary" ${input.primary ? 'checked' : ''}><span><strong>One earning per row</strong><small>Other inputs arrive whole as <code>shared</code>.</small></span></label>` : ''}</div>
         <div class="pycfg-cadence-group"><span>Which rows</span>${conditions}</div>
         <div class="pycfg-cadence-group"><span>Options the collection takes</span>${input.args.map((entry) => `<div class="pycfg-rowgrid kv" data-in-arg><label class="pycfg-field"><span>Option</span><input class="pycfg-input" data-a="key" value="${esc(entry.key)}" placeholder="facts" spellcheck="false"></label><label class="pycfg-field"><span>Value</span><input class="pycfg-input" data-a="value" value="${esc(entry.value)}" placeholder="true" spellcheck="false"></label>${removeButton('data-in-remove-arg', 'Remove this option')}</div>`).join('')}<div><button class="pycfg-btn" type="button" data-in-add-arg><i class="fas fa-plus"></i> Add an option</button></div></div>
       </div>`;
     }).join('');
-    const parameterRows = draft.parameters.map((parameter) => `<div class="pycfg-rowgrid param" data-rule-param><label class="pycfg-field"><span>Name in the formula</span><input class="pycfg-input" data-p="key" value="${esc(parameter.key)}" placeholder="rate_bps" spellcheck="false" maxlength="60"></label><label class="pycfg-field"><span>Label people see</span><input class="pycfg-input" data-p="label" value="${esc(parameter.label)}" placeholder="Share of contract (basis points)" maxlength="200"></label><label class="pycfg-field"><span>Kind</span><select class="pycfg-select" data-p="type" data-pay-rerender>${optionsMarkup([['number', 'Number'], ['boolean', 'Yes or no'], ['text', 'Text']], parameter.type)}</select></label><label class="pycfg-field"><span>Default</span>${parameter.type === 'boolean' ? `<select class="pycfg-select" data-p="default">${optionsMarkup([['', 'No default'], ['true', 'Yes'], ['false', 'No']], parameter.default)}</select>` : `<input class="pycfg-input" ${parameter.type === 'number' ? 'type="number" step="any"' : ''} data-p="default" value="${esc(parameter.default)}" placeholder="No default">`}</label>${removeButton('data-rule-remove-param', 'Remove this parameter')}</div>`).join('');
+    const parameterRows = draft.parameters.map((parameter) => `<div class="pycfg-rowgrid param" data-rule-param><label class="pycfg-field"><span>Name in the formula</span><input class="pycfg-input" data-p="key" value="${esc(parameter.key)}" placeholder="rate_bps" spellcheck="false" maxlength="60"></label><label class="pycfg-field"><span>Label people see</span><input class="pycfg-input" data-p="label" value="${esc(parameter.label)}" placeholder="Share of contract (basis points)" maxlength="200"></label><label class="pycfg-field"><span>Kind</span><select class="pycfg-select" data-p="type" data-pay-rerender>${optionsMarkup(PARAMETER_TYPES, parameter.type)}</select></label><label class="pycfg-field"><span>Default</span>${parameter.type === 'boolean' ? `<select class="pycfg-select" data-p="default">${optionsMarkup([['', 'No default'], ['true', 'Yes'], ['false', 'No']], parameter.default)}</select>` : `<input class="pycfg-input" ${parameter.type === 'text' ? '' : `type="number" step="${parameter.type === 'number' ? 'any' : '1'}"`} data-p="default" value="${esc(parameter.default)}" placeholder="${parameter.type === 'cents' ? 'No default (in cents)' : parameter.type === 'basis_points' ? 'No default (100 is 1%)' : 'No default'}">`}</label>${removeButton('data-rule-remove-param', 'Remove this parameter')}</div>`).join('');
     return `<section class="pycfg-panel ${isNew ? 'new' : ''}"><header class="pycfg-panel-head"><span><small>${isNew ? 'New pay rule' : 'Pay rule'}</small><strong>${esc(text(draft.name, 'New pay rule'))}</strong></span><div class="pycfg-panel-head-actions"><button class="pycfg-btn" type="button" data-pay-close><i class="fas fa-arrow-left"></i> Plans and rules</button></div></header>
       <form class="pycfg-panel-body pycfg-stack" data-pay-form="rule">
         <div class="pycfg-grid"><label class="pycfg-field" style="grid-column:span 2"><span>Rule name</span><input class="pycfg-input" data-rule="name" value="${esc(draft.name)}" placeholder="Estimator commission when sold" maxlength="200" required></label><label class="pycfg-field"><span>Earning type</span><select class="pycfg-select" data-rule="kind">${optionsMarkup(PAY_RULE_KINDS, draft.kind)}</select></label><label class="pycfg-field"><span>Pays</span><select class="pycfg-select" data-rule="grain" data-pay-rerender>${optionsMarkup([['record', 'Once per record'], ['period', 'Once per period']], record ? 'record' : 'period')}</select></label>
@@ -1050,10 +1106,10 @@
             ? `<label class="pycfg-field" style="grid-column:span 2"><span>Earned-date field</span><input class="pycfg-input" data-rule="earned_at" value="${esc(draft.earned_at)}" placeholder="sold_at" spellcheck="false"><small class="pycfg-help">The field of the one-per-row input holding the day the earning was earned. A row without it has not been earned yet.</small></label><label class="pycfg-field" style="grid-column:span 2"><span>Project field</span><input class="pycfg-input" data-rule="project" value="${esc(draft.project)}" placeholder="Optional, such as project_id" spellcheck="false"><small class="pycfg-help">Carries the row's project onto the earning.</small></label>`
             : `<label class="pycfg-field"><span>Period</span><select class="pycfg-select" data-rule="period" data-pay-rerender>${optionsMarkup(PAY_PERIODS, draft.period)}</select><small class="pycfg-help">Earned on the period's last day, once that day is over.</small></label>${draft.period === 'week' ? `<label class="pycfg-field"><span>Weeks start on</span><select class="pycfg-select" data-rule="week_starts">${optionsMarkup(WEEKDAYS.map((day, index) => [index, day]), draft.week_starts)}</select></label>` : ''}<label class="pycfg-check" style="grid-column:span 2;align-self:center"><input type="checkbox" data-rule="always" ${draft.always ? 'checked' : ''}><span><strong>Pay every period</strong><small>Even when no input has a row in it, as a salary does.</small></span></label>`}
           <label class="pycfg-field" style="grid-column:span 2"><span>Timezone for period boundaries</span><input class="pycfg-input" list="pycfgTimezoneOptions" data-rule="timezone" value="${esc(draft.timezone)}" placeholder="The payee's pay schedule decides"><datalist id="pycfgTimezoneOptions">${timezoneOptions(draft.timezone)}</datalist></label></div>
-        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Inputs</strong><small>The published data the formula may read. It can read nothing that is not declared here, and reads it with the permissions of whoever last saved the rule.</small></span><button class="pycfg-btn" type="button" data-rule-add-input ${draft.inputs.length >= 8 ? 'disabled' : ''}><i class="fas fa-plus"></i> Add input</button></div>${inputBlocks || '<div class="pycfg-help">No inputs. The rule reads no data, which suits a fixed amount paid every period.</div>'}<datalist id="pycfgPaySources">${PAY_SOURCE_HINTS.map((name) => `<option value="${name}"></option>`).join('')}</datalist></div>
-        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Parameters</strong><small>Numbers and switches a plan or a payee sets without touching the formula, such as a rate.</small></span><button class="pycfg-btn" type="button" data-rule-add-param><i class="fas fa-plus"></i> Add parameter</button></div>${parameterRows}</div>
+        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Inputs</strong><small>The published data the formula may read. It can read nothing that is not declared here, and reads it with the permissions of whoever last saved the rule.</small></span><button class="pycfg-btn" type="button" data-rule-add-input ${draft.inputs.length >= 8 ? 'disabled' : ''}><i class="fas fa-plus"></i> Add input</button></div>${inputBlocks || '<div class="pycfg-help">No inputs. The rule reads no data, which suits a fixed amount paid every period.</div>'}</div>
+        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Parameters</strong><small>Numbers and switches a plan or a payee sets without touching the formula, such as a rate. The kind says how forms ask for it: money is stored in cents and a percentage in basis points.</small></span><button class="pycfg-btn" type="button" data-rule-add-param><i class="fas fa-plus"></i> Add parameter</button></div>${parameterRows}</div>
         <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>Formula</strong><small>The body of a function, run once per ${record ? 'record' : 'period'}.</small></span></div><textarea class="pycfg-textarea code" data-rule="code" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="return Math.round(unit.record.contract_cents * params.rate_bps / 10000);">${esc(draft.code)}</textarea><small class="pycfg-help">It sees <code>unit</code> (${record ? '<code>{ record, earned_at }</code>' : '<code>{ period: { key, from, through }, rows: { input: [...] } }</code>'}), <code>params</code>, <code>payee</code> and <code>shared</code>. Return whole cents, <code>{ amount_cents, key?, description?, details? }</code>, a list of those, or <code>null</code> for nothing. It cannot read the clock or fetch. If it throws, that ${record ? 'record' : 'period'} is left unresolved with the reason; it is never paid as zero.</small></div>
-        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>When this version takes effect</strong><small>Rules keep every version. An earning is worked out with the version in effect on the day it was earned.</small></span></div><div class="pycfg-grid two"><label class="pycfg-field"><span>Effective from</span><input class="pycfg-input" type="date" data-rule="effective_from" data-pay-rerender value="${esc(draft.effective_from)}" required></label>${isNew ? '' : versionPickerMarkup(draft, rule)}</div>${effectiveNoteMarkup(draft, rule)}</div>
+        <div class="pycfg-block"><div class="pycfg-block-head"><span><strong>When this version takes effect</strong><small>Rules keep every version. An earning is worked out with the version in effect on the day it was earned.</small></span></div><div class="pycfg-grid two"><label class="pycfg-field"><span>Effective from</span><input class="pycfg-input" type="date" data-rule="effective_from" data-pay-rerender value="${esc(draft.effective_from)}" required></label>${isNew ? '' : versionPickerMarkup(draft, rule)}</div>${effectiveNoteMarkup(draft, rule)}${previewBoxMarkup(preview)}</div>
         <div class="pycfg-actions"><span class="pycfg-form-status" data-form-status></span><button class="pycfg-btn" type="button" data-pay-close>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="pycfg-btn primary" type="submit"><i class="fas fa-floppy-disk"></i> ${isNew ? 'Create rule' : 'Save as a version'}</button></div>
       </form></section>`;
   }
@@ -1064,6 +1120,16 @@
     return control.type === 'checkbox' || control.type === 'radio' ? control.checked : control.value;
   };
 
+  // Which collection an input reads, as the form shows it: one picked from the published list, or one named by hand.
+  function pickedSource(block, current){
+    const typed = { provider:controlValue(block, '[data-in="provider"]', current.provider), export:controlValue(block, '[data-in="export"]', current.export) };
+    const picked = controlValue(block, '[data-in="source"]', undefined);
+    if (picked === undefined) return { ...typed, custom:current.custom === true };
+    if (picked === '__custom__') return { ...typed, custom:true };
+    const source = PAY_SOURCES.find((entry) => entry.id === picked);
+    return source ? { provider:source.provider, export:source.export, custom:false } : { provider:'', export:'', custom:false };
+  }
+
   // Reads what is on screen back into the working copy, so the form can be drawn again without losing typing.
   function collectRuleDraft(form, draft){
     ['name', 'description', 'effective_from', 'grain', 'period', 'timezone', 'kind', 'earned_at', 'project', 'code'].forEach((key) => { draft[key] = controlValue(form, `[data-rule="${key}"]`, draft[key]); });
@@ -1073,8 +1139,7 @@
       const current = draft.inputs[index] || blankRuleInput();
       return {
         name:controlValue(block, '[data-in="name"]', current.name),
-        provider:controlValue(block, '[data-in="provider"]', current.provider),
-        export:controlValue(block, '[data-in="export"]', current.export),
+        ...pickedSource(block, current),
         date:controlValue(block, '[data-in="date"]', current.date),
         limit:controlValue(block, '[data-in="limit"]', current.limit),
         primary:controlValue(block, '[data-in="primary"]', current.primary) === true,
@@ -1100,8 +1165,8 @@
         const raw = text(control.value);
         if (raw === '') return;
         const type = control.dataset.paramType;
-        const value = type === 'boolean' ? raw === 'true' : type === 'number' ? Number(raw) : type === 'text' ? raw : looseParse(raw);
-        if (type === 'number' && !Number.isFinite(value)) return;
+        const value = type === 'boolean' ? raw === 'true' : type === 'number' ? Number(raw) : type === 'cents' || type === 'basis_points' ? Math.round(Number(raw) * 100) : type === 'text' ? raw : looseParse(raw);
+        if (['number', 'cents', 'basis_points'].includes(type) && !Number.isFinite(value)) return;
         params[control.dataset.planParam] = typeof value === 'object' ? raw : value;
       });
       return { rule_id:ruleId, params };
@@ -1127,18 +1192,16 @@
     const state = {
       loading:true,
       schedules:[],
-      policies:[],
-      subjects:[],
-      directoryWarning:'',
+      // The organization's pay default, which holds the schedule the company pays on; null until it has loaded.
+      orgDefault:null,
+      whenError:'',
+      whenPicked:{},
+      whenFrom:'',
       error:'',
       notice:'',
       noticeTone:'',
       addingSchedule:false,
-      addingAssignment:false,
       selectedScheduleId:text(initialRoute.settingsEntity),
-      newAssignmentSubjectKey:'',
-      assignmentQuery:'',
-      assignmentType:'all',
       section:'schedules',
       pay:{ loaded:false, loading:false, error:'', rules:[], plans:[] },
       payOpen:new Set(),
@@ -1178,79 +1241,71 @@
       return state.addingSchedule ? null : ensureSelectedSchedule();
     }
 
-    function subjectForPolicy(policy){
-      return state.subjects.find((subject) => subject.type === policy.subject_type && subject.id === policy.subject_id)
-        || { type:text(policy.subject_type, 'organization_user'), id:text(policy.subject_id), label:text(policy.subject_name, policy.subject_id, 'Unknown assignment'), subtitle:subjectTypeLabel(policy.subject_type) };
-    }
-
-    function schedulePolicyCount(scheduleId){
-      return state.policies.filter((policy) => policy.schedule_id === scheduleId).length;
+    // How the company uses a schedule today: its default, or the kinds of earning it pays.
+    function scheduleUseMarkup(scheduleId){
+      const today = localToday();
+      const stored = array(state.orgDefault?.schedules);
+      const kinds = EARNING_KINDS.filter(([kind]) => choiceOn(stored, kind, today)?.schedule_id === scheduleId);
+      if (kinds.some(([kind]) => kind === '*')) return '<span class="pycfg-pill" data-schedule-use title="The company pays on this schedule">Default</span>';
+      return kinds.length ? `<span class="pycfg-pill" data-schedule-use title="The company pays these on this schedule">${esc(kinds.map(([, label]) => label).join(', '))}</span>` : '<span></span>';
     }
 
     function scheduleBarMarkup(){
       const schedules = sortedSchedules();
-      return `<section class="pycfg-schedule-bar"><div class="pycfg-schedule-bar-head"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_9cbe6bfc19fa8f","Pay schedules") ?? "Pay schedules")}</strong><button class="pycfg-btn primary pycfg-add-schedule" type="button" data-add-schedule ${String(state.addingSchedule ? 'disabled' : '')}><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2503a15c876890"," New schedule") ?? " New schedule")}</button></div><div class="pycfg-schedule-scroll">${String(schedules.map((schedule) => `<button class="pycfg-schedule-choice ${!state.addingSchedule && schedule.id === state.selectedScheduleId ? 'active' : ''} ${schedule.status === 'archived' ? 'archived' : ''}" type="button" data-select-schedule="${esc(schedule.id)}"><i class="fas fa-calendar-days"></i><span><strong>${esc(schedule.name)}</strong><small>${esc(frequencyLabel(schedule))} · ${esc(delayLabel(schedule))}</small></span><span class="pycfg-count" title="${((v6) => globalThis.PlatformLanguage?.htmlText("settings","m_7ee15b229eba08",`${v6} assignments`,{v6}) ?? `${v6} assignments`)(schedulePolicyCount(schedule.id))}">${schedulePolicyCount(schedule.id)}</span></button>`).join(''))}</div></section>`;
+      return `<section class="pycfg-schedule-bar"><div class="pycfg-schedule-bar-head"><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_9cbe6bfc19fa8f","Pay schedules") ?? "Pay schedules")}</strong><button class="pycfg-btn primary pycfg-add-schedule" type="button" data-add-schedule ${String(state.addingSchedule ? 'disabled' : '')}><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2503a15c876890"," New schedule") ?? " New schedule")}</button></div><div class="pycfg-schedule-scroll">${String(schedules.map((schedule) => `<button class="pycfg-schedule-choice ${!state.addingSchedule && schedule.id === state.selectedScheduleId ? 'active' : ''} ${schedule.status === 'archived' ? 'archived' : ''}" type="button" data-select-schedule="${esc(schedule.id)}"><i class="fas fa-calendar-days"></i><span><strong>${esc(schedule.name)}</strong><small>${esc(frequencyLabel(schedule))} · ${esc(delayLabel(schedule))}</small></span>${scheduleUseMarkup(schedule.id)}</button>`).join(''))}</div></section>`;
     }
 
-    function availableSubject(){
-      const requested = state.subjects.find((subject) => subjectKey(subject.type, subject.id) === state.newAssignmentSubjectKey);
-      const candidates = requested ? [requested, ...state.subjects.filter((subject) => subject !== requested)] : state.subjects;
-      return candidates.find((subject) => {
-        const used = new Set(state.policies.filter((policy) => policy.subject_type === subject.type && policy.subject_id === subject.id).map((policy) => text(policy.earning_kind, '*')));
-        return EARNING_KINDS.some(([kind]) => !used.has(kind));
-      }) || state.subjects[0] || null;
+    // The organization's schedule choices as they are being edited: what is stored, with what has been picked and not saved yet on top.
+    function collectWhen(){
+      const form = host.querySelector('[data-when-form]');
+      if (!form) return;
+      const from = text(form.querySelector('[data-when-from]')?.value);
+      if (from) state.whenFrom = from;
+      form.querySelectorAll('[data-when-kind]').forEach((row) => { state.whenPicked[row.dataset.whenKind] = text(row.querySelector('[data-when-schedule]')?.value); });
     }
 
-    function usedKindsForSubject(subject){
-      return new Set(state.policies.filter((policy) => policy.subject_type === subject.type && policy.subject_id === subject.id).map((policy) => text(policy.earning_kind, '*')));
-    }
-
-    function assignmentPickerMarkup(selectedSubject){
-      const query = state.assignmentQuery.trim().toLowerCase();
-      const matches = state.subjects.filter((subject) => state.assignmentType === 'all' || subject.type === state.assignmentType)
-        .filter((subject) => !query || `${subject.label} ${subject.subtitle} ${subjectTypeLabel(subject.type)}`.toLowerCase().includes(query));
-      const visible = matches.slice(0, 50);
-      const selectedKey = subjectKey(selectedSubject.type, selectedSubject.id);
-      const filters = SUBJECT_FILTERS.map(([type,label]) => {
-        const count = type === 'all' ? state.subjects.length : state.subjects.filter((subject) => subject.type === type).length;
-        return `<button class="pycfg-picker-filter ${state.assignmentType === type ? 'active' : ''}" type="button" data-assignment-type="${esc(type)}">${esc(label)}<span>${count}</span></button>`;
-      }).join('');
-      const results = visible.map((subject) => {
-        const key = subjectKey(subject.type, subject.id);
-        const fullyAssigned = usedKindsForSubject(subject).size >= EARNING_KINDS.length;
-        return `<button class="pycfg-picker-result ${key === selectedKey ? 'selected' : ''}" type="button" data-select-subject="${esc(key)}" ${fullyAssigned ? 'disabled' : ''}><span class="pycfg-subject-icon"><i class="fas ${subjectIcon(subject.type)}"></i></span><span class="pycfg-picker-copy"><strong>${esc(subject.label)}</strong><small>${esc(subjectTypeLabel(subject.type))}${subject.subtitle ? ` · ${esc(subject.subtitle)}` : ''}</small></span>${fullyAssigned ? `<span class="pycfg-picker-state">${(globalThis.PlatformLanguage?.htmlText("settings","m_38dd0cd687c5de","Fully assigned") ?? "Fully assigned")}</span>` : (key === selectedKey ? '<span class="pycfg-picker-check"><i class="fas fa-check"></i></span>' : '')}</button>`;
-      }).join('');
-      return `<div class="pycfg-picker"><input type="hidden" data-new-policy-subject value="${String(esc(selectedKey))}"><div class="pycfg-picker-selected"><span class="pycfg-subject-icon"><i class="fas ${String(subjectIcon(selectedSubject.type))}"></i></span><span><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_ecefc9f177951e","Selected") ?? "Selected")}</small><strong>${String(esc(selectedSubject.label))}</strong></span><em>${String(esc(subjectTypeLabel(selectedSubject.type)))}</em></div><label class="pycfg-picker-search"><i class="fas fa-magnifying-glass"></i><input class="pycfg-input" data-assignment-search value="${String(esc(state.assignmentQuery))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_6b61f6c918bae3","Search by name, email, role, crew, or company") ?? "Search by name, email, role, crew, or company")}"></label><div class="pycfg-picker-filters">${String(filters)}</div><div class="pycfg-picker-results">${String(results || `<div class="pycfg-picker-empty"><i class="fas fa-magnifying-glass"></i><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4182a9b15ec365","No matching people or groups") ?? "No matching people or groups")}</span></div>`)}</div>${String(matches.length > visible.length ? `<div class="pycfg-picker-more">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("settings","m_3d1fdecac7eb00",`Showing the first ${v0} of ${v1}. Refine your search to narrow the list.`,{v0,v1}) ?? `Showing the first ${v0} of ${v1}. Refine your search to narrow the list.`)(visible.length,matches.length)}</div>` : '')}</div>`;
-    }
-
-    function newAssignmentMarkup(schedule){
-      const subject = availableSubject();
-      if (!subject) return `<div class="pycfg-assignment-empty"><i class="fas fa-user-slash"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_04ecac3086270f","No assignable people or groups") ?? "No assignable people or groups")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_fc7f9797b2eeb3","Workforce directories must be available before an assignment can be added.") ?? "Workforce directories must be available before an assignment can be added.")}</span></div>`;
-      const selectedKey = subjectKey(subject.type, subject.id);
-      state.newAssignmentSubjectKey = selectedKey;
-      const usedKinds = usedKindsForSubject(subject);
-      const firstKind = EARNING_KINDS.find(([kind]) => !usedKinds.has(kind))?.[0] || '*';
-      return `<form class="pycfg-add-box" data-new-policy data-schedule-id="${String(esc(schedule.id))}"><div class="pycfg-add-box-head"><strong>${((v1) => globalThis.PlatformLanguage?.htmlText("settings","m_33a54b5d181801",`Add to ${v1}`,{v1}) ?? `Add to ${v1}`)(esc(schedule.name))}</strong><button class="pycfg-icon-btn" type="button" data-cancel-policy aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}"><i class="fas fa-xmark"></i></button></div>${String(assignmentPickerMarkup(subject))}<div class="pycfg-add-grid"><label class="pycfg-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_52a6d3b60d5b9d","Earning type") ?? "Earning type")}</span><select class="pycfg-select" data-policy-earning>${String(EARNING_KINDS.map(([kind,label]) => `<option value="${esc(kind)}" ${kind === firstKind ? 'selected' : ''} ${usedKinds.has(kind) ? 'disabled' : ''}>${esc(label)}${usedKinds.has(kind) ? ' · already assigned' : ''}</option>`).join(''))}</select></label><label class="pycfg-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_48cacd50d701d8","Recognition") ?? "Recognition")}</span><select class="pycfg-select" data-policy-timing><option value="">${(globalThis.PlatformLanguage?.htmlText("settings","m_e8b95430c3cd30","Schedule default") ?? "Schedule default")}</option><option value="worked">${(globalThis.PlatformLanguage?.htmlText("settings","m_12ee42c07782b8","When work is performed") ?? "When work is performed")}</option><option value="completed">${(globalThis.PlatformLanguage?.htmlText("settings","m_5eda8826a44a2d","When job is completed") ?? "When job is completed")}</option></select></label><label class="pycfg-field"><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_57c29b3ae2c29b","Clawback cap") ?? "Clawback cap")}</span><div class="pycfg-percent"><input class="pycfg-input" data-policy-clawback type="number" min="0" max="100" step="0.01" placeholder="${(globalThis.PlatformLanguage?.htmlText("settings","m_e8b95430c3cd30","Schedule default") ?? "Schedule default")}"><span>%</span></div></label></div><div class="pycfg-add-actions"><span class="pycfg-form-status" data-policy-status></span><button class="pycfg-btn" type="button" data-cancel-policy>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button><button class="pycfg-btn primary" type="submit"><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_d45b3331bcd9fc"," Add assignment") ?? " Add assignment")}</button></div></form>`;
-    }
-
-    function assignmentsPanelMarkup(schedule){
-      const policies = state.policies.filter((policy) => policy.schedule_id === schedule.id).sort((left,right) => {
-        const leftSubject = subjectForPolicy(left);
-        const rightSubject = subjectForPolicy(right);
-        return text(leftSubject.label).localeCompare(text(rightSubject.label)) || earningKindLabel(left.earning_kind).localeCompare(earningKindLabel(right.earning_kind));
-      });
-      return `<section class="pycfg-panel pycfg-assignments-panel"><header class="pycfg-panel-head"><span><small>${(globalThis.PlatformLanguage?.htmlText("settings","m_e426de72d66b56","Assigned to this schedule") ?? "Assigned to this schedule")}</small><strong>${String(policies.length)} ${String(policies.length === 1 ? 'assignment' : 'assignments')}</strong></span><div class="pycfg-panel-head-actions"><button class="pycfg-btn" type="button" data-add-assignment ${String(state.addingAssignment || schedule.status === 'archived' ? 'disabled' : '')}><i class="fas fa-user-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_8803dece55359d"," Add") ?? " Add")}</button></div></header><div class="pycfg-assignments-body">${String(state.addingAssignment ? newAssignmentMarkup(schedule) : '')}${String(policies.length ? policies.map((policy) => assignmentRuleMarkup(subjectForPolicy(policy), policy)).join('') : (!state.addingAssignment ? `<div class="pycfg-assignment-empty"><i class="fas fa-users"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_a14385e683eb0e","No one is assigned yet") ?? "No one is assigned yet")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_4db70f96e6fe6c","Add the company default, a person, role, crew, or subcontractor to use this pay schedule.") ?? "Add the company default, a person, role, crew, or subcontractor to use this pay schedule.")}</span></div>` : ''))}</div>${String(state.directoryWarning ? `<div class="pycfg-directory-warning"><i class="fas fa-triangle-exclamation"></i> ${esc(state.directoryWarning)}</div>` : '')}</section>`;
+    function whenPanelMarkup(){
+      const stored = array(state.orgDefault?.schedules);
+      const from = parseDay(state.whenFrom) ? state.whenFrom : localToday();
+      const active = sortedSchedules().filter((schedule) => schedule.status !== 'archived');
+      const scheduleName = (id) => text(state.schedules.find((schedule) => schedule.id === id)?.name, 'a schedule that no longer exists');
+      const row = (kind, label, fallback) => {
+        const current = choiceOn(stored, kind, from);
+        const picked = Object.prototype.hasOwnProperty.call(state.whenPicked, kind) ? state.whenPicked[kind] : text(current?.schedule_id);
+        const options = [['', fallback], ...active.map((schedule) => [schedule.id, schedule.name]), ...(picked && !active.some((schedule) => schedule.id === picked) ? [[picked, `${scheduleName(picked)} (archived)`]] : [])];
+        const later = stored.filter((choice) => choiceKind(choice) === kind && text(choice.effective_from) > from).sort((left, right) => text(left.effective_from).localeCompare(text(right.effective_from)))[0];
+        const notes = [
+          current ? `On ${scheduleName(current.schedule_id)} since ${formatDay(current.effective_from)}` : '',
+          current?.timing_basis ? `recognized when ${current.timing_basis === 'completed' ? 'the job is completed' : 'the work is performed'}` : '',
+          current?.clawback_cap_percent != null ? `clawbacks capped at ${Number(current.clawback_cap_percent)}% of a check` : '',
+          later ? `changes to ${scheduleName(later.schedule_id)} on ${formatDay(later.effective_from)}` : ''
+        ].filter(Boolean).join(', ');
+        return `<label class="pycfg-when-row ${kind === '*' ? 'main' : ''}" data-when-kind="${esc(kind)}"><span class="pycfg-when-copy"><strong>${esc(label)}</strong><small>${esc(notes || (kind === '*' ? 'Every kind of earning, unless one below has its own schedule.' : 'Paid with everything else.'))}</small></span><select class="pycfg-select" data-when-schedule aria-label="Pay schedule for ${esc(label.toLowerCase())}" ${state.orgDefault ? '' : 'disabled'}>${optionsMarkup(options, picked)}</select></label>`;
+      };
+      const kinds = EARNING_KINDS.filter(([kind]) => kind !== '*').map(([kind, label]) => row(kind, label, 'Same as everything else')).join('');
+      const backdated = from < localToday();
+      return `<section class="pycfg-panel pycfg-when-panel" data-when-panel><header class="pycfg-panel-head"><span><small>When people are paid</small><strong>The company's pay schedule</strong></span></header>
+        <form class="pycfg-panel-body pycfg-stack" data-when-form>
+          ${state.whenError ? `<div class="pycfg-warn"><i class="fas fa-triangle-exclamation"></i> ${esc(state.whenError)}</div>` : ''}
+          ${active.length ? '' : '<div class="pycfg-help">Create a pay schedule first. Then choose here which one the company pays on.</div>'}
+          ${row('*', 'Everyone', 'Not chosen yet')}
+          <div class="pycfg-when-group"><span>A different schedule for one kind of earning</span>${kinds}</div>
+          <div class="pycfg-grid two"><label class="pycfg-field"><span>Starting</span><input class="pycfg-input" type="date" data-when-from value="${esc(from)}" required></label></div>
+          <small class="pycfg-help" data-when-note>${backdated ? `${esc(formatDay(from))} is in the past. Earnings already posted keep the schedule they were posted on; earnings earned from that day and posted from now on use this choice.` : 'Applies to earnings earned from this day. Earnings already posted keep the schedule they were posted on.'} Work from before any schedule was chosen is paid on today's choice.</small>
+          <small class="pycfg-help">A role, a type of group or outside company, or one person can be paid on a different schedule. That is set where people are managed, and the most specific choice wins over the company's.</small>
+          <div class="pycfg-actions"><span class="pycfg-form-status" data-form-status></span><button class="pycfg-btn primary" type="submit" ${state.orgDefault ? '' : 'disabled'}><i class="fas fa-floppy-disk"></i> Save</button></div>
+        </form></section>`;
     }
 
     function workspaceMarkup(){
-      if (state.addingSchedule) return `<div class="pycfg-workspace">${String(scheduleEditorMarkup({}, true))}<section class="pycfg-panel"><div class="pycfg-assignment-empty"><i class="fas fa-user-plus"></i><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_9e655b4d61d736","Create the schedule first") ?? "Create the schedule first")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_80f9c4047bc4d9","Assignments can be added as soon as this pay schedule is saved.") ?? "Assignments can be added as soon as this pay schedule is saved.")}</span></div></section></div>`;
+      if (state.addingSchedule) return `<div class="pycfg-workspace">${String(scheduleEditorMarkup({}, true))}${whenPanelMarkup()}</div>`;
       const schedule = selectedSchedule();
-      if (!schedule) return `<div class="pycfg-empty"><i class="fas fa-calendar-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_ff3ff2e43e60cd","Create your first pay schedule, then assign the company, people, roles, crews, or subcontractors that should use it.") ?? "Create your first pay schedule, then assign the company, people, roles, crews, or subcontractors that should use it.")}<div style="margin-top:12px"><button class="pycfg-btn primary" type="button" data-add-schedule><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_759ca83743fa9e"," Create pay schedule") ?? " Create pay schedule")}</button></div></div>`;
-      return `<div class="pycfg-workspace">${scheduleEditorMarkup(schedule)}${assignmentsPanelMarkup(schedule)}</div>`;
+      if (!schedule) return `<div class="pycfg-empty"><i class="fas fa-calendar-plus"></i>Create your first pay schedule, then choose it as the schedule the company pays on.<div style="margin-top:12px"><button class="pycfg-btn primary" type="button" data-add-schedule><i class="fas fa-plus"></i> Create pay schedule</button></div></div>`;
+      return `<div class="pycfg-workspace">${scheduleEditorMarkup(schedule)}${whenPanelMarkup()}</div>`;
     }
 
     function headerMarkup(){
-      return `<header class="pycfg-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_8c72678ac87916","Payroll setup") ?? "Payroll setup")}</h3><p>${(globalThis.PlatformLanguage?.htmlText("settings","m_7566916532f7f0","Create each pay schedule, then choose exactly who and which earnings should use it.") ?? "Create each pay schedule, then choose exactly who and which earnings should use it.")}</p></div><div class="pycfg-head-actions">${String(onBack ? `<button class="pycfg-btn" type="button" data-payroll-settings-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a1209799a6f896"," Back to payroll") ?? " Back to payroll")}</button>` : '')}<button class="pycfg-btn" type="button" data-refresh ${String(state.loading ? 'disabled' : '')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button></div></header>`;
+      return `<header class="pycfg-head"><div><h3>${(globalThis.PlatformLanguage?.htmlText("settings","m_8c72678ac87916","Payroll setup") ?? "Payroll setup")}</h3><p>Create each pay schedule and choose which one the company pays on. What people are paid is set by pay plans and pay rules.</p></div><div class="pycfg-head-actions">${String(onBack ? `<button class="pycfg-btn" type="button" data-payroll-settings-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_a1209799a6f896"," Back to payroll") ?? " Back to payroll")}</button>` : '')}<button class="pycfg-btn" type="button" data-refresh ${String(state.loading ? 'disabled' : '')}><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4f524800833039"," Refresh") ?? " Refresh")}</button></div></header>`;
     }
 
     function render(){
@@ -1294,7 +1349,7 @@
       if (state.pay.loading && !state.pay.loaded) return `<div class="pycfg-loading"><i class="fas fa-spinner fa-spin"></i> Loading pay plans and pay rules...</div>`;
       if (state.pay.error && !state.pay.loaded) return `<div class="pycfg-empty"><i class="fas fa-triangle-exclamation"></i>${esc(state.pay.error)}<div style="margin-top:12px"><button class="pycfg-btn" type="button" data-pay-retry><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_cbfbb44ff35f0f"," Try again") ?? " Try again")}</button></div></div>`;
       const editor = state.payEditor;
-      if (editor) return editor.kind === 'plan' ? planEditorMarkup(editor.draft, payItem('plan', editor.draft.id), state.pay.rules) : ruleEditorMarkup(editor.draft, payItem('rule', editor.draft.id));
+      if (editor) return editor.kind === 'plan' ? planEditorMarkup(editor.draft, payItem('plan', editor.draft.id), state.pay.rules, editor.preview) : ruleEditorMarkup(editor.draft, payItem('rule', editor.draft.id), editor.preview);
       const plans = sortedPayItems(state.pay.plans);
       const rules = sortedPayItems(state.pay.rules);
       return `${state.pay.error ? `<div class="pycfg-notice bad">${esc(state.pay.error)}</div>` : ''}
@@ -1332,7 +1387,10 @@
       if (!state.pay.loaded && state.section === 'pay' && !state.loading) render();
       try {
         if (typeof pay?.rules !== 'function' || typeof pay?.plans !== 'function') throw new Error('Pay rules and pay plans are not available here.');
-        const [rules, plans] = await Promise.all([pay.rules(orgId), pay.plans(orgId)]);
+        const optional = (read) => typeof read === 'function' ? Promise.resolve().then(() => read(orgId)).catch(() => null) : Promise.resolve(null);
+        const [rules, plans, sources, vocabulary] = await Promise.all([pay.rules(orgId), pay.plans(orgId), optional(pay.ruleSources), optional(pay.vocabulary)]);
+        PAY_SOURCES = array(sources).map((source) => ({ ...object(source), id:text(source?.id, `${text(source?.provider)}.${text(source?.export)}`) })).filter((source) => source.provider && source.export);
+        CONDITION_OPERATORS = array(vocabulary?.operators).map((operator) => [text(operator?.id), text(operator?.label, operator?.id), text(operator?.value, 'one')]).filter(([id]) => id);
         state.pay.rules = rows(rules, 'rules', 'pay_rules').map((item) => ({ ...object(item) })).filter((item) => item.id);
         state.pay.plans = rows(plans, 'plans', 'pay_plans').map((item) => ({ ...object(item) })).filter((item) => item.id);
         state.pay.loaded = true;
@@ -1415,6 +1473,13 @@
       // Anything that adds, removes or reshapes controls reads the form into the working copy first, then draws it again.
       const redraw = (change) => { collectPayEditor(); change?.(); render(); };
       form.addEventListener('submit', (event) => { event.preventDefault(); savePayEditor(form); });
+      form.querySelector('[data-pay-preview]')?.addEventListener('click', () => runPayPreview(form));
+      // A preview describes the form as it was when it ran. Any edit takes it away rather than leave it looking current.
+      form.addEventListener('input', () => {
+        if (!editor.preview || editor.preview.loading) return;
+        editor.preview = null;
+        form.querySelector('[data-pay-preview-result]')?.remove();
+      });
       form.addEventListener('change', (event) => {
         const control = event.target;
         if (control.matches('[data-pay-base]')) {
@@ -1434,7 +1499,7 @@
       });
       form.addEventListener('click', (event) => {
         const button = event.target.closest('button');
-        if (!button || !form.contains(button) || editor.kind !== 'rule') return;
+        if (!button || !form.contains(button) || editor.kind !== 'rule' || button.dataset.payPreview !== undefined) return;
         const data = button.dataset;
         const inputIndex = Number(button.closest('[data-rule-input]')?.dataset.ruleInput);
         const indexIn = (selector) => [...(button.closest('[data-rule-input]') || form).querySelectorAll(selector)].indexOf(button.closest(selector));
@@ -1477,7 +1542,7 @@
           delete control.dataset.pycfgWasDisabled;
         }
       });
-      const status = form.querySelector('[data-form-status],[data-policy-status]');
+      const status = form.querySelector('[data-form-status]');
       if (status) {
         status.textContent = message;
         status.classList.toggle('bad', bad);
@@ -1494,9 +1559,9 @@
     }
 
     async function refreshPayrollData(message = '', preferredScheduleId = ''){
-      const [scheduleResult, policyResult] = await Promise.all([client.listSchedules({ includeArchived:true }), client.listPolicies()]);
+      const [scheduleResult, organizationDefault] = await Promise.all([client.listSchedules({ includeArchived:true }), loadOrganizationDefault()]);
       state.schedules = rows(scheduleResult, 'schedules').map((item) => ({ ...object(item) }));
-      state.policies = rows(policyResult, 'policies').map((item) => ({ ...object(item), earning_kind:text(item?.earning_kind, '*') }));
+      state.orgDefault = organizationDefault;
       ensureSelectedSchedule(preferredScheduleId);
       setNotice(message);
       render();
@@ -1513,7 +1578,7 @@
           savedScheduleId = text(result?.schedule?.id, result?.id);
         } else await client.updateSchedule(scheduleId, payload);
         state.addingSchedule = false;
-        await refreshPayrollData(scheduleId === '__new__' ? 'Pay schedule created. Add the people or groups who should use it.' : 'Pay schedule updated.', savedScheduleId || scheduleId);
+        await refreshPayrollData(scheduleId === '__new__' ? 'Pay schedule created. Choose who it pays under When people are paid.' : 'Pay schedule updated.', savedScheduleId || scheduleId);
         syncSelectedRoute('replace');
         toast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"), scheduleId === '__new__' ? 'Pay schedule created.' : 'Pay schedule updated.', true);
       } catch(error) {
@@ -1537,53 +1602,51 @@
       }
     }
 
-    async function savePolicy(form){
-      const isNew = form.hasAttribute('data-new-policy');
-      const selectedSubjectKey = text(form.querySelector('[data-new-policy-subject]')?.value);
-      const separator = selectedSubjectKey.indexOf(':');
-      const subjectType = isNew ? selectedSubjectKey.slice(0, separator) : text(form.dataset.subjectType);
-      const subjectId = isNew ? selectedSubjectKey.slice(separator + 1) : text(form.dataset.subjectId);
-      const originalKind = text(form.dataset.policyKind, '*');
-      const earningKind = text(form.querySelector('[data-policy-earning]')?.value, originalKind);
-      const scheduleId = text(form.dataset.scheduleId, state.selectedScheduleId);
-      if (!subjectType || !subjectId || !scheduleId) {
-        formBusy(form, false, 'Choose who should use this schedule.', true);
-        return;
-      }
-      const timingBasis = text(form.querySelector('[data-policy-timing]')?.value);
-      const capValue = text(form.querySelector('[data-policy-clawback]')?.value);
-      const revision = Number(form.dataset.policyRevision || 0);
-      const payload = {
-        schedule_id:scheduleId,
-        earning_kind:earningKind,
-        ...(timingBasis ? { timing_basis:timingBasis } : {}),
-        ...(capValue !== '' ? { clawback_cap_percent:clampNumber(capValue, 0, 100, 100) } : {}),
-        ...(revision > 0 ? { expected_revision:revision } : {})
-      };
+    async function saveWhen(form){
+      collectWhen();
+      const from = text(state.whenFrom, localToday());
+      const current = object(state.orgDefault);
+      if (!parseDay(from)) { formBusy(form, false, 'Choose the day this starts.', true); return; }
+      const next = scheduleChoicesFrom(current.schedules, state.whenPicked, from);
+      if (JSON.stringify(next) === JSON.stringify(scheduleChoicesFrom(current.schedules, {}, from))) { formBusy(form, false, 'Nothing has changed.'); return; }
       try {
-        formBusy(form, true, 'Saving assignment rule...');
-        await client.savePolicy(subjectType, subjectId, payload);
-        state.addingAssignment = false;
-        await refreshPayrollData(isNew ? 'Assignment added.' : 'Assignment updated.', scheduleId);
-        toast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"), isNew ? 'Assignment added to this pay schedule.' : 'Assignment updated.', true);
+        formBusy(form, true, 'Saving...');
+        // The organization default also holds pay rules everyone starts from; they are sent back exactly as they were.
+        await client.saveDefault({
+          subject:{ type:'organization', id:orgId },
+          entries:array(current.entries).map((entry) => pick(entry, ENTRY_FIELDS)),
+          ...(array(current.distribution).length ? { distribution:current.distribution.map((entry) => pick(entry, DISTRIBUTION_FIELDS)) } : {}),
+          schedules:next,
+          ...(Number(current.revision || 0) > 0 ? { expected_revision:Number(current.revision) } : {})
+        });
+        state.whenPicked = {};
+        state.whenFrom = '';
+        await refreshPayrollData(`The company's pay schedule is saved from ${formatDay(from)}.`);
+        toast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"), "The company's pay schedule is saved.", true);
       } catch(error) {
-        formBusy(form, false, error?.message || 'Could not save this assignment rule.', true);
+        formBusy(form, false, error?.message || 'Could not save the pay schedule choice.', true);
       }
     }
 
-    async function deletePolicy(form){
-      const subjectType = text(form.dataset.subjectType);
-      const subjectId = text(form.dataset.subjectId);
-      const earningKind = text(form.dataset.policyKind, '*');
-      if (!root.confirm(((v0) => globalThis.PlatformLanguage?.text("settings","m_0cab5b84039beb",`Remove the ${v0} payroll rule? This subject will inherit its next available default.`,{v0}) ?? `Remove the ${v0} payroll rule? This subject will inherit its next available default.`)(earningKindLabel(earningKind).toLowerCase()))) return;
+    async function runPayPreview(form){
+      const editor = state.payEditor;
+      if (!editor) return;
+      const plan = editor.kind === 'plan';
+      collectPayEditor();
+      let payload;
+      try { payload = plan ? planPayload(editor.draft) : rulePayload(editor.draft); }
+      catch(error) { formBusy(form, false, error?.message || 'This cannot be previewed yet.', true); return; }
+      const pay = root.PayrollAPI?.pay;
+      const run = plan ? pay?.previewPlan : pay?.previewRule;
+      editor.preview = { loading:true };
+      render();
       try {
-        formBusy(form, true, 'Removing rule...');
-        await client.deletePolicy(subjectType, subjectId, earningKind);
-        await refreshPayrollData('Payroll assignment rule removed.');
-        toast((globalThis.PlatformLanguage?.text("settings","m_ab76f11570a1be","Removed") ?? "Removed"), (globalThis.PlatformLanguage?.text("settings","m_2ecb390fdb9725","Payroll assignment rule removed.") ?? "Payroll assignment rule removed."), true);
+        if (typeof run !== 'function') throw new Error('A preview is not available here.');
+        editor.preview = { result:await run(orgId, payload) };
       } catch(error) {
-        formBusy(form, false, error?.message || 'Could not remove this assignment rule.', true);
+        editor.preview = { error:error?.message || 'The preview could not be worked out.' };
       }
+      if (!destroyed && state.payEditor === editor) { collectPayEditor(); render(); }
     }
 
     function bind(){
@@ -1596,7 +1659,6 @@
         collectPayEditor();
         state.section = next;
         state.addingSchedule = false;
-        state.addingAssignment = false;
         setNotice('');
         render();
         if (next === 'pay') loadPay();
@@ -1604,12 +1666,11 @@
       host.querySelectorAll('[data-select-schedule]').forEach((button) => button.addEventListener('click', () => {
         state.selectedScheduleId = text(button.dataset.selectSchedule);
         state.addingSchedule = false;
-        state.addingAssignment = false;
         setNotice('');
         syncSelectedRoute('push');
         render();
       }));
-      host.querySelectorAll('[data-add-schedule]').forEach((button) => button.addEventListener('click', () => { state.addingSchedule = true; state.addingAssignment = false; setNotice(''); render(); }));
+      host.querySelectorAll('[data-add-schedule]').forEach((button) => button.addEventListener('click', () => { state.addingSchedule = true; setNotice(''); render(); }));
       host.querySelector('[data-cancel-new]')?.addEventListener('click', () => { state.addingSchedule = false; render(); });
       host.querySelectorAll('[data-schedule-form]').forEach((form) => {
         const scheduleId = text(form.dataset.scheduleId);
@@ -1617,52 +1678,25 @@
         form.addEventListener('submit', (event) => { event.preventDefault(); saveSchedule(form, scheduleId); });
         form.querySelector('[data-archive-schedule]')?.addEventListener('click', () => archiveSchedule(form, scheduleId));
       });
-      host.querySelector('[data-add-assignment]')?.addEventListener('click', () => { state.addingAssignment = true; state.assignmentQuery = ''; state.assignmentType = 'all'; setNotice(''); render(); });
-      host.querySelectorAll('[data-cancel-policy]').forEach((button) => button.addEventListener('click', () => { state.addingAssignment = false; state.assignmentQuery = ''; render(); }));
-      const newPolicyForm = host.querySelector('[data-new-policy]');
-      newPolicyForm?.querySelectorAll('[data-select-subject]').forEach((button) => button.addEventListener('click', () => { state.newAssignmentSubjectKey = text(button.dataset.selectSubject); render(); }));
-      newPolicyForm?.querySelectorAll('[data-assignment-type]').forEach((button) => button.addEventListener('click', () => {
-        state.assignmentType = text(button.dataset.assignmentType, 'all');
-        const nextSubject = state.subjects.find((subject) => (state.assignmentType === 'all' || subject.type === state.assignmentType) && usedKindsForSubject(subject).size < EARNING_KINDS.length);
-        if (nextSubject) state.newAssignmentSubjectKey = subjectKey(nextSubject.type, nextSubject.id);
-        render();
-      }));
-      newPolicyForm?.querySelector('[data-assignment-search]')?.addEventListener('input', (event) => {
-        state.assignmentQuery = event.currentTarget.value;
-        clearTimeout(bind.assignmentSearchTimer);
-        bind.assignmentSearchTimer = setTimeout(() => {
-          render();
-          const input = host.querySelector('[data-assignment-search]');
-          input?.focus();
-          input?.setSelectionRange?.(input.value.length, input.value.length);
-        }, 120);
-      });
-      newPolicyForm?.addEventListener('submit', (event) => { event.preventDefault(); savePolicy(newPolicyForm); });
-      host.querySelectorAll('[data-policy-form]').forEach((form) => {
-        form.addEventListener('submit', (event) => { event.preventDefault(); savePolicy(form); });
-        form.querySelector('[data-delete-policy]')?.addEventListener('click', () => deletePolicy(form));
+      const whenForm = host.querySelector('[data-when-form]');
+      whenForm?.addEventListener('submit', (event) => { event.preventDefault(); saveWhen(whenForm); });
+      whenForm?.addEventListener('change', (event) => {
+        collectWhen();
+        // The day it starts decides what counts as the current choice, so the rows are drawn again for it.
+        if (event.target.matches('[data-when-from]')) { state.whenPicked = {}; render(); }
       });
     }
 
-    async function loadDirectory(){
-      const platform = root.PlatformAPI;
-      const subjects = [{ type:'organization', id:orgId, label:(globalThis.PlatformLanguage?.text("settings","m_4072ee4e7867cd","Company default") ?? "Company default"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_1b29e22b1e5092","Fallback for every payee and earning type") ?? "Fallback for every payee and earning type") }];
-      const directory=(await platform.publication.invoke(orgId,'payroll.directory.read',{scope:'organization',organizationId:orgId},{})).value;
-      const accessResult={status:'fulfilled',value:{roles:directory.roles}},usersResult={status:'fulfilled',value:{users:directory.users}},groupsResult={status:'fulfilled',value:{resource_groups:directory.resource_groups}},connectionsResult={status:'fulfilled',value:{connections:directory.connections}};
-      if (accessResult.status === 'fulfilled') {
-        rows(accessResult.value, 'roles', 'access_roles').filter((role) => role.status !== 'archived').forEach((role) => subjects.push({ type:'access_role', id:text(role.id, role.role_id), label:text(role.name, role.id), subtitle:`Access role · ${array(role.application_ids).join(' + ') || text(role.application_id, 'workforce')}` }));
+    // The company's schedule choice loads beside the schedules and fails on its own: schedules can still be edited without it.
+    async function loadOrganizationDefault(){
+      try {
+        const value = object(await client.organizationDefault());
+        state.whenError = '';
+        return { ...value, entries:array(value.entries), schedules:array(value.schedules) };
+      } catch(error) {
+        state.whenError = `${error?.message || 'The company\u2019s pay schedule could not be loaded.'} Schedules can still be edited.`;
+        return null;
       }
-      if (usersResult.status === 'fulfilled') {
-        rows(usersResult.value, 'users', 'profiles', 'workforce_users').filter((user) => !['disabled','deleted'].includes(text(user.status).toLowerCase())).forEach((user) => subjects.push({ type:'organization_user', id:text(user.id, user.user_id), label:text(user.name, user.email, user.id), subtitle:text(user.email, 'Organization user') }));
-      }
-      if (groupsResult.status === 'fulfilled') {
-        rows(groupsResult.value, 'resource_groups', 'groups').filter((group) => group.status !== 'archived').forEach((group) => subjects.push({ type:'resource_group', id:text(group.id), label:text(group.name, group.id), subtitle:((v0,v1) => globalThis.PlatformLanguage?.text("settings","m_9372c96aec8f22",`Crew · ${v0} member${v1}`,{v0,v1}) ?? `Crew · ${v0} member${v1}`)(array(group.members).length,array(group.members).length === 1 ? '' : 's') }));
-      }
-      if (connectionsResult.status === 'fulfilled') {
-        rows(connectionsResult.value, 'organization_connections', 'connections').filter((connection) => connection.status !== 'archived').forEach((connection) => subjects.push({ type:'organization_connection', id:text(connection.id), label:text(connection.name, connection.legal_name, connection.id), subtitle:text(connection.legal_name, 'Subcontractor organization') }));
-      }
-      const failures = [accessResult, usersResult, groupsResult, connectionsResult].filter((result) => result.status === 'rejected').length;
-      return { subjects:subjects.filter((subject) => subject.id), warning:failures ? `${failures} workforce ${failures === 1 ? 'directory' : 'directories'} could not be loaded. Existing policy data remains unchanged.` : '' };
     }
 
     async function load(force = false){
@@ -1674,16 +1708,14 @@
       // Pay plans and rules load beside the schedules and fail on their own, so one never hides the other.
       loadPay(force);
       try {
-        const [scheduleResult, policyResult, directory] = await Promise.all([
+        const [scheduleResult, organizationDefault] = await Promise.all([
           client.listSchedules({ includeArchived:true }),
-          client.listPolicies(),
-          loadDirectory()
+          loadOrganizationDefault()
         ]);
         if (destroyed) return;
         state.schedules = rows(scheduleResult, 'schedules').map((item) => ({ ...object(item) }));
-        state.policies = rows(policyResult, 'policies').map((item) => ({ ...object(item), earning_kind:text(item?.earning_kind, '*') }));
-        state.subjects = directory.subjects;
-        state.directoryWarning = directory.warning;
+        state.orgDefault = organizationDefault;
+        state.whenPicked = {};
         ensureSelectedSchedule();
         state.loading = false;
         setNotice(force ? 'Payroll configuration refreshed.' : '');
@@ -1707,8 +1739,7 @@
         if (nextScheduleId !== state.selectedScheduleId) {
           state.selectedScheduleId = nextScheduleId;
           state.addingSchedule = false;
-          state.addingAssignment = false;
-          ensureSelectedSchedule();
+            ensureSelectedSchedule();
           setNotice('');
           render();
         }
@@ -1719,5 +1750,6 @@
   }
 
   // payDates and describeRecurrence are exposed so tests can hold them against the server's payrollPayDates.
-  root.FirstMatePayrollSettings = { mount, payDates, describeRecurrence:recurrenceSummary };
+  // scheduleChoicesFrom is exposed so what the schedule panel saves can be held against the server's schema.
+  root.FirstMatePayrollSettings = { mount, payDates, describeRecurrence:recurrenceSummary, scheduleChoicesFrom };
 })(window);

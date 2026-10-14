@@ -139,8 +139,37 @@ names for the same thing and stay only where they are stored. "Crew" is not a
 platform word: what a group or unit is called comes from the terminology system,
 so do not write it into contracts, field names or fixed copy. A commitment is a
 frozen copy and is never edited. Delivery code runs in the sandbox and only
-returns steps. Availability comes from commitments alone. Run
+returns steps. A commitment says nothing about when anyone is free. Run
 `tests/labor-commitments.test.ts` for changes here.
+
+## Assignee base and roster
+
+Read [the assignee base and the roster](docs/architecture/assignee-base.md)
+before changing what every assignee has, the assignee directory, who is on a
+piece of work, time off or staffing requirements. The three kinds (user, group
+of users, outside company) keep their own stores and share one contract in
+`public/v1/assignees/`, filled by one adapter per kind; ask a **trait**
+(`has_members`, `has_login`, `external_link`, `splits_pay`), never the kind.
+"Capability" is not a word for these: it means what kinds of work an assignee
+can do (`labor/capabilities.ts`). A shared field is read from the home it
+already had; do not copy it into the base record. **Kind** is which of the
+three. **Types** are always `type_ids`, a list: a user's types are their access
+roles (there is no user type and no user type list), a group has exactly one
+type (its `kind_id`), and an outside company has zero or more company types.
+Ask `assigneeTypeIds`. Permission defaults belong to the group type: its
+`member_role_ids` are added to a user when they join a group of that type, on
+every path that adds a member, and nothing is removed when they leave; setting
+them needs `manage_company_user_permissions`. Pay attaches to types, never to
+tags. An assignment is a list of entries that
+add or remove an assignee, each optionally for part of the work; who is on the
+work is the roster resolved from it, with time compared as exact intervals and
+a person in two groups counted once. What is true of a person is an ordinary
+user field and rolls up to groups in the data layer; do not bless a field. A
+**staffing requirement** is a count and a condition in the one condition
+contract; "requirements" alone means what a job needs done. Unmet staffing
+requirements and conflicts warn and never block. Run `tests/assignee-base.test.ts`,
+`tests/assignee-roster.test.ts` and `tests/assignee-base-store.test.ts` for
+changes here.
 
 ## Requirements and coverage
 

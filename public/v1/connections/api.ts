@@ -114,9 +114,11 @@ export const registerConnectionsApi: FastifyPluginAsync = async (app) => {
 
   app.delete("/organizations/:orgId/organization-connections/:connectionId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireMutation(request, orgId);
+    const context = await requireMutation(request, orgId);
     const connection = (await archiveOrganizationConnection(orgId, getParam(request.params, "connectionId"), expectedRevision(request)));
     const branchId = Array.isArray(connection.branch_ids) && connection.branch_ids[0] ? String(connection.branch_ids[0]) : "default";
-    return { ok: true, archived: true, organization_connection: connection, connection, ...(await settingsBundle(orgId, branchId)) };
+    // An archived company is no longer an assignee: remove what was kept against it. A step that fails is reported, and the archive stands.
+    const cleanup = await (await import("../assignees/base.js")).cleanupAssignee(orgId, { type: "organization_connection", id: String(connection.id) }, context).catch(() => null);
+    return { ok: true, archived: true, organization_connection: connection, connection, assignee_cleanup: cleanup?.steps || [], ...(await settingsBundle(orgId, branchId)) };
   });
 };

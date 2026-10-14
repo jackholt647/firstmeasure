@@ -5,11 +5,15 @@ import { ensureSqlColumn, openSqlStore, type SqlStore } from "../platform/sql_st
 
 import { badRequest, conflict, notFound } from "../platform/errors.js";
 import { env } from "../src/config/env.js";
-import { payrollPayeeType, type PayrollLedgerEntryInput, type PayrollPayeeRef, type PayrollPolicySubject, type PayrollScheduleInput } from "./schemas.js";
+import { payrollPayeeType, type PayrollLedgerEntryInput, type PayrollPayeeRef, type PayrollScheduleInput } from "./schemas.js";
 
 export type JsonObject = Record<string, unknown>;
 
-const DATABASE_SCHEMA_VERSION = 3;
+/**
+ * Raised whenever `initializeSchema` changes. On PostgreSQL the schema is only initialized again when this number is
+ * higher than the one recorded for the store, so a table dropped there stays until it is raised.
+ */
+const DATABASE_SCHEMA_VERSION = 4;
 let database: SqlStore | null = null;
 let databasePath = "";
 
@@ -56,7 +60,7 @@ export function getPayrollDatabase(): SqlStore {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   if (database) throw new Error("Close payroll storage before changing its directory.");
-  database = openSqlStore({ id: "payroll", filename: nextPath, schemaVersion: 2, initialize: initializeSchema });
+  database = openSqlStore({ id: "payroll", filename: nextPath, schemaVersion: DATABASE_SCHEMA_VERSION, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
@@ -84,24 +88,6 @@ async function initializeSchema(db: SqlStore) {
     );
     CREATE INDEX IF NOT EXISTS payroll_schedules_org_idx
       ON payroll_schedules (organization_id, status, name);
-
-    CREATE TABLE IF NOT EXISTS payroll_policies (
-      organization_id TEXT NOT NULL,
-      subject_type TEXT NOT NULL,
-      subject_id TEXT NOT NULL,
-      earning_kind TEXT NOT NULL DEFAULT '*',
-      schedule_id TEXT NOT NULL,
-      timing_basis TEXT,
-      clawback_cap_percent DOUBLE PRECISION,
-      metadata_json TEXT NOT NULL DEFAULT '{}',
-      revision INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (organization_id, subject_type, subject_id, earning_kind),
-      FOREIGN KEY (organization_id, schedule_id) REFERENCES payroll_schedules (organization_id, id)
-    );
-    CREATE INDEX IF NOT EXISTS payroll_policies_schedule_idx
-      ON payroll_policies (organization_id, schedule_id, subject_type, earning_kind);
 
     CREATE TABLE IF NOT EXISTS payroll_ledger_entries (
       id TEXT PRIMARY KEY,
@@ -233,6 +219,8 @@ async function initializeSchema(db: SqlStore) {
   await ensureSqlColumn(db, "payroll_work_outbox", "last_error", "TEXT NOT NULL DEFAULT ''");
   // Project payee roles were replaced by assignee fields on the project; see docs/architecture/pay-rules.md.
   await db.exec("DROP TABLE IF EXISTS payroll_project_payees");
+  // Pay schedule policies were replaced by schedule choices on pay defaults and pay setups; see docs/architecture/pay-rules.md.
+  await db.exec("DROP TABLE IF EXISTS payroll_policies");
   await db.exec("CREATE INDEX IF NOT EXISTS payroll_work_outbox_due_idx ON payroll_work_outbox(state, retry_at, created_at)");
 }
 
@@ -315,89 +303,6 @@ export async function patchPayrollSchedule(orgId: string, scheduleId: string, in
 
 export async function archivePayrollSchedule(orgId: string, scheduleId: string, expectedRevision: number) {
   return (await patchPayrollSchedule(orgId, scheduleId, { expected_revision: expectedRevision, status: "archived" }));
-}
-
-function policyView(rowValue: unknown) {
-  const row = asObject(rowValue);
-  return {
-    organization_id: cleanText(row.organization_id),
-    subject_type: cleanText(row.subject_type),
-    subject_id: cleanText(row.subject_id),
-    earning_kind: cleanText(row.earning_kind || "*"),
-    schedule_id: cleanText(row.schedule_id),
-    timing_basis: cleanText(row.timing_basis),
-    clawback_cap_percent: row.clawback_cap_percent === null || row.clawback_cap_percent === undefined ? null : Number(row.clawback_cap_percent),
-    metadata: asObject(parseJson(row.metadata_json)),
-    revision: Number(row.revision || 1),
-    created_at: cleanText(row.created_at),
-    updated_at: cleanText(row.updated_at)
-  };
-}
-
-export async function listPayrollPolicies(orgId: string) {
-  return (await getPayrollDatabase().prepare("SELECT * FROM payroll_policies WHERE organization_id=? ORDER BY subject_type, subject_id")
-    .all(orgId)).map(policyView);
-}
-
-export async function savePayrollPolicy(orgId: string, subjectType: PayrollPolicySubject, subjectId: string, input: JsonObject) {
-  return (await getPayrollDatabase().transaction(async () => {
-  (await readPayrollSchedule(orgId, cleanText(input.schedule_id)));
-  const earningKind = cleanText(input.earning_kind || "*") || "*";
-  const existing = (await getPayrollDatabase().prepare(`SELECT revision FROM payroll_policies
-    WHERE organization_id=? AND subject_type=? AND subject_id=? AND earning_kind=?`).get(orgId, subjectType, subjectId, earningKind));
-  if (existing && Number(input.expected_revision || 0) !== Number(asObject(existing).revision || 0)) {
-    throw conflict("payroll_policy_revision_conflict", "Payroll policy revision does not match.", { current_revision: Number(asObject(existing).revision || 0) });
-  }
-  const now = nowIso();
-  (await getPayrollDatabase().prepare(`INSERT INTO payroll_policies
-    (organization_id, subject_type, subject_id, earning_kind, schedule_id, timing_basis, clawback_cap_percent, metadata_json, revision, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-    ON CONFLICT(organization_id, subject_type, subject_id, earning_kind) DO UPDATE SET schedule_id=excluded.schedule_id,
-      timing_basis=excluded.timing_basis, clawback_cap_percent=excluded.clawback_cap_percent, metadata_json=excluded.metadata_json,
-      revision=payroll_policies.revision+1, updated_at=excluded.updated_at`)
-    .run(orgId, subjectType, subjectId, earningKind, cleanText(input.schedule_id), cleanText(input.timing_basis) || null,
-      input.clawback_cap_percent === undefined ? null : Number(input.clawback_cap_percent), json(input.metadata || {}), now, now));
-  return policyView((await getPayrollDatabase().prepare("SELECT * FROM payroll_policies WHERE organization_id=? AND subject_type=? AND subject_id=? AND earning_kind=?")
-    .get(orgId, subjectType, subjectId, earningKind)));
-
-  }));
-}
-
-export async function deletePayrollPolicy(orgId: string, subjectType: PayrollPolicySubject, subjectId: string, earningKind = "*") {
-  const result = (await getPayrollDatabase().prepare("DELETE FROM payroll_policies WHERE organization_id=? AND subject_type=? AND subject_id=? AND earning_kind=?")
-    .run(orgId, subjectType, subjectId, earningKind));
-  if (!Number(result.changes || 0)) throw notFound("payroll_policy_not_found", "Payroll policy was not found.");
-  return { deleted: true, subject_type: subjectType, subject_id: subjectId };
-}
-
-export async function resolvePayrollPolicy(orgId: string, payee: PayrollPayeeRef, earningKind = "*") {
-  const rows = (await listPayrollPolicies(orgId));
-  const levels: Array<Array<[string, string]>> = [
-    [[payee.type, payee.id]],
-    (payee.resource_group_ids || []).map((id) => ["resource_group", id] as [string, string]),
-    (payee.access_role_ids || []).map((id) => ["access_role", id] as [string, string]),
-    [["worker_type", payee.worker_type || (payee.type === "organization_connection" ? "subcontractor" : "employee")]],
-    [["organization", orgId]]
-  ];
-  for (const candidates of levels) {
-    const matches = candidates.map(([subjectType, subjectId]) => (
-      rows.find((row) => row.subject_type === subjectType && row.subject_id === subjectId && row.earning_kind === earningKind)
-      || rows.find((row) => row.subject_type === subjectType && row.subject_id === subjectId && row.earning_kind === "*")
-    )).filter((value): value is NonNullable<typeof value> => !!value);
-    if (matches.length > 1) {
-      const signatures = new Set(matches.map((policy) => `${policy.schedule_id}:${policy.timing_basis}:${policy.clawback_cap_percent}`));
-      if (signatures.size > 1) {
-        throw conflict("payroll_policy_ambiguous", "Multiple payroll policies match this payee at the same priority.", {
-          payee_type: payee.type,
-          payee_id: payee.id,
-          earning_kind: earningKind,
-          policies: matches.map((policy) => ({ subject_type: policy.subject_type, subject_id: policy.subject_id, schedule_id: policy.schedule_id }))
-        });
-      }
-    }
-    if (matches[0]) return { ...matches[0], schedule: (await readPayrollSchedule(orgId, matches[0].schedule_id)) };
-  }
-  return null;
 }
 
 function ledgerEntryView(rowValue: unknown) {
@@ -775,4 +680,4 @@ export async function listPayrollArtifacts(orgId: string, options: JsonObject = 
     .all(...params)).map((row) => payrollArtifactView(row));
 }
 
-export const payrollViews = { scheduleView, policyView, ledgerEntryView, batchView, batchItemView };
+export const payrollViews = { scheduleView, ledgerEntryView, batchView, batchItemView };

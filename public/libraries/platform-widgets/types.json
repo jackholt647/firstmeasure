@@ -315,6 +315,13 @@
     }
   },
   {
+    "id": "data-entry.department",
+    "parent": "data-entry",
+    "constraints": {
+      "fieldType": "department"
+    }
+  },
+  {
     "id": "data-entry.assignable_subject",
     "parent": "data-entry",
     "constraints": {

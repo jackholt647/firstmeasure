@@ -8,6 +8,7 @@ import type { PublicationContext, TargetRef } from "../platform/publication/cont
 import { PROJECT_DEFAULT_FIELDS, empty, fieldPath, fieldSchema, getValue, normalizeDefinitions, object, putValue, validateField, validatePattern, calculateFormula, type FieldEntity } from "./contracts.js";
 
 import { FIELD_OWNERS, ownerForCollection, readResourceOwner, resourceFieldId } from "./owners.js";
+import { recordHomes, resolveHomedFields } from "./homes.js";
 import { assertPlatformPhoneMutation, resolvePlatformPhone, phoneProducer } from "./platform-phone.js";
 import { evaluateCalculation, inCalculationSession, normalizeCalculation } from './calculations.js';
 import type { DataResult } from '../platform/publication/contracts.js';
@@ -18,7 +19,11 @@ export async function optional<T>(run: () => Promise<T>): Promise<T | null> {
 }
 export async function definitions(orgId: string, branchId: string, entity: FieldEntity, record: JsonObject = {}) {
   const module = await optional(() => readBranchModule(orgId, FIELD_OWNERS[entity].shared ? "default" : branchId, "custom_fields"));
-  const fields = [...(Array.isArray(module?.data.fields) ? module.data.fields : []), ...(Array.isArray(module?.data.retired_fields) ? module.data.retired_fields : [])].map(object).filter(f => (f.entity || "project") === entity);
+  const declared = [...(Array.isArray(module?.data.fields) ? module.data.fields : []), ...(Array.isArray(module?.data.retired_fields) ? module.data.retired_fields : [])].map(object).filter(f => (f.entity || "project") === entity);
+  // People owners take their fields from the homes the record is in (its roles, its group type, its company types,
+  // the department itself). Values of fields from other homes stay stored and are not published.
+  const homes = await recordHomes(orgId, entity, record);
+  const { fields, hidden } = homes ? resolveHomedFields(declared, homes) : { fields:declared, hidden:[] as string[] };
   const instance = entity === "project" ? object(record.custom_field_schema) : {};
   const combined = new Map((entity === "contact" ? [...CONTACT_DEFAULT_FIELDS,...fields] : entity === "project" ? [...PROJECT_DEFAULT_FIELDS,...fields] : fields).map(f => [String(f.path || f.key), f]));
   if(entity === "contact") for(const builtin of CONTACT_DEFAULT_FIELDS){
@@ -41,8 +46,8 @@ export async function definitions(orgId: string, branchId: string, entity: Field
   const infer = (values:JsonObject, prefix = "") => {
     for (const [key,value] of Object.entries(values)) {
       const path = prefix ? `${prefix}.${key}` : key;
-      if ([...combined.keys()].some(p => p === path || path.startsWith(p + "."))) continue;
-      if (value && typeof value === "object" && !Array.isArray(value) && [...combined.keys()].some(p => p.startsWith(path + "."))) infer(object(value),path);
+      if ([...combined.keys(),...hidden].some(p => p === path || path.startsWith(p + "."))) continue;
+      if (value && typeof value === "object" && !Array.isArray(value) && [...combined.keys(),...hidden].some(p => p.startsWith(path + "."))) infer(object(value),path);
       else combined.set(path,{entity,path,key:path,type:typeof value === "number" ? Number.isInteger(value) ? "integer" : "number" : typeof value === "boolean" ? "boolean" : typeof value === "string" ? "text" : "json",read_only:true,inferred:true,label:path});
     }
   };
@@ -95,12 +100,27 @@ export function applies(field: JsonObject, record: JsonObject): boolean {
   return (Array.isArray(field.scopes) ? field.scopes : []).some(v => tokens.includes(String(v).toLowerCase()));
 }
 export function canReadField(ctx: PublicationContext, f: JsonObject) {
-  const permission = String(f.read_permission || (f.private === true ? "manage_company_settings" : ""));
-  return !permission || !!ctx.auth && hasPermission(ctx.auth, permission);
+  // A field declared by several of a record's homes carries every home's gate, and all of them must be held.
+  const permissions = Array.isArray(f.all_read_permissions) ? f.all_read_permissions.map(String).filter(Boolean) : [String(f.read_permission || (f.private === true ? "manage_company_settings" : ""))].filter(Boolean);
+  return permissions.every(permission => !!ctx.auth && hasPermission(ctx.auth, permission));
+}
+function holdsWritePermissions(ctx: PublicationContext, f: JsonObject) {
+  const permissions = Array.isArray(f.all_write_permissions) ? f.all_write_permissions.map(String).filter(Boolean) : [String(f.write_permission || "")].filter(Boolean);
+  return permissions.every(permission => !!ctx.auth && hasPermission(ctx.auth, permission));
 }
 export function assertFieldWrite(ctx: PublicationContext, f: JsonObject) {
   if (f.calculation) throw forbidden('custom_field_write_denied','Calculated fields are read-only.');
-  if (f.type === "platform_phone" && !phoneProducer.getStore() || !canReadField(ctx, f) || f.read_only === true && !(f.type === "platform_phone" && phoneProducer.getStore()) || f.type === "formula" || f.enabled === false && !(f.type === "platform_phone" && phoneProducer.getStore()) || (f.write_permission && (!ctx.auth || !hasPermission(ctx.auth, String(f.write_permission))))) throw forbidden("custom_field_write_denied", `Field ${f.path} is not writable in this context.`);
+  if (f.type === "platform_phone" && !phoneProducer.getStore() || !canReadField(ctx, f) || f.read_only === true && !(f.type === "platform_phone" && phoneProducer.getStore()) || f.type === "formula" || f.enabled === false && !(f.type === "platform_phone" && phoneProducer.getStore()) || !holdsWritePermissions(ctx, f)) throw forbidden("custom_field_write_denied", `Field ${f.path} is not writable in this context.`);
+}
+/** A department reference must name a department in the organization's catalog. */
+async function validateDepartmentReference(orgId: string, f: JsonObject, value: unknown) {
+  if (f.type !== "department" || empty(value) || Array.isArray(value) && !value.length) return;
+  const catalog = await (await import("../workforce/departments.js")).readOrganizationDepartments(orgId);
+  const known = new Set(catalog.departments.map(row => row.id));
+  const ids = (Array.isArray(value) ? value : [value]).map(ref => String(object(ref).department_id || ""));
+  if (new Set(ids).size !== ids.length) throw badRequest("custom_field_reference_invalid", `${f.label || f.path} names a department twice.`, { path:f.path });
+  const missing = ids.filter(id => !known.has(id));
+  if (missing.length) throw badRequest("custom_field_reference_invalid", `${f.label || f.path} names a department that does not exist.`, { path:f.path, missing });
 }
 export async function readFieldRecord(ctx: PublicationContext, target: TargetRef, entity: FieldEntity) {
   if (FIELD_OWNERS[entity].shared && (target.scope !== "organization" || target.organizationId && target.organizationId !== ctx.organizationId)) throw forbidden("custom_field_owner_target","Fields belong to a resource in this organization.");
@@ -154,7 +174,9 @@ export async function validateStoredFields(orgId: string, collection: string, in
     if (!applies(f, next) && f.type !== "platform_phone") continue;
     const v = getValue(values,String(f.path)), old = getValue(before,String(f.path));
     if (JSON.stringify(v) === JSON.stringify(old) && Object.keys(previous).length) {
-      if (f.required===true && (empty(v) || Array.isArray(v) && !v.length)) validateField(f,v);
+      // A field that came with a home (a role just given, say) must not block saving the record it landed on:
+      // its required rule is enforced when field values are written.
+      if (f.required===true && !f.home && (empty(v) || Array.isArray(v) && !v.length)) validateField(f,v);
       continue;
     }
     if(f.type === "platform_phone") await assertPlatformPhoneMutation(orgId,f,v,old);
@@ -167,6 +189,7 @@ export async function validateStoredFields(orgId: string, collection: string, in
       }
     }
     await validateReference(orgId,f,v,next,entity);
+    await validateDepartmentReference(orgId,f,v);
     if (entity !== "project" && entity !== "contact") await (await import("./service.js")).validateAssignmentFieldValue(orgId,String(next.branch_id || "default"),f,v);
   }
 }
@@ -211,7 +234,7 @@ async function readFieldsInSession(ctx: PublicationContext, target: TargetRef, e
     if (f.type === "phone") { if(typeof v === "string" && v) phones.push({field:f.path,type:"phone",phone_number:v,available:true}); }
     if (f.type === "platform_phone") for(const ref of (Array.isArray(v)?v:[v])) if(ref) phones.push({field:f.path,type:"platform_phone",...await resolvePlatformPhone(ctx.organizationId,ref)});
   }
-  return { ...state, values, phones, sourceEvidence, dependencies:[...dependencies], visible:selected, revision:contentHash({ revision:state.row?.revision || 0, fields, values, phones, sources:sourceEvidence.map(e=>e.source) }), contract:selected.map(f => ({ ...f, schema:fieldSchema(f), writable:!f.calculation && f.type !== "platform_phone" && f.read_only !== true && f.type !== "formula" && f.enabled !== false && (!f.write_permission || !!ctx.auth && hasPermission(ctx.auth,String(f.write_permission))) })) };
+  return { ...state, values, phones, sourceEvidence, dependencies:[...dependencies], visible:selected, revision:contentHash({ revision:state.row?.revision || 0, fields, values, phones, sources:sourceEvidence.map(e=>e.source) }), contract:selected.map(f => ({ ...f, schema:fieldSchema(f), writable:!f.calculation && f.type !== "platform_phone" && f.read_only !== true && f.type !== "formula" && f.enabled !== false && holdsWritePermissions(ctx,f) })) };
 }
 
 /** Legacy HTTP saves use the same field write restrictions as action calls. */
@@ -249,6 +272,12 @@ export async function writeFields(ctx: PublicationContext, target: TargetRef, en
     const f = state.fields.find(f => f.path === fieldPath(path) && (applies(f,state.record) || f.type === "platform_phone" && phoneProducer.getStore()));
     if (!f) throw badRequest("custom_field_unknown", `Unknown field ${path}.`);
     assertFieldWrite(ctx,f); validateField(f,value); await validatePattern(f,value); putValue(values,path,value);
+  }
+  // Within the record's homes, a values write must leave every required field the caller can fill with a value.
+  for (const f of phoneProducer.getStore() ? [] : state.fields) {
+    if (!f.home || f.required !== true || f.enabled === false || f.read_only === true || f.calculation || f.type === "formula" || !canReadField(ctx,f) || !holdsWritePermissions(ctx,f)) continue;
+    const value = getValue(values,String(f.path));
+    if ((empty(value) || Array.isArray(value) && !value.length) && empty(f.default_value)) throw badRequest("custom_field_required", `${f.label || f.path} is required.`, { path:f.path });
   }
   if (entity === "project") await (await import("./service.js")).validateProjectCustomFieldValues(ctx.organizationId,state.branch,applyValues(state.record,entity,values),state.record);
   let data:JsonObject = applyValues(state.record,entity,values);

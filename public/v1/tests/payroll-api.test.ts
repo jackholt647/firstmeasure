@@ -104,7 +104,7 @@ function byPayee(items: any[], payeeId: string) {
   return item;
 }
 
-test("payroll v1 resolves policies, recognizes earnings, carries clawbacks, and preserves payment history", async (t) => {
+test("payroll v1 resolves schedules through pay layers, recognizes earnings, carries clawbacks, and preserves payment history", async (t) => {
   const client = createSessionClient();
   const { orgId, ownerUserId } = await registerOwner(client);
   const base = `/v1/payroll/organizations/${orgId}`;
@@ -145,59 +145,71 @@ test("payroll v1 resolves policies, recognizes earnings, carries clawbacks, and 
     clawback_cap_percent: 50
   })).schedule;
 
-  await t.test("schedule and policy inheritance includes earning-kind overrides", async () => {
-    await client.request("PUT", `${base}/policies/organization/${orgId}`, {
-      schedule_id: delayedWeekly.id,
-      earning_kind: "*"
-    });
-    await client.request("PUT", `${base}/policies/access_role/crew_foreman`, {
-      schedule_id: commissionSchedule.id,
-      earning_kind: "commission",
-      timing_basis: "completed"
-    });
-    await client.request("PUT", `${base}/policies/organization_user/${employeeId}`, {
-      schedule_id: delayedWeekly.id,
-      earning_kind: "*",
-      clawback_cap_percent: 50
-    });
-    await client.request("PUT", `${base}/policies/organization_user/${employeeId}`, {
-      schedule_id: commissionSchedule.id,
-      earning_kind: "commission",
-      timing_basis: "completed"
-    });
-    await client.request("PUT", `${base}/policies/organization_user/${completedEmployeeId}`, {
-      schedule_id: delayedWeekly.id,
-      earning_kind: "hourly",
-      timing_basis: "completed"
-    });
-    await client.request("PUT", `${base}/policies/worker_type/subcontractor`, {
-      schedule_id: delayedWeekly.id,
-      earning_kind: "*",
-      clawback_cap_percent: 50
-    });
-    await client.request("PUT", `${base}/policies/worker_type/subcontractor`, {
-      schedule_id: commissionSchedule.id,
-      earning_kind: "commission",
-      timing_basis: "completed"
-    });
+  await t.test("the schedule comes through the payee's pay layers, and a kind of earning can differ", async () => {
+    const core = await import("../platform/storage.js");
+    const rules = await import("../payroll/pay-rules.js");
+    const actor = { userId: ownerUserId };
+    const from = "2026-01-01";
+    // Roles are read from the user's own record. The contractor has no record at all and still follows the defaults for its kind.
+    await core.upsertDocument(orgId, "users", { id: employeeId, data: { name: "Alex Employee", status: "active", worker_classification: "employee", access_role_ids: ["crew_foreman"] } });
+    await core.upsertDocument(orgId, "users", { id: completedEmployeeId, data: { name: "Completion Basis Employee", status: "active", worker_classification: "employee" } });
+    await core.upsertDocument(orgId, "users", { id: inheritedEmployeeId, data: { name: "Foreman Default", status: "active", worker_classification: "employee", access_role_ids: ["crew_foreman"] } });
 
-    const directBase = await client.request("GET", `${base}/policies/effective/organization_user/${employeeId}?earning_kind=hourly&access_role_ids=crew_foreman`);
-    assert.equal(directBase.policy.subject_type, "organization_user");
-    assert.equal(directBase.policy.earning_kind, "*");
-    assert.equal(directBase.policy.schedule_id, delayedWeekly.id);
+    await rules.savePayDefault(orgId, { subject: { type: "organization", id: orgId }, entries: [], schedules: [{ effective_from: from, schedule_id: delayedWeekly.id }] }, actor);
+    await rules.savePayDefault(orgId, { subject: { type: "role", id: "crew_foreman" }, entries: [], schedules: [
+      { effective_from: from, earning_kind: "commission", schedule_id: commissionSchedule.id, timing_basis: "completed" }] }, actor);
+    await rules.savePayDefault(orgId, { subject: { type: "assignee_kind", id: "organization_connection" }, entries: [], schedules: [
+      { effective_from: from, schedule_id: delayedWeekly.id, clawback_cap_percent: 50 },
+      { effective_from: from, earning_kind: "commission", schedule_id: commissionSchedule.id, timing_basis: "completed" }] }, actor);
+    await rules.savePaySetup(orgId, { payee: { type: "organization_user", id: employeeId }, entries: [], schedules: [
+      { effective_from: from, schedule_id: delayedWeekly.id, clawback_cap_percent: 50 },
+      { effective_from: from, earning_kind: "commission", schedule_id: commissionSchedule.id, timing_basis: "completed" }] }, actor);
+    await rules.savePaySetup(orgId, { payee: { type: "organization_user", id: completedEmployeeId }, entries: [], schedules: [
+      { effective_from: from, earning_kind: "hourly", schedule_id: delayedWeekly.id, timing_basis: "completed" }] }, actor);
+    await assert.rejects(() => rules.savePaySetup(orgId, { payee: { type: "organization_user", id: employeeId }, entries: [], schedules: [{ effective_from: from, schedule_id: "no_such_schedule" }] }, actor), /does not exist/);
 
-    const directCommission = await client.request("GET", `${base}/policies/effective/organization_user/${employeeId}?earning_kind=commission&access_role_ids=crew_foreman`);
-    assert.equal(directCommission.policy.subject_type, "organization_user");
-    assert.equal(directCommission.policy.earning_kind, "commission");
-    assert.equal(directCommission.policy.schedule_id, commissionSchedule.id);
+    const resolve = (payee: { type: "organization_user" | "organization_connection"; id: string }, kind: string) => rules.resolvePaySchedule(orgId, payee, kind, "2026-07-10");
+    const user = (id: string) => ({ type: "organization_user" as const, id });
+    const directBase = await resolve(user(employeeId), "hourly");
+    assert.equal(directBase!.source, null, "their own setup says, so nothing below it is asked");
+    assert.equal(directBase!.earning_kind, "*");
+    assert.equal(directBase!.schedule_id, delayedWeekly.id);
+    assert.equal(directBase!.clawback_cap_percent, 50);
 
-    const inheritedCommission = await client.request("GET", `${base}/policies/effective/organization_user/${inheritedEmployeeId}?earning_kind=commission&access_role_ids=crew_foreman`);
-    assert.equal(inheritedCommission.policy.subject_type, "access_role");
-    assert.equal(inheritedCommission.policy.schedule_id, commissionSchedule.id);
+    const directCommission = await resolve(user(employeeId), "commission");
+    assert.equal(directCommission!.source, null);
+    assert.equal(directCommission!.earning_kind, "commission", "the exact kind beats the catch-all in the same layer");
+    assert.equal(directCommission!.schedule_id, commissionSchedule.id);
 
-    const inheritedBase = await client.request("GET", `${base}/policies/effective/organization_user/${inheritedEmployeeId}?earning_kind=hourly&access_role_ids=crew_foreman`);
-    assert.equal(inheritedBase.policy.subject_type, "organization");
-    assert.equal(inheritedBase.policy.schedule_id, delayedWeekly.id);
+    const inheritedCommission = await resolve(user(inheritedEmployeeId), "commission");
+    assert.deepEqual(inheritedCommission!.source, { type: "role", id: "crew_foreman" });
+    assert.equal(inheritedCommission!.schedule_id, commissionSchedule.id);
+    assert.equal(inheritedCommission!.timing_basis, "completed");
+
+    const inheritedBase = await resolve(user(inheritedEmployeeId), "hourly");
+    assert.deepEqual(inheritedBase!.source, { type: "organization", id: orgId }, "the role says nothing about hourly pay, so the organization default answers");
+    assert.equal(inheritedBase!.schedule_id, delayedWeekly.id);
+
+    const contractorCommission = await resolve({ type: "organization_connection", id: contractorId }, "commission");
+    assert.deepEqual(contractorCommission!.source, { type: "assignee_kind", id: "organization_connection" });
+    assert.equal(contractorCommission!.schedule_id, commissionSchedule.id);
+
+    // The policy routes that used to answer this are gone, not kept beside the new ladder.
+    assert.equal((await client.raw("GET", `${base}/policies`)).statusCode, 404);
+    assert.equal((await client.raw("PUT", `${base}/policies/organization/${orgId}`, { schedule_id: delayedWeekly.id })).statusCode, 404);
+
+    // An entry posted by hand with no schedule and nothing to resolve one from is refused, unless it is a commission or a reimbursement.
+    await rules.savePayDefault(orgId, { subject: { type: "organization", id: orgId }, entries: [], schedules: [] }, actor);
+    const stray = { payee: { type: "organization_user", id: "employee_with_no_schedule", name: "No Schedule" }, amount_cents: 100, worked_at: "2026-07-10T18:00:00.000Z", source_trigger_id: "manual" };
+    const refused = await client.raw("POST", `${base}/ledger`, { ...stray, kind: "hourly", source_event_id: "stray_hourly" });
+    assert.equal(refused.statusCode, 400);
+    assert.equal(refused.data.error, "payroll_schedule_unresolved");
+    assert.match(refused.data.message, /No pay schedule is chosen for No Schedule \(hourly\)/);
+    const unscheduled = await client.request("POST", `${base}/ledger`, { ...stray, kind: "reimbursement", state: "projected", source_event_id: "stray_reimbursement" });
+    assert.equal(unscheduled.entries[0].schedule_id, "");
+    assert.equal(unscheduled.entries[0].metadata.pay_schedule.source, "unscheduled_reimbursement");
+    await (await import("../payroll/storage.js")).voidPayrollLedgerEntry(orgId, unscheduled.entries[0].id);
+    await rules.savePayDefault(orgId, { subject: { type: "organization", id: orgId }, entries: [], schedules: [{ effective_from: from, schedule_id: delayedWeekly.id }] }, actor);
   });
 
   await t.test("worked versus completed recognition and delayed timezone cutoffs select different occurrences", async () => {

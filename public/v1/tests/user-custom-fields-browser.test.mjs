@@ -45,10 +45,3 @@ test('Users field settings share definitions across branches and the user editor
   }finally{await browser.close();}
 });
 
-for(const file of ['company.js','firstmeasure-users.js'])test(`${file} includes user fields in Save changes`,async()=>{
-  const source=await readFile(path.resolve('../libraries/apps/settings',file),'utf8');
-  const start=source.indexOf('    function openEditUserModal(u){'),end=source.indexOf('    function renderActionsMenuForUser(',start),editor=source.slice(start,end);
-  assert.match(editor,/data-user-custom-fields data-settings-autosave="off"/);
-  assert.match(editor,/mountUserValues/);
-  assert.ok(editor.indexOf('await userFields?.save()')<editor.indexOf('await userUpdate('));
-});

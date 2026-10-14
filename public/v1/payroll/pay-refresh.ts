@@ -6,12 +6,12 @@ import type { PublicationContext } from "../platform/publication/contracts.js";
 import { selectPublishedData, type SelectedRow } from "../platform/publication/select.js";
 import { contentHash as hashJson } from "../platform/publication/validation.js";
 import {
-  candidateRuleSlots, distributionOn, effectiveRuleSlots, ensurePayRuleSchema, listPayDefaults, listPayPlans, listPayRules, listPaySetups, payeeKey, payLayersFor, resolvedParams, versionOn,
-  type PayPlan, type PayRule, type PayRuleDefinition, type PayRuleVersion, type PaySetup
+  candidateRuleSlots, distributionOn, draftPayDefault, draftPayPlan, draftPayRule, effectiveRuleSlots, ensurePayRuleSchema, listPayDefaults, listPayPlans, listPayRules, listPaySetups, listPaySplitRules, payDefaultSubjectsFor, payeeKey, payLayersFor, resolvePaySchedule, resolvedParams, versionOn,
+  type Actor, type PayDefault, type PayLayer, type PayPlan, type PayRule, type PayRuleDefinition, type PayRuleVersion, type PaySetup, type PaySplitDefinition, type PaySplitRule, type PaySplitRuleVersion
 } from "./pay-rules.js";
 import type { PayrollLedgerEntryInput, PayrollPayeeRef } from "./schemas.js";
 import { badRequest } from "../platform/errors.js";
-import { findPayrollLedgerSourceEntries, getPayrollDatabase, nowIso, readPayrollLedgerEntry, resolvePayrollPolicy, voidPayrollLedgerEntry, type JsonObject } from "./storage.js";
+import { findPayrollLedgerSourceEntries, getPayrollDatabase, nowIso, readPayrollLedgerEntry, voidPayrollLedgerEntry, type JsonObject } from "./storage.js";
 
 /**
  * Works out what each payee has earned from their pay rules and makes the
@@ -35,7 +35,9 @@ export type PayRefreshOptions = {
   /** Work out and report differences without posting or remembering anything. */
   dryRun?: boolean;
   /** Evaluate as if the payee had this setup. Only with `dryRun`. */
-  setup?: Pick<PaySetup, "entries" | "distribution">;
+  setup?: Pick<PaySetup, "entries" | "distribution" | "schedules">;
+  /** Evaluate as if these rules, plans and defaults had been saved, in place of the stored ones with the same id or subject. Only with `dryRun`. */
+  overrides?: { rules?: PayRule[]; plans?: PayPlan[]; defaults?: Pick<PayDefault, "subject" | "entries" | "distribution" | "schedules">[] };
   /** The instant "now" is. Periods that end after it are not earned yet. */
   asOf?: string;
   /** Reads run as each rule's author unless a trusted caller supplies the context. */
@@ -44,10 +46,30 @@ export type PayRefreshOptions = {
 
 type Row = SelectedRow;
 type Unit = { key: string; date: string; earned_at: string; payload: JsonObject; evidence: [string, string, string][]; project_id: string };
-type Planned = Unit & { version: PayRuleVersion; rule: PayRule; params: Record<string, number | boolean | string>; digest: string; shared: JsonObject; timezone: string };
-/** Who shares a group's earning, fixed when it is first worked out. `basis` identifies the distribution setting it came from. */
-export type PayAllocation = { basis: string; members: { id: string; weight: number }[] };
+type Params = Record<string, number | boolean | string>;
+type Planned = Unit & { version: PayRuleVersion; rule: PayRule; params: Params; digest: string; shared: JsonObject; timezone: string; split: SplitPlan | null };
+/** One member's part of one earning line under a split rule: the weight the rule gave them and what it said about why. */
+export type PayShare = { id: string; weight: number; reason?: string; details?: JsonObject };
+/**
+ * Who shares a group's earning. `members` is fixed when the earning is first
+ * worked out; `basis` identifies the distribution setting it came from. With
+ * `equal` and `shares` the weights in `members` are fixed too. With a split
+ * rule the weights live per earning line under `rule.lines` and are worked out
+ * again, among the same members, whenever something the rule reads changes.
+ */
+export type PayAllocation = {
+  basis: string; method?: "equal" | "shares" | "rule"; members: { id: string; weight: number }[];
+  rule?: { id: string; version: string; params: Params; lines: Record<string, PayShare[]> };
+};
 type StoredUnit = { rule_id: string; unit_key: string; digest: string; status: string; earned_at: string; lines: PayLine[]; allocation: PayAllocation | null };
+/** One row handed to a split rule: the row, the member it is about, and the exact seconds of it inside the earning's window. */
+type SplitRow = { row: JsonObject; member?: string; seconds?: number };
+/** How one earning will be divided by a split rule, settled before anything runs so its digest can say what the split read. */
+type SplitPlan = {
+  basis: string; error?: string; rule?: PaySplitRule; version?: PaySplitRuleVersion; params: Params; members: string[];
+  span: { from: string; to: string }; rows: Record<string, SplitRow[]>; evidence: [string, string, string][];
+};
+type SplitRead = { failure: string } | { inputs: Record<string, { fields: [string, string][]; buckets: Map<string, Row[]> }> };
 
 /** Hashes plain data; keys left undefined are not part of it. */
 const contentHash = (value: unknown) => hashJson(JSON.parse(JSON.stringify(value)));
@@ -100,8 +122,21 @@ function calendarFacts(from: string, through: string) {
   };
 }
 
-function withTokens<T>(value: T, payee: Assignee): T {
-  const tokens: Record<string, string> = { "$payee.key": payeeKey(payee), "$payee.type": payee.type, "$payee.id": payee.id };
+/** How far a timezone's wall clock is ahead of UTC at an instant, in milliseconds. */
+function zoneOffset(instant: number, timezone: string) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: timezone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    .formatToParts(new Date(instant)).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+  return Date.UTC(parts.year!, parts.month! - 1, parts.day!, parts.hour!, parts.minute!, parts.second!) - Math.floor(instant / 1000) * 1000;
+}
+/** The exact instant a calendar day starts in a timezone. */
+export function zonedDayStart(date: string, timezone: string) {
+  const wall = utc(date);
+  return wall - zoneOffset(wall - zoneOffset(wall, timezone), timezone);
+}
+const instantOf = (value: unknown) => typeof value === "number" ? value : typeof value === "string" && value ? Date.parse(value) : NaN;
+
+function withTokens<T>(value: T, payee: Assignee, more: Record<string, string | string[]> = {}): T {
+  const tokens: Record<string, string | string[]> = { "$payee.key": payeeKey(payee), "$payee.type": payee.type, "$payee.id": payee.id, ...more };
   const visit = (entry: unknown): unknown => typeof entry === "string" ? tokens[entry] ?? entry
     : Array.isArray(entry) ? entry.map(visit)
       : entry && typeof entry === "object" ? Object.fromEntries(Object.entries(entry).map(([key, child]) => [key, visit(child)])) : entry;
@@ -232,6 +267,137 @@ async function evaluate(group: Planned[], payee: Assignee, asOf: string): Promis
   return results;
 }
 
+/**
+ * Selects a split rule's inputs once for the whole group and sorts the rows by
+ * the fields they are matched to an earning on. Which rows are read is all in
+ * the declared selection; handing each earning its rows is an equality lookup
+ * and a time range, which an index can answer the same way.
+ */
+async function readSplitInputs(ctx: PublicationContext, orgId: string, definition: PaySplitDefinition, payee: Assignee, members: string[]): Promise<SplitRead> {
+  const tokens = { "$members.keys": members.map((id) => `organization_user:${id}`), "$members.ids": members };
+  const inputs: Record<string, { fields: [string, string][]; buckets: Map<string, Row[]> }> = {};
+  for (const [name, input] of Object.entries(definition.inputs)) {
+    const result = await selectPublishedData(ctx, withTokens({
+      provider: input.source.provider, export: input.source.export, target: { scope: "organization" as const, organizationId: orgId }, ...(input.source.args ? { args: input.source.args } : {})
+    }, payee, tokens), withTokens({ ...(input.where === undefined ? {} : { where: input.where }), limit: input.limit ?? 5000 }, payee, tokens));
+    if (result.status !== "ready") return { failure: `${name}: ${result.message}` };
+    const fields = Object.entries(input.match || {}).sort(([a], [b]) => a.localeCompare(b));
+    const buckets = new Map<string, Row[]>();
+    for (const row of result.rows) {
+      const key = fields.map(([path]) => text(readField(row.value, path))).join("\u0000");
+      buckets.set(key, [...(buckets.get(key) || []), row]);
+    }
+    inputs[name] = { fields, buckets };
+  }
+  return { inputs };
+}
+
+/** The rows of a split rule's inputs that belong to one earning: matched to it, about one of its members, and inside its window. */
+function splitRowsFor(definition: PaySplitDefinition, read: Extract<SplitRead, { inputs: unknown }>, earning: { rule_id: string; unit: Unit }, members: string[], span: { from: number; to: number }) {
+  const memberKeys = new Set(members.map((id) => `organization_user:${id}`));
+  const value = (token: string) => token === "$earning.project_id" ? earning.unit.project_id : token === "$earning.unit" ? earning.unit.key : token === "$earning.rule_id" ? earning.rule_id
+    : text(readField(earning.unit.payload.record, token.slice("$earning.record.".length)));
+  const rows: Record<string, SplitRow[]> = {};
+  const evidence: [string, string, string][] = [];
+  for (const [name, input] of Object.entries(definition.inputs)) {
+    const { fields, buckets } = read.inputs[name]!;
+    const wanted = fields.map(([, token]) => value(token));
+    // An earning with nothing to match on (no project, say) is given no rows rather than every row that also has none.
+    const matched = wanted.some((entry) => !entry) ? [] : buckets.get(wanted.join("\u0000")) || [];
+    const from = input.window?.any_time_before ? -Infinity : span.from - (input.window?.days_before || 0) * DAY;
+    rows[name] = [];
+    for (const row of matched) {
+      const member = input.member ? text(readField(row.value, input.member)) : "";
+      if (input.member && !memberKeys.has(member)) continue;
+      const entry: SplitRow = { row: row.value as JsonObject, ...(input.member ? { member } : {}) };
+      if (input.window) {
+        const start = instantOf(readField(row.value, input.window.start)), end = input.window.end ? instantOf(readField(row.value, input.window.end)) : start;
+        // A row with no start, or no end where one is declared (a shift still on the clock), has no known place in time.
+        if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) continue;
+        if (!(start < span.to && (end > from || (end === start && start >= from)))) continue;
+        if (input.window.end) entry.seconds = Math.max(0, Math.round((Math.min(end, span.to) - Math.max(start, from)) / 1000));
+      }
+      rows[name]!.push(entry);
+      evidence.push([`split:${name}`, row.key, row.revision]);
+    }
+  }
+  return { rows, evidence };
+}
+
+const SPLIT_RUNNER = (code: string) => `const __split = (earning, members, rows, params, group) => { ${code}\n };
+const __out = [];
+for (const entry of inputs.entries) {
+  try { const shares = __split(entry.earning, entry.members, entry.rows, inputs.params, inputs.group); __out.push({ key: entry.key, shares: shares === undefined ? null : shares }); }
+  catch (error) { __out.push({ key: entry.key, error: String(error && error.message || error).slice(0, 500) }); }
+}
+return { outputs: { entries: __out } };`;
+
+/** Reads what a split rule returned for one earning line. Anything that would pay nobody, or someone outside the earning's members, is refused. */
+function normalizeShares(value: unknown, members: string[]): PayShare[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("A split rule returns an object of weights keyed by member.");
+  const returned = value as JsonObject;
+  const known = new Set(members.map((id) => `organization_user:${id}`));
+  for (const key of Object.keys(returned)) if (!known.has(key)) throw new Error(`${key} is not one of the members this earning is divided among.`);
+  const shares = members.map((id): PayShare => {
+    const entry = returned[`organization_user:${id}`];
+    const given = entry && typeof entry === "object" && !Array.isArray(entry) ? entry as JsonObject : { weight: entry ?? 0 };
+    if (typeof given.weight !== "number" || !Number.isFinite(given.weight) || given.weight < 0) throw new Error("Each member's weight is a number, 0 or more.");
+    const reason = text(given.reason).slice(0, 500);
+    const details = given.details && typeof given.details === "object" && !Array.isArray(given.details) ? given.details as JsonObject : undefined;
+    return { id, weight: given.weight, ...(reason ? { reason } : {}), ...(details ? { details } : {}) };
+  });
+  if (!shares.some((share) => share.weight > 0)) throw new Error("The split rule gave every member a weight of 0, so this earning would be paid to nobody.");
+  return shares;
+}
+
+/**
+ * Runs one version of a split rule over the earnings that changed, once per
+ * earning line, in the sandbox. Returns each earning's weights by line, or the
+ * reason it could not be divided; there is no fallback to an equal split.
+ */
+async function evaluateSplits(group: { unit: Planned; lines: PayLine[] }[], payee: Assignee & { name?: string }, names: Map<string, string>, asOf: string) {
+  const results = new Map<string, { lines?: Record<string, PayShare[]>; error?: string }>();
+  const first = group[0]!.unit.split!;
+  const jobs = group.flatMap(({ unit, lines }) => lines.map((line) => {
+    const period = unit.payload.period as JsonObject | undefined;
+    return { unit, line, payload: {
+      earning: { rule_id: unit.rule.id, unit: unit.key, ...(period ? { period } : { record: unit.payload.record }), earned_on: unit.date, earned_at: unit.earned_at, project_id: unit.project_id, span: unit.split!.span,
+        line: { key: line.key, amount_cents: line.amount_cents, description: line.description } },
+      members: unit.split!.members.map((id) => ({ key: `organization_user:${id}`, id, name: names.get(id) || "" })), rows: unit.split!.rows } };
+  }));
+  const failed = new Map<string, string>();
+  const shares = new Map<string, Record<string, PayShare[]>>();
+  const chunks: typeof jobs[] = [[]];
+  let size = 0;
+  for (const job of jobs) {
+    const length = JSON.stringify(job.payload).length;
+    if (length > 900_000) { failed.set(job.unit.key, "This earning's split reads more data than a split rule can be handed at once."); continue; }
+    if (size + length > 900_000) { chunks.push([]); size = 0; }
+    chunks.at(-1)!.push(job);
+    size += length;
+  }
+  for (const chunk of chunks.filter((entries) => entries.length)) {
+    const fail = (job: typeof jobs[number], reason: string) => { if (!failed.has(job.unit.key)) failed.set(job.unit.key, `${first.rule!.name}: ${reason}`); };
+    try {
+      const run = await runModuleCode({
+        source: SPLIT_RUNNER(first.version!.definition.code), mode: "evaluate", now: asOf, limits: { milliseconds: 5000 },
+        inputs: { entries: chunk.map((job, index) => ({ key: String(index), ...job.payload })), params: first.params, group: { ...payee, key: payeeKey(payee) } }
+      }, { read: async () => { throw new Error("A split rule reads only its declared inputs."); }, invoke: async () => { throw new Error("A split rule cannot act."); } });
+      const returned = new Map((Array.isArray(run.outputs.entries) ? run.outputs.entries as JsonObject[] : []).map((entry) => [text(entry.key), entry]));
+      for (const [index, job] of chunk.entries()) {
+        const entry = returned.get(String(index));
+        if (!entry) fail(job, "The split rule returned nothing for this earning.");
+        else if (entry.error) fail(job, text(entry.error));
+        else try { shares.set(job.unit.key, { ...shares.get(job.unit.key), [job.line.key]: normalizeShares(entry.shares, job.unit.split!.members) }); } catch (error) { fail(job, (error as Error).message); }
+      }
+    } catch (error) {
+      for (const job of chunk) fail(job, text((error as Error).message).slice(0, 500) || "The split rule could not be run.");
+    }
+  }
+  for (const { unit } of group) results.set(unit.key, failed.has(unit.key) ? { error: failed.get(unit.key)! } : { lines: shares.get(unit.key) || {} });
+  return results;
+}
+
 /** One earning line of one payee's rule. Every ledger entry for it carries this, whoever the entry pays. */
 const sourceId = (owner: string, ruleId: string, unit: string, line: string) => {
   const plain = `pay_rule:${owner}:${ruleId}:${unit}:${line}`;
@@ -285,23 +451,57 @@ export async function listPayUnits(orgId: string, payee: Assignee) {
   await ensurePayRuleSchema();
   const rows = await getPayrollDatabase().prepare(`SELECT rule_id, unit_key, status, earned_at, rule_version, lines_json, error, evaluated_at, allocation_json FROM pay_rule_units
     WHERE organization_id=? AND payee_type=? AND payee_id=? ORDER BY earned_at DESC, rule_id, unit_key`).all(orgId, payee.type, payee.id);
-  return rows.map((row) => ({ id: `${row.rule_id}:${row.unit_key}`, rule_id: String(row.rule_id), unit: String(row.unit_key), status: String(row.status), earned_at: String(row.earned_at),
-    rule_version: String(row.rule_version), lines: JSON.parse(String(row.lines_json || "[]")) as PayLine[], error: String(row.error), evaluated_at: String(row.evaluated_at),
-    split_among: String(row.allocation_json || "") ? (JSON.parse(String(row.allocation_json)) as PayAllocation).members : null }));
+  return rows.map((row) => {
+    const lines = JSON.parse(String(row.lines_json || "[]")) as PayLine[];
+    const allocation = String(row.allocation_json || "") ? JSON.parse(String(row.allocation_json)) as PayAllocation : null;
+    return { id: `${row.rule_id}:${row.unit_key}`, rule_id: String(row.rule_id), unit: String(row.unit_key), status: String(row.status), earned_at: String(row.earned_at),
+      rule_version: String(row.rule_version), lines, error: String(row.error), evaluated_at: String(row.evaluated_at),
+      split_among: allocation ? allocation.members : null, split: allocation ? explainSplit(allocation, lines) : null };
+  });
+}
+/**
+ * How an earning was divided, line by line, in a form a screen can show: the
+ * method, the split rule and its parameters when there is one, and for each
+ * member their weight, the cents it came to and the rule's reason.
+ */
+export function explainSplit(allocation: PayAllocation, lines: PayLine[]) {
+  return {
+    method: allocation.method || null, members: allocation.members.map((member) => member.id),
+    ...(allocation.rule ? { split_rule_id: allocation.rule.id, split_rule_version: allocation.rule.version, params: allocation.rule.params } : {}),
+    lines: Object.fromEntries(lines.map((line) => {
+      const shares: PayShare[] = allocation.rule ? allocation.rule.lines[line.key] || [] : allocation.members;
+      const paid = shares.filter((share) => share.weight > 0);
+      const cents = paid.length ? splitCentsByWeight(line.amount_cents, paid) : new Map<string, number>();
+      return [line.key, { amount_cents: line.amount_cents, total_weight: paid.reduce((sum, share) => sum + share.weight, 0), shares: shares.map((share) => ({ ...share, cents: cents.get(share.id) || 0 })) }];
+    }))
+  };
 }
 
 export async function refreshPayeeEarnings(orgId: string, payee: Assignee, options: PayRefreshOptions = {}): Promise<PayRefreshResult> {
   const result: PayRefreshResult = { payee, evaluated: 0, unchanged: 0, differences: [], unresolved: [], posted: [] };
   const dryRun = !!options.dryRun;
   const asOf = options.asOf || nowIso();
-  const layers = await payLayersFor(orgId, payee, dryRun && options.setup ? options.setup : undefined);
-  const rules = new Map((await listPayRules(orgId)).map((rule) => [rule.id, rule]));
-  const plans = new Map<string, PayPlan>((await listPayPlans(orgId)).map((plan) => [plan.id, plan]));
-  const stored = await storedUnits(orgId, payee);
   const owner = payeeKey(payee);
   const ref = await payeeRef(orgId, payee);
+  // Someone who was removed keeps everything already worked out and posted; nothing new is worked out for them.
   if (!ref) { result.unresolved.push({ rule_id: "", reason: "This payee is no longer available in the organization." }); return result; }
   result.payee_name = ref.name || "";
+  const overrides = dryRun ? options.overrides : undefined;
+  // A refresh that posts also notes which defaults cover the payee today, so a role given or taken away later starts or stops paying from that day.
+  const layers = await payLayersFor(orgId, payee, dryRun && options.setup ? options.setup : undefined, { day: asOf.slice(0, 10), record: !dryRun, defaults: overrides?.defaults });
+  const rules = new Map((await listPayRules(orgId)).map((rule) => [rule.id, rule]));
+  const plans = new Map<string, PayPlan>((await listPayPlans(orgId)).map((plan) => [plan.id, plan]));
+  for (const rule of overrides?.rules || []) rules.set(rule.id, rule);
+  for (const plan of overrides?.plans || []) plans.set(plan.id, plan);
+  const stored = await storedUnits(orgId, payee);
+  /** When someone is paid comes from the same layers as what they are paid; a member of a split group has layers of their own. */
+  const layersOf = new Map<string, PayLayer[]>([[owner, layers]]);
+  const scheduleFor = async (key: string, kind: string, day: string) => {
+    const [type, ...rest] = key.split(":");
+    const who = { type, id: rest.join(":") } as Assignee;
+    if (!layersOf.has(key)) layersOf.set(key, await payLayersFor(orgId, who, undefined, { day: asOf.slice(0, 10), defaults: overrides?.defaults }));
+    return resolvePaySchedule(orgId, who, kind, day, layersOf.get(key)!).catch(() => null);
+  };
   const desired = new Set<string>();
   const unreadable = new Set<string>();
   // A rule that cannot be read at all is remembered under the unit "*", so it can be listed without refreshing again.
@@ -318,19 +518,60 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
     if (!refs.has(key)) { const [type, ...rest] = key.split(":"); refs.set(key, await payeeRef(orgId, { type, id: rest.join(":") } as Assignee)); }
     return refs.get(key)!;
   };
+  const NO_MEMBERS = "This group has no active members to split its pay among.";
   let members: string[] | null = null;
-  /** Who shares this earning. Kept from the first time it was worked out unless the distribution setting itself has changed. */
+  const currentMembers = async () => {
+    if (!members) {
+      const group = (await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, true)).find((entry) => text((entry as JsonObject).id) === payee.id) as JsonObject | undefined;
+      members = (Array.isArray(group?.members) ? group!.members as JsonObject[] : []).filter((member) => text(member.status || "active") === "active").map((member) => text(member.user_id)).filter(Boolean).sort();
+    }
+    return members;
+  };
+  /** Who shares this earning under `equal` or `shares`. Kept from the first time it was worked out unless the distribution setting itself has changed. */
   const allocationFor = async (date: string, prior: PayAllocation | null | undefined): Promise<PayAllocation | null | { error: string }> => {
     const setting = payee.type === "resource_group" ? distributionOn(layers, date) : null;
     if (!setting || setting.mode === "as_one") return null;
     const basis = contentHash(setting);
     if (prior && prior.basis === basis) return prior;
-    if (setting.method === "shares") return { basis, members: Object.entries(setting.shares || {}).map(([id, weight]) => ({ id, weight })).sort((a, b) => a.id.localeCompare(b.id)) };
-    if (!members) {
-      const group = (await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, true)).find((entry) => text((entry as JsonObject).id) === payee.id) as JsonObject | undefined;
-      members = (Array.isArray(group?.members) ? group!.members as JsonObject[] : []).filter((member) => text(member.status || "active") === "active").map((member) => text(member.user_id)).filter(Boolean).sort();
-    }
-    return members.length ? { basis, members: members.map((id) => ({ id, weight: 1 })) } : { error: "This group has no active members to split its pay among." };
+    if (setting.method === "shares") return { basis, method: "shares", members: Object.entries(setting.shares || {}).map(([id, weight]) => ({ id, weight })).sort((a, b) => a.id.localeCompare(b.id)) };
+    const active = await currentMembers();
+    return active.length ? { basis, method: "equal", members: active.map((id) => ({ id, weight: 1 })) } : { error: NO_MEMBERS };
+  };
+
+  // ---- Split rules: weights worked out from data, among the members captured when the earning was first worked out ----
+  const splitRules = new Map<string, PaySplitRule>(payee.type === "resource_group" ? (await listPaySplitRules(orgId)).map((rule) => [rule.id, rule]) : []);
+  /** Members captured from the group itself (not named in fixed shares), which a split rule keeps dividing among. */
+  const captured = (allocation: PayAllocation | null | undefined) => allocation && (allocation.method === "equal" || allocation.method === "rule") && allocation.members.length ? allocation.members.map((member) => member.id) : null;
+  let universe: string[] | null = null;
+  /** Everyone any of this group's earnings could be divided among: today's members and those captured on earlier earnings. One selection per input covers them all. */
+  const memberUniverse = async () => universe ||= [...new Set([...await currentMembers(), ...stored.flatMap((entry) => captured(entry.allocation) || [])])].sort();
+  const splitReads = new Map<string, Promise<SplitRead>>();
+  const readSplit = (version: PaySplitRuleVersion) => {
+    const shape = contentHash(version.definition.inputs);
+    if (!splitReads.has(shape)) splitReads.set(shape, (async (): Promise<SplitRead> => {
+      let ctx = options.context;
+      if (!ctx) try { ctx = userPublicationContext(await backgroundAuthContext(orgId, version.entered_by)); }
+      catch { return { failure: "The person who last saved this split rule can no longer read its inputs. Save the split rule again." }; }
+      return readSplitInputs(ctx, orgId, version.definition, payee, await memberUniverse());
+    })());
+    return splitReads.get(shape)!;
+  };
+  /** Settles how one earning is divided by a split rule, and what the split reads, before anything is run. Null when it is not divided by a rule. */
+  const planSplit = async (ruleId: string, unit: Unit, timezone: string, prior: StoredUnit | undefined): Promise<SplitPlan | null> => {
+    const setting = payee.type === "resource_group" ? distributionOn(layers, unit.date) : null;
+    if (!setting || setting.mode !== "split" || setting.method !== "rule") return null;
+    const period = unit.payload.period as { from: string; through: string } | undefined;
+    // Exact instants: the earned day, or the whole period, as the rule's timezone cuts it.
+    const from = zonedDayStart(period?.from || unit.date, timezone), to = zonedDayStart(dayOf(utc(period?.through || unit.date) + DAY), timezone);
+    const plan: SplitPlan = { basis: contentHash(setting), params: {}, members: [], span: { from: new Date(from).toISOString(), to: new Date(to).toISOString() }, rows: {}, evidence: [] };
+    const rule = splitRules.get(setting.split_rule_id!);
+    const version = rule && versionOn(rule.versions, unit.date);
+    if (!rule || !version) return { ...plan, error: rule ? `Split rule ${rule.name} has no version in effect on ${unit.date}.` : `Split rule ${setting.split_rule_id} does not exist.` };
+    Object.assign(plan, { rule, version, params: resolvedParams(version.definition, setting.params || {}), members: captured(prior?.allocation) || await currentMembers() });
+    if (!plan.members.length) return { ...plan, error: NO_MEMBERS };
+    const read = await readSplit(version);
+    if ("failure" in read) return { ...plan, error: `${rule.name}: ${read.failure}` };
+    return { ...plan, ...splitRowsFor(version.definition, read, { rule_id: ruleId, unit }, plan.members, { from, to }) };
   };
 
   const reconcile = async (ruleId: string, unit: { key: string; date: string; earned_at: string; project_id: string; digest: string }, rule: PayRule | undefined, version: PayRuleVersion | undefined,
@@ -342,7 +583,10 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
       const all = await findPayrollLedgerSourceEntries(orgId, source);
       const amount = line?.amount_cents || 0;
       // Who this line should have paid, and how much: the payee itself, or each member's share of a split.
-      const want = new Map<string, number>(allocation ? [...splitCentsByWeight(amount, allocation.members)].map(([id, cents]) => [`organization_user:${id}`, cents]) : [[owner, amount]]);
+      // Under a split rule each line has its own weights, and a member weighted 0 is owed nothing; a line the rule no longer produces is owed to nobody.
+      const shares = allocation?.rule ? (line ? allocation.rule.lines[key] || [] : []).filter((share) => share.weight > 0) : allocation?.members;
+      const want = new Map<string, number>(!allocation ? [[owner, amount]] : shares!.length ? [...splitCentsByWeight(amount, shares!)].map(([id, cents]) => [`organization_user:${id}`, cents]) : []);
+      const totalWeight = allocation?.rule ? shares!.reduce((sum, share) => sum + share.weight, 0) : 0;
       for (const paid of [...new Set([...want.keys(), ...all.map((entry) => `${entry.payee.type}:${entry.payee.id}`)])].sort()) {
         const entries = all.filter((entry) => `${entry.payee.type}:${entry.payee.id}` === paid);
         const counted = entries.filter((entry) => entry.state !== "void" || entry.metadata.pay_rule_declined === true);
@@ -352,12 +596,19 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
         if (!delta) continue;
         const paidRef = await refFor(paid);
         if (!paidRef) throw new Error(`${paid} is no longer available in the organization, so their share cannot be posted.`);
-        const policy = await resolvePayrollPolicy(orgId, paidRef, kind).catch(() => null);
         const settled = entries.some((entry) => entry.state !== "void" && entry.applied_cents !== 0);
-        const handling: Handling = settled ? correctionPolicy(policy?.schedule as JsonObject | undefined, delta > 0) : "normal";
+        // A correction is paid from now on, so the schedule the payee is on today says how it is handled.
+        const handling: Handling = settled ? correctionPolicy((await scheduleFor(paid, kind, asOf.slice(0, 10)))?.schedule as JsonObject | undefined, delta > 0) : "normal";
         result.differences.push({ rule_id: ruleId, unit: unit.key, line: key, earned_on: unit.date, posted_cents: posted, target_cents: target, delta_cents: delta, handling, ...(paid === owner ? {} : { payee: paid }) });
         if (dryRun) continue;
         const label = line?.description || previous.find((entry) => entry.key === key)?.description || rule?.name || "Pay rule";
+        // Why this member got what they got: the split rule, their weight out of the total, and the rule's own words.
+        const share = allocation?.rule && line ? (allocation.rule.lines[key] || []).find((entry) => `organization_user:${entry.id}` === paid) : undefined;
+        const explained = allocation?.rule ? {
+          method: "rule", split_rule_id: allocation.rule.id, split_rule_version: allocation.rule.version, params: allocation.rule.params,
+          weight: share?.weight || 0, total_weight: totalWeight, share_cents: target,
+          ...(share?.reason ? { reason: share.reason } : {}), ...(share?.details ? { details: share.details } : {})
+        } : {};
         const entry = {
           payee: paidRef, state: handling === "hold" ? "projected" : "accrued", amount_cents: delta,
           kind: delta > 0 ? kind : kind === "commission" ? "clawback" : "adjustment", subgroup: kind,
@@ -369,7 +620,7 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
             source: "pay_rule",
             pay_rule: { payee: owner, rule_id: ruleId, definition_rule_id: rule?.id || "", version: version?.version || "", unit: unit.key, line: key, earned_on: unit.date, earned_at: unit.earned_at, params },
             ...(line?.details ? { details: line.details } : {}),
-            ...(paid === owner ? {} : { split: { of: owner, line_cents: amount, members: allocation?.members.length || 0 } }),
+            ...(paid === owner ? {} : { split: { of: owner, line_cents: amount, members: allocation?.members.length || 0, ...explained } }),
             ...(counted.length ? { correction: { posted_cents: posted, target_cents: target, handling } } : {}),
             ...(handling === "next_run" || handling === "off_cycle" ? { back_pay: true } : {}),
             ...(handling === "off_cycle" ? { off_cycle_requested: true } : {}),
@@ -393,10 +644,11 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
       catch { await ruleFailed(ruleId, "The person who last saved this rule can no longer read its inputs. Save the rule again."); break; }
       const read = await readInputs(ctx, orgId, definition, payee);
       if (!read.rows) { await ruleFailed(ruleId, read.failure!); break; }
-      const schedule = definition.timezone ? null : await resolvePayrollPolicy(orgId, ref, definition.kind).catch(() => null);
+      const schedule = definition.timezone ? null : await scheduleFor(owner, definition.kind, asOf.slice(0, 10));
       const timezone = definition.timezone || text((schedule?.schedule as JsonObject | undefined)?.timezone) || "UTC";
       const built = unitsFor(definition, read.rows, timezone, localDay(Date.parse(asOf), timezone), firstDay);
       const sharedDigest = contentHash(built.sharedEvidence);
+      const earlier = new Map(stored.filter((entry) => entry.rule_id === ruleId).map((entry) => [entry.unit_key, entry]));
       for (const unit of built.units) {
         const slot = effectiveRuleSlots(layers, plans, unit.date).get(ruleId);
         const rule = slot && rules.get(slot.definition_rule_id);
@@ -404,9 +656,12 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
         // A record or period belongs to the shape of the rule that applied on its day, and to no other.
         if (!slot || !rule || !version || shapeOf(version.definition) !== shape || planned.some((entry) => entry.key === unit.key)) continue;
         const params = resolvedParams(version.definition, slot.params);
-        planned.push({ ...unit, rule, version, params, shared: built.shared, timezone, evidence: [...unit.evidence, ...built.sharedEvidence],
+        const split = await planSplit(ruleId, unit, timezone, earlier.get(unit.key));
+        planned.push({ ...unit, rule, version, params, shared: built.shared, timezone, split, evidence: [...unit.evidence, ...built.sharedEvidence, ...(split?.evidence || [])],
           digest: contentHash({ rule: version.version, params, payee: owner, unit: unit.key, date: unit.date, earned_at: unit.earned_at, evidence: unit.evidence, shared: sharedDigest,
-            distribution: payee.type === "resource_group" ? distributionOn(layers, unit.date) : null }) });
+            distribution: payee.type === "resource_group" ? distributionOn(layers, unit.date) : null,
+            // What a split rule read is part of the earning: the same version, parameters, members and rows mean nothing is run again.
+            ...(split ? { split: { rule: split.version?.version, params: split.params, members: split.members, evidence: split.evidence, error: split.error } } : {}) }) });
       }
     }
     if (unreadable.has(ruleId)) continue;
@@ -416,22 +671,45 @@ export async function refreshPayeeEarnings(orgId: string, payee: Assignee, optio
     const before = new Map(stored.filter((entry) => entry.rule_id === ruleId).map((entry) => [entry.unit_key, entry]));
     const changed = planned.filter((unit) => { desired.add(`${ruleId}\u0000${unit.key}`); const prior = before.get(unit.key); return !(prior && prior.status === "ok" && prior.digest === unit.digest); });
     result.unchanged += planned.length - changed.length;
+    // Could not be worked out is not zero: what was posted before stays, with who shared it, and the reason is reported.
+    const unresolved = async (unit: Planned, reason: string) => {
+      const prior = before.get(unit.key);
+      result.unresolved.push({ rule_id: ruleId, unit: unit.key, reason });
+      if (!dryRun) await saveUnit(orgId, payee, ruleId, { key: unit.key, digest: unit.digest, status: "error", earned_at: unit.earned_at, version: unit.version.version, lines: prior?.lines || [], error: reason, evidence: unit.evidence, allocation: prior?.allocation });
+    };
     const groups = new Map<string, Planned[]>();
-    for (const unit of changed) { const key = contentHash({ version: unit.version.version, params: unit.params }); groups.set(key, [...(groups.get(key) || []), unit]); }
+    for (const unit of changed) {
+      // An earning whose split cannot be settled (no such split rule, nobody to share it, an input that cannot be read) is not run at all.
+      if (unit.split?.error) { await unresolved(unit, unit.split.error); continue; }
+      const key = contentHash({ version: unit.version.version, params: unit.params }); groups.set(key, [...(groups.get(key) || []), unit]);
+    }
     for (const group of groups.values()) {
       const outcomes = await evaluate(group, payee, asOf);
+      // Earnings divided by a split rule: one sandbox run per version of the split rule and its parameters, over every changed earning line.
+      const divided = new Map<string, { lines?: Record<string, PayShare[]>; error?: string }>();
+      const splitGroups = new Map<string, { unit: Planned; lines: PayLine[] }[]>();
+      for (const unit of group) {
+        const lines = outcomes.get(unit.key)!.lines;
+        if (!unit.split || !lines) continue;
+        const key = contentHash({ rule: unit.split.rule!.id, version: unit.split.version!.version, params: unit.split.params });
+        splitGroups.set(key, [...(splitGroups.get(key) || []), { unit, lines }]);
+      }
+      for (const entries of splitGroups.values()) {
+        const names = new Map<string, string>();
+        for (const id of new Set(entries.flatMap((entry) => entry.unit.split!.members))) names.set(id, (await refFor(`organization_user:${id}`))?.name || "");
+        for (const [key, outcome] of await evaluateSplits(entries, { ...payee, name: ref.name || "" }, names, asOf)) divided.set(key, outcome);
+      }
       for (const unit of group) {
         result.evaluated += 1;
         const outcome = outcomes.get(unit.key)!;
         const prior = before.get(unit.key);
-        if (!outcome.lines) {
-          // Could not be worked out is not zero: what was posted before stays, and the reason is reported.
-          result.unresolved.push({ rule_id: ruleId, unit: unit.key, reason: outcome.error || "The rule could not be run." });
-          if (!dryRun) await saveUnit(orgId, payee, ruleId, { key: unit.key, digest: unit.digest, status: "error", earned_at: unit.earned_at, version: unit.version.version, lines: prior?.lines || [], error: outcome.error || "", evidence: unit.evidence });
-          continue;
-        }
+        if (!outcome.lines) { await unresolved(unit, outcome.error || "The rule could not be run."); continue; }
+        const weights = unit.split ? divided.get(unit.key)! : null;
+        if (weights && !weights.lines) { await unresolved(unit, weights.error || "The split rule could not be run."); continue; }
         try {
-          const allocation = await allocationFor(unit.date, prior?.allocation);
+          const allocation: PayAllocation | null | { error: string } = unit.split
+            ? { basis: unit.split.basis, method: "rule", members: unit.split.members.map((id) => ({ id, weight: 1 })), rule: { id: unit.split.rule!.id, version: unit.split.version!.version, params: unit.split.params, lines: weights!.lines! } }
+            : await allocationFor(unit.date, prior?.allocation);
           if (allocation && "error" in allocation) throw new Error(allocation.error);
           await reconcile(ruleId, unit, unit.rule, unit.version, unit.params, outcome.lines, prior?.lines || [], allocation);
           if (!dryRun) await saveUnit(orgId, payee, ruleId, { key: unit.key, digest: unit.digest, status: "ok", earned_at: unit.earned_at, version: unit.version.version, lines: outcome.lines, error: "", evidence: unit.evidence, allocation });
@@ -467,22 +745,108 @@ export async function declinePayCorrection(orgId: string, entryId: string, actor
 }
 
 /** What saving this setup would change, earning by earning, without changing anything. Use it before backdating. */
-export async function previewPaySetup(orgId: string, payee: Assignee, setup: Pick<PaySetup, "entries" | "distribution">, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+export async function previewPaySetup(orgId: string, payee: Assignee, setup: Pick<PaySetup, "entries" | "distribution" | "schedules">, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
   const preview = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true, setup });
   return { ...preview, total_delta_cents: preview.differences.reduce((sum, difference) => sum + difference.delta_cents, 0) };
 }
 
-/** Everyone whose pay comes from rules: payees with their own setup, and, when any default exists, every assignee a default covers. */
-export async function payeesWithPay(orgId: string): Promise<Assignee[]> {
-  const found = new Map<string, Assignee>((await listPaySetups(orgId)).filter((setup) => setup.entries.length).map((setup) => [payeeKey(setup.payee), setup.payee]));
-  if ((await listPayDefaults(orgId)).some((entry) => entry.entries.length)) {
-    const { listDocuments } = await import("../platform/storage.js");
-    const everyone: Assignee[] = [
-      ...(await listDocuments(orgId, "users")).filter((row) => !["disabled", "deleted", "archived", "removed"].includes(text((row.data as JsonObject).status))).map((row) => ({ type: "organization_user" as const, id: row.id })),
-      ...(await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, false)).map((group) => ({ type: "resource_group" as const, id: text((group as JsonObject).id) })),
-      ...(await (await import("../connections/storage.js")).listOrganizationConnections(orgId)).map((connection) => ({ type: "organization_connection" as const, id: text((connection as JsonObject).id) }))
-    ];
-    for (const payee of everyone) if (payee.id && !found.has(payeeKey(payee)) && (await payLayersFor(orgId, payee)).some((layer) => layer.entries.length)) found.set(payeeKey(payee), payee);
+type Overrides = NonNullable<PayRefreshOptions["overrides"]>;
+type DefaultDraft = NonNullable<Overrides["defaults"]>[number];
+/** The most payees one preview works through. Beyond it the preview says it is partial rather than taking minutes. */
+export const PAY_PREVIEW_PAYEE_LIMIT = 200;
+/**
+ * What saving a version of a rule, a plan or a default would change across everyone it applies to, earning by
+ * earning, without changing anything. Each payee is worked out twice with the dry run: as things are stored, and as
+ * they would be; only what differs between the two is reported, so differences that are already waiting for the next
+ * refresh for other reasons are not blamed on this change.
+ */
+export async function previewPayChange(orgId: string, change: { rule?: PayRule; plan?: PayPlan; default?: DefaultDraft }, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+  const overrides: Overrides = { ...(change.rule ? { rules: [change.rule] } : {}), ...(change.plan ? { plans: [change.plan] } : {}), ...(change.default ? { defaults: [change.default] } : {}) };
+  const plans = new Map<string, PayPlan>((await listPayPlans(orgId)).map((plan) => [plan.id, plan]));
+  if (change.plan) plans.set(change.plan.id, change.plan);
+  const affected: Assignee[] = [];
+  for (const payee of await payeesWithPay(orgId, overrides.defaults)) {
+    const layers = await payLayersFor(orgId, payee, undefined, { defaults: overrides.defaults });
+    const touches = change.default ? layers.some((layer) => layer.source?.type === change.default!.subject.type && layer.source.id === change.default!.subject.id)
+      : change.plan ? layers.some((layer) => layer.entries.some((entry) => entry.kind === "plan" && entry.plan_id === change.plan!.id))
+        : [...candidateRuleSlots(layers, plans).values()].some((definitions) => definitions.has(change.rule!.id));
+    if (touches) affected.push(payee);
+  }
+  // A default being cleared no longer reaches the people it used to pay, but taking it away changes their pay all the same.
+  if (change.default) for (const payee of await payeesWithPay(orgId)) {
+    if (affected.some((entry) => payeeKey(entry) === payeeKey(payee))) continue;
+    if ((await payLayersFor(orgId, payee)).some((layer) => layer.source?.type === change.default!.subject.type && layer.source.id === change.default!.subject.id)) affected.push(payee);
+  }
+  const key = (difference: PayDifference) => `${difference.payee || ""}\u0000${difference.rule_id}\u0000${difference.unit}\u0000${difference.line}`;
+  const payees = [];
+  for (const payee of affected.slice(0, PAY_PREVIEW_PAYEE_LIMIT)) {
+    const before = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true });
+    const after = await refreshPayeeEarnings(orgId, payee, { ...options, dryRun: true, overrides });
+    const waiting = new Map(before.differences.map((difference) => [key(difference), difference.target_cents]));
+    // What the change itself moves: the amount an earning would come to with it, against what it would come to without it.
+    const differences = after.differences.map((difference) => ({ ...difference, without_change_cents: waiting.get(key(difference)) ?? difference.posted_cents }))
+      .filter((difference) => difference.target_cents !== difference.without_change_cents)
+      .map((difference) => ({ ...difference, change_cents: difference.target_cents - difference.without_change_cents }));
+    // A difference that is waiting today and would no longer be there with the change: the change brings the earning back to what is posted.
+    for (const difference of before.differences) if (!after.differences.some((entry) => key(entry) === key(difference)) && difference.target_cents !== difference.posted_cents) {
+      differences.push({ ...difference, target_cents: difference.posted_cents, delta_cents: 0, without_change_cents: difference.target_cents, change_cents: difference.posted_cents - difference.target_cents });
+    }
+    const known = new Set(before.unresolved.map((entry) => `${entry.rule_id}\u0000${entry.unit || ""}\u0000${entry.reason}`));
+    const unresolved = after.unresolved.filter((entry) => !known.has(`${entry.rule_id}\u0000${entry.unit || ""}\u0000${entry.reason}`));
+    if (differences.length || unresolved.length) payees.push({ payee, payee_name: after.payee_name || "", differences, unresolved, change_cents: differences.reduce((sum, difference) => sum + difference.change_cents, 0) });
+  }
+  const all = payees.flatMap((entry) => entry.differences);
+  return {
+    payee_count: affected.length, changed_payee_count: payees.length, payees,
+    difference_count: all.length, change_cents: all.reduce((sum, difference) => sum + difference.change_cents, 0),
+    /** Changes to earnings that have already been in a pay run and would be held for someone to accept. */
+    held_count: all.filter((difference) => difference.handling === "hold").length,
+    unresolved_count: payees.reduce((sum, entry) => sum + entry.unresolved.length, 0),
+    truncated: affected.length > PAY_PREVIEW_PAYEE_LIMIT
+  };
+}
+/** The preview of a rule, plan or default as the save input describes it. Validates exactly as the save would, and writes nothing. */
+export async function previewPayRuleSave(orgId: string, input: unknown, actor: Actor, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+  const { data, current } = await draftPayRule(orgId, input, actor);
+  return previewPayChange(orgId, { rule: { ...data, revision: current?.revision || 0 } }, options);
+}
+export async function previewPayPlanSave(orgId: string, input: unknown, actor: Actor, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+  const { data, current } = await draftPayPlan(orgId, input, actor);
+  return previewPayChange(orgId, { plan: { ...data, revision: current?.revision || 0 } }, options);
+}
+export async function previewPayDefaultSave(orgId: string, input: unknown, actor: Actor, options: Pick<PayRefreshOptions, "asOf" | "context"> = {}) {
+  const { data } = await draftPayDefault(orgId, input, actor, { lookUpRoles: false });
+  return previewPayChange(orgId, { default: data }, options);
+}
+
+/** Everyone who could be paid today: users, groups of users and outside companies that have not been removed. Reads only. */
+async function everyPayee(orgId: string): Promise<Assignee[]> {
+  const { listDocuments } = await import("../platform/storage.js");
+  return [
+    ...(await listDocuments(orgId, "users")).filter((row) => !["disabled", "deleted", "archived", "removed"].includes(text((row.data as JsonObject).status))).map((row) => ({ type: "organization_user" as const, id: row.id })),
+    ...(await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, false)).map((group) => ({ type: "resource_group" as const, id: text((group as JsonObject).id) })),
+    ...(await (await import("../connections/storage.js")).listOrganizationConnections(orgId)).map((connection) => ({ type: "organization_connection" as const, id: text((connection as JsonObject).id) }))
+  ].filter((payee) => payee.id);
+}
+/** The payees one default subject covers today, with their names. Reads only. */
+export async function payeesCoveredBy(orgId: string, subject: PayDefault["subject"]) {
+  const covered: { type: Assignee["type"]; id: string; name: string }[] = [];
+  for (const payee of await everyPayee(orgId)) {
+    if (!(await payDefaultSubjectsFor(orgId, payee)).some((entry) => entry.type === subject.type && entry.id === subject.id)) continue;
+    covered.push({ ...payee, name: (await readAssignee(orgId, payee))?.name || "" });
+  }
+  return covered;
+}
+
+/**
+ * Everyone whose pay comes from rules: payees with their own setup, and, when any default exists, every assignee a
+ * default covers. A setup closed because its payee was removed is left out. `defaults` stand in for the stored ones
+ * with the same subject, for previews.
+ */
+export async function payeesWithPay(orgId: string, defaults?: Overrides["defaults"]): Promise<Assignee[]> {
+  const found = new Map<string, Assignee>((await listPaySetups(orgId)).filter((setup) => setup.entries.length && !setup.closed).map((setup) => [payeeKey(setup.payee), setup.payee]));
+  if ([...(await listPayDefaults(orgId)), ...(defaults || [])].some((entry) => entry.entries.length)) {
+    for (const payee of await everyPayee(orgId)) if (payee.id && !found.has(payeeKey(payee)) && (await payLayersFor(orgId, payee, undefined, { defaults })).some((layer) => layer.entries.length)) found.set(payeeKey(payee), payee);
   }
   return [...found.values()];
 }

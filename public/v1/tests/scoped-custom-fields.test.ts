@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { normalizeDefinitions, validateField } from "../custom_fields/contracts.js";
-import { FIELD_OWNERS } from "../custom_fields/owners.js";
+// Storage reads its root when first imported, so the root is set before the modules under test load.
+const fixtureRoot=await mkdtemp(path.join(os.tmpdir(),"scope-fields-"));process.env.PLATFORM_STORAGE_ROOT=fixtureRoot;
+const { normalizeDefinitions, validateField } = await import("../custom_fields/contracts.js");
+const { FIELD_OWNERS } = await import("../custom_fields/owners.js");
 
 test("the owner catalog and producer-owned phone contracts are shared",()=>{
-  assert.deepEqual(Object.keys(FIELD_OWNERS),["project","contact","organization","user","branch","department","division","team"]);
+  assert.deepEqual(Object.keys(FIELD_OWNERS),["project","contact","organization","user","branch","department","division","team","company"]);
   for(const entity of Object.keys(FIELD_OWNERS)) assert.equal(normalizeDefinitions([{entity,path:"notes",type:"text"}])[0]!.entity,entity);
   const field=normalizeDefinitions([{entity:"user",path:"lines",type:"platform_phone",cardinality:"many",read_only:false}])[0]!;
   assert.equal(field.read_only,true);assert.equal(field.producer,"phone-system");assert.equal(field.base_type,"phone");
@@ -17,7 +19,7 @@ test("the owner catalog and producer-owned phone contracts are shared",()=>{
 });
 
 test("grouping fields use existing owners, independent revisions, and phone issuance authority",async()=>{
-  const root=await mkdtemp(path.join(os.tmpdir(),"scope-fields-"));process.env.PLATFORM_STORAGE_ROOT=root;
+  const root=fixtureRoot;
   if(process.env.TEST_POSTGRES_URL) Object.assign(process.env,{FIRSTMATE_ENV:"test",FIRSTMEASURE_DATABASE_MODE:"postgres",DATABASE_URL:process.env.TEST_POSTGRES_URL,POSTGRES_POOL_MAX:"1",POSTGRES_AUTO_MIGRATE:"false",FIRSTMEASURE_ARTIFACT_STORAGE:"local"});
   const storage=await import("../platform/storage.js"),records=await import("../custom_fields/records.js");
   const {systemPublicationContext}=await import("../platform/publication/context.js");

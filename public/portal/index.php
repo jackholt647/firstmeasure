@@ -2336,7 +2336,6 @@ session_write_close();
   <?php endif; ?>
 <script src="../libraries/phone-features/phone-features.js?v=<?= portalAssetVersion('../libraries/phone-features/phone-features.js') ?>"></script>
 <script src="../libraries/phone-features/app-download.js?v=<?= portalAssetVersion('../libraries/phone-features/app-download.js') ?>"></script>
-<script src="../libraries/apps/settings/firstmeasure-users.js?v=<?= portalAssetVersion('../libraries/apps/settings/firstmeasure-users.js') ?>"></script>
   <script src="../libraries/apps/settings/platform-billing.js?v=<?= portalAssetVersion('../libraries/apps/settings/platform-billing.js') ?>"></script>
   <script src="../libraries/brand-kit/brand-kit.js?v=<?= portalAssetVersion('../libraries/brand-kit/brand-kit.js') ?>"></script>
   <script src="../libraries/apps/settings/company.js?v=<?= portalAssetVersion('../libraries/apps/settings/company.js') ?>"></script>

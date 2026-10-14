@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 
 const source = await readFile(new URL('../../libraries/apps/settings/company.js', import.meta.url), 'utf8');
-const renderer = source.slice(source.indexOf('    async function renderDocumentSettings(){'), source.indexOf('    async function renderCrewSettings(){'));
+const renderer = source.slice(source.indexOf('    async function renderDocumentSettings(){'), source.indexOf('    async function renderLegacyConfiguration(){'));
 
 test('document settings migrate and save delivery controls without losing required documents', async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });

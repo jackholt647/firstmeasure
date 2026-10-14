@@ -295,3 +295,171 @@ handoff, not part of this infrastructure release.
 ## Priority fields
 
 [Priority fields and published calculations](priority-fields.md) describes read-only field calculations over authorized sources, document selection, provenance and reusable quick-display consumers.
+
+## Field homes: people fields are defined on a role, a type or a department
+
+Field **definitions** for people are never made on one user, one group or one
+outside company. Each definition has a **home**, stored on it as
+`home: { kind, id }`:
+
+| Home `kind` | Owner (`entity`) | A record has the fields of |
+| --- | --- | --- |
+| `role` | `user` | every access role it holds (`access_role_ids` and `roles` on the user document) |
+| `group_type` | `team` | its one group type (the group's `kind_id`) |
+| `company_type` | `company` | each of its company types (`assigneeTypeIds` in the assignee base) |
+| `department` | `department` | itself: a department's fields belong to that one department |
+
+`company` is the field owner for an outside company (an
+`organization_connections` row). Its values live in the same
+`resource_custom_fields` sidecar as teams and departments.
+`FIELD_HOMES` in `custom_fields/owners.ts` is the catalog; `custom_fields/homes.ts`
+holds resolution and the writers. Definitions stay in the default branch's
+`custom_fields` module, so every existing rule (typed validation, private and
+read-only fields, calculations, platform phones, retired definitions) applies
+unchanged inside a home.
+
+**Values** are set and shown on each user, group, company and department, and
+stored where they already were (the user document, or the sidecar).
+
+### One path, one meaning
+
+A path is one variable per kind of record, because bindings, selections and
+published values address it by path (`fields.cdl_number`).
+
+- Inside one home a path is declared once.
+- Two homes of the same owner (two roles, two company types, two departments)
+  may each declare the same path only with the **same type and cardinality**.
+  Anything else is refused with `custom_field_home_conflict`, naming the home
+  that already has it. Use another path for a different kind of value.
+- Paths may not nest across homes (`license` and `license.state`).
+- A path cannot be both unassigned and in a home: place the unassigned
+  definition instead (`custom_field_unassigned_conflict`).
+
+When a record is in two homes that declare the same path it has **one** field
+and one stored value. The definition shown is the one from the record's first
+home; the field is required, private or read-only if **any** of them says so,
+and every read and write permission they name must be held. Each home still
+edits its own copy of the definition.
+
+### Leaving a home
+
+A value for a field the record no longer has (a role removed, a company type
+dropped) **stays in storage**. It is not published, not offered for editing,
+not validated and not inferred as a legacy field. Give the role back and the
+value is there again. Retiring a definition (leaving it out of a save) works the
+same way and keeps its access rules over what is stored.
+
+### Required fields
+
+Inside a home, required is enforced when **field values are written**
+(`custom-fields.<entity>.write`): the write must leave every required field the
+caller can fill with a value, or it fails with `custom_field_required`. Saving
+the record itself (giving someone a role, renaming a group) is never blocked by
+a field that came with a home. Definitions without a home keep the older rule
+described under Contracts and editing.
+
+### Definitions without a home
+
+User, team and department definitions made before homes existed name none. They
+are **unassigned**: they keep applying to every record of their owner, so
+nothing that already reads them changes (the user dialogs, the assignee
+directory's `fields`), and they are listed for an administrator to place.
+Placing one gives it a home; from then on it applies only there.
+
+### Published
+
+All need `manage_company_settings` except the user exports, which need
+`manage_company_users` like the other user field operations. Targets are
+`{ scope: "organization", organizationId }`, with `id` for one record.
+
+| Read | Args / target | Value |
+| --- | --- | --- |
+| `custom-fields-homes.index` | none | `{ homes: [{ kind, id, name, status, exists, fields }], entities }`: every home that exists or holds definitions, with its field count |
+| `custom-fields-homes.definitions` | `args: { kind, id }` | `{ home: { kind, id, name, exists }, entity, revision, fields, retired }`. `fields` are in order; each carries `schema` as its author declared it and `value_schema`, the whole contract a value must meet |
+| `custom-fields-homes.unassigned` | optional `args: { entity }` | `{ fields, revision }`, each field with `home_kind`, the kind of home it can be placed in |
+| `custom-fields-user.resolved`, `custom-fields-team.resolved`, `custom-fields-company.resolved`, `custom-fields-department.resolved` | target `id` | `{ entity, id, recordRevision, homes: [{ kind, id, name, fields: [path] }], unassigned: [path], fields, values }`. `fields` are the contract entries (as in `contract`) each with `homes: [{ kind, id, name }]`; a field two homes declare is listed under both in `homes` |
+
+`custom-fields-company` also has the ordinary `contract`, `values` and `phones`
+exports.
+
+| Action | Input | Result |
+| --- | --- | --- |
+| `custom-fields.definitions.save` | `{ kind, id, fields, expectedRevision }` | `{ kind, id, revision, count }`. `fields` is the home's whole ordered list; a definition left out is retired. `expectedRevision` is the string from `definitions`; it covers that home only, so two people editing different roles do not collide |
+| `custom-fields.definitions.place` | `{ path, kind, id, entity? }` | `{ kind, id, revision, count }`: gives an unassigned definition its home |
+| `custom-fields.company.write` | `{ values, expectedRevision }` | `{ id, revision }`, as for the other owners |
+
+A home must exist to be saved to: the role in the access role store, the group
+type in the workforce configuration, the company type in the assignee base's
+`listCompanyTypes`, the department in the department catalog
+(`custom_field_home_not_found`). Reads never create anything.
+
+## The department reference type
+
+`department` is a field type like the user, group and company references: a
+field anywhere in the application whose value is a department. It stores
+`{ "department_id": "sales" }`, or an array of them with `cardinality: "many"`
+(at most 100, no repeats). The schema is fixed. A changed value must name
+departments in the organization's catalog on both storage backends; the
+catalog owns the label and the color, which are never copied into the value.
+The existing `organization_user`, `resource_group`, `organization_connection`
+and `assignable_subject` types cover users, groups, companies and any assignee.
+
+`public/libraries/platform-widgets/types.json` and `catalog.json` need a
+`data-entry.department` row before `tests/publication-widget-types.test.ts`
+passes again; those files were outside this change.
+
+## The shared browser library
+
+`public/libraries/custom-fields/firstmate-custom-fields.js` is the one place a
+screen gets custom field UI. Three mounts cover every field type. They are
+framework free, take data and callbacks, **never fetch**, lay themselves out
+from the width of their own container (one column narrow, two wide) and show
+titles only: every description or hint is a tooltip.
+
+```js
+const cf = window.FirstMateCustomFields;
+
+// (a) The definitions of one home: add, reorder, edit, retire.
+const editor = cf.mountDefinitionsEditor(container, {
+  fields,                      // custom-fields-homes.definitions -> value.fields
+  entity: 'user', home: { kind: 'role', id: 'driver' },
+  references,                  // see below
+  onSave: fields => invoke('custom-fields.definitions.save', { kind, id, fields, expectedRevision })
+});
+// -> { getFields, setFields, validate, setErrors, isDirty, destroy }
+
+// (b) The values of one record, grouped by where each field comes from.
+const form = cf.mountValuesForm(container, {
+  resolved,                    // custom-fields-<entity>.resolved -> value
+  references,
+  onSave: changes => invoke('custom-fields.user.write', { values: changes, expectedRevision })
+});
+// -> { getValues, getChanges, validate, setErrors, setValues, destroy }
+
+// (c) A compact read-only value for a list, a summary or a hover card.
+cell.innerHTML = cf.renderValue(definition, value, { references, max: 3 });
+cf.renderValueText(definition, value, { references });   // plain text
+cf.mountValue(container, definition, value, { references }).update(next);
+```
+
+`references` is what reference fields point at, supplied by the page:
+`{ users, groups, companies, departments, contacts, media }`. Departments are
+`{ id, name | label, color, icon?, status? }`; a department chip is tinted with
+the department's color and shows its icon when it has one.
+
+Without `onSave` no Save button is shown and the page saves with its own:
+`getFields()` / `getChanges()` give what to send, `validate()` shows problems
+beside the fields, and `setErrors({ path: message })` shows what the server
+refused. An error thrown by `onSave` with `details.path` is placed on that
+field. `options.groups` (`[{ id, label, tooltip?, fields }]`) with `values`
+replaces `resolved` when the grouping is not by home. Both mounts take
+`readOnly: true`.
+
+Rules for anything added to these surfaces: no fetching, no fixed widths (use
+the container query on `.fm-cfx` / `.fm-cfd`), no visible description text.
+
+Verification for this section and the two above:
+`tests/custom-fields-homes.test.ts` and
+`tests/custom-fields-surfaces-browser.test.mjs`, the latter of which reads the
+type list from `custom_fields/contracts.ts` and fails when a type has no
+editor, read-only rendering, empty state or validation feedback.

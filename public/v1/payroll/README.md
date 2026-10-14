@@ -16,10 +16,11 @@ roles.
 - A **schedule** is a top-level payroll group. Two schedules that happen to pay
   on the same date remain separate. Hourly, salary, piece-rate, and commission
   entries assigned to the same schedule remain together as subgroups.
-- A **policy** assigns a schedule to an organization default, worker
-  classification, access role, resource group, user, or organization
-  connection. Policies may target all earning kinds or one component. Direct
-  payee policies take precedence; ambiguous same-level policies are rejected.
+- Which schedule pays someone is a **schedule choice** on their pay setup or on
+  a pay default (the organization, a kind of assignee, a worker classification,
+  a role, a type of group or company). Choices are dated and may name one kind
+  of earning; the highest layer that says wins and the exact kind beats the
+  catch-all. `resolvePaySchedule` is the one answer. There are no policies.
 - A **payee** is any assignee: a user, a group of users paid as one, or an
   outside company. Who is paid for a role on a project is an assignee custom
   field on the project.
@@ -58,9 +59,11 @@ Configuration:
 
 - `GET|POST /v1/payroll/organizations/:orgId/schedules`
 - `GET|PATCH|DELETE /v1/payroll/organizations/:orgId/schedules/:scheduleId`
-- `GET /v1/payroll/organizations/:orgId/policies`
-- `PUT|DELETE /v1/payroll/organizations/:orgId/policies/:subjectType/:subjectId`
-- `GET /v1/payroll/organizations/:orgId/policies/effective/:payeeType/:payeeId`
+
+Schedule choices, pay rules, plans, setups and defaults have no HTTP routes of
+their own: they are published data and actions (`payroll.pay_setup`,
+`payroll.pay_default`, `payroll.paySetup.save`, `payroll.payDefault.save`,
+`payroll.paySchedule.resolve`), reached in the browser through `PayrollAPI.pay`.
 
 Projects and earnings:
 
@@ -85,7 +88,7 @@ Payroll operations:
 `earnings/me` is the safe self-service route. It derives the organization user
 from the authenticated session and never accepts an alternate payee. It is
 available to field-only users without granting access to payroll runs,
-schedules, policies, or anyone else's compensation.
+schedules, or anyone else's compensation.
 
 The single- and multi-payee earnings routes retain the normal
 `manage_payroll|manage_company_settings` boundary. They use the same report
@@ -112,5 +115,5 @@ PayrollAPI.earnings.list(orgId, [{ type: 'organization_user', id: userId }], opt
 - Projected entries may transition to accrued. Accrued entries cannot be edited.
 - Draft/run batches reserve their ledger allocations. Voiding an unpaid batch
   releases them; paid items require later correcting entries.
-- Schedules, policies, pay rules, pay plans and pay setups use revisions to
+- Schedules, pay rules, pay plans, pay setups and pay defaults use revisions to
   prevent lost updates.

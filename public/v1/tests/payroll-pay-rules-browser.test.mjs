@@ -18,7 +18,7 @@ test('payroll tab refreshes rule earnings, explains a payee and reviews held cor
    const alice={type:'organization_user',id:'alice',name:'',worker_type:'employee'},bob={type:'organization_user',id:'bob',name:'',worker_type:'employee'};
    const schedule={id:'s1',name:'Weekly',currency:'USD',recurrence:{frequency:'weekly',weekday:5},delay:{},timing_basis:'worked',clawback_cap_percent:100};
    const preview=cents=>({gross_cents:cents,deduction_cents:0,net_cents:cents,subgroup_totals:{hourly:cents},entry_count:1});
-   window.dashboard={schedules:[schedule],policies:[],diagnostics:[],history:[],upcoming:[{schedule,pay_date:'2026-10-16',period_start:'2026-10-05',period_end:'2026-10-11',cutoff_at:'2026-10-11T23:59:59.999Z',batch:null,
+   window.dashboard={schedules:[schedule],diagnostics:[],history:[],upcoming:[{schedule,pay_date:'2026-10-16',period_start:'2026-10-05',period_end:'2026-10-11',cutoff_at:'2026-10-11T23:59:59.999Z',batch:null,
     employees:[{payee:{...alice,name:'Alice Adams'},accrued:preview(45000),projected:preview(0),forecast_net_cents:45000}],subcontractors:[],accrued_total_cents:45000,projected_additional_cents:0,forecast_total_cents:45000}]};
    const version=(id,definition)=>({version:id,effective_from:'2026-01-01',definition});
    window.rules=[
@@ -44,6 +44,7 @@ test('payroll tab refreshes rule earnings, explains a payee and reviews held cor
    const slot=(rule_id,params)=>({rule_id,definition_rule_id:rule_id,params});
    window.setups={
     'organization_user:alice':{payee:{type:'organization_user',id:'alice'},entries:[],revision:2,distribution_today:null,effective:[slot('estimator_commission_sold',{rate_percent:3}),slot('hourly_time_clock',{rate_cents:2500})],
+     schedule_today:[{earning_kind:'*',schedule_id:'weekly',schedule_name:'Weekly',timing_basis:'worked',clawback_cap_percent:50,effective_from:'2026-01-01',origin:{type:'organization',id:'org',name:'Everyone'}},{earning_kind:'commission',schedule_id:'monthly',schedule_name:'Monthly',timing_basis:'completed',clawback_cap_percent:null,effective_from:'2026-03-01',origin:{type:'role',id:'salesperson',name:'Salesperson'}}],
      layers:[{source:{type:'organization',id:'org'},entries:[{kind:'plan',plan_id:'sales',effective_from:'2026-01-01'}]},{source:null,entries:[{kind:'add',rule_id:'hourly_time_clock',params:{rate_cents:2500},effective_from:'2026-01-01'},{kind:'override',rule_id:'estimator_commission_sold',params:{rate_percent:3},effective_from:'2026-06-01'}]}]},
     'resource_group:g1':{payee:{type:'resource_group',id:'g1'},entries:[],revision:1,distribution_today:{mode:'split',method:'equal'},effective:[slot('estimator_commission_sold',{rate_percent:3})],layers:[{source:null,entries:[{kind:'add',rule_id:'estimator_commission_sold',params:{rate_percent:3},effective_from:'2026-01-01'}]}]}};
    const refreshed=payees=>{const all=[{payee:{type:'organization_user',id:'alice'},payee_name:'Alice Adams',evaluated:2,unchanged:1,differences:[],unresolved:[unresolved],posted:[]},{payee:{type:'organization_user',id:'bob'},payee_name:'Bob Brown',evaluated:1,unchanged:4,differences:[],unresolved:[],posted:[{id:'n1',payee:{...bob,name:'Bob Brown'},state:'accrued',amount_cents:12345,currency:'USD',metadata:{source:'pay_rule'}}]}];
@@ -105,6 +106,8 @@ test('payroll tab refreshes rule earnings, explains a payee and reviews held cor
   for(const expected of ['Record project_7','3% of Smith roof','$450.00','Contract: $15,000.00','Rate percent: 3','Earned'])assert.ok(worked.includes(expected),`worked-out unit shows ${expected}`);
   const paidBy=explain.locator('[data-explain-paid-by]');
   const inherited=(await paidBy.locator('[data-paid-by-rule="estimator_commission_sold"]').innerText()).toUpperCase();for(const expected of ['Estimator commission when sold','From the organization default','Changed for this payee','Rate percent: 3'])assert.ok(inherited.includes(expected.toUpperCase()),`paid by shows ${expected}`);
+  // When they are paid sits beside what they are paid, with the layer that chose each schedule.
+  const paidOn=(await paidBy.locator('[data-paid-on]').innerText()).toUpperCase();for(const expected of ['Everything else: Weekly','From the organization default','clawbacks capped at 50% of a check','Commission: Monthly','From the default for the Salesperson role','recognized when the job is completed'])assert.ok(paidOn.includes(expected.toUpperCase()),`paid on shows ${expected}`);
   const own=(await paidBy.locator('[data-paid-by-rule="hourly_time_clock"]').innerText()).toUpperCase();for(const expected of ['Hourly from the time clock','Their own setup','Rate: $25.00'])assert.ok(own.includes(expected.toUpperCase()),`paid by shows ${expected}`);
   assert.equal(await explain.locator('[data-ledger-entry]').count(),2,'only entries that came from a pay rule are explained');
   const backPay=await explain.locator('[data-ledger-entry="o1"]').innerText();

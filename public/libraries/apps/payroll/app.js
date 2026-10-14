@@ -188,7 +188,7 @@
       ]
     };
     return {
-      ok:true, from:state.from, through:state.through, schedules:[weekly, semi], policies:[], diagnostics:[], history:[historyBatch],
+      ok:true, from:state.from, through:state.through, schedules:[weekly, semi], diagnostics:[], history:[historyBatch],
       upcoming:[
         { schedule:weekly, pay_date:payDate, period_start:addDaysKey(payDate, -14), period_end:addDaysKey(payDate, -8), cutoff_at:`${addDaysKey(payDate, -7)}T23:59:59.999Z`, batch:null,
           employees:[worker('u1', 'Jordan Ramirez', 'employee', 184500, 42000, { hourly:142500, commission:42000 }), worker('u2', 'Taylor Chen', 'employee', 156000, 18000, { piece_rate:156000 })],
@@ -915,7 +915,11 @@
       if (type === 'organization') return 'the organization default';
       if (type === 'assignee_kind') return `the default for every ${(PAYEE_TYPE_LABELS[id] || id.replace(/_/g, ' ')).toLowerCase()}`;
       if (type === 'worker_classification') return `the default for ${id.replace(/_/g, ' ')}s`;
-      if (type === 'group_kind') return `the default for ${id.replace(/_/g, ' ')} groups`;
+      // A role, a type of group and a type of outside company are named by the server; the id stands in until it is.
+      const named = clean(source?.name) || id.replace(/_/g, ' ');
+      if (type === 'role') return `the default for the ${named} role`;
+      if (type === 'group_type') return `the default for ${named} groups`;
+      if (type === 'company_type') return `the default for ${named} companies`;
       return `a default (${[type.replace(/_/g, ' '), id].filter(Boolean).join(' ')})`;
     }
 
@@ -929,7 +933,9 @@
         return array(versions[versions.length - 1]?.rules).map((ref) => clean(ref.rule_id));
       };
       const origins = new Map();
-      array(setup?.layers).forEach((layer) => {
+      // A default counts only while it covers the payee: a role taken away stops bringing its rules in.
+      const covers = (layer) => (!clean(layer?.covered_from) || clean(layer.covered_from) <= today) && (!clean(layer?.covered_through) || today <= clean(layer.covered_through));
+      array(setup?.layers).filter(covers).forEach((layer) => {
         const entries = array(layer?.entries).filter(active);
         const own = !layer?.source;
         entries.forEach((entry) => {
@@ -941,6 +947,17 @@
       return origins;
     }
 
+    // When they are paid: the schedule in effect today for everything, and for any kind of earning paid on another, with the layer that chose it.
+    function paidOnHtml(setup){
+      const rows = array(setup?.schedule_today);
+      if (!rows.length) return '<div class="fmp-pay-note" data-paid-on><i class="fas fa-calendar-days"></i> No pay schedule is chosen for this payee. Choose the company\'s schedule in Payroll settings.</div>';
+      return `<div class="fmp-pay-group" data-paid-on>${rows.map((row) => {
+        const kind = clean(row.earning_kind) === '*' ? (rows.length > 1 ? 'Everything else' : 'Everything') : clean(row.earning_kind).replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+        return `<div class="fmp-pay-entry" data-paid-on-kind="${esc(row.earning_kind)}"><div><strong><i class="fas fa-calendar-days"></i> ${esc(kind)}: ${esc(clean(row.schedule_name) || 'a schedule that no longer exists')}</strong> ${row.origin ? `<span class="fmp-tag backpay"><i class="fas fa-layer-group"></i>From ${esc(defaultSourceLabel(row.origin))}</span>` : '<span class="fmp-tag ok">Their own setup</span>'}
+          <div class="fmp-pay-note">Since ${esc(formatDate(row.effective_from))}${clean(row.timing_basis) ? ` · recognized when ${clean(row.timing_basis) === 'completed' ? 'the job is completed' : 'the work is performed'}` : ''}${row.clawback_cap_percent === null || row.clawback_cap_percent === undefined ? '' : ` · clawbacks capped at ${esc(number(row.clawback_cap_percent))}% of a check`}</div></div><div></div></div>`;
+      }).join('')}</div>`;
+    }
+
     function paidByHtml(currency){
       const setup = state.explain?.setup;
       if (!setup) return '';
@@ -950,7 +967,7 @@
       const group = clean(state.explain.payee.type) === 'resource_group';
       return `<div class="fmp-pay-section" data-explain-paid-by>
         <h3>Paid by</h3>
-        <p>The pay rules in effect for this payee today.${group ? ` ${clean(distribution.mode) === 'split' ? `What the group earns is split among its members${clean(distribution.method) === 'shares' ? ' by fixed shares' : ' equally'}.` : 'The group is paid as one payee.'}` : ''}</p>
+        <p>The pay rules in effect for this payee today, and the pay schedule they are paid on.${group ? ` ${clean(distribution.mode) === 'split' ? `What the group earns is split among its members${clean(distribution.method) === 'shares' ? ' by fixed shares' : ' equally'}.` : 'The group is paid as one payee.'}` : ''}</p>
         <div class="fmp-pay-group">${effective.length ? effective.map((slot) => {
           const origin = origins.get(clean(slot.rule_id));
           const swapped = clean(slot.definition_rule_id) && clean(slot.definition_rule_id) !== clean(slot.rule_id);
@@ -958,6 +975,7 @@
             ${swapped ? `<div class="fmp-pay-note">Uses the formula of ${esc(ruleName(slot.definition_rule_id))}.</div>` : ''}
             ${keyValuesHtml('Parameters', slot.params, currency) || '<div class="fmp-pay-note">No parameters set.</div>'}</div><div></div></div>`;
         }).join('') : '<div class="fmp-empty-section"><i class="fas fa-scale-balanced"></i>No pay rule is in effect for this payee today. Give them a pay setup or a default in Payroll settings.</div>'}</div>
+        ${paidOnHtml(setup)}
       </div>`;
     }
 

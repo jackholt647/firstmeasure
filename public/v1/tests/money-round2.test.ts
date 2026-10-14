@@ -278,10 +278,9 @@ test("receipt-backed reimbursement requests move from Crew submission through of
     delay: { periods: 0 },
     timing_basis: "completed"
   })).schedule;
-  await client.request("PUT", `/v1/payroll/organizations/${orgId}/policies/organization_user/${userId}`, {
-    schedule_id: schedule.id,
-    earning_kind: "reimbursement"
-  });
+  // Which schedule pays someone is part of their pay setup; it is saved through the published pay actions, not a payroll route.
+  await (await import("../payroll/pay-rules.js")).savePaySetup(orgId, { payee: { type: "organization_user", id: userId }, entries: [],
+    schedules: [{ effective_from: "2026-01-01", earning_kind: "reimbursement", schedule_id: schedule.id }] }, { userId });
   const payrollReceipt = await client.request("POST", `/v1/payments/organizations/${orgId}/projects/${projectId}/receipts`, {
     file_name: "payroll-reimbursement.txt",
     content_type: "text/plain",

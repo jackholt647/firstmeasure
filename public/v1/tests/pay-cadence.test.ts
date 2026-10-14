@@ -58,8 +58,8 @@ test("a salary is earned by the day through the same rules and paid on whatever 
     // Everything pays weekly on Friday, except salary, which this company pays on the 3rd Thursday of the month.
     const weekly = await store.createPayrollSchedule(ORG, { name: "Weekly", recurrence: { frequency: "weekly", weekday: 5 }, timezone: "UTC" });
     const thirdThursday = await store.createPayrollSchedule(ORG, { name: "Third Thursday", recurrence: { frequency: "monthly", nth_weekdays: [{ nth: 3, weekday: 4 }] }, timezone: "UTC" });
-    await store.savePayrollPolicy(ORG, "organization", ORG, { schedule_id: weekly.id });
-    await store.savePayrollPolicy(ORG, "organization", ORG, { schedule_id: thirdThursday.id, earning_kind: "salary" });
+    await rules.savePayDefault(ORG, { subject: { type: "organization", id: ORG }, entries: [], schedules: [
+      { effective_from: "2026-01-01", schedule_id: weekly.id }, { effective_from: "2026-01-01", earning_kind: "salary", schedule_id: thirdThursday.id }] }, { userId: "owner" });
 
     const actor = { userId: "owner" };
     const context = userPublicationContext({ orgId: ORG, userId: "owner", role: "member", permissions: { manage_payroll: true }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } } } as any);

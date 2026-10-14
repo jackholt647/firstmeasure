@@ -6,7 +6,6 @@ import { badRequest, PlatformError } from "../platform/errors.js";
 import { hydratedWorkforceUser } from "../workforce/service.js";
 import { registerPayrollAutomations } from "./automations.js";
 import {
-  payrollPayeeType,
   payrollBatchActionSchema,
   payrollBatchCreateSchema,
   payrollBatchItemPatchSchema,
@@ -15,8 +14,6 @@ import {
   payrollLedgerEntryInputSchema,
   payrollLedgerReverseSchema,
   payrollPayeeRefSchema,
-  payrollPolicyInputSchema,
-  payrollPolicySubjectSchema,
   payrollScheduleInputSchema,
   payrollSchedulePatchSchema,
 } from "./schemas.js";
@@ -43,19 +40,15 @@ import {
   asObject,
   cleanText,
   createPayrollSchedule,
-  deletePayrollPolicy,
   listPayrollBatches,
   listPayrollArtifacts,
   listPayrollLedgerEntries,
-  listPayrollPolicies,
   listPayrollSchedules,
   patchPayrollSchedule,
   readPayrollBatch,
   readPayrollArtifact,
   readPayrollLedgerEntry,
   readPayrollSchedule,
-  resolvePayrollPolicy,
-  savePayrollPolicy,
 } from "./storage.js";
 
 const querySchema = z.object({}).passthrough();
@@ -123,7 +116,7 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     ok: true,
     api: "payroll",
     version: 1,
-    capabilities: ["schedule_groups", "policy_inheritance", "worked_or_completed_recognition", "delays", "projections", "pay_rules", "clawbacks", "batches", "individual_payment_status", "named_approvals", "off_cycle_runs", "contractor_payables", "csv_exports", "report_documents"]
+    capabilities: ["schedule_groups", "schedule_layers", "worked_or_completed_recognition", "delays", "projections", "pay_rules", "clawbacks", "batches", "individual_payment_status", "named_approvals", "off_cycle_runs", "contractor_payables", "csv_exports", "report_documents"]
   }));
 
   app.get("/organizations/:orgId/dashboard", async (request) => {
@@ -242,45 +235,6 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
     await requirePayrollMutation(request, orgId);
     const schedule = (await archivePayrollSchedule(orgId, getParam(request.params, "scheduleId"), expectedRevision(request)));
     return { ok: true, schedule };
-  });
-
-  app.get("/organizations/:orgId/policies", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollRead(request, orgId);
-    return { ok: true, policies: (await listPayrollPolicies(orgId)) };
-  });
-
-  app.get("/organizations/:orgId/policies/effective/:payeeType/:payeeId", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollRead(request, orgId);
-    const query = queryObject(request);
-    const payeeType = payrollPayeeType(getParam(request.params, "payeeType"));
-    const policy = (await resolvePayrollPolicy(orgId, {
-      type: payeeType,
-      id: getParam(request.params, "payeeId"),
-      name: cleanText(query.name),
-      worker_type: ["subcontractor", "independent_contractor"].includes(cleanText(query.worker_type))
-        ? cleanText(query.worker_type) as "subcontractor" | "independent_contractor" : "employee",
-      access_role_ids: cleanText(query.access_role_ids).split(",").map(cleanText).filter(Boolean),
-      resource_group_ids: cleanText(query.resource_group_ids).split(",").map(cleanText).filter(Boolean)
-    }, cleanText(query.earning_kind || "*")));
-    return { ok: true, policy };
-  });
-
-  app.put("/organizations/:orgId/policies/:subjectType/:subjectId", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollMutation(request, orgId);
-    const subjectType = payrollPolicySubjectSchema.parse(getParam(request.params, "subjectType"));
-    const policy = (await savePayrollPolicy(orgId, subjectType, getParam(request.params, "subjectId"), payrollPolicyInputSchema.parse(request.body ?? {})));
-    return { ok: true, policy };
-  });
-
-  app.delete("/organizations/:orgId/policies/:subjectType/:subjectId", async (request) => {
-    const orgId = getParam(request.params, "orgId");
-    await requirePayrollMutation(request, orgId);
-    const subjectType = payrollPolicySubjectSchema.parse(getParam(request.params, "subjectType"));
-    const result = (await deletePayrollPolicy(orgId, subjectType, getParam(request.params, "subjectId"), cleanText(queryObject(request).earning_kind || "*")));
-    return { ok: true, ...result };
   });
 
   app.get("/organizations/:orgId/ledger", async (request) => {

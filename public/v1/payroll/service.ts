@@ -3,6 +3,7 @@ import type { SqlStore } from "../platform/sql_store.js";
 import { badRequest, conflict } from "../platform/errors.js";
 import { payrollEligibleAt, payrollOccurrence, payrollOccurrences } from "./schedule.js";
 import { payrollPayeeType, type PayrollLedgerEntryInput, type PayrollPayeeRef } from "./schemas.js";
+import { resolvePaySchedule } from "./pay-rules.js";
 import {
   asArray,
   asObject,
@@ -17,7 +18,6 @@ import {
   readPayrollBatchItem,
   readPayrollLedgerEntry,
   readPayrollSchedule,
-  resolvePayrollPolicy,
   upsertPayrollLedgerEntry,
   withPayrollTransaction,
   type JsonObject
@@ -81,17 +81,28 @@ function entryPayee(entry: JsonObject): PayrollPayeeRef {
   };
 }
 
+/** The day an entry was earned, as far as the entry says: schedule choices are dated, and the one in effect on that day applies. */
+function entryDay(input: JsonObject) {
+  const stamp = cleanText(input.worked_at || input.completed_at);
+  return /^\d{4}-\d{2}-\d{2}/.test(stamp) ? stamp.slice(0, 10) : nowIso().slice(0, 10);
+}
+
+/**
+ * Settles which schedule pays an entry and when it becomes payable. An entry that names its schedule keeps it;
+ * otherwise the payee's pay layers decide (`resolvePaySchedule`). Commissions and reimbursements may be posted with
+ * no schedule; anything else without one is refused.
+ */
 async function normalizedLedgerInput(orgId: string, inputValue: PayrollLedgerEntryInput & JsonObject) {
   const input = { ...inputValue };
-  const policy = cleanText(input.schedule_id) ? null : (await resolvePayrollPolicy(orgId, input.payee, input.kind));
-  const scheduleId = cleanText(input.schedule_id || policy?.schedule_id);
+  const chosen = cleanText(input.schedule_id) ? null : (await resolvePaySchedule(orgId, { type: input.payee.type, id: input.payee.id }, input.kind, entryDay(input)));
+  const scheduleId = cleanText(input.schedule_id || chosen?.schedule_id);
   const unscheduledKind = !scheduleId && ["commission", "reimbursement"].includes(cleanText(input.kind));
   if (!scheduleId && !unscheduledKind) {
-    throw badRequest("payroll_schedule_unresolved", `No payroll schedule is configured for ${input.payee.name || input.payee.id} (${input.kind}).`);
+    throw badRequest("payroll_schedule_unresolved", `No pay schedule is chosen for ${input.payee.name || input.payee.id} (${input.kind}). Choose the organization's default schedule in Payroll settings, or one for this payee.`);
   }
   const schedule = scheduleId ? (await readPayrollSchedule(orgId, scheduleId)) : null;
   if (schedule?.status === "archived") throw badRequest("payroll_schedule_archived", "New payroll entries cannot use an archived schedule.");
-  const timingBasis = cleanText(policy?.timing_basis || schedule?.timing_basis || (unscheduledKind ? "completed" : "worked"));
+  const timingBasis = cleanText(chosen?.timing_basis || schedule?.timing_basis || (unscheduledKind ? "completed" : "worked"));
   return {
     ...input,
     schedule_id: scheduleId,
@@ -101,11 +112,11 @@ async function normalizedLedgerInput(orgId: string, inputValue: PayrollLedgerEnt
     currency: cleanText(input.currency || schedule?.currency || "USD").toUpperCase(),
     metadata: {
       recognition_basis: timingBasis,
-      payroll_policy: policy ? {
-        subject_type: policy.subject_type,
-        subject_id: policy.subject_id,
-        earning_kind: policy.earning_kind,
-        revision: policy.revision
+      // Where the schedule came from: the layer of the payee's pay that chose it, or why none was needed.
+      pay_schedule: chosen ? {
+        source: chosen.source ? `${chosen.source.type}:${chosen.source.id}` : "own",
+        earning_kind: chosen.earning_kind,
+        effective_from: chosen.effective_from
       } : { source: unscheduledKind ? `unscheduled_${cleanText(input.kind)}` : "explicit_schedule" },
       ...(schedule ? { schedule_snapshot: {
         id: schedule.id,
@@ -121,7 +132,9 @@ async function normalizedLedgerInput(orgId: string, inputValue: PayrollLedgerEnt
 }
 
 export async function recordPayrollLedgerEntries(orgId: string, inputs: Array<PayrollLedgerEntryInput & JsonObject>) {
-  return (await withPayrollTransaction(async () => (await Promise.all(inputs.map(async (input) => (await upsertPayrollLedgerEntry(orgId, (await normalizedLedgerInput(orgId, input)))))))));
+  // Which schedule pays each entry is read before the transaction opens: it reads the payees' own records, which live in other stores.
+  const normalized = await Promise.all(inputs.map((input) => normalizedLedgerInput(orgId, input)));
+  return (await withPayrollTransaction(async () => (await Promise.all(normalized.map(async (input) => (await upsertPayrollLedgerEntry(orgId, input)))))));
 }
 
 function storedEntryInput(entry: JsonObject) {
@@ -208,9 +221,10 @@ export async function reversePayrollLedgerEntry(orgId: string, entryId: string, 
 
 type PreviewEntry = JsonObject & { remaining_cents: number };
 
+/** How much of one check a clawback may take: the payee's schedule choice may override the schedule's own cap. */
 async function clawbackCap(orgId: string, schedule: JsonObject, payee: PayrollPayeeRef, earningKind = "*") {
-  const policy = (await resolvePayrollPolicy(orgId, payee, earningKind));
-  const value = policy?.clawback_cap_percent ?? schedule.clawback_cap_percent ?? 100;
+  const chosen = (await resolvePaySchedule(orgId, { type: payee.type, id: payee.id }, earningKind));
+  const value = chosen?.clawback_cap_percent ?? schedule.clawback_cap_percent ?? 100;
   return Math.max(0, Math.min(100, Number(value)));
 }
 

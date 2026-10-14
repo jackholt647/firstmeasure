@@ -68,24 +68,6 @@ export const payrollSchedulePatchSchema = payrollScheduleInputSchema.partial().e
   expected_revision: z.number().int().positive()
 });
 
-export const payrollPolicySubjectSchema = z.enum([
-  "organization",
-  "worker_type",
-  "access_role",
-  "resource_group",
-  "organization_user",
-  "organization_connection"
-]);
-
-export const payrollPolicyInputSchema = jsonObjectSchema.extend({
-  schedule_id: payrollIdSchema,
-  earning_kind: z.enum(["*", "hourly", "salary", "piece_rate", "commission", "reimbursement", "adjustment", "clawback"]).optional(),
-  timing_basis: z.enum(["worked", "completed"]).optional(),
-  clawback_cap_percent: z.number().min(0).max(100).optional(),
-  metadata: jsonObjectSchema.optional(),
-  expected_revision: z.number().int().positive().optional()
-});
-
 /** Anyone work can be assigned to can be paid: a person, a group of users paid as one, or an outside company. */
 export const PAYROLL_PAYEE_TYPES = ["organization_user", "resource_group", "organization_connection"] as const;
 export const payrollPayeeType = (value: unknown) => (PAYROLL_PAYEE_TYPES as readonly string[]).includes(String(value)) ? String(value) as typeof PAYROLL_PAYEE_TYPES[number] : "organization_user";
@@ -94,8 +76,6 @@ export const payrollPayeeRefSchema = jsonObjectSchema.extend({
   id: payrollIdSchema,
   name: z.string().trim().max(300).optional(),
   worker_type: z.enum(["employee", "independent_contractor", "subcontractor"]).optional(),
-  access_role_ids: z.array(payrollIdSchema).optional(),
-  resource_group_ids: z.array(payrollIdSchema).optional(),
   metadata: jsonObjectSchema.optional()
 });
 
@@ -182,6 +162,5 @@ export const payrollExportCreateSchema = jsonObjectSchema.extend({
 });
 
 export type PayrollScheduleInput = z.infer<typeof payrollScheduleInputSchema>;
-export type PayrollPolicySubject = z.infer<typeof payrollPolicySubjectSchema>;
 export type PayrollPayeeRef = z.infer<typeof payrollPayeeRefSchema>;
 export type PayrollLedgerEntryInput = z.infer<typeof payrollLedgerEntryInputSchema>;

@@ -7,7 +7,7 @@ import test from "node:test";
 const ORG = "org_pay_defaults";
 const AS_OF = "2026-06-30T12:00:00.000Z";
 
-test("defaults give each kind of payee a starting pay, and a group is paid as one or split among its members", async () => {
+test("defaults give each kind of payee a starting pay and a schedule, roles and group types are layers, and a group is paid as one or split among its members", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "pay-defaults-"));
   Object.assign(process.env, { NODE_ENV: "test", FIRSTMATE_ENV: "test", PLATFORM_STORAGE_ROOT: root, FIRSTMEASURE_DATABASE_MODE: "local", FIRSTMEASURE_INDEX_DB_PATH: path.join(root, "index.sqlite") });
   const core = await import("../platform/storage.js");
@@ -26,7 +26,7 @@ test("defaults give each kind of payee a starting pay, and a group is paid as on
     const addMember = async (groupId: string, userId: string) => workforce.putResourceGroupMember(ORG, groupId, userId, { role: "member", expected_revision: Number((await workforce.readResourceGroup(ORG, groupId)).revision) });
     for (const id of ["ana", "ben"]) await addMember(crew, id);
     const schedule = await store.createPayrollSchedule(ORG, { name: "Weekly", recurrence: { frequency: "weekly", weekday: 5 }, timezone: "UTC" });
-    await store.savePayrollPolicy(ORG, "organization", ORG, { schedule_id: schedule.id });
+    await (await import("../payroll/pay-rules.js")).savePayDefault(ORG, { subject: { type: "organization", id: ORG }, entries: [], schedules: [{ effective_from: "2026-01-01", schedule_id: schedule.id }] }, { userId: "owner" });
 
     const jobs: Record<string, any>[] = [
       { id: "j1", revision: 1, assignee_key: `resource_group:${crew}`, done_at: "2026-06-03T15:00:00.000Z", pay_cents: 100_001 },
@@ -62,7 +62,7 @@ test("defaults give each kind of payee a starting pay, and a group is paid as on
     await rules.savePaySetup(ORG, { payee: user("cara"), entries: [{ kind: "override", rule_id: "stipend", params: { cents: 25_000 }, effective_from: "2026-05-01" }] }, actor);
     await rules.savePaySetup(ORG, { payee: user("ben"), entries: [{ kind: "remove", rule_id: "stipend", effective_from: "2026-06-01" }] }, actor);
     assert.deepEqual((await rules.payLayersFor(ORG, user("dan"))).map((layer) => layer.source ? `${layer.source.type}:${layer.source.id}` : "own"),
-      ["assignee_kind:organization_user", "worker_classification:independent_contractor", "own"]);
+      [`organization:${ORG}`, "assignee_kind:organization_user", "worker_classification:independent_contractor", "own"], "the organization default carries the schedule everyone is paid on");
     assert.deepEqual((await engine.payeesWithPay(ORG)).map((payee) => payee.id).sort(), ["ana", "ben", "cara", "dan", "owner"], "a default covers people who have no setup of their own; the group and nobody else has no pay yet");
 
     const everyone = await engine.refreshOrganizationEarnings(ORG, { context, asOf: AS_OF });
@@ -112,7 +112,7 @@ test("defaults give each kind of payee a starting pay, and a group is paid as on
     assert.deepEqual([...engine.splitCentsByWeight(-100, [{ id: "a", weight: 1 }, { id: "b", weight: 1 }, { id: "c", weight: 1 }])].sort(), [["a", -34], ["b", -33], ["c", -33]]);
 
     // A kind of group can default to being split, so each new group of that kind does not have to be set up.
-    await rules.savePayDefault(ORG, { subject: { type: "group_kind", id: "crew" }, entries: [{ kind: "add", rule_id: "job_pay", effective_from: "2026-01-01" }], distribution: [{ effective_from: "2026-01-01", mode: "split", method: "equal" }] }, actor);
+    await rules.savePayDefault(ORG, { subject: { type: "group_type", id: "crew" }, entries: [{ kind: "add", rule_id: "job_pay", effective_from: "2026-01-01" }], distribution: [{ effective_from: "2026-01-01", mode: "split", method: "equal" }] }, actor);
     const second = (await workforce.createResourceGroup(ORG, { name: "Second team", kind_id: "crew" })).id as string;
     jobs.push({ id: "j5", revision: 1, assignee_key: `resource_group:${second}`, done_at: "2026-06-20T15:00:00.000Z", pay_cents: 20_000 });
     const empty = await engine.refreshPayeeEarnings(ORG, { type: "resource_group", id: second }, { context, asOf: AS_OF });
@@ -120,6 +120,105 @@ test("defaults give each kind of payee a starting pay, and a group is paid as on
     await addMember(second, "dan");
     const filled = await engine.refreshPayeeEarnings(ORG, { type: "resource_group", id: second }, { context, asOf: AS_OF });
     assert.deepEqual(filled.posted.map((entry) => [(entry.payee as any).id, entry.amount_cents]), [["dan", 20_000]]);
+
+    // ---- A user's roles are their types: every role's default applies, and a role taken away stops only what is earned afterwards ----
+    await assert.rejects(() => rules.savePayDefault(ORG, { subject: { type: "role", id: "no_such_role" }, entries: [] }, actor), /role does not exist/);
+    await assert.rejects(() => rules.savePayDefault(ORG, { subject: { type: "group_type", id: "no_such_kind" }, entries: [] }, actor), /type of group does not exist/);
+    await assert.rejects(() => rules.savePayDefault(ORG, { subject: { type: "company_type", id: "no_such_type" }, entries: [] }, actor), /type of outside company does not exist/);
+    await assert.rejects(() => rules.savePayDefault(ORG, { subject: { type: "role", id: "salesperson" }, entries: [], distribution: [{ effective_from: "2026-01-01", mode: "split", method: "equal" }] }, actor), /Only a group/);
+    await assert.rejects(() => rules.savePayDefault(ORG, { subject: { type: "assignee_type", id: "crew" }, entries: [] }, actor), "the single assignee type is gone: roles, group types and company types took its place");
+    // A parameter may say what it holds; a default that does not fit is refused.
+    await assert.rejects(() => rules.savePayRule(ORG, { id: "bad_param", name: "Bad", effective_from: "2026-01-01", definition: { grain: "period", period: "month", always: true, inputs: {}, parameters: { cents: { type: "cents", default: 10.5 } }, code: "return 1;" } }, actor), /whole number of cents/);
+    for (const [id, cents] of [["sales_bonus", 7_000], ["lead_bonus", 3_000]] as [string, number][]) await rules.savePayRule(ORG, { id, name: id, effective_from: "2026-01-01", definition: {
+      grain: "period", period: "month", always: true, kind: "salary", inputs: {}, parameters: { cents: { label: "Monthly amount", type: "cents", default: cents } }, code: "return params.cents;" } }, actor);
+    assert.equal((await rules.readPayRule(ORG, "sales_bonus")).versions[0]!.definition.parameters.cents!.type, "cents");
+    const salesBonus = [{ kind: "add" as const, rule_id: "sales_bonus", effective_from: "2026-05-01" }];
+    await rules.savePayDefault(ORG, { subject: { type: "role", id: "salesperson" }, entries: salesBonus }, actor);
+    await rules.savePayDefault(ORG, { subject: { type: "role", id: "supervisor" }, entries: [{ kind: "add", rule_id: "lead_bonus", effective_from: "2026-05-01" }] }, actor);
+    const eveWith = (roles: string[]) => core.upsertDocument(ORG, "users", { id: "eve", data: { name: "Eve", status: "active", worker_classification: "employee", access_role_ids: roles } });
+    await eveWith(["supervisor", "salesperson"]);
+    const eve = user("eve");
+    assert.deepEqual((await rules.payDefaultSubjectsFor(ORG, eve)).map((subject) => `${subject.type}:${subject.id}`),
+      [`organization:${ORG}`, "assignee_kind:organization_user", "worker_classification:employee", "role:salesperson", "role:supervisor"], "several roles apply together, in order of id");
+    const byRule = (result: { posted: Record<string, any>[] }) => result.posted.map((entry) => [entry.metadata.pay_rule.rule_id, entry.metadata.pay_rule.unit, entry.amount_cents]).sort();
+    assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: AS_OF })), [["lead_bonus", "2026-05-01", 3_000], ["sales_bonus", "2026-05-01", 7_000], ["stipend", "2026-05-01", 10_000]],
+      "both roles' defaults pay her, on top of what every user gets");
+
+    // Someone with no roles saved still resolves to one, and is paid by that role's default: the layers ask the assignee base, not the record.
+    await core.upsertDocument(ORG, "users", { id: "fay", data: { name: "Fay", status: "active", worker_classification: "employee" } });
+    const inferred = await (await import("../assignees/base.js")).assigneeTypeIds(ORG, user("fay"));
+    assert.equal(inferred.length, 1, "a user with no saved roles resolves to one inferred role");
+    assert.equal((await rules.payDefaultSubjectsFor(ORG, user("fay"))).at(-1)!.id, inferred[0]);
+    await rules.savePayRule(ORG, { id: "inferred_bonus", name: "Inferred role bonus", effective_from: "2026-01-01", definition: { grain: "period", period: "month", always: true, kind: "salary", inputs: {}, parameters: {}, code: "return 1234;" } }, actor);
+    await rules.savePayDefault(ORG, { subject: { type: "role", id: inferred[0]! }, entries: [{ kind: "add", rule_id: "inferred_bonus", effective_from: "2026-06-01" }] }, actor);
+    assert.ok(byRule(await engine.refreshPayeeEarnings(ORG, user("fay"), { context, asOf: "2026-07-01T12:00:00.000Z" })).some(([rule, unit, cents]) => rule === "inferred_bonus" && unit === "2026-06-01" && cents === 1234));
+
+    // The supervisor role is taken away. A role has no history, so payroll notices at the next refresh, on July 1: she is
+    // covered through June 30. May and June were earned while she held the role and stay hers; July is not paid by it.
+    await eveWith(["salesperson"]);
+    assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-07-01T12:00:00.000Z" })), [["lead_bonus", "2026-06-01", 3_000], ["sales_bonus", "2026-06-01", 7_000], ["stipend", "2026-06-01", 10_000]]);
+    assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-08-01T12:00:00.000Z" })), [["sales_bonus", "2026-07-01", 7_000], ["stipend", "2026-07-01", 10_000]],
+      "only new earnings from the role she lost stop; the role she kept still pays");
+    const leadBonus = (await ledger("eve")).filter((entry) => (entry.metadata as any).pay_rule.rule_id === "lead_bonus");
+    assert.deepEqual(leadBonus.map((entry) => [entry.state, entry.amount_cents]), [["accrued", 3_000], ["accrued", 3_000]], "nothing posted under the lost role is edited or taken back");
+    assert.deepEqual((await rules.payLayersFor(ORG, eve)).filter((layer) => layer.source?.type === "role").map((layer) => [layer.source!.id, layer.covered_from || "", layer.covered_through || ""]),
+      [["salesperson", "", ""], ["supervisor", "", "2026-06-30"]]);
+
+    // ---- A preview says what a change would do to everyone it reaches, and changes nothing ----
+    const posted = async () => (await store.listPayrollLedgerEntries(ORG, { limit: 5000 })).length;
+    const entriesBefore = await posted();
+    const august = { context, asOf: "2026-08-01T12:00:00.000Z" };
+    const raise = await engine.previewPayDefaultSave(ORG, { subject: { type: "role", id: "salesperson" }, entries: [{ kind: "add", rule_id: "sales_bonus", params: { cents: 9_000 }, effective_from: "2026-05-01" }] }, actor, august);
+    assert.deepEqual([raise.payee_count, raise.changed_payee_count, raise.change_cents, raise.difference_count], [1, 1, 6_000, 3], "three months at 2,000 more, for the one person with the role");
+    assert.equal(raise.payees[0]!.payee_name, "Eve");
+    // A new version of a rule from July: everyone the rule pays, except Cara, whose own setup fixes her amount, and Ben, who has it removed.
+    const version = await engine.previewPayRuleSave(ORG, { id: "stipend", name: "Monthly stipend", effective_from: "2026-07-01", definition: {
+      grain: "period", period: "month", always: true, kind: "salary", inputs: {}, parameters: { cents: { default: 12_000 } }, code: "return params.cents;" } }, actor, august);
+    assert.deepEqual(version.payees.map((entry) => [entry.payee.id, entry.change_cents]).sort(), [["ana", 2_000], ["dan", 2_000], ["eve", 2_000], ["fay", 2_000], ["owner", 2_000]]);
+    assert.equal(version.change_cents, 10_000);
+    assert.ok(version.payees.every((entry) => entry.differences.every((difference) => difference.unit === "2026-07-01")), "only July is touched: what is waiting to be posted for other reasons is not blamed on the change");
+    assert.equal(await posted(), entriesBefore, "a preview posts nothing");
+    assert.equal((await rules.readPayRule(ORG, "stipend")).versions.length, 1, "and saves nothing");
+    assert.deepEqual((await rules.readPayDefault(ORG, { type: "role", id: "salesperson" })).entries.map((entry) => (entry as any).params), [undefined]);
+
+    // Given back later, the role pays from the day payroll noticed, not for the months she did not have it.
+    await eveWith(["supervisor", "salesperson"]);
+    assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-09-01T12:00:00.000Z" })), [["sales_bonus", "2026-08-01", 7_000], ["stipend", "2026-08-01", 10_000]]);
+    assert.deepEqual(byRule(await engine.refreshPayeeEarnings(ORG, eve, { context, asOf: "2026-10-01T12:00:00.000Z" })), [["lead_bonus", "2026-09-01", 3_000], ["sales_bonus", "2026-09-01", 7_000], ["stipend", "2026-09-01", 10_000]]);
+
+    // ---- When someone is paid comes through the same layers as what they are paid ----
+    const monthly = await store.createPayrollSchedule(ORG, { name: "Monthly", recurrence: { frequency: "monthly", day: 1 }, timezone: "UTC", clawback_cap_percent: 80 });
+    await rules.savePayDefault(ORG, { subject: { type: "role", id: "salesperson" }, entries: salesBonus, schedules: [{ effective_from: "2026-01-01", earning_kind: "commission", schedule_id: monthly.id, timing_basis: "completed" }] }, actor);
+    const paidOn = async (kind: string, date: string) => { const found = await rules.resolvePaySchedule(ORG, eve, kind, date); return found && [found.schedule.name, found.source ? `${found.source.type}:${found.source.id}` : "own", found.timing_basis, found.clawback_cap_percent]; };
+    assert.deepEqual(await paidOn("commission", "2026-06-15"), ["Monthly", "role:salesperson", "completed", null], "her role pays commissions monthly");
+    assert.deepEqual(await paidOn("hourly", "2026-06-15"), ["Weekly", `organization:${ORG}`, "", null], "the role says nothing about hours, so the organization's default answers");
+    // Her own choice from July is a catch-all: it is the highest layer that says, so it wins over the role's choice for commissions too.
+    await rules.savePaySetup(ORG, { payee: eve, entries: [], schedules: [{ effective_from: "2026-07-01", schedule_id: monthly.id, clawback_cap_percent: 25 }] }, actor);
+    assert.deepEqual(await paidOn("commission", "2026-06-15"), ["Monthly", "role:salesperson", "completed", null], "a dated choice does not reach back before it starts");
+    assert.deepEqual(await paidOn("commission", "2026-07-15"), ["Monthly", "own", "", 25]);
+    assert.deepEqual(await paidOn("hourly", "2026-07-15"), ["Monthly", "own", "", 25]);
+    await assert.rejects(() => rules.savePaySetup(ORG, { payee: eve, entries: [], schedules: [{ effective_from: "2026-07-01", schedule_id: monthly.id }, { effective_from: "2026-07-01", schedule_id: schedule.id }] }, actor), /start on the same day/);
+    // Saving rules without mentioning schedules keeps them; an empty list goes back to what the defaults say.
+    await rules.savePaySetup(ORG, { payee: eve, entries: [] }, actor);
+    assert.equal((await rules.readPaySetup(ORG, eve)).schedules!.length, 1);
+    await rules.savePaySetup(ORG, { payee: eve, entries: [], schedules: [] }, actor);
+    assert.equal((await rules.readPaySetup(ORG, eve)).schedules, undefined);
+    assert.deepEqual(await paidOn("hourly", "2026-07-15"), ["Weekly", `organization:${ORG}`, "", null]);
+
+    // ---- Removing someone keeps everything they were paid and are owed, and stops working out anything new ----
+    const { cleanupAssignee } = await import("../assignees/base.js");
+    await import("../payroll/assignee-cleanup.js");
+    const benBefore = { entries: (await ledger("ben")).length, total: await total("ben"), setup: (await rules.readPaySetup(ORG, user("ben"))).entries.length, units: (await engine.listPayUnits(ORG, user("ben"))).length };
+    await assert.rejects(() => cleanupAssignee(ORG, user("ben"), { orgId: ORG, userId: "owner", system: true }), /has not been removed/);
+    await core.upsertDocument(ORG, "users", { id: "ben", data: { name: "Ben", status: "archived", worker_classification: "employee" } });
+    const cleaned = (await cleanupAssignee(ORG, user("ben"), { orgId: ORG, userId: "owner", system: true })).steps.find((step) => step.name === "payroll-pay")!;
+    assert.deepEqual([cleaned.removed, cleaned.kept, cleaned.error], [0, benBefore.entries + benBefore.units + 1, ""]);
+    assert.match(cleaned.detail, /Kept \d+ ledger entr(y|ies), \d+ worked-out results?, their pay setup, now closed\..*No new earnings are worked out for them\./);
+    const benSetup = await rules.readPaySetup(ORG, user("ben"));
+    assert.deepEqual([benSetup.entries.length, !!benSetup.closed, (await ledger("ben")).length, await total("ben"), (await engine.listPayUnits(ORG, user("ben"))).length], [benBefore.setup, true, benBefore.entries, benBefore.total, benBefore.units]);
+    assert.equal((await engine.payeesWithPay(ORG)).some((payee) => payee.id === "ben"), false);
+    const gone = await engine.refreshPayeeEarnings(ORG, user("ben"), { context, asOf: "2026-10-01T12:00:00.000Z" });
+    assert.deepEqual([gone.posted.length, gone.differences.length], [0, 0], "nothing is taken back either");
   } finally {
     await store.closePayrollDatabase().catch(() => undefined);
     await rm(root, { recursive: true, force: true }).catch(() => undefined);

@@ -765,10 +765,9 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
     assert.equal(corrected.timesheet.worked_seconds, 27_000);
     const schedules = await owner.request("GET", `${payrollBase}/schedules`);
     const weekly = schedules.schedules.find((schedule: Json) => schedule.name === "Crew Weekly");
-    await owner.request("PUT", `${payrollBase}/policies/organization_user/${member.userId}`, {
-      schedule_id: weekly.id,
-      earning_kind: "hourly"
-    });
+    // Which schedule pays someone is part of their pay setup; it is saved through the published pay actions, not a payroll route.
+    await (await import("../payroll/pay-rules.js")).savePaySetup(payrollBase.split("/").pop()!, { payee: { type: "organization_user", id: member.userId }, entries: [],
+      schedules: [{ effective_from: "2026-01-01", earning_kind: "hourly", schedule_id: weekly.id }] }, { userId: "test" });
     const approved = await owner.request("POST", `${payrollBase}/timesheets/${clockedOut.shift.id}/approve`, {
       expected_revision: corrected.timesheet.revision
     });

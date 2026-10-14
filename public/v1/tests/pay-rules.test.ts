@@ -22,7 +22,7 @@ test("pay rules derive earnings from declared data, post only differences, and r
     for (const [id, name] of [["ana", "Ana"], ["ben", "Ben"], ["cara", "Cara"], ["owner", "Owner"]]) await core.upsertDocument(ORG, "users", { id, data: { name, status: "active", worker_classification: "employee" } });
     const crew = (await (await import("../workforce/storage.js")).createResourceGroup(ORG, { name: "Install team", kind_id: "crew" })).id as string;
     const schedule = await store.createPayrollSchedule(ORG, { name: "Weekly", recurrence: { frequency: "weekly", weekday: 5 }, timezone: "UTC" });
-    await store.savePayrollPolicy(ORG, "organization", ORG, { schedule_id: schedule.id });
+    await (await import("../payroll/pay-rules.js")).savePayDefault(ORG, { subject: { type: "organization", id: ORG }, entries: [], schedules: [{ effective_from: "2026-01-01", schedule_id: schedule.id }] }, { userId: "owner" });
 
     // The data rules read is a published collection, selected by declared conditions. Nothing else is visible to a rule.
     const person = (id: string) => [`organization_user:${id}`];

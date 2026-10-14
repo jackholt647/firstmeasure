@@ -1,5 +1,51 @@
 /* public/libraries/custom-fields/firstmate-custom-fields.js
  * Branch-scoped custom-field definitions and project/contact value helpers.
+ *
+ * THE SHARED SURFACES (use these for anything new that has custom fields)
+ * -----------------------------------------------------------------------
+ * Three mounts cover every field type in public/v1/custom_fields/contracts.ts. They are framework free, take their
+ * data as arguments, call back with results and never fetch: the page reads and writes through publication and hands
+ * the results in. They lay themselves out from the width of their container (one column when narrow, two when wide)
+ * and show titles only: every description or hint is a tooltip (`data-fm-tooltip`).
+ *
+ * references (shared by all three): the things reference fields point at, supplied by the page.
+ *   { users:[{id,name}], groups:[{id,name}], companies:[{id,name}],
+ *     departments:[{id,name|label,color,icon?,status?}],
+ *     contacts:[{label,reference:{contact_id,project_id},kind?:'human'|'org'}],
+ *     media:[{label,reference:{media_id},content_type?}] }
+ *
+ * (a) FirstMateCustomFields.mountDefinitionsEditor(container, options) -> handle
+ *     The definitions of ONE home (one role, group type, company type or department): add, reorder, edit, retire a
+ *     field; choose its type and choices; required, default, private, read only.
+ *     options: { fields,                 the home's definitions, e.g. custom-fields-homes.definitions value.fields
+ *                entity, home,           stamped on every definition returned ({kind,id})
+ *                types?,                 allowed type values (default: every manually editable type)
+ *                references?, readOnly?, title?,
+ *                onChange?(fields),      after every edit
+ *                onSave?(fields) }       async; when given, a Save button is shown and awaits it
+ *     handle:  { getFields(), setFields(fields), validate() -> {valid,errors}, setErrors({path:message}),
+ *                isDirty(), destroy() }
+ *
+ * (b) FirstMateCustomFields.mountValuesForm(container, options) -> handle
+ *     The values of ONE record, grouped by where each field comes from (by role, say).
+ *     options: { resolved,               a custom-fields-<entity>.resolved value: {homes,unassigned,fields,values}
+ *                -- or -- groups:[{id,label,tooltip?,fields:[definition]}], values,
+ *                references?, readOnly?, unassignedLabel?, emptyText?,
+ *                onChange?({values,changes}),
+ *                onSave?(changes, values) }   async; when given, a Save button is shown. changes maps full dotted
+ *                                             paths to new values: the input of custom-fields.<entity>.write
+ *     handle:  { getValues(), getChanges(), validate() -> {valid,errors,values}, setErrors({path:message}),
+ *                setValues(values), destroy() }
+ *
+ * (c) FirstMateCustomFields.renderValue(definition, value, options?) -> HTML string
+ *     Compact read-only rendering for lists, summaries and hover cards: chips for references and choices (a
+ *     department chip uses the department's color and icon), links for email, phone and web addresses, a dash when
+ *     empty. options: { references?, max? (chips shown before "+N", default 3) }.
+ *     renderValueText(definition, value, options?) -> the same as plain text.
+ *     mountValue(container, definition, value, options?) -> { update(value) }.
+ *
+ * The older entry points below (renderEditor, mountSettings, mountUserValues ...) load and save for themselves and
+ * stay for the screens that use them.
  */
 (function(){
   const root = window;
@@ -12,6 +58,7 @@
   const caches = new Map();
   const loading = new Map();
   const assignableCaches = new Map();
+  const departmentCaches = new Map();
 
   const cleanText = (value) => String(value ?? '').trim();
   const projectAssignmentsEnabled = () => {
@@ -44,6 +91,7 @@
     { value:'percentage', label:(globalThis.PlatformLanguage?.text("custom-fields","m_d47e6db8f73d11","Percentage") ?? "Percentage"), dataType:'number', icon:'fa-percent', hint:'A number displayed as a percent' },
     { value:'slider', label:(globalThis.PlatformLanguage?.text("custom-fields","m_4e136d1d9a48e4","Slider") ?? "Slider"), dataType:'number', icon:'fa-sliders', hint:'Choose a number from a clear range' },
     { value:'date', label:(globalThis.PlatformLanguage?.text("custom-fields","m_2a0b11100c22a4","Date") ?? "Date"), dataType:'date', icon:'fa-calendar-day', hint:'A calendar date' },
+    { value:'timezone', label:'Time zone', dataType:'timezone', icon:'fa-globe', hint:'An IANA zone such as America/Chicago' },
     { value:'datetime', label:(globalThis.PlatformLanguage?.text("custom-fields","m_080462873352f2","Date and time") ?? "Date and time"), dataType:'datetime', icon:'fa-clock', hint:'A calendar date with time' },
     { value:'boolean', label:(globalThis.PlatformLanguage?.text("custom-fields","m_07e0b1a0e797b1","Checkbox") ?? "Checkbox"), dataType:'boolean', icon:'fa-square-check', hint:'A simple yes or no checkbox' },
     { value:'toggle', label:(globalThis.PlatformLanguage?.text("custom-fields","m_867842cf82c293","On / off toggle") ?? "On / off toggle"), dataType:'boolean', icon:'fa-toggle-on', hint:'A prominent enabled or disabled switch' },
@@ -55,9 +103,10 @@
     { value:'key_value', label:(globalThis.PlatformLanguage?.text("custom-fields","m_4b6b1f71964f1c","Key-value list") ?? "Key-value list"), dataType:'object', icon:'fa-table-list', hint:'Store named values such as model and serial number' },
     { value:'json', label:(globalThis.PlatformLanguage?.text("custom-fields","m_09a4af5714d1dd","Advanced JSON") ?? "Advanced JSON"), dataType:'json', icon:'fa-code', hint:'Store any valid JSON value' },
     { value:'organization_user', label:(globalThis.PlatformLanguage?.text("custom-fields","m_9a881bf9de0cda","Organization user") ?? "Organization user"), dataType:'reference', icon:'fa-user', hint:'Choose an eligible person in your organization' },
-    { value:'resource_group', label:(globalThis.PlatformLanguage?.text("custom-fields","m_04d80605ab674b","User or crew group") ?? "User or crew group"), dataType:'reference', icon:'fa-people-group', hint:'Choose an eligible crew or other resource group' },
+    { value:'resource_group', label:(globalThis.PlatformLanguage?.text("custom-fields","m_197e1c249e46fb","User group") ?? "User group"), dataType:'reference', icon:'fa-people-group', hint:'Choose an eligible group' },
     { value:'organization_connection', label:(globalThis.PlatformLanguage?.text("custom-fields","m_a01a5d5c41786f","External connection") ?? "External connection"), dataType:'reference', icon:'fa-building-user', hint:'Choose an eligible connected organization' },
-    { value:'assignable_subject', label:(globalThis.PlatformLanguage?.text("custom-fields","m_3487c754d297d0","Person or group") ?? "Person or group"), dataType:'reference', icon:'fa-user-group', hint:'Choose an eligible person, crew, or connected organization' },
+    { value:'assignable_subject', label:(globalThis.PlatformLanguage?.text("custom-fields","m_3487c754d297d0","Person or group") ?? "Person or group"), dataType:'reference', icon:'fa-user-group', hint:'Choose an eligible person, group or outside company' },
+    { value:'department', label:'Department', dataType:'reference', icon:'fa-sitemap', hint:'Choose one of your departments' },
     { value:'formula', label:(globalThis.PlatformLanguage?.text("custom-fields","m_e3bf3ce1400b44","Calculated number") ?? "Calculated number"), dataType:'number', icon:'fa-calculator', hint:'Calculate a value from other numeric fields' }
   ];
   const CONTACT_TYPES=['contact','human_contact','org_contact'];
@@ -74,10 +123,7 @@
   const CONTACT_DEFAULT_FIELDS=[
     {entity:'contact',key:'relationships.employer',type:'org_contact',label:'Employer',order:0,builtin:true},
     {entity:'contact',key:'relationships.spouse',type:'human_contact',label:'Spouse',order:1,builtin:true},
-    {entity:'contact',key:'profile_photo',type:'photo',label:'Profile photo',order:2,builtin:true},
-    {entity:'contact',key:'secondary_phone',type:'phone',label:'Secondary Phone',order:3,builtin:true},
-    {entity:'contact',key:'primary_phone_label',type:'select',label:'Primary Phone Label',options:['home','cell','work','other'],order:4,builtin:true},
-    {entity:'contact',key:'secondary_phone_label',type:'select',label:'Secondary Phone Label',options:['home','cell','work','other'],order:5,builtin:true}
+    {entity:'contact',key:'profile_photo',type:'photo',label:'Profile photo',order:2,builtin:true}
   ];
   const TYPE_BY_VALUE = new Map(TYPE_CATALOG.map((item) => [item.value, item]));
   const optionValue = (item) => cleanText(typeof item === 'object' ? item.value ?? item.label : item);
@@ -117,9 +163,9 @@
     if (dataType === 'object') return objectValue(value);
     if (dataType === 'json') return clone(value);
     if (dataType === 'reference') {
-      if (Array.isArray(value)) return value.map(objectValue).filter((item) => cleanText(item.contact_id || item.media_id || item.subject_id || item.id));
+      if (Array.isArray(value)) return value.map(objectValue).filter((item) => cleanText(item.contact_id || item.media_id || item.department_id || item.subject_id || item.id));
       const reference = objectValue(value);
-      return cleanText(reference.contact_id || reference.media_id || reference.subject_id || reference.id) ? reference : null;
+      return cleanText(reference.contact_id || reference.media_id || reference.department_id || reference.subject_id || reference.id) ? reference : null;
     }
     return cleanText(value);
   };
@@ -160,6 +206,7 @@
     if (format === 'phone') return /^[+\d\s().-]+$/.test(value) && value.replace(/\D/g,'').length >= 7 && value.replace(/\D/g,'').length <= 15;
     if (format === 'url') { try { return ['http:','https:'].includes(new URL(value).protocol); } catch { return false; } }
     if (format === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
+    if (format === 'timezone') { if (!value || value.length > 100 || /^[+-]/.test(value)) return false; try { new Intl.DateTimeFormat('en', {timeZone:value}); return true; } catch { return false; } }
     if (format === 'datetime') return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})?$/.test(value) && validFormat('date',value.slice(0,10)) && Number.isFinite(Date.parse(value));
     return false;
   }
@@ -274,7 +321,7 @@
 
   function normalizeDefinition(input = {}, index = 0){
     const source = objectValue(input);
-    const entity = ['contact', 'organization', 'user', 'branch', 'department', 'division', 'team'].includes(source.entity) ? source.entity : 'project';
+    const entity = ['contact', 'organization', 'user', 'branch', 'department', 'division', 'team', 'company'].includes(source.entity) ? source.entity : 'project';
     const requestedType = cleanText(source.type || source.presentation || source.widget);
     const type = TYPE_BY_VALUE.has(requestedType) ? requestedType : 'text';
     const typeInfo = TYPE_BY_VALUE.get(type);
@@ -294,6 +341,11 @@
       type,
       data_type: typeInfo.dataType,
       builtin:source.builtin===true,
+      // The role, group type, company type or department a people field is defined on. Saving must keep it.
+      ...(objectValue(source.home).kind ? { home:{ kind:cleanText(source.home.kind), id:cleanText(source.home.id) } } : {}),
+      ...(Array.isArray(source.homes) ? { homes:source.homes.map(objectValue) } : {}),
+      ...(type === 'department' && Array.isArray(source.department_choices) ? { department_choices:source.department_choices } : {}),
+      ...(Array.isArray(source.assignable_subjects) ? { assignable_subjects:source.assignable_subjects } : {}),
       reference_choices:Array.isArray(source.reference_choices)?source.reference_choices:[],
       reference_error:cleanText(source.reference_error),
       schema:clone(objectValue(source.schema)),
@@ -575,6 +627,8 @@
     if (value == null || value === '') return 'Not set';
     const def = normalizeDefinition(definition);
     if(CONTACT_TYPES.includes(def.type) || MEDIA_TYPES.includes(def.type))return (Array.isArray(value)?value:[value]).filter(Boolean).map(ref=>(def.reference_choices || []).find(item=>JSON.stringify(item.reference)===JSON.stringify(ref))?.label || ref.contact_id || ref.media_id).join(', ') || 'Not set';
+    if (def.type === 'department') return (Array.isArray(value) ? value : [value]).map(objectValue).map((reference) => { const id = cleanText(reference.department_id); const found = (def.department_choices || []).find((item) => cleanText(item.id) === id); return cleanText(found?.name || found?.label || id); }).filter(Boolean).join(', ') || 'Not set';
+    if (def.type === 'platform_phone') return (Array.isArray(value) ? value : [value]).map((reference) => cleanText(objectValue(reference).phone_number)).filter(Boolean).join(', ') || 'Not set';
     if (def.data_type === 'reference') {
       const references = (Array.isArray(value) ? value : [value]).map(objectValue);
       const knownSubjects = [...assignableCaches.values()].flat();
@@ -642,7 +696,7 @@
     const inputClass = cleanText(options.inputClass) || 'fm-cf-input';
     const def = normalizeDefinition(definition);
     if(def.calculation)return `<div class="fm-cf-formula" data-fm-cf-calculated="${escapeHtml(def.key)}">${escapeHtml(value===undefined?'Not set':formatValue(def,value))}</div>`;
-    const bounds = `${def.type === 'integer' && def.step == null ? ' step="1"' : ''}${def.min != null ? ` min="${def.min}"` : ''}${def.max != null ? ` max="${def.max}"` : ''}${def.step != null ? ` step="${def.step}"` : ''}`;
+    const bounds = `${def.step == null ? (def.type === 'integer' ? ' step="1"' : ' step="any"') : ''}${def.min != null ? ` min="${def.min}"` : ''}${def.max != null ? ` max="${def.max}"` : ''}${def.step != null ? ` step="${def.step}"` : ''}`;
     const textBounds = `${def.min_length != null ? ` minlength="${def.min_length}"` : ''}${def.max_length != null ? ` maxlength="${def.max_length}"` : ''}${def.pattern ? ` pattern="${escapeHtml(def.pattern)}"` : ''}`;
     const placeholder = def.placeholder ? ` placeholder="${escapeHtml(def.placeholder)}"` : '';
     const attrs = `class="${escapeHtml(inputClass)}" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="${escapeHtml(def.type)}"${placeholder}${def.read_only ? ' disabled' : ''}`;
@@ -655,6 +709,7 @@
       if(CONTACT_TYPES.includes(def.type))return `<div data-contact-picker style="position:relative"><select ${attrs}${def.cardinality==='many'?' multiple':''} hidden style="display:none"><option value=""></option>${optionsHtml}${stale}</select><div data-contact-selected style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div><input class="${escapeHtml(inputClass)}" data-contact-search type="search" placeholder="Search contacts…" aria-label="Search ${escapeHtml(def.label)}" autocomplete="off"${def.read_only?' disabled':''}><div data-contact-results hidden style="max-height:200px;overflow:auto;border:1px solid #e4e7ec;border-radius:8px;background:#fff;margin-top:6px"></div></div>`;
       return `<span class="fm-cf-select-wrap"><select ${attrs}${def.cardinality==='many'?' multiple':''}><option value="">${def.key==='cover_photo' && def.entity==='project'?'Satellite image (default)':CONTACT_TYPES.includes(def.type)?'Choose a contact…':'Choose library media…'}</option>${optionsHtml}${stale}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>${def.reference_error?`<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>`:''}`;
     }
+    if (def.type === 'department') return departmentPickerHtml(def, value, inputClass);
     if (def.data_type === 'reference') {
       const selected = new Set((Array.isArray(value) ? value : [value]).map(objectValue)
         .map((reference) => `${cleanText(reference.subject_type)}:${cleanText(reference.subject_id || reference.id)}`));
@@ -671,6 +726,7 @@
     }
     if (def.type === 'boolean') return `<label class="fm-cf-check"><input type="checkbox" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="boolean"${value === true || value === 1 || value === '1' ? ' checked' : ''}${def.read_only ? ' disabled' : ''}> <span>${escapeHtml(def.placeholder || (globalThis.PlatformLanguage?.text("custom-fields","m_549ccd0e27a3d4","Yes") ?? "Yes"))}</span></label>`;
     if (def.type === 'toggle') return `<label class="fm-cf-toggle"><span>${escapeHtml(def.placeholder || (globalThis.PlatformLanguage?.text("custom-fields","m_f2c77321e731f4","Off / On") ?? "Off / On"))}</span><span class="fm-cf-switch"><input type="checkbox" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="toggle"${value === true || value === 1 || value === '1' ? ' checked' : ''}${def.read_only ? ' disabled' : ''}><span></span></span></label>`;
+    if (def.type === 'timezone') { const listId=`fm-timezones-${Math.random().toString(36).slice(2)}`; const zones = [...new Set(['UTC', ...(Intl.supportedValuesOf?.('timeZone') || []), ...(value ? [String(value)] : [])])]; return `<input ${attrs} list="${listId}" value="${escapeHtml(value || '')}" placeholder="America/Chicago"><datalist id="${listId}">${zones.map(zone=>`<option value="${escapeHtml(zone)}">`).join('')}</datalist>`; }
     if (def.type === 'select') return `<span class="fm-cf-select-wrap"><select ${String(attrs)}><option value="">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_fe069e3d7b9c51","Select…") ?? "Select…")}</option>${String(def.options.map((option) => `<option value="${escapeHtml(option.value)}"${cleanText(value) === option.value ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join(''))}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>`;
     if (def.type === 'radio') return `<div class="fm-cf-options">${def.options.map((option) => `<label class="fm-cf-choice"><input type="radio" name="fm_cf_${escapeHtml(def.id)}" value="${escapeHtml(option.value)}" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="radio"${cleanText(value) === option.value ? ' checked' : ''}${def.read_only ? ' disabled' : ''}><span>${escapeHtml(option.label)}</span></label>`).join('')}</div>`;
     if (def.type === 'multiselect') {
@@ -719,6 +775,9 @@
       } else if (CONTACT_TYPES.includes(type) || MEDIA_TYPES.includes(type)) {
         const picked=(input.multiple?[...input.selectedOptions].map(option=>option.value):[input.value]).filter(Boolean).map(value=>JSON.parse(value));
         nextValue=input.multiple?picked:(picked[0] || null);
+      } else if (type === 'department') {
+        const picked = [...input.querySelectorAll('[data-dept-id]')].map((chip) => ({ department_id:chip.dataset.deptId }));
+        nextValue = input.dataset.many === '1' ? picked : (picked[0] || null);
       } else if (['organization_user', 'resource_group', 'organization_connection', 'assignable_subject'].includes(type)) {
         const selectedOptions = input.multiple ? [...input.selectedOptions].map((option) => option.value).filter(Boolean) : [input.value].filter(Boolean);
         const references = selectedOptions.map((identity) => {
@@ -775,7 +834,7 @@
         }
       }
       if (!message && value != null && value !== '') message = schemaError(definition.schema,value,definition.label);
-      if (!message && typeof value === 'string' && value && ['date','datetime','email','phone','url'].includes(definition.type) && !validFormat(definition.type,value)) message = `${definition.label} must be a valid ${definition.type}.`;
+      if (!message && typeof value === 'string' && value && ['date','datetime','timezone','email','phone','url'].includes(definition.type) && !validFormat(definition.type,value)) message = `${definition.label} must be a valid ${definition.type}.`;
       if (!message) { const native = container.querySelector(`[data-fm-cf-input="${CSS.escape(definition.key)}"]`); if (native?.validity && !native.validity.valid) message = native.validationMessage; }
       if (!message) return;
       errors.push({ key:definition.key, message });
@@ -802,6 +861,13 @@
     const orgId = cleanText(options.orgId || currentOrgId());
     const branchId = cleanText(options.branchId || currentBranchId()) || 'default';
     await Promise.all(references.map(async (definition) => {
+      if (definition.type === 'department') {
+        // The caller may hand the departments in; otherwise the catalog is read once per organization.
+        if (Array.isArray(options.departments)) { definition.department_choices = options.departments; return; }
+        if (!departmentCaches.has(orgId)) departmentCaches.set(orgId, Promise.resolve(root.PlatformAPI?.workforce?.departments?.(orgId)).then((result) => result?.departments || result?.catalog?.departments || []).catch(() => []));
+        definition.department_choices = await departmentCaches.get(orgId);
+        return;
+      }
       if(CONTACT_TYPES.includes(definition.type) || MEDIA_TYPES.includes(definition.type)){
         try{
           if(CONTACT_TYPES.includes(definition.type)){
@@ -1031,7 +1097,7 @@
             <section class="cf-section" data-cf-options-row${optionTypes.has(selected.type) ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_c77ecb33d21e44"," Choices") ?? " Choices")}</div><div class="cf-choice-builder"><div class="cf-choice-head"><span></span><span>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_12f838600d730e","Choice shown to people") ?? "Choice shown to people")}</span><span>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_2c078b4e5e3896","Saved value ") ?? "Saved value ")}<em>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_82710819dd8da8","(optional)") ?? "(optional)")}</em></span><span></span></div><div data-cf-option-list>${selected.options.length ? selected.options.map((option) => `<div class="cf-choice-row" data-cf-option-row><span class="cf-choice-grip"><i class="fas fa-grip-vertical"></i></span><input class="cf-in" data-cf-option-label value="${escapeHtml(option.label)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_13ecdbd26d94c0","Choice name") ?? "Choice name")}"><input class="cf-in" data-cf-option-value value="${option.label === option.value ? '' : escapeHtml(option.value)}" placeholder="${escapeHtml(slug(option.label, 'saved_value'))}"><button type="button" class="cf-choice-remove" data-cf-option-remove aria-label="${((v3) => globalThis.PlatformLanguage?.htmlText("custom-fields","m_f2da0f4d54d9d9",`Remove ${v3}`,{v3}) ?? `Remove ${v3}`)(escapeHtml(option.label))}"><i class="fas fa-trash"></i></button></div>`).join('') : `<div class="cf-choice-empty" data-cf-choice-empty>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_cfbf5fb58f8468","Add the first choice below.") ?? "Add the first choice below.")}</div>`}</div><button type="button" class="cf-btn cf-choice-add" data-cf-option-add><i class="fas fa-plus"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_9843402d556eeb"," Add choice") ?? " Add choice")}</button><span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_9c08edb112c438","The saved value is filled automatically from the choice name unless you provide one.") ?? "The saved value is filled automatically from the choice name unless you provide one.")}</span></div></section>
             <section class="cf-section" data-cf-formula-row${selected.type === 'formula' ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-calculator"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_3116869bf8a647"," Calculation") ?? " Calculation")}</div><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_f10e6b2e02d839","Formula") ?? "Formula")}</label><input class="cf-in" name="formula" value="${escapeHtml(selected.formula)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_3adc861bca73f6","{{labor_hours}} * {{hourly_rate}}") ?? "{{labor_hours}} * {{hourly_rate}}")}"><span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_bb19a5edd19102","Use another numeric field’s key inside double braces. Basic arithmetic and parentheses are supported.") ?? "Use another numeric field’s key inside double braces. Basic arithmetic and parentheses are supported.")}</span></div></section>
             <section class="cf-section" data-cf-number-row${numericTypes.has(selected.type) ? '' : ' hidden'}><div class="cf-section-title"><i class="fas fa-ruler-combined"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_e401a18d1f0811"," Number limits ") ?? " Number limits ")}<span class="cf-help">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_82710819dd8da8","(optional)") ?? "(optional)")}</span></div><div class="cf-form-grid"><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a98b9d676a49f1","Minimum") ?? "Minimum")}</label><input class="cf-in" type="number" step="any" name="min" value="${selected.min ?? ''}"></div><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_47cfe16c393bbc","Maximum") ?? "Maximum")}</label><input class="cf-in" type="number" step="any" name="max" value="${selected.max ?? ''}"></div><div class="cf-row"><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_87cb6fb0a41c03","Step") ?? "Step")}</label><input class="cf-in" type="number" step="any" min="0" name="step" value="${selected.step ?? ''}" placeholder="${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_61708f5a2ce411","Any") ?? "Any")}"></div><div class="cf-row" data-cf-currency${selected.type === 'currency' ? '' : ' hidden'}><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_c267b6350b9781","Currency") ?? "Currency")}</label><select class="cf-in" name="currency">${['USD','CAD','EUR','GBP','AUD'].map((currency) => `<option value="${currency}"${selected.currency === currency ? ' selected' : ''}>${currency}</option>`).join('')}</select></div></div></section>
-            <section class="cf-section" data-cf-schema-row${['object','array','json'].includes(selected.type) ? '' : ' hidden'}><div class="cf-section-title">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_05fb7dcb3179a3","Subfields and item rules") ?? "Subfields and item rules")}</div><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_0e91ac64aa1bcc","JSON Schema") ?? "JSON Schema")}<textarea class="cf-in" name="schema" rows="8" spellcheck="false">${escapeHtml(JSON.stringify(selected.schema,null,2))}</textarea></label><span class="cf-help">Dictionary example: {"properties":{"count":{"type":"integer","minimum":0}},"required":["count"],"additionalProperties":false}. Array example: {"items":{"type":"object","properties":{"name":{"type":"string"}}}}. Formats: date, datetime, email, phone, url.</span></section>
+            <section class="cf-section" data-cf-schema-row${['object','array','json'].includes(selected.type) ? '' : ' hidden'}><div class="cf-section-title">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_05fb7dcb3179a3","Subfields and item rules") ?? "Subfields and item rules")}</div><label>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_0e91ac64aa1bcc","JSON Schema") ?? "JSON Schema")}<textarea class="cf-in" name="schema" rows="8" spellcheck="false">${escapeHtml(JSON.stringify(selected.schema,null,2))}</textarea></label><span class="cf-help">Dictionary example: {"properties":{"count":{"type":"integer","minimum":0}},"required":["count"],"additionalProperties":false}. Array example: {"items":{"type":"object","properties":{"name":{"type":"string"}}}}. Formats: date, datetime, timezone, email, phone, url.</span></section>
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_a48897118cb076"," Preview") ?? " Preview")}</div><div class="cf-preview"><div class="cf-preview-label">${(globalThis.PlatformLanguage?.htmlText("custom-fields","m_5b36a7157336fc","People will see") ?? "People will see")}</div><div class="fm-cf-field" data-cf-preview><label>${escapeHtml(selected.label)}${selected.required ? ' <em>*</em>' : ''}</label>${inputHtml(selected, selected.default_value)}</div></div></section>
             <section class="cf-section"><div class="cf-section-title"><i class="fas fa-location-dot"></i> <span data-cf-display-heading>${selected.entity === 'organization' ? 'Field behavior' : 'Where should it appear?'}</span></div><div class="cf-toggles">
               <label class="cf-toggle" data-cf-overview-toggle${selected.entity === 'organization' ? ' hidden' : ''}><input type="checkbox" name="show_in_overview"${selected.show_in_overview ? ' checked' : ''}> <span><strong data-cf-overview-label>${selected.entity === 'user' ? 'User details' : selected.entity === 'contact' ? 'Contact details' : 'Project details'}</strong><br><span data-cf-overview-help>${selected.entity === 'user' ? 'Show this field while viewing and editing a user.' : selected.entity === 'contact' ? 'Show this field while viewing and editing a contact.' : 'Show this field while viewing and editing a project.'}</span></span></label>
@@ -1200,6 +1266,586 @@
     render();
   }
 
+  // ---------------------------------------------------------------------------------------------------------------
+  // The shared surfaces: a department picker, compact read-only values, a values form for one record and a
+  // definitions editor for one home. Their contract is documented at the top of this file. None of them fetches.
+  // ---------------------------------------------------------------------------------------------------------------
+  const CHOICE_TYPES = new Set(['select', 'radio', 'multiselect']);
+  const NUMBER_TYPES = new Set(['number', 'integer', 'currency', 'percentage', 'slider']);
+  const SUBJECT_TYPES = ['organization_user', 'resource_group', 'organization_connection'];
+  const MANY_TYPES = new Set([...SUBJECT_TYPES, 'assignable_subject', 'department', ...CONTACT_TYPES, ...MEDIA_TYPES]);
+  const SCHEMA_TYPES = new Set(['object', 'array', 'json']);
+  const NO_DEFAULT_TYPES = new Set(['formula', 'platform_phone', ...CONTACT_TYPES, ...MEDIA_TYPES]);
+  const SUBJECT_LISTS = { organization_user:'users', resource_group:'groups', organization_connection:'companies' };
+  const SUBJECT_ICONS = { organization_user:'fa-user', resource_group:'fa-people-group', organization_connection:'fa-building' };
+  const safeColor = (value, fallback = '#64748b') => /^#[0-9a-fA-F]{3,8}$/.test(cleanText(value)) ? cleanText(value) : fallback;
+  const safeIcon = (value) => /^fa-[a-z0-9-]+$/.test(cleanText(value)) ? cleanText(value) : '';
+  // A hint is never visible text: it is a tooltip on a small icon, and the icon's accessible name.
+  const tipHtml = (text, icon = 'fa-circle-info') => cleanText(text) ? `<span class="fm-cf-help-tip" tabindex="0" role="img" aria-label="${escapeHtml(text)}" data-fm-tooltip="${escapeHtml(text)}"><i class="fas ${icon}" aria-hidden="true"></i></span>` : '';
+  const EMPTY_HTML = '<span class="fm-cfv-empty" role="img" aria-label="Not set">&mdash;</span>';
+
+  let surfaceCssInjected = false;
+  function injectSurfaceCss(){
+    if (surfaceCssInjected || document.getElementById('fm-custom-fields-surfaces-css')) { surfaceCssInjected = true; return; }
+    surfaceCssInjected = true;
+    const style = document.createElement('style');
+    style.id = 'fm-custom-fields-surfaces-css';
+    style.textContent = `
+      .fm-cfv{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:100%;min-width:0;font-size:12px;line-height:1.4;color:#101828;vertical-align:middle}
+      .fm-cfv-empty{color:#98a2b3}
+      .fm-cfv-text,.fm-cfv a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;min-width:0}
+      .fm-cfv a{color:inherit;text-decoration:underline;text-decoration-color:rgba(15,23,42,.28);text-underline-offset:2px}
+      .fm-cfv-chip{--fm-chip:#64748b;display:inline-flex;align-items:center;gap:5px;max-width:100%;min-width:0;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--fm-chip) 35%,#fff);background:color-mix(in srgb,var(--fm-chip) 12%,#fff);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;line-height:1.5;color:#1d2939}
+      .fm-cfv-chip-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+      .fm-cfv-dot{width:7px;height:7px;border-radius:50%;background:var(--fm-chip);flex:0 0 auto}
+      .fm-cfv-chip>i{color:var(--fm-chip);font-size:10px;flex:0 0 auto}
+      .fm-cfv-chip[data-missing]{border-style:dashed;color:#667085}
+      .fm-cfv-more{--fm-chip:#98a2b3;cursor:default}
+      .fm-cfv-chip-x{border:0;background:transparent;margin:0;padding:0 0 0 2px;cursor:pointer;color:#667085;font:inherit;line-height:1}
+      .fm-cfv-chip-x:hover,.fm-cfv-chip-x:focus-visible{color:#101828}
+      .fm-cfv-bool{display:inline-flex;align-items:center;gap:5px}.fm-cfv-bool i{font-size:10px;color:#667085}.fm-cfv-bool[data-on="true"] i{color:#067647}
+      .fm-cf-dept{display:grid;gap:6px;min-width:0}.fm-cf-dept-chips{display:flex;flex-wrap:wrap;gap:5px;min-width:0}.fm-cf-dept-chips:empty{display:none}
+      .fm-cf-options:empty::before{content:"No choices";font-size:12px;color:#98a2b3}
+      .fm-cfx,.fm-cfd{container-type:inline-size;display:grid;gap:14px;min-width:0}
+      .fm-cfx-group{display:grid;gap:8px;min-width:0;margin:0;padding:0;border:0}
+      .fm-cfx-group-title{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;font-weight:800;color:#344054}
+      .fm-cfx-grid,.fm-cfd-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;min-width:0}
+      @container (min-width:520px){.fm-cfx-grid,.fm-cfd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      .fm-cfx-ro{min-height:38px;box-sizing:border-box;display:flex;align-items:center;border:1px solid #eaecf0;border-radius:9px;background:#f9fafb;padding:6px 10px;min-width:0}
+      .fm-cfx-empty,.fm-cfd-empty{font-size:12px;color:#98a2b3;padding:6px 0}
+      .fm-cfx-foot,.fm-cfd-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+      .fm-cfx-range{display:flex;align-items:center;gap:8px;min-width:0}.fm-cfx-range input{flex:1 1 auto;min-width:0;padding:0}.fm-cfx-range output{font-size:12px;font-weight:700;min-width:3ch;text-align:right;color:#344054}
+      .fm-cfd-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}.fm-cfd-head strong{font-size:13px;font-weight:800;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fm-cfd-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+      .fm-cfd-row{border:1px solid #e4e7ec;border-radius:10px;background:#fff;min-width:0}
+      .fm-cfd-row[data-open]{border-color:#d0d5dd;box-shadow:0 1px 2px rgba(16,24,40,.06)}.fm-cfd-row[data-invalid]{border-color:#f04438}.fm-cfd-row[data-dragover]{outline:2px dashed rgba(var(--primary-rgb,217,48,37),.5);outline-offset:1px}
+      .fm-cfd-summary{display:flex;align-items:center;gap:6px;padding:5px 8px;min-width:0}
+      .fm-cfd-grip{cursor:grab;color:#98a2b3;padding:4px 2px;flex:0 0 auto}.fm-cfd-type{width:20px;text-align:center;color:#667085;font-size:12px;flex:0 0 auto}
+      .fm-cfd-title{flex:1 1 auto;min-width:0;border:0;background:transparent;text-align:left;font:inherit;font-size:13px;font-weight:700;color:#101828;padding:6px 2px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:6px}
+      .fm-cfd-title:focus-visible,.fm-cfd-icon:focus-visible,.fm-cfd-btn:focus-visible{outline:2px solid rgba(var(--primary-rgb,217,48,37),.45);outline-offset:1px}
+      .fm-cfd-badge{color:#b42318;font-weight:800;font-size:12px;flex:0 0 auto}.fm-cfd-badge i{color:#667085;font-size:10px}
+      .fm-cfd-actions,.fm-cfd-confirm{display:inline-flex;align-items:center;gap:2px;flex:0 0 auto}
+      .fm-cfd-icon{width:28px;height:28px;border:0;border-radius:7px;background:transparent;color:#667085;cursor:pointer;padding:0}.fm-cfd-icon:hover:not(:disabled){background:#f2f4f7;color:#101828}.fm-cfd-icon:disabled{opacity:.35;cursor:default}
+      .fm-cfd-btn{border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;min-height:30px;padding:0 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}.fm-cfd-btn.danger{border-color:#fda29b;color:#b42318}.fm-cfd-btn:disabled{opacity:.6}
+      .fm-cfd-detail{border-top:1px solid #eaecf0;padding:10px}
+      .fm-cfd-toggles{display:flex;flex-wrap:wrap;gap:6px 14px;grid-column:1/-1}.fm-cfd-toggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#344054}
+      .fm-cfd-choices{display:grid;gap:6px}.fm-cfd-choice{display:grid;grid-template-columns:minmax(0,1fr) 28px;gap:6px;align-items:center}
+      .fm-cfd-retired{font-size:12px;color:#667085}.fm-cfd-retired summary{cursor:pointer;font-weight:700}.fm-cfd-retired ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}.fm-cfd-retired li{display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0}.fm-cfd-retired li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function chipHtml(item){
+    const label = cleanText(item.label), color = safeColor(item.color), icon = safeIcon(item.icon);
+    const mark = icon ? `<i class="fas ${icon}" aria-hidden="true"></i>` : item.dot === false ? '' : '<span class="fm-cfv-dot" aria-hidden="true"></span>';
+    const remove = item.removable ? `<button type="button" class="fm-cfv-chip-x" data-dept-remove aria-label="Remove ${escapeHtml(label)}">&times;</button>` : '';
+    return `<span class="fm-cfv-chip${item.more ? ' fm-cfv-more' : ''}"${item.attrs ? ` ${item.attrs}` : ''}${item.missing ? ' data-missing="true"' : ''} style="--fm-chip:${color}"${cleanText(item.tooltip) ? ` data-fm-tooltip="${escapeHtml(item.tooltip)}"` : ''}>${mark}<span class="fm-cfv-chip-text">${escapeHtml(label)}</span>${remove}</span>`;
+  }
+
+  // ---- Departments: the reference type, its picker and its chip ----
+  function departmentChoice(choices, idValue){
+    const id = cleanText(idValue), found = (Array.isArray(choices) ? choices : []).find((item) => cleanText(item?.id) === id);
+    return found
+      ? { id, label:cleanText(found.name || found.label || id), color:safeColor(found.color), icon:safeIcon(found.icon), missing:false }
+      : { id, label:id, color:'#98a2b3', icon:'', missing:true, tooltip:'This department no longer exists' };
+  }
+  function departmentPickerInner(choices, ids, many, disabled, label, inputClass){
+    const chips = ids.map((id) => chipHtml({ ...departmentChoice(choices, id), attrs:`data-dept-id="${escapeHtml(id)}"`, removable:!disabled })).join('');
+    if (disabled) return `<span class="fm-cf-dept-chips">${chips || EMPTY_HTML}</span>`;
+    const open = choices.filter((item) => cleanText(item.status) !== 'archived' && !ids.includes(cleanText(item.id)));
+    const prompt = !choices.length ? 'No departments' : many ? (ids.length ? 'Add another…' : 'Choose departments…') : (ids.length ? 'Change…' : 'Choose a department…');
+    return `<span class="fm-cf-dept-chips">${chips}</span><span class="fm-cf-select-wrap"><select class="${escapeHtml(inputClass)}" data-dept-add aria-label="${escapeHtml(label)}"><option value="">${prompt}</option>${open.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name || item.label || item.id)}</option>`).join('')}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>`;
+  }
+  function departmentPickerHtml(def, value, inputClass = 'fm-cf-input'){
+    injectSurfaceCss();
+    const ids = (Array.isArray(value) ? value : [value]).map(objectValue).map((reference) => cleanText(reference.department_id)).filter(Boolean);
+    const choices = (def.department_choices || []).map(objectValue).map((item) => ({ id:cleanText(item.id), name:cleanText(item.name || item.label || item.id), color:safeColor(item.color), icon:safeIcon(item.icon), status:cleanText(item.status) })).filter((item) => item.id);
+    const many = def.cardinality === 'many';
+    return `<div class="fm-cf-dept" data-fm-cf-input="${escapeHtml(def.key)}" data-fm-cf-type="department" data-many="${many ? '1' : '0'}" data-label="${escapeHtml(def.label)}" data-input-class="${escapeHtml(inputClass)}" data-dept-choices="${escapeHtml(JSON.stringify(choices))}"${def.read_only ? ' disabled' : ''}>${departmentPickerInner(choices, many ? ids : ids.slice(0, 1), many, def.read_only, def.label, inputClass)}</div>`;
+  }
+  function refreshDepartmentPicker(picker, ids){
+    let choices = [];
+    try { choices = JSON.parse(picker.dataset.deptChoices || '[]'); } catch (_) {}
+    picker.innerHTML = departmentPickerInner(choices, ids, picker.dataset.many === '1', picker.hasAttribute('disabled'), picker.dataset.label || '', picker.dataset.inputClass || 'fm-cf-input');
+    picker.dispatchEvent(new Event('change', { bubbles:true }));
+    picker.querySelector('[data-dept-add]')?.focus?.();
+  }
+  // One listener serves every picker on the page, whichever screen rendered it.
+  const pageDocument = typeof document !== 'undefined' && document.addEventListener ? document : null;
+  pageDocument?.addEventListener('change', (event) => {
+    const select = event.target?.closest?.('[data-dept-add]');
+    const picker = select?.closest('.fm-cf-dept');
+    if (!picker || !select.value) return;
+    const ids = [...picker.querySelectorAll('[data-dept-id]')].map((chip) => chip.dataset.deptId);
+    refreshDepartmentPicker(picker, picker.dataset.many === '1' ? [...ids, select.value] : [select.value]);
+  });
+  pageDocument?.addEventListener('click', (event) => {
+    const remove = event.target?.closest?.('[data-dept-remove]');
+    const picker = remove?.closest('.fm-cf-dept');
+    if (!picker || picker.hasAttribute('disabled')) return;
+    const gone = remove.closest('[data-dept-id]')?.dataset.deptId;
+    refreshDepartmentPicker(picker, [...picker.querySelectorAll('[data-dept-id]')].map((chip) => chip.dataset.deptId).filter((id) => id !== gone));
+  });
+
+  // ---- References handed in by the page ----
+  function normalizeReferences(input){
+    const source = objectValue(input), rows = (value) => (Array.isArray(value) ? value : []).map(objectValue);
+    return { users:rows(source.users), groups:rows(source.groups), companies:rows(source.companies), departments:rows(source.departments), contacts:rows(source.contacts), media:rows(source.media) };
+  }
+  /** A normalized definition carrying the choices its reference type needs, taken from `references`. */
+  function withReferences(definition, references){
+    const def = normalizeDefinition(definition);
+    if (!references) return def;
+    const refs = normalizeReferences(references);
+    if (def.type === 'department') { if (refs.departments.length || !(def.department_choices || []).length) def.department_choices = refs.departments; }
+    else if (CONTACT_TYPES.includes(def.type)) { if (refs.contacts.length) def.reference_choices = refs.contacts.filter((item) => def.type === 'contact' || !item.kind || item.kind === (def.type === 'human_contact' ? 'human' : 'org')); }
+    else if (MEDIA_TYPES.includes(def.type)) { if (refs.media.length) def.reference_choices = refs.media.filter((item) => def.type === 'media' || !item.content_type || cleanText(item.content_type).startsWith(def.type === 'photo' ? 'image/' : 'video/')); }
+    else if (def.data_type === 'reference') {
+      def.assignable_subjects = (def.type === 'assignable_subject' ? SUBJECT_TYPES : [def.type]).flatMap((kind) => refs[SUBJECT_LISTS[kind]].map((row) => ({ subject_type:kind, id:cleanText(row.id), name:cleanText(row.name || row.label || row.email || row.id) })));
+    }
+    return def;
+  }
+
+  // ---- (c) Compact read-only values ----
+  const displayEmpty = (value) => value == null || value === '' || (Array.isArray(value) && !value.length) || (typeof value === 'object' && !Array.isArray(value) && !Object.keys(value).length);
+  /** The chips a value is shown as, or null when this type is not shown as chips. */
+  function valueChips(def, value){
+    const many = (Array.isArray(value) ? value : [value]).filter((item) => item != null && item !== '');
+    if (def.type === 'department') return many.map((reference) => departmentChoice(def.department_choices, objectValue(reference).department_id));
+    if (CONTACT_TYPES.includes(def.type) || MEDIA_TYPES.includes(def.type)) {
+      const icon = CONTACT_TYPES.includes(def.type) ? (def.type === 'org_contact' ? 'fa-building' : 'fa-address-book') : def.type === 'video' ? 'fa-video' : def.type === 'photo' ? 'fa-image' : 'fa-photo-film';
+      return many.map((reference) => { const found = (def.reference_choices || []).find((item) => JSON.stringify(item.reference) === JSON.stringify(reference)); return { label:found?.label || 'Unavailable', icon, missing:!found, tooltip:found ? '' : 'This saved reference is unavailable' }; });
+    }
+    if (def.type === 'platform_phone') return null;
+    if (def.data_type === 'reference') return many.map(objectValue).map((reference) => {
+      const kind = cleanText(reference.subject_type) || (def.type === 'assignable_subject' ? '' : def.type), id = cleanText(reference.subject_id || reference.id);
+      const known = [...(def.assignable_subjects || []), ...[...assignableCaches.values()].flat()].find((subject) => cleanText(subject.subject_type) === kind && cleanText(subject.id || subject.resource_id) === id);
+      return { label:cleanText(known?.name || known?.label || reference.name || reference.label || reference.subject_name || known?.email || id), icon:SUBJECT_ICONS[kind] || 'fa-user', missing:!known && !cleanText(reference.name || reference.label || reference.subject_name) };
+    });
+    if (['select', 'radio', 'multiselect'].includes(def.type)) return many.map((item) => { const option = def.options.find((candidate) => candidate.value === cleanText(item)); return { label:option?.label || cleanText(item), color:option?.color || '#64748b', dot:!!option?.color }; });
+    if (['tags', 'list'].includes(def.type)) return many.map((item) => ({ label:cleanText(item), dot:false }));
+    return null;
+  }
+  function renderValueText(definition, value, options = {}){
+    const def = withReferences(definition, options.references);
+    if (displayEmpty(value)) return '';
+    const chips = valueChips(def, value);
+    if (chips) return chips.map((chip) => chip.label).filter(Boolean).join(', ');
+    if (def.type === 'array') return `${value.length} ${value.length === 1 ? 'item' : 'items'}`;
+    if (def.type === 'object' || (def.type === 'json' && typeof value === 'object')) return Array.isArray(value) ? `${value.length} ${value.length === 1 ? 'item' : 'items'}` : `${Object.keys(value).length} ${Object.keys(value).length === 1 ? 'entry' : 'entries'}`;
+    const text = formatValue(def, value);
+    return text === 'Not set' ? '' : text;
+  }
+  function renderValue(definition, value, options = {}){
+    injectSurfaceCss();
+    const def = withReferences(definition, options.references);
+    const wrap = (inner) => `<span class="fm-cfv" data-fm-cfv-type="${escapeHtml(def.type)}">${inner}</span>`;
+    if (displayEmpty(value)) return wrap(EMPTY_HTML);
+    const chips = valueChips(def, value);
+    if (chips) {
+      if (!chips.length) return wrap(EMPTY_HTML);
+      const max = Number(options.max) > 0 ? Math.floor(Number(options.max)) : 3, rest = chips.slice(max);
+      return wrap(`${chips.slice(0, max).map(chipHtml).join('')}${rest.length ? chipHtml({ label:`+${rest.length}`, dot:false, more:true, tooltip:rest.map((chip) => chip.label).join(', ') }) : ''}`);
+    }
+    if (def.data_type === 'boolean') { const on = value === true || value === 1 || value === '1'; return wrap(`<span class="fm-cfv-bool" data-on="${on}"><i class="fas ${on ? 'fa-check' : 'fa-xmark'}" aria-hidden="true"></i><span>${on ? 'Yes' : 'No'}</span></span>`); }
+    if (def.type === 'email') return wrap(`<a href="mailto:${escapeHtml(value)}">${escapeHtml(value)}</a>`);
+    if (def.type === 'phone' || def.type === 'platform_phone') {
+      const numbers = (def.type === 'phone' ? [value] : (Array.isArray(value) ? value : [value]).map((reference) => objectValue(reference).phone_number)).map(cleanText).filter(Boolean);
+      return wrap(numbers.map((number) => `<a href="tel:${escapeHtml(number.replace(/[^+\d]/g, ''))}">${escapeHtml(number)}</a>`).join(', ') || EMPTY_HTML);
+    }
+    if (def.type === 'url') {
+      let link = null; try { link = new URL(cleanText(value)); } catch (_) {}
+      if (link && ['http:', 'https:'].includes(link.protocol)) return wrap(`<a href="${escapeHtml(link.href)}" target="_blank" rel="noopener noreferrer" data-fm-tooltip="${escapeHtml(link.href)}">${escapeHtml(link.host + (link.pathname === '/' ? '' : link.pathname))}</a>`);
+    }
+    const text = renderValueText(def, value, options);
+    if (!text) return wrap(EMPTY_HTML);
+    let full = '';
+    if (SCHEMA_TYPES.has(def.type) || def.type === 'key_value') { try { full = JSON.stringify(value).slice(0, 400); } catch (_) {} }
+    else if (text.length > 40 || def.type === 'multiline') full = text.slice(0, 600);
+    return wrap(`<span class="fm-cfv-text"${full ? ` data-fm-tooltip="${escapeHtml(full)}"` : ''}>${escapeHtml(text.replace(/\s+/g, ' '))}</span>`);
+  }
+  function mountValue(container, definition, value, options = {}){
+    if (!container) return null;
+    const update = (next) => { container.innerHTML = renderValue(definition, next, options); };
+    update(value);
+    return { update };
+  }
+
+  // ---- Shared wiring for mounted editors ----
+  function wireEditorBehaviour(scope){
+    wireStructured(scope);
+    wireContactPickers(scope);
+    scope.querySelectorAll('input[type="range"][data-fm-cf-input]').forEach((range) => {
+      if (range.parentElement?.classList.contains('fm-cfx-range')) return;
+      const holder = document.createElement('span'); holder.className = 'fm-cfx-range';
+      range.replaceWith(holder);
+      // A range always holds a number. Until someone moves it, a field with nothing stored stays unset.
+      const unset = range.getAttribute('value') === '';
+      const output = document.createElement('output'); output.textContent = unset ? '—' : range.value;
+      if (unset) range.dataset.fmCfxUnset = '1';
+      holder.append(range, output);
+      range.addEventListener('input', () => { delete range.dataset.fmCfxUnset; output.textContent = range.value; });
+    });
+    if (scope.dataset.fmCfxKv === '1') return;
+    scope.dataset.fmCfxKv = '1';
+    scope.addEventListener('click', (event) => {
+      const add = event.target.closest?.('[data-fm-cf-kv-add]'), remove = event.target.closest?.('[data-fm-cf-kv-remove]');
+      if (add && scope.contains(add)) {
+        add.insertAdjacentHTML('beforebegin', `<div class="fm-cf-kv-row"><input class="fm-cf-input" data-fm-cf-kv-key placeholder="Name" aria-label="Name"><input class="fm-cf-input" data-fm-cf-kv-value placeholder="Value" aria-label="Value"><button type="button" class="fm-cf-kv-remove" data-fm-cf-kv-remove aria-label="Remove row"><i class="fas fa-xmark"></i></button></div>`);
+        add.closest('.fm-cf-kv')?.dispatchEvent(new Event('change', { bubbles:true }));
+      } else if (remove && scope.contains(remove)) {
+        const wrapper = remove.closest('.fm-cf-kv');
+        remove.closest('.fm-cf-kv-row')?.remove();
+        wrapper?.dispatchEvent(new Event('change', { bubbles:true }));
+      }
+    });
+  }
+  const blankFor = (def, value) => emptyValue(value) || (def.data_type === 'boolean' && value === false);
+  // A person, group or company reference is the same reference whatever display name came along with it.
+  const referenceIdentity = (def, value) => {
+    if (def.data_type !== 'reference' || value == null) return value;
+    const one = (reference) => { const item = objectValue(reference); return item.subject_type || item.subject_id ? `${cleanText(item.subject_type)}:${cleanText(item.subject_id || item.id)}` : item; };
+    return Array.isArray(value) ? value.map(one) : one(value);
+  };
+  const sameFor = (def, a, b) => (blankFor(def, a) && blankFor(def, b)) || JSON.stringify(referenceIdentity(def, a)) === JSON.stringify(referenceIdentity(def, b));
+
+  // ---- (b) The values form for one record ----
+  function valueGroups(options){
+    if (Array.isArray(options.groups)) return { groups:options.groups.map(objectValue).map((group) => ({ id:cleanText(group.id), label:cleanText(group.label), tooltip:cleanText(group.tooltip), fields:(Array.isArray(group.fields) ? group.fields : []).map(objectValue) })), values:objectValue(options.values) };
+    const resolved = objectValue(options.resolved), fields = (Array.isArray(resolved.fields) ? resolved.fields : []).map(objectValue);
+    const byPath = new Map(fields.map((field) => [field.path, field])), placed = new Set(), groups = [];
+    for (const home of (Array.isArray(resolved.homes) ? resolved.homes : []).map(objectValue)) {
+      // A field two of the record's homes declare is shown once, under the first.
+      const own = (Array.isArray(home.fields) ? home.fields : []).filter((path) => byPath.has(path) && !placed.has(path)).map((path) => { placed.add(path); return byPath.get(path); });
+      if (own.length) groups.push({ id:`${cleanText(home.kind)}:${cleanText(home.id)}`, label:cleanText(home.name || home.id), tooltip:'', fields:own });
+    }
+    const rest = fields.filter((field) => !placed.has(field.path));
+    if (rest.length) groups.push({ id:'unassigned', label:cleanText(options.unassignedLabel) || (groups.length ? 'Other' : ''), tooltip:'', fields:rest });
+    return { groups, values:objectValue(resolved.values ?? options.values) };
+  }
+  function mountValuesForm(container, options = {}){
+    if (!container) return null;
+    injectEditorCss(); injectSurfaceCss();
+    const readOnly = options.readOnly === true;
+    let { groups, values } = valueGroups(options);
+    let initial = clone(values), prepared = [];
+    const locked = (def) => readOnly || def.read_only || !!def.calculation || ['formula', 'platform_phone'].includes(def.type);
+    const lockReason = (def) => def.type === 'platform_phone' ? 'Assigned by the phone system' : def.calculation || def.type === 'formula' ? 'Calculated' : 'Read only';
+    const prepare = (field) => {
+      const def = withReferences({ ...field, read_only:field.read_only === true || field.writable === false }, options.references);
+      def.also = (Array.isArray(field.homes) ? field.homes : []).slice(1).map((home) => cleanText(home.name || home.id)).filter(Boolean);
+      return def;
+    };
+    const shownValue = (def) => { const stored = valueAtPath(values, def.path); return stored === undefined ? clone(def.default_value) : stored; };
+    const fieldHtml = (def) => {
+      const fixed = locked(def), value = shownValue(def);
+      const tips = `${tipHtml(def.description)}${def.also.length ? tipHtml(`Also from ${def.also.join(', ')}`, 'fa-layer-group') : ''}${def.private ? tipHtml('Private', 'fa-eye-slash') : ''}${fixed && !readOnly ? tipHtml(lockReason(def), 'fa-lock') : ''}`;
+      const body = fixed ? `<div class="fm-cfx-ro" data-fm-cfx-readonly="${escapeHtml(def.path)}">${renderValue(def, value, options)}</div>` : inputHtml(def, value);
+      return `<div class="fm-cf-field fm-cfx-field${def.layout === 'full' ? ' wide' : ''}" data-layout="${escapeHtml(def.layout)}" data-custom-field-path="${escapeHtml(def.path)}" data-fm-cfx-type="${escapeHtml(def.type)}"><label class="fm-cf-label"><span>${escapeHtml(def.label)}${def.required && !fixed ? ' <em role="img" aria-label="Required">*</em>' : ''}</span>${tips}</label>${body}</div>`;
+    };
+    const editable = () => prepared.flatMap((group) => group.defs).filter((def) => !locked(def));
+    const fieldNode = (path) => [...container.querySelectorAll('[data-custom-field-path]')].find((node) => node.dataset.customFieldPath === path) || null;
+    const getValues = () => editorValues(container.querySelector('[data-fm-cfx]'), { custom_field_values:clone(values) }, 'organization');
+    const untouchedRange = (def) => def.type === 'slider' && !!fieldNode(def.path)?.querySelector('[data-fm-cfx-unset]');
+    const getChanges = () => {
+      const current = getValues(), changes = {};
+      for (const def of editable()) {
+        if (untouchedRange(def)) continue;
+        const next = valueAtPath(current, def.path);
+        if (!sameFor(def, next, valueAtPath(initial, def.path)) && !(valueAtPath(initial, def.path) === undefined && sameFor(def, next, def.default_value))) changes[def.path] = next === '' || next === undefined ? null : next;
+      }
+      return changes;
+    };
+    const setErrors = (messages = {}) => {
+      for (const [path, message] of Object.entries(objectValue(messages))) {
+        const node = fieldNode(path); if (!node) continue;
+        node.querySelectorAll('[data-fm-cf-error]').forEach((old) => old.remove());
+        node.querySelector('[data-fm-cf-input]')?.classList.add('fm-cf-invalid');
+        node.insertAdjacentHTML('beforeend', `<span class="fm-cf-error" data-fm-cf-error role="alert">${escapeHtml(message)}</span>`);
+      }
+    };
+    const validate = () => {
+      const scope = container.querySelector('[data-fm-cfx]');
+      const result = validateEditor(scope, { custom_field_values:clone(values) }, 'organization', editable());
+      const errors = result.errors.map((error) => ({ path:error.key, message:error.message }));
+      for (const def of editable()) if (def.required && untouchedRange(def)) { errors.push({ path:def.path, message:`${def.label} is required.` }); setErrors({ [def.path]:`${def.label} is required.` }); }
+      scope?.querySelectorAll('[aria-invalid]').forEach((node) => node.removeAttribute('aria-invalid'));
+      scope?.querySelectorAll('.fm-cf-invalid').forEach((node) => node.setAttribute('aria-invalid', 'true'));
+      return { valid:!errors.length, values:result.values, errors };
+    };
+    const render = () => {
+      prepared = groups.map((group) => ({ ...group, defs:group.fields.map(prepare).filter((def) => def.enabled !== false && !def.background_only) })).filter((group) => group.defs.length);
+      if (!prepared.length) { container.innerHTML = `<div class="fm-cfx" data-fm-cfx><div class="fm-cfx-empty">${escapeHtml(options.emptyText || 'No fields')}</div></div>`; return; }
+      const canSave = typeof options.onSave === 'function' && editable().length > 0;
+      container.innerHTML = `<div class="fm-cfx" data-fm-cfx>${prepared.map((group) => `<section class="fm-cfx-group" data-fm-cfx-group="${escapeHtml(group.id)}"${group.label ? ` aria-label="${escapeHtml(group.label)}"` : ''}>${group.label ? `<h4 class="fm-cfx-group-title"><span>${escapeHtml(group.label)}</span>${tipHtml(group.tooltip)}</h4>` : ''}<div class="fm-cfx-grid">${group.defs.map(fieldHtml).join('')}</div></section>`).join('')}${canSave ? '<div class="fm-cfx-foot"><button type="button" class="fm-cf-save" data-fm-cfx-save>Save</button><span class="fm-cf-status" data-fm-cfx-status role="status"></span></div>' : ''}</div>`;
+      const scope = container.querySelector('[data-fm-cfx]');
+      // Titles are the accessible names of their controls.
+      scope.querySelectorAll('[data-custom-field-path]').forEach((node) => { const title = node.querySelector('.fm-cf-label span')?.textContent.replace(/\s*\*$/, '') || ''; node.querySelectorAll('input,select,textarea').forEach((control) => { if (!control.getAttribute('aria-label')) control.setAttribute('aria-label', title); }); });
+      wireEditorBehaviour(scope);
+      scope.querySelector('[data-fm-cfx-save]')?.addEventListener('click', save);
+    };
+    const notify = () => { if (typeof options.onChange === 'function') options.onChange({ values:getValues(), changes:getChanges() }); };
+    async function save(){
+      const button = container.querySelector('[data-fm-cfx-save]'), status = container.querySelector('[data-fm-cfx-status]');
+      const checked = validate();
+      if (!checked.valid) { status.textContent = checked.errors[0].message; fieldNode(checked.errors[0].path)?.querySelector('input,select,textarea,button')?.focus?.(); return; }
+      const changes = getChanges();
+      if (!Object.keys(changes).length) { status.textContent = 'No changes'; return; }
+      button.disabled = true; status.textContent = 'Saving…';
+      try {
+        await options.onSave(changes, checked.values);
+        values = checked.values; initial = clone(values);
+        status.textContent = 'Saved';
+      } catch (error) {
+        status.textContent = error?.message || 'Could not save';
+        const path = error?.details?.path || error?.path;
+        if (path) setErrors({ [path]:error.message });
+      } finally { button.disabled = false; }
+    }
+    const onEdit = (event) => { if (event.target.closest?.('[data-fm-cfx]')) notify(); };
+    container.addEventListener('input', onEdit);
+    container.addEventListener('change', onEdit);
+    render();
+    return {
+      getValues, getChanges, validate, setErrors,
+      setValues(next){ values = objectValue(next); initial = clone(values); render(); },
+      destroy(){ container.removeEventListener('input', onEdit); container.removeEventListener('change', onEdit); container.innerHTML = ''; }
+    };
+  }
+
+  // ---- (a) The definitions editor for one home ----
+  function mountDefinitionsEditor(container, options = {}){
+    if (!container) return null;
+    injectEditorCss(); injectSurfaceCss();
+    const readOnly = options.readOnly === true;
+    const allowed = TYPE_CATALOG.filter((type) => !type.managed && (!Array.isArray(options.types) || options.types.includes(type.value)));
+    const info = (type) => TYPE_BY_VALUE.get(type) || TYPE_BY_VALUE.get('text');
+    let rows = [], retired = [], openId = '', errors = new Map(), baseline = '', sequence = 0, dragId = '', notice = '';
+    const toRow = (raw, persisted) => {
+      const source = objectValue(raw), def = normalizeDefinition(source, sequence);
+      return { id:`cfd_${++sequence}`, raw:clone(source), def, persisted, pathTouched:persisted, confirming:false, schemaText:JSON.stringify(objectValue(source.schema), null, 2) };
+    };
+    const output = (row, index) => {
+      const def = row.def, out = { ...row.raw };
+      for (const key of ['value_schema', 'writable', 'homes', 'all_read_permissions', 'all_write_permissions', 'home_kind', 'department_choices', 'reference_choices', 'assignable_subjects']) delete out[key];
+      Object.assign(out, { path:def.path, key:def.path, label:cleanText(def.label), type:def.type, description:def.description, required:def.required, private:def.private, read_only:def.read_only, order:index });
+      const keep = (name, wanted, value) => { if (wanted) out[name] = value; else delete out[name]; };
+      keep('placeholder', !!def.placeholder, def.placeholder);
+      keep('cardinality', MANY_TYPES.has(def.type), def.cardinality);
+      keep('options', CHOICE_TYPES.has(def.type), def.options.map((option) => option.label === option.value && !option.color ? option.value : { value:option.value, label:option.label, ...(option.color ? { color:option.color } : {}) }));
+      for (const name of ['min', 'max', 'step']) keep(name, NUMBER_TYPES.has(def.type) && def[name] != null, def[name]);
+      keep('currency', def.type === 'currency', def.currency);
+      keep('formula', def.type === 'formula', def.formula);
+      let schema = objectValue(row.raw.schema); try { const parsed = JSON.parse(row.schemaText || '{}'); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) schema = parsed; } catch (_) {}
+      keep('schema', SCHEMA_TYPES.has(def.type) && Object.keys(schema).length > 0, schema);
+      keep('default_value', !NO_DEFAULT_TYPES.has(def.type) && !blankFor(def, def.default_value), clone(def.default_value));
+      if (options.entity) out.entity = options.entity;
+      if (objectValue(options.home).kind) out.home = { kind:options.home.kind, id:options.home.id };
+      return out;
+    };
+    const getFields = () => rows.map(output);
+    const rowOf = (node) => rows.find((row) => row.id === node?.closest?.('[data-cfd-row]')?.dataset.cfdRow) || null;
+    const freshPath = (label) => {
+      const base = normalizePath(label, 'field'), taken = new Set([...rows, ...retired].map((row) => row.def.path));
+      let path = base, n = 1; while (taken.has(path)) path = `${base}_${++n}`;
+      return path;
+    };
+
+    const control = (row, name, title, tooltip, inner, wide = false) => `<div class="fm-cf-field fm-cfd-field${wide ? ' wide' : ''}" data-cfd-field="${name}"><label class="fm-cf-label"><span>${escapeHtml(title)}</span>${tipHtml(tooltip)}</label>${inner}${errors.get(row.id)?.[name] ? `<span class="fm-cf-error" data-fm-cf-error role="alert">${escapeHtml(errors.get(row.id)[name])}</span>` : ''}</div>`;
+    const toggle = (name, title, tooltip, on, off) => `<label class="fm-cfd-toggle"><input type="checkbox" name="${name}"${on ? ' checked' : ''}${off ? ' disabled' : ''}><span>${escapeHtml(title)}</span>${tipHtml(tooltip)}</label>`;
+    const detailHtml = (row) => {
+      const def = row.def, off = readOnly ? ' disabled' : '', text = (name, value, extra = '') => `<input class="fm-cf-input" name="${name}" value="${escapeHtml(value ?? '')}" aria-label="${escapeHtml(name)}"${extra}${off}>`;
+      const managed = !allowed.some((type) => type.value === def.type);
+      const typeOptions = [...(managed ? [info(def.type)] : []), ...allowed].map((type) => `<option value="${escapeHtml(type.value)}"${type.value === def.type ? ' selected' : ''}>${escapeHtml(type.label)}</option>`).join('');
+      const parts = [
+        control(row, 'label', 'Title', '', `<input class="fm-cf-input" name="label" value="${escapeHtml(def.label)}" maxlength="120" aria-label="Title"${off}>`),
+        control(row, 'path', 'Key', 'The stable name values are stored under. It cannot change once the field is saved.', `<input class="fm-cf-input" name="path" value="${escapeHtml(def.path)}" spellcheck="false" autocapitalize="off" aria-label="Key"${row.persisted || readOnly ? ' disabled' : ''}>`),
+        control(row, 'type', 'Type', info(def.type).hint, `<span class="fm-cf-select-wrap"><select class="fm-cf-input" name="type" aria-label="Type"${managed || readOnly ? ' disabled' : ''}>${typeOptions}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>`),
+        control(row, 'description', 'Hint', 'Shown as a tooltip beside the title', `<input class="fm-cf-input" name="description" value="${escapeHtml(def.description)}" maxlength="400" aria-label="Hint"${off}>`)
+      ];
+      if (CHOICE_TYPES.has(def.type)) parts.push(control(row, 'options', 'Choices', 'What people can pick, in this order', `<div class="fm-cfd-choices" data-cfd-choices>${def.options.map((option, index) => `<div class="fm-cfd-choice" data-cfd-choice><input class="fm-cf-input" name="choice" value="${escapeHtml(option.label)}" data-choice-value="${escapeHtml(option.label === option.value ? '' : option.value)}" data-choice-color="${escapeHtml(option.color)}" aria-label="Choice ${index + 1}"${off}>${readOnly ? '<span></span>' : `<button type="button" class="fm-cfd-icon" data-cfd-choice-remove aria-label="Remove choice ${index + 1}"><i class="fas fa-xmark" aria-hidden="true"></i></button>`}</div>`).join('')}${def.options.length ? '' : '<div class="fm-cfd-empty">No choices yet</div>'}${readOnly ? '' : '<div><button type="button" class="fm-cfd-btn" data-cfd-choice-add><i class="fas fa-plus" aria-hidden="true"></i> Add choice</button></div>'}</div>`, true));
+      if (NUMBER_TYPES.has(def.type)) {
+        parts.push(control(row, 'min', 'Minimum', '', `<input class="fm-cf-input" type="number" step="any" name="min" value="${def.min ?? ''}" aria-label="Minimum"${off}>`));
+        parts.push(control(row, 'max', 'Maximum', '', `<input class="fm-cf-input" type="number" step="any" name="max" value="${def.max ?? ''}" aria-label="Maximum"${off}>`));
+        parts.push(control(row, 'step', 'Step', 'Values must be a multiple of this', `<input class="fm-cf-input" type="number" step="any" min="0" name="step" value="${def.step ?? ''}" aria-label="Step"${off}>`));
+        if (def.type === 'currency') parts.push(control(row, 'currency', 'Currency', '', `<span class="fm-cf-select-wrap"><select class="fm-cf-input" name="currency" aria-label="Currency"${off}>${['USD', 'CAD', 'EUR', 'GBP', 'AUD'].map((code) => `<option value="${code}"${def.currency === code ? ' selected' : ''}>${code}</option>`).join('')}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>`));
+      }
+      if (def.type === 'formula') parts.push(control(row, 'formula', 'Formula', 'Put another numeric field’s key inside double braces, for example {{hours}} * {{rate}}', text('formula', def.formula), true));
+      if (SCHEMA_TYPES.has(def.type)) parts.push(control(row, 'schema', 'Structure', 'A JSON Schema for the parts of this value: properties, items, required and limits', `<textarea class="fm-cf-input" name="schema" rows="6" spellcheck="false" aria-label="Structure"${off}>${escapeHtml(row.schemaText)}</textarea>`, true));
+      if (!NO_DEFAULT_TYPES.has(def.type) && !SCHEMA_TYPES.has(def.type)) parts.push(control(row, 'default_value', 'Default', 'Used until someone enters a value', `<div data-cfd-default>${inputHtml(withReferences({ ...def, id:`${row.id}_default`, key:'default', path:'default', required:false, read_only:readOnly, calculation:null }, options.references), def.default_value)}</div>`, def.layout === 'full'));
+      parts.push(`<div class="fm-cfd-toggles">${toggle('required', 'Required', 'A value must be entered when this record’s fields are saved', def.required, readOnly || ['formula', 'platform_phone'].includes(def.type))}${MANY_TYPES.has(def.type) ? toggle('many', 'Several', 'Let people choose more than one', def.cardinality === 'many', readOnly) : ''}${toggle('private', 'Private', 'Only people who manage company settings can see it', def.private, readOnly)}${toggle('read_only', 'Read only', 'People can see the value and cannot change it', def.read_only, readOnly || ['formula', 'platform_phone'].includes(def.type) || !!def.calculation)}</div>`);
+      const general = errors.get(row.id)?._;
+      return `<div class="fm-cfd-detail" data-cfd-detail>${general ? `<div class="fm-cf-error" data-fm-cf-error role="alert">${escapeHtml(general)}</div>` : ''}<div class="fm-cfd-grid">${parts.join('')}</div></div>`;
+    };
+    const rowHtml = (row, index) => {
+      const def = row.def, type = info(def.type), open = row.id === openId, title = cleanText(def.label) || 'Untitled field';
+      const badge = (label, inner) => `<span class="fm-cfd-badge" role="img" aria-label="${escapeHtml(label)}" data-fm-tooltip="${escapeHtml(label)}">${inner}</span>`;
+      const badges = `${def.required ? badge('Required', '*') : ''}${def.private ? badge('Private', '<i class="fas fa-eye-slash" aria-hidden="true"></i>') : ''}${def.read_only ? badge('Read only', '<i class="fas fa-lock" aria-hidden="true"></i>') : ''}`;
+      const actions = readOnly ? '' : row.confirming
+        ? `<span class="fm-cfd-confirm"><button type="button" class="fm-cfd-btn danger" data-cfd-retire-confirm aria-label="Retire ${escapeHtml(title)}" data-fm-tooltip="Saved values are kept and no longer shown">Retire</button><button type="button" class="fm-cfd-btn" data-cfd-retire-cancel>Keep</button></span>`
+        : `<span class="fm-cfd-actions"><button type="button" class="fm-cfd-icon" data-cfd-up aria-label="Move ${escapeHtml(title)} up" data-fm-tooltip="Move up"${index === 0 ? ' disabled' : ''}><i class="fas fa-arrow-up" aria-hidden="true"></i></button><button type="button" class="fm-cfd-icon" data-cfd-down aria-label="Move ${escapeHtml(title)} down" data-fm-tooltip="Move down"${index === rows.length - 1 ? ' disabled' : ''}><i class="fas fa-arrow-down" aria-hidden="true"></i></button><button type="button" class="fm-cfd-icon" data-cfd-retire aria-label="${row.persisted ? 'Retire' : 'Remove'} ${escapeHtml(title)}" data-fm-tooltip="${row.persisted ? 'Retire this field' : 'Remove this field'}"><i class="fas ${row.persisted ? 'fa-box-archive' : 'fa-trash'}" aria-hidden="true"></i></button></span>`;
+      return `<li class="fm-cfd-row" data-cfd-row="${row.id}" data-cfd-path="${escapeHtml(def.path)}"${open ? ' data-open="true"' : ''}${errors.has(row.id) ? ' data-invalid="true"' : ''}><div class="fm-cfd-summary">${readOnly ? '' : '<span class="fm-cfd-grip" draggable="true" data-cfd-grip role="img" aria-label="Drag to reorder" data-fm-tooltip="Drag to reorder"><i class="fas fa-grip-vertical" aria-hidden="true"></i></span>'}<span class="fm-cfd-type" role="img" aria-label="${escapeHtml(type.label)}" data-fm-tooltip="${escapeHtml(`${type.label}: ${type.hint}`)}"><i class="fas ${type.icon}" aria-hidden="true"></i></span><button type="button" class="fm-cfd-title" data-cfd-open aria-expanded="${open}">${escapeHtml(title)}</button>${badges}${actions}</div>${open ? detailHtml(row) : ''}</li>`;
+    };
+    const render = (focus) => {
+      const canSave = typeof options.onSave === 'function' && !readOnly;
+      container.innerHTML = `<div class="fm-cfd" data-fm-cfd>
+        <div class="fm-cfd-head"><strong>${escapeHtml(options.title || 'Fields')}</strong>${readOnly ? '' : '<button type="button" class="fm-cfd-btn" data-cfd-add><i class="fas fa-plus" aria-hidden="true"></i> Add field</button>'}</div>
+        ${rows.length ? `<ol class="fm-cfd-list" data-cfd-list>${rows.map(rowHtml).join('')}</ol>` : '<div class="fm-cfd-empty" data-cfd-empty>No fields yet</div>'}
+        ${retired.length ? `<details class="fm-cfd-retired" data-cfd-retired open><summary>Retiring (${retired.length})</summary><ul>${retired.map((row) => `<li data-cfd-retired-row="${row.id}"><span>${escapeHtml(row.def.label)}</span><button type="button" class="fm-cfd-btn" data-cfd-restore aria-label="Restore ${escapeHtml(row.def.label)}">Restore</button></li>`).join('')}</ul></details>` : ''}
+        ${canSave || notice ? `<div class="fm-cfd-foot">${canSave ? '<button type="button" class="fm-cf-save" data-cfd-save>Save</button>' : ''}<span class="fm-cf-status" data-cfd-status role="status">${escapeHtml(notice)}</span></div>` : ''}
+      </div>`;
+      const scope = container.querySelector('[data-fm-cfd]');
+      scope.querySelectorAll('[data-cfd-default]').forEach(wireEditorBehaviour);
+      if (focus) [...scope.querySelectorAll('[data-cfd-row]')].find((node) => node.dataset.cfdRow === focus.row)?.querySelector(focus.selector)?.focus?.();
+    };
+    const changed = () => { notice = ''; if (typeof options.onChange === 'function') options.onChange(getFields()); };
+    const readChoices = (node) => normalizeOptions([...node.closest('[data-cfd-row]').querySelectorAll('[data-cfd-choice] input')].map((input) => ({ label:cleanText(input.value), value:cleanText(input.dataset.choiceValue) || cleanText(input.value), color:input.dataset.choiceColor })).filter((option) => option.label));
+    const readDefault = (row, node) => { row.def.default_value = coerceDefault(valueAtPath(editorValues(node.closest('[data-cfd-default]'), {}, 'organization'), 'default'), row.def.type); };
+
+    const onInput = (event) => {
+      const target = event.target, row = rowOf(target);
+      if (!row || readOnly || !target.closest('[data-cfd-detail]')) return;
+      const def = row.def, name = target.name;
+      if (target.closest('[data-cfd-default]')) readDefault(row, target);
+      else if (name === 'label') {
+        def.label = target.value;
+        if (!row.pathTouched) { def.path = def.key = freshPathFor(row, target.value); const path = target.closest('[data-cfd-row]').querySelector('[name="path"]'); if (path) path.value = def.path; target.closest('[data-cfd-row]').dataset.cfdPath = def.path; }
+        const title = target.closest('[data-cfd-row]').querySelector('[data-cfd-open]'); if (title) title.textContent = cleanText(def.label) || 'Untitled field';
+      }
+      else if (name === 'path') { row.pathTouched = true; def.path = def.key = cleanText(target.value); target.closest('[data-cfd-row]').dataset.cfdPath = def.path; }
+      else if (name === 'description') def.description = cleanText(target.value);
+      else if (name === 'formula') def.formula = cleanText(target.value);
+      else if (name === 'schema') row.schemaText = target.value;
+      else if (['min', 'max', 'step'].includes(name)) def[name] = optionalNumber(target.value, name === 'step');
+      else if (name === 'choice') def.options = readChoices(target);
+      else return;
+      changed();
+    };
+    const freshPathFor = (row, label) => { const others = new Set([...rows, ...retired].filter((other) => other !== row).map((other) => other.def.path)); const base = normalizePath(label, 'field'); let path = base, n = 1; while (others.has(path)) path = `${base}_${++n}`; return path; };
+    const onChange = (event) => {
+      const target = event.target, row = rowOf(target);
+      if (!row || readOnly || !target.closest('[data-cfd-detail]')) return;
+      const def = row.def, name = target.name;
+      if (target.closest('[data-cfd-default]')) { readDefault(row, target); changed(); return; }
+      if (name === 'type') {
+        row.def = normalizeDefinition({ ...output(row, rows.indexOf(row)), type:target.value, default_value:undefined, read_only:false });
+        errors.delete(row.id);
+      }
+      else if (name === 'required') def.required = target.checked;
+      else if (name === 'private') def.private = target.checked;
+      else if (name === 'read_only') def.read_only = target.checked;
+      else if (name === 'many') { def.cardinality = target.checked ? 'many' : 'one'; def.default_value = coerceDefault(undefined, def.type); }
+      else if (name === 'currency') def.currency = target.value;
+      else return;
+      changed();
+      render({ row:row.id, selector:`[name="${name}"]` });
+    };
+    const move = (row, delta) => { const from = rows.indexOf(row), to = from + delta; if (to < 0 || to >= rows.length) return false; rows.splice(to, 0, rows.splice(from, 1)[0]); return true; };
+    const onClick = (event) => {
+      const target = event.target, hit = (selector) => target.closest?.(selector);
+      if (!hit('[data-fm-cfd]')) return;
+      if (hit('[data-cfd-save]')) { save(); return; }
+      if (readOnly && !hit('[data-cfd-open]')) return;
+      if (hit('[data-cfd-add]')) {
+        const row = toRow({ label:'New field', type:allowed.some((type) => type.value === 'text') ? 'text' : allowed[0]?.value, path:freshPath('New field') }, false);
+        rows.push(row); openId = row.id; changed(); render({ row:row.id, selector:'[name="label"]' });
+        container.querySelector(`[data-cfd-row="${row.id}"] [name="label"]`)?.select?.();
+        return;
+      }
+      const restore = hit('[data-cfd-restore]');
+      if (restore) { const id = restore.closest('[data-cfd-retired-row]').dataset.cfdRetiredRow, row = retired.find((entry) => entry.id === id); retired = retired.filter((entry) => entry !== row); rows.push(row); changed(); render(); return; }
+      const row = rowOf(target); if (!row) return;
+      if (hit('[data-cfd-open]')) { openId = openId === row.id ? '' : row.id; render({ row:row.id, selector:'[data-cfd-open]' }); }
+      else if (hit('[data-cfd-up]')) { if (move(row, -1)) { changed(); render({ row:row.id, selector:rows.indexOf(row) === 0 ? '[data-cfd-down]' : '[data-cfd-up]' }); } }
+      else if (hit('[data-cfd-down]')) { if (move(row, 1)) { changed(); render({ row:row.id, selector:rows.indexOf(row) === rows.length - 1 ? '[data-cfd-up]' : '[data-cfd-down]' }); } }
+      else if (hit('[data-cfd-retire]')) {
+        if (row.persisted) { row.confirming = true; render({ row:row.id, selector:'[data-cfd-retire-confirm]' }); }
+        else { rows = rows.filter((entry) => entry !== row); errors.delete(row.id); changed(); render(); }
+      }
+      else if (hit('[data-cfd-retire-cancel]')) { row.confirming = false; render({ row:row.id, selector:'[data-cfd-retire]' }); }
+      else if (hit('[data-cfd-retire-confirm]')) { row.confirming = false; rows = rows.filter((entry) => entry !== row); retired.push(row); errors.delete(row.id); if (openId === row.id) openId = ''; changed(); render(); }
+      else if (hit('[data-cfd-choice-add]')) { row.def.options = [...readChoices(target), { value:'', label:'', color:'' }]; const count = row.def.options.length; render(); const inputs = container.querySelectorAll(`[data-cfd-row="${row.id}"] [data-cfd-choice] input`); inputs[count - 1]?.focus(); row.def.options = row.def.options.filter((option) => option.label); }
+      else if (hit('[data-cfd-choice-remove]')) { hit('[data-cfd-choice]').remove(); row.def.options = readChoices(container.querySelector(`[data-cfd-row="${row.id}"] [data-cfd-choices]`)); changed(); render({ row:row.id, selector:'[data-cfd-choice-add]' }); }
+    };
+    const onDragStart = (event) => { const row = event.target.closest?.('[data-cfd-grip]') && rowOf(event.target); if (!row) return; dragId = row.id; event.dataTransfer?.setData('text/plain', row.id); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'; };
+    const onDragOver = (event) => { const over = dragId && event.target.closest?.('[data-cfd-row]'); if (!over) return; event.preventDefault(); container.querySelectorAll('[data-dragover]').forEach((node) => node.removeAttribute('data-dragover')); over.setAttribute('data-dragover', 'true'); };
+    const onDrop = (event) => {
+      const over = dragId && rowOf(event.target), dragged = rows.find((row) => row.id === dragId); dragId = '';
+      if (!over || !dragged || over === dragged) { container.querySelectorAll('[data-dragover]').forEach((node) => node.removeAttribute('data-dragover')); return; }
+      event.preventDefault();
+      rows = rows.filter((row) => row !== dragged); rows.splice(rows.indexOf(over) + (event.offsetY > (event.target.closest('[data-cfd-row]').offsetHeight / 2) ? 1 : 0), 0, dragged);
+      changed(); render();
+    };
+    const validate = () => {
+      errors = new Map();
+      const seen = [];
+      rows.forEach((row) => {
+        const def = row.def, found = {};
+        if (!cleanText(def.label)) found.label = 'Give the field a title.';
+        if (!/^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/.test(def.path) || def.path.split('.').length > 12 || def.path.split('.').some((part) => part.length > 64)) found.path = 'Use lowercase letters, numbers, _ or -, with dots between parts.';
+        else {
+          const clash = seen.find((other) => other === def.path || other.startsWith(`${def.path}.`) || def.path.startsWith(`${other}.`));
+          if (clash) found.path = clash === def.path ? 'Another field here already uses this key.' : 'This key overlaps another field’s key.';
+          seen.push(def.path);
+        }
+        if (CHOICE_TYPES.has(def.type)) {
+          if (!def.options.length) found.options = 'Add at least one choice.';
+          else if (new Set(def.options.map((option) => option.value)).size !== def.options.length) found.options = 'Each choice must be different.';
+        }
+        if (def.type === 'formula' && !cleanText(def.formula)) found.formula = 'Enter the formula.';
+        if (NUMBER_TYPES.has(def.type) && def.min != null && def.max != null && def.min > def.max) found.max = 'The maximum is below the minimum.';
+        if (SCHEMA_TYPES.has(def.type)) { try { const parsed = JSON.parse(row.schemaText || '{}'); if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw Error('shape'); } catch (_) { found.schema = 'Enter a JSON object.'; } }
+        if (!NO_DEFAULT_TYPES.has(def.type) && !blankFor(def, def.default_value)) {
+          const value = def.default_value;
+          if (['select', 'radio'].includes(def.type) && !def.options.some((option) => option.value === cleanText(value))) found.default_value = 'The default must be one of the choices.';
+          else if (def.type === 'multiselect' && value.some((item) => !def.options.some((option) => option.value === cleanText(item)))) found.default_value = 'The default must be among the choices.';
+          else if (NUMBER_TYPES.has(def.type) && (!Number.isFinite(Number(value)) || (def.type === 'integer' && !Number.isInteger(Number(value))) || (def.min != null && Number(value) < def.min) || (def.max != null && Number(value) > def.max))) found.default_value = 'The default is outside what this field allows.';
+          else if (typeof value === 'string' && ['date', 'datetime', 'timezone', 'email', 'phone', 'url'].includes(def.type) && !validFormat(def.type, value)) found.default_value = `The default must be a valid ${info(def.type).label.toLowerCase()}.`;
+        }
+        if (Object.keys(found).length) errors.set(row.id, found);
+      });
+      const list = rows.flatMap((row) => Object.entries(errors.get(row.id) || {}).map(([field, message]) => ({ path:row.def.path, field, message })));
+      if (errors.size && !errors.has(openId)) openId = rows.find((row) => errors.has(row.id)).id;
+      render();
+      return { valid:!errors.size, errors:list };
+    };
+    const setErrors = (messages = {}) => {
+      const unknown = [];
+      for (const [path, message] of Object.entries(objectValue(messages))) {
+        const row = rows.find((entry) => entry.def.path === path);
+        if (row) { errors.set(row.id, { ...errors.get(row.id), _:message }); openId = row.id; } else unknown.push(message);
+      }
+      if (unknown.length) notice = unknown.join(' ');
+      render();
+    };
+    const settle = () => { rows.forEach((row) => { row.persisted = true; row.pathTouched = true; }); retired = []; errors = new Map(); baseline = JSON.stringify(getFields()); };
+    async function save(){
+      const checked = validate();
+      if (!checked.valid) { notice = checked.errors[0].message; render(); return; }
+      const fields = getFields();
+      notice = 'Saving…'; render();
+      const button = container.querySelector('[data-cfd-save]'); if (button) button.disabled = true;
+      try {
+        const next = await options.onSave(fields);
+        if (Array.isArray(next)) { rows = next.map((field) => toRow(field, true)); openId = ''; }
+        settle(); notice = 'Saved'; render();
+      } catch (error) {
+        notice = error?.message || 'Could not save';
+        const path = error?.details?.path || error?.path;
+        if (path && rows.some((row) => row.def.path === path)) setErrors({ [path]:error.message }); else render();
+      }
+    }
+    const setFields = (fields) => { rows = (Array.isArray(fields) ? fields : []).map((field) => toRow(field, true)); retired = []; errors = new Map(); openId = ''; notice = ''; baseline = JSON.stringify(getFields()); render(); };
+    const listeners = [['input', onInput], ['change', onChange], ['click', onClick], ['dragstart', onDragStart], ['dragover', onDragOver], ['drop', onDrop]];
+    listeners.forEach(([type, handler]) => container.addEventListener(type, handler));
+    setFields(options.fields);
+    return {
+      getFields, setFields, validate, setErrors,
+      isDirty:() => JSON.stringify(getFields()) !== baseline,
+      destroy(){ listeners.forEach(([type, handler]) => container.removeEventListener(type, handler)); container.innerHTML = ''; }
+    };
+  }
+
   root.FirstMateCustomFields = {
     __initialized:true,
     MODULE_ID,
@@ -1208,6 +1854,7 @@
     CONTACT_VALUE_KEY,
     TYPE_CATALOG:clone(TYPE_CATALOG),
     schemaError, validFormat, structuredHtml, structuredValue, inputHtml, wireStructured, mountOrganizationValues, mountUserValues,
+    mountDefinitionsEditor, mountValuesForm, renderValue, renderValueText, mountValue, withReferences,
     normalizeDefinition,
     normalizeModule,
     normalizePath,

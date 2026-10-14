@@ -3,7 +3,10 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { normalizeDefinitions, validateField, calculateFormula, validatePattern } from "../custom_fields/contracts.js";
+// Storage reads its root when first imported, so the root is set before the modules under test load.
+const fixtureRoot = await mkdtemp(path.join(os.tmpdir(),"custom-field-publication-"));
+process.env.PLATFORM_STORAGE_ROOT = path.join(fixtureRoot,"platform");
+const { normalizeDefinitions, validateField, calculateFormula, validatePattern } = await import("../custom_fields/contracts.js");
 
 test("field contracts validate integers, formats, nested arrays/dictionaries and bounded schemas", async () => {
   const field = normalizeDefinitions([{entity:"organization",path:"inventory",type:"array",schema:{items:{type:"object",properties:{quantity:{type:"integer",minimum:0},email:{type:"string",format:"email"}},required:["quantity","email"],additionalProperties:false}}}])[0]!;
@@ -22,7 +25,7 @@ test("field contracts validate integers, formats, nested arrays/dictionaries and
 });
 
 test("custom fields publish all owners, enforce writes, reauthorize snapshots and retain unrelated values", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(),"custom-field-publication-"));
+  const root = fixtureRoot;
   process.env.PLATFORM_STORAGE_ROOT = path.join(root,"platform");
   process.env.PLATFORM_ACTIONS_DB_PATH = path.join(root,"actions.sqlite");
   process.env.NODE_ENV = "test";

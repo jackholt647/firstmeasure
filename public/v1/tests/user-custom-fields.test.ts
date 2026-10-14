@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {mkdtemp,mkdir,writeFile,rm} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {normalizeDefinitions} from "../custom_fields/contracts.js";
-import {withoutUserFieldValues} from "../custom_fields/user-view.js";
+// Storage reads its root when first imported, so the root is set before the modules under test load.
+const fixtureRoot=await mkdtemp(path.join(os.tmpdir(),"user-fields-"));process.env.PLATFORM_STORAGE_ROOT=fixtureRoot;
+const {normalizeDefinitions}=await import("../custom_fields/contracts.js");
+const {withoutUserFieldValues}=await import("../custom_fields/user-view.js");
 
 test("user definitions and public user projections preserve the shared contract",()=>{
   assert.equal(normalizeDefinitions([{entity:"user",path:"employee_number",type:"integer"}])[0]!.entity,"user");
@@ -14,7 +16,7 @@ test("user definitions and public user projections preserve the shared contract"
 });
 
 test("user fields share organization definitions, validate storage and ownership, and publish with revisions",async()=>{
-  const root=await mkdtemp(path.join(os.tmpdir(),"user-fields-"));process.env.PLATFORM_STORAGE_ROOT=root;
+  const root=fixtureRoot;
   if(process.env.TEST_POSTGRES_URL)Object.assign(process.env,{FIRSTMATE_ENV:"test",FIRSTMEASURE_DATABASE_MODE:"postgres",DATABASE_URL:process.env.TEST_POSTGRES_URL,POSTGRES_POOL_MAX:"1",POSTGRES_AUTO_MIGRATE:"false",FIRSTMEASURE_ARTIFACT_STORAGE:"local"});
   const storage=await import("../platform/storage.js"),fields=await import("../custom_fields/records.js");
   const {systemPublicationContext}=await import("../platform/publication/context.js");

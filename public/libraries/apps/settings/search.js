@@ -49,11 +49,6 @@
   ]);
   add('assistant', 'AI Agents', ['AI assistant behavior', 'AI assistant data access', 'AI customer messaging', 'AI agent permissions']);
   add('channels', 'Channels', ['Team channels', 'Channel defaults', 'Channel members']);
-  add('users', 'Users', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_57420a03b49adf","People") ?? "People"), view:'people', keywords:'users teammates invite' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_b65aaa94c18c60","Roles & access") ?? "Roles & access"), view:'access', keywords:'permissions permission sets security' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_642c9edaff0fdb","Invite user") ?? "Invite user"), view:'people', keywords:'add teammate employee' }
-  ]);
   add('payroll', 'Payroll', ['Pay schedules', 'Payroll assignments', 'Earnings', 'Contractor pay', 'Timesheet defaults']);
   add('reports', 'Reports', ['Measurement report defaults', 'Customer report defaults', 'Report branding']);
   add('documents', 'Documents', ['Required project documents', 'Document defaults', 'Document requirements']);
@@ -64,11 +59,15 @@
     { title:(globalThis.PlatformLanguage?.text("settings","m_ef207345c8196c","Celebrations") ?? "Celebrations"), view:'celebrations', keywords:'confetti success animation' },
     { title:(globalThis.PlatformLanguage?.text("settings","m_5430e6902b900e","Insights") ?? "Insights"), view:'insights', keywords:'recommendations tips tooltip agent contextual help' }
   ]);
-  add('users', 'Users', [{title:'Departments',view:'departments',keywords:'organization create department membership user types role defaults group types crews teams people'}]);
   add('scheduling', 'Scheduling', ['Appointment confirmations', 'Scheduling availability', 'Assignment rules', 'Booking windows']);
-  add('crews', 'Crews and Subcontractors', [
-    { title:(globalThis.PlatformLanguage?.text("settings","m_40d0afffa9e25d","Crews and resource groups") ?? "Crews and resource groups"), view:'groups', keywords:'crew members teams' },
-    { title:(globalThis.PlatformLanguage?.text("settings","m_8a99cca02b36a4","Organization connections") ?? "Organization connections"), view:'connections', keywords:'subcontractors vendors companies' }
+  add('people', 'People', [
+    {title:'People overview',view:'home',keywords:'team staff directory'},
+    {title:'Users',view:'users',keywords:'people teammates invite user roles permissions app experience suspend delete admin level tags'},
+    {title:'Invite user',view:'users',keywords:'add teammate employee invitation'},
+    {title:'Roles & access',view:'users',keywords:'role permissions permission sets security members access'},
+    {title:'Groups',view:'groups',keywords:'crews teams group types members staffing requirements lead'},
+    {title:'Departments',view:'departments',keywords:'department members icon scoped roles organizational units divisions categories app visibility'},
+    {title:'Subcontractors',view:'subcontractors',keywords:'outside companies vendors partners company types link payment terms'}
   ]);
   add('storage', 'Storage', ['Media storage usage', 'Storage limits', 'Deleted media', 'Storage plan']);
   add('sms', 'SMS', ['Messaging registration', '10DLC registration', 'SMS setup', 'Messaging profile']);
@@ -105,11 +104,6 @@
     const tokens = needle.split(/\s+/).filter(Boolean);
     const allowed = options.sections ? new Set(Array.from(options.sections, String)) : null;
     return catalog
-      .map((item) => {
-        if (item.section !== 'users' || item.view === 'departments' || root.Portal?.appFlags?.has?.('platform', 'people_access')) return item;
-        const titles = { People:'Users', 'Roles & access':'Permissions', 'Invite user':'Add user' };
-        return { ...item, title:titles[item.title] || item.title, view:'' };
-      })
       .filter((item) => !allowed || allowed.has(item.section))
       .filter((item) => !item.platformBilling || root.FirstMatePlatformBilling?.isEnabled() === true)
       .map((item) => {

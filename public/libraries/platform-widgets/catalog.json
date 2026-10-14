@@ -1630,7 +1630,8 @@
             "organization_user",
             "resource_group",
             "organization_connection",
-            "assignable_subject"
+            "assignable_subject",
+            "department"
           ]
         },
         "field": {
@@ -1656,7 +1657,8 @@
       "data-entry.organization_user",
       "data-entry.resource_group",
       "data-entry.organization_connection",
-      "data-entry.assignable_subject"
+      "data-entry.assignable_subject",
+      "data-entry.department"
     ],
     "selection": {
       "description": "Typed field value in its custom-field storage shape. This does not save a record.",

@@ -5,12 +5,12 @@ import path from 'node:path';
 import { chromium } from 'playwright-core';
 
 // Mounts the Payroll settings page against a stubbed PayrollAPI with the clock held at 2026-06-01, and checks what
-// the schedule editor and the pay plan and pay rule editors send. Run with `--import tsx` so the payloads can be
+// the schedule editor, the company's schedule choice and the pay plan and pay rule editors send. Run with `--import tsx` so the payloads can be
 // held against the server's own schemas and the client's pay-date preview against payrollPayDates.
 
 const estimatorRule = {
   id: 'estimator_commission_sold', name: 'Estimator commission when sold', description: 'A share of the contract.', status: 'active', revision: 3,
-  versions: [{ version: 'abcdef0123456789', effective_from: '2026-01-01', entered_at: '2026-01-02T10:00:00.000Z', entered_by: 'owner', definition: {
+  versions: [{ version: 'abcdef0123456789', effective_from: '2026-01-01', entered_at: '2026-01-02T10:00:00.000Z', entered_by: 'owner', entered_by_name: 'Olive Owner', definition: {
     grain: 'record', week_starts: 1, always: false, kind: 'commission', earned_at: 'sold_at', project: 'id',
     inputs: { projects: { primary: true, source: { provider: 'payroll', export: 'project_records', args: { facts: true } }, where: { rules: [{ field: 'assignee_keys.assignments.estimator', operator: 'contains', value: '$payee.key' }, { field: 'canceled_at', operator: 'is_missing' }] } } },
     parameters: { rate_bps: { label: 'Share of contract (basis points)', default: 500 } },
@@ -22,7 +22,7 @@ const hourlyRule = {
   versions: [{ version: '1234567890abcdef', effective_from: '2026-01-01', entered_at: '2026-01-02T10:00:00.000Z', entered_by: 'owner', definition: {
     grain: 'period', period: 'week', week_starts: 1, always: false, kind: 'hourly',
     inputs: { shifts: { source: { provider: 'payroll', export: 'time_shifts' }, date: 'clocked_out_at', where: { rules: [{ field: 'assignee_key', operator: 'equals', value: '$payee.key' }, { field: 'approval_status', operator: 'equals', value: 'approved' }] } } },
-    parameters: { rate_cents: { label: 'Hourly rate (cents)' }, overtime_after_hours: { label: 'Weekly hours before overtime', default: 40 } },
+    parameters: { rate_cents: { label: 'Hourly rate', type: 'cents' }, overtime_after_hours: { label: 'Weekly hours before overtime', default: 40 } },
     code: 'return Math.round(unit.rows.shifts.length * params.rate_cents);'
   } }]
 };
@@ -53,7 +53,8 @@ function sampleRecurrences() {
   return list;
 }
 
-test('payroll settings build any pay cadence, set corrections, and edit pay plans and pay rules', async () => {
+test('payroll settings build any pay cadence, choose when the company pays, and edit and preview pay plans and pay rules', async () => {
+  const { CONDITION_OPERATORS } = await import('../work/conditions.ts');
   const { payrollPayDates } = await import('../payroll/schedule.ts');
   const { payrollScheduleInputSchema, payrollRecurrenceSchema } = await import('../payroll/schemas.ts');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -75,12 +76,19 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
       };
     });
     await page.goto('https://settings.test/');
-    await page.evaluate(({ rules }) => {
+    await page.evaluate(({ rules, operators }) => {
       window.__APP = { userOrgId: 'org', userId: 'owner' };
       window.confirm = () => true;
       window.calls = [];
       window.toasts = [];
-      window.db = { schedules: [], rules, plans: [] };
+      // The organization default already holds a pay rule everyone starts from; choosing a schedule must send it back untouched.
+      window.db = { schedules: [], rules, plans: [], orgDefault: { subject: { type: 'organization', id: 'org' }, revision: 4, entries: [{ id: 'e1', kind: 'add', rule_id: 'hourly_time_clock', effective_from: '2026-01-01', entered_at: '2026-01-02T10:00:00.000Z', entered_by: 'owner', entered_by_name: 'Olive Owner' }] } };
+      const sources = [
+        { id: 'payroll.project_records', provider: 'payroll', export: 'project_records', description: 'Every project with its stored custom field values.', units: {}, needs_args: false, required_args: [], args: ['facts'], fields: ['id', 'title', 'sold_at', 'canceled_at'] },
+        { id: 'payroll.time_shifts', provider: 'payroll', export: 'time_shifts', description: 'One row per shift.', units: { worked_seconds: 'seconds' }, needs_args: false, required_args: [], args: [], fields: ['assignee_key', 'approval_status', 'clocked_out_at'] }
+      ];
+      const preview = { payee_count: 2, changed_payee_count: 1, difference_count: 1, change_cents: 2000, held_count: 0, unresolved_count: 0, truncated: false,
+        payees: [{ payee: { type: 'organization_user', id: 'ana' }, payee_name: 'Ana', change_cents: 2000, unresolved: [], differences: [{ rule_id: 'estimator_commission_sold', unit: 'p1', line: 'main', posted_cents: 50000, without_change_cents: 50000, target_cents: 52000, change_cents: 2000, handling: 'normal' }] }] };
       const copy = (value) => JSON.parse(JSON.stringify(value));
       const saveVersioned = (list, input, version) => {
         let item = list.find((entry) => entry.id === input.id);
@@ -97,8 +105,18 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
           update: async (_org, id, payload) => { calls.push({ op: 'schedule.update', id, payload: copy(payload) }); Object.assign(db.schedules.find((entry) => entry.id === id), copy(payload), { revision: payload.expected_revision + 1 }); return {}; },
           archive: async () => ({})
         },
-        policies: { list: async () => ({ policies: [] }) },
         pay: {
+          default: async () => copy(db.orgDefault),
+          saveDefault: async (_org, payload) => {
+            calls.push({ op: 'default.save', payload: copy(payload) });
+            db.orgDefault = { ...copy(payload), revision: db.orgDefault.revision + 1, schedules: payload.schedules.map((choice, index) => ({ ...choice, id: `c${index}`, entered_at: '2026-06-01T12:00:00.000Z', entered_by: 'owner' })) };
+            delete db.orgDefault.expected_revision;
+            return copy(db.orgDefault);
+          },
+          ruleSources: async () => copy(sources),
+          vocabulary: async () => ({ operators }),
+          previewRule: async (_org, rule) => { calls.push({ op: 'rule.preview', payload: copy(rule) }); return copy(preview); },
+          previewPlan: async (_org, plan) => { calls.push({ op: 'plan.preview', payload: copy(plan) }); return { ...copy(preview), payee_count: 0, changed_payee_count: 0, difference_count: 0, change_cents: 0, payees: [] }; },
           rules: async () => copy(db.rules),
           plans: async () => copy(db.plans),
           saveRule: async (_org, rule) => { calls.push({ op: 'rule.save', payload: copy(rule) }); return saveVersioned(db.rules, rule, { version: 'ffff0000', definition: rule.definition }); },
@@ -107,7 +125,7 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
           archivePlan: async (_org, id, revision) => { calls.push({ op: 'plan.archive', id, revision }); db.plans.find((entry) => entry.id === id).status = 'archived'; return {}; }
         }
       };
-    }, { rules: [estimatorRule, hourlyRule] });
+    }, { rules: [estimatorRule, hourlyRule], operators: CONDITION_OPERATORS });
     await page.addScriptTag({ url: 'https://settings.test/libraries/apps/settings/payroll.js' });
     await page.evaluate(() => { window.settings = FirstMatePayrollSettings.mount(document.querySelector('#host'), { orgId: 'org', showToast: (...values) => toasts.push(values) }); });
     const lastCall = (op) => page.evaluate((name) => calls.filter((call) => call.op === name).at(-1), op);
@@ -210,12 +228,39 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
       await page.locator('[data-cadence-interval]').blur();
     }), { frequency: 'weekly', weekday: 5, interval: 3, anchor_date: '2026-06-05' });
 
+    // When people are paid: nothing is chosen at first. The company pays on one schedule, salary on another, from today.
+    assert.equal(await page.locator('[data-when-kind="*"] [data-when-schedule]').inputValue(), '');
+    assert.equal(await page.locator('[data-when-kind]').count(), 8, 'everyone, and one row per kind of earning');
+    assert.equal(await page.locator('[data-policy-form],[data-add-assignment]').count(), 0, 'the per-person assignment panel is gone');
+    await page.locator('[data-when-kind="*"] [data-when-schedule]').selectOption('schedule_2');
+    await page.locator('[data-when-kind="salary"] [data-when-schedule]').selectOption('schedule_1');
+    await shot('when-people-are-paid');
+    await page.locator('[data-when-form] button[type="submit"]').click();
+    await page.locator('[data-select-schedule="schedule_2"] [data-schedule-use]').waitFor();
+    assert.equal(await page.locator('[data-select-schedule="schedule_2"] [data-schedule-use]').innerText(), 'Default');
+    assert.equal(await page.locator('[data-select-schedule="schedule_1"] [data-schedule-use]').innerText(), 'Salary');
+    const chosen = (await lastCall('default.save')).payload;
+    assert.deepEqual(chosen, { subject: { type: 'organization', id: 'org' }, entries: [{ kind: 'add', rule_id: 'hourly_time_clock', effective_from: '2026-01-01' }], expected_revision: 4,
+      schedules: [{ effective_from: '2026-06-01', earning_kind: '*', schedule_id: 'schedule_2' }, { effective_from: '2026-06-01', earning_kind: 'salary', schedule_id: 'schedule_1' }] });
+    assert.match(await page.locator('[data-when-kind="salary"] small').innerText(), /On Salaries since Jun 1, 2026/);
+    // From July salary goes back to the company's schedule: the choice is ended the day before, not rewritten.
+    await page.locator('[data-when-from]').fill('2026-07-01');
+    await page.locator('[data-when-kind="salary"] [data-when-schedule]').selectOption('');
+    await page.locator('[data-when-form] button[type="submit"]').click();
+    await page.locator('.pycfg-notice', { hasText: 'Jul 1, 2026' }).waitFor();
+    const ended = (await lastCall('default.save')).payload;
+    assert.deepEqual([ended.expected_revision, ended.schedules], [5, [{ effective_from: '2026-06-01', earning_kind: '*', schedule_id: 'schedule_2' }, { effective_from: '2026-06-01', effective_through: '2026-06-30', earning_kind: 'salary', schedule_id: 'schedule_1' }]]);
+    await page.locator('[data-when-form] button[type="submit"]').click();
+    assert.equal(await page.locator('[data-when-form] [data-form-status]').innerText(), 'Nothing has changed.');
+    assert.equal((await page.evaluate(() => calls.filter((call) => call.op === 'default.save').length)), 2);
+
     // Pay plans and rules: a rule shows what it reads and its formula.
     await page.locator('[data-pay-section="pay"]').click();
     await page.locator('[data-pay-card="rule:estimator_commission_sold"]').waitFor();
     await page.locator('[data-pay-card="rule:estimator_commission_sold"] > summary').click();
     const ruleCard = await page.locator('[data-pay-card="rule:estimator_commission_sold"]').innerText();
     assert.match(ruleCard, /In effect since Jan 1, 2026/);
+    assert.match(ruleCard, /entered Jan 2, 2026 by Olive Owner/, 'history says who entered a version, by name');
     assert.match(ruleCard, /Once per row of projects/);
     assert.match(ruleCard, /sold_at/);
     assert.match(ruleCard, /assignee_keys\.assignments\.estimator contains \$payee\.key and canceled_at is empty/);
@@ -230,6 +275,12 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
     assert.equal(await page.locator('[data-plan-count]').innerText(), '2 selected');
     await page.locator('[data-plan-rule="estimator_commission_sold"] [data-plan-param="rate_bps"]').fill('250');
     assert.equal(await page.locator('[data-plan-rule="hourly_time_clock"] [data-plan-param]').count(), 2);
+    // A parameter declared as money is typed in whole units and stored in cents.
+    assert.equal(await page.locator('[data-plan-rule="hourly_time_clock"] [data-plan-param="rate_cents"]').getAttribute('data-param-type'), 'cents');
+    await page.locator('[data-plan-rule="hourly_time_clock"] [data-plan-param="rate_cents"]').fill('25.50');
+    await page.locator('[data-pay-preview]').click();
+    assert.match(await page.locator('[data-pay-preview-summary]').innerText(), /Nobody is paid by this yet/);
+    assert.deepEqual((await lastCall('plan.preview')).payload.rules, [{ rule_id: 'estimator_commission_sold', params: { rate_bps: 250 } }, { rule_id: 'hourly_time_clock', params: { rate_cents: 2550 } }]);
     assert.equal(await page.locator('[data-backdated]').count(), 0);
     await page.locator('[data-plan="effective_from"]').fill('2026-03-01');
     await page.locator('[data-backdated]').waitFor();
@@ -239,24 +290,41 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
     await page.locator('[data-pay-form="plan"] button[type="submit"]').click();
     await page.locator('[data-pay-list="plans"] [data-pay-card]').waitFor();
     const plan = (await lastCall('plan.save')).payload;
-    assert.deepEqual(plan, { name: 'Estimators', description: '', effective_from: '2026-03-01', rules: [{ rule_id: 'estimator_commission_sold', params: { rate_bps: 250 } }, { rule_id: 'hourly_time_clock' }] });
+    assert.deepEqual(plan, { name: 'Estimators', description: '', effective_from: '2026-03-01', rules: [{ rule_id: 'estimator_commission_sold', params: { rate_bps: 250 } }, { rule_id: 'hourly_time_clock', params: { rate_cents: 2550 } }] });
     const planCard = await page.locator('[data-pay-list="plans"] [data-pay-card]').innerText();
     assert.match(planCard, /Estimators/);
     assert.match(planCard, /2 rules/);
     assert.match(planCard, /Share of contract \(basis points\): 250/);
     assert.match(planCard, /Weekly hours before overtime: 40 \(rule default\)/);
+    assert.match(planCard, /Hourly rate: 25\.50/);
     assert.match(await page.locator('.pycfg-notice').innerText(), /in the past/);
 
     // Editing a rule saves a new version of the same definition from an effective date.
     await page.locator('[data-pay-card="rule:estimator_commission_sold"] [data-pay-edit]').click();
     assert.equal(await page.locator('[data-rule="effective_from"]').inputValue(), '2026-06-01');
     assert.equal(await page.locator('[data-rule-input] [data-c="field"]').first().inputValue(), 'assignee_keys.assignments.estimator');
+    // The collection is picked from what the server publishes, and the conditions offered are the server's list.
+    assert.equal(await page.locator('[data-rule-input] [data-in="source"]').inputValue(), 'payroll.project_records');
+    assert.equal(await page.locator('[data-rule-input] [data-in="provider"]').count(), 0);
+    assert.match(await page.locator('[data-in-source-help]').innerText(), /Every project with its stored custom field values\. Options it takes: facts\./);
+    assert.deepEqual(await page.locator('[data-rule-input] [data-c="operator"]').first().locator('option').evaluateAll((options) => options.map((option) => option.value)), CONDITION_OPERATORS.map((operator) => operator.id));
+    assert.deepEqual(await page.locator('[data-rule-param] [data-p="type"]').first().locator('option').evaluateAll((options) => options.map((option) => option.value)), ['number', 'cents', 'basis_points', 'boolean', 'text']);
     await page.locator('[data-rule-param] [data-p="default"]').fill('600');
     await page.locator('[data-rule-add-param]').click();
     await page.locator('[data-rule-param] [data-p="key"]').nth(1).fill('minimum_cents');
     await page.locator('[data-rule-param] [data-p="label"]').nth(1).fill('Smallest commission (cents)');
     await page.locator('[data-rule="code"]').fill('return Math.max(params.minimum_cents || 0, Math.round(unit.record.contract_cents * params.rate_bps / 10000));');
+    // A preview sends exactly what a save would, says who it reaches, and goes away when the form is edited again.
+    await page.locator('[data-rule-param] [data-p="type"]').first().selectOption('basis_points');
+    await page.locator('[data-pay-preview]').click();
+    assert.equal(await page.locator('[data-pay-preview-summary]').innerText(), 'It reaches 2 payees. 1 earning would come to a different amount for 1 payee: +20.00 in total. Nothing has been saved.');
+    assert.match(await page.locator('[data-pay-preview-payee="organization_user:ana"]').innerText(), /Ana[\s\S]*p1: 500\.00 to 520\.00[\s\S]*\+20\.00/);
+    const previewed = (await lastCall('rule.preview')).payload;
+    assert.equal(await page.evaluate(() => calls.filter((call) => call.op === 'rule.save').length), 0, 'a preview saves nothing');
     await shot('rule-editor');
+    await page.locator('[data-rule-param] [data-p="label"]').nth(1).fill('Smallest commission');
+    assert.equal(await page.locator('[data-pay-preview-result]').count(), 0);
+    await page.locator('[data-rule-param] [data-p="label"]').nth(1).fill('Smallest commission (cents)');
     await page.locator('[data-pay-form="rule"] button[type="submit"]').click();
     await page.locator('[data-pay-list="rules"]').waitFor();
     const rule = (await lastCall('rule.save')).payload;
@@ -265,10 +333,11 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
       definition: {
         grain: 'record', earned_at: 'sold_at', project: 'id', kind: 'commission',
         inputs: estimatorRule.versions[0].definition.inputs,
-        parameters: { rate_bps: { label: 'Share of contract (basis points)', default: 600 }, minimum_cents: { label: 'Smallest commission (cents)' } },
+        parameters: { rate_bps: { label: 'Share of contract (basis points)', type: 'basis_points', default: 600 }, minimum_cents: { label: 'Smallest commission (cents)', type: 'number' } },
         code: 'return Math.max(params.minimum_cents || 0, Math.round(unit.record.contract_cents * params.rate_bps / 10000));'
       }
     });
+    assert.deepEqual(previewed, rule);
     assert.match(await page.locator('[data-pay-card="rule:estimator_commission_sold"]').innerText(), /2 versions/);
 
     // A period rule keeps its shape through the form, and a new rule is checked before it is sent.
@@ -277,7 +346,7 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
     await page.locator('[data-pay-form="rule"] button[type="submit"]').click();
     await page.locator('[data-pay-list="rules"]').waitFor();
     const hourly = (await lastCall('rule.save')).payload;
-    assert.deepEqual(hourly.definition, { grain: 'period', period: 'week', week_starts: 1, kind: 'hourly', inputs: hourlyRule.versions[0].definition.inputs, parameters: hourlyRule.versions[0].definition.parameters, code: hourlyRule.versions[0].definition.code });
+    assert.deepEqual(hourly.definition, { grain: 'period', period: 'week', week_starts: 1, kind: 'hourly', inputs: hourlyRule.versions[0].definition.inputs, parameters: { rate_cents: { label: 'Hourly rate', type: 'cents' }, overtime_after_hours: { label: 'Weekly hours before overtime', type: 'number', default: 40 } }, code: hourlyRule.versions[0].definition.code });
     await page.locator('[data-pay-new="rule"]').click();
     await page.locator('[data-rule="name"]').fill('Flat bonus');
     await page.locator('[data-pay-form="rule"] button[type="submit"]').click();
@@ -306,6 +375,7 @@ test('payroll settings build any pay cadence, set corrections, and edit pay plan
     if (payRules) {
       for (const payload of [rule, hourly, bonus]) assert.equal(payRules.payRuleSaveSchema.safeParse(payload).success, true, JSON.stringify(payRules.payRuleSaveSchema.safeParse(payload).error?.issues));
       assert.equal(payRules.payPlanSaveSchema.safeParse(plan).success, true);
+      for (const payload of [chosen, ended]) assert.equal(payRules.payDefaultSaveSchema.safeParse(payload).success, true, JSON.stringify(payRules.payDefaultSaveSchema.safeParse(payload).error?.issues));
     }
     assert.deepEqual(errors, []);
   } finally {

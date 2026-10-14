@@ -28,7 +28,7 @@ test("the sample pay rules price the real time clock, projects and labor commitm
     const workforce = await import("../workforce/storage.js");
     const crew = (await workforce.createResourceGroup(ORG, { name: "Install team", kind_id: "crew" })).id as string;
     const schedule = await store.createPayrollSchedule(ORG, { name: "Weekly", recurrence: { frequency: "weekly", weekday: 5 }, timezone: "UTC" });
-    await store.savePayrollPolicy(ORG, "organization", ORG, { schedule_id: schedule.id });
+    await (await import("../payroll/pay-rules.js")).savePayDefault(ORG, { subject: { type: "organization", id: ORG }, entries: [], schedules: [{ effective_from: "2026-01-01", schedule_id: schedule.id }] }, { userId: "owner" });
     (await import("../platform/publication/bootstrap.js")).initializePublication();
     const auth: any = { orgId: ORG, userId: "owner", role: "member", permissions: { manage_payroll: true }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } }, capabilities: { effectiveByKey: { "apps.payroll": true } } };
     const context = userPublicationContext(auth), command = userPublicationContext(auth, { mode: "command" });

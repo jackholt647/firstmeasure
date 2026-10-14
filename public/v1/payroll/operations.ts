@@ -4,14 +4,14 @@ import { hydratedWorkforceUser } from '../workforce/service.js';
 import { listDocuments } from '../platform/storage.js';
 import { getWorkforceDatabase, listAssignmentGroups } from '../workforce/storage.js';
 import { listOrganizationConnections } from '../connections/storage.js';
-import { asObject, cleanText, listPayrollPolicies, listPayrollBatches, type JsonObject } from './storage.js';
+import { asObject, cleanText, listPayrollBatches, type JsonObject } from './storage.js';
 import { upcomingPayroll, createPayrollBatch, patchPayrollBatchItem, applyPayrollBatchAction } from './service.js';
 import { syncContractorPayrollPayables, syncPaidContractorPayrollDisbursements } from './contractor_disbursements.js';
 import { syncPaidPayrollReimbursements } from '../payments/reimbursements.js';
 import { refreshOrganizationEarnings } from './pay-refresh.js';
 
 export async function payrollDashboard(orgId:string,options:JsonObject={}){
-  return {...await upcomingPayroll(orgId,options),policies:await listPayrollPolicies(orgId),history:await listPayrollBatches(orgId,{...options,limit:Number(options.history_limit||100)})};
+  return {...await upcomingPayroll(orgId,options),history:await listPayrollBatches(orgId,{...options,limit:Number(options.history_limit||100)})};
 }
 export async function payrollContractors(orgId:string){
   const users:JsonObject[]=(await listDocuments(orgId,'users')).map(row=>({id:row.id,...asObject(row.data)})),connections=await listOrganizationConnections(orgId);

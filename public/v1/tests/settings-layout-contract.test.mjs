@@ -12,8 +12,8 @@ const guide = await readFile(path.resolve(publicRoot, '..', 'docs/settings-layou
 
 const expectedSections = [
   'my_settings', 'notifications', 'company', 'money', 'calls', 'contacts', 'feedback', 'equipment',
-  'live_chat', 'comms', 'assistant', 'channels', 'users', 'payroll', 'reports', 'documents',
-  'configuration', 'scheduling', 'crews', 'project_scopes', 'storage', 'sms',
+  'live_chat', 'comms', 'assistant', 'channels', 'people', 'payroll', 'reports', 'documents',
+  'configuration', 'scheduling', 'project_scopes', 'storage', 'sms',
   'domains', 'app_flags', 'pricebook', 'proposals', 'forms', 'billing', 'app_download'
 ];
 

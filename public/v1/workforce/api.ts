@@ -406,9 +406,11 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
   app.delete("/organizations/:orgId/branches/:branchId/resource-groups/:groupId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
-    await requireWorkforceMutation(request, orgId);
+    const context = await requireWorkforceMutation(request, orgId);
     const group = await archiveResourceGroup(orgId, getParam(request.params, "groupId"), expectedRevision(request));
-    return { ok: true, ...(await settingsPayload(orgId, branchId)), archived: true, resource_group: group, group };
+    // An archived group is no longer an assignee: remove what was kept against it. A step that fails is reported, and the archive stands.
+    const cleanup = await (await import("../assignees/base.js")).cleanupAssignee(orgId, { type: "resource_group", id: String(group.id) }, context).catch(() => null);
+    return { ok: true, ...(await settingsPayload(orgId, branchId)), archived: true, resource_group: group, group, assignee_cleanup: cleanup?.steps || [] };
   });
 
   app.put("/organizations/:orgId/branches/:branchId/resource-groups/:groupId/members/:userId", async (request) => {

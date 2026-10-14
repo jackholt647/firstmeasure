@@ -7,7 +7,7 @@ import { openSqlStore, ensureSqlColumn, type SqlStore } from "../platform/sql_st
 
 import { env } from "../src/config/env.js";
 import { badRequest, conflict, notFound } from "../platform/errors.js";
-import { readDocument } from "../platform/storage.js";
+import { readDocument, upsertDocument } from "../platform/storage.js";
 import { listScopeTemplates } from "../scopes/storage.js";
 
 export type JsonObject = Record<string, unknown>;
@@ -109,7 +109,8 @@ export function getWorkforceDatabase() {
   const nextPath = resolvedDatabasePath();
   if (database && databasePath === nextPath) return database;
   void closeWorkforceDatabase();
-  database = openSqlStore({ id: "workforce", filename: nextPath, initialize: initializeSchema });
+  // Bump the version when a column is added: PostgreSQL runs initializeSchema again only when it rises.
+  database = openSqlStore({ id: "workforce", schemaVersion: 2, filename: nextPath, initialize: initializeSchema });
   databasePath = nextPath;
   return database;
 }
@@ -121,6 +122,7 @@ async function initializeSchema(db: SqlStore) {
       schema_version INTEGER NOT NULL DEFAULT 3,
       terminology_json TEXT NOT NULL DEFAULT '{}',
       resource_group_kinds_json TEXT NOT NULL DEFAULT '[]',
+      organization_connection_types_json TEXT NOT NULL DEFAULT '[]',
       assignment_tags_json TEXT NOT NULL DEFAULT '[]',
       revision INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
@@ -154,6 +156,7 @@ async function initializeSchema(db: SqlStore) {
       role TEXT NOT NULL DEFAULT 'member',
       is_lead INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'active',
+      joined_role_ids_json TEXT NOT NULL DEFAULT '[]',
       joined_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (organization_id, group_id, user_id),
@@ -229,6 +232,8 @@ async function initializeSchema(db: SqlStore) {
   await ensureSqlColumn(db, "resource_groups", "assignment_tags_json", "TEXT NOT NULL DEFAULT '[]'");
   await ensureSqlColumn(db, "workforce_configuration", "resource_group_kinds_json", "TEXT NOT NULL DEFAULT '[]'");
   await ensureSqlColumn(db, "workforce_configuration", "assignment_tags_json", "TEXT NOT NULL DEFAULT '[]'");
+  await ensureSqlColumn(db, "workforce_configuration", "organization_connection_types_json", "TEXT NOT NULL DEFAULT '[]'");
+  await ensureSqlColumn(db, "resource_group_memberships", "joined_role_ids_json", "TEXT NOT NULL DEFAULT '[]'");
   await db.prepare("UPDATE workforce_configuration SET schema_version=? WHERE schema_version<?").run(DATABASE_SCHEMA_VERSION, DATABASE_SCHEMA_VERSION);
   // Extension schemas are part of the same atomic initialization, so no replica
   // can see a partially initialized staff/access database.
@@ -270,8 +275,19 @@ function normalizedDefinitions(value: unknown, defaults: JsonObject[] = []) {
   return [...byId.values()];
 }
 
+const roleIds = (value: unknown) => [...new Set(asArray(value).map((item) => cleanText(item).toLowerCase()).filter(Boolean))];
+
+/**
+ * The organization's group types. A group has exactly one, its `kind_id`. A type carries `member_role_ids`: the access
+ * roles a user is given when they join a group of that type (see `grantGroupTypeRolesOnJoin`).
+ */
 function resourceGroupKinds(value: unknown) {
-  return normalizedDefinitions(value, DEFAULT_RESOURCE_GROUP_KINDS);
+  return normalizedDefinitions(value, DEFAULT_RESOURCE_GROUP_KINDS).map((definition): JsonObject => ({ ...definition, member_role_ids: roleIds(definition.member_role_ids) }));
+}
+
+/** The organization's company types: what an outside company does for it. A company can have several. Same shape as a group type, with no defaults. */
+function organizationConnectionTypes(value: unknown) {
+  return normalizedDefinitions(value);
 }
 
 function assignmentTagDefinitions(value: unknown) {
@@ -295,6 +311,7 @@ function configurationView(rowValue: unknown) {
     organization_id: cleanText(row.organization_id),
     terminology: mergedTerminology(parseJson(row.terminology_json)),
     resource_group_kinds: resourceGroupKinds(parseJson(row.resource_group_kinds_json, [])),
+    organization_connection_types: organizationConnectionTypes(parseJson(row.organization_connection_types_json, [])),
     assignment_tags: assignmentTagDefinitions(parseJson(row.assignment_tags_json, [])),
     revision: Number(row.revision || 1),
     created_at: cleanText(row.created_at),
@@ -336,6 +353,66 @@ export async function assertResourceGroupKindExists(orgIdValue: string, kindIdVa
   return kindId;
 }
 
+/**
+ * The organization's group types, company types and tag list, without creating the configuration row the way
+ * `readWorkforceConfiguration` does. For published reads, which must not write. `revision` is 0 until the first save.
+ */
+export async function readWorkforceDefinitions(orgIdValue: string) {
+  const row = asObject(await getWorkforceDatabase().prepare("SELECT resource_group_kinds_json, organization_connection_types_json, assignment_tags_json, revision FROM workforce_configuration WHERE organization_id = ?").get(cleanId(orgIdValue, "organization_id")));
+  return {
+    resource_group_kinds: resourceGroupKinds(parseJson(row.resource_group_kinds_json, [])),
+    organization_connection_types: organizationConnectionTypes(parseJson(row.organization_connection_types_json, [])),
+    assignment_tags: assignmentTagDefinitions(parseJson(row.assignment_tags_json, [])),
+    revision: Number(row.revision || 0)
+  };
+}
+
+/** The names of the organization's access roles as they are stored, without seeding the default roles the way `listAccessRoles` does. Reads only. */
+export async function readAccessRoleNames(orgIdValue: string) {
+  return (await getWorkforceDatabase().prepare("SELECT id, name, status FROM workforce_access_roles WHERE organization_id = ? ORDER BY id ASC").all(cleanId(orgIdValue, "organization_id")))
+    .map((row) => ({ id: cleanText(row.id), name: cleanText(row.name), status: cleanText(row.status) === "archived" ? "archived" : "active" }));
+}
+
+/**
+ * Sets the access roles a user is given on joining a group of this type. Kept apart from `saveWorkforceConfiguration`,
+ * which never changes them, because choosing roles is permission administration and the rest of the configuration is
+ * not. The caller authorizes and checks that the roles exist.
+ */
+export async function setResourceGroupKindMemberRoles(orgIdValue: string, kindIdValue: unknown, roleIdsValue: unknown) {
+  const orgId = cleanId(orgIdValue, "organization_id"), kindId = cleanId(kindIdValue, "resource_group_kind_id");
+  (await ensureWorkforceDefaults(orgId));
+  return (await withWorkforceTransaction(async (db) => {
+    const current = configurationView((await db.prepare("SELECT * FROM workforce_configuration WHERE organization_id = ?").get(orgId)));
+    if (!current.resource_group_kinds.some((definition) => cleanText(definition.id) === kindId)) throw badRequest("resource_group_kind_not_found", `Resource group kind '${kindId}' does not exist for this organization.`);
+    const kinds = current.resource_group_kinds.map((definition) => (cleanText(definition.id) === kindId ? { ...definition, member_role_ids: roleIds(roleIdsValue) } : definition));
+    (await db.prepare("UPDATE workforce_configuration SET resource_group_kinds_json=?, revision=revision+1, updated_at=? WHERE organization_id=?").run(json(kinds), nowIso(), orgId));
+    return configurationView((await db.prepare("SELECT * FROM workforce_configuration WHERE organization_id = ?").get(orgId)));
+  }));
+}
+
+/**
+ * Groups of users with their active members, read in two queries and without touching user documents or seeding the
+ * configuration. Reads only. Pass `id` for one group; archived groups are included only when asked for.
+ */
+export async function listResourceGroupRows(orgIdValue: string, options: { id?: string; include_archived?: boolean } = {}) {
+  const orgId = cleanId(orgIdValue, "organization_id"), db = getWorkforceDatabase();
+  const groupId = options.id ? cleanId(options.id, "resource_group_id") : "";
+  const rows = await db.prepare(`SELECT * FROM resource_groups WHERE organization_id=?${groupId ? " AND id=?" : ""}${options.include_archived ? "" : " AND status <> 'archived'"} ORDER BY name ASC, id ASC`)
+    .all(...(groupId ? [orgId, groupId] : [orgId]));
+  if (!rows.length) return [];
+  const memberships = await db.prepare(`SELECT group_id, user_id, role, is_lead FROM resource_group_memberships
+    WHERE organization_id=? AND status='active'${groupId ? " AND group_id=?" : ""} ORDER BY is_lead DESC, joined_at ASC, user_id ASC`).all(...(groupId ? [orgId, groupId] : [orgId]));
+  const capabilities = await db.prepare(`SELECT group_id, scope_id FROM resource_group_capabilities
+    WHERE organization_id=?${groupId ? " AND group_id=?" : ""} ORDER BY scope_id ASC`).all(...(groupId ? [orgId, groupId] : [orgId]));
+  return rows.map((row) => {
+    const group = groupRowView(row);
+    return { ...group,
+      members: memberships.filter((member) => cleanText(member.group_id) === group.id)
+        .map((member) => ({ user_id: cleanText(member.user_id), role: cleanText(member.role || "member"), is_lead: Number(member.is_lead || 0) === 1 })),
+      capability_scope_ids: capabilities.filter((capability) => cleanText(capability.group_id) === group.id).map((capability) => cleanText(capability.scope_id)) };
+  });
+}
+
 export async function assertAssignmentTagsExist(orgIdValue: string, tagIdsValue: unknown) {
   const tagIds = uniqueIds(tagIdsValue);
   if (!tagIds.length) return tagIds;
@@ -371,15 +448,19 @@ export async function saveWorkforceConfiguration(orgIdValue: string, inputValue:
       organization_connection: { ...asObject(currentTerminology.organization_connection), ...asObject(terminologyPatch.organization_connection) },
       applications: { ...asObject(currentTerminology.applications), ...asObject(terminologyPatch.applications) }
     });
+    // The roles a type gives on joining are permission administration: this save keeps them as they are (`setResourceGroupKindMemberRoles`).
     const kinds = Object.prototype.hasOwnProperty.call(inputValue, "resource_group_kinds")
-      ? resourceGroupKinds([...asArray(current.resource_group_kinds), ...asArray(inputValue.resource_group_kinds)])
+      ? resourceGroupKinds([...asArray(current.resource_group_kinds), ...asArray(inputValue.resource_group_kinds).map(asObject).map(({ member_role_ids: _kept, ...definition }) => definition)])
       : current.resource_group_kinds;
+    const connectionTypes = Object.prototype.hasOwnProperty.call(inputValue, "organization_connection_types")
+      ? organizationConnectionTypes([...asArray(current.organization_connection_types), ...asArray(inputValue.organization_connection_types)])
+      : current.organization_connection_types;
     const tags = Object.prototype.hasOwnProperty.call(inputValue, "assignment_tags")
       ? assignmentTagDefinitions([...asArray(current.assignment_tags), ...asArray(inputValue.assignment_tags)])
       : current.assignment_tags;
-    (await db.prepare(`UPDATE workforce_configuration SET terminology_json=?, resource_group_kinds_json=?, assignment_tags_json=?,
+    (await db.prepare(`UPDATE workforce_configuration SET terminology_json=?, resource_group_kinds_json=?, organization_connection_types_json=?, assignment_tags_json=?,
       revision=revision+1, updated_at=? WHERE organization_id=?`)
-      .run(json(terminology), json(kinds), json(tags), nowIso(), orgId));
+      .run(json(terminology), json(kinds), json(connectionTypes), json(tags), nowIso(), orgId));
     return configurationView((await db.prepare("SELECT * FROM workforce_configuration WHERE organization_id = ?").get(orgId)));
   }));
 }
@@ -460,7 +541,7 @@ function groupRowView(rowValue: unknown) {
 }
 
 async function groupMembershipRows(orgId: string, groupId: string) {
-  return (await getWorkforceDatabase().prepare(`SELECT user_id, role, is_lead, status, joined_at, updated_at
+  return (await getWorkforceDatabase().prepare(`SELECT user_id, role, is_lead, status, joined_role_ids_json, joined_at, updated_at
     FROM resource_group_memberships WHERE organization_id=? AND group_id=? ORDER BY is_lead DESC, joined_at ASC`)
     .all(orgId, groupId)).map((rowValue) => {
       const row = asObject(rowValue);
@@ -469,11 +550,56 @@ async function groupMembershipRows(orgId: string, groupId: string) {
         role: cleanText(row.role || "member"),
         is_lead: Number(row.is_lead || 0) === 1,
         status: cleanText(row.status || "active"),
+        // The access roles this person was given because they joined this group (the group type's `member_role_ids`).
+        joined_role_ids: roleIds(parseJson(row.joined_role_ids_json, [])),
         joined_at: cleanText(row.joined_at),
         updated_at: cleanText(row.updated_at)
       };
     });
 }
+
+export type MemberRoleGrant = { user_id: string; role_ids: string[]; error: string };
+/**
+ * Permission defaults live on the group TYPE. When a user becomes an active member of a group, the access roles its
+ * type names (`member_role_ids`) are added to the user, where permissions are stored. A role the user already has is
+ * left alone, and nothing is ever taken away here: leaving a group removes no role.
+ *
+ * A saved `access_role_ids` list is authoritative, so for a user who has none saved yet the roles they resolve to today
+ * are written with the new ones; otherwise saving the list would take their inferred role away. The roles added are
+ * recorded on the membership (`joined_role_ids`), so it can be told that they came from joining.
+ *
+ * Runs after the membership is saved. A user whose roles could not be written is reported, and the membership stands.
+ */
+async function grantGroupTypeRolesOnJoin(orgId: string, groupId: string, kindId: string, userIds: string[]): Promise<MemberRoleGrant[]> {
+  if (!userIds.length) return [];
+  const definition = (await readWorkforceDefinitions(orgId)).resource_group_kinds.find((entry) => cleanText(entry.id) === kindId);
+  const wanted = roleIds(definition?.member_role_ids);
+  if (!wanted.length) return [];
+  const access = await import("./access.js");
+  const active = new Set((await access.listAccessRoles(orgId)).map((role) => cleanText(role.id)));
+  const granted = wanted.filter((roleId) => active.has(roleId));
+  if (!granted.length) return [];
+  const grants: MemberRoleGrant[] = [];
+  for (const userId of userIds) {
+    try {
+      const document = await readDocument(orgId, "users", userId);
+      const data = asObject(document.data);
+      const current = Object.prototype.hasOwnProperty.call(data, "access_role_ids")
+        ? roleIds(data.access_role_ids)
+        : (await access.resolveAccessProfile(orgId, document)).access_role_ids.map((roleId) => cleanText(roleId));
+      const added = granted.filter((roleId) => !current.includes(roleId));
+      if (added.length) {
+        await upsertDocument(orgId, "users", { id: userId, data: { access_role_ids: [...current, ...added] }, metadata: { workforce_profile_updated_at: nowIso() } }, { replace: false });
+        (await getWorkforceDatabase().prepare("UPDATE resource_group_memberships SET joined_role_ids_json=? WHERE organization_id=? AND group_id=? AND user_id=?").run(json(added), orgId, groupId, userId));
+      }
+      grants.push({ user_id: userId, role_ids: added, error: "" });
+    } catch (error) {
+      grants.push({ user_id: userId, role_ids: [], error: error instanceof Error ? error.message : "The roles could not be added." });
+    }
+  }
+  return grants;
+}
+const activeMemberIds = (members: unknown) => asArray(members).map(asObject).filter((member) => cleanText(member.status || "active") === "active").map((member) => cleanText(member.user_id));
 
 async function groupCapabilityIds(orgId: string, groupId: string) {
   return (await getWorkforceDatabase().prepare(`SELECT scope_id FROM resource_group_capabilities
@@ -547,16 +673,16 @@ async function validateGroupMembers(orgId: string, members: JsonObject[]) {
 }
 
 async function replaceGroupMembers(db: SqlStore, orgId: string, groupId: string, members: JsonObject[]) {
-  const existingJoined = new Map((await db.prepare(`SELECT user_id, joined_at FROM resource_group_memberships
-    WHERE organization_id=? AND group_id=?`).all(orgId, groupId)).map((row) => [cleanText(asObject(row).user_id), cleanText(asObject(row).joined_at)]));
+  const existing = new Map((await db.prepare(`SELECT user_id, joined_at, joined_role_ids_json FROM resource_group_memberships
+    WHERE organization_id=? AND group_id=?`).all(orgId, groupId)).map((row) => [cleanText(asObject(row).user_id), asObject(row)]));
   (await db.prepare("DELETE FROM resource_group_memberships WHERE organization_id=? AND group_id=?").run(orgId, groupId));
   const now = nowIso();
   const insert = db.prepare(`INSERT INTO resource_group_memberships
-    (organization_id, group_id, user_id, role, is_lead, status, joined_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+    (organization_id, group_id, user_id, role, is_lead, status, joined_role_ids_json, joined_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   for (const member of members) {
     const userId = cleanId(member.user_id, "user_id");
     (await insert.run(orgId, groupId, userId, cleanText(member.role || "member"), member.is_lead === true ? 1 : 0,
-      cleanText(member.status || "active"), existingJoined.get(userId) || now, now));
+      cleanText(member.status || "active"), cleanText(existing.get(userId)?.joined_role_ids_json) || "[]", cleanText(existing.get(userId)?.joined_at) || now, now));
   }
 }
 
@@ -595,7 +721,9 @@ export async function createResourceGroup(orgIdValue: string, input: JsonObject)
     if (String(error).includes("UNIQUE constraint failed")) throw conflict("resource_group_exists", `Resource group '${groupId}' already exists.`);
     throw error;
   }
-  return await readResourceGroup(orgId, groupId);
+  // Everyone a group is created with joins it.
+  const memberRoleGrants = cleanText(input.status || "active") === "active" ? await grantGroupTypeRolesOnJoin(orgId, groupId, kindId, activeMemberIds(members)) : [];
+  return { ...(await readResourceGroup(orgId, groupId)), member_role_grants: memberRoleGrants };
 }
 
 export async function patchResourceGroup(orgIdValue: string, groupIdValue: string, input: JsonObject) {
@@ -653,7 +781,11 @@ export async function patchResourceGroup(orgIdValue: string, groupIdValue: strin
     if (hasMembers) (await replaceGroupMembers(db, orgId, groupId, members));
     if (hasCapabilities) (await replaceGroupCapabilities(db, orgId, groupId, capabilities));
   }));
-  return await readResourceGroup(orgId, groupId);
+  // A replaced member list: whoever is an active member now and was not one before has joined.
+  const before = new Set(activeMemberIds(current.members));
+  const saved = await readResourceGroup(orgId, groupId);
+  const memberRoleGrants = hasMembers && saved.status === "active" ? await grantGroupTypeRolesOnJoin(orgId, groupId, nextKindId, activeMemberIds(members).filter((userId) => !before.has(userId))) : [];
+  return { ...(memberRoleGrants.length ? await readResourceGroup(orgId, groupId) : saved), member_role_grants: memberRoleGrants };
 }
 
 export async function archiveResourceGroup(orgIdValue: string, groupIdValue: string, expectedRevision: number) {
@@ -695,7 +827,10 @@ export async function putResourceGroupMember(orgIdValue: string, groupIdValue: s
       (await db.prepare(`UPDATE resource_groups SET revision=revision+1, updated_at=? WHERE organization_id=? AND id=?`).run(now, orgId, groupId));
     }
   }));
-  return await readResourceGroup(orgId, groupId);
+  // Adding a member, or making an inactive one active again, is joining. Changing a member who is already active is not.
+  const joins = cleanText(input.status || "active") === "active" && current.status === "active" && !activeMemberIds(current.members).includes(userId);
+  const memberRoleGrants = joins ? await grantGroupTypeRolesOnJoin(orgId, groupId, cleanText(current.kind_id || "crew"), [userId]) : [];
+  return { ...(await readResourceGroup(orgId, groupId)), member_role_grants: memberRoleGrants };
 }
 
 export async function removeResourceGroupMember(orgIdValue: string, groupIdValue: string, userIdValue: string, expectedRevision: number) {

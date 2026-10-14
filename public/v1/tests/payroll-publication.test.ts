@@ -23,7 +23,12 @@ test('payroll publications expose complete records, safe reads, pagination, subj
   (await import('../platform/publication/bootstrap.js')).initializePublication();
   const run=async(action:string,input:any={},id?:string,key=action)=>invokeAction(command,{action,target:{...target,...(id?{id}:{})}},input,{idempotencyKey:key});
   const schedule:any=(await run('payroll.schedule.create',{name:'Weekly',recurrence:{frequency:'weekly',weekday:5}})).value;
-  await run('payroll.policy.save',{subject_type:'organization',subject_id:'org_paypub',values:{schedule_id:schedule.id}});
+  await run('payroll.payDefault.save',{subject:{type:'organization',id:'org_paypub'},entries:[],schedules:[{effective_from:'2026-01-01',schedule_id:schedule.id}]});
+  // The schedule an entry is paid on comes from the payee's layers and anyone managing payroll can ask which it is and why.
+  const resolved:any=(await invokeAction(ctx,{action:'payroll.paySchedule.resolve',target},{payee:{type:'organization_user',id:'alice'},earning_kind:'hourly'},{})).value;
+  assert.equal(resolved.schedule_id,schedule.id);assert.deepEqual(resolved.source,{type:'organization',id:'org_paypub'});
+  for(const retired of ['payroll.policy.save','payroll.policy.remove','payroll.policy.resolve','payroll.policies.list'])assert.equal(listActions().some(a=>a.id===retired),false,retired);
+  assert.equal(Object.hasOwn(describeDataProvider('payroll')!.exports,'policies'),false);
   const entry={payee:{type:'organization_user',id:'alice',name:'Alice'},schedule_id:schedule.id,kind:'commission',state:'accrued',amount_cents:12345,currency:'USD',project_id:'project_paypub',worked_at:'2026-10-01T12:00:00.000Z',source_event_id:'pub-earning'};
   const posted:any=(await run('payroll.ledger.post',{entries:[entry]})).value;
   await run('payroll.ledger.post',{entries:[entry]});assert.equal((await store.listPayrollLedgerEntries('org_paypub')).length,1);
@@ -37,10 +42,16 @@ test('payroll publications expose complete records, safe reads, pagination, subj
   const before=await store.getPayrollDatabase().prepare('SELECT COUNT(*) AS n FROM payroll_ledger_entries').get();
   const roleCount=await (await import('../workforce/storage.js')).getWorkforceDatabase().prepare('SELECT COUNT(*) AS n FROM workforce_access_roles').get();
   const refs:Record<string,any>={entry:{...project,id:posted[0].id},schedule:{...target,id:schedule.id}};
-  for(const name of ['records','entry','schedules','schedule','policies','configuration','upcoming','dashboard','batches','earnings','my_earnings','timesheets','contractors','directory','export_catalog','artifacts']){
+  refs.pay_default={...target,id:'organization:org_paypub'};refs.pay_setup={...target,id:'organization_user:alice'};
+  for(const name of ['records','entry','schedules','schedule','configuration','upcoming','dashboard','batches','earnings','my_earnings','timesheets','contractors','directory','export_catalog','artifacts','pay_defaults','pay_default','pay_setup','pay_rule_sources','pay_rule_vocabulary']){
    const result:any=await readPublishedData(ctx,{provider:'payroll',export:name,target:refs[name]||target,...(name==='earnings'?{args:{payees:[{type:'organization_user',id:'alice'}]}}:{})});
    assert.equal(result.status,'ready',name+': '+JSON.stringify(result));
    if(name==='contractors'||name==='directory')assert.equal(JSON.stringify(result.value).includes('DO NOT PUBLISH'),false);
+   if(name==='configuration')assert.deepEqual(result.value.schedule_choices.map((choice:any)=>[choice.earning_kind,choice.schedule_id]),[['*',schedule.id]]);
+   if(name==='pay_default'){assert.equal(result.value.subject_name,'Everyone');assert.equal(result.value.schedules[0].entered_by_name,'Alice');assert.deepEqual(result.value.covers.map((payee:any)=>payee.id),['alice']);}
+   if(name==='pay_setup')assert.deepEqual(result.value.schedule_today.map((row:any)=>[row.earning_kind,row.schedule_name,row.origin.name]),[['*','Weekly','Everyone']]);
+   if(name==='pay_rule_sources'){const shifts=result.value.find((source:any)=>source.id==='payroll.time_shifts');assert.ok(shifts&&shifts.description&&shifts.needs_args===false&&shifts.units.worked_seconds==='seconds');assert.ok(result.value.every((source:any)=>!source.provider.startsWith('external.')));}
+   if(name==='pay_rule_vocabulary'){assert.ok(result.value.operators.some((operator:any)=>operator.id==='contains'&&operator.label==='contains'&&operator.value==='one'));assert.deepEqual(result.value.parameter_types,['number','boolean','text','cents','basis_points']);}
   }
   assert.deepEqual(await store.getPayrollDatabase().prepare('SELECT COUNT(*) AS n FROM payroll_ledger_entries').get(),before);
   assert.deepEqual(await (await import('../workforce/storage.js')).getWorkforceDatabase().prepare('SELECT COUNT(*) AS n FROM workforce_access_roles').get(),roleCount,'Reads must not seed workforce defaults');

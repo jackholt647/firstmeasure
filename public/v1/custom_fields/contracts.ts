@@ -3,7 +3,7 @@ import { badRequest } from "../platform/errors.js";
 import { jsonClone, validateJson } from "../platform/publication/validation.js";
 import { assertSafeTenantSchema } from "../platform/publication/tenant-schema.js";
 import type { JsonObject } from "../platform/storage.js";
-import { FIELD_OWNERS, type FieldEntity } from "./owners.js";
+import { FIELD_OWNERS, fieldHome, type FieldEntity } from "./owners.js";
 export type { FieldEntity } from "./owners.js";
 import { Worker } from "node:worker_threads";
 import { normalizeCalculation } from './calculations.js';
@@ -12,7 +12,7 @@ export const PROJECT_DEFAULT_FIELDS: JsonObject[] = [
   {entity:"project",path:"cover_photo",key:"cover_photo",type:"photo",cardinality:"one",label:"Cover photo",required:false,enabled:true,location:"overview",order:-1,builtin:true}
 ];
 export const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
-export const types = ["text", "multiline", "email", "phone", "platform_phone", "url", "number", "integer", "currency", "percentage", "slider", "date", "datetime", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list", "array", "object", "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection", "assignable_subject", ...CONTACT_REFERENCE_TYPES, ...MEDIA_REFERENCE_TYPES];
+export const types = ["text", "multiline", "email", "phone", "platform_phone", "url", "number", "integer", "currency", "percentage", "slider", "date", "datetime", "timezone", "boolean", "toggle", "select", "radio", "multiselect", "tags", "list", "array", "object", "key_value", "json", "formula", "organization_user", "resource_group", "organization_connection", "assignable_subject", "department", ...CONTACT_REFERENCE_TYPES, ...MEDIA_REFERENCE_TYPES];
 
 export const isManuallyEditableType = (type:string) => !["formula","platform_phone"].includes(type);
 export function fieldPath(value: unknown): string {
@@ -33,6 +33,7 @@ export const empty = (v: unknown) => v === undefined || v === null || v === "";
 // Formats are a small, bounded platform vocabulary. Tenant regexes/references
 // are never handed to AJV. Nested contracts use the same bounded schema subset.
 export function formatValid(format: string, v: string): boolean {
+  if (format === "timezone") { if (!v || v.length > 100 || /^[+-]/.test(v)) return false; try { new Intl.DateTimeFormat("en", { timeZone: v }); return true; } catch { return false; } }
   if (format === "email") return v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   if (format === "phone") return /^[+\d\s().-]+$/.test(v) && v.replace(/\D/g, "").length >= 7 && v.replace(/\D/g, "").length <= 15;
   if (format === "url") { try { return ["http:", "https:"].includes(new URL(v).protocol); } catch { return false; } }
@@ -43,7 +44,7 @@ export function formatValid(format: string, v: string): boolean {
 function withoutFormats(schema: JsonObject): JsonObject {
   const next = { ...schema };
   if (next.format !== undefined) {
-    if (!["email", "phone", "url", "date", "datetime"].includes(String(next.format))) throw badRequest("custom_field_format", "Unsupported field format.");
+    if (!["email", "phone", "url", "date", "datetime", "timezone"].includes(String(next.format))) throw badRequest("custom_field_format", "Unsupported field format.");
     delete next.format;
   }
   if (next.properties) next.properties = Object.fromEntries(Object.entries(object(next.properties)).map(([k,v]) => [k, v && typeof v === "object" ? withoutFormats(object(v)) : v]));
@@ -72,13 +73,18 @@ export function fieldSchema(field: JsonObject): JsonObject {
     const ref = {type:"object",properties,required:Object.keys(properties),additionalProperties:false};
     schema = field.cardinality === "many" ? {type:"array",items:ref,maxItems:100} : ref;
   }
+  else if (type === "department") {
+    // A department is named by its id in the department catalog; the catalog owns its label and color.
+    const ref = {type:"object",properties:{department_id:{type:"string",minLength:1,maxLength:120}},required:["department_id"],additionalProperties:false};
+    schema = field.cardinality === "many" ? {type:"array",items:ref,maxItems:100} : ref;
+  }
   else if (["organization_user", "resource_group", "organization_connection", "assignable_subject"].includes(type)) schema = field.cardinality === "many" ? { type:"array", items:{type:"object"} } : { type:"object" };
   else schema = { type:"string" };
-  if (["email", "phone", "url", "date", "datetime"].includes(type)) schema.format = type;
+  if (["email", "phone", "url", "date", "datetime", "timezone"].includes(type)) schema.format = type;
   const declared = object(field.schema);
   if (declared.type && schema.type && declared.type !== schema.type) throw badRequest("custom_field_schema","The schema root type must match the selected field type.");
   if (field.step != null && field.step !== "" && !(Number(field.step) > 0 && Number.isFinite(Number(field.step)))) throw badRequest("custom_field_step","The field step must be positive.");
-  if ((type === "platform_phone" || CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) && Object.keys(declared).length) throw badRequest("custom_field_schema","Reference fields use the platform reference schema.");
+  if ((type === "platform_phone" || type === "department" || CONTACT_REFERENCE_TYPES.includes(type) || MEDIA_REFERENCE_TYPES.includes(type)) && Object.keys(declared).length) throw badRequest("custom_field_schema","Reference fields use the platform reference schema.");
   schema = { ...schema, ...declared, ...(schema.type ? { type:schema.type } : {}) };
   for (const [from,to] of [["min","minimum"],["max","maximum"],["min_length","minLength"],["max_length","maxLength"]]) if (field[from!] !== null && field[from!] !== undefined && field[from!] !== "") schema[to!] = Number(field[from!]);
   const options = Array.isArray(field.options) ? field.options.map(v => typeof v === "object" ? object(v).value : v) : [];
@@ -107,7 +113,7 @@ export function validateField(field: JsonObject, value: unknown) {
 }
 export function normalizeDefinitions(input: unknown): JsonObject[] {
   if (!Array.isArray(input) || input.length > 256) throw badRequest("custom_field_definitions", "Supply at most 256 field definitions.");
-  const seen = new Set<string>();
+  const seen = new Set<string>(), declared = new Map<string,{homeKey:string,type:string,cardinality:string}[]>();
   return input.map(raw => {
     const f = jsonClone(object(raw), 64000);
     const entity = String(f.entity || "project");
@@ -117,9 +123,19 @@ export function normalizeDefinitions(input: unknown): JsonObject[] {
     if(builtin && (String(f.type || "text")!==builtin.type || f.enabled===false))throw badRequest(entity === "contact" ? "contact_builtin_field" : "project_builtin_field","Default fields retain their type and remain available; they can be optional and moved.");
     if(entity==="project" && builtin && f.cardinality === "many") throw badRequest("project_cover_cardinality","A project has one cover photo.");
     const key = `${entity}:${path}`;
-    if ([...seen].some(p => p === key || p.startsWith(key + ".") || key.startsWith(p + "."))) throw badRequest("custom_field_conflict", "Field paths must be unique and cannot overlap. Declare subfields inside the parent schema.");
+    if ([...seen].some(p => p.startsWith(key + ".") || key.startsWith(p + "."))) throw badRequest("custom_field_conflict", "Field paths must be unique and cannot overlap. Declare subfields inside the parent schema.");
+    // A path is one variable per kind of record. Two homes (two roles, two departments ...) may each declare it, and
+    // then it must be the same type and cardinality in both; one home, or no home at all, declares it once.
+    const home = fieldHome(f.home, entity), homeKey = home ? `${home.kind}:${home.id}` : "";
+    const type = String(f.type || "text"), cardinality = f.cardinality === "many" ? "many" : "one";
+    for (const prior of declared.get(key) || []) {
+      if (!homeKey || !prior.homeKey || prior.homeKey === homeKey) throw badRequest("custom_field_conflict", "Field paths must be unique and cannot overlap. Declare subfields inside the parent schema.");
+      if (prior.type !== type || prior.cardinality !== cardinality) throw badRequest("custom_field_home_conflict", `${path} is already a ${prior.cardinality === "many" ? "list of " : ""}${prior.type} field in ${prior.homeKey.replace(":"," ")}. The same path keeps one type everywhere it is declared; use another path for a different kind of value.`, {path, home:prior.homeKey, type:prior.type, cardinality:prior.cardinality});
+    }
+    declared.set(key, [...(declared.get(key) || []), {homeKey, type, cardinality}]);
     seen.add(key);
-    const result = { ...f, entity, path, key:path, type:String(f.type || "text") };
+    const result:JsonObject = { ...f, entity, path, key:path, type };
+    if (home) result.home = home; else delete result.home;
     if (f.calculation != null) {
       if (f.type === 'platform_phone' || builtin) throw badRequest('field_calculation_managed','Managed fields cannot be calculated.');
       Object.assign(result,{calculation:normalizeCalculation(f.calculation),read_only:true});

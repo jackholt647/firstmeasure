@@ -26,13 +26,12 @@ All currently reachable broad categories use the shared title/subtitle, sidebar 
 - [x] Communications — General, Message templates
 - [x] AI Agents
 - [x] Channels
-- [x] Users — People, Roles & access
+- [x] People — Overview, Users, Groups (named by terminology), Departments, Subcontractors. The category fills its own pane from `public/libraries/apps/people/people-settings.js`; each sub-page registers with `FirstMatePeople.views.register`. It replaced the Users, Departments and Crews and Subcontractors settings: `sub=users` and `sub=crews` links are redirected to the matching People page in `normalizeSettingsLocation`
 - [x] Payroll
 - [x] Reports
 - [x] Documents
 - [x] Configuration — Custom Fields, Terminology, Projects, Celebrations, Insights, Apps
 - [x] Scheduling
-- [x] Crews and Subcontractors — Resource groups, Organization connections
 - [x] Project Scopes — data-driven scope groups (Sales and Production by default), starred new-project fallback, conditional lead-field routing, a two-step catalog-to-scope creation workflow that can reuse already-installed templates, and per-scope Details, Boards & Automations, and Commissions views
 - [x] Storage
 - [x] SMS

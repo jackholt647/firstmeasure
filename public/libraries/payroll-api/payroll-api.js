@@ -118,11 +118,6 @@
     }else if(p[0]==='schedules'){
       if(p[1])target.id=p[1];action=method==='POST'?'payroll.schedule.create':method==='PATCH'?'payroll.schedule.update':method==='DELETE'?'payroll.schedule.archive':p[1]?'payroll.schedule.read':'payroll.schedules.list';if(method==='GET'||method==='DELETE')input=query;
       wrap=value=>({ok:true,[p[1]||method==='POST'?'schedule':'schedules']:value});
-    }else if(p[0]==='policies'){
-      if(p[1]==='effective'){action='payroll.policy.resolve';input={payee:{type:p[2],id:p[3],...(query.worker_type?{worker_type:query.worker_type}:{}),...(query.access_role_ids?{access_role_ids:query.access_role_ids.split(',')}:{}),...(query.resource_group_ids?{resource_group_ids:query.resource_group_ids.split(',')}: {})},earning_kind:query.earning_kind};}
-      else if(method==='PUT'){action='payroll.policy.save';input={subject_type:p[1],subject_id:p[2],values:input};}
-      else if(method==='DELETE'){action='payroll.policy.remove';input={subject_type:p[1],subject_id:p[2],earning_kind:query.earning_kind};}
-      else{action='payroll.policies.list';input={};}wrap=value=>({ok:true,[method==='GET'&&!p[1]?'policies':'policy']:value});
     }else if(p[0]==='ledger'||p[0]==='projections'){
       if(p[1])target.id=p[1];action=p[2]==='reverse'?'payroll.ledger.reverse':p[2]==='accrue'?'payroll.projection.accrue':method==='POST'?'payroll.ledger.post':p[1]?'payroll.ledger.read':'payroll.ledger.list';
       if(method==='GET')input=query;else if(action==='payroll.ledger.post')input={entries:Array.isArray(input.entries)?input.entries:[{...input,...(p[0]==='projections'?{state:'projected'}:{})}]};
@@ -175,19 +170,6 @@
     }
   };
 
-  const policies = {
-    list(orgId){ return request(orgPath(orgId, '/policies')); },
-    effective(orgId, payeeType, payeeId, options = {}){
-      return request(orgPath(orgId, `/policies/effective/${enc(payeeType)}/${enc(payeeId)}${queryString(options)}`));
-    },
-    save(orgId, subjectType, subjectId, payload = {}){
-      return request(orgPath(orgId, `/policies/${enc(subjectType)}/${enc(subjectId)}`), { method:'PUT', body:payload });
-    },
-    remove(orgId, subjectType, subjectId, earningKind = '*'){
-      return request(orgPath(orgId, `/policies/${enc(subjectType)}/${enc(subjectId)}${queryString({ earning_kind:earningKind })}`), { method:'DELETE' });
-    }
-  };
-
   // Pay rules, pay plans and each payee's pay setup. These exist only as published data and actions.
   const paySource = (orgId, exportName, id) => root.PlatformAPI.publication.read(orgId, { provider:'payroll', export:exportName, target:{ scope:'organization', organizationId:orgId, ...(id ? { id } : {}) } })
     .then((result) => { if (result.status !== 'ready') throw Object.assign(new Error(result.message || 'Pay rules are unavailable.'), { code:result.code }); return result.value; });
@@ -198,17 +180,34 @@
     return result.value;
   };
   const payeeId = (payee) => `${payee.type}:${payee.id}`;
+  // What someone is paid and when they are paid are one thing: rules, plans, each payee's setup and the defaults under
+  // it, with the pay schedule each layer chooses. A default's subject is { type, id }: organization, assignee_kind,
+  // worker_classification, role, group_type or company_type.
   const pay = {
     rules(orgId){ return paySource(orgId, 'pay_rules'); },
+    splitRules(orgId){ return paySource(orgId, 'pay_split_rules'); },
     plans(orgId){ return paySource(orgId, 'pay_plans'); },
     setups(orgId){ return paySource(orgId, 'pay_setups'); },
     defaults(orgId){ return paySource(orgId, 'pay_defaults'); },
+    // One default with who it covers today; an empty one with revision 0 when nothing is saved yet.
+    default(orgId, subject){ return paySource(orgId, 'pay_default', payeeId(subject)); },
+    // The collections a rule can select from, and the condition operators, parameter types and kinds of earning an editor offers.
+    ruleSources(orgId){ return paySource(orgId, 'pay_rule_sources'); },
+    vocabulary(orgId){ return paySource(orgId, 'pay_rule_vocabulary'); },
     setup(orgId, payee){ return paySource(orgId, 'pay_setup', payeeId(payee)); },
     units(orgId, payee){ return paySource(orgId, 'pay_units', payeeId(payee)); },
     unresolved(orgId){ return paySource(orgId, 'pay_unresolved'); },
     review(orgId){ return paySource(orgId, 'pay_review'); },
     saveRule(orgId, rule){ return payAction(orgId, 'payroll.payRule.save', rule); },
+    // Previews take exactly what the matching save takes and change nothing: who it reaches and what each earning would come to.
+    previewRule(orgId, rule){ return payAction(orgId, 'payroll.payRule.preview', rule, '', false); },
+    previewPlan(orgId, plan){ return payAction(orgId, 'payroll.payPlan.preview', plan, '', false); },
+    previewDefault(orgId, value){ return payAction(orgId, 'payroll.payDefault.preview', value, '', false); },
+    // Which schedule pays one kind of a payee's earnings on a day, and which layer chose it. Null when nothing is chosen.
+    resolveSchedule(orgId, payee, earningKind, date){ return payAction(orgId, 'payroll.paySchedule.resolve', { payee:{ type:payee.type, id:payee.id }, ...(earningKind ? { earning_kind:earningKind } : {}), ...(date ? { date } : {}) }, '', false); },
     archiveRule(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.payRule.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },
+    saveSplitRule(orgId, rule){ return payAction(orgId, 'payroll.paySplitRule.save', rule); },
+    archiveSplitRule(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.paySplitRule.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },
     savePlan(orgId, plan){ return payAction(orgId, 'payroll.payPlan.save', plan); },
     archivePlan(orgId, id, expectedRevision){ return payAction(orgId, 'payroll.payPlan.archive', { id, ...(expectedRevision === undefined ? {} : { expected_revision:expectedRevision }) }); },
     previewSetup(orgId, setup){ return payAction(orgId, 'payroll.paySetup.preview', setup, '', false); },
@@ -268,7 +267,6 @@
     upcoming,
     earnings,
     schedules,
-    policies,
     pay,
     ledger,
     batches,

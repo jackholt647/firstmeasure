@@ -1,45 +1,63 @@
-import { z } from "zod";
-import { hasPermission, type PlatformAuthContext } from "../platform/auth.js";
-import { badRequest, forbidden } from "../platform/errors.js";
-import { readDocument, type JsonObject } from "../platform/storage.js";
+import { readAssigneeStoreRecord, registerAssigneeCleanup, requireAssigneeRecord } from "../assignees/base.js";
+import { ASSIGNEE_KIND_BY_NAME, ASSIGNEE_KINDS, assigneeRefSchema, type AssigneeRef } from "../assignees/contract.js";
+import type { JsonObject } from "../platform/storage.js";
 
 /**
- * An assignee is anyone work can be assigned to: a person, a group of users, or an outside company. Equipment is not
- * one. See docs/architecture/assignees.md. Stored references elsewhere call the same thing a work resource or a subject.
+ * Labor's view of an assignee. The definition is the assignee base (`assignees/`, docs/architecture/assignee-base.md);
+ * this file only keeps the names labor, payroll and scheduling already import and says what labor does with its own
+ * records when an assignee is removed. Stored references elsewhere call the same thing a work resource or a subject.
  */
-export const ASSIGNEE_TYPES = ["organization_user", "resource_group", "organization_connection"] as const;
-const id = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$/);
-export const assigneeSchema = z.object({ type: z.enum(ASSIGNEE_TYPES), id }).strict();
-export type Assignee = z.infer<typeof assigneeSchema>;
+export const ASSIGNEE_TYPES = ASSIGNEE_KINDS;
+export const assigneeSchema = assigneeRefSchema;
+export type Assignee = AssigneeRef;
 /** The kinds a list's `work_resource_ref` uses, mapped to assignee types. */
-export const ASSIGNEE_TYPE_BY_KIND: Record<string, Assignee["type"]> = { resource_group: "resource_group", organization_connection: "organization_connection", organization_user: "organization_user", user: "organization_user" };
+export const ASSIGNEE_TYPE_BY_KIND: Record<string, Assignee["type"]> = ASSIGNEE_KIND_BY_NAME;
+export { requireActor, type Actor } from "../assignees/base.js";
 
-const text = (value: unknown) => String(value ?? "").trim();
 /** The live record behind an assignee, or null when there is none or it has been archived. Reads only. */
 export async function readAssignee(orgId: string, assignee: Assignee): Promise<{ name: string; record: JsonObject } | null> {
-  try {
-    if (assignee.type === "organization_user") {
-      const user = await readDocument(orgId, "users", assignee.id);
-      return text(user.data.status) === "archived" || user.data.archived_at ? null : { name: text(user.data.name) || text(user.data.email), record: user.data };
-    }
-    if (assignee.type === "resource_group") {
-      const group = await (await import("../workforce/storage.js")).readResourceGroup(orgId, assignee.id);
-      return !group || group.archived_at || text(group.status) === "archived" ? null : { name: text(group.name), record: group };
-    }
-    const connection = await (await import("../connections/storage.js")).readOrganizationConnection(orgId, assignee.id);
-    return !connection || connection.archived_at || text(connection.status) === "archived" ? null : { name: text(connection.name), record: connection };
-  } catch { return null; }
+  const found = await readAssigneeStoreRecord(orgId, assignee).catch(() => null);
+  return found && found.status !== "archived" ? { name: found.name, record: found.record } : null;
 }
 /** Refuses a pay sheet, delivery setting, unit or commitment for an assignee that does not exist, so none is left orphaned from the start. */
 export async function requireAssignee(orgId: string, assignee: Assignee) {
-  const found = await readAssignee(orgId, assignee);
-  if (!found) throw badRequest("assignee_unknown", "That person, group or company is not available in this organization.");
-  return found;
+  const found = await requireAssigneeRecord(orgId, assignee);
+  return { name: found.name, record: found.record };
 }
 
-/** Who is acting. Published actions run by the platform itself carry no user; the publication layer has already authorized them. */
-export type Actor = Pick<PlatformAuthContext, "orgId" | "userId"> & Partial<PlatformAuthContext> & { system?: boolean };
-/** A person needs the permission in this organization; the platform acting for an already-authorized action does not. */
-export function requireActor(orgId: string, actor: Actor, permission: string, code: string, message: string) {
-  if (!actor || actor.orgId !== orgId || (!actor.system && !hasPermission(actor as PlatformAuthContext, permission))) throw forbidden(code, message);
-}
+// ---- What labor removes when an assignee is removed ----
+const same = (subject: unknown, assignee: Assignee) => !!subject && (subject as Assignee).type === assignee.type && (subject as Assignee).id === assignee.id;
+registerAssigneeCleanup("labor-pay-sheets", async (orgId, assignee, actor) => {
+  const sheets = await import("./pay-sheets.js");
+  const own = (await sheets.listPaySheets(orgId)).filter((sheet) => same(sheet.subject, assignee));
+  for (const sheet of own) await sheets.archivePaySheet(orgId, { id: sheet.id }, actor);
+  return { removed: own.length };
+});
+registerAssigneeCleanup("assignee-units", async (orgId, assignee, actor) => {
+  const commitments = await import("./commitments.js");
+  let removed = 0, kept = 0, detail = "";
+  // Units are removed from the bottom up. One that still holds committed work is kept, and so is everything above it.
+  for (let pass = 0; pass < 25; pass += 1) {
+    const own = await commitments.listUnits(orgId, assignee);
+    const leaves = own.filter((unit) => !own.some((other) => other.parent_unit_id === unit.id));
+    let progressed = false;
+    for (const unit of leaves) {
+      try { await commitments.archiveUnit(orgId, { id: unit.id }, actor); removed += 1; progressed = true; }
+      catch (error) { detail = error instanceof Error ? error.message : "A unit could not be removed."; }
+    }
+    if (!progressed) { kept = own.length; break; }
+  }
+  return { removed, kept, detail: kept ? detail : "" };
+});
+registerAssigneeCleanup("assignee-capabilities", async (orgId, assignee) => {
+  const { deleteDocument } = await import("../platform/storage.js");
+  const { CAPABILITY_COLLECTION } = await import("./capabilities.js");
+  try { await deleteDocument(orgId, CAPABILITY_COLLECTION, `${assignee.type}:${assignee.id}`); return { removed: 1 }; }
+  catch (error) { if ((error as { statusCode?: number; code?: string })?.statusCode === 404 || (error as { code?: string })?.code === "ENOENT") return { removed: 0 }; throw error; }
+});
+registerAssigneeCleanup("labor-delivery-settings", async (orgId, assignee) => {
+  const { deleteDocument } = await import("../platform/storage.js");
+  const { DELIVERY_SETTING_COLLECTION } = await import("./commitments.js");
+  try { await deleteDocument(orgId, DELIVERY_SETTING_COLLECTION, `${assignee.type}:${assignee.id}`); return { removed: 1 }; }
+  catch (error) { if ((error as { statusCode?: number; code?: string })?.statusCode === 404 || (error as { code?: string })?.code === "ENOENT") return { removed: 0 }; throw error; }
+});

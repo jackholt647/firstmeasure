@@ -427,12 +427,13 @@ test('project Money uses dedicated mobile Ledger and Payments routes while prese
   assert.match(moneyApp, /const nextView = normalizeMoneyView\(route\.moneyView\)/);
 });
 
-test('Crew quick invites assign field access roles instead of management Viewer access', async () => {
+test('inviting someone from inside a group gives the roles its type gives on joining, and old Users and Crews links land on People', async () => {
+  const groupsPage = await readFile(path.join(publicRoot, 'libraries/apps/people/groups-page.js'), 'utf8');
+  assert.ok(groupsPage.includes("roleIds:data.state.types.find((type) => type.kind === 'resource_group' && type.id === String(current().kind_id))?.member_role_ids || []"));
   const settingsApp = await readFile(path.join(publicRoot, 'libraries/apps/settings/company.js'), 'utf8');
-  assert.match(settingsApp, /const workforceFieldAccessRoleIdForMemberRole = \(memberRole = ''\) => \{/);
-  assert.match(settingsApp, /const systemRoleId = foreman \? 'crew_foreman' : 'crew_member'/);
-  assert.match(settingsApp, /const accessRoleId = workforceFieldAccessRoleIdForMemberRole\(roleValue\(\)\);[\s\S]*?const accessRoleIds = \[accessRoleId\];[\s\S]*?const applicationAccess = workforceApplicationAccessForRoleIds\(accessRoleIds\);/);
-  assert.doesNotMatch(settingsApp, /const accessRoleIds = workforceDefaultAccessRoleIds\(\);[\s\S]*?applicationAccess\.field = \{/);
+  assert.ok(settingsApp.includes("if (normalized.sub === 'crews') { normalized.sub = 'people';"));
+  assert.ok(settingsApp.includes("if (normalized.sub === 'users') { normalized.sub = 'people';"));
+  assert.ok(!settingsApp.includes('renderCrewSettings') && !settingsApp.includes('openEditUserModal'));
 });
 
 test('Crew consolidates assigned projects into the shared routed Schedule calendar', async () => {
@@ -468,12 +469,12 @@ test('payroll settings stay inside the routed Payroll workspace', async () => {
   assert.match(payrollSettings, /data-payroll-settings-back/);
   assert.match(payrollSettings, /class="pycfg-workspace"/);
   assert.match(payrollSettings, /data-select-schedule/);
-  assert.match(payrollSettings, /data-add-assignment/);
   assert.match(payrollSettings, /class="pycfg-advanced"/);
-  assert.match(payrollSettings, /data-assignment-search/);
-  assert.match(payrollSettings, /data-assignment-type/);
-  assert.match(payrollSettings, /data-select-subject/);
-  assert.doesNotMatch(payrollSettings, /<select class="pycfg-select" data-new-policy-subject/);
+  // Who is paid on which schedule is no longer assigned per person here: the page chooses the company's schedule, and
+  // roles, types and people choose theirs through their pay defaults and setups (docs/architecture/pay-rules.md).
+  assert.match(payrollSettings, /data-when-form/);
+  assert.match(payrollSettings, /data-when-kind/);
+  assert.doesNotMatch(payrollSettings, /data-add-assignment|data-assignment-search|data-select-subject|data-new-policy-subject/);
   assert.doesNotMatch(payrollSettings, /data-pycfg-view/);
   assert.doesNotMatch(payrollSettings, /renderSummary\(/);
 });
