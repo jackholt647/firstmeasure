@@ -79,3 +79,20 @@ The script loads as `?v=20261014-report-preview-v3`. The release was activated o
 and pool one at a time, on top of `b314cc8d`. Web's first attempt stopped in the pre-switch
 health check (a timeout while another session was active) before anything changed; the retry
 succeeded. `verify` passed on all three.
+
+## Follow-up: no Elevations page (commit `0e12be87`)
+
+- The preview has no Elevations page. Its 3D views page carries the title the PDF gives it when
+  there is no elevation imagery, "Roof Elevations" (`pdf.js`: `includeElev` false).
+- Settings › Reports no longer offers "Elevations Page". The `page_elevations` default stays in
+  `DEFAULT_CUSTOMER_REPORT_SETTINGS`, and saved settings keep whatever value they had.
+- Still in place, unchanged:
+  - The FirstMeasure editor's **Quad** capture button.
+  - The PDF's Elevations page, drawn whenever a report carries a quad image.
+  - The global switch that turns both off (`disable_quad_views` in
+    `storage/measure/internal/config/report_settings.json`).
+  - The public API's `page_elevations` report setting (`v1/firstmeasure/constants.ts`,
+    `schemas.ts`).
+- The dev compatibility host has no `report_settings.json`, so the switch is off there.
+  Production was not inspected.
+- Activated on legacy, web and pool on top of `bb4eca28`; `verify` passed on all three.
