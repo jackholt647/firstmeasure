@@ -304,39 +304,6 @@
     return new Date(date.getTime() + (Number(minutes) || 0) * 60000);
   }
 
-  function readScheduleValue(source, path){
-    const parts = Array.isArray(path) ? path : cleanText(path).split('.').filter(Boolean);
-    return parts.reduce((value, key) => value == null ? undefined : value[key], source);
-  }
-
-  function evaluateScheduleExpression(expression, context = {}){
-    if (typeof expression === 'number') return Number.isFinite(expression) ? expression : 0;
-    if (typeof expression === 'string') {
-      const numeric = Number(expression);
-      return Number.isFinite(numeric) ? numeric : Number(readScheduleValue(context, expression) || 0);
-    }
-    const rule = objectValue(expression);
-    if (Object.prototype.hasOwnProperty.call(rule, 'value') && !rule.operator && !rule.op) return evaluateScheduleExpression(rule.value, context);
-    if (rule.ref) return Number(readScheduleValue(context, rule.ref) || rule.fallback || 0);
-    const operator = cleanText(rule.operator || rule.op).toLowerCase();
-    const operands = arrayValue(rule.operands || rule.args).length
-      ? arrayValue(rule.operands || rule.args).map((value) => evaluateScheduleExpression(value, context))
-      : [evaluateScheduleExpression(rule.left ?? rule.value ?? 0, context), evaluateScheduleExpression(rule.right ?? rule.by ?? 0, context)];
-    const left = Number(operands[0] || 0);
-    const right = Number(operands[1] || 0);
-    if (operator === 'add' || operator === 'sum') return operands.reduce((sum, value) => sum + Number(value || 0), 0);
-    if (operator === 'subtract') return left - right;
-    if (operator === 'multiply' || operator === 'product') return operands.reduce((product, value) => product * Number(value || 0), 1);
-    if (operator === 'divide') return right === 0 ? 0 : left / right;
-    if (operator === 'ceil') return Math.ceil(left);
-    if (operator === 'floor') return Math.floor(left);
-    if (operator === 'round') return Math.round(left);
-    if (operator === 'min') return Math.min(...operands.map(Number));
-    if (operator === 'max') return Math.max(...operands.map(Number));
-    if (operator === 'coalesce') return Number(operands.find((value) => Number.isFinite(Number(value))) || 0);
-    return Number(rule.amount ?? rule.value ?? 0) || 0;
-  }
-
   function addBusinessDays(dateValue, amount){
     const date = new Date(dateValue);
     const direction = Number(amount) < 0 ? -1 : 1;
@@ -346,79 +313,6 @@
       if (![0, 6].includes(date.getDay())) remaining -= 1;
     }
     return date;
-  }
-
-  function adjustScheduleDate(dateValue, adjustment = {}){
-    const date = new Date(dateValue);
-    const rule = typeof adjustment === 'string' ? { calendar:adjustment } : objectValue(adjustment);
-    const calendar = cleanText(rule.calendar || rule.to || rule.unit).toLowerCase().replace(/s$/, '');
-    if (calendar !== 'business_day' || ![0, 6].includes(date.getDay())) return date;
-    const direction = cleanText(rule.direction || 'previous').toLowerCase() === 'next' ? 1 : -1;
-    while ([0, 6].includes(date.getDay())) date.setDate(date.getDate() + direction);
-    return date;
-  }
-
-  function addScheduleOffset(dateValue, offset = {}, context = {}){
-    const date = new Date(dateValue);
-    const rule = typeof offset === 'number' ? { value:offset, unit:'day' } : objectValue(offset);
-    const amount = evaluateScheduleExpression(rule.expression ?? rule.amount ?? rule.value ?? 0, context);
-    const unit = cleanText(rule.unit || 'day').toLowerCase().replace(/s$/, '');
-    const shifted = unit === 'business_day' ? addBusinessDays(date, amount)
-      : unit === 'week' ? new Date(date.getTime() + amount * 7 * 86400000)
-        : unit === 'hour' ? new Date(date.getTime() + amount * 3600000)
-          : unit === 'minute' ? new Date(date.getTime() + amount * 60000)
-            : new Date(date.getTime() + amount * 86400000);
-    return adjustScheduleDate(shifted, rule.adjust || rule.adjustment);
-  }
-
-  function scheduleRuleForEvent(event = {}, project = {}, templates = []){
-    const direct = objectValue(event.schedule_rule || event.scheduleRule || objectValue(event.metadata).schedule_rule);
-    const templateId = cleanText(event.scope_template_id || objectValue(event.metadata).scope_template_id);
-    const template = arrayValue(templates).find((item) => cleanText(item.id || item.definition?.id) === templateId);
-    const definition = objectValue(template?.definition || template);
-    const resources = objectValue(definition.resources || definition.materials);
-    const lists = arrayValue(resources.lists);
-    const listId = cleanText(event.scope_resource_list_id || event.material_list_id || event.labor_list_id || event.equipment_list_id);
-    const eventTypeId = cleanText(event.event_type_default_id || event.event_type_id || event.type_id);
-    const sourceNodeTemplateId = cleanText(event.source_node_template_id);
-    const list = lists.find((item) => {
-      const schedule = objectValue(item.schedule);
-      return (listId && cleanText(item.id) === listId)
-        || (eventTypeId && cleanText(schedule.event_type_default_id) === eventTypeId)
-        || (sourceNodeTemplateId && cleanText(schedule.source_node_template_id) === sourceNodeTemplateId);
-    });
-    const templateRule = objectValue(objectValue(list?.schedule).rule || objectValue(list?.schedule).schedule_rule);
-    if (!Object.keys(templateRule).length) return direct;
-    if (!Object.keys(direct).length) return templateRule;
-    return {
-      ...templateRule,
-      ...direct,
-      bundle:{ ...objectValue(templateRule.bundle), ...objectValue(direct.bundle) },
-      reschedule:{ ...objectValue(templateRule.reschedule || templateRule.relationship_reschedule), ...objectValue(direct.reschedule || direct.relationship_reschedule) }
-    };
-  }
-
-  function scheduleBundleDescriptor(event = {}, project = {}, templates = []){
-    const rule = scheduleRuleForEvent(event, project, templates);
-    const bundle = objectValue(rule.bundle);
-    const projectId = cleanText(event.project_id || project.id);
-    const scopeKey = cleanText(event.scope_piece_id || event.work_plan_id || event.scope_template_id || 'project');
-    return {
-      key: cleanText(bundle.key) ? `${projectId}:${scopeKey}:${cleanText(bundle.key)}` : `${projectId}:${scopeKey}`,
-      item_key: cleanText(bundle.item_key || event.scope_resource_list_id || event.material_list_id || event.labor_list_id || event.id),
-      role: cleanText(bundle.role || (eventKind(event) === 'project_work' ? 'primary' : 'dependent')) || 'dependent',
-      rule
-    };
-  }
-
-  function scheduleBundleReschedulePolicy(event = {}, project = {}, templates = []){
-    const rule = scheduleRuleForEvent(event, project, templates);
-    const policy = objectValue(rule.reschedule || rule.relationship_reschedule);
-    return {
-      cascade:cleanText(policy.cascade || policy.mode || 'none').toLowerCase(),
-      include_roles:arrayValue(policy.include_roles || policy.roles).map((role) => cleanText(role).toLowerCase()).filter(Boolean),
-      rule
-    };
   }
 
   function projectScheduleMeasurements(project = {}, event = {}){
@@ -432,15 +326,7 @@
     };
   }
 
-  function scheduleDuration(ruleValue = {}, context = {}, fallbackDays = 1){
-    const rule = objectValue(ruleValue);
-    const amount = Math.max(Number(rule.minimum || 0), evaluateScheduleExpression(rule.expression ?? rule.amount ?? rule.value ?? fallbackDays, context));
-    const unit = cleanText(rule.unit || 'day').toLowerCase().replace(/s$/, '');
-    const days = unit === 'week' ? amount * 7 : unit === 'hour' ? amount / 24 : unit === 'minute' ? amount / 1440 : amount;
-    return { amount:Math.max(0, amount), unit, days:Math.max(0, days) };
-  }
-
-  /* ── Calendar arithmetic shared by bundles and dependency cascades ─────────
+  /* ── Calendar arithmetic shared by placement and dependency cascades ───────
    * Whole-day items move by local calendar days (DST-safe) and always start at
    * midnight; timed items keep a time of day (their own, or the workday start)
    * so a linked item never lands at 00:00 just because its predecessor ended
@@ -515,12 +401,6 @@
 
   function spanEnd(start, span){
     return span.allDay ? addLocalDays(start, span.days) : new Date(start.getTime() + span.minutes * 60000);
-  }
-
-  function shiftEventDate(value, deltaMs, allDay){
-    const date = toDate(value);
-    if (!date) return null;
-    return allDay ? addLocalDays(date, Math.round(deltaMs / 86400000)) : new Date(date.getTime() + deltaMs);
   }
 
   // Earliest start at or after `base` that suits the item: whole days begin at
@@ -619,212 +499,6 @@
     return ordered.map((id) => list[index.get(id)]).filter(Boolean);
   }
 
-  // Duration/granularity of a bundle item: a scope rule's default_duration
-  // wins; otherwise the item keeps its own duration_minutes and all-day flag.
-  function bundleItemSpan(event = {}, rule = {}, context = {}){
-    if (rule.default_duration !== undefined && rule.default_duration !== null) {
-      const duration = scheduleDuration(rule.default_duration, context, 1);
-      const allDay = rule.all_day !== false;
-      return { allDay, days:duration.days, minutes:Math.max(1, Math.round(duration.days * 1440)), timeOfDay:null, duration, fromRule:true };
-    }
-    const natural = scheduleItemSpan(event);
-    const material = eventKind(event) === 'material_delivery';
-    const allDay = rule.all_day === true ? true
-      : rule.all_day === false ? false
-        : (natural.allDay || (material && event.all_day !== false && !cleanText(event.schedule_granularity)));
-    const days = allDay ? Math.max(1, Math.round(natural.minutes / 1440)) : natural.minutes / 1440;
-    return {
-      allDay,
-      days,
-      minutes:allDay ? days * 1440 : natural.minutes,
-      timeOfDay:allDay ? null : natural.timeOfDay,
-      duration:{ amount:days, unit:'day', days },
-      fromRule:false
-    };
-  }
-
-  function bundleSpanEnd(start, span, context){
-    return span.fromRule
-      ? addScheduleOffset(start, { value:span.duration.amount, unit:span.duration.unit }, context)
-      : spanEnd(start, span);
-  }
-
-  /* Lay out a waiting bundle from the day the primary item is placed on.
-   * Items are placed in dependency order: each starts once its predecessors
-   * (finish-to-start / start-to-start / finish-to-finish, with lags) allow,
-   * keeps its own duration and all-day/timed granularity, and scope-template
-   * relative_start rules still apply to items without in-bundle links.
-   * options: { primaryEnd, config (branch availability), events (already
-   * scheduled project events that constrain bundle items) }. */
-  function interpretScheduleBundle(primaryEvent = {}, bundleEvents = [], anchorStart = new Date(), project = {}, templates = [], options = {}){
-    const events = arrayValue(bundleEvents).length ? arrayValue(bundleEvents) : [primaryEvent];
-    const primaryId = cleanText(primaryEvent.id);
-    const primaryDescriptor = scheduleBundleDescriptor(primaryEvent, project, templates);
-    const measurements = projectScheduleMeasurements(project, primaryEvent);
-    const baseContext = { project:{ ...project, measurements }, measurements, event:primaryEvent };
-    const anchorDate = toDate(anchorStart) || new Date();
-    const primarySpan = bundleItemSpan(primaryEvent, primaryDescriptor.rule, baseContext);
-    // A whole-day item starts at midnight; a timed item dropped on a date
-    // (midnight) starts at the beginning of the workday instead.
-    const start = primarySpan.fromRule
-      ? anchorDate
-      : primarySpan.allDay
-        ? localDayStart(anchorDate)
-        : (isLocalMidnight(anchorDate) ? atLocalMinute(anchorDate, workdayMinutes(options, anchorDate).start) : anchorDate);
-    const requestedPrimaryEnd = toDate(options?.primaryEnd);
-    const hasRequestedPrimaryEnd = !!requestedPrimaryEnd && requestedPrimaryEnd > start;
-    const primaryEnd = hasRequestedPrimaryEnd ? requestedPrimaryEnd : bundleSpanEnd(start, primarySpan, baseContext);
-    const primaryDuration = hasRequestedPrimaryEnd
-      ? { amount:(primaryEnd.getTime() - start.getTime()) / 86400000, unit:'day', days:(primaryEnd.getTime() - start.getTime()) / 86400000 }
-      : primarySpan.duration;
-    const anchor = { start, end:primaryEnd, duration:primaryDuration, event:primaryEvent };
-    const context = { ...baseContext, anchor };
-    const others = orderByDependencies(events.filter((event) => cleanText(event.id) !== primaryId));
-    const bundleIds = new Set([primaryId, ...others.map((event) => cleanText(event.id))]);
-    const placed = new Map([[primaryId, { start, end:primaryEnd }]]);
-    const external = new Map(arrayValue(options?.events)
-      .filter((event) => !bundleIds.has(cleanText(event.id)) && eventIsScheduled(event))
-      .map((event) => [cleanText(event.id), { start:eventStart(event), end:eventEnd(event) }]));
-    const primaryDraft = {
-      ...primaryEvent,
-      id:primaryEvent.id,
-      event_id:primaryEvent.id,
-      start,
-      end:primaryEnd,
-      all_day:primarySpan.allDay,
-      schedule_granularity:primarySpan.allDay ? 'date' : 'time',
-      __schedule_bundle_key:primaryDescriptor.key,
-      __schedule_bundle_role:primaryDescriptor.role,
-      __schedule_bundle_primary:true
-    };
-    // Items the primary itself waits on are laid out backwards from it so the
-    // placed primary date stays where the user dropped it.
-    const byId = new Map(others.map((event) => [cleanText(event.id), event]));
-    const ancestors = new Set();
-    const pending = [primaryEvent];
-    while (pending.length) {
-      eventDependencies(pending.shift()).forEach((dep) => {
-        if (!byId.has(dep.event_id) || ancestors.has(dep.event_id)) return;
-        ancestors.add(dep.event_id);
-        pending.push(byId.get(dep.event_id));
-      });
-    }
-    const backwardRanges = new Map();
-    others.filter((event) => ancestors.has(cleanText(event.id))).reverse().forEach((event) => {
-      const id = cleanText(event.id);
-      const span = bundleItemSpan(event, scheduleBundleDescriptor(event, project, templates).rule, context);
-      let latest = null;
-      [primaryEvent, ...others].forEach((successor) => {
-        const successorId = cleanText(successor.id);
-        const successorRange = successorId === primaryId ? placed.get(primaryId) : backwardRanges.get(successorId);
-        if (!successorRange) return;
-        eventDependencies(successor).filter((dep) => dep.event_id === id).forEach((dep) => {
-          const candidate = dependencyLatestStart(dep, successorRange, span, options);
-          if (candidate && (!latest || candidate < latest)) latest = candidate;
-        });
-      });
-      if (latest) backwardRanges.set(id, { start:latest, end:spanEnd(latest, span) });
-    });
-    const drafts = others.map((event) => {
-      const id = cleanText(event.id);
-      const descriptor = scheduleBundleDescriptor(event, project, templates);
-      const rule = descriptor.rule;
-      const span = bundleItemSpan(event, rule, context);
-      if (backwardRanges.has(id)) {
-        const range = backwardRanges.get(id);
-        placed.set(id, range);
-        return {
-          ...event,
-          id:event.id,
-          event_id:event.id,
-          start:range.start,
-          end:range.end,
-          all_day:span.allDay,
-          schedule_granularity:span.allDay ? 'date' : 'time',
-          __schedule_bundle_key:primaryDescriptor.key,
-          __schedule_bundle_role:descriptor.role,
-          __schedule_bundle_primary:false
-        };
-      }
-      const links = eventDependencies(event).filter((dep) => dep.event_id !== id && (placed.has(dep.event_id) || external.has(dep.event_id)));
-      let eventStartAt = null;
-      links.forEach((dep) => {
-        const earliest = dependencyEarliestStart(dep, placed.get(dep.event_id) || external.get(dep.event_id), span, options);
-        if (earliest && (!eventStartAt || earliest > eventStartAt)) eventStartAt = earliest;
-      });
-      if (!eventStartAt) {
-        const relative = objectValue(rule.relative_start);
-        if (Object.keys(relative).length) {
-          const relativeBase = cleanText(relative.anchor || 'start') === 'end' ? primaryEnd : start;
-          eventStartAt = addScheduleOffset(relativeBase, relative.offset, context);
-        } else {
-          eventStartAt = alignStartOnOrAfter(span.allDay ? localDayStart(start) : start, span, options);
-        }
-      }
-      const eventEndAt = bundleSpanEnd(eventStartAt, span, context);
-      placed.set(id, { start:eventStartAt, end:eventEndAt });
-      return {
-        ...event,
-        id:event.id,
-        event_id:event.id,
-        start:eventStartAt,
-        end:eventEndAt,
-        all_day:span.allDay,
-        schedule_granularity:span.allDay ? 'date' : 'time',
-        __schedule_bundle_key:primaryDescriptor.key,
-        __schedule_bundle_role:descriptor.role,
-        __schedule_bundle_primary:false
-      };
-    });
-    return [primaryDraft, ...drafts];
-  }
-
-  function templateRelationshipDrafts(primaryEvent = {}, bundleEvents = [], nextRange = {}, project = {}, templates = []){
-    if (!nextRange?.start) return [];
-    const primaryDescriptor = scheduleBundleDescriptor(primaryEvent, project, templates);
-    const policy = scheduleBundleReschedulePolicy(primaryEvent, project, templates);
-    if (!['prompt','always'].includes(policy.cascade)) return [];
-    const includedRoles = policy.include_roles.length ? new Set(policy.include_roles) : new Set(['dependent']);
-    const related = arrayValue(bundleEvents).filter((event) => {
-      if (String(event.id || '') === String(primaryEvent.id || '')) return true;
-      const descriptor = scheduleBundleDescriptor(event, project, templates);
-      return descriptor.key === primaryDescriptor.key && includedRoles.has(cleanText(descriptor.role).toLowerCase());
-    });
-    return interpretScheduleBundle(primaryEvent, related, new Date(nextRange.start), project, templates, { primaryEnd:nextRange.end })
-      .filter((draft) => String(draft.id || '') !== String(primaryEvent.id || ''));
-  }
-
-  /* Everything a move of one project item implies for its related items:
-   * scope-template bundle rules (reschedule.cascade prompt/always) plus the
-   * item's depends_on links in both directions. Returns
-   * { drafts, blocked } where blocked lists locked/completed items whose
-   * links would be violated (they are never moved). */
-  function relatedScheduleRescheduleImpact(primaryEvent = {}, projectEvents = [], nextRange = {}, project = {}, templates = [], options = {}){
-    if (!nextRange?.start) return { drafts:[], blocked:[] };
-    const primaryId = cleanText(primaryEvent.id);
-    const list = arrayValue(projectEvents);
-    const templateDrafts = templateRelationshipDrafts(primaryEvent, list, nextRange, project, templates)
-      .filter((draft) => !eventIsFixed(list.find((event) => cleanText(event.id) === cleanText(draft.id)) || draft));
-    const templateById = new Map(templateDrafts.map((draft) => [cleanText(draft.id), draft]));
-    const withPrimary = list.some((event) => cleanText(event.id) === primaryId) ? list : [...list, primaryEvent];
-    const effective = withPrimary.map((event) => {
-      const draft = templateById.get(cleanText(event.id));
-      if (!draft) return event;
-      const startIso = new Date(draft.start).toISOString();
-      const endIso = new Date(draft.end).toISOString();
-      return { ...event, status:'scheduled', start_at:startIso, start:startIso, end_at:endIso, end:endIso };
-    });
-    const impact = dependencyRescheduleImpact(effective, primaryId, nextRange, options);
-    const merged = new Map(templateDrafts.map((draft) => [cleanText(draft.id), draft]));
-    impact.drafts.forEach((draft) => merged.set(cleanText(draft.id), draft));
-    merged.delete(primaryId);
-    return { drafts:Array.from(merged.values()), blocked:impact.blocked };
-  }
-
-  function relatedScheduleRescheduleDrafts(primaryEvent = {}, bundleEvents = [], nextRange = {}, project = {}, templates = [], options = {}){
-    return relatedScheduleRescheduleImpact(primaryEvent, bundleEvents, nextRange, project, templates, options).drafts;
-  }
-
   const DEPENDENCY_TYPES = ['finish_to_start', 'start_to_start', 'finish_to_finish'];
 
   function normalizeDependency(value = {}, index = 0){
@@ -844,14 +518,20 @@
     return raw.map(normalizeDependency).filter((dep) => dep.event_id);
   }
 
-  function eventIsGroup(event = {}){
-    return event.is_schedule_group === true
-      || cleanText(event.schedule_item_kind).toLowerCase() === 'group'
-      || cleanText(event.kind).toLowerCase() === 'schedule_group';
+  /* ── Parents and children ─────────────────────────────────────────────────
+   * Browser twin of public/v1/scheduling/event-model.ts and placement.ts; the
+   * contract is docs/architecture/schedule-events.md. An event names its
+   * parent with parent_event_id and stores a placement relative to it. A span
+   * is an event of kind 'schedule_group' holding its own stored range. The
+   * server places children when a parent is saved and returns the result;
+   * the functions here preview that while dragging, in the browser's local
+   * calendar days. */
+  function eventParentId(event = {}){
+    return cleanText(objectValue(event).parent_event_id);
   }
 
-  function eventParentId(event = {}){
-    return cleanText(event.parent_event_id || event.parentEventId || objectValue(event.metadata).parent_event_id);
+  function eventIsSpan(event = {}){
+    return cleanText(objectValue(event).kind).toLowerCase() === 'schedule_group';
   }
 
   function eventChildren(events = [], parentId = ''){
@@ -859,91 +539,263 @@
     return !id ? [] : arrayValue(events).filter((event) => eventParentId(event) === id);
   }
 
-  function groupRollupMode(event = {}){
-    const mode = cleanText(event.schedule_rollup || event.scheduleRollup).toLowerCase();
-    if (mode === 'manual') return 'manual';
-    return 'auto';
-  }
-
-  // `resolve` maps each member first (nested groups use their own rollup).
-  function groupRollupRange(events = [], groupEvent = {}, resolve = null){
-    const members = eventChildren(events, groupEvent.id).map((child) => typeof resolve === 'function' ? resolve(child) : child);
-    const children = members.filter((child) => eventIsScheduled(child));
-    if (!children.length) {
-      const start = eventStart(groupEvent);
-      // Every member waits off the calendar (cancelled items keep a place).
-      const waiting = members.length > 0 && members.every((child) => !eventStart(child) || cleanText(child.status).toLowerCase() === 'unscheduled');
-      return { start, end:start ? eventEnd(groupEvent) : null, derived:false, child_count:0, member_count:members.length, members_waiting:waiting };
-    }
-    const starts = children.map((child) => eventStart(child)).filter(Boolean);
-    const ends = children.map((child) => eventEnd(child)).filter(Boolean);
-    return {
-      start:starts.length ? new Date(Math.min(...starts.map((d) => d.getTime()))) : null,
-      end:ends.length ? new Date(Math.max(...ends.map((d) => d.getTime()))) : null,
-      derived:true,
-      child_count:children.length,
-      member_count:members.length,
-      members_waiting:false,
-    };
-  }
-
-  // Groups are date-level containers; only an explicit time granularity makes
-  // one timed (a missing all_day flag is often coerced to false upstream).
-  function groupIsAllDay(event = {}){
-    return event.all_day === true || cleanText(event.schedule_granularity).toLowerCase() !== 'time';
-  }
-
-  function applyGroupRollups(events = []){
+  // Every event under this one, nearest first. Safe against a stored cycle.
+  function eventDescendants(events = [], rootId = ''){
     const list = arrayValue(events);
-    const rolled = new Map();
-    const pending = new Set();
-    const rollup = (event) => {
-      if (!eventIsGroup(event) || groupRollupMode(event) === 'manual') return event;
-      const id = cleanText(event.id);
-      if (id && rolled.has(id)) return rolled.get(id);
-      if (id && pending.has(id)) return event;
-      if (id) pending.add(id);
-      const result = rollupGroup(event);
-      if (id) rolled.set(id, result);
-      return result;
+    const found = [];
+    const seen = new Set([cleanText(rootId)]);
+    const queue = [cleanText(rootId)];
+    while (queue.length) {
+      eventChildren(list, queue.shift()).forEach((child) => {
+        const id = cleanText(child.id);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        found.push(child);
+        queue.push(id);
+      });
+    }
+    return found;
+  }
+
+  // Ids of the events above this one, nearest first.
+  function eventAncestorIds(events = [], event = {}){
+    const byId = new Map(arrayValue(events).map((item) => [cleanText(item?.id), item]));
+    const selfId = cleanText(objectValue(event).id);
+    const ids = [];
+    let parentId = eventParentId(event);
+    while (parentId && !ids.includes(parentId) && parentId !== selfId) {
+      ids.push(parentId);
+      parentId = eventParentId(byId.get(parentId));
+    }
+    return ids;
+  }
+
+  // The ids an event never conflicts with: itself, everything above it and
+  // everything under it.
+  function eventFamilyIds(events = [], event = {}){
+    const id = cleanText(objectValue(event).id);
+    return new Set([id, ...eventAncestorIds(events, event), ...eventDescendants(events, id).map((item) => cleanText(item.id))].filter(Boolean));
+  }
+
+  // The range an event holds on the calendar, or null when it holds none.
+  function eventWindow(event = {}){
+    const value = objectValue(event);
+    if (['unscheduled', 'canceled', 'cancelled'].includes(cleanText(value.status).toLowerCase())) return null;
+    const start = eventStart(value);
+    if (!start) return null;
+    const explicitEnd = toDate(value.end_at || value.end);
+    const end = explicitEnd && explicitEnd > start ? explicitEnd : addMinutes(start, Math.max(1, Number(value.duration_minutes || 60)));
+    return { start, end };
+  }
+
+  const PLACEMENT_UNITS = ['minute', 'hour', 'day', 'business_day', 'week'];
+
+  function normalizePlacementAmount(value){
+    if (typeof value === 'number') return Number.isFinite(value) ? { value, unit:'day' } : undefined;
+    const input = objectValue(value);
+    if (!Object.keys(input).length) return undefined;
+    const unit = cleanText(input.unit || 'day').toLowerCase().replace(/s$/, '');
+    const adjust = objectValue(input.adjust);
+    const amount = { unit:PLACEMENT_UNITS.includes(unit) ? unit : 'day' };
+    if (input.expression !== undefined && input.expression !== null) amount.expression = input.expression;
+    else amount.value = Number.isFinite(Number(input.value)) ? Number(input.value) : 0;
+    if (cleanText(adjust.calendar).toLowerCase().replace(/s$/, '') === 'business_day') {
+      amount.adjust = { calendar:'business_day', direction:cleanText(adjust.direction).toLowerCase() === 'next' ? 'next' : 'previous' };
+    }
+    return amount;
+  }
+
+  // A stored or template placement in its one shape, or null when there is none.
+  function normalizePlacement(value){
+    const input = objectValue(value);
+    if (!Object.keys(input).length) return null;
+    const anchor = cleanText(input.anchor).toLowerCase();
+    const placement = { anchor:anchor === 'end' ? 'end' : anchor === 'span' ? 'span' : 'start' };
+    if (placement.anchor !== 'span') {
+      const offset = normalizePlacementAmount(input.offset);
+      if (offset) placement.offset = offset;
+      const duration = normalizePlacementAmount(input.duration);
+      if (duration) placement.duration = duration;
+    }
+    if (input.all_day === true || input.all_day === false) placement.all_day = input.all_day;
+    if (input.manual === true) placement.manual = true;
+    return placement;
+  }
+
+  function readPlacementPath(source, path){
+    return cleanText(path).split('.').filter(Boolean).reduce((value, key) => value == null ? undefined : value[key], source);
+  }
+
+  // Arithmetic over numbers and { ref } paths (parent.duration.days,
+  // parent.duration.minutes, measurements.<key>). Anything unreadable is zero.
+  function evaluatePlacementExpression(expression, context = {}){
+    if (typeof expression === 'number') return Number.isFinite(expression) ? expression : 0;
+    if (typeof expression === 'string') {
+      const numeric = Number(expression);
+      return Number.isFinite(numeric) ? numeric : Number(readPlacementPath(context, expression) || 0) || 0;
+    }
+    const rule = objectValue(expression);
+    if (rule.ref) return Number(readPlacementPath(context, rule.ref) ?? rule.fallback ?? 0) || 0;
+    const operator = cleanText(rule.operator).toLowerCase();
+    if (!operator) return rule.value === undefined ? 0 : evaluatePlacementExpression(rule.value, context);
+    const operands = Array.isArray(rule.operands)
+      ? rule.operands.map((entry) => evaluatePlacementExpression(entry, context))
+      : [evaluatePlacementExpression(rule.left ?? rule.value ?? 0, context), evaluatePlacementExpression(rule.right ?? 0, context)];
+    const left = operands[0] ?? 0;
+    const right = operands[1] ?? 0;
+    if (operator === 'add') return operands.reduce((sum, value) => sum + value, 0);
+    if (operator === 'subtract') return left - right;
+    if (operator === 'multiply') return operands.reduce((product, value) => product * value, 1);
+    if (operator === 'divide') return right === 0 ? 0 : left / right;
+    if (operator === 'floor') return Math.floor(left);
+    if (operator === 'ceil') return Math.ceil(left);
+    if (operator === 'round') return Math.round(left);
+    if (operator === 'min') return Math.min(...operands);
+    if (operator === 'max') return Math.max(...operands);
+    if (operator === 'coalesce') return operands.find((value) => Number.isFinite(value) && value !== 0) ?? 0;
+    return 0;
+  }
+
+  // Whole local days between two instants' dates.
+  function localDayDifference(from, to){
+    const a = new Date(from);
+    const b = new Date(to);
+    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+  }
+
+  function placementAmountValue(amount, context){
+    return amount.expression !== undefined ? evaluatePlacementExpression(amount.expression, context) : Number(amount.value || 0);
+  }
+
+  function applyPlacementAmount(base, amount, context){
+    if (!amount) return new Date(base);
+    const value = placementAmountValue(amount, context);
+    let result;
+    if (amount.unit === 'minute') result = new Date(base.getTime() + value * 60000);
+    else if (amount.unit === 'hour') result = new Date(base.getTime() + value * 3600000);
+    else if (amount.unit === 'business_day') result = addBusinessDays(base, value);
+    else {
+      const days = amount.unit === 'week' ? value * 7 : value;
+      // Whole days keep the local time of day across a clock change; a
+      // fraction of a day is plain elapsed time.
+      result = Number.isInteger(days) ? addLocalDays(base, days) : new Date(base.getTime() + days * 86400000);
+    }
+    if (amount.adjust) {
+      const direction = amount.adjust.direction === 'next' ? 1 : -1;
+      while ([0, 6].includes(result.getDay())) result.setDate(result.getDate() + direction);
+    }
+    return result;
+  }
+
+  function placementAmountMinutes(amount, context){
+    const perUnit = amount.unit === 'minute' ? 1 : amount.unit === 'hour' ? 60 : amount.unit === 'week' ? 7 * 1440 : 1440;
+    return placementAmountValue(amount, context) * perUnit;
+  }
+
+  /* The range a child holds for a given parent range -> { start, end, all_day }
+   * (Dates), or null without a placement or a parent range. `child` supplies
+   * the length to keep when the placement names none; options.measurements
+   * feeds `measurements.<key>` refs. */
+  function evaluatePlacement(placementValue, parentRange = {}, child = {}, options = {}){
+    const placement = normalizePlacement(placementValue);
+    const parentStart = toDate(parentRange?.start);
+    const parentEnd = toDate(parentRange?.end);
+    if (!placement || !parentStart || !parentEnd) return null;
+    const childEvent = objectValue(child);
+    const parentMinutes = Math.max(1, Math.round((parentEnd.getTime() - parentStart.getTime()) / 60000));
+    const context = {
+      parent:{ duration:{ minutes:parentMinutes, days:Math.max(1, localDayDifference(parentStart, parentEnd) || Math.round(parentMinutes / 1440)) } },
+      measurements:objectValue(options?.measurements),
     };
-    const rollupGroup = (event) => {
-      const range = groupRollupRange(list, event, rollup);
-      if (!range.derived && range.members_waiting && eventStart(event) && !['cancelled', 'canceled'].includes(cleanText(event.status).toLowerCase())) {
-        // Every item was taken off the calendar: the group has no dates to
-        // follow, so it waits unscheduled too (an empty group keeps its own).
-        return {
-          ...event,
-          status:'unscheduled',
-          start_at:'',
-          start:'',
-          end_at:'',
-          end:'',
-          start_date:'',
-          end_date:'',
-          __rollup_derived:true,
-          __rollup_cleared:true,
-        };
-      }
-      if (!range.derived || !range.start || !range.end) return event;
-      // An all-day group covers whole days: a timed last item (a 2 PM
-      // walkthrough) still ends the group's bar at the end of that day.
-      // Groups are date-level containers unless explicitly timed.
-      const allDay = groupIsAllDay(event);
-      const start = allDay ? localDayStart(range.start) : range.start;
-      const end = allDay && !isLocalMidnight(range.end) ? addLocalDays(localDayStart(range.end), 1) : range.end;
+    const allDay = placement.all_day ?? childEvent.all_day === true;
+    if (placement.anchor === 'span') return { start:new Date(parentStart), end:new Date(parentEnd), all_day:allDay };
+    let start = applyPlacementAmount(placement.anchor === 'end' ? parentEnd : parentStart, placement.offset, context);
+    const current = eventWindow({ ...childEvent, status:'scheduled' });
+    const keptMinutes = current
+      ? Math.round((current.end.getTime() - current.start.getTime()) / 60000)
+      : Math.max(1, Number(childEvent.duration_minutes || (allDay ? 1440 : 60)));
+    const minutes = Math.max(1, placement.duration ? placementAmountMinutes(placement.duration, context) : keptMinutes);
+    if (allDay) {
+      start = localDayStart(start);
+      return { start, end:addLocalDays(start, Math.max(1, Math.round(minutes / 1440))), all_day:true };
+    }
+    return { start, end:new Date(start.getTime() + Math.round(minutes) * 60000), all_day:false };
+  }
+
+  // The placement that keeps a child exactly where it now is, as a fixed
+  // distance from its parent's start. childRange: { start, end, all_day }.
+  function manualPlacement(childRange = {}, parentRange = {}){
+    const childStart = toDate(childRange?.start);
+    const childEnd = toDate(childRange?.end);
+    const parentStart = toDate(parentRange?.start);
+    if (!childStart || !childEnd || !parentStart) return null;
+    if (childRange.all_day) {
       return {
-        ...event,
-        start_at:start.toISOString(),
-        start:start.toISOString(),
-        end_at:end.toISOString(),
-        end:end.toISOString(),
-        duration_minutes:Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)),
-        status:cleanText(event.status).toLowerCase() === 'unscheduled' ? 'scheduled' : (event.status || 'scheduled'),
-        __rollup_derived:true,
+        anchor:'start',
+        offset:{ value:localDayDifference(parentStart, childStart), unit:'day' },
+        duration:{ value:Math.max(1, localDayDifference(childStart, childEnd)), unit:'day' },
+        all_day:true,
+        manual:true,
       };
+    }
+    return {
+      anchor:'start',
+      offset:{ value:Math.round((childStart.getTime() - parentStart.getTime()) / 60000), unit:'minute' },
+      duration:{ value:Math.max(1, Math.round((childEnd.getTime() - childStart.getTime()) / 60000)), unit:'minute' },
+      all_day:false,
+      manual:true,
     };
-    return list.map(rollup);
+  }
+
+  /* Re-places everything under one parent after that parent's range changed.
+   * `events` is the project's events with the parent already in its new
+   * state. -> { updated, blocked }: `updated` are drafts of the children whose
+   * range or status changed (theirs too, nested); `blocked` are locked or
+   * finished children that should have moved and did not. A child without a
+   * placement is left alone, as are its own children. These are previews: the
+   * server re-places children itself when the parent is saved, so the drafts
+   * are not saved one by one. options: { measurements }. */
+  function placeChildren(events = [], parentId = '', options = {}){
+    const working = arrayValue(events).map((event) => ({ ...objectValue(event) }));
+    const byId = new Map(working.map((event) => [cleanText(event.id), event]));
+    const updated = [];
+    const blocked = [];
+    const rootId = cleanText(parentId);
+    const seen = new Set([rootId]);
+    const queue = [rootId];
+    while (queue.length) {
+      const parent = byId.get(queue.shift());
+      if (!parent) continue;
+      const parentWindow = eventWindow(parent);
+      eventChildren(working, parent.id).forEach((child) => {
+        const id = cleanText(child.id);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        const placement = normalizePlacement(child.placement);
+        if (!placement) return;
+        const current = eventWindow(child);
+        const target = parentWindow ? evaluatePlacement(placement, parentWindow, child, options) : null;
+        const unchanged = target
+          ? !!current && current.start.getTime() === target.start.getTime() && current.end.getTime() === target.end.getTime()
+          : !current;
+        if (unchanged) { queue.push(id); return; }
+        if (eventIsFixed(child)) { blocked.push(child); return; }
+        if (target) {
+          const status = cleanText(child.status).toLowerCase();
+          Object.assign(child, updateProjectEventRange(child, {
+            start:target.start,
+            end:target.end,
+            all_day:target.all_day,
+            schedule_granularity:target.all_day ? 'date' : 'time',
+          }), { status:!status || status === 'unscheduled' ? 'scheduled' : child.status });
+        } else {
+          Object.assign(child, { status:'unscheduled', start_at:'', start:'', end_at:'', end:'', start_date:'', end_date:'', updated_at:nowIso() });
+        }
+        updated.push(child);
+        queue.push(id);
+      });
+    }
+    return { updated, blocked };
   }
 
   function scheduleGraph(events = []){
@@ -1065,99 +917,75 @@
     }).filter(Boolean);
   }
 
-  function groupDescendants(events = [], groupId = ''){
-    const list = arrayValue(events);
-    const result = [];
-    const seen = new Set([cleanText(groupId)]);
-    const queue = [cleanText(groupId)];
-    while (queue.length) {
-      eventChildren(list, queue.shift()).forEach((child) => {
-        const id = cleanText(child.id);
-        if (!id || seen.has(id)) return;
-        seen.add(id);
-        result.push(child);
-        if (eventIsGroup(child)) queue.push(id);
-      });
-    }
-    return result;
-  }
-
-  /* Moving a group moves its scheduled items by the same offset. Locked or
-   * completed items cannot move, so they are returned in `blocked` and the
-   * caller decides (the calendar refuses the move). `resized` is true when the
-   * new range changes the group's length, which an auto-rollup group cannot. */
-  function groupMoveDrafts(events = [], groupEvent = {}, nextRange = {}){
-    const list = arrayValue(events);
-    const current = groupRollupRange(list, groupEvent);
+  /* Everything a move of one project item implies for its related items: its
+   * children (and theirs) placed against the new range, plus the depends_on
+   * links of the item and of every re-placed child, in both directions.
+   * -> { drafts, blocked, children, dependents }. `children` are previews of
+   * what the server does when the moved item is saved; `dependents` are the
+   * linked items the caller saves itself; `drafts` is both. `blocked` lists
+   * locked or finished items that are now out of place (never moved) as
+   * { event, related, dependency, direction, reason }, with direction 'child'
+   * for a child that could not follow its parent.
+   * options: { measurements } plus the dependency cascade's workday options. */
+  function relatedScheduleRescheduleImpact(primaryEvent = {}, projectEvents = [], nextRange = {}, project = {}, options = {}){
+    const empty = { drafts:[], blocked:[], children:[], dependents:[] };
     const nextStart = toDate(nextRange?.start);
-    const nextEnd = toDate(nextRange?.end);
-    const items = groupDescendants(list, groupEvent.id).filter((event) => !eventIsGroup(event) && eventIsScheduled(event));
-    if (!current.start || !nextStart) return { drafts:[], blocked:[], items, delta:0, resized:false, derived:current.derived };
-    const groupAllDay = groupIsAllDay(groupEvent);
-    const currentStart = groupAllDay ? localDayStart(current.start) : current.start;
-    const currentEnd = current.end ? (groupAllDay && !isLocalMidnight(current.end) ? addLocalDays(localDayStart(current.end), 1) : current.end) : null;
-    const delta = nextStart.getTime() - currentStart.getTime();
-    const resized = !!(nextEnd && currentEnd && Math.abs((nextEnd.getTime() - nextStart.getTime()) - (currentEnd.getTime() - currentStart.getTime())) > 2 * 3600000);
-    const blocked = items.filter(eventIsFixed);
-    const drafts = items.filter((event) => !eventIsFixed(event)).map((event) => {
-      const allDay = eventIsAllDay(event);
-      const start = shiftEventDate(eventStart(event), delta, allDay);
-      const end = shiftEventDate(eventEnd(event) || eventStart(event), delta, allDay);
-      return updateProjectEventRange(event, { start, end });
+    if (!nextStart) return empty;
+    const primaryId = cleanText(primaryEvent.id);
+    const list = arrayValue(projectEvents);
+    const stored = list.find((event) => cleanText(event.id) === primaryId) || primaryEvent;
+    const primaryStatus = cleanText(stored.status).toLowerCase();
+    const requestedEnd = toDate(nextRange?.end);
+    const moved = {
+      ...updateProjectEventRange(stored, {
+        start:nextStart,
+        end:requestedEnd && requestedEnd > nextStart ? requestedEnd : addMinutes(nextStart, eventDurationMinutes(stored)),
+        ...(nextRange.all_day === true || nextRange.all_day === false ? { all_day:nextRange.all_day } : {}),
+      }),
+      status:!primaryStatus || primaryStatus === 'unscheduled' ? 'scheduled' : stored.status,
+    };
+    let effective = list.some((event) => cleanText(event.id) === primaryId)
+      ? list.map((event) => cleanText(event.id) === primaryId ? moved : event)
+      : [...list, moved];
+    const placed = placeChildren(effective, primaryId, {
+      measurements:options?.measurements || projectScheduleMeasurements(project, primaryEvent),
     });
-    return { drafts, blocked, items, delta, resized, derived:current.derived };
-  }
-
-  /* Stored group records whose range/status no longer match their items
-   * (auto rollup). Callers persist these after placing or moving children so
-   * every surface — including ones that read stored ranges — agrees. */
-  function groupRollupUpdates(events = [], groupIds = null){
-    const list = arrayValue(events);
-    const only = groupIds ? new Set(arrayValue(groupIds).map(cleanText).filter(Boolean)) : null;
-    return applyGroupRollups(list)
-      .filter((event) => event.__rollup_derived === true && (!only || only.has(cleanText(event.id))))
-      .map((rolled) => {
-        const stored = list.find((event) => cleanText(event.id) === cleanText(rolled.id)) || rolled;
-        const sameStart = eventStart(stored)?.getTime() === eventStart(rolled)?.getTime();
-        const sameEnd = eventEnd(stored)?.getTime() === eventEnd(rolled)?.getTime();
-        const sameStatus = cleanText(stored.status).toLowerCase() === cleanText(rolled.status).toLowerCase();
-        if (sameStart && sameEnd && sameStatus) return null;
-        if (rolled.__rollup_cleared === true) {
-          return { ...stored, status:'unscheduled', start_at:'', start:'', end_at:'', end:'', start_date:'', end_date:'', updated_at:nowIso() };
-        }
-        const allDay = groupIsAllDay(rolled);
-        return {
-          ...updateProjectEventRange(stored, {
-            start:eventStart(rolled),
-            end:eventEnd(rolled),
-            all_day:allDay,
-            schedule_granularity:allDay ? 'date' : 'time'
-          }),
-          status:rolled.status
-        };
-      })
-      .filter(Boolean);
-  }
-
-  // Parent groups (nearest first) of the given items.
-  function eventAncestorGroupIds(events = [], items = []){
-    const list = arrayValue(events);
-    const byId = new Map(list.map((event) => [cleanText(event.id), event]));
-    const ids = [];
-    arrayValue(items).forEach((item) => {
-      let parentId = eventParentId(item);
-      const seen = new Set();
-      while (parentId && !seen.has(parentId)) {
-        seen.add(parentId);
-        const parent = byId.get(parentId);
-        if (!parent || !eventIsGroup(parent)) break;
-        if (!ids.includes(parentId)) ids.push(parentId);
-        parentId = eventParentId(parent);
-      }
+    const children = placed.updated.map((child) => ({ ...child, __placed_child:true }));
+    const childById = new Map(children.map((child) => [cleanText(child.id), child]));
+    effective = effective.map((event) => childById.get(cleanText(event.id)) || event);
+    const blocked = new Map(placed.blocked.map((child) => [cleanText(child.id), {
+      event:child,
+      related:effective.find((event) => cleanText(event.id) === eventParentId(child)) || moved,
+      dependency:null,
+      direction:'child',
+      reason:eventIsLocked(child) ? 'locked' : 'completed',
+    }]));
+    const settled = new Set([primaryId, ...childById.keys()]);
+    const dependents = new Map();
+    [moved, ...children].forEach((source) => {
+      const range = eventWindow(source);
+      if (!range) return;
+      const impact = dependencyRescheduleImpact(effective, source.id, range, options);
+      impact.drafts.forEach((draft) => {
+        const id = cleanText(draft.id);
+        if (settled.has(id)) return;
+        dependents.set(id, draft);
+        effective = effective.map((event) => cleanText(event.id) === id ? draft : event);
+      });
+      impact.blocked.forEach((entry) => {
+        const id = cleanText(entry.event?.id);
+        if (!blocked.has(id) && !settled.has(id)) blocked.set(id, entry);
+      });
     });
-    return ids;
+    const dependentDrafts = Array.from(dependents.values());
+    return { drafts:[...children, ...dependentDrafts], blocked:Array.from(blocked.values()), children, dependents:dependentDrafts };
   }
 
+  function relatedScheduleRescheduleDrafts(primaryEvent = {}, projectEvents = [], nextRange = {}, project = {}, options = {}){
+    return relatedScheduleRescheduleImpact(primaryEvent, projectEvents, nextRange, project, options).drafts;
+  }
+
+  // A span: an event that holds the range its children are placed against.
   function createScheduleGroupEvent(project, fields = {}, config = null){
     const event = createProjectEvent(project, cleanText(fields.event_type_default_id) || 'project_work', {
       ...fields,
@@ -1165,11 +993,7 @@
       all_day:fields.all_day ?? true,
       status:fields.status || 'unscheduled',
     }, config);
-    return {
-      ...event,
-      is_schedule_group:true,
-      schedule_rollup:cleanText(fields.schedule_rollup || fields.scheduleRollup) === 'manual' ? 'manual' : 'auto',
-    };
+    return { ...event, kind:'schedule_group' };
   }
 
   function localDateInput(date = new Date()){
@@ -1469,8 +1293,6 @@
       customer_description: cleanText(raw.customer_description || raw.customerDescription),
       parent_event_id: eventParentId(raw),
       depends_on: eventDependencies(raw),
-      is_schedule_group: eventIsGroup(raw),
-      schedule_rollup: eventIsGroup(raw) ? groupRollupMode(raw) : cleanText(raw.schedule_rollup),
     };
   }
 
@@ -1604,10 +1426,9 @@
     // marker authoritative so a scope-defined label cannot make a material
     // delivery lose its category, lock rules, or lifecycle behavior.
     const scheduleKind = cleanText(event.schedule_item_kind || event.scheduleItemKind).toLowerCase();
-    const metadata = objectValue(event.metadata);
-    const resourceType = cleanText(event.resource_type || metadata.resource_type).toLowerCase();
-    if (resourceType === 'labor' || scheduleKind === 'labor' || cleanText(event.labor_list_id)) return 'project_work';
-    if (resourceType === 'equipment' || scheduleKind === 'equipment' || cleanText(event.equipment_list_id)) return 'equipment';
+    const resourceType = eventResourceType(event);
+    if (resourceType === 'labor' || scheduleKind === 'labor') return 'project_work';
+    if (resourceType === 'equipment' || scheduleKind === 'equipment') return 'equipment';
     if (resourceType === 'material' || scheduleKind === 'material_delivery' || scheduleKind === 'materials_delivery' || materialListId(event)) return 'material_delivery';
     const explicit = cleanText(event.kind || event.event_kind).toLowerCase();
     if (explicit) return explicit;
@@ -1619,7 +1440,8 @@
   }
 
   function eventCategory(event = {}){
-    const kind = eventKind(event);
+    // A span belongs with the work its event type names.
+    const kind = eventIsSpan(event) ? eventTypeId(event).toLowerCase() : eventKind(event);
     if (kind === 'sales_appointment') return 'sales';
     if (kind === 'project_work') return 'production';
     // Equipment rides the production schedule (matches isProductionEvent in
@@ -1629,33 +1451,13 @@
     return 'other';
   }
 
-  /* Equipment-role refs (equipment_unit / equipment_type) on an event.
-   * Mirrors eventEquipmentRefs in public/v1/equipment/service.ts. */
-  function eventEquipmentRefs(event = {}){
-    return arrayValue(objectValue(event).resource_refs)
-      .map(objectValue)
-      .filter((ref) => ['equipment_unit', 'equipment_type'].includes(cleanText(ref.kind)))
-      .map((ref) => ({
-        kind: cleanText(ref.kind),
-        id: cleanText(ref.id),
-        name: cleanText(ref.name),
-        role: cleanText(ref.role) || 'equipment',
-        quantity: Math.max(1, Number(ref.quantity || 1)),
-        start_at: cleanText(ref.start_at || ref.start),
-        end_at: cleanText(ref.end_at || ref.end),
-      }))
-      .filter((ref) => ref.id);
-  }
-
   function eventRequirementWarnings(event = {}, options = {}){
     const value = objectValue(event);
     const warnings = [];
     const kind = eventKind(value);
     const assignedUsers = arrayValue(value.assigned_user_ids).filter(Boolean);
     const assignedUserId = cleanText(value.assigned_user_id || objectValue(arrayValue(value.assigned_users)[0]).id);
-    const workRef = objectValue(value.work_resource_ref);
-    const assignmentRef = arrayValue(value.resource_refs).map(objectValue).find((ref) => !['equipment_unit', 'equipment_type'].includes(cleanText(ref.kind)));
-    const assignedResourceId = cleanText(workRef.id || assignmentRef?.id || value.assigned_resource_id || value.resource_id || value.assigned_crew_id || value.crew_id);
+    const assignedResourceId = cleanText(eventAssignees(value)[0]?.id);
     const requiredRoleIds = arrayValue(value.required_role_ids || value.role_ids).filter(Boolean);
     const assignmentRequired = objectValue(value.assignment_policy).allow_unassigned === false || requiredRoleIds.length > 0;
     if (kind === 'sales_appointment' && !assignedUserId && !assignedUsers.length && !assignedResourceId) {
@@ -1668,14 +1470,14 @@
     }
     if (options.includeEquipment !== false) {
       const units = arrayValue(options.equipmentUnits).map(objectValue);
-      const refs = eventEquipmentRefs(value);
+      const refs = eventEquipment(value);
       const requirements = arrayValue(value.resource_requirements).map(objectValue);
       requirements.forEach((requirement) => {
         const typeId = cleanText(requirement.equipment_type_id || requirement.id);
         if (!typeId) return;
         const needed = Math.max(1, Number(requirement.quantity || 1));
         const assigned = refs.reduce((count, ref) => {
-          if (ref.kind === 'equipment_type') return ref.id === typeId ? count + ref.quantity : count;
+          if (ref.kind === 'equipment_type') return ref.id === typeId ? count + (ref.quantity || 1) : count;
           const unit = units.find((candidate) => cleanText(candidate.id) === ref.id);
           return cleanText(unit?.type_id || unit?.equipment_type_id) === typeId ? count + 1 : count;
         }, 0);
@@ -1793,9 +1595,16 @@
     return state;
   }
 
+  /* The list an event was made for: scope_resource_list_id + resource_type,
+   * and list_part_id when one list has several events. */
+  function eventListId(event = {}){ return cleanText(objectValue(event).scope_resource_list_id); }
+  function eventListPartId(event = {}){ return cleanText(objectValue(event).list_part_id); }
+  function eventResourceType(event = {}){ return cleanText(objectValue(event).resource_type).toLowerCase(); }
+
   function materialListId(event = {}){
+    if (eventResourceType(event) === 'material') return eventListId(event);
     const sourceRef = objectValue(event.source_ref || event.sourceRef);
-    return cleanText(event.material_list_id || event.materialListId || (cleanText(sourceRef.type) === 'material_list' ? sourceRef.id : ''));
+    return cleanText(sourceRef.type) === 'material_list' ? cleanText(sourceRef.id) : '';
   }
 
   function eventPresentation(event = {}){
@@ -1896,7 +1705,7 @@
       .map((event) => normalizeEvent(event))
       .filter((event) => !['completed', 'canceled', 'cancelled', 'unscheduled'].includes(cleanText(event.status).toLowerCase()))
       .filter((event) => cleanText(event.id) !== cleanText(excludeEventId))
-      .filter((event) => eventEquipmentRefs(event).length)
+      .filter((event) => eventEquipment(event).length)
       .filter((event) => intervalsOverlap(startDate, endDate, eventStart(event), eventEnd(event))) : [];
     const normalizedUnits = arrayValue(units).map(objectValue)
       .map((unit) => objectValue(unit.equipment_unit ? { ...unit.equipment_unit, ...unit } : unit))
@@ -1904,10 +1713,7 @@
       .filter((unit) => !typeId || cleanText(unit.type_id) === cleanText(typeId));
     const results = normalizedUnits.map((unit) => {
       const unitId = cleanText(unit.id);
-      const bookings = overlapping.filter((event) => eventEquipmentRefs(event).some((ref) => {
-        if (ref.kind !== 'equipment_unit' || ref.id !== unitId) return false;
-        return intervalsOverlap(startDate, endDate, toDate(ref.start_at) || eventStart(event), toDate(ref.end_at) || eventEnd(event));
-      }));
+      const bookings = overlapping.filter((event) => eventEquipment(event).some((ref) => ref.kind === 'equipment_unit' && ref.id === unitId));
       // Live down/in-use/reserved badges describe the current instant; a
       // different window is blocked by its overlapping events, not that badge.
       const unavailable = cleanText(unit.status) === 'retired'
@@ -2112,13 +1918,10 @@
         ? arrayValue(fields.assignedUsers || fields.assigned_users)
         : (assignedUser?.id ? [{ id: assignedUser.id, name: assignedUser.name || assignedUser.email || '', role_ids: unique(fields.role_ids || eventType.role_ids || []) }] : []),
       assigned_user_name: cleanText(fields.assignedUserName || fields.assigned_user_name || assignedUser?.name || assignedUser?.email),
-      assigned_crew_id: cleanText(fields.assignedCrewId || fields.assigned_crew_id || fields.crew_id),
-      assigned_crew_name: cleanText(fields.assignedCrewName || fields.assigned_crew_name || fields.crew_name || fields.assignedCrew?.name || fields.assigned_crew?.name),
-      assigned_crew: fields.assignedCrew || fields.assigned_crew || null,
-      work_resource_ref: fields.workResourceRef || fields.work_resource_ref || null,
-      assigned_resource_kind: cleanText(fields.assignedResourceKind || fields.assigned_resource_kind || fields.workResourceRef?.kind || fields.work_resource_ref?.kind),
       resource_refs: arrayValue(fields.resourceRefs || fields.resource_refs),
       resource_requirements: arrayValue(fields.resourceRequirements || fields.resource_requirements),
+      parent_event_id: cleanText(fields.parentEventId || fields.parent_event_id),
+      ...(normalizePlacement(fields.placement) ? { placement:normalizePlacement(fields.placement) } : {}),
       scope_template_id: cleanText(fields.scopeTemplateId || fields.scope_template_id),
       event_type_default_id: typeId,
       source: 'platform_scheduling',
@@ -2139,90 +1942,137 @@
     }, config, project);
   }
 
-  /* ── Work assignees (crews / teams / people) ──────────────────────────────
-   * Model shared with the server (public/v1/platform/api.ts
-   * resolveEventWorkAssignees): resource_refs carries every crew-role
-   * assignee (resource_group / organization_connection, and people when a
-   * writer lists them there); work_resource_ref and the legacy crew_* /
-   * assigned_crew_* / assigned_resource_* mirrors carry only the primary
-   * (first) one. People are assigned_user_ids. Write assignee changes through
-   * assigneeSetPayload / setEventWorkAssignees so the whole set is explicit:
-   * an empty crew list unassigns every crew. */
+  /* ── Resources ────────────────────────────────────────────────────────────
+   * Browser twin of public/v1/scheduling/event-model.ts. resource_refs is the
+   * only place an event names the groups, people, companies and equipment it
+   * uses: { kind, id, name, role, unit_id?, quantity? }. A resource has its
+   * event's range. The first crew-role assignee is the primary one. People
+   * attached through assigned_user_ids (the sales appointment path) stay
+   * there; eventAssigneeKeys covers both. */
+  const ASSIGNEE_REF_KINDS = ['organization_user', 'resource_group', 'organization_connection'];
   const EQUIPMENT_REF_KINDS = ['equipment_unit', 'equipment_type'];
-  const WORK_REF_KIND_ALIASES = { crew:'resource_group', team:'resource_group', person:'organization_user', user:'organization_user', subcontractor:'organization_connection' };
+  const RESOURCE_KIND_ALIASES = {
+    crew:'resource_group', team:'resource_group', group:'resource_group',
+    person:'organization_user', user:'organization_user',
+    subcontractor:'organization_connection', connection:'organization_connection',
+  };
 
-  function workRefKind(value, fallback = 'resource_group'){
+  function resourceRefKind(value){
     const kind = cleanText(value).toLowerCase();
-    return WORK_REF_KIND_ALIASES[kind] || kind || fallback;
+    const resolved = RESOURCE_KIND_ALIASES[kind] || kind;
+    return ASSIGNEE_REF_KINDS.includes(resolved) || EQUIPMENT_REF_KINDS.includes(resolved) ? resolved : '';
   }
 
-  function equipmentRefsOf(event = {}){
-    return arrayValue(objectValue(event).resource_refs).filter((ref) => EQUIPMENT_REF_KINDS.includes(cleanText(ref?.kind)));
+  function resourceRefKey(ref = {}){
+    return `${cleanText(ref.kind)}:${cleanText(ref.id).toLowerCase()}`;
   }
 
-  function primaryWorkRef(event = {}){
+  // One entry of resource_refs, or null when it names nothing usable.
+  function normalizeResourceRef(value){
+    const ref = objectValue(value);
+    const kind = resourceRefKind(ref.kind);
+    const id = cleanText(ref.id);
+    if (!kind || !id) return null;
+    const equipment = EQUIPMENT_REF_KINDS.includes(kind);
+    const role = cleanText(ref.role).toLowerCase();
+    const quantity = Math.max(1, Math.round(Number(ref.quantity || 1)) || 1);
+    const unitId = equipment ? '' : cleanText(ref.unit_id);
+    return {
+      kind,
+      id,
+      name: cleanText(ref.name || ref.label),
+      role: equipment ? 'equipment' : role === 'operator' ? 'operator' : 'crew',
+      ...(unitId ? { unit_id:unitId } : {}),
+      ...(equipment && (kind === 'equipment_type' || quantity > 1) ? { quantity } : {}),
+    };
+  }
+
+  // The event's resources in stored order, without duplicates and never
+  // naming the event itself.
+  function eventResources(event = {}){
     const value = objectValue(event);
     const selfId = cleanText(value.id);
-    const ref = objectValue(value.work_resource_ref);
-    if (cleanText(ref.id) && cleanText(ref.id) !== selfId) return { kind:workRefKind(ref.kind), id:cleanText(ref.id), name:cleanText(ref.name || ref.label) };
-    const legacyId = cleanText(value.assigned_resource_id || value.assigned_crew_id || value.crew_id);
-    const legacyKind = workRefKind(value.assigned_resource_kind);
-    if (!legacyId || legacyId === selfId || legacyKind === 'organization_user' || EQUIPMENT_REF_KINDS.includes(legacyKind)) return null;
-    return { kind:legacyKind, id:legacyId, name:cleanText(value.assigned_resource_name || value.assigned_crew_name || value.crew_name || objectValue(value.assigned_crew).name) };
+    const seen = new Set();
+    const refs = [];
+    arrayValue(value.resource_refs).forEach((entry) => {
+      const ref = normalizeResourceRef(entry);
+      if (!ref || ref.id === selfId) return;
+      const key = resourceRefKey(ref);
+      if (seen.has(key)) return;
+      seen.add(key);
+      refs.push(ref);
+    });
+    return refs;
   }
 
-  /* -> { crews:[{kind,id,name}], people:[{id,name}] } for an event. */
+  function eventAssignees(event = {}){
+    return eventResources(event).filter((ref) => ASSIGNEE_REF_KINDS.includes(ref.kind));
+  }
+
+  function eventEquipment(event = {}){
+    return eventResources(event).filter((ref) => EQUIPMENT_REF_KINDS.includes(ref.kind));
+  }
+
+  function eventPrimaryAssignee(event = {}){
+    return eventAssignees(event).find((ref) => ref.role === 'crew') || null;
+  }
+
+  function eventAssignedUserIds(event = {}){
+    const value = objectValue(event);
+    return unique([...arrayValue(value.assigned_user_ids), value.assigned_user_id]);
+  }
+
+  // Everyone on the event as lower-cased `kind:id` keys: its assignees plus
+  // the people in assigned_user_ids.
+  function eventAssigneeKeys(event = {}){
+    return unique([
+      ...eventAssignees(event).map(resourceRefKey),
+      ...eventAssignedUserIds(event).map((id) => `organization_user:${id.toLowerCase()}`),
+    ]);
+  }
+
+  function workResourceRef(value = {}){
+    const input = objectValue(value);
+    const id = cleanText(input.id);
+    return normalizeResourceRef({
+      kind: resourceRefKind(input.kind || input.subject_type || input.resource_kind) || 'resource_group',
+      id,
+      name: cleanText(input.name || input.label) || id,
+      role: 'crew',
+      unit_id: input.unit_id,
+    });
+  }
+
+  function keptResourceRefs(event = {}){
+    return eventResources(event).filter((ref) => EQUIPMENT_REF_KINDS.includes(ref.kind) || ref.role === 'operator');
+  }
+
+  /* -> { crews:[{kind,id,name,unit_id?}], people:[{id,name}] } for an event:
+   * the groups and companies doing the work, and the people (assigned_user_ids
+   * plus anyone listed as a crew-role resource). */
   function eventWorkAssignees(event = {}){
     const value = objectValue(event);
-    const refs = arrayValue(value.resource_refs).map(objectValue).filter((ref) => cleanText(ref.id) && !EQUIPMENT_REF_KINDS.includes(cleanText(ref.kind)));
-    const crews = refs.filter((ref) => workRefKind(ref.kind) !== 'organization_user').map((ref) => ({ kind:workRefKind(ref.kind), id:cleanText(ref.id), name:cleanText(ref.name || ref.label) }));
-    const primary = primaryWorkRef(value);
-    if (primary && primary.kind !== 'organization_user' && !crews.some((crew) => crew.id === primary.id)) crews.unshift(primary);
+    const assignees = eventAssignees(value).filter((ref) => ref.role === 'crew');
+    const personRefs = assignees.filter((ref) => ref.kind === 'organization_user');
     const users = arrayValue(value.assigned_users).map(objectValue);
-    const peopleIds = unique([
-      ...arrayValue(value.assigned_user_ids),
-      value.assigned_user_id,
-      ...refs.filter((ref) => workRefKind(ref.kind) === 'organization_user').map((ref) => ref.id),
-      primary?.kind === 'organization_user' ? primary.id : '',
-    ]);
-    const people = peopleIds.map((id) => {
+    const people = unique([...eventAssignedUserIds(value), ...personRefs.map((ref) => ref.id)]).map((id) => {
       const user = users.find((candidate) => cleanText(candidate.id || candidate.user_id) === id);
-      const ref = refs.find((candidate) => cleanText(candidate.id) === id);
+      const ref = personRefs.find((candidate) => candidate.id === id);
       return { id, name:cleanText(user?.name || user?.email || ref?.name || (id === cleanText(value.assigned_user_id) ? value.assigned_user_name : '')) };
     });
     return {
-      crews:crews.filter((crew, index) => crews.findIndex((other) => other.id === crew.id) === index),
+      crews:assignees.filter((ref) => ref.kind !== 'organization_user').map((ref) => ({ kind:ref.kind, id:ref.id, name:ref.name, ...(ref.unit_id ? { unit_id:ref.unit_id } : {}) })),
       people,
     };
   }
 
-  function workAssignmentMirror(primary){
-    const crewLike = !!primary && primary.kind !== 'organization_user';
-    return {
-      work_resource_ref: primary ? { kind:primary.kind, id:primary.id, name:primary.name } : null,
-      assigned_resource_kind: primary?.kind || '',
-      assigned_resource_id: primary?.id || '',
-      assigned_resource_name: primary?.name || '',
-      resource_id: primary?.id || '',
-      resource_name: primary?.name || '',
-      assigned_crew_id: crewLike ? primary.id : '',
-      assigned_crew_name: crewLike ? primary.name : '',
-      assigned_crew: crewLike ? { id:primary.id, name:primary.name } : null,
-      crew_id: crewLike ? primary.id : '',
-      crew_name: crewLike ? primary.name : '',
-    };
-  }
-
-  /* The explicit assignee set as an event patch: every crew as a crew-role
-   * resource_ref (first = primary, mirrored into the singular fields),
-   * people as assigned_user_ids; equipment refs are kept as they are. */
+  /* The explicit assignee set as an event patch: every group or company as a
+   * crew-role resource_ref (first = primary, unit_id carried), people as
+   * assigned_user_ids; equipment and operator refs are kept as they are. */
   function assigneeSetPayload(event = {}, { crews = [], people = [] } = {}){
-    const crewRefs = arrayValue(crews).map(objectValue).map((crew) => ({
-      kind: workRefKind(crew.kind || crew.resource_kind || crew.subject_type),
-      id: cleanText(crew.id || crew.resource_id),
-      name: cleanText(crew.name || crew.label) || cleanText(crew.id || crew.resource_id),
-      role: 'crew',
-    })).filter((ref, index, list) => ref.id && ref.kind !== 'organization_user' && list.findIndex((other) => other.id === ref.id) === index);
+    const crewRefs = arrayValue(crews).map(workResourceRef)
+      .filter((ref, index, list) => ref && ASSIGNEE_REF_KINDS.includes(ref.kind) && ref.kind !== 'organization_user'
+        && list.findIndex((other) => other && resourceRefKey(other) === resourceRefKey(ref)) === index);
     const personList = arrayValue(people).map(objectValue).map((person) => ({
       id: cleanText(person.id || person.user_id),
       name: cleanText(person.name || person.email || person.label),
@@ -2230,8 +2080,7 @@
     })).filter((person, index, list) => person.id && list.findIndex((other) => other.id === person.id) === index);
     const names = [...crewRefs.map((ref) => ref.name), ...personList.map((person) => person.name)].filter(Boolean);
     return {
-      ...workAssignmentMirror(crewRefs[0] || null),
-      resource_refs: [...crewRefs, ...equipmentRefsOf(event)],
+      resource_refs: [...crewRefs, ...keptResourceRefs(event)],
       assigned_user_ids: personList.map((person) => person.id),
       assigned_users: personList.map((person) => ({ id:person.id, name:person.name, role_ids:person.role_ids })),
       assigned_user_id: personList[0]?.id || '',
@@ -2240,109 +2089,44 @@
     };
   }
 
-  /* Replace an event's whole work-assignee set. `refs` mixes crews/teams
-   * ({kind:'resource_group'|'crew'|'organization_connection', id, name}) and
-   * people ({kind:'organization_user'|'person', id, name}); [] unassigns. */
+  /* Replace an event's whole work-assignee set, keeping its equipment. `refs`
+   * mixes groups and companies ({kind:'resource_group'|'organization_connection',
+   * id, name, unit_id?}) and people ({kind:'organization_user', id, name});
+   * [] unassigns. */
   function setEventWorkAssignees(event = {}, refs = []){
     const list = arrayValue(refs).map(objectValue);
-    const isPerson = (ref) => workRefKind(ref.kind || ref.subject_type || ref.resource_kind) === 'organization_user';
+    const isPerson = (ref) => resourceRefKind(ref.kind || ref.subject_type || ref.resource_kind) === 'organization_user';
     return { ...event, ...assigneeSetPayload(event, { crews:list.filter((ref) => !isPerson(ref)), people:list.filter(isPerson) }) };
   }
 
-  /* Equipment usage windows follow their item (server mirror:
-   * shiftEquipmentRefWindows in public/v1/platform/api.ts). A window equal to
-   * the previous item window becomes the new item window; any other window
-   * shifts by the start delta, clamped into the new window when it lay inside
-   * the previous one. -> the event's resource_refs with shifted windows. */
-  function shiftEquipmentWindows(event = {}, previous = {}, next = {}){
-    const refs = arrayValue(objectValue(event).resource_refs);
-    const prevStart = toDate(previous.start || previous.start_at);
-    const prevEnd = toDate(previous.end || previous.end_at);
-    const nextStart = toDate(next.start || next.start_at);
-    const nextEnd = toDate(next.end || next.end_at);
-    if (!prevStart || !prevEnd || !nextStart || !nextEnd) return refs;
-    const oldWindow = { start:prevStart.getTime(), end:prevEnd.getTime() };
-    const newWindow = { start:nextStart.getTime(), end:nextEnd.getTime() };
-    if (oldWindow.start === newWindow.start && oldWindow.end === newWindow.end) return refs;
-    const delta = newWindow.start - oldWindow.start;
-    return refs.map((refValue) => {
-      const ref = objectValue(refValue);
-      if (!EQUIPMENT_REF_KINDS.includes(cleanText(ref.kind))) return refValue;
-      const start = toDate(ref.start_at || ref.start)?.getTime();
-      const end = toDate(ref.end_at || ref.end)?.getTime();
-      const hasStart = Number.isFinite(start);
-      const hasEnd = Number.isFinite(end);
-      if (!hasStart && !hasEnd) return refValue;
-      const refStart = hasStart ? start : oldWindow.start;
-      const refEnd = hasEnd ? end : oldWindow.end;
-      let nextRefStart;
-      let nextRefEnd;
-      if (refStart === oldWindow.start && refEnd === oldWindow.end) {
-        nextRefStart = newWindow.start;
-        nextRefEnd = newWindow.end;
-      } else {
-        nextRefStart = refStart + delta;
-        nextRefEnd = refEnd + delta;
-        if (refStart >= oldWindow.start && refEnd <= oldWindow.end) {
-          nextRefStart = Math.min(Math.max(nextRefStart, newWindow.start), newWindow.end);
-          nextRefEnd = Math.min(Math.max(nextRefEnd, newWindow.start), newWindow.end);
-          if (nextRefEnd <= nextRefStart) {
-            nextRefStart = newWindow.start;
-            nextRefEnd = newWindow.end;
-          }
-        }
-      }
-      return {
-        ...ref,
-        ...(hasStart ? { start_at:new Date(nextRefStart).toISOString() } : {}),
-        ...(hasEnd ? { end_at:new Date(nextRefEnd).toISOString() } : {}),
-      };
-    });
+  /* Replace only the primary assignee ({kind, id, name, unit_id?}); every
+   * other resource stays. A ref without an id unassigns every crew-role
+   * assignee and keeps equipment and operators. */
+  function setEventPrimaryAssignee(event = {}, ref = null){
+    const resources = eventResources(event);
+    const isWork = (entry) => ASSIGNEE_REF_KINDS.includes(entry.kind) && entry.role === 'crew';
+    const next = workResourceRef(ref);
+    if (!next || !ASSIGNEE_REF_KINDS.includes(next.kind)) return { ...event, resource_refs:resources.filter((entry) => !isWork(entry)) };
+    const current = eventPrimaryAssignee(event);
+    const replaced = [resourceRefKey(next), current ? resourceRefKey(current) : ''];
+    return {
+      ...event,
+      resource_refs:[
+        next,
+        ...resources.filter((entry) => isWork(entry) && !replaced.includes(resourceRefKey(entry))),
+        ...resources.filter((entry) => !isWork(entry)),
+      ],
+    };
   }
 
   function updateProjectEventRange(event, fields = {}){
-    const has = (key) => Object.prototype.hasOwnProperty.call(fields || {}, key);
-    const pick = (...keys) => {
-      for (const key of keys) {
-        if (has(key)) return fields[key];
-      }
-      return undefined;
-    };
     const start = toDate(fields.start || fields.start_at) || eventStart(event) || new Date();
     const end = toDate(fields.end || fields.end_at) || eventEnd(event) || addMinutes(start, eventDurationMinutes(event));
     const safeEnd = end > start ? end : addMinutes(start, 60);
-    const assignedCrewId = pick('assignedCrewId', 'assigned_crew_id', 'crew_id');
-    const assignedCrewName = pick('assignedCrewName', 'assigned_crew_name', 'crew_name');
-    const assignedCrew = pick('assignedCrew', 'assigned_crew');
-    const workResourceRef = pick('workResourceRef', 'work_resource_ref');
-    const assignedResourceKind = pick('assignedResourceKind', 'assigned_resource_kind');
-    // Every crew is kept on a move; a passed primary crew replaces only the
-    // current primary, and an explicitly cleared one unassigns all crews.
-    const previousStart = eventStart(event);
-    const previousEnd = previousStart ? eventEnd(event) : null;
-    const shiftedRefs = previousStart && previousEnd
-      ? shiftEquipmentWindows(event, { start:previousStart, end:previousEnd }, { start, end:safeEnd })
-      : arrayValue(event?.resource_refs);
-    let resourceRefs = shiftedRefs;
-    if (workResourceRef !== undefined || assignedCrewId !== undefined) {
-      const nextPrimaryId = cleanText(objectValue(workResourceRef).id || assignedCrewId);
-      const currentPrimary = primaryWorkRef(event);
-      const crewRefs = shiftedRefs.filter((ref) => !EQUIPMENT_REF_KINDS.includes(cleanText(ref?.kind)));
-      const equipment = shiftedRefs.filter((ref) => EQUIPMENT_REF_KINDS.includes(cleanText(ref?.kind)));
-      if (!nextPrimaryId) resourceRefs = equipment;
-      else if (nextPrimaryId !== currentPrimary?.id) {
-        const nextPrimary = {
-          kind: workRefKind(objectValue(workResourceRef).kind || assignedResourceKind),
-          id: nextPrimaryId,
-          name: cleanText(objectValue(workResourceRef).name || assignedCrewName) || nextPrimaryId,
-          role: 'crew',
-        };
-        resourceRefs = [nextPrimary, ...crewRefs.filter((ref) => ![nextPrimaryId, currentPrimary?.id].includes(cleanText(ref?.id))), ...equipment];
-      }
-    }
+    const resourceRefs = fields.resource_refs ?? fields.resourceRefs;
     return {
       ...event,
-      resource_refs: resourceRefs,
+      ...(Array.isArray(resourceRefs) ? { resource_refs:resourceRefs } : {}),
       start_at: start.toISOString(),
       start: start.toISOString(),
       end_at: safeEnd.toISOString(),
@@ -2352,15 +2136,6 @@
       start_date: cleanText(fields.start_date || fields.startDate || event.start_date),
       end_date: cleanText(fields.end_date || fields.endDate || event.end_date),
       schedule_granularity: cleanText(fields.schedule_granularity || fields.scheduleGranularity || event.schedule_granularity),
-      assigned_crew_id: assignedCrewId !== undefined ? cleanText(assignedCrewId) : cleanText(event.assigned_crew_id || event.crew_id),
-      assigned_crew_name: assignedCrewName !== undefined ? cleanText(assignedCrewName) : cleanText(event.assigned_crew_name || event.crew_name),
-      assigned_crew: assignedCrew !== undefined ? assignedCrew : (event.assigned_crew || null),
-      work_resource_ref: workResourceRef !== undefined ? workResourceRef : (event.work_resource_ref || null),
-      assigned_resource_kind: assignedResourceKind !== undefined ? cleanText(assignedResourceKind) : cleanText(event.assigned_resource_kind || event.work_resource_ref?.kind),
-      crew_id: assignedCrewId !== undefined ? cleanText(assignedCrewId) : cleanText(event.crew_id || event.assigned_crew_id),
-      crew_name: assignedCrewName !== undefined ? cleanText(assignedCrewName) : cleanText(event.crew_name || event.assigned_crew_name),
-      resource_id: assignedCrewId !== undefined ? cleanText(assignedCrewId) : cleanText(event.resource_id || event.assigned_crew_id || event.crew_id),
-      resource_name: assignedCrewName !== undefined ? cleanText(assignedCrewName) : cleanText(event.resource_name || event.assigned_crew_name || event.crew_name),
       updated_at: nowIso(),
     };
   }
@@ -2513,6 +2288,12 @@
         throw missing;
       }
       if (result?.event) recordOwnEventRevision(revisionKey, expected, eventRevisionOf(result.event));
+      // Children the server re-placed carry a revision this save produced.
+      arrayValue(result?.related_events).forEach((related) => {
+        const relatedId = cleanText(related?.id);
+        const held = arrayValue(normalizedProject.events).find((item) => cleanText(item?.id) === relatedId);
+        if (relatedId) recordOwnEventRevision(`${cleanText(normalizedProject.id)}:${relatedId}`, held ? eventRevisionOf(held) : NaN, eventRevisionOf(related));
+      });
       const savedProject = result?.document?.data
         ? { ...result.document.data, id: result.document.id }
         : result?.project || normalizedProject;
@@ -2520,7 +2301,11 @@
         event: result?.event ? normalizeEvent(result.event, config, savedProject) : nextEvent,
         project: normalizeProject(savedProject, config),
         document: result?.document || null,
-        equipment_conflicts: arrayValue(result?.equipment_conflicts)
+        related_events: arrayValue(result?.related_events),
+        blocked_children: arrayValue(result?.blocked_children),
+        assignee_conflicts: arrayValue(result?.assignee_conflicts),
+        equipment_conflicts: arrayValue(result?.equipment_conflicts),
+        equipment_operator_warnings: arrayValue(result?.equipment_operator_warnings)
       };
     }
     const events = arrayValue(normalizedProject.events).filter((item) => item.id !== nextEvent.id);
@@ -2531,6 +2316,14 @@
     });
     const saved = result?.document?.data ? { ...result.document.data, id: result.document.id } : { ...normalizedProject, events };
     return { event: nextEvent, project: normalizeProject(saved, config), document: result?.document || null };
+  }
+
+  /* Ask whether a draft event's assignees are already booked, without saving.
+   * -> { mode:'warn'|'block'|'allow', assignee_conflicts:[...] } as the server
+   * answers it (docs/architecture/schedule-events.md, "Overlap"). */
+  async function checkAssigneeOverlap(orgId, { project_id = '', event = {} } = {}){
+    if (!PlatformAPI?.projects?.scheduleOverlapCheck) throw new Error('Schedule overlap checks are not configured.');
+    return PlatformAPI.projects.scheduleOverlapCheck(orgId, { project_id:cleanText(project_id), event:persistableEvent(event) });
   }
 
   /* Save a floating (non-project) calendar event with the same stale-save
@@ -2560,7 +2353,7 @@
     }
     const saved = result?.document?.data ? { ...result.document.data, id:result.document.id || id } : { ...value };
     recordOwnEventRevision(revisionKey, expected, eventRevisionOf(saved));
-    return { event:saved, document:result?.document || null };
+    return { event:saved, document:result?.document || null, assignee_conflicts:Array.isArray(result?.document?.assignee_conflicts) ? result.document.assignee_conflicts : (Array.isArray(result?.assignee_conflicts) ? result.assignee_conflicts : []) };
   }
 
   async function removeProjectEvent(orgId, project, eventId, config = null){
@@ -2629,6 +2422,9 @@
     setConfirmationSettings,
     confirmationVisible,
     visibleConfirmationState,
+    eventListId,
+    eventListPartId,
+    eventResourceType,
     materialListId,
     eventPresentation,
     eventIsType,
@@ -2636,26 +2432,31 @@
     projectSalesAppointmentEvents,
     projectWorkEvents,
     intervalsOverlap,
-    eventEquipmentRefs,
+    eventResources,
+    eventAssignees,
+    eventEquipment,
+    eventPrimaryAssignee,
+    eventAssigneeKeys,
     eventRequirementWarnings,
     availabilityForRole,
     availabilityForEquipment,
     availabilityForEventType,
     availableEventTypeTimeSlots,
     availableTimeSlots,
-    evaluateScheduleExpression,
     addBusinessDays,
-    adjustScheduleDate,
-    addScheduleOffset,
-    scheduleRuleForEvent,
     normalizeDependency,
     eventDependencies,
-    eventIsGroup,
+    eventIsSpan,
     eventParentId,
     eventChildren,
-    groupRollupMode,
-    groupRollupRange,
-    applyGroupRollups,
+    eventDescendants,
+    eventAncestorIds,
+    eventFamilyIds,
+    normalizePlacement,
+    evaluatePlacementExpression,
+    evaluatePlacement,
+    manualPlacement,
+    placeChildren,
     scheduleGraph,
     cascadeDependentDrafts,
     dependencyRescheduleImpact,
@@ -2665,14 +2466,7 @@
     eventIsAllDay,
     eventIsFixed,
     scheduleItemSpan,
-    groupDescendants,
-    groupMoveDrafts,
-    groupRollupUpdates,
-    eventAncestorGroupIds,
     createScheduleGroupEvent,
-    scheduleBundleDescriptor,
-    scheduleBundleReschedulePolicy,
-    interpretScheduleBundle,
     relatedScheduleRescheduleDrafts,
     relatedScheduleRescheduleImpact,
     createProjectEvent,
@@ -2680,12 +2474,13 @@
     updateProjectEventRange,
     upsertProjectEvent,
     saveProjectEvent,
+    checkAssigneeOverlap,
     saveCalendarEvent,
     removeProjectEvent,
     eventWorkAssignees,
     assigneeSetPayload,
     setEventWorkAssignees,
-    shiftEquipmentWindows,
+    setEventPrimaryAssignee,
     isStaleSaveError,
     isSaveTimeoutError,
     withSaveTimeout,

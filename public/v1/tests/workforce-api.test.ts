@@ -305,10 +305,10 @@ test("workforce architecture keeps users canonical and unifies internal and exte
         id: "sales_team_event",
         event_type_default_id: "sales_appointment",
         start_at: new Date(Date.now() + 60_000).toISOString(),
-        work_resource_ref: { kind: "resource_group", id: salesGroup.id, name: salesGroup.name }
+        resource_refs: [{ kind: "resource_group", id: salesGroup.id, name: salesGroup.name, role: "crew" }]
       }
     });
-    assert.equal(assignedEvent.event.work_resource_ref.id, salesGroup.id);
+    assert.equal(assignedEvent.event.resource_refs[0].id, salesGroup.id);
     assert.equal(assignedEvent.event.assignment_policy.allow_unassigned, false);
 
     const rejectedAssignment = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
@@ -317,7 +317,7 @@ test("workforce architecture keeps users canonical and unifies internal and exte
         id: "wrong_group_event",
         event_type_default_id: "sales_appointment",
         start_at: new Date(Date.now() + 120_000).toISOString(),
-        work_resource_ref: { kind: "resource_group", id: group.id, name: group.name }
+        resource_refs: [{ kind: "resource_group", id: group.id, name: group.name, role: "crew" }]
       }
     });
     assert.equal(rejectedAssignment.statusCode, 400);

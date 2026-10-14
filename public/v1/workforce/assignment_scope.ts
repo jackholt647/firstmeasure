@@ -1,5 +1,6 @@
 import { listDocuments, type JsonObject } from "../platform/storage.js";
 import { listResourceGroups } from "./storage.js";
+import { eventAssignees } from "../scheduling/event-model.js";
 
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
@@ -24,16 +25,6 @@ function isProjectWorkEvent(event: JsonObject) {
   return kind === "project_work" || type === "project_work" || type.startsWith("project_work_") || itemKind === "production" || itemKind === "labor";
 }
 
-function eventResourceId(event: JsonObject) {
-  const ref = asObject(event.work_resource_ref);
-  return cleanText(ref.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id || event.crew_id);
-}
-
-function eventResourceKind(event: JsonObject) {
-  const ref = asObject(event.work_resource_ref);
-  return cleanText(ref.kind || event.assigned_resource_kind || event.resource_kind || (eventResourceId(event) ? "resource_group" : ""));
-}
-
 function eventAssignedUserIds(event: JsonObject) {
   return uniqueText([
     ...asArray(event.assigned_user_ids),
@@ -45,7 +36,7 @@ function eventAssignedUserIds(event: JsonObject) {
 }
 
 function eventHasAssignment(event: JsonObject) {
-  return !!eventResourceId(event) || eventAssignedUserIds(event).length > 0;
+  return eventAssignees(event).length > 0 || eventAssignedUserIds(event).length > 0;
 }
 
 export async function activeResourceGroupsForUser(orgId: string, userId: string) {
@@ -95,7 +86,9 @@ export function assignedProjectWorkEvents(project: JsonObject, actor: { userId: 
   return asArray(project.events).map(asObject).filter(isProjectWorkEvent).filter((event) => {
     if (actor.management === true) return eventHasAssignment(event);
     if (eventAssignedUserIds(event).includes(actor.userId)) return true;
-    return eventResourceKind(event) === "resource_group" && actor.groupIds.has(eventResourceId(event));
+    return eventAssignees(event).some((assignee) => (
+      assignee.kind === "resource_group" ? actor.groupIds.has(assignee.id) : assignee.kind === "organization_user" && assignee.id === actor.userId
+    ));
   });
 }
 

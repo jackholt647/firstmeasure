@@ -369,11 +369,9 @@
     const typeId = eventTypeId(event).replace(/[\s-]+/g, '_');
     const kind = eventKind(event).replace(/[\s-]+/g, '_');
     const scheduleItemKind = clean(event.schedule_item_kind || event.scheduleItemKind).toLowerCase().replace(/[\s-]+/g, '_');
-    const metadata = objectValue(event.metadata);
-    const resourceType = clean(event.resource_type || metadata.resource_type).toLowerCase().replace(/[\s-]+/g, '_');
+    const resourceType = clean(event.resource_type).toLowerCase().replace(/[\s-]+/g, '_');
     if (['labor', 'equipment'].includes(resourceType)
-      || ['labor', 'equipment'].includes(scheduleItemKind)
-      || clean(event.labor_list_id || event.equipment_list_id)) return false;
+      || ['labor', 'equipment'].includes(scheduleItemKind)) return false;
     const source = objectValue(event.source_ref || event.source);
     const sourceType = clean(source.type || event.source_type).toLowerCase().replace(/[\s-]+/g, '_');
     return kind === 'material_delivery'
@@ -383,7 +381,7 @@
       || typeId === 'material_delivery'
       || typeId.startsWith('material_delivery_')
       || typeId.startsWith('materials_delivery_')
-      || !!clean(event.material_list_id || event.materialListId)
+      || resourceType === 'material'
       || ['material_list', 'materials_list'].includes(sourceType);
   }
   /* Confirmation state for chip styling, or null when the feature is off for
@@ -1976,6 +1974,13 @@
     return `${start.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })} - ${end.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}`;
   }
 
+  /* The first crew-role assignee in an item's resource_refs, or null. */
+  function primaryAssignee(item = {}){
+    const Scheduling = root.PlatformScheduling;
+    if (typeof Scheduling?.eventPrimaryAssignee !== 'function') return null;
+    try { return Scheduling.eventPrimaryAssignee(item) || null; } catch { return null; }
+  }
+
   /* Display names of every crew / team / person on an item, primary first
    * (the host's own label leads when it names one of them). */
   function assigneeNames(item = {}, hostLabel = ''){
@@ -2028,7 +2033,7 @@
     // ("Marco Rossi / Marco Rossi") on the second line.
     const projectTitle = rawProjectTitle && rawProjectTitle.toLowerCase() === clean(item.title || item.event_title).toLowerCase() ? '' : rawProjectTitle;
     const materialDelivery = isMaterialDeliveryEvent(item);
-    const hostCrewLabel = clean(item.__assignee_short_label || item.assignee_label || item.assigned_user_name || item.crew_label || item.assigned_crew_name || item.crew_name || item.resource_name || item.assigned_crew?.name || item.crew?.name || '');
+    const hostCrewLabel = clean(item.__assignee_short_label || item.assignee_label || item.assigned_user_name || item.crew_label || primaryAssignee(item)?.name || '');
     const waitingForCrew = !materialDelivery && (item.awaiting_crew === true || item.__waiting_for_crew === true);
     // Several crews / people: the pill names the first ("Alpha Crew +1") and
     // the tooltip lists them all. Hosts may pass the names (__assignee_names)
@@ -4633,10 +4638,18 @@
   }
 
   function resourceIdForItem(item = {}){
-    if (Object.prototype.hasOwnProperty.call(item, 'assigned_crew_id')) return clean(item.assigned_crew_id);
-    if (Object.prototype.hasOwnProperty.call(item, 'crew_id')) return clean(item.crew_id);
-    if (Object.prototype.hasOwnProperty.call(item, 'resource_id')) return clean(item.resource_id);
-    return clean(item.assigned_resource_id);
+    return clean(primaryAssignee(item)?.id);
+  }
+
+  /* What dropping an item in a lane changes on it: the lane's resource
+   * becomes the primary assignee and every other resource stays. */
+  function laneAssignmentPatch(item = {}, resource = null){
+    const Scheduling = root.PlatformScheduling;
+    if (typeof Scheduling?.setEventPrimaryAssignee !== 'function') return {};
+    const ref = resource?.id
+      ? { kind:resource.kind || resource.subject_type || resource.resource_kind || 'resource_group', id:resource.id, name:resource.name, unit_id:resource.unit_id }
+      : null;
+    return { resource_refs:Scheduling.setEventPrimaryAssignee(item, ref).resource_refs };
   }
 
   /* Refused lane drags (Routing): locked / not editable items tell the host
@@ -4726,9 +4739,7 @@
         start_at: new Date(entry.start).toISOString(),
         end_at: new Date(entry.end || addDays(new Date(entry.start), 1)).toISOString(),
         all_day: entry.all_day !== false,
-        schedule_granularity: entry.schedule_granularity || (entry.all_day === false ? 'time' : 'date'),
-        assigned_crew_id: typeof options.resourceIdForItem === 'function' ? clean(options.resourceIdForItem(entry)) : resourceIdForItem(entry),
-        assigned_crew_name: Object.prototype.hasOwnProperty.call(entry, 'assigned_crew_name') ? clean(entry.assigned_crew_name) : clean(entry.crew_name || entry.resource_name)
+        schedule_granularity: entry.schedule_granularity || (entry.all_day === false ? 'time' : 'date')
       };
     });
     const draftIds = new Set(draftEvents.map((entry) => String(entry.id || '')));
@@ -4757,15 +4768,7 @@
     const resourceIsCompact = (resourceOrId) => compactResourceIds.has(clean(typeof resourceOrId === 'object' ? resourceOrId?.id : resourceOrId));
     const canPlaceItemInResource = (item, resource) => typeof options.canPlaceItemInResource !== 'function' || options.canPlaceItemInResource(item || {}, resource || rows[0]) !== false;
     const renderedResourceIdForItem = (item) => clean(findResource(itemResourceId(item))?.id);
-    const resourcePayload = (resource) => typeof options.resourcePayload === 'function' ? (options.resourcePayload(resource) || {}) : ({
-      resource_id: resource?.id || '',
-      resource_name: resource?.name || '',
-      crew_id: resource?.id || '',
-      crew_name: resource?.name || '',
-      assigned_crew_id: resource?.id || '',
-      assigned_crew_name: resource?.name || '',
-      assigned_crew: resource?.id ? { id: resource.id, name: resource.name } : null
-    });
+    const resourcePayload = (resource, item = null) => typeof options.resourcePayload === 'function' ? (options.resourcePayload(resource, item) || {}) : laneAssignmentPatch(item || {}, resource);
     const viewEnd = addDays(start, dayCount);
     const viewLabel = mode === 'day'
       ? days[0].toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' })
@@ -4965,7 +4968,7 @@
       const durationDays = Math.max(1, base.start && base.end ? dayDiff(new Date(base.start), new Date(base.end)) : 1);
       const primary = {
         ...base,
-        ...resourcePayload(target.resource),
+        ...resourcePayload(target.resource, base),
         start:target.start,
         end:addDays(target.start, durationDays),
         all_day:true,
@@ -5157,7 +5160,7 @@
     const applyCommittedRange = (activeDrag, next) => {
       if (!activeDrag?.wrapper || !next?.start || !next?.end) return;
       if (activeDrag.item) {
-        Object.assign(activeDrag.item, resourcePayload(next.resource));
+        Object.assign(activeDrag.item, resourcePayload(next.resource, activeDrag.item));
         activeDrag.item.start_at = next.start.toISOString();
         activeDrag.item.start = next.start.toISOString();
         activeDrag.item.end_at = next.end.toISOString();
@@ -5240,7 +5243,7 @@
         const endDate = activeDrag.anchor.end > target.end ? activeDrag.anchor.end : target.end;
         const nextDraft = {
           ...(localActiveDraft || activeDraft || {}),
-          ...resourcePayload(target.resource),
+          ...resourcePayload(target.resource, localActiveDraft || activeDraft),
           id: localActiveDraft?.id || activeDraft?.id || '__draft',
           title: localActiveDraft?.title || activeDraft?.title || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_2ac9ecd66d638b","New Event") ?? "New Event"),
           start: startDate,
@@ -5260,7 +5263,7 @@
       const unchanged = Math.abs(next.start - activeDrag.base.start) < 1000 && Math.abs(next.end - activeDrag.base.end) < 1000
         && String(next.resource?.id || '') === String(findResource(itemResourceId(activeDrag.item))?.id || '');
       if (unchanged) return;
-      const payload = { ...resourcePayload(next.resource), start: next.start, end: next.end, all_day: next.all_day !== false, schedule_granularity: next.schedule_granularity || (next.all_day === false ? 'time' : 'date') };
+      const payload = { ...resourcePayload(next.resource, activeDrag.item), start: next.start, end: next.end, all_day: next.all_day !== false, schedule_granularity: next.schedule_granularity || (next.all_day === false ? 'time' : 'date') };
       if (activeDrag.item.__draft === true || activeDrag.item.id === '__draft') {
         applyCommittedRange(activeDrag, next);
         localActiveDraft = { ...activeDrag.item, ...payload, __draft: true, __activeDraft: true };
@@ -5362,9 +5365,7 @@
         start_at: new Date(entry.start).toISOString(),
         end_at: new Date(entry.end || new Date(new Date(entry.start).getTime() + slotMinutes * 60000)).toISOString(),
         all_day: false,
-        schedule_granularity: 'time',
-        assigned_crew_id: typeof options.resourceIdForItem === 'function' ? clean(options.resourceIdForItem(entry)) : resourceIdForItem(entry),
-        assigned_crew_name: Object.prototype.hasOwnProperty.call(entry, 'assigned_crew_name') ? clean(entry.assigned_crew_name) : clean(entry.crew_name || entry.resource_name)
+        schedule_granularity: 'time'
       };
     });
     const draftIds = new Set(draftEvents.map((entry) => String(entry.id || '')));
@@ -5393,15 +5394,7 @@
     const canPlaceItemInResource = (item, resource) => typeof options.canPlaceItemInResource !== 'function' || options.canPlaceItemInResource(item || {}, resource || rows[0]) !== false;
     const renderedResourceIdForItem = (item) => clean(findResource(itemResourceId(item))?.id);
     const rowForResource = (resourceId) => Math.max(0, rows.findIndex((row) => String(row.id || '') === String(resourceId || '')));
-    const resourcePayload = (resource) => typeof options.resourcePayload === 'function' ? (options.resourcePayload(resource) || {}) : ({
-      resource_id: resource?.id || '',
-      resource_name: resource?.name || '',
-      crew_id: resource?.id || '',
-      crew_name: resource?.name || '',
-      assigned_crew_id: resource?.id || '',
-      assigned_crew_name: resource?.name || '',
-      assigned_crew: resource?.id ? { id: resource.id, name: resource.name } : null
-    });
+    const resourcePayload = (resource, item = null) => typeof options.resourcePayload === 'function' ? (options.resourcePayload(resource, item) || {}) : laneAssignmentPatch(item || {}, resource);
     const fixedDurationMinutes = Math.max(0, Number(options.fixedDurationMinutes || 0) || 0);
     const fixedEndFor = (startDate, fallbackEnd = null) => fixedDurationMinutes
       ? new Date(startDate.getTime() + fixedDurationMinutes * 60000)
@@ -5932,7 +5925,7 @@
         }
         return;
       }
-      const payloadBase = { ...resourcePayload(target.resource), all_day:false, schedule_granularity:'time' };
+      const payloadBase = { ...resourcePayload(target.resource, activeDrag.item || localActiveDraft || activeDraft), all_day:false, schedule_granularity:'time' };
       if (activeDrag.kind === 'create') {
         const startDate = activeDrag.anchor.start < target.start ? activeDrag.anchor.start : target.start;
         const draggedEnd = activeDrag.anchor.end > target.end ? activeDrag.anchor.end : target.end;
@@ -5950,7 +5943,7 @@
       const unchanged = Math.abs(next.start - activeDrag.base.start) < 1000 && Math.abs(next.end - activeDrag.base.end) < 1000
         && String(next.resource?.id || '') === String(findResource(itemResourceId(activeDrag.item))?.id || '');
       if (unchanged) return;
-      const payload = { ...payloadBase, ...resourcePayload(next.resource), start: next.start, end: next.end };
+      const payload = { ...payloadBase, ...resourcePayload(next.resource, activeDrag.item), start: next.start, end: next.end };
       if (activeDrag.item.__draft === true || activeDrag.item.id === '__draft') {
         applyCommittedRange(activeDrag, next);
         localActiveDraft = { ...activeDrag.item, ...payload, __draft: true, __activeDraft: true };
@@ -6117,7 +6110,7 @@
 
   function allDayItemIsGroup(event = {}){
     const Scheduling = root.PlatformScheduling;
-    return typeof Scheduling?.eventIsGroup === 'function' ? Scheduling.eventIsGroup(event) === true : event.is_schedule_group === true;
+    return typeof Scheduling?.eventIsSpan === 'function' ? Scheduling.eventIsSpan(event) === true : eventKind(event) === 'schedule_group';
   }
 
   function ganttLagLabel(minutes){
@@ -6127,7 +6120,7 @@
     return ` (+${Math.round(lag / 60)}h lag)`;
   }
 
-  // Full-project Gantt: grouped rows with rollup parents, dependency links,
+  // Full-project Gantt: spans with their children, dependency links,
   // continuous hour→month zoom, drag move/resize, drag-to-link.  Separate
   // surface from the routing schedulers; same option/callback conventions.
   function renderGanttScheduler(container, options = {}){
@@ -6149,15 +6142,14 @@
 
     // Legacy items without an all_day flag get the calendar views' inference:
     // an off-midnight start lasting under a day is a timed appointment.
-    const rawEvents = (options.events || [])
+    const events = (options.events || [])
       .map((event) => inferLegacyTimeGranularity(Scheduling?.normalizeEvent ? Scheduling.normalizeEvent(event, options.config || null, options.project || null) : event));
-    const events = Scheduling?.applyGroupRollups ? Scheduling.applyGroupRollups(rawEvents) : rawEvents;
     const eventById = new Map(events.map((event) => [String(event.id || ''), event]));
     const evStart = (event) => eventStart(Scheduling, event);
     const evEnd = (event) => eventEnd(Scheduling, event);
     const isScheduled = (event) => Scheduling?.eventIsScheduled ? Scheduling.eventIsScheduled(event) : !!evStart(event);
     const parentIdOf = (event) => Scheduling?.eventParentId ? Scheduling.eventParentId(event) : clean(event.parent_event_id);
-    const isGroup = (event) => Scheduling?.eventIsGroup ? Scheduling.eventIsGroup(event) : event.is_schedule_group === true;
+    const isGroup = (event) => allDayItemIsGroup(event);
     const dependenciesOf = (event) => Scheduling?.eventDependencies ? Scheduling.eventDependencies(event) : [];
     const isTimed = (event) => rangeItemIsTimed(event || {});
     const isCancelled = (event) => ganttEventIsCancelled(event);
@@ -6263,8 +6255,6 @@
       const refKey = (kind, id) => `${clean(kind).toLowerCase()}:${clean(id).toLowerCase()}`;
       const eventResourceKeys = (event) => {
         const keys = [];
-        const workRef = event.work_resource_ref && typeof event.work_resource_ref === 'object' ? event.work_resource_ref : {};
-        if (clean(workRef.id)) keys.push(refKey(workRef.kind || 'resource_group', workRef.id));
         (Array.isArray(event.assigned_user_ids) ? event.assigned_user_ids : []).forEach((id) => {
           if (clean(id)) keys.push(refKey('organization_user', id));
         });
@@ -6285,12 +6275,7 @@
       if (!suppliedResources.length) {
         const seenKeys = new Set();
         events.filter((event) => !isGroup(event)).forEach((event) => {
-          const workRef = event.work_resource_ref && typeof event.work_resource_ref === 'object' ? event.work_resource_ref : {};
-          const candidates = [
-            ...(clean(workRef.id) ? [{ kind:workRef.kind || 'resource_group', id:workRef.id, name:workRef.name || event.assigned_crew_name }] : []),
-            ...(Array.isArray(event.resource_refs) ? event.resource_refs : [])
-          ];
-          candidates.forEach((ref) => {
+          (Array.isArray(event.resource_refs) ? event.resource_refs : []).forEach((ref) => {
             if (!ref || !clean(ref.id)) return;
             const key = refKey(ref.kind || 'resource_group', ref.id);
             if (seenKeys.has(key)) return;
@@ -6359,7 +6344,7 @@
           status:childStarts.length ? 'scheduled' : 'unscheduled',
           all_day:true,
           schedule_granularity:'date',
-          is_schedule_group:true,
+          kind:'schedule_group',
           __project_rollup:true,
           __project_child_ids:projectEvents.map((event) => String(event.id || '')).filter(Boolean),
         };
@@ -6498,14 +6483,10 @@
       const color = ganttRowColor(row, event, presentation, kind);
       const icon = safeIconClass(presentation.icon || ganttDefaultIcon(kind), '');
       const locked = presentation.locked === true;
-      // Auto-rollup sections and project rollups span their items: dragging
-      // moves everything inside, but they cannot be resized.
-      const autoGroup = row.group && !row.projectRollup && event.__rollup_derived === true;
-      // Hosts opt in to moving auto sections (their save must move the items).
-      const editable = canEditItem(event) && !locked && (!autoGroup || options.allowGroupMove === true);
-      // Bars too small for two edge handles plus a grab area only move
-      // (zoom in to resize them).
-      const resizable = editable && !row.projectRollup && !autoGroup && width >= 24;
+      const editable = canEditItem(event) && !locked;
+      // A project row spans its items and only moves. Bars too small for two
+      // edge handles plus a grab area only move (zoom in to resize them).
+      const resizable = editable && !row.projectRollup && width >= 24;
       const linkable = !readOnly && !cancelled && (!row.group || row.projectRollup) && !groupByResource && typeof options.onDependencyCreate === 'function' && canLinkItem(event);
       const title = clean(event.title) || (globalThis.PlatformLanguage?.text("platform-schedule-view","m_05017f54f07448","Untitled") ?? "Untitled");
       // A title that would be cut to a letter or two reads beside the bar.
@@ -6546,7 +6527,7 @@
       const kind = presentation.kind || eventKind(event);
       const color = ganttRowColor(row, event, presentation, kind);
       const icon = safeIconClass(presentation.icon || ganttDefaultIcon(kind), '');
-      const assignee = clean(event.assigned_crew_name || event.assigned_user_name || (event.assigned_users || [])[0]?.name);
+      const assignee = clean(primaryAssignee(event)?.name || event.assigned_user_name || (event.assigned_users || [])[0]?.name);
       const caret = row.group && row.hasChildren
         ? ("<button type=\"button\" class=\"psv-gantt-caret\" data-psv-gantt-toggle=\"" + String(esc(event.id || '')) + "\" aria-expanded=\"" + (row.collapsed ? 'false' : 'true') + "\" aria-label=\"" + ((v1) => globalThis.PlatformLanguage?.text("platform-schedule-view","m_bc0ff2f99b0574",`${v1} group`,{v1}) ?? `${v1} group`)(row.collapsed ? 'Expand' : 'Collapse') + "\"><i class=\"fas fa-chevron-" + String(row.collapsed ? 'right' : 'down') + "\"></i></button>")
         // An empty section keeps the caret's place so it lines up (and reads)
@@ -6979,6 +6960,14 @@
       return clientX - rect.left - leftWidth;
     };
     const clearGhosts = () => container.querySelectorAll('.psv-gantt-bar.ghost, .psv-gantt-link-temp').forEach((node) => node.remove());
+    // What a move implies for the item's children and depends_on neighbours.
+    const relatedImpact = (item, payload) => {
+      if (typeof Scheduling?.relatedScheduleRescheduleImpact === 'function') {
+        return Scheduling.relatedScheduleRescheduleImpact(item, events, payload, options.project || {}, { config:options.config || null });
+      }
+      const dependents = Scheduling?.cascadeDependentDrafts ? Scheduling.cascadeDependentDrafts(events, item.id, payload) : [];
+      return { drafts:dependents, blocked:[], children:[], dependents };
+    };
     const ghostForCascade = (drafts) => {
       clearGhosts();
       drafts.forEach((draft) => {
@@ -7046,7 +7035,7 @@
       // stay on local midnight.
       const mode = rollup ? 'project' : isGroup(item) && !timed ? 'group' : timed ? 'timed' : 'day';
       drag = {
-        kind:rollup || (isGroup(item) && item.__rollup_derived === true) ? 'move' : handle, item, bar, barStyle:bar.style.cssText,
+        kind:rollup ? 'move' : handle, item, bar, barStyle:bar.style.cssText,
         startX:pointerEvent.clientX, startY:pointerEvent.clientY,
         baseStart:start.getTime(), baseEnd:end.getTime(),
         timed, mode,
@@ -7155,9 +7144,7 @@
       drag.bar.classList.add('dragging');
       drag.bar.style.left = `${xForTime(nextStart)}px`;
       drag.bar.style.width = `${Math.max(6, xForTime(nextEnd) - xForTime(nextStart))}px`;
-      if (drag.kind === 'move' && drag.mode !== 'project' && drag.mode !== 'group' && Scheduling?.cascadeDependentDrafts) {
-        ghostForCascade(Scheduling.cascadeDependentDrafts(events, drag.item.id, rangePayload(drag.item, nextStart, nextEnd)));
-      }
+      if (drag.mode !== 'project') ghostForCascade(relatedImpact(drag.item, rangePayload(drag.item, nextStart, nextEnd)).drafts);
     };
 
     const onPointerUp = (pointerEvent) => {
@@ -7219,10 +7206,8 @@
         return;
       }
       const payload = rangePayload(activeDrag.item, activeDrag.nextStart, activeDrag.nextEnd);
-      const cascade = activeDrag.mode !== 'project' && activeDrag.mode !== 'group' && Scheduling?.cascadeDependentDrafts
-        ? Scheduling.cascadeDependentDrafts(events, activeDrag.item.id, payload).filter((draft) => String(draft.id) !== String(activeDrag.item.id))
-        : [];
-      options.onEventRangeChange?.(activeDrag.item, payload, { cascade, action:activeDrag.kind, dayDelta:activeDrag.dayDelta || 0 });
+      const impact = activeDrag.mode !== 'project' ? relatedImpact(activeDrag.item, payload) : { blocked:[], children:[], dependents:[] };
+      options.onEventRangeChange?.(activeDrag.item, payload, { cascade:impact.dependents, children:impact.children, blocked:impact.blocked, action:activeDrag.kind, dayDelta:activeDrag.dayDelta || 0 });
     };
     // A cancelled gesture (touch scroll, lost capture) abandons the drag
     // instead of committing it on some later pointerup.

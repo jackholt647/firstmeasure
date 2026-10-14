@@ -270,7 +270,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261013-scope'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261013-schedule-button-2')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261013-scope'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261013-schedule-events-v2')]
     },
     {
       id: 'project.money',
@@ -314,7 +314,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-map/app.js', '20261005-address-market-v1')]
+      bundles: [versionedBundle('project-map/app.js', '20261013-schedule-events-v2')]
     },
     {
       id: 'project.customer_portal',
@@ -336,7 +336,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20261012-schedule-widget')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261013-schedule-events-v2')]
     },
     {
       id: 'project.comms',
@@ -386,7 +386,7 @@
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
       access: managementAccess,
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261002-dropdown-polish-v1')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261013-schedule-events-v2')]
     },
     {
       id: 'portal.training',
@@ -434,7 +434,7 @@
       access: managementAccess,
       bundles: [
         versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
-        versionedBundle('equipment/app.js', '20261013-functions-4')
+        versionedBundle('equipment/app.js', '20261013-schedule-events-v2')
       ]
     },
     {

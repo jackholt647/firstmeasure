@@ -21,10 +21,11 @@ import { assignmentPolicyForEventType } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
 import {
   normalizeSchedulingAvailabilitySettings,
-  resourceAvailabilityCapacity,
   subjectUnavailableOnDate
 } from "../appointments/availability.js";
+import { assigneeCapacities } from "../scheduling/occupancy.js";
 import { resolveOrganizationTimezone, zonedInstant, zonedParts } from "../platform/timezone.js";
+import { eventAssignees, eventEquipment, eventIsSpan, eventPrimaryAssignee, type ResourceRef } from "../scheduling/event-model.js";
 import { haversineKm, optimizeRoutes, type RoutingStop } from "./optimizer.js";
 
 type TravelConfig = {
@@ -96,15 +97,12 @@ function eventAssignedUserId(event: JsonObject) {
 }
 
 function eventAssignedSubjectId(event: JsonObject) {
-  const ref = asObject(event.work_resource_ref);
-  return cleanText(ref.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id) || eventAssignedUserId(event);
+  return eventPrimaryAssignee(event)?.id || eventAssignedUserId(event);
 }
 
-/* Section/group rows only roll up their children; they are never stops. */
+/* A span only holds the range its children are placed against; it is never a stop. */
 function eventIsScheduleGroup(event: JsonObject) {
-  return event.is_schedule_group === true
-    || cleanText(event.schedule_item_kind).toLowerCase() === "group"
-    || cleanText(event.kind).toLowerCase() === "schedule_group";
+  return eventIsSpan(event) || cleanText(event.schedule_item_kind).toLowerCase() === "group";
 }
 
 /* Production work is assigned to crews (often several per item) and spans
@@ -116,36 +114,29 @@ function isProductionEventType(eventTypeId: string, eventType: JsonObject) {
 }
 
 /* R3-RES-11: production auto-route sequences crews only. Work assigned to a
- * person (an organization user, by its work ref, a person subject, or only
- * through assigned_user_id(s)) keeps its routing untouched. */
+ * person (an organization user, as its primary assignee, a person subject, or
+ * only through assigned_user_id(s)) keeps its routing untouched. */
 function eventAssignedToPerson(event: JsonObject, subjectType = "") {
-  const refKind = cleanText(asObject(event.work_resource_ref).kind).toLowerCase();
-  if (["organization_user", "person", "user"].includes(refKind)) return true;
+  const primary = eventPrimaryAssignee(event);
+  if (primary?.kind === "organization_user") return true;
   const type = cleanText(subjectType).toLowerCase();
   if (type === "organization_user" || type === "user" || type === "person") return true;
-  const ref = asObject(event.work_resource_ref);
-  return !cleanText(ref.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id) && !!eventAssignedUserId(event);
+  return !primary && !!eventAssignedUserId(event);
 }
 
 function eventCrewRoleRefIds(event: JsonObject) {
-  return (Array.isArray(event.resource_refs) ? event.resource_refs : [])
-    .map(asObject)
-    .filter((ref) => !["equipment_unit", "equipment_type"].includes(cleanText(ref.kind)))
-    .map((ref) => cleanText(ref.id))
-    .filter(Boolean);
+  return eventAssignees(event).map((ref) => ref.id);
 }
 
-/* Keep resource_refs coherent with a routing (re)assignment: the crew-role
- * set becomes exactly the new crew (or nothing for a person / cleared stop);
- * equipment refs are untouched. */
-function resourceRefsForRoutedSubject(event: JsonObject, subject: { id: string; name: string; subject_type: string } | null) {
-  const equipment = (Array.isArray(event.resource_refs) ? event.resource_refs : [])
-    .map(asObject)
-    .filter((ref) => ["equipment_unit", "equipment_type"].includes(cleanText(ref.kind)));
-  const crew = subject && subject.subject_type !== "organization_user"
-    ? [{ kind: subject.subject_type, id: subject.id, name: subject.name, role: "crew" }]
-    : [];
-  return [...crew, ...equipment];
+/* The event's resources after a routing (re)assignment: the assignees become
+ * exactly the new one (or nothing for a person / cleared stop), keeping the
+ * unit it already had on this event; equipment is untouched. */
+function resourceRefsForRoutedSubject(event: JsonObject, subject: { id: string; name: string; subject_type: string } | null): ResourceRef[] {
+  const equipment = eventEquipment(event);
+  if (!subject || subject.subject_type === "organization_user") return equipment;
+  const kind = subject.subject_type === "organization_connection" ? "organization_connection" : "resource_group";
+  const unitId = eventAssignees(event).find((ref) => ref.kind === kind && ref.id === subject.id)?.unit_id;
+  return [{ kind, id: subject.id, name: subject.name, role: "crew", ...(unitId ? { unit_id: unitId } : {}) }, ...equipment];
 }
 
 /* Assignment changes made here count as edits for optimistic concurrency. */
@@ -396,11 +387,11 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
     return minutes;
   };
 
-  const rawSubjectById = new Map((resolved.subjects as JsonObject[]).map((subject) => [cleanText(subject.id), subject]));
+  const capacityOf = await assigneeCapacities(orgId);
   const laneToSubject = new Map<string, typeof subjects[number]>();
   const laneIdsBySubject = new Map<string, string[]>();
   const routingSubjects = subjects.flatMap((subject) => {
-    const capacity = Math.max(0, resourceAvailabilityCapacity(availabilitySettings, rawSubjectById.get(subject.id) || subject));
+    const capacity = capacityOf(subject.subject_type, subject.id);
     const lanes = Array.from({ length: capacity }, (_, index) => {
       const id = index === 0 ? subject.id : `${subject.id}::capacity:${index + 1}`;
       laneToSubject.set(id, subject);
@@ -502,17 +493,6 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
             assigned_users: [],
             assigned_user_id: "",
             assigned_user_name: "",
-            crew_id: "",
-            crew_name: "",
-            resource_id: "",
-            resource_name: "",
-            work_resource_ref: null,
-            assigned_resource_kind: "",
-            assigned_resource_id: "",
-            assigned_resource_name: "",
-            assigned_crew_id: "",
-            assigned_crew_name: "",
-            assigned_crew: null,
             resource_refs: resourceRefsForRoutedSubject(event, null),
             routing: { routed_at: routedAt, routed_by: cleanText(input.actor?.userId), unassigned_reason: cleanText(assignment.reason) || "no_feasible_subject" }
           });
@@ -523,10 +503,8 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
         if (!subject) continue;
         const unchanged = eventAssignedSubjectId(event) === subject.id;
         if (productionMode && !unchanged) continue;
-        /* Same alias set the scheduling UI writes (assignmentPayloadForSubject)
-         * so every reader — routing view, gantt, popups — agrees. A stop kept
-         * on its assignee only gets its routing sequence (multi-crew and
-         * person+crew assignments stay intact). */
+        /* A stop kept on its assignee only gets its routing sequence
+         * (multi-crew and person+crew assignments stay intact). */
         if (unchanged) {
           // routing metadata only (below)
         } else if (subject.subject_type === "organization_user") {
@@ -536,17 +514,6 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
             assigned_users: [{ id: subject.id, name: subject.name }],
             assigned_user_id: subject.id,
             assigned_user_name: subject.name,
-            crew_id: "",
-            crew_name: "",
-            resource_id: "",
-            resource_name: "",
-            work_resource_ref: null,
-            assigned_resource_kind: "",
-            assigned_resource_id: "",
-            assigned_resource_name: "",
-            assigned_crew_id: "",
-            assigned_crew_name: "",
-            assigned_crew: null,
             resource_refs: resourceRefsForRoutedSubject(event, null)
           });
         } else {
@@ -556,17 +523,6 @@ export async function optimizeDayRouting(orgId: string, input: OptimizeDayInput)
             assigned_users: [],
             assigned_user_id: "",
             assigned_user_name: "",
-            crew_id: subject.id,
-            crew_name: subject.name,
-            resource_id: subject.id,
-            resource_name: subject.name,
-            work_resource_ref: { kind: subject.subject_type, id: subject.id, name: subject.name },
-            assigned_resource_kind: subject.subject_type,
-            assigned_resource_id: subject.id,
-            assigned_resource_name: subject.name,
-            assigned_crew_id: subject.id,
-            assigned_crew_name: subject.name,
-            assigned_crew: { id: subject.id, name: subject.name },
             resource_refs: resourceRefsForRoutedSubject(event, subject)
           });
         }

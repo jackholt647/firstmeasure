@@ -815,7 +815,7 @@
           loading:false,
           config,
           projects: timelineProjects,
-          events: allEvents.filter((event) => (Scheduling.eventEquipmentRefs?.(event) || []).length || clean(event.kind) === 'equipment_downtime')
+          events: allEvents.filter((event) => (Scheduling.eventEquipment?.(event) || []).length || clean(event.kind) === 'equipment_downtime')
         };
       } catch (error) {
         if (destroyed) return;

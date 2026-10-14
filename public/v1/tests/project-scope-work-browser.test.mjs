@@ -204,11 +204,11 @@ test('dropping an item reorders its list or moves it beside the anchor in anothe
  ctx=make();ctx.fail=true;await ctx.dropItem('3','a','a','1',false);assert.deepEqual(ids(ctx,'a'),['1','2','3']);assert.equal(ctx.state.saving,false);
 });
 
-test('labor pay writers re-render only after saving is released, so controls are not left disabled',async()=>{
- for(const name of ['assignWorkResource','setLaborCompensationMode','setLaborExpenseSettings'])for(const fail of [false,true]){
+test('assigning a labor list re-renders only after saving is released, so controls are not left disabled',async()=>{
+ for(const name of ['assignWorkResource'])for(const fail of [false,true]){
   const list={id:'labor',title:'Roof labor',compensation:{}},renders=[];
-  const ctx={state:{saving:false},cleanText:value=>String(value??''),materialListById:()=>list,captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,renderLeft(){},workResourceById:()=>null,assignmentWorkResourceRef:()=>null,workResourceCompensationMode:()=>'hourly',workResourceLabel:()=>'Team',patchScopeResourceList:async()=>{if(fail)throw Error('denied');return list;},loadExpenseProjection:async()=>{},render:()=>renders.push(ctx.state.saving),syncLaborMenu(){},showToast(){},syncScopeListCard(){}};
-  vm.createContext(ctx);vm.runInContext(fn(name),ctx);await ctx[name]('labor',name==='setLaborExpenseSettings'?{estimated_hours:8}:'hourly');
+  const ctx={state:{saving:false},cleanText:value=>String(value??''),materialListById:()=>list,captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,renderLeft(){},workResourceById:()=>null,assignmentWorkResourceRef:()=>null,workResourceLabel:()=>'Team',patchScopeResourceList:async(_id,patch)=>{assert.equal(Object.hasOwn(patch,'compensation'),false,'assigning says nothing about pay');if(fail)throw Error('denied');return list;},loadExpenseProjection:async()=>{},render:()=>renders.push(ctx.state.saving),syncLaborMenu(){},showToast(){},syncScopeListCard(){}};
+  vm.createContext(ctx);vm.runInContext(fn(name),ctx);await ctx[name]('labor','hourly');
   assert.equal(ctx.state.saving,false,name);assert.equal(renders.at(-1),false,name+' final render');
  }
 });
@@ -235,7 +235,7 @@ test('the assign block stays clickable through a background save, assigns once a
 
 test('the labor popover is about who does the work and shows what each would be paid',()=>{
  const crews=[{id:'hourly',name:'Crew A',resource_kind:'resource_group',members:[{},{}],compensation_plan:{type:'hourly'}},{id:'piece',name:'Sub B',resource_kind:'organization_connection',compensation_plan:{type:'piece_rate'}},{id:'salary',name:'Staff C',resource_kind:'resource_group',compensation_plan:{type:'salary'}}];
- const ctx={state:{laborMenu:null},cleanText:value=>String(value??''),escapeHtml:value=>String(value??''),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,workResourcesForScopeList:()=>crews,workResourceById:id=>crews.find(crew=>crew.id===id)||null,workforceLabel:kind=>kind==='organization_connection'?'Partner':'Team',workResourceCompensationMode:resource=>resource?.compensation_plan?.type||'none'};
+ const ctx={state:{laborMenu:null},cleanText:value=>String(value??''),escapeHtml:value=>String(value??''),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,workResourcesForScopeList:()=>crews,workResourceById:id=>crews.find(crew=>crew.id===id)||null,workforceLabel:kind=>kind==='organization_connection'?'Partner':'Team'};
  ctx.money=value=>'$'+Number(value).toLocaleString('en-US');vm.createContext(ctx);for(const name of ['laborPayLabel','assigneePay','assigneePayFor','assigneePayLabel','assigneeKindPill','assigneePills','laborSettings','renderLaborListControls','renderLaborMenu'])vm.runInContext(fn(name),ctx);
  const menu=list=>ctx.renderLaborMenu({id:'labor',...list});
  let html=menu({});assert.match(html,/Crew A/);assert.match(html,/title="Team\. People inside your organization\.">Team</);assert.match(html,/title="Partner\. An outside company\.">Par</);assert.doesNotMatch(html,/data-mt-labor-pay-mode|data-mt-labor-hours-input|data-mt-labor-salary-mode/);assert.match(ctx.renderLaborListControls({id:'labor'}),/Unassigned/);

@@ -175,22 +175,16 @@ export function eventEquipmentRefs(eventValue: unknown) {
       id: cleanText(ref.id),
       name: cleanText(ref.name),
       role: cleanText(ref.role) || "equipment",
-      quantity: Math.max(1, Number(ref.quantity || 1)),
-      start_at: cleanText(ref.start_at || ref.start),
-      end_at: cleanText(ref.end_at || ref.end)
+      quantity: Math.max(1, Number(ref.quantity || 1))
     }))
     .filter((ref) => ref.id);
 }
 
 type ScheduledEvent = JsonObject & { __start: number; __end: number };
 
+/* Equipment is held for its event's whole range. */
 function equipmentRefOverlaps(event: ScheduledEvent, kind: string, id: string, start: number, end: number) {
-  return eventEquipmentRefs(event).some((ref) => {
-    if (ref.kind !== kind || ref.id !== id) return false;
-    const refStart = Date.parse(ref.start_at) || event.__start;
-    const refEnd = Date.parse(ref.end_at) || event.__end;
-    return refStart < end && refEnd > start;
-  });
+  return event.__start < end && event.__end > start && eventEquipmentRefs(event).some((ref) => ref.kind === kind && ref.id === id);
 }
 
 function eventWindow(event: JsonObject): [number, number] | null {
@@ -267,6 +261,8 @@ export async function assessEquipmentBooking(orgId: string, input: {
   start: string | number;
   end: string | number;
   excludeEventId?: string;
+  /** The booking's own family: a unit held by an item and by a piece of that item is one booking. */
+  excludeEventIds?: string[];
 }): Promise<EquipmentConflict[]> {
   const refs = asArr(input.refs).map(asObj)
     .map((ref) => ({ kind: cleanText(ref.kind), id: cleanText(ref.id), name: cleanText(ref.name), quantity: Math.max(1, Number(ref.quantity || 1)) }))
@@ -275,11 +271,11 @@ export async function assessEquipmentBooking(orgId: string, input: {
   const start = typeof input.start === "number" ? input.start : Date.parse(cleanText(input.start));
   const end = typeof input.end === "number" ? input.end : Date.parse(cleanText(input.end));
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
-  const excludeEventId = cleanText(input.excludeEventId);
+  const excluded = new Set([cleanText(input.excludeEventId), ...asArr(input.excludeEventIds).map(cleanText)].filter(Boolean));
   const types = new Map((await listTypes(orgId, { includeArchived: true })).map((type) => [cleanText(type.id), type]));
   const events = (await scheduledEquipmentEvents(orgId))
     .filter((event) => cleanText(event.status).toLowerCase() !== "completed")
-    .filter((event) => cleanText(event.id) !== excludeEventId)
+    .filter((event) => !excluded.has(cleanText(event.id)))
     .filter((event) => event.__start < end && event.__end > start);
   const conflicts: EquipmentConflict[] = [];
   for (const ref of refs) {
@@ -320,13 +316,8 @@ export async function assessEquipmentBooking(orgId: string, input: {
       const type = types.get(ref.id);
       if (!type || cleanText(type.tracking) !== "quantity") continue;
       const pool = Number(type.pool_quantity || 0);
-      const booked = events.reduce((total, event) => total + eventEquipmentRefs(event)
+      const booked = events.filter((event) => event.__start < end && event.__end > start).reduce((total, event) => total + eventEquipmentRefs(event)
         .filter((entry) => entry.kind === "equipment_type" && entry.id === ref.id)
-        .filter((entry) => {
-          const refStart = Date.parse(entry.start_at) || event.__start;
-          const refEnd = Date.parse(entry.end_at) || event.__end;
-          return refStart < end && refEnd > start;
-        })
         .reduce((sum, entry) => sum + entry.quantity, 0), 0);
       if (pool > 0 && booked + ref.quantity > pool) {
         conflicts.push({

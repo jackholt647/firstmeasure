@@ -560,8 +560,10 @@
   function eventAssignedLabel(event = {}){
     const users = Array.isArray(event.assigned_users) ? event.assigned_users : [];
     if (users.length) return users.map((user) => firstText(user.name, user.email, user.id)).filter(Boolean).join(', ');
-    const crew = firstText(event.assigned_crew_name, event.crew_name, event.assigned_crew?.name);
-    if (crew) return crew;
+    const assignees = (Array.isArray(event.resource_refs) ? event.resource_refs : [])
+      .filter((ref) => ['organization_user', 'resource_group', 'organization_connection'].includes(ref?.kind) && ref.role !== 'operator')
+      .map((ref) => firstText(ref.name, ref.id)).filter(Boolean);
+    if (assignees.length) return assignees.join(', ');
     const ids = Array.isArray(event.assigned_user_ids) ? event.assigned_user_ids : [];
     return ids.length ? ids.join(', ') : 'Unassigned';
   }

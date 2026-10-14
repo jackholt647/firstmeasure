@@ -1,3 +1,4 @@
+import { publishScopeMaterialArtifact } from "../materials/calculus.js";
 import { createHash } from "node:crypto";
 
 import { initializeProjectMaterialListsFromScope } from "../materials/storage.js";
@@ -137,7 +138,8 @@ export function defaultInstantiationBindings(definition: JsonObject) {
     bindings.push({ id: "default_initialize_scope_custom_fields", automation: "customFields.initializeFromScope.v1", input: {} });
   }
   const hasResources = asArray(asObject(definition.resources).lists).length > 0
-    || asArray(asObject(definition.materials).lists).length > 0;
+    || asArray(asObject(definition.materials).lists).length > 0
+    || asArray(definition.materials_deliverables).length > 0;
   if (hasResources) {
     bindings.push({ id: "default_initialize_scope_resources", automation: "materials.initializeFromScope.v1", input: {} });
   }
@@ -158,10 +160,7 @@ export async function initializeScopeResourcesForPlanRecord(orgId: string, planI
   const piece = asObject(context.scope_piece);
   const projectId = cleanText(plan.project_id);
   const snapshotId = cleanText(proposal.snapshot_id);
-  if (!projectId || !snapshotId) return null;
-  const snapshotDoc = await readDocument(orgId, "proposal_snapshots", snapshotId).catch(() => null);
-  if (!snapshotDoc) return null;
-  const snapshot: JsonObject = { id: snapshotId, ...asObject(snapshotDoc.data) };
+  if (!projectId) return null;
   const branchId = cleanText(plan.branch_id || "default") || "default";
   const templateId = cleanText(plan.template_id);
   const requestedVersion = Number(plan.template_version || 0);
@@ -169,6 +168,14 @@ export async function initializeScopeResourcesForPlanRecord(orgId: string, planI
   const template: JsonObject = version
     ? { definition: version.definition, version: version.version, version_id: version.id }
     : (await readScopeTemplate(orgId, branchId, templateId));
+  const artifacts = [];
+  for (const deliverable of asArray(asObject(template.definition).materials_deliverables)) {
+    artifacts.push(await publishScopeMaterialArtifact(orgId,projectId,planId,deliverable,{work_plan_id:planId,template_id:templateId,template_version:requestedVersion,branch_id:branchId}));
+  }
+  if (!snapshotId) return { material_artifacts:artifacts };
+  const snapshotDoc = await readDocument(orgId,"proposal_snapshots",snapshotId).catch(()=>null);
+  if (!snapshotDoc) return { material_artifacts:artifacts };
+  const snapshot:JsonObject={id:snapshotId,...asObject(snapshotDoc.data)};
   return await initializeScopeResourcesForPlan(
     orgId,
     projectId,

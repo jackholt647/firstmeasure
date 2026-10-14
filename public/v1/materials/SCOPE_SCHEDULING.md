@@ -59,7 +59,7 @@ This keeps roofing behavior in the roofing scope preset rather than in the Mater
 1. A project scope may initialize provisional planning lists so estimators can review materials before signature.
 2. Signing freezes the proposal snapshot as the source of truth; each signed scope piece starts its work plan and reconciles the recipes on its versioned scope template.
 3. Selected pricebook-backed scope items are resolved against the organization catalog, assigned to recipes, and captured as full material line-item snapshots together with the scope measurements.
-4. Each list with `schedule.enabled` receives one deterministic, initially unscheduled project event.
+4. Each list with `schedule.enabled` receives one deterministic, initially unscheduled project event. With `schedule.group_id` it sits under that group's span, and `schedule.placement` says where it sits relative to the span; scheduling the span places it.
 5. Users schedule the work item and material deliveries independently. Scheduling does not place an order.
 6. Placing an order creates an immutable material version, marks the list ordered, and locks its linked event when `lock_on_order` is enabled.
 7. A locked event requires explicit confirmation before it can be unlocked or moved. It can be locked again from its calendar tile.
@@ -78,7 +78,7 @@ A calendar date never implies that an order was placed. A material delivery even
 
 ## Event presentation contract
 
-A material event is canonically identified by `schedule_item_kind: "material_delivery"` and `material_list_id`. Its configurable `kind` may carry a scope-specific workflow label without changing calendar category or lifecycle behavior. The event carries:
+A material event is canonically identified by `schedule_item_kind: "material_delivery"`, `resource_type: "material"` and `scope_resource_list_id` (see [schedule events](../../../docs/architecture/schedule-events.md)). Its configurable `kind` may carry a scope-specific workflow label without changing calendar category or lifecycle behavior. The event carries:
 
 - a material-delivery `color` hint and truck `icon` for category metadata;
 - `material_color` / `accent_color` / `sub_color` for the list identity, which is the only dominant color shown on the calendar;

@@ -1070,9 +1070,10 @@
             const itemKind = cleanText(event.schedule_item_kind).toLowerCase();
             return kind === 'project_work' || type === 'project_work' || type.startsWith('project_work_') || itemKind === 'production' || itemKind === 'labor';
           });
-          const scheduledCrewIds = new Set(workEvents.map((event) => cleanText(event.work_resource_ref?.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id || event.crew_id)).filter(Boolean));
+          const scheduledCrewIds = new Set(workEvents.flatMap((event) => (Array.isArray(event.resource_refs) ? event.resource_refs : []).filter((ref) => ['organization_user', 'resource_group', 'organization_connection'].includes(ref?.kind) && ref.role !== 'operator').map((ref) => cleanText(ref.id))).filter(Boolean));
           const scheduledUserIds = new Set(workEvents.flatMap((event) => [
             ...(Array.isArray(event.assigned_user_ids) ? event.assigned_user_ids : []),
+            ...(Array.isArray(event.resource_refs) ? event.resource_refs.filter((ref) => ref?.kind === 'organization_user').map((ref) => ref.id) : []),
             ...(Array.isArray(event.user_ids) ? event.user_ids : []),
             event.assigned_user_id,
             event.user_id,

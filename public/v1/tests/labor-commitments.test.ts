@@ -98,7 +98,7 @@ test("committing twice, at once or again, never leaves two live commitments or s
   assert.equal(keyed.revision, 2);
   assert.equal((await c.commitLaborList(ORG, { list_id: String(list.id), note: "Something else", idempotency_key: "click-0001" }, owner, effects)).id, keyed.id);
   assert.deepEqual((await c.listCommitments(ORG, { list_id: String(list.id) })).map((entry) => [entry.revision, entry.status]), [[1, "superseded"], [2, "committed"]]);
-  assert.equal((await c.assigneeAvailability(ORG, { type: "organization_connection", id: sub })).committed, 1, "one job held, not two");
+  assert.equal((await c.currentCommitmentsFor(ORG, { type: "organization_connection", id: sub })).length, 1, "one job held, not two");
   // A commit that stopped before marking the older revision still reads as one live commitment.
   const s = await import("../platform/storage.js");
   const older = await s.readDocument(ORG, c.COMMITMENT_COLLECTION, after1[0]!.id);
@@ -153,14 +153,12 @@ test("delivery reports what really happened, can be retried or confirmed, and on
   assert.ok((Array.isArray(plans) ? plans : plans.plans || plans.items || []).some((plan: any) => String(plan.title || "") === "Send work to Ridge Subs"));
 });
 
-test("an archived list cannot be committed and stops holding capacity; units and availability come from commitments", async () => {
+test("an archived list cannot be committed and is released; units belong to their assignee", async () => {
   const { sub } = await setup();
   const c = await import("../labor/commitments.js"), lists = await import("../materials/storage.js");
   const { effects } = recorder(c);
   const summit = { type: "organization_connection" as const, id: sub };
   for (const entry of await c.currentCommitmentsFor(ORG, summit)) await c.releaseCommitment(ORG, { id: entry.id }, owner);
-  const alone = await c.assigneeAvailability(ORG, summit);
-  assert.deepEqual([alone.capacity, alone.committed, alone.available], [1, 0, 1], "an assignee with no units is one unit");
   const north = await c.saveUnit(ORG, { assignee: summit, name: "North", kind_id: "crew" }, owner);
   const south = await c.saveUnit(ORG, { assignee: summit, name: "South" }, owner);
   const southB = await c.saveUnit(ORG, { assignee: summit, name: "South B", parent_unit_id: south.id }, owner);
@@ -177,17 +175,14 @@ test("an archived list cannot be committed and stops holding capacity; units and
   await c.commitLaborList(ORG, { list_id: String(second.id), unit_id: southB.id }, owner, effects);
   const third = await labor("Job three", { id: sub, kind: "organization_connection", name: "Summit Roofing" });
   const extra = await c.commitLaborList(ORG, { list_id: String(third.id) }, owner, effects);
-  const full = await c.assigneeAvailability(ORG, summit);
-  assert.deepEqual(full.units.map((unit) => [unit.name, unit.available]), [["North", false], ["South B", false]]);
-  assert.deepEqual([full.capacity, full.committed, full.over_committed, full.unplaced.length], [2, 3, true, 1], "three jobs on two units is over-committed, and says so");
+  assert.equal((await c.currentCommitmentsFor(ORG, summit)).length, 3, "a commitment is a handoff, not a booking: nothing here limits how many an assignee holds");
   // Archiving the list releases what it held; an archived list cannot be committed again.
   await lists.archiveMaterialList(ORG, String(third.id), { reason: "Replaced" }, owner);
   assert.equal(await c.releaseCommitmentsForList(ORG, String(third.id), owner), 1);
   assert.equal((await c.listCommitments(ORG, { list_id: String(third.id) }))[0]!.status, "released");
   await assert.rejects(() => c.commitLaborList(ORG, { list_id: String(third.id), note: "again" }, owner, effects), /archived and cannot be committed/);
   assert.equal((await c.releaseCommitment(ORG, { id: extra.id }, owner)).status, "released", "releasing twice changes nothing");
-  const freed = await c.assigneeAvailability(ORG, summit);
-  assert.deepEqual([freed.committed, freed.available, freed.over_committed], [2, 0, false]);
+  assert.equal((await c.currentCommitmentsFor(ORG, summit)).length, 2);
 });
 
 test("published actions stay inside their project, run for the platform, and pay data needs the right permission", async () => {

@@ -506,7 +506,7 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
     ]
   });
   const groupId = String(groupResponse.resource_group.id);
-  const groupAssignment = { work_resource_ref: { kind: "resource_group", id: groupId, name: "North Crew" } };
+  const groupAssignment = { resource_refs: [{ kind: "resource_group", id: groupId, name: "North Crew", role: "crew" }] };
   const targetDate = "2030-01-03";
 
   await seedProject(orgId, "crew_early", "Early Timed", projectEvent("event_early", groupAssignment, {
@@ -542,7 +542,7 @@ test("Crew API centralizes access and isolates assigned field workflows", async 
     schedule_granularity: "date"
   }));
   await seedProject(orgId, "other_crew", "Other Crew", projectEvent("event_other", {
-    work_resource_ref: { kind: "resource_group", id: "some_other_crew", name: "Some Other Crew" }
+    resource_refs: [{ kind: "resource_group", id: "some_other_crew", name: "Some Other Crew", role: "crew" }]
   }, {
     start_date: targetDate,
     end_date: targetDate,

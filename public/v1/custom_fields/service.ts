@@ -2,6 +2,7 @@ import { badRequest, conflict, PlatformError } from "../platform/errors.js";
 import { readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { normalizeAssignmentPolicy } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
+import { eventAssignees } from "../scheduling/event-model.js";
 
 const CUSTOM_FIELD_SCHEMA_VERSION = 3;
 const ASSIGNABLE_TYPES = new Set(["organization_user", "resource_group", "organization_connection"]);
@@ -239,11 +240,8 @@ function eventSubjects(value: unknown): JsonObject[] {
     const id = cleanText(idValue);
     if (id) byIdentity.set(`organization_user:${id}`, { subject_type: "organization_user", subject_id: id });
   }
-  const resource = asObject(event.work_resource_ref);
-  const resourceId = cleanText(resource.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id || event.crew_id);
-  const resourceKind = cleanText(resource.kind || event.assigned_resource_kind || "resource_group");
-  if (resourceId && ASSIGNABLE_TYPES.has(resourceKind)) {
-    byIdentity.set(`${resourceKind}:${resourceId}`, { subject_type: resourceKind, subject_id: resourceId });
+  for (const assignee of eventAssignees(event)) {
+    byIdentity.set(`${assignee.kind}:${assignee.id}`, { subject_type: assignee.kind, subject_id: assignee.id });
   }
   return [...byIdentity.values()];
 }

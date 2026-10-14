@@ -351,19 +351,3 @@ export async function archiveUnit(orgId: string, input: unknown, actor: Actor) {
   await upsertDocument(orgId, UNIT_COLLECTION, { id: parsed.id, expected_revision: Number(document.revision || 0), data: { ...document.data, archived_at: new Date().toISOString(), archived_by_user_id: text(actor.userId) }, metadata: { kind: "assignee_unit", subject_type: text(obj(document.data.assignee).type), subject_id: text(obj(document.data.assignee).id) } }, { replace: true });
   return { id: parsed.id, archived: true };
 }
-
-/**
- * How much an assignee can take on, worked out only from what it is committed to. Each unit that has no units under it
- * does one job at a time; an assignee with no units is itself one such unit. Work committed to the assignee as a whole,
- * or to a unit that has units under it, uses up one unit without saying which.
- */
-export async function assigneeAvailability(orgId: string, assignee: Subject) {
-  const all = await listUnits(orgId, assignee);
-  const current = await currentCommitmentsFor(orgId, assignee);
-  const leaves = all.filter((unit) => !all.some((other) => other.parent_unit_id === unit.id));
-  const brief = (entry: Commitment) => ({ id: entry.id, list_id: entry.list_id, project_id: entry.project_id, project_title: entry.project_title, title: entry.title, schedule: entry.schedule, committed_at: entry.committed_at });
-  const units = (leaves.length ? leaves : [{ id: "", name: "", parent_unit_id: "", kind_id: "" }]).map((unit) => { const held = current.filter((entry) => (unit.id ? entry.unit?.id === unit.id : true)); return { unit_id: unit.id, name: unit.name, kind_id: unit.kind_id, parent_unit_id: unit.parent_unit_id, capacity: 1, committed: held.map(brief), available: held.length === 0 }; });
-  const unplaced = leaves.length ? current.filter((entry) => !leaves.some((unit) => unit.id === entry.unit?.id)) : [];
-  const capacity = units.length, used = current.length;
-  return { assignee, capacity, committed: used, available: Math.max(0, capacity - used), over_committed: used > capacity, units, unplaced: unplaced.map(brief) };
-}

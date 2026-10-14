@@ -1,4 +1,5 @@
 import {requireResourceType} from './resource-types.js';
+import { publishScopeMaterialArtifact, scopeMaterialRequirements, assertLegacyMaterialWritable, assertLegacyMaterialSnapshotWritable, importedLegacyMaterialArtifact } from "./calculus.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { PlatformAuthContext } from "../platform/auth.js";
@@ -17,6 +18,9 @@ import { listPricebookManifests, readCatalog, readManifest } from "../pricebook/
 import { enrichedProposalScopePieces, normalizeScopeItem, resolveScopeItemVariation, scopeItemSelected } from "../proposals/scope.js";
 import { readScopeTemplate, readScopeTemplateVersion } from "../scopes/storage.js";
 import { emitWorkEvent } from "../work/engine.js";
+import { eventListId, eventListPartId, eventPrimaryAssignee, eventResources, eventWindow, isAssigneeKind, normalizeResourceRef, stripRemovedEventFields } from "../scheduling/event-model.js";
+import { evaluatePlacement, normalizePlacement, suggestedDurationMinutes } from "../scheduling/placement.js";
+import { resolveOrganizationTimezone } from "../platform/timezone.js";
 import {
   MATERIALS_SCHEMA_VERSION,
   MATERIAL_DELIVERY_SCHEMA_VERSION,
@@ -478,6 +482,7 @@ async function commitMaterialVersion(
   options: { forceStatus?: MaterialListStatus; forceDeliveryStatus?: MaterialDeliveryStatus; lock?: boolean } = {}
 ) {
   const list = documentView(listDoc);
+  assertLegacyMaterialSnapshotWritable(list);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(listDoc.revision || 0)) {
     throw conflict("material_list_revision_conflict", "Material list revision does not match.");
@@ -554,6 +559,7 @@ async function commitMaterialVersion(
   };
   const nextListDoc = await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, {
     id: cleanText(list.id),
+    expected_revision:Number(listDoc.revision),
     data: listData,
     metadata: {
       kind: "material_list",
@@ -613,7 +619,7 @@ export async function createMaterialList(orgId: string, projectId: string, input
     terminology: asObject(input.terminology),
     controls: asObject(input.controls),
     compensation: asObject(input.compensation),
-    assignment: asObject(input.assignment),
+    assignment: listAssignment(input.assignment),
     color: cleanText(input.color || asObject(input.metadata).color || "var(--primary,#d93025)"),
     sort_order: Number(input.sort_order || 0),
     status: listStatus(input.status),
@@ -677,8 +683,15 @@ function scopeResourceScheduleDefaults(list: JsonObject) {
   return { kind: "material_delivery", icon: "fa-truck-ramp-box", color: "#7c3aed", title: "Material Delivery" };
 }
 
-function materialScheduleEventId(projectId: string, listId: string, resourceType = "material") {
-  return `event_${hashId(`${projectId}:scope_resource:${resourceType}:${listId}`)}`;
+/* A list may have several events (two deliveries of one list); each after the first names a part. */
+function materialScheduleEventId(projectId: string, listId: string, resourceType = "material", partId = "") {
+  return `event_${hashId(`${projectId}:scope_resource:${resourceType}:${listId}${partId ? `:${partId}` : ""}`)}`;
+}
+
+/* A list is assigned through work_resource_ref and, inside that assignee, unit_id. */
+function listAssignment(value: unknown): JsonObject {
+  const { crew_id: _crewId, crew_name: _crewName, resource_kind: _resourceKind, ...assignment } = asObject(value);
+  return assignment;
 }
 
 function materialEventOrderState(list: JsonObject) {
@@ -687,8 +700,9 @@ function materialEventOrderState(list: JsonObject) {
 
 export async function ensureMaterialListScheduleEvent(orgId: string, listId: string, input: JsonObject = {}, projectedList?: JsonObject) {
   await requireMaterialsFlag(orgId);
-  const listDoc = projectedList ? { data: projectedList, id: listId, metadata: {} } : await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
+  const listDoc = projectedList ? { data: projectedList, id: listId, metadata: {}, revision:0 } : await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const list = documentView(listDoc);
+  assertLegacyMaterialSnapshotWritable(list);
   const projectId = cleanText(list.project_id);
   if (!projectId) throw badRequest("material_list_project_missing", "The material list is not linked to a project.");
   const projectDoc = await readDocument(orgId, "projects", projectId);
@@ -700,9 +714,10 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   const workPlanId = cleanText(input.work_plan_id || eventInput.work_plan_id || schedule.work_plan_id);
   const sourceNodeId = cleanText(input.source_node_id || eventInput.source_node_id || schedule.source_node_id);
   const eventTypeId = cleanText(eventInput.event_type_default_id || schedule.event_type_default_id || `${scheduleDefaults.kind}_${normalizeId(listId, "scope_resource")}`);
-  const deterministicId = materialScheduleEventId(projectId, listId, resourceType);
+  const partId = cleanText(input.part_id || eventInput.list_part_id);
+  const deterministicId = materialScheduleEventId(projectId, listId, resourceType, partId);
   const events = (Array.isArray(project.events) ? project.events : []).map(asObject);
-  const linkedIndex = events.findIndex((entry) => cleanText(entry.scope_resource_list_id || entry.material_list_id) === listId);
+  const linkedIndex = events.findIndex((entry) => eventListId(entry) === listId && eventListPartId(entry) === partId);
   const requestedEventId = cleanText(eventInput.id);
   const existingIndex = linkedIndex >= 0
     ? linkedIndex
@@ -710,7 +725,8 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   let resolvedIndex = existingIndex;
   if (resolvedIndex < 0) {
     resolvedIndex = events.findIndex((entry) => (
-      !cleanText(entry.scope_resource_list_id || entry.material_list_id)
+      !partId
+      && !eventListId(entry)
       && cleanText(entry.event_type_default_id || entry.type_id) === eventTypeId
       && (!workPlanId || cleanText(entry.work_plan_id) === workPlanId)
       && (!cleanText(list.scope_piece_id) || cleanText(entry.scope_piece_id) === cleanText(list.scope_piece_id))
@@ -718,22 +734,29 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   }
   const existing: JsonObject = resolvedIndex >= 0 ? asObject(events[resolvedIndex]) : {};
   const now = nowIso();
-  // Gantt structure from the scope definition: a shared group row (rollup
-  // parent) plus event-to-event dependencies resolved to deterministic ids.
+  // Structure from the scope definition: the span this list's event sits
+  // under, plus event-to-event dependencies resolved to deterministic ids.
   const pieceId = cleanText(list.scope_piece_id);
   const scheduleGroupId = cleanText(schedule.group_id);
   const groupEventId = scheduleGroupId ? `event_${hashId(`${projectId}:schedule_group:${pieceId}:${scheduleGroupId}`)}` : "";
   let groupCreated = false;
-  if (groupEventId && !events.some((entry) => cleanText(entry.id) === groupEventId)) {
+  // The list that says how long the work should run sets the span's length until someone schedules it.
+  const spanMinutes = suggestedDurationMinutes(schedule.group_duration, asObject(list.measurements));
+  const storedSpanIndex = groupEventId ? events.findIndex((entry) => cleanText(entry.id) === groupEventId) : -1;
+  if (storedSpanIndex >= 0 && spanMinutes && !eventWindow(events[storedSpanIndex]) && Number(events[storedSpanIndex]!.duration_minutes || 0) !== spanMinutes) {
+    groupCreated = true;
+    events[storedSpanIndex] = { ...events[storedSpanIndex], duration_minutes: spanMinutes, updated_at: now };
+  }
+  if (groupEventId && storedSpanIndex < 0) {
     groupCreated = true;
     events.push({
       id: groupEventId,
       project_id: projectId,
       title: cleanText(schedule.group_title) || scheduleGroupId.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
       kind: "schedule_group",
-      is_schedule_group: true,
-      schedule_rollup: "auto",
+      all_day: true,
       status: "unscheduled",
+      ...(spanMinutes ? { duration_minutes: spanMinutes } : {}),
       color: cleanText(schedule.group_color),
       scope_piece_id: pieceId,
       scope_template_id: cleanText(list.scope_template_id),
@@ -748,7 +771,7 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
     const depListDefinitionId = cleanText(dep.list_id);
     if (!depListDefinitionId) continue;
     const siblingListId = `material_list_${hashId(`scope_materials:${projectId}:${pieceId}:${depListDefinitionId}`)}`;
-    let depEventId = cleanText(asObject(events.find((entry) => cleanText(asObject(entry).scope_resource_list_id || asObject(entry).material_list_id) === siblingListId)).id);
+    let depEventId = cleanText(asObject(events.find((entry) => eventListId(entry) === siblingListId && !eventListPartId(entry))).id);
     if (!depEventId) {
       const siblingList = await readMaterialList(orgId, siblingListId).catch(() => null);
       if (siblingList) depEventId = materialScheduleEventId(projectId, siblingListId, scopeResourceType(siblingList));
@@ -766,23 +789,17 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   }
   const orderState = resourceType === "material" ? materialEventOrderState(list) : "not_applicable";
   const lockOnOrder = resourceType === "material" && schedule.lock_on_order !== false;
+  // A labor list's assignee is the event's: the list is where it is chosen.
   const assignment = asObject(list.assignment);
-  const requestedResourceRef = {
-    ...asObject(existing.work_resource_ref),
-    ...asObject(assignment.work_resource_ref),
-    ...asObject(eventInput.work_resource_ref)
-  };
   const resolvedEventId = cleanText(existing.id || eventInput.id || deterministicId);
-  const requestedCrewId = cleanText(requestedResourceRef.id || requestedResourceRef.resource_id || eventInput.assigned_crew_id || eventInput.crew_id || assignment.crew_id || existing.assigned_crew_id || existing.crew_id);
-  const selfAssigned = !!requestedCrewId && requestedCrewId === resolvedEventId;
-  const assignedCrewId = selfAssigned ? "" : requestedCrewId;
-  const assignedCrewName = selfAssigned ? "" : cleanText(requestedResourceRef.name || requestedResourceRef.label || eventInput.assigned_crew_name || assignment.crew_name || existing.assigned_crew_name);
-  const assignedResourceKind = selfAssigned ? "" : cleanText(requestedResourceRef.kind || requestedResourceRef.resource_kind || eventInput.assigned_resource_kind || assignment.resource_kind || existing.assigned_resource_kind || (assignedCrewId ? "resource_group" : ""));
-  const workResourceRef = assignedCrewId ? {
-    kind: assignedResourceKind || "resource_group",
-    id: assignedCrewId,
-    name: assignedCrewName
-  } : null;
+  const listAssignee = resourceType === "labor" ? normalizeResourceRef({ ...asObject(assignment.work_resource_ref), role: "crew", unit_id: assignment.unit_id }) : null;
+  const existingRefs = eventResources(existing);
+  const existingPrimary = existingRefs.find((ref) => isAssigneeKind(ref.kind) && ref.role === "crew") || null;
+  const resourceRefs = Array.isArray(eventInput.resource_refs)
+    ? eventResources({ id: resolvedEventId, resource_refs: eventInput.resource_refs })
+    : listAssignee && isAssigneeKind(listAssignee.kind) && listAssignee.id !== resolvedEventId
+      ? [listAssignee, ...existingRefs.filter((ref) => ref !== existingPrimary && !(ref.kind === listAssignee.kind && ref.id.toLowerCase() === listAssignee.id.toLowerCase()))]
+      : existingRefs;
   const eventInputScheduleLock = asObject(eventInput.schedule_lock);
   const existingScheduleLock = asObject(existing.schedule_lock);
   const generatedFromScope = asObject(list.metadata).generated_from_scope === true;
@@ -796,10 +813,11 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
           ? existing.locked === true
           : schedule.locked === true;
   const existingStartAt = cleanText(existing.start_at);
-  const projectedStartAt = cleanText(eventInput.start_at ?? (existingStartAt || cleanText(schedule.start_at)));
-  const projectedEndAt = cleanText(eventInput.end_at ?? (cleanText(existing.end_at) || cleanText(schedule.end_at)));
+  // The list's stored range and status are its first event's; a further part starts with none.
+  const projectedStartAt = cleanText(eventInput.start_at ?? (existingStartAt || (partId ? "" : cleanText(schedule.start_at))));
+  const projectedEndAt = cleanText(eventInput.end_at ?? (cleanText(existing.end_at) || (partId ? "" : cleanText(schedule.end_at))));
   const existingStatus = cleanText(existing.status);
-  const configuredScheduleStatus = cleanText(schedule.status);
+  const configuredScheduleStatus = partId ? "" : cleanText(schedule.status);
   const projectedStatus = cleanText(eventInput.status || (
     projectedStartAt
       ? (existingStartAt && existingStatus.toLowerCase() !== "unscheduled"
@@ -814,7 +832,11 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
     const { equipmentScheduleAugment } = await import("../equipment/service.js");
     equipmentAugment = await equipmentScheduleAugment(orgId, list.current_items, { ...existing, ...eventInput }).catch(() => ({}));
   }
-  const event: JsonObject = {
+  const parentEventId = cleanText(eventInput.parent_event_id) || groupEventId || cleanText(existing.parent_event_id);
+  const placement = !parentEventId ? null
+    : Object.prototype.hasOwnProperty.call(eventInput, "placement") ? normalizePlacement(eventInput.placement)
+      : normalizePlacement(existing.placement) || normalizePlacement(schedule.placement);
+  const event: JsonObject = stripRemovedEventFields({
     ...existing,
     ...eventInput,
     id: resolvedEventId,
@@ -826,29 +848,17 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
     kind: cleanText(eventInput.kind || schedule.kind || scheduleDefaults.kind) || scheduleDefaults.kind,
     schedule_item_kind: resourceType === "material" ? "material_delivery" : resourceType,
     scope_resource_list_id: listId,
+    list_part_id: partId,
     resource_type: resourceType,
-    material_list_id: listId,
-    material_list_title: cleanText(list.title),
-    material_list_name: cleanText(list.title),
-    ...(resourceType === "labor" ? {
-      labor_list_id: listId,
-      work_resource_ref: workResourceRef,
-      assigned_resource_kind: assignedResourceKind,
-      assigned_crew_id: assignedCrewId,
-      assigned_crew_name: assignedCrewName,
-      crew_id: assignedCrewId
-    } : {}),
-    ...(resourceType === "equipment" ? { equipment_list_id: listId, ...equipmentAugment } : {}),
+    list_title: cleanText(list.title),
+    resource_refs: resourceRefs as unknown as JsonObject[],
+    ...(resourceType === "equipment" ? equipmentAugment : {}),
     scope_piece_id: cleanText(list.scope_piece_id),
     scope_template_id: cleanText(list.scope_template_id),
     work_plan_id: workPlanId || cleanText(existing.work_plan_id),
     source_node_id: sourceNodeId || cleanText(existing.source_node_id),
     source_node_template_id: cleanText(input.source_node_template_id || schedule.source_node_template_id || existing.source_node_template_id),
-    schedule_rule: {
-      ...asObject(existing.schedule_rule),
-      ...asObject(schedule.rule || schedule.schedule_rule),
-      ...asObject(eventInput.schedule_rule)
-    },
+    placement: placement as unknown as JsonObject | null,
     icon: cleanText(eventInput.icon || schedule.icon || scheduleDefaults.icon),
     color: cleanText(eventInput.color || schedule.color || scheduleDefaults.color),
     material_color: cleanText(list.color || "var(--primary,#d93025)"),
@@ -890,7 +900,7 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
     status: projectedStatus,
     start_at: projectedStartAt,
     end_at: projectedEndAt,
-    parent_event_id: cleanText(eventInput.parent_event_id) || groupEventId || cleanText(existing.parent_event_id),
+    parent_event_id: parentEventId,
     depends_on: Array.isArray(eventInput.depends_on)
       ? eventInput.depends_on
       : (resolvedDependencies.length ? resolvedDependencies : (Array.isArray(existing.depends_on) ? existing.depends_on : [])),
@@ -899,17 +909,19 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
     metadata: {
       ...asObject(existing.metadata),
       ...asObject(eventInput.metadata),
-      scope_resource_list_id: listId,
-      resource_type: resourceType,
-      material_list_id: listId,
-      generated_from_scope: generatedFromScope,
-      schedule_rule: {
-        ...asObject(existing.schedule_rule),
-        ...asObject(schedule.rule || schedule.schedule_rule),
-        ...asObject(eventInput.schedule_rule)
-      }
+      generated_from_scope: generatedFromScope
     }
-  };
+  });
+  // An event that arrives under a span already on the calendar takes its place there.
+  const parentWindow = parentEventId ? eventWindow(events.find((entry) => cleanText(entry.id) === parentEventId)) : null;
+  if (placement && parentWindow && !eventWindow(event) && cleanText(event.status).toLowerCase() === "unscheduled") {
+    const placed = evaluatePlacement(placement, parentWindow, event, { timezone: await resolveOrganizationTimezone(orgId, cleanText(list.branch_id) || "default"), measurements: asObject(list.measurements) });
+    event.start_at = new Date(placed.start).toISOString();
+    event.end_at = new Date(placed.end).toISOString();
+    event.duration_minutes = Math.max(1, Math.round((placed.end - placed.start) / 60000));
+    event.all_day = placed.all_day;
+    event.status = cleanText(configuredScheduleStatus) && cleanText(configuredScheduleStatus).toLowerCase() !== "unscheduled" ? configuredScheduleStatus : "scheduled";
+  }
   const eventChanged = groupCreated || resolvedIndex < 0 || !semanticallyEqualStored(existing, event);
   if (!eventChanged) event.updated_at = cleanText(existing.updated_at);
   if (resolvedIndex >= 0) events[resolvedIndex] = event;
@@ -926,7 +938,11 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   const nextDeliveryStatus = resourceType === "material" && ["unscheduled", "scheduled"].includes(currentDeliveryStatus)
     ? deliveryStatus(scheduleStatus)
     : currentDeliveryStatus;
-  const nextListData = {
+  const nextListData = partId ? {
+    ...list,
+    schedule: { ...schedule, enabled: true, parts: { ...asObject(schedule.parts), [partId]: schedulePartView(event) } },
+    updated_at: now
+  } : {
     ...list,
     schedule_event_id: cleanText(event.id),
     schedule_status: scheduleStatus,
@@ -951,8 +967,9 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
   if (!projectedList && !semanticallyEqualStored(list, nextListData)) {
     await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, {
       id: listId,
+      expected_revision:Number(listDoc.revision),
       data: nextListData,
-      metadata: {
+      metadata: partId ? asObject(listDoc.metadata) : {
         ...asObject(listDoc.metadata),
         schedule_event_id: cleanText(event.id),
         delivery_status: nextDeliveryStatus
@@ -960,6 +977,10 @@ export async function ensureMaterialListScheduleEvent(orgId: string, listId: str
     }, { replace: true });
   }
   return event;
+}
+
+function schedulePartView(event: JsonObject): JsonObject {
+  return { event_id: cleanText(event.id), title: cleanText(event.title), status: eventScheduleStatus(event), start_at: cleanText(event.start_at), end_at: cleanText(event.end_at) };
 }
 
 async function disableGeneratedResourceScheduleEvent(orgId: string, listValue: JsonObject) {
@@ -992,6 +1013,7 @@ async function disableGeneratedResourceScheduleEvent(orgId: string, listValue: J
   }
   const listDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const current = documentView(listDoc);
+  assertLegacyMaterialSnapshotWritable(current);
   const next = {
     ...current,
     schedule_event_id: "",
@@ -1001,6 +1023,7 @@ async function disableGeneratedResourceScheduleEvent(orgId: string, listValue: J
   };
   const stored = await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, {
     id: listId,
+    expected_revision:Number(listDoc.revision),
     data: next,
     metadata: { ...asObject(listDoc.metadata), schedule_event_id: "" }
   }, { replace: true });
@@ -1009,20 +1032,25 @@ async function disableGeneratedResourceScheduleEvent(orgId: string, listValue: J
 
 export async function syncMaterialListFromScheduleEvent(orgId: string, eventValue: JsonObject) {
   const event = asObject(eventValue);
-  const listId = cleanText(event.scope_resource_list_id || event.material_list_id || event.labor_list_id || event.equipment_list_id);
+  const listId = eventListId(event);
   if (!listId) return null;
   const listDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId).catch(() => null);
   if (!listDoc) return null;
   const list = documentView(listDoc);
+  assertLegacyMaterialSnapshotWritable(list);
+  const partId = eventListPartId(event);
+  if (partId) {
+    const partData = { ...list, schedule: { ...asObject(list.schedule), parts: { ...asObject(asObject(list.schedule).parts), [partId]: schedulePartView(event) } }, updated_at: nowIso() };
+    if (semanticallyEqualStored(list, partData)) return list;
+    return documentView(await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, { id: listId, expected_revision: Number(listDoc.revision), data: partData, metadata: asObject(listDoc.metadata) }, { replace: true }));
+  }
   const resourceType = scopeResourceType(list);
   const scheduleStatus = eventScheduleStatus(event);
   const currentDelivery = deliveryStatus(list.delivery_status);
   const nextDelivery = resourceType === "material" && ["unscheduled", "scheduled"].includes(currentDelivery)
     ? deliveryStatus(scheduleStatus)
     : currentDelivery;
-  const eventId = cleanText(event.id);
-  const requestedCrewId = cleanText(asObject(event.work_resource_ref).id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id || event.crew_id);
-  const selfAssigned = !!requestedCrewId && requestedCrewId === eventId;
+  const assignee = eventPrimaryAssignee(event);
   const now = nowIso();
   const nextListData = {
     ...list,
@@ -1030,11 +1058,9 @@ export async function syncMaterialListFromScheduleEvent(orgId: string, eventValu
     schedule_status: scheduleStatus,
     delivery_status: nextDelivery,
     assignment: resourceType === "labor" ? {
-      ...asObject(list.assignment),
-      work_resource_ref: !selfAssigned && Object.keys(asObject(event.work_resource_ref)).length ? asObject(event.work_resource_ref) : null,
-      resource_kind: selfAssigned ? "" : cleanText(event.assigned_resource_kind || asObject(event.work_resource_ref).kind),
-      crew_id: selfAssigned ? "" : cleanText(event.assigned_crew_id || event.crew_id),
-      crew_name: selfAssigned ? "" : cleanText(event.assigned_crew_name)
+      ...listAssignment(list.assignment),
+      work_resource_ref: assignee ? { kind: assignee.kind, id: assignee.id, name: assignee.name } : null,
+      unit_id: assignee?.unit_id || ""
     } : asObject(list.assignment),
     schedule: {
       ...asObject(list.schedule),
@@ -1057,6 +1083,7 @@ export async function syncMaterialListFromScheduleEvent(orgId: string, eventValu
     ? listDoc
     : await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, {
     id: listId,
+    expected_revision:Number(listDoc.revision),
     data: nextListData,
     metadata: {
       ...asObject(listDoc.metadata),
@@ -1095,11 +1122,17 @@ export async function syncMaterialListFromScheduleEvent(orgId: string, eventValu
 export async function clearMaterialListScheduleEvent(orgId: string, eventValue: JsonObject) {
   const event = asObject(eventValue);
   const eventId = cleanText(event.id);
-  const listId = cleanText(event.scope_resource_list_id || event.material_list_id || event.labor_list_id || event.equipment_list_id);
+  const listId = eventListId(event);
   if (!listId || !eventId) return null;
   const listDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId).catch(() => null);
   if (!listDoc) return null;
   const list = documentView(listDoc);
+  assertLegacyMaterialSnapshotWritable(list);
+  const partId = eventListPartId(event);
+  if (partId) {
+    const { [partId]: _removed, ...parts } = asObject(asObject(list.schedule).parts);
+    return documentView(await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, { id: listId, expected_revision: Number(listDoc.revision), data: { ...list, schedule: { ...asObject(list.schedule), parts }, updated_at: nowIso() }, metadata: asObject(listDoc.metadata) }, { replace: true }));
+  }
   const currentEventId = cleanText(list.schedule_event_id || asObject(list.schedule).event_id);
   if (currentEventId && currentEventId !== eventId) return list;
   const now = nowIso();
@@ -1121,6 +1154,7 @@ export async function clearMaterialListScheduleEvent(orgId: string, eventValue: 
   };
   const stored = await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, {
     id: listId,
+    expected_revision:Number(listDoc.revision),
     data: nextListData,
     metadata: { ...asObject(listDoc.metadata), schedule_event_id: "" }
   }, { replace: true });
@@ -1497,7 +1531,7 @@ export async function initializeProjectMaterialListsFromScope(
         ...override,
         controls: { ...asObject(definition.controls), ...asObject(override.controls) },
         compensation: { ...asObject(definition.compensation), ...asObject(override.compensation) },
-        assignment: { ...asObject(definition.assignment), ...asObject(override.assignment) },
+        assignment: listAssignment({ ...asObject(definition.assignment), ...asObject(override.assignment) }),
         items: mergedItems
       } as JsonObject;
     }).filter((definition) => !requestedResourceType || cleanText(definition.resource_type || "material") === requestedResourceType);
@@ -1528,6 +1562,11 @@ export async function initializeProjectMaterialListsFromScope(
       const allowedSourceIds = new Set(normalizeStringArray(definition.order_source_ids));
       const orderSources = allowedSourceIds.size ? allOrderSources.filter((source) => allowedSourceIds.has(cleanText(source.id))) : allOrderSources;
       const resourceType = await requireResourceType(orgId,definition.resource_type);
+      if(resourceType === "material" && list){
+        const imported=await importedLegacyMaterialArtifact(orgId,projectId,listId);
+        if(imported){createdLists.push(imported);continue;}
+        assertLegacyMaterialSnapshotWritable(list);
+      }
       const assignedFacts = resourceType === "material" ? (assignments.get(definitionId) || []) : [];
       const configuredItems = (Array.isArray(definition.items) ? definition.items : []).map((entry, itemIndex) => {
         const configured = asObject(entry);
@@ -1547,6 +1586,22 @@ export async function initializeProjectMaterialListsFromScope(
         };
       }).filter((item) => asObject(item.metadata).omit_when_zero !== true || Number(maybeNumber(item.quantity) || 0) > 0);
       const items = await normalizeLineItems(orgId, resourceType === "material" ? assignedFacts.map((fact) => scopeMaterialLineItem(fact, listId, definition, measurements)) : configuredItems);
+      // New material outputs are ledger artifacts. Existing legacy records,
+      // especially ordered ones, retain their original history until explicit import.
+      if (resourceType === "material" && !list) {
+        const lines=scopeMaterialRequirements(items);
+        const artifact=await publishScopeMaterialArtifact(orgId,projectId,`${cleanText(input.work_plan_id)}:${pieceId}`,{
+          type:"materials_calculus",key:definitionId,title:cleanText(definition.title || definitionId),
+          source:"return {outputs:{lines:inputs.values.lines,warnings:[]}};",
+          defaults:{lines},inputSchema:{type:"object",properties:{lines:{type:"array"}},required:["lines"],additionalProperties:false}
+        },{work_plan_id:input.work_plan_id,template_id:templateId,template_version:templateVersion,scope_piece_id:pieceId,proposal_snapshot_id:snapshotId,branch_id:branchId},lines,
+          {...definition,measurements,color:definition.color,scope_template_id:templateId,scope_piece_id:pieceId,metadata:{generated_from_scope:true,source_key:sourceKey}});
+        if(asObject(definition.schedule).enabled===true){
+          const event=await ensureMaterialListScheduleEvent(orgId,String(artifact.id),{work_plan_id:input.work_plan_id,source_node_id:cleanText(sourceNodes[cleanText(asObject(definition.schedule).source_node_template_id)] || sourceNodes[definitionId]),schedule:definition.schedule},artifact);
+          scheduleEvents.push(event);
+        }
+        createdLists.push(artifact);if(artifact.created)createdCount+=1;continue;
+      }
       const desiredFingerprint = generatedMaterialFingerprint(items, measurements);
       const sectionKeys = [...new Set(items.map((item) => cleanText(item.section)).filter(Boolean))];
       const sections = sectionKeys.map((key) => ({ id: key, key, title: key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) }));
@@ -1574,7 +1629,7 @@ export async function initializeProjectMaterialListsFromScope(
           terminology: asObject(asObject(materials.terminology)[resourceType]),
           controls: asObject(definition.controls),
           compensation: asObject(definition.compensation),
-          assignment: asObject(definition.assignment),
+          assignment: listAssignment(definition.assignment),
           color: cleanText(definition.color || "var(--primary,#d93025)"),
           sort_order: definitionIndex,
           scope_template_id: templateId,
@@ -1616,7 +1671,7 @@ export async function initializeProjectMaterialListsFromScope(
               terminology: asObject(asObject(materials.terminology)[resourceType]),
               controls: asObject(definition.controls),
               compensation: asObject(definition.compensation),
-              assignment: asObject(definition.assignment),
+              assignment: listAssignment(definition.assignment),
               items,
               sections,
               resources,
@@ -1633,7 +1688,7 @@ export async function initializeProjectMaterialListsFromScope(
               terminology: asObject(asObject(materials.terminology)[resourceType]),
               controls: asObject(definition.controls),
               compensation: asObject(definition.compensation),
-              assignment: asObject(definition.assignment),
+              assignment: listAssignment(definition.assignment),
               color: cleanText(definition.color || list.color || "var(--primary,#d93025)"),
               sort_order: definitionIndex,
               scope_template_id: templateId,
@@ -1681,9 +1736,12 @@ export async function initializeProjectMaterialListsFromScope(
 }
 
 export async function patchMaterialList(orgId: string, listId: string, patch: JsonObject, ctx: PlatformAuthContext) {
+  const artifactSource=await readMaterialList(orgId,listId);
+  if(artifactSource.resource_type==='material')await assertLegacyMaterialWritable(orgId,String(artifactSource.project_id),listId);
   await requireMaterialsFlag(orgId);
   const currentDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const current = documentView(currentDoc);
+  assertLegacyMaterialSnapshotWritable(current);
   const expectedRevision = Number(patch.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(currentDoc.revision || 0)) {
     throw conflict("material_list_revision_conflict", "Material list revision does not match.");
@@ -1701,7 +1759,7 @@ export async function patchMaterialList(orgId: string, listId: string, patch: Js
     terminology: Object.prototype.hasOwnProperty.call(patch, "terminology") ? { ...asObject(current.terminology), ...asObject(patch.terminology) } : asObject(current.terminology),
     controls: Object.prototype.hasOwnProperty.call(patch, "controls") ? { ...asObject(current.controls), ...asObject(patch.controls) } : asObject(current.controls),
     compensation: Object.prototype.hasOwnProperty.call(patch, "compensation") ? { ...asObject(current.compensation), ...asObject(patch.compensation) } : asObject(current.compensation),
-    assignment: Object.prototype.hasOwnProperty.call(patch, "assignment") ? { ...asObject(current.assignment), ...asObject(patch.assignment) } : asObject(current.assignment),
+    assignment: listAssignment(Object.prototype.hasOwnProperty.call(patch, "assignment") ? { ...asObject(current.assignment), ...asObject(patch.assignment) } : current.assignment),
     color: Object.prototype.hasOwnProperty.call(patch, "color") ? cleanText(patch.color) : cleanText(current.color),
     sort_order: Object.prototype.hasOwnProperty.call(patch, "sort_order") ? Number(patch.sort_order || 0) : Number(current.sort_order || 0),
     status: incomingStatus,
@@ -1726,7 +1784,7 @@ export async function patchMaterialList(orgId: string, listId: string, patch: Js
   };
   const doc = await upsertDocument(orgId, MATERIAL_LIST_COLLECTION, {
     id: listId,
-    expected_revision: expectedRevision || undefined,
+    expected_revision: expectedRevision || Number(currentDoc.revision),
     data,
     metadata: {
       kind: "material_list",
@@ -1741,6 +1799,8 @@ export async function patchMaterialList(orgId: string, listId: string, patch: Js
 }
 
 export async function archiveMaterialList(orgId: string, listId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  const artifactSource=await readMaterialList(orgId,listId);
+  if(artifactSource.resource_type==='material')await assertLegacyMaterialWritable(orgId,String(artifactSource.project_id),listId);
   const list = await patchMaterialList(orgId, listId, {
     expected_revision: input.expected_revision,
     status: "archived",
@@ -1760,15 +1820,20 @@ export async function listMaterialVersions(orgId: string, listId: string) {
 }
 
 export async function createMaterialVersion(orgId: string, listId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  const artifactSource=await readMaterialList(orgId,listId);
+  if(artifactSource.resource_type==='material')await assertLegacyMaterialWritable(orgId,String(artifactSource.project_id),listId);
   await requireMaterialsFlag(orgId);
   const currentDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   return await commitMaterialVersion(orgId, currentDoc, input, ctx);
 }
 
 export async function createMaterialOrder(orgId: string, listId: string, input: JsonObject, ctx: PlatformAuthContext) {
+  const artifactSource=await readMaterialList(orgId,listId);
+  if(artifactSource.resource_type==='material')await assertLegacyMaterialWritable(orgId,String(artifactSource.project_id),listId);
   await requireMaterialsFlag(orgId);
   const currentDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const current = documentView(currentDoc);
+  assertLegacyMaterialSnapshotWritable(current);
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(currentDoc.revision || 0)) {
     throw conflict("material_list_revision_conflict", "Material list revision does not match.");
@@ -1891,6 +1956,7 @@ export async function patchMaterialOrder(orgId: string, orderId: string, patch: 
   await requireMaterialsFlag(orgId);
   const currentDoc = await readDocument(orgId, MATERIAL_ORDER_COLLECTION, orderId);
   const current = documentView(currentDoc);
+  assertLegacyMaterialSnapshotWritable(current);
   const expectedRevision = Number(patch.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(currentDoc.revision || 0)) {
     throw conflict("material_order_revision_conflict", "Material order revision does not match.");
@@ -1913,7 +1979,7 @@ export async function patchMaterialOrder(orgId: string, orderId: string, patch: 
   };
   const doc = await upsertDocument(orgId, MATERIAL_ORDER_COLLECTION, {
     id: orderId,
-    expected_revision: expectedRevision || undefined,
+    expected_revision: expectedRevision || Number(currentDoc.revision),
     data,
     metadata: {
       kind: "material_order",
@@ -2016,6 +2082,7 @@ export async function patchMaterialDelivery(orgId: string, deliveryId: string, p
   await requireMaterialsFlag(orgId);
   const currentDoc = await readDocument(orgId, MATERIAL_DELIVERY_COLLECTION, deliveryId);
   const current = documentView(currentDoc);
+  assertLegacyMaterialSnapshotWritable(current);
   const expectedRevision = Number(patch.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(currentDoc.revision || 0)) {
     throw conflict("material_delivery_revision_conflict", "Material delivery revision does not match.");
@@ -2038,7 +2105,7 @@ export async function patchMaterialDelivery(orgId: string, deliveryId: string, p
   };
   const doc = await upsertDocument(orgId, MATERIAL_DELIVERY_COLLECTION, {
     id: deliveryId,
-    expected_revision: expectedRevision || undefined,
+    expected_revision: expectedRevision || Number(currentDoc.revision),
     data,
     metadata: {
       kind: "material_delivery",

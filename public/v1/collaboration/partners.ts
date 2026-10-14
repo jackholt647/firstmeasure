@@ -105,7 +105,7 @@ export async function scheduleEngagement(ctx:PlatformAuthContext,id:string,raw:u
     const reference=chosen.work_resource_ref;
     if(!existing){
       const {saveProjectScheduleEvent}=await import("../platform/api.js");
-      await saveProjectScheduleEvent(ctx.orgId,engagement.resource.id,ctx,{branch_id:project.data.branch_id||"default",expected_event_revision:0,event:{id:eventId,title:engagement.title,kind:"project_work",event_type_default_id:"project_work",start_at:input.start_at,end_at:input.end_at,work_resource_ref:reference,resource_refs:[{...reference,role:"crew"}],collaboration_engagement_id:id}});
+      await saveProjectScheduleEvent(ctx.orgId,engagement.resource.id,ctx,{branch_id:project.data.branch_id||"default",expected_event_revision:0,event:{id:eventId,title:engagement.title,kind:"project_work",event_type_default_id:"project_work",start_at:input.start_at,end_at:input.end_at,resource_refs:[{...reference,role:"crew"}],collaboration_engagement_id:id}});
     }
     const record=await insertRecord("engagement_schedule",{id:operation,owner_org_id:ctx.orgId,recipient_org_id:engagement.recipient_org_id,resource:engagement.resource,engagement_id:id,event_id:eventId,request_hash:requestHash,status:"active",revision:1,created_at:now()});
     await audit(record,"collaboration.engagement.scheduled",actor(ctx));return {event_id:eventId};

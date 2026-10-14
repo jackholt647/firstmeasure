@@ -50,6 +50,7 @@ function createSessionClient() {
 before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-materials-test-"));
   process.env.NODE_ENV = "test";
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.CRM_STORAGE_ROOT = path.join(storageRoot, "crm");
@@ -398,7 +399,7 @@ test("materials lifecycle snapshots pricebook items, locks orders, amends lists,
   assert.equal(repairedSchedule.event.color, "#7c3aed");
 });
 
-test("scope-defined material lists split selected pricebook items and initialize idempotent delivery events", async () => {
+test("scope material artifacts split requirements, preserve amendments and initialize idempotent delivery events", async () => {
   const client = createSessionClient();
   const { orgId, suffix } = await register(client);
   const { pricebookId } = await seedPricebook(orgId, suffix);
@@ -493,14 +494,24 @@ test("scope-defined material lists split selected pricebook items and initialize
   assert.equal(shingle.current_items.length, 1);
   assert.equal(shingle.current_items[0].source_item_id, "scope_shingle");
   assert.equal(shingle.measurements.roofSquares, 31);
-  assert.equal(first.schedule_events.find((event: any) => event.material_list_id === dryIn.id).source_node_id, "work_node_dry_in");
-  assert.equal(first.schedule_events.find((event: any) => event.material_list_id === dryIn.id).title, "Dry-In");
-  assert.equal(first.schedule_events.find((event: any) => event.material_list_id === shingle.id).title, "Shingle");
-  const comingSoonOrder = await client.raw("POST", `/v1/materials/organizations/${orgId}/material-lists/${dryIn.id}/orders`, {
-    order_source_id: "srs_distribution"
-  });
-  assert.equal(comingSoonOrder.statusCode, 409);
-  assert.equal(JSON.parse(comingSoonOrder.body).error, "material_order_source_unavailable");
+  // An event names its list with scope_resource_list_id + resource_type and carries the list's title.
+  const dryInEvent = first.schedule_events.find((event: any) => event.scope_resource_list_id === dryIn.id);
+  const shingleEvent = first.schedule_events.find((event: any) => event.scope_resource_list_id === shingle.id);
+  assert.equal(dryInEvent.source_node_id, "work_node_dry_in");
+  assert.equal(dryInEvent.title, "Dry-In");
+  assert.equal(dryInEvent.resource_type, "material");
+  assert.equal(dryInEvent.list_title, "Dry-In");
+  assert.equal(dryInEvent.list_part_id, "", "a list's first event has an empty part");
+  assert.equal(shingleEvent.title, "Shingle");
+  for (const event of first.schedule_events) {
+    for (const removed of ["material_list_id", "labor_list_id", "equipment_list_id"]) assert.equal(removed in event, false, `${removed} is not on a schedule event`);
+    assert.equal("scope_resource_list_id" in (event.metadata || {}), false, "the list link is not copied into metadata");
+    assert.equal("material_list_id" in (event.metadata || {}), false);
+  }
+  const {listDocuments}=await import('../platform/storage.js');
+  assert.equal((await listDocuments(orgId,'material_lists')).some(row=>[dryIn.id,shingle.id].includes(row.id)),false);
+  const initialLedger=await client.request('GET',`/v1/materials/organizations/${orgId}/projects/${projectId}/calculus`);
+  assert.deepEqual(initialLedger.ledger.sets.map((set:any)=>set.origin.type),['scope','scope']);
 
   const { proposal_id: _signedProposalId, ...uiInitialization } = initialization;
   const second = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, uiInitialization);
@@ -518,39 +529,27 @@ test("scope-defined material lists split selected pricebook items and initialize
   const reconciled = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, changedScopeInitialization);
   const reconciledShingle = reconciled.material_lists.find((list: any) => list.title === "Shingle");
   assert.equal(reconciledShingle.id, shingle.id);
-  assert.equal(reconciledShingle.current_items[0].quantity, 35);
-  assert.equal(reconciledShingle.measurements.eavesLf, undefined);
-  assert.ok(reconciledShingle.version_number > shingle.version_number);
-  const reconciledAgain = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, changedScopeInitialization);
-  const stableReconciledShingle = reconciledAgain.material_lists.find((list: any) => list.title === "Shingle");
-  assert.equal(stableReconciledShingle.version_number, reconciledShingle.version_number);
-  const deletedScopeItem = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${shingle.id}/versions`, {
-    expected_revision: stableReconciledShingle.revision,
-    reason: "removal",
-    remove_item_ids: [stableReconciledShingle.current_items[0].id]
+  assert.equal(reconciledShingle.current_items[0].quantity,shingle.current_items[0].quantity);
+  assert.equal(reconciledShingle.measurements.eavesLf,shingle.measurements.eavesLf);
+  assert.equal(reconciledShingle.revision,shingle.revision);
+  const ledgerBeforeRemoval=await client.request('GET',`/v1/materials/organizations/${orgId}/projects/${projectId}/calculus`);
+  await client.request('POST',`/v1/materials/organizations/${orgId}/projects/${projectId}/calculus/commands`,{
+    key:'remove_scope_shingle',expected_revision:ledgerBeforeRemoval.ledger.revision,operation:'amend',input:{set_id:shingle.id,set_revision:shingle.revision,reason:'Remove a requirement',remove:[shingle.current_items[0].id],add:[]}
   });
-  assert.equal(deletedScopeItem.material_list.current_items.some((item: any) => item.source_item_id === "scope_shingle"), false);
   const afterDeleteInit = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, changedScopeInitialization);
-  const preservedDeleteShingle = afterDeleteInit.material_lists.find((list: any) => list.title === "Shingle");
-  assert.equal(preservedDeleteShingle.current_items.some((item: any) => item.source_item_id === "scope_shingle"), false);
-  const forceRegenerated = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, {
-    ...changedScopeInitialization,
-    force_regenerate: true
+  const preservedDeleteShingle=afterDeleteInit.material_lists.find((list:any)=>list.id===shingle.id);
+  assert.equal(preservedDeleteShingle.current_items.length,0);
+  const forceRegenerated=await client.request('POST',`/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`,{...changedScopeInitialization,force_regenerate:true});
+  assert.equal(forceRegenerated.material_lists.find((list:any)=>list.id===shingle.id).current_items.length,0);
+  const ledgerBeforeAddition=await client.request('GET',`/v1/materials/organizations/${orgId}/projects/${projectId}/calculus`);
+  await client.request('POST',`/v1/materials/organizations/${orgId}/projects/${projectId}/calculus/commands`,{
+    key:'add_manual_material',expected_revision:ledgerBeforeAddition.ledger.revision,operation:'amend',input:{set_id:shingle.id,set_revision:preservedDeleteShingle.revision,reason:'Add coil stock',remove:[],add:[{key:'coil',product_id:'coil',name:'Hand-added coil stock',quantity:1,unit:'roll'}]}
   });
-  const restoredShingle = forceRegenerated.material_lists.find((list: any) => list.title === "Shingle");
-  assert.equal(restoredShingle.current_items.some((item: any) => item.source_item_id === "scope_shingle"), true);
-  const manualAmendment = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${shingle.id}/versions`, {
-    expected_revision: restoredShingle.revision,
-    reason: "manual",
-    add_items: [{ name: "Hand-added coil stock", quantity: 1, unit: "roll" }]
-  });
-  const afterManualInit = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`, changedScopeInitialization);
-  const preservedManualShingle = afterManualInit.material_lists.find((list: any) => list.title === "Shingle");
-  assert.equal(preservedManualShingle.version_number, manualAmendment.material_list.version_number);
-  assert.ok(preservedManualShingle.current_items.some((item: any) => item.name === "Hand-added coil stock"));
+  const afterManualInit=await client.request('POST',`/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists/initialize-from-scope`,changedScopeInitialization);
+  assert.ok(afterManualInit.material_lists.find((list:any)=>list.id===shingle.id).current_items.some((item:any)=>item.name==='Hand-added coil stock'));
   await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, { title: "Manual Add-On" });
   const orderedLists = await client.request("GET", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`);
-  assert.deepEqual(orderedLists.material_lists.map((list: any) => list.title), ["Dry-In", "Shingle", "Manual Add-On"]);
+  assert.deepEqual(orderedLists.material_lists.map((list: any) => list.title), ["Manual Add-On"]);
   const project = await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`);
   assert.equal(project.document.data.events.filter((event: any) => event.kind === "material_delivery").length, 2);
 
@@ -595,9 +594,8 @@ test("scope resources create independent material, labor, and equipment lists wi
           controls: { crew_assignment: true, compensation: true },
           compensation: { default_mode: "crew_default", allowed_modes: ["hourly", "piece_rate", "hybrid", "none"] },
           assignment: {
-            crew_id: "crew_alpha",
-            crew_name: "Alpha Crew",
-            work_resource_ref: { kind: "resource_group", id: "crew_alpha", name: "Alpha Crew" }
+            work_resource_ref: { kind: "resource_group", id: "crew_alpha", name: "Alpha Crew" },
+            unit_id: "unit_north"
           },
           schedule: { enabled: true, kind: "project_work", event_type_default_id: "roof_work", icon: "fa-helmet-safety" }
         },
@@ -621,8 +619,14 @@ test("scope resources create independent material, labor, and equipment lists wi
   assert.equal(result.schedule_events[0].scope_resource_list_id, labor.id);
   assert.equal(result.schedule_events[0].resource_type, "labor");
   assert.equal(result.schedule_events[0].kind, "project_work");
-  assert.equal(result.schedule_events[0].assigned_crew_id, "crew_alpha");
-  assert.deepEqual(result.schedule_events[0].work_resource_ref, { kind: "resource_group", id: "crew_alpha", name: "Alpha Crew" });
+  assert.equal(result.schedule_events[0].list_title, "Roofing Labor");
+  // The list's assignee, with its unit, is the event's first resource; nothing else on the event names it.
+  assert.deepEqual(result.schedule_events[0].resource_refs, [{ kind: "resource_group", id: "crew_alpha", name: "Alpha Crew", role: "crew", unit_id: "unit_north" }]);
+  for (const removed of ["work_resource_ref", "assigned_crew_id", "assigned_crew_name", "assigned_resource_id", "crew_id", "crew_name", "labor_list_id", "material_list_id"]) {
+    assert.equal(removed in result.schedule_events[0], false, `${removed} is not on a schedule event`);
+  }
+  assert.deepEqual(labor.assignment.work_resource_ref, { kind: "resource_group", id: "crew_alpha", name: "Alpha Crew" });
+  assert.equal(labor.assignment.unit_id, "unit_north");
   assert.equal(result.schedule_events[0].lock_toggle_visible, false);
 });
 
@@ -688,7 +692,8 @@ test("roof replacement scopes automatically create piece-rate labor and equipmen
   const equipmentEvent = enabledRun.schedule_events.find((event: any) => event.resource_type === "equipment");
   assert.ok(equipmentEvent, "equipment schedule event should generate when the capability is on");
   assert.equal(equipmentEvent.kind, "equipment");
-  assert.equal(equipmentEvent.equipment_list_id, enabledEquipment.id);
+  assert.equal(equipmentEvent.scope_resource_list_id, enabledEquipment.id);
+  assert.equal("equipment_list_id" in equipmentEvent, false);
   assert.equal(equipmentEvent.icon, "fa-truck-pickup");
   // Turning the capability back off restores suppression and cancels the event.
   await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, {
@@ -813,4 +818,241 @@ test("order packaging derives rounded-up order quantities in order units", async
   const updatedShingles = updated.material_list.current_items.find((item: any) => item.id === shingles.id);
   assert.equal(updatedShingles.order_quantity, 63);
   assert.equal(updatedShingles.order_unit, "bundles");
+});
+
+// ── Lists and their schedule events (docs/architecture/schedule-events.md) ──
+
+const REMOVED_EVENT_FIELDS = [
+  "work_resource_ref", "assigned_resource_kind", "assigned_resource_id", "assigned_resource_name", "resource_id", "resource_name",
+  "assigned_crew_id", "assigned_crew_ids", "assigned_crew_name", "assigned_crew", "crew_id", "crew_name",
+  "material_list_id", "labor_list_id", "equipment_list_id",
+  "schedule_rule", "schedule_rollup", "is_schedule_group"
+];
+function assertNoRemovedEventFields(event: any, label: string) {
+  for (const field of REMOVED_EVENT_FIELDS) assert.equal(field in event, false, `${label}: ${field} is not on a schedule event`);
+}
+
+async function createListProject(client: ReturnType<typeof createSessionClient>, orgId: string, prefix: string) {
+  const projectId = `${prefix}_${Date.now().toString(36)}`;
+  await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
+    data: { id: projectId, title: "List Schedule Roof", events: [] },
+    metadata: { kind: "platform_project" }
+  });
+  return projectId;
+}
+async function createCrew(client: ReturnType<typeof createSessionClient>, orgId: string, name: string) {
+  return (await client.request("POST", `/v1/workforce/organizations/${orgId}/branches/default/resource-groups`, { name, kind_id: "crew" })).group as { id: string; name: string };
+}
+async function projectEvents(client: ReturnType<typeof createSessionClient>, orgId: string, projectId: string): Promise<any[]> {
+  return (await client.request("GET", `/v1/platform/organizations/${orgId}/projects/${projectId}`)).document.data.events || [];
+}
+
+test("a labor list's assignee and unit are its event's first resource, and reassigning the event syncs back to the list", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = await createListProject(client, orgId, "project_labor_assignment");
+  const alpha = await createCrew(client, orgId, "Alpha Crew");
+  const bravo = await createCrew(client, orgId, "Bravo Crew");
+  const eventsUrl = `/v1/platform/organizations/${orgId}/projects/${projectId}/events`;
+
+  // A list is assigned through work_resource_ref and unit_id; the old copies beside them are not kept.
+  const created = await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, {
+    title: "Roofing Labor",
+    resource_type: "labor",
+    assignment: {
+      work_resource_ref: { kind: "resource_group", id: alpha.id, name: alpha.name },
+      unit_id: "unit_north",
+      crew_id: alpha.id,
+      crew_name: alpha.name,
+      resource_kind: "resource_group"
+    },
+    schedule: { enabled: true, kind: "project_work", event_type_default_id: "roof_work" }
+  });
+  const list = created.material_list;
+  assert.deepEqual(list.assignment, { work_resource_ref: { kind: "resource_group", id: alpha.id, name: alpha.name }, unit_id: "unit_north" });
+  const listUrl = `/v1/materials/organizations/${orgId}/material-lists/${list.id}`;
+
+  const ensured = await client.request("POST", `${listUrl}/schedule-event`, {});
+  assert.deepEqual(ensured.event.resource_refs[0], { kind: "resource_group", id: alpha.id, name: alpha.name, role: "crew", unit_id: "unit_north" });
+  assert.equal(ensured.event.resource_refs.length, 1);
+  assert.equal(ensured.event.scope_resource_list_id, list.id);
+  assert.equal(ensured.event.resource_type, "labor");
+  assert.equal(ensured.event.list_part_id, "");
+  assert.equal(ensured.event.list_title, "Roofing Labor");
+  assert.equal(ensured.event.kind, "project_work");
+  assertNoRemovedEventFields(ensured.event, "ensured");
+  const stored = (await projectEvents(client, orgId, projectId)).find((event) => event.id === ensured.event.id);
+  assertNoRemovedEventFields(stored, "stored");
+  assert.deepEqual(stored.resource_refs, ensured.event.resource_refs);
+
+  // Scheduling the event without sending resource_refs keeps the assignee, on the event and on the list.
+  const scheduled = await client.request("POST", eventsUrl, {
+    event: { id: ensured.event.id, status: "scheduled", start_at: "2026-07-20T14:00:00.000Z", end_at: "2026-07-20T22:00:00.000Z" }
+  });
+  assert.deepEqual(scheduled.event.resource_refs, ensured.event.resource_refs);
+  assert.deepEqual(scheduled.material_list.assignment, { work_resource_ref: { kind: "resource_group", id: alpha.id, name: alpha.name }, unit_id: "unit_north" });
+  assert.equal(scheduled.material_list.schedule.start_at, "2026-07-20T14:00:00.000Z");
+
+  // Saving the event with a different assignee writes it back to the list.
+  const reassigned = await client.request("POST", eventsUrl, {
+    event: { id: ensured.event.id, resource_refs: [{ kind: "resource_group", id: bravo.id, name: bravo.name, role: "crew", unit_id: "unit_b2" }] }
+  });
+  assert.deepEqual(reassigned.event.resource_refs, [{ kind: "resource_group", id: bravo.id, name: bravo.name, role: "crew", unit_id: "unit_b2" }]);
+  assert.deepEqual(reassigned.material_list.assignment.work_resource_ref, { kind: "resource_group", id: bravo.id, name: bravo.name });
+  assert.equal(reassigned.material_list.assignment.unit_id, "unit_b2");
+  const reread = (await client.request("GET", listUrl)).material_list;
+  assert.deepEqual(reread.assignment, { work_resource_ref: { kind: "resource_group", id: bravo.id, name: bravo.name }, unit_id: "unit_b2" });
+  for (const removed of ["crew_id", "crew_name", "resource_kind"]) assert.equal(removed in reread.assignment, false, `${removed} is not on a list assignment`);
+
+  // The list is where the assignee is chosen: ensuring the event again reads it from there, and changes nothing.
+  const ensuredAgain = await client.request("POST", `${listUrl}/schedule-event`, {});
+  assert.equal(ensuredAgain.event.id, ensured.event.id);
+  assert.deepEqual(ensuredAgain.event.resource_refs, reassigned.event.resource_refs);
+  assert.equal(ensuredAgain.event.start_at, "2026-07-20T14:00:00.000Z");
+
+  // An assignee with no unit clears the list's unit.
+  const noUnit = await client.request("POST", eventsUrl, {
+    event: { id: ensured.event.id, resource_refs: [{ kind: "resource_group", id: alpha.id, name: alpha.name, role: "crew" }] }
+  });
+  assert.deepEqual(noUnit.material_list.assignment, { work_resource_ref: { kind: "resource_group", id: alpha.id, name: alpha.name }, unit_id: "" });
+});
+
+test("a list can have more than one event: part_id adds a second beside the first and records it under schedule.parts", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = await createListProject(client, orgId, "project_list_parts");
+  const eventsUrl = `/v1/platform/organizations/${orgId}/projects/${projectId}/events`;
+  const list = (await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, { title: "Shingles" })).material_list;
+  const listUrl = `/v1/materials/organizations/${orgId}/material-lists/${list.id}`;
+
+  const first = await client.request("POST", `${listUrl}/schedule-event`, { event: { title: "Shingles delivery" } });
+  assert.equal(first.event.list_part_id, "");
+  await client.request("POST", eventsUrl, {
+    event: { id: first.event.id, status: "scheduled", start_at: "2026-07-15T07:00:00.000Z", end_at: "2026-07-16T07:00:00.000Z" }
+  });
+  const firstStored = (await projectEvents(client, orgId, projectId)).find((event) => event.id === first.event.id);
+
+  const second = await client.request("POST", `${listUrl}/schedule-event`, { part_id: "second", event: { title: "Shingles delivery (second load)" } });
+  assert.notEqual(second.event.id, first.event.id, "a part is its own event");
+  assert.equal(second.event.list_part_id, "second");
+  assert.equal(second.event.scope_resource_list_id, list.id);
+  assert.equal(second.event.resource_type, "material");
+  assert.equal(second.event.kind, "material_delivery");
+  assert.equal(second.event.list_title, "Shingles");
+  assert.equal(second.event.title, "Shingles delivery (second load)");
+  assertNoRemovedEventFields(second.event, "second part");
+  // The list records the part beside, not instead of, its first event.
+  assert.equal(second.material_list.schedule.parts.second.event_id, second.event.id);
+  assert.equal(second.material_list.schedule.parts.second.title, "Shingles delivery (second load)");
+  assert.equal(second.material_list.schedule_event_id, first.event.id);
+  assert.equal(second.material_list.schedule.event_id, first.event.id);
+  assert.equal(second.material_list.schedule.start_at, "2026-07-15T07:00:00.000Z");
+  const afterSecond = await projectEvents(client, orgId, projectId);
+  const listEvents = afterSecond.filter((event) => event.scope_resource_list_id === list.id);
+  assert.deepEqual(listEvents.map((event) => event.list_part_id).sort(), ["", "second"]);
+  assert.deepEqual(afterSecond.find((event) => event.id === first.event.id), firstStored, "the first event is untouched");
+
+  // Asking again for either returns the one already there.
+  const secondAgain = await client.request("POST", `${listUrl}/schedule-event`, { part_id: "second" });
+  assert.equal(secondAgain.event.id, second.event.id);
+  const firstAgain = await client.request("POST", `${listUrl}/schedule-event`, {});
+  assert.equal(firstAgain.event.id, first.event.id);
+  assert.equal(firstAgain.event.list_part_id, "");
+  assert.equal((await projectEvents(client, orgId, projectId)).filter((event) => event.scope_resource_list_id === list.id).length, 2);
+
+  // Scheduling the second part updates its own record and leaves the first event's alone.
+  const movedSecond = await client.request("POST", eventsUrl, {
+    event: { id: second.event.id, status: "scheduled", start_at: "2026-07-22T07:00:00.000Z", end_at: "2026-07-23T07:00:00.000Z" }
+  });
+  assert.equal(movedSecond.event.list_part_id, "second");
+  assert.equal(movedSecond.material_list.schedule.parts.second.start_at, "2026-07-22T07:00:00.000Z");
+  assert.equal(movedSecond.material_list.schedule.parts.second.end_at, "2026-07-23T07:00:00.000Z");
+  assert.equal(movedSecond.material_list.schedule.parts.second.status, "scheduled");
+  assert.equal(movedSecond.material_list.schedule_event_id, first.event.id);
+  assert.equal(movedSecond.material_list.schedule.start_at, "2026-07-15T07:00:00.000Z");
+  assert.equal((await projectEvents(client, orgId, projectId)).find((event) => event.id === first.event.id).start_at, "2026-07-15T07:00:00.000Z");
+});
+
+test("a list whose schedule names a group and a placement sits under that span and follows it", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const projectId = await createListProject(client, orgId, "project_list_span");
+  const alpha = await createCrew(client, orgId, "Alpha Crew");
+  const eventsUrl = `/v1/platform/organizations/${orgId}/projects/${projectId}/events`;
+  const list = (await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, {
+    title: "Roofing Labor",
+    resource_type: "labor",
+    scope_piece_id: "roof_piece",
+    assignment: { work_resource_ref: { kind: "resource_group", id: alpha.id, name: alpha.name } },
+    schedule: {
+      enabled: true, kind: "project_work", event_type_default_id: "roof_work",
+      group_id: "install", group_title: "Installation",
+      placement: { anchor: "start", offset: { value: 2, unit: "hour" }, duration: { value: 4, unit: "hour" } }
+    }
+  })).material_list;
+  const listUrl = `/v1/materials/organizations/${orgId}/material-lists/${list.id}`;
+
+  // Ensuring the list's event creates the span (kind schedule_group, not yet on the calendar) and puts the event under it.
+  const ensured = await client.request("POST", `${listUrl}/schedule-event`, {});
+  const spans = (await projectEvents(client, orgId, projectId)).filter((event) => event.kind === "schedule_group");
+  assert.equal(spans.length, 1);
+  const span = spans[0];
+  assert.equal(span.schedule_group_id, "install");
+  assert.equal(span.title, "Installation");
+  assert.equal(span.scope_piece_id, "roof_piece");
+  assert.equal(span.status, "unscheduled");
+  assertNoRemovedEventFields(span, "span");
+  assert.equal(ensured.event.parent_event_id, span.id);
+  assert.deepEqual(ensured.event.placement, { anchor: "start", offset: { value: 2, unit: "hour" }, duration: { value: 4, unit: "hour" } });
+  assert.equal(ensured.event.status, "unscheduled", "a child of an unscheduled span is unscheduled");
+  assertNoRemovedEventFields(ensured.event, "list event");
+
+  // Scheduling the span places the list's event; the list hears about it.
+  const scheduled = await client.request("POST", eventsUrl, {
+    event: { id: span.id, status: "scheduled", start_at: "2026-07-20T14:00:00.000Z", end_at: "2026-07-22T22:00:00.000Z" }
+  });
+  assert.equal(scheduled.event.kind, "schedule_group");
+  assert.deepEqual(scheduled.related_events.map((event: any) => [event.id, event.start_at, event.end_at, event.status]),
+    [[ensured.event.id, "2026-07-20T16:00:00.000Z", "2026-07-20T20:00:00.000Z", "scheduled"]]);
+  const placedList = (await client.request("GET", listUrl)).material_list;
+  assert.equal(placedList.schedule.start_at, "2026-07-20T16:00:00.000Z");
+  assert.equal(placedList.schedule.end_at, "2026-07-20T20:00:00.000Z");
+  assert.equal(placedList.schedule_status, "scheduled");
+  assert.equal(placedList.schedule.placement.anchor, "start", "the list keeps its placement");
+  assert.equal("rule" in placedList.schedule, false);
+
+  // Moving the span moves the event with it.
+  const moved = await client.request("POST", eventsUrl, {
+    event: { id: span.id, start_at: "2026-07-27T14:00:00.000Z", end_at: "2026-07-29T22:00:00.000Z" }
+  });
+  assert.deepEqual(moved.related_events.map((event: any) => [event.id, event.start_at, event.end_at]),
+    [[ensured.event.id, "2026-07-27T16:00:00.000Z", "2026-07-27T20:00:00.000Z"]]);
+  const followed = (await projectEvents(client, orgId, projectId)).find((event) => event.id === ensured.event.id);
+  assert.equal(followed.start_at, "2026-07-27T16:00:00.000Z");
+  assert.equal(followed.end_at, "2026-07-27T20:00:00.000Z");
+  assert.equal(followed.parent_event_id, span.id);
+  assert.deepEqual(followed.resource_refs, [{ kind: "resource_group", id: alpha.id, name: alpha.name, role: "crew" }]);
+  assert.equal((await client.request("GET", listUrl)).material_list.schedule.start_at, "2026-07-27T16:00:00.000Z");
+
+  // Ensuring again keeps the event where the span put it.
+  const ensuredAgain = await client.request("POST", `${listUrl}/schedule-event`, {});
+  assert.equal(ensuredAgain.event.id, ensured.event.id);
+  assert.equal(ensuredAgain.event.start_at, "2026-07-27T16:00:00.000Z");
+  assert.equal(ensuredAgain.event.parent_event_id, span.id);
+
+  // A second list of the same piece and group joins the same span, and since
+  // the span is already on the calendar its event takes its place there.
+  const equipmentList = (await client.request("POST", `/v1/materials/organizations/${orgId}/projects/${projectId}/material-lists`, {
+    title: "Site Protection",
+    resource_type: "labor",
+    scope_piece_id: "roof_piece",
+    schedule: { enabled: true, kind: "project_work", event_type_default_id: "site_protection", group_id: "install", placement: { anchor: "span" } }
+  })).material_list;
+  const joined = await client.request("POST", `/v1/materials/organizations/${orgId}/material-lists/${equipmentList.id}/schedule-event`, {});
+  assert.equal(joined.event.parent_event_id, span.id);
+  assert.deepEqual(joined.event.placement, { anchor: "span" });
+  assert.equal(joined.event.start_at, "2026-07-27T14:00:00.000Z");
+  assert.equal(joined.event.end_at, "2026-07-29T22:00:00.000Z");
+  assert.equal(joined.event.status, "scheduled");
+  assert.equal((await projectEvents(client, orgId, projectId)).filter((event) => event.kind === "schedule_group").length, 1, "one span per piece and group");
 });

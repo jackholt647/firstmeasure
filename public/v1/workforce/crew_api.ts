@@ -41,6 +41,7 @@ import { emitWorkEvent } from "../work/engine.js";
 import { createFollowUpTodo } from "../work/followups.js";
 import { listWorkTodos, transitionWorkNode } from "../work/service.js";
 import { listNodeRecords, listPlanRecords, readNodeRecord } from "../work/storage.js";
+import { eventEquipment, eventPrimaryAssignee } from "../scheduling/event-model.js";
 import { resolveAccessProfile } from "./access.js";
 import {
   documentWorkflowDetail,
@@ -722,7 +723,7 @@ async function projectTile(orgId: string, project: JsonObject, event: JsonObject
     overdue,
     schedule,
     scope: (await scopeView(orgId, project, event)),
-    work_resource_ref: asObject(event.work_resource_ref),
+    assignee: eventPrimaryAssignee(event),
     signature_requirements: asObject(project.signature_requirements),
     event
   };
@@ -1586,9 +1587,9 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
       if (!event || projectCompleted(project) && eventDateRange(event).end < targetDate) return null;
       const tile: JsonObject = { ...(await projectTile(orgId, project, event, targetDate)) };
       // Equipment riding along on today's event ("my equipment today").
-      const equipmentRefs = asArray(event.resource_refs).map(asObject)
-        .filter((ref) => cleanText(ref.kind) === "equipment_unit" && cleanText(ref.id))
-        .map((ref) => ({ id: cleanText(ref.id), name: cleanText(ref.name) || cleanText(ref.id) }));
+      const equipmentRefs = eventEquipment(event)
+        .filter((ref) => ref.kind === "equipment_unit")
+        .map((ref) => ({ id: ref.id, name: ref.name || ref.id }));
       if (equipmentRefs.length) tile.equipment = equipmentRefs;
       return tile.overdue === true || (cleanText(asObject(tile.schedule).start_date) <= targetDate && cleanText(asObject(tile.schedule).end_date) >= targetDate)
         ? tile

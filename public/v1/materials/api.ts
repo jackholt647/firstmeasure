@@ -8,7 +8,7 @@ import {projectRequirements} from '../labor/requirements.js';
 import {saveManualScope} from '../labor/scope-artifacts.js';
 import {userPublicationContext as scopePublicationContext} from '../platform/publication/context.js';
 import {generateLaborList,previewLaborList,compareAssigneesForList} from '../labor/generation.js';
-import {commitLaborList,listCommitments,listDeliverySettings,saveDeliverySetting,releaseCommitment,redeliverCommitment,confirmDelivery,releaseCommitmentsForList,listUnits,saveUnit,archiveUnit,assigneeAvailability} from '../labor/commitments.js';
+import {commitLaborList,listCommitments,listDeliverySettings,saveDeliverySetting,releaseCommitment,redeliverCommitment,confirmDelivery,releaseCommitmentsForList,listUnits,saveUnit,archiveUnit} from '../labor/commitments.js';
 import type { FastifyPluginAsync } from "fastify";
 import { registerCalculusApi } from "./calculus-api.js";
 import { ZodError } from "zod";
@@ -133,7 +133,7 @@ export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
   app.get('/organizations/:orgId/assignees/:type/:assigneeId/capabilities',async request=>{const {orgId}=await laborAuth(request,'manage_projects|manage_company_settings');return {ok:true,capabilities:await assigneeCapabilities(orgId,assigneeSchema.parse({type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')}))};});
   app.put('/organizations/:orgId/assignees/:type/:assigneeId/capabilities',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);const {assignee:_assignee,...body}=(request.body||{}) as Record<string,unknown>;return {ok:true,capabilities:await saveCapabilities(orgId,{...body,assignee:{type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')}},ctx)};});
   // Units inside an assignee, and how much the assignee can take on given what it is committed to.
-  app.get('/organizations/:orgId/assignees/:type/:assigneeId',async request=>{const {orgId}=await laborAuth(request,'manage_projects|manage_company_settings');const assignee=assigneeSchema.parse({type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')});return {ok:true,units:await listUnits(orgId,assignee),availability:await assigneeAvailability(orgId,assignee)};});
+  app.get('/organizations/:orgId/assignees/:type/:assigneeId',async request=>{const {orgId}=await laborAuth(request,'manage_projects|manage_company_settings');const assignee=assigneeSchema.parse({type:getParam(request.params,'type'),id:getParam(request.params,'assigneeId')});return {ok:true,units:await listUnits(orgId,assignee)};});
   app.post('/organizations/:orgId/assignee-units',async(request,reply)=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);const {id:_id,...body}=(request.body||{}) as Record<string,unknown>;reply.code(201);return {ok:true,unit:await saveUnit(orgId,body,ctx)};});
   app.patch('/organizations/:orgId/assignee-units/:unitId',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);return {ok:true,unit:await saveUnit(orgId,{...(request.body as object),id:getParam(request.params,'unitId')},ctx)};});
   app.delete('/organizations/:orgId/assignee-units/:unitId',async request=>{const {orgId,ctx}=await laborAuth(request,'manage_company_settings',true);return {ok:true,...await archiveUnit(orgId,{id:getParam(request.params,'unitId')},ctx)};});

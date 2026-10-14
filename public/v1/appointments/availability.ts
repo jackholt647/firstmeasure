@@ -7,6 +7,8 @@ import { resolveOrganizationTimezone, zonedInstant, zonedParts } from "../platfo
 import { resolveAssignableSubjects } from "../workforce/service.js";
 import { normalizeAssignmentPolicy } from "../workforce/assignability.js";
 import { readScopeTemplate } from "../scopes/storage.js";
+import { eventAssigneeKeys, eventEquipment } from "../scheduling/event-model.js";
+import { assigneeCapacities } from "../scheduling/occupancy.js";
 import {
   createSlotHold,
   deleteSlotHold,
@@ -182,19 +184,7 @@ function eventRange(eventValue: unknown) {
   return { start, end };
 }
 
-function eventResourceKeys(eventValue: unknown) {
-  const event = asObject(eventValue);
-  const keys = unique([event.assigned_user_id, event.user_id, ...asArray(event.assigned_user_ids), ...asArray(event.user_ids)])
-    .map((id) => `organization_user:${id}`);
-  const ref = asObject(event.work_resource_ref);
-  const resourceId = cleanText(ref.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id || event.crew_id);
-  const resourceKind = cleanText(ref.kind || event.assigned_resource_kind || (resourceId ? "resource_group" : ""));
-  if (resourceId) keys.push(`${resourceKind || "resource_group"}:${resourceId}`);
-  for (const row of asArray(event.resource_refs).map(asObject)) {
-    if (cleanText(row.id) && cleanText(row.kind)) keys.push(`${cleanText(row.kind)}:${cleanText(row.id)}`);
-  }
-  return [...new Set(keys.map((entry) => entry.toLowerCase()))];
-}
+const eventResourceKeys = eventAssigneeKeys;
 
 function subjectKey(subjectValue: unknown) {
   const subject = asObject(subjectValue);
@@ -213,24 +203,13 @@ export function resourceAvailabilityRule(settings: ReturnType<typeof normalizeSc
   const direct = asObject(settings.resource_availability[key]);
   const embedded = asObject(subject.scheduling || asObject(subject.attributes).scheduling || asObject(subject.metadata).scheduling);
   const raw = { ...embedded, ...direct };
-  const subjectType = cleanText(subject.subject_type);
   return {
     enabled: raw.enabled !== false,
-    capacity_mode: ["unit", "members", "quantity"].includes(cleanText(raw.capacity_mode)) ? cleanText(raw.capacity_mode) : (subjectType === "resource_group" ? "unit" : "unit"),
-    capacity: Math.round(clamp(raw.capacity, 1, 100, 1)),
-    minimum_members: Math.round(clamp(raw.minimum_members, 1, 100, 1)),
     working_hours: asArray(raw.working_hours),
     exceptions: asArray(raw.exceptions).map(asObject),
     buffer_minutes: clamp(raw.buffer_minutes, 0, 240, 0),
     travel_enabled: raw.travel_enabled !== false
   };
-}
-
-export function resourceAvailabilityCapacity(settings: ReturnType<typeof normalizeSchedulingAvailabilitySettings>, subjectValue: unknown) {
-  const rule = resourceAvailabilityRule(settings, subjectValue);
-  const members = subjectMemberIds(subjectValue);
-  if (rule.capacity_mode === "members") return Math.max(0, members.length - (rule.minimum_members - 1));
-  return rule.capacity;
 }
 
 /** Shared weekly + per-date availability model used by slot calculation and auto-routing. */
@@ -355,6 +334,7 @@ export async function appointmentAvailability(orgId: string, branchIdValue: stri
     return Number.isFinite(range.start.getTime()) && range.start < to && range.end > from && !["cancelled", "canceled", "unscheduled"].includes(cleanText(entry.event.status).toLowerCase());
   });
   const holds = (await listActiveSlotHolds(orgId, branchId, from, to)).filter((hold) => cleanText(hold.id) !== cleanText(options.exclude_hold_id));
+  const capacityOf = await assigneeCapacities(orgId);
   const targetLocation = options.address || project;
   const travelEnabled = await isCapabilityEnabled(orgId, "scheduling.travel_time").catch(() => false);
   const slots: JsonObject[] = [];
@@ -373,8 +353,7 @@ export async function appointmentAvailability(orgId: string, branchIdValue: stri
           const rule = resourceAvailabilityRule(settings, subject);
           if (subjectUnavailableOnDate(scheduling, subject.id || subject.resource_id, dateKey)) continue;
           if (!rule.enabled || !resourceWorking(rule, dateKey, minute, minute + bookingMinutes)) continue;
-          const memberKeys = subjectMemberIds(subject).map((id) => `organization_user:${id}`.toLowerCase());
-          const relevantKeys = [key, ...(rule.capacity_mode === "members" ? memberKeys : [])];
+          const relevantKeys = [key];
           const conflicts = scheduledEvents.filter((entry) => {
             const range = eventRange(entry.event);
             const expandedStart = internal.fullDay ? instantFor(dateKey,0,timezone) : new Date(start.getTime() - (bufferMinutes + rule.buffer_minutes) * 60_000);
@@ -384,7 +363,7 @@ export async function appointmentAvailability(orgId: string, branchIdValue: stri
           });
           const holdConflicts = holds.filter((hold) => (!cleanText(hold.resource_key) || cleanText(hold.resource_key).toLowerCase() === key)
             && intervalsOverlap(start, end, new Date(hold.start_at), new Date(hold.end_at)));
-          const capacity = resourceAvailabilityCapacity(settings, subject);
+          const capacity = capacityOf(cleanText(subject.subject_type), cleanText(subject.id || subject.resource_id));
           let availableUnits = Math.max(0, capacity - conflicts.length - holdConflicts.length);
           let travel_before_minutes = 0;
           let travel_after_minutes = 0;
@@ -493,10 +472,9 @@ function applyAssignment(event: JsonObject, resourceKey: string, candidates: Jso
   const [kind, id] = resourceKey.split(":", 2);
   const candidate = candidates.find((entry) => cleanText(entry.resource_key).toLowerCase() === resourceKey.toLowerCase());
   const name = cleanText(candidate?.name || id);
-  if (kind === "organization_user") {
-    return { ...event, assigned_user_id: id, assigned_user_ids: [id], assigned_resource_kind: kind, assigned_resource_id: id, assigned_resource_name: name, work_resource_ref: { kind, id, name } };
-  }
-  return { ...event, assigned_user_id: "", assigned_user_ids: [], assigned_resource_kind: kind, assigned_resource_id: id, assigned_resource_name: name, assigned_crew_id: kind === "resource_group" ? id : "", assigned_crew_name: kind === "resource_group" ? name : "", work_resource_ref: { kind, id, name } };
+  const equipment = eventEquipment(event);
+  if (kind === "organization_user") return { ...event, assigned_user_id: id, assigned_user_ids: [id], resource_refs: equipment };
+  return { ...event, assigned_user_id: "", assigned_user_ids: [], resource_refs: [{ kind, id, name, role: "crew" }, ...equipment] };
 }
 
 /** Staff booking uses the same capacity holds and domain writer as scheduling. */

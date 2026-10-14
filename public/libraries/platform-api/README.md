@@ -177,11 +177,11 @@ Images use the same system. If thumbnails/compression are not disabled, image up
 ## Users, workforce, and external organizations
 
 Organization users remain the canonical people records. Use
-`PlatformAPI.workforce` to manage their access roles, application entitlements,
-optional compensation profiles, and internal resource-group
-memberships. Important methods include:
+`PlatformAPI.workforce` to manage their access roles, application entitlements
+and internal resource-group memberships. How someone is paid is a pay setup,
+reached through `PayrollAPI.pay`. Important methods include:
 
-- `users()` and `userProfile()` for compensation-enriched user views.
+- `users()` and `userProfile()` for user views with access and employment terms.
 - `saveUserProfile()` for access roles, `management` / `field` app access,
   individual overrides, and direct compensation.
 - `resourceGroups()` and its create/update/archive methods for groups composed
@@ -193,14 +193,16 @@ Use `PlatformAPI.connections` for persistent external organizations. The
 default tenant-facing term is “Subcontractor,” but the API object is an
 `organization_connection` and can later link to another FirstMate organization.
 
-Scheduling payloads should persist a typed reference:
+A schedule event names its assignees and equipment only in `resource_refs`
+(see `docs/architecture/schedule-events.md`):
 
 ```js
-work_resource_ref: {
-  kind: 'resource_group', // or 'organization_connection'
+resource_refs: [{
+  kind: 'resource_group', // or 'organization_user', 'organization_connection'
   id: 'resource_group_123',
-  name: 'North Crew'
-}
+  name: 'North team',
+  role: 'crew'
+}]
 ```
 
 Scope availability is independent from template versioning. Read and update it

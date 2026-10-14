@@ -31,22 +31,24 @@ Default event type:
 
 ## Event Shape
 
-Events deliberately separate singular scheduling facts from plural staffing facts:
+The contract is [schedule events](../../../docs/architecture/schedule-events.md);
+this library mirrors `public/v1/scheduling/event-model.ts` and `placement.ts`.
+An event is one time range plus the resources it uses for that whole range.
 
-- `start_at`: one ISO timestamp.
-- `duration_minutes`: one duration.
+- `start_at`, `end_at`, `duration_minutes`, `all_day`: the range.
 - `event_type_default_id`: one template/default id, such as `sales_appointment`.
-- `required_role_ids`: array of roles that must have at least one available person.
-- `allowed_role_ids`: array of roles whose users may be assigned to the event.
-- `role_ids`: compatibility/read shortcut containing the union of required and allowed roles.
-- `assigned_user_ids`: array of assigned user ids.
-- `assigned_users`: optional denormalized array with `{ id, name, role_ids }` for fast rendering.
-- `work_resource_ref`: typed assignment for a `resource_group` or
-  `organization_connection`.
-- `assignment_policy`: the normalized snapshot used to validate the event
-  assignment.
+- `required_role_ids`, `allowed_role_ids`, `role_ids`: roles that must be staffed and roles whose users may be assigned.
+- `resource_refs`: the only place an event names its groups, people, companies and equipment, as `{ kind, id, name, role, unit_id?, quantity? }`. The first `crew`-role assignee is the primary one. A resource has no dates of its own.
+- `assigned_user_ids`, `assigned_users`: people attached through the sales appointment path.
+- `scope_resource_list_id`, `resource_type`, `list_part_id`: the material, labor or equipment list the event was made for.
+- `assignment_policy`: the normalized snapshot used to validate the event assignment.
 
-Older singular fields like `assigned_user_id` are normalized into the arrays for compatibility, but new code should write the plural fields.
+Read resources with `eventResources()`, `eventAssignees()`, `eventEquipment()`,
+`eventPrimaryAssignee()` and `eventAssigneeKeys()` (which includes
+`assigned_user_ids` as `organization_user:<id>`); do not read the array by
+hand. Write them with `setEventWorkAssignees(event, refs)` (the whole assignee
+set; equipment is kept) or `setEventPrimaryAssignee(event, ref)`. Read the list
+link with `eventListId()`, `eventListPartId()` and `eventResourceType()`.
 
 ## Assignment policies
 
@@ -62,11 +64,17 @@ Project event writes enforce the same policy on the server. Availability is
 still evaluated for individual users; group selection is assignment
 eligibility, not a claim that every member is available.
 
-Gantt structure fields (all optional):
+## Gantt structure fields
 
-- `is_schedule_group`: marks an event as a group row (`kind: schedule_group` also works). With `schedule_rollup: 'auto'` (default) the group's range is derived from its children via `applyGroupRollups()`; `'manual'` keeps its own range.
-- `parent_event_id`: nests an event under a group.
-- `depends_on`: array of `{ id, event_id, type: finish_to_start|start_to_start|finish_to_finish, lag_minutes }` links. `dependencyRescheduleImpact(events, movedEventId, nextRange)` walks the graph both ways (cycle-safe): successors are pushed later only when their link is violated (slack is kept; nothing is pulled earlier), predecessors are pulled earlier only when needed, whole-day items land on day boundaries and timed items keep their time of day. Locked/completed items never move and are returned in `blocked`. `cascadeDependentDrafts()` returns just the drafts, `relatedScheduleRescheduleImpact()` adds scope-template bundle rules, `interpretScheduleBundle()` lays out a waiting bundle in dependency order with each item's own duration, and `groupMoveDrafts()` / `groupRollupUpdates()` move a group's items together and keep stored group ranges in sync. `scheduleGraph()` exposes the edges; `createScheduleGroupEvent()` builds a group event.
+All optional; see [schedule events](../../../docs/architecture/schedule-events.md).
+
+- `kind: 'schedule_group'`: a span, an event that holds its own stored range for its children to be placed against (`eventIsSpan()`, `createScheduleGroupEvent()`). Its range is never derived from its children.
+- `parent_event_id`: the parent that drives this event. Any event may be a parent and the relation nests. `eventChildren()`, `eventDescendants()`, `eventAncestorIds()` and `eventFamilyIds()` read the family.
+- `placement`: where a child sits relative to its parent, `{ anchor: start|end|span, offset?, duration?, all_day?, manual? }` with amounts of `{ value | expression, unit, adjust? }`. The server places children when a parent is saved and returns them in `related_events`. `placeChildren(events, parentId, { measurements })` previews that for a drag and returns `{ updated, blocked }`; `evaluatePlacement()`, `manualPlacement()`, `normalizePlacement()` and `evaluatePlacementExpression()` are its parts. Previews use the browser's local days; the server's answer is the result. Child drafts are not saved one by one: saving a child by hand makes its placement manual.
+- `depends_on`: array of `{ id, event_id, type: finish_to_start|start_to_start|finish_to_finish, lag_minutes }` links between siblings. `dependencyRescheduleImpact(events, movedEventId, nextRange)` walks the graph both ways (cycle-safe): successors are pushed later only when their link is violated (slack is kept; nothing is pulled earlier), predecessors are pulled earlier only when needed, whole-day items land on day boundaries and timed items keep their time of day. Locked/completed items never move and are returned in `blocked`. `cascadeDependentDrafts()` returns just the drafts and `scheduleGraph()` exposes the edges.
+- `relatedScheduleRescheduleImpact(event, projectEvents, nextRange, project, options)` combines both for one move: `{ children, dependents, drafts, blocked }`, where `children` are placement previews and `dependents` are the linked items the caller saves.
+
+`saveProjectEvent()` resolves to `{ event, project, document, related_events, blocked_children, assignee_conflicts, equipment_conflicts, equipment_operator_warnings }`. `checkAssigneeOverlap(orgId, { project_id, event })` asks the server whether a draft's assignees are already booked without saving and resolves to `{ mode, assignee_conflicts }`.
 
 Scope sets emit this structure from each resource list's `schedule` block (`group_id`, `group_title`, `depends_on: [{ list_id, type, lag_minutes }]`) — the materials store resolves list refs to deterministic event ids at instantiation. `PlatformScheduleView.renderGanttScheduler()` renders it with zoomable hour→month scales, dependency connectors, drag move/resize, and drag-to-link.
 

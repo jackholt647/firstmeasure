@@ -62,6 +62,7 @@ function createSessionClient() {
 before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-equipment-test-"));
   process.env.NODE_ENV = "test";
+  process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.WORK_SCHEDULER_DISABLED = "1";
   process.env.EMAIL_OUTBOUND_DISABLED = "1";
@@ -368,8 +369,10 @@ test("equipment scheduling: assignable subjects, resource_refs, and blocked conf
       title: "Demo day one",
       start_at: "2026-08-03T14:00:00.000Z",
       duration_minutes: 240,
-      work_resource_ref: { kind: "resource_group", id: crew.id, name: "Alpha Crew" },
-      resource_refs: [{ kind: "equipment_unit", id: unitA.id, name: unitA.name, role: "equipment" }],
+      resource_refs: [
+        { kind: "resource_group", id: crew.id, name: "Alpha Crew", role: "crew" },
+        { kind: "equipment_unit", id: unitA.id, name: unitA.name, role: "equipment" }
+      ],
       resourceRequirements: [
         { equipmentTypeId: type.type.id, name: "Skid Steer", quantity: 2 },
         { equipment_type_id: type.type.id, label: "Duplicate", quantity: 9 }
@@ -377,16 +380,20 @@ test("equipment scheduling: assignable subjects, resource_refs, and blocked conf
     }
   });
   assert.equal(first.equipment_conflicts.length, 0);
-  // The singular crew assignment coexists with the equipment ref: the
-  // resource_refs list carries both, crew derived from work_resource_ref.
-  assert.equal(first.event.work_resource_ref.id, crew.id);
-  assert.deepEqual(first.event.resource_refs.map((ref: any) => ref.kind).sort(), ["equipment_unit", "resource_group"]);
-  assert.equal(first.event.resource_refs.find((ref: any) => ref.kind === "resource_group").id, crew.id);
+  // The crew and the equipment sit side by side in resource_refs, the one
+  // list of what an item uses; nothing else on the item names them.
+  assert.deepEqual(first.event.resource_refs, [
+    { kind: "resource_group", id: crew.id, name: "Alpha Crew", role: "crew" },
+    { kind: "equipment_unit", id: unitA.id, name: unitA.name, role: "equipment" }
+  ]);
+  for (const removed of ["work_resource_ref", "assigned_crew_id", "assigned_crew_name", "assigned_resource_id", "crew_id", "resource_id"]) {
+    assert.equal(removed in first.event, false, `${removed} is not stored`);
+  }
   assert.deepEqual(first.event.resource_requirements, [{
     kind: "equipment_type", equipment_type_id: type.type.id, label: "Skid Steer", quantity: 2
   }]);
 
-  // Writers that send only resource_refs back-fill the legacy mirrors.
+  // A ref's role defaults from its kind.
   const refsOnly = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
     event: {
       id: "event_eq_refs_only",
@@ -395,13 +402,12 @@ test("equipment scheduling: assignable subjects, resource_refs, and blocked conf
       start_at: "2026-08-05T14:00:00.000Z",
       duration_minutes: 60,
       resource_refs: [
-        { kind: "resource_group", id: crew.id, name: "Alpha Crew", role: "crew" },
-        { kind: "equipment_unit", id: unitA.id, role: "equipment" }
+        { kind: "resource_group", id: crew.id, name: "Alpha Crew" },
+        { kind: "equipment_unit", id: unitA.id, name: unitA.name }
       ]
     }
   });
-  assert.equal(refsOnly.event.assigned_crew_id, crew.id);
-  assert.equal(refsOnly.event.work_resource_ref.id, crew.id);
+  assert.deepEqual(refsOnly.event.resource_refs.map((ref: any) => [ref.kind, ref.role]), [["resource_group", "crew"], ["equipment_unit", "equipment"]]);
 
   // Simple mode blocks overlapping assignments immediately.
   const second = await owner.raw("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
@@ -417,20 +423,34 @@ test("equipment scheduling: assignable subjects, resource_refs, and blocked conf
   assert.equal(second.statusCode, 409);
   assert.equal(second.data.error, "equipment_conflict");
 
-  // A unit can be needed for only a subset of a longer event. Conflict and
-  // availability checks use the ref's window rather than the whole job.
-  const subset = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+  // A unit needed for only part of a longer item is a child item: equipment
+  // is held for its event's whole range, so the child carries the shorter one.
+  // Dates sent on a ref are dropped.
+  const projectEventsUrl = `/v1/platform/organizations/${orgId}/projects/${projectId}/events`;
+  await owner.request("POST", projectEventsUrl, {
     event: {
       id: "event_eq_subset",
       type_id: "project_work",
       title: "All-day job, morning equipment",
       start_at: "2026-08-06T14:00:00.000Z",
-      end_at: "2026-08-06T22:00:00.000Z",
-      resource_refs: [{ kind:"equipment_unit", id:unitC.id, role:"equipment", start_at:"2026-08-06T14:00:00.000Z", end_at:"2026-08-06T15:00:00.000Z" }]
+      end_at: "2026-08-06T22:00:00.000Z"
     }
   });
-  assert.equal(subset.event.resource_refs.find((ref: any) => ref.id === unitC.id).end_at, "2026-08-06T15:00:00.000Z");
-  const afterSubset = await owner.request("POST", `/v1/platform/organizations/${orgId}/projects/${projectId}/events`, {
+  const subset = await owner.request("POST", projectEventsUrl, {
+    event: {
+      id: "event_eq_subset_unit",
+      type_id: "project_work",
+      title: "Skid steer for the morning",
+      parent_event_id: "event_eq_subset",
+      placement: { anchor: "start", duration: { value: 1, unit: "hour" } },
+      resource_refs: [{ kind:"equipment_unit", id:unitC.id, name:unitC.name, role:"equipment", start_at:"2026-08-06T14:00:00.000Z", end_at:"2026-08-06T22:00:00.000Z" }]
+    }
+  });
+  assert.equal(subset.event.start_at, "2026-08-06T14:00:00.000Z");
+  assert.equal(subset.event.end_at, "2026-08-06T15:00:00.000Z");
+  assert.deepEqual(subset.event.resource_refs, [{ kind: "equipment_unit", id: unitC.id, name: unitC.name, role: "equipment" }]);
+  // Conflict and availability checks use the child's range, not the parent's.
+  const afterSubset = await owner.request("POST", projectEventsUrl, {
     event: {
       id:"event_eq_after_subset",
       type_id:"project_work",
@@ -441,6 +461,27 @@ test("equipment scheduling: assignable subjects, resource_refs, and blocked conf
     }
   });
   assert.equal(afterSubset.equipment_conflicts.length, 0);
+  const duringSubset = await owner.raw("POST", projectEventsUrl, {
+    event: {
+      id:"event_eq_during_subset",
+      type_id:"project_work",
+      title:"Morning clash",
+      start_at:"2026-08-06T14:30:00.000Z",
+      end_at:"2026-08-06T15:30:00.000Z",
+      resource_refs:[{ kind:"equipment_unit", id:unitC.id, role:"equipment" }]
+    }
+  });
+  assert.equal(duringSubset.statusCode, 409);
+  assert.equal(duringSubset.data.error, "equipment_conflict");
+  const subsetAvailability = await owner.request("GET", `/v1/equipment/organizations/${orgId}/availability?start=2026-08-06T15:00:00.000Z&end=2026-08-06T16:00:00.000Z&unit_ids=${unitC.id}`);
+  assert.equal(subsetAvailability.units[0].available, true, "the unit is free once the child's hour is over, though the parent runs on");
+  // The child follows its parent, and the unit's booking goes with it.
+  const subsetMoved = await owner.request("POST", projectEventsUrl, {
+    event: { id: "event_eq_subset", start_at: "2026-08-07T14:00:00.000Z", end_at: "2026-08-07T22:00:00.000Z" }
+  });
+  assert.deepEqual(subsetMoved.related_events.map((event: any) => [event.id, event.start_at, event.end_at]), [["event_eq_subset_unit", "2026-08-07T14:00:00.000Z", "2026-08-07T15:00:00.000Z"]]);
+  const movedAvailability = await owner.request("GET", `/v1/equipment/organizations/${orgId}/availability?start=2026-08-07T14:00:00.000Z&end=2026-08-07T15:00:00.000Z&unit_ids=${unitC.id}`);
+  assert.equal(movedAvailability.units[0].available, false);
 
   // Maintenance is a calendar event and blocks the unit only in its window.
   await owner.request("PUT", `/v1/platform/organizations/${orgId}/calendar_events/maintenance_unit_b`, {

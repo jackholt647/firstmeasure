@@ -1073,11 +1073,10 @@ const ROOFING_MATERIALS = {
         lock_on_order: true,
         group_id: "roof_installation",
         group_title: "Roof Installation",
-        rule: {
-          version: 1,
-          bundle: { key: "roof_replacement", role: "dependent", item_key: "dry_in", anchor_item_key: "roofing_labor" },
-          relative_start: { anchor: "start", offset: { value: -1, unit: "business_day" } },
-          default_duration: { value: 1, unit: "day" },
+        placement: {
+          anchor: "start",
+          offset: { value: -1, unit: "business_day" },
+          duration: { value: 1, unit: "day" },
           all_day: true
         }
       },
@@ -1120,25 +1119,21 @@ const ROOFING_MATERIALS = {
         lock_on_order: true,
         group_id: "roof_installation",
         group_title: "Roof Installation",
-        rule: {
-          version: 1,
-          bundle: { key: "roof_replacement", role: "dependent", item_key: "shingle", anchor_item_key: "roofing_labor" },
-          relative_start: {
-            anchor: "start",
-            offset: {
-              unit: "day",
-              expression: {
-                operator: "floor",
-                value: {
-                  operator: "divide",
-                  left: { operator: "subtract", left: { ref: "anchor.duration.days" }, right: 1 },
-                  right: 2
-                }
-              },
-              adjust: { calendar: "business_day", direction: "previous" }
-            }
+        placement: {
+          anchor: "start",
+          offset: {
+            unit: "day",
+            expression: {
+              operator: "floor",
+              value: {
+                operator: "divide",
+                left: { operator: "subtract", left: { ref: "parent.duration.days" }, right: 1 },
+                right: 2
+              }
+            },
+            adjust: { calendar: "business_day", direction: "previous" }
           },
-          default_duration: { value: 1, unit: "day" },
+          duration: { value: 1, unit: "day" },
           all_day: true
         }
       },
@@ -1204,20 +1199,8 @@ const ROOFING_SCOPE_RESOURCES = {
         group_id: "roof_installation",
         group_title: "Roof Installation",
         depends_on: [{ list_id: "dry_in", type: "finish_to_start" as const }],
-        rule: {
-          version: 1,
-          bundle: { key: "roof_replacement", role: "primary", item_key: "roofing_labor" },
-          reschedule: { cascade: "prompt", include_roles: ["dependent"] },
-          default_duration: {
-            unit: "day",
-            minimum: 1,
-            expression: {
-              operator: "ceil",
-              value: { operator: "divide", left: { ref: "project.measurements.roofSquares" }, right: 20 }
-            }
-          },
-          all_day: true
-        }
+        placement: { anchor: "span" },
+        group_duration: { unit: "day", expression: { operator: "max", operands: [1, { operator: "ceil", value: { operator: "divide", left: { ref: "measurements.roofSquares" }, right: 20 } }] } }
       }
     },
     {
@@ -1233,7 +1216,7 @@ const ROOFING_SCOPE_RESOURCES = {
       // Generation still consults the org's equipment.scheduling capability:
       // orgs without it keep the suppressed legacy behavior.
       controls: { scheduling: true },
-      schedule: { enabled: true, kind: "equipment", icon: "fa-truck-pickup", color: "#0f766e", title: "Roofing Equipment" }
+      schedule: { enabled: true, kind: "equipment", icon: "fa-truck-pickup", color: "#0f766e", title: "Roofing Equipment", group_id: "roof_installation", group_title: "Roof Installation", placement: { anchor: "span" } }
     }
   ],
   order_sources: ROOFING_MATERIALS.order_sources,

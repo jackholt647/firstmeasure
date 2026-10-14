@@ -17,6 +17,16 @@ import { workItem } from "../platform/publication/work-items.js";
 export const CALCULUS_LEDGER = "materials_calculus_ledgers";
 const object = (v: unknown): JsonObject => v && typeof v === "object" && !Array.isArray(v) ? v as JsonObject : {};
 const identity = (prefix: string, value: unknown) => `${prefix}_${contentHash(value).slice(0, 32)}`;
+/** Domain builders use optional properties; publications omit absent keys. */
+function scopeJson(value:JsonObject):JsonObject{
+  const prune=(item:unknown,depth=0):unknown=>{
+    if(depth>64)throw badRequest('materials_value_limit','Material provenance exceeds the structural limit.');
+    if(Array.isArray(item))return item.map(child=>prune(child,depth+1));
+    if(item && typeof item==='object')return Object.fromEntries(Object.entries(item).filter(([,child])=>child!==undefined).map(([key,child])=>[key,prune(child,depth+1)]));
+    return item;
+  };
+  return jsonClone(prune(value)) as JsonObject;
+}
 type Line = Requirement & { id: string; order_quantity: number; order_unit: string; lineage: string[] };
 type Evaluation = { id: string; base_revision: number; inputs: JsonObject; lines: Requirement[]; work?: ScopeWork[]; warnings: string[]; evidence: JsonObject; at: string; definition_hash: string };
 type SetRecord = { id: string; title: string; presentation?: JsonObject; definition: CalculusDefinition; document: JsonObject; origin: JsonObject; revision: number; lines: Line[]; work?: ScopeWork[]; evaluations: Evaluation[]; history: JsonObject[]; applied_evaluation?: string };
@@ -139,6 +149,46 @@ function setFromDefinition(project: string, definition: CalculusDefinition, id: 
   return { id, title: definition.title, definition: { ...definition, bindings }, document: jsonClone(document), origin, revision: 0, lines: [], evaluations: [], history: [] };
 }
 
+/** Trusted scope publication uses the same persisted artifact contract as
+ * accepted documents. Stable owner/key identity prevents reference duplicates.
+ * Existing sets are never regenerated over user edits or commitments. */
+export async function publishScopeMaterialArtifact(org: string, project: string, owner: string, raw: unknown, origin: JsonObject, initialLines?: unknown[], presentation?: JsonObject) {
+  const definition = validateCalculus(raw);
+  await readDocument(org, "projects", project);
+  const id = identity("set", ["scope", owner, definition.key]);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const ledger = await rawLedger(org, project), revision = ledger.revision;
+    const existing = ledger.sets.find(set => set.id === id);
+    if (existing) return { ...existing.presentation,...existing, project_id:project, resource_type:"material", current_items:existing.lines.map(line=>({...line.presentation,...line})),created:false };
+    const set = setFromDefinition(project,definition,id,{}, scopeJson({ ...origin,type:"scope",owner,key:definition.key }),org,String(origin.branch_id || "default"));
+    if (initialLines) {
+      set.lines = makeLines(set,z.array(requirementSchema).max(1000).parse(initialLines),[],id);
+      set.revision = 1;
+      set.history.push({ revision:1,source:jsonClone(set.origin),at:new Date().toISOString(),added:jsonClone(set.lines),removed:[] });
+    }
+    if(presentation)set.presentation = scopeJson(presentation);
+    ledger.sets.push(set);
+    try { await saveLedger(org,ledger,revision); return {...set.presentation,...set,project_id:project,resource_type:"material",current_items:set.lines.map(line=>({...line.presentation,...line})),created:true}; }
+    catch (error) { if ((error as {statusCode?:number}).statusCode !== 409 || attempt === 7) throw error; }
+  }
+  throw conflict("materials_publication_contention","Material publication could not acquire the current revision.");
+}
+
+export function scopeMaterialRequirements(items: JsonObject[]) {
+  return items.map((item,index) => {
+    const packaging = object(item.order_packaging), ref=object(item.pricebook_ref);
+    return requirementSchema.parse({
+      key:String(item.id || `item_${index}`),product_id:String(ref.item_id || item.id || `item_${index}`),
+      name:String(item.name || "Material"),quantity:item.quantity,unit:String(item.unit || "each"),
+      group:String(item.section || "materials"),structure:String(item.structure_name || ""),
+      variant:String(object(item.selected_options).color || ""),
+      ...(Number(packaging.units_per_package)>0 ? {packaging:{unit:String(packaging.order_unit || "package"),coverage:Number(packaging.units_per_package)}}:{}),
+      ...(item.projected_unit_price != null ? {unit_cost:item.projected_unit_price}:{}),currency:String(item.currency || "USD"),
+      presentation:scopeJson(item)
+    });
+  });
+}
+
 /** Called only with the retained completed signing package, never client-provided acceptance. */
 export async function publishAcceptedMaterials(org: string, project: string, documentId: string, snapshotId: string) {
   const { packageForSnapshot } = await import("../documents/signing/store.js");
@@ -180,6 +230,32 @@ export async function materialsCommand(ctx: PublicationContext, project: string,
 }
 async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command: CalculusCommand, at: string): Promise<JsonObject> {
   const input = command.input; const key = command.key;
+  if (command.operation === "import_legacy") {
+    const {readMaterialList,listMaterialOrders}=await import('./storage.js');
+    let list=await readMaterialList(ctx.organizationId,z.string().min(1).parse(input.list_id));
+    if(list.project_id!==ledger.project_id || list.resource_type!=='material')throw forbidden('material_import_target','Choose a material list from this project.');
+    const reservation=object(object(list.metadata).artifact_import);
+    if(reservation.key && reservation.key!==key)throw conflict('material_import_reserved','Another import has reserved this list. Resume its original request.');
+    if(Number(reservation.original_revision || list.revision)!==input.list_revision)throw conflict('material_import_revision','The legacy list changed. Review it before importing.');
+    if(list.status!=='planning' || list.locked_at || list.schedule_event_id)throw conflict('material_import_active','Only an unlocked, unscheduled planning list can be imported. Reconcile active work first.');
+    if((await listMaterialOrders(ctx.organizationId,String(list.id))).length)throw conflict('material_import_commitments','This list has legacy orders. Preserve its order history and reconcile those commitments before importing; they cannot be inferred as new orders.');
+    const id=identity('set',['legacy',list.id]);
+    if(ledger.sets.some(set=>set.id===id))return {set_id:id,duplicate:true};
+    if(reservation.key)list=object(reservation.snapshot);
+    const lines=scopeMaterialRequirements((list.current_items || []) as JsonObject[]);
+    const definition=validateCalculus({type:'materials_calculus',key:String(list.id).slice(0,120),title:list.title,source:'return {outputs:{lines:inputs.values.lines,warnings:[]}};',defaults:{lines},inputSchema:{type:'object',properties:{lines:{type:'array'}},required:['lines'],additionalProperties:false}});
+    // Reserve the source with a compare-and-set before publishing. Domain
+    // writers reject the reservation and use revision checks, so a concurrent
+    // order cannot commit between the source snapshot and ledger publication.
+    if(!reservation.key){
+      await upsertDocument(ctx.organizationId,'material_lists',{id:String(list.id),expected_revision:Number(list.revision),data:{metadata:{...object(list.metadata),artifact_import:{key,original_revision:list.revision,snapshot:jsonClone(list)}}}});
+    }
+    if((await listMaterialOrders(ctx.organizationId,String(list.id))).length)throw conflict('material_import_commitments','An order was created during import. Reconcile it before publishing.');
+    const set=setFromDefinition(ledger.project_id,definition,id,{}, scopeJson({type:'scope',legacy_list_id:list.id,legacy_revision:list.revision,source_key:object(list.metadata).source_key,at}),ctx.organizationId,ctx.branchId);
+    set.lines=makeLines(set,lines,[],key);set.revision=1;set.presentation=jsonClone(list);
+    set.history.push({source:jsonClone(set.origin),legacy_snapshot:jsonClone(list),revision:1,at});
+    ledger.sets.push(set);return {set_id:id};
+  }
   if (command.operation === 'configure') {
     const parsed = z.object({set_id:z.string(),set_revision:z.number().int().nonnegative(),title:z.string().min(1).max(200).optional(),presentation:z.record(z.unknown()).optional()}).strict().parse(input);
     const set = findSet(ledger,parsed.set_id);
@@ -282,4 +358,19 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
     allocation.received += parsed.quantity;
   }
   return { allocation_id: allocation.id, operation: command.operation, quantity: parsed.quantity };
+}
+
+/** Legacy records retained for audit cease being writable after explicit import. */
+export async function assertLegacyMaterialWritable(org:string,project:string,listId:string){
+  const source=await readDocument(org,'material_lists',listId);
+  assertLegacyMaterialSnapshotWritable(object(source.data));
+  if((await rawLedger(org,project)).sets.some(set=>set.origin.legacy_list_id===listId))throw conflict('material_list_published','This list was imported as a material artifact. Edit the artifact instead.');
+}
+
+export function assertLegacyMaterialSnapshotWritable(list:JsonObject){
+  if(object(object(list.metadata).artifact_import).key)throw conflict('material_list_published','This list is reserved for publication as a material artifact. Edit the artifact or resume the original import.');
+}
+export async function importedLegacyMaterialArtifact(org:string,project:string,listId:string){
+  const set=(await rawLedger(org,project)).sets.find(set=>set.origin.legacy_list_id===listId);
+  return set?{...set.presentation,...set,project_id:project,resource_type:'material',current_items:set.lines.map(line=>({...line.presentation,...line})),created:false}:null;
 }

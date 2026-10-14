@@ -135,11 +135,15 @@ event carries, and every action's typed input schema.
   with PDF + email, expense tracking with projected vs actual, receipts with
   AI extraction, recurring billing summaries.
 - Materials: template-defined material/labor/equipment lists resolved against
-  the org pricebook, ordering, delivery scheduling with a client-evaluated
-  schedule-rule DSL, delivery tracking (material.delivery.completed).
+  the org pricebook, ordering, delivery tracking
+  (material.delivery.completed). A list's schedule block creates its event:
+  lists sharing schedule.group_id sit under one span for the scope piece, and
+  schedule.placement says where the event sits relative to that span
+  ({anchor: "start"|"end"|"span", offset, duration, all_day}; offset and
+  duration are {value|expression, unit}).
 - Scheduling: calendar events (sales_appointment, project_work,
-  material_delivery...), role-based availability for sales, crew assignment
-  via work_resource_ref for production.
+  material_delivery...), role-based availability for sales. Who and what an
+  event uses is its resource_refs list (assignees and equipment).
 - Crew app (field): mobile view for crews — assigned work, time clock,
   checklists, materials confirmation, change orders, payments (cash/check).
 - Payroll: pay rules grouped into pay plans and assigned per payee (any

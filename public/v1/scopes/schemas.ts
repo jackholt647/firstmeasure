@@ -1,3 +1,4 @@
+import { deliverablesSchema } from "../materials/calculus-contract.js";
 import { z } from "zod";
 
 import { jsonObjectSchema, workAutomationBindingsSchema, workNodeDefinitionSchema } from "../work/schemas.js";
@@ -33,12 +34,15 @@ export const scopeMaterialScheduleSchema = jsonObjectSchema.extend({
   color: z.string().trim().max(80).optional(),
   source_node_template_id: scopeDefinitionIdSchema.optional(),
   lock_on_order: z.boolean().optional(),
-  rule: jsonObjectSchema.optional(),
-  // Gantt structure: lists sharing a group_id nest under one derived group
-  // row; depends_on links this list's event after another list's event.
+  // Where this list's event sits relative to its span: { anchor, offset, duration, all_day }.
+  placement: jsonObjectSchema.optional(),
+  // Lists sharing a group_id sit under one span per scope piece; depends_on
+  // links this list's event after another list's event.
   group_id: scopeDefinitionIdSchema.optional(),
   group_title: z.string().trim().min(1).max(300).optional(),
   group_color: z.string().trim().max(80).optional(),
+  // How long the span should run when it is first put on the calendar.
+  group_duration: jsonObjectSchema.optional(),
   depends_on: z.array(scopeScheduleDependencySchema).optional(),
   // Seeds `event.confirmation` on the generated event, so a scope template can
   // declare "appointments of this kind always ask the customer to confirm"
@@ -225,6 +229,7 @@ export const scopeTemplateDefinitionSchema = jsonObjectSchema.extend({
   fields: z.array(jsonObjectSchema).optional(),
   custom_fields: scopeCustomFieldsDefinitionSchema.optional(),
   communications: scopeCommunicationsDefinitionSchema.optional(),
+  materials_deliverables: deliverablesSchema.optional(),
   materials: scopeMaterialsDefinitionSchema.optional(),
   resources: scopeResourcesDefinitionSchema.optional(),
   // Template-level scheduling presentation: which schedule surface projects

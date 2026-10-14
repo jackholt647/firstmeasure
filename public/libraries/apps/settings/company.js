@@ -9852,7 +9852,7 @@
         #csPaneScheduling .ss-status{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:7px 10px;background:rgba(255,255,255,.12);font-size:10px;font-weight:950;white-space:nowrap}.ss-status.on{background:#ecfdf3;color:#027a48}
         #csPaneScheduling .ss-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ss-card{display:grid;gap:10px;border:1px solid #e4e7ec;border-radius:14px;padding:14px;background:#fff}.ss-card.wide{grid-column:1/-1}.ss-card-head{display:flex;justify-content:space-between;gap:12px}.ss-card-head div{display:grid;gap:3px}.ss-card-head strong{font-size:13px;color:#101828}.ss-card-head span{font-size:10px;color:#667085;line-height:1.4}
         #csPaneScheduling .ss-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.ss-fields.three{grid-template-columns:repeat(3,minmax(0,1fr))}.ss-field{display:grid;gap:5px;color:#475467;font-size:10px;font-weight:900}.ss-field input,.ss-field select,.ss-field textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;padding:8px;background:#fff;color:#101828;font:inherit;font-weight:700}.ss-field textarea{min-height:68px;resize:vertical}
-        #csPaneScheduling .ss-resource-list{display:grid;gap:8px}.ss-resource{display:grid;grid-template-columns:minmax(150px,1.4fr) repeat(3,minmax(100px,.7fr));gap:8px;align-items:end;border-top:1px solid #eaecf0;padding-top:10px}.ss-resource:first-child{border-top:0;padding-top:0}
+        #csPaneScheduling .ss-resource-list{display:grid;gap:8px}.ss-resource{display:grid;grid-template-columns:minmax(150px,1.4fr) repeat(2,minmax(100px,.7fr));gap:8px;align-items:end;border-top:1px solid #eaecf0;padding-top:10px}.ss-resource:first-child{border-top:0;padding-top:0}
         #csPaneScheduling .ss-disabled{opacity:.55;pointer-events:none}.ss-cap-note{border:1px dashed #d0d5dd;border-radius:10px;padding:9px 11px;color:#667085;font-size:10px;background:#f9fafb}
         @media(max-width:760px){#csPaneScheduling .ss-grid,#csPaneScheduling .ss-fields,#csPaneScheduling .ss-fields.three{grid-template-columns:1fr}#csPaneScheduling .ss-card.wide{grid-column:auto}#csPaneScheduling .ss-resource{grid-template-columns:1fr 1fr}.ss-resource>.ss-field:first-child{grid-column:1/-1}}
       `);
@@ -9909,18 +9909,25 @@
         };
       };
       let schedulingConfig = null;
+      let assigneeOverlaps = {};
+      const assigneeSchedulingPath = () => `/organizations/${encodeURIComponent(orgId)}/assignee-scheduling`;
+      const loadAssigneeOverlaps = async () => {
+        const result = await window.PlatformAPI.request(assigneeSchedulingPath());
+        return Object.fromEntries((Array.isArray(result?.settings) ? result.settings : []).map((setting) => [`${setting?.assignee?.type}:${setting?.assignee?.id}`, setting?.overlap]));
+      };
       paneScheduling.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_fd55191ada1023","Loading scheduling settings...") ?? "Loading scheduling settings...")}</div>`;
       try {
         if (!orgId || !window.PlatformScheduling?.loadBranchConfig || !window.PlatformAPI?.branchModules?.save) throw new Error('Scheduling API is unavailable.');
-        [schedulingConfig] = await Promise.all([
+        [schedulingConfig, assigneeOverlaps] = await Promise.all([
           window.PlatformScheduling.loadBranchConfig(orgId, branchId),
+          loadAssigneeOverlaps(),
           loadWorkforceContext()
         ]);
       } catch (e) {
         paneScheduling.innerHTML = `<div class="cs-note">${escapeHtml(e?.message || 'Could not load scheduling settings.')}</div>`;
         return;
       }
-      const saveSchedulingWindow = async ({ start, end, days = [1, 2, 3, 4, 5], duration = 60, slot = 30, buffer = 30, useDaySpecificHours = false, perDay = {}, applyLimitsToInternalUsers = false, eventPolicies = {}, selfService = null, travel = null, redundancy = null, resourceAvailability = null } = {}) => {
+      const saveSchedulingWindow = async ({ start, end, days = [1, 2, 3, 4, 5], duration = 60, slot = 30, buffer = 30, useDaySpecificHours = false, perDay = {}, applyLimitsToInternalUsers = false, eventPolicies = {}, selfService = null, travel = null, redundancy = null, resourceAvailability = null, assigneeOverlap = null } = {}) => {
         const current = schedulingConfig?.scheduling || {};
         const safeDays = (Array.isArray(days) ? days : []).map(Number).filter((day) => day >= 0 && day <= 6);
         const selectedDays = safeDays.length ? safeDays : [1, 2, 3, 4, 5];
@@ -9969,7 +9976,8 @@
           ...(selfService ? { self_service:selfService } : {}),
           ...(travel ? { travel } : {}),
           ...(redundancy ? { redundancy } : {}),
-          ...(resourceAvailability ? { resource_availability:resourceAvailability } : {})
+          ...(resourceAvailability ? { resource_availability:resourceAvailability } : {}),
+          ...(assigneeOverlap ? { assignee_overlap:assigneeOverlap } : {})
         };
         await window.PlatformAPI.branchModules.save(orgId, branchId, 'scheduling', next, { kind: 'branch_scheduling', source: 'company_settings' });
         schedulingConfig = window.PlatformScheduling?.refreshBranchConfig
@@ -10062,6 +10070,9 @@
         const travelPolicy = currentScheduling.travel || {};
         const redundancyPolicy = currentScheduling.redundancy || {};
         const resourceAvailability = currentScheduling.resource_availability || {};
+        const assigneeOverlap = ['block', 'allow'].includes(currentScheduling.assignee_overlap) ? currentScheduling.assignee_overlap : 'warn';
+        const overlapOptions = (selected, inherit = false) => [...(inherit ? [['inherit', 'Follow the organization setting']] : []), ['warn', 'Warn and save'], ['block', 'Block the save'], ['allow', 'Allow without a warning']]
+          .map(([value, label]) => `<option value="${value}" ${value === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
         const portalFeature = window.Portal?.can?.('scheduling.customer_rescheduling') === true;
         const guidedFeature = window.Portal?.can?.('scheduling.automated_rescheduling') === true;
         const resourceFeature = window.Portal?.can?.('scheduling.resource_availability') === true;
@@ -10168,10 +10179,11 @@
                   <label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_432be520abf01c","No openings message") ?? "No openings message")}<textarea data-ss-copy="no_slots">${String(escapeHtml(selfMessages.no_slots || "We couldn't find an open time in that range. Our team will follow up."))}</textarea></label>
                 </div>
               </article>
-              <article class="ss-card wide ${String(resourceFeature ? '' : 'ss-disabled')}">
-                <div class="ss-card-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("settings","m_3552de79d04b76","Crew and group capacity") ?? "Crew and group capacity")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("settings","m_59d7346851509a","Schedule a group as one unit, by available members, or by a configured concurrent quantity.") ?? "Schedule a group as one unit, by available members, or by a configured concurrent quantity.")}</span></div></div>
-                ${String(resourceRows.length ? `<div class="ss-resource-list">${resourceRows.map((row) => `<div class="ss-resource" data-ss-resource="${escapeHtml(row.key)}"><label class="ss-field"><span>${escapeHtml(row.name)}</span><small>${escapeHtml(row.key)}</small></label><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_3de8a43e413ae1","Capacity mode") ?? "Capacity mode")}<select data-ss-resource-mode><option value="unit" ${row.rule.capacity_mode !== 'members' && row.rule.capacity_mode !== 'quantity' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_d4cdd638a9c724","One crew/unit") ?? "One crew/unit")}</option><option value="members" ${row.rule.capacity_mode === 'members' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_209b57cc87cef1","Available members") ?? "Available members")}</option><option value="quantity" ${row.rule.capacity_mode === 'quantity' ? 'selected' : ''}>${(globalThis.PlatformLanguage?.htmlText("settings","m_e4b87b81619561","Fixed quantity") ?? "Fixed quantity")}</option></select></label><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_e7335dc464c357","Capacity") ?? "Capacity")}<input data-ss-resource-capacity type="number" min="1" max="100" value="${escapeHtml(Number(row.rule.capacity || 1))}"></label><label class="ss-field">${(globalThis.PlatformLanguage?.htmlText("settings","m_7faade94d753e9","Extra buffer") ?? "Extra buffer")}<input data-ss-resource-buffer type="number" min="0" max="240" step="5" value="${escapeHtml(Number(row.rule.buffer_minutes || 0))}"></label></div>`).join('')}</div>` : `<div class="ss-cap-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_31bf1b8d096f43","Create a crew or resource group to configure group-specific capacity.") ?? "Create a crew or resource group to configure group-specific capacity.")}</div>`)}
-                ${String(resourceFeature ? '' : `<div class="ss-cap-note">${(globalThis.PlatformLanguage?.htmlText("settings","m_e6bed00d4f6f15","Enable Resource Availability Rules in Features before these controls take effect.") ?? "Enable Resource Availability Rules in Features before these controls take effect.")}</div>`)}
+              <article class="ss-card wide">
+                <div class="ss-card-head"><div><strong>Assignee overlap</strong><span>What happens when an assignee is given two jobs at the same time. How many jobs an assignee can hold at once comes from its units.</span></div></div>
+                <div class="ss-fields"><label class="ss-field">When an assignee is already booked<select data-ss-assignee-overlap>${overlapOptions(assigneeOverlap)}</select></label></div>
+                ${String(resourceRows.length ? `<div class="ss-resource-list">${resourceRows.map((row) => `<div class="ss-resource" data-ss-resource="${escapeHtml(row.key)}"><label class="ss-field"><span>${escapeHtml(row.name)}</span><small>${escapeHtml(row.key)}</small></label><label class="ss-field">When already booked<select data-ss-resource-overlap>${overlapOptions(['warn', 'block', 'allow'].includes(assigneeOverlaps[row.key]) ? assigneeOverlaps[row.key] : 'inherit', true)}</select></label><label class="ss-field ${resourceFeature ? '' : 'ss-disabled'}">${(globalThis.PlatformLanguage?.htmlText("settings","m_7faade94d753e9","Extra buffer") ?? "Extra buffer")}<input data-ss-resource-buffer type="number" min="0" max="240" step="5" value="${escapeHtml(Number(row.rule.buffer_minutes || 0))}"></label></div>`).join('')}</div>` : `<div class="ss-cap-note">Add a group to set its own overlap rule and buffer.</div>`)}
+                ${String(resourceFeature ? '' : `<div class="ss-cap-note">Enable Resource Availability Rules in Features before the extra buffer takes effect.</div>`)}
               </article>
             </div>
           </div>
@@ -10224,15 +10236,23 @@
         const collectResourceAvailability = () => {
           const next = { ...resourceAvailability };
           paneScheduling.querySelectorAll('[data-ss-resource]').forEach((row) => {
+            const stored = workforceObject(next[row.dataset.ssResource]);
             next[row.dataset.ssResource] = {
-              ...workforceObject(next[row.dataset.ssResource]),
+              ...Object.fromEntries(['working_hours', 'exceptions', 'travel_enabled'].filter((field) => field in stored).map((field) => [field, stored[field]])),
               enabled:true,
-              capacity_mode:row.querySelector('[data-ss-resource-mode]')?.value || 'unit',
-              capacity:Number(row.querySelector('[data-ss-resource-capacity]')?.value || 1),
               buffer_minutes:Number(row.querySelector('[data-ss-resource-buffer]')?.value || 0)
             };
           });
           return next;
+        };
+        const saveAssigneeOverlaps = async () => {
+          for (const row of paneScheduling.querySelectorAll('[data-ss-resource]')) {
+            const key = row.dataset.ssResource, overlap = row.querySelector('[data-ss-resource-overlap]')?.value || 'inherit';
+            if (overlap === (assigneeOverlaps[key] || 'inherit')) continue;
+            const split = key.indexOf(':');
+            await window.PlatformAPI.request(assigneeSchedulingPath(), { method:'PUT', body:{ assignee:{ type:key.slice(0, split), id:key.slice(split + 1) }, overlap } });
+            assigneeOverlaps[key] = overlap;
+          }
         };
         const syncDayRows = () => {
           const globalStart = $('#liSalesStart', paneScheduling)?.value || '09:00';
@@ -10319,8 +10339,10 @@
                 multiplier:Number(paneScheduling.querySelector('[data-ss-multiplier]')?.value || 1.25)
               },
               redundancy:{ ...redundancyPolicy, reserve_count:Number(paneScheduling.querySelector('[data-ss-reserve]')?.value || 0) },
-              resourceAvailability:collectResourceAvailability()
+              resourceAvailability:collectResourceAvailability(),
+              assigneeOverlap:paneScheduling.querySelector('[data-ss-assignee-overlap]')?.value || 'warn'
             });
+            await saveAssigneeOverlaps();
             render();
             schedulingButtonFeedback($('#liSaveScheduling', paneScheduling), '<i class="fas fa-check"></i> Saved');
             const nextStatus = $('#liSchedulingStatus', paneScheduling);

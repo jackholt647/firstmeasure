@@ -159,6 +159,21 @@ measurement partitions to tell a line that pays from one that adjusts, and do
 not add parts of different partitions together. A warning never blocks. Run
 `tests/work-requirements.test.ts` for changes here.
 
+## Schedule events
+
+Read [schedule events](docs/architecture/schedule-events.md) before changing
+what a schedule event stores, who or what it is assigned to, how events relate
+to each other, or how double-booking is checked. An event is one time range plus
+the resources it uses for that whole range, in `resource_refs` and nowhere else;
+anything that needs a different range is a child event (`parent_event_id` plus a
+`placement`), and the parent drives it. Do not add a second field that names an
+event's assignee or list, dates on a resource, or a range derived from children.
+Whether an assignee is free comes from events through `assessAssigneeOverlap`,
+with capacity from the assignee's units; what an overlap does (`warn`, `block`,
+`allow`) is a setting of the organization and of the assignee. Run
+`tests/schedule-events.test.ts` and `tests/scheduling-event-writes.test.ts` for
+changes here.
+
 ## Automations
 
 Read [automation authoring](docs/architecture/automation-authoring.md) before

@@ -475,13 +475,12 @@ test('placed scheduling items distinguish clicks from drags and open assignment 
   assert.match(schedulingSource, /eventEditorEventId = String\(event\.id \|\| ''\);[\s\S]*?renderEventDraftPopover\(meta\.element \|\| editorAnchorFor\(event\.id\)\);/);
   assert.ok([...schedulingSource.matchAll(/onEventClick\(event, meta = \{\}\)\{ openPlacedCalendarEvent\(event, meta\); \}/g)].length >= 3);
   assert.match(schedulingSource, /return resource\.subject_type === 'organization_user' \|\| !normalizedScopeId \|\| !ids\.length \|\| ids\.includes\(normalizedScopeId\);/);
-  assert.match(schedulingSource, /const scheduleEvent = !!clean\([\s\S]*?const identityId = scheduleEvent \? '' : resource\.id;/);
-  assert.match(schedulingSource, /const resourceId = scheduleEvent && workAssignmentReferencesEvent\(resource, candidateId\) \? '' : candidateId;/);
-  assert.match(schedulingSource, /const resourceName = resourceId && !\(scheduleEvent && workAssignmentReferencesEvent\(resource, candidateName\)\) \? candidateName : '';/);
-  assert.match(schedulingSource, /function workAssignmentReferencesEvent\(event = \{\}, resourceId = ''\)/);
-  assert.match(schedulingSource, /return workAssignmentReferencesEvent\(event, id\) \? '' : id;/);
-  assert.match(projectScheduleSource, /function workAssignmentReferencesEvent\(event = \{\}, resourceId = ''\)/);
-  assert.match(platformApiSource, /const selfAssigned = assignmentIds\.includes\(eventId\);[\s\S]*?work_resource_ref: null,[\s\S]*?assigned_crew_id: ""/);
+  // An event's assignees are its resource list; a ref that names the event itself is dropped by the library.
+  assert.match(schedulingSource, /function workResourcePayload\(subject = null, item = \{\}\)\{[\s\S]*?setEventPrimaryAssignee[\s\S]*?return \{ resource_refs:/);
+  assert.doesNotMatch(schedulingSource, /workAssignmentReferencesEvent/);
+  assert.doesNotMatch(projectScheduleSource, /workAssignmentReferencesEvent/);
+  assert.match(platformApiSource, /const resourceRefs = eventResources\(\{ id: eventId, resource_refs: input\.resource_refs \}\)[\s\S]*?return stripRemovedEventFields\(\{[\s\S]*?resource_refs: resourceRefs,/);
+  assert.doesNotMatch(platformApiSource, /work_resource_ref: null|assigned_crew_id: ""/);
   assert.match(scheduleViewSource, /const POINTER_DRAG_THRESHOLD = 8;/);
   assert.match(scheduleViewSource, /<button type="button" class="prs-assignee[\s\S]*?data-prs-assignee/);
   assert.match(scheduleViewSource, /\.prs-title-text\{display:block;width:100%;max-width:100%;min-width:0;overflow:hidden/);
@@ -613,7 +612,7 @@ test('range saves reflow the calendar without reloading data or overwriting newe
   // Queued saves first re-read the stored item (EQ-10 / R2-EQ-2): a change
   // elsewhere to the moved fields refuses the save; other changes made
   // elsewhere are kept by writing only the move on top of the stored copy.
-  assert.match(schedulingSource, /const saved = await queueEventRangeSave\(event\.id, async \(\) => \{[\s\S]*?checkStoredScheduleEvent\(known, ownGroups\)[\s\S]*?toSave = mergeEventChanges\(check\.fresh, next, ownGroups\)[\s\S]*?return Scheduling\.saveProjectEvent\(orgId\(\), project, withExplicitAssignees\(toSave\), schedulingConfig\);\s*\}\);\s*mergeSavedCalendarEvent\(saved, next, saveVersion\)/);
+  assert.match(schedulingSource, /const saved = await queueEventRangeSave\(event\.id, async \(\) => \{[\s\S]*?checkStoredScheduleEvent\(known, ownGroups\)[\s\S]*?toSave = mergeEventChanges\(check\.fresh, next, ownGroups\)[\s\S]*?return Scheduling\.saveProjectEvent\(orgId\(\), project, projectEventSavePayload\(toSave\), schedulingConfig\);\s*\}\);\s*mergeSavedCalendarEvent\(saved, next, saveVersion\)/);
   const rangeSaveStart = schedulingSource.indexOf('async function saveEventCalendarRange(event, range){');
   const rangeSaveEnd = schedulingSource.indexOf('  function salesResources', rangeSaveStart);
   const rangeSaveSource = rangeSaveStart >= 0 && rangeSaveEnd > rangeSaveStart ? schedulingSource.slice(rangeSaveStart, rangeSaveEnd) : '';
@@ -712,7 +711,7 @@ test('project assignment search is empty until queried and renders as a dropdown
 test('material deliveries do not expose workforce assignment', () => {
   assert.match(schedulingSource, /function assignmentResourcesForEvent\(event\)\{\s*if \(isMaterialEvent\(event\)\) return \[\];/);
   assert.match(schedulingSource, /if \(meta\.action === 'assignee' && meta\.element && !isMaterialEvent\(event\)\)/);
-  assert.match(schedulingSource, /function decorateMaterialEvent\(event = \{\}\)[\s\S]*?assignee_label: '',[\s\S]*?work_resource_ref: null/);
+  assert.match(schedulingSource, /function decorateMaterialEvent\(event = \{\}\)[\s\S]*?assignee_label: ''/);
   assert.match(scheduleViewSource, /const assigneeHtml = !preview && !materialDelivery && showAssignee/);
 });
 
@@ -985,58 +984,68 @@ test('waiting production events render their project title instead of the addres
   assert.match(schedulingSource, /function renderProductionScheduleGroups\(\)[\s\S]*?const eventPile = \(group\) => \{[\s\S]*?<div class="dash-appt-address">\$\{escapeHtml\(projectTitle\(project, primary\)\)\}\$\{missingAddress/);
 });
 
-test('scope schedule rules derive a roofing bundle from its primary start date', () => {
+const roofingFamily = (spanRange = {}) => {
+  const span = { id:'span', project_id:'project_1', scope_piece_id:'piece_1', kind:'schedule_group', title:'Roof Installation', all_day:true, ...spanRange };
+  const work = { id:'work', project_id:'project_1', kind:'project_work', title:'Roofing Labor', parent_event_id:'span', placement:{ anchor:'span' }, resource_refs:[{ kind:'resource_group', id:'crew_1', name:'North team' }] };
+  const dryIn = { id:'dry', project_id:'project_1', kind:'material_delivery', title:'Dry-In', parent_event_id:'span', placement:{ anchor:'start', offset:{ value:-1, unit:'business_day' }, duration:{ value:1, unit:'day' }, all_day:true } };
+  const shingle = { id:'shingle', project_id:'project_1', kind:'material_delivery', title:'Shingle', parent_event_id:'span', placement:{ anchor:'start', offset:{ unit:'day', expression:{ operator:'floor', operands:[{ operator:'divide', left:{ operator:'subtract', left:{ ref:'parent.duration.days' }, right:1 }, right:2 }] }, adjust:{ calendar:'business_day', direction:'previous' } }, duration:{ value:1, unit:'day' }, all_day:true } };
+  const lift = { id:'lift', project_id:'project_1', kind:'equipment', title:'Boom lift', parent_event_id:'work', locked:true, placement:{ anchor:'span' }, start_at:new Date('2026-07-01T00:00:00').toISOString(), end_at:new Date('2026-07-02T00:00:00').toISOString(), resource_refs:[{ kind:'equipment_type', id:'lift', quantity:2 }] };
+  return { span, work, dryIn, shingle, lift };
+};
+const isoRange = (start, end) => ({ start_at:new Date(start).toISOString(), end_at:new Date(end).toISOString() });
+
+test('a span places its children from their stored placement', () => {
   const context = { window:{ PlatformAPI:{} }, console, Date, Math, Set, Map };
   vm.runInNewContext(platformSchedulingSource, context);
   const Scheduling = context.window.PlatformScheduling;
-  const template = {
-    id:'roof_replacement',
-    definition:{
-      id:'roof_replacement',
-      resources:{ lists:[
-        { id:'roofing_labor', schedule:{ event_type_default_id:'project_work', rule:{ bundle:{ key:'roof_replacement', role:'primary', item_key:'roofing_labor' }, default_duration:{ unit:'day', minimum:1, expression:{ operator:'ceil', value:{ operator:'divide', left:{ ref:'project.measurements.roofSquares' }, right:20 } } }, all_day:true } } },
-        { id:'dry_in', schedule:{ event_type_default_id:'material_delivery_dry_in', rule:{ bundle:{ key:'roof_replacement', role:'dependent', item_key:'dry_in' }, relative_start:{ anchor:'start', offset:{ value:-1, unit:'business_day' } }, default_duration:{ value:1, unit:'day' }, all_day:true } } },
-        { id:'shingle', schedule:{ event_type_default_id:'material_delivery_shingles', rule:{ bundle:{ key:'roof_replacement', role:'dependent', item_key:'shingle' }, relative_start:{ anchor:'start', offset:{ unit:'day', expression:{ operator:'floor', value:{ operator:'divide', left:{ operator:'subtract', left:{ ref:'anchor.duration.days' }, right:1 }, right:2 } }, adjust:{ calendar:'business_day', direction:'previous' } } }, default_duration:{ value:1, unit:'day' }, all_day:true } } }
-      ] }
-    }
-  };
-  const project = { id:'project_1', scope:{ measurements:{ roofSquares:61 }, pieces:[{ id:'piece_1', measurements:{ roofSquares:61 } }] } };
-  const work = { id:'work', project_id:'project_1', scope_piece_id:'piece_1', scope_template_id:'roof_replacement', event_type_default_id:'project_work', kind:'project_work', title:'Roofing Labor' };
-  const dryIn = { id:'dry', project_id:'project_1', scope_piece_id:'piece_1', scope_template_id:'roof_replacement', event_type_default_id:'material_delivery_dry_in', kind:'material_delivery', title:'Dry-In' };
-  const shingle = { id:'shingle', project_id:'project_1', scope_piece_id:'piece_1', scope_template_id:'roof_replacement', event_type_default_id:'material_delivery_shingles', kind:'material_delivery', title:'Shingle' };
-  const drafts = Scheduling.interpretScheduleBundle(work, [work, dryIn, shingle], new Date('2026-07-20T00:00:00'), project, [template]);
-  assert.equal(drafts.length, 3);
-  assert.equal(drafts[0].end.getTime() - drafts[0].start.getTime(), 4 * 86400000);
-  assert.equal(drafts[1].start.getDay(), 5, 'Monday work places dry-in on the preceding Friday');
-  assert.equal(drafts[2].start.getTime() - drafts[0].start.getTime(), 86400000, 'four-day work places shingles on project day two');
-  const weekendDrafts = Scheduling.interpretScheduleBundle(work, [work, dryIn, shingle], new Date('2026-07-17T00:00:00'), { ...project, scope:{ measurements:{ roofSquares:41 }, pieces:[{ id:'piece_1', measurements:{ roofSquares:41 } }] } }, [template]);
-  assert.equal(weekendDrafts[2].start.getDay(), 5, 'a calculated Saturday shingle date moves back to Friday');
+  for (const removed of ['interpretScheduleBundle', 'scheduleRuleForEvent', 'scheduleBundleDescriptor', 'scheduleBundleReschedulePolicy', 'eventIsGroup', 'groupRollupRange', 'applyGroupRollups', 'groupMoveDrafts', 'eventEquipmentRefs', 'shiftEquipmentWindows']) {
+    assert.equal(typeof Scheduling[removed], 'undefined', `${removed} is not part of the scheduling library`);
+  }
+  const family = roofingFamily(isoRange('2026-07-20T00:00:00', '2026-07-24T00:00:00'));
+  assert.equal(Scheduling.eventIsSpan(family.span), true);
+  assert.equal(Scheduling.eventIsSpan({ id:'old', is_schedule_group:true, schedule_rollup:'children' }), false, 'a span is an event of kind schedule_group and nothing else');
+  assert.equal(Scheduling.createScheduleGroupEvent({ title:'Roof Installation' }).kind, 'schedule_group');
+  assert.deepEqual(Array.from(Scheduling.eventDescendants(Object.values(family), 'span'), (event) => event.id).sort(), ['dry', 'lift', 'shingle', 'work']);
+  const placed = Scheduling.placeChildren(Object.values(family), 'span');
+  const byId = new Map(placed.updated.map((event) => [event.id, event]));
+  assert.deepEqual(Array.from(byId.keys()).sort(), ['dry', 'shingle', 'work']);
+  assert.equal(byId.get('work').start_at, family.span.start_at, 'a span-anchored child covers the whole parent');
+  assert.equal(byId.get('work').end_at, family.span.end_at);
+  assert.equal(new Date(byId.get('dry').start_at).getDay(), 5, 'Monday work places dry-in on the preceding Friday');
+  assert.equal(new Date(byId.get('shingle').start_at).getTime() - new Date(family.span.start_at).getTime(), 86400000, 'four-day work places shingles on project day two');
+  assert.deepEqual(Array.from(placed.blocked, (event) => event.id), ['lift'], 'a locked child does not move and is reported');
+  const weekend = roofingFamily(isoRange('2026-07-17T00:00:00', '2026-07-20T00:00:00'));
+  const weekendShingle = Scheduling.placeChildren(Object.values(weekend), 'span').updated.find((event) => event.id === 'shingle');
+  assert.equal(new Date(weekendShingle.start_at).getDay(), 5, 'a calculated Saturday shingle date moves back to Friday');
+  const measured = Scheduling.evaluatePlacement(
+    { anchor:'start', offset:{ unit:'day', expression:{ operator:'ceil', operands:[{ operator:'divide', left:{ ref:'measurements.roofSquares' }, right:20 }] } } },
+    { start:new Date('2026-07-20T00:00:00'), end:new Date('2026-07-24T00:00:00') }, {}, { measurements:{ roofSquares:61 } });
+  assert.equal(measured.start.getTime(), new Date('2026-07-24T00:00:00').getTime(), 'placement expressions read measurements');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(Scheduling.manualPlacement({ start:new Date('2026-07-21T00:00:00'), end:new Date('2026-07-22T00:00:00'), all_day:true }, { start:new Date('2026-07-20T00:00:00'), end:new Date('2026-07-24T00:00:00') }))),
+    { anchor:'start', offset:{ value:1, unit:'day' }, duration:{ value:1, unit:'day' }, all_day:true, manual:true });
+  assert.match(platformApiSource, /import \{[^}]*placeChildren[^}]*\} from "\.\.\/scheduling\/placement\.js";/);
+  assert.match(platformApiSource, /placeChildren\(events, cleanText\(event\.id\), placementContext\)/);
+  assert.match(platformApiSource, /related_events: relatedEvents,\s*blocked_children: blockedChildren,\s*assignee_conflicts: assigneeConflicts,/);
 });
 
-test('scope-defined relationship moves preserve the dragged primary range and recalculate dependents', () => {
+test('moving a span previews its children without making them drafts to save', () => {
   const context = { window:{ PlatformAPI:{} }, console, Date, Math, Set, Map };
   vm.runInNewContext(platformSchedulingSource, context);
   const Scheduling = context.window.PlatformScheduling;
-  const template = {
-    id:'roof_replacement',
-    definition:{ resources:{ lists:[
-      { id:'roofing_labor', schedule:{ event_type_default_id:'project_work', rule:{ bundle:{ key:'roof_replacement', role:'primary', item_key:'roofing_labor' }, reschedule:{ cascade:'prompt', include_roles:['dependent'] }, default_duration:{ value:1, unit:'day' }, all_day:true } } },
-      { id:'dry_in', schedule:{ event_type_default_id:'material_delivery_dry_in', rule:{ bundle:{ key:'roof_replacement', role:'dependent', item_key:'dry_in' }, relative_start:{ anchor:'start', offset:{ value:-1, unit:'business_day' } }, default_duration:{ value:1, unit:'day' }, all_day:true } } },
-      { id:'shingle', schedule:{ event_type_default_id:'material_delivery_shingles', rule:{ bundle:{ key:'roof_replacement', role:'dependent', item_key:'shingle' }, relative_start:{ anchor:'start', offset:{ unit:'day', expression:{ operator:'floor', value:{ operator:'divide', left:{ operator:'subtract', left:{ ref:'anchor.duration.days' }, right:1 }, right:2 } } } }, default_duration:{ value:1, unit:'day' }, all_day:true } } }
-    ] } }
-  };
-  const project = { id:'project_1' };
-  const work = { id:'work', project_id:'project_1', scope_piece_id:'piece_1', scope_template_id:'roof_replacement', event_type_default_id:'project_work', kind:'project_work', schedule_rule:{ version:1, bundle:{ key:'roof_replacement', role:'primary', item_key:'roofing_labor' }, default_duration:{ value:1, unit:'day' }, all_day:true } };
-  const dry = { id:'dry', project_id:'project_1', scope_piece_id:'piece_1', scope_template_id:'roof_replacement', event_type_default_id:'material_delivery_dry_in', kind:'material_delivery' };
-  const shingle = { id:'shingle', project_id:'project_1', scope_piece_id:'piece_1', scope_template_id:'roof_replacement', event_type_default_id:'material_delivery_shingles', kind:'material_delivery' };
-  const drafts = Scheduling.relatedScheduleRescheduleDrafts(work, [work, dry, shingle], {
+  const family = roofingFamily(isoRange('2026-07-13T00:00:00', '2026-07-17T00:00:00'));
+  const impact = Scheduling.relatedScheduleRescheduleImpact(family.span, Object.values(family), {
     start:new Date('2026-07-20T00:00:00'),
     end:new Date('2026-07-24T00:00:00')
-  }, project, [template]);
-  assert.deepEqual(Array.from(drafts, (draft) => draft.id), ['dry', 'shingle']);
-  assert.equal(Scheduling.scheduleBundleReschedulePolicy(work, project, [template]).cascade, 'prompt', 'current scope policy augments schedule rules copied onto older events');
-  assert.equal(drafts[0].start.getDay(), 5, 'dry-in follows its previous-business-day relationship');
-  assert.equal(drafts[1].start.getTime(), new Date('2026-07-21T00:00:00').getTime(), 'dependent formulas use the dragged four-day duration');
+  }, { id:'project_1' });
+  assert.deepEqual(Array.from(impact.children, (draft) => draft.id).sort(), ['dry', 'shingle', 'work']);
+  assert.ok(impact.children.every((draft) => draft.__placed_child === true), 'children are previews: the server re-places them when the parent is saved');
+  assert.deepEqual(Array.from(impact.dependents, (draft) => draft.id), []);
+  assert.deepEqual(Array.from(impact.blocked, (entry) => [entry.event.id, entry.direction]), [['lift', 'child']]);
+  const dry = impact.children.find((draft) => draft.id === 'dry');
+  const shingle = impact.children.find((draft) => draft.id === 'shingle');
+  assert.equal(new Date(dry.start_at).getDay(), 5, 'dry-in follows its previous-business-day placement');
+  assert.equal(new Date(shingle.start_at).getTime(), new Date('2026-07-21T00:00:00').getTime(), 'placement formulas use the dragged four-day duration');
 });
 
 test('calendar drops immediately reflow and relationship prompts use the shared three-choice dialog', () => {
@@ -1046,8 +1055,10 @@ test('calendar drops immediately reflow and relationship prompts use the shared 
   assert.match(schedulingSource, /\{ value:'cancel', label:'Cancel' \}[\s\S]*?\{ value:'no', label:'No' \}[\s\S]*?\{ value:'yes', label:'Yes', primary:true \}/);
   assert.match(platformUiSource, /function chooseUi\(message, choices = \[\], options = \{\}\)/);
   assert.match(portalCoreSource, /choose: \(\.\.\.args\) => window\.PlatformUI\?\.choose/);
-  assert.match(scopePresetsSource, /reschedule: \{ cascade: "prompt", include_roles: \["dependent"\] \}/);
-  assert.match(scopePresetsSource, /preset_revision: input\.id === "roof_replacement" \? 33 : 12/);
+  assert.doesNotMatch(scopePresetsSource, /reschedule: \{ cascade:|relative_start:|default_duration:/);
+  assert.match(scopePresetsSource, /placement: \{\s*anchor: "start",\s*offset: \{ value: -1, unit: "business_day" \},\s*duration: \{ value: 1, unit: "day" \},\s*all_day: true\s*\}/);
+  assert.match(scopePresetsSource, /placement: \{ anchor: "span" \}/);
+  assert.match(scopePresetsSource, /preset_revision: input\.id === "roof_replacement" \? 34 : 13/);
 });
 
 test('bundle preview lanes fill gaps and push down only conflicting calendar bars', () => {
@@ -1105,13 +1116,21 @@ test('click placement resolves the underlying calendar cell through existing eve
   assert.match(scheduleViewSource, /if \(allowEventDrag\) chip\.addEventListener\('pointerdown', \(event\) => \{\s*if \(clickPlacement\) return;/);
 });
 
-test('equipment scheduling is parent-app gated and advanced assignments can use a subset window', () => {
+test('equipment scheduling is parent-app gated and equipment is held for its whole event', () => {
   assert.match(schedulingSource, /has\('apps', 'equipment'\) === true && has\('equipment', 'scheduling'\) === true/);
   assert.match(projectScheduleSource, /has\('apps', 'equipment'\) === true && has\('equipment', 'scheduling'\) === true/);
-  assert.match(schedulingSource, /data-event-equipment-start/);
-  assert.match(schedulingSource, /data-event-equipment-end/);
-  assert.match(projectScheduleSource, /id="rScheduleEquipmentStart"/);
-  assert.match(platformApiSource, /start_at: startAt/);
+  const context = { window:{ PlatformAPI:{} }, console, Date, Math, Set, Map };
+  vm.runInNewContext(platformSchedulingSource, context);
+  const equipment = context.window.PlatformScheduling.eventEquipment({ resource_refs:[
+    { kind:'resource_group', id:'crew_1', unit_id:'unit_2' },
+    { kind:'equipment_unit', id:'truck_1', start_at:'2026-07-20T12:00:00.000Z', end_at:'2026-07-20T16:00:00.000Z' },
+    { kind:'equipment_type', id:'lift', quantity:2 }
+  ] });
+  assert.deepEqual(Array.from(equipment, (ref) => ({ ...ref })), [
+    { kind:'equipment_unit', id:'truck_1', name:'', role:'equipment' },
+    { kind:'equipment_type', id:'lift', name:'', role:'equipment', quantity:2 }
+  ], 'a resource carries no dates of its own');
+  assert.doesNotMatch(platformApiSource, /start_at: startAt/);
 });
 
 test('schedule chips flag unmet people, crew, and equipment requirements', () => {
@@ -1120,11 +1139,11 @@ test('schedule chips flag unmet people, crew, and equipment requirements', () =>
   const Scheduling = context.window.PlatformScheduling;
   assert.equal(Scheduling.eventRequirementWarnings({ event_type_default_id:'sales_appointment' })[0].code, 'salesperson_unassigned');
   assert.equal(Scheduling.eventRequirementWarnings({ event_type_default_id:'project_work' })[0].code, 'crew_unassigned');
+  assert.equal(Scheduling.eventRequirementWarnings({ event_type_default_id:'project_work', work_resource_ref:{ kind:'resource_group', id:'crew_1' }, assigned_crew_id:'crew_1' })[0].code, 'crew_unassigned', 'only resource_refs names an assignee');
   const warnings = Scheduling.eventRequirementWarnings({
     event_type_default_id:'project_work',
-    work_resource_ref:{ kind:'resource_group', id:'crew_1' },
     resource_requirements:[{ equipment_type_id:'dump_truck', label:'Dump truck', quantity:2 }],
-    resource_refs:[{ kind:'equipment_unit', id:'truck_1' }]
+    resource_refs:[{ kind:'resource_group', id:'crew_1' }, { kind:'equipment_unit', id:'truck_1' }]
   }, { equipmentUnits:[{ id:'truck_1', type_id:'dump_truck' }] });
   assert.equal(warnings.length, 1);
   assert.equal(warnings[0].label, 'Dump truck: 1 of 2 assigned');

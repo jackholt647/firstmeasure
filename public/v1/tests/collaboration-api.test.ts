@@ -230,7 +230,7 @@ test("partner engagements grant access only after acceptance and revoke only the
   const scheduled=await a.request("POST",ar+`/engagements/${proposal.id}/schedule`,scheduleInput);
   assert.equal((await a.request("POST",ar+`/engagements/${proposal.id}/schedule`,scheduleInput)).event_id,scheduled.event_id);
   const project=await (await import("../platform/storage.js")).readDocument(ao.orgId,"projects",resource.id);
-  assert.equal((project.data.events as any[])[0].work_resource_ref.kind,"organization_connection");
+  assert.equal((project.data.events as any[])[0].resource_refs[0].kind,"organization_connection");
 
   const other=(await a.request("POST",ar+"/shares",{resource,recipient_org_id:bo.orgId,operations:["read"],fields:["title"]})).share;
   await b.request("PATCH",br+`/engagements/${proposal.id}`,{expected_revision:accepted.revision,status:"canceled"});

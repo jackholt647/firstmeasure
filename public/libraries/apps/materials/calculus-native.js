@@ -23,7 +23,7 @@ export function nativeCalculusAPI(base, currentProject) {
     return {...s.presentation,id:s.id,project_id:project,title:s.title,revision:s.revision,resource_type:'material',status:ordered?'ordered':'planning',
       current_items:s.lines.map(item),sections:[...new Set(s.lines.map(l=>l.group || 'materials'))].map(id=>({id,name:id,title:id})),
       color:s.presentation?.color || ['#d92d20','#2563eb','#12b76a','#7f56d9'][ledger.sets.indexOf(s)%4],
-      metadata:{...s.presentation?.metadata,calculus:true,calculus_pending:!s.applied_evaluation,source_document:s.origin.title,
+      metadata:{...s.presentation?.metadata,calculus:true,calculus_pending:s.revision===0,source_artifact:s.origin.title || (s.origin.type==='scope'?'Scope materials':'Document materials'),artifact_origin:s.origin.type,
         calculation_warnings:s.evaluations.find(e=>e.id===s.applied_evaluation)?.warnings || []}};
   };
   function requirement(row, old) {

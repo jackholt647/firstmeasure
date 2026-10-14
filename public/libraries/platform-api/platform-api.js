@@ -1118,6 +1118,14 @@
           throw error;
         });
       },
+      scheduleOverlapCheck(orgId, payload = {}) {
+        if (normalizedCollection !== 'projects') throw new Error('scheduleOverlapCheck is only available for projects.');
+        const projectId = cleanText(payload.project_id || payload.projectId);
+        return request(orgPath(orgId, '/schedule/overlap-check'), {
+          method: 'POST',
+          body: { ...(projectId ? { project_id: projectId } : {}), event: payload.event || {} }
+        });
+      },
       removeEvent(orgId, id, eventId) {
         if (normalizedCollection !== 'projects') throw new Error('removeEvent is only available for projects.');
         return request(orgPath(orgId, `/projects/${enc(id)}/events/${enc(eventId)}`), { method: 'DELETE' });

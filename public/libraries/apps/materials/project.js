@@ -378,8 +378,8 @@
   function assignmentWorkResourceRef(list = {}){
     const assignment = list?.assignment && typeof list.assignment === 'object' ? list.assignment : {};
     const ref = assignment.work_resource_ref && typeof assignment.work_resource_ref === 'object' ? assignment.work_resource_ref : {};
-    const id = cleanText(ref.id || assignment.resource_id || assignment.crew_id);
-    return id ? { kind:cleanText(ref.kind || assignment.resource_kind || 'resource_group'), id, name:cleanText(ref.name || assignment.resource_name || assignment.crew_name) } : null;
+    const id = cleanText(ref.id);
+    return id ? { kind:cleanText(ref.kind || 'resource_group'), id, name:cleanText(ref.name) } : null;
   }
   function workResourcesForScopeList(list){
     const templateId = cleanText(list?.scope_template_id || list?.template_id);
@@ -401,17 +401,6 @@
   }
   function workResourceLabel(){
     return `${workforceLabel('resource_group')} / ${workforceLabel('organization_connection')}`;
-  }
-  function workResourceCompensationMode(resource){
-    const plans = [resource?.compensation_plan, ...(Array.isArray(resource?.members) ? resource.members.map((member) => member?.compensation_plan) : [])].filter(Boolean);
-    const hourly = plans.some((plan) => plan.default_hourly === true || ['hourly','hybrid'].includes(cleanText(plan.type)));
-    const salary = plans.some((plan) => plan.default_salary === true || ['salary','hybrid'].includes(cleanText(plan.type)));
-    const piece = plans.some((plan) => plan.default_piece_rate === true || ['piece_rate','hybrid'].includes(cleanText(plan.type)));
-    if ((hourly || salary) && piece) return 'hybrid';
-    if (piece) return 'piece_rate';
-    if (hourly) return 'hourly';
-    if (salary) return 'salary';
-    return 'none';
   }
   function visibleMaterialLists(){
     return state.lists.filter((list) => state.visibleListIds.has(cleanText(list?.id)));
@@ -474,7 +463,7 @@
     const eventId = cleanText(list?.schedule_event_id || list?.delivery_event_id || list?.metadata?.schedule_event_id || list?.metadata?.delivery_event_id);
     const events = Array.isArray(state.project?.events) ? state.project.events : [];
     const event = events.find((event) => cleanText(event?.id) === eventId)
-      || events.find((event) => cleanText(event?.material_list_id || event?.metadata?.material_list_id) === listId)
+      || events.find((event) => cleanText(event?.scope_resource_list_id) === listId && !cleanText(event?.list_part_id))
       || null;
     const schedule = list?.schedule && typeof list.schedule === 'object' ? list.schedule : {};
     if (!event && !eventId && !cleanText(schedule.start_at || schedule.start || schedule.date)) return null;
@@ -484,7 +473,7 @@
       ...schedule,
       ...(event || {}),
       id: cleanText(event?.id || eventId || schedule.event_id),
-      material_list_id: cleanText(event?.material_list_id || listId),
+      scope_resource_list_id: listId,
       start_at: startAt,
       end_at: endAt,
       status: startAt ? cleanText(event?.status) === 'cancelled' ? 'cancelled' : 'scheduled' : cleanText(event?.status || schedule.status || 'unscheduled')
@@ -2389,27 +2378,16 @@
     const operation = captureProjectOperation(listId);
     state.saving = true;
     renderLeft();
-    const currentMode = cleanText(list?.compensation?.mode || list?.compensation?.default_mode || 'crew_default');
     const currentAssignment = list.assignment && typeof list.assignment === 'object' ? list.assignment : {};
-    const { crew_id:_legacyCrewId, crew_name:_legacyCrewName, ...assignment } = currentAssignment;
     try {
       const updatedList = await patchScopeResourceList(listId, {
         assignment: {
-          ...assignment,
+          unit_id: resource && cleanText(resource.id) === cleanText(currentAssignment.work_resource_ref?.id) ? cleanText(currentAssignment.unit_id) : '',
           work_resource_ref: resource ? {
             kind: cleanText(resource.resource_kind || resource.kind),
             id: cleanText(resource.id),
             name: cleanText(resource.name || resource.label)
-          } : null,
-          resource_kind: cleanText(resource?.resource_kind || resource?.kind),
-          resource_id: cleanText(resource?.id),
-          resource_name: cleanText(resource?.name || resource?.label)
-        },
-        compensation: {
-          ...(list.compensation || {}),
-          mode: currentMode === 'crew_default' ? 'crew_default' : currentMode,
-          resolved_mode: currentMode === 'crew_default' ? workResourceCompensationMode(resource) : currentMode,
-          resource_plan: resource?.compensation_plan || {}
+          } : null
         }
       }, operation);
       if (!updatedList || !projectOperationIsCurrent(operation)) return;
@@ -2422,67 +2400,6 @@
       if (!projectOperationIsCurrent(operation)) return;
       syncScopeListCard(listId);
       showToast(((v0) => globalThis.PlatformLanguage?.text("materials","m_58fe2fb4fde16a",`Could not assign ${v0}`,{v0}) ?? `Could not assign ${v0}`)(workResourceLabel()), error?.message || 'Please try again.', false);
-    } finally {
-      if (projectOperationIsCurrent(operation)) {
-        state.saving = false;
-        render({ preserveScroll: true });
-        renderLeft();
-        syncLaborMenu();
-      }
-    }
-  }
-
-  async function setLaborCompensationMode(listId, mode){
-    const list = materialListById(listId);
-    if (!list || state.saving) return;
-    const operation = captureProjectOperation(listId);
-    state.saving = true;
-    renderLeft();
-    const resource = workResourceById(assignmentWorkResourceRef(list)?.id);
-    try {
-      const updatedList = await patchScopeResourceList(listId, { compensation: { ...(list.compensation || {}), mode, resolved_mode: mode === 'crew_default' ? workResourceCompensationMode(resource) : mode, user_overridden: true } }, operation);
-      if (!updatedList || !projectOperationIsCurrent(operation)) return;
-      await loadExpenseProjection();
-      if (!projectOperationIsCurrent(operation)) return;
-      render();
-      renderLeft();
-    } catch (error) {
-      if (!projectOperationIsCurrent(operation)) return;
-      syncScopeListCard(listId);
-      showToast((globalThis.PlatformLanguage?.text("materials","m_aa4dc7a92f455a","Could not update project pay") ?? "Could not update project pay"), error?.message || 'Please try again.', false);
-    } finally {
-      if (projectOperationIsCurrent(operation)) {
-        state.saving = false;
-        render({ preserveScroll: true });
-        renderLeft();
-        syncLaborMenu();
-      }
-    }
-  }
-
-  async function setLaborExpenseSettings(listId, patch){
-    const list = materialListById(listId);
-    if (!list || state.saving) return;
-    const operation = captureProjectOperation(listId);
-    state.saving = true;
-    renderLeft();
-    try {
-      const updatedList = await patchScopeResourceList(listId, {
-        compensation: {
-          ...(list.compensation || {}),
-          ...patch,
-          user_overridden: true
-        }
-      }, operation);
-      if (!updatedList || !projectOperationIsCurrent(operation)) return;
-      await loadExpenseProjection();
-      if (!projectOperationIsCurrent(operation)) return;
-      render();
-      renderLeft();
-    } catch (error) {
-      if (!projectOperationIsCurrent(operation)) return;
-      syncScopeListCard(listId);
-      showToast((globalThis.PlatformLanguage?.text("materials","m_dc750affa8acf1","Could not update labor estimate") ?? "Could not update labor estimate"), error?.message || 'Please try again.', false);
     } finally {
       if (projectOperationIsCurrent(operation)) {
         state.saving = false;
@@ -2621,7 +2538,6 @@
     if (!currentList || !apiReady() || !(materialsAPI || window.MaterialsAPI)?.lists?.scheduleEvent) return { list: currentList, event };
     const type = resourceType(currentList);
     const terms = resourceTerms(type, currentList);
-    const workResourceRef = type === 'labor' ? assignmentWorkResourceRef(currentList) : null;
     const schedule = currentList.schedule || {};
     const result = await (materialsAPI || window.MaterialsAPI).lists.scheduleEvent(orgId(), currentList.id, {
       project_id: projectId(),
@@ -2630,11 +2546,7 @@
         title: cleanText(schedule.title || currentList.title) || terms.list,
         kind: cleanText(schedule.kind) || (type === 'material' ? 'material_delivery' : type === 'labor' ? 'project_work' : 'equipment'),
         icon: cleanText(schedule.icon) || terms.icon,
-        resource_type: type,
-        work_resource_ref:workResourceRef,
-        assigned_resource_kind:cleanText(workResourceRef?.kind),
-        assigned_resource_id:cleanText(workResourceRef?.id),
-        assigned_resource_name:cleanText(workResourceRef?.name)
+        resource_type: type
       },
       source
     });
@@ -3561,7 +3473,6 @@
       ...existing,
       id: orderScheduleDraftId(list),
       event_id: cleanText(existing.id),
-      material_list_id: cleanText(list?.id),
       scope_resource_list_id: cleanText(list?.id),
       resource_type: 'material',
       kind: 'material_delivery',
@@ -3583,7 +3494,7 @@
   }
 
   function updateOrderScheduleFromCalendar(next, fallbackList = orderScheduleFocusList()){
-    const listId = cleanText(next?.material_list_id || next?.scope_resource_list_id || fallbackList?.id);
+    const listId = cleanText(next?.scope_resource_list_id || fallbackList?.id);
     const list = materialListById(listId) || fallbackList;
     const start = next?.start ? new Date(next.start) : next?.start_at ? new Date(next.start_at) : null;
     if (!list || !start || !Number.isFinite(start.getTime())) return null;
@@ -3652,7 +3563,6 @@
           ...existing,
           id: activeDraftId,
           event_id: cleanText(existing.id),
-          material_list_id: cleanText(focusList.id),
           scope_resource_list_id: cleanText(focusList.id),
           resource_type: 'material',
           kind: 'material_delivery',
@@ -3672,14 +3582,14 @@
       onDraftConfirm(next){ updateOrderScheduleFromCalendar(next, focusList); syncOrderDialog(true); },
       onEventRangeChange(event, range){ updateOrderScheduleFromCalendar({ ...event, ...range }, focusList); syncOrderDialog(true); },
       onDraftSelect(draft){
-        const listId = cleanText(draft?.material_list_id || draft?.scope_resource_list_id);
+        const listId = cleanText(draft?.scope_resource_list_id);
         if (listId && state.orderSelectedListIds.has(listId)) {
           state.orderScheduleFocusListId = listId;
           syncOrderDialog(true);
         }
       },
       onEventClick(event){
-        const listId = cleanText(event?.material_list_id || event?.scope_resource_list_id);
+        const listId = cleanText(event?.scope_resource_list_id);
         if (listId && state.orderSelectedListIds.has(listId)) {
           state.orderScheduleFocusListId = listId;
           syncOrderDialog(true);
@@ -3702,7 +3612,6 @@
     let event = ensured.event || linkedScheduleEvent(currentList) || {
       id: uid('material_delivery'),
       title: cleanText(currentList.title) || 'Material delivery',
-      material_list_id: cleanText(currentList.id),
       scope_resource_list_id: cleanText(currentList.id),
       resource_type: 'material',
       kind: 'material_delivery'
@@ -3727,7 +3636,6 @@
     event = {
       ...updated,
       status: 'scheduled',
-      material_list_id: cleanText(currentList.id),
       scope_resource_list_id: cleanText(currentList.id),
       resource_type: 'material',
       schedule_item_kind: 'material_delivery',
@@ -4084,7 +3992,7 @@
     const projection = target?.details || {};
     const details = Array.isArray(projection?.details) ? projection.details.filter((detail) => number(detail?.projected_cents, 0) > 0) : [];
     const groups = [
-      { kind:'salary', title:(globalThis.PlatformLanguage?.text("materials","m_3fa0dba842bd13","Salary converted to hourly") ?? "Salary converted to hourly"), icon:'fa-calendar-check' },
+      { kind:'cost_rate', title:'Salaried time', icon:'fa-calendar-check' },
       { kind:'hourly', title:(globalThis.PlatformLanguage?.text("materials","m_e05a1e64b972f8","Hourly wages") ?? "Hourly wages"), icon:'fa-clock' },
       { kind:'piece_rate', title:(globalThis.PlatformLanguage?.text("materials","m_4c9b3b4cfd52b2","Piece-rate work") ?? "Piece-rate work"), icon:'fa-list-check' }
     ].map((group) => ({ ...group, rows:details.filter((detail) => cleanText(detail?.kind) === group.kind) })).filter((group) => group.rows.length);
@@ -4092,8 +4000,8 @@
     const resourceName = cleanText(projection?.work_resource_ref?.name);
     if (state.expenseError) return `<section class="mt-labor-estimate"><div class="mt-labor-estimate-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_64da48200b02da","Estimated labor expense") ?? "Estimated labor expense")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("materials","m_ce86fe78082565","Unavailable") ?? "Unavailable")}</span></div></div><div class="mt-empty">${((v0) => globalThis.PlatformLanguage?.htmlText("materials","m_894fbe7ce53443",`${v0} Refresh the project before relying on this estimate.`,{v0}) ?? `${v0} Refresh the project before relying on this estimate.`)(escapeHtml(state.expenseError))}</div></section>`;
     return `<section class="mt-labor-estimate">
-      <div class="mt-labor-estimate-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_64da48200b02da","Estimated labor expense") ?? "Estimated labor expense")}</strong><span>${String(escapeHtml(resourceName || (state.expenseLoading ? 'Updating estimate...' : `Assign a ${workResourceLabel()} to calculate team member rates`)))}</span></div><strong>${String(money(total / 100))}</strong></div>
-      ${String(groups.length ? `<div class="mt-labor-breakdown">${groups.map((group) => `<div class="mt-labor-breakdown-group"><div class="mt-labor-breakdown-title"><span><i class="fas ${escapeHtml(group.icon)}"></i>${escapeHtml(group.title)}</span><strong>${money(group.rows.reduce((sum, row) => sum + number(row.projected_cents, 0), 0) / 100)}</strong></div>${group.rows.map((detail) => `<div class="mt-labor-breakdown-row"><div><strong>${escapeHtml(detail.label || titleFromKey(detail.kind))}</strong><span>${escapeHtml(laborDetailMeta(detail))}</span></div><strong>${money(number(detail.projected_cents, 0) / 100)}</strong></div>`).join('')}</div>`).join('')}</div>` : `<div class="mt-empty">${cleanText(projection?.mode) === 'none' ? 'This labor list is excluded from project expenses.' : 'Enter piece rates or estimated hours, then assign compensation to see the breakdown.'}</div>`)}
+      <div class="mt-labor-estimate-head"><div><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_64da48200b02da","Estimated labor expense") ?? "Estimated labor expense")}</strong><span>${String(escapeHtml(resourceName || (state.expenseLoading ? 'Updating estimate...' : `Not assigned`)))}</span></div><strong>${String(money(total / 100))}</strong></div>
+      ${String(groups.length ? `<div class="mt-labor-breakdown">${groups.map((group) => `<div class="mt-labor-breakdown-group"><div class="mt-labor-breakdown-title"><span><i class="fas ${escapeHtml(group.icon)}"></i>${escapeHtml(group.title)}</span><strong>${money(group.rows.reduce((sum, row) => sum + number(row.projected_cents, 0), 0) / 100)}</strong></div>${group.rows.map((detail) => `<div class="mt-labor-breakdown-row"><div><strong>${escapeHtml(detail.label || titleFromKey(detail.kind))}</strong><span>${escapeHtml(laborDetailMeta(detail))}</span></div><strong>${money(number(detail.projected_cents, 0) / 100)}</strong></div>`).join('')}</div>`).join('')}</div>` : `<div class="mt-empty">Price this list's lines, or generate it from the assignee's pay sheet, to see the breakdown.</div>`)}
     </section>`;
   }
 
@@ -5995,16 +5903,8 @@
     const resourceId = cleanText(assignmentWorkResourceRef(list)?.id);
     const resources = workResourcesForScopeList(list);
     const resource = workResourceById(resourceId) || resources.find((entry) => cleanText(entry.id) === resourceId) || null;
-    const mode = cleanText(list?.compensation?.mode || list?.compensation?.default_mode || 'crew_default');
-    const defaultMode = workResourceCompensationMode(resource);
-    const resolvedMode = mode === 'crew_default' ? cleanText(list?.compensation?.resolved_mode || defaultMode) : mode;
-    const salaryMode = cleanText(list?.compensation?.salary_expense_mode || (list?.compensation?.include_salary_as_hourly ? 'hourly' : 'ignore')) || 'ignore';
-    const plans = [resource?.compensation_plan, ...(Array.isArray(resource?.members) ? resource.members.map((member) => member?.compensation_plan) : [])].filter(Boolean);
-    const hasSalary = plans.some((plan) => plan.default_salary === true || ['salary', 'hybrid'].includes(cleanText(plan.type)));
     return {
-      id, resourceId, resources, resource, mode, defaultMode, resolvedMode, salaryMode, hasSalary,
-      usesHours: !!resourceId && (['hourly', 'hybrid'].includes(resolvedMode) || (hasSalary && salaryMode === 'hourly')),
-      estimatedHours: Math.max(0, number(list?.compensation?.estimated_hours, 0)),
+      id, resourceId, resources, resource,
       canRegenerate: list?.metadata?.generated_from_scope === true && !!cleanText(list?.scope_piece_id)
     };
   }
@@ -6342,21 +6242,6 @@
     root.querySelectorAll('[data-mt-labor-crew]').forEach((select) => {
       select.addEventListener('click', (event) => event.stopPropagation());
       select.addEventListener('change', (event) => assignWorkResource(select.dataset.mtLaborCrew, event.target.value));
-    });
-    root.querySelectorAll('[data-mt-labor-pay]').forEach((select) => {
-      select.addEventListener('click', (event) => event.stopPropagation());
-      select.addEventListener('change', (event) => setLaborCompensationMode(select.dataset.mtLaborPay, event.target.value));
-    });
-    root.querySelectorAll('[data-mt-labor-hours]').forEach((input) => {
-      input.addEventListener('click', (event) => event.stopPropagation());
-      input.addEventListener('change', (event) => setLaborExpenseSettings(input.dataset.mtLaborHours, { estimated_hours:Math.max(0, number(event.target.value, 0)) }));
-    });
-    root.querySelectorAll('[data-mt-labor-salary]').forEach((select) => {
-      select.addEventListener('click', (event) => event.stopPropagation());
-      select.addEventListener('change', (event) => setLaborExpenseSettings(select.dataset.mtLaborSalary, {
-        salary_expense_mode:event.target.value === 'hourly' ? 'hourly' : 'ignore',
-        include_salary_as_hourly:event.target.value === 'hourly'
-      }));
     });
     root.querySelectorAll('[data-mt-regenerate-labor]').forEach((button) => {
       button.addEventListener('click', (event) => {

@@ -171,6 +171,10 @@ import { activeResourceGroupIdsForUser, assignedProjectIdsForUser } from "../wor
 import { attachPresence, closePresenceStreams, openPresence, recordPresenceActivity } from "./presence.js";
 import { assignmentPolicyForEventType } from "../workforce/assignability.js";
 import { resolveAssignableSubjects } from "../workforce/service.js";
+import { eventAssigneeKeys, eventDescendants, eventEquipment, eventFamilyIds, eventIsChild, eventListId, eventPrimaryAssignee, eventResourceType, eventResources, eventWindow, parentWouldCycle, resourceRefKey, stripRemovedEventFields } from "../scheduling/event-model.js";
+import { evaluatePlacement, manualPlacement, normalizePlacement, placeChildren, type Placement } from "../scheduling/placement.js";
+import { assessAssigneeOverlap, listAssigneeSchedulingSettings, readOverlapDefault, saveAssigneeSchedulingSetting, type AssigneeConflict } from "../scheduling/occupancy.js";
+import { resolveOrganizationTimezone } from "./timezone.js";
 import { checklistAudioProcessor, reconcileChecklistAudioOperations } from "../audio-structure/checklist.js";
 import { processStructuredAudio } from "../audio-structure/processor.js";
 import {
@@ -1888,6 +1892,33 @@ app.get("/auth/google/config", async () => ({
     return saveProjectScheduleEvent(orgId,projectId,actor,body,error=>request.log?.warn?.({err:error},"appointment confirmation sync failed"));
   });
 
+  app.post("/organizations/:orgId/schedule/overlap-check", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const actor = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_schedule|manage_projects", allowScopedPermission: true });
+    const body = objectBodySchema.parse(request.body ?? {});
+    const projectId = cleanText(body.project_id);
+    const draft = stripClientOnlyEventFields({ ...asObject(body.event) });
+    const branchId = cleanText(body.branch_id || actor.branchId) || "default";
+    const project = projectId ? asObject((await readDocument(orgId, "projects", projectId)).data) : {};
+    const events = [...(Array.isArray(project.events) ? project.events : []).map(asObject).filter((event) => cleanText(event.id) !== cleanText(draft.id)), draft];
+    const result = await assessAssigneeOverlap(orgId, branchId,
+      [{ event: draft, projectId, familyIds: projectId ? eventFamilyIds(events, draft) : new Set<string>() }],
+      projectId ? { projectId, events, title: cleanText(project.title || project.customer_name || project.address) } : undefined);
+    return { ok: true, ...result };
+  });
+
+  app.get("/organizations/:orgId/assignee-scheduling", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const actor = await requirePlatformAuth(request, { orgId, permission: "manage_schedule|manage_projects|manage_company_settings", allowScopedPermission: true });
+    return { ok: true, default_overlap: await readOverlapDefault(orgId, cleanText(actor.branchId) || "default"), settings: await listAssigneeSchedulingSettings(orgId) };
+  });
+
+  app.put("/organizations/:orgId/assignee-scheduling", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const actor = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
+    return { ok: true, setting: await saveAssigneeSchedulingSetting(orgId, objectBodySchema.parse(request.body ?? {}), actor) };
+  });
+
   app.post("/organizations/:orgId/terminology-agent", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_settings" });
@@ -1909,7 +1940,8 @@ app.get("/auth/google/config", async () => ({
       const events = Array.isArray(currentData.events) ? currentData.events.map(asObject) : [];
       const deletedEvent = events.find((event) => cleanText(event.id) === eventId) || null;
       if (!deletedEvent) return { deletedEvent: null, document: current, currentData };
-      const remainingEvents = events.filter((event) => cleanText(event.id) !== eventId);
+      const remainingEvents = events.filter((event) => cleanText(event.id) !== eventId)
+        .map((event) => (cleanText(event.parent_event_id) === eventId ? { ...event, parent_event_id: "", placement: null } : event));
       const document = await writeProjectDocument(orgId, current,
         { ...currentData, events: remainingEvents, updated_at: new Date().toISOString() },
         { ...asObject(current.metadata), last_deleted_project_event_id: eventId });
@@ -4564,253 +4596,30 @@ async function upsertProjectDocumentPreservingEvents(
   });
 }
 
-const EVENT_RESOURCE_REF_KINDS = new Set([
-  "organization_user",
-  "resource_group",
-  "organization_connection",
-  "equipment_unit",
-  "equipment_type"
-]);
-
-const EQUIPMENT_REF_KINDS = new Set(["equipment_unit", "equipment_type"]);
-
-/* Friendly aliases writers may use for work-assignee refs. */
-const EVENT_RESOURCE_REF_KIND_ALIASES: Record<string, string> = {
-  crew: "resource_group",
-  team: "resource_group",
-  person: "organization_user",
-  user: "organization_user",
-  subcontractor: "organization_connection"
-};
-
-function normalizeEventResourceRefKind(value: unknown) {
-  const kind = cleanText(value).toLowerCase();
-  return EVENT_RESOURCE_REF_KIND_ALIASES[kind] || kind;
-}
-
-/**
- * The plural assignment list on events. Each entry is
- * { kind, id, name, role, quantity? } where role distinguishes the crew
- * assignment from the equipment riding along ('crew' | 'equipment' |
- * 'operator'). When an event carries no explicit resource_refs the list is
- * derived from the singular work_resource_ref so legacy events read the same.
- */
-function normalizeEventResourceRefs(eventValue: unknown) {
-  const event = asObject(eventValue);
-  const refs = (Array.isArray(event.resource_refs) ? event.resource_refs : [])
-    .map(asObject)
-    .map((ref) => {
-      const kind = normalizeEventResourceRefKind(ref.kind);
-      const quantity = Math.max(1, Math.round(Number(ref.quantity || 1)) || 1);
-      const startAt = cleanText(ref.start_at || ref.start);
-      const endAt = cleanText(ref.end_at || ref.end);
-      return {
-        kind,
-        id: cleanText(ref.id),
-        name: cleanText(ref.name || ref.label),
-        role: cleanText(ref.role).toLowerCase() || (EQUIPMENT_REF_KINDS.has(kind) ? "equipment" : "crew"),
-        ...(kind === "equipment_type" || quantity > 1 ? { quantity } : {}),
-        ...(startAt ? { start_at: startAt } : {}),
-        ...(endAt ? { end_at: endAt } : {})
-      };
-    })
-    .filter((ref) => ref.id && EVENT_RESOURCE_REF_KINDS.has(ref.kind));
-  const seen = new Set<string>();
-  return refs.filter((ref) => {
-    const key = `${ref.kind}:${ref.id.toLowerCase()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function eventEquipmentResourceRefs(eventValue: unknown) {
-  return normalizeEventResourceRefs(eventValue).filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind));
-}
-
 /* Whether a project item write books equipment or changes an item that
- * already does (a move or release of a booked unit). */
+ * already does: a move or release of a booked unit, on the item itself or on
+ * a child that follows it. */
 function projectEventWriteTouchesEquipment(projectData: JsonObject, eventId: string, patch: JsonObject) {
-  if (eventEquipmentResourceRefs(patch).length) return true;
+  if (eventEquipment(patch).length) return true;
   if (!eventId) return false;
-  const stored = (Array.isArray(projectData.events) ? projectData.events : []).map(asObject).find((item) => cleanText(item.id) === eventId);
-  return !!stored && eventEquipmentResourceRefs(stored).length > 0;
+  const events = Array.isArray(projectData.events) ? projectData.events : [];
+  const stored = events.map(asObject).find((item) => cleanText(item.id) === eventId);
+  return !!stored && (eventEquipment(stored).length > 0 || eventDescendants(events, eventId).some((child) => eventEquipment(child).length > 0));
 }
 
-type EventWorkRef = { kind: string; id: string; name: string; role: string };
-
-const LEGACY_WORK_ASSIGNMENT_KEYS = ["work_resource_ref", "assigned_resource_id", "assigned_crew_id", "crew_id"];
-
-function eventWorkRefKey(ref: { kind: string; id: string } | null | undefined) {
-  return ref ? `${ref.kind}:${ref.id.toLowerCase()}` : "";
-}
-
-/* The primary work assignee a writer expressed through the singular fields:
- * work_resource_ref, falling back to the legacy crew/resource mirrors (a
- * multi-crew writer may null work_resource_ref but keep the mirrors). People
- * named only through the legacy mirrors live on assigned_user_ids instead. */
-function eventPrimaryWorkRef(eventValue: unknown, eventId = ""): EventWorkRef | null {
-  const event = asObject(eventValue);
-  const ref = asObject(event.work_resource_ref);
-  const selfId = cleanText(eventId || event.id);
-  const refId = cleanText(ref.id);
-  if (refId && refId !== selfId) {
-    return { kind: normalizeEventResourceRefKind(ref.kind) || "resource_group", id: refId, name: cleanText(ref.name || ref.label), role: "crew" };
+/* An overlap the organization or the assignee has set to block refuses the write. */
+function assertNoBlockingOverlap(conflicts: AssigneeConflict[]) {
+  const blocking = conflicts.filter((entry) => entry.mode === "block");
+  if (blocking.length) {
+    throw conflict("assignee_conflict", "One or more assignees are already booked during this time.", { conflicts: blocking });
   }
-  const legacyId = cleanText(event.assigned_resource_id || event.assigned_crew_id || event.crew_id);
-  const legacyKind = normalizeEventResourceRefKind(event.assigned_resource_kind) || "resource_group";
-  if (!legacyId || legacyId === selfId || legacyKind === "organization_user" || EQUIPMENT_REF_KINDS.has(legacyKind)) return null;
-  return {
-    kind: legacyKind,
-    id: legacyId,
-    name: cleanText(event.assigned_resource_name || event.assigned_crew_name || event.crew_name || asObject(event.assigned_crew).name),
-    role: "crew"
-  };
 }
 
-function eventCrewRoleRefs(eventValue: unknown): EventWorkRef[] {
-  return normalizeEventResourceRefs(eventValue)
-    .filter((ref) => !EQUIPMENT_REF_KINDS.has(ref.kind))
-    .map((ref) => ({ kind: ref.kind, id: ref.id, name: ref.name, role: "crew" }));
-}
-
-/**
- * Work-assignee (crew/team/person) set for a project event save.
- *
- * resource_refs holds every crew-role assignee; work_resource_ref (and its
- * legacy mirrors) is only the primary — the first entry. Writers express
- * intent in one of two ways and both are honoured without back-filling from
- * the stored copy:
- * - a changed crew-role list in resource_refs is authoritative (a changed
- *   primary is moved to the front of it);
- * - with the list unchanged, a changed primary replaces the old primary, and
- *   an explicitly cleared primary (every singular field empty) unassigns all
- *   crews — the "drop on Unassigned" / "replace crew with a person" writers.
- * Otherwise the stored set (with its primary) is kept, so moves and edits made
- * from a single-crew view never drop the other crews.
- */
-function resolveEventWorkAssignees(existingValue: unknown, patchValue: unknown, eventId: string): EventWorkRef[] {
-  const existing = asObject(existingValue);
-  const patch = asObject(patchValue);
-  const storedCrew = eventCrewRoleRefs(existing);
-  const existingPrimary = eventPrimaryWorkRef(existing, eventId) || storedCrew[0] || null;
-  const existingSet = existingPrimary && !storedCrew.some((ref) => eventWorkRefKey(ref) === eventWorkRefKey(existingPrimary))
-    ? [existingPrimary, ...storedCrew]
-    : storedCrew;
-  const hasRefs = Array.isArray(patch.resource_refs);
-  const hasPrimary = LEGACY_WORK_ASSIGNMENT_KEYS.some((key) => Object.prototype.hasOwnProperty.call(patch, key));
-  const inputCrew = hasRefs ? eventCrewRoleRefs(patch).filter((ref) => ref.id !== eventId) : null;
-  const inputPrimary = hasPrimary ? eventPrimaryWorkRef(patch, eventId) : null;
-  const listKey = (list: EventWorkRef[]) => list.map(eventWorkRefKey).join(",");
-  const refsChanged = !!inputCrew && listKey(inputCrew) !== listKey(storedCrew);
-  const primaryChanged = hasPrimary && eventWorkRefKey(inputPrimary) !== eventWorkRefKey(existingPrimary);
-  const withoutKey = (list: EventWorkRef[], ...keys: string[]) => list.filter((ref) => !keys.includes(eventWorkRefKey(ref)));
-  if (refsChanged && inputCrew) {
-    return primaryChanged && inputPrimary
-      ? [{ ...inputPrimary, name: inputPrimary.name || inputCrew.find((ref) => eventWorkRefKey(ref) === eventWorkRefKey(inputPrimary))?.name || "" }, ...withoutKey(inputCrew, eventWorkRefKey(inputPrimary))]
-      : inputCrew;
-  }
-  if (primaryChanged) {
-    if (!inputPrimary) return [];
-    return [inputPrimary, ...withoutKey(existingSet, eventWorkRefKey(inputPrimary), eventWorkRefKey(existingPrimary))];
-  }
-  if (inputCrew && inputCrew.length) {
-    // Unchanged list: keep the writer's copy (it may carry fresher names).
-    return existingPrimary && !inputCrew.some((ref) => eventWorkRefKey(ref) === eventWorkRefKey(existingPrimary))
-      ? [existingPrimary, ...inputCrew]
-      : inputCrew;
-  }
-  return existingSet;
-}
-
-/* Legacy singular mirrors of the primary work assignee. */
-function eventWorkAssignmentMirror(primary: EventWorkRef | null) {
-  const crewLike = !!primary && primary.kind !== "organization_user";
-  return {
-    work_resource_ref: primary ? { kind: primary.kind, id: primary.id, name: primary.name } : null,
-    assigned_resource_kind: primary?.kind || "",
-    assigned_resource_id: primary?.id || "",
-    assigned_resource_name: primary?.name || "",
-    resource_id: primary?.id || "",
-    resource_name: primary?.name || "",
-    assigned_crew_id: crewLike ? primary!.id : "",
-    assigned_crew_name: crewLike ? primary!.name : "",
-    assigned_crew: crewLike ? { id: primary!.id, name: primary!.name } : null,
-    crew_id: crewLike ? primary!.id : "",
-    crew_name: crewLike ? primary!.name : ""
-  };
-}
-
-/**
- * Equipment windows follow their event. When a saved event's start/end move
- * and a writer sent an equipment ref window unchanged from the stored copy
- * (it did not edit the window itself), a window equal to the old event window
- * becomes the new event window and any other window shifts by the start delta
- * (clamped into the new window when it lay inside the old one), so e.g. a
- * drop-off the day before keeps its offset.
- * Returns the refs unchanged when nothing moved.
- */
-function shiftEquipmentRefWindows(
-  refs: JsonObject[],
-  storedRefs: JsonObject[],
-  oldWindow: { start: number; end: number } | null,
-  newWindow: { start: number; end: number } | null
-) {
-  if (!oldWindow || !newWindow) return refs;
-  if (oldWindow.start === newWindow.start && oldWindow.end === newWindow.end) return refs;
-  const delta = newWindow.start - oldWindow.start;
-  return refs.map((refValue) => {
-    const ref = asObject(refValue);
-    const kind = cleanText(ref.kind);
-    if (!EQUIPMENT_REF_KINDS.has(kind)) return ref;
-    const start = Date.parse(cleanText(ref.start_at));
-    const end = Date.parse(cleanText(ref.end_at));
-    if (!Number.isFinite(start) && !Number.isFinite(end)) return ref;
-    const stored = storedRefs.map(asObject).find((candidate) => cleanText(candidate.kind) === kind && cleanText(candidate.id) === cleanText(ref.id));
-    if (!stored) return ref;
-    const storedStart = Date.parse(cleanText(stored.start_at || stored.start));
-    const storedEnd = Date.parse(cleanText(stored.end_at || stored.end));
-    const sameAsStored = (Number.isFinite(start) ? start === storedStart : !Number.isFinite(storedStart))
-      && (Number.isFinite(end) ? end === storedEnd : !Number.isFinite(storedEnd));
-    if (!sameAsStored) return ref;
-    const refStart = Number.isFinite(start) ? start : oldWindow.start;
-    const refEnd = Number.isFinite(end) ? end : oldWindow.end;
-    if (refStart === oldWindow.start && refEnd === oldWindow.end) {
-      return {
-        ...ref,
-        ...(Number.isFinite(start) ? { start_at: new Date(newWindow.start).toISOString() } : {}),
-        ...(Number.isFinite(end) ? { end_at: new Date(newWindow.end).toISOString() } : {})
-      };
-    }
-    const inside = refStart >= oldWindow.start && refEnd <= oldWindow.end;
-    let nextStart = refStart + delta;
-    let nextEnd = refEnd + delta;
-    if (inside) {
-      nextStart = Math.min(Math.max(nextStart, newWindow.start), newWindow.end);
-      nextEnd = Math.min(Math.max(nextEnd, newWindow.start), newWindow.end);
-      if (nextEnd <= nextStart) {
-        nextStart = newWindow.start;
-        nextEnd = newWindow.end;
-      }
-    }
-    return {
-      ...ref,
-      ...(Number.isFinite(start) ? { start_at: new Date(nextStart).toISOString() } : {}),
-      ...(Number.isFinite(end) ? { end_at: new Date(nextEnd).toISOString() } : {})
-    };
-  });
-}
-
-function projectEventWindow(eventValue: unknown) {
-  const event = asObject(eventValue);
-  if (cleanText(event.status).toLowerCase() === "unscheduled") return null;
-  const start = Date.parse(cleanText(event.start_at || event.start));
-  if (!Number.isFinite(start)) return null;
-  const explicitEnd = Date.parse(cleanText(event.end_at || event.end));
-  const end = Number.isFinite(explicitEnd) && explicitEnd > start
-    ? explicitEnd
-    : start + Math.max(1, Number(event.duration_minutes || event.duration || 60)) * 60000;
-  return { start, end };
+/* Measurements a placement expression may read: the project's, then the scope piece's own. */
+function projectScheduleMeasurements(project: JsonObject, event: JsonObject): JsonObject {
+  const scope = asObject(project.scope);
+  const piece = (Array.isArray(scope.pieces) ? scope.pieces : []).map(asObject).find((item) => cleanText(item.id) === cleanText(event.scope_piece_id));
+  return { ...asObject(scope.measurements), ...asObject(project.measurements), ...asObject(piece?.measurements) };
 }
 
 /* Optimistic concurrency for schedule items. Each save stamps a per-item
@@ -4859,10 +4668,10 @@ export function stripClientOnlyEventFields(value: JsonObject) {
 /* Equipment double-booking and operator checks shared by project items and
  * floating calendar events (R3-RES-4). conflict_mode 'block' rejects with 409
  * equipment_conflict, 'warn' returns the conflicts, 'off' skips the check. */
-async function assessScheduleItemEquipment(orgId: string, event: JsonObject) {
+async function assessScheduleItemEquipment(orgId: string, event: JsonObject, familyIds: Iterable<string> = []) {
   let equipmentConflicts: JsonObject[] = [];
   let operatorWarnings: JsonObject[] = [];
-  const equipmentRefs = eventEquipmentResourceRefs(event);
+  const equipmentRefs = eventEquipment(event);
   const status = cleanText(event.status).toLowerCase();
   if (!equipmentRefs.length || !cleanText(event.start_at) || ["unscheduled", "cancelled", "canceled", "completed"].includes(status)) {
     return { equipmentConflicts, operatorWarnings };
@@ -4875,9 +4684,10 @@ async function assessScheduleItemEquipment(orgId: string, event: JsonObject) {
   if (conflictMode !== "off") {
     const assessed = await Promise.all(equipmentRefs.map((ref) => assessEquipmentBooking(orgId, {
       refs:[ref],
-      start:cleanText(ref.start_at || event.start_at),
-      end:cleanText(ref.end_at || event.end_at),
-      excludeEventId:cleanText(event.id)
+      start:cleanText(event.start_at),
+      end:cleanText(event.end_at),
+      excludeEventId:cleanText(event.id),
+      excludeEventIds:[...familyIds]
     })));
     equipmentConflicts = assessed.flat() as unknown as JsonObject[];
     if (conflictMode === "block" && equipmentConflicts.length) {
@@ -4908,10 +4718,11 @@ function isEquipmentOwnCalendarEvent(data: JsonObject) {
 
 /* Floating calendar events share the schedule-item write rules: the optional
  * expected_event_revision token (top level or inside data), a per-item
- * event_revision stamp, and equipment windows that follow moved times. */
+ * event_revision stamp, and one resource list. */
 async function prepareCalendarEventWrite(orgId: string, documentId: string, body: JsonObject, replace: boolean, preloaded?: { document: JsonObject | null }): Promise<JsonObject> {
   const hasData = !!body.data && typeof body.data === "object" && !Array.isArray(body.data);
-  const data = hasData ? stripClientOnlyEventFields(asObject(body.data)) : null;
+  const data = hasData ? stripRemovedEventFields(stripClientOnlyEventFields(asObject(body.data))) : null;
+  if (data && Array.isArray(data.resource_refs)) data.resource_refs = eventResources({ id: documentId, resource_refs: data.resource_refs });
   const expected = expectedEventRevision(body, data);
   const next: JsonObject = { ...body };
   stripEventRevisionTokens(next);
@@ -4922,15 +4733,6 @@ async function prepareCalendarEventWrite(orgId: string, documentId: string, body
   if (!data) return next;
   stripEventRevisionTokens(data);
   data.event_revision = storedEventRevision(existingData) + 1;
-  if (existingData) {
-    const merged = replace ? data : { ...existingData, ...data };
-    const storedRefs = Array.isArray(existingData.resource_refs) ? existingData.resource_refs.map(asObject) : [];
-    const refs = Array.isArray(data.resource_refs) ? data.resource_refs.map(asObject) : (replace ? [] : storedRefs);
-    if (refs.length) {
-      const shifted = shiftEquipmentRefWindows(refs, storedRefs, projectEventWindow(existingData), projectEventWindow(merged));
-      if (JSON.stringify(shifted) !== JSON.stringify(refs)) data.resource_refs = shifted;
-    }
-  }
   return { ...next, data };
 }
 
@@ -4952,16 +4754,21 @@ export async function saveCalendarEventDocument(orgId: string, documentId: strin
     const metadata = replace || !existing ? asObject(body.metadata) : { ...asObject(existing.metadata), ...asObject(body.metadata) };
     // R4-EQ-5: check and write under the organization's booking lock when
     // this booking holds (or held) equipment.
-    const touchesEquipment = checkEquipment && (eventEquipmentResourceRefs(data).length > 0 || (existingData ? eventEquipmentResourceRefs(existingData).length > 0 : false));
+    const touchesEquipment = checkEquipment && (eventEquipment(data).length > 0 || (existingData ? eventEquipment(existingData).length > 0 : false));
     return await withEquipmentBookingLock(orgId, touchesEquipment, async () => {
       if (checkEquipment) await assessScheduleItemEquipment(orgId, { ...data, id: id || cleanText(data.id) });
-      return await upsertDocument(orgId, "calendar_events", {
+      const overlap = hasData
+        ? await assessAssigneeOverlap(orgId, cleanText(data.branch_id || metadata.branch_id) || "default", [{ event: { ...data, id: id || cleanText(data.id) }, projectId: "", familyIds: new Set<string>() }])
+        : null;
+      assertNoBlockingOverlap(overlap?.assignee_conflicts || []);
+      const saved = await upsertDocument(orgId, "calendar_events", {
         ...body,
         ...(id ? { id } : {}),
         data,
         metadata,
         ...(existing ? { expected_revision: Number(existing.revision || 0) } : {})
       }, { replace: true });
+      return overlap?.assignee_conflicts.length ? { ...saved, assignee_conflicts: overlap.assignee_conflicts } : saved;
     });
   };
   if (!id) return await attempt(null);
@@ -5020,21 +4827,8 @@ function normalizeEventResourceRequirements(value: unknown) {
 }
 
 function eventAssignmentKeys(eventValue: unknown, options: { includeEquipment?: boolean } = {}) {
-  const event = asObject(eventValue);
-  const canonical = (value: unknown) => cleanText(value).toLowerCase();
-  const assignedUserIds = normalizeStringArray(event.assigned_user_ids || [event.assigned_user_id]).map(canonical);
-  const assignedUserIdSet = new Set(assignedUserIds);
-  const keys = assignedUserIds.map((id) => `organization_user:${id}`);
-  const reference = asObject(event.work_resource_ref);
-  const resourceId = canonical(reference.id || event.assigned_resource_id || event.resource_id || event.assigned_crew_id || event.crew_id);
-  const resourceKind = canonical(reference.kind || event.assigned_resource_kind || (assignedUserIdSet.has(resourceId) ? "organization_user" : "resource_group"));
-  if (resourceId && !(resourceKind === "organization_user" && assignedUserIdSet.has(resourceId))) {
-    keys.push(`${resourceKind}:${resourceId}`);
-  }
-  for (const ref of normalizeEventResourceRefs(event)) {
-    if (EQUIPMENT_REF_KINDS.has(ref.kind) && options.includeEquipment !== true) continue;
-    keys.push(`${ref.kind}:${ref.id.toLowerCase()}`);
-  }
+  const keys = eventAssigneeKeys(eventValue);
+  if (options.includeEquipment === true) keys.push(...eventEquipment(eventValue).map(resourceRefKey));
   return [...new Set(keys)].sort();
 }
 
@@ -5092,7 +4886,7 @@ async function assertRecurrenceAssignmentAllowed(orgId: string, inputValue: Json
 function normalizeProjectEvent(
   input: Record<string, unknown>,
   project: Record<string, unknown>,
-  options: { existing?: JsonObject | null; patch?: JsonObject } = {}
+  options: { existing?: JsonObject | null } = {}
 ) {
   const now = new Date().toISOString();
   const eventId = String(input.id || `event_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`);
@@ -5112,55 +4906,14 @@ function normalizeProjectEvent(
   const safeEndAt = parsedEndAt && Number.isFinite(parsedEndAt.getTime()) && parsedEndAt > safeStartAt ? parsedEndAt : null;
   const derivedDurationMinutes = safeEndAt ? Math.max(1, Math.round((safeEndAt.getTime() - safeStartAt.getTime()) / 60000)) : 0;
   const durationMinutes = Math.max(1, Number(input.duration_minutes || input.durationMinutes || derivedDurationMinutes || 60));
-  const workResourceRef = asObject(input.work_resource_ref);
-  const assignmentIds = [workResourceRef.id, input.assigned_resource_id, input.resource_id, input.assigned_crew_id, input.crew_id, asObject(input.assigned_crew).id]
-    .map(cleanText)
-    .filter(Boolean);
-  const selfAssigned = assignmentIds.includes(eventId);
-  const sanitizedWorkAssignment = selfAssigned ? {
-    work_resource_ref: null,
-    assigned_resource_kind: "",
-    assigned_resource_id: "",
-    assigned_resource_name: "",
-    assigned_crew_id: "",
-    assigned_crew_name: "",
-    assigned_crew: null,
-    crew_id: "",
-    crew_name: "",
-    resource_id: "",
-    resource_name: "",
-    assignee_label: "",
-    resource_refs: [] as JsonObject[]
-  } : {};
-  // Assignment rule (see resolveEventWorkAssignees): resource_refs carries the
-  // whole crew/team/person set, work_resource_ref and its legacy mirrors only
-  // the primary (first) entry; equipment-role refs live exclusively on
-  // resource_refs.
+  // resource_refs is the one list of who and what the item uses. A writer
+  // that sends an id without a name keeps the name already stored for it.
   const existing = options.existing ? asObject(options.existing) : null;
-  const patch = asObject(options.patch ?? input);
-  const parsedRefs = selfAssigned ? [] : normalizeEventResourceRefs(input);
-  const newWindow = unscheduled ? null : {
-    start: safeStartAt.getTime(),
-    end: (safeEndAt || new Date(safeStartAt.getTime() + durationMinutes * 60000)).getTime()
-  };
-  const equipmentRefs = shiftEquipmentRefWindows(
-    parsedRefs.filter((ref) => EQUIPMENT_REF_KINDS.has(ref.kind)),
-    existing ? normalizeEventResourceRefs(existing) : [],
-    existing ? projectEventWindow(existing) : null,
-    newWindow
-  );
-  const crewRefs = selfAssigned ? [] : resolveEventWorkAssignees(existing || {}, patch, eventId).map((ref) => {
-    if (ref.name) return ref;
-    // Keep a known display name when the writer sent only an id.
-    const known = [...parsedRefs, ...(existing ? normalizeEventResourceRefs(existing) : [])]
-      .find((candidate) => eventWorkRefKey(candidate) === eventWorkRefKey(ref) && candidate.name);
-    const primaryName = [eventPrimaryWorkRef(patch, eventId), existing ? eventPrimaryWorkRef(existing, eventId) : null]
-      .find((candidate) => candidate && eventWorkRefKey(candidate) === eventWorkRefKey(ref) && candidate.name)?.name;
-    return { ...ref, name: known?.name || primaryName || "" };
-  });
-  const resourceRefs = [...crewRefs, ...equipmentRefs];
-  const crewMirrorBackfill = selfAssigned ? {} : eventWorkAssignmentMirror(crewRefs[0] || null);
-  return {
+  const knownNames = new Map((existing ? eventResources(existing) : []).filter((ref) => ref.name).map((ref) => [resourceRefKey(ref), ref.name]));
+  const resourceRefs = eventResources({ id: eventId, resource_refs: input.resource_refs })
+    .map((ref) => (ref.name ? ref : { ...ref, name: knownNames.get(resourceRefKey(ref)) || "" }));
+  const parentEventId = cleanText(input.parent_event_id);
+  return stripRemovedEventFields({
     ...input,
     id: eventId,
     type_id: eventTypeDefaultId,
@@ -5185,11 +4938,11 @@ function normalizeProjectEvent(
     customer_description: cleanText(input.customer_description || input.customerDescription),
     resource_refs: resourceRefs,
     resource_requirements: normalizeEventResourceRequirements(input.resource_requirements || input.resourceRequirements),
-    ...crewMirrorBackfill,
-    ...sanitizedWorkAssignment,
+    parent_event_id: parentEventId,
+    placement: parentEventId ? normalizePlacement(input.placement) : null,
     created_at: String(input.created_at || now),
     updated_at: now
-  };
+  } as JsonObject);
 }
 
 // Confirmation requests only make sense for customer-facing appointments — a
@@ -5198,6 +4951,8 @@ function normalizeProjectEvent(
 // scope template can opt an unusual event type in.
 function isAppointmentConfirmationCandidate(event: Record<string, unknown>) {
   if (asObject(event.confirmation).required !== undefined) return true;
+  // A child is a piece of its parent's work, not a customer appointment.
+  if (eventIsChild(event)) return false;
   if (isMaterialDeliveryProjectEvent(event)) return false;
   const typeId = cleanText(event.event_type_default_id || event.type_id).toLowerCase();
   return typeId.includes("appointment") || ["estimate", "consultation", "inspection", "service_call", "sales_follow_up"].includes(typeId);
@@ -5206,7 +4961,7 @@ function isAppointmentConfirmationCandidate(event: Record<string, unknown>) {
 function isMaterialDeliveryProjectEvent(event: Record<string, unknown>) {
   return cleanText(event.kind).toLowerCase() === "material_delivery"
     || cleanText(event.schedule_item_kind).toLowerCase() === "material_delivery"
-    || !!cleanText(event.material_list_id);
+    || eventResourceType(event) === "material";
 }
 
 function eventHasCompleted(event: Record<string, unknown>, now = Date.now()) {
@@ -6318,7 +6073,7 @@ function projectScheduleEventType(event: JsonObject) {
 
 function projectScheduleEventCategory(event: JsonObject) {
   const type = projectScheduleEventType(event);
-  const resourceType = cleanText(event.resource_type || event.assigned_resource_kind).toLowerCase();
+  const resourceType = cleanText(event.resource_type).toLowerCase();
   const scheduleKind = cleanText(event.schedule_item_kind || event.kind).toLowerCase();
   if (type.includes("delivery") || resourceType === "material" || scheduleKind.includes("delivery")) return "delivery";
   if (type.includes("completion") || type.includes("complete") || type.includes("estimate")) return "completion";
@@ -6339,18 +6094,7 @@ function publicScheduleCategoryTitle(category: string) {
 
 function publicScheduleCrewName(event: JsonObject) {
   if (event.customer_show_crew !== true) return "";
-  const assignedCrew = asObject(event.assigned_crew);
-  const workResource = asObject(event.work_resource_ref);
-  const explicit = cleanText(
-    event.customer_crew_name
-    || event.assigned_crew_name
-    || event.crew_name
-    || event.assigned_resource_name
-    || event.resource_name
-    || assignedCrew.name
-    || workResource.name
-    || event.assigned_user_name
-  );
+  const explicit = cleanText(event.customer_crew_name || eventPrimaryAssignee(event)?.name || event.assigned_user_name);
   if (explicit) return explicit;
   const assignedUsers = Array.isArray(event.assigned_users) ? event.assigned_users.map(asObject) : [];
   return [...new Set(assignedUsers
@@ -12617,10 +12361,43 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
     assertAppointmentDepartmentPermission(actor,{...existingEvent,...eventInput});
     assertEventRevisionCurrent(expectedRevision, existingIndex >= 0 ? existingEvent : null, { event_id: requestedEventId, project_id: projectId });
     const event: JsonObject = normalizeProjectEvent({ ...existingEvent, ...eventInput }, currentData, {
-      existing: existingIndex >= 0 ? existingEvent : null,
-      patch: eventInput
+      existing: existingIndex >= 0 ? existingEvent : null
     });
     event.event_revision = storedEventRevision(existingEvent) + 1;
+    // A child keeps a placement relative to its parent. A placement sent
+    // without a range places the child; a range set by hand becomes a fixed
+    // distance from the parent, so the child holds it when the parent moves.
+    const parentEventId = cleanText(event.parent_event_id);
+    const parentEvent = parentEventId ? events.map(asObject).find((item) => cleanText(item.id) === parentEventId) || null : null;
+    if (parentEventId && !parentEvent) throw badRequest("event_parent_unknown", "The parent item is not on this project.");
+    if (parentWouldCycle(events, cleanText(event.id), parentEventId)) throw badRequest("event_parent_cycle", "An item cannot sit under itself.");
+    const placementContext = { timezone: await resolveOrganizationTimezone(orgId, branchId), measurements: projectScheduleMeasurements(currentData, event) };
+    if (parentEvent) {
+      const parentWindow = eventWindow(parentEvent);
+      // A writer that sends the stored placement back unchanged has not chosen one.
+      const sentPlacement = Object.prototype.hasOwnProperty.call(eventInput, "placement")
+        && JSON.stringify(normalizePlacement(eventInput.placement)) !== JSON.stringify(normalizePlacement(existingEvent.placement));
+      const sentRange = ["start_at", "end_at", "duration_minutes", "status"].some((key) => Object.prototype.hasOwnProperty.call(eventInput, key));
+      const placement = event.placement as unknown as Placement | null;
+      if (sentPlacement && placement && !sentRange) {
+        const placed = parentWindow ? evaluatePlacement(placement, parentWindow, event, placementContext) : null;
+        event.start_at = placed ? new Date(placed.start).toISOString() : "";
+        event.end_at = placed ? new Date(placed.end).toISOString() : "";
+        if (placed) {
+          event.duration_minutes = Math.max(1, Math.round((placed.end - placed.start) / 60000));
+          event.all_day = placed.all_day;
+        }
+        event.status = placed ? (cleanText(event.status).toLowerCase() === "unscheduled" ? "scheduled" : event.status) : "unscheduled";
+      } else if (!sentPlacement && parentWindow) {
+        const own = eventWindow(event);
+        const stored = eventWindow(existingEvent);
+        const moved = !stored || !own || stored.start !== own.start || stored.end !== own.end;
+        const reparented = cleanText(existingEvent.parent_event_id) !== parentEventId;
+        if (own && (moved || reparented || !placement)) {
+          event.placement = manualPlacement({ ...own, all_day: event.all_day === true }, parentWindow, placementContext) as unknown as JsonObject;
+        }
+      }
+    }
     const assignmentChanged = existingIndex < 0
       || JSON.stringify(eventAssignmentKeys(existingEvent)) !== JSON.stringify(eventAssignmentKeys(event));
     // Moving an external booking is a new use of the partner's current exposure.
@@ -12633,7 +12410,7 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
     }
     // Equipment double-booking guard: conflict_mode 'block' rejects, 'warn'
     // returns the conflicts for the UI to render, 'off' skips the check.
-    const { equipmentConflicts, operatorWarnings } = await assessScheduleItemEquipment(orgId, event);
+    const { equipmentConflicts, operatorWarnings } = await assessScheduleItemEquipment(orgId, event, eventFamilyIds(events, event));
     if (existingIndex < 0) {
       const identity = asObject(actor.identity);
       event.scheduled_by_user_id = cleanText(eventInput.scheduled_by_user_id || actor.userId);
@@ -12698,6 +12475,25 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
     }
     if (existingIndex >= 0) events[existingIndex] = event;
     else events.push(event);
+    // Everything under a moved item follows it; each re-placed child is
+    // checked like the item itself, so one save answers for the whole move.
+    const placed = existingIndex < 0 || rangeChanged
+      ? placeChildren(events, cleanText(event.id), placementContext)
+      : { updated: [] as JsonObject[], blocked: [] as JsonObject[] };
+    for (const child of placed.updated) {
+      const at = events.findIndex((item) => cleanText(asObject(item).id) === cleanText(child.id));
+      if (at >= 0) events[at] = child;
+      const assessed = await assessScheduleItemEquipment(orgId, child, eventFamilyIds(events, child));
+      equipmentConflicts.push(...assessed.equipmentConflicts);
+      operatorWarnings.push(...assessed.operatorWarnings);
+    }
+    const overlapEvents = [...(existingIndex < 0 || rangeChanged || assignmentChanged ? [event] : []), ...placed.updated];
+    const overlap = overlapEvents.length
+      ? await assessAssigneeOverlap(orgId, branchId,
+        overlapEvents.map((item) => ({ event: item, projectId, familyIds: eventFamilyIds(events, item) })),
+        { projectId, events, title: cleanText(currentData.title || currentData.customer_name || currentData.address) })
+      : { assignee_conflicts: [] as AssigneeConflict[] };
+    assertNoBlockingOverlap(overlap.assignee_conflicts);
     const projectWithDefaults = applyProjectCustomFieldDefaults({
       ...currentData,
       events,
@@ -12708,12 +12504,15 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
       ...asObject(current.metadata),
       last_project_event_id: event.id
     });
-    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings };
+    return { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents: placed.updated, blockedChildren: placed.blocked, assigneeConflicts: overlap.assignee_conflicts };
     }));
-    const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings } = saved;
-    const materialList = cleanText(event.material_list_id)
+    const { event, document, existingIndex, rangeChanged, equipmentConflicts, operatorWarnings, relatedEvents, blockedChildren, assigneeConflicts } = saved;
+    const materialList = eventListId(event)
       ? await syncMaterialListFromScheduleEvent(orgId, event)
       : null;
+    for (const child of relatedEvents) {
+      if (eventListId(child)) await syncMaterialListFromScheduleEvent(orgId, child).catch((error) => warn?.(error));
+    }
     const isScheduled = cleanText(event.status).toLowerCase() !== "unscheduled" && !!cleanText(event.start_at);
     const schedulingMutation = isScheduled && (existingIndex < 0 || rangeChanged);
     if (schedulingMutation) {
@@ -12727,11 +12526,30 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
           event_id: event.id,
           event_kind: asObject(event).kind || event.event_type_default_id,
           event_type_default_id: event.event_type_default_id,
+          parent_event_id: cleanText(event.parent_event_id),
           event
         }
       });
     }
-    const latestDocument = schedulingMutation
+    // A child that moved onto the schedule with its parent is announced too.
+    const scheduledChildren = relatedEvents.filter((child) => !!eventWindow(child));
+    for (const child of scheduledChildren) {
+      await emitWorkEvent({
+        organization_id: orgId,
+        branch_id: branchId,
+        project_id: projectId,
+        type: "project.event_scheduled",
+        idempotency_key: `project.event_scheduled:${projectId}:${child.id}:${child.updated_at}`,
+        payload: {
+          event_id: child.id,
+          event_kind: child.kind || child.event_type_default_id,
+          event_type_default_id: child.event_type_default_id,
+          parent_event_id: cleanText(child.parent_event_id),
+          event: child
+        }
+      });
+    }
+    const latestDocument = schedulingMutation || scheduledChildren.length
       ? await readDocument(orgId, "projects", projectId).catch(() => document)
       : document;
     invalidatePlatformSearchCache(orgId);
@@ -12741,6 +12559,9 @@ export async function saveProjectScheduleEvent(orgId:string,projectId:string,act
       document: latestDocument,
       project: asObject(asObject(latestDocument).data),
       material_list: materialList,
+      related_events: relatedEvents,
+      blocked_children: blockedChildren,
+      assignee_conflicts: assigneeConflicts,
       equipment_conflicts: equipmentConflicts,
       equipment_operator_warnings: operatorWarnings
     };
