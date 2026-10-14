@@ -53,7 +53,7 @@ import {
  * "Roofing proposal intake". Presets upgrade by preset_revision, copying the
  * scope-template pattern (scopes/storage.ts ensureDefaultScopeTemplates).
  */
-export const DOCUMENT_PRESET_REVISION = 34;
+export const DOCUMENT_PRESET_REVISION = 35;
 
 function defaultProposalPaymentSchedule(): JsonObject[] {
   return [

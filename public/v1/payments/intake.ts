@@ -421,6 +421,66 @@ export async function chargeThroughProvider(
  * an unmatched shadow record. Once the real transaction is persisted with the
  * provider payment id, the shadow is redundant; remove it.
  */
+const providerShadowId = (providerPaymentId: string) => `payment_provider_${cleanText(providerPaymentId).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").slice(0, 120)}`;
+
+/**
+ * The first thing written once the processor has taken money: a record of the
+ * charge with everything known about it, in the same unmatched-settlement
+ * shape the processor's own notification writes. It is written directly, with
+ * no feature gate, allocation or ledger step that could refuse it, so a
+ * charge is on our books before any bookkeeping is attempted. The full
+ * payment replaces it; if that never happens it stays in the unmatched
+ * settlements queue, attributed as well as we could, for someone to finish.
+ */
+export async function recordProviderChargeSafely(orgId: string, provider: string, charge: ProviderChargeResult, input: IntakeChargePaymentInput, problem = "") {
+  const id = providerShadowId(charge.provider_payment_id || charge.payment_id);
+  const now = new Date().toISOString();
+  const existing = asObject(asObject(await readDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, id).catch(() => null)).data);
+  const intended = asObject(input.payment);
+  const projectId = cleanText(input.project_id);
+  const data: JsonObject = {
+    ...existing,
+    id,
+    organization_id: orgId,
+    direction: "inbound",
+    kind: "provider_payment",
+    status: "pending",
+    provider_status: "succeeded",
+    amount_cents: charge.amount_cents,
+    currency: cleanText(intended.currency || existing.currency || "USD").toUpperCase(),
+    provider,
+    fee_cents: charge.fee_cents,
+    merchant_amount_cents: charge.merchant_amount_cents,
+    project_id: projectId,
+    ...(cleanText(input.branch_id) ? { branch_id: cleanText(input.branch_id) } : {}),
+    contact_ref: asObject(input.contact_ref),
+    processor: {
+      ...asObject(existing.processor),
+      provider,
+      provider_payment_id: charge.provider_payment_id,
+      provider_intent_id: charge.intent_id,
+      ...(charge.auth_code ? { auth_code: charge.auth_code } : {})
+    },
+    metadata: {
+      ...asObject(existing.metadata),
+      ...asObject(intended.metadata),
+      provider_unmatched: true,
+      // What the full payment record was going to be, for whoever finishes it.
+      charged_by: "intake",
+      intended_payment_id: charge.payment_id,
+      ...(cleanText(intended.obligation_id) ? { intended_obligation_id: cleanText(intended.obligation_id) } : {}),
+      ...(cleanText(intended.kind) ? { intended_kind: cleanText(intended.kind) } : {}),
+      ...(problem ? { record_error: problem.slice(0, 500), needs_review: true } : {})
+    },
+    created_at: cleanText(existing.created_at) || now,
+    updated_at: now
+  };
+  await upsertDocument(orgId, PAYMENT_TRANSACTION_COLLECTION, {
+    id, data, metadata: { kind: "payment_transaction", project_id: projectId, direction: "inbound", payment_kind: "provider_payment", status: "pending" }
+  }, { replace: true });
+  return data;
+}
+
 export async function removeProviderShadowRecord(orgId: string, providerPaymentId: string) {
   const normalized = cleanText(providerPaymentId).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").slice(0, 120);
   if (!normalized) return;
@@ -447,6 +507,12 @@ export async function recordProviderChargedPayment(
   ctx: PlatformAuthContext
 ) {
   const charge = await chargeThroughProvider(orgId, provider, input);
+  // Money has moved. From here nothing may leave it unrecorded, and nothing
+  // may report this payment as failed: a customer told it failed pays twice.
+  let safety: JsonObject | null = await recordProviderChargeSafely(orgId, provider.provider, charge, input).catch(error => {
+    console.error("[payments] could not write the charge safety record", { orgId, provider_payment_id: charge.provider_payment_id, payment_id: charge.payment_id, amount_cents: charge.amount_cents, error: String((error as Error)?.message || error) });
+    return null;
+  });
   const savedMethod = charge.saved_method;
   let methodDescriptor: JsonObject = asObject(input.method_descriptor);
   if (savedMethod) {
@@ -470,7 +536,9 @@ export async function recordProviderChargedPayment(
       };
     }
   }
-  const result = await createPayment(orgId, {
+  let result: Awaited<ReturnType<typeof createPayment>>;
+  try {
+    result = await createPayment(orgId, {
     ...asObject(input.payment),
     id: charge.payment_id,
     direction: "inbound",
@@ -501,6 +569,17 @@ export async function recordProviderChargedPayment(
     ...(cleanText(asObject(input.payment).kind) ? { kind: cleanText(asObject(input.payment).kind) } : {}),
     ...(cleanText(asObject(input.payment).notes) ? { notes: cleanText(asObject(input.payment).notes) } : {})
   }, ctx);
+  } catch (error) {
+    // The card was charged and the full payment record could not be written
+    // (a disabled feature, an allocation rule, storage). The charge stays on
+    // the books as an unmatched settlement that says why, and the caller is
+    // told the payment went through, because it did.
+    const problem = String((error as Error)?.message || error);
+    console.error("[payments] charged but the payment record failed; kept as an unmatched settlement", { orgId, provider_payment_id: charge.provider_payment_id, payment_id: charge.payment_id, amount_cents: charge.amount_cents, error: problem });
+    safety = await recordProviderChargeSafely(orgId, provider.provider, charge, input, problem).catch(() => safety);
+    if (!safety) throw Object.assign(new Error("Your payment went through, but we could not save it. Please do not pay again; contact us and mention this message."), { statusCode: 500, code: "payment_charged_unrecorded", details: { provider_payment_id: charge.provider_payment_id, amount_cents: charge.amount_cents } });
+    return { payment: { ...safety, needs_review: true }, charge, saved_method: savedMethod, needs_review: true } as unknown as Awaited<ReturnType<typeof createPayment>> & { charge: ProviderChargeResult; saved_method: JsonObject | null };
+  }
   await removeProviderShadowRecord(orgId, charge.provider_payment_id);
   let saved: JsonObject | null = savedMethod;
   if (!savedMethod && input.save_payment_method === true && cleanText(input.payment_method_id)) {

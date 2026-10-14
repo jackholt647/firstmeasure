@@ -133,7 +133,8 @@ test("a new organization gets the roofing sales documents and none of the retire
     const workflow: Line = await store.readDocumentWorkflow(ctx.orgId, `wfl_instant_roofing_${key}`);
     const definition = (await store.readDocumentWorkflowVersion(ctx.orgId, workflow.id, Number(workflow.current_version))).definition as Line;
     assert.deepEqual(definition.completion, { offers: ["present", "send_estimate", "send_presentation"], default: "present", presentation: { module_id: moduleId } });
-    assert.deepEqual(definition.steps.filter((step: Line) => step.audience.includes("customer")).map((step: Line) => step.id), ["choose", "sign", "pay"]);
+    assert.deepEqual(definition.steps.filter((step: Line) => step.audience.includes("customer")).map((step: Line) => step.id), ["choose"],
+      "signing and paying happen on the document, not as repeated steps");
     assert.ok((await presentations.listPresentationModules((await organization()).pctx)).some((module: Line) => module.id === moduleId), `${moduleId} is published`);
   }
 });

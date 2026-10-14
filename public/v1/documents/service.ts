@@ -1943,9 +1943,20 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
   const now = nowIso();
   const delivery = deliveryState(document.delivery);
   const signing = await issueSigningPackage(orgId, document, snapshot, recipients, input);
+  // Where a recipient reads, signs and pays: the project's customer portal,
+  // opened on this document. A signer's link carries their own signing
+  // credential in its fragment, which browsers never send to a server. A
+  // document with no project has no portal and keeps the direct link.
+  const portalHome = cleanText(document.project_id)
+    ? await (await import("../platform/api.js")).ensureCustomerPortalRecord(orgId, cleanText(document.project_id), {}, cleanText((await import("../src/config/env.js")).env.publicBaseUrl))
+      .then(result => cleanText(asObject(result.portal).live_url)).catch(() => "")
+    : "";
+  const customerLink = (invitationToken = "") => portalHome
+    ? `${portalHome}${portalHome.includes("?") ? "&" : "?"}document=${encodeURIComponent(documentId)}${invitationToken ? `#sign=${encodeURIComponent(invitationToken)}` : ""}`
+    : publicDocumentPortalUrl(invitationToken || cleanText(snapshot.public_token));
   const recipientUrl = (recipient: JsonObject) => {
     const invitation = signing.invitations.find(i => i.signer_id === (recipient.signer_id || recipient.role || "customer") && (!i.email || i.email === cleanText(recipient.email).toLowerCase()));
-    return publicDocumentPortalUrl(cleanText(invitation?.token || snapshot.public_token));
+    return customerLink(cleanText(invitation?.token));
   };
   const updated = await saveDocumentInstance(orgId, documentId, {
     ...document,
@@ -1973,7 +1984,7 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
       phone: cleanText(recipient.phone)
     }))
   }, ctx);
-  const portalUrl = publicDocumentPortalUrl(cleanText(snapshot.public_token));
+  const portalUrl = customerLink();
   const emailed: JsonObject[] = [];
   const attachment = input.include_pdf === true
     ? await readDocumentPdfFile(orgId, documentId, "", cleanText(snapshot.id)).catch(() => null)
@@ -2033,7 +2044,7 @@ async function sendDocumentLocked(orgId: string, documentId: string, input: Json
     }
   }
   await syncProjectSignatureRequirements(orgId, cleanText(updated.project_id)).catch(() => null);
-  return { document: updated, snapshot, portal_url: portalUrl, emailed, texted, signing: signing.pkg ? { package_id: signing.pkg.id, invitations: signing.invitations.map(i => ({ ...i, portal_url: publicDocumentPortalUrl(cleanText(i.token)) })) } : null };
+  return { document: updated, snapshot, portal_url: portalUrl, emailed, texted, signing: signing.pkg ? { package_id: signing.pkg.id, invitations: signing.invitations.map(i => ({ ...i, portal_url: customerLink(cleanText(i.token)) })) } : null };
 }
 
 // ---------------------------------------------------------------------------

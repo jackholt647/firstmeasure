@@ -2182,6 +2182,23 @@ app.get("/auth/google/config", async () => ({
     return { ok: true, share: await revokePortalGuestLink(found, getParam(request.params, "shareId")) };
   });
 
+  // The customer signs an agreement from their own portal: the portal trades
+  // its link for a signing credential for that agreement's outside signer.
+  app.post("/customer-portals/:portalUuid/documents/:documentId/signing-access", async (request) => {
+    const portalUuid = getParam(request.params, "portalUuid");
+    const found = requirePortalOwner(await findCustomerPortalByUuid(portalUuid, false));
+    const portalData = asObject(found.document.data);
+    if (cleanText(portalData.status || "active") !== "active") throw forbidden("portal_inactive", "This customer portal is not active.");
+    if (!consumePortalWriteToken(portalUuid)) throw forbidden("portal_rate_limited", "Too many requests. Please slow down and try again shortly.");
+    const documentId = getParam(request.params, "documentId");
+    const { readDocumentInstance } = await import("../documents/storage.js");
+    const instance = asObject(await readDocumentInstance(found.orgId, documentId).catch(() => null));
+    // An agreement of another project does not exist as far as this portal is concerned.
+    if (!cleanText(instance.id) || cleanText(instance.project_id) !== cleanText(portalData.project_id)) throw notFound("document_not_found", "That agreement was not found.");
+    const { issuePortalSigningAccess } = await import("../documents/signing/service.js");
+    return { ok: true, ...(await issuePortalSigningAccess(found.orgId, documentId)) };
+  });
+
   app.post("/customer-portals/:portalUuid/events", async (request, reply) => {
     const body = objectBodySchema.parse(request.body ?? {});
     const event = await recordCustomerPortalEvent(getParam(request.params, "portalUuid"), body, request);

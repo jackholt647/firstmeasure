@@ -1576,12 +1576,32 @@
     consentLabel.appendChild(consentCheck);
     consentLabel.appendChild(document.createTextNode(" I intend to sign this agreement, consent to electronic records, and confirm I can access and save the review PDF."));
     modal.appendChild(reviewStatus); modal.appendChild(consentLabel);
+    // Everything that can go wrong is said in the dialog, next to what the
+    // person was doing: never a browser alert, never a button that does nothing.
+    const notice = h("div", "fmdoc-sign-notice");
+    notice.setAttribute("role", "alert");
+    notice.hidden = true;
+    notice.style.cssText = "margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#fef3f2;color:#b42318;font-size:13px;font-weight:600;line-height:1.4";
+    const say = (message) => { notice.textContent = message || ""; notice.hidden = !message; if (message) { try { notice.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {} } };
+    let blocked = "";
+    const blockSigning = (message) => {
+      blocked = message;
+      reviewStatus.textContent = message;
+      reviewStatus.setAttribute("role", "alert");
+      reviewStatus.style.cssText = "padding:12px 14px;border-radius:10px;background:#fef3f2;color:#b42318;font-size:13.5px;font-weight:600;line-height:1.45;margin-bottom:12px";
+      consentLabel.style.display = "none";
+      modal.querySelectorAll(".fmdoc-field,.fmdoc-tabs,.fmdoc-sign-pane").forEach((part) => { part.style.display = "none"; });
+      try { adoptButton.style.display = "none"; } catch (e) { /* not built yet; applied again once it is */ }
+    };
     const signingApi = ctx.api || {};
     const publicToken = cleanText(signingApi.publicToken);
     const internal = signingApi.signing || {};
-    const base = internal.base || (publicToken ? '/v1/documents/public/' + encodeURIComponent(publicToken) : internal.organizationId && internal.documentId ? '/v1/documents/organizations/' + encodeURIComponent(internal.organizationId) + '/documents/' + encodeURIComponent(internal.documentId) : '');
+    let base = internal.base || (publicToken ? '/v1/documents/public/' + encodeURIComponent(publicToken) : internal.organizationId && internal.documentId ? '/v1/documents/organizations/' + encodeURIComponent(internal.organizationId) + '/documents/' + encodeURIComponent(internal.documentId) : '');
     const csrf = readPlatformCsrfToken();
-    const reviewPromise = base ? fetch(base + '/signing/prepare', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-platform-csrf': csrf } : {}) }, body: JSON.stringify({ field: signatureKey(ctx), signer_id: cleanText(ctx.config?.signer_id || internal.signerId || (ctx.config?.signer === 'internal' ? 'company' : 'customer')) }) }).then(async response => {
+    // A host that knows how this person signs (the customer portal) says so;
+    // the dialog is already open while it finds out.
+    const signingAccess = typeof signingApi.resolveSigning === 'function' ? Promise.resolve().then(() => signingApi.resolveSigning()) : Promise.resolve(null);
+    const reviewPromise = signingAccess.then((access) => { if (access && access.base) base = access.base; }).then(() => base ? fetch(base + '/signing/prepare', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-platform-csrf': csrf } : {}) }, body: JSON.stringify({ field: signatureKey(ctx), signer_id: cleanText(ctx.config?.signer_id || internal.signerId || (ctx.config?.signer === 'internal' ? 'company' : 'customer')) }) }).then(async response => {
       const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Signing review is unavailable.');
       if (!result.fields.includes(signatureKey(ctx))) throw new Error('This signature field is assigned to another signer.');
       signingReview = result;
@@ -1607,7 +1627,7 @@
       });
       modal.insertBefore(reviewLink, consentLabel);
       if (result.signer.name) { nameInput.value = result.signer.name; nameInput.dispatchEvent(new Event('input')); }
-    }).catch(error => { reviewStatus.textContent = error.message; reviewStatus.setAttribute('role', 'alert'); }) : Promise.resolve().then(() => { reviewStatus.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_cbcae1403d8359","Send this document to its assigned signers before collecting signatures.") ?? "Send this document to its assigned signers before collecting signatures."); });
+    }).catch(error => { blockSigning(error.message || 'This agreement cannot be signed here right now.'); }) : Promise.resolve().then(() => { reviewStatus.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_cbcae1403d8359","Send this document to its assigned signers before collecting signatures.") ?? "Send this document to its assigned signers before collecting signatures."); })).catch(error => { blockSigning(error.message || 'This agreement cannot be signed here right now.'); });
 
     const nameField = h("div", "fmdoc-field");
     nameField.appendChild(h("label", "fmdoc-field-label", "Full name"));
@@ -1718,7 +1738,10 @@
     adoptButton.type = "button";
     actions.appendChild(cancelButton);
     actions.appendChild(adoptButton);
+    modal.appendChild(notice);
     modal.appendChild(actions);
+    // The review may have failed before these controls existed.
+    if (blocked) blockSigning(blocked);
 
     const close = () => {
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -1726,15 +1749,27 @@
     cancelButton.addEventListener("click", close);
     if (publicToken) {
       const decline = h('button','fmdoc-button fmdoc-button--ghost','Decline / request paper'); decline.type = 'button'; actions.insertBefore(decline,adoptButton);
+      let declineBox = null;
       decline.addEventListener('click',async () => {
-        const reason = window.prompt((globalThis.PlatformLanguage?.text("doc-widgets","m_c42b6e188d23fe","This stops electronic signing for this agreement. You can ask the sender for a paper process. Reason (optional):") ?? "This stops electronic signing for this agreement. You can ask the sender for a paper process. Reason (optional):"));
-        if (reason === null) return;
+        if (!declineBox) {
+          declineBox = h('div','fmdoc-sign-decline');
+          declineBox.style.cssText = 'margin:10px 0 0;padding:12px;border:1px solid #e4e7ec;border-radius:10px;font-size:13px;line-height:1.45';
+          declineBox.appendChild(h('div','', 'This stops electronic signing for this agreement. You can ask the sender for a paper copy instead.'));
+          const why = document.createElement('textarea'); why.placeholder = 'Reason (optional)'; why.rows = 2;
+          why.style.cssText = 'display:block;width:100%;box-sizing:border-box;margin-top:8px;border:1px solid #d0d5dd;border-radius:8px;padding:8px;font:inherit';
+          declineBox.appendChild(why);
+          modal.insertBefore(declineBox, notice);
+          decline.textContent = 'Confirm decline';
+          why.focus();
+          return;
+        }
+        const reason = cleanText(declineBox.querySelector('textarea').value);
         decline.disabled = true;
         try {
           const response = await fetch(base + '/signing/decline',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
           const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Could not decline this agreement.');
           close(); ctx.refresh?.();
-        } catch(error) { reviewStatus.textContent = error.message; decline.disabled = false; }
+        } catch(error) { say(error.message || 'This could not be declined right now. Please try again.'); decline.disabled = false; }
       });
     }
     overlay.addEventListener("click", (event) => {
@@ -1742,16 +1777,22 @@
     });
     adoptButton.addEventListener("click", async () => {
       await reviewPromise;
-      if (!signingReview || !reviewOpened || !consentCheck.checked) { reviewStatus.setAttribute('role', 'alert'); if (signingReview) alert((globalThis.PlatformLanguage?.text("doc-widgets","m_4b30d733b357e0","Open the agreement PDF and confirm your consent before signing.") ?? "Open the agreement PDF and confirm your consent before signing.")); return; }
-      if (signingReview.presenter_attestation_required && !presenterCheck.checked) { alert((globalThis.PlatformLanguage?.text("doc-widgets","m_e0738da2d77758","The presenter must confirm that the assigned signer is present and personally signing.") ?? "The presenter must confirm that the assigned signer is present and personally signing.")); return; }
+      say("");
+      if (blocked) return;
+      if (!signingReview) { say("The agreement is still being prepared. Give it a moment and try again."); return; }
+      if (!reviewOpened) { say("Open and save the agreement PDF above first. You sign what you have read."); return; }
+      if (!consentCheck.checked) { say("Tick the box to confirm you intend to sign and consent to electronic records."); consentCheck.focus(); return; }
+      if (signingReview.presenter_attestation_required && !presenterCheck.checked) { say("The presenter must confirm that the assigned signer is present and personally signing."); presenterCheck.focus(); return; }
       const signerName = cleanText(nameInput.value);
       if (!signerName) {
         nameInput.classList.add("fmdoc-input--invalid");
         nameInput.focus();
+        say("Type your full name.");
         return;
       }
       if (activeMode === "drawn" && !hasInk) {
         canvas.classList.add("fmdoc-sign-canvas--invalid");
+        say("Draw your signature in the box, or switch to Type.");
         return;
       }
       // Output value shape matches the proposal e-sign contract (§2).
@@ -1769,7 +1810,7 @@
         const saved = await onDone(value);
         if (saved === false) throw new Error('The signature was not saved. Please try again.');
         close();
-      } catch (error) { reviewStatus.textContent = error.message || 'Could not save your signature.'; reviewStatus.setAttribute('role', 'alert'); }
+      } catch (error) { say(error.message || 'Your signature could not be saved. Please try again.'); }
       finally { adoptButton.disabled = false; adoptButton.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_b420b6f775b7b3","Adopt & sign") ?? "Adopt & sign"); }
     });
 

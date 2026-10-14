@@ -158,13 +158,7 @@ export function changeOrderWorkflowDefinition(): JsonObject {
           { label: "Half now, half at completion", title: "50% when the customer signs, 50% when the job is complete", parts: [{ label: "Change order deposit", percent: 50, due_rule: "on_signature" }, { label: "Change order balance", percent: 50, due_rule: "project_completion" }] }
         ] }
       ] },
-      { id: "review", title: "Review & send", audience: ["internal"], items: [{ kind: "review", label: "Before you send", total_label: "Change order total" }], preview: { template_ref: "tpl_change_order_default", live: true } },
-      { id: "sign", title: "Approve the change", audience: ["customer"], items: [
-        { kind: "signature", writes: "outputs.sig_customer", required: true, label: "Approve this change order", description: "Sign to approve the added work and its price as a change to your agreement." }
-      ] },
-      { id: "pay", title: "Pay", audience: ["customer"], when: "{{params.deposit_at_signing == true}}", items: [
-        { kind: "payment", writes: "outputs.payment", required: true, label: "Payment due on approval", config: { source: "params.due_now_cents", amount_label: "Due on approval" } }
-      ] }
+      { id: "review", title: "Review & send", audience: ["internal"], items: [{ kind: "review", label: "Before you send", total_label: "Change order total" }], preview: { template_ref: "tpl_change_order_default", live: true } }
     ],
     audiences: { internal: {}, customer: { theme: "portal" } }
   };
@@ -272,10 +266,7 @@ export function invoiceWorkflowDefinition(): JsonObject {
         { kind: "date", writes: "params.due_date", label: "Due", required: true, description: "The billed payments become due on this date when the invoice is sent." },
         { kind: "text", writes: "params.notes", label: "Note to the customer", presentation: { multiline: true }, placeholder: "Thank you for your business." }
       ] },
-      { id: "review", title: "Review & send", audience: ["internal"], items: [{ kind: "review", label: "Before you send", total_label: "Other charges" }], preview: { template_ref: "tpl_invoice_default", live: true } },
-      { id: "pay", title: "Pay invoice", audience: ["customer"], items: [
-        { kind: "payment", writes: "outputs.payment", required: true, label: "Pay this invoice", config: { source: "params.amount_due_cents", amount_label: "Amount due" } }
-      ] }
+      { id: "review", title: "Review & send", audience: ["internal"], items: [{ kind: "review", label: "Before you send", total_label: "Other charges" }], preview: { template_ref: "tpl_invoice_default", live: true } }
     ],
     audiences: { internal: {}, customer: { theme: "portal" } }
   };
@@ -370,13 +361,7 @@ export function completionSignoffWorkflowDefinition(): JsonObject {
           { id: "needs_follow_up", label: "Not yet", description: "Something else needs attention before I sign. The project team will be told and will contact me." }
         ],
         presentation: { style: "cards" }
-      }] },
-      { id: "st_completion_sign", title: "Sign", audience: ["customer"], when: `{{${accepted}}}`, items: [
-        { kind: "signature", writes: "outputs.sig_customer", required: true, label: "Sign the completion certificate", description: "Your signature confirms the work is complete. It does not waive your warranty." }
-      ] },
-      { id: "st_completion_pay", title: "Final payment", audience: ["customer"], when: `{{${accepted} && params.collect_final_payment != false && coalesce(params.amount_due_cents, 0) > 0}}`, items: [
-        { kind: "payment", writes: "outputs.final_payment", label: "Final payment", description: "Pay the balance now, or later from your portal.", config: { source: "params.amount_due_cents", amount_label: "Final payment" } }
-      ] }
+      }] }
     ],
     audiences: { internal: {}, customer: { theme: "portal" } }
   };

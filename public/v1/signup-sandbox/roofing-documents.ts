@@ -107,7 +107,7 @@ const displayFont = (sizePt: number, extra: JsonObject = {}) => ({ family: 'var(
 /** Signature beside the deposit, the way every proposal here is approved. */
 const approvalRow = (height = 100) => flowRow([
   flowWidget('doc.signature@1', { output: 'sig_customer', label: 'Customer approval', signer: 'customer' }, { grow: 1, h: height }),
-  flowWidget('doc.pay_now@1', { label: 'Deposit due' }, { w: 190, h: height })
+  flowWidget('doc.pay_now@1', { label: 'Deposit due', output_key: 'deposit_payment' }, { w: 190, h: height })
 ], { gap: 24 });
 /** Who the proposal is from and for: logo and company on the left, customer and address on the right. */
 const partiesRow = () => flowRow([
@@ -344,7 +344,7 @@ export function roofingEstimateDefinition(mode: string, rates: { roof: number; g
 }
 
 /** Bump when the estimate layouts or their workflows change; existing packs republish. */
-export const INSTANT_ROOFING_PACK = 14;
+export const INSTANT_ROOFING_PACK = 15;
 
 /** Roof measurements the proposals price from, in the order a roofer reads a report. */
 export const ROOF_MEASUREMENT_FIELDS = [
@@ -387,11 +387,10 @@ export function scopedWorkflowSteps(spec: EstimateSpec, templateId: string) {
       ...(spec.key === 'options' ? { compare: ['roof_package'] } : {}) }] },
     { id: 'terms', title: 'Payment terms', description: 'How the job is paid. The milestone due on signature is the deposit the customer pays when they approve.', audience: ['internal'], items: [{ kind: 'payment_schedule', writes: 'params.payment_schedule', label: 'Payment schedule', required: true }] },
     { id: 'review', title: 'Review & send', audience: ['internal'], items: [{ kind: 'review', label: 'Before you send' }], preview: { template_ref: templateId, live: true } },
-    // The customer's side, in the portal: choose, approve, pay the deposit.
+    // The customer's side, in the portal: choosing between what was offered.
     { id: 'choose', title: spec.key === 'options' ? 'Choose your roof' : 'Choose your options', audience: ['customer'], when: '{{coalesce(params.customer_choice_count, 0) > 0}}', items: [{ kind: 'choice_group', writes: 'outputs.selections', options_from: 'scope_items', label: 'Your options',
-      description: spec.key === 'options' ? 'Pick the roof you want. The proposal total updates with your choice.' : 'Pick the products you want. The proposal total updates with each choice.' }] },
-    { id: 'sign', title: 'Approve', audience: ['customer'], items: [{ kind: 'signature', writes: 'outputs.sig_customer', required: true, label: 'Approve this proposal', description: 'Sign to accept the scope, the options you selected and the price shown.' }] },
-    { id: 'pay', title: 'Pay deposit', audience: ['customer'], when: '{{params.deposit_at_signing == true}}', items: [{ kind: 'payment', writes: 'outputs.deposit_payment', required: true, label: 'Deposit', config: { amount_label: 'Deposit due' } }] }
+      description: spec.key === 'options' ? 'Pick the roof you want. The proposal total updates with your choice.' : 'Pick the products you want. The proposal total updates with each choice.' }] }
+    // Approving and paying the deposit happen on the document itself, which carries the signature and the Pay button.
   ];
 }
 

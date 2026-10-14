@@ -338,6 +338,28 @@ export async function declineSigning(access: SigningAccess, reason: string) {
   return { status: "declined" };
 }
 
+/**
+ * A signing credential for the customer's own project portal. The portal link
+ * belongs to the customer as the emailed invitation does, so it may sign as
+ * the agreement's outside signer when there is exactly one. With more than
+ * one, who is at the keyboard is unknown and each signs from their own email.
+ * Existing invitations stay valid; this adds one.
+ */
+export async function issuePortalSigningAccess(orgId: string, documentId: string) {
+  return withSigningLock(orgId, documentId, async () => {
+    const pkg = (await packagesForDocument(orgId, documentId)).find(p => p.status === "open");
+    if (!pkg) throw notFound("signature_assignment", "This agreement is not waiting for a signature.");
+    if (Date.parse(pkg.expires_at) <= Date.now()) throw conflict("signature_package_expired", "This agreement has expired. Ask us to send a new one.");
+    const outside = pkg.signers.filter(s => !s.user_id);
+    if (outside.length !== 1) throw forbidden("signature_invitation_required", outside.length ? "This agreement has more than one signer. Each person signs from the link in their own email." : "This agreement is signed by the company, not here.");
+    const signer = outside[0]!;
+    const raw = token();
+    await addInvitation(raw, pkg.id, signer.id);
+    await queueSigningEvent(pkg, "document.signing.portal_access_issued", token(), { signer_id: signer.id });
+    return { token: raw, signer_id: signer.id, name: signer.name };
+  });
+}
+
 /** Rotation preserves accepted content and receipts; it only revokes this role's old invitations. */
 export async function reissueSigningInvitation(orgId: string, documentId: string, signerId: string, ctx: PlatformAuthContext) {
   if (ctx.orgId !== orgId || !hasPermission(ctx, "issue_documents")) throw forbidden("signature_issue_permission", "Issuing permission is required.");

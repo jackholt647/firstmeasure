@@ -351,7 +351,7 @@
     const closeButton = ctx.inline ? '' : ("<button type=\"button\" class=\"fmpi-close\" data-fmpi-close aria-label=\"" + (globalThis.PlatformLanguage?.text("payment-intake","m_3742924668fb10","Close") ?? "Close") + "\">x</button>");
     const checkoutHtml = opts.detailsOnly ? `<div class="fmpi-details-only">${formHtml(ctx)}</div>` : `<div class="fmpi-grid"><div class="fmpi-main">${amountHtml(ctx)}${surchargeHtml(ctx)}${savedHtml(ctx)}${methodHtml(ctx)}</div><aside class="fmpi-side">${formHtml(ctx)}</aside></div>`;
     const headHtml = opts.detailsOnly ? '' : `<div class="fmpi-head"><div><strong>${escapeHtml(opts.title)}</strong>${opts.description ? `<span>${escapeHtml(opts.description)}</span>` : ''}</div>${closeButton}</div>`;
-    const content = `<div class="fmpi-modal" style="${escapeHtml(style)}" role="dialog" aria-modal="${ctx.inline ? 'false' : 'true'}">${headHtml}${ctx.step === 'success' ? successHtml(ctx) : ctx.step === 'processing' ? processingHtml(ctx) : checkoutHtml}</div>`;
+    const content = `<div class="fmpi-modal" style="${escapeHtml(style)}" role="dialog" aria-modal="${ctx.inline ? 'false' : 'true'}">${headHtml}${ctx.step === 'success' ? successHtml(ctx) : ctx.step === 'processing' ? processingHtml(ctx) : ctx.step === 'loading' ? loadingHtml() : checkoutHtml}</div>`;
     host(ctx).innerHTML = ctx.inline ? `<div class="fmpi-inline-host">${content}</div>` : `<div class="fmpi-host">${content}</div>`;
     bind(ctx);
     updateSubmitState(ctx);
@@ -359,6 +359,9 @@
       refreshSurcharge(ctx);
       if (ctx.options.tokenization?.mode === 'forward' && ctx.method && !ctx.savedMethodId) void mountForwardElement(ctx);
     }
+  }
+  function loadingHtml(){
+    return `<div class="fmpi-success"><span class="fmpi-spinner"></span><strong>Getting your secure payment form ready\u2026</strong></div>`;
   }
   function processingHtml(){
     return `<div class="fmpi-success"><span class="fmpi-spinner"></span><strong>${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_c094604d7b92f1","Processing payment...") ?? "Processing payment...")}</strong><p style="margin:0;color:#667085">${(globalThis.PlatformLanguage?.htmlText("payment-intake","m_2f639ee25d94d2","Please keep this window open.") ?? "Please keep this window open.")}</p></div>`;
@@ -607,8 +610,23 @@
     };
   }
   function open(options = {}){
+    // options.pending: a promise of further options (the provider setup, saved
+    // methods). The form shows immediately in a loading state and becomes the
+    // checkout when they arrive; a click is never left without a response.
+    const pending = options.pending && typeof options.pending.then === 'function' ? options.pending : null;
     const ctx = createContext(options);
     state.active = ctx;
+    if (pending) {
+      ctx.step = 'loading';
+      pending.then((more) => more, () => null).then((more) => {
+        if (state.active !== ctx || ctx.step !== 'loading') return;
+        const merged = { ...options, ...(more && typeof more === 'object' ? more : {}) };
+        delete merged.pending;
+        ctx.options = normalizedOptions(merged);
+        ctx.step = 'checkout';
+        render(ctx);
+      });
+    }
     render(ctx);
     return {
       close: () => close(ctx),

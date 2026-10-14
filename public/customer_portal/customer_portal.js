@@ -444,12 +444,53 @@
     const descriptor = tabs().find((tab) => tab.id === state.activeTab) || {};
     const docs = documentList(activeProjectPayload(), descriptor.groupId);
     if (!docs.length) return null;
-    const requested = cleanText(state.activeDocumentToken);
+    const linked = cleanText(state.requestedDocumentId);
+    const requested = cleanText(state.activeDocumentToken) || cleanText((docs.find((doc) => cleanText(doc.id) === linked) || {}).public_token);
     // Canceled work has no token — it renders as an inert card, never the
     // active document.
     return docs.find((doc) => cleanText(doc.public_token) && cleanText(doc.public_token) === requested)
       || docs.find((doc) => cleanText(doc.public_token))
       || docs[0];
+  }
+  // ── Signing from the portal ─────────────────────────────────────────────
+  // An agreement is signed with the signer's own credential, never the
+  // shared read-only link. The emailed link brings one in its fragment
+  // (#sign=...); a customer who opens their portal directly gets one from the
+  // server for the agreement's single outside signer.
+  const documentSigningTokens = {}; // document id -> signing credential
+  (function readSigningLink(){
+    try {
+      const fragment = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
+      const credential = cleanText(fragment.get('sign'));
+      const documentId = cleanText(new URLSearchParams(location.search).get('document'));
+      if (documentId) state.requestedDocumentId = documentId;
+      if (!credential) return;
+      if (documentId) documentSigningTokens[documentId] = credential;
+      // The credential does not stay in the address bar or the history.
+      history.replaceState(null, '', location.pathname + location.search);
+    } catch (_) {}
+  })();
+  function documentApiBase(){
+    const configured = cleanText(root.DocumentsAPI?.baseUrl?.());
+    if (configured) return configured.replace(/\/+$/, '');
+    return `${location.origin}/v1/documents`;
+  }
+  async function documentSigningAccess(token){
+    const doc = documentList(activeProjectPayload()).find((entry) => cleanText(entry.public_token) === cleanText(token)) || {};
+    const documentId = cleanText(doc.id);
+    if (!documentId) throw new Error('This agreement is not available to sign here.');
+    if (!documentSigningTokens[documentId]) {
+      const platformBase = documentApiBase().replace(/\/documents$/, '/platform');
+      let response;
+      try {
+        response = await fetch(`${platformBase}/customer-portals/${encodeURIComponent(activePortalUuid())}/documents/${encodeURIComponent(documentId)}/signing-access`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      } catch (_) { throw new Error('We could not reach the server. Check your connection and try again.'); }
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !cleanText(result.token)) throw new Error(cleanText(result.message) || 'This agreement cannot be signed here right now.');
+      documentSigningTokens[documentId] = cleanText(result.token);
+    }
+    const credential = documentSigningTokens[documentId];
+    return { token: credential, base: `${documentApiBase()}/public/${encodeURIComponent(credential)}` };
   }
   function documentEngineReady(){
     return Boolean(root.DocumentsAPI && root.FMDocModel && root.FMDocRenderer);
@@ -464,13 +505,14 @@
       root.DocumentsAPI.public.view(key, withEvidence({}, browserEvidenceBase())).catch(() => {});
       track('document_viewed', { document_token: key });
     } catch (error) {
-      documentSnapshotCache[key] = { error: cleanText(error?.message) || 'This document is unavailable.' };
+      documentSnapshotCache[key] = { error: cleanText(error?.message) || 'We could not load this document. Check your connection and try again.' };
     }
     return documentSnapshotCache[key];
   }
   async function submitDocumentOutput(token, key, value, options = {}){
     if (blockPreviewAction('document actions')) return false;
-    if (state.documentBusy) return false;
+    // A second answer while one is saving waits its turn instead of vanishing.
+    while (state.documentBusy) await new Promise((resolve) => setTimeout(resolve, 60));
     state.documentBusy = true;
     const tokenKey = cleanText(token);
     const outputKey = cleanText(key);
@@ -482,8 +524,11 @@
     if (!isSignature && workflowRecord && workflowRecord !== 'pending') workflowRecord.outputs = { ...cpwfObject(workflowRecord.outputs), [outputKey]: value };
     updateDocumentTaskPanel(tokenKey);
     try {
-      const evidence = await signatureEvidencePayload();
-      await root.DocumentsAPI.public.recordOutput(token, key, withEvidence({ value }, evidence));
+      // Only a signature records where it was made; a choice or a payment
+      // never waits on, or prompts for, the device's location.
+      const evidence = isSignature ? await signatureEvidencePayload() : browserEvidenceBase();
+      const writeToken = isSignature ? (await documentSigningAccess(tokenKey)).token : token;
+      await root.DocumentsAPI.public.recordOutput(writeToken, key, withEvidence({ value }, evidence));
       // Choice widgets and inline workflows already update themselves
       // optimistically. Refresh the frozen document in the background without
       // blocking the choice. When the server-resolved preview arrives, swap it
@@ -502,8 +547,10 @@
       // Tokenized document payments surface declines in the intake modal's
       // own error UI instead of a blocking alert (rethrow: true). Every
       // legacy caller keeps the alert path byte-identical.
-      if (options.rethrow === true) throw error;
-      alert(cleanText(error?.message) || 'We could not record that just now. Please try again.');
+      // A signature's own dialog and the payment form show their failures
+      // where the person is looking; anything else gets the page's notice.
+      if (options.rethrow === true || isSignature) throw error;
+      showPortalToast(cleanText(error?.message) || 'We could not save that just now. Please try again.');
       return false;
     } finally {
       state.documentBusy = false;
@@ -558,7 +605,9 @@ Continue with this payment?`)(message));
       const result = await root.DocumentsAPI.public.paymentIntakeConfig(key);
       documentIntakeConfigCache[key] = result?.provider ? result : null;
     } catch (_) {
-      documentIntakeConfigCache[key] = null;
+      // Not knowing is not the same as "no processor": never remember a
+      // failure, or a blip would swap the real checkout for the stand-in form.
+      return undefined;
     }
     return documentIntakeConfigCache[key];
   }
@@ -585,7 +634,13 @@ Continue with this payment?`)(message));
       return false;
     }
     const tokenKey = cleanText(token);
-    const outputKey = cleanText(options.outputKey || options.output_key || 'payment');
+    // The payment is recorded on the output the document declares. A Pay
+    // button that names none, or one the document does not have, uses the
+    // document's own payment output instead of failing after checkout.
+    const declared = cpwfObject(cpwfObject(cpwfObject(documentSnapshotCache[tokenKey]).snapshot).output_defs);
+    const paymentKeys = Object.keys(declared).filter((key) => cleanText(cpwfObject(declared[key]).type) === 'payment');
+    const askedKey = cleanText(options.outputKey || options.output_key);
+    const outputKey = (askedKey && (!paymentKeys.length || paymentKeys.includes(askedKey)) ? askedKey : '') || paymentKeys[0] || askedKey || 'payment';
     const amountCents = Math.max(0, Math.round(Number(options.amountCents ?? options.amount_cents) || 0));
     const document = documentList(activeProjectPayload()).find((entry) => cleanText(entry.public_token) === tokenKey) || {};
     const customer = projectCustomer(activeProjectPayload());
@@ -593,11 +648,16 @@ Continue with this payment?`)(message));
     const colors = cpwfObject(branding.colors);
     const primaryColor = brandColor(colors.primary, branding.primary, colors.brand, branding.brand, colors.accent, branding.accent);
     const secondaryColor = brandColor(colors.secondary, branding.secondary, '#111111');
-    // Resolve the provider intake config before opening so the modal mounts
-    // directly in the right mode (legacy when none resolves).
-    const intakeConfig = await documentPaymentIntakeConfig(tokenKey);
+    // The form opens now; the provider setup it needs arrives into it.
     root.FirstMatePaymentIntake.open({
-      ...documentProviderIntakeOptions(intakeConfig, tokenKey),
+      pending: documentPaymentIntakeConfig(tokenKey).then((intakeConfig) => {
+        if (intakeConfig === undefined) {
+          root.FirstMatePaymentIntake.close();
+          showPortalToast('We could not load the payment form. Check your connection and try again.');
+          return {};
+        }
+        return documentProviderIntakeOptions(intakeConfig, tokenKey);
+      }),
       title: cleanText(options.title) || 'Make a payment',
       description: cleanText(options.description) || cleanText(document.title) || 'Project payment',
       amountLabel: 'Amount due',
@@ -691,7 +751,7 @@ Continue with this payment?`)(message));
       .then((res) => { documentWorkflowCache[key] = normalizePublicWorkflow(res); })
       .catch(() => { documentWorkflowCache[key] = null; }) // route absent → no workflow
       .then(() => {
-        if (documentWorkflowCache[key] && activeDocumentGroupTab()) render();
+        if (activeDocumentGroupTab()) render();
       });
   }
   function documentWorkflowActionable(token, doc){
@@ -704,9 +764,11 @@ Continue with this payment?`)(message));
     const snapshot = cpwfObject(cpwfObject(documentSnapshotCache[key]).snapshot);
     const outputs = { ...cpwfObject(snapshot.outputs), ...cpwfObject(record.outputs) };
     let actionable = false;
+    const scope = { params: cpwfObject(record.params), outputs };
     cpwfArray(workflow.steps).forEach((step) => {
       const stepObj = cpwfObject(step);
       if (typeof helpers.stepVisibleFor === 'function' && !helpers.stepVisibleFor(stepObj, 'customer', workflow)) return;
+      if (stepObj.when && typeof helpers.whenPasses === 'function' && !helpers.whenPasses(stepObj.when, scope)) return;
       cpwfArray(stepObj.items).forEach((item) => {
         const itemObj = cpwfObject(item);
         if (typeof helpers.itemVisibleFor === 'function' && !helpers.itemVisibleFor(itemObj, 'customer')) return;
@@ -724,11 +786,14 @@ Continue with this payment?`)(message));
   function documentPresentationPhase(token, doc){
     const mode = cleanText(doc?.presentation?.mode) || 'document';
     if (mode === 'document') return 'document';
-    if (mode === 'workflow') return 'workflow';
-    const override = cleanText(state.documentWorkflowViews[cleanText(token)]);
-    if (override === 'workflow' || override === 'document') return override;
     const record = documentWorkflowCache[cleanText(token)];
-    if (!record || record === 'pending') return 'workflow';
+    // Still being fetched: hold the step surface. Fetched and absent: the document.
+    if (record === 'pending' || record === undefined) return documentWorkflowReady() ? 'workflow' : 'document';
+    if (!record) return 'document';
+    const override = cleanText(state.documentWorkflowViews[cleanText(token)]);
+    if (override === 'document') return 'document';
+    // Signing and paying happen on the document, so with no question left to
+    // answer there is nothing for the step surface to show.
     return documentWorkflowActionable(token, doc) ? 'workflow' : 'document';
   }
   function queueDocumentWorkflowOutput(token, key, value){
@@ -743,8 +808,10 @@ Continue with this payment?`)(message));
     documentWorkflowWriteChain = documentWorkflowWriteChain.then(async () => {
       if (blockPreviewAction('document actions')) return;
       try {
-        const evidence = await signatureEvidencePayload();
-        await root.DocumentsAPI.public.recordOutput(cleanText(token), cleanText(key), withEvidence({ value }, evidence));
+        const signing = !!value?.__signing;
+        const evidence = signing ? await signatureEvidencePayload() : browserEvidenceBase();
+        const writeToken = signing ? (await documentSigningAccess(tokenKey)).token : cleanText(token);
+        await root.DocumentsAPI.public.recordOutput(writeToken, cleanText(key), withEvidence({ value }, evidence));
         root.DocumentsAPI.public.get(tokenKey).then((payload) => {
           if (payload) {
             documentSnapshotCache[tokenKey] = payload;
@@ -825,6 +892,7 @@ Continue with this payment?`)(message));
         services: {
           api: {
             publicToken: key,
+            resolveSigning: () => documentSigningAccess(key),
             openPayment: (options) => openDocumentPayment(key, options)
           }
         }
@@ -878,7 +946,13 @@ Continue with this payment?`)(message));
       tasks.push({ id, label, icon, stepId: cleanText(stepId), phase: cleanText(phase) || (mode === 'workflow' ? 'workflow' : 'document'), done, required });
     };
     if (record && record !== 'pending') {
-      cpwfArray(record.definition.steps).forEach((step) => cpwfArray(cpwfObject(step).items).forEach((item) => {
+      const helpers = cpwfObject(root.FMDocWorkflow?.helpers);
+      const scope = { params: cpwfObject(record.params), outputs };
+      cpwfArray(record.definition.steps).filter((step) => {
+        const stepObj = cpwfObject(step);
+        if (typeof helpers.stepVisibleFor === 'function' && !helpers.stepVisibleFor(stepObj, 'customer', record.definition)) return false;
+        return !(stepObj.when && typeof helpers.whenPasses === 'function' && !helpers.whenPasses(stepObj.when, scope));
+      }).forEach((step) => cpwfArray(cpwfObject(step).items).forEach((item) => {
         const itemObj = cpwfObject(item);
         const path = cleanText(itemObj.writes);
         if (!path.startsWith('outputs.')) return;
@@ -959,7 +1033,7 @@ Continue with this payment?`)(message));
     if (phase === 'document' && !documentEngineReady()) {
       stage = `<div class="cp-empty">This document is best viewed as a PDF.${pdfUrl ? ` <a href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_27faa26cc36a51","Open PDF") ?? "Open PDF")}</a>` : ''}</div>`;
     } else if (cached && cached.error) {
-      stage = `<div class="cp-empty">${escapeHtml(cached.error)}</div>`;
+      stage = `<div class="cp-empty">${escapeHtml(cached.error)}<div style="margin-top:12px"><button type="button" class="cp-btn" data-document-retry="${escapeHtml(activeToken)}">Try again</button></div></div>`;
     } else if (phase === 'document') {
       stage = '<div id="cpDocumentStage" class="cp-doc-stage" data-doc-token="' + escapeHtml(activeToken) + `"><div class="cp-loading">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2f5ece5412be45","Loading document...") ?? "Loading document...")}</div></div>`;
     } else {
@@ -1025,6 +1099,7 @@ Continue with this payment?`)(message));
         services: {
           api: {
             publicToken: key,
+            resolveSigning: () => documentSigningAccess(key),
             openPayment: (options) => openDocumentPayment(key, options)
           }
         }
@@ -1055,7 +1130,10 @@ Continue with this payment?`)(message));
       });
       return;
     }
-    if (cached.error || !cached.snapshot) return;
+    if (cached.error || !cached.snapshot) {
+      if (!cached.error) stage.innerHTML = '<div class="cp-empty">This document has nothing to show yet.</div>';
+      return;
+    }
     const snapshot = cached.snapshot;
     const resolved = snapshot.resolved_definition || snapshot.definition;
     if (!resolved) return;
@@ -1074,6 +1152,7 @@ Continue with this payment?`)(message));
         widgetContext: {
           api: {
             publicToken: token,
+            resolveSigning: () => documentSigningAccess(token),
             portalUrl: location.href,
             openPayment: (options) => openDocumentPayment(token, options)
           },
@@ -1081,11 +1160,6 @@ Continue with this payment?`)(message));
           submitOutput: async (key, value) => {
             // Payment outputs get the conditional-pricing preview + confirm
             // (spec §10.4) before recording; everything else submits as-is.
-            const defType = cleanText(((snapshot.output_defs || {})[cleanText(key)] || {}).type);
-            if (defType === 'payment') {
-              const proceed = await confirmEngineDocumentPayment(token, value).catch(() => true);
-              if (!proceed) return false;
-            }
             return submitDocumentOutput(token, key, value);
           }
         }
@@ -5836,6 +5910,11 @@ Continue with this payment?`)(message));
         track('document_opened', { document_token: token });
       });
     });
+    mount.querySelectorAll('[data-document-retry]').forEach((btn) => btn.addEventListener('click', () => {
+      delete documentSnapshotCache[cleanText(btn.dataset.documentRetry)];
+      delete documentWorkflowCache[cleanText(btn.dataset.documentRetry)];
+      render();
+    }));
     mount.querySelectorAll('[data-document-workflow]').forEach((btn) => {
       btn.addEventListener('click', () => openDocumentWorkflowOverlay(btn.dataset.documentWorkflow));
     });
