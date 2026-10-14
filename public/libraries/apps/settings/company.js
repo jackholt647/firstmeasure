@@ -12864,7 +12864,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if (!host) return;
         const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, logo:logoKey(state.logo) });
         if (window.FirstMateReportPreview) { draw(); return; }
-        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261014-report-preview-v4'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
+        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261014-report-preview-v5'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
         window.__fmReportPreviewLoading.then(draw).catch(() => { window.__fmReportPreviewLoading = null; host.textContent = settingsText("fm_report_preview_failed", "The report preview could not load."); });
       };
       renderSample();

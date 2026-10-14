@@ -28,6 +28,11 @@ test('the report preview shows every page of the customer and internal PDFs and 
         cover:host.querySelector('[data-rpv-sheet="0"]').textContent
       };
     }, settings);
+    // The organization's colour and logo brand the customer PDF only.
+    await page.evaluate(() => document.documentElement.style.setProperty('--primary', 'rgb(30, 136, 229)'));
+    const branding = () => page.evaluate(() => { const sheet = document.querySelector('[data-rpv-viewer] [data-rpv-sheet="0"] .rpv-page'); return {unbranded:sheet.classList.contains('rpv-unbranded'), sidebar:getComputedStyle(sheet.querySelector('.rpv-b')).backgroundColor, logo:sheet.querySelector('.rpv-logo')?.getAttribute('src') || 'default'}; });
+    await page.evaluate((settings) => window.FirstMateReportPreview.render(document.querySelector('#host'), {settings, logo:'/org-logo.png'}), ALL);
+    assert.deepEqual(await branding(), {unbranded:false, sidebar:'rgb(30, 136, 229)', logo:'/org-logo.png'});
     const full = await state(ALL);
     assert.equal(full.mode, 'customer');
     assert.deepEqual(full.thumbs, ['Cover', 'Imagery', 'Facets', 'Summary', 'Materials', 'Materials', 'Flat Roof', 'Ventilation', 'Pitch', 'Area', 'Layer 1', 'Notes']);
@@ -42,6 +47,9 @@ test('the report preview shows every page of the customer and internal PDFs and 
     await page.locator('[data-rpv-mode="internal"]').click();
     const internal = await page.evaluate(() => ({thumbs:document.querySelectorAll('[data-rpv-thumb]').length, cover:document.querySelector('[data-rpv-sheet="0"]').textContent, title:document.querySelector('[data-rpv-sheet="1"]').textContent}));
     assert.equal(internal.thumbs, 13);
+    // Internal PDFs are not branded: FirstMate's red and logo whatever the organization's branding.
+    await page.evaluate((settings) => window.FirstMateReportPreview.render(document.querySelector('#host'), {settings, logo:'/org-logo.png'}), ALL);
+    assert.deepEqual(await branding(), {unbranded:true, sidebar:'rgb(200, 40, 40)', logo:'/images/logo_red.png'});
     // There is no elevations page; the 3D views page carries the title the PDF gives it without one.
     assert.match(await page.evaluate(() => document.querySelector('[data-rpv-sheet="2"]').textContent), /Roof Elevations[\s\S]*North View/);
     assert.match(internal.cover, /ROOF SUMMARY[\s\S]*Total Squares \(14% Waste\): 55\.32[\s\S]*ROOF MEASUREMENTS/);

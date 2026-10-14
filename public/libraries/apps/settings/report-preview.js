@@ -8,7 +8,8 @@
  * (output/report-preview-20261014/crop.py) and placed where the PDF places them.
  *
  * Two documents: the customer PDF ("summary" mode, shaped by the customer report settings) and the
- * internal PDF ("full" mode, every page). Both carry the organization's colours and logo.
+ * internal PDF ("full" mode, every page). The customer PDF carries the organization's colours and logo; the
+ * internal PDF is not branded: pdf.js's default red (200,40,40 and 150,0,0) and the FirstMate logo.
  *
  * API: FirstMateReportPreview.render(host, { settings, logo })
  *   settings  the customer report settings (cover_show_*, page_*)
@@ -97,7 +98,9 @@
   // ---- Page frame (drawReportTemplate) ----
   function frame(ctx, page, number){
     let out = rect(0, 0, 8, PAGE_H, 'background:var(--rpv-primary)') + rect(8, 0, 2, PAGE_H, 'background:var(--rpv-secondary)');
-    out += ctx.logo
+    out += ctx.unbranded
+      ? `<img class="rpv-logo" alt="" src="/images/logo_red.png" style="left:${mm(20)};top:${mm(10)};height:${mm(12)}">`
+      : ctx.logo
       ? `<img class="rpv-logo" alt="" src="${esc(ctx.logo)}" style="left:${mm(20)};top:${mm(10)};height:${mm(12)}">`
       : `<div class="rpv-logo rpv-logo-default" style="left:${mm(20)};top:${mm(10)};height:${mm(12)};width:${mm(12 * 661 / 251)}"></div>`;
     if (page.cover) {
@@ -435,7 +438,7 @@
     return pages;
   }
   function pageHtml(ctx, page, number){
-    return `<div class="rpv-page" data-page="${number - 1}">${frame(ctx, page, number)}${page.draw()}</div>`;
+    return `<div class="rpv-page${ctx.unbranded ? ' rpv-unbranded' : ''}" data-page="${number - 1}">${frame(ctx, page, number)}${page.draw()}</div>`;
   }
 
   // ---- Viewer ----
@@ -468,6 +471,7 @@
     .rpv-card{background:#fff;overflow:hidden}
     .rpv-strip{position:absolute;left:0;top:0;bottom:0;background:var(--rpv-primary)}
     .rpv-logo{width:auto;object-fit:contain}
+    .rpv-unbranded{--rpv-primary:rgb(200,40,40);--rpv-secondary:rgb(150,0,0)}
     .rpv-logo-default{background:var(--rpv-primary);-webkit-mask:url(/images/logo_red.png) left center/contain no-repeat;mask:url(/images/logo_red.png) left center/contain no-repeat}
     .rpv-pill{position:absolute;display:flex;align-items:center;white-space:pre;background:var(--rpv-primary);color:#fff;font-weight:700}
   `;
@@ -540,7 +544,7 @@
   }
 
   function draw(host, view){
-    const ctx = { logo:view.logo };
+    const ctx = { logo:view.logo, unbranded:view.mode === 'internal' };
     const pages = documentPages(view.mode, view.settings);
     view.count = pages.length;
     view.index = Math.min(view.index, pages.length - 1);
