@@ -250,6 +250,7 @@
       .r-schedule-panel:has(.r-schedule-placement-banner) :is(.psv-appt,.prs-work-chip,.prs-month-bar,.prs-month-item):not(.draft):not(.moving):not(.live-preview){opacity:.38;filter:saturate(.55);transition:opacity .18s ease,filter .18s ease}
       .r-schedule-panel:has(.r-schedule-placement-banner) :is(.psv-appt,.prs-work-chip,.prs-month-bar,.prs-month-item):not(.draft):not(.moving):not(.live-preview):hover{opacity:.8;filter:none}
       @media (prefers-reduced-motion: reduce){.r-schedule-panel:has(.r-schedule-placement-banner) :is(.psv-appt,.prs-work-chip,.prs-month-bar,.prs-month-item){transition:none}}
+      .r-schedule-panel.hover-preview :is(.psv-appt.draft,.prs-work-chip.draft,.prs-month-bar.draft,.prs-month-bar.live-preview){opacity:.72}
       .r-schedule-placement-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px 8px 12px;border:1px solid rgba(37,99,235,.24);border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:12px;font-weight:850;line-height:1.35}.r-schedule-placement-banner>i{color:#2563eb}.r-schedule-placement-banner>span{flex:1 1 200px;min-width:0}.r-schedule-placement-banner strong{font-weight:1000;color:#172554}.r-schedule-placement-banner .warn{display:block;color:#b45309;font-weight:900}.r-schedule-placement-cancel{flex:0 0 auto;height:30px;border:1px solid rgba(37,99,235,.28);border-radius:9px;background:#fff;color:#1d4ed8;padding:0 10px;font:inherit;font-size:11px;font-weight:1000;cursor:pointer}.r-schedule-placement-cancel:hover{background:#dbeafe}.r-schedule-placement-cancel kbd{font:inherit;font-size:10px;opacity:.7}
       .r-schedule-panel.work-mode.scheduling-mode .r-schedule-placement-banner{margin:8px 12px 0}.r-schedule-panel:not(.work-mode) .r-schedule-placement-banner{margin:0 0 10px}
       .r-schedule-waiting{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0;padding:6px 10px;border-bottom:1px solid rgba(15,23,42,.08);background:#fff;overflow-x:auto;scrollbar-width:thin}.r-schedule-waiting-label{flex:0 0 auto;color:#667085;font-size:11px;font-weight:900;white-space:nowrap}.r-schedule-waiting-item{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;max-width:220px;height:26px;padding:0 9px;border:1px dashed rgba(15,23,42,.28);border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:900;cursor:pointer}.r-schedule-waiting-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.r-schedule-waiting-item>small{flex:0 0 auto;color:#667085;font-weight:800}.r-schedule-waiting-item:hover,.r-schedule-waiting-item.active{border-style:solid;border-color:var(--primary,#2563eb);color:var(--primary-readable,var(--primary,#1d4ed8))}
@@ -1649,7 +1650,7 @@
       return {
         subject:isMaterialDeliveryEvent(event) ? `${materialDeliveryTitle(event)} delivery` : (event.title || productionResourceLabel(event)),
         text:materialScheduleDraft?.start
-          ? 'Review the date on the calendar and confirm it with ✓.'
+          ? (materialScheduleDraft.__hover ? `${schedulePointerVerb()} to place it here, or move to another day.` : 'Review the date on the calendar and confirm it with ✓.')
           : (scheduled ? 'Drag it on the calendar to reschedule it.' : (scheduleViewMode === 'gantt' && !scheduleEventIsSpan(event) ? 'Drag it from the unscheduled row onto the timeline.' : `${schedulePointerVerb()} ${scheduleEventChildren(event).length ? 'the day it starts; everything under it is placed with it' : 'a day on the calendar'}.`)),
         past:materialScheduleDraft?.start && scheduleIsPastDay(materialScheduleDraft.start)
       };
@@ -1661,6 +1662,7 @@
   }
   function schedulePlacementBannerHtml(){
     const placement = schedulePlacementState();
+    state.panelRoot?.classList?.toggle('hover-preview', !!materialScheduleDraft?.__hover);
     if (!placement || !canEditSchedule()) return '';
     return `<div class="r-schedule-placement-banner" role="status"><i class="fas fa-location-crosshairs" aria-hidden="true"></i><span><strong>Placing ${escapeHtml(placement.subject)}</strong> — ${escapeHtml(placement.text)}${placement.past ? '<span class="warn">That day is in the past.</span>' : ''} <em data-schedule-placement-state>${schedulePlacementSaving ? 'Saving…' : ''}</em></span><button type="button" class="r-schedule-placement-cancel" data-schedule-placement-cancel>Cancel${scheduleTouchLayout() ? '' : ' <kbd>(Esc)</kbd>'}</button></div>`;
   }
@@ -5574,7 +5576,37 @@
     })().finally(() => { scheduleResourcesPromise = null; scheduleResourcesSettled = true; });
   }
 
+  /* While placing, the whole piece of work follows the pointer: hovering a day
+   * shows it there with everything under it (equipment, deliveries), before
+   * anything is chosen. A click keeps it; leaving the calendar takes the
+   * preview away. Only days are followed, so the calendar redraws once per day
+   * crossed, not on every movement. */
+  function bindPlacementHover(rootEl){
+    if (!rootEl || rootEl.__placementHover) return;
+    rootEl.__placementHover = true;
+    let shownKey = '';
+    const following = () => materialScheduleModeActive && canEditSchedule() && !!selectedMaterialEvent()
+      && (!materialScheduleDraft?.start || materialScheduleDraft.__hover === true);
+    rootEl.addEventListener('pointermove', (pointer) => {
+      if (pointer.pointerType === 'touch' || pointer.buttons) return;
+      if (!following()) { shownKey = ''; return; }
+      const cell = pointer.target?.closest?.('[data-prs-date]');
+      const key = String(cell?.dataset?.prsDate || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key === shownKey) return;
+      shownKey = key;
+      const [year, month, day] = key.split('-').map(Number), start = new Date(year, month - 1, day);
+      setMaterialScheduleDraft({ start, end:scheduleAddDays(start, 1), all_day:true, schedule_granularity:'date', __schedule_natural_range:true });
+      if (materialScheduleDraft) materialScheduleDraft.__hover = true;
+    });
+    rootEl.addEventListener('pointerleave', () => {
+      shownKey = '';
+      if (!materialScheduleDraft?.__hover) return;
+      materialScheduleDraft = null;
+      if (state.active) renderSchedulePanelPreservingScroll();
+    });
+  }
   function renderSchedulePanel(){
+    bindPlacementHover(state.panelRoot);
     // A details popover that is open while data arrives (crews loading, a
     // refresh from another surface) stays open on its item and is redrawn
     // with the new data; actions that close it do so before rendering.

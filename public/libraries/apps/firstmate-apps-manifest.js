@@ -336,7 +336,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20261013-placing-dim')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261014-hover-place')]
     },
     {
       id: 'project.comms',
