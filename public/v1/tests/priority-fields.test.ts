@@ -41,6 +41,9 @@ test('compatibility fields preserve project scope and pure stored proposal prici
   assert.equal(await projectSummaryValue({},[{status:'draft',total:100},{status:'signed',total:200}]),200);
   assert.equal(await projectSummaryValue({},[{pages:[{kind:'pricing',lineItems:[{amount:100},{amount:50}]},{kind:'signature',taxAmount:15}]}]),165);
   assert.equal(await projectSummaryValue({}),null);
+  // Accepted documents are the project's value, ahead of older stored totals.
+  assert.equal(await projectSummaryValue({contract_value:0,money:{project_total_cents:0}},[{total:999}],1189990),11899.9);
+  assert.equal(await projectSummaryValue({contract_value:500},[],0),0);
 });
 
 test('published fields select documents, resolve priorities, retain provenance and enforce revocation and cycles',async()=>{

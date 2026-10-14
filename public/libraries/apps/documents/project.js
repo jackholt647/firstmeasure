@@ -484,6 +484,9 @@
   // Best-effort total for the list cards, read straight off the instance
   // params (line-item math mirrors public/v1/proposals/scope.ts).
   function docTotalCents(doc){
+    // The server's summary is the priced total of what was sent (or the draft).
+    const summaryTotal = Number(objectValue(objectValue(doc).summary).total_cents);
+    if (Number.isFinite(summaryTotal) && summaryTotal > 0) return Math.round(summaryTotal);
     const params = objectValue(objectValue(doc).params);
     for (const key of ['amount_due_cents', 'total_cents', 'amount_cents']) {
       const value = Number(params[key]);

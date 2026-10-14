@@ -1,4 +1,5 @@
 import { canAccessDepartmentResource, hasResourcePermission, matchesDepartmentFilter, relevantDepartmentContext } from "../workforce/department-access.js";
+import { documentSummary } from "./summary.js";
 import { DEFAULT_PINNED_TEMPLATE_IDS, readDocumentDeliveryDefaults, readOrganizationDocumentTypes, readPinnedTemplateIds, saveOrganizationDocumentTypes, savePinnedTemplateIds } from "./settings.js";
 import { registerDocumentTagRoutes } from "./tag-catalog.js";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
@@ -682,7 +683,10 @@ export const registerDocumentsApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { orgId, permission: "view_projects", allowScopedPermission: true });
     const departmentCtx = await requirePlatformAuth(request, { orgId });
-    const documents = (await listProjectDocuments(orgId, getParam(request.params, "projectId"))).filter(document => canAccessDepartmentResource(departmentCtx, document, "view_projects") && hasResourcePermission(departmentCtx, "view_projects", document) && matchesDepartmentFilter(departmentCtx, document, cleanText(asObject(request.query).department_id)));
+    const visible = (await listProjectDocuments(orgId, getParam(request.params, "projectId"))).filter(document => canAccessDepartmentResource(departmentCtx, document, "view_projects") && hasResourcePermission(departmentCtx, "view_projects", document) && matchesDepartmentFilter(departmentCtx, document, cleanText(asObject(request.query).department_id)));
+    // Each document carries its summary (status, total, paid, dates) so lists
+    // and tiles show what it amounts to without opening it.
+    const documents = await Promise.all(visible.map(async (document) => ({ ...document, summary: await documentSummary(orgId, document).catch(() => null) })));
     return { ok: true, documents, count: documents.length, department_context: relevantDepartmentContext(departmentCtx) };
   });
 

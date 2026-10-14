@@ -75,6 +75,7 @@
     engineProjectId: '',
     engineDenied: false,
     engineEntries: [],
+    receiptsById: new Map(),
     // Inline create surface (doc-first flows): the wizard rendered into the
     // right panel instead of a floating modal.
     createHost: null
@@ -200,6 +201,97 @@
   function engineProgress(record = {}){
     return cleanText(window.FMDocModel?.documentProgress?.(record) || record.status).toLowerCase();
   }
+  // ------------------------------------------------ what a tile says
+  // A tile shows what a document amounts to in one shape, whatever its kind:
+  //   { status, amountCents, facts: [] }
+  // Each kind declares how to read that shape from its own record. To give a
+  // new kind of document a status or a value on its tile, add an entry here;
+  // the tile itself never special-cases a type.
+  const TILE_STATUS_LABELS = { in_progress:'In progress', needs_review:'Needs review', partially_paid:'Partly paid', pending_review:'To review' };
+  const TILE_STATUS_TONES = {
+    draft:'muted', issued:'info', sent:'info', open:'info', viewed:'warn', in_progress:'warn', partially_paid:'warn', needs_review:'warn', pending_review:'warn',
+    signed:'good', paid:'good', completed:'good', applied:'good', declined:'bad', expired:'bad', void:'bad', overdue:'bad'
+  };
+  const TILE_SUMMARIES = [
+    {
+      // Documents from the document engine: proposals, contracts, change
+      // orders, invoices and anything else built from a template. The server
+      // attaches summary (status, total, paid, dates) to each one.
+      kind: 'document',
+      matches: (doc) => doc.engine_document === true,
+      read: (doc) => {
+        const summary = doc.__engineDoc && typeof doc.__engineDoc.summary === 'object' && doc.__engineDoc.summary ? doc.__engineDoc.summary : {};
+        const status = cleanText(summary.status || doc.status).toLowerCase();
+        const milestone = summary.signed_at ? ['Signed', summary.signed_at]
+          : summary.first_viewed_at ? ['Viewed', summary.first_viewed_at]
+          : summary.sent_at ? ['Sent', summary.sent_at] : null;
+        return {
+          status,
+          amountCents: summary.total_cents,
+          facts: [
+            milestone ? `${milestone[0]} ${shortDate(milestone[1])}` : '',
+            Number(summary.paid_cents) > 0 ? `Paid ${moneyText(summary.paid_cents)}` : ''
+          ]
+        };
+      }
+    },
+    {
+      // Invoices from Money.
+      kind: 'invoice',
+      matches: (doc) => cleanText(doc.metadata?.source) === 'payments_invoice',
+      read: (doc) => {
+        const meta = doc.metadata || {};
+        const total = Number(meta.total_cents || 0);
+        const due = Number(meta.balance_due_cents || 0);
+        return {
+          status: cleanText(meta.status).toLowerCase(),
+          amountCents: total || null,
+          facts: [due > 0 ? `${moneyText(due)} due` : (total > 0 ? 'Paid in full' : '')]
+        };
+      }
+    },
+    {
+      // Expense receipts: the amount and date read from the receipt.
+      kind: 'receipt',
+      matches: (doc) => isReceiptDoc(doc),
+      read: (doc) => {
+        const receipt = state.receiptsById.get(firstText(doc.receipt_id, doc.metadata?.receipt_id));
+        if (!receipt) return null;
+        const total = Number(receipt.total_cents ?? receipt.effective?.total_cents);
+        const date = firstText(receipt.purchase_date, receipt.effective?.purchase_date);
+        return {
+          status: cleanText(receipt.status).toLowerCase(),
+          amountCents: Number.isFinite(total) && total > 0 ? total : null,
+          facts: [date ? shortDate(date) : '']
+        };
+      }
+    }
+  ];
+  function tileSummary(doc = {}){
+    const spec = TILE_SUMMARIES.find((entry) => entry.matches(doc));
+    if (!spec) return null;
+    let read = null;
+    try { read = spec.read(doc); } catch (error) { read = null; }
+    if (!read) return null;
+    const status = cleanText(read.status).toLowerCase();
+    const cents = Number(read.amountCents);
+    return {
+      kind: spec.kind,
+      status,
+      statusLabel: status ? (TILE_STATUS_LABELS[status] || engineStatusLabel(status)) : '',
+      tone: TILE_STATUS_TONES[status] || 'muted',
+      amount: read.amountCents !== null && read.amountCents !== undefined && Number.isFinite(cents) ? moneyText(cents) : '',
+      facts: (Array.isArray(read.facts) ? read.facts : []).map(cleanText).filter(Boolean)
+    };
+  }
+  function moneyText(cents){
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format((Number(cents) || 0) / 100);
+  }
+  function shortDate(value){
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? cleanText(value) : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
   function engineDocEntry(record = {}, index = 0){
     const type = docType(record);
     const meta = typeMeta(type);
@@ -213,7 +305,7 @@
       title: firstText(record.title, meta.label),
       label: firstText(record.title, meta.label),
       status,
-      status_label: engineStatusLabel(status),
+      status_label: TILE_STATUS_LABELS[status] || engineStatusLabel(status),
       special: true,
       interactive: true,
       created_at: firstText(record.created_at),
@@ -424,15 +516,20 @@
     await loadRequiredDocs();
     try {
       if (!oid || !pid || !window.PlatformAPI?.projectDocuments?.list) throw new Error('Project documents API is unavailable.');
-      const [result, invoiceResult] = await Promise.all([
+      const [result, invoiceResult, receiptResult] = await Promise.all([
         window.PlatformAPI.projectDocuments.list(oid, pid),
         window.PaymentsAPI?.invoices?.list
           ? window.PaymentsAPI.invoices.list(oid, pid).catch((error) => {
             console.warn('Unable to load project invoices for Docs', error);
             return { invoices:[] };
           })
-          : Promise.resolve({ invoices:[] })
+          : Promise.resolve({ invoices:[] }),
+        // Receipt tiles show the receipt's amount and date.
+        window.PaymentsAPI?.receipts?.list
+          ? window.PaymentsAPI.receipts.list(oid, pid).catch(() => ({ receipts:[] }))
+          : Promise.resolve({ receipts:[] })
       ]);
+      state.receiptsById = new Map((Array.isArray(receiptResult?.receipts) ? receiptResult.receipts : []).map((receipt) => [cleanText(receipt.id), receipt]));
       state.uploadedDocs = normalizeList(result.uploaded_documents || []);
       state.invoices = Array.isArray(invoiceResult?.invoices) ? invoiceResult.invoices : [];
       setProjectUploadedDocs(state.uploadedDocs);
@@ -479,13 +576,20 @@
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb i{font-size:24px}.fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb small{display:none}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-type-badge{left:76px;top:9px}
       .fm-doc-status-badge{position:absolute;right:7px;top:7px;z-index:3;border-radius:999px;padding:4px 7px;background:#eef0f5;color:#5a6382;font-size:9px;font-weight:1000;letter-spacing:.03em;text-transform:uppercase;box-shadow:0 1px 2px rgba(16,24,40,.08)}
-      .fm-doc-status-badge.s-sent{background:#eef4ff;color:#3538cd}
-      .fm-doc-status-badge.s-viewed{background:#fdf3d7;color:#8a6400}
-      .fm-doc-status-badge.s-signed{background:#e3f8ec;color:#137a45}
-      .fm-doc-status-badge.s-paid{background:#e0f2fe;color:#075985}
-      .fm-doc-status-badge.s-completed{background:#d7f5e3;color:#0c5f36}
-      .fm-doc-status-badge.s-declined,.fm-doc-status-badge.s-expired{background:#fee4e2;color:#b42318}
+      .fm-doc-status-badge.tone-info{background:#eef4ff;color:#3538cd}
+      .fm-doc-status-badge.tone-warn{background:#fdf3d7;color:#8a6400}
+      .fm-doc-status-badge.tone-good{background:#d7f5e3;color:#0c5f36}
+      .fm-doc-status-badge.tone-bad{background:#fee4e2;color:#b42318}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-status-badge{top:9px;right:10px}
+      .fm-doc-thumb--summary{justify-content:flex-end;align-items:flex-start;gap:3px;padding:34px 12px 12px;text-align:left}
+      .fm-doc-thumb--summary>i{font-size:22px;margin-bottom:auto;align-self:flex-start}
+      .fm-doc-tile-title{max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#101828;font-size:12px;font-weight:800;line-height:1.3}
+      .fm-doc-tile-amount{color:#101828;font-size:17px;font-weight:900;letter-spacing:-.01em;line-height:1.2}
+      .fm-doc-tile-facts{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#667085;font-size:10.5px;font-weight:700}
+      .fm-doc-amount-pill{position:absolute;left:7px;bottom:7px;z-index:3;border-radius:999px;padding:4px 8px;background:rgba(16,24,40,.78);color:#fff;font-size:11px;font-weight:900}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary>:not(i){display:none}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary{padding:0;justify-content:center;align-items:center}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb--summary>i{margin:0;align-self:center}
       .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb-meta{left:68px;top:0;bottom:0;padding:30px 10px 6px;background:#fff;color:#344054;opacity:1}
       .fm-docs-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
       .fm-docs-title{min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -757,19 +861,37 @@
     const thumb = doc.media_id && window.PlatformAPI?.media?.thumbnailUrl
       ? window.PlatformAPI.media.thumbnailUrl(orgId(), doc.media_id, 320)
       : url;
-    return `${isImageDoc(doc, url) && thumb
-      ? `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}">`
-      : `<span class="fm-doc-thumb" style="--doc-color:${escapeHtml(doc.color || meta.color)}"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i><small>${escapeHtml(doc.type_label || meta.label)}</small></span>`}
-      <span class="fm-doc-type-badge" style="--doc-color:${escapeHtml(doc.color || meta.color)}">${escapeHtml(doc.type_label || meta.label)}</span>
-      ${doc.engine_document && doc.status && doc.status_label ? `<span class="fm-doc-status-badge s-${escapeHtml(doc.status)}">${escapeHtml(doc.status_label)}</span>` : ''}`;
+    const summary = tileSummary(doc);
+    const color = escapeHtml(doc.color || meta.color);
+    const status = summary?.statusLabel ? `<span class="fm-doc-status-badge tone-${summary.tone}">${escapeHtml(summary.statusLabel)}</span>` : '';
+    const typeBadge = `<span class="fm-doc-type-badge" style="--doc-color:${color}">${escapeHtml(doc.type_label || meta.label)}</span>`;
+    if (isImageDoc(doc, url) && thumb) {
+      return `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}">
+      ${typeBadge}${status}
+      ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}`;
+    }
+    if (!summary || (!summary.amount && !summary.facts.length)) {
+      return `<span class="fm-doc-thumb" style="--doc-color:${color}"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i><small>${escapeHtml(doc.type_label || meta.label)}</small></span>
+      ${typeBadge}${status}`;
+    }
+    return `<span class="fm-doc-thumb fm-doc-thumb--summary" style="--doc-color:${color}">
+        <i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i>
+        <span class="fm-doc-tile-title">${escapeHtml(doc.title || meta.label)}</span>
+        ${summary.amount ? `<strong class="fm-doc-tile-amount">${escapeHtml(summary.amount)}</strong>` : ''}
+        ${summary.facts.length ? `<span class="fm-doc-tile-facts">${summary.facts.map(escapeHtml).join(' · ')}</span>` : ''}
+      </span>
+      ${typeBadge}${status}`;
   }
   function documentTileMeta(item = {}){
     const doc = documentFromItem(item);
     const date = firstText(doc.uploaded_at, doc.created_at, doc.updated_at);
+    const summary = tileSummary(doc);
     const detail = [
-      firstText(doc.status_label),
+      summary?.statusLabel || '',
+      summary?.amount || '',
+      ...(summary?.facts || []),
       doc.size_bytes ? formatBytes(doc.size_bytes) : '',
-      date ? (window.FirstMateMarkup?.formatDateTime?.(date) || '') : ''
+      !summary && date ? (window.FirstMateMarkup?.formatDateTime?.(date) || '') : ''
     ].filter(Boolean).join(' · ');
     return `${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}${detail ? `<br>${escapeHtml(detail)}` : ''}`;
   }

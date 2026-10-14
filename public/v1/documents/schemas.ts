@@ -32,6 +32,7 @@ export type FMDocModelApi = {
   createPage: (role?: string, overrides?: JsonObject) => JsonObject;
   createNode: (type: string, overrides?: JsonObject) => JsonObject;
   paperDimensions: (doc: JsonObject) => { w_pt: number; h_pt: number };
+  documentProgress: (doc: JsonObject) => string;
   normalizeHorizontalPosition: (value: unknown) => { unit: "percent" | "px"; anchor: "left" | "center" | "right"; value: number };
   horizontalPositionToLeft: (position: unknown, parentWidthPx: number, itemWidthPx: number) => number;
   horizontalPositionFromLeft: (leftPx: number, itemWidthPx: number, parentWidthPx: number, options?: unknown) => { unit: "percent" | "px"; anchor: "left" | "center" | "right"; value: number };

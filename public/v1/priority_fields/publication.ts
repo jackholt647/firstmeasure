@@ -7,6 +7,8 @@ import { bindFieldSource, inCalculationSession } from '../custom_fields/calculat
 import { configuredPriorityFields, BUILTIN_FIELDS } from './contracts.js';
 import { contentHash } from '../platform/publication/validation.js';
 import { forbidden } from '../platform/errors.js';
+import { listProjectDocuments } from '../documents/storage.js';
+import { acceptedDocumentsValueCents } from '../documents/summary.js';
 import type { AccessPolicy, PublicationContext, SourceRef } from '../platform/publication/contracts.js';
 
 const access:AccessPolicy={scopes:['project'],permissions:['view_projects'],systemKinds:['work','module','agent'],authorize:async(ctx,target)=>{
@@ -29,7 +31,10 @@ export function projectSummaryDetails(p:Record<string,unknown>,proposals:Record<
     customer:text(contact.name || p.customer_name || p.primary_contact_name) || null,address:text(p.address) || null,owner:text(p.owner_name || p.project_owner_name || p.assigned_to_name || p.sales_rep_name) || null,
     created_date:p.created_at || null,updated_date:p.updated_at || null,project_number:text(p.project_number || p.job_number || p.number) || null};
 }
-export async function projectSummaryValue(p:Record<string,unknown>,proposals:Record<string,unknown>[]=[]){
+export async function projectSummaryValue(p:Record<string,unknown>,proposals:Record<string,unknown>[]=[],acceptedCents:number|null=null){
+  // What the customer accepted is the project's value: the totals of its
+  // signed or completed documents. Older stored totals apply only before that.
+  if(acceptedCents!==null)return acceptedCents/100;
   const financials=object(p.financials),money=object(p.money);
   const candidates=[p.project_total,p.project_total_amount,p.contract_total,p.contract_value,p.sale_total,p.sold_total,p.total_amount,p.total_price,financials.project_total,financials.contract_total,money.project_total,money.project_total_cents!=null?Number(money.project_total_cents)/100:null];
   const direct=candidates.find(v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>=0);
@@ -43,7 +48,9 @@ async function projectState(ctx:PublicationContext,ref:SourceRef){
   const row=await readDocument(ctx.organizationId,'projects',ref.target.projectId!),p=object(row.data);
   const stored=(await listDocuments(ctx.organizationId,'proposals')).filter(r=>r.data.project_id===ref.target.projectId);
   const proposals=[...values(p.proposals),...stored.map(r=>({...object(r.data),id:r.id}))];
-  return {row,p,proposals,revision:contentHash({project:row.revision,proposals:stored.map(r=>[r.id,r.revision])})};
+  const documents=await listProjectDocuments(ctx.organizationId,ref.target.projectId!).catch(()=>[]);
+  const acceptedCents=await acceptedDocumentsValueCents(ctx.organizationId,documents).catch(()=>null);
+  return {row,p,proposals,acceptedCents,revision:contentHash({project:row.revision,proposals:stored.map(r=>[r.id,r.revision]),documents:documents.map(d=>[d.id,d.revision,d.status])})};
 }
 async function configuration(ctx:PublicationContext,ref:SourceRef,entity:FieldEntity='project',contractOnly=false){
   const owner=entity==='project' && ref.target.scope==='project' || entity!=='project' && (!contractOnly || ref.target.id)
@@ -79,7 +86,7 @@ export function registerPriorityFieldsPublication(){
   if(registered)return;registered=true;
   registerDataProvider({id:'project-summary',version:'1',apps:['projects'],exports:{
     details:{description:'Declared project quick-display fields. Scope type is the project scope-set name with a selected-proposal template fallback.',schema:{type:'object',properties:Object.fromEntries(Object.keys(BUILTIN_FIELDS).filter(k=>k!=='dollar_value').map(k=>[k,{type:['string','number','null']}])),additionalProperties:false},schemaVersion:'1',access,read:async(ctx,ref)=>{const s=await projectState(ctx,ref);return {value:projectSummaryDetails(s.p,s.proposals),revision:s.revision};}},
-    value:{description:'Compatibility project value: explicit project total, then accepted or first proposal total and the domain pricing calculation over stored proposal content. Missing is null; zero is valid. New calculations should use declared custom fields.',schema:{type:'object',properties:{amount:{type:['number','null']}},required:['amount'],additionalProperties:false},schemaVersion:'1',units:{'/amount':'USD'},access:{...access,permissions:['view_financials'],capabilities:['platform.money']},read:async(ctx,ref)=>{const s=await projectState(ctx,ref);return {value:{amount:await projectSummaryValue(s.p,s.proposals)},revision:s.revision};}}
+    value:{description:'Project value: the total of the documents its customer accepted (signed or completed); before any is accepted, an explicit project total, then the accepted or first legacy proposal total and the domain pricing calculation over stored proposal content. Missing is null; zero is valid. New calculations should use declared custom fields.',schema:{type:'object',properties:{amount:{type:['number','null']}},required:['amount'],additionalProperties:false},schemaVersion:'1',units:{'/amount':'USD'},access:{...access,permissions:['view_financials'],capabilities:['platform.money']},read:async(ctx,ref)=>{const s=await projectState(ctx,ref);return {value:{amount:await projectSummaryValue(s.p,s.proposals,s.acceptedCents)},revision:s.revision};}}
   }});
   const exports:Record<string,ReturnType<typeof priorityExports>['contract'] | ReturnType<typeof priorityExports>['values']>={...priorityExports('project')};
   for(const entity of Object.keys(FIELD_OWNERS) as FieldEntity[]){if(entity==='project')continue;const entries=priorityExports(entity);exports[`${entity}-contract`]=entries.contract;exports[`${entity}-values`]=entries.values;}

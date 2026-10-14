@@ -362,7 +362,8 @@ test("the presentation is optional: straight to the document, or a presentation 
   const option = shingles(customer).options.find((entry: any) => !entry.selected && entry.delta_cents !== 0);
   customer = any(await presentations.publicPresentationChange(share.token, { expectedRevision: customer.revision, changes: [{ input: "selections", value: { group_id: "shingle_profile", item_id: option.id } }] }));
   const submitted = any(await presentations.publicPresentationSubmit(share.token, { expectedRevision: customer.revision }));
-  assert.match(submitted.signing.portalUrl, /\/v1\/documents\/public\//);
+  // The customer signs in their portal, with the signing token in the fragment.
+  assert.match(submitted.signing.portalUrl, /\/customer_portal\/\?.*document=.*#sign=/);
   assert.equal(submitted.signTarget.documentId, document.id);
   assert.equal(submitted.presentation.frozen, true); assert.equal(submitted.presentation.contract.state, "sent");
   const contract = any(await documentStore.readDocumentInstance(orgId, document.id));
