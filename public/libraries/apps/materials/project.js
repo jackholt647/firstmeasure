@@ -1037,6 +1037,7 @@
       .mt-req-panel{width:0;opacity:0;overflow:hidden;transition:width .26s cubic-bezier(.4,0,.2,1),opacity .2s ease}.mt-req-tray.is-open .mt-req-panel{width:290px;opacity:1}
       .mt-req-panel-inner{width:290px;height:100%;display:flex;flex-direction:column;min-height:0}
       .mt-req-title{flex:none;display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #eaecf0}.mt-req-title>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.mt-req-title strong{font-size:12px;color:#101828}.mt-req-title span{font-size:10px;color:#667085}
+      .mt-req-fix{flex:none;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:0;border-radius:5px;background:var(--primary,#d93025);color:#fff;font-size:10px;font-weight:700;cursor:pointer}.mt-req-fix:disabled{opacity:.7;cursor:default}.mt-req-fix i{font-size:10px}
       .mt-req-title select{flex:none;width:64px;height:22px;padding:0 4px;border:1px solid #d0d5dd;border-radius:5px;background:#fff;font-size:10px;font-weight:600;color:#344054;cursor:pointer}.mt-req-source{display:flex;align-items:center;gap:6px;color:#667085}.mt-req-source span{flex:1}
       .mt-req-scroll{flex:1;min-height:0;overflow:auto;padding:4px 6px 8px}
       .mt-req-group-head{display:flex;align-items:center;gap:5px;width:100%;padding:6px 4px 3px;border:0;background:transparent;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3;cursor:pointer}.mt-req-group-head i{font-size:8px}.mt-req-group-head span{flex:1;text-align:left}.mt-req-group-head em{font-style:normal}
@@ -2727,12 +2728,24 @@
     button.innerHTML = `<i class="fas fa-rotate mt-spin"></i>${button.closest('.mt-icon-toggles') ? '' : ' Regenerating'}`;
   }
 
+  // Material an accepted document published waits for someone to generate it. Generates every such set; reports each.
+  async function generatePendingMaterialSets(){
+    const api = (materialsAPI || window.MaterialsAPI)?.calculus, generated = [], failed = [];
+    if (!api?.generate) return { generated, failed };
+    for (const list of state.lists.filter((entry) => entry.metadata?.calculus_pending)) {
+      try { const result = await api.generate(list.id); updateMaterialListState(result?.material_list); generated.push(cleanText(list.title) || 'Materials'); }
+      catch (error) { failed.push(`${cleanText(list.title) || 'Materials'}: ${error?.message || 'could not be generated'}`); }
+    }
+    return { generated, failed };
+  }
   async function regenerateMaterialListsFromScope(){
     if (!apiReady() || !(materialsAPI || window.MaterialsAPI)?.projects?.initializeFromScope) {
       showToast((globalThis.PlatformLanguage?.text("materials","m_d9e2e6ecf3e384","Scope regeneration unavailable") ?? "Scope regeneration unavailable"), (globalThis.PlatformLanguage?.text("materials","m_6ae9948e2fd11a","Materials API is not ready for this project.") ?? "Materials API is not ready for this project."), false);
       return;
     }
-    const confirmed = await confirmAction(
+    // Asking only makes sense when something already on the lists would be replaced.
+    const replacesSomething = state.lists.some((list) => listItems(list).length);
+    const confirmed = !replacesSomething || await confirmAction(
       'Regenerate material lists from the project scope? This will replace generated planning lists with the current scope output. Ordered lists are protected.',
       {
         title: (globalThis.PlatformLanguage?.text("materials","m_71d2e615b972f0","Regenerate materials") ?? "Regenerate materials"),
@@ -2755,10 +2768,17 @@
       const operation = captureProjectOperation();
       await requestMeasurementHydration();
       if (!projectOperationIsCurrent(operation)) return;
-      const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true });
-      if (!generated || !(generated.material_lists || generated.lists || []).length) {
-        throw new Error('No resource lists were generated. Choose a project scope with material, labor, or equipment list definitions in the Scope builder, then regenerate. A FirstMeasure report supplies measurements; the scope defines the lists.');
+      // An accepted document's material comes first; the scope's own list definitions are added to it.
+      const fromDocuments = await generatePendingMaterialSets();
+      if (!projectOperationIsCurrent(operation)) return;
+      const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true }).catch((error) => (fromDocuments.generated.length ? null : Promise.reject(error)));
+      const fromScope = (generated?.material_lists || generated?.lists || []).length;
+      if (!fromScope && !fromDocuments.generated.length) {
+        throw new Error(fromDocuments.failed.length
+          ? `The signed document's materials could not be generated. ${fromDocuments.failed.join(' ')}`
+          : 'Nothing was generated: there is no signed document with materials, and the project scope defines no lists. Sign a document that includes materials, or add list definitions to the scope in the Scope builder.');
       }
+      if (fromDocuments.failed.length) showToast('Some materials were not generated', fromDocuments.failed.join(' '), false);
       if (!projectOperationIsCurrent(operation)) return;
       const refreshed = await (materialsAPI || window.MaterialsAPI).projects.list(operation.orgId, operation.projectId);
       if (!projectOperationIsCurrent(operation)) return;
@@ -5873,7 +5893,7 @@
     const group = (key, label, list) => { if (!list.length) return ''; const collapsed = !!state.collapsedRequirementGroups?.has(key); return `<section class="mt-req-group${collapsed ? ' is-collapsed' : ''}"><button type="button" class="mt-req-group-head" data-mt-req-group="${escapeHtml(key)}" aria-expanded="${!collapsed}"><i class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></i><span>${escapeHtml(label)}</span><em>${list.length}</em></button>${collapsed ? '' : list.map(renderRequirementRow).join('')}</section>`; };
     const body = set?.error ? `<p class="mt-req-note">${escapeHtml(set.error)}</p>` : !data ? '<p class="mt-req-note">Working out what this project requires…</p>' : !rows.length ? `<p class="mt-req-note">${escapeHtml(data.reason || 'Nothing is required yet.')}</p>`
       : `${group('attention', 'Needs attention', attention)}${group('material', 'Materials', settled.filter((row) => row.kind === 'material'))}${group('work', 'Work', settled.filter((row) => row.kind === 'work'))}${group('function', 'Other', settled.filter((row) => row.kind === 'function'))}`;
-    return `<aside class="mt-req-tray${open ? ' is-open' : ''}" data-mt-req-tray data-status="${escapeHtml(status)}" aria-label="Requirements"><button type="button" class="mt-req-bar" data-mt-req-open aria-expanded="${open}" title="${escapeHtml(`Requirements: ${summary}. ${open ? 'Click to close.' : 'Click to open.'}`)}" aria-label="${escapeHtml(`Requirements: ${summary}`)}"><i class="fas fa-chevron-left mt-req-arrow" aria-hidden="true"></i><span class="mt-req-badges">${badges}</span><span class="mt-req-bar-label">Requirements</span></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><div><strong>Requirements</strong><span>${escapeHtml(summary)}</span></div>${(data?.available || []).length ? `<select data-mt-req-add aria-label="Add a requirement by hand" title="Add something this job includes that no accepted document has listed. It is sized from the measurements."><option value="">+ Add</option>${data.available.map((entry) => `<option value="${escapeHtml(entry.item)}" title="${escapeHtml(entry.description || '')}">${escapeHtml(entry.label)}</option>`).join('')}</select>` : ''}</header><div class="mt-req-scroll">${body}</div></div></div></aside>`;
+    return `<aside class="mt-req-tray${open ? ' is-open' : ''}" data-mt-req-tray data-status="${escapeHtml(status)}" aria-label="Requirements"><button type="button" class="mt-req-bar" data-mt-req-open aria-expanded="${open}" title="${escapeHtml(`Requirements: ${summary}. ${open ? 'Click to close.' : 'Click to open.'}`)}" aria-label="${escapeHtml(`Requirements: ${summary}`)}"><i class="fas fa-chevron-left mt-req-arrow" aria-hidden="true"></i><span class="mt-req-badges">${badges}</span><span class="mt-req-bar-label">Requirements</span></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><div><strong>Requirements</strong><span>${escapeHtml(summary)}</span></div>${counts.open || state.resolvingRequirements ? `<button type="button" class="mt-req-fix" data-mt-req-fix ${state.resolvingRequirements ? 'disabled' : ''} title="Fix all: generate only what the open requirements need — the signed document's materials, work orders, and equipment that provides what is missing" aria-label="Fix all requirements"><i class="fas ${state.resolvingRequirements ? 'fa-circle-notch mt-spin' : 'fa-wand-magic-sparkles'}" aria-hidden="true"></i><span>Fix all</span></button>` : ''}${(data?.available || []).length ? `<select data-mt-req-add aria-label="Add a requirement by hand" title="Add something this job includes that no accepted document has listed. It is sized from the measurements."><option value="">+ Add</option>${data.available.map((entry) => `<option value="${escapeHtml(entry.item)}" title="${escapeHtml(entry.description || '')}">${escapeHtml(entry.label)}</option>`).join('')}</select>` : ''}</header><div class="mt-req-scroll">${body}</div></div></div></aside>`;
   }
   function syncRequirementsTray(){
     const current = materialRoot()?.querySelector?.('[data-mt-req-tray]');
@@ -5918,6 +5938,100 @@
       if (projectOperationIsCurrent(operation)) { state.assigneePay = {}; refreshRequirements(); }
     }
   }
+  // Fix all: goes through what generation can do, and does only what an open requirement needs. Warnings are left for a
+  // person: they mean two things already account for something, and choosing between them is a decision.
+  async function ensureEquipmentCatalog(){
+    if (!window.EquipmentAPI?.units || !orgId()) return;
+    if (!state.equipmentUnits) state.equipmentUnits = await Promise.resolve(window.EquipmentAPI.units(orgId())).then((result) => (Array.isArray(result?.units) ? result.units : []).filter((unit) => cleanText(unit.status) !== 'archived')).catch(() => []);
+    if (!state.equipmentTypes && window.EquipmentAPI.types) state.equipmentTypes = await Promise.resolve(window.EquipmentAPI.types(orgId())).then((result) => (Array.isArray(result?.types) ? result.types : []).filter((type) => cleanText(type.status) !== 'archived')).catch(() => []);
+  }
+  // The equipment that best meets a function: something emptied and reused before anything else, then the smallest
+  // that holds it all, then the largest, as many as it takes.
+  function equipmentForRequirement(row){
+    const need = number(row.quantity, 0);
+    const offers = [
+      ...(state.equipmentUnits || []).map((unit) => ({ name: cleanText(unit.name || unit.label), unit_id: cleanText(unit.id), type_id: cleanText(unit.type_id), daily: number(unit.rates?.daily_cents, 0), provides: equipmentProvides(unit.effective_provides) })),
+      ...(state.equipmentTypes || []).map((type) => ({ name: cleanText(type.name), unit_id: '', type_id: cleanText(type.id), daily: number(type.default_rates?.daily_cents, 0), provides: equipmentProvides(type.provides) }))
+    ].map((offer) => ({ ...offer, fn: offer.provides.find((entry) => entry.item === row.id) })).filter((offer) => offer.name && offer.fn);
+    const holds = (offer) => (offer.fn.per_load || typeof offer.fn.capacity !== 'number' ? Infinity : offer.fn.capacity);
+    const ranked = offers.sort((a, b) => Number(holds(b) === Infinity) - Number(holds(a) === Infinity) || Number(holds(b) >= need) - Number(holds(a) >= need) || (holds(a) >= need ? holds(a) - holds(b) : holds(b) - holds(a)));
+    const best = ranked[0];
+    return best ? { ...best, quantity: holds(best) === Infinity || !need ? 1 : Math.ceil(need / holds(best)) } : null;
+  }
+  async function createResourceList(type){
+    const operation = captureProjectOperation(), category = resourceCategories().find((row) => row.id === type);
+    const result = await (materialsAPI || window.MaterialsAPI).projects.create(operation.orgId, operation.projectId, { title: '', resource_type: type, color: category?.color || companyPrimaryColor(), branch_id: branchId(), sections: [], items: [], metadata: { source: 'scope_tab', manually_created: true, placeholder_title: true } });
+    return updateMaterialListState(result?.material_list || result?.list);
+  }
+  async function resolveRequirements(){
+    if (state.resolvingRequirements) return;
+    const operation = captureProjectOperation(), done = [], notes = [];
+    const open = () => (requirementSet()?.data?.requirements || []).filter((row) => row.status === 'open');
+    const fresh = async () => { await loadRequirements(true); return projectOperationIsCurrent(operation); };
+    state.resolvingRequirements = true;
+    syncRequirementsTray();
+    try {
+      if (!requirementSet()?.data && !(await fresh())) return;
+      // 1. Material a signed document published that nobody generated.
+      if (open().some((row) => row.kind === 'material')) {
+        const result = await generatePendingMaterialSets();
+        done.push(...result.generated.map((title) => `Generated ${title}`)); notes.push(...result.failed);
+        if (!(await fresh())) return;
+      }
+      // 2. Work a work order left to someone else, which its assignee does: give it back.
+      for (const row of open()) {
+        const entry = (row.can_cover || [])[0];
+        if (!entry) continue;
+        await setWorkExcluded(entry.list_id, row.id, false);
+        done.push(`Gave ${row.label.toLowerCase()} back to ${entry.assignee_name}`);
+      }
+      // 3. Work orders that are assigned but were never built from their pay sheet.
+      for (const list of state.lists.filter((entry) => resourceType(entry) === 'labor' && assignmentWorkResourceRef(entry)?.id && !entry.metadata?.labor_generation)) {
+        await generateLaborList(list.id, {});
+        done.push(`Built ${cleanText(assignmentWorkResourceRef(list)?.name) || 'a'} work order`);
+      }
+      if (!(await fresh())) return;
+      // 4. Work still open: an unassigned work order goes to whoever covers most of it, then whoever is complete, then the cheapest.
+      const openWork = open().filter((row) => row.kind === 'work');
+      if (openWork.length) {
+        let list = state.lists.find((entry) => resourceType(entry) === 'labor' && !assignmentWorkResourceRef(entry)?.id);
+        if (!list && !state.lists.some((entry) => resourceType(entry) === 'labor' && listItems(entry).length)) list = await createResourceList('labor');
+        if (list) {
+          const wanted = new Set(openWork.map((row) => row.id)), pay = await loadAssigneePay(list.id, true);
+          const covers = (row) => (row.work_items || []).filter((entry) => wanted.has(entry.item)).length;
+          const best = (pay?.rows || []).filter((row) => row.sheet && covers(row) > 0)
+            .sort((a, b) => covers(b) - covers(a) || Number(b.complete) - Number(a.complete) || number(a.total_cents, Infinity) - number(b.total_cents, Infinity))[0];
+          if (best) { await assignAndGenerate(list.id, cleanText(best.assignee?.id)); done.push(`Assigned ${cleanText(best.assignee?.name)} and built their work order`); }
+          else notes.push('No one with a pay sheet covers the open work. Set up a pay sheet for whoever does it.');
+        } else notes.push('Every work order is assigned. The open work needs another work order or a line item for it.');
+        if (!(await fresh())) return;
+      }
+      // 5. Functions still open, such as debris disposal: equipment that provides it, as much as the job needs.
+      const openFunctions = open().filter((row) => row.kind === 'function');
+      if (openFunctions.length) {
+        await ensureEquipmentCatalog();
+        for (const row of openFunctions) {
+          const pick = equipmentForRequirement(row);
+          if (!pick) { notes.push(`Nothing in your equipment provides ${row.label.toLowerCase()}. Mark an equipment type as providing it in the Equipment tab.`); continue; }
+          const list = state.lists.find((entry) => resourceType(entry) === 'equipment') || await createResourceList('equipment');
+          if (!list || !projectOperationIsCurrent(operation)) continue;
+          await persistVersion({ reason: 'revision', add_items: [{ id: uid('line'), section: 'equipment', name: pick.name, quantity: pick.quantity, unit: 'day', ...(pick.daily ? { projected_unit_price: pick.daily / 100 } : {}), metadata: { equipment_unit_id: pick.unit_id, equipment_type_id: pick.type_id, provides: pick.provides } }] }, { list });
+          done.push(`Added ${pick.quantity > 1 ? `${pick.quantity} × ` : ''}${pick.name} for ${row.label.toLowerCase()}`);
+        }
+        if (!(await fresh())) return;
+      }
+    } catch (error) {
+      if (projectOperationIsCurrent(operation)) notes.push(error?.message || 'Something could not be generated.');
+    } finally {
+      state.resolvingRequirements = false;
+      if (projectOperationIsCurrent(operation)) {
+        if (!workspaceIsEditing()) syncMaterialsGrid(); else syncRequirementsTray();
+        const left = open().length, warnings = (requirementSet()?.data?.requirements || []).filter((row) => row.status === 'warning').length;
+        const summary = [done.length ? done.join('. ') + '.' : 'Nothing could be generated for the open requirements.', left ? `${left} still not accounted for.` : '', warnings ? `${warnings} to check by hand.` : '', ...notes].filter(Boolean).join(' ');
+        showToast(left ? 'Some requirements are still open' : done.length ? 'Requirements accounted for' : 'Nothing to fix', summary, !left);
+      }
+    }
+  }
   async function markLineCover(listId, itemId, requirement, covers){
     const item = listItems(materialListById(listId)).find((entry) => cleanText(entry.id) === cleanText(itemId));
     if (!item) return;
@@ -5940,6 +6054,7 @@
     root.querySelectorAll('[data-mt-req-exclude]').forEach((button) => button.onclick = () => setWorkExcluded(button.dataset.mtListId, button.dataset.mtReqExclude, true));
     root.querySelectorAll('[data-mt-req-include]').forEach((button) => button.onclick = () => setWorkExcluded(button.dataset.mtListId, button.dataset.mtReqInclude, false));
     root.querySelectorAll('[data-mt-req-unmark]').forEach((button) => button.onclick = () => markLineCover(button.dataset.mtListId, button.dataset.mtItemId, button.dataset.mtReqUnmark, false));
+    root.querySelectorAll('[data-mt-req-fix]').forEach((button) => button.onclick = () => resolveRequirements());
     root.querySelectorAll('[data-mt-req-add]').forEach((select) => select.onchange = () => { const item = select.value; select.value = ''; if (item) setManualRequirement(item, true); });
     root.querySelectorAll('[data-mt-req-unrequire]').forEach((button) => button.onclick = () => setManualRequirement(button.dataset.mtReqUnrequire, false));
     root.querySelectorAll('[data-mt-req-mark]').forEach((select) => select.onchange = () => { const [listId, itemId] = String(select.value || '').split('|'); if (listId && itemId) markLineCover(listId, itemId, select.dataset.mtReqMark, true); });
