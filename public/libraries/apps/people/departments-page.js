@@ -116,6 +116,8 @@
     }).then((department) => { if (department?.id) openDepartment(department.id, { opener:button }); });
 
     const list = People.listPage.mount(container, {
+      // Few departments, each with several roles and groups: full-width rows.
+      columns:false,
       icon:kit.ICONS.department, title:plural(), subtitle:'',
       search:{ placeholder:t('search', 'Search'), onInput(value){ query = value.trim().toLowerCase(); renderList(); } },
       actions:canManage() ? [{ id:'divisions', label:t('divisions_short', 'Units'), icon:'fa-diagram-project', tooltip:t('divisions', 'Organizational units'), onClick:(button) => People.lists.divisions({ opener:button }) }, { id:'categories', label:t('categories', 'Categories'), icon:'fa-folder', onClick:(button) => People.lists.categories({ opener:button }) }, { id:'new', label:t('new_department', 'New {department}', { department:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create }] : [],

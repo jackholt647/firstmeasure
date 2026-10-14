@@ -150,6 +150,11 @@
 
   /* Popovers live inside the open modal when there is one, so its focus trap covers them. */
   const layerHost = (anchor) => anchor?.closest?.('.pp-modal-back') || document.body;
+  /* Anything attached to the page body takes the settings font from where it was opened: the body itself uses another font. */
+  function uiFont(from){
+    const source = from?.isConnected ? from : document.querySelector('.pp-list, .pp');
+    return source ? getComputedStyle(source).fontFamily : '';
+  }
   function place(panel, anchor, align = 'start'){
     const rect = anchor.getBoundingClientRect();
     const box = panel.getBoundingClientRect();
@@ -167,6 +172,8 @@
     openLayer?.close();
     panel.classList.add('pp', 'pp-layer');
     panel.dataset.settingsAutosave = 'off';
+    const font = uiFont(anchor);
+    if (font) panel.style.fontFamily = font;
     layerHost(anchor).appendChild(panel);
     place(panel, anchor, options.align);
     requestAnimationFrame(() => panel.classList.add('open'));
@@ -605,5 +612,5 @@
     onChange(listener){ viewListeners.add(listener); return () => viewListeners.delete(listener); }
   };
 
-  People.kit = { esc, t, term, tip, toast, countPhrase, initials, avatar, chip, chips, pill, summary, menu, confirm, form, layer, select, stack, info, presence, place, ICONS, TONES, ensureStyles };
+  People.kit = { uiFont, esc, t, term, tip, toast, countPhrase, initials, avatar, chip, chips, pill, summary, menu, confirm, form, layer, select, stack, info, presence, place, ICONS, TONES, ensureStyles };
 })();

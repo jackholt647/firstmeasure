@@ -251,7 +251,7 @@
   function wording(anchor){
     ensureStyles();
     const now = data.wording();
-    const rows = [['group', kit.ICONS.group], ['member', kit.ICONS.user], ['company', kit.ICONS.company], ['department', kit.ICONS.department]];
+    const rows = [['member', kit.ICONS.user], ['company', kit.ICONS.company], ['department', kit.ICONS.department]];
     const panel = document.createElement('form');
     panel.className = 'pp-wording';
     panel.noValidate = true;

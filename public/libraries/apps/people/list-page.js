@@ -50,7 +50,7 @@
     style.id = 'pp_list_css';
     style.textContent = `
       .pp-list{display:flex;flex-direction:column;min-width:0;container-type:inline-size}
-      .pp-list-head{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 0 12px;background:var(--pp-panel)}
+      .pp-list-head{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 0 32px;background:var(--pp-panel)}
       .pp-list-heading{display:flex;align-items:center;gap:11px;min-width:0}
       .pp-list.embedded .pp-list-sub{color:var(--pp-strong);font-size:13px;font-weight:650}
       .pp-list-heading>i{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:10px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font-size:15px}
@@ -65,9 +65,13 @@
       .pp-list-filters .pp-seg-count{background:var(--pp-hover);color:var(--pp-muted)}
 
       /* Two columns of rows, read down the first and then the second. A grid, not CSS columns: a row holds positioned controls, and those misplace inside fragmented columns. */
-      .pp-list-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr);column-gap:28px;margin:0;padding:0}
-      @container (min-width:888px){.pp-list:not(.embedded) .pp-list-body.two{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(var(--pp-rows,1),auto)}.pp-list:not(.embedded) .pp-list-body.two::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--pp-line-soft)}}
-      @container (min-width:628px){.pp-list.embedded .pp-list-body.two{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(var(--pp-rows,1),auto)}.pp-list.embedded .pp-list-body.two::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--pp-line-soft)}}
+      .pp-list-body,.pp-list-grid{position:relative;display:grid;grid-template-columns:minmax(0,1fr);column-gap:28px;margin:0;padding:0}
+      .pp-list-body.sectioned{display:flex;flex-direction:column;gap:22px}
+      .pp-list-section-head{display:flex;align-items:baseline;gap:8px;margin:0 0 6px;padding:0 8px 7px;border-bottom:1px solid var(--pp-line-soft)}
+      .pp-list-section-head h3{margin:0;color:var(--pp-text);font-size:13.5px;font-weight:700;line-height:1.3}
+      .pp-list-section-head span{color:var(--pp-muted);font-size:12px}
+      @container (min-width:888px){.pp-list:not(.embedded) :is(.pp-list-body,.pp-list-grid).two{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(var(--pp-rows,1),auto)}.pp-list:not(.embedded) :is(.pp-list-body,.pp-list-grid).two::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--pp-line-soft)}}
+      @container (min-width:628px){.pp-list.embedded :is(.pp-list-body,.pp-list-grid).two{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:column;grid-template-rows:repeat(var(--pp-rows,1),auto)}.pp-list.embedded :is(.pp-list-body,.pp-list-grid).two::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--pp-line-soft)}}
       .pp-row{position:relative;display:flex;align-items:center;gap:10px;min-width:0;height:44px;padding:0 8px;border-radius:9px;break-inside:avoid;cursor:pointer;transition:background .1s ease}
       .pp-row:hover,.pp-row:focus-within{background:var(--pp-soft)}
       .pp-row:has(.pp-row-name:focus-visible){box-shadow:inset 0 0 0 2px var(--pp-accent)}
@@ -125,6 +129,8 @@
     let models = new Map();
     let byKey = new Map();
     let state = 'loading';
+    // Two columns unless a page asks for full-width rows.
+    const columns = options.columns !== false;
     let error = null;
     const actions = options.actions || [];
     container.innerHTML = `<div class="pp pp-list${options.embedded ? ' embedded' : ''}" data-settings-autosave="off">
@@ -177,9 +183,18 @@
       if (state === 'loading') body.innerHTML = skeleton();
       else if (state === 'error') body.innerHTML = `<div class="pp-list-state" role="alert"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>${esc(error?.message || t('load_failed', 'Could not load'))}</strong>${error?.retry ? `<button type="button" class="pp-btn" data-list-retry>${esc(t('try_again', 'Try again'))}</button>` : ''}</div>`;
       else if (!items.length) body.innerHTML = `<div class="pp-list-state"><i class="fas ${esc(options.empty?.icon || options.icon || 'fa-users')}" aria-hidden="true"></i><strong>${esc(options.empty?.title || t('nothing_here', 'Nothing here yet'))}</strong>${options.empty?.action ? `<button type="button" class="pp-btn" data-list-empty-action>${esc(options.empty.action.label)}</button>` : ''}</div>`;
+      else if (options.section) {
+        // Sections in the order of their first item; each is its own grid of rows.
+        const sections = new Map();
+        items.forEach((item) => { const section = options.section(item) || {}; const key = String(section.key ?? ''); if (!sections.has(key)) sections.set(key, { title:section.title || '', items:[] }); sections.get(key).items.push(item); });
+        body.innerHTML = Array.from(sections.values()).map((section) => `<section class="pp-list-section"><div class="pp-list-section-head"><h3>${esc(section.title)}</h3><span>${section.items.length.toLocaleString()}</span></div><div class="pp-list-grid${columns && section.items.length > 1 ? ' two' : ''}" role="list" style="--pp-rows:${Math.ceil(section.items.length / 2)}">${section.items.map(rowHtml).join('')}</div></section>`).join('');
+      }
       else body.innerHTML = items.map(rowHtml).join('');
-      const count = state === 'loading' ? 10 : state === 'ready' ? items.length : 0;
-      body.classList.toggle('two', count > 1);
+      const sectioned = state === 'ready' && items.length > 0 && !!options.section;
+      const count = sectioned ? 0 : state === 'loading' ? 10 : state === 'ready' ? items.length : 0;
+      body.classList.toggle('sectioned', sectioned);
+      body.setAttribute('role', sectioned ? 'presentation' : 'list');
+      body.classList.toggle('two', columns && count > 1);
       body.style.setProperty('--pp-rows', String(Math.max(1, Math.ceil(count / 2))));
       kit.presence.paint(body);
       fit();

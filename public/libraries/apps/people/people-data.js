@@ -135,8 +135,8 @@
       state.groups = groupsResult.status === 'fulfilled' ? records(groupsResult.value, 'resource_groups', 'groups').map((group) => ({ ...obj(group?.data), ...group })).filter((group) => group.status !== 'archived' && !group.archived_at) : [];
       const terminology = configurationResult.status === 'fulfilled' ? obj((configurationResult.value?.configuration || configurationResult.value)?.terminology) : {};
       state.groupLabels = {
-        singular:term('workforce.resource_group_singular', text(terminology.resource_group_singular, obj(terminology.resource_group).singular, t('group', 'Group'))),
-        plural:term('workforce.resource_group_plural', text(terminology.resource_group_plural, obj(terminology.resource_group).plural, t('groups', 'Groups'))),
+        singular:t('group', 'Group'),
+        plural:t('groups', 'Groups'),
         connectionPlural:term('workforce.organization_connection_plural', text(terminology.organization_connection_plural, obj(terminology.organization_connection).plural, t('subcontractors', 'Subcontractors'))),
         connectionSingular:term('workforce.organization_connection_singular', text(terminology.organization_connection_singular, obj(terminology.organization_connection).singular, t('subcontractor', 'Subcontractor'))),
         departmentSingular:text(obj(obj(state.departmentState?.terminology).department).singular, t('department', 'Department')),

@@ -143,6 +143,15 @@
     return '';
   }
 
+  /* English plural of a type name for a section heading: "Crew" heads "Crews". */
+  function pluralOf(name){
+    const word = String(name || '').trim();
+    if (!word || /s$/i.test(word)) return word;
+    if (/(x|z|ch|sh)$/i.test(word)) return word + 'es';
+    if (/[^aeiou]y$/i.test(word)) return word.slice(0, -1) + 'ies';
+    return word + 's';
+  }
+
   function mount(container, options = {}){
     if (!container) throw new Error('groupsPage.mount requires a container.');
     ensureStyles();
@@ -161,7 +170,7 @@
         key:group.id, square:true,
         entity:{ id:group.id, name:group.name, icon:kit.ICONS.group, color:'#0e7090' },
         title:group.name || group.id,
-        pills:group.kind_id ? [{ label:data.typeName('resource_group', group.kind_id), tone:'role' }] : [],
+        // The section heading names the type, so the row does not repeat it.
         aside:kit.stack(members.map((user) => ({ id:user.id, name:user.name || user.email, photoUrl:data.assetUrl(user.profile_photo_url || user.profile_photo) })), data.groupMembers(group).length),
         chipGroups:[{ chips:data.groupDepartments(group).map((department) => ({ label:department.label, color:department.color })) }],
         actions:[{ id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, can.settings ? { id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
@@ -170,7 +179,10 @@
     }
     let filter = options.filter === 'empty' ? 'empty' : 'all';
     const visible = () => data.state.groups.filter((group) => filter !== 'empty' || !data.groupMembers(group).length).filter((group) => !query || [group.name, data.typeName('resource_group', group.kind_id), ...users(group).map((user) => user.name)].join(' ').toLowerCase().includes(query))
-      .sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+      .sort((left, right) => typeOrder(left) - typeOrder(right) || typeTitle(left).localeCompare(typeTitle(right)) || String(left.name || '').localeCompare(String(right.name || '')));
+    /* The list is sectioned by group type, each type under its plural name; groups with no type come last. */
+    const typeTitle = (group) => group.kind_id ? pluralOf(data.typeName('resource_group', group.kind_id)) : t('groups_without_type', 'No type');
+    const typeOrder = (group) => group.kind_id ? 0 : 1;
     const subtitle = () => {
       const lower = plural().toLowerCase();
       const count = data.state.groups.length;
@@ -199,7 +211,8 @@
     }
 
     const list = People.listPage.mount(container, {
-      icon:kit.ICONS.group, title:plural(), subtitle:'',
+      icon:kit.ICONS.group, title:t('user_groups', 'User Groups'), subtitle:'',
+      section:(group) => ({ key:String(group.kind_id || ''), title:typeTitle(group) }),
       search:{ placeholder:t('search', 'Search'), onInput(value){ query = value.trim().toLowerCase(); renderList(); } },
       filters:{ items:[{ id:'all', label:t('filter_all', 'All') }], value:filter, onChange(next){ filter = next; renderList(); } },
       actions:[

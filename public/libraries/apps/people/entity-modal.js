@@ -282,6 +282,8 @@
     });
     document.addEventListener('keydown', onKey, true);
 
+    const font = kit.uiFont(opener);
+    if (font) back.style.fontFamily = font;
     document.body.appendChild(back);
     current = modal;
     modal.refreshSummary();

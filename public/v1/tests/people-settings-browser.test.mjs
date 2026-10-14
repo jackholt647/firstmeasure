@@ -319,7 +319,7 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.ok(Math.max(...headBoxes) - Math.min(...headBoxes) <= 1, 'search and buttons share one line');
 
     // The category's sub-pages are the shared bubble tabs, hoisted by the shell; groups are named by terminology.
-    assert.deepEqual(await page.locator('[data-settings-subtabs-proxy] button').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Overview', 'Users', 'Crews and teams', 'Departments', 'Subcontractors']);
+    assert.deepEqual(await page.locator('[data-settings-subtabs-proxy] button').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Overview', 'Users', 'Groups', 'Departments', 'Subcontractors']);
 
     // Rows: two columns of tight rows.
     assert.equal(await page.locator('.pp-row').count(), 42);
@@ -588,7 +588,7 @@ test('People overview: four cards with live counts that open their pages', async
   try {
     const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'home' });
     const cards = await page.locator('.pp-card').evaluateAll((nodes) => nodes.map((node) => [node.querySelector('strong').textContent, node.querySelector('b').textContent]));
-    assert.deepEqual(cards, [['Users', '42'], ['Crews and teams', '5'], ['Departments', '5'], ['Subcontractors', '4']]);
+    assert.deepEqual(cards, [['Users', '42'], ['User Groups', '5'], ['Departments', '5'], ['Subcontractors', '4']]);
     assert.match(await page.locator('[data-home-card="users"]').innerText(), /3 never signed in/);
     assert.match(await page.locator('[data-home-card="subcontractors"]').innerText(), /1 linked/);
     await shot(page, 'home-desktop');
@@ -603,11 +603,14 @@ test('Groups: rows, types with roles on joining, members and what joining gave, 
   const browser = await launch();
   try {
     const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'groups' });
-    assert.equal(await page.locator('.pp-list-head h2').innerText(), 'Crews and teams');
-    assert.match(await page.locator('.pp-list-sub').innerText(), /^5 crews and teams, \d+ people in one$/);
-    assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Types', 'Tags', 'New crew or team']);
+    assert.equal(await page.locator('.pp-list-head h2').innerText(), 'User Groups');
+    assert.match(await page.locator('.pp-list-sub').innerText(), /^5 groups, \d+ people in one$/);
+    assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Types', 'Tags', 'New group']);
     const north = page.locator('[data-row-key="g1"]');
-    assert.equal(await north.locator('.pp-pill').innerText(), 'Install crew');
+    // Groups sit under their type's section, and the row does not repeat the type.
+    assert.deepEqual(await page.locator('.pp-list-section-head h3').allInnerTexts(), ['Install crews', 'Sales teams', 'Service teams']);
+    assert.equal(await page.locator('.pp-list-section').first().locator('[data-row-key="g1"]').count(), 1);
+    assert.equal(await north.locator('.pp-pill').count(), 0);
     assert.equal(await north.locator('.pp-stack-count').innerText(), '7');
     assert.equal(await north.locator('.pp-stack .pp-avatar').count(), 4);
     assert.match(await north.locator('.pp-row-chips').innerText(), /Production/);
@@ -621,7 +624,7 @@ test('Groups: rows, types with roles on joining, members and what joining gave, 
 
     // Types: a list in the same pattern as every other People list; a type opens in the modal a role opens in.
     await page.locator('[data-list-action="0"]').click();
-    const typesDialog = page.getByRole('dialog', { name:'Crew or team types' });
+    const typesDialog = page.getByRole('dialog', { name:'Group types' });
     await typesDialog.waitFor();
     assert.equal(await typesDialog.locator('.pp-type').count(), 3);
     assert.match(await typesDialog.locator('[data-type-id="crew"]').innerText(), /Install crew[\s\S]*Installer/);
@@ -632,7 +635,7 @@ test('Groups: rows, types with roles on joining, members and what joining gave, 
     await typesDialog.locator('[data-type-id="crew"] .pp-type-open').click();
     const typeDialog = page.getByRole('dialog', { name:'Install crew' });
     await typeDialog.waitFor();
-    assert.deepEqual(await typeDialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Crews and teams', 'Compensation', 'Fields']);
+    assert.deepEqual(await typeDialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Groups', 'Compensation', 'Fields']);
     assert.match(await typeDialog.locator('.pp-modal-summary').innerText(), /Install crew[\s\S]*Works a job together[\s\S]*Roles on joining[\s\S]*Installer[\s\S]*Open to partners/i);
     assert.equal(await typeDialog.locator('.pp-members .pp-row').count(), 2, 'the groups of this type are listed');
     await typeDialog.locator('[data-people-section-action="roles"]').click();
@@ -737,7 +740,7 @@ test('Departments: icon and color, members of every kind, roles held only here, 
     const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'departments' });
     assert.equal(await page.locator('.pp-list-head h2').innerText(), 'Departments');
     assert.match(await page.locator('.pp-list-sub').innerText(), /^5 departments/);
-    const production = page.locator('.pp-list-body > [data-row-key="production"]');
+    const production = page.locator('.pp-list-body [data-row-key="production"]');
     assert.ok(await production.locator('.pp-avatar i.fa-helmet-safety').count(), 'the row shows the department icon');
     assert.ok(Number(await production.locator('.pp-stack-count').innerText()) > 5);
     await shot(page, 'departments-desktop');
@@ -797,7 +800,7 @@ test('Departments: icon and color, members of every kind, roles held only here, 
     assert.equal(saved.revision, 4);
     await dialog.locator('[data-modal-close]').click();
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
-    assert.ok(await page.locator('.pp-list-body > [data-row-key="production"] .pp-avatar i.fa-hammer').count());
+    assert.ok(await page.locator('.pp-list-body [data-row-key="production"] .pp-avatar i.fa-hammer').count());
 
     await page.locator('[data-list-action="2"]').click();
     await page.locator('.pp-form [name="label"]').fill('Estimating');
@@ -948,11 +951,11 @@ test('People at phone width: every page is one column and every modal is full sc
     await shot(page, 'home-phone');
     for (const [view, key, name] of [['groups', 'g1', 'group'], ['departments', 'production', 'department'], ['subcontractors', 'c1', 'subcontractor']]) {
       await openView(page, view);
-      assert.equal(await columnsOf(page, '.pp-list-body > .pp-row'), 1, `${view} rows are one column`);
+      assert.equal(await columnsOf(page, '.pp-list-body .pp-row'), 1, `${view} rows are one column`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${view} has no horizontal scrolling`);
-      assert.equal(await page.locator('.pp-list-body > .pp-row').evaluateAll((rows) => rows.every((row) => row.scrollWidth <= row.clientWidth + 1)), true, `${view} rows do not overflow`);
+      assert.equal(await page.locator('.pp-list-body .pp-row').evaluateAll((rows) => rows.every((row) => row.scrollWidth <= row.clientWidth + 1)), true, `${view} rows do not overflow`);
       await shot(page, `${view}-phone`);
-      await page.locator(`.pp-list-body > [data-row-key="${key}"] .pp-row-name`).click();
+      await page.locator(`.pp-list-body [data-row-key="${key}"] .pp-row-name`).click();
       await page.getByRole('dialog').waitFor();
       await page.waitForTimeout(260);
       const box = await page.locator('.pp-modal').boundingBox();
@@ -1016,7 +1019,7 @@ test('People inside the real Settings shell (company.js): declared once, mounted
     assert.equal(await page.locator('#csTabPeople').getAttribute('aria-selected'), 'true');
     assert.equal(await page.locator('[data-settings-title]').innerText(), 'People');
     assert.equal(await page.locator('#csPanePeople').getAttribute('data-settings-pane'), 'people');
-    assert.deepEqual(await page.locator('.cs-subtabs-slot [data-settings-subtabs-proxy] button').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Overview', 'Users', 'Crews and teams', 'Departments', 'Subcontractors']);
+    assert.deepEqual(await page.locator('.cs-subtabs-slot [data-settings-subtabs-proxy] button').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Overview', 'Users', 'Groups', 'Departments', 'Subcontractors']);
     assert.equal(await page.locator('#csPanePeople .fm-settings-subtabs').isVisible(), false, 'the shell hoists the sub-tabs out of the pane');
     assert.equal(await page.locator('#csTabUsers, #csTabCrews, #csPaneUsers, #csPaneCrews').count(), 0, 'the old Users and Crews and Subcontractors categories are gone');
     assert.equal(await page.evaluate(() => typeof window.FirstMeasureUsers + typeof window.FirstMateDepartments), 'undefinedundefined');
@@ -1026,7 +1029,7 @@ test('People inside the real Settings shell (company.js): declared once, mounted
     // Users inside the real card: two columns, header on one line, nothing autosaved, no stray shell styles.
     await page.locator('.cs-subtabs-slot [data-settings-subtabs-proxy] button').nth(1).click();
     await page.locator('#csPanePeople .pp-row').first().waitFor();
-    assert.equal(await columnsOf(page, '#csPanePeople .pp-list-body > .pp-row'), 2);
+    assert.equal(await columnsOf(page, '#csPanePeople .pp-list-body .pp-row'), 2);
     assert.equal(await page.locator('#csPanePeople .pp-list-sub').innerText(), '42 users, 3 never signed in, 1 suspended');
     assert.equal(await page.locator('#csPanePeople [data-settings-autosave-trigger]').count(), 0, 'the shell autosave leaves People alone');
     const rowBox = await page.locator('#csPanePeople .pp-row').first().boundingBox();
@@ -1148,7 +1151,7 @@ test('Departments: units and categories lists, category and unit on a department
     await categories.locator('[data-modal-close]').click();
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
 
-    await page.locator('.pp-list-body > [data-row-key="office"] .pp-row-name').click();
+    await page.locator('.pp-list-body [data-row-key="office"] .pp-row-name').click();
     const dialog = page.getByRole('dialog', { name:'Office' });
     await dialog.waitFor();
     await dialog.locator('[data-people-identity]').click();
@@ -1224,12 +1227,12 @@ test('Overview: what needs attention opens the page filtered, Wording is one act
   try {
     const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'home' });
     const rows = await page.locator('.pp-attention-row').evaluateAll((nodes) => nodes.map((node) => node.innerText.replace(/\s+/g, ' ').trim()));
-    assert.deepEqual(rows, ['3 users never signed in', '9 users in no department', '1 crew or team with no members', '3 subcontractors not linked']);
+    assert.deepEqual(rows, ['3 users never signed in', '9 users in no department', '1 group with no members', '3 subcontractors not linked']);
     await shot(page, 'home-attention');
     await page.locator('[data-home-wording]').click();
     const wording = page.locator('.pp-wording');
     await wording.waitFor();
-    assert.equal(await wording.locator('[name="group_plural"]').inputValue(), 'Crews and teams');
+    assert.equal(await wording.locator('[name="group_plural"]').count(), 0, 'groups are always called groups');
     await wording.locator('[name="company_singular"]').fill('Trade partner');
     await wording.locator('[name="company_plural"]').fill('Trade partners');
     await wording.locator('[name="department_plural"]').fill('Teams');
@@ -1397,7 +1400,7 @@ test('Compensation and Fields panels inside the real entity modal: every kind, a
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
     // A group type, opened like a role.
     await page.locator('#csPanePeople [data-list-action="0"]').click();
-    await page.getByRole('dialog', { name:'Crew or team types' }).locator('[data-type-id="crew"] .pp-type-open').click();
+    await page.getByRole('dialog', { name:'Group types' }).locator('[data-type-id="crew"] .pp-type-open').click();
     const type = page.getByRole('dialog', { name:'Install crew' });
     await type.locator('.pp-tab', { hasText:'Compensation' }).click();
     await type.locator('[data-comp-add-rule]').waitFor();

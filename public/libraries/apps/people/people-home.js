@@ -63,7 +63,7 @@
       attention = loaded ? [...data.attention().map((item) => ({ ...item, text:`${Number(item.count) === 1 ? names[item.view][0] : names[item.view][1]} ${item.label}` })), ...(unresolvedPay ? [{ id:'pay', icon:kit.ICONS.compensation, view:'payroll', count:unresolvedPay, text:t('attention_pay', 'earnings that could not be worked out') }] : [])] : [];
       const cards = [
         { id:'users', icon:kit.ICONS.users, title:t('users', 'Users'), count:counts.users, note:[online ? `${online} ${t('online_count', 'online')}` : '', counts.neverSignedIn ? `${counts.neverSignedIn} ${t('never_signed_in_count', 'never signed in')}` : ''].filter(Boolean).join(', ') },
-        { id:'groups', icon:kit.ICONS.group, title:(loaded && labels().plural) || kit.term('workforce.resource_group_plural', t('groups', 'Groups')), count:counts.groups, note:counts.groupTypes ? kit.countPhrase([[counts.groupTypes, t('type_one', 'type'), t('type_many', 'types')]]) : '' },
+        { id:'groups', icon:kit.ICONS.group, title:t('user_groups', 'User Groups'), count:counts.groups, note:counts.groupTypes ? kit.countPhrase([[counts.groupTypes, t('type_one', 'type'), t('type_many', 'types')]]) : '' },
         { id:'departments', icon:kit.ICONS.department, title:(loaded && labels().departmentPlural) || t('departments', 'Departments'), count:counts.departments, note:'' },
         { id:'subcontractors', icon:kit.ICONS.company, title:(loaded && labels().connectionPlural) || kit.term('workforce.organization_connection_plural', t('subcontractors', 'Subcontractors')), count:counts.companies, note:counts.linked ? `${counts.linked} ${t('linked_count', 'linked')}` : '' }
       ];

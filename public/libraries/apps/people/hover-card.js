@@ -56,6 +56,8 @@
     card.dataset.settingsAutosave = 'off';
     card.addEventListener('pointerenter', () => window.clearTimeout(closeTimer));
     card.addEventListener('pointerleave', () => scheduleHide());
+    const font = kit.uiFont(null);
+    if (font) card.style.fontFamily = font;
     document.body.appendChild(card);
     return card;
   }

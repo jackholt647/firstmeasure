@@ -33,7 +33,7 @@
   const mounts = new Map();
 
   /* Groups and outside companies are named by the organization, never by us. */
-  const groupsLabel = () => People.data?.state?.loaded ? People.data.state.groupLabels.plural : term('workforce.resource_group_plural', t('groups', 'Groups'));
+  const groupsLabel = () => t('groups', 'Groups');
   const companiesLabel = () => People.data?.state?.loaded ? People.data.state.groupLabels.connectionPlural : term('workforce.organization_connection_plural', t('subcontractors', 'Subcontractors'));
   const departmentsLabel = () => (People.data?.state?.loaded && People.data.state.groupLabels.departmentPlural) || t('departments', 'Departments');
   const VIEWS = [
