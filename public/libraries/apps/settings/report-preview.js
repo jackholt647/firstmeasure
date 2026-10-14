@@ -454,7 +454,7 @@
     .rpv-nav button{appearance:none;width:26px;height:26px;border:1px solid rgba(15,23,42,.12);border-radius:7px;background:#fff;color:#344054;cursor:pointer;display:grid;place-items:center}
     .rpv-nav button:disabled{opacity:.4;cursor:default}
     .rpv-body{flex:1 1 auto;min-height:0;display:flex}
-    .rpv-viewer{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:auto;padding:var(--rpv-pad,16px) 16px;display:grid;gap:18px;justify-items:center;align-content:start;scroll-behavior:smooth}
+    .rpv-viewer{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:auto;padding:12px 16px var(--rpv-pad,16px);display:grid;gap:18px;justify-items:center;align-content:start;scroll-behavior:smooth}
     .rpv-sheet{position:relative;width:calc(${PAGE_W * MM}px * var(--rpv-s,0.5));height:calc(${PAGE_H * MM}px * var(--rpv-s,0.5));box-shadow:0 6px 18px rgba(15,23,42,.14);background:#fff;flex:none}
     .rpv-page{position:absolute;left:0;top:0;width:${PAGE_W * MM}px;height:${PAGE_H * MM}px;transform-origin:0 0;transform:scale(var(--rpv-s,0.5));overflow:hidden;background:#fff;font-family:'FM Report Montserrat',Montserrat,sans-serif;color:#000;-webkit-font-smoothing:antialiased}
     .rpv-strip-col{position:relative;flex:none;width:96px;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 0;background:#fff;border-left:1px solid rgba(15,23,42,.08);scrollbar-width:thin;scrollbar-color:#d0d5dd transparent;scroll-behavior:smooth}
@@ -528,7 +528,7 @@
       if (event.key === 'PageUp' || event.key === 'ArrowLeft') { event.preventDefault(); goTo(host, view, view.index - 1); }
     });
     // A page takes most of the viewer's height, so the pages above and below it show at the edges;
-    // the end padding lets the first and last pages sit in the middle too.
+    // the first page starts at the top, and the bottom padding lets the last page come to the middle.
     const fit = () => {
       const width = viewer.clientWidth - 32, height = viewer.clientHeight;
       if (width <= 0 || height <= 0) return;
@@ -562,7 +562,7 @@
     const viewer = host.querySelector('[data-rpv-viewer]'), sheet = viewer?.querySelector(`[data-rpv-sheet="${view.index}"]`);
     if (sheet) {
       view.programmatic = Date.now();
-      viewer.scrollTo({ top:sheet.offsetTop - (viewer.clientHeight - sheet.offsetHeight) / 2, behavior:options.instant ? 'instant' : 'smooth' });
+      viewer.scrollTo({ top:view.index === 0 ? 0 : sheet.offsetTop - (viewer.clientHeight - sheet.offsetHeight) / 2, behavior:options.instant ? 'instant' : 'smooth' });
     }
     mark(host, view);
   }
