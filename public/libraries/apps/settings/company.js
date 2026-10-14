@@ -4092,8 +4092,6 @@
       allUsers:[],
       resourceGroups:[],
       accessRoles:[],
-      accessCatalog:[],
-      accessPermissionKeys:[],
       scopeTemplates:[],
       scopeFlags:{}
     };
@@ -4157,8 +4155,6 @@
         if (groupsResult.status === 'fulfilled') workforceUi.resourceGroups = workforceRecords(groupsResult.value, 'resource_groups', 'groups').map((entry) => ({ ...workforceObject(entry?.data), ...entry }));
         if (accessResult.status === 'fulfilled') {
           workforceUi.accessRoles = workforceRecords(accessResult.value, 'roles', 'access_roles').map((entry) => ({ ...entry }));
-          workforceUi.accessCatalog = workforceRecords(accessResult.value, 'apps', 'app_catalog').map((entry) => ({ ...entry }));
-          workforceUi.accessPermissionKeys = workforceUniqueIds(accessResult.value?.permission_keys);
         }
         if (scopesResult.status === 'fulfilled') workforceUi.scopeTemplates = workforceRecords(scopesResult.value, 'templates', 'scope_templates').map((entry) => ({ ...workforceObject(entry?.definition), ...entry }));
         if (scopeFlagsResult.status === 'fulfilled') {

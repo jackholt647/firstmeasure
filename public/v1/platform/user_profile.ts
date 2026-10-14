@@ -137,34 +137,3 @@ export function organizationUserProfileView(inputValue: unknown) {
     payment_terms: asObject(input.payment_terms)
   };
 }
-
-export function applicationAccessForUser(inputValue: unknown) {
-  const input = asObject(inputValue);
-  return normalizeApplicationAccess(input.application_access ?? input.app_access);
-}
-
-export function userHasApplicationAccess(inputValue: unknown, applicationId: string) {
-  const access = applicationAccessForUser(inputValue);
-  const normalized = cleanText(applicationId).toLowerCase();
-  const canonical = ["main", "portal"].includes(normalized)
-    ? MANAGEMENT_APPLICATION_ID
-    : ["crew", "workforce"].includes(normalized)
-      ? FIELD_APPLICATION_ID
-      : normalized;
-  return access[canonical]?.enabled === true;
-}
-
-export function userHasApplicationPermission(inputValue: unknown, applicationId: string, permission?: string) {
-  if (!permission) return userHasApplicationAccess(inputValue, applicationId);
-  const access = applicationAccessForUser(inputValue);
-  const normalized = cleanText(applicationId).toLowerCase();
-  const canonical = ["main", "portal"].includes(normalized)
-    ? MANAGEMENT_APPLICATION_ID
-    : ["crew", "workforce"].includes(normalized)
-      ? FIELD_APPLICATION_ID
-      : normalized;
-  const entry = access[canonical];
-  if (!entry?.enabled) return false;
-  if (entry.permissions["*"] === true) return true;
-  return cleanText(permission).split("|").some((key) => entry.permissions[key.trim()] === true);
-}

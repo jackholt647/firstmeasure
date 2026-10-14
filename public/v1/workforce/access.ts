@@ -1049,14 +1049,6 @@ const ACCESS_APP_CATALOG_SOURCE: AccessCatalogEntry[] = [
   ...SALES_APP_CATALOG_SOURCE
 ];
 
-export const CANONICAL_ACCESS_APP_CATALOG: readonly AccessCatalogEntry[] = Object.freeze(
-  ACCESS_APP_CATALOG_SOURCE.map((entry) => Object.freeze(cloneCatalogEntry(entry)))
-);
-
-export const CANONICAL_CREW_APP_CATALOG: readonly AccessCatalogEntry[] = Object.freeze(
-  CREW_APP_CATALOG_SOURCE.map((entry) => Object.freeze(cloneCatalogEntry(entry)))
-);
-
 export function accessCatalog(options: {
   application_id?: string;
   surface?: AccessSurface;

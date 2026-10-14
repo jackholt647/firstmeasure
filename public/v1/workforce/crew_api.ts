@@ -477,14 +477,6 @@ async function checklistAccessibleProject(orgId: string, projectId: string, acto
   return assignedProject(orgId, projectId, actor);
 }
 
-function checklistAudiencesForActor(actor: CrewActor): string[] | null {
-  if (actor.management) return null;
-  const audiences: string[] = [];
-  if (hasCrewPermission(actor, "crew.checklists.view")) audiences.push("crew");
-  if (hasCrewPermission(actor, "crew.checklists.supervise")) audiences.push("supervisor");
-  return audiences;
-}
-
 function hasChecklistPermission(actor: CrewActor, permission: string, checklist: { department_ids?: unknown }) {
   return permission.split("|").some(key => hasResourcePermission({ ...actor.ctx, permissions: { ...actor.ctx.permissions, [key]: hasCrewPermission(actor, key) } }, key, checklist));
 }
