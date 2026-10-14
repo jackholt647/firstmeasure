@@ -96,3 +96,10 @@ succeeded. `verify` passed on all three.
 - The dev compatibility host has no `report_settings.json`, so the switch is off there.
   Production was not inspected.
 - Activated on legacy, web and pool on top of `bb4eca28`; `verify` passed on all three.
+
+## Follow-up: report settings stop carrying page_elevations (commit `da8164de`)
+
+`DEFAULT_CUSTOMER_REPORT_SETTINGS` no longer lists `page_elevations`. Settings only keeps the
+keys in its defaults, so it stops reading the key, and the next save of an organization's
+report settings drops it. Activated on legacy, web and pool on top of `6ef05cb8`; `verify`
+passed on all three, and the served `company.js` has no `page_elevations`.
