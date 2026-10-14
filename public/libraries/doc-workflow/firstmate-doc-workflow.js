@@ -347,7 +347,9 @@
       return prettyKey(value);
     }
     if (typeof value === 'object') {
-      try { return JSON.stringify(value); } catch (e) { return String(value); }
+      const shown = Object.entries(obj(value)).filter(([key]) => !['evidence', 'recorded_at', 'captured_at', 'source'].includes(key));
+      if (!shown.length) return 'Answered';
+      return shown.map(([key, entry]) => `${prettyKey(key.split(':').pop())}: ${typeof entry === 'object' ? 'set' : prettyKey(String(entry))}`).join(' · ');
     }
     return String(value);
   }
@@ -2457,6 +2459,21 @@
   // ----------------------------------------------------------------- review
   // What the sender should know before this goes out: the total, anything
   // that looks unfinished, then the answers the workflow collected.
+  /** "GAF Timberline NS, GAF Tiger Paw, + Drip edge upgrade" from a selections answer and the scope it picks from. */
+  function scopePicksSummary(value, scopeItems){
+    const picks = obj(value);
+    const byId = new Map();
+    const walk = (list) => arr(list).forEach((raw) => { const item = obj(raw); byId.set(cleanText(item.id), item); walk(item.children); });
+    walk(scopeItems);
+    const names = [];
+    Object.entries(picks).forEach(([key, entry]) => {
+      if (['evidence', 'recorded_at', 'captured_at', 'source'].includes(key)) return;
+      if (typeof entry === 'string') { const item = byId.get(cleanText(entry)); if (item) names.push(firstText(item.name, item.label, prettyKey(entry))); }
+      else if (entry === true) { const item = byId.get(cleanText(key)); if (item) names.push(`+ ${firstText(item.name, item.label, prettyKey(key))}`); }
+    });
+    return names.join(', ');
+  }
+
   registerKind('review', (el, ctx) => {
     const workflow = ctx.workflow;
     const rows = [];
@@ -2495,7 +2512,12 @@
           return;
         }
         const chosen = kind === 'select' ? resolveOptions(obj(item), ctx.scope(), ctx.services).find((option) => option.value === cleanText(value)) : null;
-        rows.push({ label: itemLabel(obj(item)), value: chosen ? chosen.label : formatValue(obj(item), value), hidden: hiddenHere });
+        // The customer's options read as the products they picked.
+        const scopeSource = ['scope_items', 'scope_item_choice_groups'].includes(cleanText(obj(item).options_from || obj(item).optionsFrom));
+        const picked = kind === 'choice_group' && scopeSource ? scopePicksSummary(value, arr(getPath(ctx.scope(), 'params.scope_items'))) : '';
+        // Who answered: the customer's steps say so, rather than "your project team".
+        const byCustomer = hiddenHere && stepAudiences(obj(step)).includes('customer');
+        rows.push({ label: itemLabel(obj(item)), value: picked || (chosen ? chosen.label : formatValue(obj(item), value)), hidden: hiddenHere, byCustomer });
       });
     });
     el.innerHTML = `
@@ -2507,7 +2529,7 @@
         <div class="fmdw-card fmdw-review">
           ${rows.length ? rows.map((row) => `
             <div class="fmdw-review-row ${row.hidden ? 'muted' : ''}">
-              <span>${esc(row.label)}${row.hidden ? ` <em>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b355543c278b0d","(set by your project team)") ?? "(set by your project team)")}</em>` : ''}</span>
+              <span>${esc(row.label)}${row.hidden ? ` <em>${row.byCustomer ? 'chosen by the customer' : (globalThis.PlatformLanguage?.htmlText("doc-workflow","m_b355543c278b0d","(set by your project team)") ?? "(set by your project team)")}</em>` : ''}</span>
               <b>${esc(row.value)}</b>
             </div>`).join('') : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_c36246dea049d6","Nothing has been filled in yet.") ?? "Nothing has been filled in yet.")}</p>`}
         </div>
