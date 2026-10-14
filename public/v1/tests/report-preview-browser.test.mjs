@@ -24,7 +24,7 @@ test('the report preview shows every page of the customer and internal PDFs and 
       return {
         mode:host.querySelector('[aria-selected=true]')?.dataset.rpvMode,
         sheets:host.querySelectorAll('[data-rpv-viewer] .rpv-sheet').length,
-        thumbs:[...host.querySelectorAll('.rpv-thumb > span')].map((s) => s.textContent.replace(/^\d+ /, '')),
+        thumbs:[...host.querySelectorAll('.rpv-thumb > span')].map((s) => s.textContent),
         cover:host.querySelector('[data-rpv-sheet="0"]').textContent
       };
     }, settings);

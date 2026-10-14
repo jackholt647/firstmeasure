@@ -465,15 +465,17 @@
     .rpv-nav{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:850;color:#667085;white-space:nowrap}
     .rpv-nav button{appearance:none;width:26px;height:26px;border:1px solid rgba(15,23,42,.12);border-radius:7px;background:#fff;color:#344054;cursor:pointer;display:grid;place-items:center}
     .rpv-nav button:disabled{opacity:.4;cursor:default}
-    .rpv-viewer{position:relative;flex:1 1 auto;min-height:0;overflow:auto;padding:14px;display:grid;gap:14px;justify-items:center;align-content:start;scroll-behavior:smooth}
+    .rpv-body{flex:1 1 auto;min-height:0;display:flex}
+    .rpv-viewer{position:relative;flex:1 1 auto;min-width:0;min-height:0;overflow:auto;padding:var(--rpv-pad,16px) 16px;display:grid;gap:18px;justify-items:center;align-content:start;scroll-behavior:smooth}
     .rpv-sheet{position:relative;width:calc(${PAGE_W * MM}px * var(--rpv-s,0.5));height:calc(${PAGE_H * MM}px * var(--rpv-s,0.5));box-shadow:0 6px 18px rgba(15,23,42,.14);background:#fff;flex:none}
     .rpv-page{position:absolute;left:0;top:0;width:${PAGE_W * MM}px;height:${PAGE_H * MM}px;transform-origin:0 0;transform:scale(var(--rpv-s,0.5));overflow:hidden;background:#fff;font-family:'FM Report Montserrat',Montserrat,sans-serif;color:#000;-webkit-font-smoothing:antialiased}
-    .rpv-strip-row{flex:none;display:flex;gap:8px;overflow-x:auto;padding:9px 10px 10px;background:#fff;border-top:1px solid rgba(15,23,42,.08)}
-    .rpv-thumb{appearance:none;flex:none;display:grid;gap:4px;justify-items:center;padding:0;border:0;background:none;cursor:pointer;font:inherit}
-    .rpv-thumb .rpv-sheet{--rpv-s:${(60 / (PAGE_W * MM)).toFixed(5)};outline:2px solid transparent;outline-offset:2px;box-shadow:0 1px 4px rgba(15,23,42,.18)}
+    .rpv-strip-col{position:relative;flex:none;width:96px;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px 0;background:#fff;border-left:1px solid rgba(15,23,42,.08);scrollbar-width:thin;scrollbar-color:#d0d5dd transparent;scroll-behavior:smooth}
+    .rpv-thumb{appearance:none;flex:none;display:grid;gap:7px;justify-items:center;padding:0;border:0;background:none;cursor:pointer;font:inherit}
+    .rpv-thumb .rpv-sheet{--rpv-s:${(56 / (PAGE_W * MM)).toFixed(5)};outline:2px solid transparent;outline-offset:3px;border-radius:1px;box-shadow:0 1px 3px rgba(15,23,42,.16)}
+    .rpv-thumb:hover .rpv-sheet{outline-color:#d0d5dd}
     .rpv-thumb[aria-current=true] .rpv-sheet{outline-color:var(--rpv-primary)}
-    .rpv-thumb span{max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:800;color:#667085}
-    .rpv-thumb[aria-current=true] span{color:#101828}
+    .rpv-thumb>span{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600;color:#98a2b3}
+    .rpv-thumb[aria-current=true]>span{color:#344054;font-weight:700}
     .rpv-t{position:absolute;line-height:1;white-space:pre}
     .rpv-p{position:absolute;white-space:normal}
     .rpv-b,.rpv-i,.rpv-logo{position:absolute;display:block;box-sizing:border-box}
@@ -512,8 +514,10 @@
         </div>
         <div class="rpv-nav"><button type="button" data-rpv-step="-1" aria-label="Previous page"><i class="fas fa-chevron-up"></i></button><span data-rpv-count></span><button type="button" data-rpv-step="1" aria-label="Next page"><i class="fas fa-chevron-down"></i></button></div>
       </div>
-      <div class="rpv-viewer" data-rpv-viewer tabindex="0" aria-label="Report pages"></div>
-      <div class="rpv-strip-row" data-rpv-strip aria-label="Pages"></div>
+      <div class="rpv-body">
+        <div class="rpv-viewer" data-rpv-viewer tabindex="0" aria-label="Report pages"></div>
+        <div class="rpv-strip-col" data-rpv-strip aria-label="Pages"></div>
+      </div>
     </div>`;
     const viewer = host.querySelector('[data-rpv-viewer]');
     host.querySelectorAll('[data-rpv-mode]').forEach((tab) => tab.addEventListener('click', () => {
@@ -534,10 +538,15 @@
       if (event.key === 'PageDown' || event.key === 'ArrowRight') { event.preventDefault(); goTo(host, view, view.index + 1); }
       if (event.key === 'PageUp' || event.key === 'ArrowLeft') { event.preventDefault(); goTo(host, view, view.index - 1); }
     });
-    // Pages fill the viewer's width.
+    // A page takes most of the viewer's height, so the pages above and below it show at the edges;
+    // the end padding lets the first and last pages sit in the middle too.
     const fit = () => {
-      const width = viewer.clientWidth - 28;
-      if (width > 0) host.querySelector('.rpv').style.setProperty('--rpv-s', (width / (PAGE_W * MM)).toFixed(5));
+      const width = viewer.clientWidth - 32, height = viewer.clientHeight;
+      if (width <= 0 || height <= 0) return;
+      const scale = Math.min(width / (PAGE_W * MM), height * 0.8 / (PAGE_H * MM));
+      const root = host.querySelector('.rpv');
+      root.style.setProperty('--rpv-s', scale.toFixed(5));
+      root.style.setProperty('--rpv-pad', `${Math.max(16, Math.round((height - PAGE_H * MM * scale) / 2))}px`);
     };
     view.resize?.disconnect?.();
     view.resize = new ResizeObserver(fit);
@@ -555,7 +564,7 @@
     const viewer = host.querySelector('[data-rpv-viewer]');
     viewer.setAttribute('aria-label', `${view.mode === 'internal' ? 'Internal' : 'Customer'} PDF pages`);
     viewer.innerHTML = html.map((page, i) => `<div class="rpv-sheet" data-rpv-sheet="${i}" aria-label="Page ${i + 1}: ${esc(pages[i].label)}">${page}</div>`).join('');
-    host.querySelector('[data-rpv-strip]').innerHTML = html.map((page, i) => `<button type="button" class="rpv-thumb" data-rpv-thumb="${i}" aria-label="Page ${i + 1}: ${esc(pages[i].label)}"><div class="rpv-sheet">${page}</div><span>${i + 1} ${esc(pages[i].label)}</span></button>`).join('');
+    host.querySelector('[data-rpv-strip]').innerHTML = html.map((page, i) => `<button type="button" class="rpv-thumb" data-rpv-thumb="${i}" aria-label="Page ${i + 1}: ${esc(pages[i].label)}"><div class="rpv-sheet">${page}</div><span>${esc(pages[i].label)}</span></button>`).join('');
     goTo(host, view, view.index, { instant:true });
   }
 
@@ -564,7 +573,7 @@
     const viewer = host.querySelector('[data-rpv-viewer]'), sheet = viewer?.querySelector(`[data-rpv-sheet="${view.index}"]`);
     if (sheet) {
       view.programmatic = Date.now();
-      viewer.scrollTo({ top:sheet.offsetTop - 14, behavior:options.instant ? 'auto' : 'smooth' });
+      viewer.scrollTo({ top:sheet.offsetTop - (viewer.clientHeight - sheet.offsetHeight) / 2, behavior:options.instant ? 'instant' : 'smooth' });
     }
     mark(host, view);
   }
@@ -572,9 +581,13 @@
   function trackScroll(host, view){
     // A smooth scroll that goTo started settles on its own page.
     if (Date.now() - (view.programmatic || 0) < 600) return;
-    const viewer = host.querySelector('[data-rpv-viewer]'), mid = viewer.scrollTop + viewer.clientHeight / 3;
-    let index = 0;
-    viewer.querySelectorAll('[data-rpv-sheet]').forEach((sheet, i) => { if (sheet.offsetTop <= mid) index = i; });
+    // The current page is the one nearest the middle of the viewer.
+    const viewer = host.querySelector('[data-rpv-viewer]'), mid = viewer.scrollTop + viewer.clientHeight / 2;
+    let index = 0, best = Infinity;
+    viewer.querySelectorAll('[data-rpv-sheet]').forEach((sheet, i) => {
+      const distance = Math.abs(sheet.offsetTop + sheet.offsetHeight / 2 - mid);
+      if (distance < best) { best = distance; index = i; }
+    });
     if (index !== view.index) { view.index = index; mark(host, view); }
   }
 
@@ -586,10 +599,8 @@
     host.querySelectorAll('[data-rpv-thumb]').forEach((thumb) => {
       const current = Number(thumb.dataset.rpvThumb) === view.index;
       thumb.setAttribute('aria-current', String(current));
-      // Keep the current page's thumbnail in view without scrolling anything outside the strip.
-      if (current && strip && (thumb.offsetLeft < strip.scrollLeft || thumb.offsetLeft + thumb.offsetWidth > strip.scrollLeft + strip.clientWidth)) {
-        strip.scrollTo({ left:thumb.offsetLeft - (strip.clientWidth - thumb.offsetWidth) / 2, behavior:'smooth' });
-      }
+      // The current page's thumbnail stays in the middle of the column, with its neighbours above and below.
+      if (current && strip) strip.scrollTo({ top:thumb.offsetTop - (strip.clientHeight - thumb.offsetHeight) / 2 });
     });
   }
 
