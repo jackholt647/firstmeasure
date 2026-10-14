@@ -422,32 +422,40 @@ test('the requirements tray says how the project stands when closed and what acc
  assert.equal(ctx.lineWarnings('labor','g1')[0].code,'duplicate');assert.equal(ctx.lineWarnings('labor','other').length,0);
 });
 
-test('the header says what is done and the Schedule button opens the schedule view and starts placing the job',async()=>{
+test('the Schedule button always does something: it places a planned job whole, or asks before scheduling each list by hand',async()=>{
  const escapeHtml=value=>String(value??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
- const lists=[{id:'m',resource_type:'material',status:'ordered'},{id:'l',resource_type:'labor',assigned:'sub',metadata:{labor_generation:{}},pending:true},{id:'e',resource_type:'equipment',pending:true}];
- const shown=[],focused=[],timers=[];
- const ctx={state:{lists,project:{events:[{id:'span',kind:'schedule_group',status:'unscheduled'},{id:'old',kind:'schedule_group',status:'cancelled'}]}},setTimeout:fn=>{timers.push(fn);},
-  cleanText:value=>String(value??'').trim(),resourceType:list=>list.resource_type,listItems:()=>[{}],materialListOrdered:list=>list.status==='ordered',assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,
-  resourceSchedulePending:list=>!!list.pending,resourceScheduleEnabled:()=>true,eventDateParts:event=>({date:event?.date||''}),linkedScheduleEvent:list=>list.event||null,
-  rootWindow:{Portal:{modules:{projectSchedule:{focusMaterialDelivery:payload=>focused.push(payload)}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view)},leftContentRoot:()=>'rail',
-  number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,orgId:()=>'org',projectId:()=>'p',apiReady:()=>true,materialsAPI:null,window:{},syncResourceHeader(){},
-  captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast(){},ensureScheduleEventForList:async list=>({list,event:{id:'event-'+list.id}}),schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
- vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','scheduleJob'])vm.runInContext(fn(name),ctx);
+ const lists=[{id:'m',resource_type:'material',status:'ordered'},{id:'l',resource_type:'labor',assigned:'sub'},{id:'e',resource_type:'equipment'}];
+ const shown=[],focused=[],timers=[],toasts=[],asked=[],ensured=[],dispatched=[];let answer=true,found=true,placing='';
+ const ctx={state:{lists,scopeDocuments:[],panelRoot:{},project:{id:'p',events:[{id:'span',kind:'schedule_group',status:'unscheduled'},{id:'old',kind:'schedule_group',status:'cancelled'}]}},setTimeout:fn=>{timers.push(fn);},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init?.detail;}},
+  cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,resourceType:list=>list.resource_type,listItems:()=>[{}],materialListOrdered:list=>list.status==='ordered',assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,
+  resourceSchedulePending:list=>!list.event,eventDateParts:event=>({date:event?.date||''}),linkedScheduleEvent:list=>list.event||null,orgId:()=>'org',projectId:()=>'p',apiReady:()=>true,materialsAPI:null,window:{},syncResourceHeader(){},
+  rootWindow:{dispatchEvent:event=>dispatched.push(event.type),addEventListener(){},Portal:{modules:{projectSchedule:{context:()=>({mode:placing}),focusMaterialDelivery:payload=>{focused.push(payload.event_id);placing=found?'materials':'';return found;}}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view)},leftContentRoot:()=>'rail',
+  captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast:(title)=>toasts.push(title),confirmAction:async message=>{asked.push(message);return answer;},
+  ensureScheduleEventForList:async list=>{ensured.push(list.id);return {list,event:{id:'event-'+list.id}};},schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
+ vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','startPlacing','scheduleJob','syncScheduleState'])vm.runInContext(fn(name),ctx);
+ const run=()=>{while(timers.length)timers.shift()();};
  // Ordered material is done; equipment with no date is not. Labor that is only assigned and built has not been sent to anyone.
  assert.equal(JSON.stringify(ctx.headerDone()),JSON.stringify({material:true,labor:false,equipment:false}));
- // It is done once its newest commitment is delivered and froze the list as it stands now.
- lists[1].revision=4;ctx.state.laborCommitments={key:'org:p',rows:[{list_id:'l',revision:1,status:'superseded',delivery:{status:'delivered'},list_revision:2},{list_id:'l',revision:2,status:'committed',delivery:{status:'pending'},list_revision:4}]};assert.equal(ctx.headerDone().labor,false,'committed but not delivered');
- ctx.state.laborCommitments.rows[1].delivery.status='delivered';assert.equal(ctx.headerDone().labor,true);
- lists[1].revision=5;assert.equal(ctx.headerDone().labor,false,'the list changed after it was sent');lists[1].revision=4;
+ lists[1].revision=4;ctx.state.laborCommitments={key:'org:p',rows:[{list_id:'l',revision:2,status:'committed',delivery:{status:'pending'},list_revision:4}]};assert.equal(ctx.headerDone().labor,false,'committed but not delivered');
+ ctx.state.laborCommitments.rows[0].delivery.status='delivered';assert.equal(ctx.headerDone().labor,true);lists[1].revision=5;assert.equal(ctx.headerDone().labor,false,'the list changed after it was sent');
  let html=ctx.scheduleJobButton();assert.match(html,/class="mt-schedule-job" data-mt-schedule-job[^>]*><i class="fas fa-calendar-days"[^>]*><\/i><span>Schedule<\/span>/);
- // The piece of work with no dates is what gets placed; a cancelled one is not waiting.
- await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule"]');assert.equal(focused.length,0,'placing waits for the view to arrive');timers.shift()();assert.equal(JSON.stringify(focused),JSON.stringify([{event_id:'span'}]));
- // With no piece of work yet, a list still waiting leads the way, labor first.
- ctx.state.project.events=[];focused.length=0;await ctx.scheduleJob();timers.shift()();assert.equal(JSON.stringify(focused),JSON.stringify([{event_id:'event-l',scope_resource_list_id:'l'}]));
- // Everything dated: the button is green and says so.
- lists.forEach(list=>{list.pending=false;list.event={date:'2026-10-20'};});ctx.state.project.events=[{id:'span',kind:'schedule_group',status:'scheduled',start_at:'2026-10-20T08:00:00Z'}];
+ // A piece of work a scope planned is placed whole, with no question asked. Every list still gets its schedule item.
+ await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule"]');assert.equal(asked.length,0);assert.equal(JSON.stringify(ensured),'["l","e","m"]','the work first, then equipment, then material');
+ assert.equal(JSON.stringify(dispatched),'["fm:project-schedule:external"]','the schedule is told to read the project again');run();assert.equal(JSON.stringify(focused),'["span"]');
+ // No plan and no signed document: it says so and asks. Declining does nothing more.
+ ctx.state.project.events=[];focused.length=0;ensured.length=0;answer=false;await ctx.scheduleJob();assert.match(asked[0],/No document has been signed for this project/);assert.equal(ensured.length,0);assert.equal(timers.length,0);
+ // Agreeing puts every list on the schedule and starts placing the work.
+ answer=true;await ctx.scheduleJob();assert.equal(JSON.stringify(ensured),'["l","e","m"]');run();assert.equal(JSON.stringify(focused),'["event-l"]');
+ // With a signed document but nothing planned, the question says that instead.
+ ctx.state.scopeDocuments=[{source:'document'}];asked.length=0;await ctx.scheduleJob();assert.match(asked[0],/^Nothing on this project says how its work/);run();
+ // Asking again for what is already being placed does not switch placing off.
+ focused.length=0;ctx.startPlacing({event_id:'event-l'});assert.equal(focused.length,0);run();
+ // If the schedule is not placing anything shortly after, it says where to pick the job up rather than doing nothing.
+ found=false;placing='';focused.length=0;toasts.length=0;ctx.startPlacing({event_id:'late'});assert.equal(focused.length,1,'asked once');run();assert.equal(JSON.stringify(toasts),'["Choose it on the schedule"]');found=true;
+ // Everything dated: the button is green, says so, and clicking it only opens the schedule and says why.
+ lists.forEach(list=>{list.event={date:'2026-10-20'};});ctx.state.project.events=[{id:'span',kind:'schedule_group',status:'scheduled',start_at:'2026-10-20T08:00:00Z'}];
  html=ctx.scheduleJobButton();assert.match(html,/class="mt-schedule-job is-done"[^>]*><i class="fas fa-check"[^>]*><\/i><span>Scheduled<\/span>/);assert.equal(ctx.headerDone().equipment,true);
- focused.length=0;await ctx.scheduleJob();assert.equal(timers.length,0,'nothing is left to place, so the view just opens');
- // The rail can be told which view to show, and a view that replaces another slides in from its side.
- const panels=['roof','documents','aerial','schedule'].map(key=>({dataset:{scopePanel:key},hidden:key!=='roof',classes:new Set(),classList:{add(name){this.owner.classes.add(name);},remove(...names){names.forEach(name=>this.owner.classes.delete(name));}},offsetWidth:1}));panels.forEach(panel=>panel.classList.owner=panel);
+ toasts.length=0;ensured.length=0;await ctx.scheduleJob();assert.equal(JSON.stringify(toasts),'["Already scheduled"]');assert.equal(ensured.length,0);
+ // When the schedule saves, the header reads the project's dates again.
+ ctx.state.project={id:'p',events:[]};ctx.rootWindow.activeBaseProject={id:'p',events:[{id:'x'}]};ctx.syncScheduleState();assert.equal(ctx.state.project.events.length,1);
 });

@@ -4100,37 +4100,83 @@
       equipment: every('equipment', (list) => !resourceSchedulePending(list) && !!eventDateParts(linkedScheduleEvent(list)).date)
     };
   }
-  // What on this project the schedule is still waiting for: a piece of work with no dates, or a list with none.
+  // What on this project the schedule is still waiting for: a piece of work with no dates, or a list with none. Every
+  // list that has something on it has to end up on the schedule, whether or not a scope said how.
   function jobSchedule(){
     const Scheduling = rootWindow.PlatformScheduling;
     const events = (Array.isArray(state.project?.events) ? state.project.events : []).filter((event) => !['cancelled', 'canceled'].includes(cleanText(event?.status).toLowerCase()));
     const isSpan = (event) => Scheduling?.eventIsSpan ? Scheduling.eventIsSpan(event) : cleanText(event?.kind) === 'schedule_group';
     const isScheduled = (event) => Scheduling?.eventIsScheduled ? Scheduling.eventIsScheduled(event) : cleanText(event?.status) !== 'unscheduled' && !!cleanText(event?.start_at);
     const spans = events.filter(isSpan), waiting = spans.find((span) => !isScheduled(span)) || null;
-    const pendingLists = state.lists.filter((list) => listItems(list).length && resourceSchedulePending(list));
-    const anything = spans.length > 0 || state.lists.some((list) => listItems(list).length && resourceScheduleEnabled(list));
-    return { waiting, pendingLists, done: anything && !waiting && !pendingLists.length };
+    const lists = state.lists.filter((list) => listItems(list).length);
+    const pendingLists = lists.filter((list) => !eventDateParts(linkedScheduleEvent(list)).date);
+    return { waiting, pendingLists, done: (spans.length > 0 || lists.length > 0) && !waiting && !pendingLists.length };
   }
   function scheduleJobButton(){
     if (!state.lists.some((list) => listItems(list).length)) return '';
-    const done = jobSchedule().done;
-    return `<button type="button" class="mt-schedule-job${done ? ' is-done' : ''}" data-mt-schedule-job data-fm-tooltip="${done ? 'Scheduled. Open the schedule to see or move it.' : 'Schedule this job: place the work, its equipment and its deliveries on the calendar together'}"><i class="fas ${done ? 'fa-check' : 'fa-calendar-days'}" aria-hidden="true"></i><span>${done ? 'Scheduled' : 'Schedule'}</span></button>`;
+    const done = jobSchedule().done, busy = !!state.schedulingJob;
+    return `<button type="button" class="mt-schedule-job${done ? ' is-done' : ''}${busy ? ' is-busy' : ''}" data-mt-schedule-job data-fm-tooltip="${done ? 'Scheduled. Open the schedule to see or move it.' : 'Schedule this job: place the work, its equipment and its deliveries on the calendar'}"><i class="fas ${busy ? 'fa-circle-notch mt-spin' : done ? 'fa-check' : 'fa-calendar-days'}" aria-hidden="true"></i><span>${done ? 'Scheduled' : 'Schedule'}</span></button>`;
   }
-  // Opens the Schedule view beside the lists and starts placing whatever is still waiting for dates. A list's event
-  // leads to the piece of work it belongs to, so the whole of it is placed together.
+  // Starts placing one thing on the schedule beside the lists. It is asked for once: the schedule remembers what is
+  // being placed and shows it as soon as it has read the project, and asking twice would switch placing off again.
+  function startPlacing(payload){
+    const panel = rootWindow.Portal?.modules?.projectSchedule || rootWindow.Portal?.ProjectScheduleApp;
+    if (!panel?.focusMaterialDelivery) { showToast('Schedule unavailable', 'The schedule could not be opened here. Open the Schedule tab to place this job.', false); return; }
+    if (panel.context?.()?.mode === 'materials' && state.placingEventId === payload.event_id) return;
+    state.placingEventId = payload.event_id;
+    panel.focusMaterialDelivery(payload);
+    // If the schedule still is not placing anything shortly after, say where the job can be picked up.
+    setTimeout(() => { if (panel.context?.()?.mode !== 'materials') showToast('Choose it on the schedule', 'Pick this job from Waiting at the top of the schedule to place it.', false); }, 2500);
+  }
+  // Opens the Schedule view beside the lists and starts placing whatever is still waiting for dates. A piece of work a
+  // scope planned is placed whole, with its equipment and deliveries. With no plan, each list is its own item and is
+  // placed by hand, which is said first.
   async function scheduleJob(){
-    scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
+    if (state.schedulingJob) return;
     const job = jobSchedule(), operation = captureProjectOperation();
-    let payload = job.waiting ? { event_id: cleanText(job.waiting.id) } : null;
-    if (!payload && job.pendingLists.length) {
-      const list = job.pendingLists.find((entry) => resourceType(entry) === 'labor') || job.pendingLists[0];
-      try { const ensured = await ensureScheduleEventForList(list); payload = schedulingFocusPayload(ensured?.list || list, ensured?.event); }
-      catch (error) { if (projectOperationIsCurrent(operation)) showToast('Could not start scheduling', error?.message || 'Please try again.', false); return; }
+    scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
+    if (job.done) { showToast('Already scheduled', 'Everything on this job has dates. Move it on the schedule if it needs to change.'); return; }
+    if (!job.waiting) {
+      const signed = (state.scopeDocuments || []).some((document) => document?.source === 'document');
+      const approved = await confirmAction(signed
+        ? 'Nothing on this project says how its work, equipment and deliveries fit together, so they cannot be placed as one job. Schedule each list by hand instead?'
+        : 'No document has been signed for this project, so nothing says how its work, equipment and deliveries fit together. Schedule each list by hand instead?', { title: 'Schedule by hand?', confirmLabel: 'Schedule by hand', cancelLabel: 'Not now' });
+      if (!approved || !projectOperationIsCurrent(operation)) return;
     }
-    if (!payload || !projectOperationIsCurrent(operation)) return;
-    // The view is still sliding in; placing starts once the schedule is there to place on.
-    setTimeout(() => rootWindow.Portal?.modules?.projectSchedule?.focusMaterialDelivery?.(payload), 280);
+    state.schedulingJob = true;
+    syncResourceHeader();
+    let payload = job.waiting ? { event_id: cleanText(job.waiting.id) } : null;
+    try {
+      // Every list that has no schedule item yet gets one, so all of them wait on the schedule; the work goes first.
+      const order = ['labor', 'equipment', 'material'];
+      const pending = [...job.pendingLists].sort((first, second) => order.indexOf(resourceType(first)) - order.indexOf(resourceType(second)));
+      for (const list of pending) {
+        const ensured = await ensureScheduleEventForList(list);
+        if (!projectOperationIsCurrent(operation)) return;
+        if (!payload && ensured?.event?.id) payload = schedulingFocusPayload(ensured.list || list, ensured.event);
+      }
+    } catch (error) {
+      if (projectOperationIsCurrent(operation)) showToast('Could not start scheduling', error?.message || 'Please try again.', false);
+      return;
+    } finally {
+      state.schedulingJob = false;
+      if (projectOperationIsCurrent(operation)) syncResourceHeader();
+    }
+    if (!payload) { showToast('Nothing to place', 'These lists could not be put on the schedule. Open the Schedule tab and add them there.', false); return; }
+    // The schedule reads the project again so it has what was just created, then placing starts.
+    try { rootWindow.dispatchEvent(new CustomEvent('fm:project-schedule:external', { detail: { project_id: projectId() } })); } catch (_) {}
+    state.placingEventId = '';
+    setTimeout(() => startPlacing(payload), 320);
   }
+  // The schedule saves on its own; when it does, the header reads the project's dates again.
+  function syncScheduleState(){
+    const current = rootWindow.activeBaseProject;
+    if (!state.panelRoot || !current || cleanText(current.id) !== projectId() || !Array.isArray(current.events)) return;
+    state.project = { ...(state.project || {}), events: current.events };
+    syncResourceHeader();
+  }
+  rootWindow.addEventListener('fm:calendar:refresh', () => setTimeout(syncScheduleState, 60));
+  rootWindow.addEventListener('fm:projects:refresh', () => setTimeout(syncScheduleState, 60));
   function renderResourceHeader(){
     const order=state.unitsMode==='order';
     // An action exists only while its category has items. It slides in when the first item arrives and out when the last goes.
