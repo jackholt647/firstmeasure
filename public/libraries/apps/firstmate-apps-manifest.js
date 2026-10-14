@@ -336,7 +336,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [versionedBundle('project-schedule/panel.js', '20261013-schedule-events-v2')]
+      bundles: [versionedBundle('project-schedule/panel.js', '20261013-placing-dim')]
     },
     {
       id: 'project.comms',
