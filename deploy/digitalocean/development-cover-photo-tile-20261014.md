@@ -45,3 +45,18 @@ returned, and `verify` confirmed `2489dce7` on every role. The public files serv
 new code.
 
 Not verified in a signed-in browser session.
+
+## Follow-up: the cover shows the project's cover (commit `2f4d30d3`)
+
+- The cover photo field shows the project's current cover as its value: the chosen photo, or the
+  photo the project shows without one, its satellite image (the same image the project list uses).
+- The Photos app's `projectCoverDefault` supplies that image, and the project window passes it as
+  `defaultMedia`.
+- The cover photo picker lists it first, selected when nothing else is chosen. Choosing it clears
+  the reference.
+- Gone: the "Satellite image (default)" tile and icon, the "Choose a photo" line, and the picker's
+  "Clear it to use the satellite image" hint.
+- The picker used to list only uploaded library photos, so a project with no uploads showed an
+  empty picker even though it had a satellite image.
+- `docs/architecture/custom-fields.md` and `tests/project-cover-browser.test.mjs` are updated.
+- Activated on legacy, web and pool on top of `3d8e0039`; `verify` passed on all three.
