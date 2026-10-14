@@ -80,29 +80,21 @@ export function disclosure(contact: string) {
   // consent, in sections a person can scan. Changing this text changes the
   // version: each signature records the exact disclosure it was given.
   const value = [
-    "Electronic records and signatures disclosure",
+    "Electronic records and signature disclosure",
     "",
-    "What you are agreeing to",
-    "By checking the consent box and selecting Adopt & sign, you agree to receive this agreement and the records that go with it electronically, and to sign it electronically. Your electronic signature has the same legal effect as a handwritten one. This consent covers this agreement only.",
+    "Your agreement",
+    "By checking the box and selecting Adopt & sign, you agree to receive this agreement and its records electronically and to sign it electronically. Your electronic signature is as binding as a handwritten one. This applies to this agreement only.",
     "",
-    "Paper copies",
-    `You may ask for a paper copy of this agreement or any related record at any time, at no charge, by contacting ${contact}.`,
+    "Paper instead",
+    `You may sign on paper instead, and you may ask for a paper copy of any record at no charge, by contacting ${contact}.`,
     "",
-    "Signing on paper instead",
-    "You do not have to sign electronically. You may decline and ask for a paper process instead.",
-    "",
-    "Withdrawing your consent",
-    `You may withdraw your consent to receive records electronically at any time by contacting ${contact}. There is no fee to withdraw. Withdrawing does not undo a signature already given, and records sent before you withdraw remain valid.`,
-    "",
-    "Keeping your contact details current",
-    `To change the email address or other contact details we use for electronic records, contact ${contact}.`,
+    "Withdrawing consent",
+    `You may withdraw your consent to electronic records, or change the contact details we use, at any time at no charge by contacting ${contact}. Withdrawing does not undo a signature already given.`,
     "",
     "What you need",
-    "A device with a current web browser and internet access, and the ability to open, save or print PDF files. You can open and save a PDF copy of the agreement from this screen before you sign, and you will be able to save the signed copy when signing is complete.",
-    "",
-    "By checking the box, you confirm that you can open this disclosure and the agreement on the device you are using."
+    "A device with a current web browser and internet access, and the ability to open and save PDF files. You can download the signed agreement when signing is complete. Checking the box confirms you can view this disclosure on your device."
   ].join("\n");
-  return { version: "us-electronic-records-2", text: value, hash: digest(value) };
+  return { version: "us-electronic-records-3", text: value, hash: digest(value) };
 }
 
 export async function validateSignature(value: unknown): Promise<JsonObject> {

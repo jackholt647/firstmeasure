@@ -552,7 +552,7 @@
         const item = obj(raw);
         for (const def of arr(item.selection_groups)) {
           const g = obj(def);
-          if (cleanText(g.id)) groupTitles.set(cleanText(g.id), { title: firstNonEmpty(g.title, g.label, cleanText(g.id)), behavior: cleanText(g.behavior) || 'single' });
+          if (cleanText(g.id)) groupTitles.set(cleanText(g.id), { title: choiceGroupTitle(firstNonEmpty(g.title, g.label), g.id), behavior: cleanText(g.behavior) || 'single' });
         }
         const sel = obj(item.selection);
         const customer = true;
@@ -560,7 +560,7 @@
           const gid = cleanText(sel.group_id);
           if (!groups.has(gid)) groups.set(gid, []);
           groups.get(gid).push(item);
-          if (!groupTitles.has(gid)) groupTitles.set(gid, { title: firstNonEmpty(sel.group_title, prettyKey(gid.split(':').pop().replace(/_(profile|group|choice)$/i, ''))), behavior: 'single' });
+          if (!groupTitles.has(gid)) groupTitles.set(gid, { title: choiceGroupTitle(sel.group_title, gid), behavior: 'single' });
         } else if (customer && cleanText(sel.mode) === 'optional') {
           optionals.push(item);
         }
@@ -569,6 +569,14 @@
     };
     walk(scopeItems);
     return { groups, optionals, groupTitles };
+  }
+
+  /** A choice group's name for people: its title, or its key made readable; never a raw key. */
+  function choiceGroupTitle(title, groupId){
+    const text = cleanText(title);
+    const looksLikeKey = /^[\w:.-]+$/.test(text) && /[_:]/.test(text);
+    if (text && !looksLikeKey) return text;
+    return prettyKey(cleanText(text || groupId).split(':').pop().replace(/_(profile|group|choice)$/i, ''));
   }
 
   function firstNonEmpty(...values){
@@ -601,7 +609,7 @@
         if (!gid) { const price = lineAmount(item); return price > 0 ? `<em>+ ${esc(moneyFromDollars(price))}</em>` : ''; }
         if (isPackage(item)) return `<em>${esc(moneyFromDollars(lineAmount(item)))}</em>`;
         const current = arr(groups.get(gid)).find((other) => isSelected(other));
-        if (!current || current === item) return isSelected(item) ? '<em>Selected</em>' : '';
+        if (!current || current === item) return '';
         const delta = lineAmount(item) - lineAmount(current);
         if (Math.abs(delta) < 0.005) return '<em>Same price</em>';
         return `<em>${delta > 0 ? '+' : '−'} ${esc(moneyFromDollars(Math.abs(delta)))}</em>`;
@@ -612,7 +620,7 @@
           ${cleanText(item.description) ? `<span>${esc(cleanText(item.description))}</span>` : ''}
           ${arr(item.highlights).length ? `<span class="fmdw-choice-includes">${arr(item.highlights).map((line) => esc(cleanText(line))).join('<br>')}</span>` : ''}
           ${priceTag(item, gid)}
-          ${isSelected(item) ? '<i class="fas fa-circle-check"></i>' : ''}
+          <span class="fmdw-choice-tick"><i class="fas fa-check"></i></span>
         </button>`;
       const sections = [];
       for (const [gid, items] of groups.entries()) {
@@ -631,9 +639,9 @@
           </div>`);
       }
       el.innerHTML = `
-        <div class="fmdw-field">
-          <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
-          ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
+        <div class="fmdw-field fmdw-scg ${customerAudience ? 'fmdw-scg-customer' : ''}">
+          ${customerAudience ? '' : `<span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
+          ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}`}
           ${sections.length
             ? sections.join('')
             : `<div class="fmdw-card"><p class="fmdw-hint" style="margin:0"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_7bbfcb28626c80"," No customer-facing options in this scope yet. Options come from the line items’ choice groups and customer-optional rows.") ?? " No customer-facing options in this scope yet. Options come from the line items’ choice groups and customer-optional rows.")}</p></div>`}
@@ -1486,7 +1494,7 @@
     const isOptional = (item) => cleanText(obj(item.selection).mode) === 'optional';
     // Alternatives and optional lines left on the estimate are the customer's to pick; to send one, remove the others.
     const customerPicks = () => true;
-    const groupTitle = (groupId, options) => firstText(obj(obj(arr(options)[0]).selection).group_title, prettyKey(cleanText(groupId).split(':').pop().replace(/_(profile|group|choice)$/i, '')));
+    const groupTitle = (groupId, options) => choiceGroupTitle(obj(obj(arr(options)[0]).selection).group_title, groupId);
     /** How many decisions the customer is offered (choice groups + optional
      *  lines); later steps show the customer's choosing step only when > 0. */
     function customerChoiceCount(){
@@ -2914,9 +2922,10 @@
       const step = steps[index];
       st.currentId = cleanText(step.id);
       destroyItemHandles();
+      const stepTip = cleanText(step.description) || (arr(step.items).length === 1 && audience === 'customer' ? cleanText(obj(arr(step.items)[0]).description) : '');
       el.stepHead.innerHTML = `
         <div class="fmdw-step-heading">
-          <h2>${esc(firstText(step.title, prettyKey(step.id)))}${cleanText(step.description) ? ` <button type="button" class="fmdw-step-info" aria-label="About this step" data-fmdw-tip="${esc(step.description)}"><i class="fas fa-circle-info"></i></button>` : ''}</h2>
+          <h2>${esc(firstText(step.title, prettyKey(step.id)))}${stepTip ? ` <button type="button" class="fmdw-step-info" aria-label="About this step" data-fmdw-tip="${esc(stepTip)}"><i class="fas fa-circle-info"></i></button>` : ''}</h2>
         </div>
         <div class="fmdw-step-actions" data-fmdw-step-actions></div>`;
       el.items.innerHTML = '';

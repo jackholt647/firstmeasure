@@ -1356,6 +1356,21 @@
     return box;
   }
 
+  /** The paid state of a Pay box, or null while the payment is still due. */
+  function payNowPaidBox(ctx) {
+    const value = currentOutput(ctx, payNowKey(ctx));
+    if (!value || typeof value !== "object") return null;
+    const paid = cleanText(value.payment_method || value.method || (value.checkout && value.checkout.payment_method)) || cleanText(value.intent) === "paid" || cleanText(value.payment_id);
+    if (!paid) return null;
+    const box = h("div", "fmdoc-pay-now fmdoc-pay-now--paid");
+    box.appendChild(h("div", "fmdoc-pay-now-label", "Paid"));
+    const cents = Number(value.amount_cents);
+    box.appendChild(h("div", "fmdoc-pay-now-amount", Number.isFinite(cents) && cents > 0 ? money(cents, (ctx.data || {}).currency) : "Paid"));
+    const when = cleanText(value.recorded_at || value.paid_at);
+    box.appendChild(h("div", "fmdoc-pay-now-note", when ? `Thank you. Received ${fmtDate(when, "MMM d, yyyy")}.` : "Thank you. Your payment was received."));
+    return box;
+  }
+
   register({
     id: "doc.pay_now",
     version: 1,
@@ -1376,6 +1391,8 @@
       // Print view: amount-due summary + a QR pointing at the portal so the
       // paper document links back to the interactive payment flow.
       clearEl(el);
+      const paidBox = payNowPaidBox(ctx);
+      if (paidBox) { el.appendChild(paidBox); return; }
       const box = payNowSummary(ctx);
       const portalUrl = cleanText((ctx.api || {}).portalUrl || (ctx.data && (ctx.data.portal_url || ctx.data.url)));
       if (portalUrl) {
@@ -1391,6 +1408,8 @@
     },
     renderInteractive(el, ctx) {
       clearEl(el);
+      const paidBox = payNowPaidBox(ctx);
+      if (paidBox) { el.appendChild(paidBox); return paidBox; }
       const cfg = ctx.config || {};
       const data = ctx.data || {};
       const amount = payNowAmount(ctx);
@@ -1578,7 +1597,8 @@
 .fmdoc-sign-aside-close{flex:none;width:32px;height:32px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;color:#344054;font-size:14px;cursor:pointer}
 .fmdoc-sign-aside .fmdoc-sign-disclosure-text{flex:1;overflow:auto;padding:4px 20px 20px;min-width:420px;font-size:13.5px;line-height:1.6;color:#344054}
 .fmdoc-sign-disclosure-text p{margin:2px 0 0}
-.fmdoc-sign-disclosure-part{margin-top:14px}
+.fmdoc-sign-disclosure-part{margin-top:12px}
+.fmdoc-sign-disclosure-part:first-child{margin-top:0}
 .fmdoc-sign-disclosure-heading{font-size:13.5px;font-weight:800;color:#101828}
 .fmdoc-sign-disclosure-lead{display:none}
 .fmdoc-sign-step{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:6px 0;font-size:12.5px;color:#667085}
@@ -1589,7 +1609,7 @@
 .fmdoc-sign-consent{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;line-height:1.45;color:#101828}
 .fmdoc-sign-consent input{flex:none;width:18px;height:18px;margin:2px 0 0;cursor:pointer}
 .fmdoc-sign-fineprint{margin:-4px 0 0 28px;font-size:13px;line-height:1.45}
-.fmdoc-sign-disclosure-toggle{border:0;background:none;padding:0;color:#1d4ed8;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;text-align:left}
+.fmdoc-sign-disclosure-toggle{border:0;background:none;padding:0;color:#1d4ed8;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;display:inline}
 .fmdoc-sign-notice{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s ease,opacity .22s ease,margin .22s ease;margin:0}
 .fmdoc-sign-notice.open{grid-template-rows:1fr;opacity:1;margin:4px 0 0}
 .fmdoc-sign-notice-text{overflow:hidden;border-radius:10px;background:#fef3f2;color:#b42318;font-size:13px;font-weight:600;line-height:1.4}
@@ -1632,13 +1652,15 @@
     const consentCheck = document.createElement("input"); consentCheck.type = "checkbox";
     const presenterCheck = document.createElement("input"); presenterCheck.type = "checkbox";
     consentLabel.appendChild(consentCheck);
-    consentLabel.appendChild(h("span", "", "I intend to sign this agreement and agree to use electronic records and signatures for it. I can open and keep a copy (PDF), and I can ask for a paper copy at no charge."));
+    const consentText = h("span", "", "I agree to sign and receive records electronically. ");
+    consentLabel.appendChild(consentText);
     // The disclosure the law asks for is offered before consent, as fine print
     // that opens in place rather than a wall of text over the form.
     const disclosure = h("div", "fmdoc-sign-fineprint");
-    const disclosureToggle = h("button", "fmdoc-sign-disclosure-toggle", "View the full electronic records and signature disclosure");
+    disclosure.hidden = true;
+    const disclosureToggle = h("button", "fmdoc-sign-disclosure-toggle", "Disclosure");
     disclosureToggle.type = "button";
-    disclosure.appendChild(disclosureToggle);
+    consentText.appendChild(disclosureToggle);
     // Kept for blockSigning, which hides the parts that no longer apply.
     const disclosurePanel = h("div", "fmdoc-sign-disclosure-anchor");
     const aside = h("aside", "fmdoc-sign-aside");
@@ -1651,7 +1673,8 @@
     const disclosureText = h("div", "fmdoc-sign-disclosure-text", "Loading the disclosure\u2026");
     aside.appendChild(asideHead); aside.appendChild(disclosureText);
     const setDisclosure = (open) => { modal.classList.toggle("with-disclosure", open); disclosureToggle.setAttribute("aria-expanded", String(open)); if (open) { try { asideClose.focus({ preventScroll: true }); } catch (e) {} } };
-    disclosureToggle.addEventListener("click", () => setDisclosure(!modal.classList.contains("with-disclosure")));
+    // Inside the consent label: opening the disclosure must not tick the box.
+    disclosureToggle.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); setDisclosure(!modal.classList.contains("with-disclosure")); });
     asideClose.addEventListener("click", () => { setDisclosure(false); try { disclosureToggle.focus({ preventScroll: true }); } catch (e) {} });
     modal.appendChild(reviewStatus); modal.appendChild(consentLabel); modal.appendChild(disclosure); modal.appendChild(disclosurePanel);
     // Everything that can go wrong is said in the dialog, next to what the
@@ -1692,11 +1715,14 @@
       signingReview = result;
       if (result.presenter_attestation_required) { const label = h('label','fmdoc-sign-consent'); label.appendChild(presenterCheck); label.appendChild(document.createTextNode(' Presenter: I attest that the assigned customer personally reviewed and is signing this agreement in my presence.')); modal.insertBefore(label,consentLabel.nextSibling); }
       disclosureText.textContent = '';
-      String(result.disclosure.text || '').split(/\n\n+/).forEach((block, index) => {
+      const blocks = String(result.disclosure.text || '').split(/\n\n+/).map((block) => block.trim()).filter(Boolean);
+      blocks.forEach((block, index) => {
         const lines = block.split('\n');
-        const part = h('div', index === 0 ? 'fmdoc-sign-disclosure-lead' : 'fmdoc-sign-disclosure-part');
+        // A first line on its own is the document's title, which the panel already shows.
+        if (index === 0 && lines.length === 1 && blocks.length > 1) return;
+        const part = h('div', 'fmdoc-sign-disclosure-part');
         if (lines.length > 1) { part.appendChild(h('div', 'fmdoc-sign-disclosure-heading', lines[0])); part.appendChild(h('p', '', lines.slice(1).join(' '))); }
-        else part.appendChild(h(index === 0 ? 'div' : 'p', index === 0 ? 'fmdoc-sign-disclosure-heading' : '', lines[0]));
+        else part.appendChild(h('p', '', lines[0]));
         disclosureText.appendChild(part);
       });
       reviewLink.classList.remove('is-waiting');
@@ -1908,8 +1934,6 @@
       finally { adoptButton.disabled = false; adoptButton.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_b420b6f775b7b3","Adopt & sign") ?? "Adopt & sign"); }
     });
 
-    // The copy of the agreement sits with the buttons, out of the way.
-    modal.insertBefore(reviewRow, actions);
     const main = h("div", "fmdoc-sign-main");
     while (modal.firstChild) main.appendChild(modal.firstChild);
     modal.appendChild(main);

@@ -575,6 +575,8 @@
         ctx.result = { ...(result || {}), amountCents: submitted.amountCents };
         ctx.step = 'success';
         await ctx.options.onSuccess?.(ctx.result, submitted);
+        // The page may have closed the form to show its own result.
+        if (!ctx.inline && state.active !== ctx) return;
         render(ctx);
       } catch (error) {
         ctx.step = 'checkout';

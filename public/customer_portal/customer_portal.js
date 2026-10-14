@@ -459,6 +459,45 @@
     const credential = documentSigningTokens[documentId];
     return { token: credential, base: `${documentApiBase()}/public/${encodeURIComponent(credential)}` };
   }
+  /** "It's all done": what the customer did, what happens next, and their copy. */
+  function showDocumentCompleteModal(token, payload){
+    const snapshot = cpwfObject(cpwfObject(payload).snapshot);
+    const outputs = cpwfObject(snapshot.outputs);
+    const defs = cpwfObject(snapshot.output_defs);
+    const doc = documentList(activeProjectPayload()).find((entry) => cleanText(entry.public_token) === cleanText(token)) || {};
+    const done = [];
+    Object.entries(defs).forEach(([key, def]) => {
+      const value = cpwfObject(outputs[key]);
+      const type = cleanText(cpwfObject(def).type);
+      const when = cleanText(value.signed_at || value.recorded_at || value.paid_at);
+      const date = when ? new Date(when).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      if (type === 'signature' && (value.signer_name || value.text)) done.push(`Signed by ${cleanText(value.signer_name || value.text)}${date ? ` on ${date}` : ''}`);
+      if (type === 'payment' && (value.payment_method || value.method || value.payment_id)) done.push(`${Number(value.amount_cents) > 0 ? `Paid ${moneyFormat(Number(value.amount_cents) / 100)}` : 'Payment made'}${date ? ` on ${date}` : ''}`);
+    });
+    const message = cleanText(cpwfObject(cpwfObject(payload).workflow).completion_message) || 'We will reach out with next steps.';
+    const pdfUrl = root.DocumentsAPI?.public?.pdfUrl ? root.DocumentsAPI.public.pdfUrl(token) : '';
+    // The payment window, if this was the payment, gives way to the result.
+    try { root.FirstMatePaymentIntake?.close?.(); } catch (_) {}
+    document.querySelector('.cp-complete-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'cp-complete-overlay';
+    overlay.innerHTML = `<div class="cp-complete-modal" role="dialog" aria-modal="true" aria-labelledby="cpCompleteTitle">
+        <div class="cp-complete-mark" aria-hidden="true">\u2713</div>
+        <h2 id="cpCompleteTitle">${escapeHtml(cleanText(doc.title) || 'Your agreement')} is complete</h2>
+        ${done.length ? `<ul>${done.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>` : ''}
+        <p>${escapeHtml(message)}</p>
+        <div class="cp-complete-actions">
+          ${pdfUrl ? `<a class="cp-complete-download" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener"><i class="fa-solid fa-download" aria-hidden="true"></i> Download your copy</a>` : ''}
+          <button type="button" class="cp-complete-close">Done</button>
+        </div>
+      </div>`;
+    const close = () => overlay.remove();
+    overlay.querySelector('.cp-complete-close').addEventListener('click', close);
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
+    document.addEventListener('keydown', function onKey(event){ if (event.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } });
+    document.body.appendChild(overlay);
+    try { overlay.querySelector('.cp-complete-close').focus(); } catch (_) {}
+  }
   const warmedSigning = new Set();
   function warmDocumentSigning(token){
     const key = cleanText(token);
@@ -511,12 +550,22 @@
       // optimistically. Refresh the frozen document in the background without
       // blocking the choice. When the server-resolved preview arrives, swap it
       // in while retaining the page currently under the sticky toolbar.
-      root.DocumentsAPI.public.get(tokenKey).then((payload) => {
+      // Signing and paying are confirmed by the server's copy; wait for it, so
+      // the to-do list and the Pay box show them straight away.
+      const isRecordedPayment = cleanText(cpwfObject(cpwfObject(snapshot.output_defs)[outputKey]).type) === 'payment';
+      const fresh = root.DocumentsAPI.public.get(tokenKey).then((payload) => {
         if (payload) {
           documentSnapshotCache[tokenKey] = payload;
           refreshVisibleDocumentSnapshot(tokenKey, payload);
+          updateDocumentTaskPanel(tokenKey);
         }
       }).catch(() => {});
+      const wasComplete = cpwfObject(cached.workflow).customer_complete === true;
+      if (isSignature || isRecordedPayment) {
+        await fresh;
+        const now = cpwfObject(documentSnapshotCache[tokenKey]);
+        if (!wasComplete && cpwfObject(now.workflow).customer_complete === true) showDocumentCompleteModal(tokenKey, now);
+      }
       const defType = cleanText(((snapshot.output_defs || {})[outputKey] || {}).type);
       if (defType === 'signature' || defType === 'payment') await refreshPortalPayload();
       track('document_output_recorded', { document_token: cleanText(token), output_key: cleanText(key) });
@@ -756,6 +805,7 @@
           if (payload) {
             documentSnapshotCache[tokenKey] = payload;
             refreshVisibleDocumentSnapshot(tokenKey, payload);
+            updateDocumentTaskPanel(tokenKey);
           }
         }).catch(() => {});
         track('document_output_recorded', { document_token: cleanText(token), output_key: cleanText(key), source: 'workflow' });
@@ -984,13 +1034,13 @@
         <aside class="cp-doc-sidebar"><div class="cp-doc-list">${cards}</div>${documentTaskPanelHtml(activeToken, active)}</aside>
         <div class="cp-doc-viewer">
           <div class="cp-doc-toolbar">
+            ${cached?.workflow?.customer_complete === true && cleanText(cached.workflow.completion_message) ? '<div class="cp-doc-complete-note" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>' + escapeHtml(cached.workflow.completion_message) + '</span></div>' : ''}
             <div class="cp-doc-toolbar-actions">
               ${mode === 'hybrid' && phase === 'document' ? `<button type="button" class="cp-doc-change-step" data-document-show-workflow="${escapeHtml(activeToken)}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b6143b01996f97","Change selections") ?? "Change selections")}</span></button>` : ''}
               ${pdfUrl ? `<a class="cp-doc-icon-btn" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4944e59816b60a","Download PDF") ?? "Download PDF")}" title="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4944e59816b60a","Download PDF") ?? "Download PDF")}"><i class="fa-solid fa-download" aria-hidden="true"></i></a>` : ''}
             </div>
           </div>
           ${phase === 'workflow' ? `<section class="cp-doc-workflow-inline" data-inline-document-workflow="${escapeHtml(activeToken)}"><div class="cp-loading">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1552b0ceca5d2f","Loading your next step...") ?? "Loading your next step...")}</div></section>` : ''}
-          ${cached?.workflow?.customer_complete === true && cleanText(cached.workflow.completion_message) ? '<div class="cp-thank-you" role="status">' + escapeHtml(cached.workflow.completion_message) + '</div>' : ''}
           ${stage}
         </div>
       </section>
