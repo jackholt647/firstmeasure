@@ -3644,7 +3644,7 @@
       canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_b86508131600f7","Opening document") ?? "Opening document")}</strong></div>`;
       frozenRenderOptions(doc).then((frozen) => {
         if (!canvas.isConnected || state.doc !== doc) return;
-        state.readonlyViewer = mountDocViewer(canvas, { doc, renderOptions: frozen || live });
+        state.readonlyViewer = mountDocViewer(canvas, { doc, initialZoom: 'page', renderOptions: frozen || live });
       });
     }
 

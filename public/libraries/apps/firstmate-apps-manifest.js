@@ -174,7 +174,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [bundle('docs/project.js')]
+      bundles: [versionedBundle('docs/project.js', '20261014-status-tags')]
     },
     {
       id: 'project.documents',
@@ -194,7 +194,7 @@
       dependencies: ['pricebook.bridge', 'project.proposal'],
       bundles: [
         versionedBundle('../documents-api/documents-api.js', '20260811-folder-history'),
-        versionedBundle('../doc-model/firstmate-doc-model.js', '20260811-word-doc-v1'),
+        versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
@@ -223,7 +223,7 @@
       },
       bundles: [
         versionedBundle('../documents-api/documents-api.js', '20260811-folder-history'),
-        versionedBundle('../doc-model/firstmate-doc-model.js', '20260811-word-doc-v1'),
+        versionedBundle('../doc-model/firstmate-doc-model.js', '20261014-document-progress'),
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20260811-doc-audio'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20260811-word-doc-v4'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20260925-brand-chrome'),
