@@ -8,7 +8,6 @@ const proposalSource = await readFile(path.join(publicRoot, "libraries/apps/prop
 const proposalStyles = await readFile(path.join(publicRoot, "libraries/apps/project-request/app.js"), "utf8");
 const checklistSource = await readFile(path.join(publicRoot, "libraries/apps/checklists/app.js"), "utf8");
 const portalShell = await readFile(path.join(publicRoot, "portal/index.php"), "utf8");
-const customerPortalSource = await readFile(path.join(publicRoot, "customer_portal/customer_portal.js"), "utf8");
 const pdfSource = await readFile(path.join(publicRoot, "v1/proposals/pdf.ts"), "utf8");
 
 test("proposal editor exposes and persists all supported paper sizes", () => {
@@ -54,6 +53,4 @@ test("print and customer portal renderers preserve the proposal paper format", (
   assert.match(proposalSource, /@page\{size:\$\{paper\.cssWidth\} \$\{paper\.cssHeight\}/);
   assert.match(pdfSource, /width: paper\.cssWidth/);
   assert.match(pdfSource, /height: paper\.cssHeight/);
-  assert.match(customerPortalSource, /proposalPaperDimensions/);
-  assert.match(customerPortalSource, /--proposal-page-base-height:\$\{paper\.heightPx\.toFixed\(3\)\}px!important/);
 });

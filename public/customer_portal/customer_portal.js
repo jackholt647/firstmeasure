@@ -19,26 +19,8 @@
     rescheduleBusy: false,
     rescheduleError: '',
     rescheduleCancelBusyId: '',
-    activeProposalIndex: 0,
     activeProjectId: '',
     signatureName: '',
-    adoptedSignature: null,
-    activeSignatureSlotIndex: 0,
-    signatureModalOpen: false,
-    signatureModalPurpose: 'adopt',
-    signatureAdoptMode: 'type',
-    drawnSignatureData: '',
-    proposalBusy: false,
-    paymentSuccess: false,
-    paymentModalOpen: false,
-    paymentModalStep: 'checkout',
-    activePaymentObligationId: '',
-    paymentMethod: '',
-    paymentFormError: '',
-    receiptEmail: '',
-    receiptSent: false,
-    receiptDownloading: false,
-    choiceGroupsSeen: {},
     activeDocumentToken: '',
     documentBusy: false,
     documentWorkflowViews: {},
@@ -54,10 +36,7 @@
   const documentSnapshotCache = {};
   let activeDocumentStage = null;
   let activeInlineDocumentWorkflow = null;
-  let proposalRendererPromise = null;
-  let signatureModalHost = null;
   let projectMenuDismissBound = false;
-  const proposalDocumentAutoPlayedVideoKeys = new Set();
 
   function cleanText(value){ return String(value ?? '').trim(); }
   function escapeHtml(value){
@@ -259,20 +238,11 @@
     if (Number.isNaN(parsed.getTime())) return raw;
     return parsed.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
-  function moneyValue(value){
-    const raw = cleanText(value).replace(/[^0-9.-]/g, '');
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
   function moneyFormat(value){
     return Number(value || 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
   }
   function nl2br(value){
     return escapeHtml(value).replace(/\n/g, '<br>');
-  }
-  function cssEscape(value){
-    if (root.CSS && typeof root.CSS.escape === 'function') return root.CSS.escape(String(value || ''));
-    return String(value || '').replace(/["\\]/g, '\\$&');
   }
   function resources(payload){
     return payload?.resources && typeof payload.resources === 'object' ? payload.resources : {};
@@ -405,9 +375,6 @@
         ` : ''}
       </div>
     `;
-  }
-  function proposalList(payload){
-    return Array.isArray(resources(payload).proposals) ? resources(payload).proposals : [];
   }
   function documentList(payload, groupId){
     const docs = Array.isArray(resources(payload).documents) ? resources(payload).documents : [];
@@ -544,9 +511,6 @@
       track('document_output_recorded', { document_token: cleanText(token), output_key: cleanText(key) });
       return true;
     } catch (error) {
-      // Tokenized document payments surface declines in the intake modal's
-      // own error UI instead of a blocking alert (rethrow: true). Every
-      // legacy caller keeps the alert path byte-identical.
       // A signature's own dialog and the payment form show their failures
       // where the person is looking; anything else gets the page's notice.
       if (options.rethrow === true || isSignature) throw error;
@@ -555,41 +519,6 @@
     } finally {
       state.documentBusy = false;
       updateDocumentTaskPanel(tokenKey);
-    }
-  }
-  // ── Engine-document payment pricing preview (spec §10.4) ────────────────
-  // When the customer picks a payment method in a document's pay flow, ask
-  // the server to re-evaluate conditional pricing (ACH discount / card fee /
-  // expiring discounts) for that method and show the authoritative total
-  // before recording the payment output. Best-effort and defensive: any
-  // failure falls through to the normal submit — the server recomputes the
-  // charged amount from the same evaluation regardless.
-  async function confirmEngineDocumentPayment(token, value){
-    try {
-      if (!root.DocumentsAPI?.public?.pricing) return true;
-      const method = cleanText(value?.method || value?.payment_method).toLowerCase();
-      if (!method) return true;
-      const preview = await root.DocumentsAPI.public.pricing(cleanText(token), { checkout: { payment_method: method } });
-      const totalCents = Math.round(Number(preview?.totals?.total_cents));
-      if (!Number.isFinite(totalCents)) return true;
-      const conditional = Array.isArray(preview?.conditional_rows) ? preview.conditional_rows : [];
-      const methodDeltaCents = conditional
-        .filter((row) => row && row.included && /checkout\./.test(cleanText(row.condition)))
-        .reduce((sum, row) => sum + (Number(row.amount_cents) || 0), 0);
-      const label = method === 'ach' ? 'ACH' : method === 'card' ? 'card' : method;
-      let message = `Total with ${label}: ${moneyFormat(totalCents / 100)}`;
-      if (methodDeltaCents > 0) message += `\nIncludes a ${moneyFormat(methodDeltaCents / 100)} processing fee for this payment method.`;
-      else if (methodDeltaCents < 0) message += `\nIncludes a ${moneyFormat(Math.abs(methodDeltaCents) / 100)} discount for paying this way.`;
-      // The server-evaluated total is the displayed amount due (the charge
-      // amount is recomputed server-side again when the output records).
-      if (value && typeof value === 'object') value.amount_cents = totalCents;
-      return window.confirm(((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_7c3f944e31579f",`${v0}
-
-Continue with this payment?`,{v0}) ?? `${v0}
-
-Continue with this payment?`)(message));
-    } catch (error) {
-      return true;
     }
   }
   // ── Document payment intake config (provider tokenization, spec: intake
@@ -1357,7 +1286,7 @@ Continue with this payment?`)(message));
       logging: false,
       onclone: (documentClone) => {
         const clonedPanel = documentClone.querySelector('.cp-tab-panel');
-        clonedPanel?.querySelectorAll('form,input,textarea,select,[contenteditable="true"],iframe,video,audio,canvas,.cp-signature-pad').forEach((node) => node.remove());
+        clonedPanel?.querySelectorAll('form,input,textarea,select,[contenteditable="true"],iframe,video,audio,canvas').forEach((node) => node.remove());
         clonedPanel?.querySelectorAll('[hidden],[aria-hidden="true"]').forEach((node) => node.remove());
       }
     });
@@ -1419,7 +1348,6 @@ Continue with this payment?`)(message));
     };
   }
   function portalWidgetViews(payload){
-    const proposals = proposalList(payload);
     const org = state.payload?.organization || {};
     const project = payload.project || {};
     const customer = projectCustomer(payload);
@@ -1428,7 +1356,7 @@ Continue with this payment?`)(message));
     const now = Date.now();
     const upcoming = events.filter((event) => Date.parse(cleanText(event.start_at || event.start)) >= now);
     let steps = [];
-    try { steps = overviewSteps(payload, proposals, cleanText(org.name)); } catch (error) { steps = []; }
+    try { steps = overviewSteps(payload, cleanText(org.name)); } catch (error) { steps = []; }
     return {
       project: {
         name: firstDisplayName(project.project_title, project.title, project.display_name, customer.name),
@@ -1527,38 +1455,6 @@ Continue with this payment?`)(message));
       }
     }
   }
-  function activeProposal(){
-    const proposals = proposalList(activeProjectPayload());
-    return proposals[state.activeProposalIndex] || proposals[0] || {};
-  }
-  function mergeActiveProposal(nextProposal = {}, nextSnapshot = null){
-    const payload = activeProjectPayload();
-    const source = nextProposal && Object.keys(nextProposal).length ? nextProposal : null;
-    const proposals = proposalList(payload).slice();
-    if (!proposals.length || !source) return;
-    const index = Math.max(0, Math.min(state.activeProposalIndex, proposals.length - 1));
-    const snapshotPayment = nextSnapshot && typeof nextSnapshot === 'object' ? nextSnapshot.customer_payment || {} : {};
-    proposals[index] = {
-      ...proposals[index],
-      ...source,
-      workflow: {
-        ...(proposals[index].workflow || {}),
-        ...(source.workflow || {}),
-        payment: {
-          ...((proposals[index].workflow || {}).payment || {}),
-          ...(((source.workflow || {}).payment) || {}),
-          ...snapshotPayment
-        }
-      },
-      status: cleanText(source.status || nextSnapshot?.status || proposals[index].status),
-      signed_at: cleanText(source.signed_at || nextSnapshot?.delivery?.signed_at || proposals[index].signed_at)
-    };
-    const projectPayload = activeProjectPayload();
-    const projectResources = resources(projectPayload);
-    projectResources.proposals = proposals;
-    if (state.payload?.resources === projectResources) state.payload.resources = projectResources;
-    if (projectPayload.resources) projectPayload.resources.proposals = proposals;
-  }
   function portalAppointment(payload){
     const appointment = resources(payload).appointment;
     return appointment && typeof appointment === 'object' ? appointment : null;
@@ -1645,10 +1541,9 @@ Continue with this payment?`)(message));
       { id: 'schedule', label: (globalThis.PlatformLanguage?.text("customer-portal","m_fc05a804bd034c","Schedule") ?? "Schedule") },
       { id: 'photos', label: (globalThis.PlatformLanguage?.text("customer-portal","m_be4cfb58b9c4d7","Photos") ?? "Photos") },
       ...(checklistList(activeProjectPayload()).length ? [{ id: 'checklists', label: (globalThis.PlatformLanguage?.text("customer-portal","m_4890d3d11dc3eb","Checklists") ?? "Checklists") }] : []),
-      { id: 'proposals', label: (globalThis.PlatformLanguage?.text("customer-portal","m_3129f3f0e39249","Proposals") ?? "Proposals") },
       { id: 'payments', label: (globalThis.PlatformLanguage?.text("customer-portal","m_5842802f6c8cbb","Payments") ?? "Payments") }
     ];
-    if (documentList(activeProjectPayload()).length) base.splice(4, 0, { id: 'documents', label: (globalThis.PlatformLanguage?.text("customer-portal","m_5d7c7ad6033624","Documents") ?? "Documents") });
+    if (documentList(activeProjectPayload()).length) base.splice(base.length - 1, 0, { id: 'documents', label: (globalThis.PlatformLanguage?.text("customer-portal","m_5d7c7ad6033624","Documents") ?? "Documents") });
     if (punchLists().length) base.push({ id: 'punch_lists', label: (globalThis.PlatformLanguage?.text("customer-portal","m_83e0a1f309f1da","Your List") ?? "Your List") });
     return base.concat(customPortalPageTabs());
   }
@@ -2096,9 +1991,9 @@ Continue with this payment?`)(message));
     return '';
   }
   /**
-   * Sign-off prompt. Produces the same payload shape as the proposal signature
-   * flow (signaturePayloadFromState), so a punch sign-off and a document
-   * signature are the same artifact on the server.
+   * Sign-off prompt. Produces the typed-signature payload shape the server
+   * stores for a signature, so a punch sign-off and a document signature
+   * are the same artifact on the server.
    */
   function promptPunchSignature({ title, body, ctaLabel } = {}){
     return new Promise((resolve) => {
@@ -2132,7 +2027,7 @@ Continue with this payment?`)(message));
         const name = cleanText(field?.value);
         if (!name) { field?.focus(); return; }
         state.signatureName = name;
-        finish(signaturePayloadFromState(name));
+        finish({ type: 'typed', text: name, style: 'style-classic', signer_name: name });
       };
       field?.addEventListener('input', sync);
       field?.addEventListener('keydown', (event) => {
@@ -2417,222 +2312,6 @@ Continue with this payment?`)(message));
           </form>
         ` : ''}
       </div>
-    `;
-  }
-  function proposalStatusLabel(status){
-    const value = cleanText(status).toLowerCase();
-    if (value === 'sent' || value === 'viewed') return 'Ready';
-    if (value === 'draft') return 'Draft';
-    return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Proposal';
-  }
-  function proposalsAllowMultipleSelection(proposals = []){
-    return proposals.some((proposal) => proposal.workflow?.allow_multiple_proposal_selection === true || proposal.allow_multiple_proposal_selection === true);
-  }
-  function titleFromKey(value){
-    return cleanText(value)
-      .replace(/[_-]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  }
-  function proposalSelectionAllowsCustomer(selection = {}){
-    const selectableBy = Array.isArray(selection.selectable_by || selection.selectableBy) ? (selection.selectable_by || selection.selectableBy) : [];
-    if (selection.customer_visible === true) return true;
-    if (selection.customer_visible === false) return false;
-    return selectableBy.map(cleanText).includes('customer');
-  }
-  function proposalScopeRoots(proposal = {}){
-    const builder = proposal.builder_document || proposal.builderDocument || proposal.workflow?.proposal?.builder_document || proposal.content || proposal.workflow?.proposal?.content || {};
-    const scope = builder.scope && typeof builder.scope === 'object' ? builder.scope : {};
-    return Array.isArray(scope.root_items || scope.rootItems || scope.items) ? (scope.root_items || scope.rootItems || scope.items) : [];
-  }
-  function proposalChoiceGroupTitle(groupId, metadata = {}, items = []){
-    const direct = cleanText(metadata.title || metadata.label || metadata.name || metadata.prompt);
-    if (direct) return direct;
-    const fromSelection = items
-      .map((item) => item?.selection || {})
-      .map((selection) => cleanText(selection.group_title || selection.groupTitle || selection.group_label || selection.groupLabel))
-      .find(Boolean);
-    if (fromSelection) return fromSelection;
-    const mapped = {
-      shingle_profile: 'Shingle Profile',
-      underlayment_profile: 'Underlayment',
-      leak_barrier_profile: 'Ice & Water Barrier'
-    };
-    const displayGroupId = cleanText(groupId).split(':').pop();
-    return mapped[displayGroupId] || titleFromKey(displayGroupId);
-  }
-  function proposalCustomerChoiceGroups(proposal = {}){
-    const groups = new Map();
-    const roots = proposalScopeRoots(proposal);
-    const visit = (items = [], parent = null) => {
-      if (!Array.isArray(items)) return;
-      items.forEach((item) => {
-        if (!item || typeof item !== 'object') return;
-        const selection = item.selection && typeof item.selection === 'object' ? item.selection : {};
-        const groupId = cleanText(selection.group_id || selection.groupId);
-        if (cleanText(selection.mode) === 'choice' && groupId && (proposalSelectionAllowsCustomer(selection) || selection.selected === true)) {
-          if (!groups.has(groupId)) {
-            const candidates = [];
-            const addGroups = (source) => {
-              const list = source && typeof source === 'object' ? (source.selection_groups || source.selectionGroups) : null;
-              if (Array.isArray(list)) candidates.push(...list);
-            };
-            addGroups(parent);
-            addGroups(item);
-            items.forEach(addGroups);
-            roots.forEach(addGroups);
-            const displayGroupId = groupId.split(':').pop();
-            const metadata = candidates.find((entry) => {
-              const candidateId = cleanText(entry?.id || entry?.group_id || entry?.groupId);
-              return candidateId === groupId || candidateId === displayGroupId;
-            }) || {};
-            groups.set(groupId, { id: groupId, title: '', metadata, items: [] });
-          }
-          groups.get(groupId).items.push(item);
-        }
-        visit(Array.isArray(item.children) ? item.children : [], item);
-      });
-    };
-    visit(roots, null);
-    return Array.from(groups.values())
-      .map((group) => ({
-        ...group,
-        title: proposalChoiceGroupTitle(group.id, group.metadata, group.items),
-        selected: group.items.find((item) => item.selection?.selected === true) || null
-      }))
-      .filter((group) => group.items.length > 1);
-  }
-  function proposalChoiceSeenKey(proposal = {}, groupId = ''){
-    return [cleanText(proposal.snapshot_id || proposal.id || proposal.proposal_id), cleanText(groupId)].filter(Boolean).join(':');
-  }
-  function proposalChoiceGroupComplete(proposal = {}, group = {}){
-    if (proposalSigned(proposal)) return true;
-    const key = proposalChoiceSeenKey(proposal, group.id);
-    return !!state.choiceGroupsSeen[key] && !!group.selected;
-  }
-  function proposalHasChoiceProgress(proposal = {}){
-    return proposalCustomerChoiceGroups(proposal).some((group) => proposalChoiceGroupComplete(proposal, group));
-  }
-  function proposalEngaged(proposal = {}){
-    return proposalSigned(proposal)
-      || proposalHasChoiceProgress(proposal)
-      || !!state.adoptedSignature
-      || customerSlotsForProposal(proposal).some((slot) => slot.signed);
-  }
-  function markProposalChoiceGroupSeen(proposal = activeProposal(), groupId = ''){
-    const key = proposalChoiceSeenKey(proposal, groupId);
-    if (key) state.choiceGroupsSeen = { ...(state.choiceGroupsSeen || {}), [key]: true };
-  }
-  function findProposalScopeItemContextById(items = [], targetId = '', parent = null){
-    const target = cleanText(targetId);
-    if (!target) return null;
-    for (const item of Array.isArray(items) ? items : []) {
-      if (!item || typeof item !== 'object') continue;
-      if (cleanText(item.id) === target) return { item, parent, items };
-      const found = findProposalScopeItemContextById(item.children || [], target, item);
-      if (found) return found;
-    }
-    return null;
-  }
-  function applyProposalChoiceSelectionLocally(proposal = {}, optionId = ''){
-    const roots = proposalScopeRoots(proposal);
-    const context = findProposalScopeItemContextById(roots, optionId);
-    if (!context?.item) return null;
-    const groupId = cleanText(context.item.selection?.group_id || context.item.selection?.groupId);
-    if (!groupId) return null;
-    context.items.forEach((item) => {
-      if (cleanText(item?.selection?.mode) !== 'choice') return;
-      if (cleanText(item?.selection?.group_id || item?.selection?.groupId) !== groupId) return;
-      item.selection = item.selection && typeof item.selection === 'object' ? item.selection : {};
-      const selected = cleanText(item.id) === cleanText(optionId);
-      item.selection.selected = selected;
-      item.selection.default_selected = selected;
-      if (selected) {
-        item.selection.customer_visible = true;
-        const selectableBy = new Set(Array.isArray(item.selection.selectable_by) ? item.selection.selectable_by : []);
-        selectableBy.add('internal');
-        selectableBy.add('customer');
-        item.selection.selectable_by = Array.from(selectableBy);
-      }
-    });
-    proposal.document_html = '';
-    proposal.documentHtml = '';
-    if (proposal.workflow?.proposal) {
-      proposal.workflow.proposal.document_html = '';
-      proposal.workflow.proposal.documentHtml = '';
-    }
-    markProposalChoiceGroupSeen(proposal, groupId);
-    return { groupId, optionId: cleanText(optionId) };
-  }
-  function activeProposalDocumentFrame(){
-    return mount.querySelector(`[data-proposal-document-frame="${state.activeProposalIndex}"]`);
-  }
-  function applyActiveProposalDocumentState(){
-    const frame = activeProposalDocumentFrame();
-    if (!frame) return;
-    applyDocumentChoiceState(frame, activeProposal());
-    applyDocumentSignatureState(frame, activeProposal());
-  }
-  async function refreshActiveProposalDocumentFrame(proposal = activeProposal()){
-    const frame = activeProposalDocumentFrame();
-    if (!frame) return;
-    const refreshId = (frame.__fmDocumentRefreshId || 0) + 1;
-    frame.__fmDocumentRefreshId = refreshId;
-    try {
-      const html = await resolveProposalDocumentHtml(proposal);
-      if (frame.__fmDocumentRefreshId !== refreshId) return;
-      if (!html || frame.__fmDocumentHtml === html) {
-        applyDocumentSignatureState(frame, proposal);
-        return;
-      }
-      const scrollX = window.scrollX || 0;
-      const scrollY = window.scrollY || 0;
-      const currentHeight = frame.getBoundingClientRect?.().height || frame.offsetHeight || 0;
-      if (currentHeight > 0) frame.style.minHeight = `${Math.ceil(currentHeight)}px`;
-      frame.__fmDocumentHtml = html;
-      frame.addEventListener('load', () => {
-        if (frame.__fmDocumentRefreshId !== refreshId) return;
-        applyDocumentSignatureState(frame, proposal);
-        frame.style.minHeight = '';
-        window.scrollTo(scrollX, scrollY);
-      }, { once: true });
-      frame.srcdoc = html;
-    } catch (error) {
-      console.warn('Unable to refresh proposal document after choice selection', error);
-      applyDocumentSignatureState(frame, proposal);
-    }
-  }
-  function signedProposalIndex(proposals = []){
-    return proposals.findIndex((proposal) => proposalSigned(proposal));
-  }
-  function proposalSummaryStatus(proposal = {}, proposals = []){
-    if (proposalSigned(proposal)) return { key: 'signed', label: (globalThis.PlatformLanguage?.text("customer-portal","m_ab7ec8db303996","Signed") ?? "Signed") };
-    if (proposalExpired(proposal)) return { key: 'expired', label: (globalThis.PlatformLanguage?.text("customer-portal","m_e685fe954b1758","Expired") ?? "Expired") };
-    const key = cleanText(proposal.status).toLowerCase() || 'draft';
-    return { key, label: proposalStatusLabel(proposal.status) };
-  }
-  function proposalCard(proposal = {}, index = 0, active = false, proposals = []){
-    const date = normalizeDate(proposal.sent_at || proposal.created_at);
-    const status = proposalSummaryStatus(proposal, proposals);
-    return `
-      <button type="button" class="cp-proposal-card${active ? ' active' : ''}" data-proposal-index="${index}">
-        <b>${escapeHtml(proposal.totals?.total || '')}</b>
-        <small>${escapeHtml(date || proposal.address || '')}</small>
-        <span class="cp-proposal-status ${escapeHtml(status.key)}">${escapeHtml(status.label)}</span>
-      </button>
-    `;
-  }
-  function proposalWidget(proposals, { compact = false } = {}){
-    const items = compact ? proposals.slice(0, 3) : proposals;
-    return `
-      <section class="cp-widget">
-        <div class="cp-section-head">
-          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3129f3f0e39249","Proposals") ?? "Proposals")}</h2>
-          <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_40810d498e9130",`${v0} item${v1}`,{v0,v1}) ?? `${v0} item${v1}`)(proposals.length,proposals.length === 1 ? '' : 's')}</span>
-        </div>
-        ${items.length ? `<div class="cp-proposal-list">${items.map((proposal, index) => proposalCard(proposal, index, index === state.activeProposalIndex && !compact, proposals)).join('')}</div>` : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_408fc41eaeca5e","No proposals have been shared yet.") ?? "No proposals have been shared yet.")}</div>`}
-        ${compact && proposals.length ? `<button type="button" class="cp-link-btn" data-tab-target="proposals">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8909a45759c871","Open proposal viewer") ?? "Open proposal viewer")}</button>` : ''}
-      </section>
     `;
   }
   function scheduleEventMeta(event = {}){
@@ -2957,248 +2636,6 @@ Continue with this payment?`)(message));
       render();
     }
   }
-  function sentProposal(proposals){
-    return proposals.find((proposal) => ['sent', 'viewed', 'signed'].includes(cleanText(proposal.status).toLowerCase())) || null;
-  }
-  function signaturePages(proposal = {}){
-    return Array.isArray(proposal.pages)
-      ? proposal.pages.filter((page) => ['signature', 'fine_print'].includes(cleanText(page.kind).toLowerCase()))
-      : [];
-  }
-  function proposalSigned(proposal = {}){
-    const status = cleanText(proposal.status).toLowerCase();
-    if (['signed', 'accepted', 'approved', 'complete', 'completed'].includes(status)) return true;
-    if (proposal.workflow?.signed === true || proposal.workflow?.proposal?.workflow?.signed === true) return true;
-    if (proposal.signed_at) return true;
-    return false;
-  }
-  function proposalExpired(proposal = {}){
-    return cleanText(proposal.status).toLowerCase() === 'expired' || cleanText(proposal.delivery?.state).toLowerCase() === 'expired';
-  }
-  function proposalPayment(proposal = {}){
-    const workflow = proposal.workflow && typeof proposal.workflow === 'object' ? proposal.workflow : {};
-    const payment = workflow.payment && typeof workflow.payment === 'object' ? workflow.payment : {};
-    const directPayment = proposal.payment && typeof proposal.payment === 'object' ? proposal.payment : {};
-    const customerPayment = proposal.customer_payment && typeof proposal.customer_payment === 'object' ? proposal.customer_payment : {};
-    return {
-      ...directPayment,
-      ...(directPayment.customer_payment && typeof directPayment.customer_payment === 'object' ? directPayment.customer_payment : {}),
-      ...customerPayment,
-      ...payment,
-      ...(payment.payment && typeof payment.payment === 'object' ? payment.payment : {})
-    };
-  }
-  function proposalPaymentObligations(proposal = {}){
-    const payment = proposalPayment(proposal);
-    return Array.isArray(payment.obligations) ? payment.obligations : [];
-  }
-  function proposalPaidPayments(proposal = {}){
-    const payment = proposalPayment(proposal);
-    const rows = Array.isArray(payment.payments) ? payment.payments : [];
-    return rows.filter((row) => {
-      const status = cleanText(row?.status).toLowerCase();
-      const direction = cleanText(row?.direction || 'inbound').toLowerCase();
-      return direction !== 'outbound' && ['settled', 'partially_refunded', 'paid'].includes(status) && Number(row?.amount_cents || 0) > 0;
-    });
-  }
-  function paidPaymentLabel(payment = {}){
-    const explicit = cleanText(payment.metadata?.payment_label || payment.label);
-    if (explicit) return explicit;
-    const kind = cleanText(payment.kind).toLowerCase();
-    if (kind.includes('deposit')) return 'Deposit';
-    if (kind.includes('final')) return 'Final Payment';
-    if (kind.includes('progress')) return 'Progress Payment';
-    return 'Project Payment';
-  }
-  function proposalDepositPaid(proposal = {}){
-    const payment = proposalPayment(proposal);
-    const status = cleanText(payment.status || payment.payment_status).toLowerCase();
-    if (['deposit_paid', 'paid', 'settled'].includes(status)) return true;
-    return Number(payment.deposit_amount_cents || 0) > 0 && Number(payment.deposit_due_cents || 0) <= 0;
-  }
-  function proposalDeposit(proposal = {}){
-    const page = signaturePages(proposal).find((item) => cleanText(item.kind).toLowerCase() === 'signature') || {};
-    const payment = proposalPayment(proposal);
-    const amount = Number(payment.deposit_amount_cents || 0) > 0 ? Number(payment.deposit_amount_cents) / 100 : moneyValue(page.deposit_amount || page.depositAmount);
-    const due = Number(payment.deposit_due_cents || 0) > 0 ? Number(payment.deposit_due_cents) / 100 : amount;
-    return {
-      required: amount > 0,
-      amount,
-      due,
-      label: cleanText(page.deposit_amount || page.depositAmount) || (amount > 0 ? moneyFormat(amount) : '')
-    };
-  }
-  function proposalPaymentIsDue(proposal = {}){
-    const deposit = proposalDeposit(proposal);
-    return deposit.required && proposalSigned(proposal) && !proposalDepositPaid(proposal);
-  }
-  function proposalSignerName(proposal = {}){
-    const slots = customerSlotsForProposal(proposal);
-    for (const slot of slots) {
-      const signature = slot.signature && typeof slot.signature === 'object' ? slot.signature : {};
-      const name = cleanText(slot.signer_name || signature.signer_name || signature.text || signature.name);
-      if (name) return name;
-    }
-    return cleanText(proposal.workflow?.signer_name || proposal.workflow?.payment?.signer_name || state.signatureName);
-  }
-  function proposalPdfUrl(proposal = {}){
-    const pdf = proposal.pdf && typeof proposal.pdf === 'object' ? proposal.pdf : {};
-    return assetUrl(
-      proposal.pdf_url ||
-      proposal.pdfUrl ||
-      proposal.download_url ||
-      proposal.downloadUrl ||
-      pdf.url ||
-      pdf.pdf_url ||
-      pdf.download_url ||
-      ''
-    );
-  }
-  function proposalPrintHtml(proposal = {}){
-    const title = escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"));
-    const pages = Array.isArray(proposal.pages) ? proposal.pages : [];
-    return `<!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>${title}</title>
-          <style>
-            @page{size:letter;margin:0.45in}
-            *{box-sizing:border-box}
-            body{margin:0;background:#eef2f6;color:#111827;font-family:Inter,Arial,sans-serif}
-            main{display:grid;gap:16px;padding:18px}
-            article{background:#fff;border:1px solid #d7dbe2;border-top:4px solid #2563eb;border-radius:8px;padding:20px;break-after:page;page-break-after:always}
-            article:last-child{break-after:auto;page-break-after:auto}
-            h3{margin:0 0 12px;font-size:20px}
-            p{margin:0 0 12px;line-height:1.55;color:#374151}
-            .cp-kicker{display:inline-block;margin-bottom:10px;color:#1d4ed8;font-size:12px;font-weight:900;text-transform:uppercase}
-            .cp-meta-grid,.cp-payment-grid,.cp-signature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
-            .cp-meta-grid div,.cp-payment-grid div,.cp-signature-grid div{border:1px solid #e4e7ec;border-radius:8px;padding:10px;background:#f8fafc}
-            span{display:block;font-size:11px;font-weight:900;color:#667085;text-transform:uppercase}
-            strong{display:block;color:#111827}
-            @media print{body{background:#fff}main{padding:0;gap:0}article{border-left:0;border-right:0;border-bottom:0;border-radius:0}}
-          </style>
-        </head>
-        <body>
-          <main>${pages.length ? pages.map(proposalPageHtml).join('') : `<article><h3>${title}</h3><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1ac05f4d4b72bb","This proposal does not have visible pages yet.") ?? "This proposal does not have visible pages yet.")}</p></article>`}</main>
-        </body>
-      </html>`;
-  }
-  function printProposal(index = state.activeProposalIndex){
-    const proposals = proposalList(activeProjectPayload());
-    const proposal = proposals[index] || proposals[0] || {};
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    track('proposal_printed', { proposal_id: proposal.id || proposal.proposal_id || '' });
-    printWindow.document.open();
-    printWindow.document.write(proposalPrintHtml(proposal));
-    printWindow.document.close();
-    setTimeout(() => {
-      try {
-        printWindow.focus();
-        printWindow.print();
-      } catch (error) {
-        console.warn('Unable to print proposal.', error);
-      }
-    }, 300);
-  }
-  function downloadProposal(index = state.activeProposalIndex){
-    const proposals = proposalList(activeProjectPayload());
-    const proposal = proposals[index] || proposals[0] || {};
-    const url = proposalPdfUrl(proposal);
-    if (url) {
-      track('proposal_downloaded', { proposal_id: proposal.id || proposal.proposal_id || '' });
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.download = `${cleanText(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_c5c6ef59360f85","proposal") ?? "proposal")).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'proposal'}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      return;
-    }
-    printProposal(index);
-  }
-  async function runProposalAction(action, options = {}){
-    if (state.proposalBusy) return;
-    const proposal = activeProposal();
-    const token = cleanText(proposal.public_token || proposal.publicToken);
-    if (!token || !root.ProposalsAPI?.public) return;
-    const renderBefore = options.renderBefore !== false;
-    const renderAfter = options.renderAfter !== false;
-    state.proposalBusy = true;
-    state.lastProposalActionError = null;
-    if (renderBefore) render();
-    else renderProposalPartialState();
-    let actionResult = null;
-    try {
-      const result = await action(root.ProposalsAPI.public, token, proposal);
-      actionResult = result;
-      mergeActiveProposal(result?.workflow?.proposal || {}, result?.snapshot || null);
-      await refreshPortalPayload().catch(() => null);
-      mergeActiveProposal(result?.workflow?.proposal || {}, result?.snapshot || null);
-    } catch (error) {
-      state.lastProposalActionError = error;
-      // silent: the caller owns error display (e.g. the payment modal shows
-      // the structured decline message inline instead of a blocking alert).
-      if (options.silent !== true) alert(error?.message || 'This proposal step could not be completed.');
-    } finally {
-      state.proposalBusy = false;
-      if (renderAfter) render();
-      else renderProposalPartialState();
-    }
-    return actionResult;
-  }
-  async function selectProposalChoiceOption(groupId = '', optionId = ''){
-    const proposal = activeProposal();
-    const applied = applyProposalChoiceSelectionLocally(proposal, optionId);
-    if (!applied) return;
-    track('proposal_choice_selected', { proposal_id: proposal.id || proposal.proposal_id || '', group_id: applied.groupId, option_id: applied.optionId });
-    applyActiveProposalDocumentState();
-    renderProposalPartialState();
-    refreshActiveProposalDocumentFrame(proposal);
-    const token = cleanText(proposal.public_token || proposal.publicToken);
-    if (isPreviewMode() || !token || !root.ProposalsAPI?.public?.selectChoice) return;
-    try {
-      const result = await root.ProposalsAPI.public.selectChoice(token, {
-        group_id: cleanText(groupId || applied.groupId),
-        option_id: applied.optionId,
-        visitor_session_id: visitorSessionId(),
-        path: location.pathname + location.search,
-        href: location.href
-      });
-      mergeActiveProposal(result?.workflow?.proposal || {}, result?.snapshot || null);
-      await refreshPortalPayload().catch(() => null);
-      mergeActiveProposal(result?.workflow?.proposal || {}, result?.snapshot || null);
-      renderProposalPartialState();
-      await refreshActiveProposalDocumentFrame(activeProposal());
-    } catch (error) {
-      showPortalToast(error?.message || 'Could not save that selection.');
-      await refreshPortalPayload().catch(() => null);
-      applyActiveProposalDocumentState();
-      renderProposalPartialState();
-    }
-  }
-  function currentSignatureSlot(proposal = activeProposal()){
-    const slots = customerSlotsForProposal(proposal);
-    const exact = slots[state.activeSignatureSlotIndex];
-    if (exact && !exact.signed) return exact;
-    return slots.find((slot, index) => index >= state.activeSignatureSlotIndex && !slot.signed) || slots.find((slot) => !slot.signed) || slots[0] || null;
-  }
-  function signaturePayloadFromState(name = state.signatureName){
-    const signerName = cleanText(name);
-    if (state.signatureAdoptMode === 'draw' && state.drawnSignatureData) {
-      return {
-        type: 'drawn',
-        text: signerName,
-        signer_name: signerName,
-        style: 'drawn',
-        image_data: state.drawnSignatureData
-      };
-    }
-    return { type: 'typed', text: signerName, style: 'style-classic', signer_name: signerName };
-  }
   function browserEvidenceBase(){
     const screenInfo = root.screen || {};
     return {
@@ -3276,316 +2713,6 @@ Continue with this payment?`)(message));
       }
     };
   }
-  async function adoptSignature(){
-    if (blockPreviewAction('signing')) return false;
-    const name = cleanText(state.signatureName);
-    if (!name) {
-      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
-      return false;
-    }
-    if (state.signatureAdoptMode === 'draw' && !state.drawnSignatureData) {
-      alert((globalThis.PlatformLanguage?.text("customer-portal","m_d7e234c292fbdf","Draw your signature first.") ?? "Draw your signature first."));
-      return false;
-    }
-    await runProposalAction(async (proposalApi, token) => {
-      const signaturePayload = signaturePayloadFromState(name);
-      const evidence = await signatureEvidencePayload();
-      const result = await proposalApi.adopt(token, withEvidence({
-        signer_name: name,
-        signature: signaturePayload,
-        visitor_session_id: visitorSessionId(),
-        path: location.pathname + location.search
-      }, evidence));
-      state.adoptedSignature = result.signature || signaturePayload;
-      return result;
-    }, { renderBefore: false, renderAfter: false });
-    state.signatureModalOpen = false;
-    renderSignatureModalLayer();
-    window.setTimeout(() => jumpToNextSignatureSlot({ openModal: false }), 120);
-    return true;
-  }
-  async function applyCurrentSignature(){
-    if (blockPreviewAction('signing')) return;
-    const proposal = activeProposal();
-    const slot = currentSignatureSlot(proposal);
-    const name = cleanText(state.signatureName);
-    if (!name) {
-      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
-      return;
-    }
-    if (!state.adoptedSignature) {
-      await adoptSignature();
-    }
-    if (!slot) return;
-    await runProposalAction(async (proposalApi, token) => {
-      const evidence = await signatureEvidencePayload();
-      const result = await proposalApi.signSlot(token, withEvidence({
-        slot_id: slot.id,
-        page_id: slot.page_id,
-        page_index: slot.page_index,
-        signer_name: name,
-        signature: state.adoptedSignature || { type: 'typed', text: name, style: 'signature' },
-        visitor_session_id: visitorSessionId(),
-        path: location.pathname + location.search
-      }, evidence));
-      state.activeSignatureSlotIndex += 1;
-      return result;
-    });
-  }
-  async function completeSignatureDocument(){
-    if (blockPreviewAction('signing')) return;
-    const proposal = activeProposal();
-    const slots = customerSlotsForProposal(proposal);
-    if (slots.some((slot) => !slot.signed) && slots.length) return;
-    const name = cleanText(state.signatureName || proposalSignerName(proposal));
-    if (!name) {
-      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
-      return;
-    }
-    await runProposalAction(async (proposalApi, token) => {
-      const evidence = await signatureEvidencePayload();
-      return proposalApi.complete(token, withEvidence({
-        signer_name: name,
-        signature: state.adoptedSignature || { type: 'typed', text: name, style: 'signature', signer_name: name },
-        slots,
-        visitor_session_id: visitorSessionId(),
-        path: location.pathname + location.search
-      }, evidence));
-    });
-  }
-  async function signCurrentSlotFromModal(){
-    if (blockPreviewAction('signing')) return;
-    const proposal = activeProposal();
-    const slot = currentSignatureSlot(proposal);
-    const name = cleanText(state.signatureName);
-    if (!name) {
-      alert((globalThis.PlatformLanguage?.text("customer-portal","m_4179d6a52dbc38","Enter your full legal name first.") ?? "Enter your full legal name first."));
-      return;
-    }
-    if (state.signatureAdoptMode === 'draw' && !state.drawnSignatureData && !state.adoptedSignature) {
-      alert((globalThis.PlatformLanguage?.text("customer-portal","m_d7e234c292fbdf","Draw your signature first.") ?? "Draw your signature first."));
-      return;
-    }
-    if (!slot) return;
-    await runProposalAction(async (proposalApi, token) => {
-      let signaturePayload = state.adoptedSignature || signaturePayloadFromState(name);
-      if (!state.adoptedSignature) {
-        const adoptEvidence = await signatureEvidencePayload();
-        const adopted = await proposalApi.adopt(token, withEvidence({
-          signer_name: name,
-          signature: signaturePayload,
-          visitor_session_id: visitorSessionId(),
-          path: location.pathname + location.search
-        }, adoptEvidence));
-        state.adoptedSignature = adopted.signature || signaturePayload;
-        signaturePayload = state.adoptedSignature;
-      }
-      const signEvidence = await signatureEvidencePayload();
-      const result = await proposalApi.signSlot(token, withEvidence({
-        slot_id: slot.id,
-        page_id: slot.page_id,
-        page_index: slot.page_index,
-        signer_name: name,
-        signature: signaturePayload,
-        visitor_session_id: visitorSessionId(),
-        path: location.pathname + location.search
-      }, signEvidence));
-      const slots = customerSlotsForProposal(proposal);
-      const updatedSlots = slots.map((item) => item.id === slot.id ? {
-        ...item,
-        signed: true,
-        signer_name: name,
-        signature: signaturePayload,
-        signed_at: new Date().toISOString()
-      } : item);
-      state.activeSignatureSlotIndex += 1;
-      state.signatureModalOpen = false;
-      const hasRemaining = updatedSlots.some((item) => !item.signed);
-      if (!hasRemaining) {
-        const completeEvidence = await signatureEvidencePayload();
-        return proposalApi.complete(token, withEvidence({
-          signer_name: name,
-          signature: signaturePayload,
-          slots: updatedSlots,
-          visitor_session_id: visitorSessionId(),
-          path: location.pathname + location.search
-        }, completeEvidence));
-      }
-      return result;
-    }, { renderBefore: false, renderAfter: false });
-    const nextSlot = currentSignatureSlot(activeProposal());
-    if (nextSlot && !proposalSigned(activeProposal())) {
-      window.setTimeout(() => jumpToNextSignatureSlot({ openModal: false }), 160);
-    }
-  }
-  async function payDepositNow(){
-    if (blockPreviewAction('payment')) return;
-    state.activePaymentObligationId = '';
-    openPaymentModal();
-  }
-  function activeProposalPaymentIntakeOptions(overrides = {}){
-    const proposal = activeProposal();
-    const deposit = proposalDeposit(proposal);
-    const payment = proposalPayment(proposal);
-    const customer = projectCustomer(activeProjectPayload());
-    const branding = activeProjectPayload()?.organization?.branding || {};
-    const colors = branding.colors || {};
-    const primaryColor = brandColor(colors.primary, branding.primary, colors.brand, branding.brand, colors.accent, branding.accent);
-    const secondaryColor = brandColor(colors.secondary, branding.secondary, '#111111');
-    const selectedObligation = proposalPaymentObligations(proposal).find((item) => cleanText(item.id) === cleanText(state.activePaymentObligationId));
-    const dueCents = Number(selectedObligation?.balance_due_cents || payment.deposit_due_cents || 0) || Math.round((deposit.due || deposit.amount || 0) * 100);
-    const totalCents = Number(payment.total_cents || 0) || Math.round(moneyValue(proposal.totals?.total) * 100);
-    const optionAmount = Object.prototype.hasOwnProperty.call(overrides, 'amountCents')
-      ? overrides.amountCents
-      : (Object.prototype.hasOwnProperty.call(overrides, 'amount') ? Math.round(moneyValue(overrides.amount) * 100) : dueCents);
-    return {
-      title: cleanText(overrides.title || (selectedObligation ? `Pay ${cleanText(selectedObligation.label || 'Invoice')}` : 'Pay Deposit')),
-      description: cleanText(overrides.description || proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_4f18ff488f2b1a","Proposal payment") ?? "Proposal payment")),
-      amountLabel: cleanText(overrides.amountLabel || (selectedObligation ? 'Amount due now' : 'Deposit due now')),
-      amountCents: optionAmount,
-      allowCustomAmount: overrides.allowCustomAmount === true || optionAmount == null,
-      methods: overrides.methods || overrides.allowedMethods || ['card', 'ach'],
-      contact: overrides.contact || customer || null,
-      allowSavedMethods: overrides.allowSavedMethods === true || overrides.useSavedMethods === true || overrides.allowPreviousPaymentMethods === true,
-      allowSavePaymentMethod: overrides.allowSavePaymentMethod !== false,
-      savePaymentMethodDefault: overrides.savePaymentMethodDefault === true,
-      primaryColor,
-      secondaryColor,
-      details: Array.isArray(overrides.details) ? overrides.details : [
-        { label: (globalThis.PlatformLanguage?.text("customer-portal","m_a14cd2f6e65048","Total proposal") ?? "Total proposal"), value: moneyFormat(totalCents / 100) },
-        { label: (globalThis.PlatformLanguage?.text("customer-portal","m_fff5ed13d61dc6","Payment type") ?? "Payment type"), value: cleanText(overrides.paymentType || selectedObligation?.label || 'Deposit') }
-      ],
-      submitLabel: cleanText(overrides.submitLabel || 'Run payment'),
-      successTitle: cleanText(overrides.successTitle || 'Payment went through'),
-      successDescription: cleanText(overrides.successDescription || 'The payment has been recorded.'),
-      onSubmit: async (payload) => {
-        const result = await submitProposalPayment(payload.method || 'Card', payload.amountCents, payload);
-        if (!result) throw new Error('Payment could not be processed.');
-        return { ok: true, payment: result.payment, amountCents: payload.amountCents };
-      },
-      onSuccess: async () => {
-        renderProposalPartialState();
-      },
-      successActions: [{
-        label: (globalThis.PlatformLanguage?.text("customer-portal","m_e2f600c5c92df9","Download Invoice") ?? "Download Invoice"),
-        onClick: () => downloadReceipt(activeProposal())
-      }],
-      ...overrides
-    };
-  }
-  async function activeProposalIntakeConfig(){
-    // Provider intake config for the active proposal token — null keeps the
-    // legacy mock flow. Cached per token; best-effort (any failure -> null).
-    try {
-      const proposal = activeProposal();
-      const token = cleanText(proposal.public_token || proposal.publicToken);
-      if (!token || isPreviewMode() || !root.ProposalsAPI?.public?.paymentIntakeConfig) return null;
-      if (state.paymentIntakeConfig && state.paymentIntakeConfig.token === token) return state.paymentIntakeConfig.config;
-      const result = await root.ProposalsAPI.public.paymentIntakeConfig(token);
-      const config = result?.provider ? result : null;
-      state.paymentIntakeConfig = { token, config };
-      return config;
-    } catch (_) {
-      return null;
-    }
-  }
-  function proposalProviderIntakeOptions(config){
-    if (!config || !config.provider) return {};
-    const proposal = activeProposal();
-    const token = cleanText(proposal.public_token || proposal.publicToken);
-    return {
-      savedMethods: Array.isArray(config.saved_methods) ? config.saved_methods : [],
-      allowSavedMethods: true,
-      tokenization: {
-        mode: cleanText(config.tokenization?.mode) || 'mock',
-        sdkUrl: cleanText(config.tokenization?.sdk_url),
-        createPaymentMethod: (request) => root.ProposalsAPI.public.createPaymentMethodIntent(token, request)
-      },
-      ...(config.surcharge?.enabled === true ? {
-        surcharge: {
-          enabled: true,
-          mode: cleanText(config.surcharge.mode) || 'card_only',
-          quote: async (amountCents, method) => (await root.ProposalsAPI.public.surchargeQuote(token, { amount_cents: amountCents, method }))?.quote
-        }
-      } : {})
-    };
-  }
-  function openPaymentModal(options = {}){
-    const customer = projectCustomer(activeProjectPayload());
-    state.receiptEmail = state.receiptEmail || cleanText(customer.email);
-    state.receiptSent = false;
-    state.paymentMethod = '';
-    state.paymentFormError = '';
-    if (root.FirstMatePaymentIntake?.open) {
-      void activeProposalIntakeConfig().then((config) => {
-        root.FirstMatePaymentIntake.open(activeProposalPaymentIntakeOptions({
-          ...proposalProviderIntakeOptions(config),
-          ...options
-        }));
-      });
-      return;
-    }
-    state.paymentModalStep = 'checkout';
-    state.paymentModalOpen = true;
-    renderPaymentModalLayer();
-  }
-  function closePaymentModal(){
-    state.paymentModalOpen = false;
-    renderPaymentModalLayer();
-  }
-  async function submitProposalPayment(method = 'Card', amountCents = null, paymentPayload = {}){
-    const obligationId = cleanText(state.activePaymentObligationId);
-    // Tokenized submissions (provider configured) carry a payment_method_id
-    // from the intake modal; the server charges through the processor before
-    // recording. Errors stay silent here so the modal can show the decline.
-    const tokenized = !!(cleanText(paymentPayload.payment_method_id) || cleanText(paymentPayload.saved_method_id));
-    const result = await runProposalAction(async (proposalApi, token) => {
-      const evidence = await signatureEvidencePayload();
-      const result = await proposalApi.mockDeposit(token, withEvidence({
-        payment_method: method,
-        amount_cents: Number.isFinite(Number(amountCents)) ? Math.max(0, Math.round(Number(amountCents))) : undefined,
-        obligation_id: obligationId,
-        save_payment_method: paymentPayload.savePaymentMethod === true || paymentPayload.save_method === true,
-        saved_payment_method_id: cleanText(paymentPayload.saved_method_id || paymentPayload.savedPaymentMethodId),
-        ...(cleanText(paymentPayload.payment_method_id) ? { payment_method_id: cleanText(paymentPayload.payment_method_id) } : {}),
-        visitor_session_id: visitorSessionId(),
-        path: location.pathname + location.search
-      }, evidence));
-      state.paymentSuccess = true;
-      return result;
-    }, { renderBefore: false, renderAfter: false, silent: tokenized });
-    if (result) state.activePaymentObligationId = '';
-    if (result && tokenized) state.paymentIntakeConfig = null;
-    if (!result && tokenized && state.lastProposalActionError) throw state.lastProposalActionError;
-    return result;
-  }
-  async function submitMockPayment(method = 'Card'){
-    if (blockPreviewAction('payment')) return;
-    state.paymentSuccess = false;
-    state.paymentMethod = method;
-    state.paymentFormError = '';
-    state.paymentModalStep = 'processing';
-    renderPaymentModalLayer();
-    const result = await submitProposalPayment(method);
-    if (!result) {
-      state.paymentModalStep = 'checkout';
-      renderPaymentModalLayer();
-      return;
-    }
-    state.paymentModalStep = 'success';
-    renderProposalPartialState();
-    renderPaymentModalLayer();
-  }
-  async function payDepositLater(){
-    if (blockPreviewAction('payment')) return;
-    await runProposalAction(async (proposalApi, token) => {
-      const evidence = await signatureEvidencePayload();
-      return proposalApi.payLater(token, withEvidence({
-        visitor_session_id: visitorSessionId(),
-        path: location.pathname + location.search
-      }, evidence));
-    });
-  }
   function appointmentComplete(appointment){
     if (!appointment) return false;
     const status = cleanText(appointment.status).toLowerCase();
@@ -3599,12 +2726,40 @@ Continue with this payment?`)(message));
     const assigned = Array.isArray(appointment.assigned_to) ? appointment.assigned_to.filter(Boolean).join(', ') : '';
     return [when, assigned].filter(Boolean).join(' - ') || cleanText(appointment.status) || 'Scheduled';
   }
-  function overviewSteps(payload, proposals, orgName){
+  // The tab a document opens in: its document-group tab when the server
+  // serves one, otherwise the flat Documents tab.
+  function documentTabId(doc){
+    const group = cleanText(doc?.presentation?.tab?.id);
+    const list = tabs();
+    const grouped = list.find((tab) => tab.sourceType === 'document_group' && cleanText(tab.groupId) === group)
+      || list.find((tab) => tab.sourceType === 'document_group' && !cleanText(tab.groupId));
+    if (grouped) return grouped.id;
+    return list.some((tab) => tab.id === 'documents') ? 'documents' : '';
+  }
+  function documentStep(doc){
+    const token = cleanText(doc?.public_token);
+    const status = cleanText(doc?.status).toLowerCase();
+    // Canceled work has no token, and a declined or expired document asks
+    // nothing of the customer.
+    if (!token || ['declined', 'expired', 'canceled', 'cancelled', 'void'].includes(status)) return null;
+    const title = cleanText(doc?.title) || documentTypeLabel(doc?.document_type);
+    const requirement = doc?.signature_requirement && typeof doc.signature_requirement === 'object' ? doc.signature_requirement : {};
+    const finished = ['signed', 'completed'].includes(status);
+    const needsSignature = requirement.required === true;
+    const complete = needsSignature
+      ? finished || Number(requirement.pending_count || 0) <= 0
+      : finished || status === 'viewed';
+    return {
+      id: `document:${cleanText(doc?.id) || token}`,
+      label: needsSignature ? `Review and sign ${title}` : `Review ${title}`,
+      detail: complete ? (needsSignature ? 'Signature received' : documentStatusLabel(status)) : documentStatusLabel(status),
+      complete,
+      tab: documentTabId(doc),
+      documentToken: token
+    };
+  }
+  function overviewSteps(payload, orgName){
     const appointment = portalAppointment(payload);
-    const sent = sentProposal(proposals);
-    const deposit = sent ? proposalDeposit(sent) : { required: false };
-    const sentIndex = sent ? proposals.indexOf(sent) : -1;
-    const reviewed = !!sent && (proposalSigned(sent) || proposalEngaged(sent));
     const steps = [{
       id: 'appointment',
       label: (globalThis.PlatformLanguage?.text("customer-portal","m_a59fd86ded6b33","On-site Appointment") ?? "On-site Appointment"),
@@ -3612,55 +2767,31 @@ Continue with this payment?`)(message));
       complete: appointmentComplete(appointment),
       tab: 'schedule'
     }];
-    if (!sent) {
+    const documentSteps = documentList(payload).map(documentStep).filter(Boolean);
+    if (!documentSteps.length) {
       steps.push({
-        id: 'waiting',
-        label: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_6a3f8bad875169",`Waiting for proposal from ${v0}`,{v0}) ?? `Waiting for proposal from ${v0}`)(orgName),
-        detail: 'This will update when the proposal is sent.',
+        id: 'clear',
+        label: 'Nothing needs your attention right now',
+        detail: orgName ? `${orgName} will share documents with you here.` : 'Documents shared with you will appear here.',
         complete: false,
         disabled: true
       });
       return steps;
     }
-    steps.push({
-      id: 'review',
-      label: (globalThis.PlatformLanguage?.text("customer-portal","m_136ea8d1e76d4e","Review Proposal") ?? "Review Proposal"),
-      detail: reviewed && sentIndex >= 0 ? `${proposalOptionLabel(sentIndex)} selected` : 'Open the proposal viewer',
-      complete: reviewed,
-      tab: 'proposals',
-      proposalIndex: sentIndex
-    });
-    steps.push({
-      id: 'sign',
-      label: (globalThis.PlatformLanguage?.text("customer-portal","m_e4071e980bc3be","Sign Proposal") ?? "Sign Proposal"),
-      detail: proposalSigned(sent) ? 'Signature received' : 'Review and sign where indicated',
-      complete: proposalSigned(sent),
-      tab: 'proposals',
-      proposalIndex: proposals.indexOf(sent)
-    });
-    if (deposit.required) {
+    steps.push(...documentSteps);
+    if (documentSteps.every((step) => step.complete)) {
       steps.push({
-        id: 'deposit',
-        label: proposalDepositPaid(sent) ? 'Deposit Paid' : 'Pay Deposit',
-        detail: proposalDepositPaid(sent) ? 'Thank you, your payment was processed' : (deposit.label ? `Deposit due ${deposit.label}` : 'Deposit required by contract'),
-        complete: proposalDepositPaid(sent),
-        tab: 'proposals',
-        proposalIndex: proposals.indexOf(sent)
-      });
-    }
-    if (proposalSigned(sent) && (!deposit.required || proposalDepositPaid(sent))) {
-      steps.push({
-        id: 'schedule_work',
-        label: (globalThis.PlatformLanguage?.text("customer-portal","m_0ce46f50b62634","Waiting to Schedule Work") ?? "Waiting to Schedule Work"),
-        detail: proposalCompletionMessage(sent, orgName),
-        complete: false,
+        id: 'documents_complete',
+        label: 'All documents are complete',
+        detail: 'Nothing else needs your attention right now.',
+        complete: true,
         disabled: true
       });
     }
     return steps;
   }
-  function overviewPanel(payload, proposals, orgName){
-    const steps = overviewSteps(payload, proposals, orgName);
+  function overviewPanel(payload, orgName){
+    const steps = overviewSteps(payload, orgName);
     const firstOpen = steps.find((step) => !step.complete && !step.disabled)?.id || '';
     return `
       <aside class="cp-overview" data-cp-overview>
@@ -3670,7 +2801,7 @@ Continue with this payment?`)(message));
         </div>
         <div class="cp-step-list">
           ${steps.map((step) => `
-            <button type="button" class="cp-step ${step.complete ? 'complete' : ''} ${step.id === firstOpen ? 'current' : ''}" data-step-id="${escapeHtml(step.id)}" data-step-target="${escapeHtml(step.tab || '')}" data-step-proposal="${Number.isFinite(step.proposalIndex) ? step.proposalIndex : ''}" ${step.disabled ? 'disabled' : ''}>
+            <button type="button" class="cp-step ${step.complete ? 'complete' : ''} ${step.id === firstOpen ? 'current' : ''}" data-step-id="${escapeHtml(step.id)}" data-step-target="${escapeHtml(step.tab || '')}" data-step-document="${escapeHtml(step.documentToken || '')}" ${step.disabled ? 'disabled' : ''}>
               <span class="cp-step-indicator" aria-hidden="true"></span>
               <span class="cp-step-copy">
                 <strong>${escapeHtml(step.label)}</strong>
@@ -3682,136 +2813,13 @@ Continue with this payment?`)(message));
       </aside>
     `;
   }
-  function thankYouPanel(proposals){
-    const paid = proposals.find((proposal) => proposalDepositPaid(proposal));
-    if (!paid) return '';
-    const orgName = cleanText(activeProjectPayload().organization?.name || 'Company');
-    return `
-      <section class="cp-thank-you">
-        <div>
-          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_439013dd427ec5","All steps completed") ?? "All steps completed")}</h2>
-          <p>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_1c0a2df5e45970",`Deposit paid and document complete. ${v0}`,{v0}) ?? `Deposit paid and document complete. ${v0}`)(escapeHtml(proposalCompletionMessage(paid, orgName)))}</p>
-        </div>
-      </section>
-    `;
-  }
-  function proposalPublicToken(proposal = {}){
-    const payment = proposalPayment(proposal);
-    const paymentRows = Array.isArray(payment.payments) ? payment.payments : [];
-    const paymentToken = paymentRows.map((row) => cleanText(row?.metadata?.public_token || row?.metadata?.publicToken)).find(Boolean);
-    return cleanText(
-      proposal.public_token ||
-      proposal.publicToken ||
-      proposal.current_public_token ||
-      proposal.currentPublicToken ||
-      proposal.workflow?.public_token ||
-      proposal.workflow?.publicToken ||
-      proposal.workflow?.proposal?.public_token ||
-      proposal.workflow?.proposal?.publicToken ||
-      proposal.builder_document?.public_token ||
-      proposal.builder_document?.publicToken ||
-      proposal.delivery?.public_token ||
-      proposal.delivery?.publicToken ||
-      proposal.delivery?.current_public_token ||
-      proposal.delivery?.currentPublicToken ||
-      payment.public_token ||
-      payment.publicToken ||
-      payment.metadata?.public_token ||
-      payment.metadata?.publicToken ||
-      paymentToken
-    );
-  }
-  function proposalReceiptUrl(proposal = activeProposal(), paymentId = ''){
-    const token = proposalPublicToken(proposal);
-    return token && root.ProposalsAPI?.public?.receiptUrl ? root.ProposalsAPI.public.receiptUrl(token, { payment_id:cleanText(paymentId) }) : '';
-  }
-  async function downloadReceipt(proposal = activeProposal(), trigger = null, paymentId = ''){
-    if (state.receiptDownloading) return;
-    state.receiptDownloading = true;
-    const button = trigger && trigger.tagName ? trigger : null;
-    const priorHtml = button?.innerHTML || '';
-    if (button) {
-      button.disabled = true;
-      button.innerHTML = '<span class="cp-btn-spinner"></span> Downloading...';
-    }
-    let url = proposalReceiptUrl(proposal, paymentId);
-    if (!url) {
-      await refreshPortalPayload().catch(() => null);
-      const refreshed = proposalList(activeProjectPayload())[state.activeProposalIndex] || proposal;
-      url = proposalReceiptUrl(refreshed, paymentId);
-      proposal = refreshed;
-    }
-    if (!url) {
-      showPortalToast('The paid invoice is not ready yet.');
-      if (button) {
-        button.disabled = false;
-        button.innerHTML = priorHtml;
-      }
-      state.receiptDownloading = false;
-      return;
-    }
-    try {
-      const response = await fetch(url, { credentials: 'include', cache: 'no-store' });
-      if (!response.ok) throw new Error(`Receipt download failed (${response.status})`);
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = `paid-invoice-${paymentReceiptNumber(proposal, paymentId)}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    } catch (error) {
-      console.warn('Paid invoice download failed', error);
-      showPortalToast('Could not download the paid invoice.');
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.innerHTML = priorHtml;
-      }
-      state.receiptDownloading = false;
-    }
-  }
-  function paymentsPanel(proposals = [], documents = []){
-    const due = proposals.flatMap((proposal, index) => {
-      const obligations = proposalPaymentObligations(proposal);
-      if (obligations.length) return obligations
-        .filter((item) => ['due','overdue','partially_paid'].includes(cleanText(item.status).toLowerCase()) && Number(item.balance_due_cents || 0) > 0)
-        .map((item) => ({ proposal, index, obligation:item, label:cleanText(item.label || 'Payment'), amount:Number(item.balance_due_cents || 0) / 100, due:normalizeDate(item.due_at) || 'Due now' }));
-      if (!proposalPaymentIsDue(proposal)) return [];
-      const deposit = proposalDeposit(proposal);
-      return [{ proposal, index, obligation:null, label:(globalThis.PlatformLanguage?.text("customer-portal","m_894309a0cbf8a4","Deposit") ?? "Deposit"), amount:deposit.due || deposit.amount, due:'Due with signed contract' }];
-    });
+  function paymentsPanel(documents = []){
     const paidById = new Map();
-    proposals.forEach((proposal, index) => {
-      proposalPaidPayments(proposal).forEach((payment) => {
-        const paymentId = cleanText(payment.id || payment.payment_id);
-        const proposalId = cleanText(payment.metadata?.proposal_id);
-        const matchedIndex = proposalId
-          ? proposals.findIndex((candidate) => [candidate?.id, candidate?.proposal_id].map(cleanText).includes(proposalId))
-          : -1;
-        const paymentIndex = matchedIndex >= 0 ? matchedIndex : index;
-        const key = paymentId || `${paymentIndex}:${cleanText(payment.settled_at || payment.received_at || payment.created_at)}:${Number(payment.amount_cents || 0)}`;
-        if (!paidById.has(key)) paidById.set(key, { proposal:proposals[paymentIndex] || proposal, index:paymentIndex, payment, paymentId });
-      });
-    });
-    proposals.forEach((proposal, index) => {
-      if (!proposalDepositPaid(proposal)) return;
-      const summary = proposalPayment(proposal);
-      const paymentId = cleanText(summary.payment_id || summary.id);
-      if (paymentId && paidById.has(paymentId)) return;
-      const key = paymentId || `legacy:${index}`;
-      if (!paidById.has(key)) paidById.set(key, { proposal, index, payment:summary, paymentId });
-    });
     cpwfArray(documents).forEach((document) => cpwfArray(document?.payments).forEach((payment) => {
       const paymentId = cleanText(payment?.id) || `${cleanText(document?.id)}:${cleanText(payment?.output_key)}`;
       if (!paymentId || paidById.has(paymentId)) return;
       paidById.set(paymentId, {
-        proposal: {},
-        index: -1,
         payment,
-        paymentId: '',
         sourceLabel: `${cleanText(document?.title) || 'Document'} ${cleanText(payment?.label) || 'Payment'}`
       });
     }));
@@ -3820,75 +2828,31 @@ Continue with this payment?`)(message));
       const rightAt = cleanText(right.payment.settled_at || right.payment.received_at || right.payment.paid_at || right.payment.created_at);
       return rightAt.localeCompare(leftAt);
     });
-    const upcoming = proposals.flatMap((proposal, index) => {
-      const signed = proposalSigned(proposal);
-      if (!signed) return [];
-      const obligations = proposalPaymentObligations(proposal);
-      if (obligations.length) return obligations
-        .filter((item) => cleanText(item.status).toLowerCase() === 'scheduled' && Number(item.balance_due_cents || 0) > 0)
-        .map((item) => ({ proposal, index, label:cleanText(item.label || 'Payment'), amount:Number(item.balance_due_cents || 0) / 100, due:normalizeDate(item.due_at) || 'Per proposal terms' }));
-      return proposalPaymentSchedule(proposal)
-        .map((row, rowIndex) => ({ ...row, proposal, index, rowIndex }))
-        .filter((row) => row.amount > 0 && row.rowIndex > 0);
-    });
     return `
       <section class="cp-widget cp-payments-panel">
         <div class="cp-section-head">
           <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5842802f6c8cbb","Payments") ?? "Payments")}</h2>
           <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_e0c8002adc5c4c",`${v0} past payment${v1}`,{v0,v1}) ?? `${v0} past payment${v1}`)(paid.length,paid.length === 1 ? '' : 's')}</span>
         </div>
-        ${due.length ? `
-          <div class="cp-payments-due">
-            <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cd2ba3a3109e4c","Payments Due") ?? "Payments Due")}</h3>
-            <div class="cp-payment-due-grid">
-              ${due.map(({ index, obligation, label, amount, due:dueLabel }) => `
-                <article class="cp-payment-due-card">
-                  <div>
-                    <span>${escapeHtml(proposalOptionLabel(index))} ${escapeHtml(label)}</span>
-                    <strong>${escapeHtml(moneyFormat(amount))}</strong>
-                    <small>${escapeHtml(dueLabel)}</small>
-                  </div>
-                  <button type="button" class="cp-primary-btn" data-payment-proposal="${index}" data-payment-obligation="${escapeHtml(obligation?.id || '')}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_45aa9c3e173f6b","Pay Now") ?? "Pay Now")}</button>
-                </article>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
         <div class="cp-payment-section">
           <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e9bdfa04394498","Past Payments") ?? "Past Payments")}</h3>
           ${paid.length ? `
             <div class="cp-payment-table">
               <div class="head"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2a0b11100c22a4","Date") ?? "Date")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</span><span></span></div>
-              ${paid.map(({ proposal, index, payment, paymentId, sourceLabel }) => {
-                const amount = Number(payment.amount_cents || payment.deposit_paid_cents || payment.deposit_amount_cents || 0) / 100 || proposalDeposit(proposal).amount;
-                const date = normalizeDate(payment.settled_at || payment.received_at || payment.paid_at || payment.created_at || payment.updated_at || proposal.signed_at || proposal.sent_at) || 'Paid';
+              ${paid.map(({ payment, sourceLabel }) => {
+                const amount = Number(payment.amount_cents || 0) / 100;
+                const date = normalizeDate(payment.settled_at || payment.received_at || payment.paid_at || payment.created_at || payment.updated_at) || 'Paid';
                 return `
                   <div class="row">
                     <span>${escapeHtml(date)}</span>
                     <strong>${escapeHtml(moneyFormat(amount))}</strong>
-                    <span>${escapeHtml(cleanText(sourceLabel) || `${proposalOptionLabel(index)} ${paidPaymentLabel(payment)}`)}</span>
-                    ${index >= 0 ? `<button type="button" class="cp-ghost-btn" data-receipt-proposal="${index}" data-receipt-payment="${escapeHtml(paymentId)}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e2f600c5c92df9","Download Invoice") ?? "Download Invoice")}</button>` : '<span aria-hidden="true"></span>'}
+                    <span>${escapeHtml(sourceLabel)}</span>
+                    <span aria-hidden="true"></span>
                   </div>
                 `;
               }).join('')}
             </div>
           ` : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_aef512969e5846","Past payments will appear here after payment.") ?? "Past payments will appear here after payment.")}</div>`}
-        </div>
-        <div class="cp-payment-section">
-          <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e1c61a4a8eafe5","Upcoming Payments") ?? "Upcoming Payments")}</h3>
-          ${upcoming.length ? `
-            <div class="cp-payment-table upcoming">
-              <div class="head"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3dac4d5769efeb","Due") ?? "Due")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</span><span></span></div>
-              ${upcoming.map((row) => `
-                <div class="row">
-                  <span>${escapeHtml(row.due || 'Per proposal terms')}</span>
-                  <strong>${escapeHtml(moneyFormat(row.amount))}</strong>
-                  <span>${escapeHtml(proposalOptionLabel(row.index))} ${escapeHtml(row.label)}</span>
-                  <span aria-hidden="true"></span>
-                </div>
-              `).join('')}
-            </div>
-          ` : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_67a787a69b32eb","No upcoming payments are listed yet.") ?? "No upcoming payments are listed yet.")}</div>`}
         </div>
       </section>
     `;
@@ -3903,1580 +2867,6 @@ Continue with this payment?`)(message));
         ${contactRows ? `<aside class="cp-customer-card">${contactRows}</aside>` : ''}
       </section>
     `;
-  }
-  function loadScriptOnce(src){
-    const existing = Array.from(document.scripts).find((script) => script.dataset.cpSrc === src);
-    if (existing) {
-      return new Promise((resolve, reject) => {
-        if (existing.dataset.loaded === 'true') resolve(existing);
-        else {
-          existing.addEventListener('load', () => resolve(existing), { once: true });
-          existing.addEventListener('error', reject, { once: true });
-        }
-      });
-    }
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.defer = true;
-      script.dataset.cpSrc = src;
-      script.addEventListener('load', () => {
-        script.dataset.loaded = 'true';
-        resolve(script);
-      }, { once: true });
-      script.addEventListener('error', reject, { once: true });
-      document.head.appendChild(script);
-    });
-  }
-  async function proposalBuilderRenderer(){
-    const moduleRenderer = (win) => {
-      const api = win?.Portal?.modules?.proposalsTab;
-      if (api && typeof api.invoke === 'function') {
-        return (proposal, index = 0) => api.invoke('proposalPdfDocumentHtml', [proposal, index]);
-      }
-      const direct = api?.context?.().proposalPdfDocumentHtml || win?.proposalPdfDocumentHtml;
-      return typeof direct === 'function' ? ((proposal, index = 0) => direct.call(win, proposal, index)) : null;
-    };
-    if (!proposalRendererPromise) {
-      proposalRendererPromise = new Promise((resolve, reject) => {
-        const frame = document.createElement('iframe');
-        const rendererSrc = new URL('./proposal_renderer.html', location.href).href;
-        const rendererId = `cp-proposal-renderer-${Date.now().toString(36)}`;
-        frame.id = rendererId;
-        frame.title = (globalThis.PlatformLanguage?.text("customer-portal","m_d1a9c20cfd1c38","Proposal renderer") ?? "Proposal renderer");
-        frame.tabIndex = -1;
-        frame.setAttribute('aria-hidden', 'true');
-        frame.style.cssText = 'position:absolute;left:-10000px;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
-
-        const finish = () => {
-          if (!frame.contentWindow) {
-            reject(new Error('Proposal Builder renderer frame did not load.'));
-            return;
-          }
-          const renderer = (proposal, index = 0) => new Promise((renderResolve, renderReject) => {
-            const requestId = `proposal_render_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-            const timeout = setTimeout(() => {
-              root.removeEventListener('message', onMessage);
-              renderReject(new Error('Proposal Builder renderer timed out.'));
-            }, 8000);
-            function onMessage(event){
-              const data = event.data || {};
-              if (data.type !== 'fm-render-proposal-document-result' || data.requestId !== requestId) return;
-              clearTimeout(timeout);
-              root.removeEventListener('message', onMessage);
-              if (data.ok) renderResolve(cleanText(data.html || ''));
-              else renderReject(new Error(cleanText(data.error || 'Unable to render proposal.')));
-            }
-            root.addEventListener('message', onMessage);
-            frame.contentWindow.postMessage({
-              type: 'fm-render-proposal-document',
-              requestId,
-              proposal,
-              index
-            }, '*');
-          });
-          resolve(renderer);
-        };
-
-        frame.addEventListener('load', finish, { once: true });
-        frame.addEventListener('error', () => reject(new Error('Unable to load Proposal Builder renderer frame.')), { once: true });
-        frame.src = `${rendererSrc}?v=${encodeURIComponent(String(Date.now()))}`;
-        document.body.appendChild(frame);
-      });
-    }
-    return proposalRendererPromise;
-  }
-  async function proposalBuilderDocumentHtml(proposal = {}){
-    const builder = proposal.builder_document || proposal.builderDocument || proposal.workflow?.proposal?.builder_document || proposal.content || proposal.workflow?.proposal?.content || null;
-    if (!builder || typeof builder !== 'object' || !Object.keys(builder).length) return '';
-    const renderer = await proposalBuilderRenderer();
-    const payload = activeProjectPayload();
-    const branding = payload?.organization?.branding && typeof payload.organization.branding === 'object' ? payload.organization.branding : {};
-    const colors = branding.colors && typeof branding.colors === 'object' ? branding.colors : {};
-    const orgLogo = brandingLogoUrl(payload?.organization || {});
-    const organization = payload?.organization && typeof payload.organization === 'object'
-      ? { ...payload.organization, branding: { ...branding, logo: orgLogo || branding.logo || '', logo_node_url: orgLogo || branding.logo_node_url || '' } }
-      : {};
-    const rawTheme = builder.theme && typeof builder.theme === 'object' ? cleanText(builder.theme.key || builder.theme.id || builder.theme.name) : cleanText(builder.theme);
-    const theme = cleanText(rawTheme || builder.theme_key || builder.themeKey || 'margin') || 'margin';
-    const documentProposal = {
-      ...builder,
-      title: cleanText(builder.title || proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal")),
-      theme,
-      theme_key: theme,
-      primaryColor: cleanText(builder.primaryColor || builder.primary_color || builder.brandColors?.primary || colors.primary || branding.primary || colors.accent || branding.accent),
-      secondaryColor: cleanText(builder.secondaryColor || builder.secondary_color || builder.accentColor || builder.brandColors?.secondary || colors.secondary || branding.secondary),
-      status: cleanText(builder.status || proposal.status || 'sent'),
-      snapshot_id: cleanText(builder.snapshot_id || proposal.snapshot_id),
-      public_token: cleanText(builder.public_token || proposal.public_token),
-      sent_at: cleanText(builder.sent_at || proposal.sent_at),
-      totals: proposal.totals || builder.totals || {},
-      contacts: Array.isArray(builder.contacts) ? builder.contacts : [],
-      __portalContext: {
-        platformApiBase: cleanText(root.__APP?.platformApiBase || cfg.platformApiBase || ''),
-        project: payload.project || {},
-        media: Array.isArray(payload.media) ? payload.media : [],
-        organization
-      }
-    };
-    const html = cleanText(await renderer(documentProposal, state.activeProposalIndex));
-    return html;
-  }
-  function storedProposalHtmlLooksStyled(html = ''){
-    const value = cleanText(html);
-    if (!value) return false;
-    if (/<style[\s>]/i.test(value) || /<link[^>]+rel=["']?stylesheet/i.test(value)) return true;
-    if (/font-family\s*:|--proposal-|--primary|@font-face/i.test(value)) return true;
-    return false;
-  }
-  function proposalHasBuilderDocument(proposal = {}){
-    const builder = proposal.builder_document || proposal.builderDocument || proposal.workflow?.proposal?.builder_document || proposal.content || proposal.workflow?.proposal?.content || null;
-    return !!(builder && typeof builder === 'object' && Object.keys(builder).length);
-  }
-  function customerSlotsForProposal(proposal = {}){
-    const slots = proposal.workflow?.customer_signature_slots || proposal.workflow?.proposal?.workflow?.customer_signature_slots;
-    if (Array.isArray(slots) && slots.length) return slots;
-    return signaturePages(proposal).map((page, index) => ({
-      id: `${cleanText(page.id) || `page_${index + 1}`}:customer_signature`,
-      page_id: cleanText(page.id) || `page_${index + 1}`,
-      page_index: index,
-      label: cleanText(page.customer_signature_label || page.customerSignatureLabel || 'Customer Signature'),
-      signed: page.signed === true
-    }));
-  }
-  function pageSignatureSlotHtml(page = {}, proposal = {}){
-    const slots = customerSlotsForProposal(proposal);
-    const pageId = cleanText(page.id);
-    const slot = slots.find((item) => cleanText(item.page_id) === pageId) || null;
-    if (!slot) return '';
-    const index = slots.indexOf(slot);
-    const current = index === state.activeSignatureSlotIndex && !slot.signed && !proposalSigned(proposal);
-    const signed = slot.signed || proposalSigned(proposal);
-    const signer = cleanText(state.signatureName || proposalSignerName(proposal));
-    return `
-      <div class="cp-esign-slot ${signed ? 'signed' : ''} ${current ? 'current' : ''}" data-sign-slot="${index}">
-        <span>${escapeHtml(slot.label || 'Customer Signature')}</span>
-        <strong>${signed ? escapeHtml(signer || 'Signed') : (current ? 'Click to sign here' : 'Signature required')}</strong>
-      </div>
-    `;
-  }
-  function proposalDocumentPageBodyHtml(page = {}, proposal = {}, index = 0){
-    const kind = cleanText(page.kind).toLowerCase();
-    const title = cleanText(page.title || page.heading || (kind === 'pricing' ? 'Estimated Proposal' : kind === 'signature' ? 'Authorization' : kind === 'fine_print' ? 'Terms' : proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal")));
-    if (kind === 'pricing') {
-      const items = Array.isArray(page.line_items) ? page.line_items : [];
-      return `
-        <div class="doc-kicker">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d9a8c9c7287681","Pricing") ?? "Pricing")}</div>
-        <h1>${escapeHtml(title || 'Estimated Proposal')}</h1>
-        <div class="doc-table">
-          ${items.map((item) => `
-            <div class="doc-row">
-              <strong>${escapeHtml(item.label || 'Line item')}</strong>
-              <span>${escapeHtml(item.quantity || '')}</span>
-              <span>${escapeHtml(item.unit_price || '')}</span>
-              <b>${escapeHtml(item.amount || '')}</b>
-            </div>
-          `).join('') || `<p class="doc-muted">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4ac63021b2f118","No line items are listed.") ?? "No line items are listed.")}</p>`}
-        </div>
-        <div class="doc-total"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${escapeHtml(page.total || proposal.totals?.total || '')}</strong></div>
-      `;
-    }
-    if (kind === 'signature') {
-      return `
-        <div class="doc-kicker">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_23bdcfd5ce7509","Authorization") ?? "Authorization")}</div>
-        <h1>${escapeHtml(title || 'Authorization')}</h1>
-        ${page.summary ? `<p class="doc-lede">${nl2br(page.summary)}</p>` : `<p class="doc-lede">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2623cdf12d340d","Please review and sign where indicated to approve this proposal.") ?? "Please review and sign where indicated to approve this proposal.")}</p>`}
-        <div class="doc-metrics">
-          <div><span>${escapeHtml(page.pricing_summary_title || 'Contract Amount')}</span><strong>${escapeHtml(page.completion_amount || proposal.totals?.total || '')}</strong></div>
-          <div><span>${escapeHtml(page.deposit_label || 'Deposit Amount')}</span><strong>${escapeHtml(page.deposit_amount || '')}</strong></div>
-          <div><span>${escapeHtml(page.financed_label || 'Amount Financed')}</span><strong>${escapeHtml(page.financed_amount || '')}</strong></div>
-          <div><span>${escapeHtml(page.date_label || 'Date')}</span><strong>${escapeHtml(page.date_value || normalizeDate(new Date().toISOString()))}</strong></div>
-        </div>
-        <div class="r-proposal-signature-box" data-sign-signer="customer">
-          <div class="r-proposal-signature-label">${escapeHtml(page.customer_signature_label || 'Customer Signature')}</div>
-          <div class="r-proposal-signature-value"></div>
-          <div class="r-proposal-signature-autofill">${escapeHtml(page.customer_printed_name || '')}</div>
-        </div>
-      `;
-    }
-    if (kind === 'fine_print') {
-      return `
-        <div class="doc-kicker">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3f1d84e4324628","Terms") ?? "Terms")}</div>
-        <h1>${escapeHtml(title || 'Terms')}</h1>
-        ${page.summary ? `<p class="doc-lede">${nl2br(page.summary)}</p>` : ''}
-        ${page.body ? `<div class="doc-copy">${nl2br(page.body)}</div>` : `<p class="doc-muted">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_43de2cbe4e2d92","Terms and conditions are included with this proposal.") ?? "Terms and conditions are included with this proposal.")}</p>`}
-        ${page.require_customer_signature === false ? '' : `
-          <div class="r-proposal-signature-box" data-sign-signer="customer">
-            <div class="r-proposal-signature-label">${escapeHtml(page.customer_signature_label || 'Customer Signature')}</div>
-            <div class="r-proposal-signature-value"></div>
-            <div class="r-proposal-signature-autofill">${escapeHtml(page.customer_printed_name || '')}</div>
-          </div>
-        `}
-      `;
-    }
-    const blocks = Array.isArray(page.blocks) ? page.blocks : [];
-    return `
-      <div class="doc-kicker">${escapeHtml(kind ? kind.replace(/_/g, ' ') : `Page ${index + 1}`)}</div>
-      <h1>${escapeHtml(title || proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"))}</h1>
-      ${page.prepared_for || page.prepared_by || page.date ? `
-        <div class="doc-metrics">
-          ${page.prepared_for ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_61509e0741be13","Prepared For") ?? "Prepared For")}</span><strong>${escapeHtml(page.prepared_for)}</strong></div>` : ''}
-          ${page.prepared_by ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cb120770e6931f","Prepared By") ?? "Prepared By")}</span><strong>${escapeHtml(page.prepared_by)}</strong></div>` : ''}
-          ${page.date ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2a0b11100c22a4","Date") ?? "Date")}</span><strong>${escapeHtml(page.date)}</strong></div>` : ''}
-        </div>
-      ` : ''}
-      ${page.summary ? `<p class="doc-lede">${nl2br(page.summary)}</p>` : ''}
-      ${page.body ? `<div class="doc-copy">${nl2br(page.body)}</div>` : ''}
-      ${blocks.map((block) => {
-        const heading = cleanText(block.heading || block.title || block.label);
-        const body = cleanText(block.body || block.text || block.value);
-        return `<section class="doc-block">${heading ? `<h2>${escapeHtml(heading)}</h2>` : ''}${body ? `<p>${nl2br(body)}</p>` : ''}</section>`;
-      }).join('')}
-    `;
-  }
-  function proposalPaperDimensions(proposal = {}){
-    const raw = cleanText(
-      proposal.paper_size || proposal.paperSize ||
-      proposal.content?.paper_size || proposal.content?.paperSize ||
-      proposal.editable?.paper_size || proposal.editable?.paperSize ||
-      proposal.workflow?.proposal?.paper_size || proposal.workflow?.proposal?.paperSize ||
-      proposal.workflow?.proposal?.content?.paper_size || proposal.workflow?.proposal?.content?.paperSize
-    ).toLowerCase();
-    const key = raw === 'legal' || raw === 'us-legal' ? 'legal' : (raw === 'a4' || raw === 'iso-a4' ? 'a4' : 'letter');
-    if (key === 'legal') return { key, cssWidth: '8.5in', cssHeight: '14in', widthPx: 820, heightPx: 820 * 14 / 8.5 };
-    if (key === 'a4') return { key, cssWidth: '210mm', cssHeight: '297mm', widthPx: 820 * (210 / 25.4) / 8.5, heightPx: 820 * (297 / 25.4) / 8.5 };
-    return { key: 'letter', cssWidth: '8.5in', cssHeight: '11in', widthPx: 820, heightPx: 820 * 11 / 8.5 };
-  }
-  function proposalFallbackDocumentHtml(proposal = {}){
-    const pages = Array.isArray(proposal.pages) ? proposal.pages : [];
-    if (!pages.length) return '';
-    const title = escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"));
-    const paper = proposalPaperDimensions(proposal);
-    return `<!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>${title}</title>
-          <style>
-            html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:Inter,Arial,sans-serif}
-            .r-proposal-pdf-doc,.r-proposal-wrap{background:#fff}
-            .r-proposal-pages{display:grid;gap:0;background:#fff}
-            .r-proposal-page-stack{width:${paper.cssWidth};height:${paper.cssHeight};display:flex;justify-content:center;box-sizing:border-box}
-            .r-proposal-page{position:relative;width:${paper.cssWidth};height:${paper.cssHeight};box-sizing:border-box;background:#fff;padding:.65in;overflow:hidden}
-            .doc-kicker{font-size:12px;font-weight:900;text-transform:uppercase;color:#2563eb;letter-spacing:.06em;margin-bottom:18px}
-            h1{font-size:30px;line-height:1.12;margin:0 0 18px;font-weight:850}
-            h2{font-size:18px;margin:0 0 8px}
-            p{font-size:15px;line-height:1.55;margin:0 0 14px}
-            .doc-lede{font-size:17px;color:#334155}
-            .doc-copy{font-size:14px;line-height:1.65;color:#334155;white-space:normal}
-            .doc-muted{color:#64748b}
-            .doc-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0}
-            .doc-metrics div{border:1px solid #e5e7eb;border-radius:6px;padding:12px;min-height:56px}
-            .doc-metrics span{display:block;font-size:11px;font-weight:900;text-transform:uppercase;color:#64748b;margin-bottom:5px}
-            .doc-metrics strong{font-size:14px}
-            .doc-table{border-top:1px solid #e5e7eb;margin-top:18px}
-            .doc-row{display:grid;grid-template-columns:minmax(0,1fr) 72px 110px 110px;gap:10px;align-items:center;border-bottom:1px solid #e5e7eb;padding:13px 0;font-size:14px}
-            .doc-row span,.doc-row b{text-align:right}
-            .doc-total{display:flex;justify-content:flex-end;gap:18px;align-items:center;margin-top:18px;font-size:18px;color:#8a7a2c}
-            .doc-total strong{font-size:22px}
-            .doc-block{border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px}
-            .r-proposal-signature-box{position:absolute;left:.65in;right:.65in;bottom:.85in;min-height:92px;border:2px dashed #94a3b8;border-radius:8px;background:#f8fafc;padding:12px;box-sizing:border-box}
-            .r-proposal-signature-label{font-size:12px;font-weight:900;text-transform:uppercase;color:#475569}
-            .r-proposal-signature-value{min-height:46px;display:flex;align-items:center;font-family:"Brush Script MT","Segoe Script",cursive;font-size:34px}
-            .r-proposal-signature-script{font-family:"Brush Script MT","Segoe Script",cursive;font-size:34px;color:#111827}
-            .r-proposal-signature-autofill{position:absolute;left:12px;bottom:8px;font-size:12px;color:#64748b}
-          </style>
-        </head>
-        <body>
-          <main class="r-proposal-pdf-doc" data-proposal-paper-size="${paper.key}">
-            <div class="r-proposal-wrap">
-              <div class="r-proposal-pages">
-                ${pages.map((page, index) => `
-                  <div class="r-proposal-page-stack">
-                    <section class="r-proposal-page">${proposalDocumentPageBodyHtml(page, proposal, index)}</section>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </main>
-        </body>
-      </html>`;
-  }
-  function proposalDocumentHtml(proposal = {}){
-    return cleanText(proposal.document_html || proposal.documentHtml || proposal.workflow?.proposal?.document_html || '') || proposalFallbackDocumentHtml(proposal);
-  }
-  async function resolveProposalDocumentHtml(proposal = {}){
-    const stored = cleanText(proposal.document_html || proposal.documentHtml || proposal.workflow?.proposal?.document_html || '');
-    const shouldTryBuilder = !stored || (proposalHasBuilderDocument(proposal) && !storedProposalHtmlLooksStyled(stored));
-    if (stored && !shouldTryBuilder) return stored;
-    const builderHtml = await proposalBuilderDocumentHtml(proposal).catch((error) => {
-      console.warn('Unable to render Proposal Builder document for customer portal', error);
-      return '';
-    });
-    if (builderHtml) return builderHtml;
-    return storedProposalHtmlLooksStyled(stored) ? stored : proposalFallbackDocumentHtml(proposal);
-  }
-  function signatureValueHtml(signature = {}){
-    const imageData = cleanText(signature.image_data || signature.imageData || signature.data_url || signature.dataUrl);
-    if (imageData && /^data:image\//i.test(imageData)) {
-      return `<img class="r-proposal-signature-image" src="${escapeHtml(imageData)}" alt="${escapeHtml(cleanText(signature.signer_name || signature.text || state.signatureName || 'Signature'))}">`;
-    }
-    const text = cleanText(signature.text || signature.name || signature.signer_name || state.signatureName || 'Signed');
-    const style = cleanText(signature.style || 'style-classic').replace(/[^a-zA-Z0-9_-]/g, '') || 'style-classic';
-    return `<span class="r-proposal-signature-script ${escapeHtml(style)}">${escapeHtml(text)}</span>`;
-  }
-  function openAdoptSignatureModal(){
-    if (blockPreviewAction('signing')) return;
-    state.signatureModalPurpose = 'adopt';
-    state.signatureModalOpen = true;
-    renderSignatureModalLayer();
-  }
-  function openSignatureModal(index = state.activeSignatureSlotIndex){
-    if (blockPreviewAction('signing')) return;
-    state.activeSignatureSlotIndex = Math.max(0, Number(index || 0) || 0);
-    state.signatureModalPurpose = state.adoptedSignature ? 'sign' : 'adopt';
-    state.signatureModalOpen = true;
-    renderSignatureRail();
-    stampDocumentSignatures();
-    renderSignatureModalLayer();
-  }
-  function closeSignatureModal(){
-    state.signatureModalOpen = false;
-    renderSignatureModalLayer();
-  }
-  function signatureModalHtml(proposal = {}){
-    if (!state.signatureModalOpen || proposalSigned(proposal)) return '';
-    const slots = customerSlotsForProposal(proposal);
-    const slot = slots[state.activeSignatureSlotIndex] || slots.find((item) => !item.signed) || slots[0] || {};
-    const purpose = state.signatureModalPurpose || 'adopt';
-    const isSign = purpose === 'sign' && state.adoptedSignature;
-    const title = isSign ? 'Sign Here' : 'Adopt Signature';
-    const subtitle = isSign ? (slot.label || 'Customer Signature') : 'Choose typed or drawn signature';
-    const previewSignature = state.adoptedSignature || signaturePayloadFromState(state.signatureName);
-    return `
-      <div class="cp-sign-modal" role="dialog" aria-modal="true">
-        <div class="cp-sign-modal-card">
-          <div class="cp-sign-modal-head">
-            <div>
-              <strong>${escapeHtml(title)}</strong>
-              <span>${escapeHtml(subtitle)}</span>
-            </div>
-            <button type="button" class="cp-icon-btn" data-signature-modal-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3742924668fb10","Close") ?? "Close")}">x</button>
-          </div>
-          ${isSign ? `
-            <div class="cp-signature-adopt">
-              <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4b755562a3aeb3","Your signature") ?? "Your signature")}</span>
-              <strong>${signatureValueHtml(previewSignature)}</strong>
-            </div>
-          ` : `
-            <label class="cp-signature-adopt">
-              <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_46a6d933f18958","Full legal name") ?? "Full legal name")}</span>
-              <input type="text" value="${escapeHtml(state.signatureName)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_816925f7bf0230","Type your name") ?? "Type your name")}" data-signature-name>
-            </label>
-            <div class="cp-signature-mode" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d85aa8eaad2c33","Signature method") ?? "Signature method")}">
-              <button type="button" class="${state.signatureAdoptMode === 'type' ? 'active' : ''}" data-signature-mode="type">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2e88df13ca7101","Type") ?? "Type")}</button>
-              <button type="button" class="${state.signatureAdoptMode === 'draw' ? 'active' : ''}" data-signature-mode="draw">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_aef70f7de91a93","Draw") ?? "Draw")}</button>
-            </div>
-            <div class="cp-signature-type-panel ${state.signatureAdoptMode === 'type' ? 'active' : ''}">
-              <div class="cp-signature-adopt">
-                <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a681bd2aa1a02e","Typed signature") ?? "Typed signature")}</span>
-                <strong>${escapeHtml(state.signatureName || 'Your Signature')}</strong>
-              </div>
-            </div>
-            <div class="cp-signature-draw-panel ${state.signatureAdoptMode === 'draw' ? 'active' : ''}">
-              <canvas class="cp-signature-pad" width="720" height="220" data-signature-pad aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_713a36d7bac43c","Draw signature") ?? "Draw signature")}"></canvas>
-              <button type="button" class="cp-text-btn" data-signature-clear>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8bc981b41d852c","Clear drawing") ?? "Clear drawing")}</button>
-            </div>
-          `}
-          <div class="cp-esign-actions">
-            <button type="button" class="cp-primary-btn" ${isSign ? 'data-signature-modal-sign' : 'data-signature-modal-adopt'} ${state.proposalBusy ? 'disabled' : ''}>${state.proposalBusy ? 'Saving...' : (isSign ? 'Sign Here' : 'Adopt Signature')}</button>
-            <button type="button" class="cp-text-btn" data-signature-modal-close ${state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cbef679b21abb4","Cancel") ?? "Cancel")}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-  function signedSlotsForDocument(proposal = {}){
-    const slots = customerSlotsForProposal(proposal);
-    const base = state.adoptedSignature || { type: 'typed', text: state.signatureName, style: 'style-classic', signer_name: state.signatureName };
-    return slots.map((slot) => ({
-      signed: slot.signed || proposalSigned(proposal),
-      signature: slot.signature || base,
-      signer_name: cleanText(slot.signer_name || base.signer_name || base.text || state.signatureName)
-    }));
-  }
-  function ensureDocumentSignatureStyles(frame, proposal = activeProposal()){
-    const doc = frame?.contentDocument;
-    if (!doc || doc.getElementById('cp-doc-signature-style')) return;
-    const documentPaperSize = cleanText(doc.querySelector('.r-proposal-pdf-doc')?.getAttribute('data-proposal-paper-size'));
-    const paper = proposalPaperDimensions({ ...(proposal || {}), ...(documentPaperSize ? { paper_size: documentPaperSize } : {}) });
-    const style = doc.createElement('style');
-    style.id = 'cp-doc-signature-style';
-    style.textContent = `
-      html,body{background:#f3f4f6!important;overflow:hidden!important}
-      body{width:auto!important;min-width:0!important;padding:28px 0!important}
-      .r-proposal-pdf-doc{background:#f3f4f6!important}
-      .r-proposal-pdf-doc .r-proposal-wrap{height:auto!important;min-height:0!important;overflow:visible!important;background:#f3f4f6!important;padding:0!important}
-      .r-proposal-pdf-doc .r-proposal-pages{--proposal-page-base-width:${paper.widthPx.toFixed(3)}px!important;--proposal-page-base-height:${paper.heightPx.toFixed(3)}px!important;--proposal-page-scale:1;background:#f3f4f6!important;gap:22px!important;align-items:center!important;padding:0 18px 24px!important}
-      .r-proposal-pdf-doc .r-proposal-page-stack{width:calc(var(--proposal-page-base-width) * var(--proposal-page-scale))!important;height:calc(var(--proposal-page-base-height) * var(--proposal-page-scale))!important;min-height:0!important;margin:0 auto!important;display:block!important;overflow:hidden!important;break-after:auto!important;page-break-after:auto!important;aspect-ratio:auto!important}
-      .r-proposal-pdf-doc .r-proposal-page{width:var(--proposal-page-base-width)!important;height:var(--proposal-page-base-height)!important;min-height:0!important;max-height:none!important;max-width:none!important;aspect-ratio:auto!important;overflow:hidden!important;border:1px solid rgba(15,23,42,.16)!important;border-radius:2px!important;box-shadow:0 18px 42px rgba(15,23,42,.18)!important;background:#fff!important;transform:scale(var(--proposal-page-scale))!important;transform-origin:top left!important}
-      .r-proposal-pdf-doc .r-proposal-page.is-active{box-shadow:0 18px 42px rgba(15,23,42,.18)!important}
-      .r-proposal-pdf-doc .r-proposal-video-player{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important}
-      .r-proposal-pdf-doc .r-proposal-video-print-thumbnail,.r-proposal-pdf-doc .r-proposal-video-print-fallback,.r-proposal-pdf-doc .r-proposal-video-print-placeholder{display:none!important}
-      .cp-doc-sign-target:not(.signed){outline:2px solid #2563eb;outline-offset:2px}
-      .cp-doc-sign-target.current:not(.signed){outline-color:#0f172a;box-shadow:0 0 0 5px rgba(37,99,235,.18)}
-      .r-proposal-signature-tab{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:#2563eb;color:#fff;font:800 12px/1 system-ui,-apple-system,Segoe UI,sans-serif;padding:8px 10px;cursor:pointer}
-      .r-proposal-signature-image{display:block;max-width:260px;max-height:58px;object-fit:contain}
-      .r-proposal-choice-mini{cursor:pointer;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto auto!important}
-      .r-proposal-choice-mini.has-logo,.r-proposal-choice-mini:has(> img){grid-template-columns:22px minmax(0,1fr)!important}
-      .r-proposal-choice-mini > img{grid-column:1!important;grid-row:1 / span 2!important}
-      .r-proposal-choice-mini span{grid-column:1!important}
-      .r-proposal-choice-mini strong{grid-column:1!important;grid-row:2!important}
-      .r-proposal-choice-mini.has-logo span,.r-proposal-choice-mini:has(> img) span,
-      .r-proposal-choice-mini.has-logo strong,.r-proposal-choice-mini:has(> img) strong{grid-column:2!important}
-      .r-proposal-choice-mini.cp-choice-saving{opacity:.7}
-      .r-proposal-choice-grid-row:has(.r-proposal-choice-mini:hover){z-index:3600!important}
-      .r-proposal-choice-grid-row.cp-choice-focus{outline:3px solid rgba(37,99,235,.22);outline-offset:5px;border-radius:10px}
-      .r-proposal-choice-hover{top:calc(100% + 8px)!important;bottom:auto!important;z-index:3400!important}
-    `;
-    doc.head?.appendChild(style);
-  }
-  function bindDocumentProposalVideoPlayback(frame, proposal = activeProposal()){
-    const doc = frame?.contentDocument;
-    if (!frame || !doc) return;
-    frame.__cpProposalVideoCleanup?.();
-    const proposalKey = cleanText(proposal?.id || proposal?.proposal_id || proposal?.title || (globalThis.PlatformLanguage?.text("customer-portal","m_c5c6ef59360f85","proposal") ?? "proposal"));
-    const videos = Array.from(doc.querySelectorAll('video[data-proposal-video="true"]'));
-    if (!videos.length) return;
-    videos.forEach((video, index) => {
-      const key = `${proposalKey}:${cleanText(video.dataset.proposalVideoKey || video.currentSrc || video.src || index)}`;
-      video.__cpProposalVideoKey = key;
-      if (!video.__cpProposalPlayBound) {
-        video.__cpProposalPlayBound = true;
-        video.addEventListener('play', () => {
-          proposalDocumentAutoPlayedVideoKeys.add(video.__cpProposalVideoKey || key);
-        });
-      }
-    });
-    let scheduled = false;
-    const check = () => {
-      scheduled = false;
-      const frameRect = frame.getBoundingClientRect();
-      const viewportWidth = document.documentElement.clientWidth || window.innerWidth || 0;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-      videos.forEach((video) => {
-        const key = video.__cpProposalVideoKey || '';
-        if (!key || proposalDocumentAutoPlayedVideoKeys.has(key)) return;
-        const rect = video.getBoundingClientRect();
-        const left = frameRect.left + rect.left;
-        const top = frameRect.top + rect.top;
-        const right = left + rect.width;
-        const bottom = top + rect.height;
-        const fullyVisible = rect.width > 0 && rect.height > 0 && left >= 0 && top >= 0 && right <= viewportWidth && bottom <= viewportHeight;
-        if (!fullyVisible) return;
-        proposalDocumentAutoPlayedVideoKeys.add(key);
-        video.muted = true;
-        video.play().catch(() => proposalDocumentAutoPlayedVideoKeys.delete(key));
-      });
-    };
-    const scheduleCheck = () => {
-      if (scheduled) return;
-      scheduled = true;
-      requestAnimationFrame(check);
-    };
-    window.addEventListener('scroll', scheduleCheck, { passive: true, capture: true });
-    window.addEventListener('resize', scheduleCheck, { passive: true });
-    frame.__cpProposalVideoCleanup = () => {
-      window.removeEventListener('scroll', scheduleCheck, true);
-      window.removeEventListener('resize', scheduleCheck);
-    };
-    scheduleCheck();
-  }
-  function syncDocumentFrameScale(frame){
-    const doc = frame?.contentDocument;
-    const pages = doc?.querySelector?.('.r-proposal-pages');
-    if (!frame || !doc || !pages) return;
-    const viewportWidth = frame.clientWidth || frame.parentElement?.clientWidth || 820;
-    const availableWidth = Math.max(1, viewportWidth - 36);
-    const baseWidth = parseFloat(pages.style.getPropertyValue('--proposal-page-base-width')) || parseFloat(getComputedStyle(pages).getPropertyValue('--proposal-page-base-width')) || 820;
-    const scale = Math.min(1, Math.max(0.05, availableWidth / baseWidth));
-    pages.style.setProperty('--proposal-page-scale', String(Math.round(scale * 10000) / 10000));
-    const pagesRect = pages.getBoundingClientRect?.();
-    const height = Math.max(220, Math.min(12000, Math.ceil(pagesRect?.bottom || 0) || doc.documentElement?.scrollHeight || doc.body?.scrollHeight || 900));
-    frame.style.height = `${height + 2}px`;
-  }
-  function observeDocumentFrameScale(frame){
-    if (!frame || frame.__cpDocumentScaleObserved) return;
-    frame.__cpDocumentScaleObserved = true;
-    const sync = () => syncDocumentFrameScale(frame);
-    if (typeof ResizeObserver === 'function') {
-      frame.__cpDocumentScaleObserver = new ResizeObserver(sync);
-      frame.__cpDocumentScaleObserver.observe(frame.parentElement || frame);
-    }
-  }
-  function applyDocumentChoiceState(frame, proposal = activeProposal()){
-    const doc = frame?.contentDocument;
-    if (!doc || proposalSigned(proposal)) return;
-    ensureDocumentSignatureStyles(frame, proposal);
-    const groups = proposalCustomerChoiceGroups(proposal);
-    const selectedByGroup = new Map(groups.map((group) => [group.id, cleanText(group.selected?.id)]));
-    Array.from(doc.querySelectorAll('.r-proposal-choice-mini[data-choice-scope-item]')).forEach((card) => {
-      const optionId = cleanText(card.getAttribute('data-choice-scope-item'));
-      const groupId = cleanText(card.getAttribute('data-choice-group-id') || card.closest('[data-choice-group-id]')?.getAttribute('data-choice-group-id'));
-      if (!optionId || !groupId) return;
-      card.classList.toggle('selected', selectedByGroup.get(groupId) === optionId);
-      card.setAttribute('aria-pressed', selectedByGroup.get(groupId) === optionId ? 'true' : 'false');
-      card.onclick = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        selectProposalChoiceOption(groupId, optionId);
-      };
-      card.onkeydown = (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        selectProposalChoiceOption(groupId, optionId);
-      };
-    });
-  }
-  function applyDocumentSignatureState(frame, proposal = activeProposal()){
-    const doc = frame?.contentDocument;
-    if (!doc) return;
-    ensureDocumentSignatureStyles(frame, proposal);
-    observeDocumentFrameScale(frame);
-    syncDocumentFrameScale(frame);
-    bindDocumentProposalVideoPlayback(frame, proposal);
-    applyDocumentChoiceState(frame, proposal);
-    const targets = Array.from(doc.querySelectorAll('.r-proposal-signature-box[data-sign-signer="customer"]'));
-    const signed = signedSlotsForDocument(proposal);
-    targets.forEach((target, slotIndex) => {
-      const slot = signed[slotIndex] || {};
-      const isSigned = !!slot.signed;
-      target.style.cursor = proposalSigned(proposal) ? 'default' : 'pointer';
-      target.classList.add('cp-doc-sign-target');
-      target.classList.toggle('signed', isSigned);
-      target.classList.toggle('current', slotIndex === state.activeSignatureSlotIndex && !isSigned && !proposalSigned(proposal));
-      target.setAttribute('data-cp-doc-sign-index', String(slotIndex));
-      const value = target.querySelector('.r-proposal-signature-value');
-      if (value) {
-        value.innerHTML = isSigned
-          ? signatureValueHtml(slot.signature || {})
-          : `<button type="button" class="r-proposal-signature-tab">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_709d4ebff0e0da","Tap to Sign") ?? "Tap to Sign")}</button>`;
-      }
-      target.onclick = (event) => {
-        event.preventDefault();
-        if (blockPreviewAction('signing')) return;
-        if (proposalSigned(proposal)) return;
-        jumpToSignatureSlot(slotIndex, { openModal: true });
-      };
-    });
-    syncDocumentFrameScale(frame);
-  }
-  function stampDocumentSignatures(proposal = activeProposal()){
-    mount.querySelectorAll('[data-proposal-document-frame]').forEach((frame) => {
-      const index = Number(frame.dataset.proposalDocumentFrame || 0);
-      const frameProposal = proposalList(activeProjectPayload())[index] || proposal;
-      applyDocumentSignatureState(frame, frameProposal);
-    });
-  }
-  function hydrateDocumentFrames(root = mount){
-    root.querySelectorAll('[data-proposal-document-frame]').forEach((frame) => {
-      const index = Number(frame.dataset.proposalDocumentFrame || 0);
-      if (frame.__fmDocumentPending) return;
-      frame.__fmDocumentPending = true;
-      const proposal = proposalList(activeProjectPayload())[index] || activeProposal();
-      resolveProposalDocumentHtml(proposal).then((html) => {
-        frame.__fmDocumentPending = false;
-        if (!html || frame.__fmDocumentHtml === html) return;
-        frame.__fmDocumentHtml = html;
-        frame.srcdoc = html;
-      }).catch((error) => {
-        frame.__fmDocumentPending = false;
-        console.warn('Unable to hydrate proposal document frame', error);
-      });
-      frame.addEventListener('load', () => {
-        const frameProposal = proposalList(activeProjectPayload())[index] || activeProposal();
-        applyDocumentSignatureState(frame, frameProposal);
-      });
-    });
-  }
-  function proposalPageHtml(page = {}, proposal = {}){
-    const kind = cleanText(page.kind).toLowerCase();
-    if (kind === 'pricing') {
-      const items = Array.isArray(page.line_items) ? page.line_items : [];
-      return `
-        <article class="cp-proposal-page">
-          <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_d9a8c9c7287681","Pricing") ?? "Pricing"))}</h3>
-          ${items.length ? `<div class="cp-line-items">
-            ${items.map((item) => `
-              <div class="cp-line-item">
-                <strong>${escapeHtml(item.label || 'Line item')}</strong>
-                <span>${escapeHtml(item.quantity || '')}</span>
-                <span>${escapeHtml(item.unit_price || '')}</span>
-                <b>${escapeHtml(item.amount || '')}</b>
-              </div>
-            `).join('')}
-          </div>` : `<p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4ac63021b2f118","No line items are listed.") ?? "No line items are listed.")}</p>`}
-          <div class="cp-page-total"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${escapeHtml(page.total || '')}</strong></div>
-          ${page.notes ? `<p>${nl2br(page.notes)}</p>` : ''}
-        </article>
-      `;
-    }
-    if (kind === 'signature') {
-      return `
-        <article class="cp-proposal-page">
-          <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_23bdcfd5ce7509","Authorization") ?? "Authorization"))}</h3>
-          ${page.summary ? `<p>${nl2br(page.summary)}</p>` : ''}
-          <div class="cp-payment-grid">
-            <div><span>${escapeHtml(page.pricing_summary_title || 'Contract Amount')}</span><strong>${escapeHtml(page.completion_amount || '')}</strong></div>
-            <div><span>${escapeHtml(page.deposit_label || 'Deposit Amount')}</span><strong>${escapeHtml(page.deposit_amount || '')}</strong></div>
-            <div><span>${escapeHtml(page.financed_label || 'Amount Financed')}</span><strong>${escapeHtml(page.financed_amount || '')}</strong></div>
-          </div>
-          <div class="cp-signature-grid">
-            <div><span>${escapeHtml(page.customer_signature_label || 'Customer Signature')}</span><strong>${escapeHtml(page.customer_printed_name || 'Customer')}</strong></div>
-            <div><span>${escapeHtml(page.company_signature_label || 'Company Representative')}</span><strong>${escapeHtml(page.company_representative || '')}</strong></div>
-            <div><span>${escapeHtml(page.date_label || 'Date')}</span><strong>${escapeHtml(page.date_value || '')}</strong></div>
-          </div>
-          ${pageSignatureSlotHtml(page, proposal)}
-        </article>
-      `;
-    }
-    if (kind === 'fine_print') {
-      return `
-        <article class="cp-proposal-page">
-          <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_fd7326e5624473","Terms and Conditions") ?? "Terms and Conditions"))}</h3>
-          ${page.summary ? `<p>${nl2br(page.summary)}</p>` : ''}
-          ${page.body ? `<p>${nl2br(page.body)}</p>` : ''}
-          ${page.require_customer_signature === false ? '' : pageSignatureSlotHtml(page, proposal)}
-        </article>
-      `;
-    }
-    if (kind === 'cover') {
-      return `
-        <article class="cp-proposal-page cp-cover-page">
-          ${page.kicker ? `<span class="cp-kicker">${escapeHtml(page.kicker)}</span>` : ''}
-          <h3>${escapeHtml(page.heading || page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"))}</h3>
-          <div class="cp-meta-grid">
-            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_61509e0741be13","Prepared For") ?? "Prepared For")}</span><strong>${nl2br(page.prepared_for || '')}</strong></div>
-            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cb120770e6931f","Prepared By") ?? "Prepared By")}</span><strong>${escapeHtml(page.prepared_by || '')}</strong></div>
-            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2a0b11100c22a4","Date") ?? "Date")}</span><strong>${escapeHtml(page.date || '')}</strong></div>
-          </div>
-        </article>
-      `;
-    }
-    const blocks = Array.isArray(page.blocks) ? page.blocks : [];
-    return `
-      <article class="cp-proposal-page">
-        <h3>${escapeHtml(page.title || (globalThis.PlatformLanguage?.text("customer-portal","m_61e1bda0af7448","Project Summary") ?? "Project Summary"))}</h3>
-        ${page.summary ? `<p>${nl2br(page.summary)}</p>` : ''}
-        ${page.body ? `<p>${nl2br(page.body)}</p>` : ''}
-        ${blocks.length ? `<div class="cp-blocks">${blocks.map((block) => `<div>${nl2br(block.text || '')}</div>`).join('')}</div>` : ''}
-      </article>
-    `;
-  }
-  function proposalWorkflowPanel(proposal = {}){
-    const token = cleanText(proposal.public_token || proposal.publicToken);
-    if (!token) return '';
-    const signed = proposalSigned(proposal);
-    const paid = proposalDepositPaid(proposal);
-    const deposit = proposalDeposit(proposal);
-    const payment = proposalPayment(proposal);
-    const orgName = cleanText(activeProjectPayload().organization?.name || 'Company');
-    const slots = customerSlotsForProposal(proposal);
-    const signedSlots = slots.filter((slot) => slot.signed || signed).length;
-    const allSlotsSigned = slots.length > 0 && signedSlots >= slots.length;
-    const choiceGroups = proposalCustomerChoiceGroups(proposal);
-    const choicesReady = !choiceGroups.length || choiceGroups.every((group) => proposalChoiceGroupComplete(proposal, group));
-    if (signed && (!deposit.required || paid)) {
-      return `
-        <section class="cp-esign-panel success" data-proposal-workflow-panel>
-          <div>
-            <span class="cp-proposal-status signed">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e8e493437c1a17","Complete") ?? "Complete")}</span>
-            <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_42a79e2410d827","All steps have been completed.") ?? "All steps have been completed.")}</h3>
-            <p>${escapeHtml(proposalCompletionMessage(proposal, orgName))}</p>
-          </div>
-        </section>
-      `;
-    }
-    if (signed && deposit.required && !paid) {
-      const subtotalCents = Number(payment.subtotal_cents || 0) || Math.round(moneyValue(proposal.totals?.subtotal) * 100);
-      const taxCents = Number(payment.tax_cents || 0) || Math.round(moneyValue(proposal.totals?.tax) * 100);
-      const totalCents = Number(payment.total_cents || 0) || Math.round(moneyValue(proposal.totals?.total) * 100);
-      const dueCents = Number(payment.deposit_due_cents || 0) || Math.round((deposit.due || deposit.amount || 0) * 100);
-      return `
-        <section class="cp-esign-panel payment" data-proposal-workflow-panel>
-          <div>
-            <span class="cp-proposal-status signed">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ab7ec8db303996","Signed") ?? "Signed")}</span>
-            <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_329ac9c65a8d4f","Deposit Required") ?? "Deposit Required")}</h3>
-            <p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_820584a42a2392","Your document is complete. Pay the required deposit now, or choose pay later and return to this portal when ready.") ?? "Your document is complete. Pay the required deposit now, or choose pay later and return to this portal when ready.")}</p>
-          </div>
-          <div class="cp-payment-breakdown">
-            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2fc5623e2a7511","Subtotal") ?? "Subtotal")}</span><strong>${escapeHtml(moneyFormat(subtotalCents / 100))}</strong></div>
-            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_265aee5b3f6c36","Sales tax") ?? "Sales tax")}</span><strong>${escapeHtml(moneyFormat(taxCents / 100))}</strong></div>
-            <div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${escapeHtml(moneyFormat(totalCents / 100))}</strong></div>
-            <div class="due"><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_965e02232118b4","Deposit due now") ?? "Deposit due now")}</span><strong>${escapeHtml(moneyFormat(dueCents / 100))}</strong></div>
-          </div>
-          <div class="cp-esign-actions">
-            <button type="button" class="cp-primary-btn" data-proposal-pay-now ${state.proposalBusy ? 'disabled' : ''}>${state.proposalBusy ? 'Processing...' : 'Pay Now'}</button>
-            <button type="button" class="cp-text-btn" data-proposal-pay-later ${state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d25cd157a5f668","Pay later") ?? "Pay later")}</button>
-          </div>
-          ${state.paymentSuccess ? `<div class="cp-payment-success"><span></span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_6ee93b46bc2e99","Payment approved") ?? "Payment approved")}</div>` : ''}
-        </section>
-      `;
-    }
-    return `
-      <section class="cp-esign-panel" data-proposal-workflow-panel>
-        <div>
-          <span class="cp-proposal-status viewed">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_c0dfc541f509df","Action needed") ?? "Action needed")}</span>
-          <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5027e872187e98","Review and Sign") ?? "Review and Sign")}</h3>
-          <p>${!choicesReady ? 'Review each proposal choice before adopting your signature.' : (allSlotsSigned ? 'All signatures are captured. Complete the document to continue.' : (slots.length ? `Signature ${Math.min(signedSlots + 1, slots.length)} of ${slots.length}` : 'Adopt your signature to complete this proposal.'))}</p>
-        </div>
-        <label class="cp-signature-adopt">
-          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_46a6d933f18958","Full legal name") ?? "Full legal name")}</span>
-          <input type="text" value="${escapeHtml(state.signatureName)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_816925f7bf0230","Type your name") ?? "Type your name")}" data-signature-name>
-          <strong>${escapeHtml(state.signatureName || 'Your Signature')}</strong>
-        </label>
-        <div class="cp-esign-actions">
-          <button type="button" class="cp-primary-btn" data-signature-adopt ${!choicesReady || allSlotsSigned || state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3596ea9d43e3fe","Adopt Signature") ?? "Adopt Signature")}</button>
-          <button type="button" class="cp-primary-btn" data-signature-apply ${!choicesReady || allSlotsSigned || !state.adoptedSignature || state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7b01fd6e01b114","Sign Current Location") ?? "Sign Current Location")}</button>
-          <button type="button" class="cp-ghost-btn" data-signature-complete ${!choicesReady || signedSlots < slots.length || state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_be7d5cd4b892cc","Complete Document") ?? "Complete Document")}</button>
-        </div>
-      </section>
-    `;
-  }
-  function proposalSidebarSummaryHtml(proposal = {}, index = state.activeProposalIndex){
-    return `
-      <section class="cp-proposal-summary-card">
-        <span class="cp-proposal-current-label">${escapeHtml(proposalOptionLabel(index))}</span>
-        <strong>${escapeHtml(proposal.totals?.total || '$0.00')}</strong>
-        <div class="cp-proposal-actions">
-          <button type="button" class="cp-ghost-btn" data-proposal-download="${index}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_871659bb2df660","Download") ?? "Download")}</button>
-          <button type="button" class="cp-ghost-btn" data-proposal-print="${index}">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_441fd948b74354","Print") ?? "Print")}</button>
-        </div>
-      </section>
-    `;
-  }
-  function proposalPaymentSchedule(proposal = {}){
-    const pages = Array.isArray(proposal.pages) ? proposal.pages : [];
-    const signature = pages.find((page) => cleanText(page.kind).toLowerCase() === 'signature') || {};
-    const payment = proposalPayment(proposal);
-    const total = Number(payment.total_cents || 0) / 100 || moneyValue(proposal.totals?.total);
-    const deposit = proposalDeposit(proposal);
-    const rows = [
-      { key: 'deposit', label: cleanText(signature.deposit_label || signature.depositLabel || 'Deposit'), amount: deposit.amount, due: 'Due with signed contract' },
-      { key: 'progress', label: cleanText(signature.completion_label || signature.completionLabel || 'Progress Payment'), amount: moneyValue(signature.completion_amount || signature.completionAmount), due: cleanText(signature.completion_due || signature.completionDue || 'Due at project halfway point') },
-      { key: 'final', label: cleanText(signature.financed_label || signature.financedLabel || 'Final Payment'), amount: moneyValue(signature.financed_amount || signature.financedAmount), due: cleanText(signature.financed_due || signature.financedDue || 'Due at project completion') }
-    ].filter((row) => row.amount > 0);
-    if (!rows.length && total > 0) rows.push({ label: (globalThis.PlatformLanguage?.text("customer-portal","m_540960bbc1cecc","Project Total") ?? "Project Total"), amount: total, due: 'Per proposal terms' });
-    return rows;
-  }
-  function proposalCompletionMessage(proposal = {}, orgName = 'Company'){
-    const configured = cleanText(proposal.workflow?.completion_message || proposal.completion_message || proposal.builder_document?.completion_message);
-    return (configured || `${orgName} will reach out with next steps.`).replace(/\{\{\s*company\s*\}\}/gi, orgName);
-  }
-  function showPortalPriceComparison(proposals = []){
-    const proposal = proposals[state.activeProposalIndex] || proposals[0] || {};
-    return proposal.workflow?.show_portal_price_comparison !== false && proposal.show_portal_price_comparison !== false;
-  }
-  function proposalOptionLabel(index){
-    return `Proposal ${String.fromCharCode(65 + (index % 26))}${index >= 26 ? Math.floor(index / 26) + 1 : ''}`;
-  }
-  function proposalOptionTabsHtml(proposals = []){
-    if (proposals.length <= 1) return '';
-    const showTotals = showPortalPriceComparison(proposals);
-    return `
-      <div class="cp-proposal-options" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3b5499286714d1","Proposal options") ?? "Proposal options")}">
-        ${proposals.map((proposal, index) => {
-          const signed = proposalSigned(proposal);
-          const unavailable = proposalExpired(proposal);
-          return `
-            <button type="button" class="${index === state.activeProposalIndex ? 'active' : ''} ${signed ? 'signed' : ''} ${unavailable ? 'unavailable' : ''}" data-proposal-option="${index}" aria-pressed="${index === state.activeProposalIndex ? 'true' : 'false'}" ${unavailable ? 'disabled' : ''}>
-              <strong>${escapeHtml(proposalOptionLabel(index))}</strong>
-              ${showTotals ? `<b>${escapeHtml(proposal.totals?.total || '')}</b>` : ''}
-              ${signed ? `<span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ab7ec8db303996","Signed") ?? "Signed")}</span>` : (unavailable ? `<span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e685fe954b1758","Expired") ?? "Expired")}</span>` : '')}
-            </button>
-          `;
-        }).join('')}
-      </div>
-    `;
-  }
-  function latestPaidProposal(proposals = []){
-    return proposals.find((proposal) => proposalDepositPaid(proposal)) || null;
-  }
-  function timelineActionIcon(step = {}){
-    const id = cleanText(step.id);
-    const action = cleanText(step.action);
-    if (id.startsWith('choice_') || action.includes('proposal-choice-step')) {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h11"/><path d="M8 12h11"/><path d="M8 17h11"/><path d="m3.5 7 .8.8 1.7-2"/><path d="m3.5 12 .8.8 1.7-2"/><path d="m3.5 17 .8.8 1.7-2"/></svg>';
-    }
-    if (id === 'payment' || action.includes('proposal-pay')) {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18"/><path d="M17 7.5c-.8-1-2.1-1.5-4-1.5-2.2 0-4 1-4 2.8 0 3.9 8 1.9 8 6.1 0 1.8-1.7 3.1-4.4 3.1-2 0-3.6-.6-4.6-1.8"/></svg>';
-    }
-    if (id === 'complete' || action.includes('signature-complete')) {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
-    }
-    if (id === 'adopt' || id.startsWith('slot_') || action.includes('signature')) {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16.5 4.5 3 3L8 19l-4 1 1-4Z"/><path d="m14 7 3 3"/></svg>';
-    }
-    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>';
-  }
-  function timelineActionLabel(step = {}, compact = true){
-    const id = cleanText(step.id);
-    const action = cleanText(step.action);
-    if (id === 'adopt' || action.includes('signature-adopt')) return compact ? 'Adopt' : 'Adopt Signature';
-    if (id.startsWith('choice_') || action.includes('proposal-choice-step')) return compact ? 'Choose' : 'Review Choice';
-    if (id.startsWith('slot_') || action.includes('signature-jump')) return compact ? 'Sign' : 'Next';
-    if (id === 'payment' || action.includes('proposal-pay')) return compact ? 'Pay' : 'Pay Deposit';
-    if (id === 'complete' || action.includes('signature-complete')) return compact ? 'Finish' : 'Finish Signing';
-    return compact ? 'Open' : 'Next';
-  }
-  function timelineStepHtml(step = {}){
-    const tag = step.action ? 'button' : 'div';
-    const attrs = step.action
-      ? `type="button" ${step.action} ${step.disabled ? 'disabled' : ''}`
-      : '';
-    const actionable = !!step.action && !step.disabled && !step.complete;
-    return `
-      <${tag} class="cp-timeline-step ${step.complete ? 'complete' : ''} ${step.current ? 'current' : ''} ${step.disabled ? 'disabled' : ''}" ${attrs}>
-        <span class="cp-timeline-dot" aria-hidden="true"></span>
-        <span class="cp-timeline-copy">
-          <strong>${escapeHtml(step.label || '')}</strong>
-          ${step.detail ? `<small>${escapeHtml(step.detail)}</small>` : ''}
-        </span>
-        ${actionable ? `
-          <span class="cp-timeline-action" aria-hidden="true">
-            ${timelineActionIcon(step)}
-            <span>${escapeHtml(timelineActionLabel(step))}</span>
-          </span>
-        ` : ''}
-      </${tag}>
-    `;
-  }
-  function signatureRailHtml(proposal = {}){
-    const slots = customerSlotsForProposal(proposal);
-    const signed = proposalSigned(proposal);
-    const signedCount = slots.filter((slot) => slot.signed || signed).length;
-    const allSlotsSigned = slots.length > 0 && signedCount >= slots.length;
-    const adopted = !!state.adoptedSignature || signedCount > 0 || signed;
-    const deposit = proposalDeposit(proposal);
-    const paid = proposalDepositPaid(proposal);
-    const firstUnsigned = slots.findIndex((slot) => !(slot.signed || signed));
-    const multipleOptions = proposalList(activeProjectPayload()).length > 1;
-    const allowMultipleOptions = proposal.workflow?.allow_multiple_proposal_selection === true || proposal.allow_multiple_proposal_selection === true;
-    const choiceGroups = proposalCustomerChoiceGroups(proposal);
-    const firstIncompleteChoice = choiceGroups.find((group) => !proposalChoiceGroupComplete(proposal, group));
-    const choicesReady = !choiceGroups.length || choiceGroups.every((group) => proposalChoiceGroupComplete(proposal, group));
-    const optionReviewed = proposalEngaged(proposal) || choicesReady || adopted || signedCount > 0 || signed;
-    const steps = [{
-      id: 'read',
-      label: multipleOptions ? (allowMultipleOptions ? 'Review Documents' : 'Choose Proposal Option') : 'Read Document',
-      detail: optionReviewed ? `${proposalOptionLabel(state.activeProposalIndex)} reviewed` : (multipleOptions ? (allowMultipleOptions ? 'Review each document above' : 'Choose an option above the document') : 'Review the document on the right'),
-      complete: optionReviewed,
-      current: !optionReviewed && !firstIncompleteChoice
-    }];
-    choiceGroups.forEach((group, index) => {
-      const complete = proposalChoiceGroupComplete(proposal, group);
-      const current = !signed && !adopted && firstIncompleteChoice?.id === group.id;
-      steps.push({
-        id: `choice_${group.id || index}`,
-        label: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_2d0d8d9462a4bf",`Choose ${v0}`,{v0}) ?? `Choose ${v0}`)(group.title || `Option ${index + 1}`),
-        detail: complete ? (group.selected ? `${group.selected.display_name || group.selected.name || 'Option'} selected` : 'Selection reviewed') : 'Review this option group',
-        complete,
-        current,
-        disabled: signed,
-        action: `data-proposal-choice-step="${escapeHtml(group.id)}"`
-      });
-    });
-    steps.push({
-      id: 'adopt',
-      label: (globalThis.PlatformLanguage?.text("customer-portal","m_3596ea9d43e3fe","Adopt Signature") ?? "Adopt Signature"),
-      detail: adopted ? 'Signature ready' : (choicesReady ? 'Type or draw your signature' : 'Complete proposal choices first'),
-      complete: adopted,
-      current: choicesReady && !adopted,
-      disabled: adopted || !choicesReady,
-      action: 'data-signature-adopt'
-    });
-    slots.forEach((slot, index) => {
-      const slotSigned = slot.signed || signed;
-      const previousSigned = index === 0 || slots.slice(0, index).every((item) => item.signed || signed);
-      const current = choicesReady && adopted && previousSigned && !slotSigned && firstUnsigned === index;
-      steps.push({
-        id: `slot_${index}`,
-        label: ((v0) => globalThis.PlatformLanguage?.text("customer-portal","m_006a6357c44020",`Sign Location ${v0}`,{v0}) ?? `Sign Location ${v0}`)(index + 1),
-        detail: slotSigned ? 'Signed' : (!choicesReady ? 'Complete proposal choices first' : (adopted ? (current ? 'Tap to jump to this signature' : 'Complete previous signature first') : 'Adopt a signature first')),
-        complete: slotSigned,
-        current,
-        disabled: !choicesReady || !adopted || !previousSigned || slotSigned,
-        action: `data-signature-jump="${index}"`
-      });
-    });
-    if (deposit.required) {
-      steps.push({
-        id: 'payment',
-        label: (globalThis.PlatformLanguage?.text("customer-portal","m_c9757e72b2461d","Deposit Payment") ?? "Deposit Payment"),
-        detail: paid ? 'Payment received' : (signed ? `Deposit due ${deposit.label || ''}`.trim() : 'Available after signing'),
-        complete: paid,
-        current: signed && !paid,
-        disabled: !signed || paid,
-        action: signed && !paid ? 'data-proposal-pay-now' : ''
-      });
-    }
-    steps.push({
-      id: 'complete',
-      label: allSlotsSigned && !signed ? 'Finish Signing' : 'Completed',
-      detail: signed && (!deposit.required || paid) ? 'All steps complete' : (allSlotsSigned && !signed ? 'Finalize the signed document' : 'Complete signing and payment first'),
-      complete: signed && (!deposit.required || paid),
-      current: allSlotsSigned && !signed,
-      disabled: !choicesReady,
-      action: allSlotsSigned && !signed && choicesReady ? 'data-signature-complete' : ''
-    });
-    const nextAction = steps.find((step) => step.action && !step.disabled && !step.complete);
-    const completedSteps = steps.filter((step) => step.complete).length;
-    return `
-      <section class="cp-sign-rail cp-timeline-card" data-signature-rail>
-        <div class="cp-sign-rail-head">
-          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3c318c8d1f9b1a","Timeline") ?? "Timeline")}</span>
-          <strong>${completedSteps}/${steps.length}</strong>
-        </div>
-        <div class="cp-timeline-list">
-          ${steps.map(timelineStepHtml).join('')}
-        </div>
-        ${nextAction ? `
-          <button type="button" class="cp-primary-btn cp-timeline-next" ${nextAction.action} ${state.proposalBusy ? 'disabled' : ''}>
-            ${timelineActionIcon(nextAction)}
-            <span>${escapeHtml(timelineActionLabel(nextAction, false))}</span>
-          </button>
-        ` : ''}
-        ${deposit.required && signed && !paid ? `
-          <button type="button" class="cp-text-btn cp-timeline-pay-later" data-proposal-pay-later ${state.proposalBusy ? 'disabled' : ''}>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d25cd157a5f668","Pay later") ?? "Pay later")}</button>
-        ` : ''}
-      </section>
-    `;
-  }
-  function renderSignatureRail(){
-    const rail = mount.querySelector('[data-signature-rail]');
-    if (!rail) return;
-    rail.outerHTML = signatureRailHtml(activeProposal());
-    bindSignatureControls(mount.querySelector('[data-signature-rail]') || mount);
-    mount.querySelectorAll('[data-proposal-pay-now]').forEach((btn) => btn.addEventListener('click', payDepositNow));
-    mount.querySelectorAll('[data-proposal-pay-later]').forEach((btn) => btn.addEventListener('click', payDepositLater));
-  }
-  function renderProposalWorkflowPanelOnly(){
-    const panel = mount.querySelector('[data-proposal-workflow-panel]');
-    if (!panel) return;
-    panel.outerHTML = proposalWorkflowPanel(activeProposal());
-    bindSignatureControls(mount);
-  }
-  function renderProposalTotalsOnly(){
-    const proposal = activeProposal();
-    const summary = mount.querySelector('.cp-proposal-summary-card');
-    const summaryTotal = summary?.querySelector(':scope > strong');
-    if (summaryTotal) summaryTotal.textContent = proposal.totals?.total || '$0.00';
-    const proposals = proposalList(activeProjectPayload());
-    mount.querySelectorAll('[data-proposal-option]').forEach((btn) => {
-      const index = Number(btn.dataset.proposalOption || 0);
-      const total = proposals[index]?.totals?.total || '';
-      const totalNode = btn.querySelector('b');
-      if (totalNode) totalNode.textContent = total;
-    });
-    mount.querySelectorAll('[data-proposal-index]').forEach((btn) => {
-      const index = Number(btn.dataset.proposalIndex || 0);
-      const totalNode = btn.querySelector('b');
-      if (totalNode) totalNode.textContent = proposals[index]?.totals?.total || '';
-    });
-  }
-  function renderOverviewPanelOnly(){
-    const panel = mount.querySelector('[data-cp-overview]');
-    if (!panel) return;
-    const payload = activeProjectPayload();
-    panel.outerHTML = overviewPanel(payload, proposalList(payload), cleanText(payload.organization?.name || 'Company'));
-    const nextPanel = mount.querySelector('[data-cp-overview]');
-    nextPanel?.querySelectorAll('[data-step-target]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const rawProposalIndex = cleanText(btn.dataset.stepProposal);
-        const proposalIndex = Number(rawProposalIndex);
-        if (rawProposalIndex && Number.isFinite(proposalIndex)) state.activeProposalIndex = proposalIndex;
-        setActiveTab(btn.dataset.stepTarget || 'summary');
-        track('workflow_step_opened', { step: btn.textContent.trim().replace(/\s+/g, ' ') });
-      });
-    });
-  }
-  function renderProposalPartialState(){
-    renderSignatureModalLayer();
-    renderProposalTotalsOnly();
-    renderOverviewPanelOnly();
-    renderProposalWorkflowPanelOnly();
-    renderSignatureRail();
-    stampDocumentSignatures();
-  }
-  function jumpToProposalChoiceGroup(groupId = ''){
-    const proposal = activeProposal();
-    const targetGroupId = cleanText(groupId);
-    if (!targetGroupId) return;
-    markProposalChoiceGroupSeen(proposal, targetGroupId);
-    renderSignatureRail();
-    const frame = mount.querySelector(`[data-proposal-document-frame="${state.activeProposalIndex}"]`);
-    const doc = frame?.contentDocument;
-    const target = doc?.querySelector(`[data-choice-group-id="${cssEscape(targetGroupId)}"]`);
-    if (target) {
-      doc.querySelectorAll('.cp-choice-focus').forEach((node) => node.classList.remove('cp-choice-focus'));
-      target.classList.add('cp-choice-focus');
-      const frameRect = frame.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      const offset = Math.max(140, Math.round((window.innerHeight || 720) / 3));
-      const top = Math.max(0, window.scrollY + frameRect.top + targetRect.top - offset);
-      window.scrollTo({ top, behavior: 'smooth' });
-      window.setTimeout(() => target.classList.remove('cp-choice-focus'), 2200);
-    }
-    track('proposal_choice_step_opened', { proposal_id: proposal.id || proposal.proposal_id || '', group_id: targetGroupId });
-    renderSignatureRail();
-  }
-  function jumpToSignatureSlot(index, options = {}){
-    const slotIndex = Math.max(0, Number(index || 0) || 0);
-    state.activeSignatureSlotIndex = slotIndex;
-    renderSignatureRail();
-    stampDocumentSignatures();
-    const frame = mount.querySelector(`[data-proposal-document-frame="${state.activeProposalIndex}"]`);
-    const target = frame?.contentDocument?.querySelector(`.cp-doc-sign-target[data-cp-doc-sign-index="${slotIndex}"]`);
-    if (frame && target) {
-      const frameRect = frame.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      const top = Math.max(0, window.scrollY + frameRect.top + targetRect.top - 160);
-      window.scrollTo({ top, behavior: 'smooth' });
-    }
-    if (options.openModal) {
-      window.setTimeout(() => openSignatureModal(slotIndex), target ? 180 : 0);
-    }
-  }
-  function jumpToNextSignatureSlot(options = {}){
-    const proposal = activeProposal();
-    const slots = customerSlotsForProposal(proposal);
-    const index = slots.findIndex((slot) => !(slot.signed || proposalSigned(proposal)));
-    if (index >= 0) jumpToSignatureSlot(index, options);
-  }
-  function proposalViewer(proposals){
-    if (!proposals.length) return proposalWidget(proposals);
-    state.activeProposalIndex = Math.max(0, Math.min(state.activeProposalIndex, proposals.length - 1));
-    const signedIndex = signedProposalIndex(proposals);
-    if (signedIndex >= 0 && proposalExpired(proposals[state.activeProposalIndex])) {
-      state.activeProposalIndex = signedIndex;
-    }
-    const proposal = proposals[state.activeProposalIndex] || proposals[0];
-    if (!state.signatureName) state.signatureName = proposalSignerName(proposal);
-    const pages = Array.isArray(proposal.pages) ? proposal.pages : [];
-    const documentHtml = proposalDocumentHtml(proposal);
-    return `
-      <div class="cp-proposal-layout">
-        <aside class="cp-proposal-sidebar">
-          ${proposalSidebarSummaryHtml(proposal, state.activeProposalIndex)}
-          ${signatureRailHtml(proposal)}
-        </aside>
-        <section class="cp-proposal-viewer">
-          ${proposalOptionTabsHtml(proposals)}
-          ${documentHtml ? `
-            <div class="cp-document-shell">
-              <iframe class="cp-document-frame" data-proposal-document-frame="${state.activeProposalIndex}" title="${escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_aa6a24e15dfc1d","Proposal document") ?? "Proposal document"))}" scrolling="no"></iframe>
-            </div>
-          ` : (pages.length ? pages.map((page) => proposalPageHtml(page, proposal)).join('') : `<div class="cp-empty">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_1ac05f4d4b72bb","This proposal does not have visible pages yet.") ?? "This proposal does not have visible pages yet.")}</div>`)}
-        </section>
-      </div>
-    `;
-  }
-  function signatureModalContainer(){
-    if (signatureModalHost && document.body.contains(signatureModalHost)) return signatureModalHost;
-    signatureModalHost = document.createElement('div');
-    signatureModalHost.id = 'cpSignatureModalHost';
-    document.body.appendChild(signatureModalHost);
-    return signatureModalHost;
-  }
-  function renderSignatureModalLayer(){
-    const host = signatureModalContainer();
-    host.innerHTML = signatureModalHtml(activeProposal());
-    if (host.innerHTML) {
-      bindSignatureControls(host);
-      setupSignaturePad(host);
-    }
-  }
-  function paymentModalContainer(){
-    let host = document.getElementById('cpPaymentModalHost');
-    if (!host) {
-      host = document.createElement('div');
-      host.id = 'cpPaymentModalHost';
-      document.body.appendChild(host);
-    }
-    return host;
-  }
-  function paymentReceiptNumber(proposal = activeProposal(), paymentId = ''){
-    const payment = proposalPayment(proposal);
-    return cleanText(paymentId || payment.payment_id || payment.id || payment.receipt_id || proposal.snapshot_id || proposal.id).slice(-8).toUpperCase() || 'PENDING';
-  }
-  function paymentDigits(value){
-    return cleanText(value).replace(/\D/g, '');
-  }
-  function validCardNumber(value){
-    const digits = paymentDigits(value);
-    if (digits.length < 13 || digits.length > 19) return false;
-    let sum = 0;
-    let doubleDigit = false;
-    for (let index = digits.length - 1; index >= 0; index -= 1) {
-      let digit = Number(digits[index]);
-      if (doubleDigit) {
-        digit *= 2;
-        if (digit > 9) digit -= 9;
-      }
-      sum += digit;
-      doubleDigit = !doubleDigit;
-    }
-    return sum % 10 === 0;
-  }
-  function validCardExpiration(value){
-    const match = cleanText(value).match(/^(\d{1,2})\s*\/\s*(\d{2}|\d{4})$/);
-    if (!match) return false;
-    const month = Number(match[1]);
-    const year = Number(match[2].length === 2 ? `20${match[2]}` : match[2]);
-    if (month < 1 || month > 12 || year < 2000) return false;
-    const expiresAt = new Date(year, month, 0, 23, 59, 59, 999);
-    return expiresAt.getTime() >= Date.now();
-  }
-  function formatCardNumber(value){
-    return paymentDigits(value).slice(0, 19).replace(/(\d{4})(?=\d)/g, '$1 ');
-  }
-  function bindMockPaymentFormInputs(host){
-    host.querySelector('[data-mock-payment-form]')?.addEventListener('input', () => {
-      if (!state.paymentFormError) return;
-      state.paymentFormError = '';
-      host.querySelector('.cp-payment-form-error')?.remove();
-    });
-    const cardNumber = host.querySelector('[data-payment-field="card-number"]');
-    if (cardNumber) {
-      cardNumber.addEventListener('input', () => {
-        const formatted = formatCardNumber(cardNumber.value);
-        cardNumber.value = formatted;
-      });
-    }
-    const expiryMonth = host.querySelector('[data-payment-field="expiry-month"]');
-    const expiryYear = host.querySelector('[data-payment-field="expiry-year"]');
-    if (expiryMonth && expiryYear) {
-      expiryMonth.addEventListener('input', () => {
-        const digits = paymentDigits(expiryMonth.value);
-        if (digits.length > 2) {
-          expiryMonth.value = digits.slice(0, 2);
-          expiryYear.value = digits.slice(2, 6);
-          expiryYear.focus();
-          return;
-        }
-        expiryMonth.value = digits;
-        if (digits.length === 2) expiryYear.focus();
-      });
-      expiryYear.addEventListener('input', () => {
-        expiryYear.value = paymentDigits(expiryYear.value).slice(0, 4);
-      });
-      expiryMonth.addEventListener('paste', (event) => {
-        const text = event.clipboardData?.getData('text') || '';
-        const match = cleanText(text).match(/^(\d{1,2})\D*(\d{2}|\d{4})$/);
-        if (!match) return;
-        event.preventDefault();
-        expiryMonth.value = match[1].padStart(2, '0').slice(-2);
-        expiryYear.value = match[2];
-        expiryYear.focus();
-      });
-    }
-  }
-  function validRoutingNumber(value){
-    const digits = paymentDigits(value);
-    return /^\d{9}$/.test(digits);
-  }
-  function validateMockPaymentForm(host){
-    const method = cleanText(state.paymentMethod || 'Card');
-    const value = (name) => host.querySelector(`[data-payment-field="${name}"]`)?.value || '';
-    if (method === 'ACH') {
-      if (!cleanText(value('ach-name'))) return 'Enter the account holder name.';
-      if (!validRoutingNumber(value('routing'))) return 'Enter a valid 9-digit routing number.';
-      const account = paymentDigits(value('account'));
-      if (account.length < 4 || account.length > 17) return 'Enter an account number between 4 and 17 digits.';
-      if (account !== paymentDigits(value('account-confirm'))) return 'Account numbers must match.';
-      if (!host.querySelector('[data-payment-field="ach-authorize"]')?.checked) return 'Authorize the ACH debit to continue.';
-      return '';
-    }
-    if (!cleanText(value('card-name'))) return 'Enter the name on the card.';
-    if (!validCardNumber(value('card-number'))) return 'Enter a valid card number.';
-    if (!validCardExpiration(`${value('expiry-month')}/${value('expiry-year')}`)) return 'Enter a valid future expiration date.';
-    if (!/^\d{3,4}$/.test(paymentDigits(value('cvc')))) return 'Enter a 3 or 4 digit security code.';
-    if (!/^\d{5}(\d{4})?$/.test(paymentDigits(value('zip')))) return 'Enter a valid billing ZIP code.';
-    return '';
-  }
-  function paymentModalHtml(){
-    if (!state.paymentModalOpen) return '';
-    const proposal = activeProposal();
-    const deposit = proposalDeposit(proposal);
-    const payment = proposalPayment(proposal);
-    const selectedObligation = proposalPaymentObligations(proposal).find((item) => cleanText(item.id) === cleanText(state.activePaymentObligationId));
-    const dueCents = Number(selectedObligation?.balance_due_cents || payment.deposit_due_cents || 0) || Math.round((deposit.due || deposit.amount || 0) * 100);
-    const paymentLabel = cleanText(selectedObligation?.label || 'Deposit');
-    const totalCents = Number(payment.total_cents || 0) || Math.round(moneyValue(proposal.totals?.total) * 100);
-    const schedule = proposalPaymentSchedule(proposal);
-    const hasSelectedMethod = ['Card', 'ACH'].includes(cleanText(state.paymentMethod));
-    const selectedMethod = cleanText(state.paymentMethod) === 'ACH' ? 'ACH' : 'Card';
-    const methods = [
-      ['Card', 'Credit or debit card', 'card'],
-      ['ACH', 'Bank transfer', 'bank']
-    ];
-    const receipt = paymentReceiptNumber(proposal);
-    const email = cleanText(state.receiptEmail || projectCustomer(activeProjectPayload()).email);
-    const paymentFormHtml = selectedMethod === 'ACH' ? `
-      <form class="cp-mock-payment-form" data-mock-payment-form novalidate>
-        <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_474c1095f06ee2","ACH payment") ?? "ACH payment")}</h3>
-        <div class="cp-form-grid">
-          <label class="wide">
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8506755b32ab8f","Account holder name") ?? "Account holder name")}</span>
-            <input type="text" autocomplete="name" data-payment-field="ach-name" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}">
-          </label>
-          <label>
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_308a9ca41691ca","Routing number") ?? "Routing number")}</span>
-            <input type="text" inputmode="numeric" autocomplete="off" data-payment-field="routing" placeholder="021000021" maxlength="9">
-          </label>
-          <label>
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_a2ee1cfe84c2c3","Account type") ?? "Account type")}</span>
-            <select data-payment-field="account-type">
-              <option value="checking">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8f2aa52d7e253b","Checking") ?? "Checking")}</option>
-              <option value="savings">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5b503699d80ad2","Savings") ?? "Savings")}</option>
-            </select>
-          </label>
-          <label>
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b028fb8bb8ac0a","Account number") ?? "Account number")}</span>
-            <input type="password" inputmode="numeric" autocomplete="off" data-payment-field="account" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b1011e3f2fdec3","4-17 digits") ?? "4-17 digits")}">
-          </label>
-          <label>
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3e51d57ae99ede","Confirm account") ?? "Confirm account")}</span>
-            <input type="password" inputmode="numeric" autocomplete="off" data-payment-field="account-confirm" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ec1fbf411120da","Retype account") ?? "Retype account")}">
-          </label>
-        </div>
-        <label class="cp-payment-authorize">
-          <input type="checkbox" data-payment-field="ach-authorize">
-          <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2c721c4e180145","I authorize this ACH debit from the bank account above for the payment amount shown.") ?? "I authorize this ACH debit from the bank account above for the payment amount shown.")}</span>
-        </label>
-        ${state.paymentFormError ? `<div class="cp-payment-form-error">${escapeHtml(state.paymentFormError)}</div>` : ''}
-        <div class="cp-payment-actions">
-          <button type="submit" class="cp-primary-btn">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_abd8f8fbf164f0","Run Mock ACH") ?? "Run Mock ACH")}</button>
-        </div>
-      </form>
-    ` : `
-      <form class="cp-mock-payment-form" data-mock-payment-form novalidate>
-        <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_997bb5a9e56d22","Card payment") ?? "Card payment")}</h3>
-        <div class="cp-form-grid">
-          <label class="wide">
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3a7bcfa366c064","Name on card") ?? "Name on card")}</span>
-            <input type="text" autocomplete="cc-name" data-payment-field="card-name" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4fce17318219ed","Jordan Smith") ?? "Jordan Smith")}">
-          </label>
-          <label class="wide">
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_cbbfb3da2ddfde","Card number") ?? "Card number")}</span>
-            <input type="text" inputmode="numeric" autocomplete="cc-number" data-payment-field="card-number" placeholder="4242 4242 4242 4242" maxlength="23">
-          </label>
-          <div class="cp-expiry-field">
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_95af41e20221e6","Expiration") ?? "Expiration")}</span>
-            <div class="cp-expiry-pair">
-              <input type="text" inputmode="numeric" autocomplete="cc-exp-month" data-payment-field="expiry-month" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_65c801480ef4cc","MM") ?? "MM")}" maxlength="5">
-              <input type="text" inputmode="numeric" autocomplete="cc-exp-year" data-payment-field="expiry-year" placeholder="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4cbe3961dabf19","YY") ?? "YY")}" maxlength="4">
-            </div>
-          </div>
-          <label>
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7e7759fb0c36df","CVC") ?? "CVC")}</span>
-            <input type="text" inputmode="numeric" autocomplete="cc-csc" data-payment-field="cvc" placeholder="123" maxlength="4">
-          </label>
-          <label>
-            <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_37e7c561258701","Billing ZIP") ?? "Billing ZIP")}</span>
-            <input type="text" inputmode="numeric" autocomplete="postal-code" data-payment-field="zip" placeholder="90210">
-          </label>
-        </div>
-        ${state.paymentFormError ? `<div class="cp-payment-form-error">${escapeHtml(state.paymentFormError)}</div>` : ''}
-        <div class="cp-payment-actions">
-          <button type="submit" class="cp-primary-btn">${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d3dceece330aad","Run Mock Card") ?? "Run Mock Card")}</button>
-        </div>
-      </form>
-    `;
-    const scheduleHtml = `
-      <div class="cp-checkout-schedule" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_efee8a08306ce6","Payment schedule") ?? "Payment schedule")}">
-        ${schedule.map((row, index) => `
-          <article class="${index === 0 ? 'due' : ''}">
-            <div>
-              <span>${escapeHtml(row.label)}</span>
-              <small>${escapeHtml(row.due)}</small>
-            </div>
-            <strong>${escapeHtml(moneyFormat(row.amount))}</strong>
-          </article>
-        `).join('')}
-      </div>
-    `;
-    const body = (() => {
-      if (state.paymentModalStep === 'processing') {
-        return `<div class="cp-payment-screen active"><div class="cp-checkout-processing"><span></span><strong>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_c433668bcc52bd",`Processing ${v0}...`,{v0}) ?? `Processing ${v0}...`)(escapeHtml(state.paymentMethod || 'payment'))}</strong><p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4ebcfc3178def9","Please keep this window open while the payment is authorized.") ?? "Please keep this window open while the payment is authorized.")}</p></div></div>`;
-      }
-      if (state.paymentModalStep === 'receipt') {
-        return `
-          <div class="cp-payment-screen active">
-            <div class="cp-checkout-receipt">
-              <div>
-                <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_44d5a64ac2cb37","Email receipt") ?? "Email receipt")}</h3>
-                <p>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e8132bd7b152df","You can always download the paid invoice from the payments tab in the customer portal.") ?? "You can always download the paid invoice from the payments tab in the customer portal.")}</p>
-              </div>
-              <label>
-                <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_fb8bbfd84024fc","Email receipt to") ?? "Email receipt to")}</span>
-                <input type="email" value="${escapeHtml(email)}" data-receipt-email>
-              </label>
-            </div>
-          </div>
-          <div class="cp-payment-actions">
-            <button type="button" class="cp-ghost-btn" data-receipt-back>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_121372231b5699","Back") ?? "Back")}</button>
-            <button type="button" class="cp-primary-btn" data-receipt-send>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_95239266490f34","Send Receipt") ?? "Send Receipt")}</button>
-          </div>
-        `;
-      }
-      if (state.paymentModalStep === 'success') {
-        return `
-          <div class="cp-payment-screen active">
-            <div class="cp-checkout-success">
-              <svg viewBox="0 0 56 56" aria-hidden="true">
-                <circle cx="28" cy="28" r="25"></circle>
-                <path d="M17 29.5 24.5 37 40 20"></path>
-              </svg>
-              <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_f76567c2a072ff","Payment went through") ?? "Payment went through")}</h3>
-              <p>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_e2efa10c479b61",`Paid invoice ${v0} for ${v1} is ready.`,{v0,v1}) ?? `Paid invoice ${v0} for ${v1} is ready.`)(escapeHtml(receipt),escapeHtml(moneyFormat(dueCents / 100)))}</p>
-              ${state.receiptSent ? `<div class="cp-payment-success static"><span></span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_728fb7f31e01d1","Receipt sent.") ?? "Receipt sent.")}</div>` : ''}
-            </div>
-          </div>
-          <div class="cp-payment-actions">
-            <button type="button" class="cp-ghost-btn" data-receipt-download>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e2f600c5c92df9","Download Invoice") ?? "Download Invoice")}</button>
-            <button type="button" class="cp-ghost-btn" data-receipt-open-email>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e68bac6d7f6b86","Email Receipt") ?? "Email Receipt")}</button>
-            <button type="button" class="cp-primary-btn" data-payment-done>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_8cb6b086a0e69c","Done") ?? "Done")}</button>
-          </div>
-        `;
-      }
-      return `
-        <div class="cp-payment-screen cp-payment-picker-page active">
-          <div class="cp-checkout-grid">
-            <div class="cp-checkout-main">
-              <div class="cp-checkout-amount">
-                <span>${((v0) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_775452a1b021e2",`${v0} due now`,{v0}) ?? `${v0} due now`)(escapeHtml(paymentLabel))}</span>
-                <strong>${escapeHtml(moneyFormat(dueCents / 100))}</strong>
-                <small>${((v2) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_255a20d5b0faf6",`Total proposal ${v2}`,{v2}) ?? `Total proposal ${v2}`)(escapeHtml(moneyFormat(totalCents / 100)))}</small>
-              </div>
-              <div class="cp-checkout-methods">
-                ${methods.map(([label, detail, icon]) => `
-                  <button type="button" class="${hasSelectedMethod && label === selectedMethod ? 'active' : ''}" data-payment-method="${escapeHtml(label)}" aria-pressed="${hasSelectedMethod && label === selectedMethod ? 'true' : 'false'}">
-                    <i class="${escapeHtml(icon)}"></i>
-                    <span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></span>
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-            <aside class="cp-checkout-side cp-payment-detail-pane">
-              ${hasSelectedMethod ? `
-                <div class="cp-payment-pane-content cp-payment-pane-form">
-                  ${paymentFormHtml}
-                </div>
-              ` : `
-                <div class="cp-payment-pane-content">
-                  <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_efee8a08306ce6","Payment schedule") ?? "Payment schedule")}</h3>
-                  ${scheduleHtml}
-                </div>
-              `}
-            </aside>
-          </div>
-        </div>
-      `;
-    })();
-    return `
-      <div class="cp-sign-modal cp-payment-modal">
-        <div class="cp-sign-modal-card cp-payment-modal-card">
-          <div class="cp-sign-modal-head">
-            <div>
-              <strong>${state.paymentModalStep === 'checkout' ? `Pay ${escapeHtml(paymentLabel)}` : 'Payment'}</strong>
-              <span>${escapeHtml(proposal.title || (globalThis.PlatformLanguage?.text("customer-portal","m_1d8655e967c464","Proposal") ?? "Proposal"))}</span>
-            </div>
-            <button type="button" class="cp-icon-btn" data-payment-close aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_3742924668fb10","Close") ?? "Close")}">x</button>
-          </div>
-          ${body}
-        </div>
-      </div>
-    `;
-  }
-  function renderPaymentModalLayer(){
-    const host = paymentModalContainer();
-    host.innerHTML = paymentModalHtml();
-    host.querySelector('[data-payment-close]')?.addEventListener('click', closePaymentModal);
-    host.querySelectorAll('[data-payment-method]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.paymentMethod = cleanText(btn.dataset.paymentMethod || 'Card') === 'ACH' ? 'ACH' : 'Card';
-        state.paymentFormError = '';
-        state.paymentModalStep = 'checkout';
-        renderPaymentModalLayer();
-        paymentModalContainer().querySelector('.cp-payment-detail-pane input, .cp-payment-detail-pane select')?.focus();
-      });
-    });
-    bindMockPaymentFormInputs(host);
-    host.querySelector('[data-mock-payment-form]')?.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const error = validateMockPaymentForm(host);
-      if (error) {
-        state.paymentFormError = error;
-        let errorNode = host.querySelector('.cp-payment-form-error');
-        if (!errorNode) {
-          errorNode = document.createElement('div');
-          errorNode.className = 'cp-payment-form-error';
-          host.querySelector('[data-mock-payment-form] .cp-payment-actions')?.before(errorNode);
-        }
-        errorNode.textContent = error;
-        return;
-      }
-      submitMockPayment(cleanText(state.paymentMethod || 'Card'));
-    });
-    host.querySelector('[data-receipt-open-email]')?.addEventListener('click', () => {
-      state.paymentModalStep = 'receipt';
-      state.receiptSent = false;
-      renderPaymentModalLayer();
-    });
-    host.querySelector('[data-receipt-back]')?.addEventListener('click', () => {
-      state.paymentModalStep = 'success';
-      renderPaymentModalLayer();
-    });
-    host.querySelector('[data-receipt-email]')?.addEventListener('input', (event) => {
-      state.receiptEmail = event.target.value;
-      state.receiptSent = false;
-    });
-    host.querySelector('[data-receipt-send]')?.addEventListener('click', () => {
-      state.receiptEmail = host.querySelector('[data-receipt-email]')?.value || state.receiptEmail;
-      state.receiptSent = true;
-      state.paymentModalStep = 'success';
-      renderPaymentModalLayer();
-    });
-    host.querySelector('[data-payment-done]')?.addEventListener('click', () => {
-      closePaymentModal();
-      setActiveTab('summary');
-    });
-    host.querySelector('[data-receipt-download]')?.addEventListener('click', (event) => downloadReceipt(activeProposal(), event.currentTarget));
-  }
-  function syncSignatureName(value, source){
-    state.signatureName = cleanText(value);
-    document.querySelectorAll('[data-signature-name]').forEach((field) => {
-      if (field !== source) field.value = state.signatureName;
-    });
-    document.querySelectorAll('.cp-signature-adopt strong').forEach((preview) => {
-      preview.textContent = state.signatureName || 'Your Signature';
-    });
-  }
-  function bindSignatureRail(rootNode = mount){
-    rootNode.querySelector('[data-signature-next]')?.addEventListener('click', () => {
-      jumpToNextSignatureSlot({ openModal: true });
-    });
-    rootNode.querySelectorAll('[data-proposal-choice-step]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        jumpToProposalChoiceGroup(btn.dataset.proposalChoiceStep || '');
-      });
-    });
-    rootNode.querySelectorAll('[data-signature-jump]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        jumpToSignatureSlot(Number(btn.dataset.signatureJump || 0), { openModal: true });
-      });
-    });
-  }
-  function bindSignatureControls(rootNode = mount){
-    rootNode.querySelectorAll('[data-signature-name]').forEach((input) => {
-      input.addEventListener('input', (event) => syncSignatureName(event.target.value, event.target));
-    });
-    rootNode.querySelectorAll('[data-signature-mode]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.signatureAdoptMode = btn.dataset.signatureMode === 'draw' ? 'draw' : 'type';
-        renderSignatureModalLayer();
-      });
-    });
-    rootNode.querySelectorAll('[data-signature-clear]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.drawnSignatureData = '';
-        setupSignaturePad(rootNode, { clear: true });
-      });
-    });
-    rootNode.querySelectorAll('[data-signature-adopt]').forEach((btn) => {
-      btn.addEventListener('click', openAdoptSignatureModal);
-    });
-    rootNode.querySelector('[data-signature-modal-adopt]')?.addEventListener('click', adoptSignature);
-    rootNode.querySelectorAll('[data-signature-apply]').forEach((btn) => {
-      btn.addEventListener('click', () => openSignatureModal(state.activeSignatureSlotIndex));
-    });
-    rootNode.querySelectorAll('[data-signature-complete]').forEach((btn) => {
-      btn.addEventListener('click', completeSignatureDocument);
-    });
-    rootNode.querySelectorAll('[data-signature-modal-close]').forEach((btn) => {
-      btn.addEventListener('click', closeSignatureModal);
-    });
-    rootNode.querySelector('[data-signature-modal-sign]')?.addEventListener('click', signCurrentSlotFromModal);
-    rootNode.querySelectorAll('[data-sign-slot]').forEach((slot) => {
-      slot.addEventListener('click', () => {
-        const index = Number(slot.dataset.signSlot || 0);
-        if (Number.isFinite(index)) state.activeSignatureSlotIndex = index;
-        openSignatureModal(state.activeSignatureSlotIndex);
-      });
-    });
-    bindSignatureRail(rootNode);
-  }
-  function setupSignaturePad(rootNode = document, options = {}){
-    const canvas = rootNode.querySelector?.('[data-signature-pad]');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const width = Math.max(320, Math.round(rect.width || canvas.clientWidth || 520));
-    const height = Math.max(140, Math.round(rect.height || canvas.clientHeight || 160));
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(height * ratio);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 2.4;
-    ctx.strokeStyle = '#111827';
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, width, height);
-    if (state.drawnSignatureData && !options.clear) {
-      const image = new Image();
-      image.onload = () => ctx.drawImage(image, 0, 0, width, height);
-      image.src = state.drawnSignatureData;
-    }
-    let drawing = false;
-    const point = (event) => {
-      const box = canvas.getBoundingClientRect();
-      return { x: event.clientX - box.left, y: event.clientY - box.top };
-    };
-    const save = () => {
-      state.drawnSignatureData = canvas.toDataURL('image/png');
-    };
-    canvas.onpointerdown = (event) => {
-      drawing = true;
-      canvas.setPointerCapture?.(event.pointerId);
-      const start = point(event);
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      event.preventDefault();
-    };
-    canvas.onpointermove = (event) => {
-      if (!drawing) return;
-      const next = point(event);
-      ctx.lineTo(next.x, next.y);
-      ctx.stroke();
-      event.preventDefault();
-    };
-    canvas.onpointerup = (event) => {
-      if (!drawing) return;
-      drawing = false;
-      canvas.releasePointerCapture?.(event.pointerId);
-      save();
-      event.preventDefault();
-    };
-    canvas.onpointerleave = () => {
-      if (!drawing) return;
-      drawing = false;
-      save();
-    };
   }
   function bindChecklistPanel(payload = activeProjectPayload()){
     const portalUuid = activePortalUuid(payload);
@@ -5685,7 +3075,6 @@ Continue with this payment?`)(message));
     }));
   }
   function render(){
-    mount.querySelectorAll?.('[data-proposal-document-frame]').forEach((frame) => frame.__cpProposalVideoCleanup?.());
     if (activeInlineDocumentWorkflow) {
       try { activeInlineDocumentWorkflow.destroy?.(); } catch (error) {}
       activeInlineDocumentWorkflow = null;
@@ -5695,7 +3084,6 @@ Continue with this payment?`)(message));
     const project = payload.project || {};
     const customer = projectCustomer(payload);
     const media = Array.isArray(payload.media) ? payload.media : [];
-    const proposals = proposalList(payload);
     const appointment = portalAppointment(payload);
     const customerName = isGenericCustomerName(customer.name) ? '' : cleanText(customer.name);
     const displayName = firstDisplayName(project.project_title, project.title, project.display_name, project.name, 'Project');
@@ -5726,9 +3114,10 @@ Continue with this payment?`)(message));
       if (state.activeTab === 'schedule') return scheduleWidget(payload);
       if (state.activeTab === 'photos') return photoWidget(media);
       if (state.activeTab === 'checklists') return checklistPanel(payload);
-      if (state.activeTab === 'proposals') return proposalViewer(proposals);
-      if (state.activeTab === 'documents') return documentsPanel(documentList(payload), activeDescriptor);
-      if (state.activeTab === 'payments') return paymentsPanel(proposals, documentList(payload));
+      // A served tab with id `proposals` that is not a document group has no
+      // viewer of its own; it shows the documents like the Documents tab.
+      if (state.activeTab === 'documents' || state.activeTab === 'proposals') return documentsPanel(documentList(payload), activeDescriptor);
+      if (state.activeTab === 'payments') return paymentsPanel(documentList(payload));
       if (state.activeTab === 'my_documents') return myFilesPanel();
       if (state.activeTab === 'punch_lists') return punchPanel(payload);
       // Any page-backed tab renders through the custom-page stage — the
@@ -5739,12 +3128,10 @@ Continue with this payment?`)(message));
       return `
         ${projectSummaryHeader(displayName, address, contactRows)}
         ${feedbackCard(payload)}
-        ${thankYouPanel(proposals)}
         <div class="cp-summary-layout">
-          ${overviewPanel(payload, proposals, orgName)}
+          ${overviewPanel(payload, orgName)}
           <div class="cp-widget-grid">
             ${photoWidget(media, { compact: true })}
-            ${proposalWidget(proposals, { compact: true })}
           </div>
         </div>
         ${summaryExtensionPanel(cleanText(activeDescriptor.extensionPageId))}
@@ -5817,9 +3204,8 @@ Continue with this payment?`)(message));
     bindChecklistPanel(payload);
     mount.querySelectorAll('[data-step-target]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const rawProposalIndex = cleanText(btn.dataset.stepProposal);
-        const proposalIndex = Number(rawProposalIndex);
-        if (rawProposalIndex && Number.isFinite(proposalIndex)) state.activeProposalIndex = proposalIndex;
+        const documentToken = cleanText(btn.dataset.stepDocument);
+        if (documentToken) state.activeDocumentToken = documentToken;
         setActiveTab(btn.dataset.stepTarget || 'summary');
         track('workflow_step_opened', { step: btn.textContent.trim().replace(/\s+/g, ' ') });
       });
@@ -5865,42 +3251,6 @@ Continue with this payment?`)(message));
     mount.querySelectorAll('[data-feedback-open]').forEach((link) => {
       link.addEventListener('click', () => track('feedback_opened', {}));
     });
-    mount.querySelectorAll('[data-proposal-index]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.activeProposalIndex = Number(btn.dataset.proposalIndex || 0);
-        if (state.activeTab !== 'proposals') state.activeTab = 'proposals';
-        render();
-        track('proposal_opened', { proposal_id: proposals[state.activeProposalIndex]?.id || '' });
-      });
-    });
-    mount.querySelectorAll('[data-proposal-option]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.activeProposalIndex = Number(btn.dataset.proposalOption || 0);
-        render();
-        track('proposal_option_opened', { proposal_id: proposals[state.activeProposalIndex]?.id || '' });
-      });
-    });
-    mount.querySelectorAll('[data-proposal-download]').forEach((btn) => {
-      btn.addEventListener('click', () => downloadProposal(Number(btn.dataset.proposalDownload || 0)));
-    });
-    mount.querySelectorAll('[data-proposal-print]').forEach((btn) => {
-      btn.addEventListener('click', () => printProposal(Number(btn.dataset.proposalPrint || 0)));
-    });
-    mount.querySelectorAll('[data-proposal-pay-now]').forEach((btn) => btn.addEventListener('click', payDepositNow));
-    mount.querySelectorAll('[data-proposal-pay-later]').forEach((btn) => btn.addEventListener('click', payDepositLater));
-    mount.querySelectorAll('[data-payment-proposal]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.activeProposalIndex = Number(btn.dataset.paymentProposal || 0);
-        state.activePaymentObligationId = cleanText(btn.dataset.paymentObligation);
-        openPaymentModal();
-      });
-    });
-    mount.querySelectorAll('[data-receipt-proposal]').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        const index = Number(btn.dataset.receiptProposal || 0);
-        downloadReceipt(proposals[index] || activeProposal(), event.currentTarget, cleanText(btn.dataset.receiptPayment));
-      });
-    });
     mount.querySelectorAll('[data-document-token]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const token = cleanText(btn.dataset.documentToken);
@@ -5942,14 +3292,10 @@ Continue with this payment?`)(message));
         render();
       });
     });
-    bindSignatureControls(mount);
-    hydrateDocumentFrames(mount);
     mountDocumentStage();
     mountInlineDocumentWorkflow();
     mountCustomPage();
     fitMarkupFrames(mount);
-    renderSignatureModalLayer();
-    renderPaymentModalLayer();
     bindShareManager();
     // Idempotent: only starts the widget on the first render that has a grant.
     syncPortalChat();
@@ -5960,7 +3306,6 @@ Continue with this payment?`)(message));
     if (!next || state.activeProjectId === next) { render(); return; }
     state.activeProjectId = next;
     state.activeMediaIndex = -1;
-    state.activeProposalIndex = 0;
     // Tabs are per-project (a punch list on one, none on another), so a tab
     // that does not exist on the incoming project falls back in render().
     clearCustomPageCache();
@@ -6028,46 +3373,6 @@ Continue with this payment?`)(message));
     mount.className = 'cp-shell';
     mount.innerHTML = `<div class="cp-error"><h1>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_881cec332c3933","Portal unavailable") ?? "Portal unavailable")}</h1><p>${escapeHtml(error?.message || 'This customer portal could not be loaded.')}</p></div>`;
   }
-  root.launchPaymentModalForTesting = function launchPaymentModalForTesting(options = {}){
-    const opts = typeof options === 'number' ? { proposalIndex: options } : (options || {});
-    if (!state.payload) {
-      return { opened: false, reason: 'Customer portal has not finished loading yet.' };
-    }
-    const proposals = proposalList(activeProjectPayload());
-    if (proposals.length) {
-      const requestedIndex = Number(opts.proposalIndex ?? state.activeProposalIndex ?? 0);
-      state.activeProposalIndex = Number.isFinite(requestedIndex)
-        ? Math.max(0, Math.min(requestedIndex, proposals.length - 1))
-        : 0;
-    }
-    openPaymentModal(opts);
-    return {
-      opened: true,
-      proposalIndex: state.activeProposalIndex,
-      proposalCount: proposals.length,
-      proposalTitle: cleanText(activeProposal().title || activeProposal().name || '')
-    };
-  };
-  root.launchPaymentIntakeForTesting = function launchPaymentIntakeForTesting(options = {}){
-    const opts = options && typeof options === 'object' ? options : {};
-    if (!state.payload) {
-      return { opened: false, reason: 'Customer portal has not finished loading yet.' };
-    }
-    const proposals = proposalList(activeProjectPayload());
-    if (Object.prototype.hasOwnProperty.call(opts, 'proposalIndex') && proposals.length) {
-      const requestedIndex = Number(opts.proposalIndex ?? 0);
-      state.activeProposalIndex = Number.isFinite(requestedIndex)
-        ? Math.max(0, Math.min(requestedIndex, proposals.length - 1))
-        : 0;
-    }
-    openPaymentModal(opts);
-    return {
-      opened: true,
-      options: opts,
-      proposalIndex: state.activeProposalIndex,
-      proposalCount: proposals.length
-    };
-  };
   async function init(){
     if (!cfg.id || !api?.customerPortals?.publicGet) {
       renderError(new Error('Missing customer portal link.'));

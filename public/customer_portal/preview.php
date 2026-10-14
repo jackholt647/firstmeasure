@@ -62,7 +62,6 @@ $portalJsVer = @md5_file(__DIR__ . '/customer_portal.js') ?: (string)$assetVer;
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="./customer_portal.css?v=<?php echo htmlspecialchars($portalCssVer, ENT_QUOTES); ?>">
   <script defer src="../libraries/platform-api/platform-api.js?v=<?php echo htmlspecialchars($platformApiVer, ENT_QUOTES); ?>"></script>
-  <script defer src="../libraries/proposals-api/proposals-api.js"></script>
   <script defer src="../libraries/documents-api/documents-api.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/doc-model/firstmate-doc-model.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/doc-widgets/firstmate-doc-widgets.js?v=<?php echo (int)$assetVer; ?>"></script>
@@ -78,7 +77,6 @@ $portalJsVer = @md5_file(__DIR__ . '/customer_portal.js') ?: (string)$assetVer;
   <script defer src="../libraries/payment-intake/payment-intake.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/audio-notes/audio-notes.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/audio-structure/audio-structure.js?v=<?php echo (int)$assetVer; ?>"></script>
-  <script defer src="../libraries/apps/proposals/project.js?v=<?php echo (int)$assetVer; ?>"></script>
   <script defer src="../libraries/platform-language/platform-language.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
   <script defer src="../libraries/platform-terminology/platform-terminology.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>
   <script defer src="./customer_portal.js?v=<?php echo htmlspecialchars($portalJsVer, ENT_QUOTES); ?>"></script>

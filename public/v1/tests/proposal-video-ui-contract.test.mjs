@@ -8,7 +8,6 @@ const proposalSource = await readFile(path.join(publicRoot, 'libraries/apps/prop
 const photoFeedSource = await readFile(path.join(publicRoot, 'libraries/apps/photos/feed.js'), 'utf8');
 const projectPhotosSource = await readFile(path.join(publicRoot, 'libraries/apps/photos/project.js'), 'utf8');
 const proposalStyles = await readFile(path.join(publicRoot, 'libraries/apps/project-request/app.js'), 'utf8');
-const customerPortalSource = await readFile(path.join(publicRoot, 'customer_portal/customer_portal.js'), 'utf8');
 const pdfSource = await readFile(path.join(publicRoot, 'v1/proposals/pdf.ts'), 'utf8');
 
 test('proposal media pickers accept both images and videos', () => {
@@ -54,12 +53,7 @@ test('editor and customer portal autoplay once only after full visibility', () =
   assert.match(editorPlayback, /proposalAutoPlayedVideoKeys\.has/);
   assert.match(editorPlayback, /video\.muted = true/);
   assert.match(editorPlayback, /video\.play\(\)/);
-
-  const portalPlayback = customerPortalSource.match(/function bindDocumentProposalVideoPlayback[\s\S]*?function syncDocumentFrameScale/)?.[0] || '';
-  assert.match(portalPlayback, /left >= 0 && top >= 0 && right <= viewportWidth && bottom <= viewportHeight/);
-  assert.match(portalPlayback, /proposalDocumentAutoPlayedVideoKeys\.has/);
-  assert.match(portalPlayback, /video\.muted = true/);
-  assert.match(portalPlayback, /video\.play\(\)/);
+  // The customer portal no longer has the old proposal renderer; documents play media through the shared renderer.
 });
 
 test('PDF generation waits for first-frame thumbnail fallbacks', () => {
