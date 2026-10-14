@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 14 Project Reports tab: [the header no longer keeps a stale report tab strip highlighting Model & photos](deploy/digitalocean/development-report-tabs-20261014.md) records the cause, the fix, checks and the verified development rollout.
+
 October 14 Report settings: [two columns beside the sample report, descriptions as tooltips, and Project Scopes as a Configuration subtab](deploy/digitalocean/development-report-settings-20261014.md) records what changed, checks and the verified development rollout.
 
 October 14 Project custom fields and photo fields: [custom fields on the right of Overview and photo fields as thumbnail tiles with the project media picker](deploy/digitalocean/development-cover-photo-tile-20261014.md) records what changed, checks and the verified development rollout.
