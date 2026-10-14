@@ -103,3 +103,12 @@ succeeded. `verify` passed on all three.
 keys in its defaults, so it stops reading the key, and the next save of an organization's
 report settings drops it. Activated on legacy, web and pool on top of `6ef05cb8`; `verify`
 passed on all three, and the served `company.js` has no `page_elevations`.
+
+## Follow-up: unbranded internal PDF (commit `5f9c3bc0`)
+
+Internal PDFs are not branded, so the preview's Internal PDF pages now use FirstMate's default
+red (200,40,40 and 150,0,0 for the sidebars and boxes) and the FirstMate logo, whatever the
+organization's colours and logo. The Customer PDF keeps the organization's branding.
+`tests/report-preview-browser.test.mjs` checks both: a blue brand colour and a custom logo
+reach the customer pages only. The script loads as `?v=20261014-report-preview-v5`. Activated
+on legacy, web and pool on top of `a88c232a`; `verify` passed on all three.
