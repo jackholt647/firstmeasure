@@ -57,3 +57,14 @@ The script and images are served, and `imagery.webp` is byte-identical to the co
 
 The first commit attempt carried the previous task's message; it was rewritten before
 anything was deployed. Not verified in a signed-in browser session.
+
+## Follow-up: continuous scroll and a page column (commit `cda596b3`)
+
+- The pages scroll as one column. Each page takes about 80% of the viewer's height, so the
+  pages above and below show at the edges, and the current page is the one nearest the middle.
+- The page thumbnails moved from a row along the bottom to a column on the right. It keeps the
+  current page centred, and shows page names only (no numbers).
+- `company.js` loads the script with `?v=20261014-report-preview-v2` so browsers refetch it.
+- The hosts were on three different releases while another session rolled out. After they
+  settled on `b4acdee7`, the release was staged and activated on legacy, web and pool one at
+  a time. `verify` passed on all three.
