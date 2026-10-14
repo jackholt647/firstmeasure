@@ -430,10 +430,15 @@ test('the header says what is done and the Schedule button opens the schedule vi
   cleanText:value=>String(value??'').trim(),resourceType:list=>list.resource_type,listItems:()=>[{}],materialListOrdered:list=>list.status==='ordered',assignmentWorkResourceRef:list=>list.assigned?{id:list.assigned}:null,
   resourceSchedulePending:list=>!!list.pending,resourceScheduleEnabled:()=>true,eventDateParts:event=>({date:event?.date||''}),linkedScheduleEvent:list=>list.event||null,
   rootWindow:{Portal:{modules:{projectSchedule:{focusMaterialDelivery:payload=>focused.push(payload)}}}},scopeWorkspace:{showSidebarView:(root,view)=>shown.push(view)},leftContentRoot:()=>'rail',
+  number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,orgId:()=>'org',projectId:()=>'p',apiReady:()=>true,materialsAPI:null,window:{},syncResourceHeader(){},
   captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,showToast(){},ensureScheduleEventForList:async list=>({list,event:{id:'event-'+list.id}}),schedulingFocusPayload:(list,event)=>({event_id:event.id,scope_resource_list_id:list.id})};
- vm.createContext(ctx);for(const name of ['headerDone','jobSchedule','scheduleJobButton','scheduleJob'])vm.runInContext(fn(name),ctx);
- // Ordered material is done; labor that has been built is done; equipment with no date is not.
- assert.equal(JSON.stringify(ctx.headerDone()),JSON.stringify({material:true,labor:true,equipment:false}));
+ vm.createContext(ctx);for(const name of ['laborCommitments','laborListDelivered','headerDone','jobSchedule','scheduleJobButton','scheduleJob'])vm.runInContext(fn(name),ctx);
+ // Ordered material is done; equipment with no date is not. Labor that is only assigned and built has not been sent to anyone.
+ assert.equal(JSON.stringify(ctx.headerDone()),JSON.stringify({material:true,labor:false,equipment:false}));
+ // It is done once its newest commitment is delivered and froze the list as it stands now.
+ lists[1].revision=4;ctx.state.laborCommitments={key:'org:p',rows:[{list_id:'l',revision:1,status:'superseded',delivery:{status:'delivered'},list_revision:2},{list_id:'l',revision:2,status:'committed',delivery:{status:'pending'},list_revision:4}]};assert.equal(ctx.headerDone().labor,false,'committed but not delivered');
+ ctx.state.laborCommitments.rows[1].delivery.status='delivered';assert.equal(ctx.headerDone().labor,true);
+ lists[1].revision=5;assert.equal(ctx.headerDone().labor,false,'the list changed after it was sent');lists[1].revision=4;
  let html=ctx.scheduleJobButton();assert.match(html,/class="mt-schedule-job" data-mt-schedule-job[^>]*><i class="fas fa-calendar-days"[^>]*><\/i><span>Schedule<\/span>/);
  // The piece of work with no dates is what gets placed; a cancelled one is not waiting.
  await ctx.scheduleJob();assert.equal(JSON.stringify(shown),'["schedule"]');assert.equal(focused.length,0,'placing waits for the view to arrive');timers.shift()();assert.equal(JSON.stringify(focused),JSON.stringify([{event_id:'span'}]));

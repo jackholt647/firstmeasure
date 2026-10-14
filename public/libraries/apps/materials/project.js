@@ -4168,13 +4168,27 @@
       };
     });
   }
-  // Whether each header action has nothing left to do: every list of its kind is ordered, built or reserved.
+  // What has been committed on this project, read once and again whenever a list changes.
+  function laborCommitments(){
+    const api = (materialsAPI || window.MaterialsAPI)?.labor, key = `${orgId()}:${projectId()}`;
+    if (state.laborCommitments?.key === key) return state.laborCommitments.rows;
+    if (!api?.commitments || !apiReady() || !projectId()) return [];
+    const entry = state.laborCommitments = { key, rows: [] };
+    Promise.resolve(api.commitments(orgId(), projectId())).then((result) => { entry.rows = Array.isArray(result?.commitments) ? result.commitments : []; if (state.laborCommitments === entry) syncResourceHeader(); }).catch(() => {});
+    return entry.rows;
+  }
+  // A labor list has been sent when its newest commitment is still held, was delivered, and froze the list as it is now.
+  function laborListDelivered(list){
+    const current = laborCommitments().filter((entry) => cleanText(entry.list_id) === cleanText(list?.id)).sort((a, b) => number(b.revision, 0) - number(a.revision, 0))[0];
+    return !!current && current.status === 'committed' && current.delivery?.status === 'delivered' && number(current.list_revision, -1) === number(list?.revision, -2);
+  }
+  // Whether each header action has nothing left to do: every list of its kind is ordered, sent or reserved.
   function headerDone(){
     const lists = (type) => state.lists.filter((list) => resourceType(list) === type && listItems(list).length);
     const every = (type, test) => lists(type).length > 0 && lists(type).every(test);
     return {
       material: every('material', materialListOrdered),
-      labor: every('labor', (list) => !!assignmentWorkResourceRef(list)?.id && !!list.metadata?.labor_generation),
+      labor: every('labor', laborListDelivered),
       equipment: every('equipment', (list) => !resourceSchedulePending(list) && !!eventDateParts(linkedScheduleEvent(list)).date)
     };
   }
@@ -4220,7 +4234,7 @@
     const leaving=Object.keys(want).some(key=>shown[key]&&!want[key]);
     state.headerActions=want;
     if(leaving)setTimeout(()=>syncResourceHeader(),300);
-    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)&&!(category.id==='equipment'&&workOrderMerged())).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button></span>${action('labor','data-mt-work-order data-fm-tooltip="Work Order: generate a work order for the labor on this project" aria-label="Work Order: generate a work order"','fa-clipboard-list')}${action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve Equipment: reserve the equipment on this project" aria-label="Reserve Equipment"','fa-truck-pickup')}${action('material','data-mt-order-all data-fm-tooltip="Order Materials: order every material list, each from its own supplier" aria-label="Order Materials: order every material list"','fa-cart-shopping')}${scheduleJobButton()}</div></header>`;
+    return `<header class="mt-workspace-header"><div class="mt-projected-total" title="Projected cost of every list on this project, including projected delivery"><span>Projected total</span><strong data-mt-projected-total>${money(projectProjected())}</strong></div><div class="mt-collapsed-pills">${resourceCategories().filter(category=>state.minimizedTypes?.has(category.id)&&!(category.id==='equipment'&&workOrderMerged())).map(category=>`<button type="button" data-mt-restore-type="${escapeHtml(category.id)}" style="--tab-color:${escapeHtml(category.color)}" data-fm-tooltip="Show ${escapeHtml(category.name||'Untitled')}" aria-label="Show ${escapeHtml(category.name||'Untitled')}"><i class="fas ${escapeHtml(category.icon)}"></i> ${escapeHtml(category.name||'Untitled')}</button>`).join('')}${state.lists.filter(list=>!state.visibleListIds.has(cleanText(list.id))).map(list=>`<button type="button" data-mt-restore-list="${escapeHtml(list.id)}" title="Expand ${escapeHtml(list.title)}"><i class="fas ${escapeHtml(resourceTerms(resourceType(list),list).icon)}"></i> ${escapeHtml(list.title)}</button>`).join('')}</div><div class="mt-workspace-actions"><button type="button" data-mt-new-category data-fm-tooltip="New category column" aria-label="New category"><i class="fas fa-plus"></i> Category</button><span class="mt-icon-toggles"><button type="button" data-mt-units-toggle aria-pressed="${order}" data-fm-tooltip="${order?'Units: order (bundles, boxes). Click for measured units.':'Units: measured. Click for order units (bundles, boxes).'}" aria-label="Units: ${order?'order':'measured'}. Switch."><i class="fas ${order?'fa-boxes-stacked':'fa-ruler-combined'}"></i></button><button type="button" data-mt-generate-materials data-fm-tooltip="Regenerate: build the lists again from the scope" aria-label="Regenerate lists from the scope" ${state.generatingMaterials||state.saving?'disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}"></i></button></span>${action('labor',`data-mt-work-order data-fm-tooltip="${done.labor?'Work Order: every work order has been committed and delivered as it stands':'Work Order: generate a work order for the labor on this project'}" aria-label="Work Order: generate a work order"`,'fa-clipboard-list')}${action('equipment','data-mt-reserve-equipment data-fm-tooltip="Reserve Equipment: reserve the equipment on this project" aria-label="Reserve Equipment"','fa-truck-pickup')}${action('material','data-mt-order-all data-fm-tooltip="Order Materials: order every material list, each from its own supplier" aria-label="Order Materials: order every material list"','fa-cart-shopping')}${scheduleJobButton()}</div></header>`;
   }
   function syncResourceHeader(){
     const header=materialRoot()?.querySelector('.mt-workspace-header');
