@@ -2338,6 +2338,25 @@ session_write_close();
 <script src="../libraries/phone-features/app-download.js?v=<?= portalAssetVersion('../libraries/phone-features/app-download.js') ?>"></script>
   <script src="../libraries/apps/settings/platform-billing.js?v=<?= portalAssetVersion('../libraries/apps/settings/platform-billing.js') ?>"></script>
   <script src="../libraries/brand-kit/brand-kit.js?v=<?= portalAssetVersion('../libraries/brand-kit/brand-kit.js') ?>"></script>
+  <script src="../libraries/apps/people/people-kit.js?v=<?= portalAssetVersion('../libraries/apps/people/people-kit.js') ?>"></script>
+  <script src="../libraries/apps/people/list-page.js?v=<?= portalAssetVersion('../libraries/apps/people/list-page.js') ?>"></script>
+  <script src="../libraries/apps/people/entity-modal.js?v=<?= portalAssetVersion('../libraries/apps/people/entity-modal.js') ?>"></script>
+  <script src="../libraries/apps/people/hover-card.js?v=<?= portalAssetVersion('../libraries/apps/people/hover-card.js') ?>"></script>
+  <script src="../libraries/apps/people/permissions-panel.js?v=<?= portalAssetVersion('../libraries/apps/people/permissions-panel.js') ?>"></script>
+  <script src="../libraries/apps/people/app-grid.js?v=<?= portalAssetVersion('../libraries/apps/people/app-grid.js') ?>"></script>
+  <script src="../libraries/apps/people/slots.js?v=<?= portalAssetVersion('../libraries/apps/people/slots.js') ?>"></script>
+  <script src="../libraries/apps/people/people-data.js?v=<?= portalAssetVersion('../libraries/apps/people/people-data.js') ?>"></script>
+  <script src="../libraries/apps/people/people-directory.js?v=<?= portalAssetVersion('../libraries/apps/people/people-directory.js') ?>"></script>
+  <script src="../libraries/apps/people/fields-panel.js?v=<?= portalAssetVersion('../libraries/apps/people/fields-panel.js') ?>"></script>
+  <script src="../libraries/apps/people/compensation-panel.js?v=<?= portalAssetVersion('../libraries/apps/people/compensation-panel.js') ?>"></script>
+  <script src="../libraries/apps/people/page-kit.js?v=<?= portalAssetVersion('../libraries/apps/people/page-kit.js') ?>"></script>
+  <script src="../libraries/apps/people/people-lists.js?v=<?= portalAssetVersion('../libraries/apps/people/people-lists.js') ?>"></script>
+  <script src="../libraries/apps/people/users-page.js?v=<?= portalAssetVersion('../libraries/apps/people/users-page.js') ?>"></script>
+  <script src="../libraries/apps/people/groups-page.js?v=<?= portalAssetVersion('../libraries/apps/people/groups-page.js') ?>"></script>
+  <script src="../libraries/apps/people/departments-page.js?v=<?= portalAssetVersion('../libraries/apps/people/departments-page.js') ?>"></script>
+  <script src="../libraries/apps/people/companies-page.js?v=<?= portalAssetVersion('../libraries/apps/people/companies-page.js') ?>"></script>
+  <script src="../libraries/apps/people/people-home.js?v=<?= portalAssetVersion('../libraries/apps/people/people-home.js') ?>"></script>
+  <script src="../libraries/apps/people/people-settings.js?v=<?= portalAssetVersion('../libraries/apps/people/people-settings.js') ?>"></script>
   <script src="../libraries/apps/settings/company.js?v=<?= portalAssetVersion('../libraries/apps/settings/company.js') ?>"></script>
   <script src="scripts/dev_overlay.js?v=<?= portalAssetVersion('scripts/dev_overlay.js') ?>"></script>
   <script src="../libraries/apps/promo-inject/app.js?v=<?= portalAssetVersion('../libraries/apps/promo-inject/app.js') ?>"></script>
