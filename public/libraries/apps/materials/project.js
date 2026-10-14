@@ -1043,7 +1043,7 @@
       .mt-req-group-head{display:flex;align-items:center;gap:5px;width:100%;padding:6px 4px 3px;border:0;background:transparent;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3;cursor:pointer}.mt-req-group-head i{font-size:8px}.mt-req-group-head span{flex:1;text-align:left}.mt-req-group-head em{font-style:normal}
       .mt-req-row{border-bottom:1px solid #f0f2f5}.mt-req-row.is-open{background:#fef3f2}.mt-req-row.is-warning{background:#fffaeb}
       .mt-req-head{display:flex;align-items:center;gap:6px;width:100%;min-height:26px;padding:2px 4px;border:0;background:transparent;font-size:11px;color:#344054;text-align:left;cursor:pointer}.mt-req-head:hover{background:rgba(16,24,40,.04)}
-      .mt-req-head .mt-req-dot{flex:none;font-size:11px}.mt-req-head span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.mt-req-head em{flex:none;font-style:normal;font-size:10px;color:#667085;font-variant-numeric:tabular-nums}.mt-req-chevron{flex:none;font-size:8px;color:#98a2b3}
+      .mt-req-head .mt-req-dot{flex:none;font-size:11px}.mt-req-head span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.mt-req-why{display:block;margin:-2px 0 3px;padding:0 6px 0 38px;font-size:10px;font-weight:600;line-height:1.35;color:#b54708}.is-open>.mt-req-why{color:#b42318}.mt-req-head em{flex:none;font-style:normal;font-size:10px;color:#667085;font-variant-numeric:tabular-nums}.mt-req-chevron{flex:none;font-size:8px;color:#98a2b3}
       .mt-req-row.is-caused .mt-req-head{padding-left:14px}
       .mt-req-detail{display:flex;flex-direction:column;gap:5px;padding:2px 6px 8px 21px;font-size:10px;color:#475467}.mt-req-detail p{margin:0}.mt-req-note{color:#667085;font-size:10px;padding:6px 4px;margin:0}
       .mt-req-warning{display:flex;gap:5px;color:#b54708}.mt-req-warning i{margin-top:2px;font-size:9px}
@@ -3269,7 +3269,7 @@
   // What a unit or a type of equipment does for a job (debris disposal, so many cubic yards), copied onto the line it
   // is picked for so the project's requirements count the line as covering it.
   function equipmentProvides(value){
-    return (Array.isArray(value) ? value : []).filter((entry) => cleanText(entry?.item)).map((entry) => ({ item: cleanText(entry.item), ...(typeof entry.capacity === 'number' && Number.isFinite(entry.capacity) ? { capacity: entry.capacity } : {}), per_load: entry.per_load === true }));
+    return (Array.isArray(value) ? value : []).filter((entry) => cleanText(entry?.item)).map((entry) => ({ item: cleanText(entry.item), ...(typeof entry.capacity === 'number' && Number.isFinite(entry.capacity) && entry.capacity > 0 ? { capacity: entry.capacity } : {}), per_load: entry.per_load === true }));
   }
   // Suggestions for one list from the sources its category has switched on.
   // What kind of item a suggestion is, in words: its type when it has one, otherwise its category key read as a phrase.
@@ -5935,6 +5935,7 @@
     const kind = requirementKind(row);
     const from = [...new Set((row.sources || []).map((source) => cleanText(source.title)).filter(Boolean))];
     const byHand = row.kind !== 'material' && (requirementSet()?.data?.manual_work || []).some((entry) => entry.item === id);
+    const tipHtml = requirementTooltip(row, kind, from);
     const tip = [`${row.label}${requirementAmount(row) ? `, ${requirementAmount(row)}` : ''}`, `${kind.what}.${row.description ? ` ${cleanText(row.description)}` : ''}`, from.length && row.kind !== 'material' ? `Required by: ${from.join(', ')}` : '', meaning + (by.length ? `: ${[...new Set(by)].join(', ')}` : ''), ...(row.warnings || []).map((warning) => cleanText(warning.message)), cleanText(row.reason)].filter(Boolean).join('\n');
     // How a cover reads depends on what is covered: work is done by someone, a function is taken care of, material is listed.
     const coverSays = (cover) => row.kind === 'material' ? 'Listed here' : cover.mode === 'included' ? (row.kind === 'function' ? 'Takes care of this at no separate charge' : 'Does this work at no separate charge') : cover.mode === 'provided' ? 'Brings equipment that takes care of this' : row.kind === 'function' ? (cover.assignee_name ? 'Takes care of this, on these line items' : 'These line items take care of this') : 'Does this work, on these line items';
@@ -5951,7 +5952,28 @@
       ${(row.can_cover || []).map((entry) => `<button type="button" class="mt-req-action" data-mt-req-include="${escapeHtml(id)}" data-mt-list-id="${escapeHtml(entry.list_id)}" title="Put this back on ${escapeHtml(entry.assignee_name)}'s work order. Their list is built again with it."><i class="fas fa-plus" aria-hidden="true"></i><span>${escapeHtml(entry.assignee_name)}</span></button>`).join('')}
       ${handLines.length ? `<label class="mt-req-mark"><select data-mt-req-mark="${escapeHtml(id)}" aria-label="Choose a line item that ${row.kind === 'function' ? 'takes care of this' : 'does this work'}" title="${row.kind === 'function' ? 'Line items you added to a work order or an equipment list. Choose the one that takes care of this.' : 'Line items you added to a work order. Choose the one that pays for this work.'}"><option value="">Choose a line item</option>${handLines.map(({ list, item }) => `<option value="${escapeHtml(`${list.id}|${item.id}`)}">${escapeHtml(`${cleanText(item.name) || 'Untitled'} · ${cleanText(assignmentWorkResourceRef(list)?.name || list.title) || resourceTerms(resourceType(list), list).plural}`)}</option>`).join('')}</select></label>` : row.status === 'open' && row.kind !== 'material' ? `<p class="mt-req-note">${row.kind === 'function' ? 'Assign someone who takes care of this, or add an equipment line item for it and choose it here.' : 'Assign a work order that covers this work, or add a line item to a work order for it and choose it here.'}</p>` : ''}
     </div>`;
-    return `<div class="mt-req-row is-${escapeHtml(row.status)}${expanded ? ' is-expanded' : ''}${row.under ? ' is-caused' : ''}" data-mt-req-row="${escapeHtml(id)}"><button type="button" class="mt-req-head" data-mt-req-toggle="${escapeHtml(id)}" aria-expanded="${expanded}" title="${escapeHtml(tip)}"><i class="fas ${icon} mt-req-dot" aria-hidden="true"></i><i class="fas ${escapeHtml(kind.icon)} mt-req-kind" style="color:${escapeHtml(kind.color)}" aria-hidden="true"></i><span>${escapeHtml(row.label)}</span><em>${escapeHtml(requirementAmount(row))}</em><i class="fas fa-chevron-${expanded ? 'down' : 'right'} mt-req-chevron" aria-hidden="true"></i></button>${detail}</div>`;
+    return `<div class="mt-req-row is-${escapeHtml(row.status)}${expanded ? ' is-expanded' : ''}${row.under ? ' is-caused' : ''}" data-mt-req-row="${escapeHtml(id)}"><button type="button" class="mt-req-head" data-mt-req-toggle="${escapeHtml(id)}" aria-expanded="${expanded}" aria-label="${escapeHtml(tip)}" data-fm-tooltip-html="${escapeHtml(tipHtml)}"><i class="fas ${icon} mt-req-dot" aria-hidden="true"></i><i class="fas ${escapeHtml(kind.icon)} mt-req-kind" style="color:${escapeHtml(kind.color)}" aria-hidden="true"></i><span>${escapeHtml(row.label)}</span><em>${escapeHtml(requirementAmount(row))}</em><i class="fas fa-chevron-${expanded ? 'down' : 'right'} mt-req-chevron" aria-hidden="true"></i></button>${!expanded && requirementWhy(row) ? `<small class="mt-req-why">${escapeHtml(requirementWhy(row))}</small>` : ''}${detail}</div>`;
+  }
+  // Why something is not settled, in one short sentence: shown under the row and leading its tooltip.
+  function requirementWhy(row){
+    if (row.status === 'covered') return '';
+    const warning = cleanText(row.warnings?.[0]?.message);
+    if (row.status === 'warning') return warning || 'Accounted for, with something to check.';
+    if (row.kind === 'material') return 'Not on a material list yet.';
+    return row.kind === 'function' ? 'Nothing on the work order takes care of this yet.' : 'No work order does this yet.';
+  }
+  function requirementTooltip(row, kind, from){
+    const amount = requirementAmount(row);
+    const by = [...new Set((row.covered_by || []).flatMap((cover) => (cover.lines || []).length ? cover.lines.map((line) => cleanText(line.name)) : [cleanText(cover.assignee_name || cover.list_title)]).filter(Boolean))];
+    const state = row.status === 'open' ? 'Missing' : row.status === 'warning' ? 'To check' : row.progress === 'completed' ? 'Done' : row.progress === 'scheduled' ? 'Scheduled' : 'Accounted for';
+    const lines = [
+      `<div class="fm-tooltip-title">${escapeHtml(row.label)}${amount ? ` · ${escapeHtml(amount)}` : ''}</div>`,
+      `<div><b>${escapeHtml(state)}</b>${requirementWhy(row) ? ` — ${escapeHtml(requirementWhy(row))}` : ''}</div>`,
+      ...(row.warnings || []).slice(1).map((warning) => `<div>${escapeHtml(cleanText(warning.message))}</div>`),
+      by.length ? `<div style="opacity:.75">By ${escapeHtml(by.join(', '))}</div>` : '',
+      from.length && row.kind !== 'material' ? `<div style="opacity:.6">For ${escapeHtml(from.join(', '))}</div>` : ''
+    ];
+    return lines.filter(Boolean).join('');
   }
   function renderRequirementsTray(){
     const open = requirementsOpen(), set = requirementSet();
@@ -5966,7 +5988,7 @@
     const settled = rows.filter((row) => row.status === 'covered');
     const group = (key, label, list) => { if (!list.length) return ''; const collapsed = !!state.collapsedRequirementGroups?.has(key); return `<section class="mt-req-group${collapsed ? ' is-collapsed' : ''}"><button type="button" class="mt-req-group-head" data-mt-req-group="${escapeHtml(key)}" aria-expanded="${!collapsed}"><i class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></i><span>${escapeHtml(label)}</span><em>${list.length}</em></button>${collapsed ? '' : list.map(renderRequirementRow).join('')}</section>`; };
     const body = set?.error ? `<p class="mt-req-note">${escapeHtml(set.error)}</p>` : !data ? '<p class="mt-req-note">Working out what this project requires…</p>' : !rows.length ? `<p class="mt-req-note">${escapeHtml(data.reason || 'Nothing is required yet.')}</p>`
-      : `${group('attention', 'Needs attention', attention)}${group('material', 'Materials', settled.filter((row) => row.kind === 'material'))}${group('work', 'Work', settled.filter((row) => row.kind === 'work'))}${group('function', 'Other', settled.filter((row) => row.kind === 'function'))}`;
+      : `${group('missing', 'Missing', attention.filter((row) => row.status === 'open'))}${group('check', 'To check', attention.filter((row) => row.status !== 'open'))}${group('material', 'Materials', settled.filter((row) => row.kind === 'material'))}${group('work', 'Work', settled.filter((row) => row.kind === 'work'))}${group('function', 'Other', settled.filter((row) => row.kind === 'function'))}`;
     return `<aside class="mt-req-tray${open ? ' is-open' : ''}" data-mt-req-tray data-status="${escapeHtml(status)}" aria-label="Requirements"><button type="button" class="mt-req-bar" data-mt-req-open aria-expanded="${open}" title="${escapeHtml(`Requirements: ${summary}. ${open ? 'Click to close.' : 'Click to open.'}`)}" aria-label="${escapeHtml(`Requirements: ${summary}`)}"><i class="fas fa-chevron-left mt-req-arrow" aria-hidden="true"></i><span class="mt-req-badges">${badges}</span><span class="mt-req-bar-label">Requirements</span></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><div><strong>Requirements</strong><span>${escapeHtml(summary)}</span></div>${counts.open || state.resolvingRequirements ? `<button type="button" class="mt-req-fix" data-mt-req-fix ${state.resolvingRequirements ? 'disabled' : ''} title="Fix all: generate only what the open requirements need — the signed document's materials, work orders, and equipment that provides what is missing" aria-label="Fix all requirements"><i class="fas ${state.resolvingRequirements ? 'fa-circle-notch mt-spin' : 'fa-wand-magic-sparkles'}" aria-hidden="true"></i><span>Fix all</span></button>` : ''}${(data?.available || []).length ? `<select data-mt-req-add aria-label="Add a requirement by hand" title="Add something this job includes that no accepted document has listed. It is sized from the measurements."><option value="">+ Add</option>${data.available.map((entry) => `<option value="${escapeHtml(entry.item)}" title="${escapeHtml(entry.description || '')}">${escapeHtml(entry.label)}</option>`).join('')}</select>` : ''}</header><div class="mt-req-scroll">${body}</div></div></div></aside>`;
   }
   function syncRequirementsTray(){

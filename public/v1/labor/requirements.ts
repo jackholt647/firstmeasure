@@ -89,7 +89,7 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
   const scope = await projectScope(orgId, projectId);
   const required = requiredWork(scope.sets, context);
   const lineWarnings: { list_id: string; item_id: string; code: string; message: string }[] = [];
-  const title = (list: JsonObject) => text(list.title) || "Work order";
+  const title = (list: JsonObject) => (obj(list.metadata).placeholder_title === true ? "" : text(list.title)) || (text(list.resource_type) === "equipment" ? "Equipment" : "Work order");
   const who = (order: Order) => order.assignee?.name || title(order.list);
 
   const requirements: Requirement[] = required.map((row) => {
@@ -112,7 +112,7 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
       } else if (providing.length) covered.push({ ...common, mode: "provided", lines: providing.map(line) });
       else if (included) covered.push({ ...common, mode: "included", lines: [] });
       else if (adjusting.length) adjustedOnlyBy = who(order);
-      for (const item of providing) for (const entry of (obj(item.metadata).provides as unknown[]).map(obj).filter((entry) => text(entry.item) === row.item)) { providers += 1; if (entry.per_load === true || typeof entry.capacity !== "number") unlimited = true; else capacity += Number(entry.capacity) * Math.max(1, Number(item.quantity) || 1); }
+      for (const item of providing) for (const entry of (obj(item.metadata).provides as unknown[]).map(obj).filter((entry) => text(entry.item) === row.item)) { providers += 1; if (entry.per_load === true || !(Number(entry.capacity) > 0)) unlimited = true; else capacity += Number(entry.capacity) * Math.max(1, Number(item.quantity) || 1); }
       for (const item of outside) {
         warnings.push({ code: "paid_outside", message: `${who(order)}'s line item "${text(item.name)}" also pays for this, though it is not on their work order.` });
         lineWarnings.push({ list_id: id, item_id: text(item.id), code: "paid_outside", message: `This line item also pays for ${row.label.toLowerCase()}, which is not part of this work order. Its price cannot be split, so it is charged in full.` });

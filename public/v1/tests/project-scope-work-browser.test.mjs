@@ -382,19 +382,23 @@ test('the requirements tray says how the project stands when closed and what acc
   assignmentWorkResourceRef:list=>list?.assigned?{id:list.assigned,name:'Summit'}:null,resourceCategories:()=>[{id:'material',icon:'fa-cubes',color:'#d93025'},{id:'labor',icon:'fa-helmet',color:'#2563eb'},{id:'equipment',icon:'fa-truck',color:'#067647'}],resourceTerms:()=>({plural:'Equipment'}),captureProjectOperation:()=>({orgId:'org',projectId:'project'}),projectOperationIsCurrent:()=>true,showToast(){},
   materialsAPI:{labor:{saveManualScope:async(org,project,work)=>{calls.push(['scope',org,project,work.map(entry=>entry.item)]);}}},
   patchScopeResourceList:async(id,patch)=>{calls.push(['patch',id,patch.metadata.work_scope.excluded_items]);},generateLaborList:async id=>{calls.push(['generate',id]);},updateItem:async(id,patch,listId)=>{calls.push(['update',listId,id,patch.metadata.covers]);}};
- vm.createContext(ctx);vm.runInContext("const REQUIREMENT_STATUS = { open: ['fa-circle-exclamation', 'Not accounted for'], warning: ['fa-triangle-exclamation', 'Accounted for, with something to check'], covered: ['fa-circle-check', 'Accounted for'] };"+['requirementsOpen','requirementsKey','requirementSet','loadRequirements','refreshRequirements','lineWarnings','requirementAmount','requirementKind','renderRequirementRow','renderRequirementsTray','syncRequirementsTray','setWorkExcluded','setManualRequirement','markLineCover'].map(fn).join('\n'),ctx);
+ vm.createContext(ctx);vm.runInContext("const REQUIREMENT_STATUS = { open: ['fa-circle-exclamation', 'Not accounted for'], warning: ['fa-triangle-exclamation', 'Accounted for, with something to check'], covered: ['fa-circle-check', 'Accounted for'] };"+['requirementsOpen','requirementsKey','requirementSet','loadRequirements','refreshRequirements','lineWarnings','requirementAmount','requirementKind','requirementWhy','requirementTooltip','renderRequirementRow','renderRequirementsTray','syncRequirementsTray','setWorkExcluded','setManualRequirement','markLineCover'].map(fn).join('\n'),ctx);
  // Closed by default: the bar alone carries the status, red for what is missing and yellow for what to check.
  let html=ctx.renderRequirementsTray();
  assert.match(html,/<aside class="mt-req-tray" data-mt-req-tray data-status="open"/);assert.match(html,/aria-expanded="false"/);
  assert.match(html,/mt-req-badge is-open" title="1 not accounted for">1<\/span>/,'the count sits inside the red circle');assert.match(html,/mt-req-badge is-warning" title="1 to check">1<\/span>/);assert.doesNotMatch(html,/mt-req-badge is-covered/);
  assert.doesNotMatch(html,/mt-column-total|>Total</,'requirements carry no money, so there is no total');
- // What needs attention is pinned first, missing before merely odd; the rest is grouped below it.
- assert.deepEqual([...html.matchAll(/data-mt-req-group="([^"]+)"/g)].map(match=>match[1]),['attention','material','work']);
+ // What is missing comes first, then what is to check, each under its own name; the rest is grouped below them.
+ assert.deepEqual([...html.matchAll(/data-mt-req-group="([^"]+)"/g)].map(match=>match[1]),['missing','check','material','work']);
+ assert.match(html,/<span>Missing<\/span><em>1<\/em>/);assert.match(html,/<span>To check<\/span><em>1<\/em>/);assert.doesNotMatch(html,/Needs attention/);
+ // Under each one not settled, one short sentence says why.
+ assert.match(html,/<small class="mt-req-why">Nothing on the work order takes care of this yet\.<\/small>/);assert.match(html,/<small class="mt-req-why">Accounted for twice: Crew B and Summit\.<\/small>/);
  assert.deepEqual([...html.matchAll(/data-mt-req-row="([^"]+)"/g)].map(match=>match[1]),['disposal.debris','roofing.install','material:shingles','roofing.cleanup']);
  assert.match(html,/Debris disposal<\/span><em>12\.8 yd³<\/em>/);
  // Each requirement carries the icon of the list that meets it, and says on hover what kind of thing it is.
  assert.match(html,/fa-helmet mt-req-kind" style="color:#2563eb"[^>]*><\/i><span>Install roofing/);assert.match(html,/fa-truck mt-req-kind[^>]*><\/i><span>Debris disposal/);assert.match(html,/fa-cubes mt-req-kind[^>]*><\/i><span>Shingles/);
- assert.match(html,/title="Install roofing, 32 sq\nWork to be done, met by a work order\. Lay the new field roofing\./);assert.match(html,/Install roofing<\/span><em>32 sq<\/em>/);assert.match(html,/Clean up<\/span><em><\/em>/);
+ // The tooltip is short: what and how much, where it stands and why, what covers it. The long description is not in it.
+ assert.match(html,/data-fm-tooltip-html="[^"]*fm-tooltip-title[^"]*Install roofing · 32 sq[^"]*To check[^"]*Accounted for twice: Crew B and Summit\.[^"]*By Tear off and install/);assert.doesNotMatch(html,/data-fm-tooltip-html="[^"]*Lay the new field roofing/);assert.match(html,/Install roofing<\/span><em>32 sq<\/em>/);assert.match(html,/Clean up<\/span><em><\/em>/);
  // Green only when nothing is missing and nothing is odd.
  ctx.state.requirements.data={...data,status:'covered',counts:{open:0,warning:0,covered:4}};assert.match(ctx.renderRequirementsTray(),/mt-req-badge is-covered" title="Everything is accounted for"/);
  ctx.state.requirements.data={...data,status:'empty',counts:{open:0,warning:0,covered:0},requirements:[],reason:'Nothing on this project names a kind of work yet.'};assert.match(ctx.renderRequirementsTray(),/Nothing on this project names a kind of work yet\./);
@@ -404,7 +408,7 @@ test('the requirements tray says how the project stands when closed and what acc
  assert.match(html,/class="mt-req-tray is-open"/);
  // What no artifact has listed can be added by hand; what was added by hand says so and can be taken back.
  assert.match(html,/<select data-mt-req-add[^>]*><option value="">\+ Add<\/option><option value="roofing\.valleys" title="Line and finish the valleys\.">Valleys<\/option><\/select>/);
- assert.match(html,/title="Clean up\nWork to be done, met by a work order\.\nRequired by: Added by hand, Roof proposal\n/);assert.match(html,/<span>Added by hand<\/span><button type="button" class="mt-req-remove" data-mt-req-unrequire="roofing\.cleanup">Remove<\/button>/);
+ assert.match(html,/data-fm-tooltip-html="[^"]*Clean up[^"]*Accounted for[^"]*By Summit[^"]*For Added by hand, Roof proposal/);assert.match(html,/<span>Added by hand<\/span><button type="button" class="mt-req-remove" data-mt-req-unrequire="roofing\.cleanup">Remove<\/button>/);
  await ctx.setManualRequirement('roofing.valleys',true);assert.equal(JSON.stringify(calls),JSON.stringify([['scope','org','project',['roofing.cleanup','roofing.valleys']]]));calls.length=0;
  await ctx.setManualRequirement('roofing.cleanup',false);assert.equal(JSON.stringify(calls),JSON.stringify([['scope','org','project',[]]]));calls.length=0;
  assert.match(html,/<div class="mt-req-cover-head" title="Summit: does this work, on these line items\.\nTear off and install, 32 sq · \$3,040"><strong>Summit<\/strong><em>Tear off and install<\/em><button type="button" class="mt-req-remove" data-mt-req-exclude="roofing\.install" data-mt-list-id="labor"[^>]*>Remove<\/button><\/div><\/div>/);assert.doesNotMatch(html,/<ul><li><span title="Tear off and install">Tear off and install<\/span><em>32 sq · \$3,040<\/em><\/li><\/ul>/);
