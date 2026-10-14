@@ -56,7 +56,8 @@ function paidCents(doc: JsonObject) {
 export async function documentSummary(orgId: string, docValue: JsonObject): Promise<DocumentSummary> {
   const doc = object(docValue);
   const delivery = object(doc.delivery);
-  const status = text(FMDocModel.documentProgress(doc)) || text(doc.status) || "draft";
+  const progress = typeof FMDocModel.documentProgress === "function" ? text(FMDocModel.documentProgress(doc)) : "";
+  const status = progress || text(doc.status) || "draft";
   let total: number | null = null;
   const params = await pricedParams(orgId, doc);
   if (Array.isArray(params.scope_items) && params.scope_items.length) {
