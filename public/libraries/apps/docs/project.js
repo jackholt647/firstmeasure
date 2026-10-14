@@ -195,10 +195,15 @@
     if (!key) return '';
     return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
+  /** Signed, Paid, Completed (both), else the delivery status: the same rule
+   *  the document screen uses (FMDocModel.documentProgress). */
+  function engineProgress(record = {}){
+    return cleanText(window.FMDocModel?.documentProgress?.(record) || record.status).toLowerCase();
+  }
   function engineDocEntry(record = {}, index = 0){
     const type = docType(record);
     const meta = typeMeta(type);
-    const status = cleanText(record.status).toLowerCase();
+    const status = engineProgress(record);
     const uploaded = cleanText(record.source).toLowerCase() === 'uploaded';
     return normalizeDoc({
       id: `engine:${firstText(record.id, index + 1)}`,
@@ -473,6 +478,14 @@
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb{right:auto;width:68px}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb i{font-size:24px}.fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-thumb small{display:none}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-type-badge{left:76px;top:9px}
+      .fm-doc-status-badge{position:absolute;right:7px;top:7px;z-index:3;border-radius:999px;padding:4px 7px;background:#eef0f5;color:#5a6382;font-size:9px;font-weight:1000;letter-spacing:.03em;text-transform:uppercase;box-shadow:0 1px 2px rgba(16,24,40,.08)}
+      .fm-doc-status-badge.s-sent{background:#eef4ff;color:#3538cd}
+      .fm-doc-status-badge.s-viewed{background:#fdf3d7;color:#8a6400}
+      .fm-doc-status-badge.s-signed{background:#e3f8ec;color:#137a45}
+      .fm-doc-status-badge.s-paid{background:#e0f2fe;color:#075985}
+      .fm-doc-status-badge.s-completed{background:#d7f5e3;color:#0c5f36}
+      .fm-doc-status-badge.s-declined,.fm-doc-status-badge.s-expired{background:#fee4e2;color:#b42318}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-status-badge{top:9px;right:10px}
       .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb-meta{left:68px;top:0;bottom:0;padding:30px 10px 6px;background:#fff;color:#344054;opacity:1}
       .fm-docs-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
       .fm-docs-title{min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -747,7 +760,8 @@
     return `${isImageDoc(doc, url) && thumb
       ? `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}">`
       : `<span class="fm-doc-thumb" style="--doc-color:${escapeHtml(doc.color || meta.color)}"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i><small>${escapeHtml(doc.type_label || meta.label)}</small></span>`}
-      <span class="fm-doc-type-badge" style="--doc-color:${escapeHtml(doc.color || meta.color)}">${escapeHtml(doc.type_label || meta.label)}</span>`;
+      <span class="fm-doc-type-badge" style="--doc-color:${escapeHtml(doc.color || meta.color)}">${escapeHtml(doc.type_label || meta.label)}</span>
+      ${doc.engine_document && doc.status && doc.status_label ? `<span class="fm-doc-status-badge s-${escapeHtml(doc.status)}">${escapeHtml(doc.status_label)}</span>` : ''}`;
   }
   function documentTileMeta(item = {}){
     const doc = documentFromItem(item);

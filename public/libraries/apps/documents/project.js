@@ -234,7 +234,7 @@
 
   const STATUS_LABELS = {
     draft: 'Draft', issued: 'Issued', sent: 'Sent', viewed: 'Viewed', in_progress: 'In progress',
-    signed: 'Signed', completed: 'Completed', declined: 'Declined', expired: 'Expired', void: 'Void',
+    signed: 'Signed', paid: 'Paid', completed: 'Completed', declined: 'Declined', expired: 'Expired', void: 'Void',
     needs_review: 'Needs review', archived: 'Archived'
   };
   const TYPE_META = {
@@ -259,6 +259,12 @@
   function statusChip(status){
     const key = cleanText(status).toLowerCase() || 'draft';
     return `<span class="fmdx-chip ${esc(key)}">${esc(STATUS_LABELS[key] || key)}</span>`;
+  }
+  /** What a document shows as its status: Completed, Signed, Paid, else its
+   *  delivery status. One rule, shared with the Docs tab (FMDocModel). */
+  function progressChip(doc){
+    const record = objectValue(doc);
+    return statusChip(window.FMDocModel?.documentProgress?.(record) || record.status);
   }
 
   // ------------------------------------------------- scope item shape (v1)
@@ -1329,7 +1335,7 @@
             <div class="fmdx-doc-meta">${String(metaBits)}</div>
           </div>
           ${String(totalCents ? `<span class="fmdx-doc-total">${esc(moneyFromCents(totalCents))}</span>` : '')}
-          ${String(statusChip(doc.status))}
+          ${String(progressChip(doc))}
           <div class="fmdx-doc-actions">
             <button type="button" class="fmdx-btn" data-doc-open-btn><i class="fas ${String(readOnly ? 'fa-eye' : 'fa-pen')}"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c47557fbf9d3f5"," Open") ?? " Open")}</button>
             <button type="button" class="fmdx-icon-btn" data-doc-preview title="${(globalThis.PlatformLanguage?.htmlText("documents","m_afff48796c3165","Preview") ?? "Preview")}"><i class="fas fa-eye"></i></button>
@@ -2989,8 +2995,8 @@
       const existing = root.querySelector('[data-fmdx-editor-screen]');
       if (existing && existing.dataset.readonly === String(readOnly)) {
         // The status can move without the lock flipping (draft to sent).
-        const chip = existing.querySelector('.fmdx-editor-top > .fmdx-chip');
-        if (chip) chip.outerHTML = statusChip(doc.status);
+        const chip = existing.querySelector('.fmdx-editor-top > .fmdx-chip:not(.locked)');
+        if (chip) chip.outerHTML = progressChip(doc);
         updateSaveState();
         updateModeToggle();
         syncDocViewVisibility();
@@ -3006,7 +3012,8 @@
               ${String(readOnly
                 ? `<strong class="fmdx-doc-title-input" style="border-color:transparent">${esc(firstText(doc.title, 'Document'))}</strong>`
                 : `<input class="fmdx-doc-title-input" data-fmdx-title value="${esc(firstText(doc.title, 'Untitled document'))}" spellcheck="false">`)}
-              ${String(statusChip(doc.status))}
+              ${String(readOnly ? `<span class="fmdx-chip locked" tabindex="0" title="${esc(`This document is ${statusLabel.toLowerCase()} and locked. ${isAmendableStatus(doc.status) ? 'Amend it with a change order to make revisions.' : 'It can no longer be edited.'}`)}"><i class="fas fa-lock"></i>Locked</span>` : '')}
+              ${String(progressChip(doc))}
               <span class="fmdx-top-total" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9403c7637d4905","Total") ?? "Total")}"><b data-card-total>—</b></span>
               <span class="fmdx-save-state" data-fmdx-save-state></span>
               <button type="button" class="fmdx-btn" data-fmdx-mode-toggle data-fmdx-mode="workflow" title="Go back to this document's steps" hidden><i class="fas fa-list-check"></i> Back to steps</button>
@@ -3015,8 +3022,8 @@
                 ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-agent-btn title="Agent"><i class="fas fa-wand-magic-sparkles"></i></button>`)}
                 ${String(readOnly ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-theme title="Theme"><i class="fas fa-palette"></i></button>`)}
                 <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-history title="History"><i class="fas fa-clock-rotate-left"></i></button>
-                <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-preview title="Preview"><i class="fas fa-eye"></i></button>
-                <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-pdf title="PDF"><i class="fas fa-file-pdf"></i></button>
+                ${String(readOnly ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-preview title="Preview"><i class="fas fa-eye"></i></button>
+                <button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-pdf title="Download PDF"><i class="fas fa-download"></i></button>`)}
                 <button type="button" class="fmdx-btn fmdx-btn-more" data-fmdx-more title="More actions"><i class="fas fa-ellipsis"></i></button>
                 ${String(readOnly ? '' : `<button type="button" class="fmdx-btn" data-fmdx-present title="Present this estimate to the customer" hidden><i class="fas fa-chalkboard-user"></i> Present</button>`)}
                 ${String(readOnly && isAmendableStatus(doc.status)
@@ -3024,7 +3031,6 @@
                   : `<button type="button" class="fmdx-btn primary" data-fmdx-send><i class="fas fa-paper-plane"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_c66c415b0e5570"," Send") ?? " Send")}</button>`)}
               </div>
             </header>
-            ${String(readOnly ? `<div class="fmdx-locked-banner"><i class="fas fa-lock"></i>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("documents","m_a919d34f0dcde5",` This document is ${v0} and locked. ${v1}`,{v0,v1}) ?? ` This document is ${v0} and locked. ${v1}`)(esc(statusLabel.toLowerCase()),isAmendableStatus(doc.status) ? 'Amend it with a change order to make revisions.' : 'It can no longer be edited.')}</div>` : '')}
             <div class="fmdx-doc-card-row" data-fmdx-doc-card-row hidden>
               <div class="fmdx-doc-card" data-fmdx-doc-card></div>
             </div>
@@ -3622,27 +3628,111 @@
     // Read-only rendering for signed/completed/declined/void/expired docs —
     // exactly what the customer sees, straight from the resolver.
     function mountReadOnlyCanvas(canvas){
-      if (!window.FMDocRenderer?.render) {
-        canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-eye-slash"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_97e3a8c68504bb","The document renderer library is not loaded.") ?? "The document renderer library is not loaded.")}</span></div>`;
-        return;
-      }
-      canvas.innerHTML = '<div class="fmdx-readonly-scroll" data-fmdx-readonly-stage></div>';
-      const stage = canvas.querySelector('[data-fmdx-readonly-stage]');
-      try {
-        const available = Math.max(320, stage.clientWidth - 48);
-        const dims = window.FMDocModel?.paperDimensions?.(objectValue(state.resolved.resolved_definition)) || { w_pt: 612 };
-        const scale = Math.min(1.25, available / (dims.w_pt * (96 / 72)));
-        window.FMDocRenderer.render(stage, {
+      try { state.readonlyViewer?.destroy?.(); } catch (e) {}
+      state.readonlyViewer = mountDocViewer(canvas, {
+        doc: state.doc,
+        renderOptions: {
           document: state.resolved.resolved_definition,
           theme: state.resolved.theme,
           themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: { ...objectValue(state.resolved?.theme_vars), ...objectValue(state.doc?.theme_overrides) } },
-          mode: 'static',
-          widgetData: state.resolved.widget_data,
-          scale
-        });
-      } catch (error) {
-        stage.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+          widgetData: state.resolved.widget_data
+        }
+      });
+    }
+
+    /**
+     * A rendered document with its view controls floating top left: zoom out,
+     * Fit (the whole page), zoom in, fit width, print and download. Shared by
+     * the locked document view and Preview; Preview passes onClose for its X.
+     */
+    function mountDocViewer(host, options = {}){
+      const doc = objectValue(options.doc);
+      const renderOptions = objectValue(options.renderOptions);
+      if (!window.FMDocRenderer?.render) {
+        host.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-eye-slash"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("documents","m_97e3a8c68504bb","The document renderer library is not loaded.") ?? "The document renderer library is not loaded.")}</span></div>`;
+        return { destroy(){} };
       }
+      host.innerHTML = `
+        <div class="fmdx-viewer-scroll" data-viewer-scroll><div class="fmdx-viewer-stage" data-viewer-stage></div></div>
+        <div class="fmdx-viewer-tools" role="toolbar" aria-label="View">
+          <button type="button" data-viewer-zoom-out title="Zoom out" aria-label="Zoom out"><i class="fas fa-minus"></i></button>
+          <button type="button" class="fmdx-viewer-fit" data-viewer-fit title="Fit the page">Fit</button>
+          <button type="button" data-viewer-zoom-in title="Zoom in" aria-label="Zoom in"><i class="fas fa-plus"></i></button>
+          <button type="button" data-viewer-width title="Fit width" aria-label="Fit width"><i class="fas fa-arrows-left-right"></i></button>
+          <span class="fmdx-viewer-sep" aria-hidden="true"></span>
+          <button type="button" data-viewer-print title="Print" aria-label="Print"><i class="fas fa-print"></i></button>
+          ${doc.id ? '<button type="button" data-viewer-download title="Download PDF" aria-label="Download PDF"><i class="fas fa-download"></i></button>' : ''}
+        </div>
+        ${options.onClose ? '<button type="button" class="fmdx-viewer-close" data-viewer-close title="Close" aria-label="Close"><i class="fas fa-xmark"></i></button>' : ''}`;
+      const scroll = host.querySelector('[data-viewer-scroll]');
+      const stage = host.querySelector('[data-viewer-stage]');
+      const fitButton = host.querySelector('[data-viewer-fit]');
+      const widthButton = host.querySelector('[data-viewer-width]');
+      const dims = window.FMDocModel?.paperDimensions?.(objectValue(renderOptions.document)) || { w_pt: 612, h_pt: 792 };
+      const pageWidth = dims.w_pt * (96 / 72);
+      const pageHeight = (dims.h_pt || 792) * (96 / 72);
+      let zoom = options.initialZoom || 'width'; // 'width' | 'page' | a scale
+      let handle = null;
+      let lastScale = 0;
+      const scaleFor = (mode) => {
+        const byWidth = Math.min(1.6, Math.max(0.2, (scroll.clientWidth - 48) / pageWidth));
+        if (mode === 'width') return byWidth;
+        if (mode === 'page') return Math.min(byWidth, Math.max(0.2, (scroll.clientHeight - 56) / pageHeight));
+        return mode;
+      };
+      const render = () => {
+        const scale = scaleFor(zoom);
+        fitButton.textContent = zoom === 'page' ? 'Fit' : `${Math.round(scale * 100)}%`;
+        fitButton.classList.toggle('active', zoom === 'page');
+        widthButton.classList.toggle('active', zoom === 'width');
+        if (handle && Math.abs(scale - lastScale) < 0.002) return;
+        lastScale = scale;
+        try { handle?.destroy?.(); } catch (e) {}
+        stage.innerHTML = '';
+        try {
+          handle = window.FMDocRenderer.render(stage, { ...renderOptions, mode: 'static', scale }) || {};
+        } catch (error) {
+          stage.innerHTML = `<div class="fmdx-state" style="margin:20px"><i class="fas fa-triangle-exclamation"></i><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span>${String(esc(errorMessage(error, '')))}</span></div>`;
+        }
+      };
+      const step = (delta) => { zoom = Math.min(2.5, Math.max(0.25, scaleFor(zoom) + delta)); render(); };
+      host.querySelector('[data-viewer-zoom-out]').addEventListener('click', () => step(-0.15));
+      host.querySelector('[data-viewer-zoom-in]').addEventListener('click', () => step(0.15));
+      fitButton.addEventListener('click', () => { zoom = 'page'; render(); });
+      widthButton.addEventListener('click', () => { zoom = 'width'; render(); });
+      host.querySelector('[data-viewer-print]').addEventListener('click', () => printRenderedDocument(renderOptions));
+      host.querySelector('[data-viewer-download]')?.addEventListener('click', (event) => downloadPdf(doc, event.currentTarget));
+      host.querySelector('[data-viewer-close]')?.addEventListener('click', () => options.onClose());
+      // A fitted view follows the space it has.
+      const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { if (typeof zoom === 'string') render(); }) : null;
+      resize?.observe(scroll);
+      render();
+      return {
+        destroy(){ resize?.disconnect(); try { handle?.destroy?.(); } catch (e) {} }
+      };
+    }
+
+    /** Print a document at full size, on its own, then tidy up. */
+    function printRenderedDocument(renderOptions){
+      const sheet = document.createElement('div');
+      sheet.className = 'fmdx-print-sheet';
+      document.body.appendChild(sheet);
+      let handle = null;
+      try { handle = window.FMDocRenderer.render(sheet, { ...renderOptions, mode: 'static', scale: 1 }); }
+      catch (error) { sheet.remove(); showToast('Print', errorMessage(error, 'Could not prepare the document for printing.'), false); return; }
+      document.body.classList.add('fmdx-print-mode');
+      let finished = false;
+      const done = () => {
+        if (finished) return;
+        finished = true;
+        document.body.classList.remove('fmdx-print-mode');
+        window.removeEventListener('afterprint', done);
+        try { handle?.destroy?.(); } catch (e) {}
+        sheet.remove();
+      };
+      window.addEventListener('afterprint', done);
+      // Let images in the sheet start loading before the print dialog opens.
+      setTimeout(() => { window.print(); setTimeout(done, 1500); }, 120);
     }
 
     function mountEditorCanvas(){
@@ -4341,32 +4431,13 @@
       }
       const overlay = document.createElement('div');
       overlay.className = 'fmdx-preview-overlay';
-      overlay.innerHTML = `
-        <header class="fmdx-preview-top">
-          <strong>${String(esc(firstText(options.title, doc.title, 'Document preview')))}</strong>
-          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <span class="fmdx-preview-zoom">
-              <button type="button" data-zoom-out title="${(globalThis.PlatformLanguage?.htmlText("documents","m_acf282d479dddf","Zoom out") ?? "Zoom out")}"><i class="fas fa-minus"></i></button>
-              <span class="pct" data-zoom-pct>${(globalThis.PlatformLanguage?.htmlText("documents","m_2d8510904d5879","Fit") ?? "Fit")}</span>
-              <button type="button" data-zoom-in title="${(globalThis.PlatformLanguage?.htmlText("documents","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-plus"></i></button>
-              <button type="button" data-zoom-fit title="${(globalThis.PlatformLanguage?.htmlText("documents","m_b4e9fa5595e7cf","Fit width") ?? "Fit width")}"><i class="fas fa-arrows-left-right-to-line"></i></button>
-            </span>
-            <button type="button" class="fmdx-btn" data-preview-print><i class="fas fa-print"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_6331c8921612bb"," Print") ?? " Print")}</button>
-            <button type="button" class="fmdx-btn" data-preview-pdf><i class="fas fa-file-pdf"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_932226afd1106e"," Download PDF") ?? " Download PDF")}</button>
-            <button type="button" class="fmdx-btn" data-preview-close><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_373bd9180a7ee3"," Close") ?? " Close")}</button>
-          </div>
-        </header>
-        <div class="fmdx-preview-scroll" data-preview-scroll>
-          <div class="fmdx-preview-stage" data-preview-stage>
-            <div class="fmdx-state" style="min-width:320px"><div class="fmdx-spinner"></div><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_6c82cfd4965b22","Rendering preview") ?? "Rendering preview")}</strong></div>
-          </div>
-        </div>`;
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-label', firstText(options.title, doc.title, 'Document preview'));
+      overlay.innerHTML = `<div class="fmdx-state" style="min-width:320px;margin:auto"><div class="fmdx-spinner"></div><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_6c82cfd4965b22","Rendering preview") ?? "Rendering preview")}</strong></div>`;
       document.body.appendChild(overlay);
-      let rendererHandle = null;
-      let zoom = 0; // 0 = fit
+      let viewer = null;
       const close = () => {
-        try { rendererHandle?.destroy?.(); } catch (e) {}
-        document.body.classList.remove('fmdx-print-mode');
+        try { viewer?.destroy?.(); } catch (e) {}
         overlay.remove();
         document.removeEventListener('keydown', onKey);
         state.previewCleanup = null;
@@ -4374,59 +4445,29 @@
       const onKey = (event) => { if (event.key === 'Escape') close(); };
       document.addEventListener('keydown', onKey);
       state.previewCleanup = close;
-      overlay.querySelector('[data-preview-close]').addEventListener('click', close);
-      overlay.querySelector('[data-preview-pdf]').addEventListener('click', (event) => downloadPdf(doc, event.currentTarget));
-      overlay.querySelector('[data-preview-print]').addEventListener('click', () => {
-        document.body.classList.add('fmdx-print-mode');
-        const done = () => { document.body.classList.remove('fmdx-print-mode'); window.removeEventListener('afterprint', done); };
-        window.addEventListener('afterprint', done);
-        window.print();
-        setTimeout(done, 2000);
-      });
 
       let resolved = objectValue(options.resolved);
       if (!resolved.resolved_definition) {
         try {
           resolved = objectValue(await api().documents.resolve(orgId(), doc.id));
         } catch (error) {
-          overlay.querySelector('[data-preview-stage]').innerHTML = `<div class="fmdx-state" style="min-width:320px"><i class="fas fa-cloud-bolt"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
+          overlay.innerHTML = `<div class="fmdx-state" style="min-width:320px;margin:auto"><i class="fas fa-cloud-bolt"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_fc865c9558abcb","Preview unavailable") ?? "Preview unavailable")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span><button type="button" class="fmdx-btn" data-preview-close><i class="fas fa-xmark"></i> Close</button></div>`;
+          overlay.querySelector('[data-preview-close]').addEventListener('click', close);
           return;
         }
       }
       if (!overlay.isConnected) return;
-
-      const stage = overlay.querySelector('[data-preview-stage]');
-      const scroll = overlay.querySelector('[data-preview-scroll]');
-      const dims = window.FMDocModel?.paperDimensions?.(objectValue(resolved.resolved_definition)) || { w_pt: 612, h_pt: 792 };
-
-      function currentScale(){
-        if (zoom > 0) return zoom;
-        const pagePx = dims.w_pt * (96 / 72);
-        const available = Math.max(280, scroll.clientWidth - 44);
-        return Math.min(1.4, available / pagePx);
-      }
-      function renderStage(){
-        const scale = currentScale();
-        overlay.querySelector('[data-zoom-pct]').textContent = zoom > 0 ? `${Math.round(scale * 100)}%` : 'Fit';
-        try { rendererHandle?.destroy?.(); } catch (e) {}
-        stage.innerHTML = '';
-        try {
-          rendererHandle = window.FMDocRenderer.render(stage, {
-            document: resolved.resolved_definition,
-            theme: resolved.theme,
-            themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: objectValue(resolved?.theme_vars || state.resolved?.theme_vars) },
-            mode: 'static',
-            widgetData: resolved.widget_data,
-            scale
-          });
-        } catch (error) {
-          stage.innerHTML = `<div class="fmdx-state" style="min-width:320px"><i class="fas fa-triangle-exclamation"></i><strong style="color:#e7ecf5">${(globalThis.PlatformLanguage?.htmlText("documents","m_315a295c7205d8","Render failed") ?? "Render failed")}</strong><span style="color:#9aa6bd">${String(esc(errorMessage(error, '')))}</span></div>`;
+      viewer = mountDocViewer(overlay, {
+        doc,
+        onClose: close,
+        initialZoom: 'page',
+        renderOptions: {
+          document: resolved.resolved_definition,
+          theme: resolved.theme,
+          themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: objectValue(resolved?.theme_vars || state.resolved?.theme_vars) },
+          widgetData: resolved.widget_data
         }
-      }
-      overlay.querySelector('[data-zoom-in]').addEventListener('click', () => { zoom = Math.min(2, (zoom || currentScale()) + 0.15); renderStage(); });
-      overlay.querySelector('[data-zoom-out]').addEventListener('click', () => { zoom = Math.max(0.25, (zoom || currentScale()) - 0.15); renderStage(); });
-      overlay.querySelector('[data-zoom-fit]').addEventListener('click', () => { zoom = 0; renderStage(); });
-      renderStage();
+      });
     }
 
     // ================================================================= pdf

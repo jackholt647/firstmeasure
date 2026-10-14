@@ -2043,6 +2043,31 @@
     return true;
   }
 
+  /**
+   * A document's progress at a glance, for lists and headers: Completed once
+   * it is signed and paid (or the engine says so), else Signed or Paid, else
+   * its delivery status (Viewed, Sent, Draft...). Returns a status key.
+   */
+  function documentProgress(doc) {
+    const d = isObject(doc) ? doc : {};
+    const status = String(d.status || "").trim().toLowerCase() || "draft";
+    if (status === "completed") return "completed";
+    const defs = isObject(d.output_defs) ? d.output_defs : {};
+    const values = isObject(d.outputs) ? d.outputs : {};
+    let signed = status === "signed";
+    let paid = false;
+    for (const key of Object.keys(defs)) {
+      const def = defs[key];
+      if (!def || !outputValueSatisfies(def, values[key])) continue;
+      if (def.type === "signature") signed = true;
+      if (def.type === "payment") paid = true;
+    }
+    if (signed && paid) return "completed";
+    if (signed) return "signed";
+    if (paid) return "paid";
+    return status;
+  }
+
   // ---------------------------------------------------------------------------
   // Validation
   // ---------------------------------------------------------------------------
@@ -2416,6 +2441,7 @@
     paramDefaultValue,
     missingRequiredParams,
     requiredOutputsSatisfied,
+    documentProgress,
     outputValueSatisfies,
 
     validateDocument,
