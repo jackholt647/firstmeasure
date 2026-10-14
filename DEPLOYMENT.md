@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 14 Project custom fields and photo fields: [custom fields on the right of Overview and photo fields as thumbnail tiles with the project media picker](deploy/digitalocean/development-cover-photo-tile-20261014.md) records what changed, checks and the verified development rollout.
+
 October 13 People and assignees: [the assignee base, pay by role and type, field homes and the People settings category](deploy/digitalocean/development-people-20261015.md) records what changed, what was removed, checks and the verified development rollout.
 
 October 13 Pay cadence and time clock: [flexible pay schedules, salary, pay defaults, group splits, the time clock as published data and the payroll screens](deploy/digitalocean/development-pay-cadence-20261013.md) records what changed, what was removed, checks and the verified development rollout.
