@@ -20,10 +20,23 @@
   if (!window.Portal) return;
   const { $, escapeHtml, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
-  function companyReportPreview(){
+  // The sample report cover. With report settings it shows only what those settings put on the cover.
+  function companyReportPreview(settings = null){
     const metric = window.PlatformLanguage?.companyContext?.().measurement_system === 'metric';
+    const show = (key) => !settings || settings[key] !== false;
     const row = (label, value) => `<div>${escapeHtml(label)}: ${escapeHtml(value)}</div>`;
-    return `<svg viewBox="0 0 360 240" aria-hidden="true" style="display:block;width:100%;height:auto"><g fill="none" stroke="#777" stroke-width="1.2"><path d="M45 80h125V45h85v35h60v145H45zM45 80l62 55 63-55M170 45l42 38 43-38M255 80l30 45 30-45M107 135v90M212 83v142M285 125v100M45 225l62-90 63 90M170 225l42-142 43 142M255 225l30-100 30 100"/></g></svg><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;font-size:clamp(7px,.65vw,10px);line-height:1.6"><div style="border:1px solid #ddd;padding:8px"><strong>${escapeHtml(settingsText("fm_preview_summary", "Project Summary"))}</strong>${row(settingsText("fm_preview_facets", "Total facets"), settingsNumber(17))}${row(settingsText("fm_preview_pitch", "Predominant pitch"), settingsNumber(6))}${row(settingsText("fm_preview_area", "Total area"), settingsNumber(metric ? 273.3 : 2942) + (metric ? ' m²' : ' ft²'))}</div><div style="border:1px solid #ddd;padding:8px"><strong>${escapeHtml(settingsText("fm_preview_breakdown", "Measurement Breakdown"))}</strong>${row(settingsText("fm_preview_eave", "Eave"), settingsNumber(metric ? 40.8 : 134) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_ridge", "Ridge"), settingsNumber(metric ? 23.2 : 76) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_valley", "Valley"), settingsNumber(metric ? 35.4 : 116) + (metric ? ' m' : ' ft'))}</div></div>`;
+    const box = (body) => `<div style="border:1px solid #ddd;padding:8px">${body}</div>`;
+    const customer = show('cover_show_customer') ? `<div style="width:100%;margin-bottom:8px;font-size:clamp(7px,.65vw,10px);line-height:1.5;color:#444">${escapeHtml(settingsText("fm_preview_prepared_for", "Prepared for"))} <strong>Jordan Lee</strong><br>1420 Oak Ridge Dr</div>` : '';
+    const stats = [
+      show('cover_show_squares') ? row(settingsText("fm_preview_squares", "Total squares"), settingsNumber(show('cover_show_waste') ? 32.36 : 29.42)) : '',
+      show('cover_show_waste') ? row(settingsText("fm_preview_waste", "Suggested waste"), settingsNumber(10) + '%') : '',
+      show('cover_show_facets') ? row(settingsText("fm_preview_facets", "Total facets"), settingsNumber(17)) : '',
+      show('cover_show_pitch') ? row(settingsText("fm_preview_pitch", "Predominant pitch"), settingsNumber(6)) : ''
+    ].join('');
+    const summary = stats ? box(`<strong>${escapeHtml(settingsText("fm_preview_summary", "Project Summary"))}</strong>${row(settingsText("fm_preview_area", "Total area"), settingsNumber(metric ? 273.3 : 2942) + (metric ? ' m²' : ' ft²'))}${stats}`) : '';
+    const breakdown = show('cover_show_breakdown') ? box(`<strong>${escapeHtml(settingsText("fm_preview_breakdown", "Measurement Breakdown"))}</strong>${row(settingsText("fm_preview_eave", "Eave"), settingsNumber(metric ? 40.8 : 134) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_ridge", "Ridge"), settingsNumber(metric ? 23.2 : 76) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_valley", "Valley"), settingsNumber(metric ? 35.4 : 116) + (metric ? ' m' : ' ft'))}`) : '';
+    const boxes = [summary, breakdown].filter(Boolean);
+    return `${customer}<svg viewBox="0 0 360 240" aria-hidden="true" style="display:block;width:100%;height:auto"><g fill="none" stroke="#777" stroke-width="1.2"><path d="M45 80h125V45h85v35h60v145H45zM45 80l62 55 63-55M170 45l42 38 43-38M255 80l30 45 30-45M107 135v90M212 83v142M285 125v100M45 225l62-90 63 90M170 225l42-142 43 142M255 225l30-100 30 100"/></g></svg>${boxes.length ? `<div style="display:grid;grid-template-columns:repeat(${boxes.length},1fr);gap:8px;width:100%;margin-top:8px;font-size:clamp(7px,.65vw,10px);line-height:1.6">${boxes.join('')}</div>` : ''}`;
   }
   function languageOptions(selected, { inherit = false, translation = false, companyLocale } = {}) {
     const service = window.PlatformLanguage;
@@ -820,9 +833,9 @@
     return { ok:true, users: data.users || [] };
   }
   function logoKey(url){ return (url && String(url).trim()) ? String(url).trim() : ''; }
-  function makeToggleBtn({ key, label, value }){
+  function makeToggleBtn({ key, label, value, tip = '' }){
     return `
-      <button class="rp-toggle ${value ? 'on' : 'off'}" data-key="${escapeHtml(key)}" data-val="${value ? '1' : '0'}" type="button">
+      <button class="rp-toggle ${value ? 'on' : 'off'}" data-key="${escapeHtml(key)}" data-val="${value ? '1' : '0'}" type="button" aria-pressed="${value ? 'true' : 'false'}"${tip ? ` data-fm-tooltip="${escapeHtml(tip)}"` : ''}>
         <span class="rp-dot"></span>
         <span class="rp-label">${escapeHtml(label)}</span>
         <span class="rp-state">${escapeHtml(value ? settingsText("fm_on", "On") : settingsText("fm_off", "Off"))}</span>
@@ -1299,7 +1312,7 @@
       });
       const titleNode = panel.querySelector('[data-settings-title]');
       const selected = typeof activeTab === 'string' ? sectionFor(activeTab) : null;
-      if (titleNode && selected) titleNode.textContent = sectionTitle(selected);
+      if (titleNode && selected) titleNode.textContent = sectionTitle(navSection(selected));
     };
     // PERMISSIONS: check what sub-tabs to show
     const canLeftColumnSettings = appFlag('platform', 'left_column_settings');
@@ -1371,7 +1384,7 @@
       { id:'documents', allowed:canDocuments, icon:'fas fa-folder-open', term:'documents.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_5d7c7ad6033624","Documents") ?? "Documents"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_d5a227b68d5c47","Choose required project documents and defaults.") ?? "Choose required project documents and defaults."), tabId:'csTabDocuments', paneId:'csPaneDocuments' },
       { id:'configuration', allowed:canConfiguration, icon:'fas fa-sliders', term:'settings.configuration_tab', title:(globalThis.PlatformLanguage?.text("settings","m_ef47bee58d2566","Configuration") ?? "Configuration"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_7087081b1308e1","Manage shared settings, insights, and app access.") ?? "Manage shared settings, insights, and app access."), tabId:'csTabConfiguration', paneId:'csPaneConfiguration' },
       { id:'scheduling', allowed:canScheduling, icon:'fas fa-calendar-days', term:'scheduling.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_4249990706c50e","Scheduling") ?? "Scheduling"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_25f4aecc27c9a1","Appointment confirmations, availability, and assignment rules.") ?? "Appointment confirmations, availability, and assignment rules."), tabId:'csTabScheduling', paneId:'csPaneScheduling' },
-      { id:'project_scopes', allowed:canScopeTemplates, icon:'fas fa-layer-group', title:(globalThis.PlatformLanguage?.text("settings","m_7932b921135406","Project Scopes") ?? "Project Scopes"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_eeffd1a4887236","Choose project scopes and configure each scope’s workflow, fields, resources, and automations.") ?? "Choose project scopes and configure each scope’s workflow, fields, resources, and automations."), tabId:'csTabScopeTemplates', paneId:'csPaneScopeTemplates' },
+      { id:'project_scopes', allowed:canScopeTemplates, parent:canConfiguration ? 'configuration' : '', icon:'fas fa-layer-group', title:(globalThis.PlatformLanguage?.text("settings","m_7932b921135406","Project Scopes") ?? "Project Scopes"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_eeffd1a4887236","Choose project scopes and configure each scope’s workflow, fields, resources, and automations.") ?? "Choose project scopes and configure each scope’s workflow, fields, resources, and automations."), tabId:'csTabScopeTemplates', paneId:'csPaneScopeTemplates' },
       { id:'storage', allowed:canStorage, icon:'fas fa-hard-drive', term:'settings.storage_tab', title:(globalThis.PlatformLanguage?.text("settings","m_6a8d5a5b6c23db","Storage") ?? "Storage"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_4926f46a0a9736","Review media usage and storage limits.") ?? "Review media usage and storage limits."), tabId:'csTabStorage', paneId:'csPaneStorage' },
       { id:'sms', allowed:canSmsSettings, icon:'fas fa-message', term:'settings.sms_tab', title:(globalThis.PlatformLanguage?.text("settings","m_e1dd22c36fbc9b","SMS") ?? "SMS"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_db381c7db3160e","Configure messaging registration and SMS setup.") ?? "Configure messaging registration and SMS setup."), tabId:'csTabSms', paneId:'csPaneSms' },
       { id:'domains', allowed:canDomains, icon:'fas fa-globe', term:'settings.domains_tab', title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c02d45f8191c42","Register, connect, and manage website domains.") ?? "Register, connect, and manage website domains."), tabId:'csTabDomains', paneId:'csPaneDomains' },
@@ -1384,6 +1397,8 @@
     const availableSettingsSections = settingsSections.filter((section) => section.allowed);
     const sectionFor = (id) => availableSettingsSections.find((section) => section.id === id) || null;
     const sectionTitle = (section) => section ? (section.term ? terminologyLabel(section.term, section.title) : section.title) : '';
+    const navSection = (section) => (section?.parent && sectionFor(section.parent)) || section;
+    const navSelected = (id, which) => id === which || sectionFor(which)?.parent === id;
     const defaultActiveTab = sectionFor('my_settings')?.id || availableSettingsSections[0]?.id || 'my_settings';
     if (viewState.activeTab === 'lead_import') viewState.activeTab = 'forms';
     if (viewState.activeTab === 'platform_billing') viewState.activeTab = 'billing';
@@ -2175,111 +2190,41 @@
         .company-contact-phone{grid-column:2;grid-row:1}
         .company-contact-email{grid-column:1 / -1;grid-row:2}
       }
-      /* Reports */
-      .rp-wrap{ max-width: 980px; margin:0 auto; }
-      .rp-card{
-        border:1px solid rgba(0,0,0,0.10);
-        border-radius:18px;
-        padding:14px;
-        background:#fff;
-        box-shadow:0 14px 34px rgba(0,0,0,0.05);
-      }
-      .rp-h{ font-weight:1000; font-size:16px; margin:0; }
-      .rp-divider{ height:1px; background:rgba(0,0,0,0.08); margin:14px 0; }
-      .rp-inline{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:10px; }
-      .rp-pill{
-        display:inline-flex; align-items:center; gap:8px;
-        border:1px solid rgba(0,0,0,0.10);
-        border-radius:999px;
-        padding:8px 10px;
-        font-weight:950; font-size:12px;
-        background:#fff;
-        color:#444;
-      }
-      .rp-num{ width:180px; }
-      .rp-sections{
-        margin-top:12px;
-        display:grid;
-        gap:0;
-      }
-      .rp-section{
-        padding:14px 0;
-        border-top:1px solid rgba(0,0,0,0.08);
-      }
-      .rp-section:first-child{
-        border-top:0;
-        padding-top:0;
-      }
-      .rp-section:last-child{
-        padding-bottom:0;
-      }
-      .rp-sectionHead{
-        margin-bottom:10px;
-      }
-      .rp-sectionTitle{
-        font-size:13px;
-        font-weight:1000;
-        color:#222;
-        line-height:1.2;
-      }
-      .rp-sectionSub{
-        margin-top:4px;
-        font-size:12px;
-        font-weight:800;
-        color:#777;
-        line-height:1.35;
-      }
-      .rp-tgrid{
-        margin-top: 12px;
-        display:grid;
-        grid-template-columns: 1fr;
-        gap:10px;
-      }
-      @media (min-width: 900px){
-        .rp-tgrid{ grid-template-columns: 1fr 1fr; }
-      }
-      .rp-toggle{
-        width:100%;
-        border-radius:16px;
-        border:1px solid rgba(0,0,0,0.12);
-        background:#fff;
-        padding:12px 12px;
-        font-weight:1000;
-        cursor:pointer;
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
-        gap:12px;
-        transition:.16s ease;
-        user-select:none;
-      }
-      .rp-toggle:hover{ border-color: rgba(var(--primary-rgb,217,48,37),0.35); }
-      .rp-toggle .rp-dot{
-        width:10px; height:10px; border-radius:999px;
-        background:rgba(0,0,0,0.18);
-        box-shadow:0 6px 16px rgba(0,0,0,0.08);
-        flex:0 0 auto;
-      }
-      .rp-toggle .rp-label{
-        text-align:left;
-        font-size:13px;
-        font-weight:1000;
-        color:#333;
-        flex:1 1 auto;
-      }
-      .rp-toggle .rp-state{
-        font-size:12px;
-        font-weight:1000;
-        color:#999;
-        flex:0 0 auto;
-      }
-      .rp-toggle.on{
-        border-color: rgba(var(--primary-rgb,217,48,37),0.45);
-        box-shadow:0 12px 26px rgba(var(--primary-rgb,217,48,37),0.16);
-      }
-      .rp-toggle.on .rp-dot{ background: var(--primary,#d93025); }
-      .rp-toggle.on .rp-state{ var(--primary-readable, var(--primary,#d93025)); }
-      .rp-toggle.off:hover .rp-state{ var(--primary-readable, var(--primary,#d93025)); }
+      /* Reports: compact settings on the left, the sample report on the right. */
+      .rp-wrap{ max-width:1120px; margin:0 auto; }
+      .rp-layout{ display:grid; grid-template-columns:minmax(0,1fr) minmax(240px,340px); gap:16px; align-items:start; }
+      .rp-card{ border:1px solid rgba(0,0,0,0.10); border-radius:12px; padding:12px 14px; background:#fff; min-width:0; }
+      .rp-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+      .rp-head .cs-actions{ margin:0; gap:6px; }
+      .rp-head .cs-btn{ padding:6px 11px; font-size:12px; }
+      .rp-h{ display:flex; align-items:center; gap:6px; font-weight:1000; font-size:15px; margin:0; }
+      .rp-sections{ margin-top:6px; display:grid; gap:0; }
+      .rp-section{ padding:10px 0; border-top:1px solid rgba(0,0,0,0.07); }
+      .rp-section:first-child{ border-top:0; }
+      .rp-section:last-child{ padding-bottom:0; }
+      .rp-sectionHead{ margin-bottom:7px; }
+      .rp-sectionTitle{ display:flex; align-items:center; gap:6px; font-size:11px; font-weight:1000; color:#667085; letter-spacing:.05em; text-transform:uppercase; line-height:1.2; }
+      .rp-sectionTitle .fm-ui-help,.rp-h .fm-ui-help{ text-transform:none; letter-spacing:0; }
+      .rp-tgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:6px; }
+      .rp-toggle{ width:100%; min-height:32px; border-radius:8px; border:1px solid rgba(0,0,0,0.11); background:#fff; padding:6px 9px; cursor:pointer; display:flex; align-items:center; gap:8px; transition:border-color .16s ease, background .16s ease; user-select:none; font:inherit; }
+      .rp-toggle:hover{ border-color:rgba(var(--primary-rgb,217,48,37),0.35); }
+      .rp-toggle .rp-dot{ width:8px; height:8px; border-radius:999px; background:rgba(0,0,0,0.18); flex:0 0 auto; }
+      .rp-toggle .rp-label{ text-align:left; font-size:12px; font-weight:850; color:#344054; flex:1 1 auto; min-width:0; line-height:1.25; }
+      .rp-toggle .rp-state{ font-size:10px; font-weight:1000; color:#98a2b3; text-transform:uppercase; flex:0 0 auto; }
+      .rp-toggle.on{ border-color:rgba(var(--primary-rgb,217,48,37),0.45); background:rgba(var(--primary-rgb,217,48,37),0.04); }
+      .rp-toggle.on .rp-dot{ background:var(--primary,#d93025); }
+      .rp-toggle.on .rp-state{ color:var(--primary-readable, var(--primary,#d93025)); }
+      .rp-toggle.off .rp-label{ color:#667085; }
+      .rp-preview .cs-page{ aspect-ratio:8.5/11; }
+      .rp-sampleCover{ width:84%; display:flex; flex-direction:column; align-items:stretch; }
+      .rp-pageList{ display:flex; flex-wrap:wrap; gap:4px; margin-top:10px; }
+      .rp-pageListHead{ width:100%; margin-bottom:2px; color:#667085; font-size:10px; font-weight:1000; letter-spacing:.06em; text-transform:uppercase; }
+      .rp-pageChip{ border-radius:999px; padding:3px 8px; font-size:11px; font-weight:850; background:rgba(var(--primary-rgb,217,48,37),0.08); color:var(--primary-readable,var(--primary,#d93025)); }
+      .rp-pageChip.off{ background:#f2f4f7; color:#98a2b3; text-decoration:line-through; }
+      .rp-toggle[data-key="page_gutters"]{ grid-column:1 / -1; max-width:360px; }
+      .rp-head .cs-actions{ flex-direction:row; flex-wrap:nowrap; }
+      #csPaneReports{ container-type:inline-size; container-name:report-settings; }
+      @container report-settings (max-width:760px){ .rp-layout{ grid-template-columns:minmax(0,1fr); } .rp-preview{ position:static; max-width:360px; } }
       .app-flags-grid{
         column-count:2;
         column-gap:14px;
@@ -3279,23 +3224,7 @@
 
         /* **** REPORTS **** */
         .rp-wrap{ padding:0; }
-        .rp-card{ padding:12px; border-radius:14px; }
-        .rp-h{ font-size:15px; }
-        .rp-inline{ flex-direction:column; align-items:stretch; gap:8px; }
-        .rp-num{ width:100%; }
-        .rp-section{ padding:12px 0; }
-        .rp-tgrid{
-          grid-template-columns:1fr !important;
-          gap:8px;
-        }
-        .rp-toggle{
-          padding:10px;
-          border-radius:14px;
-          gap:8px;
-        }
-        .rp-toggle .rp-label{
-          font-size:12px;
-        }
+        .rp-card{ padding:10px; }
         .app-flags-grid{
           column-count:1;
           column-gap:0;
@@ -3824,8 +3753,8 @@
         }
       }
     `);
-    const activeSection = sectionFor(activeTab) || sectionFor(defaultActiveTab);
-    const sectionTabHtml = (section) => `<button class="cs-tab ${activeTab === section.id ? 'active' : ''}" id="${section.tabId}" type="button" role="tab" aria-selected="${activeTab === section.id}" data-settings-section="${section.id}"><i class="${section.icon}" aria-hidden="true"></i><span ${section.term ? `data-settings-terminology-key="${escapeHtml(section.term)}"` : ''}>${escapeHtml(sectionTitle(section))}</span></button>`;
+    const activeSection = navSection(sectionFor(activeTab) || sectionFor(defaultActiveTab));
+    const sectionTabHtml = (section) => `<button class="cs-tab ${navSelected(section.id, activeTab) ? 'active' : ''}" id="${section.tabId}" type="button" role="tab" aria-selected="${navSelected(section.id, activeTab)}" data-settings-section="${section.id}"><i class="${section.icon}" aria-hidden="true"></i><span ${section.term ? `data-settings-terminology-key="${escapeHtml(section.term)}"` : ''}>${escapeHtml(sectionTitle(section))}</span></button>`;
     const sectionPaneHtml = (section) => `<div class="cs-pane ${activeTab === section.id ? 'active' : ''}" id="${section.paneId}" role="tabpanel" data-settings-pane="${section.id}"></div>`;
     const headerHtml = `
       <div class="cs-wrap ${String(embeddedSettings ? 'embedded-tab-only' : '')} ${String(activeTab === 'pricebook' ? 'pricebook-wide' : '')} ${String(activeTab === 'forms' ? 'forms-wide' : '')}">
@@ -3840,7 +3769,7 @@
               <button class="cs-settings-search-clear" type="button" data-settings-search-clear aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_9917fb251885da","Clear settings search") ?? "Clear settings search")}"><i class="fas fa-xmark" aria-hidden="true"></i></button>
             </div>
             <div class="cs-settings-search-results" popover="manual" role="listbox" aria-label="Settings search results" data-settings-search-results data-settings-autosave="off" hidden></div>
-            <nav class="cs-tabs" role="tablist" aria-orientation="vertical">${String(availableSettingsSections.map(sectionTabHtml).join(''))}</nav>
+            <nav class="cs-tabs" role="tablist" aria-orientation="vertical">${String(availableSettingsSections.filter((section) => !section.parent).map(sectionTabHtml).join(''))}</nav>
           </aside>
           <div class="cs-subtabs-slot" data-settings-subtabs-slot hidden></div>
           <main class="cs-main"><div class="cs-card">${String(availableSettingsSections.map(sectionPaneHtml).join(''))}</div></main>
@@ -4048,9 +3977,18 @@
       settingsSubtabsSyncQueued = false;
       if (!settingsLayout || !settingsSubtabsSlot) return;
       const activePane = panel.querySelector('[data-settings-pane].active');
-      const source = activePane
+      const nestedIn = sectionFor(activeTab)?.parent;
+      if (nestedIn === 'configuration') renderConfiguration({ mountOnly:true });
+      const parentRow = nestedIn === 'configuration' ? paneConfiguration?.querySelector('.fm-settings-subtabs') : null;
+      parentRow?.querySelectorAll('button').forEach((button) => {
+        // Only real changes: this runs from the observer that watches these attributes.
+        const selected = button.dataset.configurationSection === activeTab;
+        if (button.classList.contains('active') !== selected) button.classList.toggle('active', selected);
+        if (button.getAttribute('aria-selected') !== String(selected)) button.setAttribute('aria-selected', String(selected));
+      });
+      const source = parentRow || (activePane
         ? Array.from(activePane.querySelectorAll(SETTINGS_SUBTAB_SELECTOR)).find((row) => row.querySelectorAll('button').length > 1)
-        : null;
+        : null);
       if (!source) {
         settingsSubtabsSlot.replaceChildren();
         settingsSubtabsSlot.hidden = true;
@@ -11349,12 +11287,12 @@
       if (settingsWrap) settingsWrap.classList.toggle('forms-wide', which === 'forms');
       if (settingsWrap) settingsWrap.classList.toggle('notifications-wide', which === 'notifications');
       panel.querySelectorAll('[data-settings-section]').forEach((button) => {
-        const selected = button.dataset.settingsSection === which;
+        const selected = navSelected(button.dataset.settingsSection, which);
         button.classList.toggle('active', selected);
         button.setAttribute('aria-selected', String(selected));
       });
       panel.querySelectorAll('[data-settings-pane]').forEach((pane) => pane.classList.toggle('active', pane.dataset.settingsPane === which));
-      const selectedSection = sectionFor(which);
+      const selectedSection = navSection(sectionFor(which));
       const titleNode = panel.querySelector('[data-settings-title]');
       if (titleNode) {
         titleNode.textContent = sectionTitle(selectedSection);
@@ -11908,22 +11846,30 @@
         { id:'insights', label:(globalThis.PlatformLanguage?.text("settings","m_5430e6902b900e","Insights") ?? "Insights") },
         { id:'apps', label:(globalThis.PlatformLanguage?.text("settings","m_66652419b041ca","Apps") ?? "Apps") }
       ];
+      const nestedSections = availableSettingsSections.filter((section) => section.parent === 'configuration');
       const requestedView = String(options.view || readSettingsRoute().settingsView || '').trim();
       const nextView = availableViews.some((view) => view.id === requestedView)
         ? requestedView
         : (availableViews.some((view) => view.id === configurationView) ? configurationView : availableViews[0].id);
       if (paneConfiguration.dataset.configurationMounted !== '1') {
         paneConfiguration.dataset.configurationMounted = '1';
-        paneConfiguration.innerHTML = `<nav class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_030b523f2428e2","Configuration settings") ?? "Configuration settings")}">${String(availableViews.map((view) => `<button class="fm-settings-subtab" type="button" data-configuration-view="${view.id}">${view.label}</button>`).join(''))}</nav><div data-configuration-pane="custom_fields" ${String(canCustomFields ? '' : 'hidden')}></div><div data-configuration-pane="terminology" ${String(canTerminology ? '' : 'hidden')}></div><div data-configuration-pane="projects"></div><div data-configuration-pane="celebrations"></div><div data-configuration-pane="insights"></div><div data-configuration-pane="apps"></div>`;
+        paneConfiguration.innerHTML = `<nav class="fm-settings-subtabs" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_030b523f2428e2","Configuration settings") ?? "Configuration settings")}">${String(availableViews.map((view) => `<button class="fm-settings-subtab" type="button" data-configuration-view="${view.id}">${view.label}</button>`).join(''))}${String(nestedSections.map((section) => `<button class="fm-settings-subtab" type="button" data-configuration-section="${section.id}">${escapeHtml(sectionTitle(section))}</button>`).join(''))}</nav><div data-configuration-pane="custom_fields" ${String(canCustomFields ? '' : 'hidden')}></div><div data-configuration-pane="terminology" ${String(canTerminology ? '' : 'hidden')}></div><div data-configuration-pane="projects"></div><div data-configuration-pane="celebrations"></div><div data-configuration-pane="insights"></div><div data-configuration-pane="apps"></div>`;
         paneCustomFields = paneConfiguration.querySelector('[data-configuration-pane="custom_fields"]');
         paneTerminology = paneConfiguration.querySelector('[data-configuration-pane="terminology"]');
+        paneConfiguration.querySelectorAll('[data-configuration-section]').forEach((button) => button.addEventListener('click', () => {
+          if (!window.Portal?.navigation?.applying) setSubTab(button.dataset.configurationSection);
+        }));
         paneConfiguration.querySelectorAll('[data-configuration-view]').forEach((button) => button.addEventListener('click', () => {
           if (window.Portal?.navigation?.applying) return;
+          // From a nested section (Project Scopes), a view button returns to Configuration first.
+          if (activeTab !== 'configuration') setSubTab('configuration', { settingsView:button.dataset.configurationView, updateRoute:false });
           renderConfiguration({ view:button.dataset.configurationView });
           writeSettingsRoute({ sub:'configuration', settingsView:button.dataset.configurationView, settingsEntity:'' }, { history:'push', source:'configuration-settings-view', ownedKeys:['sub','settingsView','settingsEntity'] });
         }));
       }
+      if (options.mountOnly) return;
       configurationView = nextView;
+      paneConfiguration.querySelectorAll('[data-configuration-section]').forEach((button) => { button.classList.remove('active'); button.setAttribute('aria-selected', 'false'); });
       paneConfiguration.querySelectorAll('[data-configuration-view]').forEach((button) => {
         const selected = button.dataset.configurationView === nextView;
         button.classList.toggle('active', selected);
@@ -12509,7 +12455,7 @@
             </div>
           </header>
           <div class="cs-note" id="csStatus" role="status"></div>
-          <div class="company-settings-grid ${String(reportsEnabled ? '' : 'without-report-preview')}">
+          <div class="company-settings-grid without-report-preview">
             <div class="company-settings-left">
             <section class="company-settings-card company-info-card">
               <div class="company-settings-card-body">
@@ -12541,19 +12487,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <div class="company-brand-heading">${(globalThis.PlatformLanguage?.htmlText("settings","m_38e15f7a2dd540","Brand Kit") ?? "Brand Kit")}</div>
             ${window.PlatformBrandKit.markup({ prefix:'cs', extendedPalette, advancedLogos, showFonts:companyFontsEnabled })}
             </div>
-            ${String(reportsEnabled ? `<aside class="company-document-preview">
-              <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ca221574beb0d"," Report preview") ?? " Report preview")}</span></div>
-              <div class="cs-previewWrap">
-                <div class="cs-page" id="csPage">
-                  <div class="cs-barPrimary"></div>
-                  <div class="cs-barSecondary"></div>
-                  <div class="cs-pageInner">
-                    <div class="cs-pageLogo"><img id="csPrevLogoImg" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_a09f6a051adb2f","Company logo in report preview") ?? "Company logo in report preview")}"></div>
-                    <div class="cs-centerZone"><div id="csSampleDiagram" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_8eec608d18828f","Sample roof diagram") ?? "Sample roof diagram")}" style="width:90%"></div></div>
-                  </div>
-                </div>
-              </div>
-            </aside>` : '')}
           </div>
         </div>
       `;
@@ -12561,16 +12494,32 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     // **** Reports pane ----
     if (canReports && paneReports) {
       paneReports.innerHTML = `
-        <div class="rp-wrap">
+        <div class="rp-wrap rp-layout">
           <div class="rp-card">
-            <h3 class="rp-h">${(globalThis.PlatformLanguage?.htmlText("settings","m_76942f70f2c0d6","Customer Report Settings") ?? "Customer Report Settings")}</h3>
-            <div class="rp-tgrid" id="rpToggles"></div>
-            <div class="cs-actions" style="margin-top:14px;">
-              <button class="cs-btn primary" id="rpSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
-              <button class="cs-btn ghost" id="rpReset"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f915937425dda7"," Reset") ?? " Reset")}</button>
-            </div>
+            <header class="rp-head">
+              <h3 class="rp-h">${(globalThis.PlatformLanguage?.htmlText("settings","m_76942f70f2c0d6","Customer Report Settings") ?? "Customer Report Settings")} <span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}" data-fm-tooltip="${escapeHtml(settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered."))}">?</span></h3>
+              <div class="cs-actions">
+                <button class="cs-btn ghost" id="rpReset"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f915937425dda7"," Reset") ?? " Reset")}</button>
+                <button class="cs-btn primary" id="rpSave"><i class="fas fa-save"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_13fcb6ceae139c"," Save") ?? " Save")}</button>
+              </div>
+            </header>
             <div class="cs-note" id="rpStatus"></div>
+            <div class="rp-sections" id="rpToggles"></div>
           </div>
+          <aside class="company-document-preview rp-preview">
+            <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ca221574beb0d"," Report preview") ?? " Report preview")}</span></div>
+            <div class="cs-previewWrap">
+              <div class="cs-page" id="rpPage">
+                <div class="cs-barPrimary"></div>
+                <div class="cs-barSecondary"></div>
+                <div class="cs-pageInner">
+                  <div class="cs-pageLogo"><img id="rpPrevLogoImg" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_a09f6a051adb2f","Company logo in report preview") ?? "Company logo in report preview")}"></div>
+                  <div class="cs-centerZone"><div id="rpSampleDiagram" class="rp-sampleCover" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_8eec608d18828f","Sample roof diagram") ?? "Sample roof diagram")}"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="rp-pageList" id="rpPageList" aria-label="${escapeHtml(settingsText("fm_report_pages_included", "Pages in each report"))}"></div>
+          </aside>
         </div>
       `;
     }
@@ -12800,8 +12749,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       setImgSmart(img, key, { forceBust: force, bustKey: Date.now() });
     }
     function updatePreviewLogoIfNeeded(force){
-      if(!paneCompany) return;
-      const images = Array.from(paneCompany.querySelectorAll('[data-company-logo-preview]'));
+      const images = [paneCompany, paneReports].filter(Boolean).flatMap((pane) => Array.from(pane.querySelectorAll('[data-company-logo-preview]')));
       if (!images.length) return;
       const customerLogo = logoKey(state.logo);
       if (!customerLogo) {
@@ -12910,75 +12858,64 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
     }
     function renderReports(){
       if (!canReports) return;
-      // --- Insert disclaimer once ---
-      try{
-        const card = paneReports ? paneReports.querySelector('.rp-card') : null;
-        if (card && !card.querySelector('#rpDisclaimer')){
-          const div = document.createElement('div');
-          div.id = 'rpDisclaimer';
-          div.className = 'cs-note';
-          div.style.marginTop = '10px';
-          div.style.marginBottom = '12px';
-          div.textContent = settingsText("fm_report_settings_future_only", "Changing report settings only applies to future measurement reports. It does not change reports that have already been ordered.");
-          const h3 = card.querySelector('h3.rp-h');
-          if (h3 && h3.parentNode){
-            if (h3.nextSibling) h3.parentNode.insertBefore(div, h3.nextSibling);
-            else h3.parentNode.appendChild(div);
-          } else {
-            card.insertBefore(div, card.firstChild);
-          }
-        }
-      }catch(e){ /* ignore */ }
       const sections = [
         {
           title: (globalThis.PlatformLanguage?.text("settings","m_03779727637975","Cover") ?? "Cover"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","m_9f3adb9d3cb55b","Choose which measurement variables and customer details appear on the cover page.") ?? "Choose which measurement variables and customer details appear on the cover page."),
           items: [
-            { key:'cover_show_customer',  label:(globalThis.PlatformLanguage?.text("settings","m_729ae4136f53a3","Customer info") ?? "Customer info") },
-            { key:'cover_show_squares',   label:(globalThis.PlatformLanguage?.text("settings","m_26a6b32c66317b","Total squares") ?? "Total squares") },
-            { key:'cover_show_waste',     label:(globalThis.PlatformLanguage?.text("settings","m_c9111123c18496","Waste") ?? "Waste") },
-            { key:'cover_show_breakdown', label:(globalThis.PlatformLanguage?.text("settings","m_a6b5da8bcb27c3","Breakdown") ?? "Breakdown") },
-            { key:'cover_show_pitch',     label:(globalThis.PlatformLanguage?.text("settings","m_e6d66a2503e9d0","Pitch") ?? "Pitch") },
-            { key:'cover_show_facets',    label:(globalThis.PlatformLanguage?.text("settings","m_6ee7ce9a8c79e2","Facet count") ?? "Facet count") }
+            { key:'cover_show_customer',  label:(globalThis.PlatformLanguage?.text("settings","m_729ae4136f53a3","Customer info") ?? "Customer info"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_cover_show_customer","Print the customer's name and the property address on the cover.") ?? "Print the customer's name and the property address on the cover.") },
+            { key:'cover_show_squares',   label:(globalThis.PlatformLanguage?.text("settings","m_26a6b32c66317b","Total squares") ?? "Total squares"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_cover_show_squares","Show the total roof area in squares (100 sq ft each). With Waste on, the total includes waste.") ?? "Show the total roof area in squares (100 sq ft each). With Waste on, the total includes waste.") },
+            { key:'cover_show_waste',     label:(globalThis.PlatformLanguage?.text("settings","m_c9111123c18496","Waste") ?? "Waste"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_cover_show_waste","Show the suggested waste percentage and count it in the squares total.") ?? "Show the suggested waste percentage and count it in the squares total.") },
+            { key:'cover_show_breakdown', label:(globalThis.PlatformLanguage?.text("settings","m_a6b5da8bcb27c3","Breakdown") ?? "Breakdown"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_cover_show_breakdown","Show line lengths (eave, ridge, valley and the rest) on the cover.") ?? "Show line lengths (eave, ridge, valley and the rest) on the cover.") },
+            { key:'cover_show_pitch',     label:(globalThis.PlatformLanguage?.text("settings","m_e6d66a2503e9d0","Pitch") ?? "Pitch"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_cover_show_pitch","Show the predominant roof pitch.") ?? "Show the predominant roof pitch.") },
+            { key:'cover_show_facets',    label:(globalThis.PlatformLanguage?.text("settings","m_6ee7ce9a8c79e2","Facet count") ?? "Facet count"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_cover_show_facets","Show how many roof facets were measured.") ?? "Show how many roof facets were measured.") }
           ]
         },
         {
           title: (globalThis.PlatformLanguage?.text("settings","m_a6c13e38e7e96e","Pages") ?? "Pages"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","m_2aeb2a60757c0f","Choose the standard report pages included in every future customer PDF.") ?? "Choose the standard report pages included in every future customer PDF."),
           items: [
-            { key:'page_top_view',     label:(globalThis.PlatformLanguage?.text("settings","m_e8117eba7f9b47","Top View Page") ?? "Top View Page") },
-            { key:'page_elevations',   label:(globalThis.PlatformLanguage?.text("settings","m_5bb769b713d5ee","Elevations Page") ?? "Elevations Page") },
-            { key:'page_3d',           label:(globalThis.PlatformLanguage?.text("settings","m_a9e9bc27c47d0d","3D Page") ?? "3D Page") },
-            { key:'page_pitch',        label:(globalThis.PlatformLanguage?.text("settings","m_1d44898cb67354","Pitch Page") ?? "Pitch Page") },
-            { key:'page_area',         label:(globalThis.PlatformLanguage?.text("settings","m_93bdeee9cd7ae9","Area Page") ?? "Area Page") },
-            { key:'page_layers',       label:(globalThis.PlatformLanguage?.text("settings","m_432bc7ebc20bc1","Layers Page") ?? "Layers Page") },
-            { key:'page_summary',      label:(globalThis.PlatformLanguage?.text("settings","m_fc219f2d0ecfc3","Summary Page") ?? "Summary Page") },
-            { key:'page_materials',    label:(globalThis.PlatformLanguage?.text("settings","m_e9ee0bad870418","Materials Page") ?? "Materials Page") },
-            { key:'page_ventilation',  label:(globalThis.PlatformLanguage?.text("settings","m_88f92e585f73ad","Ventilation Page") ?? "Ventilation Page") },
-            { key:'page_notes',        label:(globalThis.PlatformLanguage?.text("settings","m_759a7d617116ef","Customer Notes Page") ?? "Customer Notes Page") }
+            { key:'page_top_view',     label:(globalThis.PlatformLanguage?.text("settings","m_e8117eba7f9b47","Top View Page") ?? "Top View Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_top_view","The roof imagery and the top-down roof outline.") ?? "The roof imagery and the top-down roof outline.") },
+            { key:'page_elevations',   label:(globalThis.PlatformLanguage?.text("settings","m_5bb769b713d5ee","Elevations Page") ?? "Elevations Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_elevations","Side views of the roof from each direction.") ?? "Side views of the roof from each direction.") },
+            { key:'page_3d',           label:(globalThis.PlatformLanguage?.text("settings","m_a9e9bc27c47d0d","3D Page") ?? "3D Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_3d","A 3D model of the roof.") ?? "A 3D model of the roof.") },
+            { key:'page_pitch',        label:(globalThis.PlatformLanguage?.text("settings","m_1d44898cb67354","Pitch Page") ?? "Pitch Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_pitch","The roof outline with every facet labeled by pitch.") ?? "The roof outline with every facet labeled by pitch.") },
+            { key:'page_area',         label:(globalThis.PlatformLanguage?.text("settings","m_93bdeee9cd7ae9","Area Page") ?? "Area Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_area","The roof outline with every facet labeled by area.") ?? "The roof outline with every facet labeled by area.") },
+            { key:'page_layers',       label:(globalThis.PlatformLanguage?.text("settings","m_432bc7ebc20bc1","Layers Page") ?? "Layers Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_layers","One page per drawing layer, for roofs measured in layers.") ?? "One page per drawing layer, for roofs measured in layers.") },
+            { key:'page_summary',      label:(globalThis.PlatformLanguage?.text("settings","m_fc219f2d0ecfc3","Summary Page") ?? "Summary Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_summary","Totals for area, squares, pitch and line lengths.") ?? "Totals for area, squares, pitch and line lengths.") },
+            { key:'page_materials',    label:(globalThis.PlatformLanguage?.text("settings","m_e9ee0bad870418","Materials Page") ?? "Materials Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_materials","Material quantities, split between steep and low-slope areas. Not included in commercial reports.") ?? "Material quantities, split between steep and low-slope areas. Not included in commercial reports.") },
+            { key:'page_ventilation',  label:(globalThis.PlatformLanguage?.text("settings","m_88f92e585f73ad","Ventilation Page") ?? "Ventilation Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_ventilation","An attic ventilation estimate. Not included in commercial reports.") ?? "An attic ventilation estimate. Not included in commercial reports.") },
+            { key:'page_notes',        label:(globalThis.PlatformLanguage?.text("settings","m_759a7d617116ef","Customer Notes Page") ?? "Customer Notes Page"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_notes","The roof outline with the customer-facing notes.") ?? "The roof outline with the customer-facing notes.") }
           ]
         },
         {
           title: (globalThis.PlatformLanguage?.text("settings","m_18983950eaed3f","Add-ons") ?? "Add-ons"),
           subtitle: (globalThis.PlatformLanguage?.text("settings","m_8b4821f78477b0","When add-ons are ordered, choose whether their pages should be included in the customer PDF.") ?? "When add-ons are ordered, choose whether their pages should be included in the customer PDF."),
           items: [
-            { key:'page_gutters', label:(globalThis.PlatformLanguage?.text("settings","m_8d9d09be0b319b","Include gutters page when gutters are ordered") ?? "Include gutters page when gutters are ordered") }
+            { key:'page_gutters', short:(globalThis.PlatformLanguage?.text("settings","rp_short_gutters","Gutters (when ordered)") ?? "Gutters (when ordered)"), label:(globalThis.PlatformLanguage?.text("settings","m_8d9d09be0b319b","Include gutters page when gutters are ordered") ?? "Include gutters page when gutters are ordered"), tip:(globalThis.PlatformLanguage?.text("settings","rp_tip_page_gutters","Adds the gutters page to the customer PDF whenever gutters were ordered with the report.") ?? "Adds the gutters page to the customer PDF whenever gutters were ordered with the report.") }
           ]
         }
       ];
       const wrap = $('#rpToggles', paneReports);
+      // The sample report follows the cover toggles; the page list follows the page toggles.
+      const renderSample = () => {
+        const cover = $('#rpSampleDiagram', paneReports);
+        if (cover) cover.innerHTML = companyReportPreview(state.report_customer);
+        const list = $('#rpPageList', paneReports);
+        if (list) list.innerHTML = `<div class="rp-pageListHead">${escapeHtml(settingsText("fm_report_pages_included", "Pages in each report"))}</div>${sections.filter((section) => section.items.some((it) => it.key.startsWith('page_'))).flatMap((section) => section.items).map((it) => `<span class="rp-pageChip ${state.report_customer[it.key] ? 'on' : 'off'}">${escapeHtml(it.short || it.label)}</span>`).join('')}`;
+      };
+      updatePreviewLogoIfNeeded(false);
+      renderSample();
       if (wrap) {
-        wrap.className = 'rp-sections';
         wrap.innerHTML = sections.map(section => `
           <section class="rp-section">
             <div class="rp-sectionHead">
-              <div class="rp-sectionTitle">${escapeHtml(section.title)}</div>
-              <div class="rp-sectionSub">${escapeHtml(section.subtitle)}</div>
+              <div class="rp-sectionTitle">${escapeHtml(section.title)} <span class="fm-ui-help" tabindex="0" role="img" aria-label="${escapeHtml(section.subtitle)}" data-fm-tooltip="${escapeHtml(section.subtitle)}">?</span></div>
             </div>
             <div class="rp-tgrid">
               ${section.items.map(it => makeToggleBtn({
                 key: it.key,
                 label: it.label,
+                tip: it.tip,
                 value: !!state.report_customer[it.key]
               })).join('')}
             </div>
@@ -12993,8 +12930,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             btn.classList.toggle('on', next);
             btn.classList.toggle('off', !next);
             btn.setAttribute('data-val', next ? '1' : '0');
+            btn.setAttribute('aria-pressed', next ? 'true' : 'false');
             const st = btn.querySelector('.rp-state');
             if (st) st.textContent = next ? settingsText("fm_on", "On") : settingsText("fm_off", "Off");
+            renderSample();
           });
         });
       }
@@ -14165,7 +14104,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const csSecondaryHex = $('#csSecondaryHex', paneCompany);
       const csPrimaryChip = $('#csPrimaryChip', paneCompany);
       const csSecondaryChip = $('#csSecondaryChip', paneCompany);
-      const csSampleDiagram = $('#csSampleDiagram', paneCompany);
       const csLogoFile = $('#csLogoFile', paneCompany);
       const csStatus = $('#csStatus', paneCompany);
       const csCompanyEmail = $('#csCompanyEmail', paneCompany);
@@ -14228,7 +14166,6 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if (event.target?.id === 'csSeparateTitleFont') {state.title_font=event.target.checked ? state.font_family : '';const field=$('#csTitleFontField',paneCompany);if(field)field.hidden=!event.target.checked;const title=$('#csTitleFont',paneCompany);if(title)title.value=state.title_font || state.font_family;scheduleBrandSave();}
         if (event.target?.matches?.('[data-palette-direct], input[name="csLogoShape"]')) scheduleBrandSave();
       });
-      if(csSampleDiagram) csSampleDiagram.innerHTML = companyReportPreview();
       function wireHexChip(chip, input){
         if (!chip || !input) return;
         chip.addEventListener('click', (e)=>{

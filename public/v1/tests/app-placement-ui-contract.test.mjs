@@ -243,8 +243,9 @@ test('Company Settings gates optional tabs and report branding behind capabiliti
   assert.match(settings, /canTerminology = canCompany && appFlag\('platform', 'terminology_settings'\)/);
   assert.match(settings, /canScopeFlags = canCompany && appFlag\('apps', 'projects'\)/);
   assert.match(settings, /canDomains = canCompany && appFlag\('apps', 'web_editor'\) && appFlag\('web_editor', 'custom_domains'\)/);
-  assert.match(settings, /company-settings-grid \$\{reportsEnabled \? '' : 'without-report-preview'\}/);
-  assert.match(settings, /\$\{reportsEnabled \? `<aside class="company-document-preview">/);
+  // The sample report lives in Reports, beside the report settings, not in Company information.
+  assert.match(settings, /company-settings-grid without-report-preview/);
+  assert.match(settings, /paneReports\.innerHTML = `\s*<div class="rp-wrap rp-layout">[\s\S]*?<aside class="company-document-preview rp-preview">/);
   const mySettingsRenderer = settings.slice(settings.indexOf('async function renderMySettings()'), settings.indexOf('function renderCrmSettings()'));
   assert.doesNotMatch(mySettingsRenderer, /paneScopeTemplates|draftDefinition|scopeScheduling/);
 });
