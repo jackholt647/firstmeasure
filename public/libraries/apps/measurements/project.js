@@ -3844,6 +3844,9 @@ window.PlatformCommerce.onReady(function(){
     const reports = measurementTabs();
     const flat = reportHeaderTabs(context.tabs || [], reports, context.ordered);
     header.querySelector('#rOpeningReportTabs')?.remove();
+    // A rebuilt panel brings a new tab strip; the one moved into the header earlier is stale and
+    // would keep showing (and answering clicks for) its old selection.
+    overlay.querySelectorAll('#rMeasureTabs').forEach((strip) => { if (strip !== tabsEl) strip.remove(); });
     const merged = !!flat || !!header.querySelector('#rProjectViewerTabs.single-tab');
     if (merged) header.insertBefore(tabsEl, header.querySelector('.modal-shell-actions'));
     else root.insertBefore(tabsEl, root.firstChild);

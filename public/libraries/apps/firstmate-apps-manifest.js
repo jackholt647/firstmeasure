@@ -359,7 +359,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       access: managementAccess,
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261008-international-pricing-v1')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261002-key-vertical'), versionedBundle('measurements/project.js', '20261014-report-tabs-v1')]
     },
     {
       id: 'project.checklists',

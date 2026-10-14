@@ -29,6 +29,12 @@ test('report header uses four or five equal tabs and retains selection across pr
  const sizes=await page.locator('#rMeasureTabs button').evaluateAll(nodes=>nodes.map(e=>e.getBoundingClientRect()));
  assert.ok(sizes.every(r=>Math.abs(r.width-sizes[0].width)<1 && r.height===32));
  }
+ // A rebuilt Reports panel brings a fresh strip; the one already in the header must not linger with its old selection.
+ await page.evaluate(()=>{activeMeasurementTab='summary';const section=document.querySelector('section');section.querySelector('#rMeasureTabs')?.remove();section.insertAdjacentHTML('afterbegin','<div id="rMeasureTabs"></div>');renderReportNavigation();});
+ assert.equal(await page.locator('#rMeasureTabs').count(),1);
+ await page.locator('#rMeasureTabs [data-tab="standard"]').click();
+ assert.equal(await page.locator('#rMeasureTabs .active').count(),1);
+ assert.equal(await page.locator('#rMeasureTabs .active').getAttribute('data-tab'),'standard');
  await page.evaluate(()=>{context.tabs.push({id:'docs'});renderReportNavigation();});
  assert.equal(await page.locator('#rProjectViewerTabs').isVisible(),true);
  assert.equal(await page.locator('section #rMeasureTabs button').count(),3);
