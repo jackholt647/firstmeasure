@@ -150,8 +150,8 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
     if (!group.lists.has(listId)) { group.lists.set(listId, []); group.sources.push({ set_id: listId, title: listTitle, origin }); }
     group.lists.get(listId)!.push(line);
   };
-  for (const line of context.materials || []) add(text(line.item_type) || text(line.name) || "Other material", text(line.list_id), text(byList.get(text(line.list_id))?.title) || "Materials", "list", { id: text(line.line_id), name: text(line.name), quantity: Number(line.quantity) || 0, unit: text(line.unit), total_cents: null, generated: false });
-  for (const set of scope.sets) for (const line of set.lines) add(text(line.group) || text(line.name) || "Other material", set.id, set.title, set.origin, { id: line.id, name: line.name, quantity: line.quantity, unit: line.unit, total_cents: null, generated: false });
+  for (const line of context.materials || []) add(text(line.name) || text(line.item_type) || "Other material", text(line.list_id), text(byList.get(text(line.list_id))?.title) || "Materials", "list", { id: text(line.line_id), name: text(line.name), quantity: Number(line.quantity) || 0, unit: text(line.unit), total_cents: null, generated: false });
+  for (const set of scope.sets) for (const line of set.lines) add(text(line.name) || text(line.group) || "Other material", set.id, set.title, set.origin, { id: line.id, name: line.name, quantity: line.quantity, unit: line.unit, total_cents: null, generated: false });
   const materials: Requirement[] = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, group]) => ({
     id: `material:${key}`, kind: "material", label: group.label, description: "", unit: group.units.size === 1 ? [...group.units][0]! : "", quantity: group.units.size === 1 ? group.quantity : null, under: "", sources: group.sources, status: "covered",
     covered_by: [...group.lists.entries()].map(([listId, lines]) => ({ list_id: listId, list_title: titles.get(listId) || "Materials", resource_type: "material", assignee_name: "", mode: "paid" as const, lines })),

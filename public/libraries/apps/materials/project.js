@@ -2346,6 +2346,7 @@
       ]);
       if (!requestIsCurrent()) return [];
       state.workforceTerms = configurationResult?.configuration?.terminology || configurationResult?.terminology || {};
+      state.workforceGroupKinds = configurationResult?.configuration?.resource_group_kinds || configurationResult?.resource_group_kinds || [];
       const resources = Array.isArray(result?.resources) ? result.resources : (Array.isArray(result?.assignable_resources) ? result.assignable_resources : []);
       state.crews = resources.map((resource) => {
         const id = cleanText(resource?.resource_id || resource?.id);
@@ -2361,13 +2362,28 @@
     return requestIsCurrent() ? state.crews : [];
   }
 
+  // A list can move on between reading it and changing it: a rename, a background save, the list having only just been
+  // created. A change that only adds, edits or removes particular lines still means the same thing on the newer list, so
+  // it is sent again on the revision the server has. Replacing every line at once is never retried blind.
+  async function withCurrentRevision(list, send, retryable = true){
+    let revision = Number(list?.revision || 0) || undefined;
+    for (let attempt = 0; ; attempt += 1) {
+      try { return await send(revision); }
+      catch (error) {
+        const stale = error?.status === 409 && /revision/i.test(`${error?.data?.code || ''} ${error?.data?.error || ''} ${error?.message || ''}`);
+        if (!stale || !retryable || attempt >= 3 || !list?.id) throw error;
+        const fresh = await (materialsAPI || window.MaterialsAPI).lists.get(orgId(), list.id);
+        const current = fresh?.material_list || fresh?.list || fresh;
+        if (!current?.id) throw error;
+        updateMaterialListState({ ...current, current_items: listItems(materialListById(list.id) || list) });
+        revision = Number(current.revision || 0) || undefined;
+      }
+    }
+  }
   async function patchScopeResourceList(listId, patch, operation = captureProjectOperation(listId)){
     const list = materialListById(listId);
     if (!list || !apiReady() || !projectOperationIsCurrent(operation)) return null;
-    const result = await (materialsAPI || window.MaterialsAPI).lists.patch(operation.orgId, operation.listId, {
-      expected_revision: Number(list.revision || 0) || undefined,
-      ...patch
-    });
+    const result = await withCurrentRevision(list, (revision) => (materialsAPI || window.MaterialsAPI).lists.patch(operation.orgId, operation.listId, { expected_revision: revision, ...patch }), !('metadata' in (patch || {})) && !('current_items' in (patch || {})));
     if (!projectOperationIsCurrent(operation)) return null;
     return updateMaterialListState(result?.material_list || result?.list || result);
   }
@@ -2628,10 +2644,7 @@
       timingMark('persistVersion:end', { reason: payload?.reason || '', local: true, items: listItems(nextList).length }, timingStart);
       return localResult;
     }
-    const result = await (materialsAPI || window.MaterialsAPI).lists.createVersion(orgId(), targetList.id, {
-      expected_revision: targetList.revision,
-      ...payload
-    });
+    const result = await withCurrentRevision(targetList, (revision) => (materialsAPI || window.MaterialsAPI).lists.createVersion(orgId(), targetList.id, { expected_revision: revision, ...payload }), !Array.isArray(payload?.items));
     const nextList = updateMaterialListState(result.material_list || result.list || targetList);
     if (cleanText(nextList?.id) === state.activeListId) await loadActiveListDetails();
     timingMark('persistVersion:end', { reason: payload?.reason || '', local: false, items: listItems(nextList).length }, timingStart);
@@ -2669,6 +2682,8 @@
     timingMark('addItem:start', { pricebook: !!item?.id });
     const fallbackSection = state.selectedSection === 'all' ? '' : state.selectedSection;
     const section = cleanText(requestedSection || fallbackSection || (item?.id ? sectionForMaterialType(item.itemTypeId, item.category, '') : ''));
+    // A list still being created is waited for, so a fast click adds to it rather than being lost.
+    if (state.creatingList && state.creatingListDone) await state.creatingListDone;
     if (state.saving || state.creatingList || state.loading) return;
     let targetList = destinationListForSection(section || 'accessories', requestedListId);
     if (!targetList) {
@@ -4047,8 +4062,9 @@
   }
   async function createInlineList(type){
     if(state.creatingList||state.saving)return;const operation=captureProjectOperation(),category=resourceCategories().find(row=>row.id===type);if(!category)return;state.creatingList=true;
+    let finish;state.creatingListDone=new Promise(resolve=>finish=resolve);
     try{const result=await (materialsAPI||window.MaterialsAPI).projects.create(operation.orgId,operation.projectId,{title:'',resource_type:type,color:category.color,branch_id:branchId(),sections:[],items:[],metadata:{source:'scope_tab',manually_created:true,placeholder_title:true}});if(!projectOperationIsCurrent(operation))return;const list=updateMaterialListState(result.material_list||result.list);if(!list)throw Error('The list was not returned.');state.visibleListIds.add(list.id);syncMaterialsGrid();materialRoot()?.querySelector(`[data-mt-list-name="${list.id}"]`)?.focus();}
-    catch(error){if(projectOperationIsCurrent(operation))showToast('Could not create list',error.message,false);}finally{if(projectOperationIsCurrent(operation))state.creatingList=false;}
+    catch(error){if(projectOperationIsCurrent(operation))showToast('Could not create list',error.message,false);}finally{if(projectOperationIsCurrent(operation))state.creatingList=false;finish();}
   }
   async function removeResourceCategory(type){
     const category=resourceCategories().find(row=>row.id===type);if(!category||state.saving)return;
@@ -4271,7 +4287,7 @@
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
         <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools"><button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
-        <div class="mt-resource-scroll">${lists.map(list=>{
+        <div class="mt-resource-scroll">${merged&&!lists.some(list=>resourceType(list)==='labor')&&projectId()?`<article class="mt-list-pane" data-mt-pane-list="project:${escapeHtml(projectId())}"><div class="mt-list-pane-inner">${renderAssignBlock({id:`project:${projectId()}`,resource_type:'labor'})}</div></article>`:''}${lists.map(list=>{
           // Inside a merged column each list is still its own kind.
           const type=resourceType(list),terms=resourceTerms(type,list),category=resourceCategories().find(row=>row.id===type)||{};
           const id=cleanText(list.id),listRows=rows.filter(item=>item.__material_list_id===id),collapsed=!!state.collapsedListIds?.has(id);
@@ -5672,7 +5688,9 @@
     const cached = assigneePay(id);
     if (cached && !force && (cached.loading || Date.now() - cached.at < 30000)) return cached.promise || Promise.resolve(cached);
     const entry = { loading: true, rows: cached?.rows || [], at: Date.now(), error: '' };
-    entry.promise = Promise.resolve(api.compare(orgId(), id, { legacy_measurements: legacyMeasurementPayload() })).then((result) => { entry.rows = Array.isArray(result?.assignees) ? result.assignees : []; }).catch((error) => { entry.error = error?.message || 'Pay could not be worked out.'; }).then(() => { entry.loading = false; entry.at = Date.now(); return entry; });
+    // A project with no work order yet is compared as a project.
+    const compared = id.startsWith('project:') ? api.compareProject?.(orgId(), id.slice(8), { legacy_measurements: legacyMeasurementPayload() }) : api.compare(orgId(), id, { legacy_measurements: legacyMeasurementPayload() });
+    entry.promise = Promise.resolve(compared).then((result) => { entry.rows = Array.isArray(result?.assignees) ? result.assignees : []; }).catch((error) => { entry.error = error?.message || 'Pay could not be worked out.'; }).then(() => { entry.loading = false; entry.at = Date.now(); return entry; });
     state.assigneePay = { ...(state.assigneePay || {}), [id]: entry };
     return entry.promise;
   }
@@ -5707,7 +5725,9 @@
   }
   // The organization's own word for the kind of assignee, cut short to fit; the whole word is in the tooltip.
   function assigneeKindPill(resource){
-    const outside = cleanText(resource.resource_kind) === 'organization_connection', label = cleanText(workforceLabel(cleanText(resource.resource_kind) || 'resource_group'));
+    const outside = cleanText(resource.resource_kind) === 'organization_connection';
+    const groupType = !outside ? (state.workforceGroupKinds || []).find((kind) => cleanText(kind?.id) && cleanText(kind.id) === cleanText(resource.kind_id || resource.group_kind_id || resource.resource_group_kind_id)) : null;
+    const label = cleanText(groupType?.label || groupType?.name || groupType?.singular) || cleanText(workforceLabel(cleanText(resource.resource_kind) || 'resource_group'));
     const word = label.split(/\s+/)[0] || label, short = label.length <= 5 ? label : word.slice(0, /[aeiouy]/i.test(word.charAt(2)) ? 4 : 3);
     return `<span class="mt-pill plain" title="${escapeHtml(`${label}. ${outside ? 'An outside company.' : 'People inside your organization.'}`)}">${escapeHtml(short)}</span>`;
   }
@@ -5716,9 +5736,13 @@
     const id = cleanText(list.id), pay = assigneePay(id);
     if (!pay) loadAssigneePay(id).then(() => { if (!workspaceIsEditing()) syncMaterialsGrid(); });
     const rank = (row) => (row?.complete ? 0 : row?.sheet ? 1 : 2);
-    const options = workResourcesForScopeList(list).map((resource) => ({ resource, row: assigneePayFor(id, resource.id) }))
+    // Only who does some of this job's work is offered: by their pay sheet, or by what they are marked as able to do.
+    // A job that requires no work yet offers whoever has a pay sheet.
+    const needsWork = (requirementSet()?.data?.requirements || []).some((row) => row.kind !== 'material');
+    const offered = (row) => !!row && (needsWork ? number(row.overlap, 0) > 0 : !!row.sheet);
+    const options = workResourcesForScopeList(list).map((resource) => ({ resource, row: assigneePayFor(id, resource.id) })).filter(({ row }) => offered(row))
       .sort((a, b) => rank(a.row) - rank(b.row) || number(a.row?.total_cents, Infinity) - number(b.row?.total_cents, Infinity) || cleanText(a.resource.name).localeCompare(cleanText(b.resource.name)));
-    return `<div class="mt-assign-block${state.assigningListId === id ? ' is-busy' : ''}" data-mt-assign-block="${escapeHtml(id)}"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${options.length ? '' : '<em>No one is set up for this kind of work yet.</em>'}${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}"><span class="mt-assign-top"><strong title="${escapeHtml(resource.name || resource.label || resource.id)}">${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills">${assigneeKindPill(resource)}${assigneePills(resource, row)}</span></button>`).join('')}</div>`;
+    return `<div class="mt-assign-block${state.assigningListId === id ? ' is-busy' : ''}" data-mt-assign-block="${escapeHtml(id)}"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${options.length ? '' : `<em>${pay?.loading || !pay ? 'Finding who can do this work…' : needsWork ? 'No one is marked as doing this job\'s work. Give an assignee a pay sheet, or mark the kinds of work they do.' : 'No one has a pay sheet yet.'}</em>`}${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}"><span class="mt-assign-top"><strong title="${escapeHtml(resource.name || resource.label || resource.id)}">${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills">${assigneeKindPill(resource)}${assigneePills(resource, row)}</span></button>`).join('')}</div>`;
   }
   // Generating writes the list. Hours and the like are typed into their own lines afterwards; only a number that is not
   // a line's quantity is asked for first.
@@ -5755,8 +5779,16 @@
   // The block is never disabled by the page-wide saving flag, which a background line save can leave on a block drawn
   // mid-save. One assignment runs at a time, and it waits for line saves so it writes on the revision they leave.
   async function assignAndGenerate(listId, resourceId){
-    const id = cleanText(listId);
+    let id = cleanText(listId);
     if (!id || state.assigningListId) return;
+    // Choosing someone before the project has a work order makes the work order first.
+    if (id.startsWith('project:')) {
+      state.assigningListId = id; syncAssignBusy();
+      try { const created = await createResourceList('labor'); id = cleanText(created?.id); }
+      catch (error) { showToast('Could not create the work order', error?.message || 'Please try again.', false); return; }
+      finally { state.assigningListId = ''; }
+      if (!id) return;
+    }
     const operation = captureProjectOperation(id);
     state.assigningListId = id;
     syncAssignBusy();

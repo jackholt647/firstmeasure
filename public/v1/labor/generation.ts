@@ -4,7 +4,7 @@ import { badRequest } from "../platform/errors.js";
 import type { JsonObject } from "../platform/storage.js";
 import { measurementSchemaIdsForScope } from "../platform/publication/measurement-schemas.js";
 import { createMaterialVersion, patchMaterialList, readMaterialList } from "../materials/storage.js";
-import { ASSIGNEE_TYPE_BY_KIND, requireActor, requireAssignee, type Actor, type Assignee } from "./assignees.js";
+import { ASSIGNEE_TYPE_BY_KIND, readAssignee, requireActor, requireAssignee, type Actor, type Assignee } from "./assignees.js";
 import { workItem } from "../platform/publication/work-items.js";
 import { projectScope, requiredWork, type RequiredWork } from "./scope-artifacts.js";
 import { capabilitiesFor } from "./capabilities.js";
@@ -142,26 +142,38 @@ export async function generateLaborList(orgId: string, input: unknown, actor: Ac
 }
 
 /**
- * What each assignee would be paid for this list's project, so one can be chosen: every assignee that has a pay sheet,
- * priced on the same job. An assignee with several sheets is priced on the one that applies to this list.
+ * Who could do this list's work, and what each would be paid for it, so one can be chosen. Every assignee with a pay
+ * sheet is priced on the same job; an assignee with several sheets is priced on the one that applies. `overlap` is how
+ * many of the job's open work items the assignee does: by their sheet, or, with no sheet, by what they are marked as
+ * able to do, in which case they are listed with no price. Someone whose work has nothing in common with the job's is
+ * not worth offering. A project with no work order yet is compared the same way, by its project id.
  */
 export async function compareAssigneesForList(orgId: string, input: unknown) {
-  const parsed = z.object({ list_id: id, manual: numbers.optional(), fields: numbers.optional(), legacy_measurements: legacy.optional() }).strict().parse(input);
-  const list = await readMaterialList(orgId, parsed.list_id);
+  const parsed = z.object({ list_id: id.optional(), project_id: id.optional(), manual: numbers.optional(), fields: numbers.optional(), legacy_measurements: legacy.optional() }).strict().refine((value) => !!value.list_id !== !!value.project_id, "Name one list or one project.").parse(input);
+  const list: JsonObject = parsed.list_id ? await readMaterialList(orgId, parsed.list_id) : { project_id: parsed.project_id!, resource_type: "labor", metadata: {} };
   if (text(list.resource_type) !== "labor") throw badRequest("labor_generate_not_labor", "Only a labor list is priced from pay sheets.");
   const context = await projectPayContext(orgId, text(list.project_id), { fields: parsed.fields, manual: parsed.manual, legacy_measurements: parsed.legacy_measurements });
   const sheets = await listPaySheets(orgId);
   const assignees = new Map<string, Assignee>();
   for (const sheet of sheets) assignees.set(`${sheet.subject.type}:${sheet.subject.id}`, sheet.subject);
-  const capabilities = await capabilitiesFor(orgId, [...assignees.values()]);
+  // Assignees with no pay sheet are still offered when they are marked as able to do some of the work.
+  const withoutSheets: Assignee[] = [];
+  try {
+    const { listResourceGroups } = await import("../workforce/storage.js"), { listOrganizationConnections } = await import("../connections/storage.js");
+    for (const group of await listResourceGroups(orgId, {})) if (!group.archived_at && text(group.status) !== "archived") withoutSheets.push({ type: "resource_group", id: text(group.id) });
+    for (const connection of await listOrganizationConnections(orgId, {})) if (!connection.archived_at && text(connection.status) !== "archived") withoutSheets.push({ type: "organization_connection", id: text(connection.id) });
+  } catch { /* an organization without groups or companies offers only those with pay sheets */ }
+  const capabilities = await capabilitiesFor(orgId, [...assignees.values(), ...withoutSheets.filter((assignee) => !assignees.has(`${assignee.type}:${assignee.id}`))]);
   const excluded = listExcludedWork(list);
   const projectWork = requiredWork((await projectScope(orgId, text(list.project_id))).sets, context);
+  const wanted = new Set(projectWork.map((row) => row.item).filter((item) => !excluded.includes(item)));
+  const overlapOf = (items: Iterable<string>) => [...new Set(items)].filter((item) => wanted.has(item)).length;
   const rows = [];
   for (const assignee of assignees.values()) {
     const found = await requireAssignee(orgId, assignee).catch(() => null);
     if (!found) continue;
     const sheet = await paySheetForList(orgId, list, assignee).catch(() => null);
-    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, cost_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], work_items: [], not_covered: [], not_capable: [], estimated_hours: null, reason: "More than one pay sheet could apply." }); continue; }
+    if (!sheet) { rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, cost_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], work_items: [], not_covered: [], not_capable: [], estimated_hours: null, overlap: overlapOf(capabilities.get(`${assignee.type}:${assignee.id}`)?.items || []), reason: "More than one pay sheet could apply." }); continue; }
     const work = workContext(sheet, projectWork, excluded);
     const evaluation = evaluatePaySheet(sheet, { ...context, ...work });
     // What this job requires that the sheet says nothing about is left for someone else, and is said up front.
@@ -172,7 +184,15 @@ export async function compareAssigneesForList(orgId: string, input: unknown) {
     // An assignee priced on time has no job price until hours are typed into its list; it is described by its rate instead.
     const timed = (entryId: string) => { const kind = sheet.entries.find((candidate) => candidate.id === entryId)?.kind; return kind === "hourly" || kind === "cost_rate"; };
     const awaitingHours = !evaluation.complete && !!(hourly || costed) && evaluation.unresolved.every((entry) => timed(entry.entry_id));
-    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, hourly_rate_cents: hourly ? hourly.rate_cents : null, cost_rate_cents: costed ? costed.rate_cents : null, awaiting_hours: awaitingHours, duration_days: evaluation.duration_days, duration_basis: evaluation.duration_basis, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, work_items: evaluation.work.items, not_covered: required.filter((row) => !handled.has(row.item)).map((row) => label(row.item)), not_capable: able?.known ? [...handled].filter((item) => !able.items.includes(item)).map(label) : [], estimated_hours: evaluation.work.hours, reason: "" });
+    rows.push({ assignee: { ...assignee, name: found.name }, sheet: { id: sheet.id, name: sheet.name, revision: sheet.revision }, total_cents: evaluation.total_cents, complete: evaluation.complete, hourly_rate_cents: hourly ? hourly.rate_cents : null, cost_rate_cents: costed ? costed.rate_cents : null, awaiting_hours: awaitingHours, duration_days: evaluation.duration_days, duration_basis: evaluation.duration_basis, unresolved: evaluation.unresolved, missing_inputs: evaluation.missing_inputs, equipment: evaluation.equipment, work_items: evaluation.work.items, not_covered: required.filter((row) => !handled.has(row.item)).map((row) => label(row.item)), not_capable: able?.known ? [...handled].filter((item) => !able.items.includes(item)).map(label) : [], estimated_hours: evaluation.work.hours, overlap: overlapOf(handled), reason: "" });
   }
-  return rows.sort((a, b) => Number(b.complete) - Number(a.complete) || (a.total_cents ?? Infinity) - (b.total_cents ?? Infinity) || a.assignee.name.localeCompare(b.assignee.name));
+  for (const assignee of withoutSheets) {
+    if (assignees.has(`${assignee.type}:${assignee.id}`)) continue;
+    const able = capabilities.get(`${assignee.type}:${assignee.id}`), overlap = able?.known ? overlapOf(able.items) : 0;
+    if (!overlap) continue;
+    const found = await readAssignee(orgId, assignee);
+    if (!found) continue;
+    rows.push({ assignee: { ...assignee, name: found.name }, sheet: null, total_cents: null, complete: false, hourly_rate_cents: null, cost_rate_cents: null, awaiting_hours: false, duration_days: null, duration_basis: null, unresolved: [], missing_inputs: [], equipment: [], work_items: [], not_covered: [], not_capable: [], estimated_hours: null, overlap, reason: "No pay sheet yet, so there is no price." });
+  }
+  return rows.sort((a, b) => Number(b.overlap > 0) - Number(a.overlap > 0) || Number(b.complete) - Number(a.complete) || (a.total_cents ?? Infinity) - (b.total_cents ?? Infinity) || a.assignee.name.localeCompare(b.assignee.name));
 }

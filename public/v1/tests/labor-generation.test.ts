@@ -47,6 +47,12 @@ test("a labor list is generated from its assignee's pay sheet, and reassigning i
   const list = await lists.createMaterialList(ORG, "project", { title: "Roof labor", resource_type: "labor", items: [] }, owner);
   const compared = await g.compareAssigneesForList(ORG, { list_id: String(list.id) });
   const row = (name: string) => compared.find((entry) => entry.sheet?.name.startsWith(name))!;
+  // Before there is a work order the project is compared the same way, and each row says how much of the job's work it does.
+  const byProject = await g.compareAssigneesForList(ORG, { project_id: "project" });
+  assert.deepEqual(byProject.map((entry) => [entry.assignee.id, entry.total_cents]), compared.map((entry) => [entry.assignee.id, entry.total_cents]));
+  assert.ok(byProject.every((entry) => entry.overlap > 0), "every sample assignee does some of this roof");
+  assert.equal(byProject.find((entry) => entry.sheet?.name.startsWith("Summit"))!.overlap, 6, "Summit does all six things the roof requires");
+  await assert.rejects(() => g.compareAssigneesForList(ORG, {}), /one list or one project/);
   assert.equal(row("Crew B").total_cents, 32 * 6500 + 6 * 1000); assert.equal(row("Crew B").complete, true); assert.equal(row("Crew B").duration_days, 1.5);
   assert.equal(row("Summit").total_cents, 32 * 9500 + 6 * 1500 + 5 * 800); assert.deepEqual(row("Summit").equipment.map((entry) => [entry.name, entry.included]), [["Dump truck", true]]);
   assert.equal(row("Ridgeline").total_cents, 96 * 2900 + 32 * 2500 + 180 * 75, "paid on bundles from the material list, squares and eaves"); assert.deepEqual(row("Ridgeline").equipment, []);

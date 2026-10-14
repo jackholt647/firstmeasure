@@ -118,7 +118,7 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
       window.materialListById=id=>state.lists.find(list=>list.id===id);
       window.resourceTerms=type=>({plural:{material:'Materials',labor:'Labor',equipment:'Equipment'}[type],singular:type});
       window.escapeHtml=value=>String(value);
-      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.renderRequirementsTray=()=>'<aside class="mt-req-tray" data-mt-req-tray></aside>';window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
+      window.money=value=>'$'+value;window.expenseTargetForList=()=>null;window.listTotals=()=>({projected:0});window.listProjected=()=>0;window.categoryProjected=()=>0;window.projectProjected=()=>0;window.renderAssignBlock=()=>'<div class="mt-empty">Empty List</div>';window.renderRequirementsTray=()=>'<aside class="mt-req-tray" data-mt-req-tray></aside>';window.projectId=()=>'';window.projectedDelivery=()=>({available:false,enabled:false,amount:0});window.number=Number;window.cleanText=value=>String(value||'');window.materialListOrdered=()=>false;window.renderListActionControls=()=>'';window.renderLaborListControls=()=>'';
       window.materialSectionDefinitions=()=>['material','labor','equipment'].map(type=>({key:type,resource_type:type}));
       window.lineSectionKey=item=>item.section;
       window.renderMaterialSection=(section,rows)=>`<section class="mt-section">${rows.map(row=>`<div style="height:30px">${row.name}</div>`).join('')}</section>`;
@@ -216,10 +216,10 @@ test('assigning a labor list re-renders only after saving is released, so contro
 test('the assign block stays clickable through a background save, assigns once and keeps its pills short',async()=>{
  const escapeHtml=value=>String(value??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
  const calls=[],list={id:'labor'};let pending=0;
- const ctx={state:{saving:true,assigneePay:{labor:{loading:false,at:Date.now(),rows:[{assignee:{id:'sub'},sheet:{id:'s'},complete:true,total_cents:433080,hourly_rate_cents:12800,duration_days:2,equipment:[{name:'Dump truck',included:true}]}]}}},setTimeout,
+ const ctx={state:{saving:true,assigneePay:{labor:{loading:false,at:Date.now(),rows:[{assignee:{id:'crew'},sheet:{id:'s2'},complete:false,total_cents:0,overlap:1},{assignee:{id:'sub'},sheet:{id:'s'},complete:true,total_cents:433080,hourly_rate_cents:12800,duration_days:2,equipment:[{name:'Dump truck',included:true}]}]}}},setTimeout,
   cleanText:value=>String(value??'').trim(),number:(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback,escapeHtml,money:value=>'$'+Number(value).toLocaleString('en-US'),
   workResourcesForScopeList:()=>[{id:'sub',name:'Summit Roofing',resource_kind:'organization_connection'},{id:'crew',name:'Crew A',resource_kind:'resource_group'}],workforceLabel:kind=>kind==='organization_connection'?'Subcontractor':'Crew',
-  workspaceIsEditing:()=>false,syncMaterialsGrid(){},materialRoot:()=>null,captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,listWritesPending:()=>pending>0,showToast(){},materialListById:()=>list,
+  workspaceIsEditing:()=>false,syncMaterialsGrid(){},materialRoot:()=>null,captureProjectOperation:()=>({}),projectOperationIsCurrent:()=>true,listWritesPending:()=>pending>0,requirementSet:()=>null,showToast(){},materialListById:()=>list,
   assignmentWorkResourceRef:value=>value.assigned?{id:value.assigned}:null,assignWorkResource:async(id,resource)=>{calls.push(['assign',resource,ctx.state.saving,pending]);await new Promise(resolve=>setTimeout(resolve,5));list.assigned=resource;},generateLaborList:async id=>{calls.push(['generate',id]);}};
  vm.createContext(ctx);for(const name of ['assigneePay','assigneePayFor','assigneePayLabel','assigneePills','assigneeKindPill','renderAssignBlock','syncAssignBusy','assignAndGenerate'])vm.runInContext(fn(name),ctx);
  const html=ctx.renderAssignBlock(list);
