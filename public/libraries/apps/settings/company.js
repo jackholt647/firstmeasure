@@ -70,7 +70,6 @@
     cover_show_pitch: true,
     cover_show_facets: true,
     page_top_view: true,
-    page_elevations: true,
     page_3d: true,
     page_pitch: true,
     page_area: true,
