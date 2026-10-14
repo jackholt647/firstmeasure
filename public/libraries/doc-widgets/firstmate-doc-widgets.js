@@ -1562,34 +1562,91 @@
     return wrap;
   }
 
+  function ensureSignDialogStyles() {
+    if (document.getElementById("fmdoc-sign-dialog-styles")) return;
+    const style = document.createElement("style");
+    style.id = "fmdoc-sign-dialog-styles";
+    style.textContent = `
+.fmdoc-sign-step{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;margin:4px 0 12px;padding:8px 10px 8px 14px;border:1px solid #e4e7ec;border-radius:12px;font-size:13.5px;color:#344054}
+.fmdoc-sign-step.done{border-color:#abefc6;background:#f6fef9}
+.fmdoc-sign-pdf.fmdoc-button{flex:none;white-space:nowrap;display:inline-flex;align-items:center;padding:8px 14px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font-size:13px;font-weight:700;text-decoration:none}
+.fmdoc-sign-step.done .fmdoc-sign-pdf.fmdoc-button{border-color:#abefc6;color:#067647}
+.fmdoc-sign-pdf.is-waiting{opacity:.6;cursor:progress}
+.fmdoc-sign-consent{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;line-height:1.45;color:#101828}
+.fmdoc-sign-consent input{flex:none;width:18px;height:18px;margin:2px 0 0;cursor:pointer}
+.fmdoc-sign-fineprint{margin:6px 0 0 28px;font-size:12px;line-height:1.45;color:#667085}
+.fmdoc-sign-disclosure-toggle{border:0;background:none;padding:0;color:#475467;font:inherit;text-decoration:underline;cursor:pointer}
+.fmdoc-sign-disclosure{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease;margin-left:28px}
+.fmdoc-sign-disclosure.open{grid-template-rows:1fr}
+.fmdoc-sign-disclosure-text{overflow:hidden;font-size:12px;line-height:1.5;color:#475467;white-space:pre-wrap}
+.fmdoc-sign-disclosure.open .fmdoc-sign-disclosure-text{margin-top:8px;max-height:200px;overflow:auto}
+.fmdoc-sign-notice{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s ease,opacity .22s ease,margin .22s ease;margin:0}
+.fmdoc-sign-notice.open{grid-template-rows:1fr;opacity:1;margin:12px 0 0}
+.fmdoc-sign-notice-text{overflow:hidden;border-radius:10px;background:#fef3f2;color:#b42318;font-size:13px;font-weight:600;line-height:1.4}
+.fmdoc-sign-notice.open .fmdoc-sign-notice-text{padding:10px 12px}
+.fmdoc-sign-notice.shake .fmdoc-sign-notice-text,.fmdoc-sign-step.nudge,.fmdoc-sign-consent.nudge{animation:fmdocSignNudge .32s ease}
+@keyframes fmdocSignNudge{0%,100%{transform:none}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){.fmdoc-sign-disclosure,.fmdoc-sign-notice{transition:none}.fmdoc-sign-notice.shake .fmdoc-sign-notice-text,.fmdoc-sign-step.nudge,.fmdoc-sign-consent.nudge{animation:none}}`;
+    document.head.appendChild(style);
+  }
+
   function openSignatureModal(ctx, onDone) {
     const overlay = h("div", "fmdoc-modal-overlay");
     const modal = h("div", "fmdoc-modal fmdoc-sign-modal");
     overlay.appendChild(modal);
     modal.appendChild(h("div", "fmdoc-modal-title", "Add your signature"));
+    ensureSignDialogStyles();
     let signingReview = null;
     let reviewOpened = false;
-    const reviewStatus = h("div", "fmdoc-sign-review", "Preparing the exact agreement for your review…");
+    // Shown only if this agreement cannot be signed here at all.
+    const reviewStatus = h("div", "fmdoc-sign-review");
+    reviewStatus.hidden = true;
+    // Every part of the dialog is here from the first frame, so nothing moves
+    // under the person's pointer while the agreement is prepared.
+    const reviewRow = h("div", "fmdoc-sign-step");
+    reviewRow.appendChild(h("div", "fmdoc-sign-step-text", "Read the agreement you are signing."));
+    const reviewLink = h("a", "fmdoc-button fmdoc-sign-pdf is-waiting", "Preparing the agreement\u2026");
+    reviewLink.href = "#";
+    reviewLink.addEventListener("click", (event) => { if (reviewLink.classList.contains("is-waiting")) event.preventDefault(); });
+    reviewRow.appendChild(reviewLink);
     const consentLabel = h("label", "fmdoc-sign-consent");
     const consentCheck = document.createElement("input"); consentCheck.type = "checkbox";
     const presenterCheck = document.createElement("input"); presenterCheck.type = "checkbox";
     consentLabel.appendChild(consentCheck);
-    consentLabel.appendChild(document.createTextNode(" I intend to sign this agreement, consent to electronic records, and confirm I can access and save the review PDF."));
-    modal.appendChild(reviewStatus); modal.appendChild(consentLabel);
+    consentLabel.appendChild(h("span", "", "I intend to sign this agreement and agree to use electronic records and signatures for it."));
+    // The disclosure the law asks for is offered before consent, as fine print
+    // that opens in place rather than a wall of text over the form.
+    const disclosure = h("div", "fmdoc-sign-fineprint");
+    const disclosureToggle = h("button", "fmdoc-sign-disclosure-toggle", "Electronic records and signature disclosure");
+    disclosureToggle.type = "button";
+    disclosure.appendChild(document.createTextNode("You can ask for a paper copy or withdraw consent at any time. "));
+    disclosure.appendChild(disclosureToggle);
+    const disclosurePanel = h("div", "fmdoc-sign-disclosure");
+    const disclosureText = h("div", "fmdoc-sign-disclosure-text", "Loading the disclosure\u2026");
+    disclosurePanel.appendChild(disclosureText);
+    disclosureToggle.addEventListener("click", () => disclosurePanel.classList.toggle("open"));
+    modal.appendChild(reviewStatus); modal.appendChild(reviewRow); modal.appendChild(consentLabel); modal.appendChild(disclosure); modal.appendChild(disclosurePanel);
     // Everything that can go wrong is said in the dialog, next to what the
     // person was doing: never a browser alert, never a button that does nothing.
+    // Problems slide in above the buttons; the dialog grows smoothly, never jumps.
     const notice = h("div", "fmdoc-sign-notice");
     notice.setAttribute("role", "alert");
-    notice.hidden = true;
-    notice.style.cssText = "margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#fef3f2;color:#b42318;font-size:13px;font-weight:600;line-height:1.4";
-    const say = (message) => { notice.textContent = message || ""; notice.hidden = !message; if (message) { try { notice.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {} } };
+    const noticeText = h("div", "fmdoc-sign-notice-text");
+    notice.appendChild(noticeText);
+    const say = (message) => {
+      if (message) noticeText.textContent = message;
+      notice.classList.toggle("open", !!message);
+      if (message) notice.classList.remove("shake"), void notice.offsetWidth, notice.classList.add("shake");
+    };
     let blocked = "";
     const blockSigning = (message) => {
       blocked = message;
       reviewStatus.textContent = message;
+      reviewStatus.hidden = false;
       reviewStatus.setAttribute("role", "alert");
       reviewStatus.style.cssText = "padding:12px 14px;border-radius:10px;background:#fef3f2;color:#b42318;font-size:13.5px;font-weight:600;line-height:1.45;margin-bottom:12px";
       consentLabel.style.display = "none";
+      reviewRow.style.display = "none"; disclosure.style.display = "none"; disclosurePanel.style.display = "none";
       modal.querySelectorAll(".fmdoc-field,.fmdoc-tabs,.fmdoc-sign-pane").forEach((part) => { part.style.display = "none"; });
       try { adoptButton.style.display = "none"; } catch (e) { /* not built yet; applied again once it is */ }
     };
@@ -1606,9 +1663,10 @@
       if (!result.fields.includes(signatureKey(ctx))) throw new Error('This signature field is assigned to another signer.');
       signingReview = result;
       if (result.presenter_attestation_required) { const label = h('label','fmdoc-sign-consent'); label.appendChild(presenterCheck); label.appendChild(document.createTextNode(' Presenter: I attest that the assigned customer personally reviewed and is signing this agreement in my presence.')); modal.insertBefore(label,consentLabel.nextSibling); }
-      reviewStatus.textContent = result.disclosure.text;
-      reviewStatus.style.cssText = 'max-height:180px;overflow:auto;font-size:12px;white-space:pre-wrap;margin-bottom:12px';
-      const reviewLink = h('a', 'fmdoc-button', 'Open and save the agreement PDF');
+      disclosureText.textContent = result.disclosure.text;
+      reviewLink.classList.remove('is-waiting');
+      reviewLink.textContent = 'Open the agreement (PDF)';
+      if (noticeText.textContent.startsWith('The agreement is still being prepared')) say('');
       reviewLink.href = internal.pdfUrl || base + '/pdf'; reviewLink.target = '_blank'; reviewLink.rel = 'noopener';
       reviewLink.addEventListener('click', async event => {
         event.preventDefault();
@@ -1623,9 +1681,11 @@
           else { const download = document.createElement('a'); download.href = url; download.download = 'agreement-for-review.pdf'; download.click(); }
           setTimeout(() => URL.revokeObjectURL(url), 60000);
           reviewOpened = true;
-        } catch (error) { viewer?.close(); reviewStatus.textContent = error.message; reviewOpened = false; }
+          reviewRow.classList.add('done');
+          reviewLink.textContent = 'Opened \u2713 Open again';
+          say('');
+        } catch (error) { viewer?.close(); say(error.message); reviewOpened = false; }
       });
-      modal.insertBefore(reviewLink, consentLabel);
       if (result.signer.name) { nameInput.value = result.signer.name; nameInput.dispatchEvent(new Event('input')); }
     }).catch(error => { blockSigning(error.message || 'This agreement cannot be signed here right now.'); }) : Promise.resolve().then(() => { reviewStatus.textContent = (globalThis.PlatformLanguage?.text("doc-widgets","m_cbcae1403d8359","Send this document to its assigned signers before collecting signatures.") ?? "Send this document to its assigned signers before collecting signatures."); })).catch(error => { blockSigning(error.message || 'This agreement cannot be signed here right now.'); });
 
@@ -1775,24 +1835,24 @@
     overlay.addEventListener("click", (event) => {
       if (event.target === overlay) close();
     });
+    consentCheck.addEventListener("change", () => { if (consentCheck.checked) say(""); });
     adoptButton.addEventListener("click", async () => {
-      await reviewPromise;
       say("");
       if (blocked) return;
-      if (!signingReview) { say("The agreement is still being prepared. Give it a moment and try again."); return; }
-      if (!reviewOpened) { say("Open and save the agreement PDF above first. You sign what you have read."); return; }
-      if (!consentCheck.checked) { say("Tick the box to confirm you intend to sign and consent to electronic records."); consentCheck.focus(); return; }
+      if (!signingReview) { say("The agreement is still being prepared. One moment."); return; }
+      if (!reviewOpened) { say("Please open the agreement first."); reviewRow.classList.remove("nudge"); void reviewRow.offsetWidth; reviewRow.classList.add("nudge"); return; }
+      if (!consentCheck.checked) { say("Please check the box to agree."); consentLabel.classList.remove("nudge"); void consentLabel.offsetWidth; consentLabel.classList.add("nudge"); consentCheck.focus(); return; }
       if (signingReview.presenter_attestation_required && !presenterCheck.checked) { say("The presenter must confirm that the assigned signer is present and personally signing."); presenterCheck.focus(); return; }
       const signerName = cleanText(nameInput.value);
       if (!signerName) {
         nameInput.classList.add("fmdoc-input--invalid");
         nameInput.focus();
-        say("Type your full name.");
+        say("Please type your name.");
         return;
       }
       if (activeMode === "drawn" && !hasInk) {
         canvas.classList.add("fmdoc-sign-canvas--invalid");
-        say("Draw your signature in the box, or switch to Type.");
+        say("Please draw your signature, or switch to Type.");
         return;
       }
       // Output value shape matches the proposal e-sign contract (§2).

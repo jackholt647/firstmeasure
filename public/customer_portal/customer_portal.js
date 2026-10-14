@@ -459,6 +459,17 @@
     const credential = documentSigningTokens[documentId];
     return { token: credential, base: `${documentApiBase()}/public/${encodeURIComponent(credential)}` };
   }
+  const warmedSigning = new Set();
+  function warmDocumentSigning(token){
+    const key = cleanText(token);
+    const doc = documentList(activeProjectPayload()).find((entry) => cleanText(entry.public_token) === key) || {};
+    const field = cleanText(cpwfArray(cpwfObject(doc.signature_requirement).pending_keys)[0]);
+    if (!field || warmedSigning.has(key) || isPreviewMode()) return;
+    warmedSigning.add(key);
+    documentSigningAccess(key)
+      .then((access) => fetch(`${access.base}/signing/prepare`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field }) }))
+      .catch(() => warmedSigning.delete(key));
+  }
   function documentEngineReady(){
     return Boolean(root.DocumentsAPI && root.FMDocModel && root.FMDocRenderer);
   }
@@ -973,7 +984,6 @@
         <aside class="cp-doc-sidebar"><div class="cp-doc-list">${cards}</div>${documentTaskPanelHtml(activeToken, active)}</aside>
         <div class="cp-doc-viewer">
           <div class="cp-doc-toolbar">
-            <div><span>${escapeHtml(cleanText(descriptor?.label) || documentTypeLabel(active?.document_type))}</span><strong>${escapeHtml(cleanText(active?.title) || documentTypeLabel(active?.document_type))}</strong></div>
             <div class="cp-doc-toolbar-actions">
               ${mode === 'hybrid' && phase === 'document' ? `<button type="button" class="cp-doc-change-step" data-document-show-workflow="${escapeHtml(activeToken)}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_b6143b01996f97","Change selections") ?? "Change selections")}</span></button>` : ''}
               ${pdfUrl ? `<a class="cp-doc-icon-btn" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener" aria-label="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4944e59816b60a","Download PDF") ?? "Download PDF")}" title="${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_4944e59816b60a","Download PDF") ?? "Download PDF")}"><i class="fa-solid fa-download" aria-hidden="true"></i></a>` : ''}
@@ -1099,6 +1109,7 @@
       };
       stage.__cpDocumentRenderOptions = renderOptions;
       activeDocumentStage = root.FMDocRenderer.render(stage, renderOptions);
+      warmDocumentSigning(token);
       if (state.pendingDocumentTaskFocus) {
         const focus = state.pendingDocumentTaskFocus;
         state.pendingDocumentTaskFocus = '';
@@ -1139,7 +1150,9 @@
     };
     stage.__cpDocumentRenderOptions = nextOptions;
     try {
-      activeDocumentStage.update(nextOptions);
+      try { activeDocumentStage.destroy?.(); } catch (_) {}
+      stage.innerHTML = '';
+      activeDocumentStage = root.FMDocRenderer.render(stage, nextOptions);
       Promise.resolve(activeDocumentStage.ready?.()).catch(() => null).then(() => {
         requestAnimationFrame(() => {
           const replacement = stage.querySelectorAll('.fmdoc-page')[anchorIndex];
