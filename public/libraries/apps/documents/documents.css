@@ -345,9 +345,23 @@
 .fmdx-recipient-row input[type="checkbox"]:disabled{opacity:.4}
 
 /* ------------------------------------------------------------- send modal */
-.fmdx-send-success{display:flex;flex-direction:column;gap:12px;align-items:stretch}
-.fmdx-send-success .headline{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:1000;color:#137a45}
-.fmdx-send-success .headline i{width:34px;height:34px;border-radius:99px;background:#e3f8ec;display:grid;place-items:center}
+.fmdx-send-success{display:flex;flex-direction:column;align-items:center;text-align:center;padding:8px 4px 0}
+.fmdx-sent-mark{width:56px;height:56px;border-radius:50%;background:#e3f8ec;color:#137a45;display:grid;place-items:center;font-size:22px;margin-bottom:14px}
+.fmdx-sent-mark.warn{background:#fff4e5;color:#b54708}
+.fmdx-modal .fmdx-sent-title{margin:0;padding:0;width:100%;font-size:19px;font-weight:900;line-height:1.25;color:#111827;display:block;text-align:center}
+.fmdx-sent-sub{margin:6px 0 0;font-size:13px;font-weight:600;line-height:1.5;color:#667085;max-width:400px}
+.fmdx-sent-list{align-self:stretch;margin-top:20px;border:1px solid #e4e7ec;border-radius:14px;overflow:hidden;text-align:left}
+.fmdx-sent-list:empty{display:none}
+.fmdx-sent-row{display:flex;align-items:center;gap:10px;padding:11px 12px}
+.fmdx-sent-row+.fmdx-sent-row{border-top:1px solid #eef0f4}
+.fmdx-sent-avatar{flex:none;width:34px;height:34px;border-radius:50%;background:color-mix(in srgb,var(--fmdx-primary,#d93025) 12%,#fff);color:var(--fmdx-primary,#d93025);display:grid;place-items:center;font-size:13px;font-weight:900}
+.fmdx-sent-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.fmdx-sent-who strong{font-size:13.5px;font-weight:800;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fmdx-sent-who small{font-size:11.5px;font-weight:600;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fmdx-sent-state{flex:none;font-size:11.5px;font-weight:800;color:#137a45;white-space:nowrap}
+.fmdx-sent-state.bad{color:#b42318}
+.fmdx-send-success .fmdx-modal-foot{align-self:stretch;margin-top:18px}
+.fmdx-send-success .fmdx-modal-foot .fmdx-btn{min-width:120px;justify-content:center}
 
 /* ------------------------------------------------------------ filter chips */
 .fmdx-filter-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 14px}

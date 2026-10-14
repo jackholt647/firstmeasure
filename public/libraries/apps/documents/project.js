@@ -4800,18 +4800,50 @@
       });
     }
 
+    /**
+     * What Send leaves on screen: who it went to, whether each email went
+     * out, and the link each person was sent, to copy or open if they ask for
+     * it again.
+     */
     function renderSendSuccess(modal, result = {}){
       const body = modal.body;
       body.querySelectorAll(':scope > *:not(.fmdx-modal-close)').forEach((el) => el.remove());
+      const emailed = arrayValue(result.emailed).map(objectValue);
+      const failed = (email) => emailed.some((entry) => cleanText(entry.email).toLowerCase() === cleanText(email).toLowerCase() && (entry.ok === false || entry.success === false));
+      const signers = arrayValue(result.signing?.invitations).map(objectValue);
+      // Signers first, then anyone who only received a copy.
+      const people = [
+        ...signers.map((entry) => ({ name: firstText(entry.name, entry.email, entry.signer_id), email: cleanText(entry.email), link: entry.user_id ? '' : cleanText(entry.portal_url), role: entry.user_id ? 'Signs in the app' : 'To sign', account: !!entry.user_id })),
+        ...emailed.filter((entry) => !signers.some((signer) => cleanText(signer.email).toLowerCase() === cleanText(entry.email).toLowerCase()))
+          .map((entry) => ({ name: firstText(entry.name, entry.email), email: cleanText(entry.email), link: cleanText(result.portal_url), role: signers.length ? 'Copy' : '' }))
+      ];
+      const anyFailed = people.some((person) => person.email && failed(person.email));
+      const names = people.map((person) => person.name).filter(Boolean);
+      const to = names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(' and ');
       const wrap = document.createElement('div');
       wrap.className = 'fmdx-send-success';
       wrap.innerHTML = `
-        <div class="headline"><i class="fas fa-check"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_73ac601e395a23"," Document sent") ?? " Document sent")}</div>
-        <p class="fmdx-data-hint">${arrayValue(result.emailed).some(r => r.ok === false || r.success === false) ? 'Some email deliveries failed. Use the individual invitation links below and check your email settings.' : 'Invitations are ready. Email delivery has been requested.'}</p>
-        ${arrayValue(result.signing?.invitations).map(i => `<p><strong>${esc(i.name || i.signer_id)}</strong>: ${i.user_id ? 'Sign in with the assigned organization account.' : `<a href="${esc(i.portal_url)}" target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("documents","m_1dec07638cd9e0","Open individual signing invitation") ?? "Open individual signing invitation")}</a>`}</p>`).join('')}
-        <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn" data-send-done>${(globalThis.PlatformLanguage?.htmlText("documents","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`;
+        <div class="fmdx-sent-mark ${anyFailed ? 'warn' : ''}"><i class="fas ${anyFailed ? 'fa-triangle-exclamation' : 'fa-check'}"></i></div>
+        <h2 class="fmdx-sent-title">${esc(anyFailed ? 'Sent, but an email did not go out' : (to ? `Sent to ${to}` : 'Document sent'))}</h2>
+        <p class="fmdx-sent-sub">${esc(anyFailed
+          ? 'Copy the link for anyone marked below and send it to them yourself, then check your email settings.'
+          : (signers.length ? 'They have an email with a link to read it, sign and pay online.' : 'They have an email with a link to read it online.'))}</p>
+        <div class="fmdx-sent-list">${people.map((person, index) => `
+          <div class="fmdx-sent-row">
+            <span class="fmdx-sent-avatar">${esc((person.name || '?').trim().charAt(0).toUpperCase())}</span>
+            <span class="fmdx-sent-who"><strong>${esc(person.name)}</strong><small>${esc([person.email !== person.name ? person.email : '', person.role].filter(Boolean).join(' \u00b7 '))}</small></span>
+            ${person.email ? `<span class="fmdx-sent-state ${failed(person.email) ? 'bad' : ''}"><i class="fas ${failed(person.email) ? 'fa-circle-xmark' : 'fa-circle-check'}"></i>${failed(person.email) ? ' Not emailed' : ' Emailed'}</span>` : ''}
+            ${person.link ? `<button type="button" class="fmdx-btn fmdx-btn-icon" data-sent-copy="${index}" title="Copy their link"><i class="fas fa-link"></i></button><a class="fmdx-btn fmdx-btn-icon" href="${esc(person.link)}" target="_blank" rel="noopener" title="Open what they see"><i class="fas fa-arrow-up-right-from-square"></i></a>` : ''}
+          </div>`).join('')}</div>
+        <div class="fmdx-modal-foot"><button type="button" class="fmdx-btn primary" data-send-done>${(globalThis.PlatformLanguage?.htmlText("documents","m_8cb6b086a0e69c","Done") ?? "Done")}</button></div>`;
       body.appendChild(wrap);
+      wrap.querySelectorAll('[data-sent-copy]').forEach((button) => button.addEventListener('click', async () => {
+        const link = people[Number(button.dataset.sentCopy)]?.link;
+        try { await navigator.clipboard.writeText(link); button.innerHTML = '<i class="fas fa-check"></i>'; button.title = 'Copied'; setTimeout(() => { button.innerHTML = '<i class="fas fa-link"></i>'; button.title = 'Copy their link'; }, 1600); }
+        catch (error) { window.prompt('Copy this link', link); }
+      }));
       wrap.querySelector('[data-send-done]')?.addEventListener('click', () => modal.close());
+      try { wrap.querySelector('[data-send-done]').focus(); } catch (e) {}
     }
 
     // ---------------------------------------------------------------- boot
