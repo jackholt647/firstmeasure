@@ -76,8 +76,33 @@ export function signerPlan(defs: JsonObject, recipients: JsonObject[]): Signer[]
 
 export function disclosure(contact: string) {
   if (!contact) throw badRequest("signature_contact_required", "Provide a contact for paper copies and electronic-record consent withdrawal.");
-  const value = `Electronic records and signatures — this agreement only. By selecting the consent checkbox and Adopt & sign, you agree to use electronic records and intend to sign the displayed agreement. You may decline electronic signing and request a paper process. You may obtain a paper copy, withdraw consent to future electronic delivery, or update your contact information by contacting ${contact}. This platform charges no paper-copy or withdrawal fee; any separately applicable transaction terms must be disclosed in the agreement. Withdrawal does not undo an acceptance already recorded. You need a current web browser, internet access, a PDF viewer, and the ability to save or print PDF files. Open the review copy and confirm that you can access and retain it before signing. Save the executed copy when signing is complete.`;
-  return { version: "us-electronic-records-1", text: value, hash: digest(value) };
+  // Every element 15 U.S.C. 7001(c)(1)(B) and (C) asks to be disclosed before
+  // consent, in sections a person can scan. Changing this text changes the
+  // version: each signature records the exact disclosure it was given.
+  const value = [
+    "Electronic records and signatures disclosure",
+    "",
+    "What you are agreeing to",
+    "By checking the consent box and selecting Adopt & sign, you agree to receive this agreement and the records that go with it electronically, and to sign it electronically. Your electronic signature has the same legal effect as a handwritten one. This consent covers this agreement only.",
+    "",
+    "Paper copies",
+    `You may ask for a paper copy of this agreement or any related record at any time, at no charge, by contacting ${contact}.`,
+    "",
+    "Signing on paper instead",
+    "You do not have to sign electronically. You may decline and ask for a paper process instead.",
+    "",
+    "Withdrawing your consent",
+    `You may withdraw your consent to receive records electronically at any time by contacting ${contact}. There is no fee to withdraw. Withdrawing does not undo a signature already given, and records sent before you withdraw remain valid.`,
+    "",
+    "Keeping your contact details current",
+    `To change the email address or other contact details we use for electronic records, contact ${contact}.`,
+    "",
+    "What you need",
+    "A device with a current web browser and internet access, and the ability to open, save or print PDF files. You can open and save a PDF copy of the agreement from this screen before you sign, and you will be able to save the signed copy when signing is complete.",
+    "",
+    "By checking the box, you confirm that you can open this disclosure and the agreement on the device you are using."
+  ].join("\n");
+  return { version: "us-electronic-records-2", text: value, hash: digest(value) };
 }
 
 export async function validateSignature(value: unknown): Promise<JsonObject> {
