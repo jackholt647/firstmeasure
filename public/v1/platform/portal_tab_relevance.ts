@@ -65,7 +65,7 @@ const TAB_SIGNALS: Record<string, { resources?: string[]; automations?: string[]
   proposals: { resources: ["proposals"], automations: ["scopes.activateFromProposal.v1"] },
 
   // Genuinely conditional surfaces.
-  documents: { resources: ["documents"], automations: ["documents.issue.v1"] },
+  documents: { resources: ["documents", "proposals"], automations: ["documents.issue.v1", "completion.request.v1", "scopes.activateFromProposal.v1"] },
   checklists: { resources: ["checklists"] },
   punch_lists: { resources: ["punch_lists"], automations: ["punchlist.request.v1"] }
 };
@@ -98,8 +98,8 @@ export async function projectTabRelevance(orgId: string, projectId: string): Pro
   }
   if (!plans.length) return relevance;
 
-  type TemplateReader = (orgId: string, branchId: string, templateId: string) => unknown;
-  type VersionReader = (orgId: string, branchId: string, templateId: string, version?: number) => unknown;
+  type TemplateReader = (orgId: string, branchId: string, templateId: string) => Promise<unknown> | unknown;
+  type VersionReader = (orgId: string, branchId: string, templateId: string, version?: number) => Promise<unknown> | unknown;
   let readScopeTemplate: TemplateReader | null = null;
   let readScopeTemplateVersion: VersionReader | null = null;
   try {
@@ -122,10 +122,10 @@ export async function projectTabRelevance(orgId: string, projectId: string): Pro
 
     let definition: JsonObject = {};
     try {
-      const frozen = version ? asObject(readScopeTemplateVersion?.(orgId, branchId, templateId, version)) : {};
+      const frozen = version ? asObject(await readScopeTemplateVersion?.(orgId, branchId, templateId, version)) : {};
       definition = Object.keys(asObject(frozen.definition)).length
         ? asObject(frozen.definition)
-        : asObject(asObject(readScopeTemplate?.(orgId, branchId, templateId)).definition);
+        : asObject(asObject(await readScopeTemplate?.(orgId, branchId, templateId)).definition);
     } catch {
       definition = {};
     }

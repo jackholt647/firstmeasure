@@ -426,6 +426,9 @@ export const registerWebsitesApi: FastifyPluginAsync = async (app) => {
   app.get("/public/portal/:portalUuid/pages", async (request) => {
     const access = await findPortalAccessByUuid(getParam(request.params, "portalUuid"));
     if (!access) throw notFound("portal_not_found", "The requested customer portal could not be found.");
+    if (access.preview) {
+      await requirePlatformAuth(request, { orgId: access.orgId });
+    }
     if (!(await portalPagesEnabled(access.orgId))) {
       throw notFound("portal_pages_disabled", "Portal pages are not enabled for this organization.");
     }
@@ -437,6 +440,9 @@ export const registerWebsitesApi: FastifyPluginAsync = async (app) => {
   app.get("/public/portal/:portalUuid/pages/:pageId", async (request) => {
     const access = await findPortalAccessByUuid(getParam(request.params, "portalUuid"));
     if (!access) throw notFound("portal_not_found", "The requested customer portal could not be found.");
+    if (access.preview) {
+      await requirePlatformAuth(request, { orgId: access.orgId });
+    }
     if (!(await portalPagesEnabled(access.orgId))) {
       throw notFound("portal_pages_disabled", "Portal pages are not enabled for this organization.");
     }

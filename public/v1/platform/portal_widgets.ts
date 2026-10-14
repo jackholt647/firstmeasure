@@ -23,6 +23,8 @@ import {
   registerDocumentWidgetResolver,
   type WidgetResolveContext
 } from "../documents/widgets/registry.js";
+import { readAssigneeStoreRecord } from "../assignees/base.js";
+import { eventAssignedUserIds, eventAssignees } from "../scheduling/event-model.js";
 import { listEventRecords } from "../work/storage.js";
 import { renderCustomerEventLabel, workEventCustomerDescriptor } from "../work/events.js";
 import { customerPortalDocumentId } from "./portal_settings.js";
@@ -350,20 +352,35 @@ registerDocumentWidgetResolver("portal.team", async (ctx, config) => {
         const id = cleanText(userId);
         if (id) userIds.add(id);
       }
-      for (const eventValue of asArray(asObject(scope.project).events)) {
-        for (const userId of asArray(asObject(eventValue).assigned_user_ids)) {
-          const id = cleanText(userId);
-          if (id) userIds.add(id);
+      const collectEventUsers = async (eventValue: unknown) => {
+        for (const userId of eventAssignedUserIds(eventValue)) {
+          if (userId) userIds.add(userId);
         }
+        for (const ref of eventAssignees(eventValue)) {
+          const assignee = await readAssigneeStoreRecord(scope.orgId, { type: ref.kind, id: ref.id }).catch(() => null);
+          if (assignee) {
+            if (assignee.traits.has_members) {
+              for (const member of assignee.members) {
+                const memberId = cleanText(member.user_id);
+                if (memberId) userIds.add(memberId);
+              }
+            } else if (assignee.traits.has_login && !assignee.traits.external_link) {
+              const id = cleanText(assignee.ref.id);
+              if (id) userIds.add(id);
+            }
+          } else if (ref.id) {
+            userIds.add(cleanText(ref.id));
+          }
+        }
+      };
+      for (const eventValue of asArray(asObject(scope.project).events)) {
+        await collectEventUsers(eventValue);
       }
       const calendarEvents = await ctx.services.platform.listDocuments(scope.orgId, "calendar_events").catch(() => []);
       for (const documentValue of calendarEvents) {
         const data = asObject(asObject(documentValue).data);
         if (cleanText(data.project_id) !== scope.projectId) continue;
-        for (const userId of asArray(data.assigned_user_ids)) {
-          const id = cleanText(userId);
-          if (id) userIds.add(id);
-        }
+        await collectEventUsers(data);
       }
     }
     for (const selected of asArray(config.selected_user_ids)) {

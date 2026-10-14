@@ -260,7 +260,13 @@
         project: payload.project,
         media: Array.isArray(payload.media) ? payload.media : [],
         resources: resources(payload),
-        settings: payload.settings || {}
+        settings: payload.settings || {},
+        tabs: Array.isArray(payload.tabs) ? payload.tabs : undefined,
+        portal_pages: payload.portal_pages,
+        feedback: payload.feedback,
+        sharing: payload.sharing,
+        customer_uploads: Array.isArray(payload.customer_uploads) ? payload.customer_uploads : [],
+        media_comments: Array.isArray(payload.media_comments) ? payload.media_comments : []
       }];
     }
     return [];
@@ -278,14 +284,18 @@
       project: active.project || payload.project || {},
       media: Array.isArray(active.media) ? active.media : [],
       resources: active.resources && typeof active.resources === 'object' ? active.resources : {},
-      settings: active.settings && typeof active.settings === 'object' ? active.settings : (payload.settings || {})
+      settings: active.settings && typeof active.settings === 'object' ? active.settings : (payload.settings || {}),
+      tabs: Array.isArray(active.tabs) && active.tabs.length ? active.tabs : payload.tabs,
+      portal_pages: active.portal_pages && typeof active.portal_pages === 'object' ? active.portal_pages : payload.portal_pages,
+      feedback: active.feedback !== undefined ? active.feedback : payload.feedback,
+      sharing: active.sharing && typeof active.sharing === 'object' ? active.sharing : payload.sharing,
+      customer_uploads: Array.isArray(active.customer_uploads) ? active.customer_uploads : (Array.isArray(payload.customer_uploads) ? payload.customer_uploads : []),
+      media_comments: Array.isArray(active.media_comments) ? active.media_comments : (Array.isArray(payload.media_comments) ? payload.media_comments : [])
     };
   }
   function feedbackCard(payload = {}){
     const feedback = payload.feedback && typeof payload.feedback === 'object' ? payload.feedback : null;
     if (!feedback || !cleanText(feedback.url)) return '';
-    // The feedback link belongs to the portal's primary project only.
-    if (cleanText(payload.project?.id) !== cleanText((state.payload || {}).project?.id)) return '';
     if (feedback.rated) {
       return `
         <section class="cp-feedback-card rated">
@@ -512,15 +522,25 @@
   function documentEngineReady(){
     return Boolean(root.DocumentsAPI && root.FMDocModel && root.FMDocRenderer);
   }
-  async function ensureDocumentSnapshot(token){
+  const viewedDocumentTokens = new Set();
+  function markDocumentViewed(token){
+    const key = cleanText(token);
+    if (!key || !root.DocumentsAPI || viewedDocumentTokens.has(key) || isPreviewMode()) return;
+    viewedDocumentTokens.add(key);
+    root.DocumentsAPI.public.view(key, withEvidence({}, browserEvidenceBase())).catch(() => {});
+    track('document_viewed', { document_token: key });
+  }
+  async function ensureDocumentSnapshot(token, options = {}){
     const key = cleanText(token);
     if (!key || !root.DocumentsAPI) return null;
-    if (documentSnapshotCache[key]) return documentSnapshotCache[key];
+    if (documentSnapshotCache[key]) {
+      if (!options.silent && !documentSnapshotCache[key].error) markDocumentViewed(key);
+      return documentSnapshotCache[key];
+    }
     try {
       const payload = await root.DocumentsAPI.public.get(key);
       documentSnapshotCache[key] = payload || null;
-      root.DocumentsAPI.public.view(key, withEvidence({}, browserEvidenceBase())).catch(() => {});
-      track('document_viewed', { document_token: key });
+      if (!options.silent) markDocumentViewed(key);
     } catch (error) {
       documentSnapshotCache[key] = { error: cleanText(error?.message) || 'We could not load this document. Check your connection and try again.' };
     }
@@ -1575,7 +1595,8 @@
   // path below stays as a fallback: an older payload, a failed tab computation,
   // or a stale cached response must render exactly what it always did.
   function tabs(){
-    const served = state.payload?.tabs;
+    const active = activeProjectPayload();
+    const served = Array.isArray(active?.tabs) && active.tabs.length ? active.tabs : state.payload?.tabs;
     if (Array.isArray(served) && served.length) return served.map(normalizeTabDescriptor).filter(Boolean);
     return legacyTabs();
   }
@@ -1615,8 +1636,8 @@
     return base.concat(customPortalPageTabs());
   }
   function customPortalPageTabs(){
-    // portal_pages is org-level (top-level payload key, like resources.documents refs).
-    const pages = state.payload?.portal_pages?.pages;
+    const active = activeProjectPayload();
+    const pages = active?.portal_pages?.pages || state.payload?.portal_pages?.pages;
     if (!Array.isArray(pages)) return [];
     return pages
       .filter((page) => page && typeof page === 'object' && cleanText(page.slug) && cleanText(page.id))
@@ -2880,7 +2901,96 @@
       </aside>
     `;
   }
-  function paymentsPanel(documents = []){
+  function documentsWidget(payload = activeProjectPayload(), { compact = true } = {}){
+    const docs = documentList(payload);
+    const items = compact ? docs.slice(0, 6) : docs;
+    return `
+      <section class="cp-widget cp-documents-widget">
+        <div class="cp-section-head">
+          <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5d7c7ad6033624","Documents") ?? "Documents")}</h2>
+          <span>${docs.length} ${docs.length === 1 ? 'document' : 'documents'}</span>
+        </div>
+        ${items.length ? `<div class="cp-summary-doc-list">${items.map((doc) => {
+          const token = cleanText(doc?.public_token);
+          const status = cleanText(doc?.status).toLowerCase();
+          const canceled = status === 'canceled' || !token;
+          const tabId = documentTabId(doc) || 'documents';
+          const title = cleanText(doc?.title) || documentTypeLabel(doc?.document_type);
+          const typeLabel = documentTypeLabel(doc?.document_type);
+          const statusLabel = documentStatusLabel(status);
+          const isSigned = ['signed', 'completed'].includes(status);
+          const badgeClass = isSigned
+            ? 'signed'
+            : (['declined', 'expired', 'canceled', 'cancelled', 'void'].includes(status)
+              ? 'canceled'
+              : (['sent', 'viewed', 'in_progress'].includes(status) ? 'action' : ''));
+          const dateStr = normalizeDate(doc?.signed_at || doc?.completed_at || doc?.sent_at || doc?.updated_at || doc?.created_at);
+          const subtitle = [typeLabel, dateStr].filter(Boolean).join(' · ');
+          return `
+            <button type="button" class="cp-summary-doc-card${canceled ? ' is-canceled' : ''}" ${canceled ? 'disabled aria-disabled="true"' : `data-step-target="${escapeHtml(tabId)}" data-step-document="${escapeHtml(token)}"`}>
+              <span class="cp-summary-doc-preview" data-summary-doc-preview="${escapeHtml(token)}" aria-hidden="true">
+                <span class="cp-summary-doc-preview-fallback"><i class="fa-regular fa-file-lines"></i></span>
+              </span>
+              <span class="cp-summary-doc-body">
+                <span class="cp-summary-doc-top">
+                  <strong class="cp-summary-doc-title">${escapeHtml(title)}</strong>
+                  <span class="cp-summary-doc-badge ${badgeClass}">${isSigned ? '<i class="fa-solid fa-check" aria-hidden="true"></i> ' : ''}${escapeHtml(statusLabel)}</span>
+                </span>
+                ${subtitle ? `<span class="cp-summary-doc-meta">${escapeHtml(subtitle)}</span>` : ''}
+                <span class="cp-summary-doc-cta">${isSigned ? 'View signed document' : 'Open document'} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></span>
+              </span>
+            </button>
+          `;
+        }).join('')}</div>` : `<div class="cp-empty">No documents yet.</div>`}
+        ${compact && docs.length > items.length ? `<button type="button" class="cp-link-btn" data-tab-target="${escapeHtml(documentTabId(docs[0]) || 'documents')}">View all documents</button>` : ''}
+      </section>
+    `;
+  }
+  function mountSummaryDocumentPreviews(){
+    const boxes = Array.from(mount.querySelectorAll('[data-summary-doc-preview]'));
+    if (!boxes.length || !documentEngineReady()) return;
+    boxes.forEach((box) => {
+      const token = cleanText(box.dataset.summaryDocPreview);
+      if (!token) return;
+      const paint = (payload) => {
+        if (!box.isConnected) return;
+        const snapshot = cpwfObject(cpwfObject(payload).snapshot);
+        const resolved = snapshot.resolved_definition || snapshot.definition;
+        const pages = cpwfArray(cpwfObject(resolved).pages);
+        if (!resolved || !pages.length) return;
+        try {
+          const firstPageDoc = { ...resolved, pages: pages.slice(0, 1) };
+          const paper = root.FMDocModel.paperDimensions(firstPageDoc);
+          const widthPx = Math.max(72, box.clientWidth || 88);
+          const scale = widthPx / ((Number(paper?.w_pt) || 612) * (96 / 72));
+          box.innerHTML = '';
+          const stageHost = document.createElement('div');
+          stageHost.className = 'cp-summary-doc-preview-canvas';
+          box.appendChild(stageHost);
+          root.FMDocRenderer.render(stageHost, {
+            document: firstPageDoc,
+            theme: snapshot.theme || null,
+            themeContext: { overrides: snapshot.theme_vars || {} },
+            mode: 'preview',
+            widgetData: snapshot.widget_data || {},
+            scale,
+            widgetContext: {
+              outputs: snapshot.outputs || {}
+            }
+          });
+        } catch (_) {}
+      };
+      const cached = documentSnapshotCache[token];
+      if (cached) {
+        if (!cached.error && cached.snapshot) paint(cached);
+        return;
+      }
+      ensureDocumentSnapshot(token, { silent: true }).then((loaded) => {
+        if (loaded && !loaded.error && loaded.snapshot) paint(loaded);
+      }).catch(() => {});
+    });
+  }
+  function paymentsPanel(documents = [], payload = activeProjectPayload()){
     const paidById = new Map();
     cpwfArray(documents).forEach((document) => cpwfArray(document?.payments).forEach((payment) => {
       const paymentId = cleanText(payment?.id) || `${cleanText(document?.id)}:${cleanText(payment?.output_key)}`;
@@ -2890,6 +3000,20 @@
         sourceLabel: `${cleanText(document?.title) || 'Document'} ${cleanText(payment?.label) || 'Payment'}`
       });
     }));
+    const resourcePayments = cpwfArray(resources(payload).payments);
+    resourcePayments.forEach((entry) => {
+      if (cleanText(entry?.kind) === 'obligation') return;
+      const paymentId = cleanText(entry?.id);
+      if (!paymentId || paidById.has(paymentId)) return;
+      paidById.set(paymentId, {
+        payment: entry,
+        sourceLabel: cleanText(entry?.label) || 'Payment'
+      });
+    });
+    const obligations = resourcePayments.filter((entry) => (
+      cleanText(entry?.kind) === 'obligation'
+      && Number(entry?.amount_remaining_cents ?? entry?.amount_cents) > 0
+    ));
     const paid = Array.from(paidById.values()).sort((left, right) => {
       const leftAt = cleanText(left.payment.settled_at || left.payment.received_at || left.payment.paid_at || left.payment.created_at);
       const rightAt = cleanText(right.payment.settled_at || right.payment.received_at || right.payment.paid_at || right.payment.created_at);
@@ -2899,8 +3023,33 @@
       <section class="cp-widget cp-payments-panel">
         <div class="cp-section-head">
           <h2>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_5842802f6c8cbb","Payments") ?? "Payments")}</h2>
-          <span>${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_e0c8002adc5c4c",`${v0} past payment${v1}`,{v0,v1}) ?? `${v0} past payment${v1}`)(paid.length,paid.length === 1 ? '' : 's')}</span>
+          <span>${obligations.length ? `${obligations.length} open · ` : ''}${((v0,v1) => globalThis.PlatformLanguage?.htmlText("customer-portal","m_e0c8002adc5c4c",`${v0} past payment${v1}`,{v0,v1}) ?? `${v0} past payment${v1}`)(paid.length,paid.length === 1 ? '' : 's')}</span>
         </div>
+        ${obligations.length ? `
+          <div class="cp-payment-section">
+            <h3>Upcoming &amp; Due Payments</h3>
+            <div class="cp-payment-table">
+              <div class="head"><span>Status</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_2b8c3448fa87a1","Amount") ?? "Amount")}</span><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_d0f1699dbcd6a5","Payment") ?? "Payment")}</span><span></span></div>
+              ${obligations.map((item) => {
+                const remaining = Number(item.amount_remaining_cents ?? item.amount_cents ?? 0) / 100;
+                const status = cleanText(item.status).toLowerCase();
+                const dueLabel = item.due_at
+                  ? `Due ${normalizeDate(item.due_at)}`
+                  : (status === 'overdue' ? 'Overdue' : status === 'invoiced' || status === 'due' ? 'Due now' : status === 'partial' ? 'Partially paid' : 'Scheduled');
+                const labelParts = [cleanText(item.label) || 'Payment', cleanText(item.invoice_number) ? `Invoice #${cleanText(item.invoice_number)}` : ''].filter(Boolean);
+                const docToken = cleanText(item.document_token);
+                return `
+                  <div class="row">
+                    <span>${escapeHtml(dueLabel)}</span>
+                    <strong>${escapeHtml(moneyFormat(remaining))}</strong>
+                    <span>${escapeHtml(labelParts.join(' · '))}</span>
+                    <span>${docToken ? `<button type="button" class="cp-link-btn" data-pay-document-token="${escapeHtml(docToken)}">${status === 'scheduled' ? 'View document' : 'View &amp; Pay'}</button>` : ''}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
         <div class="cp-payment-section">
           <h3>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_e9bdfa04394498","Past Payments") ?? "Past Payments")}</h3>
           ${paid.length ? `
@@ -3026,7 +3175,8 @@
     });
   }
   function sharingState(){
-    const sharing = state.payload?.sharing;
+    const active = activeProjectPayload();
+    const sharing = active?.sharing || state.payload?.sharing;
     return sharing && typeof sharing === 'object' ? sharing : null;
   }
   function shareDate(value){
@@ -3110,9 +3260,10 @@
       const form = new FormData(event.currentTarget);
       const currentProjectId = cleanText(activeProjectPayload()?.project?.id || state.activeProjectId);
       const allProjectIds = projectBundles(state.payload).map((bundle) => cleanText(bundle.project?.id)).filter(Boolean);
+      const portalUuid = activePortalUuid();
       state.shareBusy = true; render();
       try {
-        const result = await api.customerPortals.publicCreateShare(cfg.id, {
+        const result = await api.customerPortals.publicCreateShare(portalUuid, {
           label: cleanText(form.get('label')),
           preset: cleanText(form.get('preset')) || 'full_view',
           expires_days: Number(form.get('expires_days') || 0),
@@ -3129,9 +3280,10 @@
     });
     layer.querySelectorAll('[data-share-revoke]').forEach((button) => button.addEventListener('click', async () => {
       if (state.shareBusy || !confirm((globalThis.PlatformLanguage?.text("customer-portal","m_3f7a95b3e0ac2d","Revoke access for this shared link? Anyone using it will be blocked immediately.") ?? "Revoke access for this shared link? Anyone using it will be blocked immediately."))) return;
+      const portalUuid = activePortalUuid();
       state.shareBusy = true; button.disabled = true;
       try {
-        await api.customerPortals.publicRevokeShare(cfg.id, button.dataset.shareRevoke || '');
+        await api.customerPortals.publicRevokeShare(portalUuid, button.dataset.shareRevoke || '');
         await refreshPortalPayload();
         state.shareModalOpen = true;
         state.shareCreatedUrl = '';
@@ -3194,7 +3346,7 @@
       // A served tab with id `proposals` that is not a document group has no
       // viewer of its own; it shows the documents like the Documents tab.
       if (state.activeTab === 'documents' || state.activeTab === 'proposals') return documentsPanel(documentList(payload), activeDescriptor);
-      if (state.activeTab === 'payments') return paymentsPanel(documentList(payload));
+      if (state.activeTab === 'payments') return paymentsPanel(documentList(payload), payload);
       if (state.activeTab === 'my_documents') return myFilesPanel();
       if (state.activeTab === 'punch_lists') return punchPanel(payload);
       // Any page-backed tab renders through the custom-page stage — the
@@ -3209,6 +3361,7 @@
           ${overviewPanel(payload, orgName)}
           <div class="cp-widget-grid">
             ${photoWidget(media, { compact: true })}
+            ${documentsWidget(payload, { compact: true })}
           </div>
         </div>
         ${summaryExtensionPanel(cleanText(activeDescriptor.extensionPageId))}
@@ -3285,6 +3438,18 @@
         if (documentToken) state.activeDocumentToken = documentToken;
         setActiveTab(btn.dataset.stepTarget || 'summary');
         track('workflow_step_opened', { step: btn.textContent.trim().replace(/\s+/g, ' ') });
+      });
+    });
+    mount.querySelectorAll('[data-pay-document-token]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const token = cleanText(btn.dataset.payDocumentToken);
+        if (!token) return;
+        const doc = documentList(payload).find((entry) => cleanText(entry.public_token) === token) || {};
+        const targetTab = documentTabId(doc) || 'documents';
+        state.activeDocumentToken = token;
+        state.pendingDocumentTaskFocus = 'fa-credit-card';
+        setActiveTab(targetTab);
+        track('document_opened', { document_token: token, source: 'payments' });
       });
     });
     mount.querySelectorAll('[data-media-index]').forEach((btn) => {
@@ -3375,6 +3540,7 @@
       });
     });
     mountDocumentStage();
+    mountSummaryDocumentPreviews();
     mountInlineDocumentWorkflow();
     mountCustomPage();
     fitMarkupFrames(mount);

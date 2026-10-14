@@ -34,20 +34,21 @@ export function normalizeCustomerDocumentPresentation(value: unknown, documentTy
   const source = asObject(value);
   const tab = asObject(source.tab || source.portal_tab);
   const type = cleanText(documentType).toLowerCase();
-  const fallbackTab = type === "proposal"
-    ? { id: "proposals", label: "Proposals", icon: "fa-file-signature", order: 50 }
-    : type === "completion_certificate"
-      ? { id: "sign_off", label: "Sign-Off", icon: "fa-flag-checkered", order: 70 }
-      : { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 };
+  const fallbackTab = type === "completion_certificate"
+    ? { id: "sign_off", label: "Sign-Off", icon: "fa-flag-checkered", order: 70 }
+    : { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 };
+  const rawTabId = safeTabId(tab.id || source.tab_id);
+  const rawTabLabel = cleanText(tab.label || source.tab_label);
+  const isLegacyProposalsTab = rawTabId === "proposals" && (!rawTabLabel || rawTabLabel.toLowerCase() === "proposals");
   const requestedMode = cleanText(source.mode).toLowerCase();
   const mode: CustomerDocumentMode = requestedMode === "workflow" || requestedMode === "hybrid" ? requestedMode : "document";
   return {
     mode,
     tab: {
-      id: safeTabId(tab.id || source.tab_id) || fallbackTab.id,
-      label: cleanText(tab.label || source.tab_label) || fallbackTab.label,
-      icon: cleanText(tab.icon || source.tab_icon) || fallbackTab.icon,
-      order: Number.isFinite(Number(tab.order ?? source.tab_order)) ? Number(tab.order ?? source.tab_order) : fallbackTab.order
+      id: (isLegacyProposalsTab ? "" : rawTabId) || fallbackTab.id,
+      label: (isLegacyProposalsTab ? "" : rawTabLabel) || fallbackTab.label,
+      icon: (isLegacyProposalsTab ? "" : cleanText(tab.icon || source.tab_icon)) || fallbackTab.icon,
+      order: !isLegacyProposalsTab && Number.isFinite(Number(tab.order ?? source.tab_order)) ? Number(tab.order ?? source.tab_order) : fallbackTab.order
     },
     workflow_cta: cleanText(source.workflow_cta || source.workflowCta) || "Review & continue",
     document_cta: cleanText(source.document_cta || source.documentCta) || "Review document",

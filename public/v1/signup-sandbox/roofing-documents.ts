@@ -442,7 +442,7 @@ export async function seedInstantRoofingDocuments(orgId:string, ctx:PlatformAuth
     const metadata={instant_roofing_pack:INSTANT_ROOFING_PACK,
       // Scoped proposals have customer steps, so the portal offers the
       // workflow alongside the document.
-      ...(spec.scope?{customer_presentation:{tab:{id:'proposals',label:'Proposals',icon:'fa-file-signature',order:50},mode:'hybrid',workflow_cta:spec.key==='options'?'Choose your roof & approve':'Choose options & approve'}}:{})};
+      ...(spec.scope?{customer_presentation:{tab:{id:'documents',label:'Documents',icon:'fa-file-lines',order:60},mode:'hybrid',workflow_cta:spec.key==='options'?'Choose your roof & approve':'Choose options & approve'}}:{})};
     const existingWorkflow=await readDocumentWorkflow(orgId,workflow).catch(missing);
     if (existingWorkflow) await publishDocumentWorkflow(orgId,workflow,{definition:workflowDefinition,expected_version:Number(existingWorkflow.current_version||0),metadata},ctx);
     else await createDocumentWorkflow(orgId,{id:workflow,name:spec.title,description:spec.description,status:'active',definition:workflowDefinition,metadata},ctx);

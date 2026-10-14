@@ -1099,7 +1099,7 @@ export const SCOPE_TEMPLATE_SEEDS: TemplateSeed[] = [
     metadata: {
       default: false,
       disable_default_workflow: true,
-      customer_presentation: { tab: { id: "proposals", label: "Proposals", icon: "fa-file-signature", order: 50 }, mode: "document", document_cta: "Review estimate, sign & pay deposit" }
+      customer_presentation: { tab: { id: "documents", label: "Documents", icon: "fa-file-lines", order: 60 }, mode: "document", document_cta: "Review estimate, sign & pay deposit" }
     }
   },
   {

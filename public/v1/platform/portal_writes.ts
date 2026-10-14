@@ -265,9 +265,16 @@ export function assertCommentableMedia(portalData: JsonObject, mediaId: string) 
   const target = cleanText(mediaId);
   if (!target) throw badRequest("portal_comment_media_required", "A photo is required.");
   const shared = asArray(portalData.shared_items)
-    .map((item) => asObject(item))
-    .filter((item) => cleanText(item.type || "media") === "media")
-    .map((item) => cleanText(item.item_id || item.media_id));
+    .flatMap((item) => {
+      if (typeof item === "string") {
+        const id = cleanText(item);
+        return id ? [id] : [];
+      }
+      const entry = asObject(item);
+      if (cleanText(entry.type || "media") !== "media") return [];
+      const id = cleanText(entry.item_id || entry.itemId || entry.media_id || entry.mediaId || entry.id);
+      return id ? [id] : [];
+    });
   if (shared.includes(target)) return target;
   if (visiblePortalUploads(portalData).some((upload) => upload.media_id === target)) return target;
   throw notFound("portal_media_not_found", "That photo is not part of this portal.");

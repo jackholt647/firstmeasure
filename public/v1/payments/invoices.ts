@@ -13,7 +13,8 @@ import {
   upsertDocument,
   type JsonObject
 } from "../platform/storage.js";
-import { renderTemplatedArtifact } from "../documents/artifacts.js";
+import { publishTemplatedArtifact, renderTemplatedArtifact } from "../documents/artifacts.js";
+import { voidDocumentInstance } from "../documents/service.js";
 import { emitWorkEvent } from "../work/engine.js";
 import {
   deriveObligationStatus,
@@ -329,7 +330,7 @@ export async function listUninvoicedObligations(orgId: string) {
     const id = cleanText(obligation.id);
     const projectId = cleanText(obligation.project_id);
     if (!id || !projectId || invoicedObligationIds.has(id)) continue;
-    if (cleanText(asObject(obligation.source).type) !== "proposal") continue;
+    if (!["proposal", "document"].includes(cleanText(asObject(obligation.source).type))) continue;
     const status = deriveObligationStatus(obligation);
     if (!OPEN_OBLIGATION_STATUSES.has(status)) continue;
     const openCents = obligationOpenCents(obligation);
@@ -398,8 +399,8 @@ export async function createInvoice(orgId: string, projectId: string, input: Jso
   if (obligations.some((obligation) => deriveObligationStatus(obligation) === "void")) {
     throw badRequest("invoice_obligation_void", "Void payments cannot be invoiced.");
   }
-  if (obligations.some((obligation) => cleanText(asObject(obligation.source).type) !== "proposal")) {
-    throw badRequest("invoice_portal_source_required", "Customer invoices must use a payment from a signed proposal schedule.");
+  if (obligations.some((obligation) => !["proposal", "document"].includes(cleanText(asObject(obligation.source).type)))) {
+    throw badRequest("invoice_portal_source_required", "Customer invoices must use a payment from a signed agreement schedule.");
   }
   const fallbackSnapshot = obligations.length ? {} : (await listDocuments(orgId, "proposal_snapshots"))
     .map(documentView)
@@ -557,7 +558,9 @@ export async function markInvoiceDue(orgId: string, invoiceId: string, input: Js
     metadata: { kind: "payment_invoice", project_id: cleanText(invoice.project_id), status: "due", invoice_number: cleanText(invoice.invoice_number) }
   }, { replace: true });
   await recordPaymentEvent(orgId, "invoice.marked_due", { project_id: cleanText(invoice.project_id), invoice_id: invoiceId, due_at: dueAt }, ctx);
-  return liveInvoiceView(orgId, documentView(document));
+  const liveView = await liveInvoiceView(orgId, documentView(document));
+  await publishInvoiceToPortal(orgId, liveView).catch(() => null);
+  return liveView;
 }
 
 export async function voidInvoice(orgId: string, invoiceId: string, input: JsonObject, ctx: PlatformAuthContext): Promise<JsonObject> {
@@ -598,6 +601,9 @@ export async function voidInvoice(orgId: string, invoiceId: string, input: JsonO
     },
     metadata: { kind: "payment_invoice", project_id: cleanText(invoice.project_id), status: "void", invoice_number: cleanText(invoice.invoice_number) }
   }, { replace: true });
+  await voidDocumentInstance(orgId, `doc_invoice_${cleanText(invoice.id || invoice.invoice_number)}`, ctx, {
+    reason: cleanText(input.reason)
+  }).catch(() => null);
   await recordPaymentEvent(orgId, "invoice.voided", { project_id: cleanText(invoice.project_id), invoice_id: invoiceId, reason: cleanText(input.reason) }, ctx);
   await emitWorkEvent({
     organization_id: orgId,
@@ -828,7 +834,7 @@ async function invoiceHtml(orgId: string, invoice: JsonObject) {
   ${cleanText(invoice.notes) ? `<div class="notes"><strong>Notes</strong><br>${escapeHtml(invoice.notes)}</div>` : ""}<div class="foot"><span>${escapeHtml(orgName)}</span><span>${escapeHtml(invoice.invoice_number)}</span></div></section></main></body></html>`;
 }
 
-export async function renderInvoiceDocumentPdf(orgId: string, invoice: JsonObject) {
+function invoiceArtifactInput(orgId: string, invoice: JsonObject) {
   const balanceDueCents = invoice.render_paid_in_full === true
     ? 0
     : Math.max(0, Math.round(Number(invoice.balance_due_cents ?? invoice.total_cents ?? 0)));
@@ -849,7 +855,7 @@ export async function renderInvoiceDocumentPdf(orgId: string, invoice: JsonObjec
       selected: true
     };
   });
-  const rendered = await renderTemplatedArtifact({
+  return {
     orgId,
     documentId: `doc_invoice_${cleanText(invoice.id || invoice.invoice_number)}`,
     documentType: "invoice",
@@ -870,6 +876,9 @@ export async function renderInvoiceDocumentPdf(orgId: string, invoice: JsonObjec
       tax_percent: Number(invoice.tax_percent || 0),
       amount_cents: Math.max(0, Math.round(Number(invoice.total_cents || 0))),
       amount_due_cents: balanceDueCents,
+      billing: {
+        obligation_ids: asArray(invoice.obligation_ids).map(cleanText).filter(Boolean)
+      },
       payment_schedule: balanceDueCents > 0 ? [{
         id: `invoice_due_${cleanText(invoice.id)}`,
         label: "Invoice balance",
@@ -885,7 +894,15 @@ export async function renderInvoiceDocumentPdf(orgId: string, invoice: JsonObjec
       source_invoice_id: cleanText(invoice.id),
       payment_invoice: true
     }
-  });
+  };
+}
+
+export async function publishInvoiceToPortal(orgId: string, invoice: JsonObject) {
+  return publishTemplatedArtifact(invoiceArtifactInput(orgId, invoice));
+}
+
+export async function renderInvoiceDocumentPdf(orgId: string, invoice: JsonObject) {
+  const rendered = await renderTemplatedArtifact(invoiceArtifactInput(orgId, invoice));
   return {
     invoice,
     bytes: rendered.bytes,

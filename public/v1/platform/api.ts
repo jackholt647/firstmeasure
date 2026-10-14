@@ -6698,17 +6698,86 @@ async function publicPortalResources(orgId: string, project: JsonObject, preview
       .filter((event) => cleanText(event.project_id || event.projectId) === projectId)
     : [];
   const scheduleEvents = (await publicProjectSchedule(project, calendarEvents, scheduling, companyCustomerSchedulingEnabled && portalCustomerSchedulingEnabled, orgId));
+  const engineDocuments = await publicProjectEngineDocuments(orgId, projectId, preview);
   return {
     // Keep public serializers narrow: never expose raw project documents or private internal project fields.
     proposals: await publicProjectProposals(project, preview),
     schedule_events: scheduleEvents,
     appointment: publicProjectAppointment(scheduleEvents),
-    documents: await publicProjectEngineDocuments(orgId, projectId, preview),
+    documents: engineDocuments,
     checklists: (await publicProjectChecklists(orgId, projectId)),
     punch_lists: await publicProjectPunchLists(orgId, projectId),
-    payments: [],
+    payments: await publicProjectPayments(orgId, projectId, engineDocuments),
     signatures: []
   };
+}
+
+async function publicProjectPayments(orgId: string, projectId: string, engineDocuments: JsonObject[]) {
+  if (!projectId) return [] as JsonObject[];
+  try {
+    const paymentsStorage: {
+      listProjectObligations?: (orgId: string, projectId: string) => Promise<JsonObject[]>;
+      listProjectPayments?: (orgId: string, projectId: string) => Promise<JsonObject[]>;
+    } = await import(("../payments/storage.js") as string);
+    const [obligations, payments] = await Promise.all([
+      typeof paymentsStorage.listProjectObligations === "function" ? paymentsStorage.listProjectObligations(orgId, projectId).catch(() => []) : Promise.resolve([]),
+      typeof paymentsStorage.listProjectPayments === "function" ? paymentsStorage.listProjectPayments(orgId, projectId).catch(() => []) : Promise.resolve([])
+    ]);
+    const docById = new Map<string, JsonObject>();
+    for (const doc of engineDocuments) {
+      const id = cleanText(doc.id);
+      if (id) docById.set(id, doc);
+    }
+    const items: JsonObject[] = [];
+    for (const raw of obligations) {
+      const ob = asObject(raw);
+      const status = cleanText(ob.status).toLowerCase();
+      if (!["open", "due", "partial", "overdue"].includes(status)) continue;
+      const balanceCents = Math.max(0, Math.round(Number(ob.balance_cents ?? ob.amount_due_cents ?? ob.amount_cents) || 0));
+      if (!balanceCents) continue;
+      const source = asObject(ob.source);
+      const invoiceId = cleanText(ob.invoice_id);
+      const linkedDoc = (invoiceId ? docById.get(`doc_invoice_${invoiceId}`) : null)
+        || (cleanText(source.type) === "document" ? docById.get(cleanText(source.id)) : null)
+        || null;
+      items.push({
+        id: cleanText(ob.id),
+        kind: "obligation",
+        status,
+        title: cleanText(ob.title) || "Payment",
+        description: cleanText(ob.description),
+        amount_cents: Math.max(0, Math.round(Number(ob.amount_cents) || balanceCents)),
+        amount_paid_cents: Math.max(0, Math.round(Number(ob.amount_paid_cents) || 0)),
+        balance_cents: balanceCents,
+        due_at: cleanText(ob.due_at),
+        invoice_id: invoiceId,
+        document_id: cleanText(linkedDoc?.id),
+        document_token: cleanText(linkedDoc?.public_token),
+        document_title: cleanText(linkedDoc?.title)
+      });
+    }
+    for (const raw of payments) {
+      const pay = asObject(raw);
+      if (cleanText(pay.direction || "inbound") !== "inbound") continue;
+      const status = cleanText(pay.status).toLowerCase();
+      if (!["settled", "paid", "completed", "succeeded"].includes(status)) continue;
+      const amountCents = Math.max(0, Math.round(Number(pay.amount_cents) || 0));
+      if (!amountCents) continue;
+      items.push({
+        id: cleanText(pay.id),
+        kind: "payment",
+        status: "paid",
+        label: cleanText(pay.description || pay.memo || pay.reference) || "Payment",
+        amount_cents: amountCents,
+        method: cleanText(pay.method || pay.payment_method),
+        settled_at: cleanText(pay.settled_at || pay.received_at || pay.created_at),
+        paid_at: cleanText(pay.settled_at || pay.received_at || pay.created_at)
+      });
+    }
+    return items;
+  } catch {
+    return [] as JsonObject[];
+  }
 }
 
 const PUBLIC_DOCUMENT_STATUSES = new Set(["sent", "viewed", "in_progress", "signed", "completed"]);
@@ -6795,11 +6864,85 @@ async function publicProjectEngineDocuments(orgId: string, projectId: string, pr
   return out;
 }
 
-async function publicPortalProjectBundle(orgId: string, document: JsonObject, portalData: JsonObject, project: JsonObject, preview: boolean, baseUrl: string, apiBaseUrl: string, accessUuid = "") {
+type PortalSiteSettings = { portal_defaults: JsonObject; portal_tabs: JsonObject; home_page_id: string };
+
+async function loadPortalSiteSettings(orgId: string): Promise<PortalSiteSettings | null> {
+  try {
+    const websites: { portalSiteConfig?: (orgId: string) => Promise<unknown> } = await import(("../websites/service.js") as string);
+    const config = typeof websites?.portalSiteConfig === "function" ? await websites.portalSiteConfig(orgId) : null;
+    if (!config || typeof config !== "object") return null;
+    const configObject = asObject(config);
+    return {
+      portal_defaults: asObject(configObject.portal_defaults),
+      portal_tabs: asObject(configObject.portal_tabs),
+      home_page_id: cleanText(configObject.home_page_id)
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function loadProjectPortalPages(orgId: string, project: JsonObject): Promise<JsonObject | null> {
+  try {
+    const audienceFacts = await projectAudienceFacts(orgId, project);
+    const websites: { listPortalPages?: (orgId: string, facts?: unknown) => Promise<unknown> } = await import(("../websites/service.js") as string);
+    const listed = typeof websites?.listPortalPages === "function" ? await websites.listPortalPages(orgId, audienceFacts) : null;
+    return listed && typeof listed === "object" ? (listed as JsonObject) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function publicPortalProjectBundle(
+  orgId: string,
+  document: JsonObject,
+  portalData: JsonObject,
+  project: JsonObject,
+  preview: boolean,
+  baseUrl: string,
+  apiBaseUrl: string,
+  accessUuid = "",
+  siteSettings: PortalSiteSettings | null = null,
+  accessMode: "owner" | "guest" = "owner"
+) {
   const portalUuid = cleanText(accessUuid || (preview ? portalData.preview_uuid : portalData.public_uuid));
-  const settings = portalSettingsFor(await portalOrgDefaults(orgId), portalData);
+  const orgDefaults = siteSettings?.portal_defaults ?? (await portalOrgDefaults(orgId));
+  const settings = portalSettingsFor(orgDefaults, portalData);
   const customerSchedulingEnabled = settings.scheduling.enabled && settings.scheduling.reschedule;
   const sharedMedia = await publicPortalMedia(orgId, project, portalData, portalUuid, preview, apiBaseUrl);
+  const resources = await publicPortalResources(orgId, project, preview, customerSchedulingEnabled);
+  const uploads = visiblePortalUploads(portalData);
+  const [portalPages, relevance, feedback] = await Promise.all([
+    loadProjectPortalPages(orgId, project),
+    projectTabRelevance(orgId, cleanText(project.id)).catch(() => null),
+    customerPortalFeedbackLink(orgId, project, preview)
+  ]);
+  const tabs = portalTabDescriptors(
+    resources,
+    portalPages,
+    siteSettings?.portal_tabs || {},
+    siteSettings?.home_page_id || "",
+    settings,
+    relevance,
+    uploads
+  );
+  let sharing: JsonObject | null = null;
+  if (accessMode === "owner") {
+    const shareResolution: CustomerPortalResolution = {
+      orgId,
+      document,
+      data: portalData,
+      access_mode: "owner",
+      guest: undefined
+    };
+    const shareSource = (await ensureRecoverablePortalGuestLinks(shareResolution)).data.guest_links;
+    sharing = {
+      enabled: settings.sharing.enabled,
+      max_guests: settings.sharing.max_guests,
+      default_expires_days: settings.sharing.default_expires_days,
+      shares: publicPortalGuestLinks(shareSource, baseUrl)
+    };
+  }
   return {
     portal: {
       id: cleanText(document.id),
@@ -6812,10 +6955,14 @@ async function publicPortalProjectBundle(orgId: string, document: JsonObject, po
     },
     project: publicProjectView(project, apiBaseUrl, sharedMedia),
     media: sharedMedia,
-    resources: await publicPortalResources(orgId, project, preview, customerSchedulingEnabled),
+    resources,
     settings: publicPortalSettings(settings),
+    tabs,
+    portal_pages: portalPages,
+    feedback,
+    sharing,
     // Customer-authored content, withdrawn entries already filtered out.
-    customer_uploads: visiblePortalUploads(portalData),
+    customer_uploads: uploads,
     media_comments: visiblePortalComments(portalData)
   };
 }
@@ -6869,8 +7016,7 @@ async function portalChatHandoff(orgId: string, project: JsonObject, customer: J
 /**
  * Blessed portal tabs, in the order the portal client has always produced them.
  *
- * The ordering below — including inserting Documents at index 4, which lands it
- * BEFORE Proposals when checklists exist and AFTER Proposals when they do not —
+ * The ordering below — including inserting Documents at index 4 —
  * reproduces `customer_portal.js` `tabs()` exactly. That quirk is preserved
  * deliberately: this change moves where the tab list is computed, not what it
  * looks like. Orgs opt into a different order via `settings.portal_tabs`.
@@ -6903,14 +7049,13 @@ function blessedPortalTabs(resources: JsonObject, homePageId: string, relevance:
   const hasDynamicDocuments = dynamicDocumentTabs.length > 0;
   const candidates: JsonObject[] = [
     // Summary is permanent. Its Web Editor page is additive content rendered
-    // beneath the required project header, next steps, photos and proposals.
+    // beneath the required project header, next steps, photos and documents.
     // A configured page must never replace (or rename) the required surface.
     { id: "summary", kind: "system", label: "Summary", icon: "fa-house", ...(homePageId ? { extension_page_id: homePageId } : {}) },
     { id: "schedule", kind: "system", label: "Schedule", icon: "fa-calendar-days" },
     { id: "photos", kind: "system", label: "Photos", icon: "fa-images" },
     { id: "checklists", kind: "system", label: "Checklists", icon: "fa-list-check" },
     ...(!hasDynamicDocuments ? [{ id: "documents", kind: "system", label: "Documents", icon: "fa-file-lines" }] : []),
-    ...(!documentGroups.has("proposals") ? [{ id: "proposals", kind: "system", label: "Proposals", icon: "fa-file-signature" }] : []),
     ...dynamicDocumentTabs,
     { id: "payments", kind: "system", label: "Payments", icon: "fa-credit-card" }
   ];
@@ -6931,7 +7076,7 @@ function titleCase(value: string) {
     .join(" ");
 }
 
-function customerWriteTabs(settings: PortalSettings, resources: JsonObject, relevance: TabRelevance | null) {
+function customerWriteTabs(settings: PortalSettings, resources: JsonObject, relevance: TabRelevance | null, customerUploads: JsonObject[] = []) {
   const tabs: JsonObject[] = [];
   // Punch lists get their own tab, labelled with the org's own term for them
   // rather than a hardcoded "Punch list" — see punch_lists.ts resolvePunchLabels.
@@ -6948,7 +7093,8 @@ function customerWriteTabs(settings: PortalSettings, resources: JsonObject, rele
       icon: "fa-clipboard-check"
     });
   }
-  const hasCustomerDocs = Array.isArray(resources.customer_documents) && resources.customer_documents.length > 0;
+  const hasCustomerDocs = (Array.isArray(resources.customer_documents) && resources.customer_documents.length > 0)
+    || customerUploads.some((upload) => cleanText(asObject(upload).kind) === "document");
   // "My files" is where a customer sees their OWN uploads — distinct from the
   // Documents tab, which is what the business shared with them.
   if (settings.uploads.documents || hasCustomerDocs) {
@@ -6965,7 +7111,10 @@ function customerWriteTabs(settings: PortalSettings, resources: JsonObject, rele
 function applyPortalTabConfig(tabs: JsonObject[], tabConfig: JsonObject) {
   const resolved: JsonObject[] = [];
   tabs.forEach((tab, index) => {
-    const override = asObject(tabConfig[cleanText(tab.id)]);
+    const tabId = cleanText(tab.id);
+    const override = Object.keys(asObject(tabConfig[tabId])).length
+      ? asObject(tabConfig[tabId])
+      : (tabId === "documents" ? asObject(tabConfig.proposals) : {});
     if (override.enabled === false) return;
     const overrideOrder = Number(override.order);
     resolved.push({
@@ -6993,10 +7142,11 @@ function portalTabDescriptors(
   tabConfig: JsonObject,
   homePageId: string,
   settings: PortalSettings,
-  relevance: TabRelevance | null
+  relevance: TabRelevance | null,
+  customerUploads: JsonObject[] = []
 ) {
   const blessed = applyPortalTabConfig(
-    [...blessedPortalTabs(resources, homePageId, relevance), ...customerWriteTabs(settings, resources, relevance)],
+    [...blessedPortalTabs(resources, homePageId, relevance), ...customerWriteTabs(settings, resources, relevance, customerUploads)],
     tabConfig
   );
   const pages = Array.isArray(asObject(portalPages).pages) ? (asObject(portalPages).pages as JsonObject[]) : [];
@@ -7069,6 +7219,18 @@ async function publicCustomerPortalBranding(orgId: string, project: JsonObject, 
   };
 }
 
+function guestFilterTabs(servedTabs: JsonObject[], allowedTabs: Set<string>) {
+  return servedTabs.flatMap((tab) => {
+    const tabId = cleanText(tab.id);
+    if (tabId === "summary" && allowedTabs.has("summary")) {
+      // Additional Summary content may contain owner-only widgets or links.
+      // Read-only guest links receive the required Summary only.
+      return [{ id: "summary", kind: "system", label: "Summary", icon: cleanText(tab.icon) || "fa-house", order: Number(tab.order) || 10 }];
+    }
+    return allowedTabs.has(tabId) ? [tab] : [];
+  });
+}
+
 function guestPortalBundle(value: JsonObject, allowedTabs: Set<string>) {
   const bundle = asObject(value);
   const sourceResources = asObject(bundle.resources);
@@ -7080,6 +7242,7 @@ function guestPortalBundle(value: JsonObject, allowedTabs: Set<string>) {
   if (allowedTabs.has("checklists")) resources.checklists = Array.isArray(sourceResources.checklists) ? sourceResources.checklists : [];
   if (allowedTabs.has("punch_lists")) resources.punch_lists = Array.isArray(sourceResources.punch_lists) ? sourceResources.punch_lists : [];
   const portal = asObject(bundle.portal);
+  const bundleTabs = Array.isArray(bundle.tabs) ? (bundle.tabs as JsonObject[]) : [];
   return {
     portal: {
       id: cleanText(portal.id),
@@ -7091,6 +7254,10 @@ function guestPortalBundle(value: JsonObject, allowedTabs: Set<string>) {
     project: asObject(bundle.project),
     media: allowedTabs.has("photos") && Array.isArray(bundle.media) ? bundle.media : [],
     resources,
+    tabs: guestFilterTabs(bundleTabs, allowedTabs),
+    portal_pages: null,
+    feedback: null,
+    sharing: null,
     settings: {
       uploads: { photos: false, documents: false, max_files: 0, max_bytes: 0, require_caption: false },
       comments: { photos: false, documents: false },
@@ -7137,7 +7304,19 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
   const guestAllowedTabs = new Set<string>(found.access_mode === "guest" ? normalizeStringArray(found.guest?.tabs) : []);
   const guestProjectIds = new Set<string>(found.access_mode === "guest" ? normalizeStringArray(found.guest?.project_ids) : []);
   const accessUuid = found.access_mode === "guest" ? uuid : "";
-  const activeBundleRaw = await publicPortalProjectBundle(found.orgId, found.document, data, project, preview, baseUrl, apiBaseUrl, accessUuid);
+  const portalSiteSettings = await loadPortalSiteSettings(found.orgId);
+  const activeBundleRaw = await publicPortalProjectBundle(
+    found.orgId,
+    found.document,
+    data,
+    project,
+    preview,
+    baseUrl,
+    apiBaseUrl,
+    accessUuid,
+    portalSiteSettings,
+    found.access_mode
+  );
   const activeBundle = found.access_mode === "guest" ? guestPortalBundle(activeBundleRaw, guestAllowedTabs) : activeBundleRaw;
   const contactId = customerPortalContactId(data, project);
   const projectBundles: JsonObject[] = [];
@@ -7151,11 +7330,27 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
       const siblingProjectId = cleanText(portalData.project_id);
       if (found.access_mode === "guest" && !guestProjectIds.has(siblingProjectId)) continue;
       if (!siblingProjectId || seenProjectIds.has(siblingProjectId)) continue;
+      if (siblingProjectId === project.id) {
+        projectBundles.push(activeBundle);
+        seenProjectIds.add(siblingProjectId);
+        continue;
+      }
       try {
         const siblingProjectDoc = await readDocument(found.orgId, "projects", siblingProjectId);
         const siblingProjectData = asObject(siblingProjectDoc.data);
         const siblingProject = { id: siblingProjectDoc.id, ...siblingProjectData };
-        const rawBundle = await publicPortalProjectBundle(found.orgId, portalDoc, portalData, siblingProject, preview, baseUrl, apiBaseUrl, accessUuid);
+        const rawBundle = await publicPortalProjectBundle(
+          found.orgId,
+          portalDoc,
+          portalData,
+          siblingProject,
+          preview,
+          baseUrl,
+          apiBaseUrl,
+          accessUuid,
+          portalSiteSettings,
+          found.access_mode
+        );
         projectBundles.push(found.access_mode === "guest" ? guestPortalBundle(rawBundle, guestAllowedTabs) : rawBundle);
         seenProjectIds.add(siblingProjectId);
       } catch {
@@ -7172,62 +7367,8 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
     const bActive = cleanText(asObject(asObject(b).project).id) === project.id;
     return Number(bActive) - Number(aActive);
   });
-  const feedback = await customerPortalFeedbackLink(found.orgId, project, preview);
-  // Custom web-editor portal pages (refs only — the portal client fetches page
-  // content from the public /v1/websites routes). listPortalPages owns the
-  // web_editor.portal_pages capability gate internally and returns null when
-  // the feature is off or no published portal pages exist. The websites module
-  // is optional: any failure simply omits custom pages from the payload.
-  //
-  // Audience targeting narrows the page list to this project (§3); the facts are
-  // computed server-side and never shipped to the client.
-  const audienceFacts = (await projectAudienceFacts(found.orgId, project));
-  let portalPages: JsonObject | null = null;
-  let portalSiteSettings: { portal_defaults: JsonObject; portal_tabs: JsonObject; home_page_id: string } | null = null;
-  try {
-    const websites: {
-      listPortalPages?: (orgId: string, facts?: unknown) => Promise<unknown>;
-      portalSiteConfig?: (orgId: string) => Promise<unknown>;
-    } = await import(("../websites/service.js") as string);
-    const listed = typeof websites?.listPortalPages === "function" ? await websites.listPortalPages(found.orgId, audienceFacts) : null;
-    portalPages = listed && typeof listed === "object" ? (listed as JsonObject) : null;
-    const config = typeof websites?.portalSiteConfig === "function" ? await websites.portalSiteConfig(found.orgId) : null;
-    if (config && typeof config === "object") {
-      const configObject = asObject(config);
-      portalSiteSettings = {
-        portal_defaults: asObject(configObject.portal_defaults),
-        portal_tabs: asObject(configObject.portal_tabs),
-        home_page_id: cleanText(configObject.home_page_id)
-      };
-    }
-  } catch {
-    portalPages = null;
-    portalSiteSettings = null;
-  }
   const portalSettings = normalizePortalSettings(portalSiteSettings?.portal_defaults, data.settings);
-  const servedTabs = portalTabDescriptors(
-    asObject(activeBundle.resources),
-    portalPages,
-    portalSiteSettings?.portal_tabs || {},
-    portalSiteSettings?.home_page_id || "",
-    portalSettings,
-    await projectTabRelevance(found.orgId, project.id).catch(() => null)
-  );
-  const tabs = found.access_mode === "guest"
-    ? servedTabs.flatMap((tab) => {
-        const tabId = cleanText(tab.id);
-        if (tabId === "summary" && guestAllowedTabs.has("summary")) {
-          // Additional Summary content may contain owner-only widgets or links.
-          // Read-only guest links receive the required Summary only.
-          return [{ id: "summary", kind: "system", label: "Summary", icon: cleanText(tab.icon) || "fa-house", order: Number(tab.order) || 10 }];
-        }
-        return guestAllowedTabs.has(tabId) ? [tab] : [];
-      })
-    : servedTabs;
-  const ownerShareSource = found.access_mode === "owner"
-    ? (await ensureRecoverablePortalGuestLinks(found)).data.guest_links
-    : [];
-  const ownerShares = found.access_mode === "owner" ? publicPortalGuestLinks(ownerShareSource, baseUrl) : [];
+  const tabs = Array.isArray(activeBundle.tabs) ? (activeBundle.tabs as JsonObject[]) : [];
   await touchPortalGuestView(found).catch(() => undefined);
   const languageBranch=cleanText(asObject(project).branch_id || asObject(project).branchId || 'default');
   const {readTerminologyMappings}=await import('./localization/terminology-settings.js');
@@ -7257,12 +7398,7 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
       can_write: !preview,
       can_share: !preview && portalSettings.sharing.enabled
     },
-    sharing: found.access_mode === "owner" ? {
-      enabled: portalSettings.sharing.enabled,
-      max_guests: portalSettings.sharing.max_guests,
-      default_expires_days: portalSettings.sharing.default_expires_days,
-      shares: ownerShares
-    } : null,
+    sharing: found.access_mode === "owner" ? activeBundle.sharing : null,
     portal: {
       id: found.document.id,
       status: cleanText(data.status || "active"),
@@ -7273,8 +7409,8 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
       active_project_id: project.id
     },
     notifications: found.access_mode === "guest" || preview ? [] : await portalNotifications(found.orgId,String(found.document.id)),
-    feedback: found.access_mode === "guest" ? null : feedback,
-    portal_pages: found.access_mode === "guest" ? null : portalPages,
+    feedback: found.access_mode === "guest" ? null : activeBundle.feedback,
+    portal_pages: found.access_mode === "guest" ? null : activeBundle.portal_pages,
     tabs,
     chat: found.access_mode === "guest" ? null : await portalChatHandoff(found.orgId, project, customer, preview),
     // Client-safe projection only — every write route re-checks the resolved
@@ -8203,13 +8339,32 @@ async function sendCustomerPortalMedia(reply: FastifyReply, uuid: string, mediaI
   const shared = new Set(normalizeSharedItems(data.shared_items).filter((item) => item.type === "media").map((item) => item.item_id));
   if (!shared.has(normalizedMediaId) && !preview) {
     if (found.access_mode === "guest") throw forbidden("media_not_shared", "This media item is not available through the shared link.");
-    const websites: { portalPublishedPageReferencesMedia?: (orgId: string, portal: JsonObject, mediaId: string) => Promise<boolean> } = await import(("../websites/service.js") as string);
-    const isPublishedPageAsset = await websites.portalPublishedPageReferencesMedia?.(found.orgId, data, normalizedMediaId).catch(() => false);
-    const metadata = !isPublishedPageAsset ? asObject(await readMediaMetadata(found.orgId, normalizedMediaId).catch(() => null)) : {};
-    const owner = asObject(metadata.owner);
-    const slot = cleanText(metadata.slot || owner.slot).toLowerCase();
-    const isUserProfileAsset = cleanText(owner.type).toLowerCase() === "user" && (slot.includes("avatar") || slot.includes("profile"));
-    if (!isPublishedPageAsset && !isUserProfileAsset) throw forbidden("media_not_shared", "This media item is not shared with the customer portal.");
+    const projectId = cleanText(data.project_id);
+    const isCustomerUpload = visiblePortalUploads(data).some((upload) => cleanText(asObject(upload).media_id) === normalizedMediaId);
+    let isTaskAttachment = false;
+    if (!isCustomerUpload && projectId) {
+      const [checklists, punchLists] = await Promise.all([
+        publicProjectChecklists(found.orgId, projectId).catch(() => []),
+        publicProjectPunchLists(found.orgId, projectId).catch(() => [])
+      ]);
+      const attachmentMatches = (lists: unknown[]) => lists.some((list) => {
+        const items = Array.isArray(asObject(list).items) ? (asObject(list).items as unknown[]) : [];
+        return items.some((item) => {
+          const attachments = Array.isArray(asObject(item).attachments) ? (asObject(item).attachments as unknown[]) : [];
+          return attachments.some((att) => cleanText(asObject(att).media_id || asObject(att).id || att) === normalizedMediaId);
+        });
+      });
+      isTaskAttachment = attachmentMatches(checklists) || attachmentMatches(punchLists);
+    }
+    if (!isCustomerUpload && !isTaskAttachment) {
+      const websites: { portalPublishedPageReferencesMedia?: (orgId: string, portal: JsonObject, mediaId: string) => Promise<boolean> } = await import(("../websites/service.js") as string);
+      const isPublishedPageAsset = await websites.portalPublishedPageReferencesMedia?.(found.orgId, data, normalizedMediaId).catch(() => false);
+      const metadata = !isPublishedPageAsset ? asObject(await readMediaMetadata(found.orgId, normalizedMediaId).catch(() => null)) : {};
+      const owner = asObject(metadata.owner);
+      const slot = cleanText(metadata.slot || owner.slot).toLowerCase();
+      const isUserProfileAsset = cleanText(owner.type).toLowerCase() === "user" && (slot.includes("avatar") || slot.includes("profile"));
+      if (!isPublishedPageAsset && !isUserProfileAsset) throw forbidden("media_not_shared", "This media item is not shared with the customer portal.");
+    }
   }
   const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
   const variant = cleanText(query.variant || "original") || "original";

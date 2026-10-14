@@ -184,8 +184,14 @@ function invoiceFigures(params: JsonObject, account: JsonObject) {
   const due = lines.reduce((total, line) => total + line.amount_cents, 0);
   // An invoice rendered for the Money app arrives with its amount already settled there.
   const explicit = !bill && params.amount_due_cents !== undefined && params.amount_due_cents !== null && params.amount_due_cents !== "";
+  const explicitObligations = asArray(asObject(params.billing).obligation_ids).map(cleanText).filter(Boolean);
   return {
-    billing: { lines, obligation_ids: billed.map((row) => row.id), charges_cents: chargesCents + tax, total_cents: due },
+    billing: {
+      lines,
+      obligation_ids: explicit && explicitObligations.length ? explicitObligations : billed.map((row) => row.id),
+      charges_cents: chargesCents + tax,
+      total_cents: due
+    },
     amount_due_cents: explicit ? cents(params.amount_due_cents) : due
   };
 }

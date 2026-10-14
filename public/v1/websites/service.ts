@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { badRequest, conflict, forbidden, notFound } from "../platform/errors.js";
 import {
   listDocuments,
@@ -987,12 +988,33 @@ export async function resolveSitePage(
   const pages = await listSitePages(orgId, cleanText(site.id));
   const entities = await siteScopeEntities(orgId, site, pages);
   const portal = portalContext || null;
+  const rawProject = portal ? asObject(portal.project) : null;
+  const rawCustomer = portal ? asObject(portal.customer) : null;
+  const safeProjectScope: JsonObject | null = rawProject
+    ? {
+      id: cleanText(rawProject.id),
+      title: cleanText(rawProject.title || rawProject.name || rawProject.address),
+      name: cleanText(rawProject.name || rawProject.title || rawProject.address),
+      display_name: cleanText(rawProject.display_name || rawProject.title || rawProject.name || rawProject.address),
+      address: cleanText(rawProject.address),
+      status: cleanText(rawProject.status),
+      summary: cleanText(rawProject.summary)
+    }
+    : null;
+  const safeCustomerScope: JsonObject | null = rawCustomer
+    ? {
+      name: cleanText(rawCustomer.name),
+      ...(cleanText(rawCustomer.email) ? { email: cleanText(rawCustomer.email) } : {}),
+      ...(cleanText(rawCustomer.phone) ? { phone: cleanText(rawCustomer.phone) } : {}),
+      ...(cleanText(rawCustomer.address) ? { address: cleanText(rawCustomer.address) } : {})
+    }
+    : null;
   const scope: JsonObject = {
     params: {},
     org: entities.org,
     site: entities.site,
-    project: portal ? portal.project : null,
-    customer: portal ? portal.customer : null
+    project: safeProjectScope,
+    customer: safeCustomerScope
   };
   const normalizedDefinition = FMDocModel.normalizeViewHorizontalPositions(FMDocModel.deepClone(definition));
   const resolvedDefinition = FMDocModel.resolveBindings(normalizedDefinition, scope);
@@ -1314,7 +1336,13 @@ export async function portalSiteConfig(orgId: string): Promise<{
  * Returns nulls when the portal points at a project that no longer exists —
  * callers then render without project scope rather than failing the request.
  */
-export async function portalRenderContext(access: { orgId: string; preview: boolean; portal: JsonObject }): Promise<{
+export async function portalRenderContext(access: {
+  orgId: string;
+  preview: boolean;
+  portal: JsonObject;
+  access_mode?: "owner" | "guest";
+  guest_token?: string;
+}): Promise<{
   portalContext: SitePagePortalContext | null;
   facts: ProjectAudienceFacts | null;
 }> {
@@ -1324,14 +1352,20 @@ export async function portalRenderContext(access: { orgId: string; preview: bool
   const projectDoc = await readDocument(access.orgId, "projects", projectId).catch(() => null);
   if (!projectDoc) return { portalContext: null, facts: null };
   const project: JsonObject = { id: projectDoc.id, ...asObject(projectDoc.data) };
+  const isGuest = access.access_mode === "guest";
   const config = await portalSiteConfig(access.orgId);
-  const settings = normalizePortalSettings(config?.portal_defaults, portalData.settings);
+  const settings = isGuest
+    ? normalizePortalSettings(undefined, undefined)
+    : normalizePortalSettings(config?.portal_defaults, portalData.settings);
+  const rawCustomer = asObject(portalData.customer);
   return {
     portalContext: {
       project,
-      customer: asObject(portalData.customer),
-      portal_uuid: cleanText(access.preview ? portalData.preview_uuid : portalData.public_uuid),
-      contact_id: cleanText(portalData.contact_id),
+      customer: isGuest ? { name: cleanText(rawCustomer.name) } : rawCustomer,
+      portal_uuid: isGuest
+        ? cleanText(access.guest_token)
+        : cleanText(access.preview ? portalData.preview_uuid : portalData.public_uuid),
+      contact_id: isGuest ? "" : cleanText(portalData.contact_id),
       preview: access.preview === true,
       settings: settings as unknown as JsonObject
     },
@@ -1373,13 +1407,19 @@ export async function resolveDraftPagePayload(orgId: string, pageId: string, por
 }
 
 /**
- * Portal-uuid resolution for the /public/portal/* routes. Accepts both the
- * live public_uuid and the staff preview_uuid (mirrors platform/api.ts
- * findCustomerPortalByUuid without editing that file).
+ * Portal-uuid resolution for the /public/portal/* routes. Accepts live
+ * public_uuid, staff preview_uuid, and active guest share tokens (psg_...).
  */
-export async function findPortalAccessByUuid(uuid: string): Promise<{ orgId: string; preview: boolean; portal: JsonObject } | null> {
+export async function findPortalAccessByUuid(uuid: string): Promise<{
+  orgId: string;
+  preview: boolean;
+  portal: JsonObject;
+  access_mode?: "owner" | "guest";
+  guest_token?: string;
+} | null> {
   const target = cleanText(uuid);
   if (!target) return null;
+  const guestHash = target.startsWith("psg_") ? createHash("sha256").update(target).digest("hex") : "";
   const orgs = await listOrganizations();
   for (const org of orgs) {
     const orgId = cleanText(asObject(org).id);
@@ -1388,8 +1428,26 @@ export async function findPortalAccessByUuid(uuid: string): Promise<{ orgId: str
     for (const doc of portals) {
       const data = asObject(doc.data);
       if (cleanText(data.status || "active") !== "active") continue;
-      if (cleanText(data.public_uuid) === target) return { orgId, preview: false, portal: data };
-      if (cleanText(data.preview_uuid) === target) return { orgId, preview: true, portal: data };
+      if (cleanText(data.public_uuid) === target) return { orgId, preview: false, portal: data, access_mode: "owner" };
+      if (cleanText(data.preview_uuid) === target) return { orgId, preview: true, portal: data, access_mode: "owner" };
+      if (guestHash) {
+        const guest = asArray(data.guest_links).map(asObject).find((item) => {
+          const hashes = [cleanText(item.token_hash), ...asArray(item.token_hashes).map(cleanText)].filter((h) => /^[a-f0-9]{64}$/i.test(h));
+          return hashes.some((hash) => {
+            const left = Buffer.from(hash, "hex");
+            const right = Buffer.from(guestHash, "hex");
+            return left.length === right.length && timingSafeEqual(left, right);
+          });
+        });
+        if (guest) {
+          const revokedAt = cleanText(guest.revoked_at);
+          const expiresAt = cleanText(guest.expires_at);
+          const expired = Boolean(expiresAt) && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now());
+          if (!revokedAt && !expired) {
+            return { orgId, preview: false, portal: data, access_mode: "guest", guest_token: target };
+          }
+        }
+      }
     }
   }
   return null;
