@@ -881,6 +881,10 @@
       .mt-labor-portal{position:fixed;z-index:2147482601;box-sizing:border-box;width:300px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;padding:8px;border:1px solid rgba(15,23,42,.12);border-radius:10px;background:#fff;box-shadow:0 16px 38px rgba(15,23,42,.2);color:#344054;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
       .mt-labor-menu-title{padding:6px 4px 4px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3}
       .mt-labor-options{display:flex;flex-direction:column;gap:1px;max-height:220px;overflow:auto}
+      .mt-labor-portal.mt-assignment-portal{width:560px;display:flex;flex-direction:column;overflow:hidden}
+      .mt-assignment-portal .mt-labor-options{max-height:none;min-height:0;overflow:auto;overscroll-behavior:contain}
+      .mt-assignment-portal .mt-labor-menu-title,.mt-assignment-portal .mt-labor-regenerate,.mt-assignment-empty{flex-shrink:0}
+      .mt-assignment-empty{padding:12px;color:#667085;font-size:12px}
       .mt-labor-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:#fff;text-align:left;color:inherit;cursor:pointer}
       .mt-labor-option:hover{background:#f2f4f7}.mt-labor-option.active{background:rgba(var(--primary-rgb,217,48,37),.07)}
       .mt-labor-option span{min-width:0}.mt-labor-option strong,.mt-labor-option small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -5773,10 +5777,9 @@
     const word = label.split(/\s+/)[0] || label, short = label.length <= 5 ? label : word.slice(0, /[aeiouy]/i.test(word.charAt(2)) ? 4 : 3);
     return `<span class="mt-pill plain" title="${escapeHtml(`${label}. ${outside ? 'An outside company.' : 'People inside your organization.'}`)}">${escapeHtml(short)}</span>`;
   }
-  // An unassigned, empty labor list asks who does the work, with what each choice would cost.
-  function renderAssignBlock(list){
+  // Both assignment entry points offer the same work overlap and pay-sheet ranking.
+  function laborAssignmentOptions(list){
     const id = cleanText(list.id), pay = assigneePay(id);
-    if (!pay) loadAssigneePay(id).then(() => { if (!workspaceIsEditing()) syncMaterialsGrid(); });
     const rank = (row) => (row?.complete ? 0 : row?.sheet ? 1 : 2);
     // Only who does some of this job's work is offered: by their pay sheet, or by what they are marked as able to do.
     // A job that requires no work yet offers whoever has a pay sheet.
@@ -5784,6 +5787,12 @@
     const offered = (row) => !!row && (needsWork ? number(row.overlap, 0) > 0 : !!row.sheet);
     const options = workResourcesForScopeList(list).map((resource) => ({ resource, row: assigneePayFor(id, resource.id) })).filter(({ row }) => offered(row))
       .sort((a, b) => rank(a.row) - rank(b.row) || number(a.row?.total_cents, Infinity) - number(b.row?.total_cents, Infinity) || cleanText(a.resource.name).localeCompare(cleanText(b.resource.name)));
+    return { options, needsWork, pay };
+  }
+  // An unassigned, empty labor list asks who does the work, with what each choice would cost.
+  function renderAssignBlock(list){
+    const id = cleanText(list.id), { options, needsWork, pay } = laborAssignmentOptions(list);
+    if (!pay) loadAssigneePay(id).then(() => { if (!workspaceIsEditing()) syncMaterialsGrid(); });
     return `<div class="mt-assign-block${state.assigningListId === id ? ' is-busy' : ''}" data-mt-assign-block="${escapeHtml(id)}"><strong title="Choose who does this work. Their pay sheet builds the list, and you can add or change lines afterwards.">Assign this work <i class="fas fa-circle-info" aria-hidden="true"></i></strong>${options.length ? '' : `<em>${pay?.loading || !pay ? 'Finding who can do this work…' : needsWork ? 'No one is marked as doing this job\'s work. Give an assignee a pay sheet, or mark the kinds of work they do.' : 'No one has a pay sheet yet.'}</em>`}${options.map(({ resource, row }) => `<button type="button" data-mt-assign-pick="${escapeHtml(id)}" data-mt-assign-resource="${escapeHtml(cleanText(resource.id))}"><span class="mt-assign-top"><strong title="${escapeHtml(resource.name || resource.label || resource.id)}">${escapeHtml(resource.name || resource.label || resource.id)}</strong><b class="${row?.complete ? '' : 'unknown'}">${escapeHtml(pay?.loading && !row ? '…' : assigneePayLabel(row))}</b></span><span class="mt-assign-pills">${assigneeKindPill(resource)}${assigneePills(resource, row)}</span></button>`).join('')}</div>`;
   }
   // Generating writes the list. Hours and the like are typed into their own lines afterwards; only a number that is not
@@ -6192,6 +6201,7 @@
 
   function renderLaborMenu(list){
     const settings = laborSettings(list);
+    const { options, needsWork, pay } = laborAssignmentOptions(list);
     const chip = (attribute, value, label, active, hint = '') => `<button type="button" class="${active ? 'active' : ''}" ${attribute}="${escapeHtml(value)}" aria-pressed="${active}" ${hint ? `title="${escapeHtml(hint)}"` : ''}>${escapeHtml(label)}</button>`;
     const option = (resource) => {
       const id = cleanText(resource?.id);
@@ -6203,7 +6213,8 @@
     };
     return `
       <div class="mt-labor-menu-title">Assigned to</div>
-      <div class="mt-labor-options" role="menu">${option(null)}${settings.resources.map(option).join('')}</div>
+      <div class="mt-labor-options" role="menu">${option(null)}${options.map(({ resource }) => option(resource)).join('')}</div>
+      ${options.length ? '' : `<div class="mt-assignment-empty" role="status">${!pay || pay.loading ? 'Finding who can do this work…' : needsWork ? 'No assignees overlap with this job’s work.' : 'No one has a pay sheet yet.'}</div>`}
       ${settings.canRegenerate ? `<button type="button" class="mt-labor-regenerate" data-mt-labor-regenerate><i class="fas fa-arrows-rotate" aria-hidden="true"></i> Regenerate labor from scope</button>` : ''}
     `;
   }
@@ -6230,16 +6241,21 @@
     if (!list || !trigger) { closeLaborMenu(); return; }
     const portal = document.createElement('div');
     portal.className = 'mt-labor-portal';
+    portal.classList.add('mt-assignment-portal');
     portal.dataset.mtLaborPortal = '';
     portal.setAttribute('role', 'dialog');
     portal.setAttribute('aria-label', 'Assignment');
     portal.innerHTML = renderLaborMenu(list);
     colorPortalHost(state.panelRoot).appendChild(portal);
     const rect = trigger.getBoundingClientRect();
-    const width = portal.offsetWidth || 300;
-    const height = portal.offsetHeight || 240;
+    const below = Math.max(0, window.innerHeight - rect.bottom - 12);
+    const above = Math.max(0, rect.top - 12);
+    const openBelow = below >= Math.min(400, above);
+    portal.style.maxHeight = `${Math.max(80, openBelow ? below : above)}px`;
+    const width = portal.offsetWidth || 560;
+    const height = portal.offsetHeight;
     portal.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width))}px`;
-    portal.style.top = `${rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 4 : Math.max(8, rect.top - height - 4)}px`;
+    portal.style.top = `${Math.max(8, Math.min(window.innerHeight - height - 8, openBelow ? rect.bottom + 4 : rect.top - height - 4))}px`;
     trigger.setAttribute('aria-expanded', 'true');
     portal.querySelectorAll('[data-mt-labor-assign]').forEach((button) => {
       button.addEventListener('click', () => { if (button.dataset.mtLaborAssign !== laborSettings(materialListById(listId)).resourceId) assignWorkResource(listId, button.dataset.mtLaborAssign); });
