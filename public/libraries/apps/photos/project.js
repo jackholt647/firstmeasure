@@ -304,6 +304,15 @@
     return photos.find((photo) => photo.is_thumbnail || photo.is_default_thumbnail) || photos[0] || null;
   }
 
+  // The photo the project shows when no cover is chosen (its satellite image); the cover field shows it as its value.
+  function projectCoverDefault(){
+    const project = activeProject() || {};
+    const library = projectPhotoLibrary();
+    if (!library?.primaryPhoto) return null;
+    const values = { ...(project.custom_field_values || project.custom_fields || {}), cover_photo:null };
+    return library.primaryPhoto({ ...project, photos:projectPhotosList(), custom_field_values:values, custom_fields:values }, firstMeasurePhotoOptions());
+  }
+
   function syncProjectPhotosFromLibrary({ persist = false } = {}){
     const project = callHost('getProject') || state.model?.state?.activeBaseProject || window.activeBaseProject;
     if (!project) return projectPhotosList();
@@ -1095,6 +1104,7 @@
     isAcceptedProjectMediaFile,
     serializablePhoto,
     projectThumbnailPhoto,
+    projectCoverDefault,
     syncProjectPhotosFromLibrary,
     proposalPhotoById,
     normalizePhoto,

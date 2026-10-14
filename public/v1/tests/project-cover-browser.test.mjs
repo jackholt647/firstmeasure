@@ -27,7 +27,7 @@ test('project photo references and cover viewer actions share one selection',asy
     await page.addScriptTag({path:path.resolve('../libraries/custom-fields/firstmate-custom-fields.js')});
     await page.addScriptTag({path:path.resolve('../libraries/apps/photos/project.js')});
     await page.evaluate(async()=>{
-      await window.FirstMateCustomFields.renderEditor(document.querySelector('#fields'),window.project,'project',{orgId:'org',flat:true});
+      await window.FirstMateCustomFields.renderEditor(document.querySelector('#fields'),window.project,'project',{orgId:'org',flat:true,defaultMedia:{cover_photo:{src:'/satellite.jpg',label:'Top-down satellite'}}});
       window.Portal.ProjectPhotosTab.mount({panelRoot:document.querySelector('#rPhotoGallery'),host:{getProject:()=>window.project,getPhotos:()=>window.project.photos}});
       window.Portal.ProjectPhotosTab.render();
     });
@@ -36,7 +36,18 @@ test('project photo references and cover viewer actions share one selection',asy
     assert.deepEqual(await choices('cover_photo'),['a','b']);
     assert.deepEqual(await choices('detail_photo'),['a','b']);
     assert.equal(await page.locator('#fields select').count(),0);
-    assert.match(await page.locator('[data-custom-field-path="cover_photo"] .fm-cf-media-tile').textContent(),/Satellite image \(default\)/);
+    // With nothing chosen, the cover shows the project's default photo as its value: no placeholder, no remove.
+    const coverTile=page.locator('[data-custom-field-path="cover_photo"] .fm-cf-media-tile');
+    assert.equal(await coverTile.count(),1);
+    assert.equal(await coverTile.locator('img').getAttribute('src'),'/satellite.jpg');
+    assert.equal(await coverTile.locator('i,[data-fm-cf-media-remove]').count(),0);
+    assert.doesNotMatch(await page.locator('[data-custom-field-path="cover_photo"]').textContent(),/satellite image|default|Choose a photo/i);
+    // Its picker offers the default photo first, selected; choosing it keeps the cover empty.
+    await page.evaluate(()=>{window.Portal.PhotoFeed.openProjectMediaPicker=options=>{window.coverPicker=options;return {close(){}};};});
+    await coverTile.locator('[data-fm-cf-media-open]').click();
+    assert.deepEqual(await page.evaluate(()=>[window.coverPicker.photos.map(photo=>photo.id),window.coverPicker.selectedIds,window.coverPicker.subtitle]),[['__default__','a','b'],['__default__'],'Choose from this project\u2019s media.']);
+    await page.evaluate(()=>window.coverPicker.onConfirm([window.coverPicker.photos[0]]));
+    assert.equal(await page.locator('[data-fm-cf-input="cover_photo"]').inputValue(),'');
     // A click opens the project media picker; confirming sets the value and reports a change.
     await page.evaluate(()=>{window.changes=0;document.querySelector('#fields').addEventListener('change',()=>window.changes++);window.Portal.PhotoFeed.openProjectMediaPicker=options=>{window.pickerOptions=options;return {close(){}};};});
     await page.locator('[data-custom-field-path="detail_photo"] [data-fm-cf-media-open]').click();

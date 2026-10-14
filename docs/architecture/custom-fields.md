@@ -182,7 +182,11 @@ Focused verification: `tests/project-cover.test.ts` and
 runner.
 
 An empty `cover_photo` means the existing top-down satellite image is the default
-primary image. `PlatformAPI.projectMedia.primaryPhoto` resolves a selected library
+primary image. The cover field shows the project's current cover as its value: the
+chosen photo, or that satellite image (the Photos app's `projectCoverDefault`, passed
+as `defaultMedia`). The picker offers it first and choosing it clears the reference;
+no label or icon in the field says "satellite" or "default".
+`PlatformAPI.projectMedia.primaryPhoto` resolves a selected library
 photo or the satellite; `thumbnail_photo` and its ID are derived display aliases,
 not a second selection field. Project tiles and proposal defaults use the primary.
 Public customer displays use a cover only when that media is already explicitly

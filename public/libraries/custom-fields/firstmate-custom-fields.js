@@ -695,7 +695,10 @@
 
   // ---- Media fields: thumbnail tiles; a click opens the project media picker (Portal.PhotoFeed) ----
   // The value rides in a hidden input; the tiles are painted from it and from the choices kept on the wrapper,
-  // so a value set from elsewhere (the Photos app's Set cover) repaints with setMediaValue.
+  // so a value set from elsewhere (the Photos app's Set cover) repaints with setMediaValue. A single-media field
+  // may have a default photo (options.defaultMedia[path], e.g. a project's cover shows its satellite image): an
+  // empty value shows that photo, and the picker offers it first; choosing it clears the reference.
+  const MEDIA_DEFAULT_ID = '__default__';
   const mediaRefs = (value) => (Array.isArray(value) ? value : [value]).filter((item) => cleanText(objectValue(item).media_id));
   const mediaChoices = (wrap) => { try { return JSON.parse(wrap.dataset.choices || '[]'); } catch (_) { return []; } };
   function readMediaInput(input){
@@ -705,7 +708,7 @@
     try { return cleanText(root.PlatformAPI?.media?.thumbnailUrl?.(orgId, mediaId, 320)); } catch (_) { return ''; }
   }
   function mediaTilesHtml(wrap, refs, choices){
-    const type = wrap.type, readOnly = wrap.readOnly, cover = wrap.cover;
+    const type = wrap.type, readOnly = wrap.readOnly, fallback = !wrap.many && !refs.length ? wrap.fallback : null;
     const icon = type === 'video' ? 'fa-video' : type === 'photo' ? 'fa-image' : 'fa-photo-film';
     const tiles = refs.map((reference) => {
       const mediaId = cleanText(reference.media_id), found = choices.find((item) => item.media_id === mediaId);
@@ -715,21 +718,28 @@
       const face = `${thumb ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy">` : `<i class="fas ${found ? icon : 'fa-triangle-exclamation'}" aria-hidden="true"></i>`}<span>${escapeHtml(label)}</span>`;
       return `<div class="fm-cf-media-tile${found ? '' : ' is-missing'}">${readOnly ? `<span class="fm-cf-media-face">${face}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open aria-label="${escapeHtml(`Change ${label}`)}">${face}</button><button type="button" class="fm-cf-media-remove" data-fm-cf-media-remove="${escapeHtml(mediaId)}" aria-label="${escapeHtml(`Remove ${label}`)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>`}</div>`;
     });
-    if (!refs.length || (wrap.many && !readOnly)) {
-      const empty = cover ? '<i class="fas fa-satellite" aria-hidden="true"></i><span>Satellite image (default)</span>' : `<i class="fas ${refs.length ? 'fa-plus' : icon}" aria-hidden="true"></i><span>${readOnly ? 'None' : type === 'photo' ? 'Choose a photo' : type === 'video' ? 'Choose a video' : 'Choose media'}</span>`;
-      tiles.push(`<div class="fm-cf-media-tile is-empty">${readOnly ? `<span class="fm-cf-media-face">${empty}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open>${empty}${cover ? '<small>Choose a photo</small>' : ''}</button>`}</div>`);
+    if (fallback) {
+      const face = `<img src="${escapeHtml(fallback.src)}" alt="" loading="lazy">${fallback.label ? `<span>${escapeHtml(fallback.label)}</span>` : ''}`;
+      tiles.push(`<div class="fm-cf-media-tile">${readOnly ? `<span class="fm-cf-media-face">${face}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open aria-label="${escapeHtml(`Change ${fallback.label || 'photo'}`)}">${face}</button>`}</div>`);
+    } else if (!refs.length || (wrap.many && !readOnly)) {
+      const empty = `<i class="fas ${refs.length ? 'fa-plus' : icon}" aria-hidden="true"></i><span>${readOnly ? 'None' : type === 'photo' ? 'Choose a photo' : type === 'video' ? 'Choose a video' : 'Choose media'}</span>`;
+      tiles.push(`<div class="fm-cf-media-tile is-empty">${readOnly ? `<span class="fm-cf-media-face">${empty}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open>${empty}</button>`}</div>`);
     }
     return tiles.join('');
   }
   function mediaWrapState(node){
-    return { type:node.dataset.type, many:node.dataset.many === '1', cover:node.dataset.cover === '1', readOnly:node.dataset.readOnly === '1', orgId:node.dataset.org || currentOrgId() };
+    let fallback = null;
+    try { fallback = node.dataset.default ? JSON.parse(node.dataset.default) : null; } catch (_) {}
+    return { type:node.dataset.type, many:node.dataset.many === '1', fallback, readOnly:node.dataset.readOnly === '1', orgId:node.dataset.org || currentOrgId() };
   }
   function mediaFieldHtml(def, value, attrs, options = {}){
     const many = def.cardinality === 'many', refs = mediaRefs(value);
     const stored = many ? (refs.length ? refs : '') : (refs[0] || '');
     const choices = (def.reference_choices || []).map((item) => ({ media_id:cleanText(item.reference?.media_id), label:cleanText(item.label), content_type:cleanText(item.content_type) })).filter((item) => item.media_id);
-    const state = { type:def.type, many, cover:def.key === 'cover_photo' && def.entity === 'project', readOnly:!!def.read_only, orgId:cleanText(options.orgId) || currentOrgId() };
-    return `<div class="fm-cf-media" data-fm-cf-media data-type="${escapeHtml(def.type)}" data-many="${many ? '1' : '0'}" data-cover="${state.cover ? '1' : '0'}" data-read-only="${state.readOnly ? '1' : '0'}" data-org="${escapeHtml(state.orgId)}" data-label="${escapeHtml(def.label)}" data-choices="${escapeHtml(JSON.stringify(choices))}"><input type="hidden" ${attrs} data-many="${many ? '1' : '0'}" value="${escapeHtml(stored ? JSON.stringify(stored) : '')}"><div class="fm-cf-media-tiles">${mediaTilesHtml(state, refs, choices)}</div>${def.reference_error ? `<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>` : ''}</div>`;
+    const given = !many ? objectValue((options.defaultMedia || {})[def.path] || (options.defaultMedia || {})[def.key]) : {};
+    const fallback = cleanText(given.src) ? { src:cleanText(given.src), label:cleanText(given.label) } : null;
+    const state = { type:def.type, many, fallback, readOnly:!!def.read_only, orgId:cleanText(options.orgId) || currentOrgId() };
+    return `<div class="fm-cf-media" data-fm-cf-media data-type="${escapeHtml(def.type)}" data-many="${many ? '1' : '0'}"${fallback ? ` data-default="${escapeHtml(JSON.stringify(fallback))}"` : ''} data-read-only="${state.readOnly ? '1' : '0'}" data-org="${escapeHtml(state.orgId)}" data-label="${escapeHtml(def.label)}" data-choices="${escapeHtml(JSON.stringify(choices))}"><input type="hidden" ${attrs} data-many="${many ? '1' : '0'}" value="${escapeHtml(stored ? JSON.stringify(stored) : '')}"><div class="fm-cf-media-tiles">${mediaTilesHtml(state, refs, choices)}</div>${def.reference_error ? `<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>` : ''}</div>`;
   }
   function paintMediaField(wrap){
     const input = wrap.querySelector(':scope > input[data-fm-cf-input]'), tiles = wrap.querySelector(':scope > .fm-cf-media-tiles');
@@ -768,9 +778,12 @@
       id:'custom-field-media-picker',
       projectId:cleanText(host.projectId),
       title:label,
-      subtitle:state.cover ? 'Choose the photo this project shows. Clear it to use the satellite image.' : 'Choose from this project’s media.',
-      photos:choices.map((item) => ({ id:item.media_id, media_id:item.media_id, label:item.label, file_name:item.label, content_type:item.content_type, mime_type:item.content_type })),
-      selectedIds:readMediaInput(input).map((item) => cleanText(item.media_id)),
+      subtitle:'Choose from this project’s media.',
+      photos:[
+        ...(state.fallback && !state.many ? [{ id:MEDIA_DEFAULT_ID, src:state.fallback.src, thumb:state.fallback.src, label:state.fallback.label || label, alt:state.fallback.label || label, content_type:'image/jpeg', mime_type:'image/jpeg' }] : []),
+        ...choices.map((item) => ({ id:item.media_id, media_id:item.media_id, label:item.label, file_name:item.label, content_type:item.content_type, mime_type:item.content_type }))
+      ],
+      selectedIds:readMediaInput(input).length ? readMediaInput(input).map((item) => cleanText(item.media_id)) : (state.fallback && !state.many ? [MEDIA_DEFAULT_ID] : []),
       multiple:state.many,
       imageOnly:state.type === 'photo',
       accept:state.type === 'photo' ? 'image/*' : state.type === 'video' ? 'video/*' : 'image/*,video/*',
@@ -779,6 +792,8 @@
         return { photos:added, selectedIds:added.map((photo) => cleanText(photo?.media_id)).filter(Boolean) };
       } } : {}),
       onConfirm:(chosen) => {
+        // The default photo is what an empty value shows: choosing it clears the reference.
+        if (!state.many && (chosen || []).some((photo) => cleanText(photo?.id) === MEDIA_DEFAULT_ID)) { commit([]); return; }
         const picked = (chosen || []).map((photo) => ({ media_id:cleanText(photo?.media_id), label:cleanText(photo?.file_name || photo?.label), content_type:cleanText(photo?.content_type || photo?.mime_type) })).filter((item) => item.media_id);
         // An upload still in progress has no library id yet; keep the picker open until it does.
         if (!picked.length) return false;

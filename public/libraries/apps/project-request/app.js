@@ -8913,10 +8913,18 @@ window.PlatformCommerce.onReady(async function(){
       fieldClass:'r-group',
       inputClass:'r-inp',
       // Photo fields pick from the project's media; an upload in the picker goes to the project's photos.
-      uploadMedia:(files) => addPhotoFiles(files)
+      uploadMedia:(files) => addPhotoFiles(files),
+      // An empty cover shows the photo the project shows without one, its satellite image.
+      defaultMedia:{ cover_photo:projectCoverDefaultImage() }
     });
     rendered?.then?.(() => renderProjectStageBar());
     return rendered;
+  }
+
+  function projectCoverDefaultImage(){
+    const photo = projectPhotosInvoke('projectCoverDefault') || null;
+    const src = String(photo?.thumb || photo?.src || '').trim();
+    return src ? { src, label:String(photo.label || photo.alt || '').trim() } : null;
   }
 
   function syncProjectCustomFieldValues(){
