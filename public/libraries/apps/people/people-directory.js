@@ -19,8 +19,8 @@
  *   data.entityFor(kind, id, name)        the entity the Compensation and Fields panels are given: home, traits, members
  *   data.groupTypeName(id)  data.companyTypeName(id)  data.groupTypeNames()  data.companyTypeNames()  data.companyTypeIds(company | id)
  *   data.wording()  data.allTags()  data.tagUsage(id)  data.typeFlag(id)  data.typeUsage(kind, id)  data.memberRoleWords()
- *   data.division(id)  data.divisionDepartments(id)  data.categoryDepartments(id)  data.loadCompanyPermissions(id)
- *   data.departmentNesting()  data.departmentPlace(id)  data.departmentOutline({ departmentIds, unitIds, loose })   how departments are organized
+ *   data.loadCompanyPermissions(id)
+ *   data.departmentNesting()  data.departmentPlace(id)  data.departmentOutline({ departmentIds, branchIds, regionIds })   departments by branch (and region)
  *
  * Writing (each resolves after the store is current again)
  *   data.saveType({ kind, id, name, description, status })   data.setTypeMemberRoles(id, roleIds)
@@ -31,7 +31,6 @@
  *   data.saveDepartment(department)  data.archiveDepartment(id)  data.setScopedRole(userId, roleId, departmentId, on)
  *   data.createCompany({ name })  data.saveCompany(id, patch)  data.setCompanyTypes(id, typeIds)  data.archiveCompany(id)
  *   data.saveConfiguration(change)  data.saveTag({ id, name, status })  data.setTypeExternal(id, bool)  data.saveWording({ group, member, company, department })
- *   data.saveDivision({ id, label, kind, parent_id, status })  data.saveCategory({ id, label, remove })
  *   data.savePaymentTerms(id, { basis, net_days })  data.saveCompanyPermissions(id, { access_role_ids, permission_overrides })
  */
 (function(){
@@ -183,12 +182,20 @@
       ]
     };
   }
-  async function writeDepartments(change){
+  /* The department save is strict (docs/architecture/branches.md): only the departments this viewer was shown, each in the
+     stored shape, and terminology. An existing department without branch_id keeps its branch; a new one without it goes
+     to the saver's own branch. */
+  const DEPARTMENT_FIELDS = ['id', 'label', 'color', 'icon', 'branch_id', 'status', 'default_channel', 'app_defaults', 'subject_keys', 'role_ids', 'group_kind_ids'];
+  function departmentPayload(entry){
+    const out = { id:entry.id, label:entry.label, color:entry.color || '#64748b', status:entry.status || 'active', default_channel:entry.default_channel !== false, app_defaults:entry.app_defaults || {}, subject_keys:ids(entry.subject_keys), role_ids:ids(entry.role_ids), group_kind_ids:ids(entry.group_kind_ids) };
+    if (entry.icon) out.icon = entry.icon;
+    if (text(entry.branch_id)) out.branch_id = text(entry.branch_id);
+    return Object.fromEntries(DEPARTMENT_FIELDS.filter((key) => key in out).map((key) => [key, out[key]]));
+  }
+  async function writeDepartments(change, terminology){
     const current = state.departmentState || {};
-    const all = arr(current.departments).map((entry) => ({ ...entry }));
-    const next = change(all);
-    const strip = (entry) => { const { id, label, color, icon, group_id, division_id, status, default_channel, app_defaults, subject_keys, role_ids, group_kind_ids } = entry; return { id, label, color:color || '#64748b', ...(icon ? { icon } : {}), group_id:group_id || '', division_id:division_id || '', status:status || 'active', default_channel:default_channel !== false, app_defaults:app_defaults || {}, subject_keys:ids(subject_keys), role_ids:ids(role_ids), group_kind_ids:ids(group_kind_ids) }; };
-    await api().workforce.saveDepartments(orgId(), { departments:next.map(strip), groups:arr(current.groups), divisions:arr(current.divisions), terminology:current.terminology, revision:current.revision, legacy_token:current.legacy_token });
+    const next = change(arr(current.departments).map((entry) => ({ ...entry })));
+    await api().workforce.saveDepartments(orgId(), { departments:next.map(departmentPayload), ...(terminology || current.terminology ? { terminology:terminology || current.terminology } : {}), revision:Number(current.revision || 0), ...(current.legacy_token ? { legacy_token:current.legacy_token } : {}) });
     window.dispatchEvent(new CustomEvent('fm:departments:updated'));
   }
   async function saveDepartment(input = {}){
@@ -197,7 +204,7 @@
     if (!label) throw new Error(t('name_required', 'Enter a name.'));
     await writeDepartments((all) => {
       const index = all.findIndex((entry) => entry.id === id);
-      const merged = { ...(index >= 0 ? all[index] : { id, status:'active', subject_keys:[], role_ids:[], group_kind_ids:[], group_id:'', division_id:'', default_channel:true, app_defaults:{} }), ...input, id, label };
+      const merged = { ...(index >= 0 ? all[index] : { id, status:'active', subject_keys:[], role_ids:[], group_kind_ids:[], default_channel:true, app_defaults:{} }), ...input, id, label };
       if (index >= 0) all[index] = merged; else all.push(merged);
       return all;
     });
@@ -336,96 +343,50 @@
     const now = wording();
     const changed = (key) => next[key] && (next[key].singular !== now[key].singular || next[key].plural !== now[key].plural);
     if (changed('group') || changed('member') || changed('company')) await saveConfiguration({ terminology:{ resource_group:next.group, resource_group_member:next.member, organization_connection:next.company } });
-    if (changed('department')) await writeCatalog((catalog) => { catalog.terminology = { ...obj(catalog.terminology), department:next.department }; });
+    if (changed('department')) await writeDepartments((all) => all, { ...obj(state.departmentState?.terminology), department:next.department });
     await reload({ type:'configuration' });
     try { await window.PlatformTerminology?.refresh?.(orgId(), branchId()); } catch (_) {}
     window.dispatchEvent(new CustomEvent('fm:terminology:updated'));
   }
 
-  /* ---- the department catalog beyond one department: categories and divisions ---- */
-  async function writeCatalog(change){
-    const current = state.departmentState || {};
-    const catalog = { departments:arr(current.departments).map((entry) => ({ ...entry })), groups:arr(current.groups).map((entry) => ({ ...entry })), divisions:arr(current.divisions).map((entry) => ({ ...entry })), terminology:current.terminology };
-    change(catalog);
-    const department = (entry) => { const { id, label, color, icon, group_id, division_id, status, default_channel, app_defaults, subject_keys, role_ids, group_kind_ids } = entry; return { id, label, color:color || '#64748b', ...(icon ? { icon } : {}), group_id:group_id || '', division_id:division_id || '', status:status || 'active', default_channel:default_channel !== false, app_defaults:app_defaults || {}, subject_keys:ids(subject_keys), role_ids:ids(role_ids), group_kind_ids:ids(group_kind_ids) }; };
-    const division = (entry) => ({ id:entry.id, label:entry.label, kind:text(entry.kind, 'Division'), parent_id:entry.parent_id || '', branch_id:entry.branch_id || '', status:entry.status || 'active', subject_keys:ids(entry.subject_keys) });
-    await api().workforce.saveDepartments(orgId(), { departments:catalog.departments.map(department), groups:catalog.groups.map((entry) => ({ id:entry.id, label:entry.label })), divisions:catalog.divisions.map(division), ...(catalog.terminology ? { terminology:catalog.terminology } : {}), revision:current.revision, legacy_token:current.legacy_token });
-    window.dispatchEvent(new CustomEvent('fm:departments:updated'));
-  }
-  const newId = () => window.crypto?.randomUUID?.() || `id-${Date.now().toString(36)}`;
-  const division = (id) => state.divisions.find((entry) => String(entry.id) === String(id)) || null;
-  async function saveDivision(input){
-    const label = String(input.label || '').trim();
-    if (!label) throw new Error(t('name_required', 'Enter a name.'));
-    const id = text(input.id) || newId();
-    await writeCatalog((catalog) => { const index = catalog.divisions.findIndex((entry) => entry.id === id); const merged = { ...(index >= 0 ? catalog.divisions[index] : { id, status:'active', subject_keys:[], parent_id:'', branch_id:'' }), ...input, id, label }; if (index >= 0) catalog.divisions[index] = merged; else catalog.divisions.push(merged); });
-    await reload({ type:'division', id });
-    return division(id);
-  }
-  const divisionDepartments = (id) => state.departments.filter((entry) => String(entry.division_id || '') === String(id));
-  async function saveCategory(input){
-    const label = String(input.label || '').trim();
-    if (!label) throw new Error(t('name_required', 'Enter a name.'));
-    const id = text(input.id) || newId();
-    await writeCatalog((catalog) => {
-      if (input.remove) { catalog.groups = catalog.groups.filter((entry) => entry.id !== id); catalog.departments.forEach((entry) => { if (entry.group_id === id) entry.group_id = ''; }); return; }
-      const index = catalog.groups.findIndex((entry) => entry.id === id);
-      if (index >= 0) catalog.groups[index] = { id, label }; else catalog.groups.push({ id, label });
-    });
-    await reload({ type:'department' });
-    return state.departmentCategories.find((entry) => entry.id === id) || null;
-  }
-  const categoryDepartments = (id) => state.departments.filter((entry) => String(entry.group_id || '') === String(id));
-
   /*
-   * How departments are organized. Departments do not nest; organizational units (divisions) do, through
-   * parent_id, and a department sits in at most one unit. A category only labels a department. So the
-   * outline nests by unit when any department is in one, and by category when none is but some have one.
+   * How departments are organized: each belongs to one branch, and a branch to at most one (flat) region.
+   * With one branch (or the feature off) there is no grouping at all.
    */
-  const category = (id) => state.departmentCategories.find((entry) => String(entry.id) === String(id)) || null;
-  function unitPath(unitId){
-    const path = [];
-    const seen = new Set();
-    let id = String(unitId || '');
-    while (id && !seen.has(id)) { seen.add(id); const unit = division(id); if (!unit) break; path.unshift(unit); id = String(unit.parent_id || ''); }
-    return path;
-  }
-  const departmentNesting = () => state.departments.some((entry) => unitPath(entry.division_id).length) ? 'units' : state.departments.some((entry) => category(entry.group_id)) ? 'categories' : '';
-  const unitSteps = (unitId) => unitPath(unitId).map((unit) => ({ kind:'unit', id:String(unit.id), label:text(unit.label, unit.id), tooltip:text(unit.kind), unit }));
-  /* Where a department sits, outermost first: [{ kind:'unit' | 'category', id, label }]. Empty when it sits at the top. */
+  const departmentNesting = () => data.multipleBranches() ? 'branches' : '';
+  const regionOfBranch = (branchId) => data.regions().find((entry) => ids(entry.branch_ids).includes(String(branchId))) || null;
+  const branchStep = (branchId) => ({ kind:'branch', id:String(branchId), label:data.branchName(branchId) });
+  const regionStep = (entry) => ({ kind:'region', id:String(entry.id), label:text(entry.label, entry.id) });
+  /* Where a department sits, outermost first: [{ kind:'region' | 'branch', id, label }]. Empty with one branch. */
   function departmentPlace(departmentId){
     const entry = department(departmentId);
-    if (!entry) return [];
-    const how = departmentNesting();
-    if (how === 'units') return unitSteps(entry.division_id);
-    const holder = how === 'categories' ? category(entry.group_id) : null;
-    return holder ? [{ kind:'category', id:String(holder.id), label:text(holder.label, holder.id) }] : [];
+    if (!entry || !departmentNesting()) return [];
+    const branchId = text(entry.branch_id, 'default');
+    const holder = regionOfBranch(branchId);
+    return [...(holder ? [regionStep(holder)] : []), branchStep(branchId)];
   }
   /*
-   * departmentOutline({ departmentIds, unitIds, loose:'first' | 'last' }) -> rows in reading order
-   *   [{ kind:'unit' | 'category' | 'department', id, label, tooltip, depth, department, unit }]
-   * The given departments (all when omitted) under the units or category that hold them. unitIds adds
-   * units that must show although none of the listed departments is in them. `loose` puts the
-   * departments of a level before (default) or after the units in it.
+   * departmentOutline({ departmentIds, branchIds, regionIds }) -> rows in reading order
+   *   [{ kind:'region' | 'branch' | 'department', id, label, depth, department }]
+   * The given departments (all when omitted) under their branch and its region. branchIds and regionIds add places
+   * that must show although none of the listed departments is in them (a role given there). Regions first, then
+   * branches in no region; with one branch, only departments.
    */
   function departmentOutline(options = {}){
-    const wanted = options.departmentIds ? ids(options.departmentIds) : state.departments.map((entry) => String(entry.id));
-    const root = { children:new Map(), departments:[] };
-    const nodeFor = (path) => path.reduce((node, step) => {
-      const key = `${step.kind}:${step.id}`;
-      if (!node.children.has(key)) node.children.set(key, { step, children:new Map(), departments:[] });
-      return node.children.get(key);
-    }, root);
-    wanted.forEach((id) => { const entry = department(id); if (entry && !nodeFor(departmentPlace(id)).departments.includes(entry)) nodeFor(departmentPlace(id)).departments.push(entry); });
-    ids(options.unitIds).forEach((id) => { const path = unitSteps(id); if (path.length) nodeFor(path); });
+    const wanted = (options.departmentIds ? ids(options.departmentIds) : state.departments.map((entry) => String(entry.id))).map(department).filter(Boolean);
+    const byLabel = (left, right) => String(left.label).localeCompare(String(right.label));
+    const departmentRows = (list, depth) => list.map((entry) => ({ kind:'department', id:String(entry.id), label:text(entry.label, entry.id), depth, department:entry })).sort(byLabel);
+    if (!departmentNesting()) return departmentRows(wanted, 0);
+    const branchIds = new Set([...wanted.map((entry) => text(entry.branch_id, 'default')), ...ids(options.branchIds)]);
+    const regionIds = new Set(ids(options.regionIds));
+    branchIds.forEach((branchId) => { const holder = regionOfBranch(branchId); if (holder) regionIds.add(String(holder.id)); });
     const rows = [];
-    const byLabel = (left, right) => String(left).localeCompare(String(right));
-    const walk = (node, depth) => {
-      const departments = () => node.departments.sort((left, right) => byLabel(text(left.label, left.id), text(right.label, right.id))).forEach((entry) => rows.push({ kind:'department', id:String(entry.id), label:text(entry.label, entry.id), depth, department:entry }));
-      const children = () => [...node.children.values()].sort((left, right) => byLabel(left.step.label, right.step.label)).forEach((child) => { rows.push({ ...child.step, depth }); walk(child, depth + 1); });
-      if (options.loose === 'last') { children(); departments(); } else { departments(); children(); }
-    };
-    walk(root, 0);
+    const branchRows = (list, depth) => list.map(branchStep).sort(byLabel).forEach((step) => { rows.push({ ...step, depth }); rows.push(...departmentRows(wanted.filter((entry) => text(entry.branch_id, 'default') === step.id), depth + 1)); });
+    [...regionIds].map((id) => data.region(id)).filter(Boolean).map(regionStep).sort(byLabel).forEach((step) => {
+      rows.push({ ...step, depth:0 });
+      branchRows([...branchIds].filter((branchId) => regionOfBranch(branchId)?.id === step.id), 1);
+    });
+    branchRows([...branchIds].filter((branchId) => !regionOfBranch(branchId)), 0);
     return rows;
   }
 
@@ -471,6 +432,16 @@
     ].filter(Boolean);
   }
 
+  /* A copy of a role: its permissions, app defaults and description, under a new name. */
+  async function duplicateRole(id, name){
+    const source = data.role(id);
+    if (!source) throw new Error(t('role_missing', 'This role no longer exists.'));
+    const created = await data.createRole({ name, applicationIds:data.roleApplications(source) });
+    if (!created?.id) throw new Error(t('save_failed', 'Could not save'));
+    await data.saveRole(created.id, { description:source.description || '', permissions:{ ...(source.permissions || {}) }, appDefaults:data.roleAppValue(source) });
+    return data.role(created.id);
+  }
+
   const counts = () => ({
     users:state.users.length, neverSignedIn:state.users.filter(data.neverSignedIn).length, online:0,
     groups:state.groups.length, groupTypes:types('resource_group').length,
@@ -483,8 +454,8 @@
     group, groupMembers, groupDepartments, groupSummary, createGroup, saveGroup, setGroupMembers, archiveGroup, staffing, saveStaffing, saveSubjectDepartments,
     department, departmentMembers, departmentScopedRoles, departmentSummary, saveDepartment, archiveDepartment, setScopedRole,
     company, companyTypeIds, companyContact, companyDepartments, companySummary, linkStatus, linkPill, createCompany, saveCompany, setCompanyTypes, archiveCompany, savePaymentTerms, companyPermissions, saveCompanyPermissions,
-    counts, saveConfiguration, allTags, saveTag, tagUsage, typeFlag, setTypeExternal, typeUsage, wording, saveWording,
-    division, saveDivision, divisionDepartments, saveCategory, categoryDepartments, category, unitPath, departmentNesting, departmentPlace, departmentOutline, loadCompanyPermissions, entityFor, memberRoleWords, attention,
+    counts, duplicateRole, saveConfiguration, allTags, saveTag, tagUsage, typeFlag, setTypeExternal, typeUsage, wording, saveWording,
+    departmentPayload, departmentNesting, departmentPlace, departmentOutline, regionOfBranch, loadCompanyPermissions, entityFor, memberRoleWords, attention,
     groupTypeName:(id) => typeName('resource_group', id), companyTypeName:(id) => typeName('organization_connection', id),
     groupTypeNames:() => Object.fromEntries(types('resource_group').map((type) => [type.id, type.name])), companyTypeNames:() => Object.fromEntries(types('organization_connection').map((type) => [type.id, type.name]))
   });

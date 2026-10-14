@@ -32,6 +32,7 @@ import {
   saveWorkforceConfiguration
 } from "./storage.js";
 import { registerCrewApi } from "./crew_api.js";
+import { assertBranchManageable, assertGroupManageable, assertGroupVisible, assertUserVisible, scopeGroups, scopeUsers } from "./branch-guards.js";
 import { registerSalesApi } from "./sales_api.js";
 import {
   ACCESS_SCHEMA_VERSION,
@@ -353,16 +354,18 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/users", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireUserProfileRead(request, orgId);
+    const context = await requireUserProfileRead(request, orgId);
     const query = queryObject(request);
-    const users = await listWorkforceUsers(orgId, query);
+    // Branch scope: only the branches the viewer may see; `branch_ids` narrows further (docs/architecture/branches.md).
+    const users = scopeUsers(context, await listWorkforceUsers(orgId, query), query);
     return { ok: true, users, profiles: users, count: users.length };
   });
 
   app.get("/organizations/:orgId/users/:userId/profile", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireUserProfileRead(request, orgId);
+    const context = await requireUserProfileRead(request, orgId);
     const user = await hydratedWorkforceUser(orgId, getParam(request.params, "userId"));
+    assertUserVisible(context, user);
     return { ok: true, user, profile: user };
   });
 
@@ -371,6 +374,7 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const context = await requireUserProfileMutation(request, orgId);
     const body = workforceUserProfilePatchSchema.parse(request.body ?? {});
     assertUserProfilePatchScope(context, body);
+    await (await import("./branch-guards.js")).guardUserCollection(context, "write", getParam(request.params, "userId"));
     const user = await patchWorkforceUserProfile(orgId, getParam(request.params, "userId"), body, context);
     return { ok: true, user, profile: user };
   });
@@ -378,16 +382,19 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/branches/:branchId/resource-groups", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
-    await requireWorkforceRead(request, orgId);
-    const groups = await listResourceGroups(orgId, { ...queryObject(request), branch_id: branchId });
+    const context = await requireWorkforceRead(request, orgId);
+    const query = queryObject(request);
+    // `branch_ids` (mine, region, all or ids) lists the groups of those branches instead of the route's branch; either way, only branches the viewer may see.
+    const groups = scopeGroups(context, await listResourceGroups(orgId, { ...query, ...(query.branch_ids ? {} : { branch_id: branchId }) }), query);
     return { ok: true, ...(await settingsPayload(orgId, branchId)), resource_groups: groups, groups, count: groups.length };
   });
 
   app.post("/organizations/:orgId/branches/:branchId/resource-groups", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
-    await requireWorkforceMutation(request, orgId);
+    const context = await requireWorkforceMutation(request, orgId);
     const body = resourceGroupCreateSchema.parse(request.body ?? {});
+    assertBranchManageable(context, branchId);
     const group = await createResourceGroup(orgId, { ...body, branch_id: branchId });
     reply.code(201);
     return { ok: true, ...(await settingsPayload(orgId, branchId)), resource_group: group, group };
@@ -396,16 +403,19 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
   app.get("/organizations/:orgId/branches/:branchId/resource-groups/:groupId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
-    await requireWorkforceRead(request, orgId);
+    const context = await requireWorkforceRead(request, orgId);
     const group = await readResourceGroup(orgId, getParam(request.params, "groupId"));
+    assertGroupVisible(context, group);
     return { ok: true, ...(await settingsPayload(orgId, branchId)), resource_group: group, group };
   });
 
   app.patch("/organizations/:orgId/branches/:branchId/resource-groups/:groupId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
-    await requireWorkforceMutation(request, orgId);
-    const group = await patchResourceGroup(orgId, getParam(request.params, "groupId"), resourceGroupPatchSchema.parse(request.body ?? {}));
+    const context = await requireWorkforceMutation(request, orgId);
+    const patch = resourceGroupPatchSchema.parse(request.body ?? {});
+    assertGroupManageable(context, await readResourceGroup(orgId, getParam(request.params, "groupId")), patch);
+    const group = await patchResourceGroup(orgId, getParam(request.params, "groupId"), patch);
     return { ok: true, ...(await settingsPayload(orgId, branchId)), resource_group: group, group };
   });
 
@@ -413,6 +423,7 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
     const context = await requireWorkforceMutation(request, orgId);
+    assertGroupManageable(context, await readResourceGroup(orgId, getParam(request.params, "groupId")));
     const group = await archiveResourceGroup(orgId, getParam(request.params, "groupId"), expectedRevision(request));
     // An archived group is no longer an assignee: remove what was kept against it. A step that fails is reported, and the archive stands.
     const cleanup = await (await import("../assignees/base.js")).cleanupAssignee(orgId, { type: "resource_group", id: String(group.id) }, context).catch(() => null);
@@ -422,8 +433,9 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
   app.put("/organizations/:orgId/branches/:branchId/resource-groups/:groupId/members/:userId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
-    await requireWorkforceMutation(request, orgId);
+    const context = await requireWorkforceMutation(request, orgId);
     const body = resourceGroupMemberMutationSchema.parse(request.body ?? {});
+    assertGroupManageable(context, await readResourceGroup(orgId, getParam(request.params, "groupId")));
     const group = await putResourceGroupMember(orgId, getParam(request.params, "groupId"), getParam(request.params, "userId"), body);
     return { ok: true, branch_id: branchId, resource_group: group, group };
   });
@@ -431,7 +443,8 @@ export const registerWorkforceApi: FastifyPluginAsync = async (app) => {
   app.delete("/organizations/:orgId/branches/:branchId/resource-groups/:groupId/members/:userId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const branchId = getParam(request.params, "branchId") || "default";
-    await requireWorkforceMutation(request, orgId);
+    const context = await requireWorkforceMutation(request, orgId);
+    assertGroupManageable(context, await readResourceGroup(orgId, getParam(request.params, "groupId")));
     const group = await removeResourceGroupMember(orgId, getParam(request.params, "groupId"), getParam(request.params, "userId"), expectedRevision(request));
     return { ok: true, branch_id: branchId, resource_group: group, group };
   });

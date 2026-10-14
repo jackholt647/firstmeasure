@@ -131,6 +131,8 @@ export async function previewLaborList(orgId: string, input: unknown) {
 export async function generateLaborList(orgId: string, input: unknown, actor: Actor) {
   requireActor(orgId, actor, "manage_projects", "labor_generate_denied", "Generating labor requires project management access.");
   const parsed = generateInputSchema.parse(input);
+  // A list finalized for payment is locked: generating would rewrite lines someone has already confirmed as done.
+  await (await import("./completion.js")).assertLaborListOpen(orgId, parsed.list_id);
   const preview = await previewLaborList(orgId, parsed);
   const auth = actor as PlatformAuthContext;
   const version = await createMaterialVersion(orgId, parsed.list_id, { expected_revision: Number(preview.list.revision), reason: "revision", notes: `Generated from ${preview.sheet.name}`, items: preview.items }, auth);

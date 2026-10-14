@@ -520,12 +520,22 @@ function normalizedGroupMembers(input: JsonObject) {
   return [...byUserId.values()];
 }
 
+/**
+ * The branches a group belongs to: its own `branch_id` (the branch it was made in, which picks its settings) and any
+ * others saved in `metadata.branch_ids`. Always at least one. See docs/architecture/branches.md.
+ */
+export function groupBranchIds(group: { branch_id?: unknown; metadata?: unknown }) {
+  const primary = cleanText(group.branch_id) || DEFAULT_BRANCH_ID;
+  return [...new Set([primary, ...asArray(asObject(group.metadata).branch_ids).map((id) => cleanText(id)).filter(Boolean)])];
+}
+
 function groupRowView(rowValue: unknown) {
   const row = asObject(rowValue);
   return {
     id: cleanText(row.id),
     organization_id: cleanText(row.organization_id),
     branch_id: cleanText(row.branch_id || DEFAULT_BRANCH_ID),
+    branch_ids: groupBranchIds({ branch_id: row.branch_id, metadata: parseJson(row.metadata_json) }),
     name: cleanText(row.name),
     kind_id: cleanText(row.kind_id || "crew"),
     assignment_tag_ids: uniqueIds(parseJson(row.assignment_tags_json, [])),
@@ -646,12 +656,9 @@ export async function listResourceGroups(orgIdValue: string, options: JsonObject
   (await ensureWorkforceDefaults(orgId));
   const conditions = ["organization_id = ?"];
   const params: SQLInputValue[] = [orgId];
-  const branchId = cleanText(options.branch_id || options.branchId);
+  // A group belongs to its own branch and any others it was given (groupBranchIds); a branch filter matches any of them.
+  const branchFilter = uniqueIds(Array.isArray(options.branch_ids) ? options.branch_ids : [options.branch_id || options.branchId].filter(Boolean));
   const scopeId = cleanText(options.scope_template_id || options.capability_scope_id);
-  if (branchId) {
-    conditions.push("branch_id = ?");
-    params.push(cleanId(branchId, "branch_id"));
-  }
   if (options.include_archived !== true && cleanText(options.include_archived) !== "1") conditions.push("status <> 'archived'");
   if (scopeId) {
     conditions.push(`EXISTS (SELECT 1 FROM resource_group_capabilities c
@@ -663,6 +670,7 @@ export async function listResourceGroups(orgIdValue: string, options: JsonObject
   const kindIds = uniqueIds(options.group_kind_ids || options.kind_ids || [options.group_kind_id || options.kind_id].filter(Boolean));
   const tagIds = uniqueIds(options.assignment_tag_ids || options.tag_ids);
   return groups
+    .filter((group) => !branchFilter.length || asArray(group.branch_ids).some((id) => branchFilter.includes(cleanText(id))))
     .filter((group) => !kindIds.length || kindIds.includes(cleanText(group.kind_id)))
     .filter((group) => !tagIds.length || tagIds.every((tagId) => uniqueIds(group.assignment_tag_ids).includes(tagId)));
 }
@@ -1021,7 +1029,7 @@ async function initializeWorkforceExtensions(db: SqlStore) {
 /** Minimal assignment exposure catalog: never hydrate pay profiles or private user records. */
 export async function listAssignmentGroups(orgIdValue:string, includeMembers=false) {
   const orgId=cleanId(orgIdValue,"organization_id"),db=getWorkforceDatabase();
-  const rows=await db.prepare("SELECT id,name,kind_id,branch_id,status FROM resource_groups WHERE organization_id=? AND status='active' ORDER BY name,id").all(orgId);
+  const rows=await db.prepare("SELECT id,name,kind_id,branch_id,status,metadata_json FROM resource_groups WHERE organization_id=? AND status='active' ORDER BY name,id").all(orgId);
   const memberships=includeMembers?await db.prepare("SELECT group_id,user_id,status FROM resource_group_memberships WHERE organization_id=? AND status='active'").all(orgId):[];
-  return rows.map(row=>({...row,members:memberships.filter(m=>m.group_id===row.id).map(m=>({user_id:String(m.user_id),status:String(m.status)}))})) as Array<{id:string;name:string;kind_id:string;branch_id:string;status:string;members:Array<{user_id:string;status:string}>}>;
+  return rows.map(({metadata_json,...row})=>({...row,branch_ids:groupBranchIds({branch_id:row.branch_id,metadata:asObject(parseJson(metadata_json))}),members:memberships.filter(m=>m.group_id===row.id).map(m=>({user_id:String(m.user_id),status:String(m.status)}))})) as Array<{id:string;name:string;kind_id:string;branch_id:string;branch_ids:string[];status:string;members:Array<{user_id:string;status:string}>}>;
 }

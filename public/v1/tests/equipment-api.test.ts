@@ -916,7 +916,7 @@ test('department-owned equipment filters fleet and enforces target grants and tr
   const owner=createSessionClient();const {orgId}=await registerOwner(owner);await enableEquipment(owner,orgId);
   const store=await import('../platform/storage.js');
   const {departmentCatalogSchema}=await import('../workforce/department-contracts.js');
-  const catalog=departmentCatalogSchema.parse({groups:[],departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}]});
+  const catalog=departmentCatalogSchema.parse({departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}]});
   await store.upsertDocument(orgId,'organization_departments',{id:'catalog',data:catalog});
   const base=`/v1/equipment/organizations/${orgId}`;
   const sales=(await owner.request('POST',base+'/units',{name:'Sales car',department_id:'sales'})).unit;

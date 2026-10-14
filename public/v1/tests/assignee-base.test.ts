@@ -39,7 +39,7 @@ function setup() {
     const crew = await workforce.createResourceGroup(ORG, { name: "Crew A", kind_id: "crew", members: [{ user_id: "ana", is_lead: true }, { user_id: "ben" }, { user_id: "cy" }] });
     const second = await workforce.createResourceGroup(ORG, { name: "Crew B", kind_id: "crew", member_user_ids: ["cy", "eve"] });
     const sub = await (await import("../connections/storage.js")).createOrganizationConnection(ORG, { name: "Summit Roofing", relationship_type_ids: ["work_provider"] });
-    await s.upsertDocument(ORG, "organization_departments", { id: "catalog", data: { groups: [], divisions: [], departments: [
+    await s.upsertDocument(ORG, "organization_departments", { id: "catalog", data: { departments: [
       { id: "production", label: "Production", subject_keys: [`organization_connection:${sub.id}`, "organization_user:dan"], group_kind_ids: ["crew"] },
       { id: "office", label: "Office", subject_keys: ["organization_user:eve"] }
     ] } });
@@ -490,9 +490,9 @@ test("a department has an optional icon beside its color, kept through a save an
   const current = await departments.readOrganizationDepartments(ORG);
   assert.equal(current.departments.every((department) => department.icon === undefined), true);
   const withIcon = current.departments.map((department) => (department.id === "production" ? { ...department, color: "#b45309", icon: "fa-helmet-safety" } : department));
-  const saved = await departments.saveDepartmentSettings(owner, { departments: withIcon, groups: current.groups, divisions: current.divisions, terminology: current.terminology, revision: current.revision });
+  const saved = await departments.saveDepartmentSettings(owner, { departments: withIcon, terminology: current.terminology, revision: current.revision });
   assert.deepEqual(saved.departments.map((department) => [department.id, department.color, department.icon]), [["production", "#b45309", "fa-helmet-safety"], ["office", "#64748b", undefined]]);
-  await assert.rejects(() => departments.saveDepartmentSettings(owner, { departments: saved.departments.map((department) => ({ ...department, icon: "not an icon" })), groups: saved.groups, divisions: saved.divisions, terminology: saved.terminology, revision: saved.revision }), /Font Awesome/);
+  await assert.rejects(() => departments.saveDepartmentSettings(owner, { departments: saved.departments.map((department) => ({ ...department, icon: "not an icon" })), terminology: saved.terminology, revision: saved.revision }), /Font Awesome/);
   // A later save that only assigns someone keeps it.
   const assigned = await departments.saveDepartmentAssignment(owner, { kind: "user", id: "ben", department_ids: ["office"], revision: saved.revision });
   assert.deepEqual(assigned.departments.map((department) => [department.id, department.icon]), [["production", "fa-helmet-safety"], ["office", undefined]]);
@@ -500,6 +500,6 @@ test("a department has an optional icon beside its color, kept through a save an
   if (published.status !== "ready") throw Error(JSON.stringify(published));
   assert.deepEqual((published.value as any).departments.map((department: any) => [department.id, department.color, department.icon]), [["production", "#b45309", "fa-helmet-safety"], ["office", "#64748b", undefined]], "wherever a department's color is published, its icon is beside it");
   // Clearing it is saving it empty.
-  const cleared = await departments.saveDepartmentSettings(owner, { departments: assigned.departments.map((department) => ({ ...department, icon: "" })), groups: assigned.groups, divisions: assigned.divisions, terminology: assigned.terminology, revision: assigned.revision });
+  const cleared = await departments.saveDepartmentSettings(owner, { departments: assigned.departments.map((department) => ({ ...department, icon: "" })), terminology: assigned.terminology, revision: assigned.revision });
   assert.deepEqual(cleared.departments.map((department) => department.icon), ["", ""]);
 });

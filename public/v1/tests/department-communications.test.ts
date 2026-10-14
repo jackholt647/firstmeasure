@@ -13,7 +13,7 @@ before(async()=>{
   storage=await import('../platform/storage.js');await storage.createOrganization({id:org});
   for(const id of ['salesperson','producer'])await storage.upsertDocument(org,'users',{id,data:{name:id,status:'active'}});
   const {departmentCatalogSchema}=await import('../workforce/department-contracts.js');
-  const catalog=departmentCatalogSchema.parse({departments:[{id:'sales',label:'Sales',subject_keys:['organization_user:salesperson']},{id:'production',label:'Production',subject_keys:['organization_user:producer']}],groups:[]});
+  const catalog=departmentCatalogSchema.parse({departments:[{id:'sales',label:'Sales',subject_keys:['organization_user:salesperson']},{id:'production',label:'Production',subject_keys:['organization_user:producer']}]});
   await storage.upsertDocument(org,'organization_departments',{id:'catalog',data:catalog});
   structure=await (await import('../workforce/organization-structure.js')).resolveOrganizationStructure(org);
   calls=await import('../comms/calls/storage.js');service=await import('../comms/calls/service.js');
@@ -58,11 +58,12 @@ test('department mentions respect private channel access and default channels re
   assert.deepEqual((await dept.effectiveChannelMembers(production)).map(m=>m.user_id),['salesperson']);
 });
 
-test('division call grants include descendant branch records without crossing siblings',async()=>{
+test('region call grants include the records of its branches without crossing to other branches',async()=>{
   const context=viewer();
   context.organizationStructure=structuredClone(structure);
-  context.organizationStructure!.catalog.divisions=[{id:'east',label:'East',kind:'Region',parent_id:'',branch_id:'',status:'active',subject_keys:[]},{id:'scranton',label:'Scranton',kind:'Branch',parent_id:'east',branch_id:'scranton',status:'active',subject_keys:[]},{id:'west',label:'West',kind:'Branch',parent_id:'',branch_id:'west',status:'active',subject_keys:[]}] as any;
-  context.scopedAccessGrants=[{scope:{kind:'division',id:'east'},permissions:{view_comms:true,manage_communications:true}}];
+  context.organizationStructure!.catalog.regions=[{id:'east',label:'East',status:'active',branch_ids:['scranton']},{id:'west',label:'West',status:'active',branch_ids:['west']}];
+  context.organizationStructure!.branches=[{id:'default'},{id:'scranton'},{id:'west'}];
+  context.scopedAccessGrants=[{scope:{kind:'region',id:'east'},permissions:{view_comms:true,manage_communications:true}}];
   for(const branch of ['scranton','west'])await calls.insertCall({id:`branch-${branch}`,organization_id:org,branch_id:branch,mode:'external',direction:'outbound',metadata:{department_ids:[]}});
   const result=await calls.listCalls(org,service.callListDepartmentFilter(context,{_scoped_branch_ids:['west'],_allowed_branch_ids:['west']}));
   assert.deepEqual(result.calls.map(c=>c.id),['branch-scranton']);
@@ -70,10 +71,10 @@ test('division call grants include descendant branch records without crossing si
   assert.throws(()=>service.requireCallAccess(context,{...result.calls[0]!,branch_id:'west'}));
 });
 
-test('department denials override division call grants before count and pagination',async()=>{
+test('department denials override branch call grants before count and pagination',async()=>{
   const context=viewer();context.organizationStructure=structuredClone(structure);
-  context.organizationStructure!.catalog.divisions=[{id:'east',label:'East',parent_id:'',branch_id:'scranton',status:'active'}] as any;
-  context.scopedAccessGrants=[{scope:{kind:'division',id:'east'},permissions:{view_comms:true}},{scope:{kind:'department',id:'sales'},permissions:{view_comms:false}}];
+  context.organizationStructure!.branches=[{id:'default'},{id:'scranton'}];
+  context.scopedAccessGrants=[{scope:{kind:'branch',id:'scranton'},permissions:{view_comms:true}},{scope:{kind:'department',id:'sales'},permissions:{view_comms:false}}];
   await calls.insertCall({id:'denied-branch-sales',organization_id:org,branch_id:'scranton',mode:'external',direction:'outbound',metadata:{department_ids:['sales','production']}});
   const result=await calls.listCalls(org,service.callListDepartmentFilter(context,{},'view_comms'));
   assert.deepEqual(result.calls.map(c=>c.id),['branch-scranton']);assert.equal(result.total,1);

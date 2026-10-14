@@ -17,6 +17,7 @@ delivery; [schedule events](schedule-events.md) covers what an event stores.
 | **Assignment** | A list of entries that add or remove an assignee, for all of a piece of work or part of it. |
 | **Roster** | The people an assignment actually puts on the work at each moment. |
 | **Staffing requirement** | A count and a condition over the people on the work: who has to be there. "Requirements" alone means what a job needs done ([requirements](requirements.md): material, work and functions). |
+| **Branch** | The organization's settings scope; every assignee belongs to one or more ([branches](branches.md)). Above branches are optional flat **regions**; below them, each branch's departments. |
 
 ## One contract, three stores
 
@@ -50,11 +51,20 @@ had none.
 | **permissions** | their own roles and overrides, on the user document | none of its own: the roles a member gets on joining belong to the group **type** | its own permission set, in the base record |
 | standing staffing requirements | not allowed | base record | not allowed |
 | members | none | `resource_group_memberships` | none |
+| **branches** (`branch_ids`) | user document `branch_id` (their own branch) plus `branch_ids` | row `branch_id` plus `metadata.branch_ids` | `organization_connection_branches`; none means every branch |
 
-Branch is published too (`branch_ids`) but is not a department and does not
-stand in for one. Department assignment is changed with the existing
+A user and a group always belong to at least one branch (`default` when nothing
+is saved). A branch is not a department and does not stand in for one; a
+department belongs to one branch. Branch membership is set with
+`organization-branches.membership.set`; department assignment with the existing
 `workforce.departments.assign`, which already takes a user, a group or a
 connection.
+
+**Branch scope.** With the multiple-branches feature and more than one branch, a
+person reading the directory (or the People lists) sees only the assignees of
+the branches they may see: their own, their region's with
+`view_region_branches`, every branch with `view_all_branches`. Writes need the
+assignee in a branch they manage. See [branches](branches.md#access-the-branch-scope-rule).
 
 `assigneeTypeIds(orgId, ref): Promise<string[]>` (`base.ts`) answers "what are
 its types" for any kind, and is what pay defaults and field homes call. It is
@@ -336,6 +346,9 @@ problem. Warning kinds: `staffing_requirement_unmet`, `double_booked`,
 ## Departments
 
 Departments are read from where they already live, the one department catalog.
+Each department belongs to one branch (`branch_id`); a role or a group type
+puts an assignee in a department only when the assignee belongs to that branch.
+There are no department categories.
 A department definition has a `color` and, beside it, an optional `icon`: a
 Font Awesome class name such as `fa-helmet-safety`, the same kind of value
 scope templates and equipment types store (`departmentIconSchema` in
@@ -429,18 +442,13 @@ permission and revision, and a consumer cannot tell which is authoritative.
 Proposed: each list is published once, by its owner, as a selectable
 collection; pay rules bind to those exports and payroll removes its copies.
 
-**Nesting.** The product rule is that groups and departments do not nest. Two
-structures do: labor's units (`assignee_units`, `parent_unit_id`) nest inside
-an assignee, and divisions (`divisions` in the department catalog, `parent_id`)
-nest above departments. Units are how a group says it can hold several jobs at
-once; divisions are how access is scoped above a department. Proposed: keep the
-rule as stated for groups and departments, and say plainly what the other two
-are. A unit is capacity inside one assignee, never a group of its own, has no
-members, types or permissions, and nests only to describe how capacity is
-divided. A division is an organizational scope above departments, not a
-department. If the owner wants a flat model throughout, units become a count on
-the assignee and divisions a single level; that is a decision for labor and
-workforce access, not one this module can make.
+**Nesting.** The product rule is that groups and departments do not nest.
+Divisions are gone: above departments are branches and flat regions
+([branches](branches.md)). One structure still nests: labor's units
+(`assignee_units`, `parent_unit_id`) inside an assignee. A unit is capacity
+inside one assignee, never a group of its own, has no members, types or
+permissions, and nests only to describe how capacity is divided. Whether it
+becomes a count on the assignee is a decision for labor.
 
 **Hourly and salary entered twice.** An hourly rate or a salary can be put on a
 pay sheet (how an assignee prices a job) and as a pay rule (what an assignee is

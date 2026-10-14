@@ -27,6 +27,10 @@
  *   data.uploadPhoto(id, file)  data.saveUserDepartments(id, departmentIds)
  *   data.saveRole(id, { name, description, permissions, appDefaults, applicationIds })
  *   data.createRole({ name, applicationIds })  data.archiveRole(id)
+ *
+ * Branches (docs/architecture/branches.md): the organization-branches.structure read, as this viewer may see it
+ *   data.structure()  data.multipleBranches()  data.branches()  data.regions()  data.branch(id)  data.branchName(id)  data.region(id)
+ *   data.branchIdsOf(kind, record)   kind: 'user' | 'group' | 'company' | 'department'; [] for a company means every branch
  */
 (function(){
   'use strict';
@@ -66,17 +70,129 @@
   const state = {
     loaded:false, orgId:'', users:[], roles:[], apps:[], applications:[], permissionKeys:[],
     departments:[], memberships:new Map(), departmentState:null, groups:[], groupLabels:{}, errors:{},
-    configuration:{}, tags:[], connections:[], directory:new Map(), types:[], staffing:new Map(), scopes:[], archivedUsers:[], divisions:[], departmentCategories:[]
+    configuration:{}, tags:[], connections:[], directory:new Map(), types:[], staffing:new Map(), scopes:[], archivedUsers:[], structure:null
   };
   const listeners = new Set();
   let loading = null;
   const emit = (change = {}) => listeners.forEach((listener) => { try { listener(state, change); } catch (_) {} });
 
+  /*
+   * What this organization and this user can do. App flags and capabilities reach the page through
+   * PlatformAPI.appFlags (the same source Settings' appFlag() reads); permissions through Portal.util.hasPerm.
+   * The server is the authority: every /v1/workforce, /v1/connections, /v1/publication and /v1/payroll route
+   * requires the platform.expanded_access capability (platform/rollout_routes.ts, checked in requirePlatformAuth),
+   * then its own permission. The users collection, invitations and activity are core and need only a permission.
+   */
+  const flag = (group, name) => { try { return window.PlatformAPI?.appFlags?.has?.(group, name) === true; } catch (_) { return false; } };
+  const CAPABILITIES = {
+    people_access:() => flag('platform', 'people_access'),
+    expanded_access:() => flag('platform', 'expanded_access'),
+    legacy_access:() => !flag('platform', 'expanded_access'),
+    groups_app:() => flag('apps', 'crew'),
+    payroll_app:() => flag('apps', 'payroll'),
+    custom_fields:() => flag('platform', 'custom_fields'),
+    manage_company_users:() => hasPerm('manage_company_users'),
+    manage_company_user_permissions:() => hasPerm('manage_company_user_permissions'),
+    manage_company_settings:() => hasPerm('manage_company_settings'),
+    manage_payroll:() => hasPerm('manage_payroll'),
+    view_projects:() => hasPerm('view_projects'),
+    /* Branches: the feature, then what the structure read says this organization has and this viewer may do. */
+    branches_feature:() => flag('platform', 'multiple_branches') && state.structure?.feature_enabled !== false,
+    multiple_branches:() => flag('platform', 'multiple_branches') && state.structure?.feature_enabled === true && state.structure?.multiple === true,
+    branch_admin:() => { const s = state.structure; return !!s && (s.access?.can_add_branch === true || arr(s.access?.can_rename_branch_ids).length > 0 || arr(s.branches).some((entry) => entry.can_manage === true)); },
+    can_add_branch:() => state.structure?.access?.can_add_branch === true,
+    can_archive_branch:() => state.structure?.access?.can_archive_branch === true,
+    can_manage_regions:() => state.structure?.access?.can_manage_regions === true,
+    manage_all_branches:() => hasPerm('manage_all_branches'),
+    view_region_branches:() => hasPerm('view_region_branches') || hasPerm('manage_region_branches'),
+    view_all_branches:() => hasPerm('view_all_branches') || hasPerm('manage_all_branches')
+  };
+  const ADMIN = ['manage_company_users', 'manage_company_user_permissions', 'manage_company_settings'];
+  const WORKFORCE = ['expanded_access'];
+  const GROUPS = ['people_access', 'expanded_access', 'groups_app'];
+  const DEPARTMENTS = ['people_access', 'expanded_access'];
+  const BRANCHES = ['expanded_access', 'branches_feature', 'manage_company_settings'];
+  /*
+   * Every People action, the capabilities it needs (all of `all`, at least one of `any`) and the server route or
+   * published action it calls. An action the page offers must be listed here: listPage and entityModal drop, and
+   * record in FirstMatePeople.undeclared, any action or tab whose `needs` is missing or unknown.
+   */
+  const ACTIONS = Object.freeze({
+    'users.view':{ any:ADMIN, server:'GET /v1/platform/organizations/:org/collections/users' },
+    'users.open':{ any:ADMIN, server:'GET /v1/platform/organizations/:org/collections/users/:id' },
+    'users.invite':{ all:['manage_company_users'], server:'POST /v1/platform/organizations/:org/collections/users' },
+    'users.photo':{ all:['manage_company_users'], server:'POST portal action org_users_upload_avatar_my' },
+    'users.identity':{ all:['manage_company_users'], server:'PATCH /v1/platform/organizations/:org/collections/users/:id' },
+    'users.resend_invite':{ all:['manage_company_users'], server:'POST /v1/platform/organizations/:org/users/:id/invite' },
+    'users.suspend':{ all:['manage_company_users'], server:'PATCH /v1/platform/organizations/:org/collections/users/:id (status)' },
+    'users.delete':{ all:['manage_company_users'], server:'DELETE /v1/platform/organizations/:org/collections/users/:id' },
+    'users.activity':{ any:['manage_company_users', 'manage_company_settings'], server:'GET /v1/platform/organizations/:org/collections/activity' },
+    'users.legacy_permissions':{ all:['legacy_access'], any:ADMIN, server:'PATCH /v1/platform/organizations/:org/collections/users/:id (org_permissions)' },
+    'users.roles':{ all:WORKFORCE, any:ADMIN, server:'PATCH /v1/workforce/organizations/:org/users/:id/profile' },
+    'users.permissions':{ all:WORKFORCE, any:ADMIN, server:'PATCH /v1/workforce/organizations/:org/users/:id/profile (permission_overrides)' },
+    'users.apps':{ all:WORKFORCE, any:ADMIN, server:'PATCH /v1/workforce/organizations/:org/users/:id/profile (app_access_overrides)' },
+    'users.tags':{ all:WORKFORCE, any:ADMIN, server:'PATCH /v1/workforce/organizations/:org/users/:id/profile (assignment_tag_ids)' },
+    'users.scoped':{ all:[...WORKFORCE, 'manage_company_user_permissions'], server:'PATCH /v1/workforce/organizations/:org/users/:id/profile (scoped_access_assignments)' },
+    'users.departments':{ all:WORKFORCE, any:['manage_company_settings', 'manage_company_users'], server:'PATCH /v1/workforce/organizations/:org/departments/assignments' },
+    'roles.view':{ all:WORKFORCE, any:ADMIN, server:'GET /v1/workforce/organizations/:org/access/catalog' },
+    'roles.edit':{ all:WORKFORCE, any:ADMIN, server:'POST|PATCH|DELETE /v1/workforce/organizations/:org/access/roles' },
+    'compensation':{ all:['expanded_access', 'payroll_app'], any:['manage_payroll', 'manage_company_settings'], server:'/v1/payroll pay setups and defaults (PayrollAPI.pay)' },
+    'fields':{ all:['expanded_access', 'custom_fields'], any:['manage_company_settings', 'manage_company_users'], server:'/v1/publication custom-fields-* and custom-fields.* actions' },
+    'home.view':{ all:['people_access'], server:'(reads only what the pages read)' },
+    'home.wording':{ all:['people_access', 'expanded_access', 'manage_company_settings'], server:'PUT /v1/workforce/.../configuration, PUT /v1/workforce/.../departments' },
+    'groups.view':{ all:GROUPS, any:['view_projects', 'manage_company_settings'], server:'GET /v1/workforce/.../resource-groups' },
+    'groups.edit':{ all:[...GROUPS, 'manage_company_settings'], server:'POST|PATCH|DELETE /v1/workforce/.../resource-groups, assignees.type.save, assignees.staffing-requirements.set, PUT configuration (tags)' },
+    'groups.type_roles':{ all:[...GROUPS, 'manage_company_user_permissions'], server:'assignees.type.member-roles.set' },
+    'groups.invite':{ all:[...GROUPS, 'manage_company_settings', 'manage_company_users'], server:'POST collections/users, PATCH resource-groups' },
+    'departments.view':{ all:DEPARTMENTS, any:ADMIN, server:'GET /v1/workforce/organizations/:org/departments' },
+    'departments.edit':{ all:[...DEPARTMENTS, 'manage_company_settings'], server:'PUT /v1/workforce/organizations/:org/departments' },
+    'departments.members':{ all:DEPARTMENTS, any:['manage_company_settings', 'manage_company_users'], server:'PATCH /v1/workforce/organizations/:org/departments/assignments' },
+    'departments.scoped':{ all:[...DEPARTMENTS, 'manage_company_user_permissions'], server:'PATCH /v1/workforce/.../users/:id/profile (scoped_access_assignments)' },
+    'companies.view':{ all:GROUPS, any:['view_projects', 'manage_company_settings'], server:'GET /v1/connections/.../organization-connections' },
+    'companies.edit':{ all:[...GROUPS, 'manage_company_settings'], server:'POST|PATCH|DELETE /v1/connections/..., assignees.profile.set, assignees.type.save' },
+    'companies.terms':{ all:[...GROUPS, 'payroll_app'], any:['manage_payroll', 'manage_company_settings'], server:'payroll.contractor.company.update' },
+    'companies.permissions':{ all:[...GROUPS, 'manage_company_user_permissions'], server:'assignee-directory.permission-defaults, assignees.permission-defaults.set' },
+    /* Branches and regions. The Branches button shows even with one branch; nothing else does until there are several. */
+    'branches.view':{ all:[...BRANCHES, 'people_access', 'branch_admin'], server:'organization-branches.structure' },
+    'branches.add':{ all:[...BRANCHES, 'manage_all_branches', 'can_add_branch'], server:'organization-branches.branch.add' },
+    'branches.rename':{ all:BRANCHES, server:'organization-branches.branch.rename (the branch must be in access.can_rename_branch_ids)' },
+    'branches.archive':{ all:[...BRANCHES, 'manage_all_branches', 'can_archive_branch'], server:'organization-branches.branch.archive' },
+    'branches.region':{ all:[...BRANCHES, 'manage_all_branches', 'can_manage_regions'], server:'organization-branches.branch.region.set' },
+    'regions.edit':{ all:[...BRANCHES, 'manage_all_branches', 'can_manage_regions'], server:'organization-branches.region.save' },
+    'branches.filter':{ all:['expanded_access', 'multiple_branches'], server:'users, resource-groups and organization-connections lists with branch_ids=all; filtered on the rows\' branch_ids' },
+    'branches.filter_region':{ all:['expanded_access', 'multiple_branches'], any:['view_region_branches', 'view_all_branches'], server:'branch_ids=region' },
+    'users.scoped_branch':{ all:[...WORKFORCE, 'multiple_branches', 'manage_company_user_permissions'], server:'PATCH /v1/workforce/.../users/:id/profile (scoped_access_assignments, scope kind branch | region)' },
+    'departments.branch':{ all:[...DEPARTMENTS, 'multiple_branches', 'manage_company_settings'], server:'PUT /v1/workforce/organizations/:org/departments (branch_id)' }
+  });
+  function allows(id){
+    const entry = ACTIONS[id];
+    if (!entry) { (People.undeclared = People.undeclared || []).push(String(id)); return false; }
+    const holds = (key) => CAPABILITIES[key] ? CAPABILITIES[key]() === true : false;
+    return (entry.all || []).every(holds) && (!entry.any || entry.any.some(holds));
+  }
+  /* Drops what the organization or user cannot do; an item that does not say what it needs is dropped and recorded. */
+  function gate(list, where = ''){
+    return (list || []).filter(Boolean).filter((item) => {
+      if (item.needs === undefined) { (People.undeclared = People.undeclared || []).push(`${where}:${item.id}`); return false; }
+      return item.needs === null || allows(item.needs);
+    });
+  }
   const can = {
     get users(){ return hasPerm('manage_company_users'); },
     get permissions(){ return hasPerm('manage_company_user_permissions'); },
     get settings(){ return hasPerm('manage_company_settings'); },
-    get access(){ return this.permissions || this.users || this.settings; }
+    get access(){ return this.permissions || this.users || this.settings; },
+    get payroll(){ return hasPerm('manage_payroll'); },
+    get peopleAccess(){ return CAPABILITIES.people_access(); },
+    get expanded(){ return CAPABILITIES.expanded_access(); },
+    get workforce(){ return allows('users.roles'); },
+    get groups(){ return allows('groups.view'); },
+    get departments(){ return allows('departments.view'); },
+    get companies(){ return allows('companies.view'); },
+    get compensation(){ return allows('compensation'); },
+    get fields(){ return allows('fields'); },
+    get wording(){ return allows('home.wording'); },
+    get multipleBranches(){ return CAPABILITIES.multiple_branches(); }
   };
 
   function normalizeUser(doc){
@@ -93,18 +209,28 @@
     loading = (async () => {
       const target = { scope:'organization', organizationId:org };
       const published = (name) => platform.publication?.read?.(org, { provider:'assignee-directory', export:name, target });
+      /* The branch structure first: with several branches the lists are asked for every branch the viewer may see. */
+      state.structure = null;
+      if (CAPABILITIES.expanded_access()) {
+        try {
+          const result = await platform.publication?.read?.(org, { provider:'organization-branches', export:'structure', target });
+          const value = result && (result.status === undefined || result.status === 'ready') ? obj(result.value) : null;
+          state.structure = value && Array.isArray(value.branches) ? value : null;
+        } catch (_) { state.structure = null; }
+      }
+      const every = CAPABILITIES.multiple_branches() ? { branchIds:'all' } : {};
       const [usersResult, profilesResult, catalogResult, departmentsResult, groupsResult, configurationResult, connectionsResult, directoryResult, typesResult, staffingResult, scopesResult] = await Promise.allSettled([
         platform.users.list(org),
-        platform.workforce?.users?.(org, branch),
-        platform.workforce?.accessCatalog?.(org),
-        platform.workforce?.departments?.(org),
-        platform.workforce?.resourceGroups?.(org, branch),
-        platform.workforce?.configuration?.(org, branch),
-        platform.connections?.list?.(org, { branchId:branch }),
-        published('assignees'),
-        published('types'),
-        published('staffing-requirements'),
-        platform.scopes?.list?.(org, branch, { include_disabled:true, includeDisabled:true })
+        can.workforce ? platform.workforce?.users?.(org, branch) : null,
+        can.workforce ? platform.workforce?.accessCatalog?.(org) : null,
+        allows('departments.view') || allows('users.departments') ? platform.workforce?.departments?.(org) : null,
+        can.groups ? platform.workforce?.resourceGroups?.(org, branch, every) : null,
+        can.workforce ? platform.workforce?.configuration?.(org, branch) : null,
+        can.companies ? platform.connections?.list?.(org, every.branchIds ? every : { branchId:branch }) : null,
+        can.groups || can.companies ? published('assignees') : null,
+        can.groups || can.companies ? published('types') : null,
+        can.groups ? published('staffing-requirements') : null,
+        can.groups || can.companies ? platform.scopes?.list?.(org, branch, { include_disabled:true, includeDisabled:true }) : null
       ]);
       if (usersResult.status !== 'fulfilled') throw usersResult.reason || new Error(t('load_failed', 'Could not load'));
       const profiles = new Map((profilesResult.status === 'fulfilled' ? records(profilesResult.value, 'users', 'workforce_users', 'profiles') : []).map(normalizeUser).map((user) => [user.id, user]));
@@ -130,9 +256,7 @@
         state.departmentState = departments;
         state.departments = arr(departments.departments).filter((department) => department.status !== 'archived');
         state.memberships = new Map(arr(departments.effective_memberships).map((entry) => [String(entry.id), entry]));
-        state.divisions = arr(departments.divisions).filter((division) => division.status !== 'archived');
-        state.departmentCategories = arr(departments.groups);
-      } else { state.departments = []; state.memberships = new Map(); state.departmentState = null; state.divisions = []; state.departmentCategories = []; }
+      } else { state.departments = []; state.memberships = new Map(); state.departmentState = null; }
       state.groups = groupsResult.status === 'fulfilled' ? records(groupsResult.value, 'resource_groups', 'groups').map((group) => ({ ...obj(group?.data), ...group })).filter((group) => group.status !== 'archived' && !group.archived_at) : [];
       const terminology = configurationResult.status === 'fulfilled' ? obj((configurationResult.value?.configuration || configurationResult.value)?.terminology) : {};
       state.groupLabels = {
@@ -165,6 +289,25 @@
     const result = await loading;
     emit({ type:'load' });
     return result;
+  }
+
+  /* ---- branches ---- */
+  const structure = () => state.structure;
+  const multipleBranches = () => CAPABILITIES.multiple_branches();
+  const branches = () => arr(state.structure?.branches).filter((entry) => text(entry.status, 'active') !== 'archived');
+  const regions = () => arr(state.structure?.regions).filter((entry) => text(entry.status, 'active') !== 'archived');
+  const branch = (id) => arr(state.structure?.branches).find((entry) => String(entry.id) === String(id)) || null;
+  const region = (id) => arr(state.structure?.regions).find((entry) => String(entry.id) === String(id)) || null;
+  /* An unnamed default branch is called by the default-branch phrase. (No terminology key exists for it yet.) */
+  const branchName = (id) => { const entry = branch(id); const name = text(entry?.name); return name && name !== 'Default Branch' ? name : (entry?.is_default || String(id) === 'default' ? t('main_branch', 'Main branch') : String(id)); };
+  /* The branches a record belongs to, the way each kind keeps them. */
+  function branchIdsOf(kind, record = {}){
+    if (!record) return [];
+    if (kind === 'department') return [text(record.branch_id, 'default')];
+    if (kind === 'company') return ids(record.branch_ids || state.directory.get(`organization_connection:${record.id}`)?.branch_ids);
+    if (kind === 'group') { const list = ids(record.branch_ids || record.metadata?.branch_ids || state.directory.get(`resource_group:${record.id}`)?.branch_ids); return list.length ? list : [text(record.branch_id, 'default')]; }
+    const list = ids([record.branch_id, ...arr(record.branch_ids), ...arr(record.profile?.branch_ids), ...arr(state.directory.get(`organization_user:${record.id}`)?.branch_ids)].filter(Boolean));
+    return list.length ? list : ['default'];
   }
 
   /* ---- reading ---- */
@@ -380,7 +523,7 @@
         { id:'tags', title:t('tags', 'Tags'), icon:'fa-tag', chips:ids(draft.tagIds || userTagIds(entry)).map((id) => state.tags.find((tag) => String(tag.id) === id)).filter(Boolean).map((tag) => ({ label:text(tag.name, tag.id), tone:'muted' })), empty:t('none', 'None'), optional:true },
         { id:'groups', title:state.groupLabels.plural || t('groups', 'Groups'), icon:kit.ICONS.group, tooltip:t('groups_tip', 'Membership is edited from the group'),
           chips:groups.map((group) => ({ label:text(group.name, group.id), tone:'group' })), empty:t('no_groups', 'None') }
-      ]
+      ].filter((section) => ({ roles:can.workforce, departments:can.workforce && (allows('departments.view') || allows('users.departments')), tags:can.workforce, groups:can.groups })[section.id] !== false)
     };
   }
 
@@ -397,7 +540,7 @@
     });
     const created = normalizeUser(result?.document || {});
     let profileError = '';
-    if (created.id && platform.workforce?.saveUserProfile) {
+    if (created.id && can.workforce && platform.workforce?.saveUserProfile) {
       try { await platform.workforce.saveUserProfile(orgId(), created.id, { application_access:applicationAccess, access_role_ids:ids(roleIds), permission_overrides:{}, app_access_overrides:{} }); }
       catch (error) { profileError = error?.message || 'profile'; }
     }
@@ -544,7 +687,7 @@
   const userTagIds = (entry = {}) => ids((entry.profile || entry).assignment_tag_ids || entry.assignment_tag_ids || entry.tag_ids);
   const userScopedAssignments = (entry = {}) => arr((entry.profile || entry).scoped_access_assignments || entry.scoped_access_assignments).filter((assignment) => assignment && assignment.scope && assignment.role_id).map((assignment) => ({ role_id:String(assignment.role_id), scope:{ kind:String(assignment.scope.kind), id:String(assignment.scope.id) } }));
   /* Roles that may be scoped to a department: nothing that administers the whole organization. */
-  const SCOPE_FORBIDDEN = new Set(['*', 'manage_billing', 'manage_company_settings', 'manage_company_users', 'manage_company_user_permissions', 'manage_report_settings', 'manage_notification_defaults', 'manage_integrations', 'manage_security', 'manage_roles', 'manage_organization', 'manage_capabilities']);
+  const SCOPE_FORBIDDEN = new Set(['*', 'view_region_branches', 'manage_region_branches', 'view_all_branches', 'manage_all_branches', 'manage_billing', 'manage_company_settings', 'manage_company_users', 'manage_company_user_permissions', 'manage_report_settings', 'manage_notification_defaults', 'manage_integrations', 'manage_security', 'manage_roles', 'manage_organization', 'manage_capabilities']);
   const scopableRoles = () => activeRoles().filter((entry) => !Object.entries(obj(entry.permissions)).some(([key, allowed]) => allowed && SCOPE_FORBIDDEN.has(key)));
   /* Legacy access: an admin level and seven flags, for organizations without roles. */
   const LEGACY_FLAGS = ['order_reports', 'view_reports', 'manage_billing', 'manage_company_settings', 'manage_report_settings', 'manage_company_users', 'manage_company_user_permissions'];
@@ -566,8 +709,10 @@
   }
 
   People.data = {
+    ACTIONS, CAPABILITIES, allows, gate,
     internal:{ emit, reload, api, arr, obj, text, ids, records, invoke, newKey },
     userTagIds, userScopedAssignments, scopableRoles, legacyMode, userLegacy, legacyLevelItems, LEGACY_FLAGS, LEGACY_LEVELS:Object.keys(LEGACY_LEVELS), invoke,
+    structure, multipleBranches, branches, regions, branch, region, branchName, branchIdsOf,
     state, load, subscribe(listener){ listeners.add(listener); return () => listeners.delete(listener); }, can, orgId, branchId, assetUrl,
     user, role, activeRoles, roleApplications, userRoleIds, userRoles, userPermissionOverrides, userAppOverrides, userDepartments, userDirectDepartmentIds, userGroups,
     neverSignedIn, isSuspended, isMe, isOwner, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, catalogDefaultApp, userSummary,

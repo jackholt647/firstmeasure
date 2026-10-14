@@ -100,6 +100,8 @@
     const slot = DECLARED[slotId] || { label:() => slotId, icon:'fa-puzzle-piece' };
     return {
       id:slotId,
+      /* The slot's own capability ('compensation' and 'fields' in FirstMatePeople.data.ACTIONS); the caller may narrow it. */
+      needs:options.needs !== undefined ? options.needs : slotId,
       label:options.label || slot.label(),
       icon:options.icon || slot.icon,
       mount(panel, ctx){

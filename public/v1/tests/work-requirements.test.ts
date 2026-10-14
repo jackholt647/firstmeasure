@@ -175,7 +175,7 @@ test("a project's requirements say what is open, what accounts for each thing, a
   assert.equal(row(await read([]), "roofing.install").status, "open", "assigned but not generated: a pay sheet that would cover it is not a line that does");
   await g.generateLaborList(ORG, { list_id: String(summit.id) }, owner);
   const covered = await read([]);
-  assert.equal(covered.status, "covered"); assert.deepEqual(covered.counts, { open: 0, warning: 0, covered: 8 });
+  assert.equal(covered.status, "covered"); assert.deepEqual(covered.counts, { open: 0, warning: 0, covered: 8, scheduled: 0, completed: 0 }, "nothing is on the schedule yet, so nothing has progressed");
   assert.deepEqual(row(covered, "roofing.tear_off").covered_by.map((entry) => [entry.assignee_name, entry.mode, entry.lines.map((line) => line.name)]), [["Summit", "paid", ["Tear off and install"]]], "the steep charge adjusts the price and is not a second cover");
   assert.deepEqual([row(covered, "disposal.debris").covered_by[0]!.mode, row(covered, "disposal.debris").covered_by[0]!.lines[0]!.name], ["provided", "Dump truck"]);
   assert.deepEqual([row(covered, "roofing.cleanup").covered_by[0]!.mode, row(covered, "roofing.cleanup").covered_by[0]!.lines.length], ["included", 0]);

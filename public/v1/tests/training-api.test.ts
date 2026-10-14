@@ -154,7 +154,7 @@ test('department training assignments follow membership and managers cannot assi
   const owner=createSessionClient(); const {orgId,suffix}=await registerOwner(owner);
   const crew=await createCrewUser(owner,orgId,suffix); const manager=await createSalesUser(owner,orgId,suffix);
   const catalog=await owner.request('GET',`/v1/workforce/organizations/${orgId}/departments`);
-  const saved=await owner.request('PUT',`/v1/workforce/organizations/${orgId}/departments`,{revision:catalog.revision,legacy_token:catalog.legacy_token,groups:catalog.groups,divisions:[],departments:[...catalog.departments,{id:'production',label:'Production',subject_keys:[`organization_user:${crew.userId}`]},{id:'inside',label:'Inside Sales'}]});
+  const saved=await owner.request('PUT',`/v1/workforce/organizations/${orgId}/departments`,{revision:catalog.revision,legacy_token:catalog.legacy_token,departments:[...catalog.departments,{id:'production',label:'Production',subject_keys:[`organization_user:${crew.userId}`]},{id:'inside',label:'Inside Sales'}]});
   const role=await owner.request('POST',`/v1/workforce/organizations/${orgId}/access/roles`,{name:'Department trainer',permissions:{manage_training:true},application_id:'management'});
   await owner.request('PATCH',`/v1/workforce/organizations/${orgId}/users/${manager.userId}/profile`,{access_role_ids:[],scoped_access_assignments:[{role_id:role.role.id,scope:{kind:'department',id:'production'}}]});
   const course=await owner.request('POST',`/v1/training/organizations/${orgId}/manage/courses`,{title:'Department induction',lessons:[]});

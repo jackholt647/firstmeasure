@@ -762,12 +762,15 @@
       const params = new URLSearchParams();
       if (options.filterBranch === true || options.filter_branch === true) params.set('branch_id', branchId || 'default');
       if (options.includeDisabled !== false && options.include_disabled !== false) params.set('include_disabled', '1');
+      if (options.branchIds || options.branch_ids) params.set('branch_ids', [].concat(options.branchIds || options.branch_ids).join(','));
       const qs = params.toString();
       return request(siblingPath('workforce', `/organizations/${enc(orgId)}/users${qs ? `?${qs}` : ''}`));
     },
     resourceGroups(orgId, branchId = 'default', options = {}){
       const params = new URLSearchParams();
       if (options.includeArchived || options.include_archived) params.set('include_archived', '1');
+      // branch_ids (mine, region, all or ids) lists the groups of those branches instead of the route's branch.
+      if (options.branchIds || options.branch_ids) params.set('branch_ids', [].concat(options.branchIds || options.branch_ids).join(','));
       const qs = params.toString();
       return request(siblingPath('workforce', `/organizations/${enc(orgId)}/branches/${enc(branchId || 'default')}/resource-groups${qs ? `?${qs}` : ''}`));
     },
@@ -838,6 +841,7 @@
     list(orgId, options = {}){
       const params = new URLSearchParams();
       if (options.branchId || options.branch_id) params.set('branch_id', options.branchId || options.branch_id);
+      if (options.branchIds || options.branch_ids) params.set('branch_ids', [].concat(options.branchIds || options.branch_ids).join(','));
       if (options.includeArchived || options.include_archived) params.set('include_archived', '1');
       const qs = params.toString();
       return request(siblingPath('connections', `/organizations/${enc(orgId)}/organization-connections${qs ? `?${qs}` : ''}`));

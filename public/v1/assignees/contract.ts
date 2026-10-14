@@ -82,7 +82,10 @@ export type AssigneeRecord = {
    * belongs to the departments of the groups they are in. A branch is a different thing and is not a substitute.
    */
   department_ids: string[];
-  /** Branches it works in. Empty means every branch (an outside company with no branch chosen). */
+  /**
+   * Branches it belongs to (docs/architecture/branches.md). A person or a group always has at least one: `default` when
+   * nothing is saved. Empty means every branch, which only an outside company with no branch chosen can be.
+   */
   branch_ids: string[];
   traits: AssigneeTraits;
   /** Active members. Empty unless `traits.has_members`. */

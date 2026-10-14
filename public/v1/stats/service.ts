@@ -75,7 +75,7 @@ export async function statsSchema(orgId: string) {
     templates,
     users,
     departments: structure.catalog.departments.filter(entry => entry.status !== 'archived').map(({id,label})=>({id,label})),
-    divisions: structure.catalog.divisions.filter(entry=>entry.status!=='archived').map(({id,label,kind,parent_id})=>({id,label,kind,parent_id})),
+    regions: structure.regions.map(({id,label,branch_ids})=>({id,label,branch_ids})),
     sources: (await distinctColumn(orgId, "source", "source <> ''")),
     stages: (await distinctColumn(orgId, "stage_title", "stage_title <> ''")),
     branches: (await distinctColumn(orgId, "branch_id")),

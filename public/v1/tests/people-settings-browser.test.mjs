@@ -2,6 +2,7 @@
 // PEOPLE_SCREENSHOTS=1 writes screenshots to <repo>/output/people-ui/.
 import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
@@ -17,8 +18,10 @@ const PERMISSION_CATALOG = (() => {
 })();
 const shots = process.env.PEOPLE_SCREENSHOTS ? path.resolve(import.meta.dirname, '..', '..', '..', 'output', 'people-ui') : '';
 // The two slot panels are other modules' work; most cases run without them so the slot contract itself is what is tested.
+// The Settings bundle can name a file another module has not written yet; the portal would skip it the same way. People's own files must all be there.
+const present = (file) => file.startsWith('apps/people/') || existsSync(new URL(file, new URL('../../libraries/', import.meta.url)));
 const PANELS = ['fields-panel', 'compensation-panel'];
-const FILES = ['people-kit', 'list-page', 'entity-modal', 'hover-card', 'permissions-panel', 'app-grid', 'slots', 'people-data', 'people-directory', 'page-kit', 'people-lists', 'users-page', 'groups-page', 'departments-page', 'companies-page', 'people-home', 'people-settings'];
+const FILES = ['people-kit', 'list-page', 'entity-modal', 'hover-card', 'permissions-panel', 'app-grid', 'slots', 'people-data', 'people-directory', 'page-kit', 'people-lists', 'branches', 'users-page', 'groups-page', 'departments-page', 'companies-page', 'people-home', 'people-settings'];
 const TABS = ['home', 'users', 'groups', 'departments', 'subcontractors'];
 
 // A stand-in for the Settings shell: the same grid, card and sub-tab hoisting the real shell applies to a category pane.
@@ -70,11 +73,11 @@ function stubPlatform(){
     tab('project.crew_overview', 'Visit', 'fa-location-dot', 'field', 'project_modal'), tab('project.crew_materials', 'Materials', 'fa-boxes-stacked', 'field', 'project_modal'), tab('project.crew_payments', 'Payments', 'fa-credit-card', 'field', 'project_modal')
   ];
   const departments = [
-    { id:'sales', label:'Sales', color:'#2563eb', status:'active', subject_keys:[], role_ids:['sales'], group_kind_ids:[] },
-    { id:'production', label:'Production', color:'#16a34a', status:'active', subject_keys:[], role_ids:['production', 'crew_foreman', 'crew_member'], group_kind_ids:[] },
-    { id:'office', label:'Office', color:'#9333ea', status:'active', subject_keys:[], role_ids:['office'], group_kind_ids:[] },
-    { id:'service', label:'Service and warranty', color:'#ea580c', status:'active', subject_keys:[], role_ids:[], group_kind_ids:[] },
-    { id:'warehouse', label:'Warehouse', color:'#0891b2', status:'active', subject_keys:[], role_ids:[], group_kind_ids:[] }
+    { id:'sales', branch_id:'default', label:'Sales', color:'#2563eb', status:'active', subject_keys:[], role_ids:['sales'], group_kind_ids:[] },
+    { id:'production', branch_id:'default', label:'Production', color:'#16a34a', status:'active', subject_keys:[], role_ids:['production', 'crew_foreman', 'crew_member'], group_kind_ids:[] },
+    { id:'office', branch_id:'default', label:'Office', color:'#9333ea', status:'active', subject_keys:[], role_ids:['office'], group_kind_ids:[] },
+    { id:'service', branch_id:'default', label:'Service and warranty', color:'#ea580c', status:'active', subject_keys:[], role_ids:[], group_kind_ids:[] },
+    { id:'warehouse', branch_id:'default', label:'Warehouse', color:'#0891b2', status:'active', subject_keys:[], role_ids:[], group_kind_ids:[] }
   ];
   const pattern = [['admin'], ['office'], ['sales'], ['sales', 'phones'], ['production'], ['crew_foreman'], ['crew_member'], ['crew_member'], ['sales', 'production', 'phones'], ['phones']];
   const users = Array.from({ length:42 }, (_, index) => {
@@ -105,14 +108,14 @@ function stubPlatform(){
       ...(department.subject_keys.includes(`organization_user:${user.id}`) ? [{ department_id:department.id, kind:'direct', id:user.id }] : []),
       ...department.role_ids.filter((roleId) => user.access_role_ids.includes(roleId)).map((roleId) => ({ department_id:department.id, kind:'role', id:roleId }))
     ]);
-    return { id:user.id, department_ids:[...new Set(sources.map((source) => source.department_id))], division_ids:[], sources };
+    return { id:user.id, department_ids:[...new Set(sources.map((source) => source.department_id))], sources };
   });
-  const divisions = [{ id:'north', label:'North region', kind:'Region', parent_id:'', branch_id:'', status:'active', subject_keys:[] }];
-  const categories = [{ id:'field', label:'Field' }];
-  window.__departmentExtras = { divisions, categories };
-  const departmentState = () => copy({ revision:4, legacy_token:'', departments, divisions, groups:categories, terminology:window.__departmentExtras.terminology || { department:{ singular:'Department', plural:'Departments' } }, effective_memberships:memberships(), can_manage:true, can_assign:{ user:true, role:true, group:true } });
+  window.__departmentExtras = {};
+  /* One branch, unnamed, by default; multiBranch() gives the organization several. */
+  const branchState = { branches:[{ id:'default', name:'', status:'active', is_default:true, region_id:'' }], regions:[], my:['default'], myRegions:null, revision:7, access:{} };
+  const departmentState = () => copy({ revision:4, legacy_token:'', departments, regions:branchState.regions, branches:branchState.branches.map(({ id, name, status, is_default }) => ({ id, name, status, is_default })), branch_scope:{ multiple:branchState.branches.filter((entry) => entry.status === 'active').length > 1, my_branch_id:branchState.my[0], visible_branch_ids:branchState.branches.map((entry) => entry.id), manageable_branch_ids:branchState.branches.map((entry) => entry.id) }, terminology:window.__departmentExtras.terminology || { department:{ singular:'Department', plural:'Departments' } }, effective_memberships:memberships(), can_manage:true, can_assign:{ user:true, role:true, group:true } });
   const normalize = (doc) => { const data = doc?.data && typeof doc.data === 'object' ? { id:doc.id, ...doc.data } : { ...(doc || {}) }; return { ...data, disabled:data.disabled === true || data.status === 'disabled' }; };
-  window.__people = { calls, users, roles, departments, toasts:[], presence:null, routes:[], route:{ sub:'people', settingsView:'', settingsEntity:'' }, flags:{} };
+  window.__people = { calls, users, roles, departments, branchState, toasts:[], presence:null, routes:[], route:{ sub:'people', settingsView:'', settingsEntity:'' }, flags:{} };
   window.__APP = { userOrgId:'org', userId:'u1', userEmail:users[0].email, userName:users[0].name };
   window.Portal = {
     util:{ hasPerm:() => true },
@@ -137,7 +140,15 @@ function stubPlatform(){
       users:async () => ({ users:copy(users) }),
       accessCatalog:async () => copy({ applications:[{ id:'management', label:'Office' }, { id:'field', label:'Field' }], permission_keys:['crew.dashboard.view', 'crew.projects.view', 'crew.projects.view_all_production', 'crew.schedule.view', 'crew.time_clock.use', 'crew.receipts.upload', 'crew.reimbursements.request', 'crew.materials.view', 'crew.materials.append', 'crew.payouts.view', 'crew.checklists.view', 'crew.checklists.complete', 'crew.payments.view', 'crew.payments.take', 'sales.dashboard.view', 'sales.schedule.view', 'sales.followups.manage', 'sales.earnings.view', 'sales.documents.view_status', 'sales.money.view_status', 'sales.stats.view_own', 'sales.stats.view_team', 'manage_billing', 'manage_company_settings', 'manage_company_user_permissions', 'order_reports', 'manage_report_settings', 'manage_payroll'], permission_catalog:window.__permissionCatalog, apps, roles }),
       departments:async () => departmentState(),
-      saveDepartments:async (orgId, payload) => { calls.push({ op:'saveDepartments', payload:copy(payload) }); departments.splice(0, departments.length, ...copy(payload.departments)); divisions.splice(0, divisions.length, ...copy(payload.divisions || [])); categories.splice(0, categories.length, ...copy(payload.groups || [])); if (payload.terminology) window.__departmentExtras.terminology = copy(payload.terminology); return departmentState(); },
+      saveDepartments:async (orgId, payload) => {
+        calls.push({ op:'saveDepartments', payload:copy(payload) });
+        const allowed = ['id', 'label', 'color', 'icon', 'branch_id', 'status', 'default_channel', 'app_defaults', 'subject_keys', 'role_ids', 'group_kind_ids'];
+        const extra = [...Object.keys(payload).filter((key) => !['departments', 'terminology', 'revision', 'legacy_token'].includes(key)), ...payload.departments.flatMap((entry) => Object.keys(entry).filter((key) => !allowed.includes(key)))];
+        if (extra.length) { const error = new Error(`Unrecognized key(s): ${extra.join(', ')}`); error.status = 400; throw error; }
+        departments.splice(0, departments.length, ...copy(payload.departments).map((entry) => ({ branch_id:departments.find((old) => old.id === entry.id)?.branch_id || branchState.my[0], ...entry })));
+        if (payload.terminology) window.__departmentExtras.terminology = copy(payload.terminology);
+        return departmentState();
+      },
       saveDepartmentAssignment:async (orgId, payload) => { calls.push({ op:'saveDepartmentAssignment', payload }); const key = `${payload.kind === 'group' ? 'resource_group' : payload.kind === 'connection' ? 'organization_connection' : 'organization_user'}:${payload.id}`; departments.forEach((department) => { department.subject_keys = department.subject_keys.filter((entry) => entry !== key); if (payload.department_ids.includes(department.id)) department.subject_keys.push(key); }); return departmentState(); },
       resourceGroups:async () => ({ resource_groups:copy(groups) }),
       configuration:async () => ({ configuration:{ revision:1, terminology:{} } }),
@@ -184,9 +195,9 @@ function stubDirectory(){
   const scopes = [{ id:'roofing', name:'Roofing' }, { id:'gutters', name:'Gutters' }, { id:'siding', name:'Siding' }];
   const typeNames = (ids) => ids.map((id) => types.find((type) => type.id === id)?.name || id);
   const directory = () => [
-    ...users.map((user) => ({ id:`organization_user:${user.id}`, kind:'organization_user', assignee_id:user.id, name:user.name, status:'active', type_ids:user.access_role_ids, type_names:[], role_ids:user.access_role_ids, tag_ids:user.assignment_tag_ids || [], department_ids:[], branch_ids:['default'], traits:{ has_members:false, has_login:true, external_link:false, splits_pay:false }, link_status:'', fields:{ has_cdl:['u6', 'u27'].includes(user.id) }, fields_error:'', member_ids:[], member_count:0, members:[], group_ids:[] })),
-    ...groups.filter((group) => group.status === 'active').map((group) => ({ id:`resource_group:${group.id}`, kind:'resource_group', assignee_id:group.id, name:group.name, status:'active', type_ids:[group.kind_id], type_names:typeNames([group.kind_id]), role_ids:[], tag_ids:group.assignment_tag_ids, department_ids:[], branch_ids:['default'], traits:{ has_members:true, has_login:false, external_link:false, splits_pay:true }, link_status:'', fields:{}, fields_error:'', member_ids:group.members.map((entry) => `organization_user:${entry.user_id}`), member_count:group.members.length, members:[], group_ids:[] })),
-    ...connections.filter((company) => company.status === 'active').map((company) => ({ id:`organization_connection:${company.id}`, kind:'organization_connection', assignee_id:company.id, name:company.name, status:'active', type_ids:companyTypes[company.id] || [], type_names:typeNames(companyTypes[company.id] || []), role_ids:[], tag_ids:[], department_ids:[], branch_ids:['default'], traits:{ has_members:false, has_login:company.link_status === 'linked', external_link:true, splits_pay:false }, link_status:company.link_status, fields:{}, fields_error:'', member_ids:[], member_count:0, members:[], group_ids:[] }))
+    ...users.map((user) => ({ id:`organization_user:${user.id}`, kind:'organization_user', assignee_id:user.id, name:user.name, status:'active', type_ids:user.access_role_ids, type_names:[], role_ids:user.access_role_ids, tag_ids:user.assignment_tag_ids || [], department_ids:[], branch_ids:user.branch_ids || ['default'], traits:{ has_members:false, has_login:true, external_link:false, splits_pay:false }, link_status:'', fields:{ has_cdl:['u6', 'u27'].includes(user.id) }, fields_error:'', member_ids:[], member_count:0, members:[], group_ids:[] })),
+    ...groups.filter((group) => group.status === 'active').map((group) => ({ id:`resource_group:${group.id}`, kind:'resource_group', assignee_id:group.id, name:group.name, status:'active', type_ids:[group.kind_id], type_names:typeNames([group.kind_id]), role_ids:[], tag_ids:group.assignment_tag_ids, department_ids:[], branch_ids:group.branch_ids || ['default'], traits:{ has_members:true, has_login:false, external_link:false, splits_pay:true }, link_status:'', fields:{}, fields_error:'', member_ids:group.members.map((entry) => `organization_user:${entry.user_id}`), member_count:group.members.length, members:[], group_ids:[] })),
+    ...connections.filter((company) => company.status === 'active').map((company) => ({ id:`organization_connection:${company.id}`, kind:'organization_connection', assignee_id:company.id, name:company.name, status:'active', type_ids:companyTypes[company.id] || [], type_names:typeNames(companyTypes[company.id] || []), role_ids:[], tag_ids:[], department_ids:[], branch_ids:company.branch_ids || [], traits:{ has_members:false, has_login:company.link_status === 'linked', external_link:true, splits_pay:false }, link_status:company.link_status, fields:{}, fields_error:'', member_ids:[], member_count:0, members:[], group_ids:[] }))
   ];
   Object.assign(window.__people, { groups, connections, types, companyTypes, staffing });
   const api = window.PlatformAPI;
@@ -204,7 +215,7 @@ function stubDirectory(){
     return { configuration:{ revision } };
   };
   api.userActivity = { list:async (orgId, options) => { calls.push({ op:'activity', user:options?.user?.id }); return [{ type:'photo.uploaded', summary:'Uploaded 4 photos to 18 Maple Court', occurred_at:'2026-10-12T15:20:00Z' }, { type:'project.updated', summary:'Moved 22 Birch Lane to Scheduled', occurred_at:'2026-10-11T18:05:00Z' }, { type:'login', summary:'Signed in', occurred_at:'2026-10-10T15:00:00Z' }]; } };
-  api.workforce.resourceGroups = async () => ({ resource_groups:copy(groups.filter((group) => group.status === 'active')) });
+  api.workforce.resourceGroups = async (orgId, branchId, options = {}) => { calls.push({ op:'resourceGroups', branchId, branchIds:options.branchIds || '' }); return { resource_groups:copy(groups.filter((group) => group.status === 'active')) }; };
   api.workforce.createResourceGroup = async (orgId, branchId, body) => { const group = { id:`g${groups.length + 1}`, status:'active', revision:1, members:[], assignment_tag_ids:[], capability_scope_ids:[], ...body }; groups.push(group); calls.push({ op:'createResourceGroup', body:copy(body) }); return { resource_group:copy(group) }; };
   api.workforce.updateResourceGroup = async (orgId, branchId, id, patch) => {
     const group = groups.find((entry) => entry.id === id);
@@ -226,14 +237,59 @@ function stubDirectory(){
   };
   api.workforce.archiveResourceGroup = async (orgId, branchId, id) => { groups.find((entry) => entry.id === id).status = 'archived'; calls.push({ op:'archiveResourceGroup', id }); return { ok:true, assignee_cleanup:[] }; };
   api.connections = {
-    list:async () => ({ organization_connections:copy(connections.filter((company) => company.status === 'active')) }),
+    list:async (orgId, options = {}) => { calls.push({ op:'connections', options:copy(options) }); return { organization_connections:copy(connections.filter((company) => company.status === 'active')) }; },
     create:async (orgId, body) => { const company = { id:`c${connections.length + 1}`, status:'active', revision:1, contacts:[], address:{}, metadata:{}, payment_terms:{}, link_status:'unlinked', ...body }; connections.push(company); calls.push({ op:'createConnection', body:copy(body) }); return { organization_connection:copy(company) }; },
     update:async (orgId, id, patch) => { const company = connections.find((entry) => entry.id === id); const { expected_revision, ...rest } = patch; Object.assign(company, rest, { revision:company.revision + 1 }); calls.push({ op:'updateConnection', id, patch:copy(patch) }); return { organization_connection:copy(company) }; },
     archive:async (orgId, id) => { connections.find((entry) => entry.id === id).status = 'archived'; calls.push({ op:'archiveConnection', id }); return { ok:true }; }
   };
+  const branchState = window.__people.branchState;
+  const structure = () => {
+    const active = branchState.branches.filter((entry) => entry.status === 'active');
+    const feature = window.__people.flags['platform.multiple_branches'] !== false;
+    const regionOf = (id) => branchState.regions.find((region) => region.status !== 'archived' && region.branch_ids.includes(id))?.id || '';
+    const myRegions = branchState.myRegions || [...new Set(branchState.my.map(regionOf).filter(Boolean))];
+    const count = (id) => users.filter((user) => (user.branch_ids || ['default']).includes(id)).length;
+    return copy({
+      feature_enabled:feature, multiple:feature && active.length > 1, default_branch_id:'default', my_branch_id:branchState.my[0], my_branch_ids:branchState.my, my_region_ids:myRegions,
+      branches:branchState.branches.map((entry) => ({ ...entry, region_id:regionOf(entry.id), is_mine:branchState.my.includes(entry.id), counts:{ users:count(entry.id), groups:0, companies:0, departments:departments.filter((department) => department.branch_id === entry.id).length }, can_manage:true })),
+      regions:branchState.regions.map((region) => ({ ...region, is_mine:myRegions.includes(region.id) })),
+      companies_in_every_branch:1,
+      access:{ see:'all', manage:'all', restricted:false, visible_branch_ids:branchState.branches.map((entry) => entry.id), manageable_branch_ids:branchState.branches.map((entry) => entry.id), can_add_branch:true, can_archive_branch:true, can_manage_regions:true, can_rename_branch_ids:branchState.branches.map((entry) => entry.id), can_set_membership:true, ...branchState.access },
+      catalog_revision:branchState.revision, revision:`sha256:${branchState.revision}`
+    });
+  };
+  window.__people.structure = structure;
+  const branchAction = (action, input) => {
+    const fail = (code) => { const error = new Error(code); error.code = code; throw error; };
+    if (action === 'organization-branches.branch.add') {
+      if (!input.name) fail('branch_name_required');
+      if (branchState.branches.some((entry) => entry.name.toLowerCase() === input.name.toLowerCase())) fail('branch_name_taken');
+      const id = input.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      branchState.branches.push({ id, name:input.name, status:'active', is_default:false, region_id:'' });
+      if (input.region_id) branchState.regions.find((region) => region.id === input.region_id).branch_ids.push(id);
+    } else if (action === 'organization-branches.branch.rename') {
+      const entry = branchState.branches.find((item) => item.id === input.branch_id);
+      if (!input.name && !entry.is_default) fail('branch_name_required');
+      if (input.name && branchState.branches.some((item) => item !== entry && item.name.toLowerCase() === input.name.toLowerCase())) fail('branch_name_taken');
+      entry.name = input.name;
+    } else if (action === 'organization-branches.branch.archive') {
+      const entry = branchState.branches.find((item) => item.id === input.branch_id);
+      if (entry.is_default) fail('default_branch_required');
+      entry.status = input.archived === false ? 'active' : 'archived';
+    } else if (action === 'organization-branches.region.save') {
+      if (input.id) Object.assign(branchState.regions.find((region) => region.id === input.id), { label:input.label }, input.status ? { status:input.status } : {});
+      else branchState.regions.push({ id:`region_${branchState.regions.length + 1}`, label:input.label, status:'active', branch_ids:[] });
+    } else if (action === 'organization-branches.branch.region.set') {
+      branchState.regions.forEach((region) => { region.branch_ids = region.branch_ids.filter((id) => id !== input.branch_id); });
+      if (input.region_id) branchState.regions.find((region) => region.id === input.region_id).branch_ids.push(input.branch_id);
+    } else return null;
+    branchState.revision += 1;
+    return { value:structure() };
+  };
   api.publication = {
     read:async (orgId, source) => {
       calls.push({ op:'read', source:`${source.provider}.${source.export}` });
+      if (source.provider === 'organization-branches' && source.export === 'structure') return { status:'ready', value:structure(), revision:'r' };
       if (source.provider !== 'assignee-directory') return { status:'unavailable' };
       if (source.export === 'assignees') return { status:'ready', value:copy(directory()), revision:'r' };
       if (source.export === 'types') return { status:'ready', value:copy(types), revision:'r' };
@@ -242,6 +298,7 @@ function stubDirectory(){
     },
     invoke:async (orgId, action, target, input, options) => {
       calls.push({ op:'invoke', action, target:copy(target), input:copy(input), idempotencyKey:options?.idempotencyKey || '' });
+      if (action.startsWith('organization-branches.')) { const done = branchAction(action, input); if (done) return done; }
       if (action === 'assignees.type.save') {
         let type = types.find((entry) => entry.id === input.id && entry.kind === input.kind);
         if (!type) { type = { id:input.id || input.name.toLowerCase().replace(/[^a-z0-9]+/g, '_'), kind:input.kind, name:input.name, description:'', status:'active', member_role_ids:[] }; types.push(type); }
@@ -281,6 +338,23 @@ function hoistSubtabs(){
   sync();
 }
 
+function multiBranch(){
+  const people = window.__people;
+  people.branchState.branches = [
+    { id:'default', name:'', status:'active', is_default:true, region_id:'' },
+    { id:'asheville', name:'Asheville', status:'active', is_default:false, region_id:'east' },
+    { id:'boone', name:'Boone', status:'active', is_default:false, region_id:'east' },
+    { id:'knox', name:'Knoxville', status:'active', is_default:false, region_id:'' }
+  ];
+  people.branchState.regions = [{ id:'east', label:'East', status:'active', branch_ids:['asheville', 'boone'] }];
+  people.branchState.my = ['asheville'];
+  const place = ['asheville', 'boone', 'knox', 'default'];
+  people.users.forEach((user, index) => { const branch = place[index % 4]; user.branch_id = branch; user.branch_ids = index === 8 ? [branch, 'knox'] : [branch]; });
+  Object.entries({ sales:'asheville', production:'asheville', office:'default', service:'boone', warehouse:'knox' }).forEach(([id, branch]) => { people.departments.find((department) => department.id === id).branch_id = branch; });
+  Object.entries({ g1:'asheville', g2:'boone', g3:'knox', g4:'asheville', g5:'default' }).forEach(([id, branch]) => { const group = people.groups.find((entry) => entry.id === id); group.branch_id = branch; group.branch_ids = [branch]; });
+  Object.entries({ c1:[], c2:['asheville'], c3:['knox'], c4:['boone'] }).forEach(([id, branches]) => { people.connections.find((entry) => entry.id === id).branch_ids = branches; });
+}
+
 async function openPage(browser, viewport, options = {}){
   const page = await browser.newPage({ viewport });
   const errors = [];
@@ -295,19 +369,22 @@ async function openPage(browser, viewport, options = {}){
   await page.evaluate((catalog) => { window.__permissionCatalog = catalog; }, PERMISSION_CATALOG); await page.evaluate(stubPlatform);
   await page.evaluate(stubDirectory);
   if (options.flags) await page.evaluate((flags) => Object.assign(window.__people.flags, flags), options.flags);
-  if (options.setup) await page.evaluate(options.setup);
+  for (const setup of [].concat(options.setup || [])) await page.evaluate(setup);
   await page.addScriptTag({ url:'http://people.test/libraries/platform-ui/platform-ui.js' });
   await page.addScriptTag({ url:'http://people.test/libraries/settings-pages/firstmate-settings-pages.js' });
   for (const file of FILES) await page.addScriptTag({ url:`http://people.test/libraries/apps/people/${file}.js` });
   await page.evaluate(hoistSubtabs);
   // The shell activates the pane; People mounts itself into it.
   await page.evaluate(() => document.getElementById('csPanePeople').classList.add('active'));
+  // 'direct': People opens straight onto its only (or first) page, as it does for an organization without the overview.
+  if (options.view === 'direct') { await page.locator('.pp-list-body[aria-busy="false"]').first().waitFor(); return { page, errors }; }
   await page.locator('.pp-card').first().waitFor();
   await page.waitForFunction(() => !document.querySelector('.pp-card.loading'));
   if (options.view !== 'home') await openView(page, options.view || 'users');
   return { page, errors };
 }
-const openView = async (page, view) => { await page.locator('[data-settings-subtabs-proxy] button').nth(TABS.indexOf(view)).evaluate((button) => { button.scrollIntoView({ inline:'center', block:'nearest' }); button.click(); }); if (view !== 'home') await page.locator('.pp-list-body[aria-busy="false"]').first().waitFor(); };
+const TAB_LABELS = { home:'Overview', users:'Users', groups:'Groups', departments:'Departments', subcontractors:'Subcontractors' };
+const openView = async (page, view) => { await page.locator('[data-settings-subtabs-proxy] button').filter({ hasText:new RegExp(`^\\s*${TAB_LABELS[view]}\\s*$`) }).evaluate((button) => { button.scrollIntoView({ inline:'center', block:'nearest' }); button.click(); }); if (view !== 'home') await page.locator('.pp-list-body[aria-busy="false"]').first().waitFor(); };
 const shot = async (page, name) => { if (!shots) return; await mkdir(shots, { recursive:true }); await page.waitForTimeout(260); await page.screenshot({ path:path.join(shots, `${name}.png`) }); };
 const columnsOf = (page, selector) => page.evaluate((sel) => new Set(Array.from(document.querySelectorAll(sel)).map((row) => Math.round(row.getBoundingClientRect().left))).size, selector);
 const launch = () => chromium.launch({ executablePath:process.env.CHROME_PATH || (process.platform === 'win32' ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/usr/bin/chromium'), headless:true });
@@ -331,7 +408,7 @@ test('People category: Users list, hover card, user and role modals, invitations
 
     // Rows: under a heading for each department, "No department" last; two columns of tight rows in each.
     assert.equal(await page.evaluate(() => new Set([...document.querySelectorAll('.pp-list-body .pp-row')].map((row) => row.dataset.rowKey)).size), 42);
-    assert.deepEqual(await page.locator('.pp-list-section-head h3').allInnerTexts(), ['Office', 'Production', 'Sales', 'Service and warranty', 'Warehouse', 'No department']);
+    assert.deepEqual(await page.locator('.pp-list-section-name').allInnerTexts(), ['Office', 'Production', 'Sales', 'Service and warranty', 'Warehouse', 'No department']);
     assert.equal(await page.locator('.pp-list-body [data-row-key="u9"]').count(), 5, 'someone in five departments is listed under each');
     assert.equal(await page.locator('[data-list-section="department:service"] [data-row-key="u3"]').count(), 1);
     assert.equal(await page.locator('[data-list-section="department:production"] .pp-list-section-mark i.fa-helmet-safety').count(), 1, 'the heading carries the department icon');
@@ -539,11 +616,21 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.equal(await page.evaluate(() => document.activeElement?.closest('.pp-row')?.dataset.rowKey), 'u3');
     assert.match(await page.locator('[data-row-key="u3"]').first().innerText(), /Foreman/);
 
-    // Roles: the header button drops a menu; a role opens in the same modal.
+    // Roles: the header button opens the large list, like types and tags; a row opens the role over it.
     await page.locator('[data-list-action="0"]').click();
-    await page.getByRole('menu', { name:'Roles' }).waitFor();
-    await shot(page, 'roles-menu');
-    await page.getByRole('menuitem', { name:/^Sales/ }).click();
+    const rolesList = page.getByRole('dialog', { name:'Roles' });
+    await rolesList.waitFor();
+    assert.equal(await rolesList.locator('.pp-type').count(), 7, 'every active role is a row');
+    assert.equal(await rolesList.locator('[data-type-id="sales"] .pp-type-open').getAttribute('data-fm-tooltip'), 'Sells and follows up', 'the description is the name tooltip');
+    assert.match(await rolesList.locator('[data-type-id="admin"]').innerText(), /Administrator[\s\S]*Built-in/);
+    assert.match(await rolesList.locator('[data-type-id="sales"]').innerText(), /Sales[\s\S]*Custom/);
+    assert.ok(await rolesList.locator('[data-type-id="sales"] .pp-type-faces .pp-avatar').count() >= 1, 'a few member faces');
+    assert.equal(await rolesList.locator('[data-type-id="sales"] .pp-stack-count').innerText(), String(await page.evaluate(() => window.FirstMatePeople.data.roleMembers('sales').length)));
+    assert.equal(await rolesList.locator('[data-type-id="admin"] [data-list-row-action="archive"]').isDisabled(), true, 'a built-in role cannot be archived');
+    assert.equal(await rolesList.locator('[data-type-id="sales"] [data-list-row-action="archive"]').isDisabled(), false);
+    assert.equal(await rolesList.locator('[data-list-new]').innerText(), 'New role');
+    await shot(page, 'roles-list');
+    await rolesList.locator('[data-type-id="sales"] .pp-type-open').click();
     const roleDialog = page.getByRole('dialog', { name:'Sales' });
     await roleDialog.waitFor();
     assert.deepEqual(await roleDialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Permissions', 'Members', 'App experience', 'Compensation', 'Fields']);
@@ -562,6 +649,27 @@ test('People category: Users list, hover card, user and role modals, invitations
     assert.equal(rolePatch.permissions['sales.stats.view_team'], true);
     assert.equal(rolePatch.expected_revision, 5);
     await roleDialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+
+    // Duplicate copies permissions and app defaults under a new name; Archive asks first.
+    await page.locator('[data-list-action="0"]').click();
+    await rolesList.waitFor();
+    await rolesList.locator('[data-type-id="sales"] [data-list-row-action="duplicate"]').click();
+    assert.equal(await page.locator('.pp-form [name="name"]').inputValue(), 'Sales copy');
+    await page.locator('.pp-form [type="submit"]').click();
+    await rolesList.locator('.pp-type', { hasText:'Sales copy' }).waitFor();
+    const copied = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'createAccessRole' || call.op === 'updateAccessRole').slice(-2));
+    assert.equal(copied[0].op, 'createAccessRole');
+    assert.equal(copied[0].role.name, 'Sales copy');
+    assert.deepEqual(copied[0].role.application_ids, ['management', 'field']);
+    assert.equal(copied[1].patch.permissions['sales.stats.view_team'], true, 'the copy has the permissions');
+    assert.equal(copied[1].patch.description, 'Sells and follows up');
+    const copyId = copied[1].id;
+    await rolesList.locator(`[data-type-id="${copyId}"] [data-list-row-action="archive"]`).click();
+    await page.getByRole('alertdialog').getByRole('button', { name:'Archive' }).click();
+    await page.waitForFunction((id) => window.__people.calls.some((call) => call.op === 'archiveAccessRole' && call.id === id), copyId);
+    await rolesList.locator(`[data-type-id="${copyId}"]`).waitFor({ state:'detached' });
+    await rolesList.locator('[data-modal-close]').click();
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
 
     // Invitations live here.
@@ -639,13 +747,20 @@ test('People category at phone width: one column of rows and a full-screen modal
     await page.locator('[data-modal-close]').click();
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
     await page.locator('[data-list-action="0"]').click();
-    await page.getByRole('menuitem', { name:/^Sales/ }).click();
+    await page.getByRole('dialog', { name:'Roles' }).locator('[data-type-id="sales"] .pp-type-open').click();
     const roleDialog = page.getByRole('dialog', { name:'Sales' });
     await roleDialog.waitFor();
     await roleDialog.locator('[data-perm-group="field"]').evaluate((button) => { button.scrollIntoView({ inline:'center', block:'nearest' }); button.click(); });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     await shot(page, 'role-modal-phone-permissions');
-    await page.locator('[data-modal-close]').click();
+    await roleDialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    await page.locator('[data-list-action="0"]').click();
+    const rolesPhone = page.getByRole('dialog', { name:'Roles' });
+    await rolesPhone.locator('.pp-type').first().waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await shot(page, 'roles-list-phone');
+    await rolesPhone.locator('[data-modal-close]').click();
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
@@ -704,7 +819,7 @@ test('Groups: rows, types with roles on joining, members and what joining gave, 
     assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Types', 'Tags', 'New group']);
     const north = page.locator('[data-row-key="g1"]');
     // Groups sit under their type's section, and the row does not repeat the type.
-    assert.deepEqual(await page.locator('.pp-list-section-head h3').allInnerTexts(), ['Install crews', 'Sales teams', 'Service teams']);
+    assert.deepEqual(await page.locator('.pp-list-section-name').allInnerTexts(), ['Install crews', 'Sales teams', 'Service teams']);
     assert.equal(await page.locator('.pp-list-section').first().locator('[data-row-key="g1"]').count(), 1);
     assert.equal(await north.locator('.pp-pill').count(), 0);
     assert.equal(await north.locator('.pp-stack-count').innerText(), '7');
@@ -930,7 +1045,7 @@ test('Departments: icon and color, members of every kind, roles held only here, 
     await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
     assert.ok(await page.locator('.pp-list-body [data-row-key="production"] .pp-avatar i.fa-hammer').count());
 
-    await page.locator('[data-list-action="2"]').click();
+    await page.locator('[data-list-action="0"]').click();
     await page.locator('.pp-form [name="label"]').fill('Estimating');
     await page.locator('.pp-form [type="submit"]').click();
     await page.getByRole('dialog', { name:'Estimating' }).waitFor();
@@ -1020,47 +1135,44 @@ test('Subcontractors: several types, link status, overview, link, payment terms;
   } finally { await browser.close(); }
 });
 
-// Units that nest: North region > Asheville office > Production, and Service and warranty in North region; the rest at the top.
-function nestUnits(){
-  const { departments, users } = window.__people;
-  window.__departmentExtras.divisions.push({ id:'asheville', label:'Asheville office', kind:'Office', parent_id:'north', branch_id:'', status:'active', subject_keys:[] });
-  departments.find((department) => department.id === 'production').division_id = 'asheville';
-  departments.find((department) => department.id === 'service').division_id = 'north';
-  departments.find((department) => department.id === 'office').group_id = 'field';
-  users.find((user) => user.id === 'u9').scoped_access_assignments = [{ role_id:'crew_foreman', scope:{ kind:'department', id:'production' } }, { role_id:'crew_member', scope:{ kind:'division', id:'north' } }];
+// Several branches, and u9 holds roles in a department, in the East region and in the Knoxville branch.
+function branchRoles(){
+  window.__people.users.find((user) => user.id === 'u9').scoped_access_assignments = [{ role_id:'crew_foreman', scope:{ kind:'department', id:'production' } }, { role_id:'crew_member', scope:{ kind:'region', id:'east' } }, { role_id:'phones', scope:{ kind:'branch', id:'knox' } }];
 }
 
-test('User modal: departments nested the way they are organized, each with its own roles, at desktop and phone width', async () => {
+test('User modal: departments under their branch and region, each place with its own roles, at desktop and phone width', async () => {
   const browser = await launch();
   try {
     for (const [width, height, suffix] of [[1440, 900, 'desktop'], [390, 844, 'phone']]) {
-      const { page, errors } = await openPage(browser, { width, height }, { setup:nestUnits });
+      const { page, errors } = await openPage(browser, { width, height }, { setup:[multiBranch, branchRoles] });
       await page.locator('[data-row-key="u9"] .pp-row-name').first().click();
       const dialog = page.getByRole('dialog');
       await dialog.waitFor();
       if (suffix === 'phone') { await page.locator('[data-modal-summary-toggle]').click(); await dialog.locator('[data-section="departments"]').scrollIntoViewIfNeeded(); }
       const section = dialog.locator('[data-section="departments"]');
       const outline = await section.locator('.pp-dtree-item').evaluateAll((items) => items.map((item) => `${item.style.getPropertyValue('--depth')}:${item.querySelector('.pp-dtree-name').textContent}`));
-      assert.deepEqual(outline, ['0:Office', '0:Sales', '0:Warehouse', '0:North region', '1:Service and warranty', '1:Asheville office', '2:Production']);
-      assert.equal(await dialog.locator('[data-section="roles"] h4').textContent(), 'Roles everywhere');
+      assert.deepEqual(outline, ['0:East', '1:Asheville', '2:Production', '2:Sales', '1:Boone', '2:Service and warranty', '0:Knoxville', '1:Warehouse', '0:Main branch', '1:Office']);
       const production = section.locator('[data-dtree="department:production"]');
       assert.match(await production.innerText(), /Production[\s\S]*Foreman/);
+      assert.equal(await production.locator('[data-dtree-roles]').getAttribute('aria-label'), 'Roles in Production');
       assert.equal(await production.locator('.pp-dtree-via').getAttribute('aria-label'), 'In Production through the Production role');
-      assert.equal(await production.locator('.pp-dtree-remove').count(), 0, 'a department held through a role is not removed here');
-      assert.match(await section.locator('[data-dtree="unit:north"]').innerText(), /North region[\s\S]*Installer/);
-      assert.equal(await section.locator('[data-dtree="department:service"] .pp-dtree-remove').count(), 1);
+      assert.match(await section.locator('[data-dtree="region:east"]').innerText(), /East[\s\S]*Installer/);
+      assert.match(await section.locator('[data-dtree="branch:knox"]').innerText(), /Knoxville[\s\S]*Phones/);
+      assert.equal(await section.locator('[data-dtree="branch:asheville"] [data-dtree-roles]').getAttribute('aria-label'), 'Roles in Asheville');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no horizontal scrolling');
       const fits = await section.locator('.pp-dtree-line').evaluateAll((lines) => lines.every((line) => line.scrollWidth <= line.clientWidth + 1));
-      assert.ok(fits, 'every department line fits its column');
-      await shot(page, `user-modal-departments-${suffix}`);
+      assert.ok(fits, 'every line fits its column');
+      await shot(page, `user-modal-branches-${suffix}`);
 
+      await section.locator('[data-dtree="region:east"] [data-dtree-roles]').click();
+      await page.getByRole('menu', { name:'Roles in East' }).waitFor();
+      assert.equal(await page.locator('.pp-menu-title .pp-info').getAttribute('data-fm-tooltip'), 'These apply only to work in the branches of East.');
+      assert.equal(await page.getByRole('menuitemcheckbox', { name:'Installer' }).getAttribute('aria-checked'), 'true');
+      await page.keyboard.press('Escape');
       await production.locator('[data-dtree-roles]').click();
       const picker = page.getByRole('menu', { name:'Roles in Production' });
       await picker.waitFor();
-      assert.equal(await picker.getByRole('menuitemcheckbox', { name:'Foreman' }).getAttribute('aria-checked'), 'true');
-      assert.equal(await picker.getByRole('menuitemcheckbox', { name:/^Production/ }).isDisabled(), true, 'held everywhere');
       await picker.getByRole('menuitemcheckbox', { name:'Installer' }).click();
-      assert.match(await production.innerText(), /Foreman[\s\S]*Installer/);
       const box = await page.locator('.pp-menu').boundingBox();
       assert.ok(box.x >= 0 && box.x + box.width <= width, 'the picker stays on screen');
       await shot(page, `user-modal-roles-picker-${suffix}`);
@@ -1072,16 +1184,9 @@ test('User modal: departments nested the way they are organized, each with its o
         await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
         const saved = await page.evaluate(() => ({ departments:window.__people.calls.filter((call) => call.op === 'saveDepartmentAssignment').pop().payload, scoped:window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u9').pop().profile.scoped_access_assignments }));
         assert.deepEqual(saved.departments.department_ids, ['warehouse']);
-        assert.deepEqual(saved.scoped, [{ role_id:'crew_member', scope:{ kind:'division', id:'north' } }, { role_id:'crew_foreman', scope:{ kind:'department', id:'production' } }, { role_id:'crew_member', scope:{ kind:'department', id:'production' } }], 'the unit role is kept');
+        assert.deepEqual(saved.scoped, [{ role_id:'crew_member', scope:{ kind:'region', id:'east' } }, { role_id:'phones', scope:{ kind:'branch', id:'knox' } }, { role_id:'crew_foreman', scope:{ kind:'department', id:'production' } }, { role_id:'crew_member', scope:{ kind:'department', id:'production' } }], 'branch and region roles are kept');
         await dialog.locator('[data-modal-close]').click();
         await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
-        // The Departments list shows the same nesting, one section per unit, rows full width.
-        await openView(page, 'departments');
-        assert.deepEqual(await page.locator('.pp-list-section-head h3').allInnerTexts(), ['North region', 'North region › Asheville office', 'Not in a unit']);
-        assert.deepEqual(await page.locator('[data-list-section="unit:north"] .pp-row').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey)), ['service']);
-        assert.equal(await columnsOf(page, '.pp-list-body .pp-row'), 1, 'rows stay full width');
-        assert.equal(await page.locator('[data-row-key="office"] .pp-pill', { hasText:'Field' }).count(), 1, 'the category shows on the row');
-        await shot(page, 'departments-nested');
       }
       assert.deepEqual(errors, []);
       await page.close();
@@ -1205,7 +1310,7 @@ test('People inside the real Settings shell (company.js): declared once, mounted
     await page.evaluate(stubDirectory);
     await page.evaluate(() => {
       // What the portal gives every app, reduced to what the Settings shell reads.
-      const on = new Set(['platform.people_access', 'platform.expanded_access', 'platform.my_settings', 'apps.payroll']);
+      const on = new Set(['platform.people_access', 'platform.expanded_access', 'platform.my_settings', 'platform.custom_fields', 'apps.payroll', 'apps.crew']);
       window.PlatformAPI.appFlags = { has:(group, flag) => on.has(`${group}.${flag}`), value:() => undefined, current:() => ({}) };
       window.__people.route = { tab:'company_settings', sub:'people', settingsView:'', settingsEntity:'' };
       Object.assign(window.Portal, {
@@ -1230,7 +1335,7 @@ test('People inside the real Settings shell (company.js): declared once, mounted
     for (const panel of PANELS) assert.ok(bundles.indexOf(`apps/people/${panel}.js`) > bundles.indexOf('apps/people/people-data.js') && bundles.indexOf(`apps/people/${panel}.js`) < bundles.indexOf('apps/people/users-page.js'), `${panel} loads after the store and before the pages`);
     assert.ok(bundles.indexOf('custom-fields/firstmate-custom-fields.js') < bundles.indexOf('apps/people/fields-panel.js') && bundles.indexOf('payroll-api/payroll-api.js') < bundles.indexOf('apps/people/compensation-panel.js'));
     assert.ok(bundles.indexOf('apps/people/people-settings.js') < bundles.indexOf('apps/settings/company.js'));
-    for (const file of ['platform-ui/platform-ui.js', 'settings-pages/firstmate-settings-pages.js', 'apps/settings/search.js', 'priority-fields/priority-fields.js', ...bundles]) await page.addScriptTag({ url:`http://people.test/libraries/${file}` });
+    for (const file of ['platform-ui/platform-ui.js', 'settings-pages/firstmate-settings-pages.js', 'apps/settings/search-index.js', 'apps/settings/search.js', 'priority-fields/priority-fields.js', ...bundles].filter(present)) await page.addScriptTag({ url:`http://people.test/libraries/${file}` });
     await page.evaluate(() => window.__settingsApp.mount(document.getElementById('tab_company_settings')));
 
     // One declaration gives the sidebar entry, the title and the pane; People fills the pane on its own.
@@ -1302,7 +1407,7 @@ test('People inside the real Settings shell (company.js): declared once, mounted
   } finally { await browser.close(); }
 });
 
-test('Users: status filter chips, photo at invite, activity, and a role held in one organizational unit', async () => {
+test('Users: status filter chips, photo at invite, activity, and roles held in one department', async () => {
   const browser = await launch();
   try {
     const { page, errors } = await openPage(browser, { width:1440, height:900 }, { setup:() => {
@@ -1310,7 +1415,6 @@ test('Users: status filter chips, photo at invite, activity, and a role held in 
       const list = window.PlatformAPI.users.list;
       window.PlatformAPI.users.list = async () => { const result = await list(); result.users.push({ id:'gone1', name:'Otto Former', email:'otto@northwind-exteriors.example', status:'deleted', deleted:true, access_role_ids:[] }); return result; };
       window.Portal.cfg = { serverEndpoint:'http://people.test/upload' };
-      window.__people.departments.find((department) => department.id === 'sales').division_id = 'north';
     } });
     await page.route('http://people.test/upload', (route) => route.fulfill({ contentType:'application/json', body:JSON.stringify({ success:true, avatar_url:'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>' }) }));
     assert.deepEqual(await page.locator('[data-list-filter]').evaluateAll((chips) => chips.map((chip) => chip.textContent.trim())), ['All', 'Active38', 'Never signed in3', 'Suspended1', 'Archived1']);
@@ -1340,7 +1444,7 @@ test('Users: status filter chips, photo at invite, activity, and a role held in 
     assert.match((await upload).postData() || '', /org_users_upload_avatar_my[\s\S]*u43/);
     await page.locator('[data-row-key="u43"]').waitFor();
 
-    // Activity, and a role held only in one unit.
+    // Activity, and a role held only in one department.
     await page.locator('[data-row-key="u4"] .pp-row-name').first().click();
     const dialog = page.getByRole('dialog');
     await dialog.locator('.pp-tab', { hasText:'Activity' }).click();
@@ -1349,86 +1453,47 @@ test('Users: status filter chips, photo at invite, activity, and a role held in 
     assert.match(await dialog.locator('.pp-activity').innerText(), /Uploaded 4 photos to 18 Maple Court/);
     assert.equal(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'activity').user), 'u4');
     await shot(page, 'user-modal-activity');
-    // Sales sits in North region: the unit heads it in the tree and has its own Roles button.
+    // One branch: the department stands alone, with no branch or region above it.
     const departments = dialog.locator('[data-section="departments"]');
-    assert.deepEqual(await departments.locator('.pp-dtree-item .pp-dtree-name').allInnerTexts(), ['North region', 'Sales']);
-    const north = departments.locator('[data-dtree="unit:north"]');
-    await north.locator('[data-dtree-roles]').click();
-    await page.getByRole('menu', { name:'Roles in North region' }).waitFor();
-    assert.equal(await page.locator('.pp-menu-title .pp-info').getAttribute('data-fm-tooltip'), 'These apply only to work in North region and its departments.');
-    await page.getByRole('menuitemcheckbox', { name:'Production' }).click();
-    await page.keyboard.press('Escape');
-    assert.match(await north.innerText(), /North region[\s\S]*Production/);
-    // A role in one department is written beside the unit's, never instead of it.
+    assert.deepEqual(await departments.locator('.pp-dtree-item .pp-dtree-name').allInnerTexts(), ['Sales']);
+    assert.equal(await departments.locator('[data-dtree^="branch:"], [data-dtree^="region:"]').count(), 0);
     await departments.locator('[data-dtree="department:sales"] [data-dtree-roles]').click();
     await page.getByRole('menuitemcheckbox', { name:'Foreman' }).click();
     await page.keyboard.press('Escape');
     await dialog.locator('[data-modal-save]').click();
     await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
-    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments), [{ role_id:'production', scope:{ kind:'division', id:'north' } }, { role_id:'crew_foreman', scope:{ kind:'department', id:'sales' } }]);
-    // Changing the department's roles again keeps the unit's.
-    await departments.locator('[data-dtree="department:sales"] [data-dtree-roles]').click();
-    await page.getByRole('menuitemcheckbox', { name:'Foreman' }).click();
-    await page.keyboard.press('Escape');
-    await dialog.locator('[data-modal-save]').click();
-    await page.waitForFunction(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments.length === 1);
-    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments), [{ role_id:'production', scope:{ kind:'division', id:'north' } }]);
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveUserProfile' && call.id === 'u4').pop().profile.scoped_access_assignments), [{ role_id:'crew_foreman', scope:{ kind:'department', id:'sales' } }]);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
 
-test('Departments: units and categories lists, category and unit on a department, the channel switch and app visibility', async () => {
+test('Departments: no units or categories, the channel switch, app visibility and a strict save', async () => {
   const browser = await launch();
   try {
     const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'departments' });
-    assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Units', 'Categories', 'New department']);
-    await page.locator('[data-list-action="0"]').click();
-    const units = page.getByRole('dialog', { name:'Organizational units' });
-    await units.waitFor();
-    assert.match(await units.locator('[data-type-id="north"]').innerText(), /North region[\s\S]*Region/);
-    await units.locator('[data-list-new]').click();
-    await page.locator('.pp-form [name="label"]').fill('Asheville office');
-    await page.locator('.pp-form [name="kind"]').fill('Office');
-    await page.locator('.pp-form [name="parent_id"]').selectOption('north');
-    await page.locator('.pp-form [type="submit"]').click();
-    await units.locator('.pp-type', { hasText:'Asheville office' }).waitFor();
-    await shot(page, 'department-units');
-    const unit = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveDepartments').pop().payload.divisions.find((entry) => entry.label === 'Asheville office'));
-    assert.deepEqual([unit.kind, unit.parent_id, unit.status], ['Office', 'north', 'active']);
-    await units.locator('[data-modal-close]').click();
-    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
-    await page.locator('[data-list-action="1"]').click();
-    const categories = page.getByRole('dialog', { name:'Categories' });
-    await categories.locator('[data-list-new]').click();
-    await page.locator('.pp-form [name="label"]').fill('Back office');
-    await page.locator('.pp-form [type="submit"]').click();
-    await categories.locator('.pp-type', { hasText:'Back office' }).waitFor();
-    await shot(page, 'department-categories');
-    await categories.locator('[data-modal-close]').click();
-    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
-
+    assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['New department']);
+    assert.equal(await page.locator('.pp-list-section').count(), 0, 'one branch: departments are not sectioned');
     await page.locator('.pp-list-body [data-row-key="office"] .pp-row-name').click();
     const dialog = page.getByRole('dialog', { name:'Office' });
     await dialog.waitFor();
+    assert.equal(await dialog.locator('[data-people-identity]').getAttribute('aria-label'), 'Edit name');
     await dialog.locator('[data-people-identity]').click();
-    await dialog.locator('select[data-identity="group_id"]').selectOption({ label:'Back office' });
-    await dialog.locator('select[data-identity="division_id"]').selectOption('north');
-    assert.equal(await dialog.locator('[data-dept-channel]').getAttribute('aria-checked'), 'true');
+    assert.equal(await dialog.locator('select[data-identity]').count(), 0, 'no category, unit or branch to pick');
     await dialog.locator('[data-dept-channel]').click();
     await dialog.locator('.pp-tab', { hasText:'App visibility' }).click();
     assert.ok(await columnsOf(page, '.pp-app') >= 2);
     await dialog.locator('[data-apps-id="portal.payroll"] [data-apps-cell="desktop"]').click();
-    assert.match(await dialog.locator('[data-apps-id="portal.payroll"]').getAttribute('class'), /overridden/);
     await shot(page, 'department-modal-app-visibility');
     await dialog.locator('[data-modal-save]').click();
     await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
-    const saved = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveDepartments').pop().payload.departments.find((entry) => entry.id === 'office'));
-    assert.equal(saved.division_id, 'north');
+    const payload = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveDepartments').pop().payload);
+    assert.deepEqual(Object.keys(payload).sort(), ['departments', 'revision', 'terminology']);
+    const allowed = ['id', 'label', 'color', 'icon', 'branch_id', 'status', 'default_channel', 'app_defaults', 'subject_keys', 'role_ids', 'group_kind_ids'];
+    assert.ok(payload.departments.every((entry) => Object.keys(entry).every((key) => allowed.includes(key))), 'no group_id or division_id');
+    const saved = payload.departments.find((entry) => entry.id === 'office');
     assert.equal(saved.default_channel, false);
+    assert.equal(saved.branch_id, 'default', 'an existing department keeps the branch it was read with');
     assert.deepEqual(saved.app_defaults, { 'portal.payroll':{ visibility:'hide', enforcement:'default' } });
-    assert.ok(saved.group_id);
-    assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Back office[\s\S]*North region/);
-    await shot(page, 'department-modal-category-unit');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -1528,7 +1593,7 @@ async function openRealShell(browser, viewport, view = 'users'){
   await page.evaluate((catalog) => { window.__permissionCatalog = catalog; }, PERMISSION_CATALOG); await page.evaluate(stubPlatform);
   await page.evaluate(stubDirectory);
   await page.evaluate((startView) => {
-    const on = new Set(['platform.people_access', 'platform.expanded_access', 'platform.my_settings', 'apps.payroll']);
+    const on = new Set(['platform.people_access', 'platform.expanded_access', 'platform.my_settings', 'platform.custom_fields', 'apps.payroll', 'apps.crew']);
     window.PlatformAPI.appFlags = { has:(group, flag) => on.has(`${group}.${flag}`), value:() => undefined, current:() => ({}) };
     window.__people.route = { tab:'company_settings', sub:'people', settingsView:startView, settingsEntity:'' };
     Object.assign(window.Portal, {
@@ -1555,7 +1620,7 @@ async function openRealShell(browser, viewport, view = 'users'){
   const manifest = await readFile(new URL('apps/firstmate-apps-manifest.js', libraries), 'utf8');
   const block = manifest.slice(manifest.indexOf("id: 'portal.company_settings'"));
   const bundles = [...block.slice(block.indexOf('bundles: ['), block.indexOf('\n', block.indexOf('bundles: ['))).matchAll(/versionedBundle\('([^']+)'/g)].map((match) => new URL(match[1], 'http://people.test/libraries/apps/').pathname.replace('/libraries/', ''));
-  for (const file of ['platform-ui/platform-ui.js', 'settings-pages/firstmate-settings-pages.js', 'apps/settings/search.js', 'priority-fields/priority-fields.js', ...bundles]) await page.addScriptTag({ url:`http://people.test/libraries/${file}` });
+  for (const file of ['platform-ui/platform-ui.js', 'settings-pages/firstmate-settings-pages.js', 'apps/settings/search-index.js', 'apps/settings/search.js', 'priority-fields/priority-fields.js', ...bundles].filter(present)) await page.addScriptTag({ url:`http://people.test/libraries/${file}` });
   await page.evaluate(() => {
     // Payroll answers from here; the panel talks to nothing else.
     const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -1632,7 +1697,7 @@ test('Compensation and Fields panels inside the real entity modal: every kind, a
 
     // A role is a home: its pay default and its field definitions.
     await page.locator('#csPanePeople [data-list-action="0"]').click();
-    await page.getByRole('menuitem', { name:/^Sales/ }).click();
+    await page.getByRole('dialog', { name:'Roles' }).locator('[data-type-id="sales"] .pp-type-open').click();
     const role = page.getByRole('dialog', { name:'Sales' });
     await role.locator('.pp-tab', { hasText:'Compensation' }).click();
     await role.locator('[data-comp-add-rule]').waitFor();
@@ -1737,6 +1802,417 @@ test('Subcontractors: the Permissions tab appears when the directory publishes a
     await dialog.locator('[data-modal-save]').click();
     await page.waitForFunction(() => window.__people.calls.some((call) => call.action === 'assignees.permission-defaults.set'));
     assert.deepEqual(await page.evaluate(() => window.__people.calls.find((call) => call.action === 'assignees.permission-defaults.set').input), { assignee:{ type:'organization_connection', id:'c1' }, access_role_ids:['crew_member'], permission_overrides:{ 'crew.payments.take':false, 'crew.time_clock.use':false } });
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// An organization on the original FirstMeasure model: no platform.people_access, no platform.expanded_access, none of
+// the apps People's other pages need, and a user who may manage users and their permissions and nothing else.
+const FIRSTMEASURE_ONLY = {
+  view:'direct',
+  flags:{ 'platform.people_access':false, 'platform.expanded_access':false, 'apps.crew':false, 'apps.payroll':false, 'platform.custom_fields':false },
+  setup:() => {
+    window.Portal.util.hasPerm = (key) => ['manage_company_users', 'manage_company_user_permissions'].includes(key);
+    // Anything on a surface this organization does not have is recorded: the page must never call it.
+    window.__people.denied = [];
+    const watch = (name, target) => Object.keys(target || {}).forEach((key) => { const original = target[key]; if (typeof original === 'function') target[key] = (...args) => { window.__people.denied.push(`${name}.${key}`); return original(...args); }; });
+    watch('workforce', window.PlatformAPI.workforce);
+    watch('connections', window.PlatformAPI.connections);
+    watch('publication', window.PlatformAPI.publication);
+    watch('scopes', window.PlatformAPI.scopes);
+  }
+};
+
+test('FirstMeasure-only organization: People is Users alone, with only what the original model supports', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, FIRSTMEASURE_ONLY);
+    assert.equal(await page.locator('.pp-list-head h2').innerText(), 'Users');
+    assert.equal(await page.locator('.fm-settings-subtabs, [data-settings-subtabs-proxy]').count(), 0, 'no sub-tab bar and no Overview');
+    assert.equal(await page.locator('.pp-card').count(), 0);
+    assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Invite user'], 'no Roles menu without roles');
+    assert.equal(await page.locator('[data-row-key="u2"] .pp-chip.role').first().innerText(), 'Viewer', 'the admin level stands where roles would');
+    assert.equal(await page.locator('.pp-row .pp-chip-dot').count(), 0, 'no departments');
+    await page.locator('[data-row-key="u5"]').hover();
+    assert.deepEqual(await page.locator('[data-row-key="u5"] .pp-row-actions button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))), ['Edit', 'Resend invitation', 'Suspend', 'Delete']);
+    await shot(page, 'firstmeasure-only-users');
+    await page.locator('[data-row-key="u9"] .pp-row-name').hover();
+    await page.locator('.pp-hover.open').waitFor();
+    assert.equal(await page.locator('.pp-hover [data-section]').count(), 0, 'the hover card names no roles, departments or groups');
+    await page.mouse.move(700, 5);
+
+    // The user modal: the seven-flag editor and the activity record; nothing that needs roles, departments, pay or fields.
+    await page.locator('[data-row-key="u2"] .pp-row-name').click();
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Permissions', 'Activity']);
+    assert.equal(await dialog.locator('[data-people-section-action]').count(), 0, 'no roles, departments, tags or scoped roles to change');
+    assert.equal(await dialog.locator('[data-section]').count(), 0);
+    assert.equal(await dialog.locator('.pp-perm-row').count(), 7);
+    await dialog.locator('[data-legacy-level]').selectOption('manager');
+    await shot(page, 'firstmeasure-only-user-modal');
+    await dialog.locator('[data-modal-save]').click();
+    await page.waitForFunction(() => window.__people.calls.some((call) => call.op === 'setPermissions'));
+    assert.equal(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'setPermissions').level), 'manager');
+    await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+
+    // Inviting asks only for who; no roles to pick and no workforce profile written.
+    await page.locator('[data-list-action="0"]').click();
+    assert.equal(await page.locator('.pp-form .pp-choice').count(), 0);
+    await page.locator('.pp-form [name="email"]').fill('lena@northwind-exteriors.example');
+    await shot(page, 'firstmeasure-only-invite');
+    await page.locator('.pp-form [type="submit"]').click();
+    await page.locator('[data-row-key="u43"]').waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__people.denied), [], 'nothing was asked of workforce, connections, publication or scopes');
+    assert.equal(await page.evaluate(() => window.__people.toasts.filter((toast) => toast.ok === false).length), 0, 'no refusal reached the user');
+    assert.deepEqual(await page.evaluate(() => window.FirstMatePeople.undeclared || []), []);
+    assert.deepEqual(errors, []);
+
+    // Phone width.
+    await page.setViewportSize({ width:390, height:844 });
+    await page.waitForTimeout(200);
+    assert.equal(await columnsOf(page, '.pp-list-body > .pp-row'), 1);
+    await shot(page, 'firstmeasure-only-users-phone');
+  } finally { await browser.close(); }
+});
+
+test('A user who may only manage users sees no group, department, subcontractor, wording, compensation or fields controls', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'users', flags:{ 'apps.payroll':false, 'platform.custom_fields':false }, setup:() => { window.Portal.util.hasPerm = (key) => key === 'manage_company_users'; } });
+    assert.deepEqual(await page.locator('[data-settings-subtabs-proxy] button').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Overview', 'Users', 'Departments'], 'no groups or outside companies without project or settings access');
+    await page.locator('[data-row-key="u3"] .pp-row-name').first().click();
+    const dialog = page.getByRole('dialog');
+    assert.deepEqual(await dialog.locator('.pp-tab').allInnerTexts().then((texts) => texts.map((text) => text.trim().replace(/\s+\d+$/, ''))), ['Permissions', 'App experience', 'Activity']);
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    await openView(page, 'home');
+    assert.deepEqual(await page.locator('.pp-card strong').allInnerTexts(), ['Users', 'Departments']);
+    assert.equal(await page.locator('[data-home-wording]').count(), 0, 'no Wording without company settings access');
+    assert.equal(await page.locator('[data-home-attention="unlinked"], [data-home-attention="empty_groups"], [data-home-attention="pay"]').count(), 0);
+    await openView(page, 'departments');
+    assert.deepEqual(await page.locator('.pp-list-tools .pp-btn').allInnerTexts(), [], 'no New department without company settings access');
+    assert.deepEqual(await page.evaluate(() => window.FirstMatePeople.undeclared || []), []);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Every People action and tab declares the capability and permission it needs', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 });
+    const table = await page.evaluate(() => Object.fromEntries(Object.entries(window.FirstMatePeople.data.ACTIONS).map(([id, entry]) => [id, entry])));
+    const capabilities = await page.evaluate(() => Object.keys(window.FirstMatePeople.data.CAPABILITIES));
+    for (const [id, entry] of Object.entries(table)) {
+      assert.ok((entry.all || []).length + (entry.any || []).length > 0, `${id} needs something`);
+      assert.ok(String(entry.server || '').length > 0, `${id} names the server route or action it calls`);
+      for (const key of [...(entry.all || []), ...(entry.any || [])]) assert.ok(capabilities.includes(key), `${id}: unknown capability ${key}`);
+    }
+    // Every needs:'...' and allows('...') in People's own files names a declared action, and every declared action is used.
+    const used = new Set();
+    for (const name of FILES) {
+      const source = await readFile(new URL(`apps/people/${name}.js`, libraries), 'utf8');
+      for (const match of source.matchAll(/(?:needs:\(?|allows\()(?:[^'"]*\? )?'([a-z_.]+)'(?: : '([a-z_.]+)')?/g)) { used.add(match[1]); if (match[2]) used.add(match[2]); }
+    }
+    used.add('compensation'); used.add('fields');   // slot tabs need their slot id
+    for (const id of used) assert.ok(table[id], `${id} is used but not declared`);
+    for (const id of Object.keys(table)) assert.ok(used.has(id), `${id} is declared but nothing uses it`);
+    // Walking every page and a modal of each kind leaves nothing undeclared.
+    for (const [view, key] of [['users', 'u3'], ['groups', 'g1'], ['departments', 'production'], ['subcontractors', 'c1']]) {
+      await openView(page, view);
+      await page.locator(`.pp-list-body [data-row-key="${key}"] .pp-row-name`).first().click();
+      await page.getByRole('dialog').waitFor();
+      await page.locator('[data-modal-close]').click();
+      await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    }
+    assert.deepEqual(await page.evaluate(() => window.FirstMatePeople.undeclared || []), []);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('A section header collapses its section: chevron, count kept, keyboard, remembered per page, opened by a search', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 });
+    const section = page.locator('[data-list-section="department:sales"]');
+    const toggle = section.locator('[data-section-toggle]');
+    const count = await section.locator('.pp-list-section-count').innerText();
+    const name = (await section.locator('.pp-row .pp-row-name').first().innerText()).trim();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(await toggle.evaluate((button) => button.tagName), 'BUTTON');
+    assert.ok(await section.locator('[data-list-sort]').count() > 0, 'sort buttons beside an open section');
+
+    // Clicking the title collapses: header and count stay, rows and sort buttons go, the chevron turns.
+    await toggle.click();
+    await page.locator('[data-list-section="department:sales"].collapsed').waitFor();
+    assert.equal(await section.locator('[data-section-toggle]').getAttribute('aria-expanded'), 'false');
+    assert.equal(await section.locator('.pp-list-section-count').innerText(), count);
+    assert.equal(await section.locator('.pp-list-grid').isHidden(), true);
+    assert.equal(await section.locator('[data-list-sort]').count(), 0);
+    assert.match(await section.locator('.pp-list-section-chevron').evaluate((icon) => getComputedStyle(icon).transform), /matrix\(0, -1, 1, 0|matrix\(6\.1|-1/);
+    assert.equal(await section.locator('[data-section-toggle]').evaluate((button) => document.getElementById(button.getAttribute('aria-controls'))?.hidden), true);
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset.sectionToggle), 'department:sales', 'focus stays on the header');
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('fm.people.list-collapse.users'))), ['department:sales']);
+    await shot(page, 'users-section-collapsed');
+
+    // Keyboard: Enter opens, Space closes.
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('[data-list-section="department:sales"] [data-section-toggle]').getAttribute('aria-expanded') === 'true');
+    assert.equal(await section.locator('.pp-list-grid').isVisible(), true);
+    await page.keyboard.press('Space');
+    await page.locator('[data-list-section="department:sales"].collapsed').waitFor();
+
+    // A search opens the sections it finds rows in, without forgetting the choice.
+    await page.locator('[data-list-search]').fill(name);
+    await page.waitForFunction(() => !document.querySelector('[data-list-section="department:sales"].collapsed') && document.querySelector('[data-list-section="department:sales"] .pp-row'));
+    await page.locator('[data-list-search]').fill('');
+    await page.locator('[data-list-section="department:sales"].collapsed').waitFor();
+
+    // Remembered: leaving the page and coming back keeps it closed; other pages keep their own.
+    await openView(page, 'groups');
+    assert.equal(await page.locator('.pp-list-section.collapsed').count(), 0);
+    await openView(page, 'users');
+    await page.locator('[data-list-section="department:sales"].collapsed').waitFor();
+    await page.locator('[data-list-section="department:sales"] [data-section-toggle]').click();
+    await page.waitForFunction(() => JSON.parse(localStorage.getItem('fm.people.list-collapse.users')).length === 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('One branch: nothing about branches shows anywhere except the Branches button on the overview', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'home' });
+    assert.deepEqual(await page.locator('.pp-home .pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Branches', 'Wording']);
+    for (const view of ['users', 'groups', 'departments', 'subcontractors']) {
+      await openView(page, view);
+      assert.equal(await page.locator('[data-branch-filter]').count(), 0, `no branch filter on ${view}`);
+    }
+    assert.equal(await page.locator('.pp-list-section').count(), 0, 'departments are not sectioned by branch');
+    await openView(page, 'users');
+    await page.locator('[data-row-key="u9"] .pp-row-name').first().click();
+    const dialog = page.getByRole('dialog');
+    await dialog.waitFor();
+    assert.equal(await dialog.locator('[data-dtree^="branch:"], [data-dtree^="region:"]').count(), 0);
+    assert.doesNotMatch(await dialog.innerText(), /Main branch|Region/);
+    await dialog.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    // The lists are read for the route's branch, as before.
+    assert.equal(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'resourceGroups').branchIds), '');
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'connections').options), { branchId:'default' });
+    assert.deepEqual(await page.evaluate(() => window.FirstMatePeople.undeclared || []), []);
+    assert.deepEqual(errors, []);
+    await page.close();
+
+    // With the feature off, not even the button.
+    const off = await openPage(browser, { width:1440, height:900 }, { view:'home', flags:{ 'platform.multiple_branches':false } });
+    assert.deepEqual(await off.page.locator('.pp-home .pp-list-tools .pp-btn').allInnerTexts().then((texts) => texts.map((text) => text.trim())), ['Wording']);
+    assert.deepEqual(off.errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Branches modal: name the main branch, add a region and a branch, put a branch in a region, archive; only what the viewer may do', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'home' });
+    await page.locator('[data-home-branches]').click();
+    const modal = page.getByRole('dialog', { name:'Branches' });
+    await modal.waitFor();
+    assert.equal(await modal.locator('[data-branch-row]').count(), 1);
+    assert.match(await modal.locator('[data-branch-row="default"]').innerText(), /Main branch[\s\S]*My branch/);
+    assert.equal(await modal.locator('[data-branch-row="default"] .pp-br-unnamed').count(), 1, 'unnamed by default');
+    assert.equal(await modal.locator('[data-branch-row="default"] [data-br-action="archive"]').count(), 0, 'the main branch is never archived');
+    await shot(page, 'branches-modal-one');
+    // Name the main branch.
+    await modal.locator('[data-branch-row="default"] [data-br-action="rename"]').click();
+    await page.locator('.pp-form [name="name"]').fill('Asheville');
+    await page.locator('.pp-form [type="submit"]').click();
+    await modal.locator('[data-branch-row="default"]', { hasText:'Asheville' }).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.action === 'organization-branches.branch.rename').pop().input), { branch_id:'default', name:'Asheville' });
+    // A region, then a branch in it.
+    await modal.locator('[data-br-new-region]').click();
+    await page.locator('.pp-form [name="label"]').fill('East');
+    await page.locator('.pp-form [type="submit"]').click();
+    await modal.locator('[data-br-section="region:region_1"]').waitFor();
+    await modal.locator('[data-br-new-branch]').click();
+    await page.locator('.pp-form [name="name"]').fill('Boone');
+    await page.locator('.pp-form [name="region_id"]').selectOption('region_1');
+    await page.locator('.pp-form [type="submit"]').click();
+    await modal.locator('[data-br-section="region:region_1"] [data-branch-row="boone"]').waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.filter((call) => call.action === 'organization-branches.branch.add').pop().input), { name:'Boone', region_id:'region_1' });
+    // A name already taken is said plainly.
+    await modal.locator('[data-br-new-branch]').click();
+    await page.locator('.pp-form [name="name"]').fill('boone');
+    await page.locator('.pp-form [type="submit"]').click();
+    await page.locator('.pp-form .pp-form-error', { hasText:'already' }).waitFor();
+    assert.equal(await page.locator('.pp-form .pp-form-error').innerText(), 'There is already a branch with that name.');
+    await page.keyboard.press('Escape');
+    // Put the main branch in East too.
+    await modal.locator('[data-branch-row="default"] [data-br-region]').click();
+    await page.getByRole('menuitemcheckbox', { name:'East' }).click();
+    await modal.locator('[data-br-section="region:region_1"] [data-branch-row="default"]').waitFor();
+    const regionSet = await page.evaluate(() => window.__people.calls.filter((call) => call.action === 'organization-branches.branch.region.set').pop().input);
+    assert.equal(regionSet.branch_id, 'default');
+    assert.equal(regionSet.region_id, 'region_1');
+    assert.equal(typeof regionSet.expected_revision, 'number', 'region changes carry the catalog revision');
+    await shot(page, 'branches-modal-region');
+    // Archive Boone.
+    await modal.locator('[data-branch-row="boone"] [data-br-action="archive"]').click();
+    await page.getByRole('alertdialog').getByRole('button', { name:'Archive' }).click();
+    await modal.locator('[data-br-section="archived"] [data-branch-row="boone"]').waitFor();
+    assert.ok(await page.evaluate(() => window.__people.calls.every((call) => call.op !== 'invoke' || !call.action.startsWith('organization-branches.') || (call.idempotencyKey && call.target.scope === 'organization'))));
+    await modal.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    assert.deepEqual(errors, []);
+    await page.close();
+
+    // A viewer who manages only their own branch: rename it, nothing else.
+    const restricted = await openPage(browser, { width:390, height:844 }, { view:'home', setup:() => {
+      const state = window.__people.branchState;
+      state.branches.push({ id:'boone', name:'Boone', status:'active', is_default:false, region_id:'' });
+      state.regions.push({ id:'east', label:'East', status:'active', branch_ids:['boone'] });
+      state.access = { can_add_branch:false, can_archive_branch:false, can_manage_regions:false, can_rename_branch_ids:['default'] };
+      window.Portal.util.hasPerm = (key) => key !== 'manage_all_branches';
+    } });
+    await restricted.page.locator('[data-home-branches]').click();
+    const limited = restricted.page.getByRole('dialog', { name:'Branches' });
+    await limited.waitFor();
+    assert.equal(await limited.locator('[data-br-new-branch], [data-br-new-region], [data-br-region], [data-br-action="archive"], [data-region-action]').count(), 0);
+    assert.equal(await limited.locator('[data-branch-row="default"] [data-br-action="rename"]').count(), 1);
+    assert.equal(await limited.locator('[data-branch-row="boone"] [data-br-action]').count(), 0);
+    assert.equal(await restricted.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    await shot(restricted.page, 'branches-modal-restricted-phone');
+    assert.deepEqual(restricted.errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Branch filter on Users, Groups, Departments and Subcontractors: my branch, a region, none, all, one branch, remembered per page', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { setup:multiBranch });
+    const keys = () => page.evaluate(() => [...new Set(Array.from(document.querySelectorAll('.pp-list-body [data-row-key]')).map((row) => row.dataset.rowKey))].sort());
+    const expected = (kind, branches) => page.evaluate(([kind, branches]) => {
+      const people = window.__people;
+      const list = kind === 'users' ? people.users.map((user) => [user.id, user.branch_ids]) : kind === 'groups' ? people.groups.filter((group) => group.status === 'active').map((group) => [group.id, group.branch_ids]) : kind === 'departments' ? people.departments.map((department) => [department.id, [department.branch_id]]) : people.connections.filter((company) => company.status === 'active').map((company) => [company.id, company.branch_ids]);
+      return list.filter(([, ids]) => (kind === 'subcontractors' && !ids.length) || ids.some((id) => branches.includes(id))).map(([id]) => id).sort();
+    }, [kind, branches]);
+    const button = page.locator('[data-branch-filter]');
+    const panel = page.locator('.pp-bf');
+    // The lists were read for every branch the viewer may see.
+    assert.equal(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'resourceGroups').branchIds), 'all');
+    assert.deepEqual(await page.evaluate(() => window.__people.calls.find((call) => call.op === 'connections').options), { branchIds:'all' });
+    for (const view of ['users', 'groups', 'departments', 'subcontractors']) {
+      await openView(page, view);
+      // My branch by default, named underneath.
+      assert.equal(await button.locator('b').innerText(), 'My branch');
+      assert.equal(await button.locator('small').innerText(), 'Asheville');
+      assert.deepEqual(await keys(), await expected(view, ['asheville']), `${view}: my branch`);
+      const tools = await page.locator('.pp-list-tools').boundingBox();
+      const box = await button.boundingBox();
+      assert.ok(box.y >= tools.y - 1 && box.y + box.height <= tools.y + tools.height + 1 && box.height <= 40, `${view}: the filter fits the header line`);
+      await button.click();
+      await panel.waitFor();
+      assert.deepEqual(await panel.locator('[data-bf-quick]').allInnerTexts(), ['My branch', 'My region', 'All']);
+      assert.deepEqual(await panel.locator('[data-bf-region] .pp-bf-pick .pp-bf-name, .pp-bf-branch .pp-bf-name').allInnerTexts(), ['East', 'Asheville', 'Boone', 'Knoxville', 'Main branch']);
+      if (view === 'users') await shot(page, 'branch-filter-open');
+      // A region header picks all its branches: that is My region.
+      await panel.locator('[data-bf-region-pick="east"]').click();
+      assert.equal(await panel.locator('[data-bf-region-pick="east"]').getAttribute('aria-checked'), 'true');
+      assert.equal(await panel.locator('[data-bf-quick="region"]').getAttribute('aria-pressed'), 'true');
+      assert.equal(await button.locator('b').innerText(), 'My region');
+      assert.equal(await button.locator('small').innerText(), 'East');
+      assert.deepEqual(await keys(), await expected(view, ['asheville', 'boone']), `${view}: region`);
+      // None.
+      await panel.locator('[data-bf-none]').click();
+      assert.equal(await button.locator('b').innerText(), 'No branches');
+      assert.deepEqual(await keys(), view === 'subcontractors' ? await expected(view, []) : [], `${view}: none (a company in every branch still shows)`);
+      // One branch, by its box: the region header is mixed when part of it is picked.
+      await panel.locator('.pp-bf-branch', { has:page.locator('[data-bf-branch="boone"]') }).click();
+      assert.equal(await panel.locator('[data-bf-region-pick="east"]').getAttribute('aria-checked'), 'mixed');
+      assert.equal(await button.locator('b').innerText(), 'Boone');
+      assert.deepEqual(await keys(), await expected(view, ['boone']), `${view}: one branch`);
+      // Select all is All.
+      await panel.locator('[data-bf-select-all]').click();
+      assert.equal(await button.locator('b').innerText(), 'All branches');
+      assert.equal(await button.locator('small').innerText(), '4 branches');
+      assert.deepEqual(await keys(), await expected(view, ['default', 'asheville', 'boone', 'knox']), `${view}: all`);
+      // A region folds.
+      await panel.locator('[data-bf-fold="east"]').click();
+      assert.equal(await panel.locator('[data-bf-fold="east"]').getAttribute('aria-expanded'), 'false');
+      assert.equal(await panel.locator('[data-bf-branch="asheville"]').count(), 1);
+      assert.equal(await panel.locator('.pp-bf-branch', { has:page.locator('[data-bf-branch="asheville"]') }).isVisible(), false);
+      await panel.locator('[data-bf-fold="east"]').click();
+      // My branch again from the quick choices, then Knoxville alone for this page.
+      await panel.locator('[data-bf-quick="mine"]').click();
+      assert.equal(await button.locator('b').innerText(), 'My branch');
+      await panel.locator('[data-bf-none]').click();
+      await panel.locator('.pp-bf-branch', { has:page.locator('[data-bf-branch="knox"]') }).click();
+      await page.keyboard.press('Escape');
+      await panel.waitFor({ state:'detached' });
+      assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-branch-filter')), true, 'focus returns to the filter');
+      assert.deepEqual(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), `fm.people.branch-filter.${view}`), { mode:'custom', ids:['knox'] });
+    }
+    // Remembered per page: each page keeps its own choice.
+    await openView(page, 'groups');
+    assert.equal(await button.locator('b').innerText(), 'Knoxville');
+    assert.deepEqual(await keys(), await expected('groups', ['knox']));
+    // Departments with several branches are sectioned by branch, under its region.
+    await openView(page, 'departments');
+    await button.click();
+    await page.locator('[data-bf-quick="all"]').click();
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await page.locator('.pp-list-section-name').allInnerTexts(), ['East › Asheville', 'East › Boone', 'Knoxville', 'Main branch']);
+    assert.ok(await page.locator('[data-list-section="branch:asheville"] [data-row-key="production"] .pp-stack').count() >= 1, 'rows keep their stacked counts');
+    await page.locator('[data-list-section="branch:boone"] [data-section-toggle]').click();
+    await shot(page, 'departments-by-branch');
+    // Phone width: the filter shares the header with the search and actions.
+    await page.setViewportSize({ width:390, height:844 });
+    await openView(page, 'users');
+    await page.waitForTimeout(200);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    const phoneBox = await button.boundingBox();
+    assert.ok(phoneBox.x >= 0 && phoneBox.x + phoneBox.width <= 390);
+    await button.click();
+    const panelBox = await panel.boundingBox();
+    assert.ok(panelBox.x >= 0 && panelBox.x + panelBox.width <= 390, 'the dropdown stays on screen');
+    await shot(page, 'branch-filter-phone');
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await page.evaluate(() => window.FirstMatePeople.undeclared || []), []);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('Several branches: a department is made and moved in a branch the viewer manages; the save stays strict', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await openPage(browser, { width:1440, height:900 }, { view:'departments', setup:multiBranch });
+    await page.locator('[data-list-action="0"]').click();
+    assert.equal(await page.locator('.pp-form [name="branch_id"]').inputValue(), 'asheville', 'made in my branch unless I choose another');
+    await page.locator('.pp-form [name="label"]').fill('Estimating');
+    await page.locator('.pp-form [name="branch_id"]').selectOption('knox');
+    await page.locator('.pp-form [type="submit"]').click();
+    const created = page.getByRole('dialog', { name:'Estimating' });
+    await created.waitFor();
+    let payload = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveDepartments').pop().payload);
+    assert.equal(payload.departments.find((entry) => entry.label === 'Estimating').branch_id, 'knox');
+    await created.locator('[data-modal-close]').click();
+    await page.waitForFunction(() => !document.querySelector('.pp-modal-back'));
+    await page.locator('.pp-list-body [data-row-key="sales"] .pp-row-name').click();
+    const dialog = page.getByRole('dialog', { name:'Sales' });
+    await dialog.waitFor();
+    assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Asheville/);
+    await dialog.locator('[data-people-identity]').click();
+    await dialog.locator('select[data-identity="branch_id"]').selectOption('boone');
+    await shot(page, 'department-modal-branch');
+    await dialog.locator('[data-modal-save]').click();
+    await page.waitForFunction(() => document.querySelector('.pp-modal-status').dataset.state === 'saved');
+    payload = await page.evaluate(() => window.__people.calls.filter((call) => call.op === 'saveDepartments').pop().payload);
+    assert.equal(payload.departments.find((entry) => entry.id === 'sales').branch_id, 'boone');
+    assert.ok(!('groups' in payload) && !('divisions' in payload));
+    assert.ok(payload.departments.every((entry) => !('group_id' in entry) && !('division_id' in entry)));
+    assert.match(await dialog.locator('.pp-modal-summary').innerText(), /Boone/);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

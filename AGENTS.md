@@ -25,6 +25,14 @@ Production deployment requires user authorization; honor authorization already g
 - Connect through the existing SSH configuration. Never expose, print, copy, or transmit a private SSH key.
 - Infer sync paths/direction only from adequate context. Do not infer deletion, mirroring, or overwrite semantics from a generic sync request.
 
+## Performance work deferred on purpose
+
+[docs/optimization-backlog.md](docs/optimization-backlog.md) is the one list of
+known performance shortcuts (full scans, repeated work, things that will not
+scale). Add an entry when you knowingly ship one, link it from the relevant
+architecture doc, and remove it when it is done. An optimization must return
+exactly the same results.
+
 ## Canonical source
 
 The active combined platform checkout is `C:/Users/jackh/Code/2026/FirstMate Platform`
@@ -109,6 +117,21 @@ whether two trades mean the same thing, define two. Producers such as FirstMeasu
 fill dictionary keys and do not invent names. Run
 `tests/publication-measurement-schemas.test.ts` for changes here.
 
+## Completion and closeout
+
+Read [closeout](docs/architecture/closeout.md) before changing how a labor list
+is finished, paid out or locked, the completion widgets, or project closeout.
+Finished work is **finalized** (`labor/completion.ts`), never released; a
+released commitment was taken back. A finalized list is locked: every writer
+that can change a labor list's lines calls `assertLaborListOpen`. Piece-rate pay
+is earned on `finalized_at`. Only `reopen_finalized_work` reopens finalized work
+or a closeout, always with a reason. Closeout checks read other apps through the
+published data layer, warn and never block; the only thing that stops a close
+is an unfinalized work order. Confirmation is the `work.completion` widget with
+one `method` parameter; do not add another confirmation control. Run
+`tests/labor-completion.test.ts` and `tests/closeout-completion-browser.test.mjs`
+for changes here.
+
 ## Labor pay
 
 Read [pay sheets](docs/architecture/pay-sheets.md) before changing how assignees
@@ -164,11 +187,32 @@ tags. An assignment is a list of entries that
 add or remove an assignee, each optionally for part of the work; who is on the
 work is the roster resolved from it, with time compared as exact intervals and
 a person in two groups counted once. What is true of a person is an ordinary
-user field and rolls up to groups in the data layer; do not bless a field. A
+user field and rolls up to groups in the data layer; do not bless a field.
+Every assignee has `branch_ids` ([branches](docs/architecture/branches.md)). A
 **staffing requirement** is a count and a condition in the one condition
 contract; "requirements" alone means what a job needs done. Unmet staffing
 requirements and conflicts warn and never block. Run `tests/assignee-base.test.ts`,
 `tests/assignee-roster.test.ts` and `tests/assignee-base-store.test.ts` for
+changes here.
+
+## Branches and regions
+
+Read [branches](docs/architecture/branches.md) before changing branches,
+regions, where departments live, who belongs to which branch or what anyone
+may see of other branches. The hierarchy is organization -> optional flat
+regions -> branches -> departments. Say **branch** and **region** in code; the
+UI words come from the terminology system. A department belongs to one branch;
+there are no department categories and no organizational units (divisions). A
+user, group or outside company belongs to one or more branches in the home it
+already had (`branch_id` plus `branch_ids`; a company with none works in every
+branch). Multiple branches is the `platform.multiple_branches` feature; with it
+off, or with one branch, the default branch is implicit, needs no name and
+nothing about branches shows. **Branch scope:** with more than one branch,
+People data and its writes are limited on the server to the caller's own
+branches unless they have `view_region_branches`/`manage_region_branches` or
+`view_all_branches`/`manage_all_branches`; scope only removes, it never grants.
+`organization-structure.ts` stays the one structure resolver. Run
+`tests/branches.test.ts` and `tests/organization-structure.test.ts` for
 changes here.
 
 ## Requirements and coverage

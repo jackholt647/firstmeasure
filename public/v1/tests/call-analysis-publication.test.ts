@@ -19,7 +19,7 @@ before(async()=>{
   await platform.addIdentityMembership(String(identity.id),org,'manager','owner');
   await platform.upsertDocument(org,'users',{id:'manager',data:{identity_id:identity.id,status:'active',org_permissions:{level:'owner',items:{}},scoped_access_assignments:[{scope:{kind:'department',id:'production'},permissions:{analyze_call_recordings:false}}]}});
   const {departmentCatalogSchema}=await import('../workforce/department-contracts.js');
-  await platform.upsertDocument(org,'organization_departments',{id:'catalog',data:departmentCatalogSchema.parse({departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}],groups:[]})});
+  await platform.upsertDocument(org,'organization_departments',{id:'catalog',data:departmentCatalogSchema.parse({departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}]})});
   await (await import('./helpers/platform-fixture.js')).enableExpandedPlatformFixture(org);
   auth=await (await import('../platform/auth.js')).backgroundAuthContext(org,'manager');
   store=await import('../comms/calls/storage.js');analysis=await import('../comms/calls/analysis.js');actions=await import('../platform/publication/actions.js');providers=await import('../platform/publication/providers.js');context=await import('../platform/publication/context.js');

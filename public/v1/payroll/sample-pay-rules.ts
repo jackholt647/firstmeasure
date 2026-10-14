@@ -24,9 +24,10 @@ const lines = [{ key: "regular", amount_cents: Math.round(regular * params.rate_
 if (overtime > 0) lines.push({ key: "overtime", amount_cents: Math.round(overtime * params.rate_cents * params.overtime_multiplier), description: overtime.toFixed(2) + " overtime hours", details: { hours: overtime, multiplier: params.overtime_multiplier } });
 return lines;`
   } },
-  { id: "committed_labor", name: "Committed labor lists", description: "The total of each labor list committed to this payee, earned when the commitment is released.", definition: {
-    grain: "record" as const, kind: "piece_rate" as const, earned_at: "released_at", project: "project_id",
-    inputs: { commitments: { primary: true, source: { provider: "payroll", export: "labor_commitments" }, where: { rules: [mine, { field: "status", operator: "equals", value: "released" }] } } },
+  { id: "committed_labor", name: "Committed labor lists", description: "The total of each labor list committed to this payee, earned when its work is confirmed as done and finalized to be paid.", definition: {
+    // Only finalized work has a finalized_at, and a finalized commitment can be neither released nor superseded.
+    grain: "record" as const, kind: "piece_rate" as const, earned_at: "finalized_at", project: "project_id",
+    inputs: { commitments: { primary: true, source: { provider: "payroll", export: "labor_commitments" }, where: { rules: [mine] } } },
     parameters: {},
     code: `if (unit.record.unpriced_lines > 0) throw new Error("This commitment has " + unit.record.unpriced_lines + " line(s) with no rate.");
 return { amount_cents: unit.record.total_cents, description: "Committed labor" };`

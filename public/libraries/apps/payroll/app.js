@@ -885,6 +885,47 @@
       </div>`;
     }
 
+    // Projected earnings: each payee's own pay rules over work not done yet. Worked out on request, never posted.
+    const PROJECTED_TIP = "What each payee's pay rules say they can expect from labor that is committed or assigned but not done yet, with the day it is expected to be earned. Nothing projected is posted or paid in a pay run.";
+    function projectedPanelHtml(){
+      const projected = state.projectedAll;
+      const currency = defaultCurrency();
+      const rows = array(projected?.value?.payees).filter((row) => number(row.total_cents) || number(row.count) || number(row.unresolved_count));
+      return `<div class="fmp-pay-section" data-pay-projected>
+        <h3 title="${esc(PROJECTED_TIP)}">Projected</h3>
+        ${!projected ? `<button class="fmp-btn small" data-action="load-projected"><i class="fas fa-chart-line"></i> Work out projected earnings</button>`
+          : projected.loading ? '<div class="fmp-pay-note">Working out projected earnings…</div>'
+            : projected.error ? `<div class="fmp-diagnostic"><i class="fas fa-triangle-exclamation"></i><span>${esc(projected.error)}</span></div>`
+              : rows.length ? `<div class="fmp-pay-group">${rows.map((row) => `<div class="fmp-pay-entry" data-projected-payee="${esc(row.id)}" title="${esc(row.next_expected_on ? `Next expected ${formatDate(row.next_expected_on)}` : 'Nothing scheduled yet')}">
+                  <div><strong>${esc(row.payee_name || payeeName(row.payee))}</strong> ${explainButton(row.payee, 'Why')}${number(row.unresolved_count) ? ` <span class="fmp-status small" title="Some projected earnings could not be worked out; open Why for the reasons.">${number(row.unresolved_count)} not worked out</span>` : ''}</div>
+                  <div class="fmp-pay-amount"><b>${esc(plainMoney(row.total_cents, currency))}</b><small>${row.next_expected_on ? esc(formatDate(row.next_expected_on)) : 'Not scheduled'}</small></div>
+                </div>`).join('')}${projected.value?.truncated ? `<div class="fmp-pay-entry"><div class="fmp-pay-note">Showing the first ${rows.length} payees.</div></div>` : ''}</div>`
+                : '<div class="fmp-pay-note">Nothing is projected for anyone.</div>'}
+      </div>`;
+    }
+    function explainProjectedHtml(explain, currency){
+      const projected = explain.projected;
+      if (!projected) return '';
+      const earnings = array(projected.earnings), unresolved = array(projected.unresolved);
+      return `<div class="fmp-pay-section" data-explain-projected>
+        <h3 title="${esc(PROJECTED_TIP)}">Projected · ${esc(plainMoney(projected.total_cents, currency))}</h3>
+        ${earnings.length || unresolved.length ? `<div class="fmp-pay-group">${earnings.map((earning) => `<div class="fmp-pay-entry" data-projected-earning="${esc(earning.id)}" title="${esc([earning.description, earning.rule_name].map(clean).filter(Boolean).join(' · '))}">
+            <div><strong>${esc(earning.project_title || earning.record_title || 'Projected earning')}</strong><div class="fmp-pay-note">${esc(earning.record_title || earning.description)}</div></div>
+            <div class="fmp-pay-amount"><b>${esc(plainMoney(earning.amount_cents, currency))}</b><small>${earning.expected_on ? `Expected ${esc(formatDate(earning.expected_on))}` : 'Not scheduled'}</small></div>
+          </div>`).join('')}${unresolved.map((entry) => `<div class="fmp-pay-entry" data-projected-unresolved title="${esc(entry.reason)}">
+            <div><strong>${esc(entry.project_title || ruleName(entry.rule_id) || 'Projected earning')}</strong><div class="fmp-pay-note">Not worked out</div></div>
+            <div class="fmp-pay-amount"><b>—</b><small>${entry.expected_on ? `Expected ${esc(formatDate(entry.expected_on))}` : 'Not scheduled'}</small></div>
+          </div>`).join('')}</div>` : '<div class="fmp-pay-note">Nothing is projected for this payee.</div>'}
+      </div>`;
+    }
+    async function loadProjected(){
+      state.projectedAll = { loading:true };
+      render();
+      try { state.projectedAll = { value:await window.PayrollAPI.pay.projected(state.orgId) }; }
+      catch (error) { state.projectedAll = { error:`Projected earnings could not be worked out: ${clean(error?.message || error) || 'the request failed'}` }; }
+      if (!state.destroyed) render();
+    }
+
     function payPanelHtml(){
       if (context.params?.smoke) return '';
       const last = state.refreshResult;
@@ -897,6 +938,7 @@
         ${unresolvedListHtml(unresolvedItems())}
         ${heldHtml()}
         ${offCycleHtml()}
+        ${projectedPanelHtml()}
       </section>`;
     }
 
@@ -1041,6 +1083,7 @@
             ${list.length > 40 ? `<div class="fmp-pay-entry"><div class="fmp-pay-note">Showing the latest 40 of ${list.length}.</div></div>` : ''}
           </div>`).join('') : `<div class="fmp-pay-group"><div class="fmp-empty-section"><i class="fas fa-scale-balanced"></i>No pay rule has worked out anything for this payee yet. Give them a pay setup in Payroll settings, then refresh earnings.</div></div>`}
         </div>
+        ${explainProjectedHtml(explain, currency)}
         <div class="fmp-pay-section" data-explain-ledger>
           <h3>Ledger entries from pay rules</h3>
           <p>What those results posted to the payroll ledger. A correction or back pay shows the day the earning was originally earned.</p>
@@ -1096,12 +1139,13 @@
       explain.loading = true;
       if (!options.silent) render();
       const guarded = (read) => { try { return Promise.resolve(read()); } catch (error) { return Promise.reject(error); } };
-      const [units, entries, rules, setup, plans] = await Promise.allSettled([
+      const [units, entries, rules, setup, plans, projected] = await Promise.allSettled([
         guarded(() => window.PayrollAPI.pay.units(state.orgId, explain.payee)),
         guarded(() => window.PayrollAPI.ledger.list(state.orgId, { payee_type:explain.payee.type, payee_id:explain.payee.id, limit:5000 })),
         state.pay.rules ? Promise.resolve(state.pay.rules) : guarded(() => window.PayrollAPI.pay.rules(state.orgId)),
         guarded(() => window.PayrollAPI.pay.setup(state.orgId, explain.payee)),
-        guarded(() => window.PayrollAPI.pay.plans(state.orgId))
+        guarded(() => window.PayrollAPI.pay.plans(state.orgId)),
+        guarded(() => window.PayrollAPI.pay.projected ? window.PayrollAPI.pay.projected(state.orgId, explain.payee) : null)
       ]);
       if (state.destroyed || state.explain !== explain || token !== explain.token) return;
       if (units.status === 'fulfilled') explain.units = array(units.value); else explain.units = explain.units || [];
@@ -1109,6 +1153,8 @@
       if (rules.status === 'fulfilled' && !state.pay.rules) state.pay.rules = array(rules.value);
       if (setup.status === 'fulfilled' && setup.value && typeof setup.value === 'object') explain.setup = setup.value;
       if (plans.status === 'fulfilled') explain.plans = array(plans.value);
+      // Projected earnings are extra: when they cannot be worked out the rest of the explanation still shows.
+      explain.projected = projected.status === 'fulfilled' && projected.value && typeof projected.value === 'object' && !Array.isArray(projected.value) ? projected.value : null;
       const failure = [units, entries, setup].find((entry) => entry.status === 'rejected');
       explain.error = failure ? `This payee's pay could not be fully loaded: ${clean(failure.reason?.message || failure.reason) || 'the request failed'}` : '';
       explain.loading = false;
@@ -1381,6 +1427,10 @@
       }
       if (action === 'refresh-earnings') {
         await refreshEarnings(clean(button.dataset.payeeId) ? { type:clean(button.dataset.payeeType), id:clean(button.dataset.payeeId) } : null);
+        return;
+      }
+      if (action === 'load-projected') {
+        await loadProjected();
         return;
       }
       if (action === 'explain-payee') {

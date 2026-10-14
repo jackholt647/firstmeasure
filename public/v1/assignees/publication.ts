@@ -75,9 +75,17 @@ export function registerAssigneePublication() {
   const read = { scopes: ["organization"] as const, permissions: ["view_schedule"], systemKinds };
   registerDataProvider({ id: "assignee-directory", version: "1", apps: ["settings", "scheduling", "crew", "sales", "materials", "payroll"], exports: {
     assignees: {
-      description: "Everyone work can be assigned to, one row each, in one shape: people, groups of users and outside companies. A row has a stable id (`organization_user:<id>`, `resource_group:<id>`, `organization_connection:<id>`), its kind, name, status, tags, departments and its structural traits (has members, has a login, can be linked, splits pay). `type_ids` is a list for every kind: a person's types are their access roles (also given as `role_ids`), a group has exactly one type, and an outside company has zero or more company types; `type_names` names them in the same order. A person's row carries their custom field values under `fields` (fields that are private or need a permission are left out) and the groups they are in. A group's row carries its members with their fields, the member count, and under `member_fields` each field as the list of its members' values, so groups with a member for whom something is true can be selected with `contains`. Select rows with a declared selection.",
+      description: "Everyone work can be assigned to, one row each, in one shape: people, groups of users and outside companies. A row has a stable id (`organization_user:<id>`, `resource_group:<id>`, `organization_connection:<id>`), its kind, name, status, tags, departments, the branches it belongs to (`branch_ids`; empty for a company that works in every branch) and its structural traits (has members, has a login, can be linked, splits pay). `type_ids` is a list for every kind: a person's types are their access roles (also given as `role_ids`), a group has exactly one type, and an outside company has zero or more company types; `type_names` names them in the same order. A person's row carries their custom field values under `fields` (fields that are private or need a permission are left out) and the groups they are in. A group's row carries its members with their fields, the member count, and under `member_fields` each field as the list of its members' values, so groups with a member for whom something is true can be selected with `contains`. Select rows with a declared selection. A person limited to some branches sees only the rows of those branches.",
       schema: { type: "array", items: assigneeRowSchema }, schemaVersion: "1", access: read,
-      read: async (ctx) => { const directory = await loadAssigneeDirectory(ctx.organizationId); return { value: directory.rows, revision: directory.revision }; }
+      read: async (ctx) => {
+        const directory = await loadAssigneeDirectory(ctx.organizationId);
+        // Branch scope (docs/architecture/branches.md): a person reading sees the rows of the branches they may see. An outside company with no branch works in every branch.
+        if (!ctx.auth) return { value: directory.rows, revision: directory.revision };
+        const { branchScope, canSeeBranches } = await import("../workforce/branch-scope.js");
+        const scope = branchScope(ctx.auth);
+        const rows = directory.rows.filter((row) => canSeeBranches(scope, row.branch_ids, row.kind === "organization_connection"));
+        return { value: rows, revision: rows.length === directory.rows.length ? directory.revision : revision(rows.map((row) => [row.id, row.revision])) };
+      }
     },
     types: {
       description: "The organization's group types and company types. `kind` says which list a type is in. A group has exactly one group type; an outside company can have several company types. A group type's `member_role_ids` are the access roles a user is given when they join a group of that type. There is no user type: a person's types are their access roles.",

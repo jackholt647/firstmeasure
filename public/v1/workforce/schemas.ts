@@ -77,7 +77,8 @@ const applicationAccessEntrySchema = jsonObjectSchema.extend({
 export const scopedAccessAssignmentSchema = z.object({
   role_id: stableIdSchema.optional(),
   permissions: z.record(z.boolean()).optional(),
-  scope: z.object({ kind: z.enum(['department', 'division']), id: stableIdSchema }).strict()
+  // 'division' is the older unit scope: accepted and saved as the branch or region scopes it now covers.
+  scope: z.object({ kind: z.enum(['department', 'branch', 'region', 'division']), id: stableIdSchema }).strict()
 }).strict();
 
 export const workforceUserProfilePatchSchema = jsonObjectSchema.extend({

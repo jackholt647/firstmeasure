@@ -61,15 +61,20 @@
       /* One line per thing worth a look, from what is already loaded; pay is asked of payroll only when it is there. */
       const names = { users:[t('user_one', 'user'), t('user_many', 'users')], groups:[(labels().singular || t('group', 'Group')).toLowerCase(), (labels().plural || t('groups', 'Groups')).toLowerCase()], subcontractors:[(labels().connectionSingular || t('subcontractor', 'Subcontractor')).toLowerCase(), (labels().connectionPlural || t('subcontractors', 'Subcontractors')).toLowerCase()] };
       attention = loaded ? [...data.attention().map((item) => ({ ...item, text:`${Number(item.count) === 1 ? names[item.view][0] : names[item.view][1]} ${item.label}` })), ...(unresolvedPay ? [{ id:'pay', icon:kit.ICONS.compensation, view:'payroll', count:unresolvedPay, text:t('attention_pay', 'earnings that could not be worked out') }] : [])] : [];
+      const shown = (view) => ({ users:data.allows('users.view'), groups:data.allows('groups.view'), departments:data.allows('departments.view'), subcontractors:data.allows('companies.view'), payroll:data.allows('compensation') })[view] === true;
+      attention = attention.filter((item) => shown(item.view));
       const cards = [
         { id:'users', icon:kit.ICONS.users, title:t('users', 'Users'), count:counts.users, note:[online ? `${online} ${t('online_count', 'online')}` : '', counts.neverSignedIn ? `${counts.neverSignedIn} ${t('never_signed_in_count', 'never signed in')}` : ''].filter(Boolean).join(', ') },
         { id:'groups', icon:kit.ICONS.group, title:t('user_groups', 'User Groups'), count:counts.groups, note:counts.groupTypes ? kit.countPhrase([[counts.groupTypes, t('type_one', 'type'), t('type_many', 'types')]]) : '' },
         { id:'departments', icon:kit.ICONS.department, title:(loaded && labels().departmentPlural) || t('departments', 'Departments'), count:counts.departments, note:'' },
         { id:'subcontractors', icon:kit.ICONS.company, title:(loaded && labels().connectionPlural) || kit.term('workforce.organization_connection_plural', t('subcontractors', 'Subcontractors')), count:counts.companies, note:counts.linked ? `${counts.linked} ${t('linked_count', 'linked')}` : '' }
       ];
+      const visibleCards = cards.filter((card) => shown(card.id));
+      const wordingShown = !!People.lists?.wordingRows?.().length;
+      const branchesShown = !!People.branches && data.allows('branches.view');
       host.innerHTML = `<div class="pp pp-home" data-settings-autosave="off">
-        <header class="pp-list-head" style="position:static"><div class="pp-list-heading"><i class="fas ${kit.ICONS.group}" aria-hidden="true"></i><div><h2>${esc(t('people', 'People'))}</h2><p class="pp-list-sub">${loaded ? esc(kit.countPhrase([[counts.users, t('user_one', 'user'), t('user_many', 'users')]])) : ''}</p></div></div>${loaded && data.can.settings ? `<div class="pp-list-tools"><button type="button" class="pp-btn" data-home-wording${kit.tip(t('wording_tip', 'What your organization calls a group, its members, an outside company and a department'))}><i class="fas fa-spell-check" aria-hidden="true"></i><span class="pp-btn-label">${esc(t('wording', 'Wording'))}</span></button></div>` : ''}</header>
-        <div class="pp-home-cards">${cards.map((card) => `<button type="button" class="pp-card${loaded ? '' : ' loading'}" data-home-card="${card.id}"><i class="fas ${card.icon} pp-card-icon" aria-hidden="true"></i><strong>${esc(card.title)}</strong><span class="pp-card-count"><b>${loaded ? Number(card.count || 0).toLocaleString() : '0'}</b><span>${esc(card.note)}</span></span><i class="fas fa-arrow-right pp-card-go" aria-hidden="true"></i></button>`).join('')}</div>
+        <header class="pp-list-head" style="position:static"><div class="pp-list-heading"><i class="fas ${kit.ICONS.group}" aria-hidden="true"></i><div><h2>${esc(t('people', 'People'))}</h2><p class="pp-list-sub">${loaded ? esc(kit.countPhrase([[counts.users, t('user_one', 'user'), t('user_many', 'users')]])) : ''}</p></div></div>${loaded && (wordingShown || branchesShown) ? `<div class="pp-list-tools">${branchesShown ? `<button type="button" class="pp-btn" data-home-branches${kit.tip(t('branches_button_tip', 'Name your branch, add branches and regions'))}><i class="fas fa-location-dot" aria-hidden="true"></i><span class="pp-btn-label">${esc(t('branches', 'Branches'))}</span></button>` : ''}${wordingShown ? `<button type="button" class="pp-btn" data-home-wording${kit.tip(t('wording_tip', 'What your organization calls a group, its members, an outside company and a department'))}><i class="fas fa-spell-check" aria-hidden="true"></i><span class="pp-btn-label">${esc(t('wording', 'Wording'))}</span></button>` : ''}</div>` : ''}</header>
+        <div class="pp-home-cards">${visibleCards.map((card) => `<button type="button" class="pp-card${loaded ? '' : ' loading'}" data-home-card="${card.id}"><i class="fas ${card.icon} pp-card-icon" aria-hidden="true"></i><strong>${esc(card.title)}</strong><span class="pp-card-count"><b>${loaded ? Number(card.count || 0).toLocaleString() : '0'}</b><span>${esc(card.note)}</span></span><i class="fas fa-arrow-right pp-card-go" aria-hidden="true"></i></button>`).join('')}</div>
         ${attention.length ? `<section class="pp-attention" aria-label="${esc(t('needs_attention', 'Needs attention'))}"><h3>${esc(t('needs_attention', 'Needs attention'))}</h3>${attention.map((item) => `<button type="button" class="pp-attention-row" data-home-attention="${esc(item.id)}"><i class="fas ${esc(item.icon)}" aria-hidden="true"></i><b>${esc(Number(item.count).toLocaleString())}</b><span>${esc(item.text)}</span><i class="fas fa-chevron-right pp-attention-go" aria-hidden="true"></i></button>`).join('')}</section>` : ''}
       </div>`;
     }
@@ -78,6 +83,8 @@
       if (card) { context.go?.(card.dataset.homeCard); return; }
       const wording = event.target.closest('[data-home-wording]');
       if (wording) { People.lists.wording(wording); return; }
+      const branchesButton = event.target.closest('[data-home-branches]');
+      if (branchesButton) { People.branches.open({ opener:branchesButton }); return; }
       const row = event.target.closest('[data-home-attention]');
       const item = row ? attention.find((entry) => entry.id === row.dataset.homeAttention) : null;
       if (!item) return;

@@ -10,12 +10,10 @@
  *     type({ kind, id, opener })          one type: name, description, roles on joining and the partner flag
  *                                         (group types), who has it, Compensation and Fields
  *     tags({ opener })                    the assignment tag list
- *     divisions({ opener })               organizational units departments sit in
- *     categories({ opener })              the categories departments are filed under
  *     wording(anchor)                     what the organization calls a group, its members, an outside company, a department
  *
  *   listModal({ title, icon, color, opener, words:[one, many], legend:html, newLabel, onNew(button),
- *     rows() => [{ id, name, tooltip, chips:[chip], count, countTip, open:bool, actions:[{ id, icon, label, tone, disabled, tooltip }] }],
+ *     rows() => [{ id, name, tooltip, chips:[chip], count, countTip, stack:html (faces in place of the count), open:bool, actions:[{ id, needs, icon, label, tone, disabled, tooltip }] }],
  *     onOpen(row, button), onAction(actionId, row, button), onClose })
  */
 (function(){
@@ -41,6 +39,7 @@
       .pp-sum-switch>span{flex:1}
       .pp-sum-switch>i{width:14px;text-align:center;color:var(--pp-faint);font-size:11px}
       .pp-sum-extra{display:grid;gap:4px;margin-top:14px}
+      .pp-type-faces{flex:none;display:inline-flex}
       .pp-wording{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);gap:8px 10px;align-items:center;width:400px;max-width:100%;margin:0;padding:14px}
       .pp-wording>strong{grid-column:1/-1;font-size:14px;font-weight:700}
       .pp-wording>em{color:var(--pp-muted);font-size:11px;font-weight:700;font-style:normal;letter-spacing:.04em;text-transform:uppercase}
@@ -62,15 +61,15 @@
         <div class="pp-types" role="list">${rows.map((row) => `<div class="pp-type" role="listitem" data-type-id="${esc(row.id)}">
           ${row.open ? `<button type="button" class="pp-type-open" data-list-open${tip(row.tooltip)}>${esc(row.name)}</button>` : `<span class="pp-type-name"${tip(row.tooltip)}>${esc(row.name)}</span>`}
           <div class="pp-chip-run">${(row.chips || []).map(kit.chip).join('')}</div>
-          ${row.count == null ? '' : `<span class="pp-type-count"${tip(row.countTip)}>${esc(row.count)}</span>`}
-          ${(row.actions || []).filter(Boolean).map((action) => `<button type="button" class="pp-icon-btn ${action.tone === 'danger' ? 'danger' : ''}" data-list-row-action="${esc(action.id)}" aria-label="${esc(action.label)}"${tip(action.tooltip || action.label)} ${action.disabled ? 'disabled' : ''}><i class="fas ${esc(action.icon)}" aria-hidden="true"></i></button>`).join('')}
+          ${row.stack ? `<span class="pp-type-faces"${tip(row.countTip)}>${row.stack}</span>` : row.count == null ? '' : `<span class="pp-type-count"${tip(row.countTip)}>${esc(row.count)}</span>`}
+          ${data.gate(row.actions, 'list-row').map((action) => `<button type="button" class="pp-icon-btn ${action.tone === 'danger' ? 'danger' : ''}" data-list-row-action="${esc(action.id)}" aria-label="${esc(action.label)}"${tip(action.tooltip || action.label)} ${action.disabled ? 'disabled' : ''}><i class="fas ${esc(action.icon)}" aria-hidden="true"></i></button>`).join('')}
         </div>`).join('') || `<div class="pp-state"><i class="fas ${esc(options.icon || 'fa-list')}" aria-hidden="true"></i><strong>${esc(options.empty || t('nothing_here', 'Nothing here yet'))}</strong>${options.onNew ? `<button type="button" class="pp-btn" data-list-new>${esc(options.newLabel || t('new', 'New'))}</button>` : ''}</div>`}</div>`;
     };
     const modal = People.entityModal.open({
       label:options.title, opener:options.opener, footer:false,
       summary(summaryHost){ summaryHost.innerHTML = kit.summary({ kind:'list', id:options.title, name:options.title, icon:options.icon || 'fa-list', color:options.color || '#475467', pills:[], facts:[], sections:[] }, 'panel'); },
       actions:() => [],
-      tabs:[{ id:'list', label:options.title, icon:options.icon || 'fa-list', mount(panel){ host = panel; draw(); return {}; } }],
+      tabs:[{ id:'list', needs:null, label:options.title, icon:options.icon || 'fa-list', mount(panel){ host = panel; draw(); return {}; } }],
       onClose(){ unsubscribe(); options.onClose?.(); }
     });
     const unsubscribe = data.subscribe(() => draw());
@@ -102,12 +101,12 @@
       title:typeWords(kind), icon:'fa-tags', color:forGroups ? '#0e7090' : '#475467', opener:options.opener, words:[t('type_one', 'type'), t('type_many', 'types')], empty:t('no_types', 'No types yet'),
       legend:forGroups ? `<span class="pp-chip role"><span>${esc(t('roles_on_joining', 'Roles on joining'))}</span></span>${kit.info(t('roles_on_joining_tip', 'A user gets these roles when they join a group of this type. Nothing is removed when they leave, and people who are already members are not changed.'))}` : '',
       newLabel:t('new_type', 'New type'),
-      onNew:can.settings ? (button) => kit.form(button, { title:t('new_type', 'New type'), submitLabel:t('create', 'Create'), fields:[{ id:'name', label:t('name', 'Name'), required:true }], submit:(values) => data.saveType({ kind, name:values.name }) }).then((saved) => { if (saved?.id) type({ kind, id:saved.id }); }) : null,
+      onNew:data.allows(forGroups ? 'groups.edit' : 'companies.edit') ? (button) => kit.form(button, { title:t('new_type', 'New type'), submitLabel:t('create', 'Create'), fields:[{ id:'name', label:t('name', 'Name'), required:true }], submit:(values) => data.saveType({ kind, name:values.name }) }).then((saved) => { if (saved?.id) type({ kind, id:saved.id }); }) : null,
       rows:() => data.types(kind).map((entry) => {
         const used = data.typeUsage(kind, entry.id).length;
         return { id:entry.id, name:entry.name, tooltip:entry.description, open:true, count:used, countTip:t('type_usage_tip', 'How many have this type'),
           chips:forGroups ? [...(entry.member_role_ids || []).map((roleId) => ({ label:data.role(roleId)?.name || roleId, tone:'role' })), ...(data.typeFlag(entry.id) ? [{ label:t('open_to_partners', 'Open to partners'), tone:'group' }] : [])] : [],
-          actions:can.settings ? [{ id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', disabled:used > 0, tooltip:used ? t('type_in_use', 'In use: it cannot be archived') : '' }] : [] };
+          actions:can.settings ? [{ id:'archive', needs:(forGroups ? 'groups.edit' : 'companies.edit'), icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', disabled:used > 0, tooltip:used ? t('type_in_use', 'In use: it cannot be archived') : '' }] : [] };
       }),
       onOpen:(row) => type({ kind, id:row.id }),
       async onAction(action, row, button){ if (action === 'archive' && await archiveConfirm(button, row.name)) guarded(() => data.saveType({ kind, id:row.id, name:row.name, status:'archived' }), t('not_archived', 'Not archived')); }
@@ -135,19 +134,19 @@
     function drawSummary(host){
       const model = {
         kind:forGroups ? 'resource_group_kind' : 'organization_connection_type', id, name:draft.name || id, secondary:draft.description, icon:'fa-tags', color:forGroups ? '#0e7090' : '#475467', pills:[], facts:[],
-        sections:forGroups ? [{ id:'roles', title:t('roles_on_joining', 'Roles on joining'), icon:kit.ICONS.role, tooltip:t('roles_on_joining_tip', 'A user gets these roles when they join a group of this type. Nothing is removed when they leave, and people who are already members are not changed.'), chips:draft.roleIds.map((roleId) => ({ label:data.role(roleId)?.name || roleId, tone:'role' })), empty:t('none', 'None'), action:can.permissions ? { id:'roles', label:t('change_roles_on_joining', 'Change roles on joining') } : null }] : []
+        sections:forGroups ? [{ id:'roles', title:t('roles_on_joining', 'Roles on joining'), icon:kit.ICONS.role, tooltip:t('roles_on_joining_tip', 'A user gets these roles when they join a group of this type. Nothing is removed when they leave, and people who are already members are not changed.'), chips:draft.roleIds.map((roleId) => ({ label:data.role(roleId)?.name || roleId, tone:'role' })), empty:t('none', 'None'), action:data.allows('groups.type_roles') ? { id:'roles', label:t('change_roles_on_joining', 'Change roles on joining') } : null }] : []
       };
-      host.innerHTML = kit.summary(model, 'panel', { editAction:can.settings && !editing ? t('edit_role_identity', 'Edit name and description') : '' })
-        + (forGroups ? `<div class="pp-sum-extra"><label class="pp-sum-switch"><i class="fas fa-handshake" aria-hidden="true"></i><span>${esc(t('open_to_partners', 'Open to partners'))}</span>${kit.info(t('open_to_partners_tip', 'Connected organizations, or the teams they expose, can be given work meant for a group of this type.'))}<button type="button" class="pp-switch" role="switch" data-type-external aria-checked="${draft.external}" aria-label="${esc(t('open_to_partners', 'Open to partners'))}" ${can.settings ? '' : 'disabled'}></button></label>${draft.external && window.Portal?.tabs?.activateTab ? `<button type="button" class="pp-btn quiet" data-type-partners style="justify-self:start;height:28px;padding:0 8px;font-size:12px"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>${esc(t('partners', 'Partners'))}</button>` : ''}</div>` : '');
+      host.innerHTML = kit.summary(model, 'panel', { editAction:data.allows(forGroups ? 'groups.edit' : 'companies.edit') && !editing ? t('edit_role_identity', 'Edit name and description') : '' })
+        + (forGroups ? `<div class="pp-sum-extra"><label class="pp-sum-switch"><i class="fas fa-handshake" aria-hidden="true"></i><span>${esc(t('open_to_partners', 'Open to partners'))}</span>${kit.info(t('open_to_partners_tip', 'Connected organizations, or the teams they expose, can be given work meant for a group of this type.'))}<button type="button" class="pp-switch" role="switch" data-type-external aria-checked="${draft.external}" aria-label="${esc(t('open_to_partners', 'Open to partners'))}" ${data.allows('groups.edit') ? '' : 'disabled'}></button></label>${draft.external && window.Portal?.tabs?.activateTab ? `<button type="button" class="pp-btn quiet" data-type-partners style="justify-self:start;height:28px;padding:0 8px;font-size:12px"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>${esc(t('partners', 'Partners'))}</button>` : ''}</div>` : '');
       if (editing) pageKit.identity(host, [{ id:'name', value:draft.name, placeholder:t('name', 'Name') }, { id:'description', type:'textarea', value:draft.description, placeholder:t('description', 'Description') }]);
     }
     const entity = data.entityFor(forGroups ? 'resource_group_kind' : 'organization_connection_type', id, current().name);
     const modal = People.entityModal.open({
       label:current().name || id, opener:options.opener,
       summary:drawSummary,
-      actions:() => can.settings ? [{ id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', disabled:data.typeUsage(kind, id).length > 0, onClick:async (button) => { if (await archiveConfirm(button, current().name)) guarded(async () => { await data.saveType({ kind, id, name:current().name, status:'archived' }); modal.close(true); }, t('not_archived', 'Not archived')); } }] : [],
+      actions:() => can.settings ? [{ id:'archive', needs:(forGroups ? 'groups.edit' : 'companies.edit'), icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', disabled:data.typeUsage(kind, id).length > 0, onClick:async (button) => { if (await archiveConfirm(button, current().name)) guarded(async () => { await data.saveType({ kind, id, name:current().name, status:'archived' }); modal.close(true); }, t('not_archived', 'Not archived')); } }] : [],
       tabs:[
-        { id:'used', label:forGroups ? (data.state.groupLabels.plural || t('groups', 'Groups')) : (data.state.groupLabels.connectionPlural || t('subcontractors', 'Subcontractors')), icon:forGroups ? kit.ICONS.group : kit.ICONS.company, mount(panel){
+        { id:'used', needs:(forGroups ? 'groups.view' : 'companies.view'), label:forGroups ? (data.state.groupLabels.plural || t('groups', 'Groups')) : (data.state.groupLabels.connectionPlural || t('subcontractors', 'Subcontractors')), icon:forGroups ? kit.ICONS.group : kit.ICONS.company, mount(panel){
           panel.classList.add('pp-members');
           const list = People.listPage.mount(panel, {
             embedded:true, subtitle:'', empty:{ icon:forGroups ? kit.ICONS.group : kit.ICONS.company, title:t('none_of_type', 'None of this type yet') },
@@ -195,8 +194,8 @@
     return listModal({
       title:t('tags', 'Tags'), icon:'fa-tag', opener:options.opener, words:[t('tag_one', 'tag'), t('tag_many', 'tags')], empty:t('no_tags', 'No tags yet'),
       legend:kit.info(t('tags_tip', 'Tags mark what people and groups can be given, and an event type can ask for them.')),
-      newLabel:t('new_tag', 'New tag'), onNew:can.settings ? (button) => edit(button, null) : null,
-      rows:() => data.state.tags.map((tag) => ({ id:String(tag.id), name:tag.name || tag.id, count:data.tagUsage(tag.id), countTip:t('tag_usage_tip', 'People and groups with this tag'), actions:can.settings ? [{ id:'rename', icon:kit.ICONS.edit, label:t('rename', 'Rename') }, { id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' }] : [] })),
+      newLabel:t('new_tag', 'New tag'), onNew:data.allows('groups.edit') ? (button) => edit(button, null) : null,
+      rows:() => data.state.tags.map((tag) => ({ id:String(tag.id), name:tag.name || tag.id, count:data.tagUsage(tag.id), countTip:t('tag_usage_tip', 'People and groups with this tag'), actions:can.settings ? [{ id:'rename', needs:'groups.edit', icon:kit.ICONS.edit, label:t('rename', 'Rename') }, { id:'archive', needs:'groups.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' }] : [] })),
       async onAction(action, row, button){
         if (action === 'rename') edit(button, { id:row.id, name:row.name });
         else if (action === 'archive' && await archiveConfirm(button, row.name)) guarded(() => data.saveTag({ id:row.id, name:row.name, status:'archived' }), t('not_archived', 'Not archived'));
@@ -204,54 +203,20 @@
     });
   }
 
-  /* ---- divisions (organizational units) and department categories ---- */
-  function divisions(options = {}){
-    const can = data.can;
-    const edit = (button, unit) => kit.form(button, {
-      title:unit ? t('edit', 'Edit') : t('new_division', 'New unit'), submitLabel:unit ? t('save', 'Save') : t('create', 'Create'),
-      fields:[
-        { id:'label', label:t('name', 'Name'), value:unit?.label || '', required:true },
-        { id:'kind', label:t('division_kind', 'Kind'), value:unit?.kind || t('division', 'Division') },
-        { id:'parent_id', label:t('division_parent', 'Part of'), type:'select', value:unit?.parent_id || '', placeholder:t('organization', 'The organization'), options:data.state.divisions.filter((entry) => entry.id !== unit?.id && entry.parent_id !== unit?.id).map((entry) => ({ value:entry.id, label:entry.label })) }
-      ],
-      submit:(values) => data.saveDivision({ id:unit?.id, label:values.label, kind:values.kind || 'Division', parent_id:values.parent_id || '' })
-    });
-    return listModal({
-      title:t('divisions', 'Organizational units'), icon:'fa-diagram-project', opener:options.opener, words:[t('division_one', 'unit'), t('division_many', 'units')], empty:t('no_divisions', 'No units yet'),
-      legend:kit.info(t('divisions_tip', 'Units such as divisions or regions that departments sit in. A role can be given inside one unit only.')),
-      newLabel:t('new_division', 'New unit'), onNew:can.settings ? (button) => edit(button, null) : null,
-      rows:() => [...data.state.divisions].sort((left, right) => String(left.label).localeCompare(String(right.label))).map((unit) => {
-        const inside = data.divisionDepartments(unit.id).length;
-        return { id:unit.id, name:unit.label, count:inside, countTip:t('division_usage_tip', 'Departments in this unit'),
-          chips:[{ label:unit.kind || t('division', 'Division'), tone:'muted' }, ...(unit.parent_id && data.division(unit.parent_id) ? [{ label:data.division(unit.parent_id).label, icon:'fa-turn-up' }] : [])],
-          actions:can.settings ? [{ id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, { id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', disabled:inside > 0, tooltip:inside ? t('division_in_use', 'Departments still sit in it') : '' }] : [] };
-      }),
-      async onAction(action, row, button){
-        const unit = data.division(row.id);
-        if (action === 'edit') edit(button, unit);
-        else if (action === 'archive' && await archiveConfirm(button, row.name)) guarded(() => data.saveDivision({ ...unit, status:'archived' }), t('not_archived', 'Not archived'));
-      }
-    });
-  }
-  function categories(options = {}){
-    const can = data.can;
-    const edit = (button, category) => kit.form(button, { title:category ? t('rename', 'Rename') : t('new_category', 'New category'), submitLabel:category ? t('save', 'Save') : t('create', 'Create'), fields:[{ id:'label', label:t('name', 'Name'), value:category?.label || '', required:true }], submit:(values) => data.saveCategory({ id:category?.id, label:values.label }) });
-    return listModal({
-      title:t('categories', 'Categories'), icon:'fa-folder', opener:options.opener, words:[t('category_one', 'category'), t('category_many', 'categories')], empty:t('no_categories', 'No categories yet'),
-      newLabel:t('new_category', 'New category'), onNew:can.settings ? (button) => edit(button, null) : null,
-      rows:() => data.state.departmentCategories.map((category) => ({ id:category.id, name:category.label, count:data.categoryDepartments(category.id).length, countTip:t('category_usage_tip', 'Departments filed here'), actions:can.settings ? [{ id:'rename', icon:kit.ICONS.edit, label:t('rename', 'Rename') }, { id:'remove', icon:kit.ICONS.remove, label:t('remove', 'Remove'), tone:'danger' }] : [] })),
-      async onAction(action, row, button){
-        if (action === 'rename') edit(button, { id:row.id, label:row.name });
-        else if (action === 'remove' && await kit.confirm(button, { title:t('remove_confirm', 'Remove {name}?', { name:row.name }), confirmLabel:t('remove', 'Remove'), tone:'danger' })) guarded(() => data.saveCategory({ id:row.id, label:row.name, remove:true }));
-      }
-    });
-  }
-
   /* ---- wording: the organization's own words for the things People lists ---- */
+  /* The words an organization can change: only for what it has, and only when it may save them. */
+  function wordingRows(){
+    if (!data.allows('home.wording')) return [];
+    return [
+      data.can.groups ? ['member', kit.ICONS.user] : null,
+      data.can.companies ? ['company', kit.ICONS.company] : null,
+      data.allows('departments.edit') ? ['department', kit.ICONS.department] : null
+    ].filter(Boolean);
+  }
   function wording(anchor){
     ensureStyles();
     const now = data.wording();
-    const rows = [['member', kit.ICONS.user], ['company', kit.ICONS.company], ['department', kit.ICONS.department]];
+    const rows = wordingRows();
     const panel = document.createElement('form');
     panel.className = 'pp-wording';
     panel.noValidate = true;
@@ -283,7 +248,7 @@
     return handle;
   }
 
-  People.lists = { listModal, types, type, tags, divisions, categories, wording, ensureStyles };
+  People.lists = { listModal, types, type, tags, wording, wordingRows, ensureStyles };
   /* The pages reach the type list through pageKit, as before. */
   pageKit.typesModal = types;
 })();

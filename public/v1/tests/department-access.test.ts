@@ -5,9 +5,10 @@ import { resourcePermissionRules, scopedPermissionBranchIds, hasResourcePermissi
 import { authorizePublication, authorizePublicationDiscovery, userPublicationContext } from '../platform/publication/context.js';
 import type { AccessRole } from '../workforce/access.js';
 const structure: OrganizationStructureAccess = {
-  catalog: { divisions: [{ id:'east' }, { id:'scranton',parent_id:'east',branch_id:'scranton' },{id:'west'},{id:'retired',status:'archived'}],
-    departments: [{ id:'sales', label:'Sales', division_id:'scranton' }, { id:'production',label:'Production',division_id:'scranton' },{id:'west-sales',label:'West Sales',division_id:'west'},{id:'old',label:'Old',status:'archived'}] },
-  users: [{id:'person',department_ids:['sales'],division_ids:['scranton','east']}]
+  catalog: { regions: [{ id:'east', branch_ids:['scranton'] }, {id:'west', branch_ids:['portland']},{id:'retired',status:'archived',branch_ids:['erie']}],
+    departments: [{ id:'sales', label:'Sales', branch_id:'scranton' }, { id:'production',label:'Production',branch_id:'scranton' },{id:'west-sales',label:'West Sales',branch_id:'portland'},{id:'old',label:'Old',status:'archived'}] },
+  branches: [{id:'default'},{id:'scranton'},{id:'portland'},{id:'erie'}],
+  users: [{id:'person',department_ids:['sales'],branch_ids:['scranton'],region_ids:['east']}]
 };
 const roles = [{id:'supervisor',status:'active',permissions:{view_comms:true,manage_communications:true}},{id:'admin',status:'active',permissions:{'*':true}}] as unknown as AccessRole[];
 const context = (patch: Partial<PlatformAuthContext> = {}) => ({orgId:'org',userId:'person',role:'viewer',user:{},permissions:{},organizationStructure:structure,applicationAccess:{management:{enabled:true,role_id:'',permissions:{}}},scopedAccessGrants:resolveScopedAccessGrants([{role_id:'supervisor',scope:{kind:'department',id:'sales'}}],roles,structure),...patch} as PlatformAuthContext);
@@ -20,13 +21,27 @@ test('a scoped role grants only the actual matching resource and never global pe
   assert.equal(hasResourcePermission(ctx,'manage_communications',{}),false);
   assert.equal(hasResourcePermission(ctx,'manage_communications',{organization_id:'other',department_id:'sales'}),false);
 });
-test('division grants cover descendants and mapped branches only',()=>{
-  const ctx=context({scopedAccessGrants:resolveScopedAccessGrants([{role_id:'supervisor',scope:{kind:'division',id:'east'}}],roles,structure)});
+test('region grants cover the branches in the region and their departments only',()=>{
+  const ctx=context({scopedAccessGrants:resolveScopedAccessGrants([{role_id:'supervisor',scope:{kind:'region',id:'east'}}],roles,structure)});
   assert.equal(hasResourcePermission(ctx,'manage_communications',{department_id:'production'}),true);
   assert.equal(hasResourcePermission(ctx,'manage_communications',{branch_id:'scranton'}),true);
   assert.deepEqual(scopedPermissionBranchIds(ctx,'manage_communications'),['scranton']);
   assert.deepEqual(scopedPermissionBranchIds(context(),'manage_communications'),[]);
   assert.equal(hasResourcePermission(ctx,'manage_communications',{department_id:'west-sales'}),false);
+  assert.equal(hasResourcePermission(ctx,'manage_communications',{branch_id:'portland'}),false);
+  // An archived region confers nothing.
+  assert.deepEqual(resolveScopedAccessGrants([{role_id:'supervisor',scope:{kind:'region',id:'retired'}}],roles,structure),[]);
+});
+test('branch grants cover the branch, its departments and its records',()=>{
+  const ctx=context({scopedAccessGrants:resolveScopedAccessGrants([{role_id:'supervisor',scope:{kind:'branch',id:'portland'}}],roles,structure)});
+  assert.equal(hasResourcePermission(ctx,'manage_communications',{department_id:'west-sales'}),true);
+  assert.equal(hasResourcePermission(ctx,'manage_communications',{branch_id:'portland'}),true);
+  assert.equal(hasResourcePermission(ctx,'manage_communications',{department_id:'sales'}),false);
+  assert.deepEqual(scopedPermissionBranchIds(ctx,'manage_communications'),['portland']);
+  assert.deepEqual(validateScopedAccessAssignments([{role_id:'supervisor',scope:{kind:'branch',id:'portland'}}],roles,structure),[{role_id:'supervisor',scope:{kind:'branch',id:'portland'}}]);
+  assert.throws(()=>validateScopedAccessAssignments([{role_id:'supervisor',scope:{kind:'branch',id:'nowhere'}}],roles,structure),/branch or region/);
+  // Branch reach is organization structure, never something a scope can confer.
+  assert.throws(()=>validateScopedAccessAssignments([{permissions:{view_all_branches:true},scope:{kind:'branch',id:'portland'}}],roles,structure),/cannot be assigned/);
 });
 test('explicit denials override wildcard and scoped grants',()=>{
   assert.equal(hasResourcePermission(context({permissions:{'*':true,manage_communications:false}}),'manage_communications',{department_id:'sales'}),false);
@@ -35,7 +50,7 @@ test('explicit denials override wildcard and scoped grants',()=>{
   assert.equal(hasResourcePermission(ctx,'manage_communications',{department_id:'production'}),true);
 });
 test('permission rules preserve each OR capability and denials on mixed department resources',()=>{
-  const ctx=context({scopedAccessGrants:resolveScopedAccessGrants([{permissions:{view_comms:true},scope:{kind:'division',id:'east'}},{permissions:{view_comms:false},scope:{kind:'department',id:'sales'}},{permissions:{view_call_recordings:true},scope:{kind:'department',id:'production'}}],roles,structure)});
+  const ctx=context({scopedAccessGrants:resolveScopedAccessGrants([{permissions:{view_comms:true},scope:{kind:'region',id:'east'}},{permissions:{view_comms:false},scope:{kind:'department',id:'sales'}},{permissions:{view_call_recordings:true},scope:{kind:'department',id:'production'}}],roles,structure)});
   assert.equal(hasResourcePermission(ctx,'view_comms',{department_ids:['sales','production'],branch_id:'scranton'}),false);
   const [calls,recordings]=resourcePermissionRules(ctx,'view_comms|view_call_recordings');
   assert.ok(calls && recordings);

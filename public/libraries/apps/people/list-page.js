@@ -10,6 +10,7 @@
  *     search: { placeholder, value, onInput(query) },
  *     filters: { items:[{ id, label, count, tooltip }], value, onChange(id) },   // chips before the search; list.setFilters(items, value) updates them
  *     actions: [{ id, label, icon, primary, menu, tooltip, onClick(button) }],   // right of the search, one line
+ *                                             // list.controlHost: an empty slot between the search and the actions (the branch filter)
  *     empty: { icon, title, action:{ label, onClick(button) } },   // no rows: one line and one action
  *     embedded: true,                         // inside a modal tab: no icon or title, the count leads the line
  *     row(item, { section }) => ({            // how one item becomes a row; section is the key of the section it is drawn in, if any
@@ -30,6 +31,7 @@
  *     onPhoto(item, file)                     // an image was picked for the photo
  *     section(item) => ({ key, title, icon, color, tooltip, order }) | [..] | null,   // sections; an item can sit in several
  *     sorts: [{ id, label, compare(a, b), first }], sort: { id, dir }, sortStore: 'users'   // per-section sort buttons, remembered per page
+ *                                             // a section header also collapses its section (remembered under the same store)
  *     columns: false                          // full-width rows instead of two columns
  *   });
  *   list.setItems(items)      list.setSubtitle(text)      list.setLoading(true)
@@ -68,6 +70,7 @@
       .pp-list-head.stuck::before,.pp-list-head.stuck::after{opacity:1}
       .pp-list.embedded .pp-list-head::before,.pp-list.embedded .pp-list-head::after{display:none}
       .pp-list-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;flex:1 1 auto}
+      .pp-list-control{display:contents}
       .pp-list-filters{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
       .pp-list-filters::-webkit-scrollbar{display:none}
       .pp-list-filters~.pp-search{flex-basis:170px}
@@ -78,6 +81,15 @@
       .pp-list-body.sectioned{display:flex;flex-direction:column;gap:22px}
       .pp-list-section-head{display:flex;align-items:center;gap:8px;min-width:0;min-height:28px;margin:0 0 6px;padding:0 4px 6px 8px;border-bottom:1px solid var(--pp-line-soft)}
       .pp-list-section-head h3{flex:0 1 auto;min-width:0;margin:0;color:var(--pp-text);font-size:13.5px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .pp-list-section-head h3.pp-list-section-title{display:flex;flex:0 1 auto;min-width:0;margin:0;overflow:visible}
+      .pp-list-section-toggle{display:flex;flex:0 1 auto;align-items:center;gap:8px;min-width:0;margin:0 0 0 -6px;padding:2px 6px;border:0;border-radius:7px;background:transparent;color:var(--pp-text);font:inherit;font-size:13.5px;font-weight:700;line-height:1.3;text-align:left;cursor:pointer}
+      .pp-list-section-toggle:hover{background:var(--pp-hover)}
+      .pp-list-section-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .pp-list-section-chevron{flex:none;width:10px;color:var(--pp-faint);font-size:9.5px;transition:transform .16s ease}
+      .pp-list-section.collapsed .pp-list-section-chevron{transform:rotate(-90deg)}
+      .pp-list-section.collapsed .pp-list-section-head{margin-bottom:0}
+      .pp-list-section-toggle .pp-list-section-count{font-weight:400}
+      @media (prefers-reduced-motion:reduce){.pp-list-section-chevron{transition:none}}
       .pp-list-section-count{flex:none;color:var(--pp-muted);font-size:12px;font-variant-numeric:tabular-nums}
       .pp-list-section-mark{display:inline-grid;place-items:center;flex:none;width:20px;height:20px;border-radius:6px;background:var(--pp-mark);color:#fff;font-size:9.5px}
       .pp-list-section-mark.dot{width:8px;height:8px;border-radius:50%}
@@ -148,13 +160,16 @@
     // Two columns unless a page asks for full-width rows.
     const columns = options.columns !== false;
     let error = null;
-    const actions = options.actions || [];
+    /* Actions and row actions say what they need (data.ACTIONS); what this organization or user cannot do is never drawn. */
+    const gate = ((list, where) => (window.FirstMatePeople?.data?.gate ? window.FirstMatePeople.data.gate(list, where) : (list || []).filter(Boolean)));
+    const actions = gate(options.actions, 'list');
     container.innerHTML = `<div class="pp pp-list${options.embedded ? ' embedded' : ''}" data-settings-autosave="off">
       <header class="pp-list-head">
         <div class="pp-list-heading">${options.embedded ? '' : `<i class="fas ${esc(options.icon || 'fa-users')}" aria-hidden="true"></i>`}<div>${options.embedded ? '' : `<h2>${esc(options.title || '')}</h2>`}<p class="pp-list-sub" aria-live="polite">${esc(options.subtitle || '')}</p></div></div>
         <div class="pp-list-tools">
           ${options.filters ? `<div class="pp-seg pp-list-filters" role="group" aria-label="${esc(options.filters.label || t('show', 'Show'))}" data-list-filters></div>` : ''}
           ${options.search ? `<label class="pp-search"><i class="fas ${kit.ICONS.search}" aria-hidden="true"></i><input type="search" data-list-search placeholder="${esc(options.search.placeholder || t('search', 'Search'))}" aria-label="${esc(options.search.placeholder || t('search', 'Search'))}" value="${esc(options.search.value || '')}" autocomplete="off" spellcheck="false"></label>` : ''}
+          <div class="pp-list-control" data-list-control></div>
           ${actions.map((action, index) => `<button type="button" class="pp-btn ${action.primary ? 'primary' : ''}" data-list-action="${index}" ${action.menu ? 'aria-haspopup="menu" aria-expanded="false"' : ''} aria-label="${esc(action.label)}"${tip(action.tooltip)}>${action.icon ? `<i class="fas ${esc(action.icon)}" aria-hidden="true"></i>` : ''}<span class="pp-btn-label">${esc(action.label)}</span>${action.menu ? `<i class="fas fa-chevron-down pp-caret" aria-hidden="true"></i>` : ''}</button>`).join('')}
         </div>
       </header>
@@ -198,6 +213,22 @@
     try { if (sortStoreKey) sortState = JSON.parse(window.localStorage.getItem(sortStoreKey) || '{}') || {}; } catch (_) { sortState = {}; }
     const saveSorts = () => { try { if (sortStoreKey) window.localStorage.setItem(sortStoreKey, JSON.stringify(sortState)); } catch (_) {} };
     const sortOf = (key) => { const held = sortState[key]; return held && sorts.some((sort) => sort.id === held.id) ? { id:held.id, dir:held.dir === 'desc' ? 'desc' : 'asc' } : defaultSort(); };
+    /* Collapsed sections, remembered per page and section beside the sort choice. A search opens every section it finds rows in. */
+    const collapseStoreKey = options.sortStore ? `fm.people.list-collapse.${options.sortStore}` : '';
+    let collapsed = new Set();
+    try { if (collapseStoreKey) collapsed = new Set(JSON.parse(window.localStorage.getItem(collapseStoreKey) || '[]') || []); } catch (_) { collapsed = new Set(); }
+    const saveCollapsed = () => { try { if (collapseStoreKey) window.localStorage.setItem(collapseStoreKey, JSON.stringify([...collapsed])); } catch (_) {} };
+    let searching = false;
+    const isCollapsed = (key) => !searching && collapsed.has(String(key));
+    function toggleSection(key){
+      const id = String(key);
+      if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
+      saveCollapsed();
+      if (searching) searching = false;
+      render();
+      body.querySelector(`[data-section-toggle="${CSS.escape(id)}"]`)?.focus({ preventScroll:true });
+    }
+    const listId = `pp-list-${Math.random().toString(36).slice(2, 8)}`;
     let sectionCache = null;
     function sectionList(){
       if (!options.section || state !== 'ready' || !items.length) return null;
@@ -260,7 +291,8 @@
       const photoHtml = model.photoAction
         ? `<button type="button" class="pp-row-photo" data-row-photo aria-label="${esc(model.photoAction)}"${tip(model.photoAction)}>${photo}<span class="pp-row-photo-edit" aria-hidden="true"><i class="fas fa-camera"></i></span></button>`
         : `<span class="pp-row-photo">${photo}</span>`;
-      const rowActions = (model.actions || []).filter(Boolean);
+      const rowActions = gate(model.actions, 'row');
+      model.actions = rowActions;
       return `<div class="pp-row${model.dimmed ? ' dimmed' : ''}" role="listitem" data-row-key="${esc(key)}"${sectionKey != null ? ` data-row-section="${esc(sectionKey)}"` : ''}>
         ${photoHtml}
         <div class="pp-row-main"${model.hover ? ` data-people-hover="${esc(model.hover)}"` : ''}>
@@ -289,7 +321,7 @@
       else if (!items.length) body.innerHTML = `<div class="pp-list-state"><i class="fas ${esc(options.empty?.icon || options.icon || 'fa-users')}" aria-hidden="true"></i><strong>${esc(options.empty?.title || t('nothing_here', 'Nothing here yet'))}</strong>${options.empty?.action ? `<button type="button" class="pp-btn" data-list-empty-action>${esc(options.empty.action.label)}</button>` : ''}</div>`;
       else if (sectionList()) {
         // Each section is its own grid of rows, its rows in the order its sort says.
-        body.innerHTML = sectionList().map((section) => `<section class="pp-list-section" data-list-section="${esc(section.key)}"><div class="pp-list-section-head">${sectionMark(section)}<h3${tip(section.tooltip)}>${esc(section.title)}</h3><span class="pp-list-section-count">${section.items.length.toLocaleString()}</span>${sortControls(section)}</div><div class="pp-list-grid${columns && section.items.length > 1 ? ' two' : ''}" role="list" aria-label="${esc(section.title)}" style="--pp-rows:${Math.ceil(section.items.length / 2)}">${sortedItems(section).map((item) => rowHtml(item, section.key)).join('')}</div></section>`).join('');
+        body.innerHTML = sectionList().map((section) => `<section class="pp-list-section${isCollapsed(section.key) ? ' collapsed' : ''}" data-list-section="${esc(section.key)}"><div class="pp-list-section-head"><h3 class="pp-list-section-title"${tip(section.tooltip)}><button type="button" class="pp-list-section-toggle" data-section-toggle="${esc(section.key)}" aria-expanded="${!isCollapsed(section.key)}" aria-controls="${esc(`${listId}-${section.key}`)}"><i class="fas fa-chevron-down pp-list-section-chevron" aria-hidden="true"></i>${sectionMark(section)}<span class="pp-list-section-name">${esc(section.title)}</span><span class="pp-list-section-count">${section.items.length.toLocaleString()}</span></button></h3>${isCollapsed(section.key) ? '' : sortControls(section)}</div><div class="pp-list-grid${columns && section.items.length > 1 ? ' two' : ''}" id="${esc(`${listId}-${section.key}`)}" ${isCollapsed(section.key) ? 'hidden' : ''} role="list" aria-label="${esc(section.title)}" style="--pp-rows:${Math.ceil(section.items.length / 2)}">${sortedItems(section).map((item) => rowHtml(item, section.key)).join('')}</div></section>`).join('');
       }
       else body.innerHTML = items.map((item) => rowHtml(item)).join('');
       const sectioned = state === 'ready' && items.length > 0 && !!sectionList();
@@ -372,6 +404,8 @@
     const rowOf = (target) => target.closest?.('.pp-row');
     body.addEventListener('click', (event) => {
       if (event.target.closest('[data-list-retry]')) { error?.retry?.(); return; }
+      const sectionToggle = event.target.closest('[data-section-toggle]');
+      if (sectionToggle) { toggleSection(sectionToggle.dataset.sectionToggle); return; }
       const sortButton = event.target.closest('[data-list-sort]');
       if (sortButton) { toggleSort(sortButton.dataset.sortSection, sortButton.dataset.listSort); return; }
       const emptyAction = event.target.closest('[data-list-empty-action]');
@@ -385,7 +419,7 @@
       const more = event.target.closest('[data-row-more]');
       if (more) {
         event.stopPropagation();
-        kit.menu(more, { align:'end', label:t('actions', 'Actions'), items:(models.get(key)?.actions || []).filter(Boolean).map((action) => ({ id:action.id, label:action.label, icon:action.icon, tone:action.tone === 'danger' ? 'danger' : '', disabled:action.disabled })), onSelect:(action) => { options.onAction?.(action.id, item, more); } });
+        kit.menu(more, { align:'end', label:t('actions', 'Actions'), items:(models.get(key)?.actions || []).map((action) => ({ id:action.id, label:action.label, icon:action.icon, tone:action.tone === 'danger' ? 'danger' : '', disabled:action.disabled })), onSelect:(action) => { options.onAction?.(action.id, item, more); } });
         return;
       }
       if (event.target.closest('[data-row-photo]')) { event.stopPropagation(); photoKey = key; fileInput.value = ''; fileInput.click(); return; }
@@ -407,7 +441,7 @@
     root.querySelector('[data-list-search]')?.addEventListener('input', (event) => {
       window.clearTimeout(searchTimer);
       const value = event.target.value;
-      searchTimer = window.setTimeout(() => options.search.onInput?.(value), 90);
+      searchTimer = window.setTimeout(() => { searching = value.trim() !== ''; options.search.onInput?.(value); }, 90);
     });
     /* Filter chips: which rows are shown. The page owns the meaning; the list draws the chips and their counts. */
     let filterValue = options.filters?.value || options.filters?.items?.[0]?.id || '';
@@ -427,6 +461,7 @@
 
     return {
       el:root,
+      controlHost:root.querySelector('[data-list-control]'),
       setItems(next){ items = Array.isArray(next) ? next : []; state = 'ready'; error = null; render(); },
       setLoading(loading = true){ state = loading ? 'loading' : 'ready'; render(); },
       setError(message, retry){ state = 'error'; error = { message, retry }; render(); },

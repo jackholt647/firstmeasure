@@ -7,7 +7,7 @@
  *   FirstMatePeople.pageKit
  *     identity(host, fields)              swap the summary's name for inputs: [{ id, value, placeholder, type:'text'|'textarea'|'select', options }]
  *     checkMenu(anchor, options)          checkbox menu over a draft list: { label, items:[{ id, label, color, hint, tooltip }], selected:[ids], onChange(next), refocus() }
- *     scopedRolesMenu(anchor, options)    the roles a person holds only in one department or unit ("Roles in Production")
+ *     scopedRolesMenu(anchor, options)    the roles a person holds only in one department, branch or region ("Roles in Production")
  *     peopleList(panel, options)          a tab of user rows (members): see below
  *     typesModal(options)                 the type list of a kind (people-lists.js puts it here)
  *     userRow(user, extra)                the row model of a person, as the Users list draws it
@@ -26,7 +26,8 @@
   const kit = People.kit;
   const data = People.data;
   const { esc, t, tip } = kit;
-  const failed = (title, error) => kit.toast(title, error?.message || t('try_again_later', 'Try again in a moment.'), false);
+  /* A refusal the page should have prevented still reads as a sentence, not a capability key. */
+  const failed = (title, error) => kit.toast(title, /capability_denied|capability is not available/.test(`${error?.code || ''} ${error?.message || ''}`) ? t('not_available_here', 'This is not available for your organization.') : /permission_denied|forbidden/i.test(String(error?.code || '')) ? t('not_allowed', 'You do not have permission to do this.') : (error?.message || t('try_again_later', 'Try again in a moment.')), false);
 
   function ensureStyles(){
     if (document.getElementById('pp_pagekit_css')) return;
@@ -90,8 +91,8 @@
   }
 
   /*
-   * scopedRolesMenu(anchor, { place, kind:'department' | 'unit', selected:[roleIds], everywhere:[roleIds], onChange(next, roleId, on), refocus() })
-   * The roles a person holds only for work in one department or one unit, titled with the place
+   * scopedRolesMenu(anchor, { place, kind:'department' | 'branch' | 'region', selected:[roleIds], everywhere:[roleIds], onChange(next, roleId, on), refocus() })
+   * The roles a person holds only for work in one department, branch or region, titled with the place
    * ("Roles in Production"). Roles that administer the whole organization are not offered; a role the
    * person already holds everywhere is shown but cannot be added again.
    */
@@ -103,8 +104,10 @@
     const place = options.place || '';
     return kit.menu(anchor, {
       title:t('roles_in', 'Roles in {place}', { place }),
-      titleTip:options.kind === 'unit'
-        ? t('roles_in_unit_tip', 'These apply only to work in {place} and its departments.', { place })
+      titleTip:options.kind === 'branch'
+        ? t('roles_in_branch_tip', 'These apply only to work in {place} and its departments.', { place })
+        : options.kind === 'region'
+        ? t('roles_in_region_tip', 'These apply only to work in the branches of {place}.', { place })
         : t('roles_in_department_tip', 'These apply only to work in {place}.', { place }),
       align:options.align || 'end', search:offered.length > 8 ? t('search_roles', 'Search roles') : '',
       items:[...offered, ...kept].map((role) => {
@@ -147,7 +150,7 @@
       title:options.title || t('members', 'Members'),
       subtitle:options.count(),
       search:{ placeholder:options.search || t('search_members', 'Search members'), onInput(value){ query = value.trim().toLowerCase(); list.setItems(visible()); } },
-      actions:[...(options.actions || []), ...(options.add ? [{ id:'add', label:options.add.label || t('add_people', 'Add people'), icon:'fa-user-plus', menu:true, onClick(button){
+      actions:[...(options.actions || []), ...(options.add ? [{ id:'add', needs:(options.add.needs || 'users.roles'), label:options.add.label || t('add_people', 'Add people'), icon:'fa-user-plus', menu:true, onClick(button){
         kit.menu(button, {
           align:'end', label:options.add.label || t('add_people', 'Add people'), search:t('search_users', 'Search users'),
           items:options.add.candidates().sort((left, right) => byName(left.user, right.user)).map((candidate) => ({ id:candidate.user.id, label:candidate.user.name || candidate.user.email || candidate.user.id, checked:candidate.checked === true, hint:candidate.hint || '', disabled:candidate.disabled === true, tooltip:candidate.tooltip })),

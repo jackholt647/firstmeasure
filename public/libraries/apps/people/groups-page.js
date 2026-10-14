@@ -173,12 +173,13 @@
         // The section heading names the type, so the row does not repeat it.
         aside:kit.stack(members.map((user) => ({ id:user.id, name:user.name || user.email, photoUrl:data.assetUrl(user.profile_photo_url || user.profile_photo) })), data.groupMembers(group).length),
         chipGroups:[{ chips:data.groupDepartments(group).map((department) => ({ label:department.label, color:department.color })) }],
-        actions:[{ id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, can.settings ? { id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
+        actions:[{ id:'edit', needs:'groups.view', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, can.settings ? { id:'archive', needs:'groups.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
         hover:`resource_group:${group.id}`
       };
     }
     let filter = options.filter === 'empty' ? 'empty' : 'all';
-    const visible = () => data.state.groups.filter((group) => filter !== 'empty' || !data.groupMembers(group).length).filter((group) => !query || [group.name, data.typeName('resource_group', group.kind_id), ...users(group).map((user) => user.name)].join(' ').toLowerCase().includes(query))
+    const branchFilter = People.branches.filter('groups', { onChange:() => renderList() });
+    const visible = () => data.state.groups.filter((group) => branchFilter.matches('group', group)).filter((group) => filter !== 'empty' || !data.groupMembers(group).length).filter((group) => !query || [group.name, data.typeName('resource_group', group.kind_id), ...users(group).map((user) => user.name)].join(' ').toLowerCase().includes(query))
       .sort((left, right) => typeOrder(left) - typeOrder(right) || typeTitle(left).localeCompare(typeTitle(right)) || String(left.name || '').localeCompare(String(right.name || '')));
     /* The list is sectioned by group type, each type under its plural name; groups with no type come last. */
     const typeTitle = (group) => group.kind_id ? pluralOf(data.typeName('resource_group', group.kind_id)) : t('groups_without_type', 'No type');
@@ -227,15 +228,16 @@
       search:{ placeholder:t('search', 'Search'), onInput(value){ query = value.trim().toLowerCase(); renderList(); } },
       filters:{ items:[{ id:'all', label:t('filter_all', 'All') }], value:filter, onChange(next){ filter = next; renderList(); } },
       actions:[
-        { id:'types', label:t('types', 'Types'), icon:'fa-tags', onClick:(button) => pageKit.typesModal({ kind:'resource_group', opener:button }) },
-        { id:'tags', label:t('tags', 'Tags'), icon:'fa-tag', onClick:(button) => People.lists.tags({ opener:button }) },
-        can.settings ? { id:'new', label:t('new_group', 'New {group}', { group:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create } : null
+        { id:'types', needs:'groups.view', label:t('types', 'Types'), icon:'fa-tags', onClick:(button) => pageKit.typesModal({ kind:'resource_group', opener:button }) },
+        { id:'tags', needs:'groups.edit', label:t('tags', 'Tags'), icon:'fa-tag', onClick:(button) => People.lists.tags({ opener:button }) },
+        can.settings ? { id:'new', needs:'groups.edit', label:t('new_group', 'New {group}', { group:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create } : null
       ].filter(Boolean),
       empty:{ icon:kit.ICONS.group, title:t('no_groups_yet', 'No {groups} yet', { groups:plural().toLowerCase() }) },
       row:rowModel,
       onOpen:(group, row) => openGroup(group.id, { opener:row.querySelector('[data-row-open]') }),
       onAction:(action, group, button) => { if (action === 'edit') openGroup(group.id, { opener:button }); else if (action === 'archive') archive(group, button); }
     });
+    branchFilter.attach(list.controlHost);
     const detachHover = People.hoverCard.attach(list.el, {});
     const unsubscribe = data.subscribe((state, change) => { if (destroyed) return; renderList(); openEntity?.refresh?.(change); });
     async function refresh(force = true){
@@ -266,10 +268,10 @@
       };
       function drawSummary(host){
         const model = data.groupSummary(current(), draft);
-        const editable = can.settings;
+        const editable = data.allows('groups.edit');
         model.sections.forEach((section) => {
           if (!editable) return;
-          if (section.id === 'departments' && data.state.departments.length) section.action = { id:'departments', label:t('change_departments', 'Change departments') };
+          if (section.id === 'departments' && data.allows('departments.members') && data.state.departments.length) section.action = { id:'departments', label:t('change_departments', 'Change departments') };
           if (section.id === 'tags' && data.state.tags.length) section.action = { id:'tags', label:t('change_tags', 'Change tags') };
           if (section.id === 'scopes' && data.state.scopes.length) section.action = { id:'scopes', label:t('change_kinds_of_work', 'Change kinds of work') };
         });
@@ -291,7 +293,7 @@
       }
       const entity = data.entityFor('resource_group', id, start.name);
       const tabs = [
-        traits.has_members ? { id:'members', label:t('members', 'Members'), icon:kit.ICONS.users, mount(panel, ctx){
+        traits.has_members ? { id:'members', needs:'groups.view', label:t('members', 'Members'), icon:kit.ICONS.users, mount(panel, ctx){
           members = pageKit.peopleList(panel, {
             count:() => kit.countPhrase([[data.groupMembers(current()).length, t('member_one', 'member'), t('member_many', 'members')]]) || t('no_members', 'No members'),
             items:() => data.groupMembers(current()).map((member) => ({ member, user:data.user(member.user_id) })).filter((item) => item.user).map((item) => ({
@@ -299,9 +301,9 @@
               pills:[...(item.member.is_lead ? [{ label:t('lead', 'Lead'), tone:'role', icon:'fa-star' }] : []), ...(item.member.role && !['member', 'lead'].includes(item.member.role) ? [{ label:item.member.role, tone:'neutral', tooltip:t('role_in_group', 'Role in this {group}', { group:singular().toLowerCase() }) }] : [])],
               chips:[...new Set([...(granted.get(item.user.id) || []), ...item.member.joined_role_ids.map((roleId) => data.role(roleId)?.name || roleId)])].map((label) => ({ label, tone:'role', tooltip:t('given_on_joining', 'Given on joining') })),
               chipTone:'role',
-              actions:can.settings ? [{ id:'lead', icon:'fa-star', label:item.member.is_lead ? t('remove_lead', 'Remove as lead') : t('make_lead', 'Make lead') }, { id:'role', icon:'fa-user-tag', label:t('role_in_group', 'Role in this {group}', { group:singular().toLowerCase() }) }, { id:'remove', icon:'fa-user-minus', label:t('remove_member', 'Remove'), tone:'danger' }] : []
+              actions:can.settings ? [{ id:'lead', needs:'groups.edit', icon:'fa-star', label:item.member.is_lead ? t('remove_lead', 'Remove as lead') : t('make_lead', 'Make lead') }, { id:'role', needs:'groups.edit', icon:'fa-user-tag', label:t('role_in_group', 'Role in this {group}', { group:singular().toLowerCase() }) }, { id:'remove', needs:'groups.edit', icon:'fa-user-minus', label:t('remove_member', 'Remove'), tone:'danger' }] : []
             })),
-            actions:can.users && can.settings ? [{ id:'invite', label:t('invite', 'Invite'), icon:kit.ICONS.invite, tooltip:t('invite_into_group_tip', 'Invite someone new straight into this {group}', { group:singular().toLowerCase() }), onClick(button){
+            actions:can.users && can.settings ? [{ id:'invite', needs:'groups.invite', label:t('invite', 'Invite'), icon:kit.ICONS.invite, tooltip:t('invite_into_group_tip', 'Invite someone new straight into this {group}', { group:singular().toLowerCase() }), onClick(button){
               kit.form(button, {
                 title:t('invite_user', 'Invite user'), submitLabel:t('send_invite', 'Send invitation'), submitIcon:kit.ICONS.invite,
                 fields:[{ id:'name', label:t('name', 'Name') }, { id:'email', label:t('email', 'Email'), type:'email', required:true }],
@@ -313,7 +315,7 @@
                 changeMembers([...data.groupMembers(current()), { user_id:result.user.id, role:'member', is_lead:false }], result.user);
               });
             } }] : [],
-            add:can.settings ? {
+            add:data.allows('groups.edit') ? { needs:'groups.edit',
               candidates:() => data.state.users.filter((user) => !data.isSuspended(user)).map((user) => ({ user, checked:data.groupMembers(current()).some((member) => member.user_id === user.id) })),
               onToggle(user, on){
                 const now = data.groupMembers(current());
@@ -344,7 +346,7 @@
           void ctx;
           return members;
         } } : null,
-        traits.has_members ? { id:'staffing', label:t('staffing_requirements', 'Staffing requirements'), icon:'fa-user-check', mount(panel){
+        traits.has_members ? { id:'staffing', needs:'groups.view', label:t('staffing_requirements', 'Staffing requirements'), icon:'fa-user-check', mount(panel){
           staffingPanel = staffingEditor(panel, { value:draft.staffing, readOnly:!can.settings, onChange(next){ draft.staffing = next; sync(); } });
           return staffingPanel;
         } } : null,
@@ -354,7 +356,7 @@
       const modal = People.entityModal.open({
         label:start.name || singular(), opener:extra.opener, returnFocus:() => list.rowElement(id)?.querySelector('[data-row-open]'), tab:extra.tab,
         summary:drawSummary,
-        actions:() => can.settings ? [{ id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', onClick:async (button) => { if (await archive(current(), button)) modal.close(true); } }] : [],
+        actions:() => can.settings ? [{ id:'archive', needs:'groups.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', onClick:async (button) => { if (await archive(current(), button)) modal.close(true); } }] : [],
         tabs,
         async onSave(){
           const problem = staffingProblem(draft.staffing);
@@ -408,7 +410,7 @@
     });
     return {
       refresh:() => refresh(true), openGroup,
-      destroy(){ destroyed = true; unsubscribe(); detachHover(); People.hoverCard.hide(); openEntity?.modal.close(true); list.destroy(); }
+      destroy(){ destroyed = true; unsubscribe(); branchFilter.destroy(); detachHover(); People.hoverCard.hide(); openEntity?.modal.close(true); list.destroy(); }
     };
   }
 

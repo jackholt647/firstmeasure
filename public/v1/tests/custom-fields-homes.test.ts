@@ -85,7 +85,7 @@ test("homes: definitions, resolution, kept values, required fields, references a
   (await import("../custom_fields/publication.js")).registerCustomFieldPublication();
 
   await storage.createOrganization({ id: ORG, name: "Field homes" });
-  await storage.upsertDocument(ORG, "organization_departments", { id: "catalog", data: { departments: [{ id: "sales", label: "Sales", color: "#2563eb" }, { id: "service", label: "Service", color: "#16a34a" }], groups: [], divisions: [] } });
+  await storage.upsertDocument(ORG, "organization_departments", { id: "catalog", data: { departments: [{ id: "sales", label: "Sales", color: "#2563eb" }, { id: "service", label: "Service", color: "#16a34a" }] } });
   for (const [id, name] of [["driver", "Driver"], ["foreman", "Foreman"]]) await access.createAccessRole(ORG, { id, name, application_id: "management" });
   await workforce.saveWorkforceConfiguration(ORG, { resource_group_kinds: [{ id: "install_team", name: "Install team" }], expected_revision: (await workforce.readWorkforceConfiguration(ORG)).revision });
   const crew = await workforce.createResourceGroup(ORG, { name: "Crew A", kind_id: "crew" });

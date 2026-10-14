@@ -51,7 +51,7 @@ function asArray(value: unknown) {
 
 const PROJECT_FIELDS: FieldDef[] = [
   { key:'owner_department_id', sql:'NULL', kind:'dimension', label:'Owner department', description:'Current departments of the credited owner/rep; a person in multiple departments contributes to each group. This does not assign the project to a department.' },
-  { key:'division_id', sql:'NULL', kind:'dimension', label:'Organizational unit', description:'Branch and ancestor units. Parent and child groups overlap.' },
+  { key:'region_id', sql:'NULL', kind:'dimension', label:'Region', description:'The region of the record\'s branch. A branch is in at most one region.' },
   { key: "status", sql: "status", kind: "dimension", label: "Lifecycle status", description: "open, completed, canceled, or lost" },
   { key: "branch_id", sql: "branch_id", kind: "dimension", label: "Branch", description: "Branch the project belongs to" },
   { key: "source", sql: "source", kind: "dimension", label: "Lead source", description: "Where the project came from (website, referral, canvassing, ...)" },
@@ -88,7 +88,7 @@ const PROJECT_FIELDS: FieldDef[] = [
 
 const EVENT_FIELDS: FieldDef[] = [
   { key:'actor_department_id', sql:'NULL', kind:'dimension', label:'Actor department', description:'Current department membership of the person performing the event; groups can overlap.' },
-  { key:'division_id', sql:'NULL', kind:'dimension', label:'Organizational unit', description:'Branch and ancestor units. Parent and child groups overlap.' },
+  { key:'region_id', sql:'NULL', kind:'dimension', label:'Region', description:'The region of the record\'s branch. A branch is in at most one region.' },
   { key: "type", sql: "e.type", kind: "dimension", label: "Event type", description: "The activity/event type (e.g. project.created, node.completed)" },
   { key: "actor_user_id", sql: "e.actor_user_id", kind: "dimension", label: "Actor", description: "User who performed the action" },
   { key: "visibility", sql: "e.visibility", kind: "dimension", label: "Visibility", description: "activity (customer-meaningful) or system" },
@@ -527,7 +527,7 @@ export async function executeMetricSpec(orgId: string, specValue: unknown, now =
     return results;
   }
   const departmentField = spec.source === 'events' ? 'actor_department_id' : 'owner_department_id';
-  const virtualFields = [departmentField, 'division_id'];
+  const virtualFields = [departmentField, 'region_id'];
   if (virtualFields.includes(cleanText(spec.group_by)) || asArray(spec.filters).some(raw => virtualFields.includes(cleanText(asObject(raw).field)))) {
     const units = structure || await resolveOrganizationStructure(orgId);
     const base = { ...spec, filters: asArray(spec.filters).map(raw => {
@@ -537,18 +537,13 @@ export async function executeMetricSpec(orgId: string, specValue: unknown, now =
       if (!['eq','in','neq','not_in'].includes(op)) throw badRequest('stats_department_filter', 'Department and unit filters support equals or in.');
       const selected = (Array.isArray(filter.values) ? filter.values : [filter.value]).map(String);
       let members: string[];
-      if (field === 'division_id') {
-        const descendants = units.catalog.divisions.filter(unit => unit.status !== 'archived' && selected.some(id => {
-          let current: typeof unit | undefined = unit; const seen = new Set<string>();
-          while (current && !seen.has(current.id)) { if (current.id === id) return true; seen.add(current.id); current=units.catalog.divisions.find(entry=>entry.id===current!.parent_id&&entry.status!=='archived'); } return false;
-        }));
-        members = [...new Set(descendants.map(unit=>unit.branch_id).filter(Boolean))];
-      } else members = units.users.filter(user=>user.department_ids.some(id=>selected.includes(id))).map(user=>user.id);
-      return { field:field==='division_id'?'branch_id':spec.source==='events'?'actor_user_id':'primary_user_id', op:['neq','not_in'].includes(op)?'not_in':'in', values:members.length?members:['__no_matching_members__'] };
+      // A region filter is a filter on the branches the region holds (docs/architecture/branches.md).
+      if (field === 'region_id') members = [...new Set(units.regions.filter(region => selected.includes(region.id)).flatMap(region => region.branch_ids))]; else members = units.users.filter(user=>user.department_ids.some(id=>selected.includes(id))).map(user=>user.id);
+      return { field:field==='region_id'?'branch_id':spec.source==='events'?'actor_user_id':'primary_user_id', op:['neq','not_in'].includes(op)?'not_in':'in', values:members.length?members:['__no_matching_members__'] };
     }) };
     const groupKey=cleanText(spec.group_by);
     if (virtualFields.includes(groupKey)) {
-      const entries=(groupKey==='division_id'?units.catalog.divisions:units.catalog.departments).filter(entry=>entry.status!=='archived');
+      const entries=(groupKey==='region_id'?units.regions:units.catalog.departments).filter(entry=>entry.status!=='archived');
       if(entries.length>500)throw badRequest('stats_group_budget','Use at most 500 organizational groups.');
       const result: MetricRow[]=[];
       for(const entry of entries) for(const row of await executeMetricSpec(orgId,{...base,group_by:undefined,filters:[...base.filters,{field:groupKey,op:'eq',value:entry.id}]},now,units)) result.push({...row,group:entry.id,group_label:entry.label});

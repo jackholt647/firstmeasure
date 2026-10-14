@@ -52,7 +52,9 @@ documents never need changing to suit a pay sheet.
 
 A sheet prices a job. Paying the assignee for a committed list, their hours or
 a salary is done by [pay rules](pay-rules.md), which can read what a committed
-list came to.
+list came to. Piece-rate pay for a list is earned when its work is confirmed as
+done and finalized to be paid, which also locks the list; see
+[closeout](closeout.md).
 
 ## Evaluation
 

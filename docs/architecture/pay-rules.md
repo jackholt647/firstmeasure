@@ -91,6 +91,9 @@ Provider `payroll`, organization scope, `manage_payroll|manage_company_settings`
   reading is `pending` until project indexing has finished.
 - `labor_commitments` — committed labor lists with `assignee_key`, `status`,
   `total_cents`, `unpriced_lines`, `committed_at`, `released_at`.
+  With `args: { "projected": true }` it publishes the labor not done yet
+  instead, each row as finished work looks; see
+  [Projected earnings](#projected-earnings).
 
 A rule may select from any other listable published collection its author can
 read; `payroll.pay_rule_sources` lists them for a picker. `payroll/sample-pay-rules.ts` holds a starting library (hourly from the
@@ -501,6 +504,91 @@ Reads behind a refresh run as the person who last saved each rule, with their
 current permissions. If that person can no longer read an input the rule is
 unresolved until someone saves it again.
 
+## Projected earnings
+
+`projectPayeeEarnings`, `projectUserEarnings` and `projectOrganizationEarnings`
+in `payroll/pay-refresh.ts`. A payee can see what they are expected to earn
+before it is earned. A projection is the payee's own pay rules evaluated over
+projected inputs, never a second formula:
+
+- **Which rules.** Every rule that pays per record (`grain: "record"`) whose
+  primary input publishes a projected reading. A collection does that by taking
+  a boolean `projected` argument; with it, it publishes the work that is not
+  done yet, each row as it is expected to look once done. The collection owns
+  what "done" means and when it is expected. Rules that pay by period (hours,
+  salary) are not projected.
+- **How.** The rule's own selection, with `projected: true` added to the
+  primary input's arguments (other inputs are read as they are), split into
+  records and run in the sandbox exactly as a refresh runs it: the version and
+  parameters in effect on the expected day (today when no day is known), as the
+  person who last saved the rule. A record the rule has already earned (a
+  stored result) is not projected again.
+- **Unresolved stays unresolved.** A formula that throws, or an input that
+  cannot be read, is listed under `unresolved` with the reason and is never
+  counted as zero. The sample labor rule refuses a commitment with unpriced
+  lines in a projection just as it does when paying.
+- **Never posted.** Nothing is written: no ledger entry, no stored result, no
+  coverage noted. A projection is not part of a pay run and leaves nothing
+  waiting for the next refresh. Every projected earning carries
+  `projected: true` and `expected_on`, the day it is expected to be earned
+  (blank when nothing is scheduled). This is unrelated to the ledger's
+  `projected` state, which holds corrections held for review and hand-posted
+  forecasts.
+
+**Labor** (`payroll/pay-sources.ts`, `projectedLaborRows`). Projected rows are:
+
+- every current commitment that is neither released nor finalized
+  ([completion](../../public/v1/labor/completion.ts)); a finalized commitment
+  is earned, and a released one was taken back;
+- every assigned labor list that was never committed, priced exactly as
+  committing it would freeze it (`laborLinesOf`), with id `labor_list:<list id>`
+  and `committed_at` blank.
+
+Each looks like finished work: `status` committed and `finalized_at` the
+expected date, so a rule that earns on `finalized_at` finds it. The expected
+date is the end of the list's schedule event as it stands (its last part when it
+has parts), else the list's own copy of its schedule, else the schedule frozen
+on the commitment; `expected_from` says which (`schedule_event`, `labor_list`,
+`commitment`, or blank when nothing is scheduled). `asDone` in the same file is
+the one place that says what finished looks like; change it with the finished
+row's shape.
+
+**Groups.** A group's projection is the group's own. When the group's pay is
+split on the expected day, each earning says how it would be divided among
+today's members (`equal` or `shares`); under a split rule it says the division
+is decided when the earning is worked out. A user's own projection
+(`projectUserEarnings`) adds their share of each group they are an active
+member of whose pay is split; a share decided by a split rule is listed as
+unresolved rather than guessed. A group paid as one keeps its projection to
+itself.
+
+**Who sees it.**
+
+- The payee: `payroll.view_own_projected_earnings` ("See own projected
+  earnings", Money & payroll > Payroll, under the self-service earnings
+  feature). Every seeded role and the development roofing roles grant it; a
+  company that does not want projections shown denies it on a role or a user.
+  Without it the read is refused and the Earnings app shows nothing of it. It
+  is only ever the signed-in user's own.
+- Payroll managers (`manage_payroll|manage_company_settings`) see anyone's, and
+  everyone's totals, with no key of their own.
+
+**Published.** Data `payroll.my_projected_earnings` and action
+`payroll.projectedEarnings.me` (the signed-in user, needs the permission and
+`payroll.self_service_earnings`), route
+`GET /v1/payroll/organizations/:orgId/earnings/me/projected`
+(`PayrollAPI.earnings.projectedMine`). Data `payroll.projected_earnings` and
+action `payroll.projectedEarnings.read` for managers: one payee by target id
+(or `payee`), or, left out, totals for everyone whose pay comes from rules (at
+most 200 payees, `truncated` beyond) (`PayrollAPI.pay.projected`). Reads only.
+
+**Screens.** The payee's Earnings app (`portal.crew_payouts`,
+`project.crew_payouts`, `apps/crew/app.js`) shows a **Projected** section by
+job with amounts and expected dates when the access profile's
+`projected_enabled` parameter (set from the permission) is on; inside a
+project, only that job. The Payroll tab shows a payee's projection in their
+"Why" drawer and, on request, projected totals per payee.
+
 ## When a payee is removed
 
 `payroll/assignee-cleanup.ts`. Someone who did the work must still be paid, so
@@ -609,7 +697,10 @@ read: provider, export, description, units, known fields, the options each
 takes and whether it needs any); `pay_rule_vocabulary` (the condition operators
 of `work/conditions.ts`, parameter types, kinds of earning and default
 subjects, so no screen keeps its own copy); and `configuration` (pay schedules
-and the organization's schedule choices).
+and the organization's schedule choices). Projected earnings are
+`projected_earnings` and `my_projected_earnings`, with the actions
+`payroll.projectedEarnings.read` and `payroll.projectedEarnings.me`; see
+[Projected earnings](#projected-earnings) for who may read them.
 
 Actions: `payroll.payRule.save`, `.preview`, `.archive`;
 `payroll.paySplitRule.save`, `.archive`; `payroll.payPlan.save`, `.preview`,
@@ -656,7 +747,9 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
   piece (pay mode, estimated hours) is still stored and copied but nothing
   reads it: a labor list's projected cost is its own priced lines.
 - Change feeds on the sources, so a refresh still selects every input.
-- Projected (not yet earned) earnings from rules.
+- Projections from rules that pay by period (hours, salary) and from sources
+  other than labor commitments; a source opts in with a `projected` argument.
+- Projected earnings in the sales app's Earnings tab (`portal.sales_earnings`).
 - An editor for split rules and a screen showing how an earning was divided.
   The data is in `pay_units` and on each ledger entry.
 - A published roster (who is on a piece of work, with removals and
@@ -671,8 +764,10 @@ Actions: `payroll.payRule.save`, `.preview`, `.archive`;
   limit; beyond that the earnings it divides are unresolved until the selection
   is narrowed. Per-earning lookups against an index, or a change feed, remove
   this.
-- A completion signal on labor commitments. `released` covers both finished
-  work and work taken back, so the sample rule pays on release.
+- Labor completion is published: the `labor_commitments` source carries
+  `finalized_at` once the work is confirmed as done and marked to be paid
+  ([closeout](closeout.md)), and the sample `committed_labor` rule earns on it.
+  `released` now means only taken back.
 - Running projects created before this change may still hold bindings to the
   removed `payroll.commission.*` automations; those bindings fail when reached.
 
@@ -680,5 +775,6 @@ Run `tests/pay-rules.test.ts`, `tests/pay-defaults.test.ts`, `tests/pay-splits.t
 `tests/pay-cadence.test.ts`, `tests/pay-rules-store.test.ts` (also through
 `node tests/run-embedded-postgres.mjs`), `tests/pay-sources.test.ts`,
 `tests/payroll-publication.test.ts`, `tests/publication-select.test.ts`,
-`tests/payroll-settings-browser.test.mjs`, `tests/payroll-pay-rules-browser.test.mjs`
+`tests/payroll-settings-browser.test.mjs`, `tests/payroll-pay-rules-browser.test.mjs`,
+`tests/pay-projections.test.ts`, `tests/payouts-projected-browser.test.mjs`
 and `npm run test:payroll` for changes here.

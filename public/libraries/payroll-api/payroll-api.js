@@ -110,6 +110,7 @@
     const query={};for(const [key,value]of parsed.searchParams){if(key==='payee')continue;query[key]=['include_projected','include_archived','open_only'].includes(key)?['1','true'].includes(value):['limit','history_limit','entry_limit','payment_limit','expected_revision'].includes(key)?Number(value):value;}
     if(p[0]==='dashboard'){action='payroll.dashboard.read';input=query;}
     else if(p[0]==='upcoming'){action='payroll.upcoming.read';input=query;}
+    else if(p[0]==='earnings'&&p[1]==='me'&&p[2]==='projected'){action='payroll.projectedEarnings.me';input={};wrap=value=>({ok:true,projected:value});}
     else if(p[0]==='earnings'){
       action=p[1]==='me'?'payroll.earnings.me':'payroll.earnings.read';input=query;
       if(p[1]==='payees')input.payees=[{type:p[2],id:p[3]}];
@@ -145,6 +146,11 @@
   const earnings = {
     me(orgId, options = {}){
       return request(orgPath(orgId, `/earnings/me${queryString(options)}`));
+    },
+    // What the signed-in user's pay rules project they will earn from work not done yet: by job, with expected dates.
+    // Never posted. Refused (403) without permission to see one's own projections.
+    projectedMine(orgId){
+      return request(orgPath(orgId, '/earnings/me/projected'));
     },
     forPayee(orgId, payeeType, payeeId, options = {}){
       return request(orgPath(orgId, `/earnings/payees/${enc(payeeType)}/${enc(payeeId)}${queryString(options)}`));
@@ -196,6 +202,8 @@
     vocabulary(orgId){ return paySource(orgId, 'pay_rule_vocabulary'); },
     setup(orgId, payee){ return paySource(orgId, 'pay_setup', payeeId(payee)); },
     units(orgId, payee){ return paySource(orgId, 'pay_units', payeeId(payee)); },
+    // Projected earnings for one payee, or projected totals for everyone whose pay comes from rules when payee is left out.
+    projected(orgId, payee){ return paySource(orgId, 'projected_earnings', payee ? payeeId(payee) : ''); },
     unresolved(orgId){ return paySource(orgId, 'pay_unresolved'); },
     review(orgId){ return paySource(orgId, 'pay_review'); },
     saveRule(orgId, rule){ return payAction(orgId, 'payroll.payRule.save', rule); },

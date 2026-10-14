@@ -82,6 +82,8 @@ const definitions: CapabilityDefinition[] = [
   { key: "platform.company_business_address", kind: "feature", label: "Company Business Address", description: "Business address fields in company settings.", requires: ["platform.expanded_access"], default: false },
   { key: "platform.company_advanced_logos", kind: "feature", label: "Advanced Company Logos", description: "Alternate logos and advanced logo appearance controls.", requires: ["platform.expanded_access"], default: false },
   { key: "platform.people_access", kind: "feature", label: "Platform People & Access", description: "Use the platform people, workforce and access management UI instead of the familiar FirstMeasure Users screen.", requires: ["platform.expanded_access"], default: false },
+  // Branches and regions (docs/architecture/branches.md). Off: the organization has one implicit branch and nothing about branches shows.
+  { key: "platform.multiple_branches", kind: "feature", category: "Platform & Appearance", label: "Multiple Branches", description: "Run more than one branch, group branches into regions, and limit what people see and manage to their own branches.", requires: ["platform.expanded_access"], default: false },
   // --- Apps: top-level product surfaces -----------------------------------
   {
     key: "apps.notifications",
@@ -1498,6 +1500,16 @@ const definitions: CapabilityDefinition[] = [
     description: "Create and edit projects, proposals, payments and materials."
   },
   {
+    key: "permission.reopen_finalized_work",
+    kind: "permission",
+    parent: "apps.projects",
+    permission_key: "reopen_finalized_work",
+    access: "write",
+    permission_group: "financials",
+    label: "Reopen finalized work",
+    description: "Take back a work order that was finalized to be paid, or reopen a closed-out project's finances. Each reopening is recorded."
+  },
+  {
     key: "permission.view_reports",
     kind: "permission",
     parent: "apps.firstmeasure",
@@ -1617,6 +1629,16 @@ const definitions: CapabilityDefinition[] = [
     description: "Run payroll and edit pay settings."
   },
   {
+    key: "permission.payroll_view_own_projected_earnings",
+    kind: "permission",
+    parent: "payroll.self_service_earnings",
+    permission_key: "payroll.view_own_projected_earnings",
+    access: "read",
+    permission_group: "payroll",
+    label: "See own projected earnings",
+    description: "See what their pay rules say they can expect to earn from work not done yet."
+  },
+  {
     key: "permission.equipment_view",
     kind: "permission",
     parent: "apps.equipment",
@@ -1671,6 +1693,23 @@ const definitions: CapabilityDefinition[] = [
     permission_group: "users",
     label: "Manage users",
     description: "Invite, edit and suspend company users."
+  },
+  // Branch reach (docs/architecture/branches.md). Without these a person sees and manages only their own branches.
+  {
+    key: "permission.view_region_branches", kind: "permission", parent: "platform.multiple_branches", permission_key: "view_region_branches",
+    access: "read", permission_group: "branches", label: "See other branches in my region", description: "See the people, groups, departments and companies of the other branches in their region."
+  },
+  {
+    key: "permission.manage_region_branches", kind: "permission", parent: "platform.multiple_branches", permission_key: "manage_region_branches",
+    access: "write", permission_group: "branches", label: "Manage other branches in my region", description: "Manage people, groups, departments and companies in the other branches of their region."
+  },
+  {
+    key: "permission.view_all_branches", kind: "permission", parent: "platform.multiple_branches", permission_key: "view_all_branches",
+    access: "read", permission_group: "branches", label: "See every branch", description: "See the people, groups, departments and companies of every branch."
+  },
+  {
+    key: "permission.manage_all_branches", kind: "permission", parent: "platform.multiple_branches", permission_key: "manage_all_branches",
+    access: "write", permission_group: "branches", label: "Manage every branch", description: "Manage every branch, add and archive branches, and organize regions."
   },
   {
     key: "permission.manage_company_user_permissions",

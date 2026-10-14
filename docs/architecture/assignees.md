@@ -73,7 +73,10 @@ Rules that keep it safe to build on:
 - **A project-scoped call stays in its project.** The published actions refuse
   a list or commitment that belongs to a different project than their target.
 - Commitments are never edited. `releaseCommitment` marks one `released` when
-  the work is finished or taken back; archiving a list releases what it held.
+  the work is taken back; archiving a list releases what it held. Finished work
+  is not released: it is finalized to be paid, recorded beside the commitment
+  in `labor_completions` ([closeout](closeout.md)), and a finalized commitment
+  cannot be released or committed again until a manager reopens it.
 
 `labor.list.committed`, `labor.list.delivered` and `labor.list.released` are
 registered when the module loads and emitted as they happen. If an event could

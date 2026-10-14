@@ -4,6 +4,7 @@ import { ZodError, z } from "zod";
 import { requirePlatformAuth } from "../platform/auth.js";
 import { badRequest, PlatformError } from "../platform/errors.js";
 import { workforceConfigurationBundle } from "../workforce/service.js";
+import { assertConnectionVisible, assertConnectionWrite, scopeConnections } from "../workforce/branch-guards.js";
 import { organizationConnectionCreateSchema, organizationConnectionPatchSchema } from "./schemas.js";
 import {
   archiveOrganizationConnection,
@@ -71,10 +72,11 @@ export const registerConnectionsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/organization-connections", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireRead(request, orgId);
+    const context = await requireRead(request, orgId);
     const query = queryObject(request);
     const branchId = cleanText(query.branch_id || query.branchId || "default");
-    const connections = (await listOrganizationConnections(orgId, query));
+    // Branch scope (docs/architecture/branches.md): `branch_ids` lists companies of those branches; a company with no branch works in every branch.
+    const connections = scopeConnections(context, await listOrganizationConnections(orgId, query.branch_ids ? { ...query, branch_id: "", branchId: "" } : query), query);
     return {
       ok: true,
       branch_id: branchId,
@@ -87,8 +89,9 @@ export const registerConnectionsApi: FastifyPluginAsync = async (app) => {
 
   app.post("/organizations/:orgId/organization-connections", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");
-    await requireMutation(request, orgId);
+    const context = await requireMutation(request, orgId);
     const body = organizationConnectionCreateSchema.parse(request.body ?? {});
+    assertConnectionWrite(context, null, body);
     const connection = (await createOrganizationConnection(orgId, body));
     const branchId = Array.isArray(connection.branch_ids) && connection.branch_ids[0] ? String(connection.branch_ids[0]) : "default";
     reply.code(201);
@@ -97,16 +100,18 @@ export const registerConnectionsApi: FastifyPluginAsync = async (app) => {
 
   app.get("/organizations/:orgId/organization-connections/:connectionId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireRead(request, orgId);
+    const context = await requireRead(request, orgId);
     const connection = (await readOrganizationConnection(orgId, getParam(request.params, "connectionId")));
+    assertConnectionVisible(context, connection);
     const branchId = Array.isArray(connection.branch_ids) && connection.branch_ids[0] ? String(connection.branch_ids[0]) : "default";
     return { ok: true, organization_connection: connection, connection, ...(await settingsBundle(orgId, branchId)) };
   });
 
   app.patch("/organizations/:orgId/organization-connections/:connectionId", async (request) => {
     const orgId = getParam(request.params, "orgId");
-    await requireMutation(request, orgId);
+    const context = await requireMutation(request, orgId);
     const body = organizationConnectionPatchSchema.parse(request.body ?? {});
+    assertConnectionWrite(context, await readOrganizationConnection(orgId, getParam(request.params, "connectionId")), body);
     const connection = (await patchOrganizationConnection(orgId, getParam(request.params, "connectionId"), body));
     const branchId = Array.isArray(connection.branch_ids) && connection.branch_ids[0] ? String(connection.branch_ids[0]) : "default";
     return { ok: true, organization_connection: connection, connection, ...(await settingsBundle(orgId, branchId)) };
@@ -115,6 +120,7 @@ export const registerConnectionsApi: FastifyPluginAsync = async (app) => {
   app.delete("/organizations/:orgId/organization-connections/:connectionId", async (request) => {
     const orgId = getParam(request.params, "orgId");
     const context = await requireMutation(request, orgId);
+    assertConnectionWrite(context, await readOrganizationConnection(orgId, getParam(request.params, "connectionId")), {});
     const connection = (await archiveOrganizationConnection(orgId, getParam(request.params, "connectionId"), expectedRevision(request)));
     const branchId = Array.isArray(connection.branch_ids) && connection.branch_ids[0] ? String(connection.branch_ids[0]) : "default";
     // An archived company is no longer an assignee: remove what was kept against it. A step that fails is reported, and the archive stands.

@@ -212,8 +212,9 @@ field patch. Both storage backends enforce typed validation.
 The shared owner catalog in `custom_fields/owners.ts` drives allowed entities,
 definition placement, publication access, and value ownership. Supported owners:
 `project`, `contact`, `organization`, `user`, `branch`, `department`, `division`,
-and `team`. `division` is the existing organizational-unit model: a Region,
-Division, or another configured kind uses its stable division ID. `team` refers
+and `team`. `division` is the owner name for a region ([branches](branches.md));
+a region migrated from an older organizational unit keeps that unit's id. A
+department now names its branch, so a department owner is branch-bound like a team. `team` refers
 to an existing workforce resource group. Adding a domain owner requires one
 catalog entry and an authoritative owner resolver; no new field-type library or
 publication implementation is needed. It does not invent new resource records.

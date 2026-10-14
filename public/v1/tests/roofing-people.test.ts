@@ -182,7 +182,7 @@ test("an Instant Full Org starts with a roofing company's people, and running th
   await payroll.savePayDefault(org, { subject: { type: "group_type", id: "shingle_crew" }, entries: [], distribution: [{ effective_from: "2026-01-01", mode: "split", method: "rule", split_rule_id: "by_hours_on_the_job" }] }, { userId: ctx.userId });
   await homes.saveHomeDefinitions(org, { kind: "group_type", id: "shingle_crew", fields: [{ path: "crew_truck", type: "text", label: "Crew truck", entity: "team" }], expectedRevision: (await homes.homeDefinitions(org, "group_type", "shingle_crew")).revision });
   const catalog = await departmentsModule.readOrganizationDepartments(org);
-  await departmentsModule.saveDepartmentSettings(ctx, { departments: catalog.departments.map((row) => row.id === "production" ? { ...row, group_kind_ids: [...row.group_kind_ids, "shingle_crew", "low_slope_crew"] } : row), groups: catalog.groups, divisions: catalog.divisions, terminology: catalog.terminology, revision: catalog.revision });
+  await departmentsModule.saveDepartmentSettings(ctx, { departments: catalog.departments.map((row) => row.id === "production" ? { ...row, group_kind_ids: [...row.group_kind_ids, "shingle_crew", "low_slope_crew"] } : row), terminology: catalog.terminology, revision: catalog.revision });
   // A group someone made on one of the old types keeps it, and so that type stays.
   const handTeam = await workforce.createResourceGroup(org, { name: "Hand-made flat roof team", kind_id: "low_slope_crew" });
 

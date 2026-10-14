@@ -30,7 +30,7 @@ test("grouping fields use existing owners, independent revisions, and phone issu
   try {
     await storage.createOrganization({id:org,name:"Scoped fields"});
     await storage.upsertDocument(org,"branch",{id:"east",data:{name:"East"}});
-    await storage.upsertDocument(org,"organization_departments",{id:"catalog",data:{departments:[{id:"sales",label:"Sales"}],groups:[],divisions:[{id:"north",label:"North",kind:"Region"}]}});
+    await storage.upsertDocument(org,"organization_departments",{id:"catalog",data:{departments:[{id:"sales",label:"Sales"}],regions:[{id:"north",label:"North",branch_ids:["east"]}]}});
     const workforce=await import("../workforce/storage.js");
     const team=await workforce.createResourceGroup(org,{name:"Field crew",branch_id:"east"});
     const owners={branch:"east",department:"sales",division:"north",team:team.id};

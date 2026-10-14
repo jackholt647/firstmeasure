@@ -54,6 +54,11 @@ export const CREW_PERMISSION_KEYS = Object.freeze({
   checklists_supervise: "crew.checklists.supervise"
 });
 
+/** Payroll permissions a payee holds about their own pay. Seeded roles grant them by default. */
+export const PAYROLL_PERMISSION_KEYS = Object.freeze({
+  view_own_projected_earnings: "payroll.view_own_projected_earnings"
+});
+
 export const SALES_PERMISSION_KEYS = Object.freeze({
   dashboard_view: "sales.dashboard.view",
   schedule_view: "sales.schedule.view",
@@ -611,8 +616,8 @@ const CREW_APP_CATALOG_SOURCE: AccessCatalogEntry[] = [
     devices: ["mobile", "desktop"],
     required_permissions: [CREW_PERMISSION_KEYS.payouts_view],
     permission_mode: "all",
-    default_params: { mode: "crew", subject_scope: "mine" },
-    parameter_permissions: {},
+    default_params: { mode: "crew", subject_scope: "mine", projected_enabled: false },
+    parameter_permissions: { projected_enabled: PAYROLL_PERMISSION_KEYS.view_own_projected_earnings },
     layout: PORTAL_LAYOUT
   },
   {
@@ -682,8 +687,8 @@ const CREW_APP_CATALOG_SOURCE: AccessCatalogEntry[] = [
     devices: ["mobile", "desktop"],
     required_permissions: [CREW_PERMISSION_KEYS.payouts_view],
     permission_mode: "all",
-    default_params: { mode: "crew", subject_scope: "mine" },
-    parameter_permissions: {},
+    default_params: { mode: "crew", subject_scope: "mine", projected_enabled: false },
+    parameter_permissions: { projected_enabled: PAYROLL_PERMISSION_KEYS.view_own_projected_earnings },
     layout: PROJECT_LAYOUT
   },
   {
@@ -1141,7 +1146,10 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
     manage_billing: true,
     manage_company_settings: true,
     manage_report_settings: true,
-    manage_company_users: true
+    manage_company_users: true,
+    // Branch reach: only administrators see and manage every branch by default (docs/architecture/branches.md).
+    view_all_branches: true,
+    manage_all_branches: true
   };
   const crewMemberPermissions: PermissionMap = Object.fromEntries([
     CREW_PERMISSION_KEYS.dashboard_view,
@@ -1319,7 +1327,8 @@ export function factoryPersonaDefinitions(): FactoryPersonaDefinition[] {
       capability_requirements: ["apps.sales", "platform.scheduling"]
     }
   ];
-  return personas.map(persona => ({ ...persona, permissions: { ...persona.permissions, manage_own_notifications: true, ...(persona.permissions.manage_company_settings === true || persona.permissions["*"] === true ? { manage_notification_defaults: true } : {}) } }));
+  // Every seeded role may see its own projected earnings; a company that does not want them shown denies the permission.
+  return personas.map(persona => ({ ...persona, permissions: { ...persona.permissions, manage_own_notifications: true, [PAYROLL_PERMISSION_KEYS.view_own_projected_earnings]: true, ...(persona.permissions.manage_company_settings === true || persona.permissions["*"] === true ? { manage_notification_defaults: true } : {}) } }));
 }
 
 type SeedRole = {
@@ -1359,7 +1368,7 @@ export async function initializeAccessSchema(orgIdValue?: string) {
   return { schema_version: ACCESS_SCHEMA_VERSION, initialized: true };
 }
 
-const ACCESS_ROLE_PRESET_REVISION = 7;
+const ACCESS_ROLE_PRESET_REVISION = 8;
 
 async function seedDefaultAccessRoles(orgId: string) {
   return (await getWorkforceDatabase().transaction(async () => {

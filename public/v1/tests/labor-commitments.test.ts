@@ -191,7 +191,7 @@ test("published actions stay inside their project, run for the platform, and pay
   const actions = await import("../platform/publication/actions.js"), providers = await import("../platform/publication/providers.js"), publication = await import("../platform/publication/context.js");
   const sheets = await import("../labor/pay-sheets.js");
   const { listWorkEventDefinitions } = await import("../work/events.js");
-  assert.deepEqual(listWorkEventDefinitions().map((event: any) => event.name).filter((name: string) => name.startsWith("labor.")).sort(), ["labor.list.committed", "labor.list.delivered", "labor.list.released"], "the events exist before anything is committed");
+  assert.deepEqual(listWorkEventDefinitions().map((event: any) => event.name).filter((name: string) => name.startsWith("labor.")).sort(), ["labor.list.committed", "labor.list.delivered", "labor.list.finalized", "labor.list.released", "labor.list.reopened"], "the events exist before anything is committed");
   const list = await labor("Scoped", { id: crew, kind: "resource_group", name: "Crew A" });
   const commit = (ctx: any, project: string, key: string) => actions.invokeAction(ctx, { action: "labor.list.commit", target: { scope: "project", organizationId: ORG, projectId: project } } as any, { list_id: String(list.id) }, { idempotencyKey: key });
   const user = publication.userPublicationContext(owner, { executionKind: "api", mode: "command" });

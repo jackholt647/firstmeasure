@@ -555,10 +555,75 @@
     root.innerHTML = `<div class="crew-summary-grid"><div class="crew-summary"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_5f59818bf1cb7d","Owed") ?? "Owed")}</span><strong>${String(esc(currency(owed)))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("crew","m_3d6345f45141a8","Accrued and currently in payroll") ?? "Accrued and currently in payroll")}</small></div><div class="crew-summary"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_956173c8527121","Paid") ?? "Paid")}</span><strong>${String(esc(currency(paid)))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("crew","m_192360a7033431","Completed payroll") ?? "Completed payroll")}</small></div><div class="crew-summary"><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_929d3bd2149645","Projected") ?? "Projected")}</span><strong>${String(esc(currency(projected)))}</strong><small>${(globalThis.PlatformLanguage?.htmlText("crew","m_047c1d69a096b3","Not owed until accrued") ?? "Not owed until accrued")}</small></div></div>${String(result.truncated ? `<div class="crew-earnings-note">${(globalThis.PlatformLanguage?.htmlText("crew","m_c023f5308157d7","Showing the newest payroll records. Choose a narrower date range to review older earnings.") ?? "Showing the newest payroll records. Choose a narrower date range to review older earnings.")}</div>` : '')}<section class="crew-card"><div class="crew-card-title"><h3>${String(esc(title))}</h3><small>${String(projects.length)}</small></div>${String(projects.length ? `<div class="crew-row-list">${projects.map(earningsProjectCard).join('')}</div>` : stateHtml('empty','No payroll earnings are available yet.'))}</section>${String(details)}`;
   }
 
+  // ---- Projected earnings: what the payee's pay rules say work not done yet will pay. Never posted. ----
+  // Shown only when the access profile grants payroll.view_own_projected_earnings (the projected_enabled parameter);
+  // the server refuses the read otherwise, and a refusal hides the section too.
+  const expectedOn = (value) => {
+    const day = clean(value);
+    return day ? shortDate(/^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T12:00:00` : day, day) : '';
+  };
+  // `hidden` alone loses to a class that sets display, so the section is hidden both ways.
+  const showProjected = (root, on) => { root.hidden = !on; root.style.display = on ? '' : 'none'; };
+  function projectedEarningRow(earningValue = {}){
+    const earning = obj(earningValue);
+    const share = obj(earning.share_of);
+    const name = first(earning.record_title, earning.description, earning.rule_name, 'Projected earning');
+    const tip = [earning.description, earning.rule_name, share.payee_name ? `Your share of ${share.payee_name}'s ${currency(Number(share.line_cents || 0))}` : ''].map(clean).filter(Boolean).join(' · ');
+    const when = expectedOn(earning.expected_on);
+    return `<div class="crew-row" data-projected-earning="${esc(earning.id)}" title="${esc(tip)}"><div class="crew-row-copy"><strong>${esc(name)}</strong><span>${when ? `Expected ${esc(when)}` : 'Not scheduled'}</span></div><div class="crew-row-value">${esc(currency(Number(earning.amount_cents || 0)))}<small><span class="crew-pill warn">Projected</span></small></div></div>`;
+  }
+  function projectedUnresolvedRow(entryValue = {}){
+    const entry = obj(entryValue);
+    const when = expectedOn(entry.expected_on);
+    return `<div class="crew-row" data-projected-unresolved title="${esc(clean(entry.reason))}"><div class="crew-row-copy"><strong>${esc(first(entry.project_title, 'Projected earning'))}</strong><span>${when ? `Expected ${esc(when)}` : 'Not scheduled'}</span></div><div class="crew-row-value">—<small><span class="crew-pill">Not worked out</span></small></div></div>`;
+  }
+  function renderProjectedEarnings(root, projectionValue = {}, options = {}){
+    const projection = obj(projectionValue);
+    const only = clean(options.projectId);
+    const earnings = arr(projection.earnings).map(obj).filter((earning) => !only || clean(earning.project_id) === only);
+    const unresolved = arr(projection.unresolved).map(obj).filter((entry) => !only || clean(entry.project_id) === only);
+    const total = earnings.reduce((sum, earning) => sum + Number(earning.amount_cents || 0), 0);
+    const tip = 'What your pay rules say you can expect from work that is scheduled or committed but not done yet. It is not owed until the work is done and is never part of a pay run.';
+    const jobs = new Map();
+    for (const earning of earnings) {
+      const key = clean(earning.project_id);
+      if (!jobs.has(key)) jobs.set(key, { title: first(earning.project_title, key ? 'Job' : 'Other work'), rows: [] });
+      jobs.get(key).rows.push(earning);
+    }
+    const groups = only ? earnings.map(projectedEarningRow).join('')
+      : [...jobs.values()].map((job) => {
+        const sum = job.rows.reduce((value, earning) => value + Number(earning.amount_cents || 0), 0);
+        const next = job.rows.map((earning) => clean(earning.expected_on)).filter(Boolean).sort()[0] || '';
+        return `<div class="crew-row" data-projected-job title="${esc(next ? `Next expected ${expectedOn(next)}` : 'Not scheduled yet')}"><div class="crew-row-copy"><strong>${esc(job.title)}</strong><span>${next ? `Expected ${esc(expectedOn(next))}` : 'Not scheduled'}</span></div><div class="crew-row-value">${esc(currency(sum))}</div></div>${job.rows.map(projectedEarningRow).join('')}`;
+      }).join('');
+    showProjected(root, true);
+    root.innerHTML = `<section class="crew-card" data-projected-section><div class="crew-card-title"><h3 title="${esc(tip)}">Projected</h3><small data-projected-total>${esc(currency(total))}</small></div>${earnings.length || unresolved.length ? `<div class="crew-row-list">${groups}${unresolved.map(projectedUnresolvedRow).join('')}</div>` : stateHtml('empty', 'Nothing projected yet.')}</section>`;
+  }
+  /** Loads and shows the payee's projected earnings into `root`, or leaves it hidden when they may not see them. */
+  function mountProjectedEarnings(root, context = {}, options = {}){
+    if (!root) return;
+    showProjected(root, false);
+    root.innerHTML = '';
+    if (context.params?.projected_enabled !== true) return;
+    const client = window.PayrollAPI?.earnings;
+    if (!client?.projectedMine) return;
+    client.projectedMine(orgId(context)).then((result) => {
+      if (options.isDestroyed?.()) return;
+      renderProjectedEarnings(root, obj(result).projected || result, options);
+    }).catch((error) => {
+      if (options.isDestroyed?.()) return;
+      // Not allowed to see projections: the section stays hidden. Anything else is said in the section.
+      if (Number(error?.status) === 403 || /denied|forbidden|not permitted|not shown/i.test(clean(error?.code || error?.message))) return;
+      showProjected(root, true);
+      root.innerHTML = `<section class="crew-card" data-projected-section><div class="crew-card-title"><h3>Projected</h3></div>${stateHtml('error', statusError(error, 'Could not work out your projected earnings.'))}</section>`;
+    });
+  }
+
   function mountCrewPayouts(root, context = {}){
     let destroyed = false;
-    root.innerHTML = `<div class="crew-shell"><div class="crew-page"><div class="crew-head"><div><div class="crew-eyebrow">${(globalThis.PlatformLanguage?.htmlText("crew","m_af7280e8ac9efa","My payroll") ?? "My payroll")}</div><h1 class="crew-title">${(globalThis.PlatformLanguage?.htmlText("crew","m_685ff0ff145929","Earnings") ?? "Earnings")}</h1><p class="crew-sub">${(globalThis.PlatformLanguage?.htmlText("crew","m_97d70e1d5cb7d4","What you are owed, what is in payroll, and what has been paid—organized by project.") ?? "What you are owed, what is in payroll, and what has been paid—organized by project.")}</p></div></div><div data-earnings>${String(stateHtml('loading','Loading your earnings'))}</div></div></div>`;
+    root.innerHTML = `<div class="crew-shell"><div class="crew-page"><div class="crew-head"><div><div class="crew-eyebrow">${(globalThis.PlatformLanguage?.htmlText("crew","m_af7280e8ac9efa","My payroll") ?? "My payroll")}</div><h1 class="crew-title">${(globalThis.PlatformLanguage?.htmlText("crew","m_685ff0ff145929","Earnings") ?? "Earnings")}</h1><p class="crew-sub">${(globalThis.PlatformLanguage?.htmlText("crew","m_97d70e1d5cb7d4","What you are owed, what is in payroll, and what has been paid—organized by project.") ?? "What you are owed, what is in payroll, and what has been paid—organized by project.")}</p></div></div><div data-earnings>${String(stateHtml('loading','Loading your earnings'))}</div><div data-projected hidden style="display:none"></div></div></div>`;
     const mount = root.querySelector('[data-earnings]');
+    mountProjectedEarnings(root.querySelector('[data-projected]'), context, { isDestroyed:() => destroyed });
     loadMyEarnings(context).then((result) => { if (!destroyed) renderEarningsPage(mount, result); }).catch((error) => { if (!destroyed) mount.innerHTML = stateHtml('error', statusError(error,'Could not load earnings.')); });
     return { destroy(){ destroyed = true; root.innerHTML = ''; } };
   }
@@ -982,8 +1047,9 @@
   function mountProjectPayouts(context = {}){
     const root = projectMountRoot(context, 'payouts');
     let destroyed = false;
-    root.innerHTML = `<div class="crew-project-page"><div class="crew-page" data-project-earnings>${stateHtml('loading','Loading project earnings')}</div></div>`;
+    root.innerHTML = `<div class="crew-project-page"><div class="crew-page" data-project-earnings>${stateHtml('loading','Loading project earnings')}</div><div class="crew-page" data-projected hidden style="display:none"></div></div>`;
     const mount = root.querySelector('[data-project-earnings]');
+    mountProjectedEarnings(root.querySelector('[data-projected]'), context, { projectId:projectId(context), isDestroyed:() => destroyed });
     loadMyEarnings(context, { project_id:projectId(context) }).then((result) => { if (!destroyed) renderEarningsPage(mount,result,'This project',{ details:true }); }).catch((error) => { if (!destroyed) mount.innerHTML = stateHtml('error',statusError(error,'Could not load your earnings for this project.')); });
     return { destroy(){ destroyed = true; root.innerHTML = ''; } };
   }

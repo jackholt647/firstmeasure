@@ -194,15 +194,14 @@ export const ROOFING_COMPANIES: CompanySpec[] = [
 ];
 
 // ---- Departments --------------------------------------------------------------------------------------------------
-type DepartmentSpec = { id: string; label: string; color: string; icon: string; category: string; roles: string[]; groupTypes: string[]; people: string[]; companies: string[] };
-export const DEPARTMENT_CATEGORIES = [{ id: 'office', label: 'Office' }, { id: 'field', label: 'Field' }];
+type DepartmentSpec = { id: string; label: string; color: string; icon: string; roles: string[]; groupTypes: string[]; people: string[]; companies: string[] };
 export const ROOFING_DEPARTMENTS: DepartmentSpec[] = [
-  { id: 'leadership', label: 'Leadership', color: '#1f2937', icon: 'fa-briefcase', category: 'office', roles: [], groupTypes: [], people: ['owner', 'gm'], companies: [] },
-  { id: 'office', label: 'Office & Admin', color: '#7c3aed', icon: 'fa-building', category: 'office', roles: ['office_manager', 'csr', 'bookkeeper'], groupTypes: [], people: [], companies: [] },
-  { id: 'sales', label: 'Sales', color: '#16a34a', icon: 'fa-handshake', category: 'office', roles: ['sales_manager', 'estimator', 'salesperson', 'call_center_rep', 'canvasser'], groupTypes: ['sales_team', 'canvass_team'], people: [], companies: [] },
-  { id: 'production', label: 'Production', color: '#2563eb', icon: 'fa-helmet-safety', category: 'field', roles: ['production_manager', 'production_coordinator', 'project_manager'], groupTypes: ['crew'], people: [], companies: ['summit', 'ridgeline', 'valley_gutters', 'northeast_siding', 'rolloff'] },
-  { id: 'service', label: 'Service & Repair', color: '#059669', icon: 'fa-screwdriver-wrench', category: 'field', roles: ['repairman'], groupTypes: [], people: [], companies: [] },
-  { id: 'warehouse', label: 'Warehouse & Fleet', color: '#64748b', icon: 'fa-warehouse', category: 'field', roles: ['warehouse_lead', 'delivery_driver'], groupTypes: [], people: [], companies: ['supply_delivery'] }
+  { id: 'leadership', label: 'Leadership', color: '#1f2937', icon: 'fa-briefcase', roles: [], groupTypes: [], people: ['owner', 'gm'], companies: [] },
+  { id: 'office', label: 'Office & Admin', color: '#7c3aed', icon: 'fa-building', roles: ['office_manager', 'csr', 'bookkeeper'], groupTypes: [], people: [], companies: [] },
+  { id: 'sales', label: 'Sales', color: '#16a34a', icon: 'fa-handshake', roles: ['sales_manager', 'estimator', 'salesperson', 'call_center_rep', 'canvasser'], groupTypes: ['sales_team', 'canvass_team'], people: [], companies: [] },
+  { id: 'production', label: 'Production', color: '#2563eb', icon: 'fa-helmet-safety', roles: ['production_manager', 'production_coordinator', 'project_manager'], groupTypes: ['crew'], people: [], companies: ['summit', 'ridgeline', 'valley_gutters', 'northeast_siding', 'rolloff'] },
+  { id: 'service', label: 'Service & Repair', color: '#059669', icon: 'fa-screwdriver-wrench', roles: ['repairman'], groupTypes: [], people: [], companies: [] },
+  { id: 'warehouse', label: 'Warehouse & Fleet', color: '#64748b', icon: 'fa-warehouse', roles: ['warehouse_lead', 'delivery_driver'], groupTypes: [], people: [], companies: ['supply_delivery'] }
 ];
 /** Department-scoped roles: the sales and production managers manage inside their own departments only. */
 const SCOPED = [['derek', 'department_manager', ['sales']], ['alex', 'department_manager', ['production', 'service']]] as const;
@@ -296,7 +295,8 @@ async function seedRoles(orgId: string, counts: Counts) {
   const existing = await access.listAccessRoles(orgId, { include_archived: true });
   const ids = new Map<string, string>();
   for (const spec of ROOFING_ROLES) {
-    let permissions: Record<string, boolean> = { manage_own_notifications: true };
+    // Like the seeded roles, every role here may see its own projected earnings.
+    let permissions: Record<string, boolean> = { manage_own_notifications: true, 'payroll.view_own_projected_earnings': true };
     for (const base of spec.base || []) Object.assign(permissions, personas.get(base)?.permissions || {});
     for (const key of spec.permissions) permissions[key] = true;
     if (spec.departmentOnly) permissions = Object.fromEntries(Object.entries(permissions).filter(([key, allowed]) => allowed && isDepartmentScopeablePermission(key)));
@@ -499,24 +499,22 @@ async function seedDepartments(ctx: PlatformAuthContext, roleId: (role: string) 
   const departments = await import('../workforce/departments.js');
   const current = await departments.readOrganizationDepartments(ctx.orgId);
   const rows = current.departments.map((row) => ({ ...row }));
-  const categories = [...current.groups];
-  for (const category of DEPARTMENT_CATEGORIES) if (!categories.some((row) => row.id === category.id)) categories.push(category);
   const ids = new Map<string, string>();
   for (const spec of ROOFING_DEPARTMENTS) {
     // An existing department of the same id or name is the same department: it keeps its name, colour and settings and gains members.
     let row = rows.find((entry) => entry.id === spec.id) || rows.find((entry) => entry.label.toLowerCase() === spec.label.toLowerCase());
-    if (!row) { row = { id: spec.id, label: spec.label, color: spec.color, icon: spec.icon, group_id: spec.category, division_id: '', status: 'active', default_channel: true, app_defaults: {}, subject_keys: [], role_ids: [], group_kind_ids: [] }; rows.push(row); counts.created = (counts.created || 0) + 1; }
+    // A single-branch company: its departments are in the default branch.
+    if (!row) { row = { id: spec.id, label: spec.label, color: spec.color, icon: spec.icon, branch_id: 'default', status: 'active', default_channel: true, app_defaults: {}, subject_keys: [], role_ids: [], group_kind_ids: [] }; rows.push(row); counts.created = (counts.created || 0) + 1; }
     if (!row.icon) row.icon = spec.icon;
-    if (!row.group_id) row.group_id = spec.category;
     if (row.status === 'archived') row.status = 'active';
     row.role_ids = union(row.role_ids, spec.roles.map(roleId));
     row.group_kind_ids = union(row.group_kind_ids.filter((kind) => !retiring.has(kind)), spec.groupTypes);
     row.subject_keys = union(row.subject_keys, spec.people.map((key) => people.get(key)).filter(Boolean).map((id) => `organization_user:${id}`), spec.companies.map((key) => companies.get(key)).filter(Boolean).map((id) => `organization_connection:${id}`));
     ids.set(spec.id, row.id);
   }
-  if (current.revision && same(rows, current.departments) && same(categories, current.groups)) return ids;
+  if (current.revision && same(rows, current.departments)) return ids;
   counts.saved = 1;
-  await departments.saveDepartmentSettings(ctx, { departments: rows, groups: categories, divisions: current.divisions, terminology: current.terminology, revision: current.revision, legacy_token: current.legacy_token || undefined });
+  await departments.saveDepartmentSettings(ctx, { departments: rows, terminology: current.terminology, revision: current.revision, legacy_token: current.legacy_token || undefined });
   return ids;
 }
 

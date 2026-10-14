@@ -219,6 +219,14 @@ list. The tray has no total. Its "+ Add" adds something the kind of work offers
 that no artifact has listed; a requirement added by hand says so and can be
 removed there.
 
+A covered requirement also shows how far it has got, from `progress`: a green
+calendar when every list covering it is scheduled (each list's event in
+`project.events`), and a green check on a green row when every covering list's
+part is done (labor finalized to be paid, material delivered, equipment on
+site). Each list cover carries `scheduled` and `completed`. Progress is read
+from the lists as they stand, never changes `status`, and a warning stays a
+warning. See [closeout](closeout.md#requirements-tray).
+
 ## Not built
 
 - Organization-defined work items and quantity rules.
@@ -227,8 +235,8 @@ removed there.
 - Documents accepted before this was built captured a calculation with no
   `work`, so they publish material only.
 - Splitting a requirement by structure.
-- Whether work was actually done. Coverage is about what is planned and paid
-  for; "done" belongs with actuals.
+- Partial completion. A labor list is done when its work is finalized to be
+  paid ([closeout](closeout.md)); there is no done state for part of a list.
 - Load weight alongside volume, and a cost per load.
 
 Run `tests/work-requirements.test.ts` for changes here, and

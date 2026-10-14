@@ -100,7 +100,7 @@
         key:user.id,
         entity:{ id:user.id, name:user.name || user.email, photoUrl:data.assetUrl(user.profile_photo_url || user.profile_photo) },
         online:user.id,
-        photoAction:can.users ? t('change_photo', 'Change photo') : '',
+        photoAction:data.allows('users.photo') ? t('change_photo', 'Change photo') : '',
         title:user.name || user.email || user.id,
         secondary:user.name ? user.email : '',
         pills,
@@ -109,10 +109,10 @@
           { chips:departments.filter((department) => context.section !== `department:${department.id}`).map((department) => ({ label:department.label, color:department.color })), max:2 }
         ],
         actions:[
-          { id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') },
-          can.users && never ? { id:'invite', icon:kit.ICONS.invite, label:t('resend_invite', 'Resend invitation') } : null,
-          can.users ? { id:'suspend', icon:suspended ? kit.ICONS.resume : kit.ICONS.suspend, label:suspended ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser } : null,
-          can.users ? { id:'delete', icon:kit.ICONS.remove, label:t('delete', 'Delete'), tone:'danger', disabled:protectedUser } : null
+          { id:'edit', needs:'users.open', icon:kit.ICONS.edit, label:t('edit', 'Edit') },
+          can.users && never ? { id:'invite', needs:'users.resend_invite', icon:kit.ICONS.invite, label:t('resend_invite', 'Resend invitation') } : null,
+          can.users ? { id:'suspend', needs:'users.suspend', icon:suspended ? kit.ICONS.resume : kit.ICONS.suspend, label:suspended ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser } : null,
+          can.users ? { id:'delete', needs:'users.delete', icon:kit.ICONS.remove, label:t('delete', 'Delete'), tone:'danger', disabled:protectedUser } : null
         ],
         hover:`organization_user:${user.id}`,
         dimmed:suspended
@@ -141,9 +141,11 @@
         filter === 'no_department' ? { id:'no_department', label:t('filter_no_department', 'No department'), count:count('no_department') } : null
       ];
     };
+    /* With several branches: which branches' people are listed, remembered for this page. */
+    const branchFilter = People.branches.filter('users', { onChange:() => renderList() });
     function visibleUsers(){
       const text = query.trim().toLowerCase();
-      return (filter === 'archived' ? data.state.archivedUsers : data.state.users.filter(FILTERS[filter] || FILTERS.all)).filter((user) => {
+      return (filter === 'archived' ? data.state.archivedUsers : data.state.users.filter(FILTERS[filter] || FILTERS.all)).filter((user) => branchFilter.matches('user', user)).filter((user) => {
         if (!text) return true;
         return [user.name, user.email, ...data.userRoles(user).map((role) => role.name), ...data.userDepartments(user).map((department) => department.label), ...data.userGroups(user).map((group) => group.name)]
           .join(' ').toLowerCase().includes(text);
@@ -200,8 +202,8 @@
       search:{ placeholder:t('search_users', 'Search users'), onInput(value){ query = value; renderList(); } },
       filters:{ items:[{ id:'all', label:t('filter_all', 'All') }], value:filter, onChange(next){ filter = next; renderList(); } },
       actions:[
-        { id:'roles', label:t('roles', 'Roles'), icon:kit.ICONS.role, menu:true, onClick:openRolesMenu },
-        can.users ? { id:'invite', label:t('invite_user', 'Invite user'), icon:'fa-user-plus', primary:true, onClick:openInvite } : null
+        { id:'roles', needs:'roles.view', label:t('roles', 'Roles'), icon:kit.ICONS.role, onClick:openRolesMenu },
+        can.users ? { id:'invite', needs:'users.invite', label:t('invite_user', 'Invite user'), icon:'fa-user-plus', primary:true, onClick:openInvite } : null
       ].filter(Boolean),
       empty:{ icon:kit.ICONS.users, title:t('no_users', 'No users') },
       row:rowModel,
@@ -213,6 +215,7 @@
         catch (error) { failed(t('photo_failed_title', 'Photo not saved'), error); }
       }
     });
+    branchFilter.attach(list.controlHost);
     const detachHover = People.hoverCard.attach(list.el, { resolve:(key) => { const user = data.user(String(key).split(':').slice(1).join(':')); return user ? data.userSummary(user) : null; } });
     const stopPresence = kit.presence.watch(data.orgId());
     const unsubscribe = data.subscribe((state, change) => {
@@ -322,9 +325,9 @@
       const rolesChanged = () => { permissions?.refresh(); mountApps(); modal.refreshSummary(); sync(); };
 
       /*
-       * Departments, nested the way the catalog organizes them (units, or categories), each with the
-       * roles this person holds only for work there and its own Roles button. A unit can hold roles
-       * too: they apply to every department in it. All are scoped_access_assignments on the user.
+       * Departments, each with the roles this person holds only for work there and its own Roles button.
+       * With several branches they are grouped under their branch (and its region), and a branch or region
+       * can hold roles too: they apply to its departments and records. All are scoped_access_assignments.
        */
       const departmentWord = () => (data.state.groupLabels.departmentSingular || t('department', 'Department')).toLowerCase();
       const rolesAt = (kind, placeId) => draft.scopedAssignments.filter((assignment) => assignment.scope.kind === kind && assignment.scope.id === String(placeId)).map((assignment) => assignment.role_id);
@@ -332,11 +335,12 @@
         const others = draft.scopedAssignments.filter((assignment) => !(assignment.scope.kind === kind && assignment.scope.id === String(placeId)));
         draft.scopedAssignments = [...others, ...roleIds.map((roleId) => ({ role_id:String(roleId), scope:{ kind, id:String(placeId) } }))];
       };
-      const canAssignDepartments = () => !!data.state.departments.length && data.state.departmentState?.can_assign?.user !== false && (can.users || can.settings);
-      const canScope = () => can.permissions && !data.isMe(current()) && !!(data.state.departments.length || data.state.divisions.length) && data.scopableRoles().length > 0;
+      const canAssignDepartments = () => data.allows('users.departments') && !!data.state.departments.length && data.state.departmentState?.can_assign?.user !== false && (can.users || can.settings);
+      const canScope = () => data.allows('users.scoped') && !data.isMe(current()) && !!(data.state.departments.length || data.multipleBranches()) && data.scopableRoles().length > 0;
+      const canScopePlaces = () => canScope() && data.allows('users.scoped_branch');
       const inheritedDepartments = () => new Map(data.userDepartments(current()).map((department) => [department.id, department.sources.filter((source) => source.kind !== 'direct')]).filter(([, sources]) => sources.length));
       const throughText = (sources) => [...new Set(sources.map((source) => source.kind === 'role' ? t('through_role', 'the {role} role', { role:data.role(source.id)?.name || source.id }) : (data.group?.(source.id)?.name || source.id)))].join(', ');
-      const placeLabel = (kind, id) => kind === 'division' ? (data.division(id)?.label || id) : (data.department(id)?.label || id);
+      const placeLabel = (kind, id) => kind === 'branch' ? data.branchName(id) : kind === 'region' ? (data.region(id)?.label || id) : (data.department(id)?.label || id);
       /* Leaving a department also drops the roles held only there. */
       function setMember(departmentId, on){
         draft.departmentIds = on ? [...new Set([...draft.departmentIds, departmentId])] : draft.departmentIds.filter((id) => id !== departmentId);
@@ -345,22 +349,23 @@
       function departmentTree(){
         const inherited = inheritedDepartments();
         const shown = [...new Set([...draft.departmentIds, ...inherited.keys(), ...draft.scopedAssignments.filter((assignment) => assignment.scope.kind === 'department').map((assignment) => assignment.scope.id)])];
-        const unitIds = draft.scopedAssignments.filter((assignment) => assignment.scope.kind === 'division').map((assignment) => assignment.scope.id);
-        const rows = data.departmentOutline({ departmentIds:shown, unitIds });
+        /* Branch and region grants show only with several branches; saved ones are kept either way. */
+        const placeIds = (kind) => data.multipleBranches() ? draft.scopedAssignments.filter((assignment) => assignment.scope.kind === kind).map((assignment) => assignment.scope.id) : [];
+        const rows = data.departmentOutline({ departmentIds:shown, branchIds:placeIds('branch'), regionIds:placeIds('region') });
         if (!rows.length) return canAssignDepartments() ? '' : `<span class="pp-sum-empty">${esc(t('no_departments', 'None'))}</span>`;
         const scope = canScope();
         /* Rows that cannot be removed keep the remove button's room, so every Roles button lines up. */
         const spacer = rows.some((row) => row.kind === 'department' && (draft.departmentIds.includes(row.id) ? canAssignDepartments() : scope && !inherited.has(row.id))) ? '<span class="pp-dtree-spacer" aria-hidden="true"></span>' : '';
         const chipsFor = (roleIds) => roleIds.length ? `<div class="pp-chip-run wrap pp-dtree-roles">${roleIds.map((roleId) => kit.chip({ label:data.role(roleId)?.name || roleId, tone:'role', tooltip:data.role(roleId)?.description })).join('')}</div>` : '';
         const rolesButton = (kind, id, label) => {
-          if (!scope) return '';
+          if (!scope || (kind !== 'department' && !canScopePlaces())) return '';
           const name = t('roles_in', 'Roles in {place}', { place:label });
           return `<button type="button" class="pp-dtree-btn" data-dtree-roles="${esc(kind)}:${esc(id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(name)}"${tip(name)}><i class="fas ${kit.ICONS.role}" aria-hidden="true"></i>${esc(t('roles', 'Roles'))}</button>`;
         };
         return `<ul class="pp-dtree" role="list">${rows.map((row) => {
           if (row.kind !== 'department') {
-            const unit = row.kind === 'unit';
-            return `<li class="pp-dtree-item place" data-dtree="${esc(row.kind)}:${esc(row.id)}" style="--depth:${row.depth}"><div class="pp-dtree-line"><i class="fas ${unit ? 'fa-diagram-project' : 'fa-folder'} pp-dtree-icon" aria-hidden="true"></i><span class="pp-dtree-name"${tip(row.tooltip)}>${esc(row.label)}</span><span class="pp-dtree-tools">${unit ? rolesButton('division', row.id, row.label) + spacer : ''}</span></div>${unit ? chipsFor(rolesAt('division', row.id)) : ''}</li>`;
+            const placeSpacer = canScopePlaces() ? spacer : '';
+            return `<li class="pp-dtree-item place" data-dtree="${esc(row.kind)}:${esc(row.id)}" style="--depth:${row.depth}"><div class="pp-dtree-line"><i class="fas ${row.kind === 'region' ? 'fa-map-location-dot' : 'fa-location-dot'} pp-dtree-icon" aria-hidden="true"></i><span class="pp-dtree-name"${tip(row.kind === 'region' ? t('region', 'Region') : t('branch', 'Branch'))}>${esc(row.label)}</span><span class="pp-dtree-tools">${rolesButton(row.kind, row.id, row.label)}${placeSpacer}</span></div>${chipsFor(rolesAt(row.kind, row.id))}</li>`;
           }
           const direct = draft.departmentIds.includes(row.id);
           const via = direct ? [] : inherited.get(row.id) || [];
@@ -376,15 +381,15 @@
         const user = current();
         const model = data.userSummary(user, draft);
         model.sections.forEach((section) => {
-          if (section.id === 'roles' && can.access) section.action = { id:'roles', label:t('change_roles_everywhere', 'Change roles everywhere') };
+          if (section.id === 'roles' && data.allows('users.roles')) section.action = { id:'roles', label:t('change_roles_everywhere', 'Change roles everywhere') };
           if (section.id === 'departments') {
             section.html = departmentTree();
             if (canAssignDepartments()) section.action = { id:'departments', icon:'fa-plus', label:t('add_to_department', 'Add to a {department}', { department:departmentWord() }) };
           }
-          if (section.id === 'tags' && can.access && data.state.tags.length) section.action = { id:'tags', label:t('change_tags', 'Change tags') };
+          if (section.id === 'tags' && data.allows('users.tags') && data.state.tags.length) section.action = { id:'tags', label:t('change_tags', 'Change tags') };
         });
         model.sections = model.sections.filter((section) => !section.optional || section.action || section.chips.length);
-        host.innerHTML = kit.summary(model, 'panel', { photoAction:can.users ? t('change_photo', 'Change photo') : '', editAction:can.users && !editingIdentity ? t('edit_identity', 'Edit name and email') : '' })
+        host.innerHTML = kit.summary(model, 'panel', { photoAction:data.allows('users.photo') ? t('change_photo', 'Change photo') : '', editAction:data.allows('users.identity') && !editingIdentity ? t('edit_identity', 'Edit name and email') : '' })
           + '<input type="file" class="pp-list-file" data-user-photo-input accept="image/png,image/jpeg,image/webp" tabindex="-1" aria-hidden="true">';
         if (editingIdentity) {
           const idBlock = host.querySelector('.pp-sum-id');
@@ -404,7 +409,7 @@
           const [kind, ...rest] = key.split(':');
           const placeId = rest.join(':');
           People.pageKit.scopedRolesMenu(rolesButton, {
-            place:placeLabel(kind, placeId), kind:kind === 'division' ? 'unit' : 'department',
+            place:placeLabel(kind, placeId), kind,
             selected:rolesAt(kind, placeId), everywhere:draft.roleIds,
             onChange(next){ setRolesAt(kind, placeId, next); modal.refreshSummary(); sync(); },
             refocus:() => (modal.el.querySelector(`[data-dtree-roles="${CSS.escape(key)}"]`) || modal.el.querySelector('[data-people-section-action="departments"]'))?.focus()
@@ -475,13 +480,13 @@
           const protectedUser = data.isMe(now) || data.isOwner(now);
           if (!can.users) return [];
           return [
-            data.neverSignedIn(now) ? { id:'invite', icon:kit.ICONS.invite, label:t('resend_invite', 'Resend invitation'), onClick:() => resend(now) } : null,
-            { id:'suspend', icon:data.isSuspended(now) ? kit.ICONS.resume : kit.ICONS.suspend, label:data.isSuspended(now) ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser, onClick:() => suspend(now) },
-            { id:'delete', icon:kit.ICONS.remove, label:t('delete', 'Delete'), tone:'danger', disabled:protectedUser, onClick:async (button) => { if (await remove(now, button)) modal.close(true); } }
+            data.neverSignedIn(now) ? { id:'invite', needs:'users.resend_invite', icon:kit.ICONS.invite, label:t('resend_invite', 'Resend invitation'), onClick:() => resend(now) } : null,
+            { id:'suspend', needs:'users.suspend', icon:data.isSuspended(now) ? kit.ICONS.resume : kit.ICONS.suspend, label:data.isSuspended(now) ? t('resume', 'Reinstate') : t('suspend', 'Suspend'), disabled:protectedUser, onClick:() => suspend(now) },
+            { id:'delete', needs:'users.delete', icon:kit.ICONS.remove, label:t('delete', 'Delete'), tone:'danger', disabled:protectedUser, onClick:async (button) => { if (await remove(now, button)) modal.close(true); } }
           ];
         },
         tabs:[
-          legacy ? { id:'permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){
+          legacy ? { id:'permissions', needs:'users.legacy_permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){
             /* The admin level is a dropdown; the seven flags are switches. Changing a flag makes the level Custom. */
             const locked = !can.permissions || data.isMe(current()) || data.isOwner(current());
             let flags = null;
@@ -494,14 +499,14 @@
             panel.addEventListener('change', (event) => { if (!event.target.matches('[data-legacy-level]')) return; const level = event.target.value; draft.legacy = { level, items:level === 'custom' ? draft.legacy.items : data.legacyLevelItems(level) }; draw(); sync(); });
             permissions = { refresh(){}, setValue(){ draw(); }, destroy(){ flags?.destroy(); } };
             return { destroy:() => flags?.destroy() };
-          } } : { id:'permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){
+          } } : { id:'permissions', needs:'users.permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){
             permissions = People.permissionsPanel.mount(panel, { level:'user', groups:data.permissionGroups(), value:draft.permissionOverrides, inherited:(key) => data.inheritedPermission(draft.roleIds)(key), readOnly:!can.access, onChange(value){ draft.permissionOverrides = value; sync(); } });
             return { destroy:() => permissions?.destroy() };
           } },
-          { id:'apps', label:t('app_experience', 'App experience'), icon:kit.ICONS.apps, mount(panel){ appsPanel = panel; mountApps(); return { destroy:() => apps?.destroy() }; } },
+          { id:'apps', needs:'users.apps', label:t('app_experience', 'App experience'), icon:kit.ICONS.apps, mount(panel){ appsPanel = panel; mountApps(); return { destroy:() => apps?.destroy() }; } },
           People.slots.tab('compensation', entity, { readOnly:!can.settings }),
           People.slots.tab('fields', entity, { readOnly:!can.users }),
-          window.PlatformAPI?.userActivity?.list ? { id:'activity', label:t('activity', 'Activity'), icon:'fa-clock-rotate-left', mount(panel){
+          window.PlatformAPI?.userActivity?.list ? { id:'activity', needs:'users.activity', label:t('activity', 'Activity'), icon:'fa-clock-rotate-left', mount(panel){
             /* What this person did, newest first: the record the old profile window showed. */
             panel.innerHTML = `<div class="pp-state" aria-busy="true"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></div>`;
             const now = current();
@@ -522,7 +527,7 @@
           if (accessChanged) { patch.roleIds = draft.roleIds; patch.permissionOverrides = draft.permissionOverrides; patch.appOverrides = draft.appOverrides; }
           const departmentsChanged = !same(sorted(draft.departmentIds), sorted(base.departmentIds));
           if (!same(sorted(draft.tagIds), sorted(base.tagIds))) patch.tagIds = draft.tagIds;
-          /* The whole list is written back, so roles held in a unit (division) are kept when a department's roles change. */
+          /* The whole list is written back, so roles held in a branch or region are kept when a department's roles change. */
           if (!same(scopedKeys(draft.scopedAssignments), scopedKeys(base.scopedAssignments))) patch.scopedAssignments = draft.scopedAssignments;
           if (!same(draft.legacy, base.legacy)) patch.legacy = draft.legacy;
           if (Object.keys(patch).length) await data.saveUser(id, patch);
@@ -567,18 +572,34 @@
     }
 
     /* ---------- roles ---------- */
+    /* Roles: the same large list as types and tags. A row opens the role; New, Duplicate and Archive where they can be done. */
     function openRolesMenu(button){
-      const roles = data.activeRoles();
-      kit.menu(button, {
-        align:'end', label:t('roles', 'Roles'), search:roles.length > 8 ? t('search_roles', 'Search roles') : '',
-        items:[
-          ...roles.map((role) => ({ id:role.id, label:role.name || role.id, icon:kit.ICONS.role, hint:String(data.roleMembers(role.id).length), tooltip:role.description })),
-          can.access && roles.length ? { separator:true } : null,
-          can.access ? { id:'__new', label:t('new_role', 'New role'), icon:'fa-plus', tone:'accent' } : null
-        ],
-        onSelect(item){
-          if (item.id === '__new') { window.setTimeout(() => newRole(button), 0); return; }
-          window.setTimeout(() => openRole(item.id, { opener:button }), 0);
+      const face = (user) => ({ id:user.id, name:user.name || user.email, photoUrl:data.assetUrl(user.profile_photo_url || user.profile_photo) });
+      return People.lists.listModal({
+        title:t('roles', 'Roles'), icon:kit.ICONS.role, color:'#3538cd', opener:button, words:[t('role_one', 'role'), t('role_many', 'roles')], empty:t('no_roles_yet', 'No roles yet'),
+        legend:kit.info(t('roles_tip', 'A role gives the people who hold it their permissions and the tabs they see. Someone can hold several roles.')),
+        newLabel:t('new_role', 'New role'), onNew:data.allows('roles.edit') ? (anchor) => newRole(anchor) : null,
+        rows:() => data.activeRoles().map((role) => {
+          const members = data.roleMembers(role.id);
+          return {
+            id:role.id, name:role.name || role.id, tooltip:role.description, open:true,
+            chips:[role.is_system === true ? { label:t('built_in', 'Built-in'), tone:'muted', tooltip:t('built_in_tip', 'Comes with the product and cannot be archived') } : { label:t('custom_role', 'Custom'), tone:'role' }],
+            stack:kit.stack(members.map(face), members.length), countTip:t('role_members_tip', 'People who hold this role'),
+            actions:[
+              { id:'duplicate', needs:'roles.edit', icon:'fa-copy', label:t('duplicate', 'Duplicate') },
+              { id:'archive', needs:'roles.edit', icon:'fa-box-archive', label:t('archive_role', 'Archive role'), tone:'danger', disabled:role.is_system === true, tooltip:role.is_system === true ? t('built_in_tip', 'Comes with the product and cannot be archived') : '' }
+            ]
+          };
+        }),
+        onOpen:(row) => openRole(row.id, { opener:button }),
+        async onAction(action, row, anchor){
+          if (action === 'duplicate') {
+            kit.form(anchor, { title:t('duplicate', 'Duplicate'), submitLabel:t('create', 'Create'), fields:[{ id:'name', label:t('name', 'Name'), value:t('copy_of', '{name} copy', { name:row.name }), required:true }], submit:(values) => data.duplicateRole(row.id, values.name) })
+              .then((role) => { if (role?.id) kit.toast(t('saved', 'Saved'), role.name || '', true); });
+          } else if (action === 'archive') {
+            const yes = await kit.confirm(anchor, { title:t('archive_confirm', 'Archive {name}?', { name:row.name }), confirmLabel:t('archive', 'Archive'), tone:'danger' });
+            if (yes) data.archiveRole(row.id).catch((error) => People.pageKit.failed(t('not_archived', 'Not archived'), error));
+          }
         }
       });
     }
@@ -600,7 +621,7 @@
       let base = baseline();
       const draft = JSON.parse(JSON.stringify(base));
       const system = current().is_system === true;
-      const editable = can.access;
+      const editable = data.allows('roles.edit');
       let editingIdentity = false;
       let permissions = null;
       let permissionsPanel = null;
@@ -665,7 +686,7 @@
         summary:drawSummary,
         actions(){
           if (!editable || system) return [];
-          return [{ id:'archive', icon:'fa-box-archive', label:t('archive_role', 'Archive role'), tone:'danger', onClick:async (button) => {
+          return [{ id:'archive', needs:'roles.edit', icon:'fa-box-archive', label:t('archive_role', 'Archive role'), tone:'danger', onClick:async (button) => {
             const yes = await kit.confirm(button, { title:t('archive_role_confirm', 'Archive {name}?', { name:current().name || id }), confirmLabel:t('archive', 'Archive'), tone:'danger' });
             if (!yes) return;
             try { await data.archiveRole(id); kit.toast(t('archived', 'Archived'), current().name || '', true); modal.close(true); }
@@ -673,9 +694,9 @@
           } }];
         },
         tabs:[
-          { id:'permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){ permissionsPanel = panel; mountPermissions(); return { destroy:() => permissions?.destroy() }; } },
-          { id:'members', label:t('members', 'Members'), icon:kit.ICONS.users, mount(panel, ctx){ members = mountMembers(panel, id, ctx.modal); return members; } },
-          { id:'apps', label:t('app_experience', 'App experience'), icon:kit.ICONS.apps, mount(panel){ appsPanel = panel; mountApps(); return { destroy:() => apps?.destroy() }; } },
+          { id:'permissions', needs:'roles.view', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){ permissionsPanel = panel; mountPermissions(); return { destroy:() => permissions?.destroy() }; } },
+          { id:'members', needs:'roles.view', label:t('members', 'Members'), icon:kit.ICONS.users, mount(panel, ctx){ members = mountMembers(panel, id, ctx.modal); return members; } },
+          { id:'apps', needs:'roles.view', label:t('app_experience', 'App experience'), icon:kit.ICONS.apps, mount(panel){ appsPanel = panel; mountApps(); return { destroy:() => apps?.destroy() }; } },
           People.slots.tab('compensation', entity, { readOnly:!can.settings }),
           People.slots.tab('fields', entity, { readOnly:!can.settings })
         ],
@@ -749,7 +770,7 @@
         title:t('members', 'Members'),
         subtitle:count(),
         search:{ placeholder:t('search_members', 'Search members'), onInput(value){ memberQuery = value.trim().toLowerCase(); membersList.setItems(items()); } },
-        actions:can.access ? [{ id:'add', label:t('add_people', 'Add people'), icon:'fa-user-plus', menu:true, onClick(button){
+        actions:[{ id:'add', needs:'users.roles', label:t('add_people', 'Add people'), icon:'fa-user-plus', menu:true, onClick(button){
           kit.menu(button, {
             align:'end', label:t('add_people', 'Add people'), search:t('search_users', 'Search users'),
             items:[...data.state.users].sort((left, right) => String(left.name || left.email || '').localeCompare(String(right.name || right.email || ''))).map((user) => ({ id:user.id, label:user.name || user.email || user.id, checked:data.userRoleIds(user).includes(String(roleId)) })),
@@ -760,7 +781,7 @@
               change(user, on);
             }
           });
-        } }] : [],
+        } }],
         empty:{ icon:kit.ICONS.users, title:t('no_members', 'No members') },
         row:(user) => ({
           key:user.id,
@@ -769,7 +790,7 @@
           title:user.name || user.email || user.id,
           secondary:user.name ? user.email : '',
           pills:data.isSuspended(user) ? [{ label:t('suspended', 'Suspended'), tone:'danger' }] : data.neverSignedIn(user) ? [{ label:t('never_signed_in', 'Never signed in'), tone:'warn' }] : [],
-          actions:can.access ? [{ id:'remove', icon:'fa-user-minus', label:t('remove_from_role', 'Remove from role'), tone:'danger' }] : [],
+          actions:[{ id:'remove', needs:'users.roles', icon:'fa-user-minus', label:t('remove_from_role', 'Remove from role'), tone:'danger' }],
           hover:`organization_user:${user.id}`,
           dimmed:data.isSuspended(user)
         }),
@@ -801,6 +822,7 @@
         destroyed = true;
         document.removeEventListener('visibilitychange', onVisible);
         unsubscribe();
+        branchFilter.destroy();
         detachHover();
         stopPresence();
         People.hoverCard.hide();

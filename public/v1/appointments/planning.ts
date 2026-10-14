@@ -17,7 +17,7 @@ import {resolveOrganizationTimezone,zonedParts,zonedInstant} from '../platform/t
 import {occurrenceDate,createRecurrenceSeries,materializeRecurrenceSeries} from '../platform/recurrence.js';
 import {isFirstMeasurePostgresEnabled,withPostgresTransaction,withPlatformPostgresClient} from '../src/database/postgres.js';
 
-import {appointmentCatalogSchema,appointmentConfigurationSchema,previewSchema,plannedBookingSchema,type AppointmentConfiguration} from './planning-contracts.js';
+import {departmentInBranch,presetsForBranch,otherBranchDepartmentIds,appointmentCatalogSchema,appointmentConfigurationSchema,previewSchema,plannedBookingSchema,type AppointmentConfiguration} from './planning-contracts.js';
 export * from './planning-contracts.js';
 const object=(v:unknown):JsonObject=>v&&typeof v==='object'&&!Array.isArray(v)?v as JsonObject:{};
 const list=(v:unknown):JsonObject[]=>Array.isArray(v)?v.map(object):[];
@@ -53,20 +53,24 @@ export async function readAppointmentCatalog(ctx:PlatformAuthContext){
   const fallback=isInstant?instantFullAppointmentCatalog():defaults();
   const branchCatalog=stored?appointmentCatalogSchema.parse(stored):fallback;
   const structure=await resolveOrganizationStructure(ctx.orgId),organizationDepartments=structure.catalog;
-  const departmentIds=new Set(organizationDepartments.departments.filter(d=>d.status==='active').map(d=>d.id));
-  const presets=stored?branchCatalog.presets:branchCatalog.presets.map(p=>({...p,configuration:{...p.configuration,department_ids:p.configuration.department_ids.filter(id=>departmentIds.has(id)),requirements:p.configuration.requirements.map(r=>r.department_id&&!departmentIds.has(r.department_id)?{...r,department_id:undefined}:r)}}));
-  const catalog={...branchCatalog,presets,departments:organizationDepartments.departments,groups:organizationDepartments.groups};
+  // Only this branch's departments are offered here; what a stored preset names of another branch's is dropped.
+  const branchId=ctx.branchId||'default',branchDepartments=organizationDepartments.departments.filter(d=>departmentInBranch(d,branchId));
+  const departmentIds=new Set(branchDepartments.filter(d=>d.status==='active').map(d=>d.id));
+  const presets=stored?presetsForBranch(branchCatalog.presets,organizationDepartments.departments,branchId):branchCatalog.presets.map(p=>({...p,configuration:{...p.configuration,department_ids:p.configuration.department_ids.filter(id=>departmentIds.has(id)),requirements:p.configuration.requirements.map(r=>r.department_id&&!departmentIds.has(r.department_id)?{...r,department_id:undefined}:r)}}));
+  const catalog={...branchCatalog,presets,departments:branchDepartments,groups:[]};
+  const branchDepartmentIds=new Set(branchDepartments.map(d=>d.id));
   const resources=await resolveAssignableSubjects(ctx.orgId,ctx.branchId||'default',{allow_unassigned:true,rules:[]});
-  return {catalog,department_context:relevantDepartmentContext({...ctx,organizationStructure:structure}),company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,department_ids:departmentIdsForSubject(structure,String(r.subject_type),String(r.id)),member_user_ids:subjectMemberIds(r)})).filter(r=>hasResourcePermission({...ctx,organizationStructure:structure},SCHEDULE_VIEW,{department_ids:r.department_ids,branch_id:ctx.branchId})&&matchesDepartmentFilter({...ctx,organizationStructure:structure},{department_ids:r.department_ids}))};
+  return {catalog,department_context:relevantDepartmentContext({...ctx,organizationStructure:structure}),company_office:await companyOffice(ctx.orgId,ctx.branchId||'default'),revision:Number(branch?.revision||0),can_manage:hasPermission(ctx,'manage_company_settings'),resources:resources.subjects.map((r:JsonObject)=>({id:r.id,key:key(r),name:r.name||r.label||r.id,subject_type:r.subject_type,role_ids:r.role_ids,group_kind_id:r.group_kind_id,department_ids:departmentIdsForSubject(structure,String(r.subject_type),String(r.id)).filter(id=>branchDepartmentIds.has(id)),member_user_ids:subjectMemberIds(r)})).filter(r=>hasResourcePermission({...ctx,organizationStructure:structure},SCHEDULE_VIEW,{department_ids:r.department_ids,branch_id:ctx.branchId})&&matchesDepartmentFilter({...ctx,organizationStructure:structure},{department_ids:r.department_ids}))};
 }
 export async function saveAppointmentCatalog(ctx:PlatformAuthContext,input:unknown){
   if(!hasPermission(ctx,'manage_company_settings'))throw forbidden('appointment_catalog_denied','Company settings permission is required.');
   const {catalog,revision}=z.object({catalog:appointmentCatalogSchema,revision:z.number().int().nonnegative()}).strict().parse(input);
-  const organizationDepartments=await readOrganizationDepartments(ctx.orgId);
-  if(JSON.stringify(catalog.departments)!==JSON.stringify(organizationDepartments.departments)||JSON.stringify(catalog.groups)!==JSON.stringify(organizationDepartments.groups))throw conflict('departments_owned_by_organization','Manage departments in organization Settings. Reload the appointment before saving a preset.');
-  for(const rows of [catalog.departments,catalog.groups,catalog.presets])if(new Set(rows.map(r=>r.id)).size!==rows.length)throw badRequest('duplicate_catalog_id','Each entry needs a unique ID.');
-  const deps=new Set(catalog.departments.map(d=>d.id)),groups=new Set(catalog.groups.map(d=>d.id));
-  if(catalog.departments.some(d=>d.group_id&&!groups.has(d.group_id)))throw badRequest('unknown_department_group','Choose an existing department group.');
+  const organizationDepartments=await readOrganizationDepartments(ctx.orgId),branchId=ctx.branchId||'default';
+  const foreign=otherBranchDepartmentIds(catalog,organizationDepartments.departments,branchId);
+  if(foreign.length)throw badRequest('department_other_branch','This branch\'s appointments can only use its own departments.',{department_ids:foreign});
+  if(JSON.stringify(catalog.departments)!==JSON.stringify(organizationDepartments.departments.filter(d=>departmentInBranch(d,branchId))))throw conflict('departments_owned_by_organization','Manage departments in organization Settings. Reload the appointment before saving a preset.');
+  for(const rows of [catalog.departments,catalog.presets])if(new Set(rows.map(r=>r.id)).size!==rows.length)throw badRequest('duplicate_catalog_id','Each entry needs a unique ID.');
+  const deps=new Set(catalog.departments.map(d=>d.id));
   if(catalog.presets.some(p=>p.configuration.department_ids.some(d=>!deps.has(d))||p.configuration.requirements.some(r=>r.department_id&&!deps.has(r.department_id))))throw badRequest('unknown_department','A preset references a missing department.');
   return withProjectDocumentLock(ctx.orgId,'appointment_catalog',async()=>{
     const current=await readBranchModule(ctx.orgId,ctx.branchId||'default','scheduling').catch((error)=>{if(error.statusCode===404)return null;throw error;});

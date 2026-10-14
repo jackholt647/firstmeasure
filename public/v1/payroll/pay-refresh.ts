@@ -3,6 +3,7 @@ import { readAssignee, type Assignee } from "../labor/assignees.js";
 import { backgroundAuthContext } from "../platform/auth.js";
 import { userPublicationContext } from "../platform/publication/context.js";
 import type { PublicationContext } from "../platform/publication/contracts.js";
+import { describeDataProvider } from "../platform/publication/providers.js";
 import { selectPublishedData, type SelectedRow } from "../platform/publication/select.js";
 import { contentHash as hashJson } from "../platform/publication/validation.js";
 import {
@@ -157,11 +158,13 @@ async function payeeRef(orgId: string, payee: Assignee): Promise<PayrollPayeeRef
   return { type: payee.type, id: payee.id, name: found.name, worker_type } as PayrollPayeeRef;
 }
 
-async function readInputs(ctx: PublicationContext, orgId: string, definition: PayRuleDefinition, payee: Assignee) {
+/** `projected` names inputs read as their source projects them (`args.projected`); every other input is read as it is. */
+async function readInputs(ctx: PublicationContext, orgId: string, definition: PayRuleDefinition, payee: Assignee, projected?: ReadonlySet<string>) {
   const rows: Record<string, Row[]> = {};
   for (const [name, input] of Object.entries(definition.inputs)) {
+    const args = projected?.has(name) ? { ...input.source.args, projected: true } : input.source.args;
     const result = await selectPublishedData(ctx, withTokens({
-      provider: input.source.provider, export: input.source.export, target: { scope: "organization" as const, organizationId: orgId }, ...(input.source.args ? { args: input.source.args } : {})
+      provider: input.source.provider, export: input.source.export, target: { scope: "organization" as const, organizationId: orgId }, ...(args ? { args } : {})
     }, payee), withTokens({ ...(input.where === undefined ? {} : { where: input.where }), limit: input.limit ?? 5000 }, payee));
     if (result.status !== "ready") return { failure: `${name}: ${result.message}` };
     rows[name] = result.rows;
@@ -905,4 +908,211 @@ export async function listPayReview(orgId: string) {
   const held = (await listPayrollLedgerEntries(orgId, { state: "projected", limit: 5000 })).filter((entry) => fromRules(entry) && entry.metadata.review_required === true);
   const offCycle = (await listPayrollLedgerEntries(orgId, { state: "accrued", open_only: true, limit: 5000 })).filter((entry) => fromRules(entry) && entry.metadata.off_cycle_requested === true);
   return { held, off_cycle: offCycle };
+}
+
+// ---- Projected earnings: the same rules over the work that is not done yet ----
+
+/**
+ * One earning a pay rule is expected to produce once the work it reads is done. Worked out from a source's projected
+ * reading (see payroll/pay-sources.ts) by the payee's own rule, parameters and split, never posted to the ledger and
+ * never part of a pay run. `expected_on` is the day it is expected to be earned, blank when nothing is scheduled.
+ */
+export type ProjectedEarning = {
+  id: string; projected: true; payee: string; rule_id: string; rule_name: string; kind: string; unit: string; line: string;
+  amount_cents: number; description: string; expected_on: string; expected_at: string; expected_from: string;
+  project_id: string; project_title: string; record_title: string; projected_from: string; details?: JsonObject;
+  /** For a group whose pay is split: how this line would be divided among its members today, or that a split rule decides when it is earned. */
+  split?: { method: string; members?: { id: string; cents: number }[]; decided_when_earned?: true };
+  /** On a member's own projection: the group line this is their share of. */
+  share_of?: { payee: string; payee_name: string; line_cents: number; method: string };
+};
+export type ProjectedUnresolved = PayUnresolved & { expected_on?: string; project_id?: string; project_title?: string; share_of?: { payee: string; payee_name: string } };
+export type PayProjection = {
+  payee: Assignee; payee_name: string; as_of: string; projected: true; earnings: ProjectedEarning[]; unresolved: ProjectedUnresolved[]; total_cents: number;
+  /** Projected earnings by job, soonest first; work with no expected date comes last. */
+  projects: { project_id: string; project_title: string; total_cents: number; count: number; unresolved_count: number; next_expected_on: string }[];
+};
+export type PayProjectionOptions = Pick<PayRefreshOptions, "asOf" | "context">;
+
+/** A source projects its rows when its options take a boolean `projected`. */
+function projectsRows(source: { provider: string; export: string }) {
+  const args = describeDataProvider(source.provider)?.exports[source.export]?.argsSchema as { properties?: Record<string, { type?: unknown }> } | undefined;
+  return args?.properties?.projected?.type === "boolean";
+}
+const LAST = "￿";
+const byExpected = (a: { expected_on: string }, b: { expected_on: string }) => (a.expected_on || LAST).localeCompare(b.expected_on || LAST);
+
+function summarizeProjection(payee: Assignee, name: string, asOf: string, earnings: ProjectedEarning[], unresolved: ProjectedUnresolved[]): PayProjection {
+  earnings.sort((a, b) => byExpected(a, b) || a.id.localeCompare(b.id));
+  const projects = new Map<string, PayProjection["projects"][number]>();
+  const bucket = (id: string, title: string) => {
+    if (!projects.has(id)) projects.set(id, { project_id: id, project_title: title, total_cents: 0, count: 0, unresolved_count: 0, next_expected_on: "" });
+    const found = projects.get(id)!;
+    if (!found.project_title && title) found.project_title = title;
+    return found;
+  };
+  for (const earning of earnings) {
+    const found = bucket(earning.project_id, earning.project_title);
+    found.total_cents += earning.amount_cents; found.count += 1;
+    if (earning.expected_on && (!found.next_expected_on || earning.expected_on < found.next_expected_on)) found.next_expected_on = earning.expected_on;
+  }
+  for (const entry of unresolved) bucket(entry.project_id || "", entry.project_title || "").unresolved_count += 1;
+  return {
+    payee, payee_name: name, as_of: asOf, projected: true, earnings, unresolved, total_cents: earnings.reduce((sum, earning) => sum + earning.amount_cents, 0),
+    projects: [...projects.values()].sort((a, b) => byExpected({ expected_on: a.next_expected_on }, { expected_on: b.next_expected_on }) || a.project_title.localeCompare(b.project_title))
+  };
+}
+
+/**
+ * What a payee's pay rules say they are expected to earn from work that is not done yet. Each rule that pays per
+ * record and whose primary input publishes a projected reading is run, in the sandbox, exactly as a refresh runs it:
+ * the version and parameters in effect on the expected day, its own selection and formula, over the rows as they are
+ * expected to look once done. A record the rule has already earned is not projected again. A formula that throws or
+ * returns no whole cents is unresolved with its reason, never zero. Reads only: nothing is posted, stored or noted.
+ * Rules that pay by period (hours, salary) are not projected.
+ */
+export async function projectPayeeEarnings(orgId: string, payee: Assignee, options: PayProjectionOptions = {}): Promise<PayProjection> {
+  const asOf = options.asOf || nowIso(), day = asOf.slice(0, 10), owner = payeeKey(payee);
+  const earnings: ProjectedEarning[] = [], unresolved: ProjectedUnresolved[] = [];
+  const ref = await payeeRef(orgId, payee);
+  if (!ref) return summarizeProjection(payee, "", asOf, [], [{ rule_id: "", reason: "This payee is no longer available in the organization." }]);
+  const layers = await payLayersFor(orgId, payee, undefined, { day });
+  const rules = new Map((await listPayRules(orgId)).map((rule) => [rule.id, rule]));
+  const plans = new Map<string, PayPlan>((await listPayPlans(orgId)).map((plan) => [plan.id, plan]));
+  // Earned already means not projected, whatever a projected reading says about the same record.
+  const earned = new Set((await storedUnits(orgId, payee)).filter((unit) => unit.status === "ok" && unit.lines.length).map((unit) => `${unit.rule_id}\u0000${unit.unit_key}`));
+  const titles = new Map<string, string>();
+  const projectTitle = async (id: string, given: string) => {
+    if (given || !id) return given;
+    if (!titles.has(id)) {
+      const { readDocument } = await import("../platform/storage.js");
+      const data = ((await readDocument(orgId, "projects", id).catch(() => null))?.data || {}) as JsonObject;
+      titles.set(id, text(data.title || data.address));
+    }
+    return titles.get(id)!;
+  };
+  let members: string[] | null = null;
+  const currentMembers = async () => {
+    if (!members) {
+      const group = (await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, true)).find((entry) => text((entry as JsonObject).id) === payee.id) as JsonObject | undefined;
+      members = (Array.isArray(group?.members) ? group!.members as JsonObject[] : []).filter((member) => text(member.status || "active") === "active").map((member) => text(member.user_id)).filter(Boolean).sort();
+    }
+    return members;
+  };
+  /** How a group's line would be divided if it were earned on that day. Members are today's; a split rule decides when the earning is worked out. */
+  const splitOf = async (date: string, cents: number): Promise<ProjectedEarning["split"] | undefined> => {
+    const setting = payee.type === "resource_group" ? distributionOn(layers, date) : null;
+    if (!setting || setting.mode !== "split") return undefined;
+    if (setting.method === "rule") return { method: "rule", decided_when_earned: true };
+    const weights = setting.method === "shares" ? Object.entries(setting.shares || {}).map(([id, weight]) => ({ id, weight: Number(weight) })).filter((entry) => entry.weight > 0)
+      : (await currentMembers()).map((id) => ({ id, weight: 1 }));
+    return { method: setting.method || "equal", members: weights.length ? [...splitCentsByWeight(cents, weights)].map(([id, share]) => ({ id, cents: share })) : [] };
+  };
+
+  for (const [ruleId, definitionIds] of candidateRuleSlots(layers, plans)) {
+    const shapes = new Map<string, { rule: PayRule; version: PayRuleVersion }>();
+    for (const definitionId of definitionIds) for (const version of rules.get(definitionId)?.versions || []) shapes.set(shapeOf(version.definition), { rule: rules.get(definitionId)!, version });
+    const planned: (Planned & { record: JsonObject })[] = [];
+    for (const [shape, sample] of shapes) {
+      const definition = sample.version.definition;
+      const primary = definition.grain === "record" ? Object.entries(definition.inputs).find(([, input]) => input.primary) : undefined;
+      if (!primary || !projectsRows(primary[1].source)) continue;
+      let ctx = options.context;
+      if (!ctx) try { ctx = userPublicationContext(await backgroundAuthContext(orgId, sample.version.entered_by)); }
+      catch { unresolved.push({ rule_id: ruleId, reason: "The person who last saved this rule can no longer read its inputs. Save the rule again." }); break; }
+      const read = await readInputs(ctx, orgId, definition, payee, new Set([primary[0]]));
+      if (!read.rows) { unresolved.push({ rule_id: ruleId, reason: read.failure! }); break; }
+      const rows = read.rows;
+      const schedule = definition.timezone ? null : await resolvePaySchedule(orgId, payee, definition.kind, day, layers).catch(() => null);
+      const timezone = definition.timezone || text((schedule?.schedule as JsonObject | undefined)?.timezone) || "UTC";
+      const shared: JsonObject = Object.fromEntries(Object.keys(definition.inputs).filter((name) => name !== primary[0]).map((name) => [name, rows[name]!.map((row) => row.value)]));
+      for (const row of rows[primary[0]]!) {
+        if (earned.has(`${ruleId}\u0000${row.key}`) || planned.some((entry) => entry.key === row.key)) continue;
+        const expected = rowDate(row.value, definition.earned_at!, timezone);
+        // The rule in effect on the day it is expected to be earned; with no date yet, the one in effect today.
+        const ruleDay = expected?.date || localDay(Date.parse(asOf), timezone);
+        const slot = effectiveRuleSlots(layers, plans, ruleDay).get(ruleId);
+        const rule = slot && rules.get(slot.definition_rule_id);
+        const version = rule && versionOn(rule.versions, ruleDay);
+        if (!slot || !rule || !version || shapeOf(version.definition) !== shape) continue;
+        const record = row.value as JsonObject;
+        planned.push({ key: row.key, date: expected?.date || "", earned_at: expected?.instant || "", payload: { record, earned_at: expected?.instant || "" }, evidence: [],
+          project_id: definition.project ? text(readField(record, definition.project)) : "", rule, version, params: resolvedParams(version.definition, slot.params), digest: "", shared, timezone, split: null, record });
+      }
+    }
+    const groups = new Map<string, typeof planned>();
+    for (const unit of planned) { const key = contentHash({ version: unit.version.version, rule: unit.rule.id, params: unit.params }); groups.set(key, [...(groups.get(key) || []), unit]); }
+    for (const group of groups.values()) {
+      const outcomes = await evaluate(group, payee, asOf);
+      for (const unit of group) {
+        const outcome = outcomes.get(unit.key)!;
+        const project_title = await projectTitle(unit.project_id, text(unit.record.project_title));
+        if (!outcome.lines) { unresolved.push({ rule_id: ruleId, unit: unit.key, reason: outcome.error || "The rule could not be run.", expected_on: unit.date, project_id: unit.project_id, project_title }); continue; }
+        for (const line of outcome.lines) {
+          const split = await splitOf(unit.date || day, line.amount_cents);
+          earnings.push({
+            id: `${owner}:${ruleId}:${unit.key}:${line.key}`, projected: true, payee: owner, rule_id: ruleId, rule_name: unit.rule.name, kind: unit.version.definition.kind, unit: unit.key, line: line.key,
+            amount_cents: line.amount_cents, description: line.description, expected_on: unit.date, expected_at: unit.earned_at, expected_from: text(unit.record.expected_from),
+            project_id: unit.project_id, project_title, record_title: text(unit.record.title), projected_from: text(unit.record.projected_from),
+            ...(line.details ? { details: line.details } : {}), ...(split ? { split } : {})
+          });
+        }
+      }
+    }
+  }
+  return summarizeProjection(payee, ref.name || "", asOf, earnings, unresolved);
+}
+
+/**
+ * A user's own projected earnings: what their own rules project, and their share of what each group they are an
+ * active member of projects when that group's pay is split. A group paid as one is paid to the group, so it adds
+ * nothing here; a group whose split rule decides the division when an earning is worked out is listed as unresolved
+ * with the reason, never as a guessed share.
+ */
+export async function projectUserEarnings(orgId: string, userId: string, options: PayProjectionOptions = {}): Promise<PayProjection> {
+  const me: Assignee = { type: "organization_user", id: userId };
+  const own = await projectPayeeEarnings(orgId, me, options);
+  const earnings = [...own.earnings], unresolved = [...own.unresolved];
+  const groups = (await (await import("../workforce/storage.js")).listAssignmentGroups(orgId, true)).map((group) => group as JsonObject)
+    .filter((group) => (Array.isArray(group.members) ? group.members as JsonObject[] : []).some((member) => text(member.user_id) === userId && text(member.status || "active") === "active"));
+  for (const group of groups) {
+    const payee: Assignee = { type: "resource_group", id: text(group.id) };
+    const projection = await projectPayeeEarnings(orgId, payee, options);
+    const of = { payee: payeeKey(payee), payee_name: projection.payee_name || text(group.name) };
+    const day = projection.as_of.slice(0, 10);
+    // Only a group whose pay reaches its members matters here; one paid as one keeps its earnings, and its gaps, to itself.
+    const splits = distributionOn(await payLayersFor(orgId, payee, undefined, { day }), day)?.mode === "split" || projection.earnings.some((earning) => earning.split);
+    if (!splits) continue;
+    for (const earning of projection.earnings) {
+      if (!earning.split) continue;
+      if (earning.split.decided_when_earned) {
+        unresolved.push({ rule_id: earning.rule_id, unit: earning.unit, reason: `${of.payee_name} divides this by a split rule when it is earned, so your share is not known yet.`, expected_on: earning.expected_on, project_id: earning.project_id, project_title: earning.project_title, share_of: of });
+        continue;
+      }
+      const share = earning.split.members?.find((member) => member.id === userId);
+      if (!share || !share.cents) continue;
+      const { split: _split, ...line } = earning;
+      earnings.push({ ...line, id: `${payeeKey(me)}:${earning.id}`, payee: payeeKey(me), amount_cents: share.cents, share_of: { ...of, line_cents: earning.amount_cents, method: earning.split.method } });
+    }
+    for (const entry of projection.unresolved) unresolved.push({ ...entry, share_of: of });
+  }
+  return summarizeProjection(me, own.payee_name, own.as_of, earnings, unresolved);
+}
+
+/** The most payees one organization-wide projection works through; beyond it the answer says it is partial. */
+export const PAY_PROJECTION_PAYEE_LIMIT = 200;
+/** Projected totals for everyone whose pay comes from rules, for payroll managers. Reads only. */
+export async function projectOrganizationEarnings(orgId: string, options: PayProjectionOptions = {}) {
+  const payees = await payeesWithPay(orgId);
+  const rows = [];
+  for (const payee of payees.slice(0, PAY_PROJECTION_PAYEE_LIMIT)) {
+    try {
+      const projection = await projectPayeeEarnings(orgId, payee, options);
+      rows.push({ id: payeeKey(payee), payee, payee_name: projection.payee_name, total_cents: projection.total_cents, count: projection.earnings.length, unresolved_count: projection.unresolved.length,
+        next_expected_on: projection.earnings.find((earning) => earning.expected_on)?.expected_on || "" });
+    } catch (error) {
+      rows.push({ id: payeeKey(payee), payee, payee_name: "", total_cents: 0, count: 0, unresolved_count: 1, next_expected_on: "", error: text((error as Error).message) || "The projection could not be worked out." });
+    }
+  }
+  return { projected: true as const, as_of: options.asOf || nowIso(), payees: rows, payee_count: payees.length, total_cents: rows.reduce((sum, row) => sum + row.total_cents, 0), truncated: payees.length > PAY_PROJECTION_PAYEE_LIMIT };
 }

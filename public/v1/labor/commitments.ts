@@ -116,9 +116,10 @@ export async function listCommitments(orgId: string, filter: { project_id?: stri
     .filter((entry) => (!filter.project_id || entry.project_id === filter.project_id) && (!filter.list_id || entry.list_id === filter.list_id) && (!filter.subject || (entry.assignee.type === filter.subject.type && entry.assignee.id === filter.subject.id)))
     .sort((a, b) => a.committed_at.localeCompare(b.committed_at) || a.revision - b.revision).map(publicView);
 }
-/** What an assignee has been committed to and not released from: the basis for its availability. */
+/** What an assignee has been committed to and still holds: not released, and not finished and finalized for payment. */
 export async function currentCommitmentsFor(orgId: string, subject: Subject) {
-  return (await listCommitments(orgId, { subject })).filter((entry) => entry.status === "committed");
+  const finalized = await (await import("./completion.js")).finalizedCommitmentIds(orgId);
+  return (await listCommitments(orgId, { subject })).filter((entry) => entry.status === "committed" && !finalized.has(entry.id));
 }
 
 function workOrder(commitment: Commitment) {
@@ -212,10 +213,29 @@ async function deliverAndRecord(orgId: string, stored: Stored, actor: Actor, eff
   return next;
 }
 
+/**
+ * A labor list's lines exactly as a commitment freezes them. Each keeps the list's own rate and line total; a line
+ * with neither is unpriced (`total_cents` null). Projected pay reads uncommitted lists through the same function, so
+ * what is projected for a list is what committing it would freeze.
+ */
+export function laborLinesOf(items: JsonObject[]): Commitment["lines"] {
+  const number = (value: unknown) => (value !== null && value !== "" && value !== undefined && Number.isFinite(Number(value)) ? Number(value) : null);
+  return items.map((item) => {
+    const quantity = number(item.quantity) ?? 0, rate = number(item.projected_unit_price), listed = number(item.projected_total);
+    // The list's own line total wins: it is what the list shows, and it may have been set by hand.
+    const total = rate == null && listed == null ? null : Math.round((listed ?? quantity * rate!) * 100);
+    return { id: text(item.id), name: text(item.name), quantity, unit: text(item.unit), rate, total_cents: total, kind: text(obj(item.metadata).compensation_kind) };
+  });
+}
 /** Freezes a labor list as it stands and hands it to its assignee. An unchanged list returns the commitment it already has. */
-export async function commitLaborList(orgId: string, input: unknown, actor: Actor, effects?: DeliveryEffects): Promise<Commitment> {
+/**
+ * A list finalized for payment is locked and cannot be committed again until a manager reopens it. `deliver: false` is
+ * only for finalizing work that is already done: the commitment is recorded as handed over and nothing is sent.
+ */
+export async function commitLaborList(orgId: string, input: unknown, actor: Actor, effects?: DeliveryEffects, options: { deliver?: boolean } = {}): Promise<Commitment> {
   requireCommit(orgId, actor);
   const parsed = commitInputSchema.parse(input);
+  await (await import("./completion.js")).assertLaborListOpen(orgId, parsed.list_id);
   const list = await readMaterialList(orgId, parsed.list_id);
   if (text(list.resource_type) !== "labor") throw badRequest("labor_commit_not_labor", "Only a labor list can be committed.");
   if (text(list.status) === "archived") throw badRequest("labor_commit_archived", "This list is archived and cannot be committed.");
@@ -232,13 +252,7 @@ export async function commitLaborList(orgId: string, input: unknown, actor: Acto
   const unitRow = unitId ? (await listUnits(orgId, subject)).find((entry) => entry.id === unitId) : null;
   if (unitId && !unitRow) throw badRequest("labor_commit_unit_unknown", "That unit does not belong to the assignee this list is assigned to.");
   const unit = unitRow ? { id: unitRow.id, name: unitRow.name } : null;
-  const number = (value: unknown) => (value !== null && value !== "" && value !== undefined && Number.isFinite(Number(value)) ? Number(value) : null);
-  const lines = items.map((item) => {
-    const quantity = number(item.quantity) ?? 0, rate = number(item.projected_unit_price), listed = number(item.projected_total);
-    // The list's own line total wins: it is what the list shows, and it may have been set by hand.
-    const total = rate == null && listed == null ? null : Math.round((listed ?? quantity * rate!) * 100);
-    return { id: text(item.id), name: text(item.name), quantity, unit: text(item.unit), rate, total_cents: total, kind: text(obj(item.metadata).compensation_kind) };
-  });
+  const lines = laborLinesOf(items);
   const note = parsed.note || "";
   const schedule = Object.keys(obj(list.schedule)).length ? obj(list.schedule) : null;
   const hash = contentHash({ lines, assignee: subject, unit, note, schedule });
@@ -263,6 +277,7 @@ export async function commitLaborList(orgId: string, input: unknown, actor: Acto
   for (const earlier of existing.filter((entry) => entry.status === "committed")) await save(orgId, { ...earlier, status: "superseded", superseded_by: stored.id }).catch(() => null);
   await recordMaterialEvent(orgId, stored.list_id, "labor_commitment.created", { commitment_id: stored.id, revision: stored.revision }, actor.system ? null : actor as PlatformAuthContext).catch(() => null);
   stored = await emit(orgId, stored, "labor.list.committed", text(list.branch_id)).then(() => stored, (error) => save(orgId, { ...stored, event_error: error instanceof Error ? error.message : "The committed event could not be recorded." }));
+  if (options.deliver === false) return publicView(await save(orgId, { ...stored, delivery: { ...stored.delivery, status: "delivered", detail: "Committed when the work was finalized. The work was already done, so nothing was sent.", delivered_at: new Date().toISOString() } }));
   return publicView(await deliverAndRecord(orgId, stored, { ...actor, branchId: text(actor.branchId) || text(list.branch_id) }, effects));
 }
 
@@ -296,6 +311,8 @@ export async function releaseCommitment(orgId: string, input: unknown, actor: Ac
   const parsed = z.object({ id, reason: z.string().trim().max(500).optional() }).strict().parse(input);
   const current = await findCurrent(orgId, parsed.id);
   if (current.status !== "committed") return publicView(current);
+  // Finished work that was finalized for payment is not taken back by releasing it; a manager reopens it first.
+  if ((await (await import("./completion.js")).finalizedCommitmentIds(orgId)).has(current.id)) throw conflict("labor_commitment_finalized", "This work was finalized to be paid. A manager has to reopen it before it can be released.");
   const released = await save(orgId, { ...current, status: "released", released_at: new Date().toISOString(), released_by_user_id: text(actor.userId), release_reason: parsed.reason || "" });
   await emit(orgId, released, "labor.list.released", text(actor.branchId)).catch(() => null);
   return publicView(released);

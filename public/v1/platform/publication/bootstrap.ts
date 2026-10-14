@@ -22,6 +22,7 @@ import { registerCollaborationPublication } from "../../collaboration/publicatio
 import { registerFormsPublication } from "../../forms/publication.js";
 import { registerLeadPublication } from "../../leads/publication.js";
 import { registerAssigneePublication } from "../../assignees/publication.js";
+import { registerCloseoutPublication } from "../../closeout/publication.js";
 
 let initialized = false;
 /** All execution hosts use this same catalog. No browser can register server handlers. */
@@ -49,5 +50,6 @@ export function initializePublication() {
   registerMaterialsCalculusPublication();
   registerResourceTypePublication();
   registerMaterialsInputs();
+  registerCloseoutPublication();
   initialized = true;
 }

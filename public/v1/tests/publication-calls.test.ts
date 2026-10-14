@@ -106,7 +106,7 @@ test('the shared assistant discovers call exports and reads filtered transcripts
 
 test('frozen transcripts recheck recording permission on their captured department',async()=>{
   const auth=principal({view_comms:true});
-  auth.organizationStructure={catalog:{departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}],divisions:[]},users:[]};
+  auth.organizationStructure={catalog:{departments:[{id:'sales',label:'Sales'},{id:'production',label:'Production'}],regions:[]},users:[]};
   auth.scopedAccessGrants=[{scope:{kind:'department',id:'sales'},permissions:{view_call_recordings:true}}];
   const call=await store.readCall(orgId,'call-b');await store.patchCall(orgId,call.id,{metadata:{...call.metadata,department_ids:['sales']}});
   const bindings=await import('../platform/publication/bindings.js');

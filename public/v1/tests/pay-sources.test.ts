@@ -154,9 +154,12 @@ test("the sample pay rules price the real time clock, projects and labor commitm
       pay_sheets: [], schedule: null, note: "", list_revision: 1, content_hash: id, idempotency_key: "", committed_by_user_id: "owner", committed_at: "2026-06-01T12:00:00.000Z",
       delivery: { method: "share", status: "delivered", detail: "", steps: [] }, ...(status === "released" ? { released_at: "2026-06-10T12:00:00.000Z", release_reason: "Finished" } : {})
     } });
-    await commitment("c1", "released", 250_000);
+    // Finished work is finalized to be paid (labor/completion.ts); a release means it was taken back and is never earned.
+    const finalized = (id: string) => core.upsertDocument(ORG, "labor_completions", { id: `lf_${id}`, data: { commitment_id: id, list_id: `list_${id}`, project_id: "p1", state: "finalized", method: "approve", items: [], finalized_at: "2026-06-10T12:00:00.000Z", finalized_by_user_id: "owner", history: [] } });
+    await commitment("c1", "committed", 250_000); await finalized("c1");
     await commitment("c2", "committed", 90_000);
-    await commitment("c3", "released", 40_000, 2);
+    await commitment("c3", "committed", 40_000, 2); await finalized("c3");
+    await commitment("c4", "released", 70_000);
     const provider = describeDataProvider("payroll")!;
     for (const name of ["time_shifts", "time_clock_events", "time_shift_changes", "project_records", "labor_commitments"]) assert.equal(selectionSupport({ provider: "payroll", export: name }).selectable, true, name);
     assert.deepEqual(provider.exports.time_shifts!.access.permissions, ["manage_payroll|manage_company_settings"]);
@@ -177,7 +180,7 @@ test("the sample pay rules price the real time clock, projects and labor commitm
     const total = async (id: string, kind: string) => (await store.listPayrollLedgerEntries(ORG, { limit: 500 })).filter((entry) => entry.payee.id === id && entry.kind === kind && entry.state === "accrued").reduce((sum, entry) => sum + entry.amount_cents, 0);
     assert.equal(await total("ben", "commission"), 10_000, "the booking fee for the project Ben is named on");
     assert.equal(await total("ana", "commission"), 100_000 + 50_000 + 50_000, "5% of each contract when sold, and 5% more of the one that was completed");
-    assert.equal(await total(crew, "piece_rate"), 250_000, "only the released commitment is earned");
+    assert.equal(await total(crew, "piece_rate"), 250_000, "only the finalized commitment is earned: not the one still held, nor the one taken back");
     // No hourly rate has been set for Ben, and one commitment has unpriced lines: both are reported, neither is paid as zero.
     assert.equal(await total("ben", "hourly"), 0);
     const reasons = first.payees.flatMap((entry) => entry.unresolved.map((item) => item.reason)).sort();

@@ -37,13 +37,15 @@
   const companiesLabel = () => People.data?.state?.loaded ? People.data.state.groupLabels.connectionPlural : term('workforce.organization_connection_plural', t('subcontractors', 'Subcontractors'));
   const departmentsLabel = () => (People.data?.state?.loaded && People.data.state.groupLabels.departmentPlural) || t('departments', 'Departments');
   const VIEWS = [
-    { id:'home', icon:'fa-house', label:() => t('overview', 'Overview') },
-    { id:'users', icon:'fa-users', label:() => t('users', 'Users'), mount:(host, context) => People.usersPage.mount(host, context) },
-    { id:'groups', icon:'fa-user-group', label:groupsLabel, legacy:{ sub:'crews', settingsView:'groups' } },
-    { id:'departments', icon:'fa-sitemap', label:departmentsLabel, legacy:{ sub:'users', settingsView:'departments' } },
-    { id:'subcontractors', icon:'fa-building', label:companiesLabel, legacy:{ sub:'crews', settingsView:'connections' } }
+    { id:'home', needs:'home.view', icon:'fa-house', label:() => t('overview', 'Overview') },
+    { id:'users', needs:'users.view', icon:'fa-users', label:() => t('users', 'Users'), mount:(host, context) => People.usersPage.mount(host, context) },
+    { id:'groups', needs:'groups.view', icon:'fa-user-group', label:groupsLabel, legacy:{ sub:'crews', settingsView:'groups' } },
+    { id:'departments', needs:'departments.view', icon:'fa-sitemap', label:departmentsLabel, legacy:{ sub:'users', settingsView:'departments' } },
+    { id:'subcontractors', needs:'companies.view', icon:'fa-building', label:companiesLabel, legacy:{ sub:'crews', settingsView:'connections' } }
   ];
-  const viewFor = (id) => VIEWS.find((view) => view.id === id) || VIEWS[0];
+  /* Only the pages this organization and user can use. An organization on the original model gets Users alone. */
+  const available = () => { const list = VIEWS.filter((view) => !People.data?.allows || People.data.allows(view.needs)); return list.length ? list : VIEWS.filter((view) => view.id === 'users'); };
+  const viewFor = (id) => available().find((view) => view.id === id) || available()[0];
 
   function ensureStyles(){
     if (document.getElementById('pp_settings_css')) return;
@@ -81,7 +83,7 @@
     let controller = null;
     let destroyed = false;
     let pendingEntity = options.entity || (route.sub === 'people' ? route.entity : '');
-    const tabsHtml = () => window.FirstMateSettingsPages?.subTabs?.({ id:'people', active, ariaLabel:t('people', 'People'), items:VIEWS.map((view) => ({ id:view.id, label:view.label(), icon:`fas ${view.icon}` })) }) || '';
+    const tabsHtml = () => available().length < 2 ? '' : window.FirstMateSettingsPages?.subTabs?.({ id:'people', active, ariaLabel:t('people', 'People'), items:available().map((view) => ({ id:view.id, label:view.label(), icon:`fas ${view.icon}` })) }) || '';
     pane.innerHTML = `<div class="pp pp-people" data-settings-autosave="off"><div data-people-tabs>${tabsHtml()}</div><div data-people-view></div></div>`;
     const root = pane.firstElementChild;
     const host = root.querySelector('[data-people-view]');

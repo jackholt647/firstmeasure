@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { JsonObject } from "../platform/storage.js";
+import { readDocument, type JsonObject } from "../platform/storage.js";
 import { measurementSchemaIdsForScope } from "../platform/publication/measurement-schemas.js";
 import { listWorkItems, workItemsForSchemas } from "../platform/publication/work-items.js";
 import { MANUAL_SCOPE_KEY, projectScope, requiredWork } from "./scope-artifacts.js";
@@ -40,6 +40,10 @@ export type RequirementCover = {
   /** paid: a line charges for it. included: done at no separate charge. provided: equipment fulfils it. */
   mode: "paid" | "included" | "provided";
   lines: { id: string; name: string; quantity: number; unit: string; total_cents: number | null; generated: boolean }[];
+  /** The list has a scheduled event on the project. Set only for covers that are lists. */
+  scheduled?: boolean;
+  /** The list's part is actually done: labor finalized to be paid, material delivered, equipment on site. */
+  completed?: boolean;
 };
 export type Requirement = {
   id: string; kind: "material" | "work" | "function"; label: string; description: string; unit: string;
@@ -47,6 +51,12 @@ export type Requirement = {
   /** The artifacts that say this is required: a document's set, one added by hand, or a material list. */
   sources: { set_id: string; title: string; origin: string }[];
   status: "open" | "warning" | "covered";
+  /**
+   * How far what covers it has got, read from the covering lists as they stand: `scheduled` when every covering list
+   * has a scheduled event, `completed` when every covering list's part is done. `none` otherwise, and always for an
+   * open requirement. A requirement covered only by artifacts that are not lists stays `none`.
+   */
+  progress: "none" | "scheduled" | "completed";
   covered_by: RequirementCover[];
   warnings: { code: string; message: string }[];
   /** Work orders that could take this on because their assignee's pay sheet handles it: it was left to someone else
@@ -139,7 +149,7 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
     if (!covered.length && adjustedOnlyBy) warnings.push({ code: "adjusted_only", message: `${adjustedOnlyBy} has a line item that changes the price of this, but none that pays for it.` });
     if (covered.length) for (let index = canCover.length - 1; index >= 0; index -= 1) if (canCover[index]!.reason === "missing") canCover.splice(index, 1);
     const status = !covered.length ? "open" as const : warnings.length ? "warning" as const : "covered" as const;
-    return { id: row.item, kind: row.kind, label: row.label, description: row.description, unit: row.unit, quantity: row.quantity, under: required.some((other) => other.item === row.under) ? row.under : "", sources: row.sources, status, covered_by: covered, warnings, can_cover: canCover, reason: row.reason };
+    return { id: row.item, kind: row.kind, label: row.label, description: row.description, unit: row.unit, quantity: row.quantity, under: required.some((other) => other.item === row.under) ? row.under : "", sources: row.sources, status, progress: "none" as const, covered_by: covered, warnings, can_cover: canCover, reason: row.reason };
   });
 
   // Material. A line on a material list, or in a set a document published, is a requirement that has already been
@@ -159,14 +169,15 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
   for (const line of context.materials || []) add(text(line.name) || text(line.item_type) || "Other material", text(line.list_id), text(byList.get(text(line.list_id))?.title) || "Materials", "list", { id: text(line.line_id), name: text(line.name), quantity: Number(line.quantity) || 0, unit: text(line.unit), total_cents: null, generated: false });
   for (const set of scope.sets) for (const line of set.lines) add(text(line.name) || text(line.group) || "Other material", set.id, set.title, set.origin, { id: line.id, name: line.name, quantity: line.quantity, unit: line.unit, total_cents: null, generated: false });
   const materials: Requirement[] = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, group]) => ({
-    id: `material:${key}`, kind: "material", label: group.label, description: "", unit: group.units.size === 1 ? [...group.units][0]! : "", quantity: group.units.size === 1 ? group.quantity : null, under: "", sources: group.sources, status: "covered",
+    id: `material:${key}`, kind: "material", label: group.label, description: "", unit: group.units.size === 1 ? [...group.units][0]! : "", quantity: group.units.size === 1 ? group.quantity : null, under: "", sources: group.sources, status: "covered", progress: "none",
     covered_by: [...group.lists.entries()].map(([listId, lines]) => ({ list_id: listId, list_title: titles.get(listId) || "Materials", resource_type: "material", assignee_name: "", mode: "paid" as const, lines })),
     warnings: [], can_cover: [], reason: ""
   }));
-  for (const set of scope.sets.filter((entry) => entry.pending)) materials.push({ id: `material:pending:${set.id}`, kind: "material", label: `Materials for ${set.title}`, description: "", unit: "", quantity: null, under: "", sources: [{ set_id: set.id, title: set.title, origin: set.origin }], status: "open", covered_by: [], warnings: [], can_cover: [], reason: "The accepted document says what material this needs, but the list has not been generated yet." });
+  for (const set of scope.sets.filter((entry) => entry.pending)) materials.push({ id: `material:pending:${set.id}`, kind: "material", label: `Materials for ${set.title}`, description: "", unit: "", quantity: null, under: "", sources: [{ set_id: set.id, title: set.title, origin: set.origin }], status: "open", progress: "none", covered_by: [], warnings: [], can_cover: [], reason: "The accepted document says what material this needs, but the list has not been generated yet." });
 
   const all = [...materials, ...requirements];
-  const counts = { open: all.filter((row) => row.status === "open").length, warning: all.filter((row) => row.status === "warning").length, covered: all.filter((row) => row.status === "covered").length };
+  await markProgress(orgId, projectId, lists, all);
+  const counts = { open: all.filter((row) => row.status === "open").length, warning: all.filter((row) => row.status === "warning").length, covered: all.filter((row) => row.status === "covered").length, scheduled: all.filter((row) => row.progress === "scheduled").length, completed: all.filter((row) => row.progress === "completed").length };
   return {
     project_id: projectId, schema_ids: [...schemaIds].sort(), measurement_source: context.measurement_source,
     status: !all.length ? "empty" as const : counts.open ? "open" as const : counts.warning ? "warning" as const : "covered" as const,
@@ -176,6 +187,40 @@ export async function projectRequirements(orgId: string, projectId: string, inpu
     available: listWorkItems().filter((entry) => workItemsForSchemas([...schemaIds]).includes(entry.id) && !required.some((row) => row.item === entry.id)).map((entry) => ({ item: entry.id, label: entry.label, kind: entry.kind, unit: entry.unit, description: entry.description })),
     reason: all.length ? "" : "No accepted document, and nothing added by hand, says what this job includes yet."
   };
+}
+/**
+ * Whether each covering list is on the schedule, and whether its part is done. A list is scheduled when one of the
+ * project's events for it (`scope_resource_list_id`) has a start and is neither cancelled nor unscheduled. Done means:
+ * a labor list finalized to be paid; a material list delivered; an equipment list whose event is completed or in
+ * progress, or has started (on site). Reads only; a warning stays a warning whatever the progress.
+ */
+async function markProgress(orgId: string, projectId: string, lists: JsonObject[], rows: Requirement[]) {
+  const project = await readDocument(orgId, "projects", projectId).catch(() => null);
+  const events = (Array.isArray(project?.data?.events) ? project!.data.events as unknown[] : []).map(obj).filter((event) => !["cancelled", "canceled"].includes(text(event.status).toLowerCase()));
+  const { listCompletions } = await import("./completion.js");
+  const finalized = new Set((await listCompletions(orgId, { project_id: projectId })).filter((entry) => entry.state === "finalized").map((entry) => entry.list_id));
+  const byList = new Map(lists.map((list) => [text(list.id), list]));
+  const now = Date.now();
+  const state = new Map<string, { scheduled: boolean; completed: boolean }>();
+  const of = (listId: string) => {
+    if (state.has(listId)) return state.get(listId)!;
+    const list = byList.get(listId)!, type = text(list.resource_type) || "material";
+    const own = events.filter((event) => text(event.scope_resource_list_id) === listId && text(event.status).toLowerCase() !== "unscheduled" && text(event.start_at));
+    const started = own.some((event) => ["completed", "in_progress"].includes(text(event.status).toLowerCase()) || Date.parse(text(event.start_at)) <= now);
+    const completed = type === "labor" ? finalized.has(listId)
+      : type === "material" ? text(list.status) === "delivered" || text(list.delivery_status) === "delivered"
+        : type === "equipment" ? started || text(list.delivery_status) === "delivered"
+          : own.some((event) => text(event.status).toLowerCase() === "completed");
+    const entry = { scheduled: own.length > 0 || completed, completed };
+    state.set(listId, entry);
+    return entry;
+  };
+  for (const row of rows) {
+    const lists = row.covered_by.filter((cover) => byList.has(cover.list_id));
+    for (const cover of lists) Object.assign(cover, of(cover.list_id));
+    if (row.status === "open" || !lists.length) continue;
+    row.progress = lists.every((cover) => cover.completed) ? "completed" : lists.every((cover) => cover.scheduled) ? "scheduled" : "none";
+  }
 }
 const round = (value: number) => Math.round(value * 10) / 10;
 const unitLabel = (unit: string) => (unit === "yd3" ? "cubic yards" : unit);

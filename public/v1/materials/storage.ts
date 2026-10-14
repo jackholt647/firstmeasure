@@ -483,6 +483,8 @@ async function commitMaterialVersion(
 ) {
   const list = documentView(listDoc);
   assertLegacyMaterialSnapshotWritable(list);
+  // A labor list finalized to be paid is locked (docs/architecture/closeout.md); its lines cannot change until a manager reopens it.
+  if (cleanText(list.resource_type) === "labor") await (await import("../labor/completion.js")).assertLaborListOpen(orgId, cleanText(list.id));
   const expectedRevision = Number(input.expected_revision || 0);
   if (expectedRevision && expectedRevision !== Number(listDoc.revision || 0)) {
     throw conflict("material_list_revision_conflict", "Material list revision does not match.");
@@ -1738,6 +1740,7 @@ export async function initializeProjectMaterialListsFromScope(
 export async function patchMaterialList(orgId: string, listId: string, patch: JsonObject, ctx: PlatformAuthContext) {
   const artifactSource=await readMaterialList(orgId,listId);
   if(artifactSource.resource_type==='material')await assertLegacyMaterialWritable(orgId,String(artifactSource.project_id),listId);
+  if(artifactSource.resource_type==='labor')await (await import("../labor/completion.js")).assertLaborListOpen(orgId,listId);
   await requireMaterialsFlag(orgId);
   const currentDoc = await readDocument(orgId, MATERIAL_LIST_COLLECTION, listId);
   const current = documentView(currentDoc);

@@ -20,6 +20,8 @@ import {
 import { generatePayrollArtifact, PAYROLL_EXPORT_CATALOG } from "./exports.js";
 import { createPayrollRun, updatePayrollRunItem, actOnPayrollRun, payrollDashboard } from "./operations.js";
 import { payrollEarnings } from "./earnings.js";
+import { projectUserEarnings } from "./pay-refresh.js";
+import { OWN_PROJECTED_EARNINGS_PERMISSION } from "./pay-rule-publication.js";
 import {
   approvePayrollTimesheet,
   correctPayrollTimesheet,
@@ -139,6 +141,13 @@ export const registerPayrollApi: FastifyPluginAsync = async (app) => {
         ? cleanText(asObject(workforceUser).worker_classification) as "independent_contractor" | "subcontractor" : "employee"
     }], query));
     return { ok: true, ...result, earnings: result.earnings[0] };
+  });
+
+  // What the signed-in user's pay rules project they will earn from work not done yet. Never posted; see pay-refresh.ts.
+  app.get("/organizations/:orgId/earnings/me/projected", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const context = await requirePlatformAuth(request, { orgId, application: false, permission: OWN_PROJECTED_EARNINGS_PERMISSION, capability: "payroll.self_service_earnings" });
+    return { ok: true, projected: await projectUserEarnings(orgId, context.userId) };
   });
 
   app.get("/organizations/:orgId/timesheets", async (request) => {

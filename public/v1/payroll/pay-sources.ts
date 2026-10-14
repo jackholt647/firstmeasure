@@ -1,5 +1,6 @@
-import { ASSIGNEE_TYPES } from "../labor/assignees.js";
-import { listCommitments } from "../labor/commitments.js";
+import { ASSIGNEE_TYPE_BY_KIND, ASSIGNEE_TYPES } from "../labor/assignees.js";
+import { laborLinesOf, listCommitments } from "../labor/commitments.js";
+import { MATERIAL_LIST_COLLECTION } from "../materials/storage.js";
 import type { AccessPolicy } from "../platform/publication/contracts.js";
 import type { DataExport } from "../platform/publication/providers.js";
 import { listDocuments, type JsonObject } from "../platform/storage.js";
@@ -45,6 +46,74 @@ async function projectFacts(orgId: string) {
   return new Map(facts.map((row) => [String(row.project_id), row as JsonObject]));
 }
 
+/**
+ * Projected pay. A collection that takes a boolean `projected` argument publishes, when it is true, the work that is
+ * not done yet with each row as it is expected to look once it is done; payroll/pay-refresh.ts `projectPayeeEarnings`
+ * runs a pay rule's own selection and formula over those rows instead of the real ones. The collection owns what
+ * "done" means and when it is expected, so a rule needs no projected variant of itself.
+ *
+ * Labor: a current commitment that is neither released nor finalized (labor/completion.ts) is projected, as is an
+ * assigned labor list that was never committed. A finalized commitment is earned, not projected. `asDone` is the one
+ * place that says what a row looks like once its work is done: finished work is finalized, never released, so it stays
+ * `committed` and carries `finalized_at`, here the expected date. Change it with the finished row's shape.
+ */
+const isLaborDone = (entry: { id: string; status: string }, finalized: ReadonlySet<string>) => entry.status !== "committed" || finalized.has(entry.id);
+const asDone = (row: JsonObject, expected: { at: string; from: string }) => ({ ...row, status: "committed", released_at: "", release_reason: "", finalized_at: expected.at, finalized_by_user_id: "", completion_method: "", expected_from: expected.from, projected: true });
+const NOT_SCHEDULED = new Set(["unscheduled", "canceled", "cancelled", "deleted", "removed"]);
+/** The latest instant a schedule (an event, or a list's or commitment's copy of one, with its parts) ends, or starts when it has no end. */
+function scheduleEnd(schedule: unknown) {
+  const value = object(schedule);
+  const ends = [value, ...Object.values(object(value.parts)).map(object)]
+    .filter((part) => !NOT_SCHEDULED.has(text(part.status).toLowerCase()) && !part.deleted_at)
+    .map((part) => Date.parse(text(part.end_at) || text(part.start_at))).filter(Number.isFinite);
+  return ends.length ? new Date(Math.max(...ends)).toISOString() : "";
+}
+async function projectedLaborRows(orgId: string): Promise<JsonObject[]> {
+  const commitments = await listCommitments(orgId);
+  // A store that is not registered holds no completions; any other failure to read them fails the reading, since
+  // projecting finalized work as well would count it twice.
+  const finalized = await (await import("../labor/completion.js")).finalizedCommitmentIds(orgId)
+    .catch((error: { code?: string }) => { if (error?.code === "invalid_collection") return new Set<string>(); throw error; });
+  const lists = new Map((await listDocuments(orgId, MATERIAL_LIST_COLLECTION)).map((document) => [document.id, object(document.data)]));
+  const projects = new Map((await listDocuments(orgId, "projects")).map((document) => [document.id, object(document.data)]));
+  /** When the work on a list is expected to be done: its schedule event as it stands, else the list's copy of it, else what was frozen when it was committed. */
+  const expected = (list: JsonObject | undefined, projectId: string, frozen?: unknown) => {
+    const eventId = text(list?.schedule_event_id || object(list?.schedule).event_id);
+    const event = eventId ? (Array.isArray(projects.get(projectId)?.events) ? projects.get(projectId)!.events as unknown[] : []).map(object).find((entry) => text(entry.id) === eventId) : undefined;
+    const fromEvent = event ? scheduleEnd({ ...event, parts: object(list?.schedule).parts }) : "";
+    if (fromEvent) return { at: fromEvent, from: "schedule_event" };
+    const fromList = list ? scheduleEnd(list.schedule) : "";
+    if (fromList) return { at: fromList, from: "labor_list" };
+    const fromCommitment = scheduleEnd(frozen);
+    return fromCommitment ? { at: fromCommitment, from: "commitment" } : { at: "", from: "" };
+  };
+  const rows: JsonObject[] = [];
+  for (const entry of commitments) {
+    if (isLaborDone(entry, finalized)) continue;
+    rows.push(asDone({
+      id: entry.id, assignee_key: `${entry.assignee.type}:${entry.assignee.id}`, assignee_name: entry.assignee.name, unit_id: entry.unit?.id || "",
+      project_id: entry.project_id, project_title: entry.project_title, list_id: entry.list_id, title: entry.title, total_cents: entry.total_cents, unpriced_lines: entry.unpriced_lines,
+      committed_at: entry.committed_at, projected_from: "commitment"
+    }, expected(lists.get(entry.list_id), entry.project_id, entry.schedule)));
+  }
+  // A list that has a commitment of any kind is accounted for by it; one that was never committed is projected from its own lines.
+  const committed = new Set(commitments.map((entry) => entry.list_id));
+  for (const [id, list] of lists) {
+    if (committed.has(id) || text(list.resource_type) !== "labor" || ["archived", "deleted"].includes(text(list.status))) continue;
+    const reference = object(object(list.assignment).work_resource_ref), type = ASSIGNEE_TYPE_BY_KIND[text(reference.kind)];
+    const items = (Array.isArray(list.current_items) ? list.current_items : []).map(object);
+    if (!type || !text(reference.id) || !items.length) continue;
+    const lines = laborLinesOf(items), projectId = text(list.project_id), project = projects.get(projectId);
+    rows.push(asDone({
+      id: `labor_list:${id}`, assignee_key: `${type}:${text(reference.id)}`, assignee_name: text(reference.name), unit_id: text(object(list.assignment).unit_id),
+      project_id: projectId, project_title: text(project?.title || project?.address), list_id: id, title: text(list.title) || "Labor",
+      total_cents: lines.reduce((sum, line) => sum + (line.total_cents || 0), 0), unpriced_lines: lines.filter((line) => line.total_cents == null).length,
+      committed_at: "", projected_from: "labor_list"
+    }, expected(list, projectId)));
+  }
+  return rows;
+}
+
 /** The time clock is published beside these (time-clock-sources.ts); a rule reads it like any other collection. */
 export const PAY_SOURCE_EXPORTS = [...TIME_CLOCK_EXPORTS, "project_records", "labor_commitments"] as const;
 export function paySourceExports(): Record<typeof PAY_SOURCE_EXPORTS[number], DataExport> {
@@ -74,13 +143,16 @@ export function paySourceExports(): Record<typeof PAY_SOURCE_EXPORTS[number], Da
       }
     },
     labor_commitments: {
-      description: "Labor lists committed to an assignee, one row per commitment: `assignee_key`, `unit_id`, `project_id`, `status` (committed, released, superseded), `total_cents` of its priced lines, `unpriced_lines`, `committed_at` and `released_at`. A release covers both finished work and work taken back; `release_reason` says which when someone recorded it.",
+      description: "Labor lists committed to an assignee, one row per commitment: `assignee_key`, `unit_id`, `project_id`, `status` (committed, released, superseded), `total_cents` of its priced lines, `unpriced_lines`, `committed_at` and `released_at`. A release covers both finished work and work taken back; `release_reason` says which when someone recorded it. With args `{ \"projected\": true }` the rows are instead the labor not done yet, each as it is expected to look once done, for projected pay: every current commitment that is neither released nor finalized, and every assigned labor list that has never been committed (`committed_at` blank), each as finished work looks: `status` committed and `finalized_at` the expected date (the end of its schedule event, else the list's or the commitment's schedule; blank when nothing is scheduled), `expected_from` (schedule_event, labor_list, commitment or blank), `projected_from` (commitment or labor_list) and `projected: true`. Once its work is confirmed as done and marked to be paid it also carries `finalized_at`, `finalized_by_user_id` and `completion_method` (empty until then, and again if a manager reopens it); piece-rate pay is earned on `finalized_at`. Finished work is finalized, never released.",
       schema: rows, schemaVersion: "1", access, units: { total_cents: "currency minor units" },
-      read: async (ctx) => ({ value: (await listCommitments(ctx.organizationId)).map((entry) => ({
+      argsSchema: { type: "object", properties: { projected: { type: "boolean" } }, additionalProperties: false },
+      read: async (ctx, ref) => ref.args?.projected === true ? { value: await projectedLaborRows(ctx.organizationId) } : await (async () => { const finalized = new Map((await (await import("../labor/completion.js")).listCompletions(ctx.organizationId)).filter((entry) => entry.state === "finalized").map((entry) => [entry.commitment_id, entry])); return { value: (await listCommitments(ctx.organizationId)).map((entry) => ({
         id: entry.id, assignee_key: `${entry.assignee.type}:${entry.assignee.id}`, assignee_name: entry.assignee.name, unit_id: entry.unit?.id || "",
         project_id: entry.project_id, list_id: entry.list_id, status: entry.status, total_cents: entry.total_cents, unpriced_lines: entry.unpriced_lines,
-        committed_at: entry.committed_at, released_at: entry.released_at || "", release_reason: entry.release_reason || ""
-      })) })
+        committed_at: entry.committed_at, released_at: entry.released_at || "", release_reason: entry.release_reason || "",
+        // Finished and confirmed to be paid (labor/completion.ts). Empty until then, and again if a manager reopens it.
+        finalized_at: finalized.get(entry.id)?.finalized_at || "", finalized_by_user_id: finalized.get(entry.id)?.finalized_by_user_id || "", completion_method: finalized.get(entry.id)?.method || ""
+      })) }; })()
     }
   };
 }

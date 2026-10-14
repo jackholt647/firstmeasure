@@ -98,6 +98,8 @@ async function hydratedWorkforceUserDocument(orgId: string, documentValue: unkno
     worker_type: cleanText(data.worker_classification) === "independent_contractor" ? "independent_contractor" : "employee",
     payment_terms: asObject(data.payment_terms),
     branch_id: cleanText(data.branch_id || "default"),
+    // Every branch the person belongs to; `branch_id` is their own branch and is always first (docs/architecture/branches.md).
+    branch_ids: [...new Set([cleanText(data.branch_id || "default"), ...(Array.isArray(data.branch_ids) ? data.branch_ids.map(cleanText).filter(Boolean) : [])])],
     application_access: asObject(data.application_access),
     access_role_ids: uniqueIds(data.access_role_ids),
     scoped_access_assignments: Array.isArray(data.scoped_access_assignments) ? data.scoped_access_assignments : [],
@@ -125,7 +127,7 @@ export async function listWorkforceUsers(orgId: string, options: JsonObject = {}
   return (await Promise.all(documents
     .map(async (document) => (await hydratedWorkforceUserDocument(orgId, document)))))
     .filter((user) => includeDisabled || !["disabled", "deleted"].includes(cleanText(user.status).toLowerCase()))
-    .filter((user) => !branchId || cleanText(user.branch_id) === branchId)
+    .filter((user) => !branchId || user.branch_ids.includes(branchId))
     .sort((left, right) => cleanText(left.name || left.email).localeCompare(cleanText(right.name || right.email)));
 }
 
@@ -140,8 +142,11 @@ export async function patchWorkforceUserProfile(orgId: string, userId: string, i
     if (actor.userId === userId) throw forbidden('self_permission_change_forbidden', 'You cannot change your own scoped permissions.');
     const [roles, structure] = await Promise.all([listAccessRoles(orgId, { include_archived: true }), resolveOrganizationStructure(orgId)]);
     patch.scoped_access_assignments = validateScopedAccessAssignments(input.scoped_access_assignments, roles, structure);
+    // Grants that were already there are not re-checked; a new one must be inside the branches the actor manages.
+    const before = new Set((Array.isArray(current.scoped_access_assignments) ? current.scoped_access_assignments : []).map((entry) => JSON.stringify(entry)));
+    (await import('./branch-scope.js')).assertGrantScopesManageable(actor, structure, (patch.scoped_access_assignments as Array<{ scope: { kind: string; id: string } }>).filter((entry) => !before.has(JSON.stringify(entry))).map((entry) => entry.scope));
     for (const grant of resolveScopedAccessGrants(patch.scoped_access_assignments, roles, structure)) {
-      const target = grant.scope.kind === 'department' ? { department_id: grant.scope.id } : { division_id: grant.scope.id };
+      const target = grant.scope.kind === 'department' ? { department_id: grant.scope.id } : grant.scope.kind === 'branch' ? { branch_id: grant.scope.id } : { region_id: grant.scope.id };
       for (const [permission, allowed] of Object.entries(grant.permissions)) {
         if (allowed && !hasResourcePermission(actor, permission, target)) throw forbidden('scoped_access_escalation_denied', 'You cannot grant capabilities beyond your own authority in this scope.');
       }

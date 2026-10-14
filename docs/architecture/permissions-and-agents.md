@@ -70,6 +70,17 @@ See [CAPABILITIES.md](../../public/v1/platform/CAPABILITIES.md#permission-catego
 `permission_keys` on the same response is deprecated and kept until nothing
 reads it.
 
+## Branch scope
+
+With the `platform.multiple_branches` feature and more than one branch, People
+data (users, the assignee directory, groups, outside companies, departments)
+and their writes are limited on the server to the caller's own branches.
+`view_region_branches` / `manage_region_branches` widen that to the branches of
+their regions, `view_all_branches` / `manage_all_branches` to every branch; only
+the seeded administrator roles have them. Branch scope only removes records:
+the record's ordinary permission is still required. See
+[branches](branches.md#access-the-branch-scope-rule).
+
 ## Shared agent runtime
 
 `agents/runtime.ts` runs the common conversation loop for all registered

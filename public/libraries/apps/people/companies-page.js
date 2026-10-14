@@ -63,13 +63,14 @@
         secondary:[text(contact.name), text(contact.email, contact.phone)].filter(Boolean).join(' · '),
         pills:pill ? [pill] : [],
         chipGroups:[{ chips:data.companyTypeIds(company).map((typeId) => ({ label:data.typeName('organization_connection', typeId), tone:'group' })), tone:'group' }, { chips:data.companyDepartments(company).map((department) => ({ label:department.label, color:department.color })) }],
-        actions:[{ id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, can.settings ? { id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
+        actions:[{ id:'edit', needs:'companies.view', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, can.settings ? { id:'archive', needs:'companies.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
         hover:`organization_connection:${company.id}`
       };
     }
     let filter = ['linked', 'unlinked'].includes(options.filter) ? options.filter : 'all';
     const permissionSets = new Map();     // read when a company is opened, where the directory publishes them
-    const visible = () => data.state.connections.filter((company) => filter === 'all' || (data.linkStatus(company) === 'linked') === (filter === 'linked')).filter((company) => !query || [company.name, company.legal_name, data.companyContact(company).name, data.companyContact(company).email, ...data.companyTypeIds(company).map((typeId) => data.typeName('organization_connection', typeId))].join(' ').toLowerCase().includes(query))
+    const branchFilter = People.branches.filter('subcontractors', { onChange:() => renderList() });
+    const visible = () => data.state.connections.filter((company) => branchFilter.matches('company', company)).filter((company) => filter === 'all' || (data.linkStatus(company) === 'linked') === (filter === 'linked')).filter((company) => !query || [company.name, company.legal_name, data.companyContact(company).name, data.companyContact(company).email, ...data.companyTypeIds(company).map((typeId) => data.typeName('organization_connection', typeId))].join(' ').toLowerCase().includes(query))
       .sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
     const subtitle = () => {
       const count = data.state.connections.length;
@@ -100,14 +101,15 @@
       search:{ placeholder:t('search', 'Search'), onInput(value){ query = value.trim().toLowerCase(); renderList(); } },
       filters:{ items:[{ id:'all', label:t('filter_all', 'All') }], value:filter, onChange(next){ filter = next; renderList(); } },
       actions:[
-        { id:'types', label:t('types', 'Types'), icon:'fa-tags', onClick:(button) => pageKit.typesModal({ kind:'organization_connection', opener:button }) },
-        can.settings ? { id:'new', label:t('new_company', 'New {company}', { company:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create } : null
+        { id:'types', needs:'companies.view', label:t('types', 'Types'), icon:'fa-tags', onClick:(button) => pageKit.typesModal({ kind:'organization_connection', opener:button }) },
+        can.settings ? { id:'new', needs:'companies.edit', label:t('new_company', 'New {company}', { company:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create } : null
       ].filter(Boolean),
       empty:{ icon:kit.ICONS.company, title:t('no_companies_yet', 'No {companies} yet', { companies:plural().toLowerCase() }) },
       row:rowModel,
       onOpen:(company, row) => openCompany(company.id, { opener:row.querySelector('[data-row-open]') }),
       onAction:(action, company, button) => { if (action === 'edit') openCompany(company.id, { opener:button }); else if (action === 'archive') archive(company, button); }
     });
+    branchFilter.attach(list.controlHost);
     const detachHover = People.hoverCard.attach(list.el, {});
     const unsubscribe = data.subscribe((state, change) => { if (destroyed) return; renderList(); openEntity?.refresh?.(change); });
     async function refresh(force = true){
@@ -117,7 +119,7 @@
 
     /* The permission set is read first, so the tab exists only when it can show what is saved. */
     async function openCompany(id, extra = {}){
-      if (can.permissions && !permissionSets.has(String(id))) permissionSets.set(String(id), await data.loadCompanyPermissions(id));
+      if (data.allows('companies.permissions') && !permissionSets.has(String(id))) permissionSets.set(String(id), await data.loadCompanyPermissions(id));
       return showCompany(id, extra);
     }
     function showCompany(id, extra = {}){
@@ -126,7 +128,7 @@
       const current = () => data.company(id) || start;
       const key = `organization_connection:${id}`;
       const traits = data.traits(key);
-      const editable = can.settings;
+      const editable = data.allows('companies.edit');
       const baseline = () => {
         const company = current();
         const contact = data.companyContact(company);
@@ -161,8 +163,9 @@
         const model = data.companySummary(current(), draft);
         model.sections.forEach((section) => {
           if (!editable) return;
+          if (!editable) return;
           if (section.id === 'types' && data.types('organization_connection').length) section.action = { id:'types', label:t('change_types', 'Change types') };
-          if (section.id === 'departments' && data.state.departments.length) section.action = { id:'departments', label:t('change_departments', 'Change departments') };
+          if (section.id === 'departments' && data.allows('departments.members') && data.state.departments.length) section.action = { id:'departments', label:t('change_departments', 'Change departments') };
           if (section.id === 'scopes' && data.state.scopes.length) section.action = { id:'scopes', label:t('change_kinds_of_work', 'Change kinds of work') };
         });
         model.sections = model.sections.filter((section) => section.action || section.chips.length);
@@ -187,7 +190,7 @@
         permissionsHost.querySelector('[data-company-roles-edit]')?.addEventListener('click', (event) => pageKit.checkMenu(event.currentTarget, { align:'end', label:t('roles', 'Roles'), items:data.activeRoles().map((role) => ({ id:role.id, label:role.name || role.id, tooltip:role.description })), selected:draft.permissions.access_role_ids, onChange(next){ draft.permissions.access_role_ids = next; mountPermissions(); sync(); } }));
       };
       const tabs = [
-        { id:'overview', label:t('overview', 'Overview'), icon:'fa-address-card', mount(panel){
+        { id:'overview', needs:'companies.view', label:t('overview', 'Overview'), icon:'fa-address-card', mount(panel){
           panel.innerHTML = `<div class="pp-form-grid">
             ${input('name', t('name', 'Name'), draft.name)}${input('legal_name', t('legal_name', 'Legal name'), draft.legal_name)}${input('external_reference', t('external_reference', 'Reference'), draft.external_reference, tip(t('external_reference_tip', 'Your own number or code for this company')))}
             <h5>${esc(t('contact', 'Contact'))}</h5>
@@ -199,7 +202,7 @@
           bindFields(panel);
           return {};
         } },
-        traits.external_link ? { id:'link', label:t('link', 'Link'), icon:'fa-link', tooltip:t('link_tip', 'Connect this company to its own organization here, so its people can sign in'), mount(panel){
+        traits.external_link ? { id:'link', needs:'companies.view', label:t('link', 'Link'), icon:'fa-link', tooltip:t('link_tip', 'Connect this company to its own organization here, so its people can sign in'), mount(panel){
           const draw = () => {
             const status = data.linkStatus(current());
             panel.innerHTML = `<div class="pp-link"><div class="pp-link-state ${esc(status)}"><i class="fas ${status === 'unlinked' ? 'fa-link-slash' : 'fa-link'}" aria-hidden="true"></i><strong>${esc(status === 'linked' ? t('linked', 'Linked') : status === 'pending' ? t('link_pending', 'Link pending') : t('not_linked', 'Not linked'))}</strong></div>
@@ -209,7 +212,7 @@
           bindFields(panel);
           return { show:draw };
         } } : null,
-        payroll ? { id:'terms', label:t('payment_terms', 'Payment terms'), icon:'fa-file-invoice-dollar', mount(panel){
+        payroll ? { id:'terms', needs:'companies.terms', label:t('payment_terms', 'Payment terms'), icon:'fa-file-invoice-dollar', mount(panel){
           const draw = () => {
             panel.innerHTML = `<div class="pp-form-grid"><label class="pp-field"><span>${esc(t('paid', 'Paid'))}</span>${kit.select({ value:draft.terms.basis, options:[{ value:'payroll_schedule', label:t('terms_payroll_schedule', 'On the pay schedule') }, { value:'net_days', label:t('terms_net_days', 'Net days after the work') }], label:t('paid', 'Paid'), attrs:'data-company-terms', disabled:!editable })}</label>${draft.terms.basis === 'net_days' ? `<label class="pp-field"><span>${esc(t('net_days', 'Days'))}</span><input class="pp-input" type="number" min="0" max="365" step="1" data-company-field="terms.net_days" value="${esc(draft.terms.net_days)}" ${editable ? '' : 'disabled'}></label>` : ''}</div>`;
           };
@@ -218,14 +221,14 @@
           panel.addEventListener('change', (event) => { if (!event.target.matches('[data-company-terms]')) return; draft.terms.basis = event.target.value; if (draft.terms.basis !== 'net_days') draft.terms.net_days = 0; else if (!draft.terms.net_days) draft.terms.net_days = 30; draw(); sync(); });
           return {};
         } } : null,
-        draft.permissions ? { id:'permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){ permissionsHost = panel; mountPermissions(); return { destroy:() => permissions?.destroy() }; } } : null,
+        draft.permissions ? { id:'permissions', needs:'companies.permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){ permissionsHost = panel; mountPermissions(); return { destroy:() => permissions?.destroy() }; } } : null,
         People.slots.tab('compensation', entity, { readOnly:!can.settings }),
         People.slots.tab('fields', entity, { readOnly:!can.settings })
       ].filter(Boolean);
       const modal = People.entityModal.open({
         label:text(start.name, singular()), opener:extra.opener, returnFocus:() => list.rowElement(id)?.querySelector('[data-row-open]'), tab:extra.tab,
         summary:drawSummary,
-        actions:() => editable ? [{ id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', onClick:async (button) => { if (await archive(current(), button)) modal.close(true); } }] : [],
+        actions:() => editable ? [{ id:'archive', needs:'companies.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', onClick:async (button) => { if (await archive(current(), button)) modal.close(true); } }] : [],
         tabs,
         async onSave(){
           const dirty = dirtyParts();
@@ -270,7 +273,7 @@
     });
     return {
       refresh:() => refresh(true), openCompany,
-      destroy(){ destroyed = true; unsubscribe(); detachHover(); People.hoverCard.hide(); openEntity?.modal.close(true); list.destroy(); }
+      destroy(){ destroyed = true; unsubscribe(); branchFilter.destroy(); detachHover(); People.hoverCard.hide(); openEntity?.modal.close(true); list.destroy(); }
     };
   }
 

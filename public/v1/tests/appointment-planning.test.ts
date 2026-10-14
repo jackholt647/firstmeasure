@@ -29,3 +29,16 @@ test('departments, delivery and recurrence are independent; invalid windows and 
   assert.equal(appointmentConfigurationSchema.safeParse({duration_minutes:120,window_minutes:60}).success,false);
   assert.equal(appointmentConfigurationSchema.safeParse({recurrence:{frequency:'daily',occurrence_count:1000}}).success,false);
 });
+test('a branch catalog keeps only its own departments: stored presets drop other branches and a save names them',async()=>{
+  const {departmentInBranch,presetsForBranch,otherBranchDepartmentIds}=await import('../appointments/planning.js');
+  const org=[{id:'east-sales',branch_id:'east'},{id:'west-sales',branch_id:'west'},{id:'legacy'}];
+  assert.equal(departmentInBranch({branch_id:'east'},'east'),true);
+  assert.equal(departmentInBranch({branch_id:'west'},'east'),false);
+  assert.equal(departmentInBranch({},'east'),true,'a department without a branch belongs to every branch');
+  const stored=appointmentCatalogSchema.parse({departments:[],presets:[{id:'p',label:'P',configuration:{department_ids:['east-sales','west-sales','legacy'],requirements:[{department_id:'west-sales'},{department_id:'east-sales'},{}]}}]});
+  const [kept]=presetsForBranch(stored.presets,org,'east');
+  assert.deepEqual(kept!.configuration.department_ids,['east-sales','legacy']);
+  assert.deepEqual(kept!.configuration.requirements.map(r=>r.department_id),['east-sales',undefined]);
+  assert.deepEqual(otherBranchDepartmentIds(stored,org,'east'),['west-sales']);
+  assert.deepEqual(otherBranchDepartmentIds({...stored,presets:presetsForBranch(stored.presets,org,'east')},org,'east'),[]);
+});

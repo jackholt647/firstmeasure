@@ -4,7 +4,7 @@ import type { JsonObject } from "../platform/storage.js";
 import type { TargetRef } from "../platform/publication/contracts.js";
 
 // One owner catalog drives definition placement, publication and storage.
-// Organizational units include regions and any future division kind.
+// `division` owns fields on a region (the older organizational unit, whose id a migrated region keeps); see docs/architecture/branches.md.
 export const FIELD_OWNERS = {
   project: {shared:false,sidecar:false,readPermission:"view_projects",writePermission:"manage_projects"},
   contact: {shared:false,sidecar:false,readPermission:"view_contacts",writePermission:"manage_projects"},
@@ -58,7 +58,8 @@ export async function readResourceOwner(orgId:string,entity:FieldEntity,target:T
     const row=await readDocument(orgId,"branch",id);branchId=row.id;
   } else if(entity === "department" || entity === "division") {
     const catalog=await (await import("../workforce/departments.js")).readOrganizationDepartments(orgId);
-    const owner=(entity === "department" ? catalog.departments : catalog.divisions).find(row=>row.id === id);
+    // `division` is the owner name fields on organizational units were saved under; units are now regions, which keep their ids.
+    const owner=(entity === "department" ? catalog.departments : catalog.regions).find(row=>row.id === id);
     if(!owner) throw notFound("custom_field_owner_not_found","The organizational resource was not found.");
     branchId=String((owner as JsonObject).branch_id || "");
   } else if(entity === "team") {

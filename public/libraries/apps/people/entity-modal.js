@@ -107,7 +107,9 @@
   function open(options = {}){
     ensureStyles();
     current?.close(true);
-    const tabs = (options.tabs || []).filter(Boolean);
+    /* Tabs and actions say what they need (FirstMatePeople.data.ACTIONS); what cannot be done here is not offered. */
+    const gate = ((list, where) => (window.FirstMatePeople?.data?.gate ? window.FirstMatePeople.data.gate(list, where) : (list || []).filter(Boolean)));
+    const tabs = gate(options.tabs, 'tab');
     const opener = options.opener || document.activeElement;
     const back = document.createElement('div');
     back.className = 'pp pp-modal-back';
@@ -157,7 +159,7 @@
       setTabBadge(id, text){ const badge = back.querySelector(`[data-modal-tab="${CSS.escape(id)}"] [data-tab-badge]`); if (badge) badge.textContent = text ? String(text) : ''; },
       refreshSummary(){ options.summary?.(summaryHost, modal); kit.presence.paint(summaryHost); },
       refreshActions(){
-        actionList = (typeof options.actions === 'function' ? options.actions(modal) : options.actions || []).filter(Boolean);
+        actionList = gate(typeof options.actions === 'function' ? options.actions(modal) : options.actions, 'modal');
         actionsHost.innerHTML = `${actionList.map((action, index) => `<button type="button" class="pp-icon-btn ${action.tone === 'danger' ? 'danger' : ''}" data-modal-action="${index}" aria-label="${esc(action.label)}"${tip(action.label)} ${action.disabled ? 'disabled' : ''}><i class="fas ${esc(action.icon)}" aria-hidden="true"></i></button>`).join('')}${actionList.length ? '<span class="pp-modal-sep" aria-hidden="true"></span>' : ''}<button type="button" class="pp-icon-btn" data-modal-close aria-label="${esc(t('close', 'Close'))}"${tip(t('close', 'Close'))}><i class="fas fa-xmark" aria-hidden="true"></i></button>`;
       },
       selectTab(id, focus = false){

@@ -1,8 +1,9 @@
 /* public/libraries/apps/people/departments-page.js
  *
  * People > Departments. Users, groups and outside companies belong to
- * departments (none, one or several); departments do not nest, but organizational
- * units do and hold them, so the list is sectioned by unit (else by category).
+ * departments (none, one or several). Each department belongs to one branch; with
+ * several branches the list is sectioned by branch (and its region) and a branch
+ * filter picks which branches are shown. With one branch there is no grouping.
  *
  *   FirstMatePeople.departmentsPage.mount(container, { entity:'department:<id>', onEntity(key) }) -> { refresh(), openDepartment(id), destroy() }
  *
@@ -82,7 +83,7 @@
     const labels = () => data.state.groupLabels;
     const plural = () => labels().departmentPlural || t('departments', 'Departments');
     const singular = () => labels().departmentSingular || t('department', 'Department');
-    const canManage = () => data.state.departmentState?.can_manage !== false && can.settings;
+    const canManage = () => data.state.departmentState?.can_manage !== false && data.allows('departments.edit');
     const person = (user) => ({ id:user.id, name:user.name || user.email, photoUrl:data.assetUrl(user.profile_photo_url || user.profile_photo) });
 
     function rowModel(department){
@@ -91,16 +92,16 @@
         key:department.id, square:true,
         entity:{ id:department.id, name:department.label, icon:String(department.icon || kit.ICONS.department).split(' ').pop(), color:department.color || '#64748b' },
         title:department.label || department.id,
-        // Sectioned by unit, a department's category is still worth seeing beside its name.
-        pills:data.departmentNesting() === 'units' && data.category(department.group_id) ? [{ label:data.category(department.group_id).label, tone:'neutral', icon:'fa-folder' }] : [],
+        pills:[],
         // People and groups are counts with a few faces each, like the Users list; there may be dozens of groups.
         aside:`<span class="pp-stacks">${kit.stack(members.users.map((entry) => person(entry.user)), members.users.length, { label:kit.countPhrase([[members.users.length, t('user_one', 'user'), t('user_many', 'users')]]) })}${members.groups.length ? kit.stack(members.groups.map((entry) => ({ id:entry.group.id, name:entry.group.name || entry.group.id, icon:kit.ICONS.group, color:'#0e7090' })), members.groups.length, { square:true, label:members.groups.map((entry) => entry.group.name || entry.group.id).join(', ') }) : ''}</span>`,
         chipGroups:[{ chips:(department.role_ids || []).map((roleId) => ({ label:data.role(roleId)?.name || roleId, tone:'role' })), tone:'role' }],
-        actions:[{ id:'edit', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, canManage() ? { id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
+        actions:[{ id:'edit', needs:'departments.view', icon:kit.ICONS.edit, label:t('edit', 'Edit') }, canManage() ? { id:'archive', needs:'departments.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger' } : null],
         hover:`department:${department.id}`
       };
     }
-    const visible = () => data.state.departments.filter((department) => !query || String(department.label || '').toLowerCase().includes(query)).sort((left, right) => String(left.label || '').localeCompare(String(right.label || '')));
+    const branchFilter = People.branches.filter('departments', { onChange:() => renderList() });
+    const visible = () => data.state.departments.filter((department) => branchFilter.matches('department', department)).filter((department) => !query || String(department.label || '').toLowerCase().includes(query)).sort((left, right) => String(left.label || '').localeCompare(String(right.label || '')));
     const subtitle = () => {
       const count = data.state.departments.length;
       const without = data.state.users.filter((user) => !data.userDepartments(user).length).length;
@@ -113,21 +114,21 @@
       try { await data.archiveDepartment(department.id); kit.toast(t('archived', 'Archived'), department.label || '', true); return true; }
       catch (error) { pageKit.failed(t('not_archived', 'Not archived'), error); return false; }
     }
+    /* With several branches a department is made in a branch the viewer manages; the server puts it in their own otherwise. */
+    const branchField = (value) => data.allows('departments.branch') ? [{ id:'branch_id', label:t('branch', 'Branch'), type:'select', required:true, value:value || data.structure()?.my_branch_id || '', options:People.branches.manageable().map((entry) => ({ value:entry.id, label:data.branchName(entry.id) })) }] : [];
     const create = (button) => kit.form(button, {
       title:t('new_department', 'New {department}', { department:singular().toLowerCase() }), submitLabel:t('create', 'Create'),
-      fields:[{ id:'label', label:t('name', 'Name'), required:true }],
-      submit:(values) => data.saveDepartment({ label:values.label, color:COLOR_CHOICES[data.state.departments.length % COLOR_CHOICES.length] })
+      fields:[{ id:'label', label:t('name', 'Name'), required:true }, ...branchField()],
+      submit:(values) => data.saveDepartment({ label:values.label, color:COLOR_CHOICES[data.state.departments.length % COLOR_CHOICES.length], ...(values.branch_id ? { branch_id:values.branch_id } : {}) })
     }).then((department) => { if (department?.id) openDepartment(department.id, { opener:button }); });
 
-    /* Sectioned the way the catalog organizes departments: by unit (with its parents), else by category. */
+    /* With several branches, sectioned by branch, under its region when it has one. With one branch, not sectioned. */
     function placeSection(department){
-      const how = data.departmentNesting();
-      if (!how) return null;
       const place = data.departmentPlace(department.id);
-      if (!place.length) return { key:'none', title:how === 'units' ? t('not_in_unit', 'Not in a unit') : t('no_category', 'No category'), order:Number.MAX_SAFE_INTEGER };
-      const last = place[place.length - 1];
-      const order = data.departmentOutline({ loose:'last' }).findIndex((row) => row.kind === last.kind && row.id === last.id);
-      return { key:`${last.kind}:${last.id}`, title:place.map((step) => step.label).join(' › '), icon:last.kind === 'unit' ? 'fa-diagram-project' : 'fa-folder', tooltip:last.tooltip || '', order };
+      if (!place.length) return null;
+      const branch = place[place.length - 1];
+      const order = data.departmentOutline({}).filter((row) => row.kind === 'branch').findIndex((row) => row.id === branch.id);
+      return { key:`branch:${branch.id}`, title:place.map((step) => step.label).join(' › '), icon:'fa-location-dot', tooltip:t('branch', 'Branch'), order };
     }
     const memberCount = (department) => data.departmentMembers(department).users.length;
     const list = People.listPage.mount(container, {
@@ -141,12 +142,13 @@
       sort:{ id:'name', dir:'asc' }, sortStore:'departments',
       icon:kit.ICONS.department, title:plural(), subtitle:'',
       search:{ placeholder:t('search', 'Search'), onInput(value){ query = value.trim().toLowerCase(); renderList(); } },
-      actions:canManage() ? [{ id:'divisions', label:t('divisions_short', 'Units'), icon:'fa-diagram-project', tooltip:t('divisions', 'Organizational units'), onClick:(button) => People.lists.divisions({ opener:button }) }, { id:'categories', label:t('categories', 'Categories'), icon:'fa-folder', onClick:(button) => People.lists.categories({ opener:button }) }, { id:'new', label:t('new_department', 'New {department}', { department:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create }] : [],
+      actions:canManage() ? [{ id:'new', needs:'departments.edit', label:t('new_department', 'New {department}', { department:singular().toLowerCase() }), icon:'fa-plus', primary:true, onClick:create }] : [],
       empty:{ icon:kit.ICONS.department, title:t('no_departments_yet', 'No {departments} yet', { departments:plural().toLowerCase() }) },
       row:rowModel,
       onOpen:(department, row) => openDepartment(department.id, { opener:row.querySelector('[data-row-open]') }),
       onAction:(action, department, button) => { if (action === 'edit') openDepartment(department.id, { opener:button }); else if (action === 'archive') archive(department, button); }
     });
+    branchFilter.attach(list.controlHost);
     const detachHover = People.hoverCard.attach(list.el, {});
     const unsubscribe = data.subscribe((state, change) => { if (destroyed) return; renderList(); openEntity?.refresh?.(change); });
     async function refresh(force = true){
@@ -159,7 +161,7 @@
       if (!start) return null;
       const current = () => data.department(id) || start;
       const appChoices = (defaults) => Object.fromEntries(Object.entries(defaults || {}).filter(([, entry]) => ['show', 'hide'].includes(entry?.visibility)).map(([appId, entry]) => [appId, entry.visibility]));
-      const baseline = () => ({ label:current().label || '', color:current().color || '#64748b', icon:current().icon || '', role_ids:[...(current().role_ids || [])], group_kind_ids:[...(current().group_kind_ids || [])], group_id:current().group_id || '', division_id:current().division_id || '', default_channel:current().default_channel !== false, apps:appChoices(current().app_defaults) });
+      const baseline = () => ({ label:current().label || '', color:current().color || '#64748b', icon:current().icon || '', role_ids:[...(current().role_ids || [])], group_kind_ids:[...(current().group_kind_ids || [])], branch_id:current().branch_id || 'default', default_channel:current().default_channel !== false, apps:appChoices(current().app_defaults) });
       let base = baseline();
       const draft = clone(base);
       let editing = false;
@@ -171,16 +173,13 @@
         const model = data.departmentSummary(current(), draft);
         model.sections.forEach((section) => { if (editable) section.action = { id:section.id, label:section.id === 'roles' ? t('change_roles', 'Change roles') : t('change_types', 'Change types') }; });
         model.sections = model.sections.filter((section) => section.action || section.chips.length);
-        const category = data.state.departmentCategories.find((entry) => entry.id === draft.group_id);
-        const unit = data.division(draft.division_id);
-        model.pills = [...(category ? [{ label:category.label, tone:'neutral', icon:'fa-folder' }] : []), ...(unit ? [{ label:unit.label, tone:'neutral', icon:'fa-diagram-project' }] : [])];
+        model.pills = data.multipleBranches() ? [{ label:data.branchName(draft.branch_id), tone:'neutral', icon:'fa-location-dot', tooltip:t('branch', 'Branch') }] : [];
         People.lists.ensureStyles();
-        host.innerHTML = kit.summary(model, 'panel', { photoAction:editable ? t('icon_and_color', 'Icon and color') : '', photoIcon:'fa-palette', editAction:editable && !editing ? t('edit_department_identity', 'Edit name, category and unit') : '' })
+        host.innerHTML = kit.summary(model, 'panel', { photoAction:editable ? t('icon_and_color', 'Icon and color') : '', photoIcon:'fa-palette', editAction:editable && !editing ? (data.allows('departments.branch') ? t('edit_department_name_branch', 'Edit name and branch') : t('edit_department_name', 'Edit name')) : '' })
           + `<div class="pp-sum-extra"><label class="pp-sum-switch"><i class="fas fa-hashtag" aria-hidden="true"></i><span>${esc(t('default_channel', 'Channel'))}</span>${kit.info(t('default_channel_tip', 'Keep a channel for this department that its members are in.'))}<button type="button" class="pp-switch" role="switch" data-dept-channel aria-checked="${draft.default_channel}" aria-label="${esc(t('default_channel', 'Channel'))}" ${editable ? '' : 'disabled'}></button></label></div>`;
         if (editing) pageKit.identity(host, [
           { id:'label', value:draft.label, placeholder:t('name', 'Name') },
-          ...(data.state.departmentCategories.length ? [{ id:'group_id', type:'select', value:draft.group_id, placeholder:t('category', 'Category'), options:[{ value:'', label:t('no_category', 'No category') }, ...data.state.departmentCategories.map((entry) => ({ value:entry.id, label:entry.label }))] }] : []),
-          ...(data.state.divisions.length ? [{ id:'division_id', type:'select', value:draft.division_id, placeholder:t('division', 'Unit'), options:[{ value:'', label:t('no_division', 'No unit') }, ...data.state.divisions.map((entry) => ({ value:entry.id, label:entry.label }))] }] : [])
+          ...(data.allows('departments.branch') ? [{ id:'branch_id', type:'select', value:draft.branch_id, placeholder:t('branch', 'Branch'), options:People.branches.manageable(draft.branch_id).map((entry) => ({ value:entry.id, label:data.branchName(entry.id) })) }] : [])
         ]);
       }
       const saving = async (work) => { try { await work(); modal.setStatus('saved', t('saved', 'Saved')); } catch (error) { pageKit.failed(t('not_saved', 'Not saved'), error); } };
@@ -197,8 +196,8 @@
           if (kind === 'users') {
             inner = pageKit.peopleList(host, {
               count:() => kit.countPhrase([[data.departmentMembers(current()).users.length, t('member_one', 'member'), t('member_many', 'members')]]) || t('no_members', 'No members'),
-              items:() => data.departmentMembers(current()).users.map((entry) => ({ user:entry.user, chips:entry.via.map((label) => ({ label, tone:'muted', tooltip:t('member_through', 'In this department through {source}', { source:label }) })), actions:editable && entry.direct ? [{ id:'remove', icon:'fa-user-minus', label:t('remove_member', 'Remove'), tone:'danger' }] : [] })),
-              add:editable ? {
+              items:() => data.departmentMembers(current()).users.map((entry) => ({ user:entry.user, chips:entry.via.map((label) => ({ label, tone:'muted', tooltip:t('member_through', 'In this department through {source}', { source:label }) })), actions:editable && entry.direct ? [{ id:'remove', needs:'departments.members', icon:'fa-user-minus', label:t('remove_member', 'Remove'), tone:'danger' }] : [] })),
+              add:data.allows('departments.members') ? { needs:'departments.members',
                 candidates:() => data.state.users.map((user) => { const entry = data.departmentMembers(current()).users.find((item) => item.user.id === user.id); return { user, checked:!!entry?.direct, hint:entry && !entry.direct ? t('inherited_short', 'inherited') : '' }; }),
                 onToggle:(user, on) => saving(() => data.saveUserDepartments(user.id, on ? [...data.userDirectDepartmentIds(user), id] : data.userDirectDepartmentIds(user).filter((departmentId) => departmentId !== id)))
               } : null,
@@ -212,14 +211,14 @@
             const toggle = (item, on) => saving(() => data.saveSubjectDepartments(groups ? 'group' : 'connection', item.id, on ? [...directIds(item), id] : directIds(item).filter((departmentId) => departmentId !== id)));
             const sub = People.listPage.mount(host, {
               embedded:true, subtitle:'',
-              actions:editable ? [{ id:'add', label:t('add', 'Add'), icon:'fa-plus', menu:true, onClick(button){
+              actions:editable ? [{ id:'add', needs:'departments.members', label:t('add', 'Add'), icon:'fa-plus', menu:true, onClick(button){
                 pageKit.checkMenu(button, { align:'end', label:t('add', 'Add'), items:all().map((item) => ({ id:String(item.id), label:item.name || item.id })), selected:members().filter((entry) => entry.direct).map((entry) => String(entry.item.id)), onChange:(next, item, on) => toggle(all().find((entry) => String(entry.id) === item.id), on) });
               } }] : [],
               empty:{ icon:groups ? kit.ICONS.group : kit.ICONS.company, title:t('none_here', 'None here yet') },
               row:(entry) => ({ key:entry.item.id, square:true, entity:{ id:entry.item.id, name:entry.item.name, icon:groups ? kit.ICONS.group : kit.ICONS.company, color:groups ? '#0e7090' : '#475467' }, title:entry.item.name || entry.item.id,
                 pills:groups && entry.item.kind_id ? [{ label:data.typeName('resource_group', entry.item.kind_id), tone:'role' }] : [],
                 chipGroups:entry.direct ? [] : [{ chips:[{ label:t('through_type', 'through its type'), tone:'muted' }] }],
-                actions:editable && entry.direct ? [{ id:'remove', icon:'fa-xmark', label:t('remove_member', 'Remove'), tone:'danger' }] : [], hover:`${groups ? 'resource_group' : 'organization_connection'}:${entry.item.id}` }),
+                actions:editable && entry.direct ? [{ id:'remove', needs:'departments.members', icon:'fa-xmark', label:t('remove_member', 'Remove'), tone:'danger' }] : [], hover:`${groups ? 'resource_group' : 'organization_connection'}:${entry.item.id}` }),
               onAction:(action, entry) => { if (action === 'remove') toggle(entry.item, false); }
             });
             const detach = People.hoverCard.attach(sub.el, {});
@@ -248,8 +247,8 @@
         const list = pageKit.peopleList(panel, {
           title:t('roles_in', 'Roles in {place}', { place:place() }),
           count:() => people() ? t('people_with_roles_in', '{count} with roles in {place}', { count:kit.countPhrase([[people(), t('person_one', 'person'), t('person_many', 'people')]]), place:place() }) : t('nobody_with_roles_in', 'Nobody has roles only in {place}', { place:place() }),
-          items:() => { const byUser = new Map(); data.departmentScopedRoles(id).forEach((entry) => { const self = data.isMe(entry.user); const item = byUser.get(entry.user.id) || { user:entry.user, chips:[], chipTone:'role', actions:can.permissions && !self ? [{ id:'roles', icon:kit.ICONS.role, label:t('change_roles_of_in', 'Change {name}’s roles in {place}', { name:entry.user.name || entry.user.email, place:place() }) }, { id:'remove', icon:'fa-xmark', label:t('remove_roles_of_in', 'Remove {name}’s roles in {place}', { name:entry.user.name || entry.user.email, place:place() }), tone:'danger' }] : [] }; item.chips.push({ label:data.role(entry.role_id)?.name || entry.role_id, tone:'role' }); byUser.set(entry.user.id, item); }); return [...byUser.values()]; },
-          actions:can.permissions && roles().length ? [{ id:'give', label:t('give_role_in', 'Give a role in {place}', { place:place() }), icon:'fa-plus', onClick(button){
+          items:() => { const byUser = new Map(); data.departmentScopedRoles(id).forEach((entry) => { const self = data.isMe(entry.user); const item = byUser.get(entry.user.id) || { user:entry.user, chips:[], chipTone:'role', actions:can.permissions && !self ? [{ id:'roles', needs:'departments.scoped', icon:kit.ICONS.role, label:t('change_roles_of_in', 'Change {name}’s roles in {place}', { name:entry.user.name || entry.user.email, place:place() }) }, { id:'remove', needs:'departments.scoped', icon:'fa-xmark', label:t('remove_roles_of_in', 'Remove {name}’s roles in {place}', { name:entry.user.name || entry.user.email, place:place() }), tone:'danger' }] : [] }; item.chips.push({ label:data.role(entry.role_id)?.name || entry.role_id, tone:'role' }); byUser.set(entry.user.id, item); }); return [...byUser.values()]; },
+          actions:roles().length ? [{ id:'give', needs:'departments.scoped', label:t('give_role_in', 'Give a role in {place}', { place:place() }), icon:'fa-plus', onClick(button){
             kit.form(button, {
               title:t('give_role_in', 'Give a role in {place}', { place:place() }), submitLabel:t('give', 'Give'),
               fields:[
@@ -278,15 +277,15 @@
       const modal = People.entityModal.open({
         label:start.label || singular(), opener:extra.opener, returnFocus:() => list.rowElement(id)?.querySelector('[data-row-open]'), tab:extra.tab,
         summary:drawSummary,
-        actions:() => editable ? [{ id:'archive', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', onClick:async (button) => { if (await archive(current(), button)) modal.close(true); } }] : [],
+        actions:() => editable ? [{ id:'archive', needs:'departments.edit', icon:'fa-box-archive', label:t('archive', 'Archive'), tone:'danger', onClick:async (button) => { if (await archive(current(), button)) modal.close(true); } }] : [],
         tabs:[
-          { id:'members', label:t('members', 'Members'), icon:kit.ICONS.users, mount(panel){ membersTab = mountMembers(panel); return membersTab; } },
-          { id:'apps', label:t('app_visibility', 'App visibility'), icon:kit.ICONS.apps, tooltip:t('app_visibility_tip', 'Tabs this department shows or hides for its members, over what their roles give'), mount(panel){
+          { id:'members', needs:'departments.view', label:t('members', 'Members'), icon:kit.ICONS.users, mount(panel){ membersTab = mountMembers(panel); return membersTab; } },
+          { id:'apps', needs:'departments.view', label:t('app_visibility', 'App visibility'), icon:kit.ICONS.apps, tooltip:t('app_visibility_tip', 'Tabs this department shows or hides for its members, over what their roles give'), mount(panel){
             const grid = People.appGrid.mount(panel, { apps:data.state.apps, value:draft.apps, inherited:data.catalogDefaultApp(), readOnly:!editable, onChange(value){ draft.apps = value; modal.setTabBadge('apps', Object.keys(value).length || ''); sync(); } });
             modal.setTabBadge('apps', Object.keys(draft.apps).length || '');
             return { destroy:() => grid.destroy() };
           } },
-          { id:'scoped', label:t('roles_in', 'Roles in {place}', { place:start.label || singular() }), icon:kit.ICONS.role, tooltip:t('roles_in_department_tab_tip', 'Roles these people hold only for work in {place}. Roles on a user apply everywhere.', { place:start.label || singular() }), mount(panel){ scoped = mountScoped(panel); return scoped; } },
+          { id:'scoped', needs:'departments.view', label:t('roles_in', 'Roles in {place}', { place:start.label || singular() }), icon:kit.ICONS.role, tooltip:t('roles_in_department_tab_tip', 'Roles these people hold only for work in {place}. Roles on a user apply everywhere.', { place:start.label || singular() }), mount(panel){ scoped = mountScoped(panel); return scoped; } },
           People.slots.tab('fields', entity, { readOnly:!can.settings })
         ],
         async onSave(){
@@ -295,7 +294,7 @@
           const app_defaults = {};
           Object.entries(existing).forEach(([appId, entry]) => { if (draft.apps[appId]) app_defaults[appId] = { ...entry, visibility:draft.apps[appId] }; else if (entry && (entry.enforcement === 'restricted' || entry.params || entry.layout)) app_defaults[appId] = { ...entry, visibility:'inherit' }; });
           Object.entries(draft.apps).forEach(([appId, visibility]) => { if (!app_defaults[appId]) app_defaults[appId] = { visibility, enforcement:'default' }; });
-          await data.saveDepartment({ id, label:draft.label, color:draft.color, icon:draft.icon, role_ids:draft.role_ids, group_kind_ids:draft.group_kind_ids, group_id:draft.group_id, division_id:draft.division_id, default_channel:draft.default_channel, app_defaults });
+          await data.saveDepartment({ id, label:draft.label, color:draft.color, icon:draft.icon, role_ids:draft.role_ids, group_kind_ids:draft.group_kind_ids, ...(data.allows('departments.branch') ? { branch_id:draft.branch_id } : {}), default_channel:draft.default_channel, app_defaults });
           base = baseline();
           Object.assign(draft, clone(base));
           editing = false;
@@ -339,7 +338,7 @@
     });
     return {
       refresh:() => refresh(true), openDepartment,
-      destroy(){ destroyed = true; unsubscribe(); detachHover(); People.hoverCard.hide(); openEntity?.modal.close(true); list.destroy(); }
+      destroy(){ destroyed = true; unsubscribe(); branchFilter.destroy(); detachHover(); People.hoverCard.hide(); openEntity?.modal.close(true); list.destroy(); }
     };
   }
 

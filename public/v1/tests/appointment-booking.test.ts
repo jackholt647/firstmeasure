@@ -192,9 +192,8 @@ test('configured appointments preserve departments, delivery, staffing and recur
   const departmentUrl=`/v1/workforce/organizations/${orgId}/departments`;
   const initialDepartments=await client.request('GET',departmentUrl);
   catalog.catalog.departments.push({id:'sales',label:'Sales',subject_keys:[person.key]});
-  catalog.catalog.departments.push({id:'consulting',label:'Consulting',subject_keys:[person.key],color:'#123456',group_id:'customer-services'});
-  catalog.catalog.groups=[{id:'customer-services',label:'Customer services'}];
-  await client.request('PUT',departmentUrl,{departments:catalog.catalog.departments,groups:catalog.catalog.groups,revision:initialDepartments.revision,legacy_token:initialDepartments.legacy_token});
+  catalog.catalog.departments.push({id:'consulting',label:'Consulting',subject_keys:[person.key],color:'#123456'});
+  await client.request('PUT',departmentUrl,{departments:catalog.catalog.departments,revision:initialDepartments.revision,legacy_token:initialDepartments.legacy_token});
   const fresh=await client.request('GET',base+'/catalog');
   const saved=await client.request('PUT',base+'/catalog',{catalog:fresh.catalog,revision:fresh.revision});
   assert.equal((await client.raw('PUT',base+'/catalog',{catalog:catalog.catalog,revision:catalog.revision})).statusCode,409);
@@ -263,21 +262,23 @@ test('organization departments preserve branch catalogs and support generic type
   const service=await import('../workforce/departments.js');
   const base=`/v1/workforce/organizations/${orgId}/departments`;
   const legacy=defaultAppointmentCatalog();
-  legacy.departments.push({id:'support',label:'Support',color:'#123456',group_id:'',division_id:'',status:'active',default_channel:true,app_defaults:{},subject_keys:[`organization_user:${userId}`],role_ids:[],group_kind_ids:[]});
+  legacy.departments.push({id:'support',label:'Support',color:'#123456',branch_id:'east',status:'active',default_channel:true,app_defaults:{},subject_keys:[`organization_user:${userId}`],role_ids:[],group_kind_ids:[]});
   await storage.upsertDocument(orgId,'branch',{id:'east',data:{name:'East'}});
   await storage.saveBranchModule(orgId,'east','scheduling',{data:{appointment_catalog:legacy}});
   const initial=await client.request('GET',base);
   assert.equal(initial.revision,0);assert.ok(initial.departments.some((d:any)=>d.id==='support'));
+  // An older per-branch catalog's departments are read into the branch they were found in.
+  assert.equal(initial.departments.find((d:any)=>d.id==='support').branch_id,'east');
   await assert.rejects(storage.readDocument(orgId,'organization_departments','catalog'));
   const configuration=await workforce.readWorkforceConfiguration(orgId);
   await workforce.saveWorkforceConfiguration(orgId,{...configuration,resource_group_kinds:[...configuration.resource_group_kinds,{id:'dispatch-team',name:'Dispatch team'}],expected_revision:configuration.revision});
   const group=await workforce.createResourceGroup(orgId,{name:'Dispatch A',kind_id:'dispatch-team',branch_id:'default',members:[{user_id:userId}]});
   const role=initial.roles[0];assert.ok(role);
-  const departments=[...initial.departments,{id:'dispatch',label:'Dispatch',color:'#654321',group_id:'',subject_keys:[],role_ids:[role.id],group_kind_ids:['dispatch-team']}];
-  let saved=await client.request('PUT',base,{departments,groups:initial.groups,revision:0,legacy_token:initial.legacy_token});
+  const departments=[...initial.departments,{id:'dispatch',label:'Dispatch',color:'#654321',subject_keys:[],role_ids:[role.id],group_kind_ids:['dispatch-team']}];
+  let saved=await client.request('PUT',base,{departments,revision:0,legacy_token:initial.legacy_token});
   assert.equal(saved.revision,1);
   assert.equal(((await storage.readBranchModule(orgId,'east','scheduling')).data.appointment_catalog as any).departments.length,legacy.departments.length);
-  assert.equal((await client.raw('PUT',base,{departments,groups:initial.groups,revision:0,legacy_token:initial.legacy_token})).statusCode,409);
+  assert.equal((await client.raw('PUT',base,{departments,revision:0,legacy_token:initial.legacy_token})).statusCode,409);
   saved=await client.request('PATCH',base+'/assignments',{kind:'user',id:userId,department_ids:['sales','support'],revision:saved.revision});
   assert.equal(saved.departments.filter((d:any)=>d.subject_keys.includes(`organization_user:${userId}`)).length,2);
   saved=await client.request('PATCH',base+'/assignments',{kind:'group',id:group.id,department_ids:['support'],revision:saved.revision});
@@ -287,7 +288,8 @@ test('organization departments preserve branch catalogs and support generic type
   const selected=selectAppointmentResources(config,saved.departments,subjects,new Set([`resource_group:${group.id}`,`organization_user:${userId}`]));
   assert.deepEqual(selected?.map((r:any)=>r.id),[group.id,userId]);
   const ctx={orgId,userId,branchId:'east',role:'member',applicationAccess:{management:{enabled:true,permissions:{}}},permissions:{manage_company_settings:true}} as any;
-  assert.deepEqual((await readAppointmentCatalog(ctx)).catalog.departments,saved.departments);
+  // The east branch's catalog offers the east branch's departments only.
+  assert.deepEqual((await readAppointmentCatalog(ctx)).catalog.departments,saved.departments.filter((d:any)=>d.branch_id==='east'));
   const reader={...ctx,permissions:{view_projects:true}};
   const {initializePublication}=await import('../platform/publication/bootstrap.js');initializePublication();
   const {userPublicationContext}=await import('../platform/publication/context.js');
@@ -298,10 +300,10 @@ test('organization departments preserve branch catalogs and support generic type
   assert.equal(published.status,'ready');
   assert.equal((await readPublishedData(userPublicationContext({...ctx,permissions:{}}),ref)).status,'denied');
   assert.equal((await readPublishedData(userPublicationContext(reader),{...ref,target:{scope:'organization',organizationId:'foreign'}})).status,'denied');
-  await assert.rejects(invokeAction(userPublicationContext(reader,{mode:'command'}),{action:'workforce.departments.save',target:ref.target},{values:{departments:saved.departments,groups:saved.groups,revision:saved.revision}},{idempotencyKey:'denied-write'}));
+  await assert.rejects(invokeAction(userPublicationContext(reader,{mode:'command'}),{action:'workforce.departments.save',target:ref.target},{values:{departments:saved.departments,revision:saved.revision}},{idempotencyKey:'denied-write'}));
 
   assert.equal((await service.departmentSettings(reader)).users,undefined);
-  await assert.rejects(service.saveDepartmentSettings(reader,{departments:saved.departments,groups:saved.groups,revision:saved.revision}),(e:any)=>e.statusCode===403);
+  await assert.rejects(service.saveDepartmentSettings(reader,{departments:saved.departments,revision:saved.revision}),(e:any)=>e.statusCode===403);
   const userAdmin={...ctx,permissions:{manage_company_users:true}};
   await assert.rejects(service.saveDepartmentAssignment(userAdmin,{kind:'group_kind',id:'dispatch-team',department_ids:['sales'],revision:saved.revision}),(e:any)=>e.statusCode===403);
   await assert.rejects(service.saveDepartmentAssignment(ctx,{kind:'user',id:'foreign-user',department_ids:['sales'],revision:saved.revision}),(e:any)=>e.statusCode===400);
@@ -309,9 +311,12 @@ test('organization departments preserve branch catalogs and support generic type
   assert.equal(result.filter(r=>r.status==='fulfilled').length,1);
   assert.equal(result.filter(r=>r.status==='rejected').length,1);
   const latest=await service.readOrganizationDepartments(orgId);
-  await assert.rejects(service.saveDepartmentSettings(ctx,{...latest,divisions:[{id:'a',label:'A',parent_id:'b'},{id:'b',label:'B',parent_id:'a'}]}),(e:any)=>e.code==='division_cycle');
-  await assert.rejects(service.saveDepartmentSettings(ctx,{...latest,divisions:[{id:'a',label:'A',parent_id:'missing'}]}),(e:any)=>e.code==='unknown_parent_division');
-  await assert.rejects(service.saveDepartmentSettings(ctx,{...latest,divisions:[{id:'a',label:'A',subject_keys:['organization_user:foreign']}]}),(e:any)=>e.code==='unknown_division_member');
+  const input={departments:latest.departments,terminology:latest.terminology,revision:latest.revision};
+  // Units and categories are gone from the save; a department must name a branch of this organization.
+  await assert.rejects(service.saveDepartmentSettings(ctx,{...input,divisions:[{id:'a',label:'A'}]}),(e:any)=>e.name==='ZodError');
+  await assert.rejects(service.saveDepartmentSettings(ctx,{...input,groups:[]}),(e:any)=>e.name==='ZodError');
+  await assert.rejects(service.saveDepartmentSettings(ctx,{...input,departments:[...input.departments,{id:'nowhere',label:'Nowhere',branch_id:'missing'}]}),(e:any)=>e.code==='unknown_department_branch');
+  await assert.rejects(service.saveDepartmentSettings(ctx,{...input,departments:[...input.departments,{id:'foreign',label:'Foreign',subject_keys:['organization_user:foreign']}]}),(e:any)=>e.code==='unknown_department_member');
   const outsider=createSessionClient();await registerOwner(outsider);
   assert.equal((await outsider.raw('GET',base)).statusCode,403);
   assert.ok((await client.raw('GET',`/v1/platform/organizations/${orgId}/organization_departments`)).statusCode>=400);
@@ -322,7 +327,7 @@ test('scoped scheduling checks both stored appointments and every destination de
   const store=await import('../platform/storage.js');const {departmentCatalogSchema}=await import('../workforce/department-contracts.js');
   const {buildOrganizationStructure}=await import('../workforce/organization-structure.js');
   const {assertAppointmentDepartmentPermission}=await import('../appointments/department-access.js');
-  const catalog=departmentCatalogSchema.parse({groups:[],departments:[{id:'sales',label:'Sales',subject_keys:[`organization_user:${userId}`]},{id:'production',label:'Production'}]});
+  const catalog=departmentCatalogSchema.parse({departments:[{id:'sales',label:'Sales',subject_keys:[`organization_user:${userId}`]},{id:'production',label:'Production'}]});
   await store.upsertDocument(orgId,'organization_departments',{id:'catalog',data:catalog});
   const ctx={orgId,userId,branchId:'default',role:'member',permissions:{},organizationStructure:buildOrganizationStructure(catalog,[{id:userId}],[]),scopedAccessGrants:[{scope:{kind:'department',id:'sales'},permissions:{manage_schedule:true}}]} as any;
   assert.doesNotThrow(()=>assertAppointmentDepartmentPermission(ctx,{department_ids:['sales']}));
@@ -337,4 +342,38 @@ test('scoped scheduling checks both stored appointments and every destination de
   await assert.rejects(api.saveCalendarEventDocument(orgId,'sales-existing',{data:{...when,department_ids:[]}},true,ctx),(e:any)=>e.statusCode===403);
   const {readAppointmentCatalog}=await import('../appointments/planning.js');const bundle=await readAppointmentCatalog(ctx);
   assert.equal(bundle.department_context.show_selector,false);assert.deepEqual(bundle.department_context.department_ids,['sales']);
+});
+
+test('a branch appointment catalog and its booking offer only that branch\'s departments and assignees',async()=>{
+  const client=createSessionClient();const {orgId,userId}=await registerOwner(client);
+  const storage=await import('../platform/storage.js');
+  const {saveCapabilityValues}=await import('../platform/capabilities.js');
+  await saveCapabilityValues(orgId,{'platform.scheduling':true,'scheduling.appointment_slots':true});
+  await storage.upsertDocument(orgId,'branch',{id:'east',data:{name:'East'}});
+  await storage.upsertDocument(orgId,'branch',{id:'west',data:{name:'West'}});
+  await storage.upsertDocument(orgId,'users',{id:'east_rep',data:{name:'East rep',status:'active',branch_id:'east'}});
+  await storage.upsertDocument(orgId,'users',{id:'west_rep',data:{name:'West rep',status:'active',branch_id:'west'}});
+  await storage.upsertDocument(orgId,'organization_departments',{id:'catalog',data:{departments:[
+    {id:'east-sales',label:'East sales',branch_id:'east',subject_keys:['organization_user:east_rep']},
+    {id:'west-sales',label:'West sales',branch_id:'west',subject_keys:['organization_user:west_rep']}
+  ]}});
+  // A stored east catalog that still names the west department reads without it.
+  await storage.saveBranchModule(orgId,'east','scheduling',{data:{appointment_catalog:{departments:[],presets:[{id:'visit',label:'Visit',configuration:{title:'Visit',department_ids:['east-sales','west-sales'],requirements:[{department_id:'west-sales'},{department_id:'east-sales'}]}}]}}});
+  const planning=await import('../appointments/planning.js');
+  const ctx={orgId,userId,branchId:'east',role:'member',user:{branch_id:'east'},applicationAccess:{management:{enabled:true,permissions:{}}},permissions:{manage_company_settings:true,manage_schedule:true,view_schedule:true,view_projects:true}} as any;
+  const read=await planning.readAppointmentCatalog(ctx);
+  assert.deepEqual(read.catalog.departments.map((d:any)=>d.id),['east-sales']);
+  assert.deepEqual(read.catalog.presets[0]!.configuration.department_ids,['east-sales']);
+  assert.deepEqual(read.catalog.presets[0]!.configuration.requirements.map((r:any)=>r.department_id),['east-sales']);
+  assert.equal(read.resources.some((r:any)=>r.id==='west_rep'),false,'another branch\'s people are not offered');
+  assert.ok(read.resources.every((r:any)=>r.department_ids.every((id:string)=>id==='east-sales')));
+  // Saving a department or preset of another branch is a validation error.
+  const withWest={...read.catalog,presets:[{id:'bad',label:'Bad',configuration:planning.appointmentConfigurationSchema.parse({department_ids:['west-sales']})}]};
+  await assert.rejects(planning.saveAppointmentCatalog(ctx,{catalog:withWest,revision:read.revision}),(e:any)=>e.code==='department_other_branch');
+  await assert.rejects(planning.saveAppointmentCatalog(ctx,{catalog:{...read.catalog,departments:[...read.catalog.departments,{id:'west-sales',label:'West sales',branch_id:'west'}]},revision:read.revision}),(e:any)=>e.code==='department_other_branch');
+  const saved=await planning.saveAppointmentCatalog(ctx,{catalog:read.catalog,revision:read.revision});
+  assert.deepEqual(saved.catalog.departments.map((d:any)=>d.id),['east-sales']);
+  // Booking in the east branch cannot ask for the west department.
+  const westVisit=planning.appointmentConfigurationSchema.parse({department_ids:['west-sales'],requirements:[{department_id:'west-sales'}]});
+  await assert.rejects(planning.previewAppointment(ctx,{date:'2031-03-04',configuration:westVisit}),(e:any)=>e.code==='unknown_department');
 });

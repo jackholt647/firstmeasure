@@ -58,6 +58,7 @@ export const PERMISSION_CATEGORIES: readonly PermissionCategoryDefinition[] = [
     subcategories: [
       { id: "users", label: "Users", description: "Inviting, editing and suspending users." },
       { id: "roles", label: "Roles & permissions", description: "Who can do what." },
+      { id: "branches", label: "Branches", description: "Seeing and managing branches other than your own.", capability: "platform.multiple_branches" },
       { id: "training", label: "Training", description: "Courses and training assignments.", capability: "apps.training" }
     ]
   },

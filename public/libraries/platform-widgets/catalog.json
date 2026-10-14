@@ -2095,5 +2095,171 @@
       }
     },
     "sensitive": true
+  },
+  {
+    "id": "work.completion",
+    "version": "1",
+    "title": "Confirm work",
+    "description": "Confirm that work is done before it is paid: a work order's line items, and optionally the project's material lines and requirement rows. Set method to approve (one button, no checkboxes), select_all (checkboxes with Select all; the default) or each (every item checked on its own). Set list_id for one work order. Reports which items were confirmed; pass that to labor.list.finalize or project-closeout.close.",
+    "app": "materials",
+    "surfaces": [
+      "project",
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 260,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "select_all",
+            "each"
+          ]
+        },
+        "list_id": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "materials": {
+          "type": "boolean"
+        },
+        "requirements": {
+          "type": "boolean"
+        },
+        "prompt": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "labor-completion",
+        "export": "items"
+      }
+    ],
+    "actions": [
+      "labor.list.finalize"
+    ],
+    "selection": {
+      "description": "What the person confirmed as done: the method used, whether every line item is confirmed (complete), whether the approve button was pressed, and the ids of the confirmed line items, material lines and requirement rows. Screen metadata only; the finalize action checks it again.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "select_all",
+              "each"
+            ]
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "approved": {
+            "type": "boolean"
+          },
+          "confirmed_item_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "maxItems": 100
+          },
+          "confirmed_material_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "maxItems": 100
+          },
+          "confirmed_requirement_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "method",
+          "complete",
+          "confirmed_item_ids"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "id": "project.photos.review",
+    "version": "1",
+    "title": "Review photos",
+    "description": "The project's photos as a grid to look through before confirming work. Opening a photo marks it reviewed; the selection is the reviewed photos, recorded as the evidence that was looked at.",
+    "app": "photos",
+    "surfaces": [
+      "project",
+      "assistant",
+      "dashboard"
+    ],
+    "sizing": {
+      "mode": "content",
+      "minWidth": 220,
+      "minHeight": 0,
+      "aspectRatio": null
+    },
+    "configSchema": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": [
+      {
+        "provider": "media",
+        "export": "library"
+      }
+    ],
+    "actions": [],
+    "selection": {
+      "description": "Media ids of the project photos the person opened or marked as reviewed. Read each through media.metadata before relying on it.",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "media_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "media_ids"
+        ],
+        "additionalProperties": false
+      }
+    }
   }
 ]

@@ -12,6 +12,7 @@ import { assigneeKey, type AssigneeAdapter, type AssigneeKind, type AssigneeStor
  * | types | the roles the person resolves to today: a person's types are their roles | the row's `kind_id`, exactly one | base record `type_ids`, zero or more |
  * | tags | user document `assignment_tag_ids` | row `assignment_tags_json` | row `metadata.assignment_tag_ids` |
  * | members | none | `resource_group_memberships` | none |
+ * | branches | user document `branch_id` plus `branch_ids` | row `branch_id` plus `metadata.branch_ids` | `organization_connection_branches` (none means every branch) |
  *
  * | departments | the department catalog, for all three kinds (filled in by `base.ts`) | | |
  */
@@ -48,7 +49,7 @@ function userRecord(document: UserDocument, roleIds: string[]): AssigneeStoreRec
   // A person's types are their access roles. There is no separate user type.
   return {
     ref, key: assigneeKey(ref), kind: "organization_user", name: text(document.data.name) || text(document.data.email), status: status(document.data),
-    type_ids: roleIds, role_ids: roleIds, tag_ids: ids(document.data.assignment_tag_ids || document.data.tag_ids), branch_ids: [text(document.data.branch_id) || "default"],
+    type_ids: roleIds, role_ids: roleIds, tag_ids: ids(document.data.assignment_tag_ids || document.data.tag_ids), branch_ids: ids([text(document.data.branch_id) || "default", ...(Array.isArray(document.data.branch_ids) ? document.data.branch_ids : [])]),
     traits: { has_members: false, has_login: true, external_link: false, splits_pay: false },
     members: [], link: null, store_revision: Number(document.revision || 0), record: document.data
   };
@@ -58,7 +59,7 @@ function groupRecord(group: JsonObject): AssigneeStoreRecord {
   return {
     ref, key: assigneeKey(ref), kind: "resource_group", name: text(group.name), status: status(group),
     // A group has exactly one type: its kind.
-    type_ids: ids([group.kind_id]), role_ids: [], tag_ids: ids(group.assignment_tag_ids), branch_ids: [text(group.branch_id) || "default"],
+    type_ids: ids([group.kind_id]), role_ids: [], tag_ids: ids(group.assignment_tag_ids), branch_ids: ids(Array.isArray(group.branch_ids) && group.branch_ids.length ? group.branch_ids : [text(group.branch_id) || "default"]),
     traits: { has_members: true, has_login: false, external_link: false, splits_pay: true },
     members: (Array.isArray(group.members) ? group.members : []).map(obj).map((member) => ({ user_id: text(member.user_id), role: text(member.role) || "member", is_lead: member.is_lead === true })),
     link: null, store_revision: Number(group.revision || 0), record: group

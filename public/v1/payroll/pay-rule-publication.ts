@@ -12,9 +12,11 @@ import { selectionSupport } from "../platform/publication/select.js";
 import { contentHash } from "../platform/publication/validation.js";
 import { listDocuments } from "../platform/storage.js";
 import { CONDITION_OPERATORS } from "../work/conditions.js";
+import { PAYROLL_PERMISSION_KEYS } from "../workforce/access.js";
 import { getWorkforceDatabase } from "../workforce/storage.js";
 import {
-  declinePayCorrection, listPayReview, listPayUnits, listUnresolvedPay, payeesCoveredBy, previewPayDefaultSave, previewPayPlanSave, previewPayRuleSave, previewPaySetup, refreshOrganizationEarnings
+  declinePayCorrection, listPayReview, listPayUnits, listUnresolvedPay, payeesCoveredBy, previewPayDefaultSave, previewPayPlanSave, previewPayRuleSave, previewPaySetup, projectOrganizationEarnings, projectPayeeEarnings,
+  projectUserEarnings, refreshOrganizationEarnings
 } from "./pay-refresh.js";
 import {
   archivePayPlan, archivePayRule, archivePaySplitRule, distributionOn, effectiveRuleSlots, listPayDefaults, listPayPlans, listPayRules, listPaySetups, listPaySplitRules, normalizePaySetup, PAY_DEFAULT_SUBJECTS,
@@ -27,6 +29,15 @@ import { listPayrollSchedules } from "./storage.js";
 /** Pay rules decide what people are paid, so reading and changing them is payroll management. */
 const manage: AccessPolicy = { scopes: ["organization"], permissions: ["manage_payroll|manage_company_settings"], capabilities: ["apps.payroll"], authorize: (ctx) => {
   if (ctx.auth && !hasPermission(ctx.auth, "manage_payroll|manage_company_settings")) throw forbidden("payroll_access", "Payroll management access is required.");
+} };
+/**
+ * A payee's own projected earnings: signed in, the self-service earnings feature on, and the permission to see
+ * projections, which roles grant by default and a company can take away. Only ever the signed-in user's own.
+ */
+export const OWN_PROJECTED_EARNINGS_PERMISSION = PAYROLL_PERMISSION_KEYS.view_own_projected_earnings;
+const ownProjection: AccessPolicy = { scopes: ["organization"], applications: false, permissions: [OWN_PROJECTED_EARNINGS_PERMISSION], capabilities: ["payroll.self_service_earnings"], authorize: (ctx) => {
+  if (!ctx.auth) throw forbidden("payroll_subject_required", "Personal earnings require a current signed-in user.");
+  if (!hasPermission(ctx.auth, OWN_PROJECTED_EARNINGS_PERMISSION)) throw forbidden("payroll_projection_denied", "Projected earnings are not shown to this user.");
 } };
 const json = (schema: z.ZodTypeAny) => zodToJsonSchema(schema, { $refStrategy: "none" }) as Record<string, unknown>;
 const loose = { type: "object", additionalProperties: true };
@@ -109,7 +120,8 @@ async function selectableSources(ctx: PublicationContext) {
   return sources.sort((a, b) => Number(b.provider === "payroll") - Number(a.provider === "payroll") || String(a.id).localeCompare(String(b.id)));
 }
 
-export const PAY_RULE_EXPORTS = ["pay_rules", "pay_split_rules", "pay_plans", "pay_defaults", "pay_default", "pay_setups", "pay_setup", "pay_units", "pay_unresolved", "pay_review", "pay_rule_sources", "pay_rule_vocabulary"] as const;
+export const PAY_RULE_EXPORTS = ["pay_rules", "pay_split_rules", "pay_plans", "pay_defaults", "pay_default", "pay_setups", "pay_setup", "pay_units", "pay_unresolved", "pay_review", "pay_rule_sources", "pay_rule_vocabulary", "projected_earnings", "my_projected_earnings"] as const;
+const PROJECTION = "Projected earnings are what a payee's pay rules say they are expected to earn from work that is not done yet: each rule that pays per record, over the rows its primary input projects (labor commitments not yet released and assigned labor lists not yet committed), with the version and parameters in effect on the expected day. Each earning carries `projected: true`, `amount_cents`, `expected_on` (the day it is expected to be earned, blank when nothing is scheduled), `expected_from`, the job (`project_id`, `project_title`) and the rule; `projects` totals them by job; `unresolved` lists what a rule could not work out, with the reason, which is never counted as zero. Nothing projected is posted to the ledger or paid in a pay run.";
 export function payRuleExports(): Record<string, DataExport> {
   const revision = (value: unknown) => contentHash(JSON.parse(JSON.stringify(value)));
   const today = () => new Date().toISOString().slice(0, 10);
@@ -171,6 +183,14 @@ export function payRuleExports(): Record<string, DataExport> {
       read: async (ctx) => { const value = await listPayReview(ctx.organizationId); return { value, revision: revision(value) }; } },
     pay_rule_sources: { description: "The published collections a pay rule or a split rule can select from, for a picker: provider, export, what it holds, the units of its fields, the fields a row is known to have, the options it takes and whether it needs any (`needs_args`). Only collections the reader may read are listed.", schema: list, schemaVersion: "1", access: manage,
       read: async (ctx) => { const value = await selectableSources(ctx); return { value, revision: revision(value) }; } },
+    projected_earnings: { description: `${PROJECTION} Name a payee in target.id as type:id for their projection, or leave it out for everyone whose pay comes from rules, with totals only (at most 200 payees; \`truncated\` says when there are more).`, schema: loose, schemaVersion: "1", access: manage,
+      read: async (ctx, ref) => {
+        const value = ref.target.id ? await projectPayeeEarnings(ctx.organizationId, payeeOf(ref.target)) : await projectOrganizationEarnings(ctx.organizationId);
+        return { value, revision: revision(value) };
+      } },
+    my_projected_earnings: { description: `The signed-in user's own projected earnings: their own rules, and their share of a group's when the group's pay is split among its members. ${PROJECTION}`, schema: loose, schemaVersion: "1", access: ownProjection,
+      read: async (ctx) => { const value = await projectUserEarnings(ctx.organizationId, ctx.auth!.userId); return { value, revision: revision(value), provenance: { domain: "payroll", payeeUserId: ctx.auth!.userId } }; },
+      authorizeSnapshot: (ctx, _ref, result) => { if ((result.provenance as Json | undefined)?.payeeUserId !== ctx.auth?.userId) throw forbidden("payroll_snapshot_subject", "These projected earnings belong to another user."); } },
     pay_rule_vocabulary: { description: "The fixed words a pay rule editor offers, so no screen keeps its own copy: `operators` (the shared condition operators: id, label, the kind of value each takes and what it means), `parameter_types`, `earning_kinds`, `schedule_earning_kinds` and `default_subjects`.", schema: loose, schemaVersion: "1", access: manage,
       read: async () => {
         const value = { operators: CONDITION_OPERATORS, parameter_types: PAY_PARAMETER_TYPES, earning_kinds: PAY_SCHEDULE_EARNING_KINDS.filter((kind) => kind !== "*" && kind !== "clawback"), schedule_earning_kinds: PAY_SCHEDULE_EARNING_KINDS, default_subjects: PAY_DEFAULT_SUBJECTS };
@@ -215,6 +235,14 @@ export function registerPayRuleActions() {
     (ctx, _target, value) => resolvePaySchedule(ctx.organizationId, value.payee, value.earning_kind || "*", value.date));
   add("payroll.earnings.refresh", "Work out what payees have earned from their pay rules and post any difference to the ledger. Leave payees out to refresh everyone with a setup.", z.object({ payees: z.array(payeeArg).max(500).optional() }).strict(), "write",
     (ctx, _target, value) => refreshOrganizationEarnings(ctx.organizationId, { payees: value.payees }));
+  add("payroll.projectedEarnings.read", `Work out one payee's projected earnings (name them under payee), or leave payee out for projected totals for everyone whose pay comes from rules. ${PROJECTION}`, z.object({ payee: payeeArg.optional() }).strict(), "read",
+    (ctx, _target, value) => value.payee ? projectPayeeEarnings(ctx.organizationId, value.payee) : projectOrganizationEarnings(ctx.organizationId));
+  registerAction({
+    id: "payroll.projectedEarnings.me", version: "1", implementation: contentHash({ artifact: backendImplementationDigest(), id: "payroll.projectedEarnings.me", source: projectUserEarnings.toString() }), domain: "payroll",
+    description: `The signed-in user's own projected earnings. ${PROJECTION}`, inputSchema: json(z.object({}).strict()), validateInput: (value) => z.object({}).strict().parse(value ?? {}), outputSchema: loose,
+    effect: "read", executionKinds: ["api", "agent", "module", "work"], idempotency: "none", policy: ownProjection,
+    execute: async (ctx) => JSON.parse(JSON.stringify(await projectUserEarnings(ctx.organizationId, ctx.auth!.userId)))
+  });
   add("payroll.correction.decline", "Decline a correction that was held for review. Name the held ledger entry in target.id. To accept it instead, accrue it.", z.object({ note: z.string().max(500).optional() }).strict(), "write",
     (ctx, target, value) => { if (!target.id) throw badRequest("payroll_target_required", "Choose the held correction."); return declinePayCorrection(ctx.organizationId, target.id, actor(ctx), value.note); });
 }

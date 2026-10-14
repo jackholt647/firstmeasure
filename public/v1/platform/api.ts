@@ -2708,6 +2708,7 @@ app.get("/auth/google/config", async () => ({
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true, permission: "manage_company_users|manage_users|manage_sales_users" });
     const documentId = getParam(request.params, "documentId");
     const userDoc = await readDocument(orgId, "users", documentId);
+    await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "write", documentId);
     const invite = await sendPlatformOrgUserInvite(orgId, userDoc, request, String(ctx.identity.email || ""));
     return { ...invite, ok: invite.ok, success: invite.ok };
   });
@@ -2902,7 +2903,7 @@ app.get("/auth/google/config", async () => ({
     assertCanonicalPlatformCollection(collection);
     const ctx=await requirePlatformAuth(request, { orgId, permission: collectionReadPermission(collection),allowScopedPermission:collection==='calendar_events' });
     const documents=await listDocuments(orgId,collection);
-    return {ok:true,documents:collection==='calendar_events'?documents.filter(d=>canViewAppointmentDepartment(ctx,d.data)):collection==='users'?documents.map(userDocumentView):documents};
+    return {ok:true,documents:collection==='calendar_events'?documents.filter(d=>canViewAppointmentDepartment(ctx,d.data)):collection==='users'?(await import('../workforce/branch-guards.js')).scopeUsers(ctx,documents,request.query).map(userDocumentView):documents};
   });
 
   app.post("/organizations/:orgId/:collection", async (request, reply) => {
@@ -2915,6 +2916,7 @@ app.get("/auth/google/config", async () => ({
       ? await prepareCalendarEventWrite(orgId, cleanText(parsedBody.id || asObject(parsedBody.data).id), parsedBody, true)
       : parsedBody;
     if (collection === "branch") await assertBranchReportPreferences(orgId, String(asObject(request.params).documentId || body.id || "default"), body);
+    if (collection === "users") await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "create", "", body);
     await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
       (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
     );
@@ -2971,6 +2973,7 @@ app.get("/auth/google/config", async () => ({
     const ctx=await requirePlatformAuth(request,{orgId,permission:collectionReadPermission(collection),allowScopedPermission:collection==='calendar_events'});
     const document=await readDocument(orgId,collection,getParam(request.params,'documentId'));
     if(collection==='calendar_events'&&!canViewAppointmentDepartment(ctx,document.data))throw forbidden('department_permission_denied','This appointment is unavailable.');
+    if(collection==='users')await (await import('../workforce/branch-guards.js')).guardUserCollection(ctx,'read',document.id);
     return {ok:true,document:collection === "users" ? userDocumentView(document) : document};
   });
 
@@ -2991,6 +2994,7 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId) {
       throw forbidden("self_user_replacement_forbidden", "You cannot replace your own organization user record.");
     }
+    if (collection === "users") await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "write", documentId, body);
     await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
       (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
     );
@@ -3066,6 +3070,7 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId && platformOrgUserPermissionMutation(body)) {
       throw forbidden("self_permission_change_forbidden", "You cannot change your own organization permissions.");
     }
+    if (collection === "users" && !ownPreferencePatch) await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "write", documentId, body);
     await (await import("../custom_fields/records.js")).authorizeRecordFieldMutation(
       (await import("./publication/context.js")).userPublicationContext(ctx), collection, cleanText(getParam(request.params, "documentId") || body.id || asObject(body.data).id), body
     );
@@ -3118,6 +3123,7 @@ app.get("/auth/google/config", async () => ({
     if (collection === "users" && documentId === ctx.userId) {
       throw forbidden("self_user_delete_forbidden", "You cannot delete your own organization user record.");
     }
+    if (collection === "users") await (await import("../workforce/branch-guards.js")).guardUserCollection(ctx, "write", documentId);
     const deleted = await deleteDocument(
       orgId,
       collection,
