@@ -98,12 +98,24 @@
   // Embedded stylesheet — visual layer for FMDocRenderer + the built-in
   // FMDocWidgets set (visual language follows customer_portal.css). Injected
   // once into document.head as <style id="fmdoc-renderer-styles"> on first
-  // render. @font-face declarations use local() sources only: when a family
-  // is not installed the stack falls through to the system set.
+  // render. Montserrat (the default theme font) has one face per weight, from
+  // the installed font or the copy every FirstMate page serves at /fonts/, so
+  // headings are drawn at their real weight on every surface. A single face
+  // declared for 100-900 would make the browser draw every weight as that one
+  // face. Other families use local() sources: when one is not installed the
+  // stack falls through to the system set.
   // ---------------------------------------------------------------------------
 
   const RENDERER_CSS = `
-@font-face { font-family: "Montserrat"; src: local("Montserrat"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat Thin"), local("Montserrat-Thin"), url("/fonts/Montserrat-Thin.ttf") format("truetype"); font-weight: 100; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat ExtraLight"), local("Montserrat-ExtraLight"), url("/fonts/Montserrat-ExtraLight.ttf") format("truetype"); font-weight: 200; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat Light"), local("Montserrat-Light"), url("/fonts/Montserrat-Light.ttf") format("truetype"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat Regular"), local("Montserrat-Regular"), url("/fonts/Montserrat-Regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat Medium"), local("Montserrat-Medium"), url("/fonts/Montserrat-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat SemiBold"), local("Montserrat-SemiBold"), url("/fonts/Montserrat-SemiBold.ttf") format("truetype"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat Bold"), local("Montserrat-Bold"), url("/fonts/Montserrat-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat ExtraBold"), local("Montserrat-ExtraBold"), url("/fonts/Montserrat-ExtraBold.ttf") format("truetype"); font-weight: 800; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: local("Montserrat Black"), local("Montserrat-Black"), url("/fonts/Montserrat-Black.ttf") format("truetype"); font-weight: 900; font-display: swap; }
 @font-face { font-family: "Inter"; src: local("Inter"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Roboto"; src: local("Roboto"); font-weight: 100 900; font-display: swap; }
 @font-face { font-family: "Open Sans"; src: local("Open Sans"), local("OpenSans"); font-weight: 300 800; font-display: swap; }

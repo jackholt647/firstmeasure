@@ -3627,17 +3627,54 @@
 
     // Read-only rendering for signed/completed/declined/void/expired docs —
     // exactly what the customer sees, straight from the resolver.
+    // A locked document is shown as the customer has it: the snapshot they
+    // were sent, with their signature and payment, rendered from exactly the
+    // inputs the customer portal uses (snapshotRenderOptions). Only when no
+    // snapshot exists does it fall back to the live resolution.
     function mountReadOnlyCanvas(canvas){
       try { state.readonlyViewer?.destroy?.(); } catch (e) {}
-      state.readonlyViewer = mountDocViewer(canvas, {
-        doc: state.doc,
-        renderOptions: {
-          document: state.resolved.resolved_definition,
-          theme: state.resolved.theme,
-          themeContext: { branding: objectValue(window.__APP?.orgBranding || window.Portal?.cfg?.branding), overrides: { ...objectValue(state.resolved?.theme_vars), ...objectValue(state.doc?.theme_overrides) } },
-          widgetData: state.resolved.widget_data
-        }
+      const doc = state.doc || {};
+      const live = {
+        document: state.resolved.resolved_definition,
+        theme: state.resolved.theme,
+        themeContext: { overrides: objectValue(state.resolved?.theme_vars) },
+        widgetData: state.resolved.widget_data,
+        widgetContext: { outputs: objectValue(doc.outputs) }
+      };
+      canvas.innerHTML = `<div class="fmdx-state" style="margin:20px"><div class="fmdx-spinner"></div><strong>${(globalThis.PlatformLanguage?.htmlText("documents","m_b86508131600f7","Opening document") ?? "Opening document")}</strong></div>`;
+      frozenRenderOptions(doc).then((frozen) => {
+        if (!canvas.isConnected || state.doc !== doc) return;
+        state.readonlyViewer = mountDocViewer(canvas, { doc, renderOptions: frozen || live });
       });
+    }
+
+    /** The current snapshot of a sent document, or null. */
+    async function currentSnapshot(doc){
+      if (!doc?.id || !api()?.documents?.snapshots) return null;
+      try {
+        const list = arrayValue(objectValue(await api().documents.snapshots(orgId(), doc.id)).snapshots);
+        const currentId = cleanText(objectValue(doc.delivery).current_snapshot_id);
+        const snapshot = objectValue(list.find((entry) => cleanText(entry.id) === currentId) || list[list.length - 1]);
+        return snapshot.resolved_definition ? snapshot : null;
+      } catch (error) {
+        return null;
+      }
+    }
+    async function frozenRenderOptions(doc){
+      const snapshot = await currentSnapshot(doc);
+      return snapshot ? snapshotRenderOptions(snapshot) : null;
+    }
+    /** Render inputs for a snapshot: the same ones the customer portal uses,
+     *  so both show the identical document (theme_vars are fully resolved,
+     *  branding and overrides included, when the snapshot is made). */
+    function snapshotRenderOptions(snapshot){
+      return {
+        document: snapshot.resolved_definition,
+        theme: snapshot.theme || null,
+        themeContext: { overrides: objectValue(snapshot.theme_vars) },
+        widgetData: objectValue(snapshot.widget_data),
+        widgetContext: { outputs: objectValue(snapshot.outputs) }
+      };
     }
 
     /**
@@ -4447,6 +4484,12 @@
       state.previewCleanup = close;
 
       let resolved = objectValue(options.resolved);
+      const frozen = !resolved.resolved_definition && isReadOnlyStatus(doc.status) ? await frozenRenderOptions(doc) : null;
+      if (frozen) {
+        if (!overlay.isConnected) return;
+        viewer = mountDocViewer(overlay, { doc, onClose: close, initialZoom: 'page', renderOptions: frozen });
+        return;
+      }
       if (!resolved.resolved_definition) {
         try {
           resolved = objectValue(await api().documents.resolve(orgId(), doc.id));

@@ -46,6 +46,26 @@ type LibrarySources = {
 
 let cachedSources: LibrarySources | null = null;
 
+// The harness page has no origin, so the renderer's /fonts/ URLs cannot load
+// there. Montserrat (the default theme font) is inlined from public/fonts,
+// one face per weight, so a PDF draws the same weights as the portal does.
+const EMBEDDED_MONTSERRAT: Array<[number, string]> = [[300, "Light"], [400, "Regular"], [500, "Medium"], [600, "SemiBold"], [700, "Bold"], [800, "ExtraBold"], [900, "Black"]];
+let cachedFontFaces: string | null = null;
+async function embeddedFontFaces() {
+  if (cachedFontFaces !== null) return cachedFontFaces;
+  const faces: string[] = [];
+  for (const [weight, name] of EMBEDDED_MONTSERRAT) {
+    for (const root of librariesRootCandidates()) {
+      const bytes = await readFile(path.join(root, "..", "fonts", `Montserrat-${name}.ttf`)).catch(() => null);
+      if (!bytes) continue;
+      faces.push(`@font-face { font-family: "Montserrat"; src: url(data:font/ttf;base64,${bytes.toString("base64")}) format("truetype"); font-weight: ${weight}; font-display: block; }`);
+      break;
+    }
+  }
+  cachedFontFaces = faces.join("\n");
+  return cachedFontFaces;
+}
+
 async function readLibraryFile(relativePath: string) {
   let lastError: unknown = null;
   for (const root of librariesRootCandidates()) {
@@ -140,7 +160,8 @@ export async function buildRenderHarnessHtml(input: {
       themeContext: payload.themeContext,
       mode: "static",
       widgetData: payload.widgetData,
-      scope: payload.scope
+      // The renderer reads what was signed and paid from widgetContext.
+      widgetContext: { outputs: (payload.scope || {}).outputs || {}, params: (payload.scope || {}).params || {} }
     });
     if (container.__fmdocReady === true) done();
   } catch (error) {
@@ -157,6 +178,7 @@ export async function buildRenderHarnessHtml(input: {
 <title>${title}</title>
 <style>
 ${sources.docRendererCss}
+${await embeddedFontFaces()}
 @page { size: ${paper.w_pt}pt ${paper.h_pt}pt; margin: 0; }
 html, body { margin: 0; padding: 0; background: #fff; }
 ${themeCss}

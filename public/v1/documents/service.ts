@@ -2099,7 +2099,11 @@ async function generateDocumentPdfLocked(orgId: string, documentId: string, inpu
       resolved_definition: resolvedDefinition,
       language_snapshot: snapshot.language_snapshot as LanguageSnapshot | undefined,
       theme: asObject(snapshot.theme),
-      themeContext: { branding: await organizationBranding(orgId, cleanText(document.branch_id || "default")), overrides: asObject(document.theme_overrides) },
+      // The snapshot's theme_vars are resolved (branding and overrides) when it
+      // is made; the portal and the internal locked view render from them too.
+      themeContext: Object.keys(asObject(snapshot.theme_vars)).length
+        ? { overrides: asObject(snapshot.theme_vars) }
+        : { branding: await organizationBranding(orgId, cleanText(document.branch_id || "default")), overrides: asObject(document.theme_overrides) },
       widgetData: asObject(snapshot.widget_data) as Record<string, unknown>,
       scope: { params: asObject(snapshot.params), outputs: asObject(snapshot.outputs) },
       title
