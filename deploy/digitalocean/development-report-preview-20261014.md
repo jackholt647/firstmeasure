@@ -68,3 +68,14 @@ anything was deployed. Not verified in a signed-in browser session.
 - The hosts were on three different releases while another session rolled out. After they
   settled on `b4acdee7`, the release was staged and activated on legacy, web and pool one at
   a time. `verify` passed on all three.
+
+## Follow-up: framed elevation views (commit `8aa5a0b2`)
+
+The sample report has no elevations page. A real report places the elevation image the measurer
+uploads, one picture of the four sides. The preview's stand-in now frames each 3D view of the
+sample roof in a bordered card with its grey label inside, instead of four bare drawings.
+
+The script loads as `?v=20261014-report-preview-v3`. The release was activated on legacy, web
+and pool one at a time, on top of `b314cc8d`. Web's first attempt stopped in the pre-switch
+health check (a timeout while another session was active) before anything changed; the retry
+succeeded. `verify` passed on all three.
