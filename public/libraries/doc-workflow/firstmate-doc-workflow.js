@@ -670,7 +670,24 @@
       }));
     };
     render();
-    return { validate: () => null };
+    return {
+       validate: () => null,
+       // Called when the person moves on: keeping what was recommended is an
+       // answer too, so it is recorded the same as a click would be.
+       commit: () => {
+         if (ctx.readonly || !['customer', 'field'].includes(ctx.audience)) return;
+         const scope = ctx.scope();
+         if (Object.keys(obj(getPath(scope, 'outputs.selections'))).length) return;
+         const { groups, optionals } = collectScopeChoiceGroups(arr(getPath(scope, 'params.scope_items')));
+         const picks = {};
+         for (const [gid, items] of groups) {
+           const chosen = arr(items).find((item) => obj(item.selection).selected === true) || arr(items)[0];
+           if (chosen) picks[gid] = cleanText(chosen.id);
+         }
+         for (const item of arr(optionals)) picks[cleanText(item.id)] = obj(item.selection).selected === true;
+         if (Object.keys(picks).length) ctx.writePath('outputs.selections', picks);
+       }
+     };
   }
 
   // ------------------------------------------------------------ measurements
@@ -3006,6 +3023,7 @@
     }
 
     function goNext(){
+      st.itemHandles.forEach((entry) => { try { entry.handle?.commit?.(); } catch (e) { /* the item keeps its own value */ } });
       if (!validateCurrentStep()) return;
       let steps = visibleSteps();
       const index = currentIndex(steps);

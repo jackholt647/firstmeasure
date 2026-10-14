@@ -720,7 +720,7 @@
     if (record === 'pending' || record === undefined) return documentWorkflowReady() ? 'workflow' : 'document';
     if (!record) return 'document';
     const override = cleanText(state.documentWorkflowViews[cleanText(token)]);
-    if (override === 'document') return 'document';
+    if (override === 'document' || override === 'workflow') return override;
     // Signing and paying happen on the document, so with no question left to
     // answer there is nothing for the step surface to show.
     return documentWorkflowActionable(token, doc) ? 'workflow' : 'document';
@@ -999,15 +999,19 @@
     const snapshot = cpwfObject(cpwfObject(documentSnapshotCache[key]).snapshot);
     host.innerHTML = '';
     try {
+      const portalDoc = documentList(activeProjectPayload()).find((entry) => cleanText(entry.public_token) === key) || {};
+      const askedStep = cleanText(state.pendingDocumentTaskStep);
+      state.pendingDocumentTaskStep = '';
       activeInlineDocumentWorkflow = root.FMDocWorkflow.mount(host, {
         workflow: record.definition,
         audience: 'customer',
         theme: 'portal',
+        readonly: ['signed', 'completed', 'declined', 'expired', 'void', 'canceled'].includes(cleanText(portalDoc.status)),
         contract: cpwfObject(record.definition.contract),
         state: {
           params: cpwfObject(record.params),
           outputs: { ...cpwfObject(snapshot.outputs), ...cpwfObject(record.outputs) },
-          current_step: cleanText(cpwfObject(record.state).current_step),
+          current_step: askedStep || cleanText(cpwfObject(record.state).current_step),
           completed_steps: cpwfArray(cpwfObject(record.state).completed_steps)
         },
         onWrite: (path, value) => {
@@ -3097,6 +3101,16 @@
       phone ? `<div><span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_ed04c65845180f","Phone") ?? "Phone")}</span><strong>${escapeHtml(phone)}</strong></div>` : ''
     ].filter(Boolean).join('');
     const tabList = tabs();
+    // A link that names a document (the email the customer was sent) opens on it, once.
+    if (state.requestedDocumentId && !state.requestedDocumentOpened) {
+      const linkedDoc = documentList(activeProjectPayload()).find((doc) => cleanText(doc.id) === cleanText(state.requestedDocumentId));
+      const linkedTab = linkedDoc ? documentTabId(linkedDoc) : '';
+      if (linkedTab) {
+        state.activeTab = linkedTab;
+        state.activeDocumentToken = cleanText(linkedDoc.public_token);
+        state.requestedDocumentOpened = true;
+      }
+    }
     // Fall back to the first served tab rather than a hardcoded 'summary': when
     // a Home page backs the first tab its id is 'home', and 'summary' no longer
     // exists in the list.
@@ -3268,8 +3282,13 @@
     mount.querySelectorAll('[data-document-workflow]').forEach((btn) => {
       btn.addEventListener('click', () => openDocumentWorkflowOverlay(btn.dataset.documentWorkflow));
     });
-    mount.querySelectorAll('[data-document-task-phase]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+    // The to-do list is redrawn after every answer, so its buttons are handled
+    // from the page, not bound one by one (a redrawn button had no handler).
+    if (!mount.__cpTaskClicks) {
+      mount.__cpTaskClicks = true;
+      mount.addEventListener('click', (event) => {
+        const btn = event.target.closest?.('[data-document-task-phase]');
+        if (!btn || !mount.contains(btn)) return;
         const token = cleanText(activePortalDocument()?.public_token);
         if (!token) return;
         const phase = cleanText(btn.dataset.documentTaskPhase) || 'document';
@@ -3283,7 +3302,7 @@
         state.pendingDocumentTaskFocus = phase === 'document' ? cleanText(btn.dataset.documentTaskFocus) : '';
         render();
       });
-    });
+    }
     mount.querySelectorAll('[data-document-show-workflow]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const token = cleanText(btn.dataset.documentShowWorkflow);
