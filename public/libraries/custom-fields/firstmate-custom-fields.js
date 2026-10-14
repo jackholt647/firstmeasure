@@ -686,10 +686,121 @@
       #rProjectCustomFields .r-group>label{display:block;font-size:10px;font-weight:1000;color:#667085;letter-spacing:.04em;text-transform:uppercase}
       #rProjectCustomFields .r-inp{min-height:30px;padding:5px 7px;font-size:12px}
       #rProjectCustomFields textarea.r-inp{min-height:58px;resize:vertical}
+      .fm-cf-media{display:grid;gap:5px;min-width:0}.fm-cf-media-tiles{display:flex;flex-wrap:wrap;gap:8px}.fm-cf-media-tile{position:relative;width:132px;max-width:100%}.fm-cf-media-face{box-sizing:border-box;width:100%;aspect-ratio:4/3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;border:1px solid #d0d5dd;border-radius:8px;background:#f8fafc;color:#475467;overflow:hidden;font:inherit;font-size:11px;font-weight:800;text-align:center;cursor:pointer;position:relative}button.fm-cf-media-face:hover{border-color:rgba(var(--primary-rgb,217,48,37),.4)}.fm-cf-media-face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.fm-cf-media-face img+span{position:absolute;left:0;right:0;bottom:0;padding:14px 7px 5px;background:linear-gradient(transparent,rgba(16,24,40,.72));color:#fff;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fm-cf-media-face>i{font-size:18px;color:#98a2b3}.fm-cf-media-face>span{max-width:100%;padding:0 6px;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fm-cf-media-face small{font-size:10px;font-weight:800;color:var(--primary-readable,var(--primary,#d93025))}.fm-cf-media-tile.is-empty .fm-cf-media-face{border-style:dashed}.fm-cf-media-tile.is-missing .fm-cf-media-face{border-color:#fda29b;color:#b42318}.fm-cf-media-remove{position:absolute;top:5px;right:5px;width:22px;height:22px;display:grid;place-items:center;padding:0;border:0;border-radius:999px;background:rgba(16,24,40,.62);color:#fff;font-size:11px;cursor:pointer}.fm-cf-media-remove:hover{background:rgba(16,24,40,.85)}
       .fm-cf-group{border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.03)}.fm-cf-group>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:38px;box-sizing:border-box;padding:9px 11px;color:#344054;font-size:11px;font-weight:1000;outline:none;transition:background .15s ease,box-shadow .15s ease}.fm-cf-group>summary:hover{background:#f8fafc}.fm-cf-group>summary:focus-visible{box-shadow:inset 0 0 0 2px rgba(var(--primary-rgb,217,48,37),.28)}.fm-cf-group>summary::-webkit-details-marker{display:none}.fm-cf-group[open]>summary{border-bottom:1px solid rgba(15,23,42,.07);background:#fbfcfd}.fm-cf-group-title{min-width:0;overflow:hidden;text-overflow:ellipsis}.fm-cf-group-chevron{margin-left:auto;color:#7b8797;font-size:9px!important;transition:transform .16s ease}.fm-cf-group[open]>summary .fm-cf-group-chevron{transform:rotate(180deg)}.fm-cf-group-fields{padding:12px;display:grid;gap:12px;background:#fff}.fm-cf-group-fields>.fm-cf-field,.fm-cf-group-fields>.r-group{gap:6px!important}.fm-cf-label{display:flex!important;align-items:center;gap:6px;margin:0!important}.fm-cf-help-tip{display:inline-grid;place-items:center;width:16px;height:16px;flex:0 0 auto;border-radius:999px;color:#7b8797;font-size:9px;cursor:help;outline:none}.fm-cf-help-tip:hover,.fm-cf-help-tip:focus-visible{background:#eef2f6;color:#344054}.fm-cf-source-tip{margin-left:1px}.fm-cf-select-wrap{position:relative;display:block}.fm-cf-select-wrap>select{appearance:none;padding-right:32px!important;cursor:pointer}.fm-cf-select-chevron{position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:#667085;font-size:9px}.fm-cf-input[multiple]{min-height:88px;padding:4px}.fm-cf-input[multiple] option{padding:5px 6px;border-radius:5px}
       @media(max-width:700px){.fm-cf-grid{grid-template-columns:1fr}.fm-cf-field.wide,.fm-cf-field[data-layout="full"]{grid-column:auto}.fm-cf-kv-row{grid-template-columns:1fr 1fr 30px}}
     `;
     document.head.appendChild(style);
+  }
+
+  // ---- Media fields: thumbnail tiles; a click opens the project media picker (Portal.PhotoFeed) ----
+  // The value rides in a hidden input; the tiles are painted from it and from the choices kept on the wrapper,
+  // so a value set from elsewhere (the Photos app's Set cover) repaints with setMediaValue.
+  const mediaRefs = (value) => (Array.isArray(value) ? value : [value]).filter((item) => cleanText(objectValue(item).media_id));
+  const mediaChoices = (wrap) => { try { return JSON.parse(wrap.dataset.choices || '[]'); } catch (_) { return []; } };
+  function readMediaInput(input){
+    try { return mediaRefs(input.value ? JSON.parse(input.value) : null); } catch (_) { return []; }
+  }
+  function mediaThumbUrl(orgId, mediaId){
+    try { return cleanText(root.PlatformAPI?.media?.thumbnailUrl?.(orgId, mediaId, 320)); } catch (_) { return ''; }
+  }
+  function mediaTilesHtml(wrap, refs, choices){
+    const type = wrap.type, readOnly = wrap.readOnly, cover = wrap.cover;
+    const icon = type === 'video' ? 'fa-video' : type === 'photo' ? 'fa-image' : 'fa-photo-film';
+    const tiles = refs.map((reference) => {
+      const mediaId = cleanText(reference.media_id), found = choices.find((item) => item.media_id === mediaId);
+      const video = type === 'video' || cleanText(found?.content_type).startsWith('video/');
+      const thumb = found && !video ? mediaThumbUrl(wrap.orgId, mediaId) : '';
+      const label = found ? (found.label || 'Media') : 'Unavailable';
+      const face = `${thumb ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy">` : `<i class="fas ${found ? icon : 'fa-triangle-exclamation'}" aria-hidden="true"></i>`}<span>${escapeHtml(label)}</span>`;
+      return `<div class="fm-cf-media-tile${found ? '' : ' is-missing'}">${readOnly ? `<span class="fm-cf-media-face">${face}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open aria-label="${escapeHtml(`Change ${label}`)}">${face}</button><button type="button" class="fm-cf-media-remove" data-fm-cf-media-remove="${escapeHtml(mediaId)}" aria-label="${escapeHtml(`Remove ${label}`)}"><i class="fas fa-xmark" aria-hidden="true"></i></button>`}</div>`;
+    });
+    if (!refs.length || (wrap.many && !readOnly)) {
+      const empty = cover ? '<i class="fas fa-satellite" aria-hidden="true"></i><span>Satellite image (default)</span>' : `<i class="fas ${refs.length ? 'fa-plus' : icon}" aria-hidden="true"></i><span>${readOnly ? 'None' : type === 'photo' ? 'Choose a photo' : type === 'video' ? 'Choose a video' : 'Choose media'}</span>`;
+      tiles.push(`<div class="fm-cf-media-tile is-empty">${readOnly ? `<span class="fm-cf-media-face">${empty}</span>` : `<button type="button" class="fm-cf-media-face" data-fm-cf-media-open>${empty}${cover ? '<small>Choose a photo</small>' : ''}</button>`}</div>`);
+    }
+    return tiles.join('');
+  }
+  function mediaWrapState(node){
+    return { type:node.dataset.type, many:node.dataset.many === '1', cover:node.dataset.cover === '1', readOnly:node.dataset.readOnly === '1', orgId:node.dataset.org || currentOrgId() };
+  }
+  function mediaFieldHtml(def, value, attrs, options = {}){
+    const many = def.cardinality === 'many', refs = mediaRefs(value);
+    const stored = many ? (refs.length ? refs : '') : (refs[0] || '');
+    const choices = (def.reference_choices || []).map((item) => ({ media_id:cleanText(item.reference?.media_id), label:cleanText(item.label), content_type:cleanText(item.content_type) })).filter((item) => item.media_id);
+    const state = { type:def.type, many, cover:def.key === 'cover_photo' && def.entity === 'project', readOnly:!!def.read_only, orgId:cleanText(options.orgId) || currentOrgId() };
+    return `<div class="fm-cf-media" data-fm-cf-media data-type="${escapeHtml(def.type)}" data-many="${many ? '1' : '0'}" data-cover="${state.cover ? '1' : '0'}" data-read-only="${state.readOnly ? '1' : '0'}" data-org="${escapeHtml(state.orgId)}" data-label="${escapeHtml(def.label)}" data-choices="${escapeHtml(JSON.stringify(choices))}"><input type="hidden" ${attrs} data-many="${many ? '1' : '0'}" value="${escapeHtml(stored ? JSON.stringify(stored) : '')}"><div class="fm-cf-media-tiles">${mediaTilesHtml(state, refs, choices)}</div>${def.reference_error ? `<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>` : ''}</div>`;
+  }
+  function paintMediaField(wrap){
+    const input = wrap.querySelector(':scope > input[data-fm-cf-input]'), tiles = wrap.querySelector(':scope > .fm-cf-media-tiles');
+    if (input && tiles) tiles.innerHTML = mediaTilesHtml(mediaWrapState(wrap), readMediaInput(input), mediaChoices(wrap));
+  }
+  /** Sets a media field's value (one reference, a list, or null) and repaints its tiles. `choice` names media the field has not listed yet. */
+  function setMediaValue(input, value, choice = null){
+    const wrap = input?.closest?.('[data-fm-cf-media]');
+    if (!wrap) return false;
+    const added = (Array.isArray(choice) ? choice : [choice]).filter((item) => cleanText(item?.media_id));
+    if (added.length) {
+      const choices = mediaChoices(wrap);
+      added.forEach((item) => { if (!choices.some((known) => known.media_id === cleanText(item.media_id))) choices.push({ media_id:cleanText(item.media_id), label:cleanText(item.label || item.file_name) || 'Media', content_type:cleanText(item.content_type || item.mime_type) }); });
+      wrap.dataset.choices = JSON.stringify(choices);
+    }
+    const refs = mediaRefs(value);
+    input.value = input.dataset.many === '1' ? (refs.length ? JSON.stringify(refs) : '') : (refs[0] ? JSON.stringify(refs[0]) : '');
+    paintMediaField(wrap);
+    return true;
+  }
+  function mediaHostOptions(wrap){
+    for (let node = wrap; node; node = node.parentElement) if (node.__fmCfMediaOptions) return node.__fmCfMediaOptions;
+    return {};
+  }
+  function openMediaPicker(wrap){
+    const input = wrap.querySelector(':scope > input[data-fm-cf-input]');
+    const feed = root.Portal?.PhotoFeed;
+    if (!input || input.disabled || !feed?.openProjectMediaPicker) return null;
+    const state = mediaWrapState(wrap), host = mediaHostOptions(wrap), choices = mediaChoices(wrap);
+    const label = cleanText(wrap.dataset.label) || 'Media';
+    const commit = (picked) => {
+      setMediaValue(input, state.many ? picked.map((item) => ({ media_id:item.media_id })) : (picked[0] ? { media_id:picked[0].media_id } : null), picked);
+      input.dispatchEvent(new Event('change', { bubbles:true }));
+    };
+    return feed.openProjectMediaPicker({
+      id:'custom-field-media-picker',
+      projectId:cleanText(host.projectId),
+      title:label,
+      subtitle:state.cover ? 'Choose the photo this project shows. Clear it to use the satellite image.' : 'Choose from this project’s media.',
+      photos:choices.map((item) => ({ id:item.media_id, media_id:item.media_id, label:item.label, file_name:item.label, content_type:item.content_type, mime_type:item.content_type })),
+      selectedIds:readMediaInput(input).map((item) => cleanText(item.media_id)),
+      multiple:state.many,
+      imageOnly:state.type === 'photo',
+      accept:state.type === 'photo' ? 'image/*' : state.type === 'video' ? 'video/*' : 'image/*,video/*',
+      ...(typeof host.uploadMedia === 'function' ? { onUpload:async (files) => {
+        const added = (await host.uploadMedia(files)) || [];
+        return { photos:added, selectedIds:added.map((photo) => cleanText(photo?.media_id)).filter(Boolean) };
+      } } : {}),
+      onConfirm:(chosen) => {
+        const picked = (chosen || []).map((photo) => ({ media_id:cleanText(photo?.media_id), label:cleanText(photo?.file_name || photo?.label), content_type:cleanText(photo?.content_type || photo?.mime_type) })).filter((item) => item.media_id);
+        // An upload still in progress has no library id yet; keep the picker open until it does.
+        if (!picked.length) return false;
+        if (state.type === 'photo' && picked.some((item) => item.content_type && !item.content_type.startsWith('image/'))) return false;
+        commit(picked);
+      }
+    });
+  }
+  if (root.document?.addEventListener && !root.__fmCfMediaClicks) {
+    root.__fmCfMediaClicks = true;
+    root.document.addEventListener('click', (event) => {
+      const remove = event.target.closest?.('[data-fm-cf-media-remove]'), open = event.target.closest?.('[data-fm-cf-media-open]');
+      const wrap = (remove || open)?.closest?.('[data-fm-cf-media]');
+      if (!wrap || wrap.dataset.readOnly === '1') return;
+      event.preventDefault();
+      if (open) { openMediaPicker(wrap); return; }
+      const input = wrap.querySelector(':scope > input[data-fm-cf-input]');
+      if (!input || input.disabled) return;
+      const kept = readMediaInput(input).filter((item) => cleanText(item.media_id) !== remove.dataset.fmCfMediaRemove);
+      setMediaValue(input, input.dataset.many === '1' ? kept : (kept[0] || null));
+      input.dispatchEvent(new Event('change', { bubbles:true }));
+    });
   }
 
   function inputHtml(definition, value, options = {}){
@@ -707,7 +818,7 @@
       const optionsHtml=choices.map(item=>`<option value="${escapeHtml(JSON.stringify(item.reference))}"${selected.has(JSON.stringify(item.reference))?' selected':''}>${escapeHtml(item.label)}</option>`).join('');
       const stale=[...selected].filter(saved=>!choices.some(item=>JSON.stringify(item.reference)===saved)).map(saved=>`<option value="${escapeHtml(saved)}" selected>Saved reference (unavailable)</option>`).join('');
       if(CONTACT_TYPES.includes(def.type))return `<div data-contact-picker style="position:relative"><select ${attrs}${def.cardinality==='many'?' multiple':''} hidden style="display:none"><option value=""></option>${optionsHtml}${stale}</select><div data-contact-selected style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px"></div><input class="${escapeHtml(inputClass)}" data-contact-search type="search" placeholder="Search contacts…" aria-label="Search ${escapeHtml(def.label)}" autocomplete="off"${def.read_only?' disabled':''}><div data-contact-results hidden style="max-height:200px;overflow:auto;border:1px solid #e4e7ec;border-radius:8px;background:#fff;margin-top:6px"></div></div>`;
-      return `<span class="fm-cf-select-wrap"><select ${attrs}${def.cardinality==='many'?' multiple':''}><option value="">${def.key==='cover_photo' && def.entity==='project'?'Satellite image (default)':CONTACT_TYPES.includes(def.type)?'Choose a contact…':'Choose library media…'}</option>${optionsHtml}${stale}</select><i class="fas fa-chevron-down fm-cf-select-chevron" aria-hidden="true"></i></span>${def.reference_error?`<span class="fm-cf-error">${escapeHtml(def.reference_error)}</span>`:''}`;
+      return mediaFieldHtml(def, value, attrs, options);
     }
     if (def.type === 'department') return departmentPickerHtml(def, value, inputClass);
     if (def.data_type === 'reference') {
@@ -772,6 +883,9 @@
       else if (type === 'key_value') nextValue = Object.fromEntries([...input.querySelectorAll('.fm-cf-kv-row')].map((row) => [cleanText(row.querySelector('[data-fm-cf-kv-key]')?.value), cleanText(row.querySelector('[data-fm-cf-kv-value]')?.value)]).filter(([name]) => name));
       else if (type === 'json') {
         try { nextValue = input.value.trim() ? JSON.parse(input.value) : null; input.dataset.jsonInvalid = 'false'; } catch (_) { nextValue = input.value; input.dataset.jsonInvalid = 'true'; }
+      } else if (MEDIA_TYPES.includes(type) && input.type === 'hidden') {
+        const picked = readMediaInput(input);
+        nextValue = input.dataset.many === '1' ? picked : (picked[0] || null);
       } else if (CONTACT_TYPES.includes(type) || MEDIA_TYPES.includes(type)) {
         const picked=(input.multiple?[...input.selectedOptions].map(option=>option.value):[input.value]).filter(Boolean).map(value=>JSON.parse(value));
         nextValue=input.multiple?picked:(picked[0] || null);
@@ -882,7 +996,7 @@
             else if(options.entityType==='user' && id){result=await root.PlatformAPI.media.list(orgId);result={media:(result.media || []).filter(media=>media.owner?.type==='user' && media.owner?.id===id)};}
             else result={media:[]};
             const trashed = new Set((Array.isArray(entity.photos)?entity.photos:[]).filter(p=>p.in_trash || p.trashed_at || p.deleted_at || p.metadata?.in_trash || p.metadata?.trashed_at || p.metadata?.deleted_at).map(p=>cleanText(p.media_id || p.mediaId || p.id)));
-            definition.reference_choices=(result.media || []).filter(media=>!trashed.has(cleanText(media.id))).filter(media=>definition.type==='media' || cleanText(media.content_type).startsWith(definition.type==='photo'?'image/':'video/')).map(media=>({label:media.file_name,reference:{media_id:media.id}}));
+            definition.reference_choices=(result.media || []).filter(media=>!trashed.has(cleanText(media.id))).filter(media=>definition.type==='media' || cleanText(media.content_type).startsWith(definition.type==='photo'?'image/':'video/')).map(media=>({label:media.file_name,reference:{media_id:media.id},content_type:cleanText(media.content_type)}));
           }
         }catch(error){definition.reference_error=error.message || 'References are unavailable.';definition.reference_choices=[];}
         return;
@@ -945,6 +1059,8 @@
       return { entity, definitions:[] };
     }
     const values = rawValues(entity, entityType);
+    // Media tiles open the project picker; the caller may hand it an upload path.
+    container.__fmCfMediaOptions = { projectId:cleanText(entity.platform_project_id || entity.project_id || entity.id), uploadMedia:options.uploadMedia };
     const fieldHtml = (definition) => {
       const value = valueFor(definition, entity, definitions);
       const fieldClass = cleanText(options.fieldClass) || 'fm-cf-field';
@@ -1871,6 +1987,7 @@
     valueAtPath,
     setValueAtPath,
     editorValues,
+    setMediaValue,
     validateEditor,
     applyValues,
     renderEditor,

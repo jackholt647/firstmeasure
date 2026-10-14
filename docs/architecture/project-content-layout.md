@@ -2,7 +2,7 @@
 
 The project window owns the title, tabs, display controls, and split-pane lifetime. It does not provide a shared mutable left column.
 
-Overview (`map`) owns the project-details form inside its `.r-tab-content`, beside its map/overview content. Contacts, address, custom fields, notes and existing report-order controls remain in this form. Project identity and tags/stages appear in the window header. Its identity dropdown presents a synchronized second view with unique IDs while the original controls stay mounted in Overview. Edits and actions route through the original handlers; structural changes and field values reconcile into the dropdown without replacing focused inputs. The dropdown address autocomplete uses the same map domain operations. This does not introduce a shared content rail.
+Overview (`map`) owns the project-details form inside its `.r-tab-content`, beside its map/overview content. Contacts, address, notes and existing report-order controls remain in this form. Project custom fields show on the right of Overview, in the Overview app's fields slot (`[data-overview-fields]`, below the summary cards, and a card over the map when the map fills the tab); the project window keeps the `#rProjectCustomFields` node and places it there through the `placeProjectCustomFields` host call, returning it to the details form whenever the slot is not mounted. Project identity and tags/stages appear in the window header. Its identity dropdown presents a synchronized second view with unique IDs while the original controls stay mounted in Overview. Edits and actions route through the original handlers; structural changes and field values reconcile into the dropdown without replacing focused inputs. The dropdown address autocomplete uses the same map domain operations. This does not introduce a shared content rail.
 
 `firstmeasure/order/app.js` supplies the Overview details component. Its definition is `overview_details`, not a general modal region app. The form stays mounted across tab changes and panel rebuilds to preserve values, handlers and drafts. A hidden storage element retains the form only while its Overview panel is being rebuilt or unavailable; it is not an app mounting surface.
 
@@ -129,8 +129,8 @@ open path and the existing measurement reorder prefill. Choosing a project or an
 does not submit a report.
 
 Contact controls share the header dropdown's flat rows, communication shortcuts, and
-section dividers. Custom fields follow the address/type fields and actions follow the
-custom fields. Overview project-field autosave is independent of proposal document
+section dividers. Actions follow the address/type fields; custom fields are in the
+right-hand panel and in the header dropdown after the address. Overview project-field autosave is independent of proposal document
 persistence. Loading/hydration guards still prevent provisional records being written.
 
 Shared right trays own the visible Notes composer. The legacy form note controls remain

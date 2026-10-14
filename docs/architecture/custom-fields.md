@@ -157,7 +157,12 @@ editing. No production activation is part of this source change.
 `media`, `photo`, and `video` fields store a bounded reference `{media_id: ...}`
 to media in the owning record's library. `photo` requires an image; `video`
 requires a video. `cardinality: many` stores an array of references. Project
-fields select from the existing project library without copying uploads.
+fields select from the existing project library without copying uploads. The
+editor shows each selection as a thumbnail tile, never a dropdown; a click opens
+the project media picker (`Portal.PhotoFeed.openProjectMediaPicker`, the picker
+behind the `media.picker` widget), and the tile's remove button clears it. The
+value rides in a hidden input; `FirstMateCustomFields.setMediaValue` sets it and
+repaints the tiles when another surface changes it.
 
 Every project has the built-in optional `cover_photo` field, typed as `photo`
 with cardinality `one`. Settings may adjust its presentation, label, and field

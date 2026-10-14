@@ -535,6 +535,7 @@
     window.Portal?.ProjectStore?.cache?.(project);
     window.dispatchEvent(new CustomEvent('fm:projects:optimistic-update', {detail:{project}}));
     document.querySelectorAll('[data-fm-cf-input="cover_photo"]').forEach(input=>{
+      if (window.FirstMateCustomFields?.setMediaValue?.(input, value, photo ? {media_id:value?.media_id, label:photo.file_name, content_type:photo.content_type || photo.mime_type} : null)) return;
       const encoded = value ? JSON.stringify(value) : '';
       if(encoded && ![...input.options].some(option=>option.value===encoded)) input.add(new Option(photo?.file_name || 'Cover photo',encoded));
       input.value = encoded;

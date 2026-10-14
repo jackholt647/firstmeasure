@@ -7132,6 +7132,7 @@ window.PlatformCommerce.onReady(async function(){
         activeBaseProject = project || null;
         return activeBaseProject;
       },
+      placeProjectCustomFields: () => placeProjectCustomFields(),
       getPhotos: () => projectPhotos,
       setPhotos: (photos) => {
         projectPhotos = Array.isArray(photos) ? photos : [];
@@ -7443,7 +7444,26 @@ window.PlatformCommerce.onReady(async function(){
     }
     const overview=document.querySelector('#rOverlay [data-panel="map"] > .r-tab-content');
     if(details && overview && details.parentElement!==overview)overview.prepend(details);
+    placeProjectCustomFields();
     return restored;
+  }
+  // Project custom fields show on the right of Overview, in the Overview app's fields slot. They rest in the
+  // details form whenever that slot is not mounted, so they survive tab rebuilds and the hidden details store.
+  function placeProjectCustomFields(){
+    const all=[...document.querySelectorAll('#rOverlay #rProjectCustomFields')];
+    // A details form rebuilt from the store brings an empty copy; keep the rendered one.
+    const fields=all.find(node=>node.children.length) || all[0];
+    all.filter(node=>node!==fields).forEach(node=>node.remove());
+    if(!fields)return null;
+    const slot=document.querySelector('#rOverlay [data-panel="map"] [data-overview-fields]');
+    if(slot && fields.parentElement!==slot)slot.append(fields);
+    if(!slot)returnProjectCustomFields(document.querySelector('#rOverlay .r-overview-details'));
+    return fields;
+  }
+  function returnProjectCustomFields(details){
+    const fields=document.querySelector('#rOverlay #rProjectCustomFields');
+    const anchor=details?.querySelector('#rCustomerPortalLinkMount');
+    if(fields && anchor && !details.contains(fields))anchor.before(fields);
   }
   function mountOverviewDetails(){
     ensureOverviewDetails();
@@ -7583,6 +7603,7 @@ window.PlatformCommerce.onReady(async function(){
     const stage = document.querySelector('#rOverlay .r-preview-stage');
     if (!stage) return;
     const details=document.querySelector('#rOverlay .r-overview-details');
+    returnProjectCustomFields(details);
     if(details)document.getElementById('rOverviewDetailsStore')?.append(details);
     stage.innerHTML = projectModalAppPanelsHtml();
     ensureOverviewDetails();
@@ -8883,14 +8904,16 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderProjectCustomFields(){
-    const mount = $('#rProjectCustomFields');
+    const mount = placeProjectCustomFields();
     if (!mount || !window.FirstMateCustomFields?.renderEditor) return null;
     const rendered = window.FirstMateCustomFields.renderEditor(mount, activeBaseProject || {}, 'project', {
       location:'overview',
       showSave:false,
       flat:true,
       fieldClass:'r-group',
-      inputClass:'r-inp'
+      inputClass:'r-inp',
+      // Photo fields pick from the project's media; an upload in the picker goes to the project's photos.
+      uploadMedia:(files) => addPhotoFiles(files)
     });
     rendered?.then?.(() => renderProjectStageBar());
     return rendered;
@@ -10348,7 +10371,7 @@ window.PlatformCommerce.onReady(async function(){
       renderWorkflowState();
     }, { signal: projectFormListeners.signal });
     $('#rOverlay')?.addEventListener('input', (e) => {
-      if(!e.target.closest('#rForm,.r-project-identity-popover'))return;
+      if(!e.target.closest('#rForm,#rProjectCustomFields,.r-project-identity-popover'))return;
       if (e.target.matches('input, textarea, select')) queueAutosaveNotice();
       if (e.target.matches('#rProjectTitleInput, #rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();
@@ -10356,7 +10379,7 @@ window.PlatformCommerce.onReady(async function(){
       persistActiveBaseProject();
     }, { signal: projectFormListeners.signal });
     $('#rOverlay')?.addEventListener('change', (e) => {
-      if(!e.target.closest('#rForm,.r-project-identity-popover'))return;
+      if(!e.target.closest('#rForm,#rProjectCustomFields,.r-project-identity-popover'))return;
       if (e.target.matches('input, textarea, select')) queueAutosaveNotice();
       if (e.target.matches('#rProjectTitleInput, #rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();

@@ -168,6 +168,9 @@ test('portal surfaces and pricebook are wired to the shared custom-field runtime
   assert.doesNotMatch(overview, /data-project-custom-fields/);
   assert.match(projectLeft, /rStepAddress[\s\S]*rProjectCustomFields[\s\S]*rStepType/);
   assert.match(projectRequest, /renderProjectCustomFields/);
+  // Project custom fields render on the right of Overview, in its fields slot, not in the details column.
+  assert.match(overview, /data-overview-fields[\s\S]*callHost\('placeProjectCustomFields'\)/);
+  assert.match(projectRequest, /placeProjectCustomFields: \(\) => placeProjectCustomFields\(\)[\s\S]*\[data-overview-fields\]/);
   assert.match(projectRequest, /custom_field:/);
   assert.match(projectRequest, /close\(\{ skipHistory:true \}\);[\s\S]*modules\?\.contacts\?\.open/);
   assert.match(contact, /fmContactAddress[\s\S]*fmContactCustomFields[\s\S]*fm-contact-meta/);

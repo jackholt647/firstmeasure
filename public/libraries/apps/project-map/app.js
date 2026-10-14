@@ -358,6 +358,12 @@
       .r-overview.is-map-expanded .r-overview-map-toggle{height:38px;border-radius:10px;background:rgba(255,255,255,.94);backdrop-filter:blur(12px)}
       .r-overview.is-map-expanded .r-overview-map-frame{height:100%;min-height:0;flex:1}
       .r-overview.is-map-expanded .r-overview-panel{display:none}
+      .r-overview-fields{padding:12px 15px 15px;border-top:1px solid rgba(15,23,42,.08)}
+      .r-overview-fields:not(:has(> :not(:empty):not([hidden]))){display:none}
+      .r-overview.is-map-expanded{position:relative}
+      .r-overview.is-map-expanded .r-overview-panel:has(> .r-overview-fields > :not(:empty):not([hidden])){display:block;position:absolute;top:14px;right:14px;z-index:8;width:min(320px,calc(100% - 28px));min-height:0;max-height:calc(100% - 28px);overflow:auto}
+      .r-overview.is-map-expanded .r-overview-panel :is(.r-overview-panel-head,.r-overview-grid){display:none}
+      .r-overview.is-map-expanded .r-overview-fields{border-top:0}
       .r-overview.is-map-only .r-overview-map-toggle{display:none}
       @container overview (max-width:780px){.r-overview-shell{grid-template-columns:minmax(0,1fr)}.r-overview-map-section{position:relative}.r-overview-map-frame{height:320px}}
       @container overview (max-width:390px){.r-overview-grid{grid-template-columns:minmax(0,1fr)}.r-overview-map-head{flex-wrap:wrap}.r-overview-map-section,.r-overview-panel{min-height:0}}
@@ -401,6 +407,7 @@
               </div>
             </div>
             <div class="r-overview-grid" data-overview-summary></div>
+            <div class="r-overview-fields" data-overview-fields></div>
           </section>
         </div>
       </div>`;
@@ -771,6 +778,8 @@
     const current = project() || {};
     if (address) address.textContent = firstText(current.address, current.project_address, current.customer_address, 'No address yet');
     if (summary) summary.innerHTML = overviewCards();
+    // The project window keeps the project's custom fields and places them in this panel's fields slot.
+    callHost('placeProjectCustomFields');
     bindOverview(root);
     applyOverviewMapMode();
   }

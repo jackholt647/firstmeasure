@@ -31,11 +31,29 @@ test('project photo references and cover viewer actions share one selection',asy
       window.Portal.ProjectPhotosTab.mount({panelRoot:document.querySelector('#rPhotoGallery'),host:{getProject:()=>window.project,getPhotos:()=>window.project.photos}});
       window.Portal.ProjectPhotosTab.render();
     });
-    assert.equal(await page.locator('[data-fm-cf-input="cover_photo"] option').count(),3);
-    assert.equal(await page.locator('[data-fm-cf-input="detail_photo"] option').count(),3);
+    // Photo fields are thumbnail tiles; the choices are the project's images only.
+    const choices=key=>page.evaluate(key=>JSON.parse(document.querySelector(`[data-fm-cf-input="${key}"]`).closest('[data-fm-cf-media]').dataset.choices).map(choice=>choice.media_id),key);
+    assert.deepEqual(await choices('cover_photo'),['a','b']);
+    assert.deepEqual(await choices('detail_photo'),['a','b']);
+    assert.equal(await page.locator('#fields select').count(),0);
+    assert.match(await page.locator('[data-custom-field-path="cover_photo"] .fm-cf-media-tile').textContent(),/Satellite image \(default\)/);
+    // A click opens the project media picker; confirming sets the value and reports a change.
+    await page.evaluate(()=>{window.changes=0;document.querySelector('#fields').addEventListener('change',()=>window.changes++);window.Portal.PhotoFeed.openProjectMediaPicker=options=>{window.pickerOptions=options;return {close(){}};};});
+    await page.locator('[data-custom-field-path="detail_photo"] [data-fm-cf-media-open]').click();
+    assert.deepEqual(await page.evaluate(()=>[window.pickerOptions.multiple,window.pickerOptions.imageOnly,window.pickerOptions.photos.map(photo=>photo.media_id)]),[false,true,['a','b']]);
+    assert.equal(await page.evaluate(()=>window.pickerOptions.onConfirm([{media_id:'',id:'local'}])),false,'an upload without a library id keeps the picker open');
+    await page.evaluate(()=>window.pickerOptions.onConfirm([{...window.pickerOptions.photos[1]}]));
+    assert.equal(await page.locator('[data-fm-cf-input="detail_photo"]').inputValue(),'{"media_id":"b"}');
+    assert.equal(await page.evaluate(()=>window.changes),1);
+    assert.match(await page.locator('[data-custom-field-path="detail_photo"] .fm-cf-media-tile').textContent(),/Back\.png/);
+    assert.deepEqual(await page.evaluate(()=>window.FirstMateCustomFields.editorValues(document.querySelector('#fields'),window.project,'project').detail_photo),{media_id:'b'});
+    await page.locator('[data-custom-field-path="detail_photo"] [data-fm-cf-media-remove]').click();
+    assert.equal(await page.locator('[data-fm-cf-input="detail_photo"]').inputValue(),'');
+    assert.equal(await page.evaluate(()=>window.changes),2);
     const choose=async index=>page.evaluate(async index=>{const photo=window.project.photos[index];const action=window.gallery.viewerActions.find(a=>a.id==='set_project_cover');await action.onClick({photo,viewer:{refreshActions(){},refreshIndicators(){}}});},index);
     await choose(0);
     assert.equal(await page.locator('[data-fm-cf-input="cover_photo"]').inputValue(),'{"media_id":"a"}');
+    assert.match(await page.locator('[data-custom-field-path="cover_photo"] .fm-cf-media-tile').textContent(),/Front\.jpg/);
     assert.deepEqual(await page.evaluate(()=>window.project.custom_fields.cover_photo),{media_id:'a'});
     assert.equal(await page.evaluate(()=>window.project.thumbnail_photo_id),'a');
     assert.equal(await page.evaluate(()=>window.gallery.viewerIndicators.find(i=>i.id==='project_cover').visible({photo:window.project.photos[0]})),true);

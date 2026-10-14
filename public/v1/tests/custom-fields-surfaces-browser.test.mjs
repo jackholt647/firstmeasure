@@ -28,7 +28,8 @@ async function open(browser,html){
   // Anything the library asks the platform for is counted: the three surfaces must ask for nothing.
   await page.evaluate(refs=>{
     window.__APP={userOrgId:'org',userBranchId:'default'};window.calls=[];window.REFERENCES=refs;
-    const counted=name=>new Proxy(function(){},{get:(_t,key)=>key==='then'?undefined:counted(`${name}.${String(key)}`),apply:()=>{window.calls.push(name);return Promise.resolve({});}});
+    // URL builders such as media.thumbnailUrl only spell an address (an <img> loads it); every other call is a request.
+    const counted=name=>new Proxy(function(){},{get:(_t,key)=>key==='then'?undefined:counted(`${name}.${String(key)}`),apply:(_t,_this,args)=>{if(/Url$/.test(name))return `/media/${args.join('/')}`;window.calls.push(name);return Promise.resolve({});}});
     window.PlatformAPI=counted('PlatformAPI');window.fetch=(...args)=>{window.calls.push(`fetch ${args[0]}`);return Promise.reject(new Error('no network'));};
   },REFERENCES);
   await page.addScriptTag({path:path.resolve('../libraries/custom-fields/firstmate-custom-fields.js')});
