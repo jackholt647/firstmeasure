@@ -245,7 +245,7 @@ test('Company Settings gates optional tabs and report branding behind capabiliti
   assert.match(settings, /canDomains = canCompany && appFlag\('apps', 'web_editor'\) && appFlag\('web_editor', 'custom_domains'\)/);
   // The sample report lives in Reports, beside the report settings, not in Company information.
   assert.match(settings, /company-settings-grid without-report-preview/);
-  assert.match(settings, /paneReports\.innerHTML = `\s*<div class="rp-wrap rp-layout">[\s\S]*?<aside class="company-document-preview rp-preview">/);
+  assert.match(settings, /paneReports\.innerHTML = `\s*<div class="rp-wrap rp-layout">[\s\S]*?<aside class="rp-preview" id="rpPreview"/);
   const mySettingsRenderer = settings.slice(settings.indexOf('async function renderMySettings()'), settings.indexOf('function renderCrmSettings()'));
   assert.doesNotMatch(mySettingsRenderer, /paneScopeTemplates|draftDefinition|scopeScheduling/);
 });

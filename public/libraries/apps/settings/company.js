@@ -20,24 +20,6 @@
   if (!window.Portal) return;
   const { $, escapeHtml, injectCSS, postAction, hasPerm } = window.Portal.util;
   const { showToast } = window.Portal.ui;
-  // The sample report cover. With report settings it shows only what those settings put on the cover.
-  function companyReportPreview(settings = null){
-    const metric = window.PlatformLanguage?.companyContext?.().measurement_system === 'metric';
-    const show = (key) => !settings || settings[key] !== false;
-    const row = (label, value) => `<div>${escapeHtml(label)}: ${escapeHtml(value)}</div>`;
-    const box = (body) => `<div style="border:1px solid #ddd;padding:8px">${body}</div>`;
-    const customer = show('cover_show_customer') ? `<div style="width:100%;margin-bottom:8px;font-size:clamp(7px,.65vw,10px);line-height:1.5;color:#444">${escapeHtml(settingsText("fm_preview_prepared_for", "Prepared for"))} <strong>Jordan Lee</strong><br>1420 Oak Ridge Dr</div>` : '';
-    const stats = [
-      show('cover_show_squares') ? row(settingsText("fm_preview_squares", "Total squares"), settingsNumber(show('cover_show_waste') ? 32.36 : 29.42)) : '',
-      show('cover_show_waste') ? row(settingsText("fm_preview_waste", "Suggested waste"), settingsNumber(10) + '%') : '',
-      show('cover_show_facets') ? row(settingsText("fm_preview_facets", "Total facets"), settingsNumber(17)) : '',
-      show('cover_show_pitch') ? row(settingsText("fm_preview_pitch", "Predominant pitch"), settingsNumber(6)) : ''
-    ].join('');
-    const summary = stats ? box(`<strong>${escapeHtml(settingsText("fm_preview_summary", "Project Summary"))}</strong>${row(settingsText("fm_preview_area", "Total area"), settingsNumber(metric ? 273.3 : 2942) + (metric ? ' m²' : ' ft²'))}${stats}`) : '';
-    const breakdown = show('cover_show_breakdown') ? box(`<strong>${escapeHtml(settingsText("fm_preview_breakdown", "Measurement Breakdown"))}</strong>${row(settingsText("fm_preview_eave", "Eave"), settingsNumber(metric ? 40.8 : 134) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_ridge", "Ridge"), settingsNumber(metric ? 23.2 : 76) + (metric ? ' m' : ' ft'))}${row(settingsText("fm_preview_valley", "Valley"), settingsNumber(metric ? 35.4 : 116) + (metric ? ' m' : ' ft'))}`) : '';
-    const boxes = [summary, breakdown].filter(Boolean);
-    return `${customer}<svg viewBox="0 0 360 240" aria-hidden="true" style="display:block;width:100%;height:auto"><g fill="none" stroke="#777" stroke-width="1.2"><path d="M45 80h125V45h85v35h60v145H45zM45 80l62 55 63-55M170 45l42 38 43-38M255 80l30 45 30-45M107 135v90M212 83v142M285 125v100M45 225l62-90 63 90M170 225l42-142 43 142M255 225l30-100 30 100"/></g></svg>${boxes.length ? `<div style="display:grid;grid-template-columns:repeat(${boxes.length},1fr);gap:8px;width:100%;margin-top:8px;font-size:clamp(7px,.65vw,10px);line-height:1.6">${boxes.join('')}</div>` : ''}`;
-  }
   function languageOptions(selected, { inherit = false, translation = false, companyLocale } = {}) {
     const service = window.PlatformLanguage;
     const packs = service?.supportedLanguages || [];
@@ -2192,7 +2174,7 @@
       }
       /* Reports: compact settings on the left, the sample report on the right. */
       .rp-wrap{ max-width:1120px; margin:0 auto; }
-      .rp-layout{ display:grid; grid-template-columns:minmax(0,1fr) minmax(240px,340px); gap:16px; align-items:start; }
+      .rp-layout{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:start; }
       .rp-card{ border:1px solid rgba(0,0,0,0.10); border-radius:12px; padding:12px 14px; background:#fff; min-width:0; }
       .rp-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
       .rp-head .cs-actions{ margin:0; gap:6px; }
@@ -2215,16 +2197,11 @@
       .rp-toggle.on .rp-dot{ background:var(--primary,#d93025); }
       .rp-toggle.on .rp-state{ color:var(--primary-readable, var(--primary,#d93025)); }
       .rp-toggle.off .rp-label{ color:#667085; }
-      .rp-preview .cs-page{ aspect-ratio:8.5/11; }
-      .rp-sampleCover{ width:84%; display:flex; flex-direction:column; align-items:stretch; }
-      .rp-pageList{ display:flex; flex-wrap:wrap; gap:4px; margin-top:10px; }
-      .rp-pageListHead{ width:100%; margin-bottom:2px; color:#667085; font-size:10px; font-weight:1000; letter-spacing:.06em; text-transform:uppercase; }
-      .rp-pageChip{ border-radius:999px; padding:3px 8px; font-size:11px; font-weight:850; background:rgba(var(--primary-rgb,217,48,37),0.08); color:var(--primary-readable,var(--primary,#d93025)); }
-      .rp-pageChip.off{ background:#f2f4f7; color:#98a2b3; text-decoration:line-through; }
+      .rp-preview{ position:sticky; top:0; height:calc(100vh - 150px); min-height:560px; min-width:0; }
       .rp-toggle[data-key="page_gutters"]{ grid-column:1 / -1; max-width:360px; }
       .rp-head .cs-actions{ flex-direction:row; flex-wrap:nowrap; }
       #csPaneReports{ container-type:inline-size; container-name:report-settings; }
-      @container report-settings (max-width:760px){ .rp-layout{ grid-template-columns:minmax(0,1fr); } .rp-preview{ position:static; max-width:360px; } }
+      @container report-settings (max-width:760px){ .rp-layout{ grid-template-columns:minmax(0,1fr); } .rp-preview{ position:static; height:720px; } }
       .app-flags-grid{
         column-count:2;
         column-gap:14px;
@@ -12506,20 +12483,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
             <div class="cs-note" id="rpStatus"></div>
             <div class="rp-sections" id="rpToggles"></div>
           </div>
-          <aside class="company-document-preview rp-preview">
-            <div class="company-document-preview-head"><span><i class="fas fa-file-lines"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_4ca221574beb0d"," Report preview") ?? " Report preview")}</span></div>
-            <div class="cs-previewWrap">
-              <div class="cs-page" id="rpPage">
-                <div class="cs-barPrimary"></div>
-                <div class="cs-barSecondary"></div>
-                <div class="cs-pageInner">
-                  <div class="cs-pageLogo"><img id="rpPrevLogoImg" data-company-logo-preview alt="${(globalThis.PlatformLanguage?.htmlText("settings","m_a09f6a051adb2f","Company logo in report preview") ?? "Company logo in report preview")}"></div>
-                  <div class="cs-centerZone"><div id="rpSampleDiagram" class="rp-sampleCover" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_8eec608d18828f","Sample roof diagram") ?? "Sample roof diagram")}"></div></div>
-                </div>
-              </div>
-            </div>
-            <div class="rp-pageList" id="rpPageList" aria-label="${escapeHtml(settingsText("fm_report_pages_included", "Pages in each report"))}"></div>
-          </aside>
+          <aside class="rp-preview" id="rpPreview" aria-label="${escapeHtml(settingsText("fm_report_preview", "Report preview"))}"></aside>
         </div>
       `;
     }
@@ -12896,14 +12860,15 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
       ];
       const wrap = $('#rpToggles', paneReports);
-      // The sample report follows the cover toggles; the page list follows the page toggles.
+      // The live report preview: every page of the customer and internal PDFs for the sample report.
       const renderSample = () => {
-        const cover = $('#rpSampleDiagram', paneReports);
-        if (cover) cover.innerHTML = companyReportPreview(state.report_customer);
-        const list = $('#rpPageList', paneReports);
-        if (list) list.innerHTML = `<div class="rp-pageListHead">${escapeHtml(settingsText("fm_report_pages_included", "Pages in each report"))}</div>${sections.filter((section) => section.items.some((it) => it.key.startsWith('page_'))).flatMap((section) => section.items).map((it) => `<span class="rp-pageChip ${state.report_customer[it.key] ? 'on' : 'off'}">${escapeHtml(it.short || it.label)}</span>`).join('')}`;
+        const host = $('#rpPreview', paneReports);
+        if (!host) return;
+        const draw = () => window.FirstMateReportPreview?.render(host, { settings:state.report_customer, logo:logoKey(state.logo) });
+        if (window.FirstMateReportPreview) { draw(); return; }
+        if (!window.__fmReportPreviewLoading) window.__fmReportPreviewLoading = new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '/libraries/apps/settings/report-preview.js?v=20261014-report-preview-v1'; script.onload = resolve; script.onerror = reject; document.head.append(script); });
+        window.__fmReportPreviewLoading.then(draw).catch(() => { window.__fmReportPreviewLoading = null; host.textContent = settingsText("fm_report_preview_failed", "The report preview could not load."); });
       };
-      updatePreviewLogoIfNeeded(false);
       renderSample();
       if (wrap) {
         wrap.innerHTML = sections.map(section => `
