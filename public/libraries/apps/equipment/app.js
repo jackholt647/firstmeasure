@@ -383,7 +383,7 @@
       rows.forEach((row) => {
         if (!row.querySelector('[data-eq-fn-on]')?.checked) return;
         const raw = clean(row.querySelector('[data-eq-fn-capacity]')?.value), capacity = Number(raw);
-        next.push({ item:row.dataset.eqFnRow, ...(raw !== '' && Number.isFinite(capacity) && capacity >= 0 ? { capacity } : {}), per_load:Boolean(row.querySelector('[data-eq-fn-per-load]')?.checked) });
+        next.push({ item:row.dataset.eqFnRow, ...(raw !== '' && Number.isFinite(capacity) && capacity > 0 ? { capacity } : {}), per_load:Boolean(row.querySelector('[data-eq-fn-per-load]')?.checked) });
       });
       return next;
     }
@@ -952,7 +952,7 @@
         provides:arr(arr(state.types).find((type) => clean(type.id) === read('type_id'))?.provides).map((entry) => {
           const input = container.querySelector(`[data-eq-input="provides:${clean(entry.item)}"]`);
           const raw = input ? clean(input.value) : clean(arr(currentUnit.provides).find((row) => clean(row.item) === clean(entry.item))?.capacity);
-          return raw !== '' && Number.isFinite(Number(raw)) && Number(raw) >= 0 ? { item:clean(entry.item), capacity:Number(raw) } : null;
+          return raw !== '' && Number.isFinite(Number(raw)) && Number(raw) > 0 ? { item:clean(entry.item), capacity:Number(raw) } : null;
         }).filter(Boolean),
         photos:arr(currentUnit.photos),
         notes: read('notes'),

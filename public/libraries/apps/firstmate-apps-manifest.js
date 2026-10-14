@@ -270,7 +270,7 @@
       requiresContext: ['project'],
       access: managementAccess,
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261014-work-order'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261014-colors')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261014-work-order'), versionedBundle('../payments-api/payments-api.js', '20260714-invoice-line-items-tax'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261014-color-menu')]
     },
     {
       id: 'project.money',
@@ -434,7 +434,7 @@
       access: managementAccess,
       bundles: [
         versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'),
-        versionedBundle('equipment/app.js', '20261013-schedule-events-v2')
+        versionedBundle('equipment/app.js', '20261014-capacity')
       ]
     },
     {

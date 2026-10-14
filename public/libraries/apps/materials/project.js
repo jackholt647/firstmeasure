@@ -2755,15 +2755,19 @@
     }
     return { generated, failed };
   }
-  async function regenerateMaterialListsFromScope(){
+  // options.resourceType limits it to one column (the Materials heading's wand): the other columns are left as they are.
+  async function regenerateMaterialListsFromScope(options = {}){
+    const only = cleanText(options.resourceType);
     if (!apiReady() || !(materialsAPI || window.MaterialsAPI)?.projects?.initializeFromScope) {
       showToast((globalThis.PlatformLanguage?.text("materials","m_d9e2e6ecf3e384","Scope regeneration unavailable") ?? "Scope regeneration unavailable"), (globalThis.PlatformLanguage?.text("materials","m_6ae9948e2fd11a","Materials API is not ready for this project.") ?? "Materials API is not ready for this project."), false);
       return;
     }
     // Asking only makes sense when something already on the lists would be replaced.
-    const replacesSomething = state.lists.some((list) => listItems(list).length);
+    const replacesSomething = state.lists.some((list) => (!only || resourceType(list) === only) && listItems(list).length);
     const confirmed = !replacesSomething || await confirmAction(
-      'Regenerate material lists from the project scope? This will replace generated planning lists with the current scope output. Ordered lists are protected.',
+      only === 'material'
+        ? 'Regenerate the materials from the signed document and the project scope? Generated material lists are replaced; work orders and equipment are left as they are. Ordered lists are protected.'
+        : 'Regenerate material lists from the project scope? This will replace generated planning lists with the current scope output. Ordered lists are protected.',
       {
         title: (globalThis.PlatformLanguage?.text("materials","m_71d2e615b972f0","Regenerate materials") ?? "Regenerate materials"),
         okLabel: 'Regenerate',
@@ -2788,7 +2792,7 @@
       // An accepted document's material comes first; the scope's own list definitions are added to it.
       const fromDocuments = await generatePendingMaterialSets({ all: true });
       if (!projectOperationIsCurrent(operation)) return;
-      const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true }).catch((error) => (fromDocuments.generated.length ? null : Promise.reject(error)));
+      const generated = await initializeMaterialListsFromScope({ force: true, mergeLists: true, ...(only ? { resourceType: only } : {}) }).catch((error) => (fromDocuments.generated.length ? null : Promise.reject(error)));
       const fromScope = (generated?.material_lists || generated?.lists || []).length;
       if (!fromScope && !fromDocuments.generated.length) {
         throw new Error(fromDocuments.failed.length
@@ -4089,6 +4093,7 @@
     root.querySelectorAll('[data-mt-units-toggle]').forEach(button=>button.onclick=()=>{state.unitsMode=state.unitsMode==='order'?'measured':'order';render({preserveScroll:true});});
     root.querySelectorAll('[data-mt-minimize-type],[data-mt-restore-type]').forEach(button=>button.onclick=()=>{const minimizing=!!button.dataset.mtMinimizeType,type=button.dataset.mtMinimizeType||button.dataset.mtRestoreType,source=minimizing?button.closest('.mt-resource-column'):button,from=source.getBoundingClientRect(),clone=minimizing?source.cloneNode(true):null;if(minimizing)state.minimizedTypes.add(type);else state.minimizedTypes.delete(type);syncMaterialsGrid();animateMinimize(type,from,minimizing,clone);});
     root.querySelectorAll('[data-mt-category-sources]').forEach(button=>button.onclick=()=>toggleSourcesMenu(button.dataset.mtCategorySources,button));
+    root.querySelectorAll('[data-mt-generate-column]').forEach(button=>button.onclick=()=>{if(state.generatingMaterials)return;button.disabled=true;button.querySelector('i')?.classList.replace('fa-wand-magic-sparkles','fa-rotate');button.querySelector('i')?.classList.add('mt-spin');setTimeout(()=>regenerateMaterialListsFromScope({resourceType:button.dataset.mtGenerateColumn}),0);});
     root.querySelectorAll('[data-mt-delete-type]').forEach(button=>button.onclick=()=>removeResourceCategory(button.dataset.mtDeleteType));
     root.querySelectorAll('[data-mt-new-category-list]').forEach(button=>button.onclick=()=>createInlineList(button.dataset.mtNewCategoryList));
     root.querySelectorAll('[data-mt-category-icon]').forEach(button=>button.onclick=()=>editResourceAppearance(button.dataset.mtCategoryIcon));
@@ -4288,7 +4293,7 @@
       const listTotal=list=>listProjected(list);
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools"><button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
+        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools">${type==='material'&&projectId()?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
         <div class="mt-resource-scroll">${merged&&!lists.some(list=>resourceType(list)==='labor')&&projectId()?`<article class="mt-list-pane" data-mt-pane-list="project:${escapeHtml(projectId())}"><div class="mt-list-pane-inner">${renderAssignBlock({id:`project:${projectId()}`,resource_type:'labor'})}</div></article>`:''}${lists.map(list=>{
           // Inside a merged column each list is still its own kind.
           const type=resourceType(list),terms=resourceTerms(type,list),category=resourceCategories().find(row=>row.id===type)||{};
@@ -4397,7 +4402,7 @@
     const selectedMeta = values.find((value) => cleanText(value.value) === selected) || values[0];
     const rich = richColorPicker(item);
     return `
-      <button type="button" tabindex="-1" class="mt-color-trigger${String(rich ? ' rich' : '')}" data-mt-color-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(item.__material_list_id || state.activeListId))}" data-fm-tooltip="${String(escapeHtml(selectedMeta?.label || selected))}" title="${String(escapeHtml(selectedMeta?.label || selected))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d453ffba808085","Choose color") ?? "Choose color")}" aria-expanded="${String(state.colorMenu?.itemId === item.id ? 'true' : 'false')}" ${String(state.saving ? 'disabled' : '')}>
+      <button type="button" tabindex="-1" class="mt-color-trigger${String(rich ? ' rich' : '')}" data-mt-color-trigger="${String(escapeHtml(item.id))}" data-mt-list-id="${String(escapeHtml(item.__material_list_id || state.activeListId))}" data-fm-tooltip="${String(escapeHtml(selectedMeta?.label || selected))}" title="${String(escapeHtml(selectedMeta?.label || selected))}" aria-label="${(globalThis.PlatformLanguage?.htmlText("materials","m_d453ffba808085","Choose color") ?? "Choose color")}" aria-expanded="${String(state.colorMenu?.itemId === item.id ? 'true' : 'false')}">
         <span class="mt-color-current"><span class="mt-color-swatch" style="${String(escapeHtml(optionValueBackground(selectedMeta)))}"></span>${String(selectedMeta?.label ? `<em>${escapeHtml(selectedMeta.label)}</em>` : '')}</span>
       </button>
     `;
@@ -4406,7 +4411,7 @@
   function renderColorPortal(){
     const menu = state.colorMenu;
     if (!menu?.itemId) return '';
-    const item = listItems(materialListById(menu.listId)).find((entry) => entry.id === menu.itemId);
+    const item = listItems(materialListById(menu.listId)).find((entry) => cleanText(entry.id) === cleanText(menu.itemId));
     const definition = optionDefinition(item, 'color');
     const values = optionValues(definition);
     if (!item || !values.length) return '';
@@ -4435,12 +4440,52 @@
     return fixedHost || document.body;
   }
 
+  /* Colour menus are opened by one listener on the document rather than one per
+   * swatch: a save that finishes mid-click redraws the row, and a listener on
+   * the old swatch would never hear the click. Opening on the press, not the
+   * release, means a redraw between the two cannot lose it. Any press outside
+   * the menu, or Escape, closes it. A colour choice is queued behind earlier
+   * writes to its list, so the swatches stay usable while something saves. */
+  let colorMenuEventsInstalled = false;
+  function installColorMenuEvents(){
+    if (colorMenuEventsInstalled || typeof document === 'undefined') return;
+    colorMenuEventsInstalled = true;
+    const triggerFor = (event) => {
+      const trigger = event.target?.closest?.('[data-mt-color-trigger]');
+      return trigger && state.panelRoot?.contains?.(trigger) ? trigger : null;
+    };
+    const open = (trigger) => toggleColorMenu(trigger.dataset.mtColorTrigger, trigger, trigger.dataset.mtListId);
+    document.addEventListener('pointerdown', (event) => {
+      if (event.button) return;
+      const trigger = triggerFor(event);
+      if (trigger) {
+        event.preventDefault();
+        trigger.__mtOpenedOnPress = true;
+        open(trigger);
+        return;
+      }
+      if (state.colorMenu && !event.target?.closest?.('[data-mt-color-portal]')) closeColorMenu();
+    }, true);
+    document.addEventListener('click', (event) => {
+      const trigger = triggerFor(event);
+      if (!trigger) return;
+      event.stopPropagation();
+      if (trigger.__mtOpenedOnPress) { trigger.__mtOpenedOnPress = false; return; }
+      open(trigger);
+    }, true);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && state.colorMenu) closeColorMenu();
+    }, true);
+  }
+
   function toggleColorMenu(itemId, trigger, listId = state.activeListId){
-    if (state.colorMenu?.itemId === itemId && state.colorMenu?.listId === listId) {
+    // Only a menu that is actually showing is closed by its own swatch; a record left behind by a redraw is not.
+    if (state.colorMenu?.itemId === itemId && state.colorMenu?.listId === listId && document.querySelector('[data-mt-color-portal]')) {
       closeColorMenu();
       return;
     }
-    const item = listItems(materialListById(listId)).find((entry) => entry.id === itemId);
+    closeColorMenu();
+    const item = listItems(materialListById(listId)).find((entry) => cleanText(entry.id) === cleanText(itemId));
     const values = optionValues(optionDefinition(item, 'color'));
     if (!item || !values.length || !trigger?.getBoundingClientRect) return;
     const rich = richColorPicker(item);
@@ -4560,7 +4605,7 @@
 
   function setWorkspaceSaving(saving){
     const root = materialRoot();
-    const selector = '[data-mt-add-section],[data-mt-item-variant],[data-mt-color-trigger],[data-mt-list-trigger],[data-mt-item-name],[data-mt-item-qty],[data-mt-item-unit],[data-mt-item-price],[data-mt-remove]';
+    const selector = '[data-mt-add-section],[data-mt-item-variant],[data-mt-list-trigger],[data-mt-item-name],[data-mt-item-qty],[data-mt-item-unit],[data-mt-item-price],[data-mt-remove]';
     root?.querySelectorAll?.(selector)?.forEach((control) => { control.disabled = !!saving; });
     root?.classList?.toggle('is-saving', !!saving);
     syncTopBar();
@@ -5105,12 +5150,7 @@
     root.querySelectorAll('[data-mt-item-variant]').forEach((select) => {
       select.addEventListener('change', () => updateItemVariant(select.dataset.mtItemVariant, select.value, select.dataset.mtListId));
     });
-    root.querySelectorAll('[data-mt-color-trigger]').forEach((button) => {
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        toggleColorMenu(button.dataset.mtColorTrigger, button, button.dataset.mtListId);
-      });
-    });
+    installColorMenuEvents();
     root.querySelectorAll('[data-mt-list-trigger]').forEach((button) => {
       const openMenu = (event) => {
         event.stopPropagation();
@@ -5987,10 +6027,11 @@
       ...(state.equipmentUnits || []).map((unit) => ({ name: cleanText(unit.name || unit.label), unit_id: cleanText(unit.id), type_id: cleanText(unit.type_id), daily: number(unit.rates?.daily_cents, 0), provides: equipmentProvides(unit.effective_provides) })),
       ...(state.equipmentTypes || []).map((type) => ({ name: cleanText(type.name), unit_id: '', type_id: cleanText(type.id), daily: number(type.default_rates?.daily_cents, 0), provides: equipmentProvides(type.provides) }))
     ].map((offer) => ({ ...offer, fn: offer.provides.find((entry) => entry.item === row.id) })).filter((offer) => offer.name && offer.fn);
-    const holds = (offer) => (offer.fn.per_load || typeof offer.fn.capacity !== 'number' ? Infinity : offer.fn.capacity);
+    const holds = (offer) => (offer.fn.per_load || !(Number(offer.fn.capacity) > 0) ? Infinity : Number(offer.fn.capacity));
     const ranked = offers.sort((a, b) => Number(holds(b) === Infinity) - Number(holds(a) === Infinity) || Number(holds(b) >= need) - Number(holds(a) >= need) || (holds(a) >= need ? holds(a) - holds(b) : holds(b) - holds(a)));
     const best = ranked[0];
-    return best ? { ...best, quantity: holds(best) === Infinity || !need ? 1 : Math.ceil(need / holds(best)) } : null;
+    const quantity = holds(best ?? { fn: {} }) === Infinity || !(need > 0) ? 1 : Math.ceil(need / holds(best));
+    return best ? { ...best, quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1 } : null;
   }
   async function createResourceList(type){
     const operation = captureProjectOperation(), category = resourceCategories().find((row) => row.id === type);
@@ -6049,13 +6090,15 @@
           if (!pick) { notes.push(`Nothing in your equipment provides ${row.label.toLowerCase()}. Mark an equipment type as providing it in the Equipment tab.`); continue; }
           const list = state.lists.find((entry) => resourceType(entry) === 'equipment') || await createResourceList('equipment');
           if (!list || !projectOperationIsCurrent(operation)) continue;
-          await persistVersion({ reason: 'revision', add_items: [{ id: uid('line'), section: 'equipment', name: pick.name, quantity: pick.quantity, unit: 'day', ...(pick.daily ? { projected_unit_price: pick.daily / 100 } : {}), metadata: { equipment_unit_id: pick.unit_id, equipment_type_id: pick.type_id, provides: pick.provides } }] }, { list });
+          await persistVersion({ reason: 'supplement', add_items: [{ id: uid('line'), section: 'equipment', name: pick.name, quantity: pick.quantity, unit: 'day', ...(pick.daily ? { projected_unit_price: pick.daily / 100 } : {}), metadata: { equipment_unit_id: pick.unit_id, equipment_type_id: pick.type_id, provides: pick.provides } }] }, { list });
           done.push(`Added ${pick.quantity > 1 ? `${pick.quantity} × ` : ''}${pick.name} for ${row.label.toLowerCase()}`);
         }
         if (!(await fresh())) return;
       }
     } catch (error) {
-      if (projectOperationIsCurrent(operation)) notes.push(error?.message || 'Something could not be generated.');
+      // A rejected line says which field was wrong, so the cause can be fixed rather than guessed.
+      const issues = (Array.isArray(error?.data?.issues) ? error.data.issues : []).map((issue) => `${(issue.path || []).join('.')}: ${issue.message}`).join('; ');
+      if (projectOperationIsCurrent(operation)) notes.push(`${error?.message || 'Something could not be generated.'}${issues ? ` (${issues})` : ''}`);
     } finally {
       state.resolvingRequirements = false;
       if (projectOperationIsCurrent(operation)) {
