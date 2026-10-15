@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 15 Contacts and opportunities: [contacts are records of their own, every lead source calls receiveLead, scope categories and sale outcomes, merge, and the legacy CRM removed](deploy/digitalocean/development-contacts-crm-20261015.md) records what shipped from `claude/contacts-opportunities-20261015` (not yet on the canonical branch), the migration and the verified development rollout.
+
 October 14 Settings search and assignment: [automatic UI-derived search and the larger, overlap-filtered assignment menu](deploy/digitalocean/development-settings-search-assignment-20261014.md) records the changes, tests and verified development rollout.
 
 October 14 Report preview: [Settings › Reports shows every page of the customer and internal PDFs beside the settings](deploy/digitalocean/development-report-preview-20261014.md) records what changed, checks and the verified development rollout.
