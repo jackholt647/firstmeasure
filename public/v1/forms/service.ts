@@ -678,7 +678,9 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
     };
     // A ticked consent block that records an SMS opt-in, with the sentence the visitor agreed to.
     const smsConsent = items.find((item) => item.kind === "consent" && item.sms_opt_in === true && item.param && answers[item.param] === true);
-    const created = await receiveLead(orgId, {
+    // A retry after a crash finds the lead the first attempt made and reuses it.
+    const earlier = await readDocument(orgId, "projects", projectId).catch(() => null);
+    if (!earlier) await receiveLead(orgId, {
       project_id: projectId,
       branch_id: branchId,
       source: { kind: "web_form", provider: "Web form", confidence: 1, provider_fields: { ...source, answers: summary }, ...source },

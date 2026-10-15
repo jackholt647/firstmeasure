@@ -51,8 +51,9 @@ export const DEFAULT_AUTOMATION_RULES: JsonObject[] = [
     title: "Queue a call when a new lead arrives",
     explainer: "When a new lead comes in, we add them to the New Leads call queue so someone reaches out right away.",
     customer_visible: true,
-    event: "lead.received",
-    conditions: {},
+    // An opportunity opening is a sales plan starting, however the project was created.
+    event: "work.plan.started",
+    conditions: { "plan.metadata.scope_template_kind": "pipeline" },
     automation: "crm.callLists.add.v1",
     input: {
       list: {

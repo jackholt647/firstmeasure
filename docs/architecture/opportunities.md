@@ -78,8 +78,11 @@ and the published `projects.lead.create` action. `receiveLead`:
 4. Records an SMS opt-in for each phone when `consent.sms` is set. A form's
    consent block sets it when the block has `sms_opt_in` and is ticked; its
    label is the disclosure.
-5. Emits `project.created` and `lead.received`. The default organization rule
-   that queues a first call runs on `lead.received`.
+5. Emits `project.created` and `lead.received`.
+
+The default organization rule that queues a first call runs when a sales plan
+starts (`work.plan.started` on a sales plan), so a project created by hand gets
+the call as well as one that arrived as a lead.
 
 Contact file import still writes standalone records through the contact bridge
 until the Contacts app reads the store (phase 5).
