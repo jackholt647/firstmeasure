@@ -54,7 +54,7 @@
     try{
       const result=await root.PaymentsAPI.merchantConfig.get(orgId);
       if(closed)return true;
-      if(result.redirect_test){
+      if(result.redirect_test?.fresh){
         testPanel.hidden=false;
         const context=result.redirect_test;
         evidence.textContent=`Organization: ${context.org_name}\nOrg ID: ${context.org_id}\nFresh payment setup: ${context.fresh?'Yes — no prior business, application or account':'No — use a fresh org'}`;
