@@ -11,6 +11,8 @@ import type { AccessPolicy, DataBinding, SourceRef, TargetRef } from "../platfor
 import { listActions, describeAction, invokeAction } from "../platform/publication/actions.js";
 import { listDataProviders, describeDataProvider, readPublishedData, listPublishedData } from "../platform/publication/providers.js";
 import { resolveDataBinding } from "../platform/publication/bindings.js";
+import { agentDefinition } from "./registry.js";
+import { howToEntry, howToPromptIndex, howToSummary, presentHowToStep, searchHowTos, type HowToStep } from "./how-tos/index.js";
 
 const string = { type: "string" };
 const object = { type: "object" };
@@ -23,7 +25,9 @@ To ask the user to choose something (photos, a date or time, a color, a project)
 Use platform_widgets to discover reusable visual widgets. When the user asks to see measurements, lists, a roof model or aerial, use platform_show_widget with the exact discovered id/version and project target. This presents a panel containing the registered widget beside your response; it does not mutate data. Read its declared sources with platform_read to reason about values. Do not claim the browser has displayed it until the user can see it; the tool queues presentation and the browser reports load errors.
 When asked to show a to-do or task list, discover and present todos.list with platform_show_widget rather than assembling a static visualization table. For personal cross-project to-dos use an organization target; for one project's tasks use its project target. This registered widget loads fresh authorized tasks and supports completion and editing. Historical table panels remain snapshots; do not claim they are interactive to-do lists.
 For payroll, discover payroll widgets and use platform_show_widget for upcoming pay, timesheets, contractors, reports, history, settings, ledger and earnings. Payroll widgets use organization targets. Read payroll publications for reasoning; projected earnings are forecasts and a missing schedule is not zero owed. Earnings come from pay rules (payroll.pay_rules, pay_plans, pay_setups; payroll.pay_units explains one payee's earnings). Publication reads never post earnings; payroll.earnings.refresh is the explicit write that works them out, and payroll.paySetup.preview shows what a change would do first.
-You may work across apps through one published catalog, regardless of which app opened this conversation. Search with platform_search, inspect a selected contract with platform_describe, then use platform_read/platform_list or platform_invoke. Search again when the first term misses; app names and business concepts are useful queries. Project operations need an explicit project id. Use platform_resolve_binding when an artifact needs a live or frozen data reference, and put the returned source identity in the artifact's declared binding rather than flattening provenance into anonymous text. Never guess action inputs or record ids; inspect schemas and read current records first. The server filters discovery and rechecks every operation against the current human user, enabled apps, target resource and any extra agent restriction. An unavailable operation is unavailable to you. Effects need an explicit user request; confirm hard-to-reverse external effects in the conversation before invoking them. Do not claim an operation succeeded when its tool reports failure or an uncertain outcome.`;
+You may work across apps through one published catalog, regardless of which app opened this conversation. Search with platform_search, inspect a selected contract with platform_describe, then use platform_read/platform_list or platform_invoke. Search again when the first term misses; app names and business concepts are useful queries. Project operations need an explicit project id. Use platform_resolve_binding when an artifact needs a live or frozen data reference, and put the returned source identity in the artifact's declared binding rather than flattening provenance into anonymous text. Never guess action inputs or record ids; inspect schemas and read current records first. The server filters discovery and rechecks every operation against the current human user, enabled apps, target resource and any extra agent restriction. An unavailable operation is unavailable to you. Effects need an explicit user request; confirm hard-to-reverse external effects in the conversation before invoking them. Do not claim an operation succeeded when its tool reports failure or an uncertain outcome.
+
+${howToPromptIndex()}`;
 
 function target(value: unknown, orgId: string): TargetRef {
   const raw = asObject(value);
@@ -85,6 +89,24 @@ async function discover(run: AgentRun, policy: AccessPolicy, scopes: readonly Ta
     } catch { /* Another supported scope may be available. */ }
   }
   return false;
+}
+
+/** What this caller cannot use from a how-to step: published operations their grants hide, and tools that belong to another agent. */
+async function howToStepAccess(run: AgentRun, step: HowToStep): Promise<JsonObject> {
+  if (!step.refs || step.planned !== undefined) return {};
+  const denied: string[] = [];
+  for (const id of step.refs.actions || []) {
+    const action = describeAction(id);
+    if (!action || !action.executionKinds.includes("agent") || !allowedByAgent(run, id, action.effect) || !await discover(run, action.policy, action.policy.scopes, id)) denied.push(id);
+  }
+  for (const id of step.refs.data || []) {
+    const dot = id.lastIndexOf(".");
+    const entry = describeDataProvider(id.slice(0, dot))?.exports[id.slice(dot + 1)];
+    if (!entry || !await discover(run, entry.access, entry.access.scopes, id)) denied.push(id);
+  }
+  const elsewhere = (step.refs.tools || []).filter(id => id.includes(".") && id.slice(0, id.indexOf(".")) !== run.agentId);
+  const agents = [...new Set(elsewhere.map(id => id.slice(0, id.indexOf("."))))].map(id => ({ agent: id, title: agentDefinition(id)?.title || id, tools: elsewhere.filter(tool => tool.startsWith(`${id}.`)).map(tool => tool.slice(id.length + 1)) }));
+  return { ...(denied.length ? { unavailable_to_you: denied } : {}), ...(agents.length ? { tools_of_another_agent: agents } : {}) };
 }
 
 const businessActions = () => listActions().filter(action => action.executionKinds.includes("agent") && !action.id.startsWith("agent."));
@@ -225,6 +247,26 @@ export const platformAgentTools: AgentTool[] = [
       if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/.test(name)) throw badRequest("agent_binding_name_invalid", "Binding names must start with a letter and be at most 80 characters.");
       const binding: DataBinding = { kind: "data", policy: args.policy as "live" | "frozen", source: permittedSource(run, args.source) };
       return await resolveDataBinding(await context(run), `agent:${run.agentId}:${run.userId}`, name, binding) as unknown as JsonObject;
+    }
+  },
+  {
+    name: "platform_how_to_search",
+    description: "Search the how-to index: short checked recipes for business tasks that combine several platform capabilities. Returns ids, titles and when to use each; an empty query lists them all. Read one with platform_how_to_read before starting such a task.",
+    parameters: { type: "object", properties: { query: string }, additionalProperties: false },
+    async execute(run, args) { await context(run); return { how_tos: searchHowTos(cleanText(args.query)).map(howToSummary) }; }
+  },
+  {
+    name: "platform_how_to_read",
+    description: "Read one how-to by id: ordered steps and the exact automation, event, data, action, field type and tool ids each relies on. A step with status planned is not built; never attempt it or substitute for it. A how-to describes what to do and grants nothing: every tool and operation it names is still checked against the current user.",
+    parameters: { type: "object", properties: { id: string }, required: ["id"], additionalProperties: false },
+    async execute(run, args) {
+      initializePublication();
+      await context(run);
+      const entry = howToEntry(cleanText(args.id));
+      if (!entry) return { available: false, known_ids: searchHowTos().map(known => known.id) };
+      const steps: JsonObject[] = [];
+      for (const [index, step] of entry.steps.entries()) steps.push({ ...presentHowToStep(step, index), ...await howToStepAccess(run, step) } as JsonObject);
+      return { available: true, id: entry.id, title: entry.title, use_when: entry.use_when, steps, ...(entry.notes?.length ? { notes: entry.notes } : {}) };
     }
   }
 ];

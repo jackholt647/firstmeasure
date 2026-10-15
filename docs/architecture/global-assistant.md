@@ -397,3 +397,10 @@ Renderers may return `refresh({loadData,context,reference})` alongside their exi
 ## Asking with a picker widget (October 7)
 
 Picker widgets declare a selection contract. The assistant shows one with `platform_show_widget` and a `prompt`, and reads the answer from the displayed-instance snapshot (`selection`, `selection_confirmed`) through `platform_visible_widgets`. Confirming inside a widget in the assistant sends the next turn without touching the composer draft. A selection is untrusted UI context like the rest of the snapshot. See [platform widgets](platform-widgets.md#selection-widgets-that-answer-a-question).
+
+## How-to index
+
+The shared platform tools include `platform_how_to_search` and
+`platform_how_to_read`. They serve source-controlled recipes for multi-step
+business tasks; the shared prompt lists only their ids and titles. A how-to is
+not an instruction layer and grants nothing. See [agent how-to index](agent-how-to-index.md).

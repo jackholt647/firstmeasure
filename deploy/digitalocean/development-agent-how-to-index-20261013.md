@@ -1,0 +1,15 @@
+# Agent how-to index — October 13, 2026
+
+Agents could discover single capabilities but had nothing telling them how to combine capabilities into a business task. This release adds the [agent how-to index](../../docs/architecture/agent-how-to-index.md): source-controlled recipes in `public/v1/agents/how-tos`, served by two shared platform tools, `platform_how_to_search` and `platform_how_to_read`. The shared prompt gains one instruction and one `id: title` line per entry; entry bodies are fetched by tool. The first entry is `pay_for_project_role`, whose pay rule step is marked planned.
+
+Deployed files: `agents/platform_tools.ts` and `agents/how-tos/{types,index,validate}.ts` and `agents/how-tos/entries/pay_for_project_role.ts`, with their compiled output. No data, schema, configuration or frontend change. A how-to grants nothing; every operation it names is still authorized per call.
+
+Validation before rollout, at `ae0c4549` plus this change: `tsc --noEmit`; `tests/agent-how-to-index.test.ts` (5 passing, including an end-to-end run of the entry's call path); `tests/automation-contracts.test.ts` (12 passing); `npm run test:assistant:frontend` (97 passing); `npm run test:publication` (73 passing, 1 skipped). `npm run test:assistant` passed 3 of 23 at the committed tip both with and without this change (the `apps.assistant` capability is denied in the fixture); the shared checkout passes 21 of 23 with another session's uncommitted work, so that suite has not given a meaningful result for this change.
+
+Development activation only: release `13baf0f54d38c97d828f5d05b804e988883f9051` on worker (over `554e5eed02e6315ca2fc880a832dfdda01c94bb6`), compatibility, web and pool (over `ae0c4549896205d56c9fb85e6abaf3928f4207c4`), as immutable hardlink overlays of the owned files. No role had drift in `platform_tools.ts`, so nothing was merged. Each role passed stage (compiled output check and the host TypeScript check), activate and verify, one role at a time. Public readiness reports the release, the development data environment and enforced outbound safety. A read-only probe on web and worker confirmed the running code exposes both tools, lists the entry in the prompt without its body, and labels step 3 planned. The tools were not exercised through a signed-in assistant conversation.
+
+The release commit is on `claude/intelligent-dirac-689272`, one commit ahead of `codex/consolidated-firstmeasure-20260923` at `ae0c4549`. It was built in a session worktree that cannot write to the canonical checkout, so it is **not yet on the canonical branch**. Until it is brought across, a rollout that replaces `agents/platform_tools.ts` from the canonical branch without merging onto live content would drop the how-to tools on development.
+
+Rollback: repoint `/opt/firstmeasure/current` to the retained baseline on each role and restart its development service. Nothing else needs undoing.
+
+Both activations on worker and compatibility printed systemd's notice that the unit file changed on disk and wants `daemon-reload`. That predates this rollout and was left alone.

@@ -259,6 +259,18 @@ save affects new instances only; reaching running ones is the explicit push in
 `scopes/instances.ts`. Dry run is for agents and tests and is not a product UI
 feature. Run `tests/automation-contracts.test.ts` for changes to these contracts.
 
+## Agent how-to index
+
+Read [agent how-to index](docs/architecture/agent-how-to-index.md) before
+adding or changing a recipe that tells agents how to combine capabilities into
+a business task. Entries are source data in `public/v1/agents/how-tos/entries`,
+one file each, listed in `how-tos/index.ts`. Agents fetch a body with
+`platform_how_to_search` and `platform_how_to_read`; only ids and titles go in
+the shared prompt, never an entry body. Every id a step names must be
+registered. Mark a step `planned` when what it needs is not built, and verify a
+recipe against the code before writing it as fact. Run
+`tests/agent-how-to-index.test.ts` for changes here.
+
 ## Realtime: one stream per page
 
 Read [realtime](docs/architecture/realtime.md) before adding anything that
