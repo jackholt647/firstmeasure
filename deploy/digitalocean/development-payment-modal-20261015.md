@@ -52,3 +52,20 @@ post-bank redirect, return URL or completion-callback parameter was found.
 Public hosted-script downloads returned HTTP 403, preventing a code-level
 confirmation of undocumented alternatives. No guessed provider parameters or
 approval-triggered redirects were introduced; approval can precede bank linking.
+
+## October 15 correction: match project/contact modal geometry
+
+The uncapped 96%-width/height version was too large and its z-index 2147483000
+was below the sidebar's 2147483004. Follow-up `a561c1984b9c0fa92e0846303f883bd0179ab383`
+uses the existing project/window-manager modal contract: min(1720px,96vw) by
+min(1180px,92vh), centered, 14px radius, and backdrop z-index 2147483100.
+The header does not shrink when iframe content is tall. Only the payment setup
+asset is changed. The audited deployment baseline is
+`04f75df6ea3d1cd851bf41ee565740185fbb41a1`; task artifacts are under
+`output/payment-modal-match-20261015`. JavaScript syntax checks pass.
+
+Verified on all three development roles. Hosted browser measurement at 2039 x
+1248: dialog 1720 x 1148.16, centered at x=159.5/y=49.92. Hit-testing over the
+sidebar returns the payment backdrop; overlay z-index 2147483100 is above sidebar
+2147483004. Forward contact form renders normally in the iframe. Screenshot:
+`output/payment-modal-match-20261015/corrected-modal.png`.
