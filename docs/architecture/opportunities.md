@@ -138,8 +138,8 @@ routes at `/v1/call-lists` (call outcomes are written to the call list store).
 Gmail sync keeps mailboxes but no longer files messages against legacy leads.
 `internal/crm/api.ts` now serves only the referral routes at
 `/v1/internal/crm/referrals`, which still check no login (audit SEC-1).
-`workflow_state: "contact_only"` standalone records remain until the Contacts
-app reads the store directly.
+There are no `workflow_state: "contact_only"` standalone records; contacts are
+records of their own ([contacts](contacts.md)).
 
 Validation: `tests/lead-receive.test.ts`, `tests/opportunity-outcome.test.ts`,
 `tests/project-merge.test.ts`, `tests/scope-categories.test.ts`,
