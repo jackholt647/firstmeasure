@@ -95,7 +95,10 @@
     if(matches.some(value=>!Number.isFinite(value)))return Infinity;
     const navigation=item.kind==='section'||item.kind==='view';
     const kind=navigation?0:item.kind==='control'?6:10;
-    const exact=title.length===tokens.length&&title.every((word,i)=>term(word)===term(tokens[i]));
+    // A page called "Phone Settings" is the Phone destination, unlike a Phone field.
+    const pageWords=words=>navigation&&words.length>1&&term(words.at(-1))==='setting'?words.slice(0,-1):words;
+    const exactTitle=pageWords(title), exactQuery=pageWords(tokens);
+    const exact=exactTitle.length===exactQuery.length&&exactTitle.every((word,i)=>term(word)===term(exactQuery[i]));
     const prefix=tokens.length<=title.length&&tokens.every((token,i)=>wordMatch(token,[title[i]])<Infinity);
     const inTitle=titleMatches.every(Number.isFinite);
     const inContext=tokens.every((token,i)=>Number.isFinite(titleMatches[i])||Number.isFinite(wordMatch(token,context)));

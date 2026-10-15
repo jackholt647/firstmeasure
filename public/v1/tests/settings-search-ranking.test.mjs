@@ -32,3 +32,7 @@ test('unrelated categories cannot win through volume and all eligible results re
  const rows=[{title:'Users',kind:'view',tab:'People',section:'people'},...Array.from({length:35},(_,i)=>({title:'Phone feature '+i,description:'Assigned user',kind:'control',tab:'Phone',section:'phone'}))];
  const found=search(rows)('user');assert.equal(found.length,36);assert.equal(found[0].title,'Users');
 });
+test('a Settings suffix does not demote the destination below incidental exact fields',()=>{
+ const find=search([{title:'Phone',kind:'control',tab:'People',section:'people'}, {title:'Phone Settings',kind:'section',tab:'Phone Settings',section:'sms'}]);
+ assert.equal(find('phone')[0].section,'sms');assert.equal(find('phone settings')[0].section,'sms');
+});
