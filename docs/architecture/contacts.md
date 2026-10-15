@@ -126,6 +126,12 @@ and bounds size, time and decoding. A failed photo leaves its contact intact.
 id that follows merges and refreshes on the realtime facts, and the shared
 picker, chip, card and contact window used by every app.
 
+## Not built
+
+- Pickers still load every contact through `contacts.options`, and a contact
+  edit rewrites every linked project's projection
+  ([optimization backlog](../optimization-backlog.md#contact-options-and-projection-fan-out)).
+
 ## Phases
 
 1. Store, normalizer, service, reference registry, routes and publication; the

@@ -392,7 +392,9 @@ test("typed contact references, defaults, managed tags and required media are en
  await saveBranchModule(orgId,"default","custom_fields",{data:{fields:fields.map(f=>({...f,required:f.path==="relationships.employer"}))}});
  await assert.rejects(create("required",{}),/Employer is required/);
  const person=await readDocument(orgId,"projects","person");
- await assert.rejects(upsertDocument(orgId,"projects",{id:"person",data:{...person.data,title:"Updated"}},{replace:true}),/Employer is required/);
+ // A contact is its own record: saving a project does not re-check its contacts, changing the contact does.
+ await upsertDocument(orgId,"projects",{id:"person",data:{...person.data,title:"Updated"}},{replace:true});
+ await assert.rejects((await import("../contacts/records.js")).updateContact(orgId,"c_person",{name:"Person Updated"}),/Employer is required/);
  const contract=(await import("../custom_fields/contracts.js"));
  assert.throws(()=>contract.normalizeDefinitions([{entity:"contact",path:"relationships.spouse",type:"text"}]),/retain their type/);
  assert.throws(()=>contract.normalizeDefinitions([{entity:"contact",path:"secondary_phone",type:"text"}]),/retain their type/);

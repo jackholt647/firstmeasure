@@ -68,3 +68,15 @@ continuously changing sources still need an indexed or snapshot adapter.
 **Where the change goes.** A provider-specific adapter per such source. (docs/architecture/stats-materializations.md)
 
 **Why it can wait.** No current dataset hits these limits.
+
+## Contact options and projection fan-out
+
+**Today.** `contactOptions` (`contacts/service.ts`), which fills typed contact pickers, pages through every contact
+(up to 5,000) and returns them all. A contact edit rewrites `project.contacts` on every linked project, one document
+write each (`refreshProjections` in `contacts/records.ts`).
+
+**Where the change goes.** Pickers call `contacts.records` with a text query instead of loading options, and options
+is removed. The fan-out goes away when readers use the contacts client instead of the projection (contacts phase 5).
+
+**Why it can wait.** An organization has few contacts per project, and pickers stay fast below a few thousand
+contacts. (docs/architecture/contacts.md)

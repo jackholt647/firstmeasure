@@ -51,7 +51,7 @@ test("custom fields publish all owners, enforce writes, reauthorize snapshots an
     await storage.createOrganization({id:org,name:"Fields"});
     await storage.saveBranchModule(org,"default","custom_fields",{data:{fields:definitions}},{replace:true});
     await storage.upsertDocument(org,"projects",{id:"project",data:{name:"Untouched",contacts:[{id:"embedded",name:"Contact",custom_field_values:{count:8}}],custom_field_values:{count:2,locked:"stored",secret:"restricted",details:{email:"a@example.com"},legacy_variable:9}}});
-    await storage.upsertDocument(org,"customers",{id:"contact",data:{contact_custom_field_values:{count:3}}});
+    await (await import("../contacts/records.js")).createContact(org,{name:"Contact",custom_field_values:{count:3}},{id:"contact"});
     const operations = ["project","contact","organization"].flatMap(entity => [`custom-fields-${entity}.contract`,`custom-fields-${entity}.values`,`custom-fields.${entity}.write`]);
     const ctx = systemPublicationContext({kind:"module",organizationId:org,operations,mode:"command"});
     const target = {scope:"project" as const,organizationId:org,projectId:"project"};
@@ -85,10 +85,10 @@ test("custom fields publish all owners, enforce writes, reauthorize snapshots an
     assert.deepEqual((row.data.custom_field_values as any).details,{});
     await assert.rejects(() => invokeAction(ctx,action,{values:{count:8},expectedRevision:1},{idempotencyKey:"stale"}));
     await assert.rejects(() => storage.upsertDocument(org,"projects",{id:"project",data:{custom_field_values:{count:1.2}}}));
-    await assert.rejects(() => storage.upsertDocument(org,"customers",{id:"contact",data:{contact_custom_field_values:{count:1.2}}}));
+    await assert.rejects(async () => (await import("../contacts/records.js")).updateContact(org,"contact",{custom_field_values:{count:1.2}}));
     await assert.rejects(() => authorizeRecordFieldMutation(ctx,"projects","project",{data:{custom_field_values:{locked:"bad"}}}));
     await assert.rejects(() => storage.upsertDocument(org,"projects",{id:"project",data:{contacts:[{id:"embedded",custom_field_values:{count:1.5}}]}}));
-    await invokeAction(ctx,{action:"custom-fields.contact.write",target:{...target,id:"embedded"}},{values:{count:11},expectedRevision:2},{idempotencyKey:"embedded-write"});
+    await invokeAction(ctx,{action:"custom-fields.contact.write",target:{...target,id:"embedded"}},{values:{count:11},expectedRevision:1},{idempotencyKey:"embedded-write"});
     assert.equal(((await storage.readDocument(org,"projects","project")).data.contacts as any[])[0].custom_field_values.count,11);
     const concurrent = await Promise.allSettled([12,13].map((count,i) => invokeAction(ctx,action,{values:{count},expectedRevision:3},{idempotencyKey:`concurrent-${i}`})));
     assert.equal(concurrent.filter(r => r.status === "fulfilled").length,1);
@@ -108,7 +108,8 @@ test("custom fields publish all owners, enforce writes, reauthorize snapshots an
     assert.equal((await readPublishedData(ctx,{...ref,args:{field:"secret"}})).status,"denied", "Deleting a definition must not turn private stored values into public inferred fields.");
   } finally {
     await closeActionDatabase();
-    if(process.env.TEST_POSTGRES_URL) { await (await import("../platform/sql_store.js")).closeSqlStoresForTests(); await (await import("../src/database/postgres.js")).closePostgresPools(); }
+    await (await import("../platform/sql_store.js")).closeSqlStoresForTests();
+    if(process.env.TEST_POSTGRES_URL) await (await import("../src/database/postgres.js")).closePostgresPools();
     await rm(root,{recursive:true,force:true});
   }
 });

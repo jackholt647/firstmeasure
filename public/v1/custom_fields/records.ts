@@ -63,14 +63,8 @@ export function applyValues(record: JsonObject, entity: FieldEntity, values: Jso
 
 export async function prepareStoredFields(orgId:string, collection:string, incoming:JsonObject, previous:JsonObject = {}):Promise<JsonObject> {
   const entity:FieldEntity = ownerForCollection(collection,{...previous,...incoming});
-  let data = entity === "contact" ? await normalizeContactRecord(orgId,incoming,previous) : {...incoming};
-  if (collection === "projects" && Array.isArray(data.contacts)) {
-    const old = Array.isArray(previous.contacts) ? previous.contacts.map(object) : [];
-    data.contacts = await Promise.all(data.contacts.map(async raw => {
-      const c = object(raw), prior = old.find(v => String(v.id || v.contact_id) === String(c.id || c.contact_id)) || {};
-      return prepareStoredFields(orgId,"customers",c,{...prior,branch_id:data.branch_id || previous.branch_id || "default"});
-    }));
-  }
+  // A project's contacts are validated by the contact service (contacts/records.ts), not here.
+  const data = entity === "contact" ? await normalizeContactRecord(orgId,incoming,previous) : {...incoming};
   const keys = entity === "contact" ? ["custom_field_values","contact_custom_field_values","custom_fields"] : ["custom_field_values","custom_fields"];
   const key = keys.find(k => Object.hasOwn(data,k));
   const before = valuesOf(previous,entity);
@@ -131,34 +125,35 @@ export async function readFieldRecord(ctx: PublicationContext, target: TargetRef
     const fields = await definitions(ctx.organizationId,"default",entity,record);
     return {id:resourceFieldId(entity,owner.id),collection:"resource_custom_fields",row,record,fields,branch:"default",embedded:false,parent:record};
   }
+  if (entity === "contact") {
+    // Contacts live in the contact store. A project target reaches only the contacts linked to that project.
+    const contactsModule = await import("../contacts/records.js");
+    const contact = await contactsModule.readContact(ctx.organizationId, String(target.id || "")).catch(error => {
+      if (target.scope === "project" && (error as {statusCode?:number})?.statusCode === 404) throw forbidden("custom_field_contact","Contact does not belong to this project.");
+      throw error;
+    });
+    if (target.scope === "project" && !(await contactsModule.projectContactLinks(ctx.organizationId, String(target.projectId || ""))).some(link => link.contact_id === contact.id)) throw forbidden("custom_field_contact","Contact does not belong to this project.");
+    const record:JsonObject = { ...contact, branch_id:contact.branch_ids[0] || "default" };
+    const fields = await definitions(ctx.organizationId, String(record.branch_id), "contact", record);
+    const row = { id:contact.id, revision:contact.revision, data:record, metadata:{} } as unknown as Awaited<ReturnType<typeof readDocument>>;
+    return { id:contact.id, collection:"contacts", row, record, fields, branch:String(record.branch_id), embedded:false, parent:record };
+  }
   let id = entity === "project" ? target.projectId : entity === "organization" ? "values" : target.id;
   if (!id) throw badRequest("custom_field_target", "A record identity is required.");
   if (entity === "project" && target.id && target.id !== id) throw forbidden("custom_field_target", "Project identity does not match the target.");
   if (entity === "organization" && target.id && ![ctx.organizationId,"values"].includes(target.id)) throw forbidden("custom_field_target", "Organization identity does not match the target.");
-  const embedded = entity === "contact" && target.scope === "project";
-  const collection = entity === "project" || embedded ? "projects" : entity === "contact" ? "customers" : entity === "user" ? "users" : "organization_custom_fields";
-  const row = entity === "organization" ? await optional(() => readDocument(ctx.organizationId, collection, id!)) : await readDocument(ctx.organizationId, collection, embedded ? target.projectId! : id);
+  const collection = entity === "project" ? "projects" : entity === "user" ? "users" : "organization_custom_fields";
+  const row = entity === "organization" ? await optional(() => readDocument(ctx.organizationId, collection, id!)) : await readDocument(ctx.organizationId, collection, id);
   const parent = object(row?.data);
-  const contacts = Array.isArray(parent.contacts) ? parent.contacts.map(object) : [];
-  const contact = embedded ? contacts.find(c => String(c.id || c.contact_id) === id) : undefined;
-  if (embedded && !contact) throw forbidden("custom_field_contact","Contact does not belong to this project.");
-  const primaryContact = parent.workflow_state === "contact_only" && (parent.primary_contact_id === id || String(contacts[0]?.id || contacts[0]?.contact_id) === id);
-  const record = embedded ? { ...contact, ...(primaryContact ? { custom_field_values:{...object(parent.contact_custom_field_values),...object(contact?.custom_field_values)}, contact_custom_field_values:{...object(parent.contact_custom_field_values),...object(contact?.custom_field_values)} } : {}), branch_id:parent.branch_id } : entity === "user" ? {...parent,id:row!.id} : parent;
+  const record = entity === "user" ? {...parent,id:row!.id} : parent;
   const branch = FIELD_OWNERS[entity].shared ? "default" : String(record.branch_id || target.branchId || ctx.branchId || "default");
   if (entity !== "user" && target.branchId && record.branch_id && target.branchId !== record.branch_id) throw forbidden("custom_field_branch", "Field target does not match the record branch.");
   const fields = await definitions(ctx.organizationId, branch, entity, record);
-  return { id, collection, row, record, fields, branch, embedded, parent };
+  return { id, collection, row, record, fields, branch, embedded:false, parent };
 }
 // Called by storage on every project/contact/organization-field write, including
 // Work services. Unchanged legacy values do not block unrelated record edits.
 export async function validateStoredFields(orgId: string, collection: string, incoming: JsonObject, previous: JsonObject = {}, replace = false, recordId?: string) {
-  if (collection === "projects" && Array.isArray(incoming.contacts)) {
-    const oldContacts = Array.isArray(previous.contacts) ? previous.contacts.map(object) : [];
-    for (const raw of incoming.contacts) {
-      const contact = object(raw), old = oldContacts.find(c => String(c.id || c.contact_id) === String(contact.id || contact.contact_id)) || {};
-      await validateStoredFields(orgId,"customers",{...contact,branch_id:incoming.branch_id || previous.branch_id || "default"},old,true);
-    }
-  }
   const entity: FieldEntity = ownerForCollection(collection,{...previous,...incoming});
   if(collection === "resource_custom_fields") {
     if(previous.entity && (incoming.entity !== previous.entity || incoming.owner_id !== previous.owner_id)) throw badRequest("custom_field_owner_immutable","Field owner identity cannot change.");
@@ -280,11 +275,11 @@ export async function writeFields(ctx: PublicationContext, target: TargetRef, en
     if ((empty(value) || Array.isArray(value) && !value.length) && empty(f.default_value)) throw badRequest("custom_field_required", `${f.label || f.path} is required.`, { path:f.path });
   }
   if (entity === "project") await (await import("./service.js")).validateProjectCustomFieldValues(ctx.organizationId,state.branch,applyValues(state.record,entity,values),state.record);
-  let data:JsonObject = applyValues(state.record,entity,values);
-  if (state.embedded) {
-    data = {...state.parent, contacts:(state.parent.contacts as unknown[]).map(raw => String(object(raw).id || object(raw).contact_id) === state.id ? applyValues(object(raw),"contact",values) : raw)};
-    if (state.parent.workflow_state === "contact_only" && (state.parent.primary_contact_id === state.id || object((state.parent.contacts as unknown[])[0]).id === state.id)) data.contact_custom_field_values = values;
+  if (entity === "contact") {
+    const saved = await (await import("../contacts/records.js")).updateContact(ctx.organizationId, state.id!, { custom_field_values:values }, { expectedRevision:Number(input.expectedRevision) });
+    return { id:saved.id, revision:saved.revision };
   }
-  const saved = await upsertDocument(ctx.organizationId,state.collection,{ id:state.embedded ? target.projectId : state.id, expected_revision:Number(input.expectedRevision), data, metadata:state.row?.metadata || {} },{ replace:true, ...(!state.row ? {createOnly:true} : {}) });
+  const data:JsonObject = applyValues(state.record,entity,values);
+  const saved = await upsertDocument(ctx.organizationId,state.collection,{ id:state.id, expected_revision:Number(input.expectedRevision), data, metadata:state.row?.metadata || {} },{ replace:true, ...(!state.row ? {createOnly:true} : {}) });
   return { id:saved.id, revision:saved.revision };
 }
