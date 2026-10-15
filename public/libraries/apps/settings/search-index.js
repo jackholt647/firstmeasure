@@ -76,7 +76,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/people/people-settings.js",
-      "d89af4958d0b2b5ab8325e0e7ad7629a34a62efe66d290a870807898d31ff134"
+      "f8a6af6cdd2105ab11bfb64b4e5a04090b8ff1c2ce4fb4fd7d6416c416a692b0"
     ],
     [
       "libraries/apps/people/permissions-panel.js",

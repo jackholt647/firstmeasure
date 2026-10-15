@@ -7,6 +7,7 @@
   const ignored = 'script,style,option,textarea,input,select,[contenteditable],.rp-state,[data-settings-search-results],[data-settings-search-ignore]';
   let attachment = null, pending = null;
   const subscriptions = new Set();
+  const destinations = new Map();
   const sourceEntries = () => root.FirstMateSettingsIndex?.entries || [];
   const textOf = (element, labelOnly=false) => {
     if (!element) return '';
@@ -131,18 +132,20 @@
         const views=exactRoutes.get(item.section+'|'+title)||routes.get(item.section+'|'+labelKey(item.title));
         if(views?.size===1)item.view=[...views][0];
       }
+      const resolve=destinations.get(item.section);
+      if(resolve)item.view=resolve(item.view||'');
       const key=item.section+'|'+(item.view||'')+'|'+title;
       const old=unique.get(key);if(!old||score<old.score)unique.set(key,{...item,score});
     }
     const ranked=[...unique.values()].sort((a,b)=>a.score-b.score||a.title.localeCompare(b.title));
-    const destinations=new Map();
+    const groups=new Map();
     for(const item of ranked){
       const key=item.section+'|'+(item.view||'');
-      if(!destinations.has(key))destinations.set(key,{...item,destinationTitle:pages.get(key)||item.title,matchLabels:[]});
-      const group=destinations.get(key);
+      if(!groups.has(key))groups.set(key,{...item,destinationTitle:pages.get(key)||item.title,matchLabels:[]});
+      const group=groups.get(key);
       if(!group.matchLabels.some(label=>labelKey(label)===labelKey(item.title)))group.matchLabels.push(item.title);
     }
-    return [...destinations.values()].map(group=>{
+    return [...groups.values()].map(group=>{
       const labels=group.matchLabels.filter(label=>labelKey(label)!==labelKey(group.destinationTitle));
       return {...group,matchCount:group.matchLabels.length,matchSummary:labels.slice(0,2).join(' · ')+(labels.length>2?` · +${labels.length-2}`:'')};
     }).slice(0,options.limit||40);
@@ -194,5 +197,7 @@
     root.Portal.navigation.navigate({tab:'company_settings',sub:item.section,settingsView:item.view||'',settingsEntity:'',scopeTemplateView:'',workflow:'',workflow_step:''},{source:options.source||'settings-search',ownedKeys:['tab','sub','settingsView','settingsEntity','scopeTemplateView','workflow','workflow_step']});
     setTimeout(reveal,0);return true;
   }
-  root.FirstMateSettingsSearch={get catalog(){return sourceEntries();},search,open,extract,attach,normalize,subscribe(fn){subscriptions.add(fn);return()=>subscriptions.delete(fn);}};
+  root.FirstMateSettingsSearch={get catalog(){return sourceEntries();},search,open,extract,attach,normalize,
+    registerDestination(section,resolve){destinations.set(section,resolve);notify();return()=>{if(destinations.get(section)===resolve)destinations.delete(section);};},
+    subscribe(fn){subscriptions.add(fn);return()=>subscriptions.delete(fn);}};
 })(window);

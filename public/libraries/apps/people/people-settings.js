@@ -46,6 +46,8 @@
   /* Only the pages this organization and user can use. An organization on the original model gets Users alone. */
   const available = () => { const list = VIEWS.filter((view) => !People.data?.allows || People.data.allows(view.needs)); return list.length ? list : VIEWS.filter((view) => view.id === 'users'); };
   const viewFor = (id) => available().find((view) => view.id === id) || available()[0];
+  // Search groups aliases and unavailable-view fallbacks using the same route resolution as mounting.
+  window.FirstMateSettingsSearch?.registerDestination?.('people', id => viewFor(id).id);
 
   function ensureStyles(){
     if (document.getElementById('pp_settings_css')) return;

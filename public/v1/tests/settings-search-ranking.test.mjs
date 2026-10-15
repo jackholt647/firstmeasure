@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const engine=readFileSync(new URL('../../libraries/apps/settings/search.js',import.meta.url),'utf8');
 const index=readFileSync(new URL('../../libraries/apps/settings/search-index.js',import.meta.url),'utf8');
-function search(entries){const window={};const ctx=vm.createContext({window});vm.runInContext(index,ctx);if(entries)window.FirstMateSettingsIndex.entries=entries;vm.runInContext(engine,ctx);return q=>Array.from(window.FirstMateSettingsSearch.search(q));}
+function search(entries,resolve){const window={};const ctx=vm.createContext({window});vm.runInContext(index,ctx);if(entries)window.FirstMateSettingsIndex.entries=entries;vm.runInContext(engine,ctx);if(resolve)window.FirstMateSettingsSearch.registerDestination('people',resolve);return q=>Array.from(window.FirstMateSettingsSearch.search(q));}
 test('user and users lead to the Users page; specific controls remain first',()=>{
  const find=search();for(const q of ['user','users']){const first=find(q)[0];assert.equal(first.title,'Users');assert.equal(first.view,'users');assert.equal(first.section,'people');}
  for(const [query,title]of [['waste','Waste'],['company language','Company language'],['message templates','Message templates'],['mesage templates','Message templates']])assert.equal(find(query)[0].title,title,query);
@@ -54,4 +54,13 @@ test('grouping preserves the most relevant control and limits the inline match s
  const found=search(['Language','Language defaults','Language fallback','Language translation'].map((title,i)=>({title,kind:'control',section:'company',tab:'Company',selector:'#field'+i})))('language');
  assert.equal(found.length,1);assert.equal(found[0].selector,'#field0');assert.equal(found[0].matchCount,4);
  assert.equal(found[0].matchSummary,'Language defaults · Language fallback · +1');
+});
+
+test('destination owners canonicalize aliases and fallback routes using their own routing rules',()=>{
+ const found=search([
+  {title:'Users',kind:'view',tab:'People',section:'people',view:'users'},
+  {title:'User',kind:'control',tab:'People',section:'people',view:'old-users'},
+  {title:'User roles',kind:'heading',tab:'People',section:'people',view:'roles'},
+ ],view=>view==='users'?view:'users')('user');
+ assert.equal(found.length,1);assert.equal(found[0].view,'users');assert.equal(found[0].matchSummary,'User roles');
 });

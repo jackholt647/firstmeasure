@@ -52,3 +52,7 @@ The strongest hit retains its score and focus target; matching labels provide a
 compact two-label summary. Repeated singular/plural labels count once. Missing
 view metadata is inferred only from an unambiguous matching indexed label. A
 known page name labels a nested destination, so different tabs remain distinct.
+
+A settings owner can registerDestination(section, resolveView) with its existing
+route resolver. People uses its own viewFor resolver so aliases and fallback
+routes are grouped without a second routing table.
