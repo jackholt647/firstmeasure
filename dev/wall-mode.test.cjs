@@ -53,6 +53,45 @@ function fixture(withBase=false,editors={}){
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
     return {ctx,elements,stages,soffits,resoffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
 }
+test('Show Dev Controls settings checkbox gates the panel across roof/wall mode switches',()=>{
+ let panel;
+ const perf={controlsVisible:false,mount(target){panel=target;},setControlsVisible(value){this.controlsVisible=value;panel.hidden=!value;}};
+ const {ctx,elements}=fixture(false,{ExteriorPerf:perf});
+ const checkbox=elements.get('wall-show-dev-controls');
+ assert.equal(checkbox.checked,false);
+ ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
+ checkbox.checked=true;checkbox.onchange();assert.equal(panel.hidden,false);
+ ctx.WallMode.setEnabled(false);assert.equal(panel.hidden,true);
+ ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,false);
+ checkbox.checked=false;checkbox.onchange();assert.equal(panel.hidden,true);
+ ctx.WallMode.setEnabled(false);ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
+ const restored=fixture(false,{ExteriorPerf:{...perf,controlsVisible:true}});
+ assert.equal(restored.elements.get('wall-show-dev-controls').checked,true);
+});
+
+test('confirmed exterior reset keeps the roof, survives stale saved metadata, and supports undo, redo and regeneration',()=>{
+ let host,confirmed=false,prompts=0;
+ const f=fixture(true,{confirm:()=>{prompts++;return confirmed;},createWallEditor:h=>{host=h;return {leave(){},clear(){},apply:w=>w,draw2D(){},draw3D(){},hasDraft:()=>false,busy:()=>false};}});
+ f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ host.state().wallEdits={$loose:{points:[{x:1,y:2,z:3}],edges:[]}};
+ host.state().roofTrim={width:6,custom:'keep roof trim'};
+ const roof=JSON.stringify(f.ctx.activeGeometry),saved=f.ctx.WallMode.serialize();
+ const clear=f.elements.get('wall-clear-model');assert.equal(clear.disabled,false);
+ clear.onclick();assert.equal(prompts,1);assert.ok(f.ctx.WallMode.serialize());assert.equal(JSON.stringify(f.ctx.activeGeometry),roof);
+ confirmed=true;clear.onclick();assert.equal(prompts,2);assert.equal(f.ctx.WallMode.serialize(),null);assert.equal(f.ctx.WallMode.enabled,true);assert.equal(clear.disabled,true);
+ assert.equal(JSON.stringify(f.ctx.activeGeometry),roof);assert.equal(f.ctx.WallMode.serializeRoofTrim().custom,'keep roof trim');
+ const history=f.ctx.WallMode.serializeHistory();assert.equal(history.undo.at(-1).full,true);
+ f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved},history);
+ assert.equal(f.ctx.WallMode.serialize(),null,'local clear wins over the older project save');
+ const key=k=>f.listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
+ key('z');assert.equal(f.ctx.WallMode.serialize().wallEdits.$loose.points.length,1);
+ key('y');assert.equal(f.ctx.WallMode.serialize(),null);
+ f.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});assert.equal(f.ctx.WallMode.serialize(),null);
+ f.soffits[1].onclick();assert.ok(f.ctx.WallMode.serialize().base);assert.equal(f.ctx.WallMode.serialize().wallEdits?.$loose,undefined);
+ const regenerated=f.ctx.WallMode.serialize();f.ctx.WallMode.restore('fixture',{exteriorsWalls:regenerated});assert.ok(f.ctx.WallMode.serialize().base);
+ assert.equal(JSON.stringify(f.ctx.activeGeometry),roof);
+});
+
 test('roof/wall preference survives before walls exist and is isolated per project',()=>{
  const {ctx}=fixture();ctx.WallMode.setEnabled(true);
  assert.equal(ctx.WallMode.serialize(),null);
