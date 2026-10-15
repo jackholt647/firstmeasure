@@ -2991,8 +2991,19 @@
     settings(orgId){return request(orgPath(orgId,'/contacts/settings'));},
     saveSettings(orgId,settings){return request(orgPath(orgId,'/contacts/settings'),{method:'PUT',body:settings});},
     options(orgId,kind='either'){return request(orgPath(orgId,'/contacts/options')+'?kind='+enc(kind));},
-    get(orgId,reference){return request(orgPath(orgId,'/contacts/'+enc(reference.contact_id))+'?project_id='+enc(reference.project_id));},
-    media(orgId,reference){return request(orgPath(orgId,'/media')+'?contact_id='+enc(reference.contact_id)+'&contact_project_id='+enc(reference.project_id));}
+    /* Contacts are records of their own (docs/architecture/contacts.md). A reference is a contact id or {contact_id}. */
+    list(orgId,query={}){const params=new URLSearchParams();for(const key of ['q','kind','tag','after','limit'])if(query[key])params.set(key,String(query[key]));const qs=params.toString();return request(orgPath(orgId,'/contacts')+(qs?'?'+qs:''));},
+    async listAll(orgId,query={}){const rows=[];let after='';do{const page=await contacts.list(orgId,{...query,limit:200,after});rows.push(...(page.contacts||[]));after=page.next||'';}while(after&&rows.length<20000);return rows;},
+    get(orgId,reference){const id=typeof reference==='string'?reference:reference?.contact_id;return request(orgPath(orgId,'/contacts/'+enc(id)));},
+    create(orgId,contact={}){return request(orgPath(orgId,'/contacts'),{method:'POST',body:contact||{}});},
+    update(orgId,contactId,changes={},expectedRevision){return request(orgPath(orgId,'/contacts/'+enc(contactId)),{method:'PATCH',body:{contact:changes||{},...(expectedRevision?{expected_revision:expectedRevision}:{})}});},
+    match(orgId,points={}){return request(orgPath(orgId,'/contacts/match'),{method:'POST',body:points||{}});},
+    merge(orgId,survivorId,mergedId,prefer={}){return request(orgPath(orgId,'/contacts/'+enc(survivorId)+'/merge'),{method:'POST',body:{merged_id:mergedId,prefer}});},
+    duplicates(orgId,kind='contact'){return request(orgPath(orgId,'/contacts/duplicates')+'?kind='+enc(kind));},
+    dismissDuplicate(orgId,kind,firstId,secondId){return request(orgPath(orgId,'/contacts/duplicates/dismiss'),{method:'POST',body:{kind,first_id:firstId,second_id:secondId}});},
+    setProjectContacts(orgId,projectId,links=[]){return request(orgPath(orgId,'/projects/'+enc(projectId)+'/contacts'),{method:'PUT',body:{contacts:links}});},
+    mergeProjects(orgId,survivorId,mergedId){return request(orgPath(orgId,'/projects/'+enc(survivorId)+'/merge'),{method:'POST',body:{merged_id:mergedId}});},
+    media(orgId,reference){const id=typeof reference==='string'?reference:reference?.contact_id;return request(orgPath(orgId,'/media')+'?contact_id='+enc(id));}
   };
   const contactImports = {
     // file: a File/Blob from an <input type=file>; options.mapping overrides

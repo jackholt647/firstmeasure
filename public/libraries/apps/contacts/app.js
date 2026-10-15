@@ -100,84 +100,8 @@
     return cleanText(value).replace(/[^\d]/g, '');
   }
 
-  function contactKey(contact = {}){
-    const email = normalizeKey(contact.email);
-    if (email) return `email:${email}`;
-    const digits = phoneDigits(contact.phone);
-    if (digits.length >= 7) return `phone:${digits}`;
-    const id = cleanText(contact.id, contact.contact_id, contact.primary_contact_id);
-    if (id) return `id:${id}`;
-    const name = normalizeKey(contact.name);
-    return name ? `name:${name}` : '';
-  }
 
-  function contactHasInfo(contact = {}){
-    return !!cleanText(contact.name, contact.email, contact.phone);
-  }
 
-  function contactCandidates(project = {}){
-    const contacts = Array.isArray(project.contacts) ? project.contacts : [];
-    const customer = project.customer && typeof project.customer === 'object' && !Array.isArray(project.customer) ? project.customer : {};
-    const resident = project.resident && typeof project.resident === 'object' && !Array.isArray(project.resident) ? project.resident : {};
-    const candidates = contacts
-      .filter((contact) => contact && typeof contact === 'object')
-      .map((contact) => ({
-        id: cleanText(contact.id, contact.contact_id),
-        contact_id: cleanText(contact.contact_id, contact.id),
-        name: cleanText(contact.name, contact.full_name, contact.display_name),
-        email: cleanText(contact.email, contact.email_address),
-        phone: cleanText(contact.phone, contact.phone_number, contact.mobile),
-        address: cleanText(contact.address, contact.default_address),
-        contact_kind:contact.contact_kind || 'human',
-        profile_media_id:contact.profile_media_id || '',
-        custom_field_values:contact.custom_field_values || {},
-        record_project_id:projectId(project),
-        tags: Array.isArray(contact.tags) ? contact.tags.map((tag) => cleanText(tag)).filter(Boolean) : [],
-        imported_at: cleanText(contact.imported_at),
-        import_source: cleanText(contact.import_source)
-      }));
-    candidates.push({
-      id: cleanText(project.contact_id, project.primary_contact_id, customer.id, resident.id),
-      contact_id: cleanText(project.contact_id, project.primary_contact_id, customer.id, resident.id),
-      name: cleanText(
-        project.customer_name,
-        project.customerName,
-        project.primary_contact_name,
-        project.resident_name,
-        project.residentName,
-        typeof project.resident === 'string' ? project.resident : '',
-        objectValue(customer, 'name', 'full_name', 'display_name'),
-        objectValue(resident, 'name', 'full_name', 'display_name')
-      ),
-      email: cleanText(
-        project.customer_email,
-        project.customerEmail,
-        project.primary_contact_email,
-        project.resident_email,
-        project.residentEmail,
-        objectValue(customer, 'email', 'email_address'),
-        objectValue(resident, 'email', 'email_address')
-      ),
-      phone: cleanText(
-        project.customer_phone,
-        project.customerPhone,
-        project.primary_contact_phone,
-        project.resident_phone,
-        project.residentPhone,
-        objectValue(customer, 'phone', 'phone_number', 'mobile'),
-        objectValue(resident, 'phone', 'phone_number', 'mobile')
-      ),
-      address: cleanText(project.contact_address, project.customer_address, project.primary_contact_address, objectValue(customer, 'address'), objectValue(resident, 'address'))
-    });
-
-    const seen = new Set();
-    return candidates.filter(contactHasInfo).filter((contact) => {
-      const key = contactKey(contact);
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }
 
   function parseDate(...values){
     const text = cleanText(...values);
@@ -235,58 +159,45 @@
     };
   }
 
-  function mergeContact(target, source){
-    if (!target.name || source.name.length > target.name.length) target.name = source.name || target.name;
-    if (!target.email) target.email = source.email || '';
-    if (!target.phone) target.phone = source.phone || '';
-    if (!target.address) target.address = source.address || '';
-    if (!target.id) target.id = cleanText(source.id, source.contact_id);
-    if(!target.custom_field_values)target.custom_field_values=source.custom_field_values || {};
-    if(source.profile_media_id && !target.profile_media_id)target.profile_media_id=source.profile_media_id;
-    if(source.contact_kind==='org')target.contact_kind='org';
-    if(!target.record_project_id)target.record_project_id=source.record_project_id;
-    (Array.isArray(source.tags) ? source.tags : []).forEach((tag) => {
-      if (!target.tags.some((existing) => existing.toLowerCase() === tag.toLowerCase())) target.tags.push(tag);
-    });
-    if (!target.imported_at) target.imported_at = cleanText(source.imported_at);
-    if (!target.import_source) target.import_source = cleanText(source.import_source);
-  }
 
-  function buildContacts(projects = []){
-    const byKey = new Map();
-    [...projects].sort((a,b)=>Number(b.workflow_state==='contact_only')-Number(a.workflow_state==='contact_only')).forEach((project) => {
-      const projectRef = projectSummary(project);
-      const perProjectKeys = new Set();
-      contactCandidates(project).forEach((candidate) => {
-        const key = contactKey(candidate);
-        if (!key || perProjectKeys.has(key)) return;
-        perProjectKeys.add(key);
-        if (!byKey.has(key)) {
-          byKey.set(key, {
-            key,
-            id: cleanText(candidate.id, candidate.contact_id),
-            name: cleanText(candidate.name, candidate.email, candidate.phone, 'Unknown contact'),
-            email: cleanText(candidate.email),
-            phone: cleanText(candidate.phone),
-            address: cleanText(candidate.address),
-            tags: [],
-            imported_at: '',
-            import_source: '',
-            projects: [],
-            projectIds: new Set(),
-            latestDateMs: 0
-          });
-        }
-        const record = byKey.get(key);
-        mergeContact(record, candidate);
-        if (project.workflow_state!=='contact_only' && !record.projectIds.has(projectRef.id)) {
-          record.projectIds.add(projectRef.id);
-          record.projects.push(projectRef);
-          record.latestDateMs = Math.max(record.latestDateMs, projectRef.dateMs || 0);
-        }
+  // The list is the contact store (docs/architecture/contacts.md); projects add the work each person is on.
+  function buildContacts(projects = [], stored = []){
+    const byId = new Map();
+    stored.forEach((contact) => {
+      if (!contact || !contact.id) return;
+      byId.set(contact.id, {
+        key: `id:${contact.id}`,
+        id: contact.id,
+        name: cleanText(contact.name, contact.email, contact.phone, 'Unknown contact'),
+        email: cleanText(contact.email),
+        phone: cleanText(contact.phone),
+        address: cleanText(contact.address),
+        contact_kind: contact.contact_kind || 'human',
+        profile_media_id: contact.profile_media_id || '',
+        custom_field_values: contact.custom_field_values || {},
+        tags: (Array.isArray(contact.tags) ? contact.tags : []).map((tag) => cleanText(tag)).filter(Boolean),
+        imported_at: cleanText(contact.imported_at),
+        import_source: cleanText(contact.import_source),
+        record_project_id: '',
+        projects: [],
+        projectIds: new Set(),
+        latestDateMs: 0
       });
     });
-    return Array.from(byKey.values()).map((contact) => {
+    projects.forEach((project) => {
+      const projectRef = projectSummary(project);
+      (Array.isArray(project.contacts) ? project.contacts : []).forEach((linked) => {
+        const record = byId.get(cleanText(linked?.id, linked?.contact_id));
+        if (!record) return;
+        // A standalone record is where the contact window still saves; it is not one of their projects.
+        if (project.workflow_state === 'contact_only') { if (!record.record_project_id) record.record_project_id = projectRef.id; return; }
+        if (record.projectIds.has(projectRef.id)) return;
+        record.projectIds.add(projectRef.id);
+        record.projects.push(projectRef);
+        record.latestDateMs = Math.max(record.latestDateMs, projectRef.dateMs || 0);
+      });
+    });
+    return Array.from(byId.values()).map((contact) => {
       contact.projects.sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0) || a.title.localeCompare(b.title));
       contact.projectCount = contact.projects.length;
       contact.latestDateLabel = dateLabel(new Date(contact.latestDateMs || 0));
@@ -682,13 +593,13 @@
     state.error = '';
     render();
     try {
-      const result = await window.PlatformAPI.projects.list(oid);
+      const [result, stored] = await Promise.all([window.PlatformAPI.projects.list(oid), window.PlatformAPI.contacts.listAll(oid)]);
       if(window.PlatformAPI.contacts?.settings)state.tagCatalog=(await window.PlatformAPI.contacts.settings(oid)).settings?.tags || [];
       const docs = Array.isArray(result?.documents) ? result.documents : [];
       state.projects = docs.map(projectFromDocument).filter(Boolean);
       await sharingView()?.load();
       if (oid !== orgId()) return;
-      state.contacts = [...buildContacts(state.projects), ...(sharingView()?.incoming || []).map(item=>({
+      state.contacts = [...buildContacts(state.projects, stored), ...(sharingView()?.incoming || []).map(item=>({
         key:sharingView().id(item),id:sharingView().id(item),name:item.data?.name || 'Shared contact',email:item.data?.email || '',phone:item.data?.phone || '',address:item.data?.address || '',projects:[],tags:[],latestDateLabel:'—',_shared:item
       }))];
       state.loadedAt = Date.now();

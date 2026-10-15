@@ -129,11 +129,19 @@ and bounds size, time and decoding. A failed photo leaves its contact intact.
 
 ## Frontend
 
-`public/libraries/contacts-client/` is the one browser client: a cache keyed by
-id that follows merges and refreshes on the realtime facts, and the shared
-picker, chip, card and contact window used by every app.
+`PlatformAPI.contacts` is the browser client: `list`/`listAll`, `get`,
+`create`, `update`, `match`, `merge`, `duplicates`, `dismissDuplicate`,
+`setProjectContacts`, `mergeProjects`, `media`. The Contacts app lists the
+store and attaches each person's projects from the projection. Contact media is
+owned by the contact alone.
 
 ## Not built
+
+- The contact window still saves through a standalone (`contact_only`)
+  project, and other project editors still send `contacts` on project writes;
+  both reach the store through the bridge. Moving them to `PlatformAPI.contacts`
+  and removing the bridge is the remaining frontend work.
+- Contact file import still writes standalone records through the bridge.
 
 - Pickers still load every contact through `contacts.options`, and a contact
   edit rewrites every linked project's projection
@@ -141,12 +149,13 @@ picker, chip, card and contact window used by every app.
 
 ## Phases
 
-1. Store, normalizer, service, reference registry, routes and publication; the
-   storage bridge; migration of existing project contacts.
-2. Intake on contacts and opportunities ([opportunities](opportunities.md)).
-3. Scope categories and the sales outcome actions.
-4. Contact merge, duplicates, project merge.
-5. Readers and writers moved to the client; bridge removed; legacy CRM deleted.
+1. Store, normalizer, service, routes and publication; the storage bridge;
+   migration of existing project contacts. Done.
+2. Intake on contacts and opportunities ([opportunities](opportunities.md)). Done.
+3. Scope categories and the sales outcome actions. Done.
+4. Contact merge, duplicates, project merge. Done.
+5. Legacy CRM deleted; Contacts app lists the store. Writers still use the
+   bridge (see Not built).
 6. Contact window presentation of embedded projects; CRM lists and bulk actions.
 
 Validation: `tests/contacts-store.test.ts`, `tests/contact-merge.test.ts`,

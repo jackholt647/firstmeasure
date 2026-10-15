@@ -726,10 +726,11 @@
     const back={contact:{...state.contact},projects:[state.contactRecord,...state.projects].filter(Boolean)};
     try{
       setMeta('Opening linked contact…');
-      const [found,project]=await Promise.all([window.PlatformAPI.contacts.get(orgId(),ref),window.PlatformAPI.projects.get(orgId(),ref.project_id)]);
-      const record=projectFromDocument(project.document);
-      if(!record)throw Error('Could not open the linked contact record.');
-      await open({...found.contact,id:ref.contact_id,project_id:ref.project_id},{projects:[record],projectsComplete:true,returnToContact:back});
+      // A reference names the contact; an older one may also name its standalone record.
+      const [found,project]=await Promise.all([window.PlatformAPI.contacts.get(orgId(),ref),ref.project_id?window.PlatformAPI.projects.get(orgId(),ref.project_id).catch(()=>null):Promise.resolve(null)]);
+      const record=project?projectFromDocument(project.document):null;
+      const id=found.contact?.id || ref.contact_id;
+      await open({...found.contact,id,...(record?{project_id:projectId(record)}:{})},record?{projects:[record],projectsComplete:true,returnToContact:back}:{returnToContact:back});
     }catch(error){setMeta(error.message || 'Could not open linked contact.');}
   }
   async function openRelationship(type){

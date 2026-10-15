@@ -1546,13 +1546,13 @@ app.get("/auth/google/config", async () => ({
     const ctx = await requirePlatformAuth(request, { orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const projectId = cleanText(query.project_id || query.projectId);
-    const contactId=cleanText(query.contact_id),contactProjectId=cleanText(query.contact_project_id);
-    if(contactId){await requirePlatformAuth(request,{orgId,permission:"view_contacts"});await resolveContact(orgId,{contact_id:contactId,project_id:contactProjectId});}
+    const contactId=cleanText(query.contact_id);
+    if(contactId){await requirePlatformAuth(request,{orgId,permission:"view_contacts"});await resolveContact(orgId,{contact_id:contactId});}
     const tags = normalizeMediaTags(query.tags || query.tag);
     const tagMode = cleanText(query.tag_mode || query.tagMode).toLowerCase() === "all" ? "all" : "any";
     const media = (await listMedia(orgId))
       .filter((item) => canReadReceiptMedia(item, ctx))
-      .filter(item=>!contactId || cleanText(asObject(item.owner).type)==="contact" && cleanText(asObject(item.owner).id)===contactId && cleanText(asObject(item.metadata).contact_record_project_id)===contactProjectId)
+      .filter(item=>!contactId || cleanText(asObject(item.owner).type)==="contact" && cleanText(asObject(item.owner).id)===contactId)
       .filter((item) => {
         if (!projectId) return true;
         const owner = asObject(item.owner);
@@ -1579,15 +1579,13 @@ app.get("/auth/google/config", async () => ({
     const upload = await parseMediaUploadRequest(request);
     if(upload.ownerType==="contact"){
       await requirePlatformAuth(request,{orgId,csrf:true,permission:"manage_projects"});
-      const metadata=asObject(upload.metadata),anchor=cleanText(metadata.contact_record_project_id);
-      if(!anchor || !upload.ownerId)throw badRequest("contact_media_owner","Contact media needs a contact and record identity.");
-      try {await resolveContact(orgId,{contact_id:upload.ownerId,project_id:anchor});}
+      const metadata=asObject(upload.metadata);
+      if(!upload.ownerId)throw badRequest("contact_media_owner","Contact media needs a contact.");
+      // Contact media belongs to the contact. A draft photo may come before the contact's first save, for a new id only.
+      try {await resolveContact(orgId,{contact_id:upload.ownerId});}
       catch(error){
-        if(!(error instanceof PlatformError && error.statusCode===404) || metadata.contact_draft!==true || !/^project_[a-z0-9_]{8,100}$/i.test(anchor) || !/^contact_[a-z0-9_]{8,100}$/i.test(upload.ownerId))throw error;
-        // Draft media permits required photos before the first contact save. It
-        // never bypasses an existing record's contact membership check.
-        try {await readDocument(orgId,"projects",anchor);throw forbidden("contact_media_owner","Contact does not belong to this record.");}
-        catch(parentError){if(!(parentError instanceof PlatformError && parentError.statusCode===404))throw parentError;}
+        if(!(error instanceof PlatformError && error.statusCode===404) || metadata.contact_draft!==true || !/^contact_[a-z0-9_]{8,100}$/i.test(upload.ownerId))throw error;
+        if(await (await import("../contacts/records.js")).resolveContactId(orgId,upload.ownerId))throw forbidden("contact_media_owner","This contact already exists.");
       }
       if(upload.slot==="logo" || upload.scope==="branding" || upload.collection==="branding")throw badRequest("contact_media_slot","Contact media cannot use public branding slots.");
       if(upload.slot==="profile")await (await import("../contacts/photo-import.js")).validateContactPhoto(upload);
