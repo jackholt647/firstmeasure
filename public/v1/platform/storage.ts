@@ -1227,7 +1227,15 @@ async function upsertFileDocument(orgId: string, collectionValue: string, input:
 }
 
 export async function deleteDocument(orgId: string, collectionValue: string, documentId: string) {
-  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).deleteDocument(orgId, collectionValue, documentId);
+  const existing = isFirstMeasurePostgresEnabled()
+    ? await (await postgresStorage()).deleteDocument(orgId, collectionValue, documentId)
+    : await deleteFileDocument(orgId, collectionValue, documentId);
+  // A deleted project no longer has contacts; the contacts themselves stay.
+  if (collectionValue === "projects") await (await import("../contacts/records.js")).setProjectContactLinks(orgId, documentId, []);
+  return existing;
+}
+
+async function deleteFileDocument(orgId: string, collectionValue: string, documentId: string) {
   const collection = assertCollection(collectionValue);
   await readOrganization(orgId);
   const existing = await readDocument(orgId, collection, documentId);

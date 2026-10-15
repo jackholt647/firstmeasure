@@ -7,7 +7,7 @@ import { createModuleInstance, evaluateModuleInstance, freezeModuleInstance, sto
 import { organizationBranding } from "../documents/theme-defaults.js";
 import { escapeEmailHtml } from "../email/outbound.js";
 import { sendOrganizationTransactionalEmail } from "../email/organization_outbound.js";
-import { createPlatformLead } from "../platform/api.js";
+import { receiveLead } from "../leads/receive.js";
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
@@ -676,19 +676,17 @@ export async function submitPublicForm(publicKey: string, body: JsonObject, meta
       page_url: str(body.page_url).slice(0, 2000),
       referrer: str(body.referrer).slice(0, 2000)
     };
-    const created = await createPlatformLead(orgId, {
+    // A ticked consent block that records an SMS opt-in, with the sentence the visitor agreed to.
+    const smsConsent = items.find((item) => item.kind === "consent" && item.sms_opt_in === true && item.param && answers[item.param] === true);
+    const created = await receiveLead(orgId, {
       project_id: projectId,
       branch_id: branchId,
-      stage_id: definition.settings.stage_id || "new_lead",
-      source_kind: "web_form",
+      source: { kind: "web_form", provider: "Web form", confidence: 1, provider_fields: { ...source, answers: summary }, ...source },
       address,
       title: address || name || published.name,
       summary: message,
       contacts: name || email || phone ? [{ name, email, phone, phones: phone ? [phone] : [] }] : [],
-      provider: "Web form",
-      confidence: 1,
-      provider_fields: { ...source, answers: summary },
-      lead_source: { kind: "web_form", provider: "Web form", ...source },
+      ...(smsConsent ? { consent: { sms: true, disclosure_text: smsConsent.label, evidence: { form_id: record.id, submission_id: submissionId, page_url: source.page_url } } } : {}),
       project_data: {
         form_submission: { id: submissionId, ...source, version: published.version, answers, summary, ...(estimate ? { estimate } : {}), ...(estimateError ? { estimate_error: estimateError } : {}), ...(requestedStart ? { requested_start_at: requestedStart } : {}) }
       },

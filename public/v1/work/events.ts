@@ -212,6 +212,7 @@ registerWorkEvents([
 
   // ── Projects & CRM ──────────────────────────────────────────────────────
   { name: "project.created", notification: { group: "projects", source: "projects", tab: "general" }, description: "A project (or lead) was created.", visibility: "activity", payload: { source_kind: "How the project arrived (manual_lead, email_lead, canvassing, ...)." } },
+  { name: "lead.received", notification: { group: "projects", source: "projects", tab: "general" }, description: "A lead arrived from a form, email, connection, chat, canvassing or the API, and its project was created.", visibility: "activity", payload: { source_kind: "How the lead arrived (web_form, email_lead, live_chat, canvassing, ...).", contact_ids: "The lead's contacts, first is primary.", matched_contact_ids: "Contacts that already existed and were matched by email or phone." } },
   { name: "project.updated", notification: { group: "projects", source: "projects", tab: "general" }, description: "Project fields were edited.", visibility: "system" },
   { name: "project.deleted", notification: { group: "projects", source: "projects", tab: "general" }, description: "A project was deleted.", visibility: "activity" },
   { name: "project.contact.attached", notification: { group: "projects", source: "projects", tab: "general" }, description: "A contact was attached to the project.", visibility: "activity" },

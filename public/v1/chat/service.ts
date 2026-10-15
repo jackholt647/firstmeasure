@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import {
   createConversationRecord,
@@ -709,21 +709,8 @@ export async function captureOfflineDetails(context: WidgetContext, visitor: Cha
 
   let leadId = "";
   if (cleanText(updated.email) || cleanText(updated.phone)) {
-    try {
-      const { createPlatformLead } = await import("../platform/api.js");
-      const messages = (await listMessagesAfter(orgId, conversationId, "", { public_only: true, limit: 10 }));
-      const lead = await createPlatformLead(orgId, {
-        name: cleanText(updated.display_name) || "Live chat visitor",
-        email: cleanText(updated.email),
-        phone: cleanText(updated.phone),
-        source: "live_chat",
-        notes: messages.map((message) => `${message.direction === "inbound" ? "Visitor" : "Team"}: ${cleanText(message.text_body)}`).join("\n").slice(0, 4000),
-        metadata: { chat_conversation_id: conversationId }
-      } as never);
-      leadId = cleanText(asObject(lead).id);
-    } catch {
-      // Lead creation is best-effort; the offline message event still fires.
-    }
+    const messages = (await listMessagesAfter(orgId, conversationId, "", { public_only: true, limit: 10 }));
+    leadId = await receiveChatLead(orgId, branchId, conversationId, updated, messages.map((message) => `${message.direction === "inbound" ? "Visitor" : "Team"}: ${cleanText(message.text_body)}`).join("\n").slice(0, 4000));
   }
   await emitChatEvent("chat.offline.message", orgId, branchId, state, {
     visitor_name: cleanText(updated.display_name),
@@ -732,6 +719,30 @@ export async function captureOfflineDetails(context: WidgetContext, visitor: Cha
     lead_id: leadId
   });
   return { lead_id: leadId };
+}
+
+/**
+ * One lead per conversation, however many times the visitor shares details. Capture is
+ * best-effort for the visitor; a failure is logged, never silently dropped.
+ */
+export async function receiveChatLead(orgId: string, branchId: string, conversationId: string, visitor: ChatJson, summary = "") {
+  const projectId = `lead_chat_${createHash("sha256").update(`${orgId}:${conversationId}`).digest("hex").slice(0, 32)}`;
+  const { readDocument } = await import("../platform/storage.js");
+  if (await readDocument(orgId, "projects", projectId).then(() => true, () => false)) return projectId;
+  try {
+    const name = cleanText(visitor.display_name);
+    const lead = await (await import("../leads/receive.js")).receiveLead(orgId, {
+      branch_id: cleanText(branchId) || "default", project_id: projectId,
+      source: { kind: "live_chat", provider: "Live chat", chat_conversation_id: conversationId },
+      contacts: [{ name: name || "Live chat visitor", email: cleanText(visitor.email), phone: cleanText(visitor.phone) }],
+      title: name || cleanText(visitor.email) || cleanText(visitor.phone) || "Live chat lead", summary
+    });
+    return cleanText(lead.project.id);
+  } catch (error) {
+    if ((error as { code?: string })?.code === "document_exists") return projectId;
+    console.error("[chat] lead capture failed", { orgId, conversationId, error: error instanceof Error ? error.message : String(error) });
+    return "";
+  }
 }
 
 // --- Claiming --------------------------------------------------------------

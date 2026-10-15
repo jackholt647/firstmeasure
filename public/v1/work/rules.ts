@@ -51,7 +51,7 @@ export const DEFAULT_AUTOMATION_RULES: JsonObject[] = [
     title: "Queue a call when a new lead arrives",
     explainer: "When a new lead comes in, we add them to the New Leads call queue so someone reaches out right away.",
     customer_visible: true,
-    event: "project.created",
+    event: "lead.received",
     conditions: {},
     automation: "crm.callLists.add.v1",
     input: {

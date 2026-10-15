@@ -51,28 +51,44 @@ engine refuses to start a sales plan beyond it.
 
 ## Intake
 
-Every source is an adapter that produces one `LeadSubmission`:
+Every source builds one `LeadSubmission` (`leads/receive.ts`) and calls
+`receiveLead`:
 
 ```ts
-{ source: {kind, provider, external_id, source_id, connection_id},
-  branch_id, contacts: [{name, kind, emails, phones, role}], address,
-  title, summary, provider_fields, consent, received_at }
+{ source: {kind, provider, confidence, provider_fields, raw, ...source fields},
+  branch_id, project_id?, contacts: [{name, email, phone, phones, role}],
+  address, title, summary, project_data?, consent?: {sms, disclosure_text},
+  notification? }
 ```
 
-Sources: website forms, inbound email, Connections webhooks and polling,
-`leads.import`, live chat, canvassing, the published `leads.create` action and
-contact file import (which stops after step 3). Each calls `receiveLead`
-(`leads/receive.ts`):
+Sources: website forms, inbound email, Connections webhooks and polling and
+`leads.import` (through the `lead_deliveries` ledger in `leads/intake.ts`),
+live chat (one lead per conversation), canvassing (one lead per pin), the
+manual `POST /leads` route (`manage_projects`, branch-checked, lead fields only)
+and the published `projects.lead.create` action. `receiveLead`:
 
-1. Claim the delivery in `lead_deliveries` (existing idempotency; a retry
-   returns the first result).
-2. Validate and normalize contact points.
-3. For each contact: match, then use or create ([contacts](contacts.md)).
-4. Create the project, link the contacts, record `lead_source` on it, and start
-   the sales plan chosen by intake routing.
-5. Record consent given in the submission.
-6. Emit `lead.received` and `project.created`. Who is notified is an
-   organization rule, not code.
+1. Refuses a submission whose `project_id` already exists, so a retry never
+   makes a second lead. Each source picks a stable id for its retries.
+2. For each contact: an exact email or phone match uses that contact (when
+   `auto_attach_exact` is on); otherwise a contact is created. **A lead never
+   changes an existing contact**: anyone can type someone else's phone into a
+   form, so what the lead said is kept on `lead_source.contacts` instead.
+3. Creates the project with `lead_source`, links the contacts (first is
+   primary) and starts the sales plan chosen by intake routing.
+4. Records an SMS opt-in for each phone when `consent.sms` is set. A form's
+   consent block sets it when the block has `sms_opt_in` and is ticked; its
+   label is the disclosure.
+5. Emits `project.created` and `lead.received`. The default organization rule
+   that queues a first call runs on `lead.received`.
+
+Contact file import still writes standalone records through the contact bridge
+until the Contacts app reads the store (phase 5).
+
+**Not yet moved:** the new-lead notification is still sent by `receiveLead`
+(with each source's title and roles) rather than by an organization rule, and
+leads still carry `lead_status: "new"` and `project_type: "lead"` until the
+opportunity outcome replaces them (phase 3). A form's `settings.stage_id` is
+no longer used; intake routing picks the sales scope.
 
 Triage is a view, not a state: opportunities still in their plan's first stage,
 plus open duplicate suggestions. Dismissing a submission marks its opportunity

@@ -230,6 +230,22 @@ export async function findExactMatches(org: string, input: JsonObject) {
   return loadRecords(db(), org, rows.map(r => text(r.contact_id)));
 }
 
+/** Deletes a contact an import created, if nothing links to it. Only undoing that import may call this. */
+export async function removeUnusedContact(org: string, id: string, importId: string) {
+  if (!id || !importId) return false;
+  const store = db();
+  const removed = await store.transaction(async tx => {
+    const [contact] = await loadRecords(tx, org, [id]);
+    if (!contact || contact.import_id !== importId || contact.merged_into) return false;
+    if (await tx.prepare("SELECT 1 FROM contact_links WHERE organization_id=? AND contact_id=?").get(org, id)) return false;
+    for (const table of ["contact_points", "contact_branches"]) await tx.prepare(`DELETE FROM ${table} WHERE organization_id=? AND contact_id=?`).run(org, id);
+    await tx.prepare("DELETE FROM contacts WHERE organization_id=? AND id=?").run(org, id);
+    return true;
+  }, `contact:${org}:${id}`);
+  if (removed) await publishRealtimeEvent({ organization_id: org, topic: "contact.removed", payload: { contact_id: id } });
+  return removed;
+}
+
 // ---- Project links -------------------------------------------------------
 
 export async function projectContactLinks(org: string, projectId: string, store: SqlStore = db()): Promise<ContactLink[]> {

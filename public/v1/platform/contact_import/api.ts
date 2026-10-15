@@ -614,6 +614,9 @@ export async function registerContactImportRoutes(app: FastifyInstance, deps: Co
         return;
       }
       await deleteDocument(orgId, "projects", projectId);
+      // The contacts this import created go too, unless something else now uses them.
+      const { removeUnusedContact } = await import("../../contacts/records.js");
+      for (const contact of asArray(data.contacts)) await removeUnusedContact(orgId, cleanText(asObject(contact).id), importId);
       removed += 1;
     });
     const undoneAt = nowIso();
